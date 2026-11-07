@@ -95,7 +95,8 @@ export class SoftAuthenticator {
     return b64u(this.credentialId);
   }
 
-  private coseKey(): Buffer {
+  /** The credential public key, COSE-encoded, as a relying party stores it. */
+  coseKey(): Buffer {
     const jwk = this.publicKey.export({ format: "jwk" }) as { x: string; y: string };
     return cborEncode(
       new Map<Cbor, Cbor>([

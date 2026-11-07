@@ -121,7 +121,7 @@ function Shell() {
             data-subprocessors-refresh
             onClick={() => void refresh()}
             disabled={busy}
-            className={`${buttonClasses} border-[#0F172A] bg-[#0F172A] text-white hover:opacity-90`}
+            className={`${buttonClasses} border-[var(--btn-primary-border)] bg-[var(--btn-primary-bg)] text-[var(--btn-primary-color)] hover:opacity-90`}
           >
             {busy ? "Loading…" : "Refresh"}
           </button>

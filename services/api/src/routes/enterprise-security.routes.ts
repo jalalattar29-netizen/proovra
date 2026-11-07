@@ -28,6 +28,7 @@ import { getMfaPolicy } from "../services/identity-security/mfa-policy.service.j
 import {
   resolveOrgPolicyByOrgId,
   applySecurityPolicyPatch,
+  classifyPolicyEditUnderMandatorySso,
   checkHighSecurityReadiness,
   activateHighSecurityMode,
   orgCanonicalTeamId,
@@ -358,6 +359,65 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     const body = PatchBody.parse(req.body ?? {});
     const auth = await requireOrgPolicyAdmin(req, reply, body.organizationId);
     if (!auth) return;
+    const actorSession = {
+      authMethod: typeof req.user?.authMethod === "string" ? req.user.authMethod : null,
+      ssoConnectionId: typeof req.user?.ssoConnId === "string" ? req.user.ssoConnId : null,
+      mfaAt: typeof (req.user as { mfaAt?: unknown } | undefined)?.mfaAt === "number"
+        ? ((req.user as { mfaAt?: number }).mfaAt as number)
+        : null,
+    };
+    {
+      const { organizationId: _o, expectedPolicyVersion: _v, ...patchOnly } = body;
+      const cls = await classifyPolicyEditUnderMandatorySso({
+        organizationId: body.organizationId,
+        actorUserId: auth.actorUserId,
+        patch: patchOnly,
+        actorSession,
+      });
+      // Refused before any step-up is asked for: nothing could make it pass.
+      if (cls === "refused") {
+        return reply.code(409).send({ error: { code: "SSO_REQUIRED_POLICY_EDIT_NEEDS_SSO" } });
+      }
+      // IDENT-008 owner recovery: the Organization's workspaces refuse a
+      // non-SSO session (that is what is broken), so the step-up is anchored to
+      // the owner's own personal workspace, bound to this Organization as its
+      // resource. The policy authority re-checks the recovery conditions.
+      if (cls === "owner_recovery") {
+        const personal = await prisma.team.findFirst({
+          where: { ownerUserId: auth.actorUserId, isPersonal: true },
+          select: { id: true },
+        });
+        if (!personal) return reply.code(409).send({ error: { code: "SSO_REQUIRED_POLICY_EDIT_NEEDS_SSO" } });
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: personal.id,
+          userId: auth.actorUserId,
+          purpose: "ORG_SECURITY_POLICY_UPDATE",
+          resourceKind: "organization",
+          resourceId: body.organizationId,
+        });
+        if (gate.sent) return;
+        const { organizationId, expectedPolicyVersion, ...patch } = body;
+        try {
+          const policy = await applySecurityPolicyPatch({
+            organizationId,
+            expectedPolicyVersion: expectedPolicyVersion ?? null,
+            actorUserId: auth.actorUserId,
+            patch,
+            ipAddress: ip(req),
+            userAgent: (req.headers["user-agent"] as string) ?? null,
+            actorSession,
+          });
+          return reply.send({ policy: await projectPolicyForAdmin(organizationId, policy) });
+        } catch (err) {
+          const e = err as { code?: string; details?: unknown };
+          if (e.code === "POLICY_VERSION_CONFLICT") return reply.code(409).send({ error: { code: e.code, details: e.details } });
+          if (e.code === "SSO_REQUIRED_POLICY_EDIT_NEEDS_SSO") return reply.code(409).send({ error: { code: e.code } });
+          throw err;
+        }
+      }
+    }
     // Step-up binds to the org's canonical team (challenge anchor only — never a
     // policy decision key).
     const bindTeamId = await orgCanonicalTeamId(body.organizationId);
@@ -376,10 +436,7 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
         userAgent: (req.headers["user-agent"] as string) ?? null,
         // IDENT-008 — the administrator's own way in is checked before SSO
         // becomes the only one.
-        actorSession: {
-          authMethod: typeof req.user?.authMethod === "string" ? req.user.authMethod : null,
-          ssoConnectionId: typeof req.user?.ssoConnId === "string" ? req.user.ssoConnId : null,
-        },
+        actorSession,
       });
       return reply.send({ policy: await projectPolicyForAdmin(organizationId, policy) });
     } catch (err) {
@@ -388,6 +445,7 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
       if (
         e.code === "SSO_REQUIRED_NO_ACTIVE_CONNECTION" ||
         e.code === "SSO_REQUIRED_ACTOR_NOT_SIGNED_IN_WITH_SSO" ||
+        e.code === "SSO_REQUIRED_POLICY_EDIT_NEEDS_SSO" ||
         e.code === "RESTRICTED_IP_RANGE_INVALID" ||
         e.code === "RESTRICTED_IP_EXCLUDES_ACTOR"
       ) {

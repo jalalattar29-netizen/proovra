@@ -285,6 +285,28 @@ describe("Phase D — closure lifecycle (live PostgreSQL)", () => {
     expect((await prisma.team.findUniqueOrThrow({ where: { id: org.workspaceId } })).closedAtUtc).toBeNull();
   });
 
+  it("PROV-013 — with no effective date, termination leaves a 30-day window in which the owner can still export", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const before = Date.now();
+    const result = await termination.beginEnterpriseTermination({
+      organizationId: org.organizationId,
+      actorUserId: org.owner.userId,
+      reason: "no date given",
+    });
+    const days = (result.effectiveAtUtc.getTime() - before) / 86_400_000;
+    expect(days).toBeGreaterThan(29.99);
+    expect(days).toBeLessThan(30.01);
+    // The organization is still operating, so its owner can reach the offboarding export.
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: org.organizationId } })).status).toBe("ACTIVE");
+    expect((await prisma.team.findUniqueOrThrow({ where: { id: org.workspaceId } })).closedAtUtc).toBeNull();
+    const exportList = await harness.app.inject({
+      method: "GET",
+      url: "/v1/orgs/" + org.organizationId + "/data-export",
+      headers: { authorization: "Bearer " + org.owner.token },
+    });
+    expect(exportList.statusCode, exportList.body).toBe(200);
+  });
+
   it("LIFE-16 — an ACTIVE legal hold holds a termination at TERMINATING; nothing closes", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const live = await populate(org.workspaceId, org.owner.userId);

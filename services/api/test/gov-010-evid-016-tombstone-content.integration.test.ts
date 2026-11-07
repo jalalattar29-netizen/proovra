@@ -167,8 +167,8 @@ describe("GOV-010 EVID-016 the tombstone keeps history, not content (live Postgr
     const res = await destroy(id);
     expect(res).toMatchObject({ ok: true, outcome: "DESTROYED" });
     if (res.ok && res.outcome === "DESTROYED") {
-      expect(res.certificate.retainedByDesign).toContain("human_authored_notes_pending_policy");
-      expect(res.certificate.retainedByDesign).toContain("sealed_capture_facts_pending_policy");
+      expect(res.certificate.retainedByDesign).toContain("human_note_authorship");
+      expect(res.certificate.retainedByDesign).toContain("sealed_capture_facts");
     }
 
     const row = await prisma.evidence.findUniqueOrThrow({ where: { id } });
@@ -200,7 +200,9 @@ describe("GOV-010 EVID-016 the tombstone keeps history, not content (live Postgr
       expect(await count).toBe(0);
     }
     expect(await prisma.custodyEvent.count({ where: { evidenceId: id, eventType: "EVIDENCE_PURGED" } })).toBe(1);
-    expect(await prisma.evidenceLegalNote.count({ where: { evidenceId: id } }), "pending the policy decision").toBe(1);
+    // GOV-010 (decided): the note stays as history — its author and time — and its text goes.
+    const notes = await prisma.evidenceLegalNote.findMany({ where: { evidenceId: id }, select: { body: true, authorUserId: true } });
+    expect(notes).toEqual([{ body: "", authorUserId: A().ownerUserId }]);
   });
 
   it("EVID-016: the graph forgets a destroyed record and its entities, and a later reconcile does not rebuild them", async () => {

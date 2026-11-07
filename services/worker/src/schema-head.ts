@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281119100400_legal_hold_disclosure_setting";
+export const EXPECTED_MIGRATION_HEAD = "20281120000000_login_mfa_challenge_factors";
 
 export type MigrationRow = {
   migration_name: string;

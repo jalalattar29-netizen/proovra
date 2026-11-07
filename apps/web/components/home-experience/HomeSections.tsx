@@ -406,7 +406,7 @@ export function ActiveMatters({
           <Link
             href="/cases"
             data-case-cta="create-case"
-            style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+            style={{ ...secondaryButtonStyle, marginTop: 12, background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)", border: "1px solid var(--btn-primary-border)" }}
           >
             Create case
           </Link>
@@ -561,7 +561,7 @@ export function IntakePipelineCard({
           <Link
             href="/billing"
             data-intake-upgrade
-            style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+            style={{ ...secondaryButtonStyle, marginTop: 12, background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)", border: "1px solid var(--btn-primary-border)" }}
           >
             See plans
           </Link>
@@ -579,7 +579,7 @@ export function IntakePipelineCard({
         <Link
           href="/intake-links?new=1"
           data-collection-cta="create-intake-link"
-          style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+          style={{ ...secondaryButtonStyle, marginTop: 12, background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)", border: "1px solid var(--btn-primary-border)" }}
         >
           Create intake link
         </Link>
@@ -1399,7 +1399,7 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
         <Link
           href="/capture"
           data-trust-cta="capture-first"
-          style={{ ...secondaryButtonStyle, marginTop: 12, background: "#0f172a", color: "white", border: "1px solid #0f172a" }}
+          style={{ ...secondaryButtonStyle, marginTop: 12, background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)", border: "1px solid var(--btn-primary-border)" }}
         >
           Capture first evidence
         </Link>

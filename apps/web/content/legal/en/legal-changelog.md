@@ -1,6 +1,6 @@
 # Legal Changelog
 
-Last Updated: 2026-10-15
+Last Updated: 2026-11-07
 
 This page provides a version history for PROOVRA's legal and compliance documentation. It is intended to improve transparency around material updates to policies, terms, privacy notices, cookie practices, and related compliance documents.
 
@@ -49,6 +49,11 @@ This version is currently associated with the following core documents:
 Where required by PROOVRA's implementation, users may be asked to re-accept updated legal terms after a material revision.
 
 ## 3. CHANGE HISTORY
+
+### 2026-11-07 — Subprocessors: MaxMind removed
+
+- Removed MaxMind from the Subprocessors register. The platform does not send IP addresses, or any other data, to MaxMind or to any other geolocation provider: no such integration is connected, and the register lists only providers that are engaged or whose activation is explicitly conditional on configuration.
+- The Cookie Policy's list of service-side providers that set no cookies still names MaxMind; that mention will be removed at the Cookie Policy's next revision. The Subprocessors register is the authoritative list of providers.
 
 ### 2026-10-15 — Evidence retention minimum stated exactly
 

@@ -394,6 +394,9 @@ function makeStepUpWorld(overrides: Partial<ChalRow> = {}) {
   };
 
   const client = {
+    // IDENT-019 — the middleware reads the session inventory for a quarantine;
+    // these sessions have no inventory row, so none is quarantined.
+    authenticatedSession: { findFirst: async () => null },
     stepUpChallenge: {
       findFirst: async (args: { where: { id: string; teamId: string } }) =>
         rows.find(
@@ -748,6 +751,8 @@ vi.mock("../src/services/identity/org-security-policy.service.js", () => ({
     };
   },
   orgCanonicalTeamId: async () => WS,
+  // IDENT-008 — no policy here requires SSO, so every edit is unrestricted.
+  classifyPolicyEditUnderMandatorySso: async () => "unrestricted",
   applySecurityPolicyPatch: async (i: {
     patch: Record<string, unknown>;
     expectedPolicyVersion?: number | null;

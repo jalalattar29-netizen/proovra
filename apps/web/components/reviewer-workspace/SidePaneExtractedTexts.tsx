@@ -191,7 +191,7 @@ function PaneFrame({
 const retryBtnStyle: React.CSSProperties = {
   padding: "4px 10px",
   borderRadius: 6,
-  background: "#0f172a",
+  background: "var(--btn-primary-bg)",
   color: "#fafafa",
   border: "none",
   fontSize: 11,

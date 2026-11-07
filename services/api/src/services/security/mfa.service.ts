@@ -578,16 +578,25 @@ export async function regenerateRecoveryBatch(input: {
 }
 
 /**
- * AUTH-LOCKOUT-NONTOTP — the factor kinds a SIGN-IN can be completed with.
+ * AUTH-LOCKOUT-NONTOTP — the factor kinds a SIGN-IN is completed with.
  *
- * `POST /v1/auth/mfa/verify` accepts an authenticator code (`verifyActiveTotp`)
- * or a recovery code, and recovery codes are minted only by an authenticator
- * enrolment. A passkey or a verified phone is a STEP-UP factor: nothing at
- * sign-in can check it. The login MFA gate counts only these kinds, so a
- * person holding nothing else is never asked for a second factor the sign-in
- * cannot take (see login-mfa-enforcement.service.ts).
+ * Every kind a person can enrol is one they chose as their second factor, so
+ * every ACTIVE one makes the sign-in ask for a second factor, and the sign-in
+ * accepts each of them: an authenticator code, a passkey assertion (directly on
+ * the web, through a system-browser handoff from the mobile app), a one-time
+ * code sent to the enrolled phone, or a recovery code.
+ *
+ * An interim version listed TOTP only. That ended the lockout of passkey- and
+ * phone-only accounts by not asking them for anything, which let a password
+ * alone sign in to an account whose owner had turned MFA on. The person's own
+ * choice is now honoured whether or not an Organization policy requires MFA.
  */
-export const SIGN_IN_SECOND_FACTOR_KINDS: ReadonlyArray<string> = Object.freeze(["TOTP"]);
+export const SIGN_IN_SECOND_FACTOR_KINDS: ReadonlyArray<string> = Object.freeze([
+  "TOTP",
+  "PASSKEY",
+  "SMS",
+  "WHATSAPP",
+]);
 
 /** Read-only MFA status for a user. */
 export async function readMfaStatus(input: { userId: string }): Promise<{
@@ -919,6 +928,125 @@ export async function recordPendingChallengeFailure(
   } catch {
     // Row may have been GC'd or the JTI was bogus. Best effort only.
   }
+}
+
+// -----------------------------------------------------------------------------
+// AUTH-LOCKOUT-NONTOTP — the sign-in challenge's passkey and phone-code state.
+//
+// The row that already owns the sign-in second factor carries what a passkey
+// or phone-code answer needs; nothing about it lives anywhere else. Every
+// function below acts only on an OPEN row (LOGIN, unconsumed, unexpired) that
+// belongs to the user the signed pending token names, and returns null/false
+// for anything else, so a route cannot distinguish a stranger's row from a
+// spent one.
+// -----------------------------------------------------------------------------
+
+export type OpenLoginChallenge = {
+  id: string;
+  jti: string;
+  userId: string;
+  passkeyChallenge: string | null;
+  passkeyVerifiedAt: Date | null;
+  contactFactorId: string | null;
+  contactVerificationAttemptId: string | null;
+  contactTeamId: string | null;
+};
+
+const OPEN_LOGIN_CHALLENGE_SELECT = {
+  id: true,
+  jti: true,
+  userId: true,
+  passkeyChallenge: true,
+  passkeyVerifiedAt: true,
+  contactFactorId: true,
+  contactVerificationAttemptId: true,
+  contactTeamId: true,
+} as const;
+
+function openLoginWhere(extra: Prisma.MfaPendingChallengeWhereInput): Prisma.MfaPendingChallengeWhereInput {
+  return { purpose: "LOGIN", consumedAt: null, expiresAt: { gt: new Date() }, ...extra };
+}
+
+export async function loadOpenLoginChallenge(input: {
+  jti: string;
+  userId: string;
+}): Promise<OpenLoginChallenge | null> {
+  return prisma.mfaPendingChallenge.findFirst({
+    where: openLoginWhere({ jti: input.jti, userId: input.userId }),
+    select: OPEN_LOGIN_CHALLENGE_SELECT,
+  });
+}
+
+/** The single-use mobile handoff token is stored only as this hash. */
+export function hashLoginPasskeyHandoffToken(raw: string): string {
+  return createHash("sha256").update(raw, "utf8").digest("hex");
+}
+
+/**
+ * Record the WebAuthn challenge a passkey answer to this sign-in must sign, and
+ * (mobile) the hash of a fresh single-use handoff token. Asking again replaces
+ * both, so only the newest ceremony can complete. Clears an earlier browser
+ * verification, which belonged to the replaced challenge.
+ */
+export async function armLoginPasskey(input: {
+  jti: string;
+  userId: string;
+  challenge: string;
+  handoffTokenHash: string | null;
+}): Promise<boolean> {
+  const r = await prisma.mfaPendingChallenge.updateMany({
+    where: openLoginWhere({ jti: input.jti, userId: input.userId }),
+    data: {
+      passkeyChallenge: input.challenge,
+      passkeyHandoffTokenHash: input.handoffTokenHash,
+      passkeyVerifiedAt: null,
+    },
+  });
+  return r.count === 1;
+}
+
+/** The open sign-in challenge a mobile handoff token was issued for. */
+export async function loadOpenLoginChallengeByHandoff(rawToken: string): Promise<OpenLoginChallenge | null> {
+  if (typeof rawToken !== "string" || rawToken.length < 32 || rawToken.length > 128) return null;
+  return prisma.mfaPendingChallenge.findFirst({
+    where: openLoginWhere({ passkeyHandoffTokenHash: hashLoginPasskeyHandoffToken(rawToken) }),
+    select: OPEN_LOGIN_CHALLENGE_SELECT,
+  });
+}
+
+/**
+ * The system browser proved the passkey for this challenge. The handoff token
+ * is spent in the same UPDATE (its hash is cleared), so it answers once; the
+ * app holding the pending token completes the sign-in with its own verify call.
+ */
+export async function markLoginPasskeyVerifiedByHandoff(input: {
+  id: string;
+  expectedChallenge: string;
+}): Promise<boolean> {
+  const r = await prisma.mfaPendingChallenge.updateMany({
+    where: openLoginWhere({ id: input.id, passkeyChallenge: input.expectedChallenge, passkeyHandoffTokenHash: { not: null } }),
+    data: { passkeyVerifiedAt: new Date(), passkeyHandoffTokenHash: null, passkeyChallenge: null },
+  });
+  return r.count === 1;
+}
+
+/** Record which enrolled phone factor, attempt and tenant this sign-in's code belongs to. */
+export async function armLoginContactCode(input: {
+  jti: string;
+  userId: string;
+  factorId: string;
+  verificationAttemptId: string;
+  teamId: string;
+}): Promise<boolean> {
+  const r = await prisma.mfaPendingChallenge.updateMany({
+    where: openLoginWhere({ jti: input.jti, userId: input.userId }),
+    data: {
+      contactFactorId: input.factorId,
+      contactVerificationAttemptId: input.verificationAttemptId,
+      contactTeamId: input.teamId,
+    },
+  });
+  return r.count === 1;
 }
 
 // PHASE 13 §4 (2026-08-17) — `sweepExpiredPendingChallenges` was REMOVED here.

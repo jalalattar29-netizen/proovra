@@ -318,7 +318,11 @@ describe("R8.1.2 Part 7 — login flow integration LIVE (was deferred in R8.1.1)
     // presented session and fails closed when it cannot.
     // 2026-11-01 (IDENT-007, IDENT-011) rebaselined 62873→71447: sign-in completes
     // after enrolment, and an SSO sign-in through MFA gets its full completion.
-    const expected = 71447;
+    // 2026-11-07 (AUTH-LOCKOUT-NONTOTP) rebaselined 71447→87547: sign-in accepts the
+    // factor the person enrolled — the methods listing, a phone code, a passkey on
+    // the web and through the mobile handoff — instead of locking passkey- and
+    // phone-only accounts out or letting a password alone in.
+    const expected = 87547;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

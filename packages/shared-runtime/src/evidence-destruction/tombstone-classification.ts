@@ -10,10 +10,14 @@
  *   DELETED            content, or derived from content; removed by the executor
  *   SCRUBBED           the row stays and its content columns are cleared
  *   AUDIT              the record of what happened; append-only history stays
- *   HUMAN_AUTHORED     notes people wrote about the record. Not derived by
- *                      PROOVRA, so UC-0 does not reach them, and whether a
- *                      tombstone may keep them is a decision for the founder and
- *                      counsel. They stay, and every certificate says so.
+ *   HUMAN_AUTHORED     structure people created around the record (links to
+ *                      cases, relationships, discussion threads, workflow
+ *                      steps). It records what happened and carries no content
+ *                      of the record; it stays, and every certificate says so.
+ *                      The free TEXT people wrote about the record (annotations,
+ *                      legal notes, reviewer comments) is SCRUBBED: the note's
+ *                      author and time stay, its body does not (GOV-010, decided
+ *                      2026-11-07).
  *   OPERATIONAL        queue, workflow and billing rows with no content of their own
  */
 
@@ -74,9 +78,9 @@ export const EVIDENCE_TABLE_TOMBSTONE_CLASS: Readonly<Record<string, TombstoneCl
   ChainTransfer: "AUDIT",
   ArchiveTierTransition: "AUDIT",
 
-  EvidenceAnnotation: "HUMAN_AUTHORED",
-  EvidenceLegalNote: "HUMAN_AUTHORED",
-  EvidenceReviewerComment: "HUMAN_AUTHORED",
+  EvidenceAnnotation: "SCRUBBED",
+  EvidenceLegalNote: "SCRUBBED",
+  EvidenceReviewerComment: "SCRUBBED",
   EvidenceRelationship: "HUMAN_AUTHORED",
   DiscussionThread: "HUMAN_AUTHORED",
   CaseEvidenceLink: "HUMAN_AUTHORED",
@@ -132,9 +136,10 @@ export const EVIDENCE_TOMBSTONE_CLEARED_FIELDS = Object.freeze([
  * facts the signed fingerprint commits to. Migrations 20281020000000 (AUD-43) and
  * 20281021000000 (F-01) made them permanent, "including on the purge tombstone",
  * so that nothing issued can come to describe a record whose identity changed.
- * GPS and file names inside the fingerprint therefore outlive the bytes. Erasing
- * them means narrowing those triggers, which is a decision for the founder and
- * counsel and not one a repair can take; every certificate names them until then.
+ * GPS and file names inside the fingerprint therefore outlive the bytes. They
+ * stay by decision (GOV-010, 2026-11-07): every signature, report and package
+ * already issued for the record commits to them, so erasing them would make
+ * those proofs unverifiable. Every certificate names them (sealed_capture_facts).
  */
 export const EVIDENCE_TOMBSTONE_SEALED_FIELDS = Object.freeze([
   "lat",

@@ -18,9 +18,16 @@
  *   - On success, the backend rotates the cookie set: clears
  *     `proovra_mfa_pending` and sets `proovra_session`. We then
  *     fetch /v1/auth/me and route to the safe `next` target.
+ *
+ * AUTH-LOCKOUT-NONTOTP (2026-11-07) — the page offers the second factors THIS
+ * person enrolled, read from POST /v1/auth/mfa/methods (it spends nothing and
+ * never touches the verify route): a passkey, an authenticator code, a code
+ * sent to their verified phone, or a recovery code. A passkey- or phone-only
+ * account is asked for that factor instead of being locked out or let in with
+ * a password alone.
  */
 
-import { Suspense, useRef, useState, type FormEvent } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { isSafeRedirectAfter } from "@proovra/shared";
@@ -30,8 +37,24 @@ import { MfaEnrollmentAtSignIn } from "../../../components/identity-security/Mfa
 import { MfaRecoveryRequestPanel } from "../../../components/mfa-recovery/MfaRecoveryRequestPanel";
 import { apiFetch } from "../../../lib/api";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
+import { getPasskeyAssertion } from "../../../lib/identity/webauthn";
 
-type ChallengeMode = "totp" | "recovery_code";
+type ChallengeMode = "passkey" | "totp" | "contact" | "recovery_code";
+type SignInMethod = "PASSKEY" | "TOTP" | "SMS" | "WHATSAPP" | "RECOVERY_CODE";
+
+function modeFor(method: SignInMethod): ChallengeMode {
+  if (method === "PASSKEY") return "passkey";
+  if (method === "TOTP") return "totp";
+  if (method === "SMS" || method === "WHATSAPP") return "contact";
+  return "recovery_code";
+}
+
+const SWITCH_LABEL: Record<ChallengeMode, string> = {
+  passkey: "Use a passkey or security key instead",
+  totp: "Use the authenticator code instead",
+  contact: "Send a code to your phone instead",
+  recovery_code: "Use a recovery code instead",
+};
 
 const SAFE_NEXT_FALLBACK = "/home";
 
@@ -54,6 +77,13 @@ function MfaChallengeBody() {
   const enrollmentRequired = search.get("enroll") === "1";
 
   const [mode, setMode] = useState<ChallengeMode>("totp");
+  // What this person enrolled (null until /v1/auth/mfa/methods answers; if it
+  // cannot, the authenticator and recovery-code forms stay as they were).
+  const [available, setAvailable] = useState<ChallengeMode[] | null>(null);
+  const [destinationMask, setDestinationMask] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
+  const [contactCode, setContactCode] = useState("");
+  const passkeyOptionsRef = useRef<Record<string, unknown> | null>(null);
   const [code, setCode] = useState("");
   const [recoveryCode, setRecoveryCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -68,11 +98,185 @@ function MfaChallengeBody() {
   // may hold a live session) still gets the recovery panel below; a
   // submit answers 401 `mfa_pending_invalid` and routes them to /login.
 
+  /** Reads (and, for a passkey, arms) what this sign-in can be answered with. */
+  const loadMethods = useCallback(async (): Promise<ChallengeMode[] | null> => {
+    try {
+      const data = (await apiFetch(
+        "/v1/auth/mfa/methods",
+        { method: "POST", body: JSON.stringify({}) },
+        { auth: false },
+      )) as { methods?: unknown; destinationMask?: unknown; passkeyOptions?: unknown } | null;
+      const methods = Array.isArray(data?.methods)
+        ? (data!.methods as unknown[]).filter((m): m is SignInMethod =>
+            ["PASSKEY", "TOTP", "SMS", "WHATSAPP", "RECOVERY_CODE"].includes(String(m)),
+          )
+        : null;
+      if (!methods || methods.length === 0) return null;
+      passkeyOptionsRef.current =
+        data?.passkeyOptions && typeof data.passkeyOptions === "object"
+          ? (data.passkeyOptions as Record<string, unknown>)
+          : null;
+      setDestinationMask(typeof data?.destinationMask === "string" ? data.destinationMask : null);
+      return Array.from(new Set(methods.map(modeFor)));
+    } catch {
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (enrollmentRequired) return;
+    let cancelled = false;
+    void loadMethods().then((modes) => {
+      if (cancelled || !modes) return;
+      setAvailable(modes);
+      setMode(modes[0]!);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [enrollmentRequired, loadMethods]);
+
+  /** The one completion path every factor shares. */
+  const submitVerify = async (body: Record<string, unknown>, method: ChallengeMode) => {
+    inFlightRef.current = true;
+    setBusy(true);
+    setStatus("Verifying second factor...");
+    try {
+      const data = await apiFetch(
+        "/v1/auth/mfa/verify",
+        { method: "POST", body: JSON.stringify(body) },
+        { auth: false },
+      );
+      if (!data?.token) {
+        throw new Error("Verification succeeded but no session was issued.");
+      }
+      const me = await apiFetch("/v1/auth/me", { method: "GET" });
+      if (!me?.user) {
+        throw new Error("Session not confirmed.");
+      }
+      router.replace(next);
+    } catch (err) {
+      const failure = err as { statusCode?: number; message?: string };
+      if (failure.statusCode) {
+        if (failure.statusCode === 429) {
+          setError("Too many attempts. Wait a minute before trying again.");
+        } else if (failure.statusCode === 401) {
+          // Reads the RAW error message ON PURPOSE — internal control flow
+          // matching bounded reason codes, never rendered.
+          const msg = failure.message ?? "";
+          if (msg === "mfa_challenge_expired") {
+            setChallengeExpired(true);
+            setError("Your two-factor challenge expired. Please sign in again to start a fresh challenge.");
+          } else if (msg === "mfa_challenge_already_used") {
+            setChallengeExpired(true);
+            setError("That two-factor challenge was already used. Please sign in again to start a fresh challenge.");
+          } else if (msg === "mfa_pending_invalid") {
+            setChallengeExpired(true);
+            setError("Your sign-in session ended. Please sign in again.");
+          } else {
+            setError(
+              method === "totp"
+                ? "That code did not match. Check the timer on your authenticator and try again."
+                : method === "contact"
+                  ? "That code did not match. Check the latest message and try again, or send a new code."
+                  : method === "passkey"
+                    ? "That passkey could not be confirmed. Try again, or choose another way to sign in."
+                    : "That recovery code was not accepted. Each code is single-use.",
+            );
+            // A passkey challenge is armed per ceremony: re-arm for the retry.
+            if (method === "passkey") void loadMethods();
+          }
+        } else {
+          setError(toSafeUserError(err, { message: "Could not verify the second factor." }).message);
+        }
+      } else {
+        setError(toSafeUserError(err, { message: "Verification failed." }).message);
+      }
+      setStatus(null);
+    } finally {
+      inFlightRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  const signInWithPasskey = async () => {
+    if (busy || inFlightRef.current) return;
+    setError(null);
+    setStatus(null);
+    if (!passkeyOptionsRef.current) await loadMethods();
+    const options = passkeyOptionsRef.current;
+    if (!options) {
+      setError("Passkey sign-in is not available right now. Choose another way to sign in.");
+      return;
+    }
+    const result = await getPasskeyAssertion(options);
+    if (result.status === "cancelled") {
+      setStatus("No problem — nothing was sent. Try again when you're ready.");
+      return;
+    }
+    if (result.status === "unsupported") {
+      setError("This browser can't use passkeys. Choose another way to sign in.");
+      return;
+    }
+    if (result.status !== "ok") {
+      setError("That passkey could not be confirmed. Try again, or choose another way to sign in.");
+      void loadMethods();
+      return;
+    }
+    passkeyOptionsRef.current = null;
+    await submitVerify({ passkeyAssertion: result.assertion }, "passkey");
+  };
+
+  const sendCode = async () => {
+    if (busy || inFlightRef.current) return;
+    setError(null);
+    setStatus(null);
+    inFlightRef.current = true;
+    setBusy(true);
+    try {
+      const data = (await apiFetch(
+        "/v1/auth/mfa/send-code",
+        { method: "POST", body: JSON.stringify({}) },
+        { auth: false },
+      )) as { destinationMask?: unknown } | null;
+      setCodeSent(true);
+      const mask = typeof data?.destinationMask === "string" ? data.destinationMask : destinationMask;
+      setStatus(mask ? `We sent a code to ${mask}.` : "We sent a code to your phone.");
+    } catch (err) {
+      const failure = err as { statusCode?: number; message?: string };
+      if (failure.statusCode === 429) setError("Too many codes requested. Wait a few minutes before trying again.");
+      else if (failure.statusCode === 401) {
+        setChallengeExpired(true);
+        setError("Your sign-in session ended. Please sign in again.");
+      } else setError("We couldn't send a code right now. Choose another way to sign in, or try again shortly.");
+    } finally {
+      inFlightRef.current = false;
+      setBusy(false);
+    }
+  };
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (busy || inFlightRef.current) return;
     setError(null);
     setStatus(null);
+    if (mode === "passkey") {
+      await signInWithPasskey();
+      return;
+    }
+    if (mode === "contact") {
+      const trimmed = contactCode.replace(/\s+/g, "");
+      if (!codeSent) {
+        await sendCode();
+        return;
+      }
+      if (!/^\d{4,10}$/.test(trimmed)) {
+        setError("Enter the code from the message we sent.");
+        return;
+      }
+      await submitVerify({ contactCode: trimmed }, "contact");
+      return;
+    }
     const body: Record<string, string> = {};
     if (mode === "totp") {
       const trimmed = code.trim();
@@ -90,82 +294,7 @@ function MfaChallengeBody() {
       body.recoveryCode = trimmed;
     }
 
-    inFlightRef.current = true;
-    setBusy(true);
-    setStatus("Verifying second factor...");
-    try {
-      const data = await apiFetch(
-        "/v1/auth/mfa/verify",
-        { method: "POST", body: JSON.stringify(body) },
-        { auth: false },
-      );
-      if (!data?.token) {
-        throw new Error("Verification succeeded but no session was issued.");
-      }
-      // Sanity check — the canonical session cookie was set by the
-      // backend; /v1/auth/me must now succeed.
-      const me = await apiFetch("/v1/auth/me", { method: "GET" });
-      if (!me?.user) {
-        throw new Error("Session not confirmed.");
-      }
-      router.replace(next);
-    } catch (err) {
-      // The verify route answers a flat `{ message }`, which apiFetch
-      // raises as a plain Error carrying `statusCode`, not as ApiError.
-      // A network failure carries statusCode 0 and falls through.
-      const failure = err as { statusCode?: number; message?: string };
-      if (failure.statusCode) {
-        if (failure.statusCode === 429) {
-          setError(
-            "Too many attempts. Wait a minute before trying again.",
-          );
-        } else if (failure.statusCode === 401) {
-          // R8.1.3 — disambiguate the three 401 reasons surfaced by
-          // the durable verify endpoint. `mfa_challenge_expired` and
-          // `mfa_challenge_already_used` need the operator to re-
-          // start primary login; `mfa_invalid` is a retryable
-          // "wrong code" state.
-          // Reads the RAW error message ON PURPOSE — internal control
-          // flow matching bounded reason codes, never rendered.
-          const msg = failure.message ?? "";
-          if (msg === "mfa_challenge_expired") {
-            setChallengeExpired(true);
-            setError(
-              "Your two-factor challenge expired. Please sign in again to start a fresh challenge.",
-            );
-          } else if (msg === "mfa_challenge_already_used") {
-            setChallengeExpired(true);
-            setError(
-              "That two-factor challenge was already used. Please sign in again to start a fresh challenge.",
-            );
-          } else if (msg === "mfa_pending_invalid") {
-            setChallengeExpired(true);
-            setError(
-              "Your sign-in session ended. Please sign in again.",
-            );
-          } else {
-            setError(
-              mode === "totp"
-                ? "That code did not match. Check the timer on your authenticator and try again."
-                : "That recovery code was not accepted. Each code is single-use.",
-            );
-          }
-        } else {
-          setError(
-            toSafeUserError(err, {
-              message: "Could not verify the second factor.",
-            }).message,
-          );
-        }
-      } else {
-        const msg = toSafeUserError(err, { message: "Verification failed." }).message;
-        setError(msg);
-      }
-      setStatus(null);
-    } finally {
-      inFlightRef.current = false;
-      setBusy(false);
-    }
+    await submitVerify(body, mode);
   };
 
   const toggleMode = () => {
@@ -174,6 +303,15 @@ function MfaChallengeBody() {
     setStatus(null);
     setCode("");
     setRecoveryCode("");
+  };
+
+  const switchTo = (target: ChallengeMode) => {
+    setMode(target);
+    setError(null);
+    setStatus(null);
+    setCode("");
+    setRecoveryCode("");
+    setContactCode("");
   };
 
   // R8.1.3 — enrollment-required surface. Renders when the login form
@@ -268,10 +406,42 @@ function MfaChallengeBody() {
       <p style={{ color: "#475569", marginBottom: 24 }}>
         {mode === "totp"
           ? "Enter the 6-digit code from your authenticator app to finish signing in."
-          : "Enter one of your single-use recovery codes. Each code works exactly once."}
+          : mode === "passkey"
+            ? "Use your passkey or security key to finish signing in."
+            : mode === "contact"
+              ? `We'll send a one-time code to your verified phone${destinationMask ? ` (${destinationMask})` : ""}.`
+              : "Enter one of your single-use recovery codes. Each code works exactly once."}
       </p>
       <form onSubmit={handleSubmit} aria-busy={busy}>
-        {mode === "totp" ? (
+        {mode === "passkey" ? null : mode === "contact" ? (
+          codeSent ? (
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span style={{ display: "block", fontSize: 14, marginBottom: 6 }}>Code from your phone</span>
+              <input
+                name="contactCode"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                maxLength={12}
+                value={contactCode}
+                onChange={(e) => setContactCode(e.target.value)}
+                aria-label="Code sent to your phone"
+                data-cc-mfa-input="contact"
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  fontSize: 18,
+                  letterSpacing: "0.25em",
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 8,
+                }}
+                disabled={busy}
+              />
+            </label>
+          ) : null
+        ) : mode === "totp" ? (
           <label style={{ display: "block", marginBottom: 16 }}>
             <span style={{ display: "block", fontSize: 14, marginBottom: 6 }}>
               Authenticator code
@@ -341,9 +511,44 @@ function MfaChallengeBody() {
           <p style={{ color: "#475569", marginBottom: 12 }}>{status}</p>
         ) : null}
         <Button type="submit" disabled={busy}>
-          {busy ? "Verifying..." : "Verify and continue"}
+          {busy
+            ? "Verifying..."
+            : mode === "passkey"
+              ? "Continue with passkey"
+              : mode === "contact" && !codeSent
+                ? "Send code"
+                : "Verify and continue"}
         </Button>
+        {mode === "contact" && codeSent ? (
+          <button
+            type="button"
+            onClick={() => void sendCode()}
+            disabled={busy}
+            data-cc-mfa-resend
+            style={{ marginLeft: 12, background: "none", border: "none", color: "#1d4ed8", cursor: "pointer", textDecoration: "underline" }}
+          >
+            Send a new code
+          </button>
+        ) : null}
       </form>
+      {available ? (
+        <ul style={{ marginTop: 24, fontSize: 14, color: "#475569", listStyle: "none", padding: 0 }} data-cc-mfa-methods>
+          {available
+            .filter((m) => m !== mode)
+            .map((m) => (
+              <li key={m} style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => switchTo(m)}
+                  style={{ background: "none", border: "none", color: "#1d4ed8", cursor: "pointer", padding: 0, textDecoration: "underline" }}
+                  data-cc-mfa-switch={m}
+                >
+                  {SWITCH_LABEL[m]}
+                </button>
+              </li>
+            ))}
+        </ul>
+      ) : (
       <p style={{ marginTop: 24, fontSize: 14, color: "#475569" }}>
         <button
           type="button"
@@ -363,6 +568,7 @@ function MfaChallengeBody() {
             : "Use the authenticator code instead"}
         </button>
       </p>
+      )}
       {/* PHASE 13 — lost-factor recovery, the CREATE leg.
           This used to be a bare "Contact support" link: the verify and
           admin-approve legs were wired, but nothing in the product could

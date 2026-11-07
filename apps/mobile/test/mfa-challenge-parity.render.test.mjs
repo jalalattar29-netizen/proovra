@@ -35,6 +35,9 @@ beforeEach(() => {
   Mfa.calls.reset();
   Auth.calls.reset();
 });
+// The screen reads POST /v1/auth/mfa/methods on arrival (AUTH-LOCKOUT-NONTOTP);
+// only the verify route spends the challenge.
+const verifyPosts = () => posts.filter((x) => x.path === "/v1/auth/mfa/verify");
 const settle = async () => {
   for (let i = 0; i < 6; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
 };
@@ -56,13 +59,13 @@ test("the verify form speaks the web's words and validates before sending", asyn
   await r.type("Six-digit authenticator code", "12a");
   await r.press("Verify and continue");
   assert.ok(r.hasText("Enter the 6-digit code from your authenticator."));
-  assert.equal(posts.length, 0);
+  assert.equal(verifyPosts().length, 0);
   await r.press("Use a recovery code instead");
   assert.ok(r.hasText("Enter one of your single-use recovery codes. Each code works exactly once."));
   await r.type("Single-use recovery code", "short");
   await r.press("Verify and continue");
   assert.ok(r.hasText("Enter a recovery code from your saved batch."));
-  assert.equal(posts.length, 0);
+  assert.equal(verifyPosts().length, 0);
   assert.equal(r.byLabel("Use the authenticator code instead").length, 1);
 });
 
@@ -72,7 +75,7 @@ test("a spaced authenticator code is sent as six digits", async () => {
   await r.type("Six-digit authenticator code", "123 456");
   await r.press("Verify and continue");
   await settle();
-  assert.deepEqual(posts[0], { path: "/v1/auth/mfa/verify", body: { mfaPendingToken: "pending-token-aaaaaaaaaaaa", code: "123456" } });
+  assert.deepEqual(verifyPosts()[0], { path: "/v1/auth/mfa/verify", body: { mfaPendingToken: "pending-token-aaaaaaaaaaaa", code: "123456" } });
   assert.ok(r.hasText("That code did not match. Check the timer on your authenticator and try again."));
 });
 

@@ -438,6 +438,54 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
     });
   });
 
+  // IDENT-019 — a quarantined session keeps its reads and performs no step-up-gated action
+  describe("IDENT-019: a quarantined session is refused every step-up-gated action", () => {
+    it("refused before any challenge is considered; reads still work; a clean session gets the ordinary step-up demand", async () => {
+      const o = await org(2);
+      const admin = o.members[0]!;
+      const target = o.members[1]!;
+      await makeAdmin(o, admin);
+      const { hashSessionId } = revocation;
+      const sid = (t: string) =>
+        (JSON.parse(Buffer.from(t.split(".")[1]!, "base64url").toString("utf8")) as { sid: string }).sid;
+      const adminSession = await prisma.authenticatedSession.findFirstOrThrow({
+        where: { userId: admin.userId, sessionIdHash: hashSessionId(sid(admin.token)) },
+      });
+      const membership = await prisma.teamMember.findFirstOrThrow({
+        where: { teamId: o.workspaceId, userId: target.userId },
+        select: { id: true },
+      });
+      const suspend = (token: string) =>
+        call("POST", "/v1/identity/members/" + membership.id + "/suspend", token, { teamId: o.workspaceId, reason: "test" });
+
+      // Before quarantine: the ordinary step-up demand.
+      const before = await suspend(admin.token);
+      expect(before.statusCode, before.body).toBe(401);
+      expect(errorCode(before)).toBe("STEP_UP_REQUIRED");
+
+      const q = await call("POST", "/v1/admin/identity/sessions/" + adminSession.id + "/quarantine", o.owner.token, {
+        teamId: o.workspaceId,
+        reason: "MANUAL_OPERATOR",
+      });
+      expect(q.statusCode, q.body).toBe(200);
+
+      // Quarantined: refused outright, whatever header it presents.
+      const blocked = await suspend(admin.token);
+      expect(blocked.statusCode, blocked.body).toBe(403);
+      expect(errorCode(blocked)).toBe("session_quarantined");
+      const withHeader = await call("POST", "/v1/identity/members/" + membership.id + "/suspend", admin.token, { teamId: o.workspaceId }, {
+        "x-proovra-step-up-challenge-id": randomUUID(),
+      });
+      expect(withHeader.statusCode).toBe(403);
+      expect(errorCode(withHeader)).toBe("session_quarantined");
+      expect((await prisma.teamMember.findUniqueOrThrow({ where: { id: membership.id } })).status).toBe("ACTIVE");
+
+      // Reads are untouched.
+      const read = await call("GET", "/v1/auth/me", admin.token);
+      expect(read.statusCode, read.body).toBe(200);
+    });
+  });
+
   // ===========================================================================
   // PRO-026 / PRO-027 — MFA recovery approval
   // ===========================================================================

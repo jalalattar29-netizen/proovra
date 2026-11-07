@@ -905,6 +905,10 @@ export const CLASSIFIED_SECURITY_EVENTS: Readonly<
   geo_anomaly_detected: IDENTITY_SECURITY,
   suspicious_session_detected: IDENTITY_SECURITY,
   session_quarantined: IDENTITY_SECURITY,
+  // IDENT-008 — emitted at WARNING only when an organization owner switched the
+  // SSO requirement off from a session that did not come through SSO (the owner
+  // recovery path). Every other policy update is INFO and never reaches here.
+  org_security_policy_updated: IDENTITY_SECURITY,
   // A SAML signing certificate is expiring or expired: sign-ins will stop. The
   // workspace's admin rotates it and records that they did.
   saml_certificate_expiring: IDENTITY_SECURITY,

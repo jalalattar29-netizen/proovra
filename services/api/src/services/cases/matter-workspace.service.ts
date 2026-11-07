@@ -47,6 +47,7 @@ import {
   type RiskReasonCode,
 } from "./case-risk-engine.service.js";
 import { evidenceVisibleThroughCasesWhere } from "./case-visibility.js";
+import { caseCommentReadFilter, caseCommentVisibilitiesFor } from "./case-lifecycle.service.js";
 import {
   getCaseAssignmentRoles,
   resolveCaseViewerCapabilities,
@@ -504,6 +505,17 @@ export async function buildMatterWorkspace(input: {
     viewerUserId: input.userId,
   });
 
+  // EVID-011 — the case comments this viewer may read (caseCommentVisibilitiesFor).
+  const commentFilter = caseCommentReadFilter(
+    caseRow.id,
+    input.userId,
+    caseCommentVisibilitiesFor({
+      accessRole,
+      isCaseOwner: caseRow.ownerUserId === input.userId,
+      isAssigned: activeAssignmentRoleNames.length > 0,
+    }),
+  );
+
   // Risk projection (lazy write).
   const risk = await runRisk({
     teamId: caseRow.teamId,
@@ -533,8 +545,8 @@ export async function buildMatterWorkspace(input: {
     runReviewerCoordination(caseRow.id, caseRow.teamId, evidenceIds),
     runGovernance(caseRow.id, evidenceIds, risk.data?.auditReadinessScore ?? null),
     runCustodyAndIntegrity(evidenceIds),
-    runTimeline(caseRow.id, evidenceIds),
-    runNotes(caseRow.id, evidenceIds),
+    runTimeline(caseRow.id, evidenceIds, commentFilter),
+    runNotes(caseRow.id, evidenceIds, commentFilter),
     runDeliverables(evidenceIds),
     runAssignments(caseRow.id),
     runStatusHistory(caseRow.id),
@@ -1625,6 +1637,7 @@ async function runCustodyAndIntegrity(
 async function runTimeline(
   caseId: string,
   evidenceIds: string[],
+  commentFilter: prismaPkg.Prisma.CaseCommentWhereInput,
 ): Promise<MatterWorkspaceEnvelope["sections"]["timeline"]> {
   try {
     // 1. Direct projection reads (OperationalTimelineEvent has caseId).
@@ -1680,7 +1693,7 @@ async function runTimeline(
           take: 25,
         }),
         prisma.caseComment.findMany({
-          where: { caseId },
+          where: commentFilter,
           orderBy: { createdAt: "desc" },
           take: 25,
           select: {
@@ -1786,12 +1799,13 @@ async function runTimeline(
 async function runNotes(
   caseId: string,
   evidenceIds: string[],
+  commentFilter: prismaPkg.Prisma.CaseCommentWhereInput,
 ): Promise<MatterWorkspaceEnvelope["sections"]["notes"]> {
   try {
     const [caseComments, unresolvedReviewerComments, unresolvedAnnotations] =
       await Promise.all([
         prisma.caseComment.findMany({
-          where: { caseId },
+          where: commentFilter,
           orderBy: { createdAt: "desc" },
           take: 25,
           select: {

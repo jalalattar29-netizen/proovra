@@ -44,6 +44,9 @@ import {
 // identity; this service no longer reads managed status for the login gate.
 import { resolveEnterpriseContract } from "../organization/enterprise-contract.service.js";
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
+import { checkOrgAccess } from "../organization/org-access.js";
+import { emitOrgAuditEvent } from "../organization/org-audit.service.js";
+import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
 
 
@@ -400,7 +403,112 @@ async function assertSsoRequirementCanBeMet(
 export type SecurityPolicyActorSession = {
   authMethod: string | null;
   ssoConnectionId: string | null;
+  /** When the session completed its second factor (unix seconds), if it did. */
+  mfaAt?: number | null;
 };
+
+async function sessionCameThroughOrgSso(
+  organizationId: string,
+  actorSession: SecurityPolicyActorSession | null,
+  client: PrismaClient,
+): Promise<boolean> {
+  return (
+    actorSession !== null &&
+    (actorSession.authMethod === "SAML" || actorSession.authMethod === "OIDC") &&
+    typeof actorSession.ssoConnectionId === "string" &&
+    (await client.ssoConnection.findFirst({
+      where: { id: actorSession.ssoConnectionId, organizationId, status: "ACTIVE" },
+      select: { id: true },
+    })) !== null
+  );
+}
+
+/** The fields that make SSO the only way in; nothing else may ride a recovery. */
+const SSO_REQUIREMENT_FIELDS = new Set(["ssoRequired", "allowedAuthMethods"]);
+
+/**
+ * IDENT-008 — WHO MAY EDIT THE POLICY WHILE SSO IS THE ONLY WAY IN.
+ *
+ * The console checked only the administrator's Organization role, so while SSO
+ * was mandatory any administrator signed in with a password (from their
+ * personal space, where the Organization's login gate does not reach) could
+ * rewrite the policy — including switching the requirement off. That was a
+ * bypass of the requirement, and it was also the only way out when the IdP
+ * broke, apart from PROOVRA staff break-glass.
+ *
+ * Now, while the CURRENT policy requires SSO and the acting session did not
+ * come through an ACTIVE connection of this Organization:
+ *   - the ORGANIZATION OWNER may turn the requirement off — and only that: the
+ *     patch may carry nothing but the SSO-requirement fields and must leave SSO
+ *     optional — provided their own session completed two-factor
+ *     authentication. The route has already required a step-up. It is
+ *     recorded on the Organization's own audit trail and as a security event,
+ *     so every administrator sees it (ORG_SSO_RECOVERY_OVERRIDE);
+ *   - every other edit, and every other administrator, is refused
+ *     (SSO_REQUIRED_POLICY_EDIT_NEEDS_SSO), with zero mutation.
+ * A session that came through the Organization's SSO is unaffected.
+ *
+ * "Changed" means a value that differs from the stored policy: the console
+ * saves its whole form, so unchanged fields ride along and are not a change.
+ *
+ * Internal callers that pass no acting session (provisioning, platform
+ * tooling) are not console edits and are unaffected, as for
+ * assertSsoRequirementCanBeMet.
+ */
+export type MandatorySsoEditClass = "unrestricted" | "owner_recovery" | "refused";
+
+export async function classifyPolicyEditUnderMandatorySso(
+  input: {
+    organizationId: string;
+    actorUserId: string;
+    patch: ExtendedSecurityPolicyPatch;
+    actorSession?: SecurityPolicyActorSession | null;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<MandatorySsoEditClass> {
+  const { organizationId, actorUserId, patch, actorSession } = input;
+  if (actorSession === undefined) return "unrestricted";
+  const current = (await client.organizationSecurityPolicy.findUnique({ where: { organizationId } })) as
+    | (Record<string, unknown> & { ssoRequired: boolean; allowedAuthMethods: string[] })
+    | null;
+  if (!current || !policyRequiresSso(current)) return "unrestricted";
+  if (await sessionCameThroughOrgSso(organizationId, actorSession, client)) return "unrestricted";
+
+  const changed = Object.entries(patch as Record<string, unknown>)
+    .filter(([k, v]) => v !== undefined && JSON.stringify(v) !== JSON.stringify(current[k] ?? null))
+    .map(([k]) => k);
+  const onlySsoFields = changed.length > 0 && changed.every((k) => SSO_REQUIREMENT_FIELDS.has(k));
+  const relaxes = !policyRequiresSso({
+    ssoRequired: patch.ssoRequired !== undefined ? patch.ssoRequired : current.ssoRequired,
+    allowedAuthMethods:
+      patch.allowedAuthMethods !== undefined ? patch.allowedAuthMethods : current.allowedAuthMethods,
+  });
+  const twoFactor = typeof actorSession?.mfaAt === "number" && actorSession.mfaAt > 0;
+  if (onlySsoFields && relaxes && twoFactor) {
+    const owner = await checkOrgAccess(client, { orgId: organizationId, userId: actorUserId, minRole: "ORG_OWNER" });
+    if (owner.kind === "ok") return "owner_recovery";
+  }
+  return "refused";
+}
+
+async function assertPolicyEditorUnderMandatorySso(
+  organizationId: string,
+  actorUserId: string,
+  patch: ExtendedSecurityPolicyPatch,
+  client: PrismaClient,
+  actorSession?: SecurityPolicyActorSession | null,
+): Promise<{ recovery: boolean }> {
+  const cls = await classifyPolicyEditUnderMandatorySso({ organizationId, actorUserId, patch, actorSession }, client);
+  if (cls === "unrestricted") return { recovery: false };
+  if (cls === "owner_recovery") return { recovery: true };
+  const err = new Error(
+    "This organization requires SSO. Sign in through its SSO connection to change the security policy. " +
+      "If the connection no longer works, the organization owner can turn the requirement off after signing in with their password and two-factor authentication.",
+  ) as Error & { statusCode?: number; code?: string };
+  err.statusCode = 409;
+  err.code = "SSO_REQUIRED_POLICY_EDIT_NEEDS_SSO";
+  throw err;
+}
 
 export async function applySecurityPolicyPatch(
   input: {
@@ -447,6 +555,13 @@ export async function applySecurityPolicyPatch(
     err.details = { expected: input.expectedPolicyVersion, current: currentVersion };
     throw err;
   }
+  const { recovery } = await assertPolicyEditorUnderMandatorySso(
+    organizationId,
+    input.actorUserId,
+    input.patch,
+    client,
+    input.actorSession,
+  );
   await assertSsoRequirementCanBeMet(organizationId, input.patch, client, input.actorSession);
   const nextVersion = currentVersion + 1;
   // PHASE 12B WAVE 1.2 — normalise the folded legacy fields (same rules the
@@ -504,6 +619,27 @@ export async function applySecurityPolicyPatch(
       userAgent: input.userAgent ?? null,
     },
   }, client);
+  if (recovery) {
+    await emitOrgAuditEvent(client as never, {
+      organizationId,
+      actorUserId: input.actorUserId,
+      eventType: "ORG_SSO_RECOVERY_OVERRIDE",
+      targetType: "organization",
+      targetId: organizationId,
+      metadata: { policyVersion: nextVersion, authMethod: input.actorSession?.authMethod ?? null },
+    }).catch(() => null);
+    safeEmitSecurityEvent({
+      teamId: auditTeamId,
+      eventType: "org_security_policy_updated",
+      severity: "WARNING",
+      details: {
+        actorUserId: input.actorUserId,
+        organizationId,
+        change: "sso_requirement_turned_off_without_sso",
+        policyVersion: nextVersion,
+      },
+    });
+  }
   const prior =
     existing !== null
       ? await resolveOrgSecurityPolicy(organizationId, client)

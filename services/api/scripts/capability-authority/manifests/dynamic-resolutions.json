@@ -221,6 +221,18 @@
       "class": "INTERNAL_API_ROUTE_TABLE",
       "evidence": "runApiDeliverySweepTick(sweep): API_DELIVERY_SWEEPS in services/worker/src/api-delivery-sweeps.ts is a closed table of four cron routes on this API (WORKFLOW-008).",
       "reviewedAtUtc": "2026-11-02"
+    },
+    {
+      "site": "apps/web/app/step-up/passkey/PasskeyHandoff.tsx:219",
+      "class": "INTERNAL_API_ROUTE_TABLE",
+      "evidence": "PasskeyHandoff options call. The component serves two flows from one fixed table (FLOWS in this file): step-up (POST /v1/identity-security/step-up/handoff/passkey/options and POST /v1/identity-security/step-up/handoff/passkey) and sign-in (POST /v1/auth/mfa/passkey-handoff/options and POST /v1/auth/mfa/passkey-handoff/answer, AUTH-LOCKOUT-NONTOTP 2026-11-07). The path is one of those two literals per leg, chosen by the page's flow prop; nothing from the URL or the API reaches it. Verified BY READING the site.",
+      "reviewedAtUtc": "2026-11-07T00:00:00Z"
+    },
+    {
+      "site": "apps/web/app/step-up/passkey/PasskeyHandoff.tsx:261",
+      "class": "INTERNAL_API_ROUTE_TABLE",
+      "evidence": "PasskeyHandoff answer call. The component serves two flows from one fixed table (FLOWS in this file): step-up (POST /v1/identity-security/step-up/handoff/passkey/options and POST /v1/identity-security/step-up/handoff/passkey) and sign-in (POST /v1/auth/mfa/passkey-handoff/options and POST /v1/auth/mfa/passkey-handoff/answer, AUTH-LOCKOUT-NONTOTP 2026-11-07). The path is one of those two literals per leg, chosen by the page's flow prop; nothing from the URL or the API reaches it. Verified BY READING the site.",
+      "reviewedAtUtc": "2026-11-07T00:00:00Z"
     }
   ]
 }

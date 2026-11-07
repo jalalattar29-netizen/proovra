@@ -3823,6 +3823,14 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.package_seal_byte_checks') IS NOT NULL;\"",
       "evidence": "REPORT-014 (2026-11-04). One new, empty table remembering the definitive outcome of the immutable part of a package seal check by seal identity. Key revocation is never stored. An older image ignores it. Rollback: drop the table."
     },
+    "20281120000000_login_mfa_challenge_factors": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 6 FROM information_schema.columns WHERE table_schema='public' AND table_name='mfa_pending_challenges' AND column_name IN ('passkey_challenge','passkey_handoff_token_hash','passkey_verified_at','contact_factor_id','contact_verification_attempt_id','contact_team_id');\"",
+      "evidence": "AUTH-LOCKOUT-NONTOTP (2026-11-07). Six nullable columns on mfa_pending_challenges (the sign-in challenge already owns the second factor) carrying the passkey challenge, the mobile handoff token hash and the phone-code attempt binding,. No row is rewritten; an older image never reads them. Rollback: leave the columns."
+    },
     "20281119100400_legal_hold_disclosure_setting": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",

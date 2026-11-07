@@ -116,7 +116,8 @@ export async function indexCase(
   // search for words inside their notes (e.g. "depot"). Bounded.
   try {
     const comments = await client.caseComment.findMany({
-      where: { caseId: caseRow.id },
+      // EVID-011 — only comments every case reader may read feed the case's text.
+      where: { caseId: caseRow.id, visibility: "ALL_MEMBERS" },
       select: { body: true },
       orderBy: { createdAt: "desc" },
       take: 20,

@@ -26,6 +26,7 @@ import {
   workspacePageDeepLink,
 } from "./deep-link";
 import { stepUpReturnRoute } from "./product/challenge-step-up";
+import { isSignInPasskeyReturn } from "./auth/auth-api";
 import { ssoReturnRoute } from "./auth/sso-native";
 import { setPendingRoute, hydratePendingRoute } from "./deep-link/pending-intent";
 
@@ -67,6 +68,13 @@ export function DeepLinkGate() {
     // it with its own API call, exactly as the Web routes do.
     // The step-up handoff's return (proovra://step-up/complete) carries nothing
     // to resolve: the verdict is read from the server by the open dialog.
+    // A sign-in passkey's return carries nothing either: the open MFA screen
+    // asks the server whether the passkey was proved. Delivered as an ordinary
+    // link, it must not fall through to the tenant resolve gate.
+    if (isSignInPasskeyReturn(url)) {
+      handled.current = url;
+      return;
+    }
     const stepUpReturn = stepUpReturnRoute(url);
     if (stepUpReturn) {
       handled.current = url;

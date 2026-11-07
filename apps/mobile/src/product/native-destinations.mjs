@@ -151,6 +151,16 @@ export const NATIVE_DESTINATIONS = {
       "the browser returns to proovra://step-up/complete; the sheet then reads the challenge status from the server and retries the action only when it is APPROVED",
     ],
   },
+  "/auth/mfa-passkey": {
+    routeFile: "(stack)/mfa.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/auth/mfa-passkey/page.tsx","apps/mobile/app/(stack)/mfa.tsx"],
+    gaps: [
+      "the web page IS the native sign-in passkey ceremony (AUTH-LOCKOUT-NONTOTP): the MFA screen opens it in an auth session (expo-web-browser) with the single-use handoff token from POST /v1/auth/mfa/methods, and the passkey is the platform's own - bound to the web relying party",
+      "the browser returns to proovra://sign-in/passkey-complete; the MFA screen then asks the server with POST /v1/auth/mfa/verify { passkeyHandoff: true }, which alone decides whether the passkey was proved",
+    ],
+  },
   "/step-up/idp": {
     routeFile: "(stack)/step-up/complete.tsx",
     status: "CODE_PARITY",

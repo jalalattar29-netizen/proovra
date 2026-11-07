@@ -833,8 +833,8 @@ const controlStyle: CSSProperties = {
 };
 const primaryButtonStyle: CSSProperties = {
   padding: "5px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
+  border: "1px solid var(--btn-primary-border)",
+  background: "var(--btn-primary-bg)",
   color: "#fafafa",
   fontSize: 11,
   fontWeight: 600,

@@ -447,6 +447,46 @@ export async function removeCaseAssignment(
 // Comments
 // ---------------------------------------------------------------------------
 
+/**
+ * EVID-011 (decided 2026-11-07) — WHO READS A CASE COMMENT.
+ *
+ *   ALL_MEMBERS  everyone who can read the case;
+ *   REVIEWERS    the case's managers (its owner; workspace OWNER / ADMIN) and the
+ *                members assigned to the case;
+ *   INTERNAL     the case's managers.
+ * The author always reads their own comment. The labels used to be stored and
+ * shown and change nothing: every case reader got every comment's text.
+ * Only ALL_MEMBERS comments are searchable (artifact-indexing / case-indexing),
+ * because search answers by case read access alone.
+ */
+export type CaseCommentVisibilityValue = "INTERNAL" | "REVIEWERS" | "ALL_MEMBERS";
+
+export function caseCommentVisibilitiesFor(viewer: {
+  accessRole: string;
+  isCaseOwner: boolean;
+  isAssigned: boolean;
+}): CaseCommentVisibilityValue[] {
+  const manager = viewer.isCaseOwner || viewer.accessRole === "OWNER" || viewer.accessRole === "ADMIN";
+  if (manager) return ["INTERNAL", "REVIEWERS", "ALL_MEMBERS"];
+  if (viewer.isAssigned) return ["REVIEWERS", "ALL_MEMBERS"];
+  return ["ALL_MEMBERS"];
+}
+
+/** The Prisma filter for the comments `viewerUserId` may read on one case. */
+export function caseCommentReadFilter(
+  caseId: string,
+  viewerUserId: string,
+  visibilities: readonly CaseCommentVisibilityValue[],
+): prismaPkg.Prisma.CaseCommentWhereInput {
+  return {
+    caseId,
+    OR: [
+      { visibility: { in: visibilities as prismaPkg.CaseCommentVisibility[] } },
+      { authorUserId: viewerUserId },
+    ],
+  };
+}
+
 export type AddCaseCommentInput = CaseActorContext & {
   caseId: string;
   body: string;

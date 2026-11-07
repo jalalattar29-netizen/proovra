@@ -293,7 +293,7 @@ export function AnnotationPanel({
 }
 
 const primaryBtn = {
-  background: "#0f172a",
+  background: "var(--btn-primary-bg)",
   color: "#fafafa",
   border: "none",
   borderRadius: 6,

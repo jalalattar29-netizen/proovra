@@ -144,6 +144,11 @@ export const ORG_AUDIT_EVENT_TYPES = [
   // accept link dies at that instant). Metadata carries ONLY
   // { inviteId, deliveryId, attempt, newExpiresAt } — never a token.
   "ORG_INVITE_DELIVERY_ROTATED",
+  // IDENT-008 — the organization owner turned mandatory SSO off from a session
+  // that did NOT come through SSO (the IdP was unusable), after their own
+  // password + two-factor sign-in and a step-up. Metadata: { policyVersion,
+  // authMethod } — the recovery is on the customer's own trail for every admin.
+  "ORG_SSO_RECOVERY_OVERRIDE",
 ] as const;
 
 export type OrgAuditEventType = (typeof ORG_AUDIT_EVENT_TYPES)[number];

@@ -8,6 +8,7 @@ import {
   crossedThresholds,
   dayUtcOf,
   monthUtcOf,
+  platformMonthlyLimitFromEnv,
   type LedgerStore,
   type LedgerLimits,
   type LedgerReserveInput,
@@ -118,5 +119,52 @@ describe("A7 — threshold alerts", () => {
     expect(crossedThresholds(0n, 500_000n, 1_000_000n)).toEqual([50]);
     expect(crossedThresholds(500_000n, 1_000_000n, 1_000_000n)).toEqual([75, 90, 100]);
     expect(crossedThresholds(0n, 100n, null)).toEqual([]);
+  });
+});
+
+describe("BILLING-014 / OPS-013 — the platform's monthly AI ceiling is durable and spans every workspace", () => {
+  function withPlatform() {
+    const m = memStore();
+    m.store.getPlatformMonthlyUsage = async (month) => {
+      let sum = 0n;
+      for (const [key, v] of m.monthly) if (key.endsWith(`|${month}`)) sum += v.costUsdMicros;
+      return { costUsdMicros: sum };
+    };
+    return m;
+  }
+
+  it("refuses a reservation that would take the platform over its ceiling, whichever workspace asks", async () => {
+    const { store } = withPlatform();
+    const limits: LedgerLimits = { ...NO_LIMITS, platformMonthlyCostLimitUsdMicros: 600_000n };
+    expect((await reserveAiBudget(store, limits, input({ workspaceId: "ws-a" }), NOW)).allowed).toBe(true);
+    expect((await reserveAiBudget(store, limits, input({ workspaceId: "ws-b" }), NOW)).allowed).toBe(true);
+    // Each workspace is far under any limit of its own; together they are at 500k of 600k.
+    expect(await reserveAiBudget(store, limits, input({ workspaceId: "ws-c" }), NOW)).toEqual({
+      allowed: false,
+      code: "PLATFORM_MONTHLY_COST_LIMIT",
+    });
+  });
+
+  it("a reservation that fits is allowed, and a new month starts from zero", async () => {
+    const { store } = withPlatform();
+    const limits: LedgerLimits = { ...NO_LIMITS, platformMonthlyCostLimitUsdMicros: 300_000n };
+    expect((await reserveAiBudget(store, limits, input(), NOW)).allowed).toBe(true);
+    expect((await reserveAiBudget(store, limits, input(), NOW)).allowed).toBe(false);
+    expect((await reserveAiBudget(store, limits, input(), new Date("2026-08-01T00:00:01Z"))).allowed).toBe(true);
+  });
+
+  it("with no ceiling configured nothing changes; a store that cannot read the total refuses rather than guesses", async () => {
+    const plain = memStore();
+    expect((await reserveAiBudget(plain.store, NO_LIMITS, input(), NOW)).allowed).toBe(true);
+    expect(await reserveAiBudget(plain.store, { ...NO_LIMITS, platformMonthlyCostLimitUsdMicros: 1_000_000n }, input(), NOW)).toEqual({
+      allowed: false,
+      code: "PLATFORM_MONTHLY_COST_LIMIT",
+    });
+  });
+
+  it("AI_PLATFORM_MONTHLY_BUDGET_USD is dollars; anything unusable means no ceiling", () => {
+    expect(platformMonthlyLimitFromEnv("250")).toBe(250_000_000n);
+    expect(platformMonthlyLimitFromEnv("12.5")).toBe(12_500_000n);
+    for (const raw of [undefined, "", " ", "0", "-5", "abc"]) expect(platformMonthlyLimitFromEnv(raw)).toBeNull();
   });
 });

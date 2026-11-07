@@ -207,8 +207,12 @@ export function sanitiseSearchTags(
  *     `derived_reconstructed` tag and a `reconstructedProvenance` metadata
  *     marker, so a search surface can tell DERIVED_RECONSTRUCTED apart from
  *     DERIVED_MACHINE_EXTRACTED. The bump reindexes every existing document.
+ * 6 → EVID-011: a case comment's audience label is enforced, and search answers
+ *     by case read access alone, so only ALL_MEMBERS comments are indexed (as
+ *     NOTE documents and inside the case's own text). The bump refreshes every
+ *     existing document; a restricted comment's NOTE document is removed.
  */
-export const SEARCH_PROJECTION_VERSION = 5;
+export const SEARCH_PROJECTION_VERSION = 6;
 
 /**
  * WHERE RECIPIENT CONTACT LIVES IN A SEARCH DOCUMENT.
@@ -304,6 +308,14 @@ export type SearchDocumentProjection = {
   retentionState: string | null;
   legalHoldState: string | null;
   contributorScoped: boolean;
+  /**
+   * EVID-021 — RESERVED, ALWAYS false. No indexer sets it and no product rule
+   * restricts a record to reviewers through it: who may read a record in search
+   * is decided by reach (workspace membership, case visibility, record access),
+   * applied separately to every query. The column and the query predicate that
+   * excludes `true` stay so a future restriction has one place to land; until
+   * one is implemented it narrows nothing and must not be described as a control.
+   */
   reviewerRestricted: boolean;
   evidenceId: string | null;
   workflowInstanceId: string | null;

@@ -135,9 +135,70 @@ export async function confirmPasswordReset(token: string, newPassword: string): 
 
 /* -------------------------------------------------------------------- MFA */
 
+/**
+ * AUTH-LOCKOUT-NONTOTP — the second factors THIS person enrolled, for the sign-in
+ * named by the pending token. `handoff: true`: a passkey is proved in the system
+ * browser (`passkeyHandoffUrl`), since the app has no WebAuthn of its own. Spends
+ * nothing; never the verify route.
+ */
+export type SignInMethod = "PASSKEY" | "TOTP" | "SMS" | "WHATSAPP" | "RECOVERY_CODE";
+const SIGN_IN_METHODS: readonly SignInMethod[] = ["PASSKEY", "TOTP", "SMS", "WHATSAPP", "RECOVERY_CODE"];
+
+/** Where the system browser returns after proving a sign-in passkey. */
+export const SIGN_IN_PASSKEY_RETURN_URL = "proovra://sign-in/passkey-complete";
+
+export function isSignInPasskeyReturn(url: string): boolean {
+  return (
+    url === SIGN_IN_PASSKEY_RETURN_URL ||
+    url.startsWith(SIGN_IN_PASSKEY_RETURN_URL + "?") ||
+    url.startsWith(SIGN_IN_PASSKEY_RETURN_URL + "#")
+  );
+}
+
+export interface SignInMethods {
+  methods: SignInMethod[];
+  destinationMask: string | null;
+  passkeyHandoffUrl: string | null;
+}
+
+export function parseSignInMethods(data: Record<string, unknown> | null | undefined): SignInMethods | null {
+  const raw = Array.isArray(data?.["methods"]) ? (data!["methods"] as unknown[]) : null;
+  const methods = raw ? raw.filter((m): m is SignInMethod => SIGN_IN_METHODS.includes(m as SignInMethod)) : [];
+  if (methods.length === 0) return null;
+  const mask = data?.["destinationMask"];
+  const url = data?.["passkeyHandoffUrl"];
+  return {
+    methods,
+    destinationMask: typeof mask === "string" ? mask : null,
+    passkeyHandoffUrl: typeof url === "string" && url.startsWith("https://") ? url : null,
+  };
+}
+
+export async function fetchSignInMethods(mfaPendingToken: string): Promise<SignInMethods | null> {
+  const data = await apiFetch("/v1/auth/mfa/methods", {
+    method: "POST",
+    body: JSON.stringify({ mfaPendingToken, handoff: true }),
+  });
+  return parseSignInMethods(data);
+}
+
+/** Sends a one-time code to the phone the account enrolled (never one the app names). */
+export async function sendSignInCode(mfaPendingToken: string): Promise<{ destinationMask: string | null }> {
+  const data = await apiFetch("/v1/auth/mfa/send-code", {
+    method: "POST",
+    body: JSON.stringify({ mfaPendingToken }),
+  });
+  const mask = data?.["destinationMask"];
+  return { destinationMask: typeof mask === "string" ? mask : null };
+}
+
 export async function verifyMfa(
   mfaPendingToken: string,
-  challenge: { code: string } | { recoveryCode: string },
+  challenge:
+    | { code: string }
+    | { recoveryCode: string }
+    | { contactCode: string }
+    | { passkeyHandoff: true },
 ): Promise<AuthSession> {
   const data = await apiFetch("/v1/auth/mfa/verify", {
     method: "POST",

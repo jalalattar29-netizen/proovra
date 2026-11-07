@@ -583,6 +583,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "customer",
     where: "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx",
   },
+  SSO_REQUIRED_POLICY_EDIT_NEEDS_SSO: {
+    disposition: "customer",
+    where: "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx",
+  },
   SCIM_GROUP_PROJECTION_EXISTS: { disposition: "customer", where: "global" },
   SCIM_GROUP_PROJECTION_WORKSPACE_NOT_ELIGIBLE: { disposition: "customer", where: "global" },
   SCIM_GROUP_PROJECTION_NO_DIRECTORY: { disposition: "customer", where: "global" },

@@ -163,7 +163,9 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
     // can be enrolled at sign-in (IDENT-001), SSO completes through it (IDENT-011),
     // first verification proves the mailbox (PROV-001), password and social
     // sessions are scored (IDENT-019).
-    { rel: "src/routes/auth.routes.ts", expected: 72066, tolerance: 0.05 },
+    // Rebaselined 2026-11-07: 72066 -> 87547. Sign-in accepts the factor the person
+    // enrolled: methods, phone code, passkey (web and mobile handoff) — AUTH-LOCKOUT-NONTOTP.
+    { rel: "src/routes/auth.routes.ts", expected: 87547, tolerance: 0.05 },
   ];
   for (const { rel, expected, tolerance } of POST_E10_1_PINS) {
     it(`${rel} unchanged at the post-E10.1 baseline`, () => {

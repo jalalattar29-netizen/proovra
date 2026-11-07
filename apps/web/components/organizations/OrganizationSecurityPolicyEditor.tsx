@@ -282,6 +282,12 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
       } else if (code === "SSO_REQUIRED_ACTOR_NOT_SIGNED_IN_WITH_SSO") {
         // IDENT-008 — the administrator proves the connection works by using it.
         setError("Sign in through your organization's SSO connection first, then require SSO. This confirms the connection works before everyone, you included, depends on it.");
+      } else if (code === "SSO_REQUIRED_POLICY_EDIT_NEEDS_SSO") {
+        // IDENT-008 — while SSO is the only way in, the policy is changed from an SSO
+        // session; the owner alone may switch the requirement off without one.
+        setError(
+          "This organization requires SSO, so its security policy is changed from a session that signed in through SSO. If the SSO connection no longer works, the organization owner can turn off “Require SSO” (and change nothing else) after signing in with their password and two-factor authentication.",
+        );
       } else if (code === "RESTRICTED_IP_RANGE_INVALID") {
         setError("Each restricted range must be an IP address or a CIDR block, such as 203.0.113.0/24.");
       } else if (code === "RESTRICTED_IP_EXCLUDES_ACTOR") {

@@ -18,6 +18,14 @@
  * (or `result=denied`), which closes that session. A dismissed passkey sheet
  * is not a server answer, so it stays here with "Try again".
  *
+ * Two flows share this ceremony (2026-11-07): `step-up` (the default; a
+ * sensitive action the app asked to confirm) and `sign-in` (/auth/mfa-passkey:
+ * the person's passkey is their second factor and the app is signing them in,
+ * AUTH-LOCKOUT-NONTOTP). They differ only in the endpoints, the fragment (a
+ * sign-in handoff carries the token alone) and the return URL; proving the
+ * passkey here never mints a session — the app that holds the sign-in
+ * completes it.
+ *
  * Tone: a dismissed passkey sheet, an expired link, a refusal — all are
  * reported calmly with the one next step that helps. Nothing here can harm the
  * account; the worst outcome is "start again in the app".
@@ -29,6 +37,28 @@ import { getPasskeyAssertion } from "../../../lib/identity/webauthn";
 
 /** The mobile app's scheme (apps/mobile/app.json `expo.scheme`). */
 export const MOBILE_STEP_UP_RETURN_URL = "proovra://step-up/complete";
+/** Where a sign-in passkey handoff returns (apps/mobile auth flow). */
+export const MOBILE_SIGN_IN_PASSKEY_RETURN_URL = "proovra://sign-in/passkey-complete";
+
+export type HandoffFlow = "step-up" | "sign-in";
+
+const FLOWS: Record<
+  HandoffFlow,
+  { optionsPath: string; answerPath: string; returnUrl: string; needsChallenge: boolean }
+> = {
+  "step-up": {
+    optionsPath: "/v1/identity-security/step-up/handoff/passkey/options",
+    answerPath: "/v1/identity-security/step-up/handoff/passkey",
+    returnUrl: MOBILE_STEP_UP_RETURN_URL,
+    needsChallenge: true,
+  },
+  "sign-in": {
+    optionsPath: "/v1/auth/mfa/passkey-handoff/options",
+    answerPath: "/v1/auth/mfa/passkey-handoff/answer",
+    returnUrl: MOBILE_SIGN_IN_PASSKEY_RETURN_URL,
+    needsChallenge: false,
+  },
+};
 
 type Phase =
   | { kind: "loading" }
@@ -44,7 +74,10 @@ type Phase =
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type HandoffFragment = {
-  /** null when the fragment does not carry a usable challenge + token. */
+  /**
+   * null when the fragment does not carry a usable token (and, for a step-up,
+   * a challenge id). A sign-in handoff carries the token alone: challengeId "".
+   */
   handoff: { challengeId: string; token: string } | null;
   /**
    * `return=app`: the app opened this page in an auth session
@@ -54,20 +87,25 @@ export type HandoffFragment = {
   returnToApp: boolean;
 };
 
-export function readHandoffFragment(hash: string): HandoffFragment {
+export function readHandoffFragment(hash: string, flow: HandoffFlow = "step-up"): HandoffFragment {
   const params = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
   const challengeId = params.get("challenge") ?? "";
   const token = params.get("token") ?? "";
   const returnToApp = params.get("return") === "app";
-  if (!UUID_RE.test(challengeId) || token.length < 16 || token.length > 128) {
+  const challengeOk = FLOWS[flow].needsChallenge ? UUID_RE.test(challengeId) : true;
+  if (!challengeOk || token.length < 16 || token.length > 128) {
     return { handoff: null, returnToApp };
   }
-  return { handoff: { challengeId, token }, returnToApp };
+  return { handoff: { challengeId: FLOWS[flow].needsChallenge ? challengeId : "", token }, returnToApp };
 }
 
 /** The app's return URL carrying the outcome (only ever these two values). */
-export function appReturnUrl(result: "approved" | "denied"): string {
-  return `${MOBILE_STEP_UP_RETURN_URL}?result=${result}`;
+export function appReturnUrl(result: "approved" | "denied", flow: HandoffFlow = "step-up"): string {
+  return `${FLOWS[flow].returnUrl}?result=${result}`;
+}
+
+function handoffBody(flow: HandoffFlow, h: { challengeId: string; token: string }, extra: Record<string, unknown> = {}) {
+  return JSON.stringify(flow === "step-up" ? { challengeId: h.challengeId, token: h.token, ...extra } : { token: h.token, ...extra });
 }
 
 /** Indirection so tests can observe the navigation (jsdom cannot follow it). */
@@ -136,7 +174,8 @@ const primaryButton: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export function PasskeyHandoff() {
+export function PasskeyHandoff({ flow = "step-up" }: { flow?: HandoffFlow } = {}) {
+  const config = FLOWS[flow];
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
   const handoff = useRef<{ challengeId: string; token: string } | null>(null);
   const options = useRef<Record<string, unknown> | null>(null);
@@ -150,15 +189,15 @@ export function PasskeyHandoff() {
   const finish = useCallback((next: Phase) => {
     setPhase(next);
     if (!returnRef.current) return;
-    if (next.kind === "done") navigation.assign(appReturnUrl("approved"));
+    if (next.kind === "done") navigation.assign(appReturnUrl("approved", flow));
     else if (next.kind === "refused" || next.kind === "expired" || next.kind === "busy") {
-      navigation.assign(appReturnUrl("denied"));
+      navigation.assign(appReturnUrl("denied", flow));
     }
-  }, []);
+  }, [flow]);
 
   useEffect(() => {
     let cancelled = false;
-    const parsed = readHandoffFragment(window.location.hash);
+    const parsed = readHandoffFragment(window.location.hash, flow);
     // Strip the fragment whatever it held: the capability must not linger in
     // history once read.
     try {
@@ -177,11 +216,11 @@ export function PasskeyHandoff() {
     void (async () => {
       try {
         const res = await readJson(
-          await fetch(`${apiBaseUrl()}/v1/identity-security/step-up/handoff/passkey/options`, {
+          await fetch(`${apiBaseUrl()}${config.optionsPath}`, {
             method: "POST",
             credentials: "omit",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ challengeId: target.challengeId, token: target.token }),
+            body: handoffBody(flow, target),
           }),
         );
         if (cancelled) return;
@@ -199,7 +238,7 @@ export function PasskeyHandoff() {
     return () => {
       cancelled = true;
     };
-  }, [finish]);
+  }, [finish, flow, config.optionsPath]);
 
   const confirmWithPasskey = useCallback(async () => {
     const h = handoff.current;
@@ -219,11 +258,11 @@ export function PasskeyHandoff() {
     }
     try {
       const res = await readJson(
-        await fetch(`${apiBaseUrl()}/v1/identity-security/step-up/handoff/passkey`, {
+        await fetch(`${apiBaseUrl()}${config.answerPath}`, {
           method: "POST",
           credentials: "omit",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ challengeId: h.challengeId, token: h.token, assertion: result.assertion }),
+          body: handoffBody(flow, h, { assertion: result.assertion }),
         }),
       );
       finish(res.status === 200 ? { kind: "done" } : phaseForFailure(res.status, "answer"));
@@ -232,13 +271,15 @@ export function PasskeyHandoff() {
       // can still return to the app themselves.
       setPhase({ kind: "refused" });
     }
-  }, [finish]);
+  }, [finish, flow, config.answerPath]);
+
+  const signIn = flow === "sign-in";
 
   return (
     <main style={shell}>
       <div style={card} data-step-up-passkey-phase={phase.kind}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>
-          {phase.kind === "done" ? "You're confirmed" : "Confirm with your passkey"}
+          {phase.kind === "done" ? "You're confirmed" : signIn ? "Sign in with your passkey" : "Confirm with your passkey"}
         </h1>
 
         <div aria-live="polite">
@@ -246,8 +287,9 @@ export function PasskeyHandoff() {
 
           {phase.kind === "ready" ? (
             <p style={muted}>
-              The PROOVRA app asked you to confirm a sensitive action. Use your
-              passkey or security key to continue.
+              {signIn
+                ? "The PROOVRA app is signing you in. Use your passkey or security key to continue."
+                : "The PROOVRA app asked you to confirm a sensitive action. Use your passkey or security key to continue."}
             </p>
           ) : null}
 
@@ -269,8 +311,9 @@ export function PasskeyHandoff() {
 
           {phase.kind === "done" ? (
             <p style={muted}>
-              Your passkey confirmed the request. Return to the PROOVRA app to
-              finish.
+              {signIn
+                ? "Your passkey confirmed it's you. Return to the PROOVRA app to finish signing in."
+                : "Your passkey confirmed the request. Return to the PROOVRA app to finish."}
             </p>
           ) : null}
 
@@ -304,8 +347,8 @@ export function PasskeyHandoff() {
             <a
               href={
                 returnToApp
-                  ? appReturnUrl(phase.kind === "done" ? "approved" : "denied")
-                  : MOBILE_STEP_UP_RETURN_URL
+                  ? appReturnUrl(phase.kind === "done" ? "approved" : "denied", flow)
+                  : config.returnUrl
               }
               style={phase.kind === "done" ? primaryButton : { ...muted, textDecoration: "underline" }}
             >

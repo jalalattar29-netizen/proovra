@@ -752,8 +752,8 @@ const deprecationBannerCtaStyle: React.CSSProperties = {
   padding: "6px 12px",
   fontSize: 12,
   fontWeight: 600,
-  color: "#fff",
-  background: "#0f172a",
+  color: "var(--btn-primary-color)",
+  background: "var(--btn-primary-bg)",
   borderRadius: 6,
   textDecoration: "none",
 };

@@ -166,7 +166,7 @@ export function CustomerContractPanel({
     const ok = await confirm({
       title: `Terminate the contract of ${organizationName}?`,
       description: `The contract grants nothing from now on, and owners and administrators are emailed. ${
-        when ? `Closure runs on ${terminationDate}` : "With no date, closure runs on the next sweep, with no window for the customer to export"
+        when ? `Closure runs on ${terminationDate}` : "With no date, closure runs in 30 days, the window in which the owner can export the organization's data"
       }, unless a legal hold is in force, in which case it waits. Evidence is never deleted.`,
       confirmLabel: "Schedule termination",
       tone: "danger",

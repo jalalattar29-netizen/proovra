@@ -38,6 +38,7 @@ import { authorizeOrFail } from "../middleware/authorize.js";
 import {
   countScansByTeam,
   isMalwareScanningEnabled,
+  isMalwareScannerConnected,
   listScansForTeam,
   projectFileSecurityScan,
 } from "../services/security/file-security-scan.service.js";
@@ -121,7 +122,10 @@ export async function securityRoutes(app: FastifyInstance) {
         }),
       ]);
       return reply.code(200).send({
-        malwareScanningEnabled: isMalwareScanningEnabled(),
+        // INGEST-007 — "enabled" means files are actually scanned: the flag AND a
+        // real scanner. The flag alone with no scanner scans nothing.
+        malwareScanningEnabled: isMalwareScanningEnabled() && isMalwareScannerConnected(),
+        malwareScannerConnected: isMalwareScannerConnected(),
         scanCounts,
         eventCounts,
         sinceDays: query.sinceDays ?? 30,

@@ -7698,6 +7698,16 @@ model MfaPendingChallenge {
   // safeEmitSecurityEvent contract is mirrored here.
   metadata Json? @map("metadata") @db.JsonB
 
+  // 2026-11-07 — AUTH-LOCKOUT-NONTOTP: the state a passkey or phone-code answer
+  // to THIS sign-in needs. Never a code: the phone code lives with the
+  // verification provider; only the attempt it belongs to is recorded here.
+  passkeyChallenge             String?   @map("passkey_challenge") @db.VarChar(128)
+  passkeyHandoffTokenHash      String?   @map("passkey_handoff_token_hash") @db.VarChar(64)
+  passkeyVerifiedAt            DateTime? @map("passkey_verified_at") @db.Timestamptz(6)
+  contactFactorId              String?   @map("contact_factor_id") @db.Uuid
+  contactVerificationAttemptId String?   @map("contact_verification_attempt_id") @db.Uuid
+  contactTeamId                String?   @map("contact_team_id") @db.Uuid
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([jti])

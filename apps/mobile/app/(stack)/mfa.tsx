@@ -1,7 +1,14 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { verifyMfa } from "../../src/auth/auth-api";
+import * as WebBrowser from "expo-web-browser";
+import {
+  SIGN_IN_PASSKEY_RETURN_URL,
+  fetchSignInMethods,
+  sendSignInCode,
+  verifyMfa,
+  type SignInMethod,
+} from "../../src/auth/auth-api";
 import { useCompleteLogin, type LoginMode } from "../../src/auth/use-auth-flow";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
@@ -11,14 +18,28 @@ import { MfaRecoveryRequestPanel } from "../../src/ui/mfa-recovery-request";
 import { AuthBrandHeader } from "../../src/ui/brand";
 import { AuthNote } from "../../src/ui/auth-form";
 
-type ChallengeMode = "totp" | "recovery_code";
+type ChallengeMode = "passkey" | "totp" | "contact" | "recovery_code";
+
+function modeFor(method: SignInMethod): ChallengeMode {
+  if (method === "PASSKEY") return "passkey";
+  if (method === "TOTP") return "totp";
+  if (method === "SMS" || method === "WHATSAPP") return "contact";
+  return "recovery_code";
+}
+
+const SWITCH_LABEL: Record<ChallengeMode, string> = {
+  passkey: "Use a passkey or security key instead",
+  totp: "Use the authenticator code instead",
+  contact: "Send a code to your phone instead",
+  recovery_code: "Use a recovery code instead",
+};
 
 /**
  * The web's reading of a failed verify (auth/mfa-challenge/page.tsx:146-196):
  * three 401 reasons END the challenge (sign in again); a wrong code is
  * retryable. The raw reason is matched, never rendered.
  */
-function mfaFailure(err: unknown, recovery: boolean): { expired: boolean; message: string } | null {
+function mfaFailure(err: unknown, mode: ChallengeMode): { expired: boolean; message: string } | null {
   const e = err as { statusCode?: number; body?: { message?: unknown }; message?: unknown } | null;
   const status = e?.statusCode;
   const reason = typeof e?.body?.message === "string" ? e.body.message : typeof e?.message === "string" ? e.message : "";
@@ -29,7 +50,14 @@ function mfaFailure(err: unknown, recovery: boolean): { expired: boolean; messag
   if (reason === "mfa_pending_invalid") return { expired: true, message: "Your sign-in session ended. Please sign in again." };
   return {
     expired: false,
-    message: recovery ? "That recovery code was not accepted. Each code is single-use." : "That code did not match. Check the timer on your authenticator and try again.",
+    message:
+      mode === "recovery_code"
+        ? "That recovery code was not accepted. Each code is single-use."
+        : mode === "contact"
+          ? "That code did not match. Check the latest message and try again, or send a new code."
+          : mode === "passkey"
+            ? "Your passkey wasn't confirmed. Try again, or choose another way to sign in."
+            : "That code did not match. Check the timer on your authenticator and try again.",
   };
 }
 
@@ -42,8 +70,12 @@ function mfaFailure(err: unknown, recovery: boolean): { expired: boolean; messag
  *     factor (403 mfaEnrollmentRequired). The factor is added here, with the
  *     refused sign-in's own token, and that finishes the sign-in;
  *   - an ended challenge — "Sign-in session expired" + Return to sign in;
- *   - the verify form: authenticator code or single-use recovery code, the
- *     lost-factor recovery request, and "Still stuck? Contact support".
+ *   - the verify form: the second factors THIS person enrolled (read from
+ *     POST /v1/auth/mfa/methods — AUTH-LOCKOUT-NONTOTP): a passkey, proved in
+ *     the system browser (/auth/mfa-passkey) because the app has no WebAuthn;
+ *     an authenticator code; a code sent to their verified phone; or a
+ *     single-use recovery code. Then the lost-factor recovery request and
+ *     "Still stuck? Contact support".
  */
 export default function MfaScreen() {
   const router = useRouter();
@@ -61,10 +93,100 @@ export default function MfaScreen() {
   const [code, setCode] = useState("");
   const [recoveryCode, setRecoveryCode] = useState("");
   const [mode, setMode] = useState<ChallengeMode>("totp");
+  const [available, setAvailable] = useState<ChallengeMode[] | null>(null);
+  const [destinationMask, setDestinationMask] = useState<string | null>(null);
+  const [passkeyUrl, setPasskeyUrl] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
+  const [contactCode, setContactCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const recovery = mode === "recovery_code";
+
+  /** Reads (and arms a fresh passkey handoff for) what this sign-in accepts. */
+  const loadMethods = useCallback(async (): Promise<ChallengeMode[] | null> => {
+    if (!pendingToken) return null;
+    try {
+      const read = await fetchSignInMethods(pendingToken);
+      if (!read) return null;
+      setDestinationMask(read.destinationMask);
+      setPasskeyUrl(read.passkeyHandoffUrl);
+      return Array.from(new Set(read.methods.map(modeFor)));
+    } catch {
+      return null;
+    }
+  }, [pendingToken]);
+
+  useEffect(() => {
+    if (enrollmentRequired || !pendingToken) return;
+    let cancelled = false;
+    void loadMethods().then((modes) => {
+      if (cancelled || !modes) return;
+      setAvailable(modes);
+      setMode(modes[0]!);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [enrollmentRequired, pendingToken, loadMethods]);
+
+  /** The one completion path every factor shares. */
+  const finishWith = useCallback(
+    async (challenge: Parameters<typeof verifyMfa>[1], method: ChallengeMode) => {
+      setBusy(true);
+      setStatus("Verifying second factor...");
+      try {
+        const session = await verifyMfa(pendingToken, challenge);
+        await completeLogin({ kind: "session", token: session.token, user: session.user }, loginMode);
+      } catch (err) {
+        const read = mfaFailure(err, method);
+        if (read?.expired) setExpired(read.message);
+        else if (read) setError(read.message);
+        else setError(toSafeUserError(err).message);
+        setStatus(null);
+        // A passkey handoff is single-use: arm a fresh one for the retry.
+        if (method === "passkey") void loadMethods();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [pendingToken, completeLogin, loginMode, loadMethods],
+  );
+
+  const signInWithPasskey = useCallback(async () => {
+    if (busy) return;
+    setError(null);
+    setStatus(null);
+    const url = passkeyUrl;
+    if (!url) {
+      setError("Passkey sign-in isn't available right now. Choose another way to sign in.");
+      return;
+    }
+    setPasskeyUrl(null);
+    // The browser proves the passkey; whatever it reports, the server decides.
+    await WebBrowser.openAuthSessionAsync(url, SIGN_IN_PASSKEY_RETURN_URL);
+    await finishWith({ passkeyHandoff: true }, "passkey");
+  }, [busy, passkeyUrl, finishWith]);
+
+  const sendCode = useCallback(async () => {
+    if (busy) return;
+    setError(null);
+    setStatus(null);
+    setBusy(true);
+    try {
+      const sent = await sendSignInCode(pendingToken);
+      setCodeSent(true);
+      const mask = sent.destinationMask ?? destinationMask;
+      setStatus(mask ? `We sent a code to ${mask}.` : "We sent a code to your phone.");
+    } catch (err) {
+      const e = err as { statusCode?: number } | null;
+      if (e?.statusCode === 429) setError("Too many codes requested. Wait a few minutes before trying again.");
+      else if (e?.statusCode === 401) setExpired("Your sign-in session ended. Please sign in again.");
+      else setError("We couldn't send a code right now. Choose another way to sign in, or try again shortly.");
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, pendingToken, destinationMask]);
 
   const submit = useCallback(async () => {
     if (busy) return;
@@ -72,6 +194,23 @@ export default function MfaScreen() {
     setStatus(null);
     if (!pendingToken) {
       setExpired("Your sign-in session ended. Please sign in again.");
+      return;
+    }
+    if (mode === "passkey") {
+      await signInWithPasskey();
+      return;
+    }
+    if (mode === "contact") {
+      if (!codeSent) {
+        await sendCode();
+        return;
+      }
+      const digits = contactCode.replace(/\s+/g, "");
+      if (!/^\d{4,10}$/.test(digits)) {
+        setError("Enter the code from the message we sent.");
+        return;
+      }
+      await finishWith({ contactCode: digits }, "contact");
       return;
     }
     let challenge: { code: string } | { recoveryCode: string };
@@ -90,21 +229,8 @@ export default function MfaScreen() {
       }
       challenge = { recoveryCode: trimmed };
     }
-    setBusy(true);
-    setStatus("Verifying second factor...");
-    try {
-      const session = await verifyMfa(pendingToken, challenge);
-      await completeLogin({ kind: "session", token: session.token, user: session.user }, loginMode);
-    } catch (err) {
-      const read = mfaFailure(err, recovery);
-      if (read?.expired) setExpired(read.message);
-      else if (read) setError(read.message);
-      else setError(toSafeUserError(err).message);
-      setStatus(null);
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, pendingToken, code, recoveryCode, recovery, loginMode, completeLogin]);
+    await finishWith(challenge, mode);
+  }, [busy, pendingToken, code, recoveryCode, recovery, mode, codeSent, contactCode, signInWithPasskey, sendCode, finishWith]);
 
   const toggleMode = () => {
     setMode((m) => (m === "totp" ? "recovery_code" : "totp"));
@@ -112,6 +238,15 @@ export default function MfaScreen() {
     setStatus(null);
     setCode("");
     setRecoveryCode("");
+  };
+
+  const switchTo = (target: ChallengeMode) => {
+    setMode(target);
+    setError(null);
+    setStatus(null);
+    setCode("");
+    setRecoveryCode("");
+    setContactCode("");
   };
 
   const toSignIn = () => router.replace("/(stack)/auth");
@@ -163,9 +298,27 @@ export default function MfaScreen() {
         <ProovraText variant="body" color={theme.color.ink.secondary} style={styles.intro}>
           {recovery
             ? "Enter one of your single-use recovery codes. Each code works exactly once."
-            : "Enter the 6-digit code from your authenticator app to finish signing in."}
+            : mode === "passkey"
+              ? "Use your passkey or security key to finish signing in. A secure browser window will open."
+              : mode === "contact"
+                ? `We'll send a one-time code to your verified phone${destinationMask ? ` (${destinationMask})` : ""}.`
+                : "Enter the 6-digit code from your authenticator app to finish signing in."}
         </ProovraText>
-        {recovery ? (
+        {mode === "passkey" ? null : mode === "contact" ? (
+          codeSent ? (
+            <ProovraFormField label="Code from your phone">
+              <ProovraInput
+                value={contactCode}
+                onChangeText={setContactCode}
+                placeholder="123456"
+                keyboardType="number-pad"
+                accessibilityLabel="Code sent to your phone"
+                editable={!busy}
+                onSubmitEditing={() => void submit()}
+              />
+            </ProovraFormField>
+          ) : null
+        ) : recovery ? (
           <ProovraFormField label="Recovery code">
             <ProovraInput
               value={recoveryCode}
@@ -193,17 +346,32 @@ export default function MfaScreen() {
         {error ? <AuthNote tone="error" testID="mfa-error">{error}</AuthNote> : null}
         {status ? <AuthNote tone="status">{status}</AuthNote> : null}
         <View style={styles.actions}>
-          <ProovraButton
-            label={busy ? "Verifying..." : "Verify and continue"}
-            accessibilityLabel="Verify and continue"
-            loading={busy}
-            onPress={() => void submit()}
-          />
-          <ProovraButton
-            label={recovery ? "Use the authenticator code instead" : "Use a recovery code instead"}
-            variant="ghost"
-            onPress={toggleMode}
-          />
+          {mode === "passkey" ? (
+            <ProovraButton label={busy ? "Verifying..." : "Continue with passkey"} loading={busy} onPress={() => void submit()} />
+          ) : mode === "contact" && !codeSent ? (
+            <ProovraButton label="Send code" loading={busy} onPress={() => void submit()} />
+          ) : (
+            <ProovraButton
+              label={busy ? "Verifying..." : "Verify and continue"}
+              accessibilityLabel="Verify and continue"
+              loading={busy}
+              onPress={() => void submit()}
+            />
+          )}
+          {mode === "contact" && codeSent ? (
+            <ProovraButton label="Send a new code" variant="ghost" onPress={() => void sendCode()} />
+          ) : null}
+          {available ? (
+            available
+              .filter((m) => m !== mode)
+              .map((m) => <ProovraButton key={m} label={SWITCH_LABEL[m]} variant="ghost" onPress={() => switchTo(m)} />)
+          ) : (
+            <ProovraButton
+              label={recovery ? "Use the authenticator code instead" : "Use a recovery code instead"}
+              variant="ghost"
+              onPress={toggleMode}
+            />
+          )}
         </View>
       </ProovraCard>
 

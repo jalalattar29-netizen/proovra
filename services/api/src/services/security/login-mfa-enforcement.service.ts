@@ -216,14 +216,12 @@ export async function resolveLoginMfaEnforcement(
   try {
     const status = await readMfaStatus({ userId: input.userId });
     /*
-     * AUTH-LOCKOUT-NONTOTP — only a factor the sign-in can CHECK counts. A
-     * passkey or a verified phone (a step-up factor, enrollable without an
-     * authenticator) used to count, so its holder was told "MFA required"
-     * by a sign-in that accepts only an authenticator or recovery code, and
-     * could not finish. Such a person now meets the same branch as someone
-     * with no factor: under an Organization MFA policy, ENROLLMENT_REQUIRED
-     * (add an authenticator app at sign-in); otherwise no second factor is
-     * asked at sign-in, exactly as before they added the step-up factor.
+     * AUTH-LOCKOUT-NONTOTP — every enrolled kind counts, because the sign-in
+     * can check every kind (SIGN_IN_SECOND_FACTOR_KINDS): authenticator code,
+     * passkey, a code sent to the enrolled phone, or a recovery code. A person
+     * who turned on a passkey or a phone as their only factor is asked for it
+     * at sign-in, with or without an Organization MFA policy; a password alone
+     * never signs them in.
      */
     activeFactorCount = status.factors.filter(
       (f) => f.status === "ACTIVE" && SIGN_IN_SECOND_FACTOR_KINDS.includes(f.kind),

@@ -322,6 +322,16 @@ export async function indexNote(
     return { ok: false, reason: "note_case_deleted" };
   }
 
+  // EVID-011 — search answers by case read access alone, so only a comment
+  // every case reader may read (ALL_MEMBERS) is searchable. A restricted one
+  // is removed from the index, including one indexed before this rule.
+  if (row.visibility !== "ALL_MEMBERS") {
+    await client.evidenceSearchDocument.deleteMany({
+      where: { teamId: row.teamId, documentType: "NOTE", sourceId: row.id },
+    });
+    return { ok: false, reason: "note_restricted_audience" };
+  }
+
   // Notes don't have a separate title. First-sentence-ish snippet
   // is the display title; the full body goes into searchableText.
   const firstLine = row.body.split(/\r?\n/, 1)[0] ?? row.body;

@@ -274,8 +274,8 @@ function ThresholdBadge({ status }: { status: BudgetSpendRow["thresholdStatus"] 
 
 const primaryButton = {
   padding: "6px 12px",
-  border: "1px solid #0f172a",
-  background: "#0f172a",
+  border: "1px solid var(--btn-primary-border)",
+  background: "var(--btn-primary-bg)",
   color: "#fafafa",
   fontWeight: 600,
   fontSize: 12,

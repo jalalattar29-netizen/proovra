@@ -78,6 +78,8 @@ vi.mock("../src/services/identity/org-security-policy.service.js", () => ({
     return { applicability: "ORGANIZATION", organizationId: "org-1", policy: { policyVersion: 1, ssoRequired: false } };
   },
   orgCanonicalTeamId: async () => "team-1",
+  // IDENT-008 — no policy here requires SSO, so every edit is unrestricted.
+  classifyPolicyEditUnderMandatorySso: async () => "unrestricted",
   applySecurityPolicyPatch: async (i: { patch: Record<string, unknown>; expectedPolicyVersion?: number | null }) => {
     // Optimistic concurrency — a stale expected version is a 409 with ZERO write.
     if (i.expectedPolicyVersion === 999) {

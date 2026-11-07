@@ -455,6 +455,14 @@ const SECURITY_SIGNAL_COPY: Readonly<Record<string, SecurityCopy>> = {
     { title: "عُزلت جلسة", summary: "قُيّدت جلسة لأنها أظهرت علامات خطر. راجعها في مركز الأمان لاستعادتها أو إنهائها." },
   ),
   // ---- directory and single sign-on ------------------------------------------------
+  // IDENT-008 — raised only for the owner recovery: SSO switched off from a session
+  // that did not come through SSO.
+  org_security_policy_updated: sc(
+    "DIRECTORY",
+    { title: "Required single sign-on was turned off", summary: "The organization owner turned off the single sign-on requirement from a session that did not use single sign-on. Confirm it was intended, repair the connection, then require single sign-on again." },
+    { title: "Erforderliches Single Sign-on wurde deaktiviert", summary: "Die Organisationsinhaberin oder der Organisationsinhaber hat die Single-Sign-on-Pflicht aus einer Sitzung ohne Single Sign-on aufgehoben. Bestätigen Sie, dass dies beabsichtigt war, reparieren Sie die Verbindung und verlangen Sie Single Sign-on danach erneut." },
+    { title: "أُوقف اشتراط تسجيل الدخول الموحّد", summary: "أوقف مالك المؤسسة اشتراط تسجيل الدخول الموحّد من جلسة لم تستخدم تسجيل الدخول الموحّد. تأكد أن ذلك مقصود، وأصلح الاتصال، ثم اشترط تسجيل الدخول الموحّد مجددًا." },
+  ),
   saml_certificate_expiring: sc(
     "DIRECTORY",
     { title: "Single sign-on certificate expiring", summary: "The signing certificate for this workspace's SAML single sign-on is expiring or has expired. Sign-ins will stop until it is rotated." },

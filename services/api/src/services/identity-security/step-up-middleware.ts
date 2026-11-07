@@ -39,6 +39,7 @@ import {
   consumeApprovedChallenge,
 } from "./step-up.service.js";
 import { getRiskSnapshotForUser } from "./risk.service.js";
+import { isSessionQuarantined } from "../access-control/session-quarantine.service.js";
 
 const STEP_UP_HEADER = "x-proovra-step-up-challenge-id";
 
@@ -84,6 +85,51 @@ export async function requireStepUpForSensitiveAction(
   input: RequireStepUpInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<RequireStepUpFailure | RequireStepUpSuccess> {
+  /*
+   * IDENT-019 — A QUARANTINED SESSION DOES NOT PERFORM STEP-UP-GATED ACTIONS.
+   *
+   * Quarantine means the session keeps its reads and loses its high-privilege
+   * actions (schema: AuthenticatedSession.quarantinedAtUtc). The runtime
+   * adaptive gate enforced that only on the routes that call it, so a
+   * quarantined session could still answer a step-up and suspend a member,
+   * release a legal hold or change retention. Every action that demands a
+   * step-up is high-privilege by definition, so the refusal lives here, once,
+   * before any challenge is considered. Same answer as the adaptive gate.
+   */
+  {
+    const sessionIdHash =
+      (input.req as { user?: { sessionIdHash?: string | null } }).user?.sessionIdHash ?? null;
+    if (sessionIdHash) {
+      const session = await client.authenticatedSession.findFirst({
+        where: { userId: input.userId, sessionIdHash },
+        select: { id: true },
+      });
+      if (session && (await isSessionQuarantined({ sessionId: session.id }, client))) {
+        safeEmitSecurityEvent(
+          {
+            teamId: input.teamId,
+            eventType: "privileged_session_blocked",
+            severity: "WARNING",
+            details: {
+              sessionId: session.id,
+              subjectUserId: input.userId,
+              purpose: input.purpose,
+              reason: "session_quarantined",
+            },
+          },
+          client,
+        );
+        input.reply.code(403).send({
+          error: {
+            code: "session_quarantined",
+            message: "This session is quarantined; privileged actions blocked.",
+          },
+        });
+        return { sent: true };
+      }
+    }
+  }
+
   const headerValue = input.req.headers[STEP_UP_HEADER];
   const presented =
     typeof headerValue === "string"

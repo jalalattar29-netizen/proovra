@@ -764,9 +764,9 @@ const errBox: React.CSSProperties = {
 const primaryBtn: React.CSSProperties = {
   padding: "6px 12px",
   fontSize: 12,
-  background: "#0f172a",
-  color: "#fff",
-  border: "1px solid #0f172a",
+  background: "var(--btn-primary-bg)",
+  color: "var(--btn-primary-color)",
+  border: "1px solid var(--btn-primary-border)",
   borderRadius: 6,
   cursor: "pointer",
 };

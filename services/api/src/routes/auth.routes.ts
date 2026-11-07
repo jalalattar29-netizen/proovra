@@ -52,7 +52,30 @@ import {
   createMfaPendingChallenge,
   consumeMfaPendingChallenge,
   recordPendingChallengeFailure,
+  readMfaStatus,
+  loadOpenLoginChallenge,
+  loadOpenLoginChallengeByHandoff,
+  armLoginPasskey,
+  armLoginContactCode,
+  markLoginPasskeyVerifiedByHandoff,
+  hashLoginPasskeyHandoffToken,
 } from "../services/security/mfa.service.js";
+import {
+  buildPasskeyAssertionOptions,
+  userHasActivePasskey,
+  verifyPasskeyAssertion,
+} from "../services/identity-security/step-up-passkey.js";
+import {
+  resolveActiveContactFactor,
+  resolveStepUpDestination,
+} from "../services/security/verified-contact-factor.service.js";
+import {
+  VerificationError,
+  checkVerification,
+  startVerification,
+} from "../services/communications/verification.service.js";
+import { getMessagingProvider } from "../services/communications/provider-registry.js";
+import { randomBytes } from "node:crypto";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
 // PHASE 13 §1.4 — the canonical trusted-client-IP binding; see `readClientIp`.
@@ -347,11 +370,29 @@ const LoginMfaVerifyBody = z
     mfaPendingToken: z.string().min(20),
     code: z.string().trim().min(6).max(10).optional(),
     recoveryCode: z.string().trim().min(10).max(20).optional(),
+    // AUTH-LOCKOUT-NONTOTP — the person's own passkey (a WebAuthn assertion
+    // over the challenge /v1/auth/mfa/methods armed), a code sent to their
+    // enrolled phone by /v1/auth/mfa/send-code, or "the system browser proved
+    // my passkey" from the mobile app's handoff.
+    passkeyAssertion: z.record(z.string(), z.unknown()).optional(),
+    contactCode: z.string().trim().regex(/^[0-9]{4,10}$/).optional(),
+    passkeyHandoff: z.literal(true).optional(),
   })
   .refine(
-    (v) => Boolean(v.code) !== Boolean(v.recoveryCode),
-    "exactly_one_of_code_or_recoveryCode",
+    (v) =>
+      [v.code, v.recoveryCode, v.passkeyAssertion, v.contactCode, v.passkeyHandoff].filter(
+        (x) => x !== undefined && x !== "",
+      ).length === 1,
+    "exactly_one_second_factor",
   );
+
+/** Where the mobile app's system browser proves a passkey for a sign-in. */
+function loginPasskeyHandoffUrl(token: string): string {
+  const base = (process.env.APP_BASE_URL?.trim() || "https://app.proovra.com").replace(/\/+$/, "");
+  return `${base}/auth/mfa-passkey#token=${encodeURIComponent(token)}&return=app`;
+}
+
+type SignInMethod = "PASSKEY" | "TOTP" | "SMS" | "WHATSAPP" | "RECOVERY_CODE";
 
 // PHASE R8.1.2 — process-local rate limiter for the MFA verify route.
 // Identical bounds to `mfa.routes.ts` so the two surfaces behave
@@ -1532,6 +1573,227 @@ export async function authRoutes(app: FastifyInstance) {
   // sid is consumed on FIRST verify attempt so even a successful
   // login cannot reuse it to issue a second session.
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // AUTH-LOCKOUT-NONTOTP — the second factors a sign-in accepts are the ones the
+  // person enrolled. These routes act on the SAME open sign-in challenge the
+  // pending token names (mfa_pending_challenges, owned by mfa.service); they
+  // never mint a session. /v1/auth/mfa/verify is still the only completion.
+  // ---------------------------------------------------------------------------
+
+  /** The open sign-in challenge the request's pending token (body or cookie) names. */
+  async function openLoginChallengeFromRequest(req: FastifyRequest) {
+    const cookiePending =
+      (req.cookies as { proovra_mfa_pending?: string } | undefined)?.proovra_mfa_pending ?? null;
+    const raw =
+      typeof req.body === "object" && req.body !== null ? (req.body as Record<string, unknown>) : {};
+    const token = typeof raw.mfaPendingToken === "string" ? raw.mfaPendingToken : cookiePending;
+    if (!token) return null;
+    let payload;
+    try {
+      payload = verifyMfaPendingTokenSignature(token, jwtSecret as string);
+    } catch {
+      return null;
+    }
+    const jti = typeof payload.sid === "string" ? payload.sid : null;
+    if (!jti) return null;
+    return loadOpenLoginChallenge({ jti, userId: payload.sub });
+  }
+
+  /**
+   * What THIS person can answer a sign-in with, strongest first. A phone code
+   * is offered only when the messaging provider is configured; a passkey only
+   * when the WebAuthn relying party is configured (userHasActivePasskey checks
+   * it).
+   *
+   * The code's verification attempt is recorded under a tenant: the person's
+   * personal workspace or, before that exists, their earliest ACTIVE workspace
+   * membership (where the phone was enrolled from). Both come from
+   * persistence; nothing in the request chooses it.
+   */
+  async function signInMethodsFor(userId: string) {
+    const [status, passkey, contact, personalTeam] = await Promise.all([
+      readMfaStatus({ userId }),
+      userHasActivePasskey(prisma, userId),
+      resolveActiveContactFactor({ userId }),
+      prisma.team.findFirst({ where: { ownerUserId: userId, isPersonal: true }, select: { id: true } }),
+    ]);
+    const personal =
+      personalTeam ??
+      (contact
+        ? await prisma.teamMember
+            .findFirst({
+              where: { userId, status: "ACTIVE" },
+              orderBy: { createdAt: "asc" },
+              select: { teamId: true },
+            })
+            .then((m) => (m ? { id: m.teamId } : null))
+        : null);
+    const methods: SignInMethod[] = [];
+    if (passkey) methods.push("PASSKEY");
+    if (status.factors.some((f) => f.status === "ACTIVE" && f.kind === "TOTP")) methods.push("TOTP");
+    const contactUsable =
+      contact !== null && personal !== null && getMessagingProvider().isConfigured() ? contact : null;
+    if (contactUsable) methods.push(contactUsable.kind);
+    if (status.recoveryCodesRemaining > 0) methods.push("RECOVERY_CODE");
+    return {
+      methods,
+      contact:
+        contactUsable && personal
+          ? {
+              factorId: contactUsable.factorId,
+              kind: contactUsable.kind,
+              destinationMask: contactUsable.destinationMask,
+              teamId: personal.id,
+            }
+          : null,
+    };
+  }
+
+  app.post("/v1/auth/mfa/methods", async (req, reply) => {
+    const challenge = await openLoginChallengeFromRequest(req);
+    if (!challenge) return reply.code(401).send({ message: "mfa_pending_invalid" });
+    const limited = await enforceRateLimit({
+      key: `mfa-methods:${challenge.userId}`,
+      bound: "global",
+      max: 20,
+      windowSec: 60,
+    });
+    if (!limited.allowed) return reply.code(429).send({ message: "rate_limited" });
+    const raw = typeof req.body === "object" && req.body !== null ? (req.body as Record<string, unknown>) : {};
+    const handoff = raw.handoff === true;
+    const { methods, contact } = await signInMethodsFor(challenge.userId);
+
+    let passkeyOptions: Record<string, unknown> | null = null;
+    let passkeyHandoffUrl: string | null = null;
+    if (methods.includes("PASSKEY")) {
+      const built = await buildPasskeyAssertionOptions(prisma, challenge.userId);
+      if (built) {
+        const handoffToken = handoff ? randomBytes(32).toString("base64url") : null;
+        const armed = await armLoginPasskey({
+          jti: challenge.jti,
+          userId: challenge.userId,
+          challenge: built.challenge,
+          handoffTokenHash: handoffToken ? hashLoginPasskeyHandoffToken(handoffToken) : null,
+        });
+        if (armed) {
+          passkeyOptions = handoffToken ? null : built.options;
+          passkeyHandoffUrl = handoffToken ? loginPasskeyHandoffUrl(handoffToken) : null;
+        }
+      }
+    }
+    return reply.code(200).send({
+      methods,
+      destinationMask: contact?.destinationMask ?? null,
+      passkeyOptions,
+      passkeyHandoffUrl,
+    });
+  });
+
+  app.post("/v1/auth/mfa/send-code", async (req, reply) => {
+    const challenge = await openLoginChallengeFromRequest(req);
+    if (!challenge) return reply.code(401).send({ message: "mfa_pending_invalid" });
+    const limited = await enforceRateLimit({
+      key: `mfa-send-code:${challenge.userId}`,
+      bound: "global",
+      max: 5,
+      windowSec: 600,
+    });
+    if (!limited.allowed) return reply.code(429).send({ message: "rate_limited" });
+    const { contact } = await signInMethodsFor(challenge.userId);
+    if (!contact) return reply.code(409).send({ message: "mfa_method_unavailable" });
+    try {
+      // The destination is read from the enrolled factor, never from the request.
+      const resolved = await resolveStepUpDestination({ userId: challenge.userId, factorId: contact.factorId });
+      const verification = await startVerification({
+        teamId: contact.teamId,
+        channel: resolved.kind,
+        phoneE164OrRaw: resolved.destination,
+        initiatedByUserId: challenge.userId,
+        purpose: "SIGN_IN_MFA",
+        ipAddress: req.ip ?? null,
+        userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+      });
+      if (verification.status === "rate_limited") return reply.code(429).send({ message: "rate_limited" });
+      const armed = await armLoginContactCode({
+        jti: challenge.jti,
+        userId: challenge.userId,
+        factorId: contact.factorId,
+        verificationAttemptId: verification.attempt.id,
+        teamId: contact.teamId,
+      });
+      if (!armed) return reply.code(401).send({ message: "mfa_pending_invalid" });
+      auditAuthEvent(req, {
+        userId: challenge.userId,
+        action: "auth.mfa_code_sent",
+        outcome: "success",
+        severity: "info",
+        metadata: { channel: resolved.kind },
+      });
+      return reply.code(200).send({ sent: true, channel: resolved.kind, destinationMask: contact.destinationMask });
+    } catch (err) {
+      if (err instanceof VerificationError) {
+        return reply
+          .code(err.code === "rate_limited" ? 429 : 503)
+          .send({ message: err.code === "rate_limited" ? "rate_limited" : "mfa_method_unavailable" });
+      }
+      // A factor revoked between the listing and the send resolves to nothing.
+      return reply.code(409).send({ message: "mfa_method_unavailable" });
+    }
+  });
+
+  // The mobile app's system browser: options for, and the answer to, the passkey
+  // ceremony of ONE sign-in, named by a single-use handoff token. It proves the
+  // passkey; the app that holds the pending token completes the sign-in.
+  const LoginPasskeyHandoffBody = z.object({
+    token: z.string().min(32).max(128),
+    assertion: z.record(z.string(), z.unknown()).optional(),
+  });
+
+  app.post("/v1/auth/mfa/passkey-handoff/options", async (req, reply) => {
+    const parsed = LoginPasskeyHandoffBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ message: "invalid_body" });
+    const challenge = await loadOpenLoginChallengeByHandoff(parsed.data.token);
+    if (!challenge || !challenge.passkeyChallenge) {
+      return reply.code(401).send({ message: "mfa_pending_invalid" });
+    }
+    const built = await buildPasskeyAssertionOptions(prisma, challenge.userId, challenge.passkeyChallenge);
+    if (!built) return reply.code(409).send({ message: "mfa_method_unavailable" });
+    return reply.code(200).send({ passkeyOptions: built.options });
+  });
+
+  app.post("/v1/auth/mfa/passkey-handoff/answer", async (req, reply) => {
+    const parsed = LoginPasskeyHandoffBody.safeParse(req.body);
+    if (!parsed.success || !parsed.data.assertion) return reply.code(400).send({ message: "invalid_body" });
+    const limited = await enforceRateLimit({
+      key: `mfa-passkey-handoff:${hashLoginPasskeyHandoffToken(parsed.data.token)}`,
+      bound: "global",
+      max: 5,
+      windowSec: 300,
+    });
+    if (!limited.allowed) return reply.code(429).send({ message: "rate_limited" });
+    const challenge = await loadOpenLoginChallengeByHandoff(parsed.data.token);
+    if (!challenge || !challenge.passkeyChallenge) {
+      return reply.code(401).send({ message: "mfa_pending_invalid" });
+    }
+    const verified = await verifyPasskeyAssertion(prisma, {
+      userId: challenge.userId,
+      expectedChallenge: challenge.passkeyChallenge,
+      assertion: parsed.data.assertion,
+    });
+    const marked =
+      verified !== null &&
+      (await markLoginPasskeyVerifiedByHandoff({ id: challenge.id, expectedChallenge: challenge.passkeyChallenge }));
+    auditAuthEvent(req, {
+      userId: challenge.userId,
+      action: "auth.mfa_passkey_handoff",
+      outcome: marked ? "success" : "failure",
+      severity: marked ? "info" : "warning",
+      metadata: {},
+    });
+    if (!marked) return reply.code(401).send({ message: "mfa_invalid" });
+    return reply.code(200).send({ verified: true });
+  });
+
   app.post("/v1/auth/mfa/verify", async (req, reply) => {
     // The pending token may arrive either as a body field (JSON
     // clients) OR as the `proovra_mfa_pending` HTTP-only cookie
@@ -1553,6 +1815,9 @@ export async function authRoutes(app: FastifyInstance) {
           : cookiePending ?? "",
       code: rawBody.code,
       recoveryCode: rawBody.recoveryCode,
+      passkeyAssertion: rawBody.passkeyAssertion,
+      contactCode: rawBody.contactCode,
+      passkeyHandoff: rawBody.passkeyHandoff,
     };
     if (!candidateBody.mfaPendingToken) {
       return reply.code(401).send({ message: "mfa_pending_invalid" });
@@ -1615,8 +1880,45 @@ export async function authRoutes(app: FastifyInstance) {
     // 2) Verify the second factor. Exactly one of code|recoveryCode
     //    was guaranteed by zod refine().
     let verifyOk = false;
-    let verifyMethod: "totp" | "recovery_code" = "totp";
-    if (body.code) {
+    let verifyMethod: "totp" | "recovery_code" | "passkey" | "contact_code" = "totp";
+    if (body.passkeyAssertion || body.passkeyHandoff || body.contactCode) {
+      // AUTH-LOCKOUT-NONTOTP — answered against the state this sign-in's own
+      // challenge row carries; another sign-in's ceremony or code cannot.
+      const open = await loadOpenLoginChallenge({ jti: challengeJti, userId });
+      if (body.passkeyAssertion) {
+        verifyMethod = "passkey";
+        verifyOk =
+          open !== null &&
+          open.passkeyChallenge !== null &&
+          (await verifyPasskeyAssertion(prisma, {
+            userId,
+            expectedChallenge: open.passkeyChallenge,
+            assertion: body.passkeyAssertion,
+          })) !== null;
+      } else if (body.passkeyHandoff) {
+        verifyMethod = "passkey";
+        verifyOk = open !== null && open.passkeyVerifiedAt !== null;
+      } else {
+        verifyMethod = "contact_code";
+        if (open?.contactFactorId && open.contactVerificationAttemptId && open.contactTeamId) {
+          try {
+            // Re-read the factor: one revoked since the code was sent answers nothing.
+            const resolved = await resolveStepUpDestination({ userId, factorId: open.contactFactorId });
+            const checked = await checkVerification({
+              teamId: open.contactTeamId,
+              phoneE164OrRaw: resolved.destination,
+              code: body.contactCode!,
+              initiatedByUserId: userId,
+              verificationAttemptId: open.contactVerificationAttemptId,
+              ipAddress: req.ip ?? null,
+            });
+            verifyOk = checked.status === "approved";
+          } catch {
+            verifyOk = false;
+          }
+        }
+      }
+    } else if (body.code) {
       verifyMethod = "totp";
       const r = await verifyActiveTotp({
         userId,

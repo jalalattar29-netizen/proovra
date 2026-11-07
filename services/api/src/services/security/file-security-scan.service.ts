@@ -67,6 +67,16 @@ const noopScanner: Scanner = async () => ({
 let activeScanner: Scanner = noopScanner;
 
 /**
+ * INGEST-007 (decided 2026-11-07) — PROOVRA ships no malware scanner and does
+ * not claim one. Only a real scanner wired through setActiveScanner scans
+ * anything; with the no-op in place, MALWARE_SCANNING_ENABLED records SKIPPED
+ * rows and nothing more, so no surface may describe files as scanned.
+ */
+export function isMalwareScannerConnected(): boolean {
+  return activeScanner !== noopScanner;
+}
+
+/**
  * Wire a real scanner from the operations / deployment layer. Tests
  * use this to inject deterministic CLEAN / SUSPICIOUS / FAILED
  * outcomes. Returns a function that restores the previous scanner.

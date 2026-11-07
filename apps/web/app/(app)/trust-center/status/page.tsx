@@ -115,7 +115,7 @@ function Shell() {
           data-status-refresh
           onClick={() => void refresh()}
           disabled={busy}
-          className="rounded-lg border border-[#0F172A] bg-[#0F172A] px-3 py-1.5 text-[12px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          className="rounded-lg border border-[var(--btn-primary-border)] bg-[var(--btn-primary-bg)] px-3 py-1.5 text-[12px] font-semibold text-[var(--btn-primary-color)] hover:opacity-90 disabled:opacity-60"
         >
           {busy
             ? "Loading…"

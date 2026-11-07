@@ -1,6 +1,6 @@
 # Subprocessors
 
-Last Updated: 2026-06-23
+Last Updated: 2026-11-07
 
 This page identifies the third-party service providers PROOVRA may engage to support delivery of the digital evidence operations platform. It is intended to improve visibility into the infrastructure and service-provider layer supporting evidence capture, preservation, hashing, signing, timestamping, custody, verification, reporting, and reviewer workflows.
 
@@ -27,7 +27,6 @@ The register below identifies each provider, the service area it supports, its p
 | Twilio | Communications | SMS, WhatsApp, and verification messaging where the Communications feature is configured | Phone number; message metadata; verification metadata | Twilio-supported regions; SCCs apply for non-EEA transfers where required | Processor | Where configured |
 | Resend | Email delivery | Send transactional and policy emails (account, security, billing, legal, lead notifications) in production | Email addresses; message metadata; minimal message body required for the transactional email | Resend-supported regions; SCCs apply for non-EEA transfers where required | Processor | Where configured (production email path) |
 | Sentry | Error and reliability monitoring | Detect crashes, errors, and performance regressions across API, worker, web, and mobile surfaces | Diagnostic telemetry; error traces; minimal request context; account identifiers only where included; user-agent metadata | Sentry-supported regions | Processor | Where enabled (Sentry DSN configured) |
-| MaxMind | Geo intelligence | Geo-IP enrichment for adaptive authentication and abuse signals where the geo feature is enabled | IP address; derived geographic context | Provider-specific regions; SCCs apply for non-EEA transfers where required | Processor | Where Adaptive Auth / Geo Intelligence is enabled |
 
 A provider is included in this register only where it is actually engaged for the platform or where activation is explicitly conditional on configuration. PROOVRA does not list providers it does not use. PROOVRA seeks to give reasonable advance notice of changes to the register where commercially practicable.
 

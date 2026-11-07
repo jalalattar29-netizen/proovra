@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "044bd4f2bfb6bfa5fcd0a838737ef460410e34e89aa847d4cdd177c8eda5fd2c",
+  "capabilityRouteInventoryHash": "3875c54a0cd63a2b35e40ee1866c90bad2313896ac1c2bc5d0342beb16f424ad",
   "totals": {
-    "routes": 1237,
+    "routes": 1241,
     "routesWithAnyTestCaller": 54,
     "testOnlyRoutes": 9,
     "testCallSites": 126,
@@ -4173,6 +4173,30 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/auth/mfa/methods",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/auth/mfa/passkey-handoff/answer",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/auth/mfa/passkey-handoff/options",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/auth/mfa/send-code",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/auth/mfa/verify",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7557,5 +7581,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "261f3c8b70d04f5e4778033c9857985fee2d9e13833095556ff66250ef5fc914"
+  "contentHash": "0af101907e37f9acef8972732c564b53c15d4027424c69f688f4ae193edc45df"
 }

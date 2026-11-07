@@ -72,13 +72,28 @@ export class EnterpriseTerminationError extends Error {
 
 const OPEN_CLOSURE_STATUSES = ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED", "PROCESSING"];
 
+/**
+ * PROV-013 (decided 2026-11-07) — the notice and export window when the
+ * operator gives no effective date.
+ *
+ * From the moment termination begins the contract grants nothing; the
+ * organization stays ACTIVE until the closure executes, and that interval is
+ * the customer's only chance to take their data (the owner's offboarding export,
+ * GOV-015) — once the closure runs, every membership is retired and the archived
+ * organization refuses the owner. With no date, termination used to execute at
+ * once and leave no window at all. An explicit effective date, set from the
+ * signed agreement, still decides; this is only the default when none is given.
+ */
+export const DEFAULT_TERMINATION_NOTICE_DAYS = 30;
+
 export async function beginEnterpriseTermination(input: {
   organizationId: string;
   actorUserId: string;
   reason: string;
   effectiveAtUtc?: Date | null;
 }): Promise<{ closureRequestId: string; effectiveAtUtc: Date }> {
-  const effectiveAtUtc = input.effectiveAtUtc ?? new Date();
+  const effectiveAtUtc =
+    input.effectiveAtUtc ?? new Date(Date.now() + DEFAULT_TERMINATION_NOTICE_DAYS * 86_400_000);
   const { noticeIds, ...result } = await prisma.$transaction(async (tx) => {
     const org = await tx.organization.findUnique({
       where: { id: input.organizationId },

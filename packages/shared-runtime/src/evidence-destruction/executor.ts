@@ -106,7 +106,7 @@ export const DESTRUCTION_CLAIM_LEASE_MS = 30 * 60 * 1000;
  * inventory of V2 certificates that may be inaccurate.
  */
 export const DESTRUCTION_CERTIFICATE_VERSION =
-  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V5" as const;
+  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V6" as const;
 
 /**
  * AUD-49 (2026-10-20) — V4 adds destroyedArtifacts: the identity of every
@@ -120,6 +120,7 @@ export const DESTRUCTION_CERTIFICATE_VERSIONS_WITH_VERIFIED_DELETION = Object.fr
   "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V3",
   "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V4",
   "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V5",
+  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V6",
 ] as const);
 
 /**
@@ -127,14 +128,22 @@ export const DESTRUCTION_CERTIFICATE_VERSIONS_WITH_VERIFIED_DELETION = Object.fr
  * at its word: who approved, whether a person or a worker carried it out, whether
  * this run finished one a failed attempt began, and what deliberately stays.
  * Earlier certificates remain valid under their own version.
+ *
+ * V6 (2026-11-07, GOV-010 decided): the text people wrote about the record —
+ * annotations, legal notes, reviewer comments — is cleared with the content;
+ * who wrote a note, and when, stays as history (`human_note_authorship`). The
+ * sealed capture facts stay (`sealed_capture_facts`: GPS, accuracy and the
+ * canonical fingerprint, which includes the file name). Database triggers hold
+ * them permanent because issued signatures and certificates commit to them;
+ * erasing them would make every proof already issued for the record unverifiable.
  */
 export const DESTRUCTION_RETAINED_BY_DESIGN = Object.freeze([
   "custody_events",
   "lifecycle_ledger",
   "audit_logs",
   "anchors_and_certifications",
-  "human_authored_notes_pending_policy",
-  "sealed_capture_facts_pending_policy",
+  "human_note_authorship",
+  "sealed_capture_facts",
 ] as const);
 
 /** One destroyed issued artifact, by identity and digest (AUD-49). */
@@ -1047,6 +1056,11 @@ export async function executeEvidenceDestruction(
       where: { evidenceId: evidence.id },
       data: { originalFileName: null },
     });
+    // GOV-010 (decided 2026-11-07) — what people wrote ABOUT the record is
+    // content too: its text goes with the record; who wrote it and when stays.
+    await tx.evidenceAnnotation.updateMany({ where: { evidenceId: evidence.id }, data: { body: null } });
+    await tx.evidenceLegalNote.updateMany({ where: { evidenceId: evidence.id }, data: { body: "" } });
+    await tx.evidenceReviewerComment.updateMany({ where: { evidenceId: evidence.id }, data: { body: "" } });
 
     // The tombstone. The row stays; the content pointers do not.
     // ET-SEC-12 — the tombstone is written only over THIS executor's own

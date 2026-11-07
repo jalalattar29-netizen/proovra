@@ -505,7 +505,7 @@ export function WorkspaceSecurityPostureSection() {
       >
         <PostureTerm
           label="Malware scanning"
-          value={summary.malwareScanningEnabled ? "enabled" : "not enabled"}
+          value={summary.malwareScanningEnabled ? "enabled" : "not enabled (no scanner is connected)"}
         />
         <PostureTerm label="Window" value={`last ${summary.sinceDays} days`} />
         {scansAreData ? (
@@ -630,7 +630,7 @@ export function WorkspaceSecurityPostureSection() {
                 ? "No file security scan in this window has that result. Clear the scan-result filter to see the rest."
                 : summary.malwareScanningEnabled
                   ? `No file in this workspace has been scanned in the last ${summary.sinceDays} days.`
-                  : "Malware scanning is not enabled for this workspace, so no file scan has been recorded."
+                  : "No malware scanner is connected, so uploaded files are not scanned for malware and no scan has been recorded."
             }
           />
         }

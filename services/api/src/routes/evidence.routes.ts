@@ -8588,10 +8588,25 @@ return {
   app.get("/v1/evidence/:id/comments", { preHandler: requireAuth }, async (req, reply) => {
     const userId = getAuthUserId(req);
     const id = z.string().uuid().parse((req.params as ParamsId).id);
-    await getEvidenceWithReadAccess(userId, id);
+    const evidence = await getEvidenceWithReadAccess(userId, id);
 
+    // EVID-011 (decided 2026-11-07), in the product's own terms (the composer's
+    // copy): INTERNAL is private to the record's workspace — its ACTIVE members
+    // and the record's owner; TEAM is visible to the collaboration group too —
+    // every reader of the record, including one who reads it through a
+    // collaboration group share. The author always reads their own comment.
+    // The label used to change nothing: a collaboration-group reader got
+    // workspace-private comments.
+    const seesInternal =
+      evidence.ownerUserId === userId ||
+      (evidence.teamId !== null &&
+        (await prisma.teamMember.count({ where: { teamId: evidence.teamId, userId, status: "ACTIVE" } })) > 0);
     const comments = await prisma.evidenceReviewerComment.findMany({
-      where: { evidenceId: id, deletedAt: null },
+      where: {
+        evidenceId: id,
+        deletedAt: null,
+        ...(seesInternal ? {} : { OR: [{ visibility: { not: "INTERNAL" } }, { authorUserId: userId }] }),
+      },
       include: { author: { select: { id: true, displayName: true, email: true } } },
       orderBy: { createdAt: "desc" },
     });

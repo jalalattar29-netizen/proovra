@@ -606,7 +606,7 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
       reports: [{ version: 1, pdfSha256: "a1".repeat(32) }],
       packages: [{ packageId: pkg.id, version: 1, reportVersion: 1, disclosureProfile: "FULL_FORENSIC", state: "PUBLISHED", packageSha256: "b2".repeat(32), sealSha256: "c3".repeat(32) }],
     };
-    expect(result.certificate.certificateVersion).toBe("PROOVRA_EVIDENCE_DESTRUCTION_CERT_V5");
+    expect(result.certificate.certificateVersion).toBe("PROOVRA_EVIDENCE_DESTRUCTION_CERT_V6");
     expect(result.certificate.destroyedArtifacts).toEqual(expected);
     const purge = await prisma.custodyEvent.findFirstOrThrow({ where: { evidenceId: rec.id, eventType: "EVIDENCE_PURGED" }, select: { payload: true } });
     expect((purge.payload as { destroyedArtifacts?: unknown }).destroyedArtifacts).toEqual(expected);

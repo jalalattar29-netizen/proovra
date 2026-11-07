@@ -24,13 +24,28 @@ export type LedgerReserveInput = {
 
 export type LedgerDecision =
   | { allowed: true; reservationId: string }
-  | { allowed: false; code: "DAILY_OP_LIMIT" | "MONTHLY_OP_LIMIT" | "DAILY_COST_LIMIT" | "MONTHLY_COST_LIMIT" | "DUPLICATE_REQUEST" };
+  | {
+      allowed: false;
+      code:
+        | "DAILY_OP_LIMIT"
+        | "MONTHLY_OP_LIMIT"
+        | "DAILY_COST_LIMIT"
+        | "MONTHLY_COST_LIMIT"
+        | "PLATFORM_MONTHLY_COST_LIMIT"
+        | "DUPLICATE_REQUEST";
+    };
 
 export type LedgerStore = {
   /** Returns null if the requestId already exists (idempotent duplicate). */
   createReservation: (input: LedgerReserveInput) => Promise<string | null>;
   getDailyUsage: (workspaceId: string, dayUtc: string) => Promise<{ operations: number; costUsdMicros: bigint }>;
   getMonthlyUsage: (workspaceId: string, monthUtc: string) => Promise<{ operations: number; costUsdMicros: bigint }>;
+  /**
+   * BILLING-014 / OPS-013 — the month's reserved cost across EVERY workspace,
+   * read from the same durable monthly rollups. Only consulted when a platform
+   * limit is configured.
+   */
+  getPlatformMonthlyUsage?: (monthUtc: string) => Promise<{ costUsdMicros: bigint }>;
   incrementRollups: (workspaceId: string, dayUtc: string, monthUtc: string, costUsdMicros: bigint) => Promise<void>;
   markCompleted: (reservationId: string, actualCostUsdMicros: bigint | null) => Promise<void>;
   markFailed: (reservationId: string) => Promise<void>;
@@ -48,7 +63,27 @@ export type LedgerLimits = {
   monthlyOperationLimit: number | null;
   dailyCostLimitUsdMicros: bigint | null;
   monthlyCostLimitUsdMicros: bigint | null;
+  /**
+   * BILLING-014 / OPS-013 — the PLATFORM's monthly AI spend ceiling, across all
+   * workspaces (AI_PLATFORM_MONTHLY_BUDGET_USD). null: no platform ceiling.
+   *
+   * The in-process AiCostGuard's AI_MONTHLY_BUDGET_EUR is a per-instance burst
+   * estimate that resets on restart; this is the durable one, enforced by the
+   * same reservation that enforces each workspace's limits.
+   */
+  platformMonthlyCostLimitUsdMicros?: bigint | null;
 };
+
+/**
+ * AI_PLATFORM_MONTHLY_BUDGET_USD — dollars (the ledger's unit), decimals
+ * allowed. Unset, empty, zero, negative or not a number: no platform ceiling.
+ */
+export function platformMonthlyLimitFromEnv(raw: string | undefined = process.env.AI_PLATFORM_MONTHLY_BUDGET_USD): bigint | null {
+  if (!raw || raw.trim() === "") return null;
+  const dollars = Number(raw.trim());
+  if (!Number.isFinite(dollars) || dollars <= 0) return null;
+  return BigInt(Math.round(dollars * 1_000_000));
+}
 
 /**
  * Atomic-ish reserve: idempotency first (unique requestId), then limit checks
@@ -84,6 +119,17 @@ export async function reserveAiBudget(
     monthly.costUsdMicros + input.estimatedCostUsdMicros > limits.monthlyCostLimitUsdMicros
   ) {
     return { allowed: false, code: "MONTHLY_COST_LIMIT" };
+  }
+  // The platform ceiling. Reserved cost counts the moment it is reserved, so
+  // calls in flight are inside the total. Concurrent reservations that read the
+  // total at the same instant can each pass; the overshoot is bounded by those
+  // calls' own estimates, as for the workspace limits above.
+  if (limits.platformMonthlyCostLimitUsdMicros != null) {
+    if (!store.getPlatformMonthlyUsage) return { allowed: false, code: "PLATFORM_MONTHLY_COST_LIMIT" };
+    const platform = await store.getPlatformMonthlyUsage(month);
+    if (platform.costUsdMicros + input.estimatedCostUsdMicros > limits.platformMonthlyCostLimitUsdMicros) {
+      return { allowed: false, code: "PLATFORM_MONTHLY_COST_LIMIT" };
+    }
   }
 
   const reservationId = await store.createReservation(input);
@@ -158,6 +204,13 @@ export function buildPrismaLedgerStore(): LedgerStore {
       });
       return { operations: row?.operations ?? 0, costUsdMicros: row?.costUsdMicros ?? 0n };
     },
+    async getPlatformMonthlyUsage(monthUtc) {
+      const agg = await prisma.aiUsageMonthly.aggregate({
+        where: { monthUtc },
+        _sum: { costUsdMicros: true },
+      });
+      return { costUsdMicros: agg._sum.costUsdMicros ?? 0n };
+    },
     async incrementRollups(workspaceId, dayUtc, monthUtc, cost) {
       await prisma.$transaction([
         prisma.aiUsageDaily.upsert({
@@ -190,7 +243,13 @@ export function buildPrismaLedgerStore(): LedgerStore {
 /** Resolve per-workspace ledger limits from the A2 policy row. */
 export async function resolveLedgerLimits(teamId: string | null): Promise<LedgerLimits> {
   if (!teamId) {
-    return { dailyOperationLimit: null, monthlyOperationLimit: null, dailyCostLimitUsdMicros: null, monthlyCostLimitUsdMicros: null };
+    return {
+      dailyOperationLimit: null,
+      monthlyOperationLimit: null,
+      dailyCostLimitUsdMicros: null,
+      monthlyCostLimitUsdMicros: null,
+      platformMonthlyCostLimitUsdMicros: platformMonthlyLimitFromEnv(),
+    };
   }
   const policy = await resolveWorkspaceAiPolicy(teamId);
   void policy; // limits live on the row; read directly for bigint fields
@@ -200,6 +259,7 @@ export async function resolveLedgerLimits(teamId: string | null): Promise<Ledger
     monthlyOperationLimit: row?.monthlyOperationLimit ?? null,
     dailyCostLimitUsdMicros: row?.dailyCostLimitUsdMicros ?? null,
     monthlyCostLimitUsdMicros: row?.monthlyCostLimitUsdMicros ?? null,
+    platformMonthlyCostLimitUsdMicros: platformMonthlyLimitFromEnv(),
   };
 }
 
