@@ -38,27 +38,30 @@ concurrency:
 
 jobs:
   ios-simulator-build:
-    # PINNED, not macos-latest. macos-latest moved to macOS 26 (Xcode 26.x),
-    # whose clang rejects React Native 0.76's bundled `fmt` pod ("call to
-    # consteval function ... is not a constant expression" in
-    # fmt/format-inl.h) — the first run of this job failed there, before any
-    # project source compiled. Xcode 16.2 (the SDK-52 toolchain) is PROVEN to
-    # compile it (RN 0.76.9 ships fmt 11.0.2 with no consteval fix, so 16.3+
-    # fails the same way).
+    # PINNED, not macos-latest. macos-latest moved to macOS 26 (Xcode 26.x).
     #
-    # macos-14, not macos-15: 16.2's storyboards (expo-dev-launcher) need the
-    # iOS 18.2 platform, for a device build as much as for the simulator
-    # ("iOS 18.2 Platform Not Installed" on macos-15 both ways), and
-    # `xcodebuild -downloadPlatform iOS` exited 70 there. The macos-14 image
-    # ships Xcode 16.2 WITH the iOS 18.2 simulator runtime installed.
-    runs-on: macos-14
+    # macos-15 + Xcode 16.4. Until 2026-11 this job ran on macos-14 with Xcode
+    # 16.2, because RN 0.76.9's fmt 11.0.2 enables `consteval` under C++20 and
+    # Xcode 16.3+ rejects it ("call to consteval function ... is not a constant
+    # expression" in fmt/format-inl.h), while macos-15 lacked 16.2's iOS 18.2
+    # platform. GitHub then retired macos-14 ("The configuration
+    # 'macos-14-arm64-us-default' is not supported"): every run from 2026-11-03
+    # was cancelled before a step ran. The fmt pod is now built as C++17 by
+    # plugins/withFmtCxx17.cjs (every prebuild, release included), which keeps
+    # fmt's consteval off, so the Xcode that ships with its own installed iOS
+    # platform on this image can build the app.
+    runs-on: macos-15
     timeout-minutes: 75
     steps:
-      - name: Select Xcode 16.2 + its installed iOS 18.2 runtime (the SDK-52 toolchain)
+      - name: Select Xcode 16.4 and require the simulator runtime of its own SDK
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.2.app
+          ls -d /Applications/Xcode*.app
+          test -d /Applications/Xcode_16.4.app || { echo "::error::Xcode 16.4 is not on this image"; exit 1; }
+          sudo xcode-select -s /Applications/Xcode_16.4.app
           xcodebuild -version
-          xcrun simctl list runtimes | grep -E "iOS 18\.2" || { echo "::error::iOS 18.2 simulator runtime missing on this image"; exit 1; }
+          SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          echo "iphonesimulator SDK $SDK"
+          xcrun simctl list runtimes | grep -F "iOS $SDK" || { echo "::error::iOS $SDK simulator runtime missing on this image"; xcrun simctl list runtimes; exit 1; }
 
       - uses: actions/checkout@v4
 

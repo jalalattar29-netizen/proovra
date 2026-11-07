@@ -304,6 +304,7 @@
       "expo-apple-authentication",
       "@sentry/react-native/expo",
       "./plugins/withProovraIosScreenBroadcast.cjs",
+      "./plugins/withFmtCxx17.cjs",
       "expo-audio"
     ]
   }
