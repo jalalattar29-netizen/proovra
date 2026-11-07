@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11365,
+      "METHOD_ON_VALUE": 11372,
       "UNRESOLVED_IDENTIFIER": 1639
     },
     "MutationFixpointRounds": 10,
@@ -56400,8 +56400,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance.service.ts#workspaceGovernancePolicy.create@263",
-      "terminalLocation": "services/api/src/services/governance.service.ts:263",
+      "writerId": "services/api/src/services/governance.service.ts#workspaceGovernancePolicy.create@271",
+      "terminalLocation": "services/api/src/services/governance.service.ts:271",
       "file": "services/api/src/services/governance.service.ts",
       "enclosingDeclaration": "updateWorkspaceGovernancePolicyWithVersion",
       "kind": "DATABASE",
@@ -56435,8 +56435,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance.service.ts#workspaceGovernancePolicy.updateMany@293",
-      "terminalLocation": "services/api/src/services/governance.service.ts:293",
+      "writerId": "services/api/src/services/governance.service.ts#workspaceGovernancePolicy.updateMany@301",
+      "terminalLocation": "services/api/src/services/governance.service.ts:301",
       "file": "services/api/src/services/governance.service.ts",
       "enclosingDeclaration": "updateWorkspaceGovernancePolicyWithVersion",
       "kind": "DATABASE",
@@ -90181,8 +90181,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/organization-data-export.service.ts#organizationDataExportRequest.update@101",
-      "terminalLocation": "services/api/src/services/organization/organization-data-export.service.ts:101",
+      "writerId": "services/api/src/services/organization/organization-data-export.service.ts#organizationDataExportRequest.update@131",
+      "terminalLocation": "services/api/src/services/organization/organization-data-export.service.ts:131",
       "file": "services/api/src/services/organization/organization-data-export.service.ts",
       "enclosingDeclaration": "processOrganizationDataExports",
       "kind": "DATABASE",
@@ -90216,8 +90216,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/organization-data-export.service.ts#organizationDataExportRequest.update@127",
-      "terminalLocation": "services/api/src/services/organization/organization-data-export.service.ts:127",
+      "writerId": "services/api/src/services/organization/organization-data-export.service.ts#organizationDataExportRequest.update@157",
+      "terminalLocation": "services/api/src/services/organization/organization-data-export.service.ts:157",
       "file": "services/api/src/services/organization/organization-data-export.service.ts",
       "enclosingDeclaration": "processOrganizationDataExports",
       "kind": "DATABASE",
@@ -90251,8 +90251,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/organization-data-export.service.ts#organizationDataExportRequest.updateMany@81",
-      "terminalLocation": "services/api/src/services/organization/organization-data-export.service.ts:81",
+      "writerId": "services/api/src/services/organization/organization-data-export.service.ts#organizationDataExportRequest.updateMany@111",
+      "terminalLocation": "services/api/src/services/organization/organization-data-export.service.ts:111",
       "file": "services/api/src/services/organization/organization-data-export.service.ts",
       "enclosingDeclaration": "processOrganizationDataExports",
       "kind": "DATABASE",
@@ -90286,8 +90286,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/organization/organization-data-export.service.ts#organizationDataExportRequest.updateMany@94",
-      "terminalLocation": "services/api/src/services/organization/organization-data-export.service.ts:94",
+      "writerId": "services/api/src/services/organization/organization-data-export.service.ts#organizationDataExportRequest.updateMany@124",
+      "terminalLocation": "services/api/src/services/organization/organization-data-export.service.ts:124",
       "file": "services/api/src/services/organization/organization-data-export.service.ts",
       "enclosingDeclaration": "processOrganizationDataExports",
       "kind": "DATABASE",
@@ -124180,7 +124180,7 @@
       "method": "GET",
       "path": "/v1/governance/case-legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:567",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:588",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125022,7 +125022,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:830",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:851",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125080,7 +125080,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/is-held",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:915",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:936",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125143,7 +125143,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:770",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:791",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125271,7 +125271,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -125568,7 +125569,7 @@
       "method": "GET",
       "path": "/v1/governance/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:360",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:381",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -126218,7 +126219,7 @@
       "method": "GET",
       "path": "/v1/governance/retention-candidates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:869",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:890",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -169989,7 +169990,7 @@
       "method": "POST",
       "path": "/v1/governance/case-legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:605",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:626",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -170073,7 +170074,7 @@
       "method": "POST",
       "path": "/v1/governance/case-legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:692",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:713",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -171099,7 +171100,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
         "governanceExportSnapshot",
@@ -171130,7 +171132,7 @@
       "method": "POST",
       "path": "/v1/governance/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:389",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:410",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -171215,7 +171217,7 @@
       "method": "POST",
       "path": "/v1/governance/legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:495",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:516",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -171726,7 +171728,7 @@
       "method": "POST",
       "path": "/v1/governance/reconcile-retention",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:892",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:913",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -171738,7 +171740,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/governance.routes.ts:892 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/governance.routes.ts:913 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -178441,6 +178443,7 @@
         "userLegalAcceptance",
         "verificationPackage",
         "workspaceClosureRequest",
+        "workspaceGovernancePolicy",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -180678,6 +180681,7 @@
         "workflowIntakeLink",
         "workflowReviewDecision",
         "workspaceClosureRequest",
+        "workspaceGovernancePolicy",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
@@ -184152,7 +184156,8 @@
         "organizationDataExportRequest",
         "organizationMembership",
         "team",
-        "user"
+        "user",
+        "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
         "adminAuditLog",
