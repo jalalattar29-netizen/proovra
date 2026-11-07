@@ -17,10 +17,11 @@
  *   - short-lived download links, a page at a time, each bound to the exact
  *     sealed version, so the copy reconciles to the sealed bytes.
  *
- * GOV-012: a record under legal hold is included and flagged. Its bytes are
- * released to the owner like any other (a hold preserves; it does not forbid a
- * copy reaching the customer), and every record whose links are issued gets a
- * custody event naming the export, so the chain shows what left and to whom.
+ * GOV-012: a record under legal hold is always listed and flagged. Under the
+ * default (BLOCK) its bytes are withheld: it appears in `withheldByLegalHold`
+ * and gets no link. Only when its workspace owner opted in
+ * (ALLOW_AUTHENTICATED_RECORDED) are its links issued. Every record whose links
+ * are issued gets a custody event, so the chain shows what left and to whom.
  */
 import { createHash } from "node:crypto";
 
@@ -50,7 +51,31 @@ export type OrganizationExportPackage = {
   schema: "PROOVRA_ORG_DATA_EXPORT_V1";
   manifest: OrganizationExportManifest;
   storageCheck: ManifestStorageCheck;
+  /**
+   * GOV-012 — records under legal hold whose workspace keeps the default
+   * (BLOCK): listed here, with no download links. Not dropped: the owner sees
+   * what was withheld and why.
+   */
+  withheldByLegalHold: Array<{ evidenceId: string; workspaceId: string; reason: "WITHHELD_BY_LEGAL_HOLD" }>;
 };
+
+/** Workspaces whose owner opted in to releasing held records (GOV-012). */
+async function workspacesReleasingHeldRecords(client: PrismaClient, workspaceIds: string[]): Promise<Set<string>> {
+  if (workspaceIds.length === 0) return new Set();
+  const rows = await client.workspaceGovernancePolicy.findMany({
+    where: { teamId: { in: [...new Set(workspaceIds)] }, legalHoldDisclosure: "ALLOW_AUTHENTICATED_RECORDED" },
+    select: { teamId: true },
+  });
+  return new Set(rows.map((r) => r.teamId));
+}
+
+async function withheldRecords(client: PrismaClient, manifest: OrganizationExportManifest) {
+  const held = manifest.records.filter((r) => r.legalHold);
+  const releasing = await workspacesReleasingHeldRecords(client, held.map((r) => r.workspaceId));
+  return held
+    .filter((r) => !releasing.has(r.workspaceId))
+    .map((r) => ({ evidenceId: r.evidenceId, workspaceId: r.workspaceId, reason: "WITHHELD_BY_LEGAL_HOLD" as const }));
+}
 
 type StoragePort = Parameters<typeof checkManifestAgainstStorage>[1];
 
@@ -62,7 +87,12 @@ export async function buildOrganizationExportPackage(
   const client = deps.client ?? defaultPrisma;
   const manifest = await buildOrganizationExportManifest({ organizationId }, client);
   const storageCheck = await checkManifestAgainstStorage(manifest, deps.storage ?? apiEvidenceDestructionStorage);
-  const pkg: OrganizationExportPackage = { schema: "PROOVRA_ORG_DATA_EXPORT_V1", manifest, storageCheck };
+  const pkg: OrganizationExportPackage = {
+    schema: "PROOVRA_ORG_DATA_EXPORT_V1",
+    manifest,
+    storageCheck,
+    withheldByLegalHold: await withheldRecords(client, manifest),
+  };
   const json = JSON.stringify(pkg);
   return { json, sha256: createHash("sha256").update(canonicalJsonValue(pkg), "utf8").digest("hex"), pkg };
 }
@@ -154,10 +184,20 @@ export async function issueOrganizationExportLinks(input: {
   actorUserId: string;
   offset: number;
   limit?: number;
-}): Promise<{ links: OrgExportLink[]; nextOffset: number | null; total: number }> {
-  const flat = input.manifest.records.flatMap((r) =>
-    r.objects.map((o) => ({ evidenceId: r.evidenceId, object: o })),
-  );
+  client?: PrismaClient;
+}): Promise<{
+  links: OrgExportLink[];
+  nextOffset: number | null;
+  total: number;
+  withheldByLegalHold: OrganizationExportPackage["withheldByLegalHold"];
+}> {
+  // GOV-012 — decided NOW, not at build time: a hold placed or a setting
+  // changed since the manifest was built is honoured.
+  const withheld = await withheldRecords(input.client ?? defaultPrisma, input.manifest);
+  const withheldIds = new Set(withheld.map((w) => w.evidenceId));
+  const flat = input.manifest.records
+    .filter((r) => !withheldIds.has(r.evidenceId))
+    .flatMap((r) => r.objects.map((o) => ({ evidenceId: r.evidenceId, object: o })));
   const limit = Math.max(1, Math.min(input.limit ?? ORG_EXPORT_LINK_PAGE, ORG_EXPORT_LINK_PAGE));
   const page = flat.slice(input.offset, input.offset + limit);
   const links: OrgExportLink[] = [];
@@ -177,5 +217,5 @@ export async function issueOrganizationExportLinks(input: {
     await recordOriginalRelease({ evidenceId, actorUserId: input.actorUserId, channel: "original", originalUrlsIssued: count });
   }
   const next = input.offset + page.length;
-  return { links, nextOffset: next < flat.length ? next : null, total: flat.length };
+  return { links, nextOffset: next < flat.length ? next : null, total: flat.length, withheldByLegalHold: withheld };
 }

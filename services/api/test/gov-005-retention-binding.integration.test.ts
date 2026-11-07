@@ -192,14 +192,16 @@ describe("GOV-005 named retention policies bind to records (live PostgreSQL 16)"
   });
 
   it("a Phase 4B template policy stands between a record and its destruction, with its date", async () => {
-    const rule = await prisma.retentionPolicyConfig.create({
+    // The lifecycle template policy lives in the one retention store (the
+    // retired retention_policy_configs table refuses writes).
+    const rule = await prisma.evidenceRetentionPolicy.create({
       data: {
         teamId: A().teamId,
-        name: "gov-005 template (fixture row)",
-        template: "CUSTOM",
-        years: 7,
-        scopeKind: "WORKSPACE",
-        scopeTargetId: null,
+        displayName: "gov-005 template (fixture row)",
+        description: "lifecycle-template:CUSTOM",
+        retentionDays: 7 * 365,
+        scope: "WORKSPACE",
+        status: "ACTIVE",
         createdByUserId: A().ownerUserId,
       },
       select: { id: true },
@@ -229,7 +231,7 @@ describe("GOV-005 named retention policies bind to records (live PostgreSQL 16)"
         details: { blockReason: "APP_RETENTION_ACTIVE" },
       });
     } finally {
-      await prisma.retentionPolicyConfig.update({ where: { id: rule.id }, data: { state: "RELEASED" } });
+      await prisma.evidenceRetentionPolicy.update({ where: { id: rule.id }, data: { status: "ARCHIVED" } });
     }
   });
 

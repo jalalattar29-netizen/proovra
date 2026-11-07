@@ -86,6 +86,8 @@ export const DEFAULT_POLICY: Readonly<
   requireStepUpForEscalationResolve: false,
   requireStepUpForBulk: false,
   reviewerInactivityHours: null,
+  // GOV-012 — a hold blocks every byte release unless the owner opted in.
+  legalHoldDisclosure: "BLOCK",
 };
 
 export type EffectivePolicy = typeof DEFAULT_POLICY & {
@@ -129,6 +131,7 @@ export async function loadWorkspaceGovernancePolicy(
     requireStepUpForEscalationResolve: row.requireStepUpForEscalationResolve,
     requireStepUpForBulk: row.requireStepUpForBulk,
     reviewerInactivityHours: row.reviewerInactivityHours,
+    legalHoldDisclosure: row.legalHoldDisclosure,
     source: "workspace_row",
   };
 }
@@ -165,7 +168,12 @@ export type GovernancePolicyPatch = Partial<{
   requireStepUpForEscalationResolve: boolean;
   requireStepUpForBulk: boolean;
   reviewerInactivityHours: number | null;
+  // GOV-012 — owner-only (the route enforces it), with step-up.
+  legalHoldDisclosure: LegalHoldDisclosure;
 }>;
+
+export const LEGAL_HOLD_DISCLOSURE_MODES = ["BLOCK", "ALLOW_AUTHENTICATED_RECORDED"] as const;
+export type LegalHoldDisclosure = (typeof LEGAL_HOLD_DISCLOSURE_MODES)[number];
 
 export type UpdateGovernancePolicyInput = {
   teamId: string;

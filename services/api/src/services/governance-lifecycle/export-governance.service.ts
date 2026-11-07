@@ -6,9 +6,11 @@
  * compliance package builder + audit export + outbound transfer paths.
  *
  * Hard rules:
- *   - GOV-012 (2026-11-04): an active hold blocks only an ANONYMOUS public
- *     release (audience `public`). An authenticated release to the workspace's
- *     own people is allowed and flagged `underLegalHold`; the custody writers in
+ *   - GOV-012 (2026-11-06): an active hold blocks every byte release BY DEFAULT.
+ *     Only when the workspace owner set legalHoldDisclosure =
+ *     ALLOW_AUTHENTICATED_RECORDED is an authenticated release to the workspace's
+ *     own people allowed and flagged `underLegalHold` (an anonymous public
+ *     release stays refused); the custody writers in
  *     artifact-download-gate.service.ts record it. Destruction and replacement
  *     stay refused under hold (lifecycle-orchestrator, executor, package gate).
  *     The paragraph below is the previous rule, kept for its scope notes.
@@ -72,12 +74,11 @@ export type CheckExportEligibilityInput = {
    */
   preflight?: boolean;
   /**
-   * GOV-012 — who the bytes are released to. A hold PRESERVES: it forbids
-   * destroying, replacing or anonymously publishing a held record, not handing
-   * a copy to the workspace's own authorised people (counsel, reviewers,
-   * offboarding), which is the reason holds exist. `workspace` (the default)
-   * is an authenticated release that the caller records on the custody chain;
-   * `public` is an anonymous Public Verify release, still refused under hold.
+   * GOV-012 — who the bytes are released to. By default a hold refuses every
+   * byte release. When the workspace owner opted in (legalHoldDisclosure =
+   * ALLOW_AUTHENTICATED_RECORDED), `workspace` (the default audience) is an
+   * authenticated release the caller records on the custody chain; `public`, an
+   * anonymous Public Verify release, stays refused under hold either way.
    */
   audience?: "workspace" | "public";
 };
@@ -110,20 +111,31 @@ export async function checkExportEligibility(
   // and an unreadable hold state blocks rather than releasing bytes.
   const linkedCaseIds = ev.caseLinks.map((l) => l.caseId);
   let held: { held: boolean; reasonCode: string | null };
+  // A Personal record (team_id NULL) is held through its owner's personal
+  // workspace: that is where its holds (and its disclosure setting) live.
+  let holdWorkspaceId: string | null = input.teamId;
   try {
+    holdWorkspaceId =
+      input.teamId ??
+      (await resolveEvidenceWorkspaceId({ teamId: null, ownerUserId: ev.ownerUserId }, client));
     held = await evaluateEffectiveLegalHold(client, {
-      // A Personal record (team_id NULL) is held through its owner's personal
-      // workspace: that is where its holds are recorded (teamId is required).
-      teamId:
-        input.teamId ??
-        (await resolveEvidenceWorkspaceId({ teamId: null, ownerUserId: ev.ownerUserId }, client)),
+      teamId: holdWorkspaceId as string,
       evidenceId: ev.id,
       caseIds: linkedCaseIds,
     });
   } catch {
     held = { held: true, reasonCode: "UNRESOLVED_HOLD" };
   }
-  if (held.held && (input.audience ?? "workspace") === "public") {
+  // GOV-012 — OPT-IN. By default (BLOCK) a hold refuses every byte release, as
+  // it always has. Only a workspace whose OWNER chose ALLOW_AUTHENTICATED_RECORDED
+  // releases a held record, and only to an authenticated caller.
+  const disclosure = held.held && (input.audience ?? "workspace") === "workspace" && holdWorkspaceId
+    ? await client.workspaceGovernancePolicy
+        .findUnique({ where: { teamId: holdWorkspaceId }, select: { legalHoldDisclosure: true } })
+        .then((r) => r?.legalHoldDisclosure ?? "BLOCK")
+        .catch(() => "BLOCK")
+    : "BLOCK";
+  if (held.held && ((input.audience ?? "workspace") === "public" || disclosure !== "ALLOW_AUTHENTICATED_RECORDED")) {
     emitBlocked(input, "BLOCKED_BY_HOLD", {
       lifecycleState,
       holdSource: held.reasonCode,

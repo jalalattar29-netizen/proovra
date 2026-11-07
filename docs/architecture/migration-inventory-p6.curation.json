@@ -3823,6 +3823,14 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.package_seal_byte_checks') IS NOT NULL;\"",
       "evidence": "REPORT-014 (2026-11-04). One new, empty table remembering the definitive outcome of the immutable part of a package seal check by seal identity. Key revocation is never stored. An older image ignores it. Rollback: drop the table."
     },
+    "20281119100400_legal_hold_disclosure_setting": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_governance_policies' AND column_name='legal_hold_disclosure';\"",
+      "evidence": "GOV-012 (2026-11-06). One NOT NULL column with default 'BLOCK' (the existing behaviour: a hold refuses every byte release) and a two-value CHECK. Only a workspace owner's opt-in changes it. An older image never reads it. Rollback: leave the column."
+    },
     "20281118070000_sso_native_handoffs": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",

@@ -5251,6 +5251,14 @@ model WorkspaceGovernancePolicy {
   // report/package downloads.
   allowOriginalDownload Boolean @default(true) @map("allow_original_download")
 
+  /// GOV-012 (2026-11-06) — may a held record's bytes be released to this
+  /// workspace's own authenticated people? BLOCK (default): every byte release of
+  /// a held record is refused, as before. ALLOW_AUTHENTICATED_RECORDED: an
+  /// authenticated release is allowed and recorded on its custody event; an
+  /// anonymous Public Verify release, destruction, replacement and package
+  /// generation stay refused. Changed only by the workspace owner, with step-up.
+  legalHoldDisclosure String @default("BLOCK") @map("legal_hold_disclosure") @db.VarChar(32)
+
   // Metadata redaction defaults — schema-shaped per the Phase 1 visibility
   // resolver. Free-form JSON so future policy fields land here without a
   // migration. Validated at write time against shared types.

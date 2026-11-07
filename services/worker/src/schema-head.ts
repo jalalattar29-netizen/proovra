@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281119100300_package_seal_byte_checks";
+export const EXPECTED_MIGRATION_HEAD = "20281119100400_legal_hold_disclosure_setting";
 
 export type MigrationRow = {
   migration_name: string;

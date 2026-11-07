@@ -1051,7 +1051,7 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
     async function withChainVerifierEnabled<T>(fn: () => Promise<T>): Promise<T> {
       const saved = { ...process.env };
       process.env.OTS_BITCOIN_VERIFY_ENABLED = "true";
-      // Loopback, never contacted by the reconciler (it only enqueues).
+      // Loopback, never contacted here (the readiness answer is the seam below).
       process.env.OTS_BITCOIN_RPC_URL = "http://127.0.0.1:18443";
       process.env.OTS_BITCOIN_RPC_USERNAME = "forward-test";
       process.env.OTS_BITCOIN_EXPECTED_CHAIN = "regtest";
@@ -1064,6 +1064,11 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
         }
       }
     }
+
+    // CRYPTO-008 — the sweep asks the verifier ONE readiness question per tick
+    // and enqueues nothing while it cannot answer. These cases are about which
+    // records the sweep serves, so the loopback verifier answers "ready" here.
+    const verifierReady = async () => true;
 
     async function clearOtsJobs(ids: string[]) {
       const q = await import("../../../worker/src/queue.js");
@@ -1095,11 +1100,11 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       await clearOtsJobs([...finals, confirming.evidenceId]);
       try {
         const reconciler = await import("../../../worker/src/ots-initialization-reconciler.js");
-        await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1000 }));
+        await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1000, probeVerifierReadiness: verifierReady }));
         for (const id of finals) expect(await q.isOtsUpgradeScheduled(id), `final ${id}`).toBe(false);
         expect(await q.isOtsUpgradeScheduled(confirming.evidenceId)).toBe(true);
         // A second pass changes nothing for the final rows.
-        await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1000 }));
+        await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1000, probeVerifierReadiness: verifierReady }));
         for (const id of finals) expect(await q.isOtsUpgradeScheduled(id)).toBe(false);
       } finally {
         await clearOtsJobs([...finals, confirming.evidenceId]);
@@ -1156,7 +1161,7 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       const touched = [...new Set([head, starved.evidenceId, competitor.evidenceId])];
       await clearOtsJobs(touched);
       try {
-        await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1 }));
+        await withChainVerifierEnabled(() => reconciler.runOtsInitializationReconciler({ trigger: "test" as never, batchSize: 1, probeVerifierReadiness: verifierReady }));
         expect(await q.isOtsUpgradeScheduled(head), "the head of the sweep order is served").toBe(true);
         expect(await q.isOtsUpgradeScheduled(competitor.evidenceId), "a batch of one serves one record").toBe(false);
         if (head === starved.evidenceId) {
