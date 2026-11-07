@@ -99,7 +99,7 @@ top level of it.
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/verification-package` | action, code, disclosureProfile, evidenceId, generatedAtUtc, latestAvailablePackageVersi… | url |
 | OK | `parseRetentionArchive` | `GET /v1/evidence/retention-archive` | items, nextCursor | items, nextCursor |
 | OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, parts, request, resumed, session | link, parts, request, resumed, session |
-| OK | `parseExportEligibility` | `GET /v1/governance/export-eligibility` | lifecycleState, outcome, reason | lifecycleState, outcome, reason |
+| OK | `parseExportEligibility` | `GET /v1/governance/export-eligibility` | lifecycleState, outcome, reason, underLegalHold | lifecycleState, outcome, reason |
 | OK | `parseContactFactors` | `GET /v1/identity-security/contact-factors` | factors | factors |
 | OK | `parseRecoveryDetail` | `GET /v1/identity/mfa-admin/recovery-requests/detail/:requestId` | detail, error | detail, emailResendCount, emailVerified, expiresAt, id, status |
 | OK | `parseLegalIndex` | `GET /v1/legal` | documents, locale | documents |

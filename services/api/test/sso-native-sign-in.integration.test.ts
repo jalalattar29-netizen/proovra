@@ -115,6 +115,20 @@ describe("MOBILE-002 — native SSO sign-in through a single-use, PKCE-bound han
     );
 
   async function activeConnection(org: OrganizationTenant) {
+    // IDENT-013 / PRO-025 (auth-identity batch) — JIT creates an account only
+    // in a domain the Organization has proved, so each connection gets its own
+    // verified domain and the stand-in IdP asserts an address in it.
+    const domain = `${randomUUID().slice(0, 8)}.native-verified.example`;
+    await prisma.organizationDomain.create({
+      data: {
+        organizationId: org.organizationId,
+        domain,
+        verifiedAt: new Date(),
+        verificationToken: randomUUID(),
+        createdByUserId: org.owner.userId,
+      } as never,
+    });
+    idp.email = `person-${randomUUID().slice(0, 8)}@${domain}`;
     const created = await sso.createSsoConnection({
       teamId: org.workspaceId,
       provider: "GENERIC_OIDC",
@@ -122,7 +136,7 @@ describe("MOBILE-002 — native SSO sign-in through a single-use, PKCE-bound han
       issuerUrl: "https://placeholder.example.test/.well-known/openid-configuration",
       clientId: CLIENT_ID,
       clientSecret: CLIENT_SECRET,
-      allowedEmailDomains: ["example.test"],
+      allowedEmailDomains: [domain],
       jitDefaultRole: "MEMBER",
       actorUserId: org.owner.userId,
     } as never);
