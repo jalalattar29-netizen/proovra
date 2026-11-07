@@ -69,8 +69,13 @@ export async function seedOperator(
   // The next code the replay guard accepts: later than the last one spent.
   let lastStep = -Infinity;
   const nextCode = (): string => {
-    const current = totp.timeStep(Math.floor(Date.now() / 1000));
-    const step = Math.max(lastStep + 1, current - 1);
+    const nowSeconds = Date.now() / 1000;
+    const current = totp.timeStep(Math.floor(nowSeconds));
+    // The server accepts current ±1. The previous step leaves the window at the next boundary, so it is
+    // used only while at least 5 s of the current step remain; otherwise a boundary crossed in flight
+    // (CI load) turns a correct code into a denial.
+    const oldest = nowSeconds % 30 < 25 ? current - 1 : current;
+    const step = Math.max(lastStep + 1, oldest);
     if (step > current + 1) throw new Error("no unspent TOTP step left in the window");
     lastStep = step;
     return totp.computeTotpCode(secret, step);
