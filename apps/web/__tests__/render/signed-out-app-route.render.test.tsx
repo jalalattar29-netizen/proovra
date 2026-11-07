@@ -75,7 +75,13 @@ describe("PRO-075: signed out means sign in", () => {
     await settle();
     expect(screen.queryByTestId("protected")).toBeNull();
     expect(screen.getByRole("heading", { name: "Sign in to continue" })).toBeTruthy();
-    expect(document.querySelector("[data-page-route-gate]")).toBeNull();
+    // A refusal, on the gate's one marker contract (operations-contexts e2e
+    // reads data-page-route-gate-state to decide the route was refused).
+    const gate = document.querySelector('[data-page-route-gate-route-id="account.settings"]');
+    expect(gate?.getAttribute("data-page-route-gate-state")).toBe("AUTH_REQUIRED");
+    expect(screen.getByTestId("route-gate-account.settings")).toBeTruthy();
+    // Nothing about workspaces, plans or permissions.
+    expect(document.body.textContent).not.toMatch(/Workspace setup required|Permission required|Platform administrator/);
   });
 
   it("control: a route that loads with no context (an invitation page) still renders on a 401", async () => {

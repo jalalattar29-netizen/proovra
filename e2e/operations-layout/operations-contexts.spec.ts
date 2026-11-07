@@ -72,6 +72,13 @@ async function opsPaths(): Promise<string[]> {
  */
 async function profile(page: Page) {
   const gateCount = await gate(page).count();
+  // PRO-075 (2026-11-06) — the shell declining to route at all. With no
+  // session and a context that answers 401 (the missing-envelope fixture),
+  // the (app) layout renders the sign-in state INSTEAD of the shell and the
+  // page, so no route gate ever mounts. That is a refusal of the shell kind
+  // this file already allows for; reading only the gate marker reported it
+  // as "ALLOWED".
+  const signedOut = await page.locator('[data-testid="signed-out-app-state"]').count();
   return {
     gateVisible: gateCount,
     // Absent when the gate ALLOWED: it renders its children and no wrapper.
@@ -80,7 +87,9 @@ async function profile(page: Page) {
     gateState:
       gateCount > 0
         ? await gate(page).getAttribute("data-page-route-gate-state")
-        : "ALLOWED",
+        : signedOut > 0
+          ? "SIGNED_OUT"
+          : "ALLOWED",
     workbench: await workbench(page).count(),
     metrics: await visibleMetrics(page),
     ownerFilter: await page.locator("[data-ops-owner-filter]").count(),

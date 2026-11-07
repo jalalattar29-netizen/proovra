@@ -77,11 +77,33 @@ test.describe("Phase 2.3 — enterprise governance @critical", () => {
     //
     // Pre-warm the bundle once (extra dev-server hit) so the first
     // observation is more representative.
+    //
+    // PRO-075 (2026-11-06) — this visit has NO session (the chromium project
+    // carries no storage state). The (app) layout used to return the shell
+    // and the page to a signed-out visitor, which then showed workspace and
+    // permission states with no way to sign in; that was the audited defect.
+    // Signed out, the layout now answers with the sign-in state instead of
+    // the page, so the page marker never mounts. Stage 1 therefore accepts
+    // either the page marker (a session) or the signed-out state, and a
+    // signed-out answer must offer sign-in back to /settings.
     await page.waitForLoadState("networkidle");
+    const mountedOrSignedOut = page.locator(
+      '[data-testid="account-settings-page"], [data-testid="signed-out-app-state"]',
+    );
     await expect(
-      page.locator('[data-testid="account-settings-page"]'),
-      "expected /settings to mount its stable page marker within 60s (dev-server compile + first paint)",
+      mountedOrSignedOut.first(),
+      "expected /settings to mount its page marker, or the signed-out state, within 60s (dev-server compile + first paint)",
     ).toBeVisible({ timeout: 60_000 });
+
+    if (await page.locator('[data-testid="signed-out-app-state"]').isVisible()) {
+      await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+        "href",
+        `/login?next=${encodeURIComponent("/settings")}`,
+      );
+      await expect(page.locator('[data-testid="account-settings-page"]')).toHaveCount(0);
+      return;
+    }
 
     const sawSecurityOrGate = page.locator(
       '[data-testid="account-security-card"], [data-testid="route-gate-account.settings"]',
