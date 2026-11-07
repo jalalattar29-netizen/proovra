@@ -110,6 +110,19 @@ describe("sign-in second factor: the one the person enrolled", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use a recovery code instead" }));
     expect(await screen.findByLabelText("Single-use recovery code")).toBeTruthy();
   });
+
+  it("an authenticator-only account keeps the same recovery toggle before and after the methods answer", async () => {
+    routes["/v1/auth/mfa/methods"] = { status: 200, body: { methods: ["TOTP", "RECOVERY_CODE"], destinationMask: null, passkeyOptions: null } };
+    render(<MfaChallengePage />);
+    const before = document.querySelector('[data-cc-mfa-toggle="use-recovery"]');
+    expect(before).toBeTruthy();
+    await waitFor(() => expect(bodiesTo("/v1/auth/mfa/methods")).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(document.querySelector("[data-cc-mfa-methods]")).toBeNull();
+    expect(document.querySelector('[data-cc-mfa-toggle="use-recovery"]')).toBe(before);
+    fireEvent.click(before as Element);
+    expect(await screen.findByLabelText("Single-use recovery code")).toBeTruthy();
+  });
 });
 
 describe("/auth/mfa-passkey — the app's system-browser passkey for a sign-in", () => {

@@ -944,12 +944,15 @@ test("S21 contract termination with a date: the customer is told, and the operat
   await context.close();
 });
 
-test("S22 contract termination, no date: the real worker's sweep closes it, the end is final, evidence stays", async ({ browser }) => {
+test("S22 contract termination dated today: the real worker's sweep closes it, the end is final, evidence stays", async ({ browser }) => {
   const op = s.people.operator!;
   const { context, page } = await newProfile(browser, op);
   await page.goto(`/admin/customers/${s.orgId}`);
   await settle(page);
   await page.getByTestId("customer-terminate-reason").fill("Contract ended, acceptance");
+  // PROV-013 (2026-11-07): with no date, termination now waits 30 days so the owner
+  // can export. An agreement that ends today is the operator's explicit choice.
+  await page.getByTestId("customer-terminate-date").fill(new Date().toISOString().slice(0, 10));
   await page.getByTestId("customer-terminate").click();
   await page.getByRole("dialog").getByRole("textbox").fill("TERMINATE");
   await page.getByRole("dialog").getByRole("button", { name: "Schedule termination" }).click();

@@ -531,7 +531,10 @@ function MfaChallengeBody() {
           </button>
         ) : null}
       </form>
-      {available ? (
+      {/* Authenticator-only accounts (authenticator + recovery codes) keep the
+          one toggle they always had: swapping it for a list once the methods
+          answer would move the control under a click already on its way. */}
+      {available && available.some((m) => m !== "totp" && m !== "recovery_code") ? (
         <ul style={{ marginTop: 24, fontSize: 14, color: "#475569", listStyle: "none", padding: 0 }} data-cc-mfa-methods>
           {available
             .filter((m) => m !== mode)
