@@ -113,7 +113,14 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
       ...(payload !== undefined ? { payload: JSON.stringify(payload) } : {}),
     });
 
+  /**
+   * Runs the queued report jobs the way BullMQ would: a job that throws is retried while its
+   * request is still QUEUED / FAILED_RETRYABLE (e.g. a cold Chromium missing its 30 s launch
+   * window on a loaded runner). Retries are bounded, and if a request is still pending at the
+   * end, the last error is thrown, so a deterministic failure still fails the suite.
+   */
   async function runReportJobs(id: string): Promise<void> {
+    let lastError: unknown = null;
     for (let i = 0; i < 8; i++) {
       const requests = await prisma.reportGenerationRequest.findMany({
         where: { evidenceId: id, state: { in: ["QUEUED", "FAILED_RETRYABLE"] } },
@@ -124,9 +131,17 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
         const job = await reportQueue.getJob(`report-${r.id}`);
         if (!job) continue;
         (job as { attemptsMade: number }).attemptsMade = 0;
-        await processor.processGenerateReport(job as never);
+        try {
+          await processor.processGenerateReport(job as never);
+        } catch (error) {
+          lastError = error;
+        }
       }
     }
+    const pending = await prisma.reportGenerationRequest.count({
+      where: { evidenceId: id, state: { in: ["QUEUED", "FAILED_RETRYABLE"] } },
+    });
+    if (pending > 0) throw lastError ?? new Error(`${pending} report request(s) still pending after 8 rounds`);
   }
 
   async function captureAndFinalize(): Promise<string> {
