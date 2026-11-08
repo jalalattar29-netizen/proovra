@@ -630,6 +630,9 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
     });
 
     it("A2 an unknown reference, an unknown share and an id outside its grace are the same 404 and write nothing", async () => {
+      // A1 ends on a 200 public verify, whose VERIFY_VIEWED custody append runs
+      // after the response (fire-and-forget). Let it land before the baseline.
+      await new Promise((r) => setTimeout(r, 300));
       const before = { views: await prisma.verificationView.count(), custody: await prisma.custodyEvent.count() };
       const unknownRef = await publicVerify("pvr_AAAAAAAAAAAAAAAAAAAAAAAAAAA");
       const unknownShare = await publicVerify(`pvs_${"A".repeat(43)}`);
