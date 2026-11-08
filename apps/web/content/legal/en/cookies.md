@@ -1,6 +1,6 @@
 # Cookie Policy
 
-Last Updated: 2026-06-26
+Last Updated: 2026-11-08
 
 This Cookie Policy explains how PROOVRA ("PROOVRA", "we", "us", or "our") uses cookies and similar technologies on our websites and web-based Services, and how you can control them.
 
@@ -89,7 +89,7 @@ When you withdraw consent for a category, PROOVRA removes the corresponding non-
 
 The current Subprocessors page lists which third-party providers are presently engaged for the platform.
 
-Not every subprocessor sets browser cookies. Infrastructure, database, queue, and observability providers — such as Hetzner (server / cloud infrastructure), Neon (managed PostgreSQL), Upstash (Redis / queue / cache / rate limiting), AWS (storage, KMS, Rekognition, Secrets Manager), Grafana / Grafana Cloud (observability, metrics, logs), Twilio (communications), Resend (email delivery), MaxMind (geo intelligence), and OpenAI (AI assistance where enabled) — process service-side data or operational metadata without setting cookies in the user's browser. They are described on the [Subprocessors](/legal/subprocessors) page, not in this cookie inventory.
+Not every subprocessor sets browser cookies. Infrastructure, database, queue, and observability providers — such as Hetzner (server / cloud infrastructure), Neon (managed PostgreSQL), Upstash (Redis / queue / cache / rate limiting), AWS (storage, KMS, Rekognition, Secrets Manager), Grafana / Grafana Cloud (observability, metrics, logs), Twilio (communications), Resend (email delivery), and OpenAI (AI assistance where enabled) — process service-side data or operational metadata without setting cookies in the user's browser. They are described on the [Subprocessors](/legal/subprocessors) page, not in this cookie inventory. PROOVRA does not use an IP-geolocation provider such as MaxMind: no IP address or other data is sent to one, and no such provider sets cookies or similar technologies through PROOVRA.
 
 ## 4. LEGAL BASIS FOR COOKIES
 

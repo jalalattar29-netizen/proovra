@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11388,
-      "UNRESOLVED_IDENTIFIER": 1641
+      "METHOD_ON_VALUE": 11394,
+      "UNRESOLVED_IDENTIFIER": 1642
     },
     "MutationFixpointRounds": 10,
     "MutationClosurePass": false,
@@ -156820,11 +156820,11 @@
         "services/api/src/services/billing/reconciliation/reconciliation.service.ts: workspaceStorageAddon.update — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.updateMany — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/billing/reconciliation/reconciliation.service.ts: payment.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/paid-period.service.ts: workspaceStorageAddon.findUnique — no tenant or self predicate"
+        "services/api/src/services/billing/paid-period.service.ts: workspaceStorageAddon.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/paid-period.service.ts: workspaceStorageAddon.update — no tenant or self predicate",
+        "services/api/src/services/billing/dependent-cancellation.service.ts: workspaceStorageAddon.updateMany — no tenant or self predicate",
+        "services/api/src/services/billing/dependent-cancellation.service.ts: workspaceStorageAddon.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -156922,11 +156922,11 @@
         "services/api/src/services/billing/reconciliation/reconciliation.service.ts: workspaceStorageAddon.update — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.updateMany — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/billing/reconciliation/reconciliation.service.ts: payment.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/paid-period.service.ts: workspaceStorageAddon.findUnique — no tenant or self predicate"
+        "services/api/src/services/billing/paid-period.service.ts: workspaceStorageAddon.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/paid-period.service.ts: workspaceStorageAddon.update — no tenant or self predicate",
+        "services/api/src/services/billing/dependent-cancellation.service.ts: workspaceStorageAddon.updateMany — no tenant or self predicate",
+        "services/api/src/services/billing/dependent-cancellation.service.ts: workspaceStorageAddon.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -157697,11 +157697,11 @@
         "services/api/src/services/billing/reconciliation/reconciliation.service.ts: workspaceStorageAddon.update — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.updateMany — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
-        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/billing/reconciliation/reconciliation.service.ts: payment.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/paid-period.service.ts: workspaceStorageAddon.findUnique — no tenant or self predicate"
+        "services/api/src/services/billing/paid-period.service.ts: workspaceStorageAddon.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/paid-period.service.ts: workspaceStorageAddon.update — no tenant or self predicate",
+        "services/api/src/services/billing/dependent-cancellation.service.ts: workspaceStorageAddon.updateMany — no tenant or self predicate",
+        "services/api/src/services/billing/dependent-cancellation.service.ts: workspaceStorageAddon.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",

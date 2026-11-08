@@ -269,6 +269,28 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     }
   }, DRAIN_BUDGET_MS);
 
+  it("CAP-6: a timer tick is bounded by time — with its budget spent it starts nothing and defers every due workspace", async () => {
+    const mine = [personal.teamId, teamA.teamId, teamB.teamId];
+    await prisma.governanceReconciliationRun.deleteMany({
+      where: { kind: "WORKSPACE_OPERATIONS", teamId: { in: mine } },
+    });
+    // No explicit batch: the scheduler's own tick, which selects every due
+    // workspace (oldest first) and stops starting new ones at its budget.
+    const spent = await sweep.runWorkspaceOperationsSweep({ trigger: "scheduler", concurrency: 3, budgetMs: 0 });
+    expect(spent.ok).toBe(true);
+    expect(spent.reconciled + spent.locked + spent.failed).toBe(0);
+    expect(spent.deferred).toBeGreaterThanOrEqual(mine.length);
+    expect(spent.due).toBeGreaterThanOrEqual(mine.length);
+    for (const workspaceId of mine) {
+      expect(await runtime.latestWorkspaceOperationsRun(prisma, workspaceId)).toBeNull();
+    }
+    // The deferred workspaces are reached by the bounded path as before.
+    await drainSweep();
+    for (const workspaceId of mine) {
+      expect(await runtime.latestWorkspaceOperationsRun(prisma, workspaceId)).not.toBeNull();
+    }
+  }, DRAIN_BUDGET_MS);
+
   it("a workspace inside its freshness window is not re-swept", async () => {
     // Drain first: "nothing is due" is only assertable once nothing IS due.
     await drainSweep();

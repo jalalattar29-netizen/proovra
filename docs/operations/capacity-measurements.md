@@ -252,13 +252,48 @@ stack was removed), so compare within this section, not with section 4.
 These are where this dataset failed first after the repairs. Each needs a decision or
 a larger change than a bounded, same-result repair.
 
-- **Workspace operations sweep (API, in process, shares the request pool).** One tick
-  reconciles at most 200 workspaces at about 1,270 statements each (1.4 to 2.9 s per
-  workspace here); the fixture has 23,428 workspaces, so one pass takes about 117 ticks,
-  about 29 hours at the 15-minute interval, against a 45-minute freshness contract. Its
-  largest costs are audit inserts (6,561 per tick) each taking a transaction-scoped
-  advisory lock, and about 90 incident counts per workspace. Whether personal spaces
-  need this sweep, and whether the audit chain can be partitioned, are owner decisions.
+- **Workspace operations sweep (CAP-6): repaired in part, contract not met at
+  23,428 workspaces in one API process.** Before: one tick reconciled at most 200
+  workspaces sequentially at about 1,100 statements each (222.6 s for a tick of 200
+  never-run workspaces, of which 20.4 s was database time). Incident gauges alone were
+  26,898 statements and 13.1 s of that tick. The cap of 800 workspaces an hour put any
+  deployment over about 600 workspaces outside the 45-minute contract, permanently.
+
+  Repaired (`workspace-operations-reconciliation.job.ts`, `incident.service.ts`):
+  a scheduler tick now selects every due workspace (oldest first, same ranking) and
+  stops starting new ones once 80% of the interval is spent, so the backlog shrinks
+  every tick instead of being cut at 200. Workspaces can run in parallel
+  (`OPERATIONS_RECONCILER_CONCURRENCY`, default 1, at most 4), each still claimed
+  through the one run authority. Overlapping timer ticks are skipped. Incident gauges
+  refresh at most every 15 s instead of on every incident write (808 statements per
+  workspace in steady state).
+
+  Measured on the fixture (Postgres 16 in Docker, documented settings, 32 cores; the
+  harness drives the scheduler entry point, `trigger: scheduler`, ticks back to back
+  with a 720 s budget):
+
+  | | sequential (before) | concurrency 1 (after) | concurrency 4 (after) |
+  |---|---|---|---|
+  | workspaces per second, steady state | about 0.9 | 1.31 | 5.35 (16 ticks, 3,718 to 4,654 per tick) |
+  | first pass over 23,428 never-run workspaces | about 29 h at the interval | about 5 h | 87 min (ticks 0 to 6, no failures) |
+  | full pass in steady state | about 7 h | about 5 h | about 73 min; oldest picture 71 min |
+  | largest workspaces | | 14 to 27 s each (7 of 200) | |
+
+  **Why the contract is still not met here, and what would meet it.** The limit is not
+  the database (Postgres used 0.7 of a core). It is one JavaScript thread: at
+  concurrency 4 the main thread of the process measured 0.91 of a core and the other
+  15 threads 0.03 or less, about 170 ms of CPU per workspace. One process therefore
+  tops out near 5.4 workspaces a second. In production the timer gives the sweep 12 of
+  every 15 minutes, so one process holds about 11,500 workspaces at concurrency 4 and
+  about 2,800 at concurrency 1 inside 45 minutes. The fixture needs 10.8 a second. The
+  default stays 1 because the sweep shares the API event loop: 4 would take most of
+  it for 12 of every 15 minutes whenever there is a backlog. Meeting the contract at
+  this size needs one of: a process that runs only the sweep (the API image with
+  `OPERATIONS_RECONCILER_ENABLED` on there and off on the request-serving API), or
+  fewer statements per workspace (the audit inserts and incident counts above). Each
+  is a deployment or design decision, not a bounded repair. The production workspace
+  count and the database round-trip time there (CAP-9) decide whether either is needed.
+  The coverage metric (`due`, oldest picture) reports the gap rather than hiding it.
 - **Audit chain lock.** Every `admin_audit_logs` insert serialises on
   `pg_advisory_xact_lock`. At 20 clients before the repairs 9 sessions waited on locks.
   It is the platform's tamper-evidence design; changing it is not a performance tweak.

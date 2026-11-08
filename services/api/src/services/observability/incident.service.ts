@@ -934,7 +934,7 @@ export async function recordIncident(
   }
 
   // Update gauges.
-  await refreshIncidentGauges(client).catch(() => null);
+  await refreshIncidentGaugesThrottled(client);
 
   return { created, incident: row };
 }
@@ -1717,7 +1717,7 @@ async function transitionIncident(
     client,
   );
 
-  await refreshIncidentGauges(client).catch(() => null);
+  await refreshIncidentGaugesThrottled(client);
   return updated;
 }
 
@@ -2372,6 +2372,38 @@ export async function getIncidentDetail(
 // -----------------------------------------------------------------------------
 // Gauges
 // -----------------------------------------------------------------------------
+
+/**
+ * CAP-6 (2026-11-08) — the three platform-wide gauges are recounted at most once
+ * per window per process, not after every write.
+ *
+ * Each recount is three COUNTs over the whole incident table. Run after every
+ * incident write, they were 26,898 of one sweep tick's 221,217 statements and
+ * 13.1 of its 20.4 database seconds on the 23,428-workspace capacity fixture,
+ * to set three process metrics. A write inside the window schedules one
+ * trailing recount at its end, so the last write is always reflected and a
+ * gauge is never more than one window behind.
+ */
+export const INCIDENT_GAUGE_REFRESH_WINDOW_MS = 15_000;
+let lastGaugeRefreshAtMs = 0;
+let trailingGaugeRefresh: ReturnType<typeof setTimeout> | null = null;
+
+async function refreshIncidentGaugesThrottled(client: PrismaClient): Promise<void> {
+  const now = Date.now();
+  const sinceLast = now - lastGaugeRefreshAtMs;
+  if (sinceLast >= INCIDENT_GAUGE_REFRESH_WINDOW_MS) {
+    lastGaugeRefreshAtMs = now;
+    await refreshIncidentGauges(client).catch(() => null);
+    return;
+  }
+  if (trailingGaugeRefresh) return;
+  trailingGaugeRefresh = setTimeout(() => {
+    trailingGaugeRefresh = null;
+    lastGaugeRefreshAtMs = Date.now();
+    void refreshIncidentGauges(client).catch(() => null);
+  }, INCIDENT_GAUGE_REFRESH_WINDOW_MS - sinceLast);
+  (trailingGaugeRefresh as { unref?: () => void }).unref?.();
+}
 
 async function refreshIncidentGauges(client: PrismaClient): Promise<void> {
   const [open, openHigh, openCritical] = await Promise.all([

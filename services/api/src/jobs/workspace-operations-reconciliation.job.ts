@@ -20,7 +20,7 @@
  *
  * THE PROPERTIES THE BRIEF REQUIRES, AND WHERE EACH COMES FROM
  * ------------------------------------------------------------
- *   * bounded workspaces per sweep      — `WORKSPACE_BATCH` here.
+ *   * bounded workspaces per sweep      — `WORKSPACE_BATCH` / the tick budget here.
  *   * per-workspace isolation           — one try/catch per workspace here;
  *                                         one run row per workspace there.
  *   * per-source isolation              — the discovery body, which records
@@ -47,8 +47,11 @@
  *                                         computed by the authority.
  *   * no duplicate incident occurrences — `recordIncident` upserts on
  *                                         (teamId, fingerprint).
- *   * no unlimited fan-out              — batch bound plus sequential
- *                                         execution.
+ *   * no unlimited fan-out              — a bounded number of workspaces in
+ *                                         flight (CAP-6), each claimed through
+ *                                         the run authority, inside a time
+ *                                         budget for timer ticks and a count
+ *                                         bound for explicit batches.
  *   * queue unavailable reported truthfully — this sweep touches no queue; if
  *                                         a future source does, its failure
  *                                         lands in `failedSources` and makes
@@ -85,6 +88,48 @@ const WORKSPACE_BATCH = 25;
  */
 const MAX_WORKSPACE_BATCH = 200;
 
+/**
+ * CAP-6 (2026-11-08) — THE SCHEDULER'S OWN TICK IS BOUNDED BY TIME, NOT BY A
+ * COUNT, AND RUNS A FEW WORKSPACES AT ONCE.
+ *
+ * Measured on the 23,428-workspace capacity fixture: one workspace costs about
+ * 75 ms in steady state (p50) and 14-27 s for the largest tenants, almost all of
+ * it statement round trips rather than database time. A sequential tick capped
+ * at 200 workspaces per 15 minutes reaches at most 800 workspaces an hour, so a
+ * deployment of that size could never be inside the 45-minute contract.
+ *
+ * So a scheduler tick selects every workspace that is due (oldest first, the
+ * same ranking), works through them with OPERATIONS_RECONCILER_CONCURRENCY
+ * workspaces in flight, and stops taking new ones once its budget (80% of the
+ * interval) is spent; the rest are first in line next tick. Each workspace is
+ * still claimed through the one run authority, so concurrency adds no second
+ * lock and two replicas still exclude each other per workspace. An explicit
+ * `batchSize` (CLI and tests) keeps the bounded selection above.
+ *
+ * CONCURRENCY DEFAULTS TO 1 (CAP-6, measured 2026-11-08). The sweep runs on the
+ * API process event loop, and its cost is JavaScript on that one thread (about
+ * 170 ms of CPU per workspace, 808 statements), not database time. With 4 in
+ * flight the main thread measured 0.91 of a core (Postgres 0.7 of 32 cores) and
+ * throughput 5.35 workspaces/s, against 1.31/s and about a quarter of a core
+ * sequentially. Raising the default would take most of the API event loop for
+ * 12 of every 15 minutes whenever there is a backlog, so it stays opt-in. More
+ * than 4 in one process adds nothing: the thread is already saturated.
+ */
+const SCHEDULER_SELECTION_BOUND = 100_000;
+const DEFAULT_SWEEP_CONCURRENCY = 1;
+const MAX_SWEEP_CONCURRENCY = 4;
+
+function sweepConcurrencyFromEnv(raw: string | undefined = process.env.OPERATIONS_RECONCILER_CONCURRENCY): number {
+  const n = Number.parseInt(raw ?? "", 10);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_SWEEP_CONCURRENCY;
+  return Math.min(n, MAX_SWEEP_CONCURRENCY);
+}
+
+function sweepBudgetMsFromEnv(raw: string | undefined = process.env.OPERATIONS_RECONCILER_INTERVAL_MS): number {
+  const interval = Number.parseInt(raw ?? "", 10);
+  return Math.floor((Number.isFinite(interval) && interval > 0 ? interval : OPERATIONS_SWEEP_INTERVAL_MS) * 0.8);
+}
+
 export type OperationsSweepResult = {
   ok: boolean;
   /** Workspaces this tick claimed and ran. */
@@ -102,6 +147,11 @@ export type OperationsSweepResult = {
    * batch is too small for the deployment.
    */
   due: number;
+  /**
+   * CAP-6 — due workspaces this tick selected but did not start because its
+   * time budget was spent. They lead the next tick's ranking.
+   */
+  deferred: number;
 };
 
 /**
@@ -121,6 +171,7 @@ export type OperationsSweepResult = {
 export async function workspacesNeedingReconciliation(
   limit: number,
   now: Date,
+  maxBatch: number = MAX_WORKSPACE_BATCH,
 ): Promise<{ ids: string[]; due: number }> {
   // DUE BEFORE STALE (2026-10-14): a workspace is looked at again once its
   // last run is older than the refresh age — before its picture expires — not
@@ -165,7 +216,7 @@ export async function workspacesNeedingReconciliation(
     SELECT id::text AS id, (SELECT count(*) FROM due) AS due
       FROM due
      ORDER BY last ASC NULLS FIRST, id ASC
-     LIMIT GREATEST(${limit}::bigint, LEAST(${MAX_WORKSPACE_BATCH}::bigint, (SELECT n FROM must_run)))
+     LIMIT GREATEST(${limit}::bigint, LEAST(${maxBatch}::bigint, (SELECT n FROM must_run)))
   `;
   return { ids: rows.map((r) => r.id), due: rows.length > 0 ? Number(rows[0]!.due) : 0 };
 }
@@ -221,11 +272,23 @@ export async function operationsSweepCoverage(now: Date = new Date()): Promise<{
  * scheduler that stops running after the first bad day.
  */
 export async function runWorkspaceOperationsSweep(
-  options: { trigger?: "scheduler" | "startup" | "cli"; batchSize?: number } = {},
+  options: {
+    trigger?: "scheduler" | "startup" | "cli";
+    batchSize?: number;
+    /** CAP-6 — workspaces in flight at once; defaults from the environment. */
+    concurrency?: number;
+    /** CAP-6 — stop starting new workspaces after this long; scheduler ticks only. */
+    budgetMs?: number;
+  } = {},
 ): Promise<OperationsSweepResult> {
   const startedAt = Date.now();
   const trigger = options.trigger ?? "scheduler";
   const batchSize = Math.max(1, Math.min(options.batchSize ?? WORKSPACE_BATCH, 200));
+  // A tick the timer started (no explicit batch) is bounded by time; an
+  // explicit batch keeps the bounded selection.
+  const timeBounded = options.batchSize === undefined;
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? sweepConcurrencyFromEnv(), MAX_SWEEP_CONCURRENCY));
+  const budgetMs = options.budgetMs ?? (timeBounded ? sweepBudgetMsFromEnv() : Number.POSITIVE_INFINITY);
   const result: OperationsSweepResult = {
     ok: true,
     reconciled: 0,
@@ -234,11 +297,16 @@ export async function runWorkspaceOperationsSweep(
     error: null,
     durationMs: 0,
     due: 0,
+    deferred: 0,
   };
 
   let workspaces: string[];
   try {
-    const ranked = await workspacesNeedingReconciliation(batchSize, new Date());
+    const ranked = await workspacesNeedingReconciliation(
+      batchSize,
+      new Date(),
+      timeBounded ? SCHEDULER_SELECTION_BOUND : MAX_WORKSPACE_BATCH,
+    );
     workspaces = ranked.ids;
     result.due = ranked.due;
   } catch (err) {
@@ -248,7 +316,8 @@ export async function runWorkspaceOperationsSweep(
     return result;
   }
 
-  for (const workspaceId of workspaces) {
+  let nextIndex = 0;
+  const runOne = async (workspaceId: string) => {
     // ONE WORKSPACE CANNOT ABORT THE SWEEP.
     //
     // The catch wraps the CLAIM, not only the body. The run authority reads
@@ -269,7 +338,17 @@ export async function runWorkspaceOperationsSweep(
     } catch {
       result.failed += 1;
     }
-  }
+  };
+  const lane = async () => {
+    while (nextIndex < workspaces.length) {
+      if (Date.now() - startedAt >= budgetMs) return;
+      const workspaceId = workspaces[nextIndex]!;
+      nextIndex += 1;
+      await runOne(workspaceId);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, workspaces.length)) }, () => lane()));
+  result.deferred = workspaces.length - nextIndex;
 
   // RECORD CONDITIONS WITH NO WORKSPACE ROW (2026-09-29). A report/package
   // failure for a Personal record stored with team_id NULL is LEGACY_UNSCOPED,
@@ -297,13 +376,24 @@ export async function runWorkspaceOperationsSweep(
   return result;
 }
 
+/**
+ * CAP-6 — one timer-started tick per process at a time. The budget keeps a tick
+ * inside its interval; this keeps a slow database from stacking a second tick on
+ * a first that is still finishing its last workspaces.
+ */
+let timerTickInFlight = false;
+
 /** Swallowing wrapper for the interval timer. */
 export async function runWorkspaceOperationsSweepSafe(
   options: { trigger?: "scheduler" | "startup" | "cli" } = {},
 ): Promise<OperationsSweepResult | null> {
+  if (timerTickInFlight) return null;
+  timerTickInFlight = true;
   try {
     return await runWorkspaceOperationsSweep(options);
   } catch {
     return null;
+  } finally {
+    timerTickInFlight = false;
   }
 }

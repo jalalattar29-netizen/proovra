@@ -21,6 +21,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { afterAll, describe, expect, it } from "vitest";
+import { platformMonthlyLimitFromEnv } from "../src/services/ai/ai-usage-ledger.service.js";
 
 const REPO = resolve(import.meta.dirname, "../../..");
 const COMPOSE_SOURCE = readFileSync(resolve(REPO, "infra/docker/docker-compose.prod.yml"), "utf8");
@@ -192,5 +193,19 @@ describe("the rendered production compose: immutable images", () => {
       .join("\n");
     expect(code).not.toMatch(/IMAGE_TAG:-/);
     expect(code.replace(/:latest is not permitted/g, "")).not.toMatch(/:latest\b/);
+  });
+});
+
+describe("the rendered production compose: the platform AI ceiling is on (BILLING-014 / OPS-013)", () => {
+  it("the API gets a positive AI_PLATFORM_MONTHLY_BUDGET_USD by default, which the ledger enforces", () => {
+    const r = render();
+    const value = envOf(r, "proovra-api").AI_PLATFORM_MONTHLY_BUDGET_USD;
+    expect(value).toBe("300");
+    expect(platformMonthlyLimitFromEnv(value)).toBe(300_000_000n);
+  });
+
+  it("the production env file can set its own amount", () => {
+    const r = render({ sharedEnv: `${SHARED_ENV}AI_PLATFORM_MONTHLY_BUDGET_USD=120\n` });
+    expect(envOf(r, "proovra-api").AI_PLATFORM_MONTHLY_BUDGET_USD).toBe("120");
   });
 });

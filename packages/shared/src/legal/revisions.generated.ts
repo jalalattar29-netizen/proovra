@@ -13,7 +13,7 @@ import type { LegalSlug } from "./slugs.js";
 export const LEGAL_REVISIONS: Readonly<Record<LegalSlug, string>> = {
   "privacy": "2026-06-23",
   "terms": "2026-06-23",
-  "cookies": "2026-06-26",
+  "cookies": "2026-11-08",
   "security": "2026-10-15",
   "dpa": "2026-10-15",
   "law-enforcement": "2026-06-23",
@@ -29,7 +29,7 @@ export const LEGAL_REVISIONS: Readonly<Record<LegalSlug, string>> = {
   "incident-response": "2026-06-23",
   "abuse-reporting": "2026-06-23",
   "toms": "2026-10-15",
-  "legal-changelog": "2026-11-07",
+  "legal-changelog": "2026-11-08",
   "ai-use-policy": "2026-06-23",
   "verification-disclaimer": "2026-06-23",
   "privacy-requests": "2026-06-23",
