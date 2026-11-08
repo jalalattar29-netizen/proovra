@@ -86,6 +86,7 @@ import {
   sendRbacRefusal,
 } from "../http/member-command-gates.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 import {
   ACTIVE_WORKSPACE_CLOSURE_STATUSES,
   CANCELLABLE_WORKSPACE_CLOSURE_STATUSES,
@@ -2176,6 +2177,8 @@ export async function teamsRoutes(app: FastifyInstance) {
         if (sendRbacRefusal(reply, err, req)) return;
         throw err;
       }
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: teamId, userId: userId, action: "MEMBER_ROLE_CHANGE" })).refused) return;
       const roleStepUp = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -2515,6 +2518,8 @@ export async function teamsRoutes(app: FastifyInstance) {
         if (sendRbacRefusal(reply, err, req)) return;
         throw err;
       }
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: teamId, userId: userId, action: "MEMBER_REVOKE" })).refused) return;
       const removeStepUp = await requireStepUpForSensitiveAction({
         req,
         reply,

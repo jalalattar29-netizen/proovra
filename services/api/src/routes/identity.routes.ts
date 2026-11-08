@@ -141,6 +141,7 @@ import {
 } from "../services/identity/external-identity.service.js";
 // Phase 19 — sensitive routes consume step-up challenges before mutating.
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 
 /**
  * `teamId` is now NON-AUTHORITATIVE everywhere in this file: it is accepted
@@ -515,6 +516,8 @@ export async function identityRoutes(app: FastifyInstance) {
       );
       if (!actor) return;
       if (await denyIfManagedIdentity(reply, target.userId)) return;
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: target.teamId, userId: actor.userId, action: "MEMBER_SUSPEND" })).refused) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: target.teamId,
@@ -599,6 +602,8 @@ export async function identityRoutes(app: FastifyInstance) {
       );
       if (!actor) return;
       if (await denyIfManagedIdentity(reply, target.userId)) return;
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: target.teamId, userId: actor.userId, action: "MEMBER_REVOKE" })).refused) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: target.teamId,
@@ -644,6 +649,8 @@ export async function identityRoutes(app: FastifyInstance) {
       );
       if (!actor) return;
       if (await denyIfManagedIdentity(reply, target.userId)) return;
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: target.teamId, userId: actor.userId, action: "MEMBER_ROLE_CHANGE" })).refused) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: target.teamId,

@@ -75,59 +75,18 @@ export async function runtimeAdaptiveGate(
     return { allow: true };
   }
 
-  // Resolve the AuthenticatedSession row from the JWT sid claim. The
-  // auth middleware has already verified the JWT; we re-read the sid
-  // from the Authorization / cookie path.
-  const sid = readSidFromRequest(input.req);
-  if (!sid) {
-    // No sid claim = a legacy token. We allow but emit a low-severity
-    // signal so operators can see the migration progress.
-    return { allow: true };
-  }
-  const sessionIdHash = hashSessionId(sid);
-  const session = await client.authenticatedSession.findFirst({
-    where: {
-      userId: input.userId,
-      sessionIdHash,
-    },
-    select: {
-      id: true,
-      issuedAtUtc: true,
-      quarantinedAtUtc: true,
-      quarantineReleaseAtUtc: true,
-    },
-  });
-  if (!session) {
-    // Legacy session without inventory row — allow but observable.
-    return { allow: true };
-  }
-
-  // (1) Quarantine block. Read-only paths are never gated here (gate
-  // only runs from routes that already know they are privileged).
-  const quarantined = await isSessionQuarantined(
-    { sessionId: session.id },
-    client,
-  );
-  if (quarantined) {
-    bump("privileged_session_blocked_total");
-    safeEmitSecurityEvent({
-      teamId: input.teamId,
-      eventType: "privileged_session_blocked",
-      severity: "WARNING",
-      details: {
-        sessionId: session.id,
-        subjectUserId: input.userId,
-        action: input.action,
-        reason: "session_quarantined",
-      },
-    });
-    input.reply.code(403).send({
-      error: {
-        code: "session_quarantined",
-        message: "This session is quarantined; privileged actions blocked.",
-      },
-    });
+  // (1) Quarantine block — THE quarantine authority, shared with every
+  // privileged route that calls `refuseIfSessionQuarantined` directly
+  // (IDENT-019). It also resolves the session row the later steps use.
+  const quarantine = await checkSessionQuarantine(input, client);
+  if (quarantine.refused) {
     return { allow: false, sent: true, decision: "BLOCK" };
+  }
+  const session = quarantine.session;
+  if (!session) {
+    // No sid claim (legacy token) or no inventory row (legacy session):
+    // allow, as before.
+    return { allow: true };
   }
 
   // (2) Privileged-action age check.
@@ -246,6 +205,114 @@ export async function runtimeAdaptiveGate(
     default:
       return { allow: true };
   }
+}
+
+// -----------------------------------------------------------------------------
+// Public — refuseIfSessionQuarantined (IDENT-019)
+// -----------------------------------------------------------------------------
+
+export type RefuseIfSessionQuarantinedInput = {
+  req: FastifyRequest;
+  reply: FastifyReply;
+  /** Workspace the action targets, for the security event; null when none. */
+  teamId: string | null;
+  userId: string;
+  action: PrivilegedAction;
+};
+
+/**
+ * IDENT-019 — the ONE quarantine authority (decision D13: a quarantined
+ * session keeps reads; high-privilege actions are refused).
+ *
+ * Routes that perform a declared privileged action (PRIVILEGED_ACTIONS) but
+ * do not run the full `runtimeAdaptiveGate` call this AFTER their own
+ * authentication and access-policy checks and BEFORE any side effect. It
+ * only narrows: it never allows anything the route would have refused.
+ *
+ * It runs ONLY the quarantine step of the gate — no age/freshness window and
+ * no risk/step-up decision. When it refuses, the 403 `session_quarantined`
+ * reply has already been sent and the route must return.
+ *
+ * Same semantics as the gate: a no-op when ADAPTIVE_AUTH_RUNTIME_ENABLED is
+ * "false"; a token with no `sid` claim, or a sid with no inventory row, is
+ * allowed (legacy sessions).
+ */
+export async function refuseIfSessionQuarantined(
+  input: RefuseIfSessionQuarantinedInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<{ refused: boolean }> {
+  if (process.env["ADAPTIVE_AUTH_RUNTIME_ENABLED"] === "false") {
+    return { refused: false };
+  }
+  const { refused } = await checkSessionQuarantine(input, client);
+  return { refused };
+}
+
+type RuntimeSessionRow = {
+  id: string;
+  issuedAtUtc: Date;
+  quarantinedAtUtc: Date | null;
+  quarantineReleaseAtUtc: Date | null;
+};
+
+async function checkSessionQuarantine(
+  input: RefuseIfSessionQuarantinedInput,
+  client: PrismaClient,
+): Promise<{ refused: boolean; session: RuntimeSessionRow | null }> {
+  // Resolve the AuthenticatedSession row from the JWT sid claim. The
+  // auth middleware has already verified the JWT; we re-read the sid
+  // from the Authorization / cookie path.
+  const sid = readSidFromRequest(input.req);
+  if (!sid) {
+    // No sid claim = a legacy token. Allowed.
+    return { refused: false, session: null };
+  }
+  const sessionIdHash = hashSessionId(sid);
+  const session = await client.authenticatedSession.findFirst({
+    where: {
+      userId: input.userId,
+      sessionIdHash,
+    },
+    select: {
+      id: true,
+      issuedAtUtc: true,
+      quarantinedAtUtc: true,
+      quarantineReleaseAtUtc: true,
+    },
+  });
+  if (!session) {
+    // Legacy session without inventory row — allowed.
+    return { refused: false, session: null };
+  }
+
+  // Read-only paths are never gated here (only routes that already know
+  // they are privileged call this).
+  const quarantined = await isSessionQuarantined(
+    { sessionId: session.id },
+    client,
+  );
+  if (quarantined) {
+    bump("privileged_session_blocked_total");
+    safeEmitSecurityEvent({
+      teamId: input.teamId,
+      eventType: "privileged_session_blocked",
+      severity: "WARNING",
+      details: {
+        sessionId: session.id,
+        subjectUserId: input.userId,
+        action: input.action,
+        reason: "session_quarantined",
+      },
+    });
+    input.reply.code(403).send({
+      error: {
+        code: "session_quarantined",
+        message: "This session is quarantined; privileged actions blocked.",
+      },
+    });
+    return { refused: true, session };
+  }
+  return { refused: false, session };
 }
 
 // -----------------------------------------------------------------------------

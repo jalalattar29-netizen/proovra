@@ -97,6 +97,28 @@ export async function projectOperationalGraphForWorkspace(input: {
     }
   };
 
+  /*
+   * CAP-6 — edges are collected and written once, at the end.
+   *
+   * Each edge used to be its own `upsert` with an empty `update`, which
+   * Prisma runs as three reads and, for a new edge, an insert: about seventy
+   * statements a workspace on every sweep, for rows that almost always exist
+   * already. `createMany({ skipDuplicates })` is the same rule in one
+   * statement — `INSERT … ON CONFLICT DO NOTHING` on the same unique key: a
+   * missing edge is created, an existing edge is left exactly as it was.
+   * Both endpoints are nodes this pass has already written.
+   */
+  const pendingEdges = new Map<
+    string,
+    {
+      teamId: string;
+      sourceNodeId: string;
+      targetNodeId: string;
+      edgeType: EdgeType;
+      confidence: string;
+      reasonCode: string;
+    }
+  >();
   const upsertEdge = async (
     sourceNodeId: string,
     targetNodeId: string,
@@ -104,29 +126,29 @@ export async function projectOperationalGraphForWorkspace(input: {
     confidence: string,
     reasonCode: string,
   ): Promise<void> => {
+    const key = `${sourceNodeId}:${targetNodeId}:${edgeType}`;
+    if (pendingEdges.has(key)) return;
+    pendingEdges.set(key, {
+      teamId: input.teamId,
+      sourceNodeId,
+      targetNodeId,
+      edgeType,
+      confidence: confidence.slice(0, 24),
+      reasonCode: reasonCode.slice(0, 80),
+    });
+  };
+  const flushEdges = async (): Promise<void> => {
+    if (pendingEdges.size === 0) return;
+    const rows = [...pendingEdges.values()];
+    pendingEdges.clear();
     try {
-      await prisma.operationalGraphEdge.upsert({
-        where: {
-          teamId_sourceNodeId_targetNodeId_edgeType: {
-            teamId: input.teamId,
-            sourceNodeId,
-            targetNodeId,
-            edgeType,
-          } as never,
-        },
-        create: {
-          teamId: input.teamId,
-          sourceNodeId,
-          targetNodeId,
-          edgeType,
-          confidence: confidence.slice(0, 24),
-          reasonCode: reasonCode.slice(0, 80),
-        },
-        update: {},
+      await prisma.operationalGraphEdge.createMany({
+        data: rows as never,
+        skipDuplicates: true,
       });
-      edges += 1;
+      edges += rows.length;
     } catch {
-      failed += 1;
+      failed += rows.length;
     }
   };
 
@@ -336,6 +358,7 @@ export async function projectOperationalGraphForWorkspace(input: {
     /* outer best-effort */
   }
 
+  await flushEdges();
   return { nodes, edges, failed };
 }
 

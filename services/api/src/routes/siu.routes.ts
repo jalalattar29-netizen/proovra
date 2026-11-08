@@ -27,6 +27,7 @@ import { caseVisibleToWhere } from "../services/cases/case-visibility.js";
 import { evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   SIU_INTAKE_TEMPLATES,
@@ -647,6 +648,8 @@ export async function siuRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireCaseActor(req, reply, params.id);
       if (!ctx) return;
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "EXPORT_GENERATE_PACKAGE" })).refused) return;
       const stepUp = await requireStepUpForSensitiveAction({
         req,
         reply,

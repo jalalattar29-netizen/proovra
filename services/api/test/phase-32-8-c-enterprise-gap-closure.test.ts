@@ -471,8 +471,15 @@ describe("Phase 32.8C FINAL-3 — operational graph engine", () => {
   });
 
   it("edges are idempotent on (teamId, source, target, edgeType)", () => {
-    expect(GRAPH).toMatch(/teamId_sourceNodeId_targetNodeId_edgeType/);
-    expect(GRAPH).toMatch(/prisma\.operationalGraphEdge\.upsert/);
+    // CAP-6 — written in one statement, INSERT … ON CONFLICT DO NOTHING on the
+    // model's unique key: a missing edge is created, an existing one untouched.
+    const model = SCHEMA.slice(
+      SCHEMA.indexOf("model OperationalGraphEdge {"),
+      SCHEMA.indexOf("}", SCHEMA.indexOf("model OperationalGraphEdge {")),
+    );
+    expect(model).toMatch(/@@unique\(\[teamId, sourceNodeId, targetNodeId, edgeType\]\)/);
+    expect(GRAPH).toMatch(/prisma\.operationalGraphEdge\.createMany\(\{[\s\S]*?skipDuplicates: true/);
+    expect(GRAPH).not.toMatch(/prisma\.operationalGraphEdge\.(create|update|upsert)\(/);
   });
 
   it("blast-radius reads bounded counts only — no raw entity bodies", () => {

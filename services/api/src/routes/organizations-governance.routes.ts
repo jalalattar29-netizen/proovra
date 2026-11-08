@@ -57,6 +57,7 @@ import type { OrgRole } from "../services/organization/organization-resolver.ser
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
 import { buildOrgGovernanceControlCenter } from "../services/organization/org-governance-control-center.service.js";
 import { readRetentionPosture } from "../services/governance-lifecycle/retention-posture.service.js";
+import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 
 const UuidParam = z.string().uuid();
 
@@ -193,6 +194,9 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
       if (!access.ok) {
         return reply.code(access.denial.status).send(access.denial.body);
       }
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      // Org-level template: no single workspace, so no teamId on the event.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: null, userId, action: "RETENTION_POLICY_UPDATE" })).refused) return;
 
       const value: Prisma.InputJsonValue = {
         retentionDays: body.retentionDays,

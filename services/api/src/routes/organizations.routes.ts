@@ -129,6 +129,7 @@ import {
   resendOrgInviteDelivery,
 } from "../services/organization/org-invite-delivery.service.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
+import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 
 const UuidParam = z.string().uuid();
 
@@ -1778,6 +1779,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
         const denial = orgAccessDenial(access);
         return reply.code(denial.status).send(denial.body);
       }
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      // Organization-level act: no single workspace, so no teamId on the event.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: null, userId, action: "MEMBER_ROLE_CHANGE" })).refused) return;
 
       /*
        * PRO-097 follow-up — PROMOTING A MEMBER TO ORG_OWNER HANDS OVER
@@ -1937,6 +1941,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
         const denial = orgAccessDenial(access);
         return reply.code(denial.status).send(denial.body);
       }
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      // Organization-level act: no single workspace, so no teamId on the event.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: null, userId, action: "MEMBER_REVOKE" })).refused) return;
 
       const result = await prisma.$transaction(async (tx) => {
         await lockOrganizationOwnersTx(tx, orgId);
@@ -2163,6 +2170,15 @@ export async function organizationsRoutes(app: FastifyInstance) {
           return reply
             .code(403)
             .send({ message: "Only ORG_OWNER can act on an ORG_OWNER." });
+        }
+        // IDENT-019 — a quarantined session keeps reads; suspending is refused.
+        // (Restore is not a declared privileged action.) Organization-level
+        // act: no single workspace, so no teamId on the event.
+        if (
+          action === "suspend" &&
+          (await refuseIfSessionQuarantined({ req, reply, teamId: null, userId, action: "MEMBER_SUSPEND" })).refused
+        ) {
+          return;
         }
         const transition = {
           organizationId: orgId,
@@ -3356,6 +3372,9 @@ export async function organizationDataExportRoutes(app: FastifyInstance) {
     const { id } = DataExportOrgParams.parse(req.params);
     const userId = await dataExportOwnerOrDeny(req, reply, id);
     if (!userId) return reply;
+    // IDENT-019 — a quarantined session keeps reads; generating the export is
+    // refused (before the step-up proof is spent). Organization-level act.
+    if ((await refuseIfSessionQuarantined({ req, reply, teamId: null, userId, action: "EXPORT_GENERATE_PACKAGE" })).refused) return reply;
     const body = DataExportProofBody.parse(req.body ?? {});
     const stepUp = await verifyAccountStepUp({
       req,
@@ -3436,6 +3455,9 @@ export async function organizationDataExportRoutes(app: FastifyInstance) {
     const { id, requestId } = DataExportRequestParams.parse(req.params);
     const userId = await dataExportOwnerOrDeny(req, reply, id);
     if (!userId) return reply;
+    // IDENT-019 — the links are presigned GETs of the stored evidence objects:
+    // an original download, refused to a quarantined session. Organization-level act.
+    if ((await refuseIfSessionQuarantined({ req, reply, teamId: null, userId, action: "ORIGINAL_EVIDENCE_DOWNLOAD" })).refused) return reply;
     const body = DataExportLinksBody.parse(req.body ?? {});
     const stepUp = await verifyAccountStepUp({
       req,

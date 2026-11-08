@@ -50,7 +50,12 @@ import {
   workspaceIncidentWhereWith,
 } from "../observability/incident-scope.js";
 
-import { buildProbeContext, probeSource } from "./operations-source-probes.js";
+import {
+  buildProbeContext,
+  probeSource,
+  resolveProbeWorkspaceScope,
+  type ProbeWorkspaceScope,
+} from "./operations-source-probes.js";
 
 type PrismaClient = prismaPkg.PrismaClient;
 
@@ -335,6 +340,21 @@ export async function closeRecoveredConditions<R extends RecoveryRow>(
   },
 ): Promise<number> {
   let resolved = 0;
+  // CAP-6 — one scope per workspace for this pass. The rows of a workspace
+  // sweep all share one workspace, and the scope (evidence population and
+  // output entitlement) depends on the workspace alone; resolving it per row
+  // was a dozen statements for every open condition. A failed resolution is
+  // not cached, so the next row retries it exactly as before.
+  const scopes = new Map<string, Promise<ProbeWorkspaceScope>>();
+  const scopeFor = (teamId: string) => {
+    let pending = scopes.get(teamId);
+    if (!pending) {
+      pending = resolveProbeWorkspaceScope(teamId, args.client);
+      pending.catch(() => scopes.delete(teamId));
+      scopes.set(teamId, pending);
+    }
+    return pending;
+  };
   for (const row of rows) {
     const teamId = await args.workspaceFor(row);
     // No workspace to read the source in: it stays open and visible.
@@ -344,6 +364,7 @@ export async function closeRecoveredConditions<R extends RecoveryRow>(
       fingerprint: row.fingerprint,
       client: args.client,
       now: args.now,
+      scope: await scopeFor(teamId),
     });
     const observation = await probeSource(args.lifecycle.activityProbeKey, ctx);
     // ONLY a proven recovery closes anything. ACTIVE leaves it open,

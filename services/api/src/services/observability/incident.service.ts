@@ -301,6 +301,16 @@ export type RecordIncidentResult = {
   incident: prismaPkg.OperationalIncident;
 };
 
+/** The compare-and-set update matched no row in the status it was decided against. */
+function isRecordNotFound(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2025"
+  );
+}
+
 /**
  * Is this the unique index refusing a duplicate identity?
  *
@@ -799,11 +809,21 @@ export async function recordIncident(
     // Captured BEFORE the write, so anything downstream reads the state the
     // decision was made against rather than the state it produced.
     existingStatusBeforeWrite = existing.status;
-    const cas = await client.operationalIncident.updateMany({
+    // CAP-6 — the compare-and-set and the read of the row it produced are ONE
+    // statement (`UPDATE … WHERE id AND status … RETURNING`). They were an
+    // `updateMany` (which Prisma runs inside its own BEGIN/COMMIT) and then a
+    // separate full-row read: five statements for every condition a sweep
+    // re-observes, measured as the largest share of a sweep. The predicate is
+    // unchanged; "no row in that status" (P2025) is still a lost race, and the
+    // row returned is exactly the row this write produced.
+    const cas = await client.operationalIncident.update({
       where: { id: existing.id, status: existing.status },
       data,
+    }).catch((err: unknown) => {
+      if (isRecordNotFound(err)) return null;
+      throw err;
     });
-    if (cas.count !== 1) {
+    if (!cas) {
       casAttempts += 1;
       if (casAttempts >= 3) {
         throw new Error("operational_incident_concurrent_transition");
@@ -811,9 +831,7 @@ export async function recordIncident(
       existing = await readExisting();
       continue;
     }
-    row = await client.operationalIncident.findUniqueOrThrow({
-      where: { id: existing.id },
-    });
+    row = cas;
     created = false;
     bump(
       reopening

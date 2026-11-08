@@ -484,6 +484,53 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
       const read = await call("GET", "/v1/auth/me", admin.token);
       expect(read.statusCode, read.body).toBe(200);
     });
+
+    it("reaches a privileged route with NO step-up: an organization role change is refused only while the session is quarantined", async () => {
+      const o = await org(2);
+      const admin = o.members[0]!;
+      const target = o.members[1]!;
+      await makeAdmin(o, admin);
+      const setOrgRole = (userId: string, role: "ORG_ADMIN" | "ORG_MEMBER") =>
+        prisma.organizationMembership.upsert({
+          where: { organization_memberships_org_user_uniq: { organizationId: o.organizationId, userId } },
+          create: { organizationId: o.organizationId, userId, role },
+          update: { role },
+          select: { id: true },
+        });
+      await setOrgRole(admin.userId, "ORG_ADMIN");
+      const targetMembership = await setOrgRole(target.userId, "ORG_MEMBER");
+      const { hashSessionId } = revocation;
+      const sid = (t: string) =>
+        (JSON.parse(Buffer.from(t.split(".")[1]!, "base64url").toString("utf8")) as { sid: string }).sid;
+      const adminSession = await prisma.authenticatedSession.findFirstOrThrow({
+        where: { userId: admin.userId, sessionIdHash: hashSessionId(sid(admin.token)) },
+      });
+      const changeRole = (role: string) =>
+        call("PATCH", `/v1/orgs/${o.organizationId}/members/${targetMembership.id}`, admin.token, { role });
+      const roleNow = async () =>
+        (await prisma.organizationMembership.findUniqueOrThrow({ where: { id: targetMembership.id } })).role;
+
+      // Authorized control: a clean ORG_ADMIN session changes the role.
+      const allowed = await changeRole("ORG_AUDITOR");
+      expect(allowed.statusCode, allowed.body).toBe(200);
+      expect(await roleNow()).toBe("ORG_AUDITOR");
+
+      const q = await call("POST", "/v1/admin/identity/sessions/" + adminSession.id + "/quarantine", o.owner.token, {
+        teamId: o.workspaceId,
+        reason: "MANUAL_OPERATOR",
+      });
+      expect(q.statusCode, q.body).toBe(200);
+
+      // The same person, the same permission, a quarantined session: refused, nothing written.
+      const blocked = await changeRole("ORG_MEMBER");
+      expect(blocked.statusCode, blocked.body).toBe(403);
+      expect(errorCode(blocked)).toBe("session_quarantined");
+      expect(await roleNow()).toBe("ORG_AUDITOR");
+
+      // Reads are untouched.
+      const read = await call("GET", "/v1/auth/me", admin.token);
+      expect(read.statusCode, read.body).toBe(200);
+    });
   });
 
   // ===========================================================================

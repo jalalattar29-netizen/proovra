@@ -191,15 +191,21 @@ function makeClient(evidence: FakeEvidence[]) {
         incidents.push(row);
         return row;
       }),
+      // Also the compare-and-set recordIncident uses on its re-observation path
+      // (UPDATE … WHERE id AND status … RETURNING): no row in that status is
+      // Prisma's P2025, exactly as the real client reports it.
       update: vi.fn(
         async ({
           where,
           data,
         }: {
-          where: { id: string };
+          where: { id: string; status?: string };
           data: Record<string, unknown>;
         }) => {
-          const row = incidents.find((i) => i.id === where.id)!;
+          const row = incidents.find((i) => i.id === where.id);
+          if (!row || (where.status !== undefined && row.status !== where.status)) {
+            throw Object.assign(new Error("No record was found for an update."), { code: "P2025" });
+          }
           for (const [k, v] of Object.entries(data)) {
             if (
               v &&

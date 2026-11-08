@@ -51,6 +51,7 @@ import { destructionExecutionEnabled, resolveEvidenceWorkspaceId } from "@proovr
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 import { assertTeamAllowsEnterpriseFeature } from "../services/billing-enforcement.service.js";
 
 /**
@@ -337,6 +338,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "retentionPolicy")) return;
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: body.teamId, userId: ok.actorUserId, action: "RETENTION_POLICY_UPDATE" })).refused) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
@@ -380,6 +383,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "retentionPolicy")) return;
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: body.teamId, userId: ok.actorUserId, action: "RETENTION_POLICY_UPDATE" })).refused) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,
@@ -420,6 +425,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "retentionPolicy")) return;
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: body.teamId, userId: ok.actorUserId, action: "RETENTION_POLICY_UPDATE" })).refused) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: body.teamId,

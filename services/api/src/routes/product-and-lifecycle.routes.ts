@@ -112,6 +112,7 @@ import {
 import { projectLifecycleDashboard } from "../services/lifecycle/lifecycle-dashboard.service.js";
 import { computeLifecycleCapabilityStatus } from "../services/lifecycle/capability-status.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 // The canonical tenant-audit facade. Releasing evidence (signed link,
 // delivery, download authorisation) and withdrawing it (revoke, webhook
 // deactivation) are operator actions and are recorded through it.
@@ -474,6 +475,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           scopeNote: z.string().min(1).max(400).optional(),
         })
         .parse(req.body);
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "EXPORT_GENERATE_PACKAGE" })).refused) return;
       const res = await createExchangePackage({
         teamId: ctx.teamId,
         kind: body.kind,
@@ -534,6 +537,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         });
       }
 
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "EXPORT_GENERATE_PACKAGE" })).refused) return;
       const res = await requestExchangePackageRebuild({
         teamId: ctx.teamId,
         packageId: id,
@@ -1358,6 +1363,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           exceptions: z.array(z.string().uuid()).optional(),
         })
         .parse(req.body);
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "RETENTION_POLICY_UPDATE" })).refused) return;
       const res = await createRetentionPolicy({
         teamId: ctx.teamId,
         name: body.name,
@@ -1387,6 +1394,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "RETENTION_POLICY_UPDATE" })).refused) return;
       const res = await releaseRetentionPolicy({
         teamId: ctx.teamId,
         policyId: id,
@@ -1553,6 +1562,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       // force-list), so it must require step-up re-proof when org policy
       // demands it — matching the governance PLACE/RELEASE gates. Additive
       // guard; runs BEFORE createLegalHold; no hold/custody logic changed.
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "LEGAL_HOLD_PLACE" })).refused) return;
       const stepUpGate = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -1656,6 +1667,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       // CLUSTER 8 — releasing a hold is a sensitive custody action.
       // LEGAL_HOLD_RELEASE is in the MFA force-list and the sibling
       // governance route already gated on it; this route did not.
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "LEGAL_HOLD_RELEASE" })).refused) return;
       const stepUpGate = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -1711,6 +1724,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       if (await legalHoldClosedTo(id, ctx.teamId, ctx.userId)) {
         return reply.code(404).send({ denial: "NOT_FOUND" });
       }
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "LEGAL_HOLD_RELEASE" })).refused) return;
       try {
         const hold = await requestLegalHoldRelease({
           teamId: ctx.teamId,
@@ -1749,6 +1764,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       if (await legalHoldClosedTo(id, ctx.teamId, ctx.userId)) {
         return reply.code(404).send({ denial: "NOT_FOUND" });
       }
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "LEGAL_HOLD_RELEASE" })).refused) return;
       const stepUpGate = await requireStepUpForSensitiveAction({
         req,
         reply,

@@ -66,6 +66,7 @@ import {
 // Phase 19 — sensitive governance routes require step-up.
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 import { releaseHeldOutputsForWorkspace } from "../services/governance/output-hold-release.service.js";
 
 const ParamsId = z.object({ id: z.string().uuid() });
@@ -457,6 +458,8 @@ export async function governanceRoutes(app: FastifyInstance) {
       // Step-up is TARGET-BOUND: the challenge is spent against this exact
       // evidence id, so an elevation obtained for another record cannot place
       // a hold here.
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: body.teamId, userId: ok.actorUserId, action: "LEGAL_HOLD_PLACE" })).refused) return;
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -543,6 +546,8 @@ export async function governanceRoutes(app: FastifyInstance) {
         return reply.code(412).send({ error: { code: refusal } });
       }
 
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: body.teamId, userId: ok.actorUserId, action: "LEGAL_HOLD_RELEASE" })).refused) return;
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -659,6 +664,8 @@ export async function governanceRoutes(app: FastifyInstance) {
 
       // Placing a CASE hold is exactly as custody-relevant as an evidence
       // hold, so it carries the SAME step-up purpose, bound to the case id.
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: body.teamId, userId: ok.actorUserId, action: "LEGAL_HOLD_PLACE" })).refused) return;
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -740,6 +747,8 @@ export async function governanceRoutes(app: FastifyInstance) {
         return reply.code(412).send({ error: { code: refusal } });
       }
 
+      // IDENT-019 — a quarantined session keeps reads; this is refused.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: body.teamId, userId: ok.actorUserId, action: "LEGAL_HOLD_RELEASE" })).refused) return;
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,

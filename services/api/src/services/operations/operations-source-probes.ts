@@ -157,6 +157,33 @@ export type ProbeContext = {
   readonly outputEntitlementUnknown?: boolean;
 };
 
+/**
+ * The workspace-level half of a probe context: the canonical evidence scope and
+ * the output-entitlement narrowing. Both depend on the workspace only, never on
+ * the condition being probed.
+ */
+export type ProbeWorkspaceScope = Pick<
+  ProbeContext,
+  "evidenceWhere" | "outputEntitledWhere" | "outputEntitlementUnknown"
+>;
+
+export async function resolveProbeWorkspaceScope(
+  teamId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<ProbeWorkspaceScope> {
+  const [evidenceWhere, entitlement] = await Promise.all([
+    workspaceEvidenceWhere(teamId, client),
+    outputEntitlementScope({ teamId }),
+  ]);
+  return {
+    evidenceWhere,
+    outputEntitledWhere: entitlement.kind === "NARROW" ? entitlement.where : null,
+    // An entitlement that could not be resolved makes the output
+    // backlogs UNKNOWN — never a count over the whole population.
+    outputEntitlementUnknown: entitlement.kind === "UNKNOWN",
+  };
+}
+
 /** Build a probe context, resolving the canonical evidence scope once. */
 export async function buildProbeContext(input: {
   teamId: string;
@@ -165,13 +192,23 @@ export async function buildProbeContext(input: {
   now?: Date;
   evidenceWhere?: Prisma.EvidenceWhereInput;
   outputEntitledWhere?: Prisma.EvidenceWhereInput | null;
+  /**
+   * CAP-6 — an already-resolved workspace scope. A sweep that probes many
+   * conditions of ONE workspace resolves it once instead of once per condition
+   * (about a dozen statements each, measured as most of a large workspace's run).
+   */
+  scope?: ProbeWorkspaceScope;
 }): Promise<ProbeContext> {
   const client = input.client ?? defaultPrisma;
-  return {
+  const base = {
     teamId: input.teamId,
     fingerprint: input.fingerprint,
     client,
     now: input.now ?? new Date(),
+  };
+  if (input.scope) return { ...base, ...input.scope };
+  return {
+    ...base,
     evidenceWhere:
       input.evidenceWhere ?? (await workspaceEvidenceWhere(input.teamId, client)),
     ...(input.outputEntitledWhere !== undefined
