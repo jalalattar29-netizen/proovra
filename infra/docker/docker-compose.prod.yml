@@ -58,9 +58,11 @@ services:
       # BILLING-014 / OPS-013 — the durable platform-wide monthly AI ceiling
       # (US dollars, calendar month UTC, every workspace together), enforced by
       # the AI usage ledger's reservation before a provider call. It defaults to
-      # the business's configured AI budget (AI_MONTHLY_BUDGET_EUR=300, which was
-      # only an estimate per process): USD 300 never exceeds EUR 300. Override it
-      # in /opt/proovra/app/.env; setting 0 or empty there turns it off.
+      # USD 300. The business's configured AI budget is EUR 300
+      # (AI_MONTHLY_BUDGET_EUR, only an estimate per process); the ledger counts US
+      # dollars, so USD 300 is a different amount: at or below EUR 300 only while
+      # one euro costs at least one dollar. Override it in /opt/proovra/app/.env;
+      # setting 0 or empty there turns it off.
       AI_PLATFORM_MONTHLY_BUDGET_USD: ${AI_PLATFORM_MONTHLY_BUDGET_USD:-300}
       # NOTE: AUTH_JWT_SECRET is sourced from the env_file (and, in
       # production, may be backed by AWS Secrets Manager via P2.0).
