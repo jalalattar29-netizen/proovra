@@ -79,7 +79,13 @@ export function ssoReturnRoute(url: string): { pathname: string; params: Record<
   };
 }
 
-/** A refusal the server reported back, in words; never the raw reason code alone. */
+/**
+ * A refusal the server reported back, in words; never the raw reason code alone.
+ * The reason codes are the API's own (sso-auth.routes.ts, saml-auth.routes.ts,
+ * sso-session-completion.service.ts) and cover the same cases the web sign-in
+ * page words (apps/web/lib/identity/ssoSignIn.ts): not provisioned, connection
+ * unavailable, the session limit, a conflicting managed identity.
+ */
 export function ssoFailureMessage(reason: string): string {
   if (reason === "seat_limit_reached" || reason === "seat_contention") {
     return "Your organization has no free seat for this sign-in. Ask your administrator.";
@@ -88,7 +94,20 @@ export function ssoFailureMessage(reason: string): string {
   if (reason.includes("expired") || reason.includes("replayed") || reason.includes("browser_mismatch")) {
     return "This sign-in has expired. Start again from this screen.";
   }
-  if (reason.includes("domain") || reason.includes("account_link")) {
+  if (/(jit_disabled|not_provisioned)/.test(reason)) {
+    return "You have not been added to this organization yet. Ask your administrator.";
+  }
+  if (/(connection_unavailable|connection_inactive|not_configured|connection_revoked|issuer_unpinned)/.test(reason)) {
+    return "Your organization's sign-in is not available right now. Ask your administrator.";
+  }
+  if (/(concurrent|session_limit)/.test(reason)) {
+    return "You have reached your organization's limit of active sessions. Sign out on another device and try again.";
+  }
+  if (reason === "organization_suspended") {
+    return "Your organization's access is suspended. Ask your administrator.";
+  }
+  if (reason === "rate_limited") return "Too many sign-in attempts. Wait a minute and try again.";
+  if (reason.includes("domain") || reason.includes("account_link") || reason.includes("managed_identity_conflict")) {
     return "Your organization did not accept this account for single sign-on. Ask your administrator.";
   }
   return "Single sign-on did not complete. Try again, or ask your administrator.";

@@ -459,11 +459,31 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
     const id = redeemed.identity;
     const loginMethod = id.authMethod === "SAML" ? "sso_saml" : "sso_oidc";
 
+    // The code can be up to two minutes old. A connection an administrator
+    // disabled or revoked in that window signs nobody in, as it would refuse
+    // the browser callback.
+    const liveConn = await prisma.ssoConnection.findUnique({
+      where: { id: id.ssoConnectionId },
+      select: { status: true },
+    });
+    if (!liveConn || liveConn.status !== "ACTIVE") {
+      return reply.code(403).send({
+        error: { code: "SSO_SIGN_IN_REFUSED", reason: "sso_connection_unavailable", message: "Your organization's sign-in is not available right now." },
+      });
+    }
+
     let decision: Awaited<ReturnType<typeof resolveLoginMfaEnforcement>>;
     try {
       decision = await resolveLoginMfaEnforcement({ userId: id.userId });
     } catch {
-      // The browser callback fails open on a transient orchestrator error; so does this.
+      // Each protocol keeps its browser leg's rule: the OIDC callback fails
+      // open on a transient orchestrator error, the SAML ACS fails closed
+      // (saml-auth.routes.ts runs the resolver unguarded).
+      if (id.authMethod === "SAML") {
+        return reply.code(503).send({
+          error: { code: "SSO_TEMPORARILY_UNAVAILABLE", message: "Sign-in could not be completed. Start again." },
+        });
+      }
       decision = { outcome: "NOT_REQUIRED", activeFactorCount: 0, policyTeamId: null, policyLevel: null };
     }
     const provenance = {
@@ -486,6 +506,19 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         },
         prisma,
       );
+      // The same audit record the browser callback writes for this refusal.
+      void emitTenantAudit({
+        action: "auth.mfa_enrollment_required",
+        outcome: "denied",
+        denialReason: "mfa_enrollment_required",
+        sourceApp: "SSO",
+        actorUserId: id.userId,
+        workspaceId: id.teamId,
+        resourceType: "user_auth",
+        resourceId: id.userId,
+        correlationId: req.id,
+        metadata: { loginMethod, client: "native", policyLevel: decision.policyLevel, ipAddress: req.ip, userAgent: uaPreview(req) },
+      }).catch(() => null);
       // The enrolment refusal every native sign-in already understands (auth.routes.ts gateLoginWithMfa).
       return reply.code(403).send({
         mfaRequired: true,
@@ -515,6 +548,29 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         jwtSecret,
         challenge.jti,
       );
+      // The same security event and audit record the browser callback writes.
+      if (decision.policyLevel && decision.policyTeamId) {
+        safeEmitSecurityEvent(
+          {
+            teamId: decision.policyTeamId,
+            eventType: "org_mfa_policy_enforced",
+            severity: "INFO",
+            details: { actorUserId: id.userId, loginMethod, policyLevel: decision.policyLevel },
+          },
+          prisma,
+        );
+      }
+      void emitTenantAudit({
+        action: "auth.mfa_challenge_issued",
+        outcome: "success",
+        sourceApp: "SSO",
+        actorUserId: id.userId,
+        workspaceId: id.teamId,
+        resourceType: "user_auth",
+        resourceId: id.userId,
+        correlationId: req.id,
+        metadata: { loginMethod, client: "native", policyLevel: decision.policyLevel ?? null, ipAddress: req.ip, userAgent: uaPreview(req) },
+      }).catch(() => null);
       return reply.code(200).send({
         mfaRequired: true,
         mfaPendingToken,
@@ -559,11 +615,24 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
     if (!completion.allowed) {
       return reply.code(403).send({ error: { code: "SSO_SIGN_IN_REFUSED", reason: completion.reason, message: "Your organization did not allow this sign-in." } });
     }
+    if (id.authMethod === "SAML") {
+      // The security event the SAML ACS writes for a browser sign-in.
+      safeEmitSecurityEvent(
+        {
+          teamId: id.teamId,
+          eventType: "saml_login_succeeded",
+          severity: "INFO",
+          details: { connectionId: id.ssoConnectionId, userId: id.userId, client: "native" },
+        },
+        prisma,
+      );
+    }
     void emitTenantAudit({
       action: id.authMethod === "SAML" ? "auth.saml_login_succeeded" : "auth.sso_login_succeeded",
       outcome: "success",
       sourceApp: "SSO",
       actorUserId: id.userId,
+      organizationId: await organizationIdForPolicy(id.teamId, prisma).catch(() => null),
       workspaceId: id.teamId,
       resourceType: "user_auth",
       resourceId: id.userId,
@@ -596,6 +665,15 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
       if (q.native && !isNativeCodeChallenge(q.codeChallenge)) {
         return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "codeChallenge must be an S256 challenge." } });
       }
+      // MOBILE-002 — a native attempt is opened in the app's system browser and
+      // the app is waiting on proovra://sso/complete. A refusal before the IdP
+      // leg goes back there too: on the web sign-in page it stranded the person
+      // in the browser, and the app read the closed browser as a cancellation.
+      // The target is the fixed app return, never a caller-supplied URL.
+      const refuse = (reason: string) =>
+        q.native
+          ? reply.code(302).redirect(nativeSsoErrorUrl(reason))
+          : bounceToAuthError(reply, reason);
 
       // IDENT-014 — public, and each call writes a row and may reach the IdP.
       const rl = await enforceRateLimit({
@@ -604,6 +682,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         windowSec: 60,
       });
       if (!rl.allowed) {
+        if (q.native) return refuse("rate_limited");
         return reply.code(429).send({ error: { code: "RATE_LIMITED" } });
       }
 
@@ -613,7 +692,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         select: { id: true, teamId: true, status: true },
       });
       if (!conn || conn.status !== "ACTIVE") {
-        return bounceToAuthError(reply, "sso_connection_unavailable");
+        return refuse("sso_connection_unavailable");
       }
 
       try {
@@ -642,7 +721,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           prisma,
         );
         if (!persist.ok) {
-          return bounceToAuthError(reply, "sso_state_persist_failed");
+          return refuse("sso_state_persist_failed");
         }
         if (q.native && q.codeChallenge) {
           await recordNativeSsoChallenge(prisma, { stateRaw: state, codeChallenge: q.codeChallenge });
@@ -656,13 +735,13 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
             { connectionId: conn.id, reason: err.code },
             prisma,
           );
-          return bounceToAuthError(reply, err.code.toLowerCase());
+          return refuse(err.code.toLowerCase());
         }
         await noteSsoFailure(
           { connectionId: conn.id, reason: "initiate_failed" },
           prisma,
         );
-        return bounceToAuthError(reply, "sso_initiate_failed");
+        return refuse("sso_initiate_failed");
       }
     },
   );

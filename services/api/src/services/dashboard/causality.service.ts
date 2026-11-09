@@ -308,41 +308,70 @@ export async function detectCausalityForWorkspace(input: {
   // we don't add a unique constraint because the source/target tuple is
   // sparse (any of 8 nullable columns can carry the edge). Per-call
   // dedup happens via `linkSeen` above.
-  for (const l of links) {
+  // CAP-6 — the same soft "exists" rule, evaluated against ONE read of this
+  // workspace's links for the reason codes in play instead of a findFirst per
+  // link; the missing ones are written in one createMany. A link matches on
+  // exactly the tuple the per-link check compared.
+  const tupleOf = (l: {
+    sourceIncidentId?: string | null;
+    targetIncidentId?: string | null;
+    sourceWorkflowId?: string | null;
+    targetWorkflowId?: string | null;
+    sourceCorrelationId?: string | null;
+    relationType: string;
+    reasonCode: string;
+  }) =>
+    [
+      l.sourceIncidentId ?? "",
+      l.targetIncidentId ?? "",
+      l.sourceWorkflowId ?? "",
+      l.targetWorkflowId ?? "",
+      l.sourceCorrelationId ?? "",
+      String(l.relationType),
+      l.reasonCode.slice(0, 80),
+    ].join("|");
+  if (links.length > 0) {
     try {
-      // Use a soft "exists" check to avoid duplicates on repeat detection.
-      const exists = await prisma.operationalCausalityLink.findFirst({
+      const existingLinks = await prisma.operationalCausalityLink.findMany({
         where: {
           teamId: input.teamId,
-          sourceIncidentId: l.sourceIncidentId ?? null,
-          targetIncidentId: l.targetIncidentId ?? null,
-          sourceWorkflowId: l.sourceWorkflowId ?? null,
-          targetWorkflowId: l.targetWorkflowId ?? null,
-          sourceCorrelationId: l.sourceCorrelationId ?? null,
-          relationType: l.relationType,
-          reasonCode: l.reasonCode,
+          reasonCode: { in: [...new Set(links.map((l) => l.reasonCode.slice(0, 80)))] },
         },
-        select: { id: true },
+        select: {
+          sourceIncidentId: true,
+          targetIncidentId: true,
+          sourceWorkflowId: true,
+          targetWorkflowId: true,
+          sourceCorrelationId: true,
+          relationType: true,
+          reasonCode: true,
+        },
       });
-      if (!exists) {
-        await prisma.operationalCausalityLink.create({
-          data: {
-            teamId: input.teamId,
-            sourceIncidentId: l.sourceIncidentId ?? null,
-            targetIncidentId: l.targetIncidentId ?? null,
-            sourceWorkflowId: l.sourceWorkflowId ?? null,
-            targetWorkflowId: l.targetWorkflowId ?? null,
-            sourceCorrelationId: l.sourceCorrelationId ?? null,
-            relationType: l.relationType,
-            confidence: l.confidence,
-            reasonCode: l.reasonCode.slice(0, 80),
-            explanation: l.explanation.slice(0, 400),
-          },
-        });
-        linksPersisted += 1;
+      const known = new Set(existingLinks.map((e) => tupleOf(e)));
+      const missing = links.filter((l) => !known.has(tupleOf(l)));
+      if (missing.length > 0) {
+        try {
+          await prisma.operationalCausalityLink.createMany({
+            data: missing.map((l) => ({
+              teamId: input.teamId,
+              sourceIncidentId: l.sourceIncidentId ?? null,
+              targetIncidentId: l.targetIncidentId ?? null,
+              sourceWorkflowId: l.sourceWorkflowId ?? null,
+              targetWorkflowId: l.targetWorkflowId ?? null,
+              sourceCorrelationId: l.sourceCorrelationId ?? null,
+              relationType: l.relationType,
+              confidence: l.confidence,
+              reasonCode: l.reasonCode.slice(0, 80),
+              explanation: l.explanation.slice(0, 400),
+            })) as never,
+          });
+          linksPersisted += missing.length;
+        } catch {
+          failed += missing.length;
+        }
       }
     } catch {
-      failed += 1;
+      failed += links.length;
     }
   }
 

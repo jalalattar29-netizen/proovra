@@ -213,6 +213,28 @@ export async function generateWorkflowsForWorkspace(input: {
     return { persisted: 0, failed: 0, types: [] };
   }
 
+  // CAP-6 — every workflow this pass may touch, read once. Each key names one
+  // incident (its id is in the key), so nothing this loop writes changes what
+  // another iteration reads. If the read fails, each iteration reads its own.
+  const WF_SELECT = { id: true, status: true, escalationLevel: true, severity: true, priority: true } as const;
+  type ExistingWorkflow = { id: string; status: string; escalationLevel: number; severity: string; priority: string };
+  let knownWorkflows: Map<string, ExistingWorkflow> | null = null;
+  try {
+    const keys = incidents.map(
+      (inc) =>
+        `incident:${inc.id}:${workflowTypeForIncident({ category: inc.category, fingerprint: inc.fingerprint, title: inc.title })}`,
+    );
+    if (keys.length > 0) {
+      const rows = await prisma.operationalWorkflow.findMany({
+        where: { teamId: input.teamId, workflowKey: { in: keys } },
+        select: { ...WF_SELECT, workflowKey: true },
+      });
+      knownWorkflows = new Map(rows.map(({ workflowKey, ...row }) => [workflowKey, row as unknown as ExistingWorkflow]));
+    }
+  } catch {
+    knownWorkflows = null;
+  }
+
   for (const inc of incidents) {
     const wfType = workflowTypeForIncident({
       category: inc.category,
@@ -224,15 +246,17 @@ export async function generateWorkflowsForWorkspace(input: {
     const workflowKey = `incident:${inc.id}:${wfType}`;
 
     try {
-      const existing = await prisma.operationalWorkflow.findUnique({
-        where: {
-          teamId_workflowKey: {
-            teamId: input.teamId,
-            workflowKey,
-          },
-        },
-        select: { id: true, status: true, escalationLevel: true },
-      });
+      const existing: ExistingWorkflow | null = knownWorkflows
+        ? (knownWorkflows.get(workflowKey) ?? null)
+        : ((await prisma.operationalWorkflow.findUnique({
+            where: {
+              teamId_workflowKey: {
+                teamId: input.teamId,
+                workflowKey,
+              },
+            },
+            select: WF_SELECT,
+          })) as unknown as ExistingWorkflow | null);
 
       let workflowId: string;
       let eventType: string;
@@ -297,8 +321,18 @@ export async function generateWorkflowsForWorkspace(input: {
         eventType = "REOPENED";
         fromStatus = existing.status;
         toStatus = "OPEN";
+      } else if (String(existing.severity) === String(wfSeverity) && String(existing.priority) === String(wfPriority)) {
+        // CAP-6 — an open workflow whose severity and priority are already
+        // what the incident implies has nothing to record. It used to be
+        // rewritten with the same values on every sweep and to get a
+        // STATUS_CHANGED event whose from and to were the same status: a
+        // timeline row every 15 minutes saying nothing happened, and an
+        // `updatedAt` that always read "just now". Nothing is written.
+        persisted += 1;
+        types.push(wfType);
+        continue;
       } else {
-        // Existing open workflow — escalate severity if higher.
+        // Existing open workflow — severity or priority changed.
         const updated = await prisma.operationalWorkflow.update({
           where: { id: existing.id },
           data: {

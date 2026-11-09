@@ -53,7 +53,9 @@ import {
 import {
   buildProbeContext,
   probeSource,
+  prefetchProbeSubjects,
   resolveProbeWorkspaceScope,
+  type ProbePrefetch,
   type ProbeWorkspaceScope,
 } from "./operations-source-probes.js";
 
@@ -355,8 +357,31 @@ export async function closeRecoveredConditions<R extends RecoveryRow>(
     }
     return pending;
   };
+  // CAP-6 — the per-record subjects of one workspace's rows, read once per
+  // workspace for this pass (only integrity probes prefetch; others read as
+  // before). A failed prefetch is empty and each probe reads its own row.
+  const teamOf = new Map<R, string | null>();
+  for (const row of rows) teamOf.set(row, await args.workspaceFor(row));
+  const prefetches = new Map<string, Promise<ProbePrefetch>>();
+  const prefetchFor = (teamId: string) => {
+    let pending = prefetches.get(teamId);
+    if (!pending) {
+      pending = scopeFor(teamId)
+        .then((scope) =>
+          prefetchProbeSubjects({
+            probeKey: args.lifecycle.activityProbeKey,
+            fingerprints: rows.filter((r) => teamOf.get(r) === teamId).map((r) => r.fingerprint),
+            scope,
+            client: args.client,
+          }),
+        )
+        .catch((): ProbePrefetch => ({}));
+      prefetches.set(teamId, pending);
+    }
+    return pending;
+  };
   for (const row of rows) {
-    const teamId = await args.workspaceFor(row);
+    const teamId = teamOf.get(row) ?? null;
     // No workspace to read the source in: it stays open and visible.
     if (!teamId) continue;
     const ctx = await buildProbeContext({
@@ -365,6 +390,7 @@ export async function closeRecoveredConditions<R extends RecoveryRow>(
       client: args.client,
       now: args.now,
       scope: await scopeFor(teamId),
+      prefetch: await prefetchFor(teamId),
     });
     const observation = await probeSource(args.lifecycle.activityProbeKey, ctx);
     // ONLY a proven recovery closes anything. ACTIVE leaves it open,

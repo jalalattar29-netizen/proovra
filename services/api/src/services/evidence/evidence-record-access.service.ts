@@ -31,7 +31,9 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
-import type { Permission } from "@proovra/shared";
+import type { Permission, PrivilegedAction } from "@proovra/shared";
+import type { FastifyRequest } from "fastify";
+import { isRequestSessionQuarantined } from "../access-control/adaptive-runtime-gate.service.js";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { CASE_VISIBILITY_SELECT, caseRowVisibleTo } from "../cases/case-visibility.js";
@@ -51,6 +53,8 @@ export type EvidenceRecordDenyReason =
   | "not_personal_owner"
   | "authorization_unavailable"
   | "case_access_list"
+  /** IDENT-019 — allowed by policy, refused because the session is quarantined. */
+  | "session_quarantined"
   | AccessDenyReason;
 
 export type EvidenceRecordAccessResult =
@@ -145,11 +149,28 @@ export async function resolveEvidenceOperationAccess(
     userId: string;
     evidenceId: string;
     permission: EvidenceRecordPermission;
+    /**
+     * IDENT-019 — the signed-in request performing this privileged action.
+     * When given, an operation the policy ALLOWS is refused (FORBIDDEN,
+     * `session_quarantined`) while that session is quarantined. Asked only
+     * after the policy allowed it, so an outsider still gets HIDDEN.
+     */
+    session?: { req: FastifyRequest; action: PrivilegedAction };
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<EvidenceOperationAccess> {
   const op = await resolveEvidenceRecordAccess(input, client);
-  if (op.allowed) return { allowed: true };
+  if (op.allowed) {
+    if (!input.session) return { allowed: true };
+    const row = await client.evidence.findUnique({ where: { id: input.evidenceId }, select: { teamId: true } });
+    const quarantined = await isRequestSessionQuarantined(
+      { req: input.session.req, teamId: row?.teamId ?? null, userId: input.userId, action: input.session.action },
+      client,
+    );
+    return quarantined
+      ? { allowed: false, visibility: "FORBIDDEN", internalReason: "session_quarantined" }
+      : { allowed: true };
+  }
   if (input.permission === "evidence.read") {
     return { allowed: false, visibility: "HIDDEN", internalReason: op.internalReason };
   }

@@ -1390,6 +1390,8 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       actorUserId,
       kind: "derived",
       recordDenial,
+      // IDENT-019 — derived review material is original-derived bytes.
+      session: { req },
       ip: req.ip,
       userAgent:
         typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,

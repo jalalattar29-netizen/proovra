@@ -25,6 +25,14 @@ import {
   takeSsoVerifier,
 } from "./sso-native";
 
+/** A completion refusal: the shared wording, or the organization's own "no" when the reason is not one we word. */
+function refusalInWords(reason: string): string {
+  const message = ssoFailureMessage(reason);
+  return message === ssoFailureMessage("")
+    ? "Your organization did not allow this sign-in. Ask your administrator."
+    : message;
+}
+
 /** Redeem a proovra://sso/complete return. Null when it was handled; else a message. */
 export async function finishSsoReturn(
   url: string,
@@ -43,9 +51,18 @@ export async function finishSsoReturn(
     await onResult(await exchangeNativeSso(parsed.code, verifier));
     return null;
   } catch (err) {
-    const code = (err as { code?: string } | null)?.code;
+    const e = err as { code?: string; body?: { error?: { reason?: unknown } } } | null;
+    const code = e?.code;
     if (code === "SSO_NATIVE_CODE_INVALID") return "This sign-in has expired. Start again from the sign-in screen.";
-    if (code === "SSO_SIGN_IN_REFUSED") return "Your organization did not allow this sign-in. Ask your administrator.";
+    if (code === "SSO_SIGN_IN_REFUSED") {
+      // The exchange names why (sso-auth.routes.ts: the session limit, a seat,
+      // a managed identity conflict, a connection disabled meanwhile).
+      const reason = e?.body?.error?.reason;
+      return typeof reason === "string" && reason.length > 0
+        ? refusalInWords(reason)
+        : "Your organization did not allow this sign-in. Ask your administrator.";
+    }
+    if (code === "SSO_TEMPORARILY_UNAVAILABLE") return "Single sign-on could not be completed. Start again from the sign-in screen.";
     return toSafeUserError(err, { message: "Single sign-on did not complete. Try again." }).message;
   }
 }

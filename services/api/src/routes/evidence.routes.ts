@@ -3859,13 +3859,16 @@ type ArtifactDownloadGateResult =
  * the caller already authorized the read, and a refusal writes no custody
  * event because nothing was attempted.
  */
-async function originalReleaseForViewer(evidenceId: string, userId: string): Promise<boolean> {
+async function originalReleaseForViewer(evidenceId: string, userId: string, req: FastifyRequest): Promise<boolean> {
   const decision = await evaluateArtifactDownload({
     evidenceId,
     actorUserId: userId,
     kind: "original",
     readAccess: async () => undefined,
     recordDenial: false,
+    // IDENT-019 — a quarantined session still sees the record, without
+    // presigned original URLs.
+    session: { req },
   });
   return decision.allowed;
 }
@@ -3887,6 +3890,9 @@ async function assertArtifactDownloadAllowed(
     ip: req.ip,
     userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
     readAccess: getEvidenceWithReadAccess,
+    // IDENT-019 — a quarantined session is refused the release (the gate asks
+    // the quarantine authority after every policy check).
+    session: { req },
   });
   if (decision.allowed) return decision;
   return {
@@ -7290,6 +7296,8 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
           readAccess: async () => evidence,
           // A listing is not a download attempt: no custody event.
           recordDenial: false,
+          // IDENT-019 — no part URL for a quarantined session.
+          session: { req },
         })
       ).allowed;
 
@@ -10585,7 +10593,7 @@ return {
         const content = await buildPublicEvidenceContent({
           accessPolicy: authenticatedContentAccessPolicy,
           labelSource: "OWNER_WORKSPACE",
-  originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId),
+  originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId, req),
           previews: reportPreviewMap,
           evidence: {
             id: evidence.id,
@@ -11614,7 +11622,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
 const content = await buildPublicEvidenceContent({
   accessPolicy: authenticatedContentAccessPolicy,
   labelSource: "OWNER_WORKSPACE",
-  originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId),
+  originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId, req),
   evidence: {
     id: evidence.id,
     mimeType: evidence.mimeType,
@@ -11899,7 +11907,7 @@ const authenticatedContentAccessPolicy: PublicVerifyContentAccessPolicy =
 const content = await buildPublicEvidenceContent({
   accessPolicy: authenticatedContentAccessPolicy,
   labelSource: "OWNER_WORKSPACE",
-  originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId),
+  originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId, req),
   evidence: {
     id: refreshed.id,
     mimeType: refreshed.mimeType,
@@ -12365,8 +12373,28 @@ if (
         userId,
         evidenceId: id,
         permission: "evidence.generate_report",
+        // IDENT-019 — a quarantined session keeps reads; generating or
+        // recovering a report / verification package is refused, before any
+        // request, job, version or object.
+        session: {
+          req,
+          action: targetOutput === "verificationPackage" ? "EXPORT_GENERATE_PACKAGE" : "EXPORT_GENERATE_REPORT",
+        },
       });
       if (!access.allowed) {
+        if (access.internalReason === "session_quarantined") {
+          await auditEvidenceAction(req, {
+            userId,
+            action: "evidence.report.regenerate_requested",
+            outcome: "blocked",
+            resourceId: id,
+            severity: "warning",
+            metadata: { reason: "session_quarantined", requestedIntent: intent ?? null },
+          });
+          return reply.code(403).send({
+            error: { code: "session_quarantined", message: "This session is quarantined; privileged actions blocked." },
+          });
+        }
         if (access.visibility === "FORBIDDEN") {
           await auditEvidenceAction(req, {
             userId,

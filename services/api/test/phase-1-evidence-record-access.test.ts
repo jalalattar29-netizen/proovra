@@ -245,8 +245,10 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
     // The regenerate/recover route asks the SAME canonical engine for the
     // SAME capability, through the D5 variant that answers 403 to a member
     // who can read the record and 404 to everyone else (2026-09-26).
+    // (IDENT-019: the same call also hands the engine the signed-in session, so
+    // a quarantined session is refused by the engine after the policy allows.)
     expect(SRC).toMatch(
-      /resolveEvidenceOperationAccess\(\{\s*userId,\s*evidenceId: id,\s*permission: "evidence\.generate_report",\s*\}\)/,
+      /resolveEvidenceOperationAccess\(\{\s*userId,\s*evidenceId: id,\s*permission: "evidence\.generate_report",\s*(?:\/\/[^\n]*\n\s*)*session: \{\s*req,\s*action:[^}]*\},\s*\}\)/,
     );
   });
 

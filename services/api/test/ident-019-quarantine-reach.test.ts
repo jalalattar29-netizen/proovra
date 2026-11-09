@@ -36,6 +36,7 @@ vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({
 }));
 
 import {
+  isRequestSessionQuarantined,
   refuseIfSessionQuarantined,
   runtimeAdaptiveGate,
 } from "../src/services/access-control/adaptive-runtime-gate.service.js";
@@ -364,5 +365,82 @@ describe("IDENT-019 — every privileged route asks the one quarantine authority
     expect(gateFn).not.toMatch(/isSessionQuarantined\(/);
     expect(src.match(/code: "session_quarantined"/g)).toHaveLength(1);
     expect(src.match(/isSessionQuarantined\(/g)).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (c) Original downloads and report generation — through the existing gates
+// ---------------------------------------------------------------------------
+//
+// evidence.routes.ts also serves anonymous public Verify, and must not import
+// the session-runtime services (Phase 26.75 isolation). So these releases ask
+// the quarantine authority from the services they already go through: the
+// artifact download gate and the record operation-access engine. Each takes an
+// optional signed-in `session`; public Verify never passes one.
+
+const squash = (s: string) => s.replace(/\s+/g, " ");
+
+describe("IDENT-019 — original downloads and report generation", () => {
+  it("isRequestSessionQuarantined decides without writing a reply", async () => {
+    const { client } = fakeClient(row({ quarantinedAtUtc: new Date(), quarantineReleaseAtUtc: new Date(Date.now() + HOUR) }));
+    expect(
+      await isRequestSessionQuarantined({ req: fakeReq(tokenWithSid(SID)), teamId: TEAM_ID, userId: USER_ID, action: "ORIGINAL_EVIDENCE_DOWNLOAD" }, client),
+    ).toBe(true);
+    const clean = fakeClient(row());
+    expect(
+      await isRequestSessionQuarantined({ req: fakeReq(tokenWithSid(SID)), teamId: TEAM_ID, userId: USER_ID, action: "ORIGINAL_EVIDENCE_DOWNLOAD" }, clean.client),
+    ).toBe(false);
+    expect(
+      await isRequestSessionQuarantined({ req: fakeReq(null), teamId: TEAM_ID, userId: USER_ID, action: "ORIGINAL_EVIDENCE_DOWNLOAD" }, client),
+    ).toBe(false);
+  });
+
+  it("the artifact download gate asks the authority only after its policy allowed the release", () => {
+    const src = code("../src/services/evidence/artifact-download-gate.service.ts");
+    const wrapper = src.slice(
+      src.indexOf("export async function evaluateArtifactDownload("),
+      src.indexOf("async function evaluateArtifactDownloadPolicy("),
+    );
+    const flat = squash(wrapper);
+    const policy = flat.indexOf("const decision = await evaluateArtifactDownloadPolicy(input); if (!decision.allowed || !input.session) return decision;");
+    expect(policy).toBeGreaterThan(-1);
+    expect(flat.indexOf("isRequestSessionQuarantined(")).toBeGreaterThan(policy);
+    expect(flat).toContain("statusCode: 403, body: { ...SESSION_QUARANTINED_BODY }");
+    expect(src).toMatch(/original: "ORIGINAL_EVIDENCE_DOWNLOAD"/);
+    expect(src).toMatch(/report: "EXPORT_GENERATE_REPORT"/);
+  });
+
+  it("every signed-in download path in evidence.routes.ts passes its session to the gate", () => {
+    const src = code("../src/routes/evidence.routes.ts");
+    const adapter = src.slice(src.indexOf("async function assertArtifactDownloadAllowed("), src.indexOf("async function getEvidenceForCollaborativeWrite("));
+    expect(adapter).toContain("session: { req }");
+    const viewer = src.slice(src.indexOf("async function originalReleaseForViewer("), src.indexOf("async function assertArtifactDownloadAllowed("));
+    expect(viewer).toContain("session: { req }");
+    expect(src.split("originalReleaseForViewer(id, ownerUserId, req)")).toHaveLength(4);
+  });
+
+  it("report regeneration asks the operation-access engine with the session and answers session_quarantined", () => {
+    const body = routeBody(code("../src/routes/evidence.routes.ts"), "post", "/v1/evidence/:id/reports/regenerate");
+    const flat = squash(body);
+    const access = flat.indexOf('permission: "evidence.generate_report", ');
+    expect(access).toBeGreaterThan(-1);
+    expect(flat.indexOf(
+      'session: { req, action: targetOutput === "verificationPackage" ? "EXPORT_GENERATE_PACKAGE" : "EXPORT_GENERATE_REPORT", }',
+    )).toBeGreaterThan(access);
+    const refusal = flat.indexOf('if (access.internalReason === "session_quarantined") {');
+    expect(refusal).toBeGreaterThan(access);
+    // Refused before the request, job or version is created.
+    expect(refusal).toBeLessThan(flat.indexOf("prisma.evidence.findUnique("));
+    expect(flat.slice(refusal, refusal + 700)).toContain('code: "session_quarantined"');
+    const engine = squash(code("../src/services/evidence/evidence-record-access.service.ts"));
+    expect(engine).toContain("if (op.allowed) { if (!input.session) return { allowed: true };");
+  });
+
+  it("public Verify never passes a session: anonymous answers are unchanged", () => {
+    const governance = code("../src/services/governance/public-disclosure-governance.service.ts");
+    expect(governance).toContain("evaluateArtifactDownload(");
+    expect(governance).not.toMatch(/session:/);
+    const routes = code("../src/routes/evidence.routes.ts");
+    expect(routes).not.toMatch(/adaptive-runtime-gate|session-quarantine/);
   });
 });

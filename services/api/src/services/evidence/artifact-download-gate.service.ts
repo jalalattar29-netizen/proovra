@@ -44,6 +44,9 @@ import { assertRedactionCapability } from "../redaction/redaction-rbac.service.j
 import { appendCustodyEvent } from "../custody-events.service.js";
 import { noteCustodyFailure } from "../custody-events-observability.js";
 import { evaluateEffectiveLegalHold, resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
+import type { FastifyRequest } from "fastify";
+import type { PrivilegedAction } from "@proovra/shared";
+import { isRequestSessionQuarantined, SESSION_QUARANTINED_BODY } from "../access-control/adaptive-runtime-gate.service.js";
 
 /**
  * GOV-012 — was the record held when its bytes were released? Recorded on the
@@ -164,7 +167,61 @@ export type ArtifactDownloadDecision =
       body: Record<string, unknown>;
     };
 
-export async function evaluateArtifactDownload(input: {
+/**
+ * IDENT-019 — the privileged action each artifact release is, for the
+ * quarantine authority. Every kind that hands over original bytes (or a
+ * package embedding them) is an original download; a report or an external
+ * package is an export.
+ */
+const QUARANTINE_ACTION: Record<ArtifactKind, PrivilegedAction> = {
+  report: "EXPORT_GENERATE_REPORT",
+  package: "ORIGINAL_EVIDENCE_DOWNLOAD",
+  package_external: "EXPORT_GENERATE_PACKAGE",
+  original: "ORIGINAL_EVIDENCE_DOWNLOAD",
+  redaction: "EXPORT_GENERATE_PACKAGE",
+  derived: "ORIGINAL_EVIDENCE_DOWNLOAD",
+};
+
+type ArtifactDownloadInput = Parameters<typeof evaluateArtifactDownloadPolicy>[0] & {
+  /**
+   * IDENT-019 — the signed-in request this release answers. When given, a
+   * release the policy ALLOWS is still refused (403 `session_quarantined`)
+   * while that session is quarantined; reads are untouched. Absent for
+   * anonymous public Verify and for internal callers, which have no session.
+   */
+  session?: { req: FastifyRequest };
+};
+
+export async function evaluateArtifactDownload(input: ArtifactDownloadInput): Promise<ArtifactDownloadDecision> {
+  const decision = await evaluateArtifactDownloadPolicy(input);
+  if (!decision.allowed || !input.session) return decision;
+  // Only narrows: asked after every policy check, so a stranger still gets
+  // the policy's own answer (404/403), never a hint about the session.
+  const quarantined = await isRequestSessionQuarantined({
+    req: input.session.req,
+    teamId: decision.teamId,
+    userId: input.actorUserId,
+    action: QUARANTINE_ACTION[input.kind],
+  });
+  if (!quarantined) return decision;
+  if (input.recordDenial !== false) {
+    await appendCustodyEvent({
+      evidenceId: input.evidenceId,
+      eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+      payload: {
+        action: CUSTODY_ACTION[input.kind],
+        reason: "session_quarantined",
+        actorUserId: input.actorUserId,
+        ...(input.onBehalfOf ?? {}),
+      },
+      ip: input.ip ?? undefined,
+      userAgent: input.userAgent ?? undefined,
+    }).catch(noteCustodyFailure);
+  }
+  return { allowed: false, teamId: decision.teamId, statusCode: 403, body: { ...SESSION_QUARANTINED_BODY } };
+}
+
+async function evaluateArtifactDownloadPolicy(input: {
   evidenceId: string;
   actorUserId: string;
   kind: ArtifactKind;

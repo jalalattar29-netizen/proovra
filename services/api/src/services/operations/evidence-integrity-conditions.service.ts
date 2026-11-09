@@ -100,7 +100,7 @@ import {
   type IncidentTransitionStatus,
 } from "@proovra/shared-runtime";
 
-import { recordIncident } from "../observability/incident.service.js";
+import { INCIDENT_DEDUPE_SELECT, recordIncident, type IncidentDedupeRow } from "../observability/incident.service.js";
 import { inSourceStage } from "./operations-source-diagnostics.js";
 import {
   classifyIntegrityFailure,
@@ -430,6 +430,8 @@ type ExistingCondition = {
   firstSeenAtUtc: Date;
   /** When the current active interval began (live SLA cycle, else first seen). */
   activeSinceUtc: Date;
+  /** CAP-6 — the row as `recordIncident`'s dedupe read would return it. */
+  dedupe: IncidentDedupeRow;
 };
 
 /**
@@ -455,6 +457,7 @@ async function loadExistingConditions(
         fingerprint: { in: fingerprints.slice(i, i + CHUNK) as string[] },
       },
       select: {
+        ...INCIDENT_DEDUPE_SELECT,
         fingerprint: true,
         status: true,
         firstSeenAtUtc: true,
@@ -469,10 +472,12 @@ async function loadExistingConditions(
       },
     });
     for (const row of rows) {
-      out.set(row.fingerprint, {
+      const { fingerprint, firstSeenAtUtc, slaCycles, ...dedupe } = row;
+      out.set(fingerprint, {
         status: row.status,
-        firstSeenAtUtc: row.firstSeenAtUtc,
-        activeSinceUtc: row.slaCycles?.[0]?.startedAtUtc ?? row.firstSeenAtUtc,
+        firstSeenAtUtc,
+        activeSinceUtc: slaCycles?.[0]?.startedAtUtc ?? firstSeenAtUtc,
+        dedupe: dedupe as IncidentDedupeRow,
       });
     }
   }
@@ -928,6 +933,8 @@ async function recordIntegrityCondition(
       },
     },
     client,
+    // CAP-6 — the row this pass already read (null: it did not exist then).
+    { knownExisting: existing?.dedupe ?? null },
   );
 
   if (wasSuppressed) return "suppressed_untouched";
@@ -1014,6 +1021,8 @@ async function recordOtsPendingAgedCondition(
       },
     },
     client,
+    // CAP-6 — the row this pass already read (null: it did not exist then).
+    { knownExisting: existing?.dedupe ?? null },
   );
 
   if (wasSuppressed) return "suppressed_untouched";
@@ -1411,6 +1420,8 @@ async function recordOtsInitializationStalledCondition(
       },
     },
     client,
+    // CAP-6 — the row this pass already read (null: it did not exist then).
+    { knownExisting: existing?.dedupe ?? null },
   );
 
   if (wasSuppressed) return "suppressed_untouched";

@@ -63,8 +63,8 @@ afterEach(() => {
   while (mounted.length) mounted.pop().unmount();
   delete globalThis.__AUTH_SESSION__;
 });
-const settle = async () => {
-  for (let i = 0; i < 10; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
+const settle = async (n = 10) => {
+  for (let i = 0; i < n; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
 };
 const render = async (Mod = M) => {
   const r = await renderComponent(h(Mod.TestProviders, null, h(Mod.default, {})));
@@ -171,4 +171,105 @@ test("deep links: only proovra://sso/complete is the SSO return", () => {
   assert.deepEqual(M.ssoReturnRoute("proovra://sso/complete?error=x"), { pathname: "/(stack)/sso-complete", params: { error: "x" } });
   assert.equal(M.ssoReturnRoute("proovra://sso/completed?code=abc"), null);
   assert.equal(M.parseSsoDiscovery({ sso: true, loginPath: "https://evil.example/v1/auth/sso/x/initiate" }), null, "only the server's own routes are opened");
+});
+
+/* ------------------------------------------------ IDENT-020 hardening ---- */
+
+const withExchange = (answer) => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    if (String(url).endsWith("/v1/auth/sso/native/exchange")) {
+      posts.push({ path: "/v1/auth/sso/native/exchange", body: JSON.parse(init.body), auth: null });
+      const [status, body] = answer();
+      return reply(status, body);
+    }
+    return realFetch(url, init);
+  };
+};
+
+test("MFA enrolment the Organization requires after SSO: the exchange's 403 goes to enrolment, with no session stored", async () => {
+  withExchange(() => [403, {
+    mfaRequired: true,
+    mfaEnrollmentRequired: true,
+    code: "MFA_ENROLLMENT_REQUIRED",
+    mfaEnrollmentToken: "enrol-token-abcdefghijklmnopqrstuvwxyz",
+    mfaEnrollmentExpiresInSeconds: 600,
+    message: "Your organization requires multi-factor authentication.",
+    user: { id: "u-sso" },
+  }]);
+  const r = await ssoReady();
+  await r.press("Sign in with your organization (SSO)");
+  await settle();
+  assert.deepEqual(M.calls.push.at(-1), { pathname: "/mfa", params: { enroll: "1", mode: "sso" } });
+  assert.equal(await M.getItemAsync("proovra-token"), null);
+  assert.ok(!JSON.stringify(M.calls.push).includes("enrol-token"), "the enrolment token was put in a route");
+});
+
+test("a completion the Organization refuses names its reason (the session limit), not a generic no", async () => {
+  withExchange(() => [403, { error: { code: "SSO_SIGN_IN_REFUSED", reason: "concurrent_session_limit_reached", message: "Your organization did not allow this sign-in." } }]);
+  const r = await ssoReady();
+  await r.press("Sign in with your organization (SSO)");
+  await settle();
+  assert.ok(r.hasText("You have reached your organization's limit of active sessions."));
+  assert.equal(await M.getItemAsync("proovra-token"), null);
+});
+
+test("a completion refused for a reason the app does not word still says the organization refused", async () => {
+  withExchange(() => [403, { error: { code: "SSO_SIGN_IN_REFUSED", reason: "something_new", message: "x" } }]);
+  const r = await ssoReady();
+  await r.press("Sign in with your organization (SSO)");
+  await settle();
+  assert.ok(r.hasText("Your organization did not allow this sign-in. Ask your administrator."));
+});
+
+test("an expired or already-used code says to start again", async () => {
+  withExchange(() => [400, { error: { code: "SSO_NATIVE_CODE_INVALID", message: "This sign-in has expired. Start again." } }]);
+  const r = await ssoReady();
+  await r.press("Sign in with your organization (SSO)");
+  await settle();
+  assert.ok(r.hasText("This sign-in has expired. Start again from the sign-in screen."));
+  assert.equal(await M.getItemAsync("proovra-token"), null);
+});
+
+test("refusals the server reports to the app are worded like the web sign-in page: not provisioned, connection unavailable", async () => {
+  for (const [reason, words] of [
+    ["saml_jit_disabled", "You have not been added to this organization yet."],
+    ["sso_jit_disabled", "You have not been added to this organization yet."],
+    ["sso_connection_unavailable", "Your organization's sign-in is not available right now."],
+    ["saml_not_configured", "Your organization's sign-in is not available right now."],
+    ["rate_limited", "Too many sign-in attempts."],
+    ["managed_identity_conflict", "Your organization did not accept this account for single sign-on."],
+  ]) {
+    globalThis.__AUTH_SESSION__ = async () => ({ type: "success", url: `proovra://sso/complete?error=${reason}` });
+    const r = await ssoReady();
+    await r.press("Sign in with your organization (SSO)");
+    await settle();
+    assert.ok(r.hasText(words), `${reason} was not worded`);
+    assert.equal(posts.filter((p) => p.path === "/v1/auth/sso/native/exchange").length, 0);
+    while (mounted.length) mounted.pop().unmount();
+  }
+});
+
+test("account switch: an SSO sign-in as another person ends the session the device held (revoked server-side) and keeps only the new one", async () => {
+  const realFetch = globalThis.fetch;
+  const logouts = [];
+  globalThis.fetch = async (url, init = {}) => {
+    const path = String(url).replace(/^https?:\/\/[^/]+/, "").split("?")[0];
+    const bearer = new Headers(init.headers).get("authorization");
+    if (path === "/v1/auth/logout") {
+      logouts.push(bearer);
+      return reply(200, { ok: true });
+    }
+    if (path === "/v1/auth/me" && bearer === "Bearer old-jwt") return reply(200, { user: { id: "u-old", email: "old@personal.example" } });
+    return realFetch(url, init);
+  };
+  await M.setItemAsync("proovra-token", "old-jwt");
+  await M.setItemAsync("proovra-auth-mode", "email");
+  const r = await ssoReady();
+  await r.press("Sign in with your organization (SSO)");
+  await settle(20);
+  assert.ok(logouts.includes("Bearer old-jwt"), "the replaced session was never revoked");
+  assert.ok(!logouts.includes("Bearer sso-jwt"), "the new SSO session was revoked");
+  assert.equal(await M.getItemAsync("proovra-token"), "sso-jwt");
+  assert.equal(await M.getItemAsync("proovra-auth-mode"), "sso");
 });

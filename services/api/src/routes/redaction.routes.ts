@@ -1704,6 +1704,8 @@ export async function redactionRoutes(app: FastifyInstance) {
         evidenceId: project.evidenceId,
         actorUserId: ctx.userId,
         kind: "redaction",
+        // IDENT-019 — refused to a quarantined session.
+        session: { req },
         ip: req.ip,
         userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
         readAccess: async (userId, evidenceId) => {

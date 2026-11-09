@@ -414,6 +414,13 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       if (q.native && !isNativeCodeChallenge(q.codeChallenge)) {
         return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "codeChallenge must be an S256 challenge." } });
       }
+      // MOBILE-002 — a native attempt's refusal before the IdP leg goes back to
+      // the waiting app (the fixed proovra://sso/complete), not to the web
+      // sign-in page in its system browser (sso-auth.routes.ts initiate).
+      const refuse = (reason: string) =>
+        q.native
+          ? reply.code(302).redirect(nativeSsoErrorUrl(reason))
+          : bounceToSamlError(reply, reason);
 
       // IDENT-014 — public, and each call writes a ledger row.
       const rl = await enforceRateLimit({
@@ -422,6 +429,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         windowSec: 60,
       });
       if (!rl.allowed) {
+        if (q.native) return refuse("rate_limited");
         return reply.code(429).send({ error: { code: "RATE_LIMITED" } });
       }
 
@@ -444,13 +452,13 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       });
 
       if (!conn || conn.status !== "ACTIVE") {
-        return bounceToSamlError(reply, "saml_connection_unavailable");
+        return refuse("saml_connection_unavailable");
       }
       if (
         !conn.samlSsoUrl ||
         !conn.samlCertificate
       ) {
-        return bounceToSamlError(reply, "saml_not_configured");
+        return refuse("saml_not_configured");
       }
 
       const spEntityId =
@@ -495,7 +503,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         );
 
         if (!persist.ok) {
-          return bounceToSamlError(reply, "saml_state_persist_failed");
+          return refuse("saml_state_persist_failed");
         }
         if (q.native && q.codeChallenge) {
           await recordNativeSsoChallenge(prisma, { stateRaw: relayState, codeChallenge: q.codeChallenge });
@@ -533,7 +541,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           { connectionId: conn.id, reason: "saml_initiate_failed" },
           prisma,
         );
-        return bounceToSamlError(reply, "saml_initiate_failed");
+        return refuse("saml_initiate_failed");
       }
     },
   );

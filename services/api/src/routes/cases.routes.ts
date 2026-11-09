@@ -999,6 +999,8 @@ export async function casesRoutes(app: FastifyInstance) {
             evidenceId: ev.id,
             actorUserId: ownerUserId,
             kind: "report",
+            // IDENT-019 — a quarantined session's case export carries no report.
+            session: { req },
             ip: req.ip,
             userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
             readAccess,

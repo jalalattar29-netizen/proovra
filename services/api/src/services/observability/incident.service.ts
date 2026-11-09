@@ -416,9 +416,48 @@ async function canonicalSourceForWrite(input: RecordIncidentInput): Promise<Reco
   return decided === input.sourceId ? input : { ...input, sourceId: decided };
 }
 
+/**
+ * The dedupe read `recordIncident` makes first (what the code reads, nothing
+ * else — see the note at its use). Exported so a sweep that already reads a
+ * workspace's conditions for the whole pass can hand the row in.
+ */
+export const INCIDENT_DEDUPE_SELECT = {
+  id: true,
+  status: true,
+  severity: true,
+  requestId: true,
+  traceId: true,
+  relatedEvidenceId: true,
+  relatedJobId: true,
+  relatedProvider: true,
+  sourceId: true,
+  // The PREVIOUS snapshot, so a refreshed metric can carry a real
+  // `previousValue` and `delta` rather than having them recomputed by
+  // whoever renders it — and so a failed observation can keep the last
+  // values it successfully read instead of zeroing them.
+  metricSnapshot: true,
+} as const;
+
+export type IncidentDedupeRow = prismaPkg.Prisma.OperationalIncidentGetPayload<{
+  select: typeof INCIDENT_DEDUPE_SELECT;
+}>;
+
+export type RecordIncidentOptions = {
+  /**
+   * CAP-6 — the WORKSPACE row this observation's (teamId, fingerprint) named
+   * when the caller read the whole pass at once (`null`: it did not exist).
+   * Used in place of the first dedupe read only. Staleness is safe by the
+   * same mechanisms a racing writer already relies on: a row created since
+   * makes the create collide and re-read; a row changed since fails the
+   * compare-and-set and re-reads. Ignored for a NULL-team (platform) write.
+   */
+  knownExisting?: IncidentDedupeRow | null;
+};
+
 export async function recordIncident(
   declaredInput: RecordIncidentInput,
   client: PrismaClient = defaultPrisma,
+  options: RecordIncidentOptions = {},
 ): Promise<RecordIncidentResult> {
   if (!isValidIncidentFingerprint(declaredInput.fingerprint)) {
     throw new IncidentError("invalid_fingerprint");
@@ -480,22 +519,7 @@ export async function recordIncident(
   // worse found it. `operations-writer-schema-contract.ts` is what refuses to
   // report Healthy in that state.
   // ---------------------------------------------------------------------
-  const DEDUPE_SELECT = {
-    id: true,
-    status: true,
-    severity: true,
-    requestId: true,
-    traceId: true,
-    relatedEvidenceId: true,
-    relatedJobId: true,
-    relatedProvider: true,
-    sourceId: true,
-    // The PREVIOUS snapshot, so a refreshed metric can carry a real
-    // `previousValue` and `delta` rather than having them recomputed by
-    // whoever renders it — and so a failed observation can keep the last
-    // values it successfully read instead of zeroing them.
-    metricSnapshot: true,
-  } as const;
+  const DEDUPE_SELECT = INCIDENT_DEDUPE_SELECT;
 
   // AN UNREGISTERED SOURCE IS RECORDED, NOT REFUSED.
   //
@@ -543,7 +567,8 @@ export async function recordIncident(
           select: DEDUPE_SELECT,
         });
 
-  let existing = await readExisting();
+  let existing =
+    input.teamId && options.knownExisting !== undefined ? options.knownExisting : await readExisting();
 
   // Definite assignment: exactly one of the two branches below assigns `row`,
   // and the compiler cannot see that through the race recovery.

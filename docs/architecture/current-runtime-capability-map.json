@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1554,
-    "ReachableSensitiveMutations": 1531,
-    "ClassifiedSensitiveMutations": 1531,
+    "TerminalWriters": 1553,
+    "ReachableSensitiveMutations": 1530,
+    "ClassifiedSensitiveMutations": 1530,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 23,
@@ -82,7 +82,7 @@
       "EXTERNAL_REVIEW_INTAKE_SHARE": 100,
       "BILLING_SUBSCRIPTION_SEAT": 104,
       "SSO_OIDC_SCIM_PROVISIONING": 62,
-      "AUTOMATION_QUEUE_WEBHOOK": 119,
+      "AUTOMATION_QUEUE_WEBHOOK": 118,
       "REPORT_EXPORT_REDACTION": 61,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 130
     },
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1365,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1364,
       "JOB_ATTRIBUTED_REACHABLE": 155,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11403,
-      "UNRESOLVED_IDENTIFIER": 1642
+      "METHOD_ON_VALUE": 11428,
+      "UNRESOLVED_IDENTIFIER": 1644
     },
     "MutationFixpointRounds": 10,
     "MutationClosurePass": false,
@@ -29293,8 +29293,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/cases.routes.ts#case.update@1278",
-      "terminalLocation": "services/api/src/routes/cases.routes.ts:1278",
+      "writerId": "services/api/src/routes/cases.routes.ts#case.update@1280",
+      "terminalLocation": "services/api/src/routes/cases.routes.ts:1280",
       "file": "services/api/src/routes/cases.routes.ts",
       "enclosingDeclaration": "casesRoutes",
       "kind": "DATABASE",
@@ -29326,8 +29326,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/cases.routes.ts#caseAccess.deleteMany@2214",
-      "terminalLocation": "services/api/src/routes/cases.routes.ts:2214",
+      "writerId": "services/api/src/routes/cases.routes.ts#caseAccess.deleteMany@2216",
+      "terminalLocation": "services/api/src/routes/cases.routes.ts:2216",
       "file": "services/api/src/routes/cases.routes.ts",
       "enclosingDeclaration": "casesRoutes",
       "kind": "DATABASE",
@@ -29394,8 +29394,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/cases.routes.ts#caseCollaborationTeamAccess.deleteMany@2493",
-      "terminalLocation": "services/api/src/routes/cases.routes.ts:2493",
+      "writerId": "services/api/src/routes/cases.routes.ts#caseCollaborationTeamAccess.deleteMany@2495",
+      "terminalLocation": "services/api/src/routes/cases.routes.ts:2495",
       "file": "services/api/src/routes/cases.routes.ts",
       "enclosingDeclaration": "casesRoutes",
       "kind": "DATABASE",
@@ -29427,8 +29427,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/cases.routes.ts#caseCollaborationTeamAccess.upsert@2364",
-      "terminalLocation": "services/api/src/routes/cases.routes.ts:2364",
+      "writerId": "services/api/src/routes/cases.routes.ts#caseCollaborationTeamAccess.upsert@2366",
+      "terminalLocation": "services/api/src/routes/cases.routes.ts:2366",
       "file": "services/api/src/routes/cases.routes.ts",
       "enclosingDeclaration": "casesRoutes",
       "kind": "DATABASE",
@@ -29628,8 +29628,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.updateMany@6464",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6464",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.updateMany@6470",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6470",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "createWithDraftBinding",
       "kind": "DATABASE",
@@ -29661,8 +29661,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@6475",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6475",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@6481",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6481",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "createWithDraftBinding",
       "kind": "DATABASE",
@@ -29694,8 +29694,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13473",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13473",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13501",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13501",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29727,8 +29727,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@16271",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16271",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@16299",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16299",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29760,8 +29760,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6582",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6582",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6588",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6588",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29793,8 +29793,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6861",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6861",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6867",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6867",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29826,8 +29826,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@16259",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16259",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@16287",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16287",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29859,8 +29859,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7472",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7472",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7480",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7480",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29892,8 +29892,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7558",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7558",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7566",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7566",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29925,8 +29925,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7675",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7675",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7683",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7683",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29958,8 +29958,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@10101",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10101",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@10109",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10109",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29991,8 +29991,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@8989",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8989",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@8997",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8997",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30024,8 +30024,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@9070",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9070",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@9078",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9078",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30057,8 +30057,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@9151",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9151",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@9159",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9159",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30090,8 +30090,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@8813",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8813",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@8821",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8821",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30123,8 +30123,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8871",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8871",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8879",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8879",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30156,8 +30156,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8928",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8928",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8936",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8936",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30189,8 +30189,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@8638",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8638",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@8646",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8646",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30222,8 +30222,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8696",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8696",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8704",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8704",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30255,8 +30255,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8753",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8753",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8761",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8761",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30288,8 +30288,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@7482",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7482",
+      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@7490",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7490",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30321,8 +30321,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@16277",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16277",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@16305",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16305",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -32386,8 +32386,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/redaction.routes.ts#redactionDerivative.update@1726",
-      "terminalLocation": "services/api/src/routes/redaction.routes.ts:1726",
+      "writerId": "services/api/src/routes/redaction.routes.ts#redactionDerivative.update@1728",
+      "terminalLocation": "services/api/src/routes/redaction.routes.ts:1728",
       "file": "services/api/src/routes/redaction.routes.ts",
       "enclosingDeclaration": "redactionRoutes",
       "kind": "DATABASE",
@@ -32848,8 +32848,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1327",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1327",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1335",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1335",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32881,8 +32881,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1541",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1541",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1549",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1549",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32914,8 +32914,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1659",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1659",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1667",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1667",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32947,8 +32947,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1767",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1767",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1775",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1775",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32980,8 +32980,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@707",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:707",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@715",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:715",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -33013,8 +33013,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@803",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:803",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@811",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:811",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -51202,8 +51202,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/causality.service.ts#operationalCausalityChain.upsert@639",
-      "terminalLocation": "services/api/src/services/dashboard/causality.service.ts:639",
+      "writerId": "services/api/src/services/dashboard/causality.service.ts#operationalCausalityChain.upsert@668",
+      "terminalLocation": "services/api/src/services/dashboard/causality.service.ts:668",
       "file": "services/api/src/services/dashboard/causality.service.ts",
       "enclosingDeclaration": "persistChain",
       "kind": "DATABASE",
@@ -51235,13 +51235,13 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/causality.service.ts#operationalCausalityLink.create@328",
-      "terminalLocation": "services/api/src/services/dashboard/causality.service.ts:328",
+      "writerId": "services/api/src/services/dashboard/causality.service.ts#operationalCausalityLink.createMany@354",
+      "terminalLocation": "services/api/src/services/dashboard/causality.service.ts:354",
       "file": "services/api/src/services/dashboard/causality.service.ts",
       "enclosingDeclaration": "detectCausalityForWorkspace",
       "kind": "DATABASE",
       "target": "operationalCausalityLink",
-      "mutationKind": "create",
+      "mutationKind": "createMany",
       "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
       "insideTransaction": false,
       "entryRoutes": [
@@ -51334,46 +51334,13 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/operational-graph.service.ts#operationalGraphEdge.createMany@145",
-      "terminalLocation": "services/api/src/services/dashboard/operational-graph.service.ts:145",
+      "writerId": "services/api/src/services/dashboard/operational-graph.service.ts#operationalGraphEdge.createMany@189",
+      "terminalLocation": "services/api/src/services/dashboard/operational-graph.service.ts:189",
       "file": "services/api/src/services/dashboard/operational-graph.service.ts",
       "enclosingDeclaration": "flushEdges",
       "kind": "DATABASE",
       "target": "operationalGraphEdge",
       "mutationKind": "createMany",
-      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/ops/workspace-reconcile"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/ops.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/dashboard/operational-graph.service.ts#operationalGraphNode.upsert@68",
-      "terminalLocation": "services/api/src/services/dashboard/operational-graph.service.ts:68",
-      "file": "services/api/src/services/dashboard/operational-graph.service.ts",
-      "enclosingDeclaration": "upsertNode",
-      "kind": "DATABASE",
-      "target": "operationalGraphNode",
-      "mutationKind": "upsert",
       "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
       "insideTransaction": false,
       "entryRoutes": [
@@ -51532,8 +51499,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflow.create@244",
-      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:244",
+      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflow.create@268",
+      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:268",
       "file": "services/api/src/services/dashboard/workflow-generator.service.ts",
       "enclosingDeclaration": "generateWorkflowsForWorkspace",
       "kind": "DATABASE",
@@ -51565,8 +51532,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflow.update@285",
-      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:285",
+      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflow.update@309",
+      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:309",
       "file": "services/api/src/services/dashboard/workflow-generator.service.ts",
       "enclosingDeclaration": "generateWorkflowsForWorkspace",
       "kind": "DATABASE",
@@ -51598,8 +51565,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflow.update@302",
-      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:302",
+      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflow.update@336",
+      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:336",
       "file": "services/api/src/services/dashboard/workflow-generator.service.ts",
       "enclosingDeclaration": "generateWorkflowsForWorkspace",
       "kind": "DATABASE",
@@ -51631,8 +51598,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflow.updateMany@360",
-      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:360",
+      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflow.updateMany@394",
+      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:394",
       "file": "services/api/src/services/dashboard/workflow-generator.service.ts",
       "enclosingDeclaration": "generateWorkflowsForWorkspace",
       "kind": "DATABASE",
@@ -51664,8 +51631,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflowAction.create@265",
-      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:265",
+      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflowAction.create@289",
+      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:289",
       "file": "services/api/src/services/dashboard/workflow-generator.service.ts",
       "enclosingDeclaration": "generateWorkflowsForWorkspace",
       "kind": "DATABASE",
@@ -51697,8 +51664,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflowEvent.create@316",
-      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:316",
+      "writerId": "services/api/src/services/dashboard/workflow-generator.service.ts#operationalWorkflowEvent.create@350",
+      "terminalLocation": "services/api/src/services/dashboard/workflow-generator.service.ts:350",
       "file": "services/api/src/services/dashboard/workflow-generator.service.ts",
       "enclosingDeclaration": "generateWorkflowsForWorkspace",
       "kind": "DATABASE",
@@ -67836,8 +67803,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.create@631",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:631",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.create@656",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:656",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "recordIncident",
       "kind": "DATABASE",
@@ -68941,8 +68908,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1130",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1130",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1155",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1155",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "markConditionObservationStale",
       "kind": "DATABASE",
@@ -70036,8 +70003,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1327",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1327",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1352",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1352",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncidentWithin",
       "kind": "DATABASE",
@@ -71131,8 +71098,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@819",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:819",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@844",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:844",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "recordIncident",
       "kind": "DATABASE",
@@ -72236,8 +72203,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@1055",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1055",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@1080",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1080",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "resolveConditionFromSourceRecovery",
       "kind": "DATABASE",
@@ -73340,8 +73307,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@1620",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1620",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@1645",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1645",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -74435,8 +74402,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1070",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1070",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1095",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1095",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "resolveConditionFromSourceRecovery",
       "kind": "DATABASE",
@@ -75539,8 +75506,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1340",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1340",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1365",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1365",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncidentWithin",
       "kind": "DATABASE",
@@ -76634,8 +76601,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1629",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1629",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1654",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1654",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -77729,8 +77696,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@873",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:873",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@898",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:898",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "recordIncident",
       "kind": "DATABASE",
@@ -79348,8 +79315,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncident.updateMany@1106",
-      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1106",
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncident.updateMany@1115",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1115",
       "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       "enclosingDeclaration": "resolveRecoveredOtsPendingAged",
       "kind": "DATABASE",
@@ -80444,8 +80411,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncident.updateMany@1223",
-      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1223",
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncident.updateMany@1232",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1232",
       "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       "enclosingDeclaration": "resolveRecoveredConditions",
       "kind": "DATABASE",
@@ -81540,8 +81507,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncident.updateMany@1264",
-      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1264",
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncident.updateMany@1273",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1273",
       "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       "enclosingDeclaration": "resolveRecoveredConditions",
       "kind": "DATABASE",
@@ -82636,8 +82603,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncident.updateMany@1499",
-      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1499",
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncident.updateMany@1510",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1510",
       "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       "enclosingDeclaration": "resolveRecoveredOtsInitializationStalled",
       "kind": "DATABASE",
@@ -83732,8 +83699,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncidentEvent.create@1120",
-      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1120",
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncidentEvent.create@1129",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1129",
       "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       "enclosingDeclaration": "resolveRecoveredOtsPendingAged",
       "kind": "DATABASE",
@@ -84828,8 +84795,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncidentEvent.create@1234",
-      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1234",
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncidentEvent.create@1243",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1243",
       "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       "enclosingDeclaration": "resolveRecoveredConditions",
       "kind": "DATABASE",
@@ -85924,8 +85891,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncidentEvent.create@1283",
-      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1283",
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncidentEvent.create@1292",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1292",
       "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       "enclosingDeclaration": "resolveRecoveredConditions",
       "kind": "DATABASE",
@@ -87020,8 +86987,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncidentEvent.create@1510",
-      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1510",
+      "writerId": "services/api/src/services/operations/evidence-integrity-conditions.service.ts#operationalIncidentEvent.create@1521",
+      "terminalLocation": "services/api/src/services/operations/evidence-integrity-conditions.service.ts:1521",
       "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       "enclosingDeclaration": "resolveRecoveredOtsInitializationStalled",
       "kind": "DATABASE",
@@ -88681,8 +88648,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/source-truth-recovery.service.ts#operationalIncident.updateMany@385",
-      "terminalLocation": "services/api/src/services/operations/source-truth-recovery.service.ts:385",
+      "writerId": "services/api/src/services/operations/source-truth-recovery.service.ts#operationalIncident.updateMany@411",
+      "terminalLocation": "services/api/src/services/operations/source-truth-recovery.service.ts:411",
       "file": "services/api/src/services/operations/source-truth-recovery.service.ts",
       "enclosingDeclaration": "closeRecoveredConditions",
       "kind": "DATABASE",
@@ -88714,8 +88681,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/source-truth-recovery.service.ts#operationalIncidentEvent.create@398",
-      "terminalLocation": "services/api/src/services/operations/source-truth-recovery.service.ts:398",
+      "writerId": "services/api/src/services/operations/source-truth-recovery.service.ts#operationalIncidentEvent.create@424",
+      "terminalLocation": "services/api/src/services/operations/source-truth-recovery.service.ts:424",
       "file": "services/api/src/services/operations/source-truth-recovery.service.ts",
       "enclosingDeclaration": "closeRecoveredConditions",
       "kind": "DATABASE",
@@ -106439,7 +106406,7 @@
       "method": "DELETE",
       "path": "/v1/auth/saml/:connectionId/certificate-next",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1709",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1717",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -106594,7 +106561,7 @@
       "method": "DELETE",
       "path": "/v1/cases/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1315",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1317",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -106710,7 +106677,7 @@
       "method": "DELETE",
       "path": "/v1/cases/:id/access/:accessId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2140",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2142",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -106996,7 +106963,7 @@
       "method": "DELETE",
       "path": "/v1/cases/:id/evidence/:evidenceId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1661",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1663",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107149,7 +107116,7 @@
       "method": "DELETE",
       "path": "/v1/cases/:id/team-access/:collaborationTeamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2462",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2464",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107479,7 +107446,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7910",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7918",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107560,7 +107527,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9126",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9134",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107602,6 +107569,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceAnnotation",
@@ -107618,6 +107586,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -107632,7 +107601,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8731",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8739",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107674,6 +107643,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceReviewerComment",
@@ -107690,6 +107660,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -107704,7 +107675,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8906",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8914",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107746,6 +107717,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceLegalNote",
@@ -107762,6 +107734,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -107776,7 +107749,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9813",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9821",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -110111,7 +110084,7 @@
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14150",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14178",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -110152,6 +110125,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "enterpriseContract",
@@ -110163,7 +110137,6 @@
         "evidencePart",
         "governancePolicyAssignment",
         "organization",
-        "organizationSecurityPolicy",
         "planGrant",
         "report",
         "signingKey",
@@ -110188,7 +110161,7 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/verification-share/authority.ts: verificationShareToken.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
@@ -110197,8 +110170,8 @@
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
-        "services/api/src/services/governance/public-disclosure-governance.service.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/routes/evidence.routes.ts: caseEvidenceLink.count — no tenant or self predicate"
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
+        "services/api/src/services/governance/public-disclosure-governance.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -114409,7 +114382,7 @@
       "method": "GET",
       "path": "/v1/auth/saml/metadata/:connectionId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1120",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1128",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -114520,7 +114493,7 @@
       "method": "GET",
       "path": "/v1/auth/sso/:connectionId/initiate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:579",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:648",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -114584,7 +114557,7 @@
       "method": "GET",
       "path": "/v1/auth/sso/callback",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:673",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:752",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -116529,7 +116502,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/available-evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1817",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1819",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -116759,6 +116732,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "case",
         "caseEvidenceLink",
         "custodyEvent",
@@ -116783,7 +116757,8 @@
         "services/api/src/routes/cases.routes.ts: evidence.findMany — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate"
+        "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -116796,7 +116771,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/link-reconciliation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2551",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2553",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117250,6 +117225,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "case",
         "caseEvidenceLink",
         "caseSiuExport",
@@ -117272,7 +117248,8 @@
         "services/api/src/routes/siu.routes.ts: evidence.findMany — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate"
+        "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -117344,7 +117321,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/team-access/candidates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2425",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2427",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117406,7 +117383,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/team-members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1136",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1138",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -119893,7 +119870,7 @@
       "method": "GET",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7954",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7962",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -120382,7 +120359,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/combined-recording",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1963",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1965",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120446,7 +120423,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/combined-recording/download",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:2123",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:2125",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/media-intelligence.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120513,7 +120490,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/combined-recording/playback",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:2131",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:2133",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/media-intelligence.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120631,7 +120608,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/derived-assets",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1440",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1442",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120695,7 +120672,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/derived-assets/:assetId/bytes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1503",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1505",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120759,7 +120736,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/derived-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1861",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1863",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120903,7 +120880,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11525",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11533",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121034,6 +121011,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -121084,7 +121062,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/ai-categorization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9851",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9859",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121161,7 +121139,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8944",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8952",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121203,6 +121181,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceAnnotation",
@@ -121218,6 +121197,7 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -121265,6 +121245,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceArchiveRestoreRequest",
@@ -121279,6 +121260,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidenceArchiveRestoreRequest.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -121292,7 +121274,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12208",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12216",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121442,7 +121424,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13983",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14011",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121530,7 +121512,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8588",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8596",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121572,6 +121554,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceReviewerComment",
@@ -121585,7 +121568,8 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -121598,7 +121582,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comparison",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9167",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9175",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121671,7 +121655,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/duplicates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9251",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9259",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121744,7 +121728,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/external-intake-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9659",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9667",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -121885,7 +121869,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8769",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8777",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121927,6 +121911,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceLegalNote",
@@ -121942,6 +121927,7 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -122024,7 +122010,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13355",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13383",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122075,6 +122061,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -122099,12 +122086,12 @@
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.update — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -122117,7 +122104,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7251",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7257",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122160,6 +122147,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -122184,6 +122172,7 @@
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
@@ -122201,7 +122190,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9713",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9721",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122255,7 +122244,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12756",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12784",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122346,6 +122335,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -122370,12 +122360,12 @@
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: report.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -122388,7 +122378,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reports/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13000",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13028",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122439,6 +122429,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -122452,23 +122443,22 @@
       "modelsWritten": [
         "adminAuditLog",
         "custodyEvent",
-        "evidence",
-        "securityEvent"
+        "evidence"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: report.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "services/api/src/routes/evidence.routes.ts: report.findFirst — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -122481,7 +122471,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/review-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10155",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10163",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> handler: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -122549,6 +122539,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "case",
         "caseEvidenceLink",
         "custodyEvent",
@@ -122609,7 +122600,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9471",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9479",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122695,7 +122686,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9690",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9698",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122766,7 +122757,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/technical-metadata",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6784",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6790",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122875,6 +122866,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "organizationSecurityPolicy",
@@ -122888,6 +122880,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/public-verify/verification-disclosure.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -122902,7 +122895,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13597",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13625",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122977,6 +122970,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -123007,12 +123001,12 @@
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: report.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/services/evidence-artifact-status.service.ts: report.findFirst — no tenant or self predicate",
-        "services/api/src/services/reports/output-recovery.service.ts: evidence.findMany — no tenant or self predicate"
+        "services/api/src/services/evidence-artifact-status.service.ts: report.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -123025,7 +123019,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13109",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13137",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -123076,6 +123070,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -123090,23 +123085,22 @@
       "modelsWritten": [
         "adminAuditLog",
         "custodyEvent",
-        "evidence",
-        "securityEvent"
+        "evidence"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "services/api/src/routes/evidence.routes.ts: report.findFirst — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -123119,7 +123113,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version/external-disclosure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13252",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13280",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -123154,6 +123148,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -123167,23 +123162,22 @@
       "modelsWritten": [
         "adminAuditLog",
         "custodyEvent",
-        "evidence",
-        "securityEvent"
+        "evidence"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -123230,6 +123224,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "organizationSecurityPolicy",
@@ -123244,6 +123239,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: verificationShareToken.findMany — no tenant or self predicate"
       ],
@@ -123258,7 +123254,7 @@
       "method": "GET",
       "path": "/v1/evidence/library-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8092",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8100",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -123390,6 +123386,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceLegalHold",
@@ -123403,6 +123400,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate",
@@ -124003,6 +124001,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -124010,7 +124009,6 @@
         "externalReviewerRoleAssignment",
         "organizationSecurityPolicy",
         "report",
-        "team",
         "teamMember",
         "user",
         "verificationPackage"
@@ -124024,12 +124022,13 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate"
+        "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -137914,6 +137913,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -137923,7 +137923,6 @@
         "externalReviewerRoleAssignment",
         "organizationSecurityPolicy",
         "report",
-        "team",
         "teamMember",
         "user",
         "verificationPackage"
@@ -137939,7 +137938,7 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate",
         "services/api/src/services/external-review/portal-session.service.ts: externalReviewerRoleAssignment.update — no tenant or self predicate",
@@ -137947,7 +137946,8 @@
         "services/api/src/routes/external-portal.routes.ts: externalReviewGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate"
+        "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -139249,7 +139249,7 @@
       "method": "GET",
       "path": "/v1/redaction/versions/:id/derivative",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1750",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1752",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148019,7 +148019,7 @@
       "method": "PATCH",
       "path": "/v1/cases/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1214",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1216",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148682,7 +148682,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9041",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9049",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148707,6 +148707,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceAnnotation",
@@ -148724,6 +148725,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -148738,7 +148740,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8673",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8681",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148780,6 +148782,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceReviewerComment",
@@ -148796,6 +148799,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -148810,7 +148814,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/label",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6817",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6823",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148882,7 +148886,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8848",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8856",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148924,6 +148928,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidenceLegalNote",
@@ -148940,6 +148945,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -148954,7 +148960,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9769",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9777",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149012,7 +149018,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9483",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9491",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -155615,7 +155621,7 @@
       "method": "POST",
       "path": "/v1/auth/saml/:connectionId/ingest-metadata",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1231",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1239",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -155697,7 +155703,7 @@
       "method": "POST",
       "path": "/v1/auth/saml/:connectionId/test-connection",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1412",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1420",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -155770,7 +155776,7 @@
       "method": "POST",
       "path": "/v1/auth/saml/acs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:561",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:569",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/saml-auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -155953,6 +155959,7 @@
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "adminAuditLog",
         "authenticatedSession",
         "enterpriseContract",
         "mfaFactor",
@@ -155971,6 +155978,7 @@
         "user"
       ],
       "modelsWritten": [
+        "adminAuditLog",
         "authenticatedSession",
         "membershipGrant",
         "mfaPendingChallenge",
@@ -155981,9 +155989,10 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/services/security/login-mfa-enforcement.service.ts: teamMember.findMany paired with a lifecycle-status predicate (services/api/src/services/security/mfa.service.ts)",
+        "services/api/src/services/security/login-mfa-enforcement.service.ts: teamMember.findMany paired with a lifecycle-status predicate (services/api/src/routes/sso-auth.routes.ts)",
         "services/api/src/services/access-control/sso-native-handoff.service.ts: ssoNativeHandoff.findUnique — no tenant or self predicate",
         "services/api/src/services/access-control/sso-native-handoff.service.ts: ssoNativeHandoff.updateMany — no tenant or self predicate",
+        "services/api/src/routes/sso-auth.routes.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/services/security/login-mfa-enforcement.service.ts: team.findMany — no tenant or self predicate",
         "services/api/src/services/identity/sso-session-completion.service.ts: authenticatedSession.delete — no tenant or self predicate",
         "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate",
@@ -160663,7 +160672,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1474",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1476",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160849,7 +160858,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/share-email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2036",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2038",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160919,7 +160928,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/share-team",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1925",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:1927",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161495,7 +161504,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/team-access",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2273",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2275",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161574,7 +161583,7 @@
       "method": "POST",
       "path": "/v1/cases/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2620",
+      "registrationEvidence": "services/api/src/routes/cases.routes.ts:2622",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -164493,7 +164502,7 @@
       "method": "POST",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6326",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6332",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -165608,7 +165617,7 @@
       "method": "POST",
       "path": "/v1/evidence/:evidenceId/combined-recording/prepare",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:2144",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:2146",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165726,7 +165735,7 @@
       "method": "POST",
       "path": "/v1/evidence/:evidenceId/derived-assets/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1626",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1628",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165791,7 +165800,7 @@
       "method": "POST",
       "path": "/v1/evidence/:evidenceId/derived-review/generate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1707",
+      "registrationEvidence": "services/api/src/routes/media-intelligence.routes.ts:1709",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165944,7 +165953,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/ai-categorization/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9926",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9934",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166039,7 +166048,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8978",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8986",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166081,6 +166090,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "evidencePart",
@@ -166097,6 +166107,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -166111,7 +166122,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7866",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7874",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166235,6 +166246,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "evidence",
@@ -166254,6 +166266,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidenceArchiveRestoreRequest.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidenceArchiveRestoreRequest.findFirst — no tenant or self predicate"
@@ -166271,7 +166284,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14060",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14088",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166343,7 +166356,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14013",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14041",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166415,7 +166428,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14108",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14136",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166487,7 +166500,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8629",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8637",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166529,6 +166542,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "organizationSecurityPolicy",
@@ -166544,6 +166558,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -166558,7 +166573,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11717",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11725",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166678,7 +166693,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8806",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8814",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166720,6 +166735,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "organizationSecurityPolicy",
@@ -166735,6 +166751,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -166749,7 +166766,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/lock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7513",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7521",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166822,7 +166839,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6920",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6926",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166912,7 +166929,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9727",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9735",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166993,7 +167010,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12301",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12309",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167083,6 +167100,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseEvidenceLink",
         "custodyEvent",
         "enterpriseContract",
@@ -167116,6 +167134,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: reportGenerationRequest.findFirst — no tenant or self predicate",
         "services/api/src/services/billing/evidence-output-eligibility.service.ts: evidence.findMany — no tenant or self predicate",
@@ -167124,8 +167143,7 @@
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
         "services/api/src/services/reports/output-recovery.service.ts: evidence.findMany — no tenant or self predicate",
         "services/api/src/services/reports/output-recovery.service.ts: report.findMany — no tenant or self predicate",
-        "services/api/src/services/reports/output-recovery.service.ts: verificationPackage.findMany — no tenant or self predicate",
-        "services/api/src/services/reports/output-recovery.service.ts: reportGenerationRequest.findMany — no tenant or self predicate"
+        "services/api/src/services/reports/output-recovery.service.ts: verificationPackage.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -167140,7 +167158,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7929",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7937",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167229,7 +167247,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7885",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7893",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167318,7 +167336,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unlock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7631",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7639",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167450,8 +167468,8 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
+        "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.update — no tenant or self predicate"
@@ -167526,8 +167544,8 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
+        "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.update — no tenant or self predicate"
@@ -167615,6 +167633,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/public-disclosure-governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
@@ -167623,8 +167642,7 @@
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidence.findUnique — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -167712,6 +167730,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: verificationShareToken.findFirst — no tenant or self predicate",
         "services/api/src/services/governance/public-disclosure-governance.service.ts: evidence.findUnique — no tenant or self predicate",
@@ -167720,8 +167739,7 @@
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -167779,6 +167797,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "organizationSecurityPolicy",
@@ -167796,6 +167815,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: verificationShareToken.findFirst — no tenant or self predicate",
         "packages/shared-runtime/src/verification-share/authority.ts: verificationShareToken.updateMany — no tenant or self predicate",
@@ -167884,6 +167904,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: verificationShareToken.findFirst — no tenant or self predicate",
         "services/api/src/services/governance/public-disclosure-governance.service.ts: evidence.findUnique — no tenant or self predicate",
@@ -167892,8 +167913,7 @@
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -167944,6 +167964,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseEvidenceLink",
         "evidence",
         "organizationSecurityPolicy",
@@ -167960,6 +167981,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/verification-share.service.ts: evidence.updateMany — no tenant or self predicate"
       ],
@@ -167974,7 +167996,7 @@
       "method": "POST",
       "path": "/v1/evidence/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8253",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8261",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -168066,7 +168088,7 @@
       "method": "POST",
       "path": "/v1/evidence/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7414",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7422",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -184401,7 +184423,6 @@
         "operationalCausalityLink",
         "operationalCorrelation",
         "operationalGraphEdge",
-        "operationalGraphNode",
         "operationalIncident",
         "operationalIncidentEvent",
         "operationalWorkflow",
@@ -184435,7 +184456,7 @@
         "services/api/src/services/dashboard/workflow-generator.service.ts: operationalWorkflow.create",
         "services/api/src/services/dashboard/workflow-generator.service.ts: operationalWorkflowAction.create",
         "services/api/src/services/dashboard/workflow-generator.service.ts: operationalWorkflowEvent.create",
-        "services/api/src/services/dashboard/causality.service.ts: operationalCausalityLink.create",
+        "services/api/src/services/dashboard/causality.service.ts: operationalCausalityLink.createMany",
         "services/api/src/services/dashboard/org-health.service.ts: organizationalHealthSnapshot.create",
         "services/api/src/services/dashboard/reviewer-capacity.service.ts: reviewerCapacitySnapshot.create"
       ],
@@ -197263,7 +197284,7 @@
       "method": "PUT",
       "path": "/v1/auth/saml/:connectionId/certificate-next",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1608",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1616",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -197475,6 +197496,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
         "services/api/src/services/public-verify/verification-disclosure.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence-retention-verification.routes.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/governance/public-disclosure-governance.service.ts: evidence.findUnique — no tenant or self predicate",
@@ -197483,8 +197505,7 @@
         "services/api/src/services/evidence-review/second-review.service.ts: workflowReviewDecision.findFirst — no tenant or self predicate",
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/governance/effective-legal-hold.ts: evidenceLegalHold.findMany — no tenant or self predicate"
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts: caseEvidenceLink.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",

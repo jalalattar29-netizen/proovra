@@ -466,8 +466,16 @@ describe("Phase 32.8C FINAL-3 — operational graph engine", () => {
   });
 
   it("nodes are idempotent on (teamId, nodeType, entityId)", () => {
-    expect(GRAPH).toMatch(/teamId_nodeType_entityId/);
-    expect(GRAPH).toMatch(/prisma\.operationalGraphNode\.upsert/);
+    // CAP-6 — one INSERT … ON CONFLICT DO UPDATE on the model's unique key per
+    // pass; an existing node's fields and updated_at (freshness) are refreshed.
+    const model = SCHEMA.slice(
+      SCHEMA.indexOf("model OperationalGraphNode {"),
+      SCHEMA.indexOf("}", SCHEMA.indexOf("model OperationalGraphNode {")),
+    );
+    expect(model).toMatch(/@@unique\(\[teamId, nodeType, entityId\]\)/);
+    expect(GRAPH).toMatch(/ON CONFLICT \("team_id", "node_type", "entity_id"\) DO UPDATE SET/);
+    expect(GRAPH).toMatch(/"updated_at" = EXCLUDED\."updated_at"/);
+    expect(GRAPH).not.toMatch(/prisma\.operationalGraphNode\.(create|update|upsert)\(/);
   });
 
   it("edges are idempotent on (teamId, source, target, edgeType)", () => {

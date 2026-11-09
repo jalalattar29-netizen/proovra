@@ -15,6 +15,8 @@
  *     `(teamId, nodeType, entityId)` / `(teamId, source, target, type)`.
  */
 
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "../../db.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 
@@ -50,9 +52,27 @@ export async function projectOperationalGraphForWorkspace(input: {
   let edges = 0;
   let failed = 0;
 
-  // Map (nodeType, entityId) → persisted node id so edge writes can
-  // resolve their endpoints in-memory rather than re-querying.
+  /*
+   * CAP-6 — nodes are collected and written once, at the end, like edges.
+   *
+   * Each node used to be its own `upsert` (a read, then an insert or an
+   * update): about thirty statements a workspace on every sweep. The rule is
+   * unchanged and now runs as ONE statement on the same unique key
+   * (team_id, node_type, entity_id):
+   *   * a missing node is inserted;
+   *   * an existing node gets the current label / severity / status and a new
+   *     `updated_at` — the command center's freshness signal, so every node
+   *     this pass saw is still marked fresh, exactly as the upsert did.
+   * The first sighting of a (nodeType, entityId) in a pass decides its fields,
+   * as the per-call cache did. Edges name their endpoints by the same key and
+   * are resolved to the written ids before they are written.
+   */
+  const pendingNodes = new Map<
+    string,
+    { nodeType: NodeType; entityId: string; label: string; severity: string; status: string }
+  >();
   const nodeIdMap = new Map<string, string>();
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const upsertNode = async (
     nodeType: NodeType,
@@ -62,39 +82,56 @@ export async function projectOperationalGraphForWorkspace(input: {
     status: string,
   ): Promise<string | null> => {
     const key = `${nodeType}:${entityId}`;
-    const cached = nodeIdMap.get(key);
-    if (cached) return cached;
-    try {
-      const row = await prisma.operationalGraphNode.upsert({
-        where: {
-          teamId_nodeType_entityId: {
-            teamId: input.teamId,
-            nodeType,
-            entityId,
-          } as never,
-        },
-        create: {
-          teamId: input.teamId,
-          nodeType,
-          entityId,
-          label: label.slice(0, 180),
-          severity: severity.slice(0, 16),
-          status: status.slice(0, 40),
-        },
-        update: {
-          label: label.slice(0, 180),
-          severity: severity.slice(0, 16),
-          status: status.slice(0, 40),
-        },
-        select: { id: true },
-      });
-      nodeIdMap.set(key, row.id);
-      nodes += 1;
-      return row.id;
-    } catch {
+    if (pendingNodes.has(key)) return key;
+    // A value that cannot be a uuid could never be written (the upsert threw
+    // for it alone); it must not fail the whole batch.
+    if (!UUID.test(entityId)) {
       failed += 1;
       return null;
     }
+    pendingNodes.set(key, {
+      nodeType,
+      entityId,
+      label: label.slice(0, 180),
+      severity: severity.slice(0, 16),
+      status: status.slice(0, 40),
+    });
+    return key;
+  };
+
+  const flushNodes = async (): Promise<void> => {
+    if (pendingNodes.size === 0) return;
+    const rows = [...pendingNodes.values()];
+    pendingNodes.clear();
+    const now = new Date();
+    try {
+      const written = await prisma.$queryRaw<Array<{ id: string; node_type: string; entity_id: string }>>(Prisma.sql`
+        INSERT INTO "operational_graph_nodes"
+          ("team_id", "node_type", "entity_id", "label", "severity", "status", "created_at", "updated_at")
+        SELECT ${input.teamId}::uuid, t.node_type::"OperationalGraphNodeType", t.entity_id::uuid,
+               t.label, t.severity, t.status, ${now}, ${now}
+        FROM unnest(
+          ${rows.map((r) => r.nodeType)}::text[],
+          ${rows.map((r) => r.entityId)}::text[],
+          ${rows.map((r) => r.label)}::text[],
+          ${rows.map((r) => r.severity)}::text[],
+          ${rows.map((r) => r.status)}::text[]
+        ) AS t(node_type, entity_id, label, severity, status)
+        ON CONFLICT ("team_id", "node_type", "entity_id") DO UPDATE SET
+          "label" = EXCLUDED."label",
+          "severity" = EXCLUDED."severity",
+          "status" = EXCLUDED."status",
+          "updated_at" = EXCLUDED."updated_at"
+        RETURNING "id"::text AS id, "node_type"::text AS node_type, "entity_id"::text AS entity_id`);
+      for (const w of written) nodeIdMap.set(`${w.node_type}:${w.entity_id.toLowerCase()}`, w.id);
+      nodes += written.length;
+    } catch {
+      failed += rows.length;
+    }
+  };
+  const nodeIdFor = (key: string): string | null => {
+    const sep = key.indexOf(":");
+    return nodeIdMap.get(`${key.slice(0, sep)}:${key.slice(sep + 1).toLowerCase()}`) ?? null;
   };
 
   /*
@@ -106,7 +143,9 @@ export async function projectOperationalGraphForWorkspace(input: {
    * already. `createMany({ skipDuplicates })` is the same rule in one
    * statement — `INSERT … ON CONFLICT DO NOTHING` on the same unique key: a
    * missing edge is created, an existing edge is left exactly as it was.
-   * Both endpoints are nodes this pass has already written.
+   * Both endpoints are nodes of this pass, named by their node key and
+   * resolved to the written ids at flush (an endpoint whose node was not
+   * written drops the edge, as a failed node upsert did).
    */
   const pendingEdges = new Map<
     string,
@@ -139,8 +178,13 @@ export async function projectOperationalGraphForWorkspace(input: {
   };
   const flushEdges = async (): Promise<void> => {
     if (pendingEdges.size === 0) return;
-    const rows = [...pendingEdges.values()];
+    const rows = [...pendingEdges.values()].flatMap((e) => {
+      const sourceNodeId = nodeIdFor(e.sourceNodeId);
+      const targetNodeId = nodeIdFor(e.targetNodeId);
+      return sourceNodeId && targetNodeId ? [{ ...e, sourceNodeId, targetNodeId }] : [];
+    });
     pendingEdges.clear();
+    if (rows.length === 0) return;
     try {
       await prisma.operationalGraphEdge.createMany({
         data: rows as never,
@@ -358,6 +402,7 @@ export async function projectOperationalGraphForWorkspace(input: {
     /* outer best-effort */
   }
 
+  await flushNodes();
   await flushEdges();
   return { nodes, edges, failed };
 }

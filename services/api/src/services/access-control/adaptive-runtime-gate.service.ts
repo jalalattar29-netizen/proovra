@@ -80,6 +80,7 @@ export async function runtimeAdaptiveGate(
   // (IDENT-019). It also resolves the session row the later steps use.
   const quarantine = await checkSessionQuarantine(input, client);
   if (quarantine.refused) {
+    input.reply.code(403).send(SESSION_QUARANTINED_BODY);
     return { allow: false, sent: true, decision: "BLOCK" };
   }
   const session = quarantine.session;
@@ -241,11 +242,33 @@ export async function refuseIfSessionQuarantined(
   input: RefuseIfSessionQuarantinedInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<{ refused: boolean }> {
-  if (process.env["ADAPTIVE_AUTH_RUNTIME_ENABLED"] === "false") {
-    return { refused: false };
-  }
-  const { refused } = await checkSessionQuarantine(input, client);
+  const refused = await isRequestSessionQuarantined(input, client);
+  if (refused) input.reply.code(403).send(SESSION_QUARANTINED_BODY);
   return { refused };
+}
+
+/** The 403 body every quarantine refusal carries, whoever writes the reply. */
+export const SESSION_QUARANTINED_BODY = {
+  error: {
+    code: "session_quarantined",
+    message: "This session is quarantined; privileged actions blocked.",
+  },
+} as const;
+
+/**
+ * IDENT-019 — the same quarantine decision for a SERVICE that answers with a
+ * decision instead of an HTTP reply (the artifact download gate, the record
+ * operation-access engine). Same semantics as `refuseIfSessionQuarantined`
+ * (no-op when ADAPTIVE_AUTH_RUNTIME_ENABLED is "false"; legacy sessions
+ * allowed; security event + metric on a refusal); the caller writes the 403.
+ */
+export async function isRequestSessionQuarantined(
+  input: Omit<RefuseIfSessionQuarantinedInput, "reply">,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  if (process.env["ADAPTIVE_AUTH_RUNTIME_ENABLED"] === "false") return false;
+  const { refused } = await checkSessionQuarantine(input, client);
+  return refused;
 }
 
 type RuntimeSessionRow = {
@@ -256,7 +279,7 @@ type RuntimeSessionRow = {
 };
 
 async function checkSessionQuarantine(
-  input: RefuseIfSessionQuarantinedInput,
+  input: Omit<RefuseIfSessionQuarantinedInput, "reply">,
   client: PrismaClient,
 ): Promise<{ refused: boolean; session: RuntimeSessionRow | null }> {
   // Resolve the AuthenticatedSession row from the JWT sid claim. The
@@ -302,12 +325,6 @@ async function checkSessionQuarantine(
         subjectUserId: input.userId,
         action: input.action,
         reason: "session_quarantined",
-      },
-    });
-    input.reply.code(403).send({
-      error: {
-        code: "session_quarantined",
-        message: "This session is quarantined; privileged actions blocked.",
       },
     });
     return { refused: true, session };

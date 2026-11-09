@@ -155,6 +155,24 @@ export type ProbeContext = {
   readonly outputEntitledWhere: Prisma.EvidenceWhereInput | null;
   /** True when the plan entitlement could not be resolved (backlogs read UNKNOWN). */
   readonly outputEntitlementUnknown?: boolean;
+  /**
+   * CAP-6 — subjects already read for this pass (see `prefetchProbeSubjects`).
+   * A probe uses an entry when it has one and reads the row itself otherwise,
+   * so an absent or partial prefetch changes nothing but the statement count.
+   */
+  readonly prefetch?: ProbePrefetch;
+};
+
+/**
+ * CAP-6 — per-record probe subjects read once for a whole pass of ONE
+ * workspace's conditions instead of once per condition. Read through the same
+ * workspace scope the probe itself applies, so a fingerprint is still not an
+ * authorization: an id outside the scope maps to null exactly as the per-row
+ * read would have returned null.
+ */
+export type ProbePrefetch = {
+  /** evidence id → its integrity recovery fields, or null when not in scope. */
+  readonly integrityRecords?: ReadonlyMap<string, Record<string, unknown> | null>;
 };
 
 /**
@@ -198,6 +216,8 @@ export async function buildProbeContext(input: {
    * (about a dozen statements each, measured as most of a large workspace's run).
    */
   scope?: ProbeWorkspaceScope;
+  /** CAP-6 — subjects already read for this pass. */
+  prefetch?: ProbePrefetch;
 }): Promise<ProbeContext> {
   const client = input.client ?? defaultPrisma;
   const base = {
@@ -205,6 +225,7 @@ export async function buildProbeContext(input: {
     fingerprint: input.fingerprint,
     client,
     now: input.now ?? new Date(),
+    ...(input.prefetch ? { prefetch: input.prefetch } : {}),
   };
   if (input.scope) return { ...base, ...input.scope };
   return {
@@ -527,6 +548,67 @@ export async function observeAggregate(
  * rather than a safer answer. A read that THREW is UNKNOWN, because the record
  * may well still be failing.
  */
+/**
+ * The record an integrity fingerprint names, and its class, or null.
+ *
+ * ET-REC-02 — the Worker's OTS bridge fingerprint (OTS:<id>:GLOBAL_BUDGET_EXHAUSTED)
+ * names the same record's OTS failure; parsed here so it can resolve when
+ * otsStatus leaves FAILED instead of being NOT_APPLICABLE forever.
+ */
+function integritySubjectOf(
+  which: "tsa" | "ots",
+  fingerprint: string,
+  integrity: typeof import("./evidence-integrity-conditions.service.js"),
+): { integrityClass: "tsa_failure" | "ots_failure"; evidenceId: string } | null {
+  const budgetEvidenceId = which === "ots" ? parseOtsBudgetExhaustedFingerprint(fingerprint) : null;
+  return budgetEvidenceId
+    ? { integrityClass: "ots_failure" as const, evidenceId: budgetEvidenceId }
+    : integrity.parseIntegrityFingerprint(fingerprint);
+}
+
+/**
+ * CAP-6 — read, once, the subjects a pass of probes over ONE workspace's
+ * conditions would each read. Only the per-record integrity probes are
+ * prefetched; every other probe key returns an empty prefetch and reads as
+ * before. Same scope, same select, same "not in scope → null" as the per-row
+ * read. A failure returns an empty prefetch (each probe then reads itself).
+ */
+export async function prefetchProbeSubjects(input: {
+  probeKey: ActivityProbeKey;
+  fingerprints: readonly string[];
+  scope: ProbeWorkspaceScope;
+  client: PrismaClient;
+}): Promise<ProbePrefetch> {
+  const which =
+    input.probeKey === "evidence.tsa_status" ? "tsa" : input.probeKey === "evidence.ots_status" ? "ots" : null;
+  if (!which || input.fingerprints.length < 2) return {};
+  try {
+    const integrity = await import("./evidence-integrity-conditions.service.js");
+    const ids = [
+      ...new Set(
+        input.fingerprints
+          .map((f) => integritySubjectOf(which, f, integrity))
+          .filter((x): x is NonNullable<typeof x> => x !== null && identifiableSubject(x.evidenceId) !== null)
+          .map((x) => x.evidenceId),
+      ),
+    ];
+    const records = new Map<string, Record<string, unknown> | null>();
+    const CHUNK = 500;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const chunk = ids.slice(i, i + CHUNK);
+      const rows = await input.client.evidence.findMany({
+        where: { AND: [{ id: { in: chunk } }, input.scope.evidenceWhere] },
+        select: { id: true, ...integrity.INTEGRITY_RECOVERY_SELECT },
+      });
+      for (const id of chunk) records.set(id, null);
+      for (const { id, ...row } of rows) records.set(id, row);
+    }
+    return { integrityRecords: records };
+  } catch {
+    return {};
+  }
+}
+
 async function observeIntegrity(
   ctx: ProbeContext,
   which: "tsa" | "ots",
@@ -534,13 +616,7 @@ async function observeIntegrity(
   const base = { observedAtUtc: ctx.now } as const;
   try {
     const integrity = await import("./evidence-integrity-conditions.service.js");
-    // ET-REC-02 — the Worker's OTS bridge fingerprint (OTS:<id>:GLOBAL_BUDGET_EXHAUSTED)
-    // names the same record's OTS failure; parsed here so it can resolve when
-    // otsStatus leaves FAILED instead of being NOT_APPLICABLE forever.
-    const budgetEvidenceId = which === "ots" ? parseOtsBudgetExhaustedFingerprint(ctx.fingerprint) : null;
-    const parts = budgetEvidenceId
-      ? { integrityClass: "ots_failure" as const, evidenceId: budgetEvidenceId }
-      : integrity.parseIntegrityFingerprint(ctx.fingerprint);
+    const parts = integritySubjectOf(which, ctx.fingerprint, integrity);
     if (!parts) return { ...base, activity: "NOT_APPLICABLE" };
     // A subject id that cannot name a row is NOT_APPLICABLE, not UNKNOWN.
     if (!identifiableSubject(parts.evidenceId)) {
@@ -557,10 +633,13 @@ async function observeIntegrity(
     }
     // Bound to the workspace as well as the id: a fingerprint is not an
     // authorization.
-    const record = await ctx.client.evidence.findFirst({
-      where: { AND: [{ id: parts.evidenceId }, ctx.evidenceWhere] },
-      select: integrity.INTEGRITY_RECOVERY_SELECT,
-    });
+    const prefetched = ctx.prefetch?.integrityRecords;
+    const record = (prefetched?.has(parts.evidenceId)
+      ? prefetched.get(parts.evidenceId)
+      : await ctx.client.evidence.findFirst({
+          where: { AND: [{ id: parts.evidenceId }, ctx.evidenceWhere] },
+          select: integrity.INTEGRITY_RECOVERY_SELECT,
+        })) as Parameters<typeof integrity.hasRecovered>[0] | null | undefined;
     if (!record) return { ...base, activity: "NOT_APPLICABLE" };
     // OPS-019 — recovered only on the POSITIVE canonical predicate (a
     // validated timestamp; an anchored proof). Pending, absent or

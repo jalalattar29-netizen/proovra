@@ -311,6 +311,48 @@ describe("MOBILE-002 — native SSO sign-in through a single-use, PKCE-bound han
     expect(await prisma.ssoNativeHandoff.count({ where: { userId: user.id } })).toBe(0);
   });
 
+  it("a native initiate on an unavailable connection goes back to the app, not to the web sign-in page in its browser", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const id = await activeConnection(org);
+    await prisma.ssoConnection.update({ where: { id }, data: { status: "DISABLED" } });
+    const res = await harness.app.inject({ method: "GET", url: `/v1/auth/sso/${id}/initiate?native=1&codeChallenge=${pkce().challenge}` });
+    expect(res.statusCode).toBe(302);
+    expect(String(res.headers.location)).toBe("proovra://sso/complete?error=sso_connection_unavailable");
+    // Control: the browser initiate is unchanged.
+    const web = await harness.app.inject({ method: "GET", url: `/v1/auth/sso/${id}/initiate` });
+    expect(String(web.headers.location)).toContain("https://web.example.test/login?sso_error=sso_connection_unavailable");
+  });
+
+  it("no caller-chosen redirect: the IdP returns to the API's own callback, and a foreign redirectAfter is refused back to the fixed app URL", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const id = await activeConnection(org);
+    const ok = await harness.app.inject({ method: "GET", url: `/v1/auth/sso/${id}/initiate?native=1&codeChallenge=${pkce().challenge}` });
+    expect(new URL(String(ok.headers.location)).searchParams.get("redirect_uri")).toMatch(/\/v1\/auth\/sso\/callback$/);
+
+    const { challenge } = pkce();
+    const res = await harness.app.inject({
+      method: "GET",
+      url: `/v1/auth/sso/${id}/initiate?native=1&codeChallenge=${challenge}&redirectAfter=${encodeURIComponent("https://evil.example/steal")}`,
+    });
+    const location = String(res.headers.location);
+    expect(location.startsWith("proovra://sso/complete?error="), location).toBe(true);
+    expect(location).not.toContain("evil");
+    expect(await prisma.ssoNativeHandoff.count({ where: { codeChallenge: challenge } })).toBe(0);
+  });
+
+  it("a connection disabled between the callback and the exchange signs nobody in", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const id = await activeConnection(org);
+    const { verifier, challenge } = pkce();
+    const code = await nativeCode(id, challenge);
+    await prisma.ssoConnection.update({ where: { id }, data: { status: "DISABLED" } });
+    const res = await exchange({ code, codeVerifier: verifier });
+    expect(res.statusCode, res.body).toBe(403);
+    expect(res.json()).toMatchObject({ error: { code: "SSO_SIGN_IN_REFUSED", reason: "sso_connection_unavailable" } });
+    const user = await prisma.user.findFirstOrThrow({ where: { email: idp.email }, select: { id: true } });
+    expect(await prisma.authenticatedSession.count({ where: { userId: user.id } })).toBe(0);
+  });
+
   it("an SSO-required Organization's member signs in on the phone, and the session carries the SSO proof", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const id = await activeConnection(org);
