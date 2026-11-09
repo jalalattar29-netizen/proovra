@@ -219,8 +219,11 @@ test.describe("Phase A.1D — reports + reviewer operational maturity @critical"
     // access engine's operation-access arm, which also decides 403 (a reader
     // without the permission) versus 404 (someone who must not learn the
     // record exists).
+    //
+    // IDENT-019 — the same call also hands the engine the signed-in session,
+    // so a quarantined session is refused after the policy allows.
     expect(src).toMatch(
-      /resolveEvidenceOperationAccess\(\{\s*userId,\s*evidenceId: id,\s*permission: "evidence\.generate_report",\s*\}\)/,
+      /resolveEvidenceOperationAccess\(\{\s*userId,\s*evidenceId: id,\s*permission: "evidence\.generate_report",\s*(?:\/\/[^\n]*\n\s*)*session: \{\s*req,\s*action:[^}]*\},\s*\}\)/,
     );
   });
 });
