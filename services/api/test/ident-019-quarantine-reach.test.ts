@@ -431,7 +431,7 @@ describe("IDENT-019 — original downloads and report generation", () => {
     expect(refusal).toBeGreaterThan(access);
     // Refused before the request, job or version is created.
     expect(refusal).toBeLessThan(flat.indexOf("prisma.evidence.findUnique("));
-    expect(flat.slice(refusal, refusal + 700)).toContain('code: "session_quarantined"');
+    expect(flat.slice(refusal, flat.indexOf("prisma.evidence.findUnique("))).toContain('code: "session_quarantined"');
     const engine = squash(code("../src/services/evidence/evidence-record-access.service.ts"));
     expect(engine).toContain("if (op.allowed) { if (!input.session) return { allowed: true };");
   });

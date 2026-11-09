@@ -567,6 +567,9 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   SSO_CONNECTION_EXISTS: { disposition: "customer", where: SSO_CONNECTIONS },
   SSO_NATIVE_CODE_INVALID: { disposition: "customer", where: NATIVE_SSO },
   SSO_SIGN_IN_REFUSED: { disposition: "customer", where: NATIVE_SSO },
+  // IDENT-020 — the native SAML exchange fails closed when the MFA check errors,
+  // as the web ACS does; the app asks the person to start again.
+  SSO_TEMPORARILY_UNAVAILABLE: { disposition: "customer", where: NATIVE_SSO },
   INVALID_INPUT: {
     disposition: "internal",
     why:
