@@ -1473,4 +1473,71 @@ describe("§2 — ARCH-005: the Automation runtime is durable, fenced and reacha
       ].sort(),
     );
   }, 180_000);
+
+  // AUD-0046 — a receiver that answers 5xx to every event is unhealthy: the
+  // definite error answers count toward the documented auto-disable, while
+  // each event is still sent once (never resent) and a LOST answer still does
+  // not count.
+  it("AUD-0046 — consecutive 5xx answers auto-disable the destination; each event is sent once", async () => {
+    const { WEBHOOK_AUTO_DISABLE_THRESHOLD } = await import("../src/services/automation/automation-webhook.service.js");
+    // The suite's destination, whose health is restored afterwards.
+    const dest = { id: destinationId };
+    const healthy = { enabled: true, autoDisabledAt: null, disabledReason: null, consecutiveFailureCount: 0 };
+    await prisma.automationWebhookDestination.update({ where: { id: dest.id }, data: healthy });
+    const ruleId = await makeRule({
+      teamId: teamA,
+      userId: ownerA,
+      triggerType: "EVIDENCE_CREATED",
+      actionConfig: { destinationId: dest.id, eventType: "automation.aud0046" },
+    });
+    const health = () =>
+      prisma.automationWebhookDestination.findUniqueOrThrow({
+        where: { id: dest.id },
+        select: { consecutiveFailureCount: true, enabled: true, autoDisabledAt: true },
+      });
+    receiver.reset();
+    receiver.nextStatus = 500;
+    try {
+      for (let i = 0; i < WEBHOOK_AUTO_DISABLE_THRESHOLD; i += 1) {
+        await outbox.enqueueAutomationTrigger(prisma, {
+          teamId: teamA,
+          triggerType: "EVIDENCE_CREATED",
+          targetType: "evidence",
+          targetId: randomUUID(),
+        });
+        await driveOne(ruleId);
+        await delivery.sweepDueDeliveries({ prisma, limit: 20 });
+      }
+      const after = await health();
+      const runIds = (await prisma.automationRun.findMany({ where: { ruleId }, select: { id: true } })).map((r) => r.id);
+      const rows = await prisma.automationWebhookDelivery.findMany({
+        where: { runId: { in: runIds } },
+        select: { status: true, attemptCount: true, responseStatus: true },
+      });
+      expect(after.consecutiveFailureCount, JSON.stringify(rows)).toBeGreaterThanOrEqual(WEBHOOK_AUTO_DISABLE_THRESHOLD);
+      expect(after.enabled).toBe(false);
+      expect(after.autoDisabledAt).not.toBeNull();
+      // One delivery per event, each answered 500 once and never resent.
+      expect(rows).toHaveLength(WEBHOOK_AUTO_DISABLE_THRESHOLD);
+      expect(rows.every((r) => r.status === "AMBIGUOUS" && r.attemptCount === 1 && r.responseStatus === 500), JSON.stringify(rows)).toBe(true);
+    } finally {
+      receiver.nextStatus = 200;
+      receiver.reset();
+      await prisma.automationWebhookDestination.update({ where: { id: dest.id }, data: healthy });
+      await prisma.automationRule.update({ where: { id: ruleId }, data: { enabled: false } });
+    }
+  }, 180_000);
+
+  it("AUD-0046 control — a lost answer (timeout after the write) still does not count", async () => {
+    const before = await prisma.automationWebhookDestination.findUniqueOrThrow({
+      where: { id: destinationId },
+      select: { consecutiveFailureCount: true },
+    });
+    await makeAmbiguousDelivery();
+    const after = await prisma.automationWebhookDestination.findUniqueOrThrow({
+      where: { id: destinationId },
+      select: { consecutiveFailureCount: true },
+    });
+    expect(after.consecutiveFailureCount).toBe(before.consecutiveFailureCount);
+  }, 180_000);
 });
