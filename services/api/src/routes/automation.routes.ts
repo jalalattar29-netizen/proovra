@@ -202,15 +202,39 @@ function projectRun(row: {
 // Route registrar
 // ---------------------------------------------------------------------------
 
-/** A rule that names a person names someone of its own workspace. */
-async function actionTargetsWorkspaceMember(teamId: string, config: unknown): Promise<boolean> {
-  const userId = (config as { userId?: unknown } | null)?.userId;
-  if (typeof userId !== "string") return true;
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { status: true },
-  });
-  return member !== null && member.status !== "REVOKED";
+/**
+ * What a rule's action points at belongs to the rule's own workspace: a person
+ * it names is a member, and (AUD-0045) a webhook destination it delivers to is
+ * one of the workspace's destinations. Another workspace's destination id was
+ * accepted and enabled, and every run was then skipped at delivery
+ * (destination_not_in_team) — silently. Checked on create, update and enable.
+ */
+async function actionTargetRefusal(
+  teamId: string,
+  config: unknown,
+): Promise<{ code: string; message: string } | null> {
+  const c = config as { userId?: unknown; destinationId?: unknown } | null;
+  if (typeof c?.userId === "string") {
+    const member = await prisma.teamMember.findUnique({
+      where: { teamId_userId: { teamId, userId: c.userId } },
+      select: { status: true },
+    });
+    if (member === null || member.status === "REVOKED") {
+      return { code: "NOT_A_MEMBER", message: "That person is not a member of this workspace." };
+    }
+  }
+  if (typeof c?.destinationId === "string") {
+    const destination = await prisma.automationWebhookDestination.findUnique({
+      where: { id: c.destinationId },
+      select: { teamId: true },
+    });
+    // A destination of another workspace and one that does not exist are
+    // answered alike: the id says nothing about another workspace.
+    if (destination === null || destination.teamId !== teamId) {
+      return { code: "DESTINATION_NOT_IN_WORKSPACE", message: "That webhook destination is not one of this workspace's destinations." };
+    }
+  }
+  return null;
 }
 
 export async function automationRoutes(
@@ -297,9 +321,8 @@ export async function automationRoutes(
           errors: actionResult.errors,
         });
       }
-      if (!(await actionTargetsWorkspaceMember(body.data.teamId, actionResult.config))) {
-        return reply.code(400).send({ code: "NOT_A_MEMBER", message: "That person is not a member of this workspace." });
-      }
+      const targetRefusal = await actionTargetRefusal(body.data.teamId, actionResult.config);
+      if (targetRefusal) return reply.code(400).send(targetRefusal);
       const conditionResult = validateCondition(body.data.conditionJson);
       if (!conditionResult.ok) {
         return reply.code(400).send({
@@ -386,9 +409,8 @@ export async function automationRoutes(
             .code(400)
             .send({ message: "Invalid action config", errors: r.errors });
         }
-        if (!(await actionTargetsWorkspaceMember(existing.teamId, r.config))) {
-          return reply.code(400).send({ code: "NOT_A_MEMBER", message: "That person is not a member of this workspace." });
-        }
+        const targetRefusal = await actionTargetRefusal(existing.teamId, r.config);
+        if (targetRefusal) return reply.code(400).send(targetRefusal);
         data.actionConfigJson = r.config as object;
       }
 
@@ -428,6 +450,15 @@ export async function automationRoutes(
       "AUTOMATION_MANAGE",
     );
     if (!member) return;
+    // AUD-0045 — a rule saved before its action target was checked is
+    // re-checked before it is switched on.
+    if (enabled) {
+      const targetRefusal = await actionTargetRefusal(existing.teamId, existing.actionConfigJson);
+      if (targetRefusal) {
+        reply.code(400).send(targetRefusal);
+        return;
+      }
+    }
     const updated = await prisma.automationRule.update({
       where: { id: existing.id },
       data: {

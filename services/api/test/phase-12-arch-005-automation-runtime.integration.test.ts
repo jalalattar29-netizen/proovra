@@ -1218,6 +1218,77 @@ describe("§2 — ARCH-005: the Automation runtime is durable, fenced and reacha
   // END TO END — cases 21–24
   // =========================================================================
 
+  // AUD-0045 — a webhook rule delivers only to its own workspace's destinations.
+  it("AUD-0045 — another workspace's destination is refused on create, update and enable", async () => {
+    const secret = webhookSvc.createDestinationSecret();
+    const foreign = await prisma.automationWebhookDestination.create({
+      data: {
+        teamId: h.fixtures.teamB.teamId,
+        name: "team-b-receiver",
+        url: receiver.url(),
+        urlOrigin: new URL(receiver.url()).origin,
+        encryptedSecret: secret.storedEnvelope,
+        secretFingerprint: secret.fingerprint,
+        enabled: true,
+        createdByUserId: h.fixtures.teamB.ownerUserId,
+        updatedByUserId: h.fixtures.teamB.ownerUserId,
+      },
+      select: { id: true },
+    });
+    const auth = { authorization: `Bearer ${h.fixtures.teamA.ownerToken}` };
+    const create = await h.app.inject({
+      method: "POST",
+      url: "/v1/automation/rules",
+      headers: auth,
+      payload: {
+        teamId: teamA,
+        name: "foreign-destination",
+        triggerType: "EVIDENCE_CREATED",
+        actionType: "WEBHOOK_DELIVERY_INTERNAL_ONLY",
+        conditionJson: {},
+        actionConfigJson: { destinationId: foreign.id, eventType: "automation.foreign" },
+      },
+    });
+    expect(create.statusCode, create.body).toBe(400);
+    expect(create.json()).toMatchObject({ code: "DESTINATION_NOT_IN_WORKSPACE" });
+    expect(await prisma.automationRule.count({ where: { teamId: teamA, name: "foreign-destination" } })).toBe(0);
+
+    // A rule of A on A's destination cannot be repointed at B's.
+    const own = await h.app.inject({
+      method: "POST",
+      url: "/v1/automation/rules",
+      headers: auth,
+      payload: {
+        teamId: teamA,
+        name: "own-destination",
+        triggerType: "EVIDENCE_CREATED",
+        actionType: "WEBHOOK_DELIVERY_INTERNAL_ONLY",
+        conditionJson: {},
+        actionConfigJson: { destinationId, eventType: "automation.own" },
+      },
+    });
+    expect(own.statusCode, own.body).toBe(201);
+    const ownId = (own.json() as { id?: string; rule?: { id: string } }).id ?? (own.json() as { rule: { id: string } }).rule.id;
+    const repoint = await h.app.inject({
+      method: "PATCH",
+      url: `/v1/automation/rules/${ownId}`,
+      headers: auth,
+      payload: { actionConfigJson: { destinationId: foreign.id, eventType: "automation.own" } },
+    });
+    expect(repoint.statusCode, repoint.body).toBe(400);
+    expect(repoint.json()).toMatchObject({ code: "DESTINATION_NOT_IN_WORKSPACE" });
+
+    // A rule saved before the check (seeded as such) is not switched on.
+    const legacy = await prisma.automationRule.update({
+      where: { id: ownId },
+      data: { actionConfigJson: { destinationId: foreign.id, eventType: "automation.own" }, enabled: false },
+      select: { id: true },
+    });
+    const enable = await h.app.inject({ method: "POST", url: `/v1/automation/rules/${legacy.id}/enable`, headers: auth });
+    expect(enable.statusCode, enable.body).toBe(400);
+    expect((await prisma.automationRule.findUniqueOrThrow({ where: { id: legacy.id } })).enabled).toBe(false);
+  });
+
   it("21 — a rule created through the REAL API reaches the runtime", async () => {
     receiver.reset();
     const create = await h.app.inject({
