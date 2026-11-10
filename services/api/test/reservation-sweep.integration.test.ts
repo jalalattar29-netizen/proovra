@@ -132,6 +132,32 @@ describe("reservation sweep (live PostgreSQL 16)", () => {
     expect((await state(id)).deleted).toEqual(["CAPTURE_SESSION_EXPIRED"]);
   });
 
+  it("AUD-0065: a session a late call already interrupted as EXPIRED (record UPLOADING) is ended and its record released", async () => {
+    // The audit's state: recovery after the 1-hour window was refused, which
+    // interrupts the session (INTERRUPTED, endReason EXPIRED) and leaves its
+    // reserved record UPLOADING. The next sweep must not skip it.
+    const id = await reservation({ ageMs: 70 * 60 * 1000, status: "UPLOADING" });
+    const A = harness.fixtures.teamA;
+    const session = await prisma.captureSession.create({
+      data: {
+        ownerUserId: A.ownerUserId,
+        teamId: A.teamId,
+        status: "INTERRUPTED",
+        endReason: "EXPIRED",
+        endedAtUtc: new Date(Date.now() - 5 * 60_000),
+        finalizedEvidenceId: id,
+        expiresAtUtc: new Date(Date.now() - 6 * 60_000),
+      } as never,
+      select: { id: true },
+    });
+    await reaper.releaseExpiredReservations({ trigger: "test" });
+    const row = await prisma.captureSession.findUniqueOrThrow({ where: { id: session.id }, select: { status: true } });
+    expect(row.status).toBe("EXPIRED");
+    const after = await state(id);
+    expect(after.deleted).toEqual(["CAPTURE_SESSION_EXPIRED"]);
+    expect(after.deletedAt).not.toBeNull();
+  });
+
   it("concurrent sweeps release a reservation exactly once", async () => {
     const id = await reservation({ ageMs: 3 * DAY });
     await Promise.all([
