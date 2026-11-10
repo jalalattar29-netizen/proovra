@@ -121,7 +121,7 @@ const SPECIALIST_SURFACES: ReadonlyArray<Surface> = [
     canonicalPath: "/security-center/mfa-recovery",
     title: "MFA recovery approvals",
     description:
-      "Admin queue for pending recovery requests. Quorum-based approval (step-up gated). Digest notification preferences + snooze controls.",
+      "Admin queue for pending recovery requests. One admin approval (step-up gated). Digest notification preferences + snooze controls.",
   },
 ];
 
