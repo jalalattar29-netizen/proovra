@@ -124,11 +124,22 @@ export const RETRY_POLICIES = {
     backoffDelayMs: 10_000,
     timeoutMs: 20 * 60 * 1000,
   },
-  /** Artifact generation on the product's critical path. */
+  /**
+   * Artifact generation on the product's critical path.
+   *
+   * AUD-0056 — the retry window must outlast a short storage outage. Five
+   * attempts from 1 s spanned about 15 s, so a 75 s storage stop left records
+   * SIGNED with no report (FAILED_TERMINAL, ECONNREFUSED) until someone pressed
+   * Retry. Eight attempts from 5 s span about 10.6 minutes (5+10+...+320 s).
+   * Only RETRIABLE errors use the window; a non-retriable failure is still
+   * terminal on its first attempt. Eight stays under the report reconciler's
+   * claim ceiling (REPORT_RECONCILE_MAX_ATTEMPTS, 12). An outage longer than
+   * the window still needs Retry.
+   */
   ARTIFACT: {
-    attempts: 5,
+    attempts: 8,
     backoff: "exponential",
-    backoffDelayMs: 1_000,
+    backoffDelayMs: 5_000,
     timeoutMs: 10 * 60 * 1000,
   },
   /** Destructive work: few attempts, long gaps, long ceiling. */
