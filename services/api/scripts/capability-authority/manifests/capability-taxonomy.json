@@ -737,6 +737,12 @@
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
+      "capabilityId": "GET:/v1/break-glass/my-grants",
+      "routeId": "GET /v1/break-glass/my-grants",
+      "vertical": "ENTERPRISE_IDENTITY_SECURITY",
+      "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
       "capabilityId": "GET:/v1/capture/devices",
       "routeId": "GET /v1/capture/devices",
       "vertical": "EVIDENCE_OPERATIONS",

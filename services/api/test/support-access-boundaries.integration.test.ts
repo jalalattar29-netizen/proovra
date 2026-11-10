@@ -630,5 +630,104 @@ describe("support access boundaries", () => {
       expect(other.statusCode, other.body).toBe(403);
       expect(other.body).toContain("actor_mismatch");
     });
+
+    it("AUD-0037 — the holder sees the grant they hold, and only while it is live; nobody else sees it", async () => {
+      type Held = {
+        id: string;
+        organizationId: string;
+        emergencyUserId: string;
+        grantedRole: string;
+        effectiveStatus: string;
+        organizationName: string | null;
+        workspaces: { id: string; name: string }[];
+        stepUpTeamId: string | null;
+      };
+      const myGrants = async (who: Person, query = "") => {
+        const res = await kit.call("GET", `/v1/break-glass/my-grants${query}`, who);
+        expect(res.statusCode, res.body).toBe(200);
+        return { body: res.body, grants: (res.json() as { grants: Held[] }).grants };
+      };
+      // A customer Organization administrator, a member of w1 only.
+      const holder = await kit.person(customer.w1, "ADMIN");
+      await prisma.organizationMembership.create({ data: { organizationId: customer.orgId, userId: holder.id, role: "ORG_ADMIN" } });
+      const idOf = (res: { json: () => unknown }) => (res.json() as { grant: { id: string } }).grant.id;
+
+      // Expired: the window closed, the stored word still says ACTIVE.
+      const lapsed = await activate(holder.id);
+      expect(lapsed.statusCode, lapsed.body).toBe(200);
+      await prisma.emergencyAccessGrant.update({ where: { id: idOf(lapsed) }, data: { expiresAtUtc: new Date(Date.now() - 60_000) } });
+      // Revoked by staff.
+      const cut = await activate(holder.id);
+      expect(cut.statusCode, cut.body).toBe(200);
+      const revoked = await kit.call("POST", "/v1/break-glass/revoke", staff, { teamId: anchor, grantId: idOf(cut) });
+      expect(revoked.statusCode, revoked.body).toBe(200);
+      // Live, with its activation proof id kept to prove it is never projected.
+      const proof = await ceremony(staff, anchor, "ORG_SECURITY_POLICY_UPDATE");
+      const live = await kit.call(
+        "POST",
+        "/v1/break-glass/activate",
+        staff,
+        { teamId: anchor, organizationId: customer.orgId, emergencyUserId: holder.id, reason: "Incident 93 containment", grantedRole: "EMERGENCY_OPERATOR" },
+        proof,
+      );
+      expect(live.statusCode, live.body).toBe(200);
+      const liveId = idOf(live);
+
+      const mine = await myGrants(holder);
+      expect(mine.grants.map((g) => g.id)).toEqual([liveId]);
+      const [held] = mine.grants;
+      expect(held).toMatchObject({
+        organizationId: customer.orgId,
+        emergencyUserId: holder.id,
+        grantedRole: "EMERGENCY_OPERATOR",
+        effectiveStatus: "ACTIVE",
+        // The holder belongs to w1, so that is where their own step-up is taken.
+        stepUpTeamId: customer.w1,
+      });
+      expect(held.organizationName).toEqual(expect.any(String));
+      expect(held.workspaces.map((w) => w.id)).toEqual(expect.arrayContaining([customer.w1, customer.w2]));
+      expect(held.workspaces.map((w) => w.id)).not.toContain(other.w3);
+      expect(mine.body).not.toContain(proof["x-proovra-step-up-challenge-id"]!);
+      expect(mine.body).not.toContain("stepUpProofId");
+      // Narrowed to another Organization, the same holder holds nothing there.
+      expect((await myGrants(holder, `?organizationId=${other.orgId}`)).grants).toEqual([]);
+      expect((await myGrants(holder, `?organizationId=${customer.orgId}`)).grants.map((g) => g.id)).toEqual([liveId]);
+
+      // Nobody else sees it: the grantor, another administrator of the same
+      // Organization, or another holder (who sees only their own).
+      const sameOrgAdmin = await kit.person(customer.w1, "ADMIN");
+      await prisma.organizationMembership.create({ data: { organizationId: customer.orgId, userId: sameOrgAdmin.id, role: "ORG_ADMIN" } });
+      expect((await myGrants(sameOrgAdmin)).grants).toEqual([]);
+      expect((await myGrants(staff)).grants).toEqual([]);
+      const responderView = await myGrants(responder);
+      expect(responderView.grants.map((g) => g.id)).not.toContain(liveId);
+      expect(responderView.grants.every((g) => g.emergencyUserId === responder.id)).toBe(true);
+
+      // What the read hands the holder is enough to use the grant.
+      const victim = await prisma.authenticatedSession.create({
+        data: { userId: target.userId, teamId: customer.w1, sessionIdHash: `sab-${randomUUID()}`, expiresAtUtc: new Date(Date.now() + 3_600_000) },
+        select: { id: true },
+      });
+      const used = await kit.call(
+        "POST",
+        "/v1/break-glass/emergency/sessions/revoke",
+        holder,
+        {
+          teamId: customer.w1,
+          organizationId: held.organizationId,
+          grantId: held.id,
+          stepUpTeamId: held.stepUpTeamId,
+          reason: "Holder-side containment from the panel",
+        },
+        await ceremony(holder, held.stepUpTeamId!, "ORG_SECURITY_POLICY_UPDATE", { kind: "break_glass_grant", id: held.id }),
+      );
+      expect(used.statusCode, used.body).toBe(200);
+      expect(used.json()).toMatchObject({ viaEmergency: true });
+      expect((await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: victim.id } })).revokedAtUtc).not.toBeNull();
+
+      // Once revoked, the grant leaves the holder's view.
+      await kit.call("POST", "/v1/break-glass/revoke", staff, { teamId: anchor, grantId: liveId });
+      expect((await myGrants(holder)).grants).toEqual([]);
+    });
   });
 });

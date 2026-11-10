@@ -43,6 +43,7 @@ import {
   revokeSupportAccess,
 } from "../services/identity/support-access.service.js";
 import { emergencyOrgRevoke } from "../services/access-control/session-quarantine.service.js";
+import { liveWorkspaceWhere } from "@proovra/shared-runtime";
 // PHASE 10 CLOSURE FIX 1 (2026-07-23) — server-authoritative support-context
 // entry. Reads-only: re-validates the caller's grant against the DB, then
 // mints the opaque signed token the canonical authorize path verifies.
@@ -548,6 +549,68 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
       take: Math.min(q.limit ?? 50, 200),
     });
     return reply.send({ grants: rows.map(projectEmergencyGrant) });
+  });
+
+  // ── AUD-0037 — the HOLDER's read: the grants that name the caller ───────
+  // The staff listing above is platform-staff only, so a customer Organization
+  // administrator named as holder could not see the grant they hold, and no
+  // screen could offer them the use route. This read answers one question —
+  // "which emergency access do I hold right now" — and nothing about anyone
+  // else's: the holder is the authenticated caller, never a request field.
+  // Same effective-status predicate and same secret-free projection as the
+  // staff read, so the two surfaces cannot disagree about what is live.
+  //
+  // Beside each grant, what the use route needs and the holder cannot look up
+  // anywhere else: the Organization's name, its live workspaces (the use route
+  // ends the sessions of ONE workspace of the granted Organization), and a
+  // workspace of that Organization the holder belongs to — the one their own
+  // step-up can be taken in (`stepUpTeamId`), or null when they belong to none
+  // (a platform responder steps up in their own current workspace instead).
+  app.get("/v1/break-glass/my-grants", { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
+    const parsed = z
+      .object({ organizationId: z.string().uuid().optional() })
+      .safeParse(req.query ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: { code: "INVALID_QUERY", requestId: req.id } });
+    }
+    const holderUserId = getAuthUserId(req);
+    const rows = await prisma.emergencyAccessGrant.findMany({
+      where: {
+        emergencyUserId: holderUserId,
+        ...(parsed.data.organizationId ? { organizationId: parsed.data.organizationId } : {}),
+        ...grantStatusWhere("ACTIVE", new Date()),
+      },
+      orderBy: [{ expiresAtUtc: "asc" }, { id: "asc" }],
+      take: 50,
+    });
+    if (rows.length === 0) return reply.send({ grants: [] });
+    const orgIds = [...new Set(rows.map((r) => r.organizationId))];
+    const [organizations, workspaces] = await Promise.all([
+      prisma.organization.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true } }),
+      prisma.team.findMany({
+        where: { organizationId: { in: orgIds }, ...liveWorkspaceWhere() },
+        select: { id: true, name: true, organizationId: true },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: 500,
+      }),
+    ]);
+    const memberships = await prisma.teamMember.findMany({
+      where: { userId: holderUserId, status: "ACTIVE", teamId: { in: workspaces.map((w) => w.id) } },
+      select: { teamId: true },
+    });
+    const memberOf = new Set(memberships.map((m) => m.teamId));
+    const orgName = new Map(organizations.map((o) => [o.id, o.name]));
+    return reply.send({
+      grants: rows.map((row) => {
+        const own = workspaces.filter((w) => w.organizationId === row.organizationId);
+        return {
+          ...projectEmergencyGrant(row),
+          organizationName: orgName.get(row.organizationId) ?? null,
+          workspaces: own.map((w) => ({ id: w.id, name: w.name })),
+          stepUpTeamId: own.find((w) => memberOf.has(w.id))?.id ?? null,
+        };
+      }),
+    });
   });
 
   // ── §10.8 support-access start / revoke ───────────────────────────────

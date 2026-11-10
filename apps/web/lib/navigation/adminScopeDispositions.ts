@@ -136,13 +136,18 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
     // Keeping the old label would have been the worst of the three states: the
     // console reassuring an operator about to break glass into a CUSTOMER
     // organization that the page administers their own workspace.
-    // `observed` stays WORKSPACE_FILTERED because that is what the tracer
-    // still reports, and it is not wrong: /v1/support-access/enter compares
-    // `grant.teamId` against the supplied teamId and refuses a mismatch. That
-    // is a real narrowing — of ONE action, to the workspace its grant already
-    // names. The decision differs from the observation on purpose; that is
-    // what these two fields are for.
-    observed: "WORKSPACE_FILTERED",
+    // `observed` is WORKSPACE_CANDIDATE since AUD-0037 (2026-11-10). It read
+    // WORKSPACE_FILTERED until then, and that FILTER was the tracer's, not the
+    // route's: it read the handler of GET /v1/break-glass/grants up to the next
+    // registration, which was /v1/support-access/start and its scope-workspace
+    // lookup. The holder read (GET /v1/break-glass/my-grants) now registers
+    // between them, the tracer sees the staff listing as it is — no teamId at
+    // all — and what remains is the candidate on the support listing and the
+    // two revokes. Nothing on this page started narrowing or stopped; the
+    // decision below already said neither listing narrows by teamId. The
+    // decision differs from the observation on purpose; that is what these two
+    // fields are for.
+    observed: "WORKSPACE_CANDIDATE",
     decision: "PLATFORM_AUDIT_CONTEXT",
     why:
       "RECLASSIFIED. The banner describes what the page DISPLAYS, and both listings are now platform-wide: GET /v1/support-access/grants and GET /v1/break-glass/grants are requirePlatformStaff and neither narrows by teamId — the support listing returns the staff actor's grants across every tenant. The teamId the page still sends binds authority and audit on /start, /enter and the grant it enters, and filters nothing that is shown. Same shape as /admin/provisioning.",
