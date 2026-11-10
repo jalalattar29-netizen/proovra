@@ -188,7 +188,6 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
     [
       "DASHBOARD_VIEW",
       "EVIDENCE_VIEW",
-      "EVIDENCE_CAPTURE",
       "CASES_VIEW",
       "REPORTS_VIEW",
       "SEARCH_VIEW",
@@ -196,6 +195,12 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
     ],
     true,
   );
+
+  // AUD-0032 — Capture follows the role's `evidence.create`, the permission the
+  // create path enforces (assertInteractiveEvidenceCreateAllowed). It was in the
+  // universal set above, so a VIEWER was offered the Capture entry and the full
+  // wizard, and every capture was refused with SHARED_WORKSPACE_FORBIDDEN.
+  map.EVIDENCE_CAPTURE = roleHasPermission(role, "evidence.create");
 
   // Writers (non-viewer) get evidence & report management.
   if (isWriter) {
