@@ -49,6 +49,9 @@ import { describe, expect, it } from "vitest";
 
 import type { PrismaClient } from "@prisma/client";
 
+// Static: an in-test dynamic import of this module timed out under load.
+import { resendNotificationDelivery } from "../src/services/notifications/index.js";
+
 // ---------------------------------------------------------------------------
 // Source-text loader — same convention as phase6.
 // ---------------------------------------------------------------------------
@@ -325,9 +328,6 @@ describe("phase closure — dispatchDelivery missing_template_context FAILED emi
     process.env.INTEGRATIONS_ENABLED = "true";
 
     try {
-      const { resendNotificationDelivery } = await import(
-        "../src/services/notifications/index.js"
-      );
 
       const { client, notifications, webhookEmits } = buildStubPrisma();
 
@@ -375,7 +375,8 @@ describe("phase closure — dispatchDelivery missing_template_context FAILED emi
       expect(webhookEmits.length).toBe(1);
       const emit = webhookEmits[0];
       expect(emit.eventType).toBe("notification.failed");
-      expect(emit.status).toBe("PENDING");
+      // AUD-0042 — queued for the retry sweeper (due RETRY_SCHEDULED), not PENDING.
+      expect(emit.status).toBe("RETRY_SCHEDULED");
       expect(emit.teamId).toBe("team-closure");
 
       const envelope = emit.payloadJson as {
@@ -419,9 +420,6 @@ describe("phase closure — feature-flagged off → no emit, even on FAILED", ()
     delete process.env.INTEGRATIONS_ENABLED;
 
     try {
-      const { resendNotificationDelivery } = await import(
-        "../src/services/notifications/index.js"
-      );
 
       const { client, notifications, webhookEmits } = buildStubPrisma();
 

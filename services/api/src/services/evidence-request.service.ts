@@ -426,7 +426,8 @@ export async function createEvidenceRequest(
           evidenceId: result.request.evidenceId,
           caseId: result.request.caseId,
         },
-        attemptInline: true,
+        // AUD-0042 — queued: a slow receiver must not delay this request.
+        attemptInline: false,
       });
     } catch {
       // ignore
@@ -1165,7 +1166,8 @@ export async function sendEvidenceRequest(
         intakeLinkId: finalRequest.intakeLinkId,
         sentAtUtc: finalRequest.sentAtUtc?.toISOString() ?? null,
       },
-      attemptInline: true,
+      // AUD-0042 — queued: a slow receiver must not delay this request.
+      attemptInline: false,
     });
   } catch {
     // never abort the send on webhook delivery failure
@@ -1390,7 +1392,8 @@ export async function linkResponseFromIntakeSession(
           intakeLinkId: refreshed.intakeLinkId,
           intakeSessionId: params.intakeSession.id,
         },
-        attemptInline: true,
+        // AUD-0042 — queued: a slow receiver must not delay this request.
+        attemptInline: false,
       },
       client,
     );

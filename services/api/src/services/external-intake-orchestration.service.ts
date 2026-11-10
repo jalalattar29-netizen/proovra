@@ -1273,7 +1273,8 @@ export async function submitExternalIntake(
           workflowTemplateVersion: input.link.workflowTemplateVersion,
           partCount: parts.length,
         },
-        attemptInline: true,
+        // AUD-0042 — queued: a slow receiver must not delay this request.
+        attemptInline: false,
       });
     } catch {
       // never abort the submission on webhook delivery failure

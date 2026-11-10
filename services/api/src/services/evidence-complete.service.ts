@@ -2343,7 +2343,8 @@ export async function runCompletionFanoutOnce(input: {
           signedAtUtc: ev.signedAtUtc?.toISOString() ?? null,
           capturedAtUtc: ev.capturedAtUtc?.toISOString() ?? null,
         },
-        attemptInline: true,
+        // AUD-0042 — queued: a slow receiver must not delay this request.
+        attemptInline: false,
       });
     }
   } catch {

@@ -915,7 +915,8 @@ const key = `evidence/${evidence.id}/original-${objectKeyFileNameFragment(resolv
             mimeType: normalizedMimeType,
             captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
           },
-          attemptInline: true,
+          // AUD-0042 — queued: a slow receiver must not delay this request.
+          attemptInline: false,
         });
       } catch {
         // never fail evidence creation on webhook delivery

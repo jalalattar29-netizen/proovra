@@ -446,7 +446,8 @@ describe("PHASE 6 — emitWebhookEvent produces a PENDING row for every subscrib
       const endpointIds = deliveries.map((d) => d.endpointId).sort();
       expect(endpointIds).toEqual(["ep-all", "ep-sent"]);
       for (const row of deliveries) {
-        expect(row.status).toBe("PENDING");
+        // AUD-0042 — queued means due for the retry sweeper, not PENDING.
+        expect(row.status).toBe("RETRY_SCHEDULED");
         expect(row.eventType).toBe("evidence_request.sent");
         expect(row.teamId).toBe(TEAM);
       }
