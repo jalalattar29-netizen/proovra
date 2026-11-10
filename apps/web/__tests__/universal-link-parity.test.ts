@@ -57,7 +57,7 @@ function androidClaims(): { paths: Set<string>; hosts: Set<string> } {
     expo: {
       android: {
         intentFilters?: {
-          data?: { host?: string; path?: string; pathPrefix?: string }[];
+          data?: { host?: string; path?: string; pathPrefix?: string; pathPattern?: string }[];
         }[];
       };
     };
@@ -68,6 +68,8 @@ function androidClaims(): { paths: Set<string>; hosts: Set<string> } {
     for (const datum of filter.data ?? []) {
       if (datum.pathPrefix) paths.add(normalise(datum.pathPrefix));
       if (datum.path) paths.add(normalise(datum.path));
+      // AUD-0004 — Android's `.` is one character, as AASA's `?` is: compared in the AASA form.
+      if (datum.pathPattern) paths.add(normalise(datum.pathPattern.replace(/\./g, "?")));
       if (datum.host) hosts.add(datum.host);
     }
   }
@@ -105,6 +107,14 @@ test("the portal SSO callback stays in the browser on both platforms", () => {
       );
     }
     assert.ok(claims.paths.has("/portal"), "the token entry page is still claimed");
+    // AUD-0004 — the reviewer dashboard link (/portal/<64-hex token>) opens the app,
+    // claimed by its exact shape so the callback above can never match it.
+    const dashboard = `/portal/${"?".repeat(64)}`;
+    assert.ok(claims.paths.has(dashboard), "the reviewer dashboard link is claimed");
+    const matches = (pattern: string, path: string) =>
+      pattern.length === path.length && [...pattern].every((c, i) => c === "?" || c === path[i]);
+    assert.ok(matches(dashboard, `/portal/${"a1".repeat(32)}`));
+    assert.ok(!matches(dashboard, callback), "the dashboard pattern would claim the SSO callback");
     assert.ok(claims.paths.has("/portal/accept"), "invitation links are still claimed");
   }
   const expo = JSON.parse(
