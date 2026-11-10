@@ -231,3 +231,14 @@ test("a draft says which workspace it belongs to, and an older server says nothi
   assert.equal(D.parseCaptureDraft({ id: "d1", teamId: null }).teamId, null, "null is a Personal draft");
   assert.equal(D.parseCaptureDraft({ id: "d1" }).teamId, undefined, "absent is not Personal");
 });
+
+test("AUD-0035 — a picked file's own name is sent with the reservation; invented camera names are not", () => {
+  assert.equal(D.reservedOriginalFileName({ source: "FILE_PICKER", originalFilename: "audit-capture.txt" }), "audit-capture.txt");
+  assert.equal(D.reservedOriginalFileName({ source: "FILE_PICKER", originalFilename: "  تقرير.pdf " }), "تقرير.pdf");
+  assert.equal(D.reservedOriginalFileName({ source: "FILE_PICKER", originalFilename: "   " }), undefined);
+  assert.equal(D.reservedOriginalFileName({ source: "CAMERA", originalFilename: "photo-1699999999999.jpg" }), undefined);
+  assert.equal(D.reservedOriginalFileName(null), undefined);
+  // The capture screen sends it when it reserves the record.
+  const screen = readFileSync(resolve(HERE, "../app/(stack)/capture.tsx"), "utf8");
+  assert.match(screen, /reserveDirectCaptureEvidence\(captureSession, \{[\s\S]{0,400}?originalFileName: reservedOriginalFileName\(primary\)/);
+});

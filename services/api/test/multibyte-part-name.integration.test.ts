@@ -77,4 +77,29 @@ describe("AUD-0054 multi-byte part names reach storage (live PostgreSQL + object
     const ev = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { status: true } });
     expect(["SIGNED", "REPORTED"]).toContain(ev.status);
   }, 120_000);
+
+  // AUD-0035 — the Android capture screen now sends a picked file's own name
+  // when it reserves the record; the reservation keeps it as the record's
+  // original and display name instead of PROOVRA-CAPTURE-<timestamp>.bin.
+  it("a direct-capture reservation that names the picked file keeps that name on the record", async () => {
+    const A = h.fixtures.teamA;
+    const post = (url: string, payload: unknown) =>
+      h.app.inject({ method: "POST", url, headers: { authorization: `Bearer ${A.ownerToken}`, "content-type": "application/json" }, payload: JSON.stringify(payload) });
+    const open = await post("/v1/capture/direct-sessions", { mode: "PROOVRA_MOBILE_APP", teamId: A.teamId, deviceId: null });
+    expect(open.statusCode, open.body).toBe(201);
+    const sessionId = (open.json() as { session: { captureSessionId: string } }).session.captureSessionId;
+    const reserve = await post(`/v1/capture/direct-sessions/${sessionId}/evidence`, {
+      type: "DOCUMENT",
+      mimeType: "text/plain",
+      originalFileName: "audit-capture.txt",
+    });
+    expect(reserve.statusCode, reserve.body).toBe(201);
+    const evidenceId = (reserve.json() as { evidence: { evidenceId: string } }).evidence.evidenceId;
+    const row = await prisma.evidence.findUniqueOrThrow({
+      where: { id: evidenceId },
+      select: { originalFileName: true, displayFileName: true },
+    });
+    expect(row.originalFileName).toBe("audit-capture.txt");
+    expect(row.displayFileName).toBe("audit-capture.txt");
+  }, 120_000);
 });

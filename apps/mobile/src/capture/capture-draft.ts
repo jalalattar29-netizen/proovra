@@ -101,6 +101,23 @@ export function primaryItem<T extends { mimeType: string }>(items: readonly T[])
   return items[0] ?? null;
 }
 
+/**
+ * AUD-0035 — the file name the record carries, sent when it is reserved.
+ *
+ * A file the person PICKED has a name they chose (`audit-capture.txt`), and it
+ * is what the record should be called; it was never sent, so the server named
+ * the record `PROOVRA-CAPTURE-<timestamp>.bin` and stored no original name. A
+ * camera, recorder or microphone item has a name this app invented
+ * (`photo-<ms>.jpg`): those keep the server's capture naming.
+ */
+export function reservedOriginalFileName(
+  primary: { source?: string | null; originalFilename?: string | null } | null,
+): string | undefined {
+  if (!primary || primary.source !== "FILE_PICKER") return undefined;
+  const name = (primary.originalFilename ?? "").trim();
+  return name ? name : undefined;
+}
+
 /** Shape staged items for the canonical `itemsSnapshot`. */
 export function toDraftItems(items: readonly DraftItemInput[]) {
   return items.map((it) => ({

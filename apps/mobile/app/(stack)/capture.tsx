@@ -115,6 +115,7 @@ import {
   deriveBatchEvidenceType,
   listCaptureDrafts,
   primaryItem,
+  reservedOriginalFileName,
   readCaptureDraft,
   type CaptureDraftDetail,
 } from "../../src/capture/capture-draft";
@@ -1668,6 +1669,8 @@ if (!isRecording || busy) return;
           type: rootType,
           mimeType: primary?.mimeType ?? "application/octet-stream",
           deviceTimeIso: new Date().toISOString(),
+          // AUD-0035 — a picked file keeps its own name on the record.
+          originalFileName: reservedOriginalFileName(primary),
           ...location.fields,
         });
         sessionEvidenceIdRef.current = evidenceId;
