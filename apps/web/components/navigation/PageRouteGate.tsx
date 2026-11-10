@@ -25,6 +25,18 @@
  *   2. NEVER consults workflow / persona. Access is upstream-decided.
  *   3. Reads only the canonical envelope — no fetches, no separate
  *      capability checks. Capability map comes from the envelope.
+ *
+ * HTTP STATUS (AUD-0016, decided 2026-11-10). A denied or concealed page
+ * answers 200, because this gate runs in the client after the (app) layout
+ * has streamed and the status is already sent. That is deliberate: the API
+ * enforces every one of these boundaries on its own, the body carries no
+ * content of the gated page (only the generic panel), and (app) pages are not
+ * crawl targets. Resolving the status in middleware, as the runbook boundary
+ * does, would add an API round trip to every signed-in navigation and turn an
+ * API blip into a 404 for a user who is allowed in. Do that only for a route
+ * whose BODY must not render for the wrong user (see
+ * lib/runbooks/request-authorization.ts). Monitors and link checkers must not
+ * read a 200 here as "the page exists for this user".
  */
 
 import type { ReactNode } from "react";
