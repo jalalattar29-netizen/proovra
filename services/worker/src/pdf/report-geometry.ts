@@ -27,7 +27,7 @@
  * The page it measures against is THE page (report-v2/page-geometry.ts): the
  * same margins the stylesheet declares and the renderer passes to Chromium.
  */
-import { openPdf, type PdfjsTextItem } from "./pdfjs-runtime.js";
+import { closePdf, openPdf, type PdfjsTextItem } from "./pdfjs-runtime.js";
 import { REPORT_PAGE_PT } from "../report-v2/page-geometry.js";
 
 export type GeometryFinding = { check: string; detail: string };
@@ -66,7 +66,7 @@ export async function readReportGeometry(pdf: Uint8Array | Buffer): Promise<Page
     }
     return pages;
   } finally {
-    await doc.destroy();
+    await closePdf(doc);
   }
 }
 

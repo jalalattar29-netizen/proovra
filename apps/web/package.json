@@ -26,7 +26,7 @@
     "framer-motion": "^12.40.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.563.0",
-    "next": "^15.2.4",
+    "next": "^15.5.29",
     "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -48,7 +48,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.7",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.5",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

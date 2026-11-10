@@ -52,8 +52,20 @@ export type PdfjsDocument = {
   numPages: number;
   getPage(pageNumber: number): Promise<PdfjsPage>;
   getMetadata(): Promise<{ info?: Record<string, unknown> | null; metadata?: unknown }>;
-  destroy(): Promise<void>;
+  /** pdfjs-dist 5. */
+  destroy?: () => Promise<void>;
+  /** pdfjs-dist 5 and 6: the task that opened it, which owns its teardown. */
+  loadingTask?: { destroy(): Promise<void> };
 };
+
+/**
+ * Release an opened PDF. AUD-0063: pdfjs-dist 6 removed PDFDocumentProxy.destroy();
+ * the loading task that opened the document owns the teardown in both 5 and 6.
+ */
+export async function closePdf(doc: Pick<PdfjsDocument, "destroy" | "loadingTask">): Promise<void> {
+  if (doc.loadingTask) await doc.loadingTask.destroy();
+  else await doc.destroy?.();
+}
 export type PdfjsModule = {
   version: string;
   build: string;
@@ -78,6 +90,32 @@ export function resolvedPdfjsPackageVersion(): string {
   return pkg.version;
 }
 
+/**
+ * AUD-0063 — pdfjs-dist 6 (the line that fixes the "arbitrary JavaScript on
+ * opening a malicious PDF" advisory) calls Promise.withResolvers, which Node
+ * gained in 22. The worker image is node:20. This installs the standard
+ * definition (ES2024) when, and only when, the runtime lacks it, before PDF.js
+ * loads; on Node 22+ it does nothing.
+ */
+export function ensurePromiseWithResolvers(): void {
+  const P = Promise as PromiseConstructor & { withResolvers?: unknown };
+  if (typeof P.withResolvers === "function") return;
+  Object.defineProperty(Promise, "withResolvers", {
+    configurable: true,
+    writable: true,
+    enumerable: false,
+    value: function withResolvers<T>(this: PromiseConstructor) {
+      let resolve!: (value: T | PromiseLike<T>) => void;
+      let reject!: (reason?: unknown) => void;
+      const promise = new this<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    },
+  });
+}
+
 type WorkerModule = { WorkerMessageHandler: unknown };
 /**
  * pdfjs-dist ships no types for its worker module; held in a constant so the
@@ -96,7 +134,8 @@ let ownWorker: WorkerModule | null = null;
  */
 export function loadPdfjs(): Promise<PdfjsModule> {
   loaded ??= (async () => {
-    const mod = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as PdfjsModule;
+    ensurePromiseWithResolvers();
+    const mod =(await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as PdfjsModule;
     const worker = (await import(PDFJS_WORKER_MODULE)) as WorkerModule;
     const expected = resolvedPdfjsPackageVersion();
     if (mod.version !== expected) {
@@ -169,7 +208,7 @@ export async function extractPdfTextWithPdfjs(pdf: Uint8Array | Buffer): Promise
     });
     return text;
   } finally {
-    await doc.destroy();
+    await closePdf(doc);
   }
 }
 

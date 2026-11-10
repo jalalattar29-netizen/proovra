@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { openPdf } from "../src/pdf/pdfjs-runtime.js";
+import { closePdf, openPdf } from "../src/pdf/pdfjs-runtime.js";
 import { PdfRendererIdentityError, setPdfRendererIdentity } from "../src/report-v2/pdf-renderer-identity.js";
 import { REPORT_PDF_CREATOR } from "../src/report-v2/render-pdf.js";
 
@@ -62,7 +62,7 @@ async function infoOf(pdf: Buffer): Promise<Record<string, unknown>> {
   try {
     return ((await doc.getMetadata()).info ?? {}) as Record<string, unknown>;
   } finally {
-    await doc.destroy();
+    await closePdf(doc);
   }
 }
 
