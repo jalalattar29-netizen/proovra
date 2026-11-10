@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "cf4c5a90bf57dfbc35bf31d90d95c876a4ad9a9f62e394f9b9bbac43d8a1fa77",
-  "consumerInventoryHash": "abf8e779c4563de2f2dbe098e7cddbd1c0bd3b098fd031caf5c6a14299ac1ba7",
+  "consumerInventoryHash": "81a8ce826ce18433ef9065c6fa0da3007eea40ec318d8984c714b2414c5a3c0c",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1242,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11444,
+      "METHOD_ON_VALUE": 11445,
       "UNRESOLVED_IDENTIFIER": 1649
     },
     "MutationFixpointRounds": 10,
@@ -328,7 +328,7 @@
       "method": "DELETE",
       "route": "/v1/cases/:id/assignments/:assignmentId",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1975",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1944",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -352,7 +352,7 @@
       "method": "DELETE",
       "route": "/v1/cases/:id/evidence-links/:linkId",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:613",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:582",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2068,7 +2068,7 @@
       "method": "GET",
       "route": "/v1/cases/:id/discussion-threads",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1756",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1725",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2080,7 +2080,7 @@
       "method": "GET",
       "route": "/v1/cases/:id/evidence-requests",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1254",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1223",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9208,7 +9208,7 @@
       "method": "POST",
       "route": "/v1/cases/:id/assignments",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1945",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:1914",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9256,7 +9256,7 @@
       "method": "POST",
       "route": "/v1/cases/:id/evidence-links",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:547",
+      "productConsumer": "apps/web/components/cases-experience/MatterWorkspace.tsx:516",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -28923,8 +28923,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/automation.routes.ts#automationRule.create@311",
-      "terminalLocation": "services/api/src/routes/automation.routes.ts:311",
+      "writerId": "services/api/src/routes/automation.routes.ts#automationRule.create@334",
+      "terminalLocation": "services/api/src/routes/automation.routes.ts:334",
       "file": "services/api/src/routes/automation.routes.ts",
       "enclosingDeclaration": "automationRoutes",
       "kind": "DATABASE",
@@ -28956,8 +28956,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/automation.routes.ts#automationRule.update@395",
-      "terminalLocation": "services/api/src/routes/automation.routes.ts:395",
+      "writerId": "services/api/src/routes/automation.routes.ts#automationRule.update@417",
+      "terminalLocation": "services/api/src/routes/automation.routes.ts:417",
       "file": "services/api/src/routes/automation.routes.ts",
       "enclosingDeclaration": "automationRoutes",
       "kind": "DATABASE",
@@ -28989,8 +28989,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/automation.routes.ts#automationRule.update@431",
-      "terminalLocation": "services/api/src/routes/automation.routes.ts:431",
+      "writerId": "services/api/src/routes/automation.routes.ts#automationRule.update@462",
+      "terminalLocation": "services/api/src/routes/automation.routes.ts:462",
       "file": "services/api/src/routes/automation.routes.ts",
       "enclosingDeclaration": "transitionEnabled",
       "kind": "DATABASE",
@@ -29655,8 +29655,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.updateMany@6471",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6471",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.updateMany@6473",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6473",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "createWithDraftBinding",
       "kind": "DATABASE",
@@ -29688,8 +29688,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@6482",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6482",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@6484",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6484",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "createWithDraftBinding",
       "kind": "DATABASE",
@@ -29721,8 +29721,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13504",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13504",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13506",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13506",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29754,8 +29754,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@16302",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16302",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@16304",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16304",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29787,8 +29787,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6589",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6589",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6591",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6591",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29820,8 +29820,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6868",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6868",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6870",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6870",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29853,8 +29853,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@16290",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16290",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@16292",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16292",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29886,8 +29886,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7483",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7483",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7485",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7485",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29919,8 +29919,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7569",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7569",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7571",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7571",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29952,8 +29952,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7686",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7686",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@7688",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7688",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29985,8 +29985,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@10112",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10112",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@10114",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10114",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30018,8 +30018,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@9000",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9000",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@9002",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9002",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30051,8 +30051,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@9081",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9081",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@9083",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9083",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30084,8 +30084,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@9162",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9162",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@9164",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9164",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30117,8 +30117,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@8824",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8824",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@8826",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8826",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30150,8 +30150,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8882",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8882",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8884",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8884",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30183,8 +30183,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8939",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8939",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8941",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8941",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30216,8 +30216,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@8649",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8649",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@8651",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8651",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30249,8 +30249,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8707",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8707",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8709",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8709",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30282,8 +30282,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8764",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8764",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@8766",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8766",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30315,8 +30315,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@7493",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7493",
+      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@7495",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7495",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -30348,8 +30348,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@16308",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16308",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@16310",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16310",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -34660,8 +34660,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.create@983",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:983",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.create@1008",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1008",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimCreateUser",
       "kind": "DATABASE",
@@ -34693,8 +34693,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1587",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1587",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1631",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1631",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimReactivateUser",
       "kind": "DATABASE",
@@ -34726,8 +34726,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1685",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1685",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1729",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1729",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimUpdateUserAttributes",
       "kind": "DATABASE",
@@ -34759,8 +34759,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.updateMany@1361",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1361",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.updateMany@1405",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1405",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimDeactivateUser",
       "kind": "DATABASE",
@@ -34967,8 +34967,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#user.create@969",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:969",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#user.create@994",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:994",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimCreateUser",
       "kind": "DATABASE",
@@ -35000,8 +35000,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#user.updateMany@1391",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1391",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#user.updateMany@1435",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1435",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimDeactivateUser",
       "kind": "DATABASE",
@@ -41417,8 +41417,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@1001",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:1001",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@1014",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:1014",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "finaliseFailed",
       "kind": "DATABASE",
@@ -41450,8 +41450,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@1042",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:1042",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@1055",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:1055",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "finaliseSkipped",
       "kind": "DATABASE",
@@ -41483,8 +41483,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@577",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:577",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@590",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:590",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "finaliseSucceeded",
       "kind": "DATABASE",
@@ -41516,8 +41516,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@621",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:621",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@634",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:634",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "finaliseRetryScheduled",
       "kind": "DATABASE",
@@ -41549,8 +41549,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@894",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:894",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@907",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:907",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "finaliseAmbiguous",
       "kind": "DATABASE",
@@ -41582,8 +41582,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@961",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:961",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.update@974",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:974",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "finaliseRetryExhausted",
       "kind": "DATABASE",
@@ -41648,8 +41648,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.updateMany@503",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:503",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.updateMany@516",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:516",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "sweepDueDeliveries",
       "kind": "DATABASE",
@@ -41681,8 +41681,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.updateMany@850",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:850",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDelivery.updateMany@863",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:863",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "fencedDeliveryUpdate",
       "kind": "DATABASE",
@@ -41714,8 +41714,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDestination.update@1086",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:1086",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDestination.update@1099",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:1099",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "markDestinationFailure",
       "kind": "DATABASE",
@@ -41747,8 +41747,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDestination.update@1109",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:1109",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDestination.update@1122",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:1122",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "markDestinationFailure",
       "kind": "DATABASE",
@@ -41780,8 +41780,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDestination.update@586",
-      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:586",
+      "writerId": "services/api/src/services/automation/automation-delivery-runtime.service.ts#automationWebhookDestination.update@599",
+      "terminalLocation": "services/api/src/services/automation/automation-delivery-runtime.service.ts:599",
       "file": "services/api/src/services/automation/automation-delivery-runtime.service.ts",
       "enclosingDeclaration": "finaliseSucceeded",
       "kind": "DATABASE",
@@ -53178,8 +53178,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-certification.service.ts#evidenceCertification.update@431",
-      "terminalLocation": "services/api/src/services/evidence-certification.service.ts:431",
+      "writerId": "services/api/src/services/evidence-certification.service.ts#evidenceCertification.update@450",
+      "terminalLocation": "services/api/src/services/evidence-certification.service.ts:450",
       "file": "services/api/src/services/evidence-certification.service.ts",
       "enclosingDeclaration": "revokeEvidenceCertification",
       "kind": "DATABASE",
@@ -106745,7 +106745,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2369,
+          "line": 2376,
           "caller": "SettingsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106916,7 +106916,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 1975,
+          "line": 1944,
           "caller": "AssignmentsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106926,7 +106926,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1975 (AssignmentsTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1944 (AssignmentsTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -106986,7 +106986,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2047,
+          "line": 2054,
           "caller": "NotesTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106996,7 +106996,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:255 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2047 (NotesTab, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:255 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2054 (NotesTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107050,7 +107050,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 613,
+          "line": 582,
           "caller": "MatterWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107060,7 +107060,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:613 (MatterWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:582 (MatterWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107147,7 +107147,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 1054,
+          "line": 1061,
           "caller": "EvidenceTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107423,7 +107423,7 @@
       "method": "DELETE",
       "path": "/v1/collaboration-teams/:teamId/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1244",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1259",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107595,7 +107595,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7921",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7923",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107676,7 +107676,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9137",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9139",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107750,7 +107750,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8742",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8744",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107824,7 +107824,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8917",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8919",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107898,7 +107898,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9824",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9826",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -109365,7 +109365,7 @@
       "method": "DELETE",
       "path": "/v1/siu/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1035",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1064",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -109874,7 +109874,7 @@
       "method": "DELETE",
       "path": "/v2/scim/Groups/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:463",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:464",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -109886,7 +109886,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:463 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:464 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -109939,7 +109939,7 @@
       "method": "DELETE",
       "path": "/v2/scim/Users/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:338",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:339",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -109951,7 +109951,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:338 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:339 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -110233,7 +110233,7 @@
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14181",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14183",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -114868,7 +114868,7 @@
       "method": "GET",
       "path": "/v1/automation/rules",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation.routes.ts:222",
+      "registrationEvidence": "services/api/src/routes/automation.routes.ts:246",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireTeamCapability -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -114933,7 +114933,7 @@
       "method": "GET",
       "path": "/v1/automation/runs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation.routes.ts:458",
+      "registrationEvidence": "services/api/src/routes/automation.routes.ts:489",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireTeamCapability -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -115000,7 +115000,7 @@
       "method": "GET",
       "path": "/v1/automation/runs/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation.routes.ts:506",
+      "registrationEvidence": "services/api/src/routes/automation.routes.ts:537",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireTeamCapability -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -116672,7 +116672,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 1398,
+          "line": 1405,
           "caller": "AttachEvidenceModal",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116682,7 +116682,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/case-detail-sections.tsx:89 (CaseAttachEvidenceSheet, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1398 (AttachEvidenceModal, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/case-detail-sections.tsx:89 (CaseAttachEvidenceSheet, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1405 (AttachEvidenceModal, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116737,7 +116737,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 1756,
+          "line": 1725,
           "caller": "CommunicationsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116747,7 +116747,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1756 (CommunicationsTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1725 (CommunicationsTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116798,7 +116798,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 1254,
+          "line": 1223,
           "caller": "EvidenceTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116808,7 +116808,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1254 (EvidenceTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1223 (EvidenceTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -117061,7 +117061,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 497,
+          "line": 466,
           "caller": "MatterWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -117069,7 +117069,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 528,
+          "line": 497,
           "caller": "MatterWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -117077,7 +117077,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 220,
+          "line": 224,
           "caller": "SimpleCaseDetail",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -117087,7 +117087,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:187 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/MatterWorkspace.tsx:497 (MatterWorkspace, WEB); apps/web/components/cases-experience/MatterWorkspace.tsx:528 (MatterWorkspace, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:187 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/MatterWorkspace.tsx:466 (MatterWorkspace, WEB); apps/web/components/cases-experience/MatterWorkspace.tsx:497 (MatterWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -117221,7 +117221,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-export/preflight",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:601",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:618",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117282,7 +117282,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-exports",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:790",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:807",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117340,7 +117340,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-exports/:exportId/download",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1119",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1148",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117413,7 +117413,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/siu-profile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:320",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:337",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117977,7 +117977,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:434",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:437",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118067,7 +118067,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:548",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:551",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118221,7 +118221,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1806",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1833",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118364,7 +118364,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/archive-impact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:678",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:681",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118441,7 +118441,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/assignable-targets",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1578",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1605",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118518,7 +118518,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1848",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1875",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118694,7 +118694,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/eligible-members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1727",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1754",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118807,7 +118807,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1762",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1789",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118928,7 +118928,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/overview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1629",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1656",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -119004,7 +119004,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/entitlement",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1554",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1581",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -119102,7 +119102,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/responsibility",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1677",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1704",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -120021,7 +120021,7 @@
       "method": "GET",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7965",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7967",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -121031,7 +121031,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11536",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11538",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121213,7 +121213,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/ai-categorization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9862",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9864",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121290,7 +121290,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8955",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8957",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121425,7 +121425,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12219",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12221",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121575,7 +121575,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14014",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14016",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121663,7 +121663,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8599",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8601",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121733,7 +121733,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comparison",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9178",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9180",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121806,7 +121806,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/duplicates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9262",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9264",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121879,7 +121879,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/external-intake-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9670",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9672",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -122020,7 +122020,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8780",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8782",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122161,7 +122161,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13386",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13388",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122255,7 +122255,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7260",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7262",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122341,7 +122341,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9724",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9726",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122395,7 +122395,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12787",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12789",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122529,7 +122529,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reports/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13031",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13033",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122622,7 +122622,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/review-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10166",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10168",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> handler: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -122751,7 +122751,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9482",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9484",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122837,7 +122837,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9701",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9703",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122908,7 +122908,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/technical-metadata",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6791",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6793",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -123046,7 +123046,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13628",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13630",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -123170,7 +123170,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13140",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13142",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -123264,7 +123264,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version/external-disclosure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13283",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13285",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -123405,7 +123405,7 @@
       "method": "GET",
       "path": "/v1/evidence/library-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8103",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8105",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -143594,7 +143594,7 @@
       "method": "GET",
       "path": "/v1/siu/intake-templates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:233",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:250",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -143650,7 +143650,7 @@
       "method": "GET",
       "path": "/v1/siu/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:828",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:845",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -143707,7 +143707,7 @@
       "method": "GET",
       "path": "/v1/siu/saved-views/custom",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:954",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:971",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -143760,7 +143760,7 @@
       "method": "GET",
       "path": "/v1/siu/worklist",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:274",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:291",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -144295,7 +144295,7 @@
         },
         {
           "file": "apps/web/app/(app)/integrations/page.tsx",
-          "line": 3051,
+          "line": 3055,
           "caller": "load",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -144303,7 +144303,7 @@
         },
         {
           "file": "apps/web/app/(app)/integrations/page.tsx",
-          "line": 3306,
+          "line": 3310,
           "caller": "load",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -144321,7 +144321,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:207 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/integrations/page.tsx:3051 (load, WEB); apps/web/app/(app)/integrations/page.tsx:3306 (load, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:207 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/integrations/page.tsx:3055 (load, WEB); apps/web/app/(app)/integrations/page.tsx:3310 (load, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147429,7 +147429,7 @@
       "method": "GET",
       "path": "/v2/scim/Groups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:413",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:414",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -147441,7 +147441,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:413 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:414 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -147493,7 +147493,7 @@
       "method": "GET",
       "path": "/v2/scim/Groups/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:395",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:396",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -147505,7 +147505,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:395 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:396 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -147555,7 +147555,7 @@
       "method": "GET",
       "path": "/v2/scim/Users",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:204",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:205",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -147567,7 +147567,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:204 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:205 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -147603,9 +147603,7 @@
         "services/api/src/services/access-control/scim.service.ts: scimProvisioningToken.update — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "services/api/src/services/access-control/scim.service.ts: externalIdentityMapping.count — no tenant or self predicate",
-        "services/api/src/services/access-control/scim.service.ts: externalIdentityMapping.findMany — no tenant or self predicate"
+        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -147618,7 +147616,7 @@
       "method": "GET",
       "path": "/v2/scim/Users/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:186",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:187",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -147630,7 +147628,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:186 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:187 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -147961,7 +147959,7 @@
       "method": "PATCH",
       "path": "/v1/automation/rules/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation.routes.ts:333",
+      "registrationEvidence": "services/api/src/routes/automation.routes.ts:356",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireTeamCapability -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -147999,6 +147997,7 @@
       "modelsRead": [
         "authenticatedSession",
         "automationRule",
+        "automationWebhookDestination",
         "organizationSecurityPolicy",
         "revokedSession",
         "supportAccessGrant",
@@ -148014,9 +148013,7 @@
         "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/routes/automation.routes.ts: automationRule.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/routes/automation.routes.ts: automationRule.update — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -148189,7 +148186,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2289,
+          "line": 2296,
           "caller": "SettingsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148207,7 +148204,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:271 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2289 (SettingsTab, WEB); apps/web/components/external-review/ReviewScopePicker.tsx:292 (ReviewScopePicker, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:271 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2296 (SettingsTab, WEB); apps/web/components/external-review/ReviewScopePicker.tsx:292 (ReviewScopePicker, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148251,7 +148248,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:596",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:599",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148382,7 +148379,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/assignments/:assignmentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1975",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:2002",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148619,7 +148616,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1141",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1144",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148833,7 +148830,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9052",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9054",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148891,7 +148888,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8684",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8686",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -148965,7 +148962,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/label",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6824",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6826",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149037,7 +149034,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8859",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8861",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149111,7 +149108,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9780",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9782",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149169,7 +149166,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9494",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9496",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150552,7 +150549,7 @@
       "method": "PATCH",
       "path": "/v1/siu/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1002",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1025",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -150917,7 +150914,7 @@
       "method": "PATCH",
       "path": "/v2/scim/Groups/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:431",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:432",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -150929,7 +150926,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:431 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:432 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -150994,7 +150991,7 @@
       "method": "PATCH",
       "path": "/v2/scim/Users/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:229",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:230",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -151006,7 +151003,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:229 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:230 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -156250,7 +156247,7 @@
       "method": "POST",
       "path": "/v1/automation/rules",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation.routes.ts:268",
+      "registrationEvidence": "services/api/src/routes/automation.routes.ts:292",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireTeamCapability -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -156287,6 +156284,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "automationWebhookDestination",
         "organizationSecurityPolicy",
         "revokedSession",
         "supportAccessGrant",
@@ -156317,7 +156315,7 @@
       "method": "POST",
       "path": "/v1/automation/rules/:id/disable",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation.routes.ts:449",
+      "registrationEvidence": "services/api/src/routes/automation.routes.ts:480",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -156363,6 +156361,7 @@
       "modelsRead": [
         "authenticatedSession",
         "automationRule",
+        "automationWebhookDestination",
         "organizationSecurityPolicy",
         "revokedSession",
         "supportAccessGrant",
@@ -156377,9 +156376,7 @@
         "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/routes/automation.routes.ts: automationRule.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/routes/automation.routes.ts: automationRule.update — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -156392,7 +156389,7 @@
       "method": "POST",
       "path": "/v1/automation/rules/:id/enable",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation.routes.ts:443",
+      "registrationEvidence": "services/api/src/routes/automation.routes.ts:474",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -156430,6 +156427,7 @@
       "modelsRead": [
         "authenticatedSession",
         "automationRule",
+        "automationWebhookDestination",
         "organizationSecurityPolicy",
         "revokedSession",
         "supportAccessGrant",
@@ -156444,9 +156442,7 @@
         "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/routes/automation.routes.ts: automationRule.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/routes/automation.routes.ts: automationRule.update — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -156459,7 +156455,7 @@
       "method": "POST",
       "path": "/v1/automation/runs/process",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation.routes.ts:546",
+      "registrationEvidence": "services/api/src/routes/automation.routes.ts:577",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -156479,7 +156475,7 @@
       ],
       "primaryDisposition": "WORKER_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/automation.routes.ts:546 — worker caller(s): services/worker/src/automation-dispatch.ts:123 (runAutomationDispatchSweepTick)",
+      "dispositionEvidence": "services/api/src/routes/automation.routes.ts:577 — worker caller(s): services/worker/src/automation-dispatch.ts:123 (runAutomationDispatchSweepTick)",
       "dispositionReason": "called by the worker service",
       "replacement": null,
       "result": "DISPOSED_WORKER_CONSUMER",
@@ -160702,7 +160698,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 1945,
+          "line": 1914,
           "caller": "AssignmentsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -160712,7 +160708,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1945 (AssignmentsTab, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:1914 (AssignmentsTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -160788,7 +160784,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 1989,
+          "line": 1996,
           "caller": "NotesTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -160798,7 +160794,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:224 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1989 (NotesTab, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:224 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1996 (NotesTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -160859,7 +160855,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2010,
+          "line": 2017,
           "caller": "NotesTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -160869,7 +160865,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:239 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2010 (NotesTab, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:239 (CaseDetailScreen, MOBILE); apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:2017 (NotesTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -160946,7 +160942,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 1469,
+          "line": 1476,
           "caller": "AttachEvidenceModal",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161029,7 +161025,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/cases-experience/MatterWorkspace.tsx",
-          "line": 547,
+          "line": 516,
           "caller": "MatterWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -161039,7 +161035,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:547 (MatterWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/components/cases-experience/MatterWorkspace.tsx:516 (MatterWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -161237,7 +161233,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:639",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:656",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161316,7 +161312,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/checklist/:itemId/map-evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:393",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:410",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161371,7 +161367,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/checklist/:itemId/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:421",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:438",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161425,7 +161421,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/follow-ups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:500",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:517",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161477,7 +161473,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/follow-ups/:followUpId/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:549",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:566",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161530,7 +161526,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/indicators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:454",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:471",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161583,7 +161579,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/siu-profile/reveal-pii",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:860",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:877",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -161687,7 +161683,7 @@
         },
         {
           "file": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx",
-          "line": 2330,
+          "line": 2337,
           "caller": "SettingsTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162130,7 +162126,7 @@
       "method": "POST",
       "path": "/v1/collaboration-team-invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1526",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1553",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -162196,7 +162192,7 @@
       "method": "POST",
       "path": "/v1/collaboration-team-invites/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1494",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1521",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -162357,7 +162353,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:486",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:489",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -162531,7 +162527,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:727",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:730",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -162638,7 +162634,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1900",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1927",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -162887,7 +162883,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/invites/:inviteId/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1362",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1389",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -162960,7 +162956,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/invites/email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1318",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1345",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163017,7 +163013,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/lead-recovery",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:820",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:823",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163091,7 +163087,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1072",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:1075",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163186,7 +163182,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/members/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:968",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:971",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163281,7 +163277,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:897",
+      "registrationEvidence": "services/api/src/routes/collaboration-teams.routes.ts:900",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -164741,7 +164737,7 @@
       "method": "POST",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6333",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6335",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166191,7 +166187,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/ai-categorization/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9937",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9939",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166285,7 +166281,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8989",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8991",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166359,7 +166355,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7877",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7879",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166521,7 +166517,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14091",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14093",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166593,7 +166589,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14044",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14046",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166665,7 +166661,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14139",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14141",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166728,7 +166724,7 @@
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
-      "crossTenantRefusalSemantics": "refuses with 404",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -166737,7 +166733,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8640",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8642",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166810,7 +166806,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11728",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11730",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -166929,7 +166925,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8817",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8819",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167002,7 +166998,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/lock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7524",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7526",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167075,7 +167071,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6927",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6929",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167165,7 +167161,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9738",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9740",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167246,7 +167242,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12312",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12314",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167394,7 +167390,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7940",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7942",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167483,7 +167479,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7896",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7898",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167572,7 +167568,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unlock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7642",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7644",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -168232,7 +168228,7 @@
       "method": "POST",
       "path": "/v1/evidence/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8264",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8266",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -168324,7 +168320,7 @@
       "method": "POST",
       "path": "/v1/evidence/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7425",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7427",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -193772,7 +193768,7 @@
       "method": "POST",
       "path": "/v1/siu/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:980",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:997",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -193831,7 +193827,7 @@
       "method": "POST",
       "path": "/v1/siu/saved-views/:id/use",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1064",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:1093",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -197380,7 +197376,7 @@
       "method": "POST",
       "path": "/v2/scim/Groups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:368",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:369",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -197392,7 +197388,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:368 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:369 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -197609,7 +197605,7 @@
       "method": "PUT",
       "path": "/v1/cases/:id/siu-profile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/siu.routes.ts:354",
+      "registrationEvidence": "services/api/src/routes/siu.routes.ts:371",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
