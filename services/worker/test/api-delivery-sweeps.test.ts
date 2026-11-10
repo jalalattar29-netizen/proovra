@@ -23,6 +23,12 @@ describe("API delivery sweeps", () => {
         ["/v1/notifications/process-retries", NOTIFICATION_CRON_HEADER, "NOTIFICATION_CRON_SECRET"],
         ["/v1/notifications/run-digests", NOTIFICATION_CRON_HEADER, "NOTIFICATION_CRON_SECRET"],
         ["/v1/notifications/run-reminders", NOTIFICATION_CRON_HEADER, "NOTIFICATION_CRON_SECRET"],
+        // AUD-0003
+        ["/v1/governance/reconcile-retention", INTEGRATION_CRON_HEADER, "INTEGRATION_CRON_SECRET"],
+        ["/v1/integrations/process-webhook-retries", INTEGRATION_CRON_HEADER, "INTEGRATION_CRON_SECRET"],
+        ["/v1/integrations/webhooks/cleanup-deliveries", INTEGRATION_CRON_HEADER, "INTEGRATION_CRON_SECRET"],
+        ["/v1/integrations/process-secret-cleanup", INTEGRATION_CRON_HEADER, "INTEGRATION_CRON_SECRET"],
+        ["/v1/review-operations/reconcile-slas", INTEGRATION_CRON_HEADER, "INTEGRATION_CRON_SECRET"],
       ].sort(),
     );
   });

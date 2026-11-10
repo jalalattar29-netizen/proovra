@@ -116,6 +116,63 @@ describe("WORKFLOW-008 the worker sweeps against the real API", () => {
     expect(after.attemptCount).toBe(2);
   });
 
+  it("AUD-0003 — a due webhook retry is picked up by the sweep, with no operator action", async () => {
+    // At the audit a retry due in 30 s was still RETRY_SCHEDULED 40 s later and
+    // moved only when the route was called by hand. The endpoint here is
+    // disabled, so picking the row up ends it CANCELLED without any network call.
+    const prior = process.env.INTEGRATIONS_ENABLED;
+    process.env.INTEGRATIONS_ENABLED = "true";
+    try {
+      const endpoint = await prisma.webhookEndpoint.create({
+        data: {
+          teamId: org.workspaceId,
+          url: "https://hooks.example.com/aud-0003",
+          secretCiphertext: "not-used",
+          secretPrefix: "whsec_test",
+          createdByUserId: org.owner.userId,
+          status: "DISABLED",
+        } as never,
+        select: { id: true },
+      });
+      const delivery = await prisma.integrationWebhookDelivery.create({
+        data: {
+          endpointId: endpoint.id,
+          teamId: org.workspaceId,
+          eventId: randomUUID(),
+          eventType: "evidence.created",
+          payloadJson: {},
+          status: "RETRY_SCHEDULED",
+          attemptCount: 1,
+          nextAttemptAtUtc: new Date(Date.now() - 1000),
+        },
+        select: { id: true },
+      });
+      const sweep = API_DELIVERY_SWEEPS.find((s) => s.path === "/v1/integrations/process-webhook-retries");
+      expect(sweep, "no worker sweep calls the webhook retry route").toBeDefined();
+      const result = await runApiDeliverySweep(sweep!, { timeoutMs: 60_000 });
+      expect(result.ok).toBe(true);
+      const after = await prisma.integrationWebhookDelivery.findUniqueOrThrow({ where: { id: delivery.id } });
+      expect(after.status).toBe("CANCELLED");
+      expect(after.errorMessage).toBe("endpoint_inactive");
+    } finally {
+      if (prior === undefined) delete process.env.INTEGRATIONS_ENABLED;
+      else process.env.INTEGRATIONS_ENABLED = prior;
+    }
+  });
+
+  it("AUD-0003 — every maintenance route the audit found uncalled has a worker sweep", () => {
+    const paths = API_DELIVERY_SWEEPS.map((s) => s.path);
+    for (const p of [
+      "/v1/governance/reconcile-retention",
+      "/v1/integrations/process-webhook-retries",
+      "/v1/integrations/webhooks/cleanup-deliveries",
+      "/v1/integrations/process-secret-cleanup",
+      "/v1/review-operations/reconcile-slas",
+    ]) {
+      expect(paths, p).toContain(p);
+    }
+  });
+
   it("a requested personal data export is produced by the lifecycle tick", async () => {
     const user = await prisma.user.create({
       data: { email: `w008-${randomUUID().slice(0, 8)}@test.proovra.local`, provider: "EMAIL", providerUserId: randomUUID() },

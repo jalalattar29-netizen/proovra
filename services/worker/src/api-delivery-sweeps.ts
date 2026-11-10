@@ -68,6 +68,49 @@ export const API_DELIVERY_SWEEPS: ReadonlyArray<ApiDeliverySweep> = [
     secretEnv: "NOTIFICATION_CRON_SECRET",
     intervalMs: 15 * MINUTE,
   },
+  // AUD-0003 — five more maintenance routes with no caller. A webhook retry due
+  // in 30 s was still waiting 40 s later and went out only when the route was
+  // called by hand. Each claims or bounds its own work, so a host crontab
+  // running alongside is safe.
+  {
+    // Claims each RETRY_SCHEDULED delivery whose next attempt is due.
+    name: "integration-webhook-retries",
+    path: "/v1/integrations/process-webhook-retries",
+    header: INTEGRATION_CRON_HEADER,
+    secretEnv: "INTEGRATION_CRON_SECRET",
+    intervalMs: MINUTE,
+  },
+  {
+    // Deletes only terminal deliveries older than the retention window.
+    name: "integration-webhook-delivery-cleanup",
+    path: "/v1/integrations/webhooks/cleanup-deliveries",
+    header: INTEGRATION_CRON_HEADER,
+    secretEnv: "INTEGRATION_CRON_SECRET",
+    intervalMs: 360 * MINUTE,
+  },
+  {
+    // Clears rotated-out key and secret material once its grace window closed.
+    name: "integration-secret-cleanup",
+    path: "/v1/integrations/process-secret-cleanup",
+    header: INTEGRATION_CRON_HEADER,
+    secretEnv: "INTEGRATION_CRON_SECRET",
+    intervalMs: 60 * MINUTE,
+  },
+  {
+    // Flags records past their retention date for an operator; deletes nothing.
+    name: "governance-retention-reconcile",
+    path: "/v1/governance/reconcile-retention",
+    header: INTEGRATION_CRON_HEADER,
+    secretEnv: "INTEGRATION_CRON_SECRET",
+    intervalMs: 60 * MINUTE,
+  },
+  {
+    name: "review-sla-reconcile",
+    path: "/v1/review-operations/reconcile-slas",
+    header: INTEGRATION_CRON_HEADER,
+    secretEnv: "INTEGRATION_CRON_SECRET",
+    intervalMs: 15 * MINUTE,
+  },
 ];
 
 export type ApiDeliverySweepResult = {

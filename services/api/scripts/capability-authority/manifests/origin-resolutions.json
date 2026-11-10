@@ -226,7 +226,7 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/worker/src/api-delivery-sweeps.ts:112",
+      "site": "services/worker/src/api-delivery-sweeps.ts:155",
       "verdict": "PLUMBING",
       "originBinding": "base = the API origin the worker is configured with",
       "evidence": "runApiDeliverySweepTick: the worker's one caller of this API's cron routes; each path comes from API_DELIVERY_SWEEPS.",

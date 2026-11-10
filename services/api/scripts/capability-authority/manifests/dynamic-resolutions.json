@@ -219,7 +219,7 @@
     {
       "site": "services/worker/src/index.ts:1709",
       "class": "INTERNAL_API_ROUTE_TABLE",
-      "evidence": "runApiDeliverySweepTick(sweep): API_DELIVERY_SWEEPS in services/worker/src/api-delivery-sweeps.ts is a closed table of four cron routes on this API (WORKFLOW-008).",
+      "evidence": "runApiDeliverySweepTick(sweep): API_DELIVERY_SWEEPS in services/worker/src/api-delivery-sweeps.ts is a closed table of nine cron routes on this API (WORKFLOW-008; five added for AUD-0003 on 2026-11-10).",
       "reviewedAtUtc": "2026-11-02"
     },
     {
