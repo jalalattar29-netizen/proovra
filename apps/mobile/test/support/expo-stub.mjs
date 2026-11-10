@@ -45,6 +45,7 @@ const stableRouter = {
 };
 export const useRouter = () => stableRouter;
 export const usePathname = () => "/";
+export const useSegments = () => globalThis.__EXPO_SEGMENTS__ ?? [];
 export const useLocalSearchParams = () => globalThis.__EXPO_PARAMS__ ?? {};
 // Like expo-router: the effect re-runs (cleanup first) whenever the memoised
 // callback changes while the screen is focused — a screen that waits for data
