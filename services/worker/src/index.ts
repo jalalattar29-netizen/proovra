@@ -948,26 +948,39 @@ async function runArchiveRestoreTick() {
     archiveRestoreRunning = false;
   }
 }
+/**
+ * AUD-0001 — restore has its OWN switch (ARCHIVE_RESTORE_ENABLED, default on).
+ * It was started after this launcher's early return, so turning the
+ * destruction reconciler off (the switch exists to hold back automatic
+ * destruction) also stopped every archive restore a person was waiting for.
+ * It no longer sits behind that switch.
+ */
+const archiveRestoreEnabled = envBoolean("ARCHIVE_RESTORE_ENABLED", true);
 function startTrashGraceReconcilerScheduler() {
-  if (!trashGraceReconcilerEnabled) {
+  if (trashGraceReconcilerEnabled) {
+    trashGraceReconcilerTimer = setInterval(() => {
+      void runTrashGraceReconcilerTick();
+    }, trashGraceReconcilerIntervalMs);
+    trashGraceReconcilerTimer.unref?.();
+    logger.info(
+      {
+        intervalMs: trashGraceReconcilerIntervalMs,
+        automaticDestructionEnabled: automaticDestructionEnabled(),
+      },
+      "trash_grace.reconciler.scheduler.started",
+    );
+  } else {
     logger.info({}, "trash_grace.reconciler.scheduler.disabled");
-    return;
   }
-  trashGraceReconcilerTimer = setInterval(() => {
-    void runTrashGraceReconcilerTick();
-  }, trashGraceReconcilerIntervalMs);
-  trashGraceReconcilerTimer.unref?.();
-  archiveRestoreTimer = setInterval(() => {
-    void runArchiveRestoreTick();
-  }, archiveRestoreIntervalMs);
-  archiveRestoreTimer.unref?.();
-  logger.info(
-    {
-      intervalMs: trashGraceReconcilerIntervalMs,
-      automaticDestructionEnabled: automaticDestructionEnabled(),
-    },
-    "trash_grace.reconciler.scheduler.started",
-  );
+  // AUD-0001 — restore is started whatever the trash-grace switch says.
+  if (archiveRestoreEnabled) {
+    archiveRestoreTimer = setInterval(() => {
+      void runArchiveRestoreTick();
+    }, archiveRestoreIntervalMs);
+    archiveRestoreTimer.unref?.();
+  } else {
+    logger.info({}, "archive_restore.scheduler.disabled");
+  }
 }
 // ET-Q-06: started by openConsumers() after the bootstrap chain.
 void trashGraceReconcilerTimer;
@@ -2553,6 +2566,8 @@ async function shutdown(exitCode: number) {
     ["mi-embed", miEmbedWorker] as const,
     ["graph-reconcile", graphReconcileWorker] as const,
     ["graph-search-projection", graphSearchProjectionWorker] as const,
+    // AUD-0002 — registered at start-up, and closed with the others.
+    ["redaction-derivative", redactionDerivativeWorker] as const,
   ]) {
     if (!w) continue;
     try {
@@ -2572,6 +2587,9 @@ async function shutdown(exitCode: number) {
     await searchIndexingQueue.close();
     // Phase 31.6 — media intelligence queue + DLQ.
     await mediaIntelligenceQueue.close();
+    // AUD-0002 — the DLQ and the redaction-derivative queue were left open.
+    await mediaIntelligenceDlqQueue.close();
+    await redactionDerivativeQueue.close();
     // Phase 31.13 — derived assets queue.
     await derivedAssetsQueue.close();
     // Phase 16 — mi-embed queue.
