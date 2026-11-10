@@ -54,6 +54,8 @@ import { useRouter } from "next/navigation";
 import { Copy, FileText, Plus, Search, Share2 } from "lucide-react";
 
 import { apiFetch } from "../../../lib/api";
+import { usePlatformContext } from "../../../lib/platform-context";
+import { resolveCaseScopeLabel } from "../case-scope-label";
 // P2-4 — the ONE Cases label mapping for a canonical output state.
 import type { EvidenceOutputState } from "@proovra/shared";
 import { caseOutputLabel } from "../../../lib/evidence/generation-labels";
@@ -196,6 +198,8 @@ export function SimpleCaseDetail({
   // called unconditionally (React rules of hooks) — the consumer
   // tabs receive `confirm` via prop drilling.
   const { confirm } = useConfirmAction();
+  // AUD-0062 — the breadcrumb names the workspace that owns the case.
+  const platformEnvelope = usePlatformContext().envelope;
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   // Phase CASES-ATTACH-PICKER — `attachOpen` lives at page level so
@@ -319,6 +323,7 @@ export function SimpleCaseDetail({
   const deliverables = summariseDeliverables(workspace);
   const needsAttention = deriveNeedsAttention(workspace);
   const viewer = workspace.viewer;
+  const scopeLabel = resolveCaseScopeLabel(caseDetail.teamId ?? null, platformEnvelope);
 
   return (
     <CaseDetailPlane
@@ -328,6 +333,8 @@ export function SimpleCaseDetail({
     >
       <CaseDetailHeader
         caseDetail={caseDetail}
+        // AUD-0062 — the workspace that owns the case, not a default.
+        scopeLabel={scopeLabel}
         evidenceCount={evidenceItems.length}
         isReloading={Boolean(isReloading)}
         canLinkEvidence={viewer.canLinkEvidence}
@@ -578,7 +585,7 @@ export function CaseDetailHeader({
   canLinkEvidence,
   linkEvidenceDisabledReason,
   onAddEvidence,
-  scopeLabel = "Personal Space",
+  scopeLabel,
   primaryActionLabel = "Add evidence",
   extraMeta,
   secondaryActions,
