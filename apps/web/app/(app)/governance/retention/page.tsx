@@ -52,7 +52,7 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
-import { EditRetentionPolicyDialog } from "./_EditRetentionPolicyDialog";
+import { EditRetentionPolicyDialog, editFailureMessage } from "./_EditRetentionPolicyDialog";
 
 type PolicyStatus = "ACTIVE" | "PAUSED" | "SUPERSEDED" | "ARCHIVED";
 type PolicyScope = "WORKSPACE" | "EVIDENCE_TYPE" | "CASE" | "REGULATORY";
@@ -339,7 +339,7 @@ function RetentionPoliciesPageInner() {
       setVersions(res.versions);
     } catch (err) {
       const e = err as { message?: string };
-      alert(toSafeUserError(e, { message: "Could not load policy versions." }).message);
+      setError(toSafeUserError(e, { message: "Could not load policy versions." }).message);
       setSelectedVersionsFor(null);
     }
   }
@@ -358,22 +358,28 @@ function RetentionPoliciesPageInner() {
     });
     if (!note) return;
     try {
-      await apiFetch(
-        `/v1/governance/retention-policies/${policy.id}/transition`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            teamId,
-            nextStatus,
-            changeNote: note.trim(),
-          }),
-        },
+      // AUD-0058 — a transition is stepped up on the server (as an edit is):
+      // it runs through the same step-up hook, so the modal opens instead of
+      // a refusal the page could not act on.
+      await stepUp.runStepUpAction((headers) =>
+        apiFetch(
+          `/v1/governance/retention-policies/${policy.id}/transition`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({
+              teamId,
+              nextStatus,
+              changeNote: note.trim(),
+            }),
+          },
+        ),
       );
+      setError(null);
       await refresh();
     } catch (err) {
-      const e = err as { message?: string };
-      alert(toSafeUserError(e, { message: `Could not transition policy to ${nextStatus}.` }).message);
+      // Said on the page, never in a browser alert.
+      setError(editFailureMessage(err));
     }
   }
 
@@ -925,6 +931,7 @@ function RetentionPoliciesPageInner() {
       {showCreate && teamId ? (
         <CreatePolicyModal
           teamId={teamId}
+          runStepUpAction={stepUp.runStepUpAction}
           onCancel={() => setShowCreate(false)}
           onCreated={async () => {
             setShowCreate(false);
@@ -1009,13 +1016,17 @@ function VersionsModal({
 
 function CreatePolicyModal({
   teamId,
+  runStepUpAction,
   onCancel,
   onCreated,
 }: {
   teamId: string;
+  /** AUD-0058 — creation is stepped up on the server, as an edit is. */
+  runStepUpAction: <T>(action: (headers?: Record<string, string>) => Promise<T>) => Promise<T>;
   onCancel: () => void;
   onCreated: () => Promise<void>;
 }) {
+  const [createError, setCreateError] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState<PolicyScope>("WORKSPACE");
@@ -1051,15 +1062,22 @@ function CreatePolicyModal({
             : null,
         changeNote: changeNote.trim() || undefined,
       };
-      await apiFetch("/v1/governance/retention-policies", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      setCreateError(null);
+      await runStepUpAction((headers) =>
+        apiFetch("/v1/governance/retention-policies", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify(body),
+        }),
+      );
       await onCreated();
     } catch (err) {
-      const e = err as { message?: string };
-      alert(toSafeUserError(e, { message: "Could not create policy." }).message);
+      // In the form, next to the fields the person is editing.
+      setCreateError(
+        (err as { code?: string } | null)?.code === "STEP_UP_CANCEL"
+          ? "Identity verification was cancelled, so no policy was created."
+          : toSafeUserError(err, { message: "Could not create policy." }).message,
+      );
     } finally {
       setBusy(false);
     }
@@ -1069,6 +1087,11 @@ function CreatePolicyModal({
     <div style={modalBackdropStyle} role="dialog" aria-modal>
       <div style={{ ...modalStyle, maxWidth: 560 }}>
         <h3 style={sectionTitleStyle}>New retention policy</h3>
+        {createError ? (
+          <div style={errorBoxStyle} role="alert" data-retention-create-error>
+            {createError}
+          </div>
+        ) : null}
 
         <Field label="Display name">
           <input

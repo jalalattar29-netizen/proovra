@@ -13,14 +13,14 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), confirm: vi.fn(), stepUpCalls: 0 }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), confirm: vi.fn(), askReason: vi.fn(), stepUpCalls: 0 }));
 
 vi.mock("../../lib/api", () => ({
   apiFetch: mocks.fetch,
   ApiError: class ApiError extends Error {},
 }));
 vi.mock("../../components/ui/ConfirmActionModal", () => ({
-  useConfirmAction: () => ({ confirm: mocks.confirm }),
+  useConfirmAction: () => ({ confirm: mocks.confirm, askReason: mocks.askReason }),
 }));
 vi.mock("../../components/navigation/PageRouteGate", () => ({
   PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -228,5 +228,64 @@ describe("governance retention policy edit", () => {
     render(<RetentionPoliciesPage />);
     await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));
     expect(screen.queryByText("No retention policy configured")).toBeNull();
+  });
+});
+
+/**
+ * AUD-0058 — create and transition are stepped up on the server, as edit is.
+ * They called apiFetch directly, so the server's 401 STEP_UP_REQUIRED reached
+ * a browser alert ("confirm your identity") the page offered no way to do.
+ * Both now run through the step-up hook, and failures are said on the page.
+ */
+describe("AUD-0058 — create and transition run through step-up; failures are on the page", () => {
+  const posts = () => mocks.fetch.mock.calls.filter(([, init]) => init?.method === "POST");
+
+  it("Create policy runs through the step-up hook and sends its challenge", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) =>
+      init?.method === "POST" && path === "/v1/governance/retention-policies" ? { policy: policy({ id: "new" }) } : defaultReply(path, init),
+    );
+    render(<RetentionPoliciesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "New policy" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getAllByRole("textbox")[0]!, { target: { value: "Ten years" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create policy" }));
+    await waitFor(() => expect(posts().length).toBe(1));
+    expect(mocks.stepUpCalls).toBe(1);
+    const [, init] = posts()[0]!;
+    expect((init!.headers as Record<string, string>)["x-proovra-step-up-challenge-id"]).toBe("challenge-1");
+    expect(alertSpy).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+
+  it("a refused create is said inside the form, not in a browser alert", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (init?.method === "POST") throw failure(403);
+      return defaultReply(path, init);
+    });
+    render(<RetentionPoliciesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "New policy" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getAllByRole("textbox")[0]!, { target: { value: "Ten years" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create policy" }));
+    expect(await within(dialog).findByRole("alert")).toBeTruthy();
+    expect(alertSpy).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+
+  it("Archive runs through the step-up hook with its change note", async () => {
+    mocks.askReason.mockResolvedValue("Retired with the old claims process");
+    mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) =>
+      init?.method === "POST" && path.endsWith("/transition") ? { policy: policy({ status: "ARCHIVED" }) } : defaultReply(path, init),
+    );
+    render(<RetentionPoliciesPage />);
+    const archive = (await screen.findAllByRole("button", { name: "Archive" }))[0]!;
+    fireEvent.click(archive);
+    await waitFor(() => expect(posts().some(([p]) => String(p).endsWith(`/${ID}/transition`))).toBe(true));
+    expect(mocks.stepUpCalls).toBe(1);
+    const [, init] = posts().find(([p]) => String(p).endsWith("/transition"))!;
+    expect((init!.headers as Record<string, string>)["x-proovra-step-up-challenge-id"]).toBe("challenge-1");
+    expect(JSON.parse(String(init!.body))).toMatchObject({ nextStatus: "ARCHIVED", changeNote: "Retired with the old claims process" });
   });
 });
