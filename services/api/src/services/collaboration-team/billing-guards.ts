@@ -418,7 +418,7 @@ export async function assertCanCreateCollaborationTeam(
  * group and in the workspace — WCR-11, so a group is never "full" of leavers)
  * who is not the workspace owner.
  */
-function capacityMemberWhere(workspaceId: string, ownerUserId: string) {
+export function capacityMemberWhere(workspaceId: string, ownerUserId: string) {
   return {
     ...effectiveGroupMemberWhere(workspaceId),
     userId: { not: ownerUserId },

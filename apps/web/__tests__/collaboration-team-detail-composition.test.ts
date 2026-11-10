@@ -245,3 +245,11 @@ test("every app-* class the picker renders is actually declared", () => {
     "a class the stylesheet has never heard of styles nothing, silently",
   );
 });
+
+test("AUD-0051 — the members tab compares the server's capacity count (owner excluded) with the limit", () => {
+  const src = read(`${TEAM}/_tabs/MembersTab.tsx`);
+  assert.match(src, /const capacityMemberCount = team\.capacityMemberCount \?\? activeMemberCount;/);
+  assert.match(src, /capacityMemberCount >= maxMembersPerTeam/);
+  assert.match(src, /memberCount=\{capacityMemberCount\}/);
+  assert.doesNotMatch(src, /activeMemberCount >= maxMembersPerTeam/);
+});

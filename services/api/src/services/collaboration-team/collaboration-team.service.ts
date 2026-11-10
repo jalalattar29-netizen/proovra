@@ -111,6 +111,7 @@ import {
   assertCanCreateCollaborationTeam,
   assertCollaborationTeamMemberLimit,
   assertSubscriptionActiveOrGraceAllowed,
+  capacityMemberWhere,
   lockAndAssertCollaborationTeamCapacity,
   lockAndAssertCollaborationTeamMemberCapacity,
   lockCollaborationTeamMembership,
@@ -1205,6 +1206,8 @@ export async function getCollaborationTeamDetail(
           assignments: true,
         },
       },
+      // AUD-0051 — whose seat the workspace owner is (never counted).
+      workspace: { select: { ownerUserId: true } },
     },
   });
   if (!team || team.workspaceId !== input.workspaceId) throw E.notFound("Team");
@@ -1230,10 +1233,18 @@ export async function getCollaborationTeamDetail(
    */
   if (!viewerRow && !input.viaWorkspaceGovernance) throw E.notFound("Team");
   const viewer = { role: viewerRow?.role ?? "VIEWER" };
-  const [activeMemberCount, pendingInviteCount, validLeadCount] = await Promise.all([
+  const [activeMemberCount, capacityMemberCount, pendingInviteCount, validLeadCount] = await Promise.all([
     client.collaborationTeamMember.count({
       // WCR-11 — effective members only.
       where: { teamId: input.teamId, ...effectiveGroupMemberWhere(input.workspaceId) },
+    }),
+    // AUD-0051 — the members that occupy a capacity place: the SAME predicate
+    // the member-limit guard enforces (the workspace owner never consumes
+    // one). The console compared `activeMemberCount`, owner included, with the
+    // limit: the last paid place could not be filled and a full team read
+    // "11 of 10".
+    client.collaborationTeamMember.count({
+      where: { teamId: input.teamId, ...capacityMemberWhere(input.workspaceId, team.workspace.ownerUserId) },
     }),
     client.collaborationTeamInvite.count({
       where: { teamId: input.teamId, status: "PENDING" },
@@ -1289,6 +1300,7 @@ export async function getCollaborationTeamDetail(
       canManageAccessReviews: isCollaborationTeamModerator(viewer.role),
     },
     activeMemberCount,
+    capacityMemberCount,
     pendingInviteCount,
     validLeadCount,
     memberPreviewLimit: DETAIL_MEMBER_PREVIEW,

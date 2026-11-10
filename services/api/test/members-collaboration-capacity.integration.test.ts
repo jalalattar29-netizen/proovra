@@ -138,6 +138,27 @@ describe("Phase C — collaboration capacity", () => {
     expect(await refusalOf(add(teamId, eleventh.id))).toBe("TEAM_MEMBER_LIMIT_REACHED");
   });
 
+  // AUD-0051 — the detail projects the count the guard enforces, so the
+  // console's capacity badge and Add button agree with the server: at nine
+  // non-owner members a TEAM group is NOT full (9 of 10), at ten it is.
+  it("AUD-0051 — the detail's capacity count excludes the owner LEAD, exactly as the guard does", async () => {
+    await plan("TEAM");
+    const teamId = await group();
+    await fill(teamId, 9);
+    const detail = () =>
+      ct.getCollaborationTeamDetail({ teamId, workspaceId: W().teamId, actorUserId: owner() } as never) as Promise<{
+        activeMemberCount: number;
+        capacityMemberCount: number;
+      }>;
+    expect(await detail()).toMatchObject({ activeMemberCount: 10, capacityMemberCount: 9 });
+    const tenth = await person();
+    await add(teamId, tenth.id); // the place the console used to refuse
+    expect(await detail()).toMatchObject({ activeMemberCount: 11, capacityMemberCount: 10 });
+    const eleventh = await person();
+    expect(await refusalOf(add(teamId, eleventh.id))).toBe("TEAM_MEMBER_LIMIT_REACHED");
+    expect((await detail()).capacityMemberCount).toBe(10);
+  });
+
   it("CT-15 — adding someone already in the group is idempotent, even when the group is full", async () => {
     await plan("PRO");
     const teamId = await group();

@@ -129,6 +129,12 @@ export type CollaborationTeamDetail = {
    * are the population; `members` is the first page of it.
    */
   activeMemberCount: number;
+  /**
+   * AUD-0051 — the members that occupy a capacity place, by the guard's own
+   * rule (the workspace owner never does). What the capacity badge and the
+   * Add button compare with the limit. Optional: an older server omits it.
+   */
+  capacityMemberCount?: number;
   pendingInviteCount: number;
   /**
    * Members ledger X5 — valid leads (ACTIVE in the group and the workspace).
