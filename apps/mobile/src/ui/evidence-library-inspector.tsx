@@ -245,6 +245,7 @@ export function EvidenceLibraryInspector({
       facts,
       capabilities,
       anchor: evidence.anchor,
+      verification: evidence,
       formatDate: (iso: string) => formatUserDateTime(iso),
     };
     const rows = buildInspectorArtifactRows(input);

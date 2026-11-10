@@ -212,9 +212,12 @@ test("the Inspector is the web's queue selection, read from status — no URL is
     "Preview restricted",
     "Report available",
     "Verification packages are not included for this evidence record.",
-    "The anchor is configured. No anchored timestamp is recorded yet.",
+    // AUD-0027 — the row describes the record's verification page (a sealed
+    // record's page is open), never the anchoring setting.
+    "Open to anyone with its reference, verification only.",
     "No verification package is recorded for this record.",
   ]) assert.ok(r.hasText(t), `missing "${t}"`);
+  assert.equal(r.hasText("The anchor is configured. No anchored timestamp is recorded yet."), false);
   assert.equal(requests.some((q) => /report\/latest|verification-package/.test(q.path)), false, "a download URL was minted on open");
   // Report is READY → the download is live; the package reason is stated as text.
   const dl = r.byLabel("Download Report").find((n) => n.props.onPress);

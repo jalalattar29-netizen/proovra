@@ -15,7 +15,7 @@ import {
   otsAnchoringCopy,
   parseVerificationDisclosureMode,
   VERIFICATION_DISCLOSURE_MODE_LABELS,
-  type OtsState, evidenceVerificationStatusLabel } from "@proovra/shared";
+  type OtsState, evidenceVerificationStatusLabel, publicVerificationPageState } from "@proovra/shared";
 
 /** Server sort values (EvidenceListSortSchema). */
 export const LIBRARY_SORTS = ["newest", "oldest", "priority"] as const;
@@ -772,6 +772,13 @@ export interface InspectorEvidence {
   contentItems: InspectorContentItem[];
   /** getAnchorStatus — `anchor` on GET /v1/evidence/:id. */
   anchor: { configured: boolean; mode: string | null; anchoredAtUtc: string | null } | null;
+  /**
+   * AUD-0027 — the record's verification page: its own access state and
+   * disclosure mode (GET /v1/evidence/:id). The page's availability is read
+   * from these, never from the anchor setting.
+   */
+  verificationAccessState: string | null;
+  verificationDisclosureMode: string | null;
 }
 
 export type InspectorPreview =
@@ -859,6 +866,8 @@ export function projectInspectorEvidence(data: unknown): InspectorEvidence | nul
       const r = a as Record<string, unknown>;
       return { configured: r["configured"] === true, mode: inspectorString(r["mode"]), anchoredAtUtc: inspectorString(r["anchoredAtUtc"]) };
     })(),
+    verificationAccessState: inspectorString(evidence["verificationAccessState"]),
+    verificationDisclosureMode: inspectorString(evidence["verificationDisclosureMode"]),
   };
 }
 
@@ -1002,6 +1011,8 @@ export interface InspectorArtifactInput {
   facts: InspectorArtifactFacts | null;
   capabilities: InspectorCapabilities | null;
   anchor: InspectorEvidence["anchor"];
+  /** AUD-0027 — the record whose verification page the row describes. */
+  verification: Pick<InspectorEvidence, "status" | "verificationAccessState" | "verificationDisclosureMode"> | null;
   formatDate: (iso: string) => string;
 }
 
@@ -1075,23 +1086,17 @@ export function buildInspectorArtifactRows(input: InspectorArtifactInput): Inspe
     pkg = { key: "package", title: "Verification package", state: "missing", detail: "No verification package is recorded for this record." };
   }
 
-  const anchor = input.anchor;
-  let pub: InspectorArtifactRow;
-  if (!input.capabilities?.publicVerifyIncluded) {
-    pub = { key: "public-verification", title: "Public verification", state: "disabled", detail: "Public verification is not included in this workspace plan." };
-  } else if (!anchor?.configured || anchor.mode === "off") {
-    pub = { key: "public-verification", title: "Public verification", state: "not-configured", detail: "Not configured for this record." };
-  } else if (anchor.mode === "active" && anchor.anchoredAtUtc) {
-    pub = { key: "public-verification", title: "Public verification", state: "available", detail: `Anchored ${input.formatDate(anchor.anchoredAtUtc)}` };
-  } else {
-    pub = { key: "public-verification", title: "Public verification", state: "pending", detail: "The anchor is configured. No anchored timestamp is recorded yet." };
-  }
+  // AUD-0027 — what the verification page does now, from the record's own
+  // access state (the web's row, the same function). This row read the
+  // anchoring setting and said "Not configured" for records whose page opens.
+  const page = publicVerificationPageState(input.verification);
+  const pub: InspectorArtifactRow = { key: "public-verification", title: "Public verification", state: page.state, detail: page.detail };
 
   return [report, pkg, pub];
 }
 
 /** The footer's disabled reasons (QueueSelectionPreview.tsx:586-596), stated as text. */
-export function inspectorActionReasons(input: Pick<InspectorArtifactInput, "rowReportReady" | "outputs" | "facts" | "capabilities" | "anchor">): {
+export function inspectorActionReasons(input: Pick<InspectorArtifactInput, "rowReportReady" | "outputs" | "facts" | "capabilities" | "verification">): {
   report: string | null;
   package: string | null;
   link: string | null;
@@ -1099,11 +1104,12 @@ export function inspectorActionReasons(input: Pick<InspectorArtifactInput, "rowR
   return {
     report: inspectorReportAvailable(input) ? null : "No generated report is recorded for this record.",
     package: inspectorPackageAvailable(input) ? null : "No verification package is recorded for this record.",
-    link: !input.capabilities?.publicVerifyIncluded
-      ? "Public verification is not included in this workspace plan."
-      : !input.anchor?.configured
-        ? "No public verification anchor is configured for this record."
-        : null,
+    // AUD-0027 — the link is the verification page's; it is offered when the
+    // page opens, and the reason is the page's own when it does not.
+    link: (() => {
+      const page = publicVerificationPageState(input.verification);
+      return page.state === "available" ? null : page.detail;
+    })(),
   };
 }
 

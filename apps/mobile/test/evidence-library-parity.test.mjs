@@ -144,6 +144,7 @@ test("the Inspector's artifact rows follow the web's precedence over the canonic
     facts: null,
     capabilities: { reportsIncluded: true, verificationPackageIncluded: true, publicVerifyIncluded: true },
     anchor: { configured: true, mode: "active", anchoredAtUtc: "T3" },
+    verification: { status: "REPORTED", verificationAccessState: "AVAILABLE", verificationDisclosureMode: "VERIFY_ONLY" },
     formatDate: fmt,
   };
   // Real artifacts/status blocks (EvidenceArtifactStatus, evidence-artifact-status.service.ts).
@@ -158,8 +159,16 @@ test("the Inspector's artifact rows follow the web's precedence over the canonic
   assert.deepEqual(ready.map((r) => [r.title, r.state, r.detail]), [
     ["Report available", "available", "Generated @T1"],
     ["Verification package ready", "available", "Generated @T2"],
-    ["Public verification", "available", "Anchored @T3"],
+    ["Public verification", "available", "Open to anyone with its reference, verification only."],
   ]);
+  // AUD-0027 — the row is the verification PAGE's, read from the record's own
+  // access state. With anchoring off (the audit's record), the page still opens.
+  const anchorOff = mod.buildInspectorArtifactRows({ ...base, outputs: null, anchor: { configured: false, mode: "off", anchoredAtUtc: null } });
+  assert.deepEqual([anchorOff[2].state, anchorOff[2].detail], ["available", "Open to anyone with its reference, verification only."]);
+  const withdrawn = mod.buildInspectorArtifactRows({ ...base, outputs: null, verification: { status: "REPORTED", verificationAccessState: "WITHDRAWN", verificationDisclosureMode: null } });
+  assert.equal(withdrawn[2].state, "restricted");
+  const unsealed = mod.buildInspectorArtifactRows({ ...base, outputs: null, verification: { status: "UPLOADING", verificationAccessState: null, verificationDisclosureMode: null } });
+  assert.equal(unsealed[2].state, "pending");
 
   const excluded = mod.buildInspectorArtifactRows({
     ...base,
@@ -167,7 +176,8 @@ test("the Inspector's artifact rows follow the web's precedence over the canonic
     capabilities: null,
     anchor: null,
   });
-  assert.deepEqual(excluded.map((r) => r.state), ["disabled", "disabled", "disabled"]);
+  // Every finalized record has a verification page, on every plan (web OPS-001).
+  assert.deepEqual(excluded.map((r) => r.state), ["disabled", "disabled", "available"]);
   // An artifact that EXISTS is never described as "not in plan".
   const owned = mod.buildInspectorArtifactRows({
     ...base,
@@ -183,12 +193,22 @@ test("the Inspector's artifact rows follow the web's precedence over the canonic
     facts: null,
     capabilities: { publicVerifyIncluded: true },
     anchor: { configured: false },
+    verification: { status: "SIGNING", verificationAccessState: "AVAILABLE", verificationDisclosureMode: null },
   });
   assert.deepEqual(reasons, {
     report: "No generated report is recorded for this record.",
     package: "No verification package is recorded for this record.",
-    link: "No public verification anchor is configured for this record.",
+    link: "The verification page opens when the record is sealed.",
   });
+  // A sealed record with anchoring off offers its link.
+  assert.equal(
+    mod.inspectorActionReasons({ ...base, outputs: null, anchor: { configured: false } }).link,
+    null,
+  );
+  assert.equal(
+    mod.projectInspectorEvidence({ evidence: { id: "e", verificationAccessState: "WITHDRAWN", verificationDisclosureMode: "CONTENT_PREVIEW" } }).verificationAccessState,
+    "WITHDRAWN",
+  );
   assert.equal(
     mod.projectInspectorEvidence({ evidence: { id: "e", anchor: { mode: "ready", configured: true, anchoredAtUtc: null } } }).anchor.mode,
     "ready",
