@@ -776,17 +776,17 @@ export default function MarketingPricingPage() {
       ],
     },
     {
-      // Enforcement note: `enterpriseFeatures.objectLock` has no gate consumer
-      // in the codebase today. It is retained as an Enterprise row because
-      // Object Lock is a real storage posture the platform configures, but no
-      // per-plan gate turns it on or off — which is why it is not claimed as a
-      // capability the customer switches.
-      label: "Object Lock / immutable storage",
+      // AUD-0005 — every evidence object is written under the same S3 Object
+      // Lock: COMPLIANCE mode, 2,920 days (8 years), on every plan
+      // (evidence-retention-lifecycle.ts). No per-plan gate exists, so the row
+      // says what the storage does for everyone; it said "Not included" on
+      // every plan but Enterprise.
+      label: "Object Lock / immutable storage (8 years)",
       values: [
-        "Not included",
-        "Not included",
-        "Not included",
-        "Not included",
+        "Included",
+        "Included",
+        "Included",
+        "Included",
         "Included",
       ],
     },

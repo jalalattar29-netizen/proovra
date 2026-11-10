@@ -84,6 +84,18 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "A declaration needs the statement the signer will sign. Write the statement and try again.",
     severity: "warning",
   },
+  // AUD-0033 — R-CERT-001.
+  ATTESTATION_REVOKE_ATTESTOR_ONLY: {
+    title: "Only the signer can revoke this",
+    message: "A signed declaration can be revoked only by the person who signed it.",
+    severity: "warning",
+  },
+  // AUD-0045 — a foreign destination and a missing one read alike.
+  DESTINATION_NOT_IN_WORKSPACE: {
+    title: "Choose one of this workspace's destinations",
+    message: "That webhook destination is not one of this workspace's destinations. Choose a destination registered here.",
+    severity: "warning",
+  },
   CERTIFICATION_STATEMENT_CHANGED: {
     title: "The statement is not the one requested",
     message: "The statement shown is not the one recorded on the request. Reload the declarations and read the statement again before signing.",

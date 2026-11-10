@@ -18,7 +18,8 @@ import { ProovraPageHeader } from "./patterns";
 
 const TRUST_ITEMS = [
   { id: "integrity", title: "Integrity by design", detail: "Hash, map, and verify automatically" },
-  { id: "protected", title: "End-to-end protected", detail: "Encrypted storage and verifiable audit trail" },
+  // AUD-0006 — TLS in transit and storage-provider encryption at rest; not end-to-end.
+  { id: "protected", title: "Encrypted in transit and at rest", detail: "Encrypted storage and verifiable audit trail" },
   { id: "audit", title: "Verifiable audit trail", detail: "Recorded evidence operations and preservation history" },
 ] as const;
 

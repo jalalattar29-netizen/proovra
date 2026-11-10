@@ -24,7 +24,7 @@ export const LEGAL_REVISIONS: Readonly<Record<LegalSlug, string>> = {
   "impressum": "2026-06-23",
   "evidence-handling": "2026-10-15",
   "verification-methodology": "2026-06-23",
-  "subprocessors": "2026-11-07",
+  "subprocessors": "2026-11-10",
   "data-retention": "2026-10-15",
   "incident-response": "2026-06-23",
   "abuse-reporting": "2026-06-23",

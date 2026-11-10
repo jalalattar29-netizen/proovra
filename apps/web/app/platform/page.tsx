@@ -752,8 +752,11 @@ function LifecycleSection() {
           <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             {[
               {
-                title: "End-to-End Encryption",
-                body: "AES-256 encryption at rest and in transit",
+                // AUD-0006 — the implemented posture (Trust Center): TLS in
+                // transit and the storage provider's encryption at rest. There
+                // is no end-to-end or envelope encryption to claim.
+                title: "Encrypted in Transit and at Rest",
+                body: "TLS in transit; storage-provider encryption at rest",
                 icon: Lock,
                 color: "#2563EB",
               },
