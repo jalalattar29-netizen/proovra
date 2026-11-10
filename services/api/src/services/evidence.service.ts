@@ -541,7 +541,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     // subject's lock (the one completion settlement takes) the decision is
     // re-made and the row inserted before the next creator can count.
     await lockEvidenceCapacitySubject(scope, tx);
-    await assertWorkspaceAllowsEvidenceCreation(scope);
+    await assertWorkspaceAllowsEvidenceCreation(scope, tx);
     const evidence = await tx.evidence.create({
 data: {
   ownerUserId: params.ownerUserId,

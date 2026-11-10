@@ -146,6 +146,11 @@ describe("F-39 — the committed signing fixture outside development / test", ()
           calls.push("create");
           return {};
         },
+        // AUD-0017 — first-use registration inserts with ON CONFLICT DO NOTHING.
+        createMany: async () => {
+          calls.push("create");
+          return { count: 1 };
+        },
         // The registry reads compromise markers for the material (signing
         // batch: a compromise is of the key, not of one identity).
         findMany: async () => {

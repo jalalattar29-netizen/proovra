@@ -659,6 +659,7 @@ describe("the Billing projection does not re-derive commercial facts", () => {
     expect(enforcement).toMatch(/resolveEffectiveContractEvidenceCap/);
     // UC-COM-001/002 — the gate measures the rolling window through the one
     // allowance measure (same population, same window).
-    expect(enforcement).toMatch(/measureAllowance\(scope, prisma, \{ since \}\)/);
+    // (AUD-0017: on the creating transaction's client when it holds one.)
+    expect(enforcement).toMatch(/measureAllowance\(scope, (prisma|client), \{ since \}\)/);
   });
 });

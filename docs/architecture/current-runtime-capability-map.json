@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "3875c54a0cd63a2b35e40ee1866c90bad2313896ac1c2bc5d0342beb16f424ad",
-  "consumerInventoryHash": "a7db35cbeac2f2f35890f4804bd4f992d9cd5417817dd2a210820c376343ab0b",
+  "consumerInventoryHash": "73f92b23df845ec86d4cf44a78a0d2ea365d120712aaa9cfc03ccf845f2314b7",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1241,
@@ -125,7 +125,7 @@
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
       "METHOD_ON_VALUE": 11428,
-      "UNRESOLVED_IDENTIFIER": 1644
+      "UNRESOLVED_IDENTIFIER": 1645
     },
     "MutationFixpointRounds": 10,
     "MutationClosurePass": false,
@@ -27897,13 +27897,13 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/signing/key-registry.ts#signingKey.create@149",
-      "terminalLocation": "packages/shared-runtime/src/signing/key-registry.ts:149",
+      "writerId": "packages/shared-runtime/src/signing/key-registry.ts#signingKey.createMany@154",
+      "terminalLocation": "packages/shared-runtime/src/signing/key-registry.ts:154",
       "file": "packages/shared-runtime/src/signing/key-registry.ts",
       "enclosingDeclaration": "registerSigningKey",
       "kind": "DATABASE",
       "target": "signingKey",
-      "mutationKind": "create",
+      "mutationKind": "createMany",
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
       "insideTransaction": false,
       "entryRoutes": [
@@ -27963,8 +27963,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/signing/key-registry.ts#signingKey.updateMany@474",
-      "terminalLocation": "packages/shared-runtime/src/signing/key-registry.ts:474",
+      "writerId": "packages/shared-runtime/src/signing/key-registry.ts#signingKey.updateMany@481",
+      "terminalLocation": "packages/shared-runtime/src/signing/key-registry.ts:481",
       "file": "packages/shared-runtime/src/signing/key-registry.ts",
       "enclosingDeclaration": "revokeSigningKeyMaterial",
       "kind": "DATABASE",
@@ -53180,8 +53180,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#captureSession.update@1782",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1782",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#captureSession.update@1811",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1811",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -53220,8 +53220,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#captureSessionEvent.create@1786",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1786",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#captureSessionEvent.create@1815",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1815",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -53260,8 +53260,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.update@1108",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1108",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.update@1133",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1133",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -53300,8 +53300,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.update@1958",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1958",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.update@1987",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1987",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -53340,8 +53340,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1606",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1606",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1635",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1635",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -53380,8 +53380,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1836",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1836",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1865",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1865",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -53420,8 +53420,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@2257",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:2257",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@2290",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:2290",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "runCompletionFanoutOnce",
       "kind": "DATABASE",
@@ -53460,8 +53460,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@2364",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:2364",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@2397",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:2397",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "runCompletionFanoutOnce",
       "kind": "DATABASE",
@@ -53500,8 +53500,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@1360",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1360",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@1385",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1385",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -53540,8 +53540,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@1984",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1984",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@2013",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:2013",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -88581,8 +88581,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/signer-control-state.service.ts#signer_control_state.$queryRawUnsafe@303",
-      "terminalLocation": "services/api/src/services/operations/signer-control-state.service.ts:303",
+      "writerId": "services/api/src/services/operations/signer-control-state.service.ts#signer_control_state.$queryRawUnsafe@308",
+      "terminalLocation": "services/api/src/services/operations/signer-control-state.service.ts:308",
       "file": "services/api/src/services/operations/signer-control-state.service.ts",
       "enclosingDeclaration": "declareSigningKeyCompromise",
       "kind": "RAW_SQL",
@@ -88614,8 +88614,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/operations/signer-control-state.service.ts#signerControlState.updateMany@229",
-      "terminalLocation": "services/api/src/services/operations/signer-control-state.service.ts:229",
+      "writerId": "services/api/src/services/operations/signer-control-state.service.ts#signerControlState.updateMany@234",
+      "terminalLocation": "services/api/src/services/operations/signer-control-state.service.ts:234",
       "file": "services/api/src/services/operations/signer-control-state.service.ts",
       "enclosingDeclaration": "transitionSignerControlState",
       "kind": "DATABASE",
@@ -99559,8 +99559,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$executeRawUnsafe@1748",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1748",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$executeRawUnsafe@1749",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1749",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "presignStorageUploadPart",
       "kind": "RAW_SQL",
@@ -99592,8 +99592,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$executeRawUnsafe@1810",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1810",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$executeRawUnsafe@1811",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1811",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "recordPartEtag",
       "kind": "RAW_SQL",
@@ -99625,8 +99625,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$executeRawUnsafe@2041",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2041",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$executeRawUnsafe@2042",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2042",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "completeStorageMultipart",
       "kind": "RAW_SQL",
@@ -99658,8 +99658,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$executeRawUnsafe@508",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:508",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$executeRawUnsafe@509",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:509",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "createUploadSession",
       "kind": "RAW_SQL",
@@ -99691,8 +99691,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$queryRawUnsafe@687",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:687",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$queryRawUnsafe@688",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:688",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "markPartUploaded",
       "kind": "RAW_SQL",
@@ -99724,8 +99724,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$queryRawUnsafe@776",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:776",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$queryRawUnsafe@777",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:777",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "markPartVerified",
       "kind": "RAW_SQL",
@@ -99757,8 +99757,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$queryRawUnsafe@804",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:804",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_session_parts.$queryRawUnsafe@805",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:805",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "markPartVerified",
       "kind": "RAW_SQL",
@@ -99790,8 +99790,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@1174",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1174",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@1175",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1175",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "reapStaleUploadSessions",
       "kind": "RAW_SQL",
@@ -99823,8 +99823,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@1633",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1633",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@1634",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1634",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "initiateStorageMultipart",
       "kind": "RAW_SQL",
@@ -99856,8 +99856,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@1973",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1973",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@1974",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1974",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "completeStorageMultipart",
       "kind": "RAW_SQL",
@@ -99889,8 +99889,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2000",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2000",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2001",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2001",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "completeStorageMultipart",
       "kind": "RAW_SQL",
@@ -99922,8 +99922,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2019",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2019",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2020",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2020",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "completeStorageMultipart",
       "kind": "RAW_SQL",
@@ -99955,8 +99955,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2123",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2123",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2133",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2133",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "completeStorageMultipart",
       "kind": "RAW_SQL",
@@ -99988,8 +99988,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2234",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2234",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2244",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2244",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "abortStorageMultipart",
       "kind": "RAW_SQL",
@@ -100022,8 +100022,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2304",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2304",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2314",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2314",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "abortStorageMultipart",
       "kind": "RAW_SQL",
@@ -100056,8 +100056,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2395",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2395",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@2405",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2405",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "reapStaleMultipartUploads",
       "kind": "RAW_SQL",
@@ -100089,8 +100089,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@446",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:446",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$executeRawUnsafe@447",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:447",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "createUploadSession",
       "kind": "RAW_SQL",
@@ -100122,8 +100122,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$queryRawUnsafe@1063",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1063",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$queryRawUnsafe@1064",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:1064",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "abortUploadSession",
       "kind": "RAW_SQL",
@@ -100155,8 +100155,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$queryRawUnsafe@2271",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2271",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$queryRawUnsafe@2281",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2281",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "abortStorageMultipart",
       "kind": "RAW_SQL",
@@ -100189,8 +100189,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$queryRawUnsafe@473",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:473",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$queryRawUnsafe@474",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:474",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "createUploadSession",
       "kind": "RAW_SQL",
@@ -100222,8 +100222,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$queryRawUnsafe@904",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:904",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidence_upload_sessions.$queryRawUnsafe@905",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:905",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "completeUploadSession",
       "kind": "RAW_SQL",
@@ -100255,8 +100255,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidencePart.deleteMany@2240",
-      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2240",
+      "writerId": "services/api/src/services/uploads/upload-session.service.ts#evidencePart.deleteMany@2250",
+      "terminalLocation": "services/api/src/services/uploads/upload-session.service.ts:2250",
       "file": "services/api/src/services/uploads/upload-session.service.ts",
       "enclosingDeclaration": "abortStorageMultipart",
       "kind": "DATABASE",
@@ -100528,8 +100528,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-session.service.ts#workflowIntakeLink.updateMany@640",
-      "terminalLocation": "services/api/src/services/workflow-intake-session.service.ts:640",
+      "writerId": "services/api/src/services/workflow-intake-session.service.ts#workflowIntakeLink.updateMany@645",
+      "terminalLocation": "services/api/src/services/workflow-intake-session.service.ts:645",
       "file": "services/api/src/services/workflow-intake-session.service.ts",
       "enclosingDeclaration": "transitionIntakeSession",
       "kind": "DATABASE",
@@ -100562,8 +100562,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-session.service.ts#workflowIntakeSession.create@314",
-      "terminalLocation": "services/api/src/services/workflow-intake-session.service.ts:314",
+      "writerId": "services/api/src/services/workflow-intake-session.service.ts#workflowIntakeSession.create@315",
+      "terminalLocation": "services/api/src/services/workflow-intake-session.service.ts:315",
       "file": "services/api/src/services/workflow-intake-session.service.ts",
       "enclosingDeclaration": "openIntakeSession",
       "kind": "DATABASE",
@@ -100595,8 +100595,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-session.service.ts#workflowIntakeSession.update@466",
-      "terminalLocation": "services/api/src/services/workflow-intake-session.service.ts:466",
+      "writerId": "services/api/src/services/workflow-intake-session.service.ts#workflowIntakeSession.update@467",
+      "terminalLocation": "services/api/src/services/workflow-intake-session.service.ts:467",
       "file": "services/api/src/services/workflow-intake-session.service.ts",
       "enclosingDeclaration": "recordIntakeSubmitterIdentity",
       "kind": "DATABASE",
@@ -100628,8 +100628,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-session.service.ts#workflowIntakeSession.update@646",
-      "terminalLocation": "services/api/src/services/workflow-intake-session.service.ts:646",
+      "writerId": "services/api/src/services/workflow-intake-session.service.ts#workflowIntakeSession.update@651",
+      "terminalLocation": "services/api/src/services/workflow-intake-session.service.ts:651",
       "file": "services/api/src/services/workflow-intake-session.service.ts",
       "enclosingDeclaration": "transitionIntakeSession",
       "kind": "DATABASE",
@@ -100662,8 +100662,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-session.service.ts#workflowIntakeSession.updateMany@527",
-      "terminalLocation": "services/api/src/services/workflow-intake-session.service.ts:527",
+      "writerId": "services/api/src/services/workflow-intake-session.service.ts#workflowIntakeSession.updateMany@532",
+      "terminalLocation": "services/api/src/services/workflow-intake-session.service.ts:532",
       "file": "services/api/src/services/workflow-intake-session.service.ts",
       "enclosingDeclaration": "recordIntakeConsent",
       "kind": "DATABASE",
@@ -123874,7 +123874,7 @@
         },
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 492,
+          "line": 488,
           "caller": "ExternalIntakePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -123884,7 +123884,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:88 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:492 (ExternalIntakePage, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:88 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:488 (ExternalIntakePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -149244,7 +149244,7 @@
         },
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 913,
+          "line": 909,
           "caller": "setPartStep",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -149254,7 +149254,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:192 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:913 (setPartStep, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:192 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:909 (setPartStep, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -166670,11 +166670,11 @@
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "services/api/src/services/billing/evidence-output-eligibility.service.ts: evidence.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/evidence-reservation/reservation.ts: evidence.count — no tenant or self predicate",
         "packages/shared-runtime/src/evidence-reservation/reservation.ts: captureSession.count — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
-        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate"
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -169202,7 +169202,7 @@
         },
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 695,
+          "line": 691,
           "caller": "acceptConsent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169212,7 +169212,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:152 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:695 (acceptConsent, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:152 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:691 (acceptConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -169269,7 +169269,7 @@
         },
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 661,
+          "line": 657,
           "caller": "acceptConsent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169279,7 +169279,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:124 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:661 (acceptConsent, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:124 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:657 (acceptConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -169333,7 +169333,7 @@
         },
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 786,
+          "line": 782,
           "caller": "stageFile",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169343,7 +169343,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:224 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:786 (stageFile, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:224 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:782 (stageFile, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -169456,7 +169456,7 @@
         },
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 973,
+          "line": 969,
           "caller": "onSubmit",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -169466,7 +169466,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:263 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:973 (onSubmit, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:263 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:969 (onSubmit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

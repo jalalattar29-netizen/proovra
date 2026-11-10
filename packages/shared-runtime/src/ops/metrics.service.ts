@@ -208,6 +208,7 @@ export const COUNTER_NAMES = [
   "multipart_complete_failed_total",
   "multipart_head_failed_total",
   "multipart_verify_failed_total",
+  "multipart_part_settle_failed_total",
   // ET-UPL-05 — a completed multipart object of another size than declared.
   "multipart_size_mismatch_total",
   // ET-INT-13 — an intake submission finalized, then its SUBMITTED transition failed.

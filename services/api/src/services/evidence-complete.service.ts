@@ -193,6 +193,12 @@ type CompleteEvidenceTransactionResult = {
    * first finalize never recorded it.
    */
   alreadyFinalized?: boolean;
+  /**
+   * AUD-0017 — the already-finalized path's report-issuance question, answered
+   * by `resolveEvidenceOutputEligibility` AFTER the transaction commits (it reads
+   * committed facts only and must not hold a second connection inside it).
+   */
+  eligibilityAfterCommit?: { evidenceId: string; ownerUserId: string; teamId: string | null };
 };
 
 const { EvidenceStatus } = prismaPkg;
@@ -782,6 +788,20 @@ export async function completeEvidence(params: {
     ownerUserId: params.ownerUserId,
   });
 
+  // AUD-0017 — the requester's enforcement scope is resolved BEFORE the
+  // transaction. It fans out on the global client (commercial context, user
+  // lookup); resolved inside, every concurrent completion held its transaction
+  // connection while taking more, and at pool size all of them expired (P2028).
+  // It depends only on the record's owner and workspace, which the locked read
+  // below re-checks; on a mismatch it is resolved again there (old behaviour).
+  const preRead = await prisma.evidence.findFirst({
+    where: { id: params.evidenceId, ownerUserId: params.ownerUserId, deletedAt: null },
+    select: { ownerUserId: true, teamId: true },
+  });
+  const preScope = preRead
+    ? await resolveEnforcementScopeForRequester({ ownerUserId: preRead.ownerUserId, teamId: preRead.teamId ?? null })
+    : null;
+
   const final = await prisma.$transaction(
     async (tx): Promise<CompleteEvidenceTransactionResult> => {
       await tx.$executeRaw`
@@ -803,10 +823,13 @@ export async function completeEvidence(params: {
         throw err;
       }
 
-      const scope = await resolveEnforcementScopeForRequester({
-        ownerUserId: evidence.ownerUserId,
-        teamId: evidence.teamId ?? null,
-      });
+      const scope =
+        preScope && preRead && preRead.ownerUserId === evidence.ownerUserId && (preRead.teamId ?? null) === (evidence.teamId ?? null)
+          ? preScope
+          : await resolveEnforcementScopeForRequester({
+              ownerUserId: evidence.ownerUserId,
+              teamId: evidence.teamId ?? null,
+            });
 
       const evidenceBucket = clean(evidence.storageBucket);
       const evidenceKey = clean(evidence.storageKey);
@@ -924,13 +947,15 @@ export async function completeEvidence(params: {
           // silently withheld the output the customer had paid for.
           // FREE THREE-RECORD CONTRACT — and the record's stored earned fact
           // (a FREE_ALLOWANCE record included): the one issuance decision.
-          shouldEnqueueReport: (
-            await resolveEvidenceOutputEligibility({
-              evidenceId: evidence.id,
-              ownerUserId: evidence.ownerUserId,
-              teamId: evidence.teamId ?? null,
-            })
-          ).reportsIncluded,
+          // AUD-0017 — decided after commit (see `eligibilityAfterCommit`): the
+          // eligibility resolver fans out on the global client, which inside this
+          // transaction held a second pool connection per duplicate completion.
+          shouldEnqueueReport: false,
+          eligibilityAfterCommit: {
+            evidenceId: evidence.id,
+            ownerUserId: evidence.ownerUserId,
+            teamId: evidence.teamId ?? null,
+          },
           retentionTargets,
         };
       }
@@ -1490,8 +1515,10 @@ const fingerprint = buildFingerprint({
       // CRYPTO-009 — so ask first, without the lock. KMS and the timestamp
       // authority are metered, and a retried complete in a full workspace spent
       // one token per attempt. The locked check below stays the decision.
-      await assertWorkspaceAllowsStorageGrowth({ scope, incomingBytes: incomingGrowth });
-      const signResult = await signer.signFingerprintHex(fingerprintHash);
+      await assertWorkspaceAllowsStorageGrowth({ scope, incomingBytes: incomingGrowth, client: tx });
+      // AUD-0017 — the signing boundary's per-signature control reads use this
+      // transaction's connection.
+      const signResult = await signer.signFingerprintHex(fingerprintHash, { client: tx });
 
       const tsaInputKind =
         multipartItemCount > 1 ? "CANONICAL_PACKAGE_SHA256" : "FILE_SHA256";
@@ -1507,6 +1534,8 @@ const fingerprint = buildFingerprint({
       await assertWorkspaceAllowsStorageGrowth({
         scope,
         incomingBytes: incomingGrowth,
+        // AUD-0017 — measured on this transaction's connection, under its lock.
+        client: tx,
       });
 
 // UC-0 — `captureMethod` is the legacy STRUCTURE/compat field (single file vs
@@ -2116,6 +2145,10 @@ const captureMethod =
     evidenceId: final.result.id,
     trigger: "evidence.completed",
   });
+
+  if (final.eligibilityAfterCommit) {
+    final.shouldEnqueueReport = (await resolveEvidenceOutputEligibility(final.eligibilityAfterCommit)).reportsIncluded;
+  }
 
   if (final.shouldEnqueueReport) {
     // PHASE 12 — POINT 5. The completion path persists a durable generation

@@ -26,7 +26,8 @@ export type DerivedStorageScope = {
 };
 
 export async function sumDerivedAssetStorageBytes(
-  prisma: PrismaClient,
+  // AUD-0017 — any client with the delegate, so a transaction can pass its own.
+  prisma: Pick<PrismaClient, "evidencePartDerivedAsset">,
   scope: DerivedStorageScope,
 ): Promise<bigint> {
   if (!scope.teamId) return 0n;

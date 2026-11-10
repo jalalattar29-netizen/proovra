@@ -64,8 +64,17 @@ export type SignFingerprintResult = {
   publicKeySha256?: string;
 };
 
+/**
+ * AUD-0017 — the database client the signing boundary reads its control state
+ * and registered key through. A caller holding an interactive transaction
+ * passes it, so the per-signature reads use that connection instead of taking
+ * a second one from the pool (which starved concurrent completions).
+ */
+export type SignerControlClient = Parameters<typeof assertSignatureVerifiesWithRegisteredKey>[0] &
+  Parameters<typeof assertSignerUsable>[1];
+
 export interface EvidenceSigner {
-  signFingerprintHex(messageHex: string): Promise<SignFingerprintResult>;
+  signFingerprintHex(messageHex: string, options?: { client?: SignerControlClient }): Promise<SignFingerprintResult>;
   /** The signer's own public key, when it can derive it (local PEM). */
   ownPublicKeyPem?(): string | null;
 }
@@ -148,15 +157,16 @@ class ControlledEvidenceSigner implements EvidenceSigner {
     private readonly purpose: SignerPurpose,
   ) {}
 
-  async signFingerprintHex(messageHex: string): Promise<SignFingerprintResult> {
-    await assertSignerUsable(currentSignerIdForPurpose(this.purpose));
+  async signFingerprintHex(messageHex: string, options?: { client?: SignerControlClient }): Promise<SignFingerprintResult> {
+    const client = options?.client ?? prisma;
+    await assertSignerUsable(currentSignerIdForPurpose(this.purpose), client);
     const result = await this.inner.signFingerprintHex(messageHex);
     // UC-TRUST-003 — SELF-VERIFY against the REGISTERED key before anything
     // commits. A private key that does not match its registered public key
     // (rotation without a version bump, a wrong mounted PEM) or a revoked key
     // fails here, at capture time, instead of producing a record every
     // verifier reports invalid.
-    const verified = await assertSignatureVerifiesWithRegisteredKey(prisma, {
+    const verified = await assertSignatureVerifiesWithRegisteredKey(client, {
       keyId: result.keyId,
       version: result.keyVersion,
       // The evidence signer verifies only against an EVIDENCE_SIGNATURE key.

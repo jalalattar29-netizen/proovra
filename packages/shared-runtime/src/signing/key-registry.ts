@@ -145,9 +145,15 @@ export async function registerSigningKey(
   // row is born revoked, with the compromise's own time, so it neither signs
   // nor verifies.
   const compromisedAt = await keyMaterialCompromisedAt(client, fingerprint);
-  try {
-    await client.signingKey.create({
-      data: {
+  // AUD-0017 — insert-only WITHOUT raising on a concurrent first use. A
+  // unique-violation caught here is harmless on the global client, but this is
+  // also called inside the evidence-completion transaction (the signer's
+  // self-verify), where a caught error ABORTS the transaction ("current
+  // transaction is aborted"). ON CONFLICT DO NOTHING keeps it valid; the
+  // identity is then re-checked exactly as the race branch did.
+  const inserted = await client.signingKey.createMany({
+    data: [
+      {
         keyId: input.keyId,
         version: input.version,
         purpose: input.purpose,
@@ -156,15 +162,16 @@ export async function registerSigningKey(
         publicKeyPem: input.publicKeyPem.trim(),
         ...(compromisedAt ? { revokedAt: compromisedAt } : {}),
       },
-    });
-  } catch (err) {
+    ],
+    skipDuplicates: true,
+  });
+  if (inserted.count === 0) {
     // A concurrent registration of the same identity: re-check the key.
     const raced = await client.signingKey.findUnique({
       where: identityWhere(input.keyId, input.version, input.purpose),
       select: { publicKeyPem: true, revokedAt: true },
     });
-    if (!raced) throw err;
-    if (publicKeySpkiSha256(raced.publicKeyPem) !== fingerprint) {
+    if (!raced || publicKeySpkiSha256(raced.publicKeyPem) !== fingerprint) {
       throw new SigningKeyRegistryError("SIGNING_KEY_IDENTITY_CONFLICT");
     }
     return { outcome: "unchanged", publicKeySha256: fingerprint, revokedAt: raced.revokedAt };

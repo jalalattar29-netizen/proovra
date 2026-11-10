@@ -43,6 +43,7 @@ import {
 import {
   assertWorkspaceStorageAvailable,
   getWorkspaceUsage,
+  type WorkspaceUsageClient,
 } from "./workspace-usage.service.js";
 
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `EntitlementWriter` was
@@ -338,7 +339,10 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
  * accessible. This file never reads the raw override field.
  */
 export async function assertWorkspaceAllowsEvidenceCreation(
-  requestedScope: WorkspaceScope
+  requestedScope: WorkspaceScope,
+  // AUD-0017 — the creating transaction's client: the allowance is measured on
+  // the connection that holds the capacity lock instead of a second one.
+  client: AllowancePopulationClient = prisma,
 ) {
   // ET-COM-04 — a lapsed personal plan is decided as FREE (allowance, then a
   // credit); a lapsed shared workspace is still refused here.
@@ -408,7 +412,7 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     // shared workspace counts by team id, a Personal subject counts the
     // personal population through the canonical predicate.
     const since = new Date(Date.now() - THIRTY_DAYS_MS);
-    const monthly = await measureAllowance(scope, prisma, { since });
+    const monthly = await measureAllowance(scope, client, { since });
     const monthlyCount = monthly.planOccupying;
 
     if (monthlyCount < contractedMonthlyCap) return;
@@ -486,7 +490,7 @@ export async function assertWorkspaceAllowsEvidenceCreation(
   // `team` relation field, so the personal team id is resolved first.)
   // UC-COM-003 — measured as plan commitments; credits already committed to
   // admitted over-allowance reservations are not available again.
-  const lifetime = await measureAllowance(scope, prisma);
+  const lifetime = await measureAllowance(scope, client);
   const evidenceCount = lifetime.planOccupying;
 
   // §9.7 — the effective lifetime cap is resolved by the CANONICAL ENVELOPE
@@ -703,6 +707,8 @@ export async function countPersonalEvidenceRecords(
 export async function assertWorkspaceAllowsStorageGrowth(params: {
   scope: WorkspaceScope;
   incomingBytes?: bigint | number | null;
+  /** AUD-0017 — the caller's transaction client, when it holds one. */
+  client?: WorkspaceUsageClient;
 }) {
   return assertWorkspaceStorageAvailable(params);
 }
