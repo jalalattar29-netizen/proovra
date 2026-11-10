@@ -41,6 +41,7 @@ import {
   WorkflowIntakeMode,
   WorkflowIntakeSessionStatus,
   isAnonymousWorkflowIntakeMode,
+  intakeConsentDisclosureText,
 } from "@proovra/shared";
 
 import { stripControlAndInvisible } from "../lib/text-sanitize.js";
@@ -514,7 +515,11 @@ export async function recordIntakeConsent(
     throw new WorkflowIntakeSessionError("consent_invalid_payload");
   }
   if (input.link) {
-    const expectedHash = createHash("sha256").update(input.link.consentDisclosureText ?? "").digest("hex");
+    // AUD-0048 — the hash of the text the contributor was SHOWN: the link's own
+    // disclosure, else the one canonical default every client displays.
+    const expectedHash = createHash("sha256")
+      .update(intakeConsentDisclosureText(input.link.consentDisclosureText))
+      .digest("hex");
     const policyOk = !input.link.consentPolicyVersion || consent.policyVersion === input.link.consentPolicyVersion;
     if (consent.disclosureTextHash.toLowerCase() !== expectedHash || !policyOk) {
       throw new WorkflowIntakeSessionError("consent_invalid_payload");

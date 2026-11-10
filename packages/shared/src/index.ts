@@ -892,6 +892,8 @@ export {
   WORKFLOW_INTAKE_TOKEN_VERSION,
   WORKFLOW_INTAKE_TOKEN_RANDOM_BYTES,
   WorkflowIntakeConsentSnapshotSchema,
+  DEFAULT_INTAKE_CONSENT_DISCLOSURE,
+  intakeConsentDisclosureText,
   WorkflowIntakeLinkStatusSchema,
   WorkflowIntakeSessionStatusSchema,
   canTransitionWorkflowIntakeSession,

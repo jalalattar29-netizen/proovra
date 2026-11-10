@@ -395,6 +395,12 @@ export function buildIntakeConsentBody(input: {
 }
 
 /** The web page's disclosure when the link sets none (intake/[token]/page.tsx DEFAULT_DISCLOSURE). */
+/**
+ * The default disclosure — byte-identical to @proovra/shared
+ * DEFAULT_INTAKE_CONSENT_DISCLOSURE, which the API hashes to validate consent
+ * (AUD-0048). Kept literal because this module is import-free for its
+ * transpile-and-load test harness; test/external-flows.test.mjs asserts parity.
+ */
 export const DEFAULT_INTAKE_DISCLOSURE = [
   "Files you upload through this secure link will be added to the workspace",
   "that issued the link. By accepting you confirm the upload is yours to share,",

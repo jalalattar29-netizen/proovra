@@ -46,6 +46,11 @@
       "import": "./dist/legal/revisions.generated.js",
       "default": "./dist/legal/revisions.generated.js"
     },
+    "./workflow-intake-link": {
+      "types": "./dist/workflow-intake-link.d.ts",
+      "import": "./dist/workflow-intake-link.js",
+      "default": "./dist/workflow-intake-link.js"
+    },
     "./i18n": {
       "types": "./dist/i18n.d.ts",
       "import": "./dist/i18n.js",
