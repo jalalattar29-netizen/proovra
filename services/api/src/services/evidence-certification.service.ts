@@ -423,6 +423,25 @@ export async function revokeEvidenceCertification(params: {
     throw error;
   }
 
+  /*
+   * AUD-0033 (R-CERT-001) — a SIGNED attestation is a person's own statement:
+   * only that person may withdraw it. The route admits anyone who may
+   * generate reports on the record, so another member with that permission,
+   * and the workspace OWNER, could revoke someone else's signed attestation.
+   * Drafts and requests (not yet signed) keep the route's rule.
+   */
+  if (
+    latest.status === PrismaCertificationStatus.ATTESTED &&
+    latest.attestedByUserId !== params.revokedByUserId
+  ) {
+    const error = new Error(
+      "Only the person who signed this attestation can revoke it."
+    ) as Error & { statusCode?: number; code?: string };
+    error.statusCode = 403;
+    error.code = "ATTESTATION_REVOKE_ATTESTOR_ONLY";
+    throw error;
+  }
+
   const revokeReason = normalizeOptionalText(params.reason, 500);
 
   const revokedAtUtc = new Date();

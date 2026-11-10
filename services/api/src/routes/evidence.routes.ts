@@ -783,6 +783,8 @@ const CERTIFICATION_REFUSALS: ReadonlyArray<{ code: string }> = [
   { code: "CERTIFICATION_ALREADY_ATTESTED" },
   { code: "CERTIFICATION_STATEMENT_MISSING" },
   { code: "CERTIFICATION_STATEMENT_CHANGED" },
+  // AUD-0033 — only the attestor may revoke a signed attestation (R-CERT-001).
+  { code: "ATTESTATION_REVOKE_ATTESTOR_ONLY" },
 ];
 const CERTIFICATION_REFUSAL_CODES = new Set(CERTIFICATION_REFUSALS.map((r) => r.code));
 

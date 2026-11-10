@@ -293,6 +293,13 @@ enforced in code and proven behaviourally; the test named is the proof.
   is linked to a restricted case they are not on. Proof:
   `members-reaudit2-case-reach` "Defect 4 …", `members-assignee-authority-writers`
   "defect 4 (lead) …".
+- **R-CERT-001 — only the attestor revokes a signed attestation** (AUD-0033,
+  2026-11-10). A custodian or qualified-person declaration that has been
+  signed (ATTESTED) is the signer's own statement: only the person who signed
+  it may revoke it. Neither another member who may generate reports on the
+  record nor the workspace OWNER can; they are refused with 403
+  ATTESTATION_REVOKE_ATTESTOR_ONLY. An unsigned request follows the route's
+  report permission. Proof: `evidence-declaration-statement` "AUD-0033 …".
 - **Audit commits with the change.** Every case access-list change, invitation
   action, case link/unlink, external-access revoke and evidence archive/trash
   writes its audit in the mutation's transaction; a failed audit rolls the
