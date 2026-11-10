@@ -233,8 +233,16 @@ const SYSTEM_LABEL: Record<AccessGateKind, string> = {
  */
 export function classifyAccessError(error: unknown): AccessGateKind | null {
   if (!error || typeof error !== "object") return null;
-  const e = error as { status?: number; code?: string; body?: { code?: string } };
-  const status = typeof e.status === "number" ? e.status : null;
+  const e = error as { status?: number; statusCode?: number; code?: string; body?: { code?: string } };
+  // AUD-0050 — `apiFetch` errors carry the HTTP status as `statusCode`; only a
+  // raw fetch failure has `status`. Reading `status` alone, every apiFetch 402,
+  // 403 and 409 fell through to the generic "review your input" message.
+  const status =
+    typeof e.status === "number"
+      ? e.status
+      : typeof e.statusCode === "number"
+        ? e.statusCode
+        : null;
   const code =
     typeof e.code === "string"
       ? e.code
@@ -246,6 +254,10 @@ export function classifyAccessError(error: unknown): AccessGateKind | null {
   if (code === "PLAN_UPGRADE_REQUIRED") return "PLAN_UPGRADE";
   if (code === "WORKSPACE_REQUIRED") return "WORKSPACE_REQUIRED";
   if (code === "FEATURE_DISABLED") return "FEATURE_UNAVAILABLE";
+  // AUD-0050 — the server's plan-entitlement refusals are named
+  // `<FEATURE>_NOT_INCLUDED` (CASES_NOT_INCLUDED, INTAKE_NOT_INCLUDED, …): the
+  // plan does not include the feature, so the answer is the plan gate.
+  if (code?.endsWith("_NOT_INCLUDED")) return "PLAN_UPGRADE";
 
   if (status === 402) return "PLAN_UPGRADE";
   if (status === 403) return "PERMISSION_REQUIRED";
