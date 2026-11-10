@@ -253,6 +253,21 @@ function buildS3ClientConfig(): S3ClientConfig {
           : Boolean(endpoint),
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
+    /*
+     * AUD-0023 — BOUNDED. With no timeouts, a storage call that stalled (the
+     * endpoint paused, a half-open socket) never failed: the worker waited 5
+     * minutes 12 seconds without claiming work, and a job could wait past its
+     * own retry budget. A connection must open within S3_CONNECTION_TIMEOUT_MS
+     * and a socket may sit idle for at most S3_SOCKET_TIMEOUT_MS; the call then
+     * fails and the job retries under its policy. The socket timeout is IDLE
+     * time, not total time, so a large transfer that keeps moving is unaffected.
+     */
+    requestHandler: {
+      connectionTimeout: storageTimeoutMs(process.env.S3_CONNECTION_TIMEOUT_MS, 5_000),
+      requestTimeout: storageTimeoutMs(process.env.S3_SOCKET_TIMEOUT_MS, 60_000),
+      // Without it the SDK only WARNS when the socket timeout passes and keeps waiting.
+      throwOnRequestTimeout: true,
+    },
   };
 
   if (endpoint) {
@@ -260,6 +275,12 @@ function buildS3ClientConfig(): S3ClientConfig {
   }
 
   return config;
+}
+
+/** A positive millisecond setting, or the default. */
+export function storageTimeoutMs(raw: string | undefined, fallback: number): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
 export const s3 = new S3Client(buildS3ClientConfig());
