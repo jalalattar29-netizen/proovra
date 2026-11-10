@@ -265,13 +265,12 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   "workspace.workflows",
   "workspace.communications",
   "workspace.packaging",
-  // Reviewer operations.
+  // Reviewer operations. The reviewer queue, operations, escalations, queue
+  // detail and SLA pages (review.*) are NOT here (AUD-0049): the Team plan
+  // includes reviewer operations, so they are gated on the server-projected
+  // `reviewerOperationsIncluded` (requiredPlanFeature) — the answer the API
+  // serves them by. The advanced review surfaces below stay Enterprise.
   "workspace.review",
-  "review.queue",
-  "review.operations",
-  "review.escalations",
-  "review.queue_detail",
-  "review.sla",
   "workspace.review_workspace",
   "workspace.coding_schemas",
   "workspace.review_qc",
@@ -1054,6 +1053,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Escalation lifecycle: acknowledge, reassign, resolve, suppress.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["ESCALATIONS_VIEW"],
+    // AUD-0049 — the plan's reviewer-operations entitlement, as the API decides it.
+    requiredPlanFeature: "reviewerOperationsIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
@@ -1194,6 +1195,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Per-review workspace: lifecycle, SLA, escalation, action surface.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    // AUD-0049 — the plan's reviewer-operations entitlement, as the API decides it.
+    requiredPlanFeature: "reviewerOperationsIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
@@ -1639,6 +1642,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Reviewer queue (canonical surface; legacy /reviewer-ops index redirects here).",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    // AUD-0049 — the plan's reviewer-operations entitlement, as the API decides it.
+    requiredPlanFeature: "reviewerOperationsIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
@@ -1655,6 +1660,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Per-evidence review stage queue (Phase 13).",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    // AUD-0049 — the plan's reviewer-operations entitlement, as the API decides it.
+    requiredPlanFeature: "reviewerOperationsIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
@@ -1690,6 +1697,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "SLA windows + breach signals.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["SLA_VIEW"],
+    // AUD-0049 — the plan's reviewer-operations entitlement, as the API decides it.
+    requiredPlanFeature: "reviewerOperationsIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "CREATE_ORG",
 
