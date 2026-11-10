@@ -784,12 +784,41 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     teamId: z.string().uuid(),
     organizationId: z.string().uuid(),
     grantId: z.string().uuid(),
-    stepUpProofId: z.string().min(1),
+    // Retained for older clients; the use proof is now the holder's own
+    // step-up, verified below (AUD-0037).
+    stepUpProofId: z.string().min(1).optional(),
+    /**
+     * The workspace the holder's step-up is bound to. Defaults to `teamId`
+     * (a customer administrator steps up in their own workspace); a platform
+     * responder who is no member of the customer workspace steps up in one of
+     * their own. The challenge is bound to the holder and to THIS grant.
+     */
+    stepUpTeamId: z.string().uuid().optional(),
     reason: z.string().min(8).max(600),
   });
   app.post("/v1/break-glass/emergency/sessions/revoke", { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const body = EmergencyRevokeBody.parse(req.body ?? {});
-    if (!(await requirePlatformStaff(req, reply))) return;
+    /*
+     * AUD-0037 (R-BG-001) — the NAMED HOLDER uses the grant: a platform
+     * responder or the customer Organization administrator it names. The use
+     * was gated on platform staff (so a named customer administrator was
+     * refused) and bound to the ACTIVATOR's step-up proof (which a holder who
+     * is not the activator cannot present). The ONE break-glass authority
+     * below still binds the actor to the grant's holder, the grant to the
+     * Organization, the time box and the restricted capability; the proof is
+     * now the holder's own fresh step-up, bound to this grant.
+     */
+    const holderUserId = getAuthUserId(req);
+    const stepUp = await requireStepUpForSensitiveAction({
+      req,
+      reply,
+      teamId: body.stepUpTeamId ?? body.teamId,
+      userId: holderUserId,
+      purpose: "ORG_SECURITY_POLICY_UPDATE",
+      resourceKind: "break_glass_grant",
+      resourceId: body.grantId,
+    });
+    if (stepUp.sent) return;
     // The overlay binds the grant to `organizationId`, and the action below runs
     // on `teamId`. Both come from the request, so nothing tied them together: a
     // grant on one Organization could end the sessions of a workspace in another.
@@ -803,7 +832,8 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
       permission: "identity.org_policy.manage",
       action: "session.revoke",
       grantId: body.grantId,
-      stepUpProofId: body.stepUpProofId,
+      stepUpProofId: stepUp.verifiedChallengeId,
+      holderStepUpVerified: true,
     });
     if (!authz) return; // overlay already sent the bounded deny/401/503
     // On allow, perform the canonical containment operation. No membership is

@@ -538,13 +538,16 @@ describe("support access boundaries", () => {
     });
 
     it("a grant on one organization cannot revoke sessions of a workspace in another", async () => {
+      // AUD-0037 — the holder presents their OWN fresh step-up, bound to this grant
+      // (taken in their own workspace, which the wrong target is not).
+      const holderProof = () => ceremony(responder, customer.w1, "ORG_SECURITY_POLICY_UPDATE", { kind: "break_glass_grant", id: grantId });
       const res = await kit.call("POST", "/v1/break-glass/emergency/sessions/revoke", responder, {
         teamId: other.w3,
         organizationId: customer.orgId,
         grantId,
-        stepUpProofId: activationProof,
+        stepUpTeamId: customer.w1,
         reason: "Wrong workspace on purpose",
-      });
+      }, await holderProof());
       await h.handlersSettled();
       expect(res.statusCode, res.body).toBe(403);
       expect(res.body).toContain("org_scope_mismatch");
@@ -561,11 +564,71 @@ describe("support access boundaries", () => {
         teamId: customer.w1,
         organizationId: customer.orgId,
         grantId,
-        stepUpProofId: activationProof,
         reason: "Right workspace this time",
-      });
+      }, await holderProof());
       expect(contained.statusCode, contained.body).toBe(200);
       expect((await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: own.id } })).revokedAtUtc).not.toBeNull();
+    });
+
+    const activate = async (emergencyUserId: string, grantedRole = "EMERGENCY_OPERATOR") =>
+      kit.call(
+        "POST",
+        "/v1/break-glass/activate",
+        staff,
+        { teamId: anchor, organizationId: customer.orgId, emergencyUserId, reason: "Incident 91 containment", grantedRole },
+        await ceremony(staff, anchor, "ORG_SECURITY_POLICY_UPDATE"),
+      );
+
+    it("AUD-0040 — an operator cannot grant emergency access to themselves", async () => {
+      const res = await activate(staff.id);
+      expect(res.statusCode, res.body).toBe(400);
+      expect(res.body).toContain("BREAK_GLASS_SELF_GRANT");
+      expect(await prisma.emergencyAccessGrant.count({ where: { emergencyUserId: staff.id, organizationId: customer.orgId } })).toBe(0);
+    });
+
+    it("AUD-0037 / AUD-0036 — a platform responder may hold a grant; a lapsed grant no longer blocks a new one", async () => {
+      // `colleague` is platform staff and no administrator of the customer Organization.
+      const first = await activate(colleague.id);
+      expect(first.statusCode, first.body).toBe(200);
+      const firstId = (first.json() as { grant: { id: string } }).grant.id;
+      await prisma.emergencyAccessGrant.update({ where: { id: firstId }, data: { expiresAtUtc: new Date(Date.now() - 60_000) } });
+      const second = await activate(colleague.id);
+      expect(second.statusCode, second.body).toBe(200);
+      expect((await prisma.emergencyAccessGrant.findUniqueOrThrow({ where: { id: firstId } })).status).toBe("EXPIRED");
+    });
+
+    it("AUD-0037 — a named customer administrator uses their grant with their own step-up", async () => {
+      // A fresh session: the containment case above ended this workspace's sessions.
+      const ownerToken = await h.mintSessionToken(customer.ownerId, null);
+      await registerSessionForToken({ prisma: prisma as never, tag: "sab-owner", mintToken: () => ownerToken } as never, customer.ownerId, ownerToken);
+      const owner = { id: customer.ownerId, email: "", token: ownerToken } as Person;
+      const res = await activate(owner.id);
+      expect(res.statusCode, res.body).toBe(200);
+      const ownerGrant = (res.json() as { grant: { id: string } }).grant.id;
+      const victim = await prisma.authenticatedSession.create({
+        data: { userId: target.userId, teamId: customer.w1, sessionIdHash: `sab-${randomUUID()}`, expiresAtUtc: new Date(Date.now() + 3_600_000) },
+        select: { id: true },
+      });
+      const used = await kit.call(
+        "POST",
+        "/v1/break-glass/emergency/sessions/revoke",
+        owner,
+        { teamId: customer.w1, organizationId: customer.orgId, grantId: ownerGrant, reason: "Customer-side containment" },
+        await ceremony(owner, customer.w1, "ORG_SECURITY_POLICY_UPDATE", { kind: "break_glass_grant", id: ownerGrant }),
+      );
+      expect(used.statusCode, used.body).toBe(200);
+      expect(used.json()).toMatchObject({ viaEmergency: true });
+      expect((await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: victim.id } })).revokedAtUtc).not.toBeNull();
+      // Someone else cannot use the owner's grant, whatever step-up they present.
+      const other = await kit.call(
+        "POST",
+        "/v1/break-glass/emergency/sessions/revoke",
+        responder,
+        { teamId: customer.w1, organizationId: customer.orgId, grantId: ownerGrant, reason: "Not my grant to use" },
+        await ceremony(responder, customer.w1, "ORG_SECURITY_POLICY_UPDATE", { kind: "break_glass_grant", id: ownerGrant }),
+      );
+      expect(other.statusCode, other.body).toBe(403);
+      expect(other.body).toContain("actor_mismatch");
     });
   });
 });

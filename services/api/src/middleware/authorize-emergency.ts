@@ -54,6 +54,8 @@ export type EmergencyAuthorizeOptions = {
   nowMs?: number;
   /** Optional prisma client (dependency-injection seam; defaults inside the evaluator). */
   client?: PrismaClient;
+  /** AUD-0037 — the route verified the HOLDER's own fresh step-up for this grant. */
+  holderStepUpVerified?: boolean;
 };
 
 export type EmergencyAuthorizedContext = {
@@ -137,6 +139,7 @@ export async function authorizeWithEmergencyOverlay(
       organizationId: options.organizationId,
       action: options.action,
       stepUpProofId: options.stepUpProofId ?? null,
+      holderStepUpVerified: options.holderStepUpVerified === true,
       nowMs: options.nowMs,
     },
     options.client,
