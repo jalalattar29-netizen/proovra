@@ -36,13 +36,18 @@ import {
 } from "../pagination/keyset-cursor.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
+import { resolvePlatformAdmin } from "../platform-admin.service.js";
 
 export type MfaAdminScopeFailure =
   | "admin_not_in_team"
   | "admin_not_admin"
   | "target_not_in_team"
   // PRO-022 (AUTH-16) — see `assertActorOutranksMfaTarget`.
-  | "rank_insufficient";
+  | "rank_insufficient"
+  // AUD-0026 — an administrator may not lower their OWN protection here.
+  | "self_target_forbidden"
+  // AUD-0039 — a platform account's factors are recovered by the platform.
+  | "target_platform_authority";
 
 /**
  * PRO-022 (AUTH-16) — WHOSE FACTORS AN ADMINISTRATOR MAY REMOVE.
@@ -55,9 +60,22 @@ export type MfaAdminScopeFailure =
  * The rule is the members-management rank (rbac.service.ts ROLE-04): OWNER >
  * ADMIN > MEMBER > VIEWER, and the actor must STRICTLY outrank the target in
  * the workspace the action is taken from. So an ADMIN manages the factors of
- * MEMBERs and VIEWERs, never of the OWNER or another ADMIN. An administrator
- * acting on their OWN factors is not a rank question (the route's step-up
- * proves it is them) and stays allowed.
+ * MEMBERs and VIEWERs, never of the OWNER or another ADMIN.
+ *
+ * AUD-0026 — an administrator may NOT target themself here. This route's step-up
+ * (MFA_FACTOR_REVOKE) accepts an authenticator code, while removing one's own
+ * passkey on the member route (PASSKEY_REMOVE) demands the passkey itself; the
+ * admin route on self was the weaker way round that ladder. A person changes
+ * their own factors on their own protected routes.
+ *
+ * AUD-0039 — nor may a WORKSPACE administrator remove the factors of an account
+ * that holds PLATFORM authority (dual membership: a platform administrator who
+ * is also a member of a customer workspace). That account's second factor
+ * guards the whole platform, not this workspace; its recovery belongs to the
+ * platform (platformRecoverFactors: another MFA-verified platform
+ * administrator, stepped up, in the platform audit trail). A lookup failure
+ * refuses. Platform authority cannot be self-granted, so this is not the
+ * escape hatch the next paragraph rules out.
  *
  * Deliberately NOT extended to the target's roles in other workspaces: any
  * person can own a workspace of their own, so such a rule would let a member
@@ -66,8 +84,14 @@ export type MfaAdminScopeFailure =
  */
 const MFA_ADMIN_RANK: Record<string, number> = { OWNER: 4, ADMIN: 3, MEMBER: 2, VIEWER: 1 };
 
-export async function assertActorOutranksMfaTarget(input: ScopeCheckInput): Promise<"rank_insufficient" | null> {
-  if (input.actorUserId === input.targetUserId) return null;
+export async function assertActorOutranksMfaTarget(
+  input: ScopeCheckInput,
+): Promise<"rank_insufficient" | "self_target_forbidden" | "target_platform_authority" | null> {
+  if (input.actorUserId === input.targetUserId) return "self_target_forbidden";
+  const targetPlatform = await resolvePlatformAdmin(input.targetUserId, null)
+    .then((d) => d.allowed)
+    .catch(() => true);
+  if (targetPlatform) return "target_platform_authority";
   const [actor, target] = await Promise.all([
     prisma.teamMember.findFirst({
       where: { teamId: input.teamId, userId: input.actorUserId, status: "ACTIVE" },

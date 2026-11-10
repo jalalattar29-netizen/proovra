@@ -121,6 +121,20 @@ export function classifyAdminReadFailure(
       retryable: false,
     };
   }
+  // AUD-0021 — the account holds platform authority, but this session never
+  // verified a second factor. Asking an administrator for scope would be the
+  // wrong remedy; signing in again with the second factor is the right one.
+  const body = e?.body as { error?: { reason?: unknown; details?: { reason?: unknown } } } | undefined;
+  const details = (err as { details?: { reason?: unknown } })?.details;
+  const reason = details?.reason ?? body?.error?.details?.reason ?? body?.error?.reason;
+  if (status === 403 && reason === "PLATFORM_ADMIN_MFA_REQUIRED") {
+    return {
+      kind: "denied",
+      message:
+        "Platform administration needs a session verified with your second factor. Sign out, then sign in again and complete the second-factor check.",
+      retryable: false,
+    };
+  }
   if (status === 403 || status === 404) {
     return {
       kind: "denied",

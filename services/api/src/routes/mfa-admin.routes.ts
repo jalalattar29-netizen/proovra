@@ -250,6 +250,29 @@ async function refuseUnlessOutranks(
 ): Promise<boolean> {
   const refusal = await assertActorOutranksMfaTarget({ teamId, actorUserId, targetUserId });
   if (!refusal) return true;
+  if (refusal === "self_target_forbidden") {
+    // AUD-0026 — your own factors are changed on your own protected routes,
+    // which ask for the strongest factor being removed.
+    reply.code(403).send({
+      error: {
+        code: "permission_denied",
+        reason: "self_target_forbidden",
+        message: "Manage your own sign-in factors from your account security settings.",
+      },
+    });
+    return false;
+  }
+  if (refusal === "target_platform_authority") {
+    // AUD-0039 — recovered by the platform, never by a workspace administrator.
+    reply.code(403).send({
+      error: {
+        code: "permission_denied",
+        reason: "target_platform_authority",
+        message: "This account's sign-in factors are managed by the platform, not by this workspace.",
+      },
+    });
+    return false;
+  }
   reply.code(403).send({ error: { code: "permission_denied", reason: "rank_insufficient" } });
   return false;
 }
@@ -736,7 +759,10 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         if (
           result.reason === "approver_not_admin" ||
           result.reason === "approver_not_in_team" ||
-          result.reason === "cannot_self_approve"
+          result.reason === "cannot_self_approve" ||
+          // AUD-0038 / AUD-0039
+          result.reason === "approver_rank_insufficient" ||
+          result.reason === "requester_platform_authority"
         ) {
           reply.code(403);
           return { error: result.reason };

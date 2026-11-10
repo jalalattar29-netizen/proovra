@@ -8,6 +8,7 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { platformSessionVerifiedMfa } from "../middleware/require-platform-admin.js";
 
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { authorizeWithEmergencyOverlay } from "../middleware/authorize-emergency.js";
@@ -153,7 +154,8 @@ async function requirePlatformStaff(
       ?.platformRole ??
     (req.user as { role?: string | null } | undefined)?.role ??
     null;
-  const staff = await isPlatformAdmin(actorUserId, role);
+  // AUD-0021 — staff authority also requires a session with a verified second factor.
+  const staff = (await isPlatformAdmin(actorUserId, role)) && platformSessionVerifiedMfa(req);
   if (!staff) {
     await reply.code(404).send({ error: { code: "NOT_FOUND" } });
     return null;

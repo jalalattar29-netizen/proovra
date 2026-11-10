@@ -38,11 +38,13 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { prisma } from "../../db.js";
-import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { emitPlatformAudit, emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
 import { getEmailService } from "../email.service.js";
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
 import { cancelOutstandingStepUpChallenges } from "../identity-security/step-up.service.js";
+import { assertActorOutranksMfaTarget } from "./mfa-admin-lifecycle.service.js";
+import { resolvePlatformAdmin } from "../platform-admin.service.js";
 // PHASE 11 — canonical internal URL builder.
 import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
@@ -691,7 +693,11 @@ export interface ApproveRecoveryRequestResult {
     | "request_not_email_verified"
     | "request_expired"
     | "quorum_not_met"
-    | "cannot_self_approve";
+    | "cannot_self_approve"
+    // AUD-0038 — the approver must strictly outrank the requester (members rank).
+    | "approver_rank_insufficient"
+    // AUD-0039 — a platform-authority account is never recovered by a tenant.
+    | "requester_platform_authority";
   approvedNow?: boolean;
   /** Set by a `preflightOnly` call. */
   teamId?: string;
@@ -750,6 +756,24 @@ export async function approveRecoveryRequest(
   });
   if (!approverMembership) {
     return { ok: false, reason: "approver_not_admin" };
+  }
+  // AUD-0039 — approval revokes the requester's factors ACCOUNT-WIDE. A customer
+  // workspace administrator must never be able to strip a platform
+  // administrator's second factor (and with it the platform's MFA boundary);
+  // platform identities are recovered by the platform, not by a tenant.
+  const requesterIsPlatform = await resolvePlatformAdmin(row.userId, null)
+    .then((d) => d.allowed)
+    .catch(() => true);
+  if (requesterIsPlatform) {
+    return { ok: false, reason: "requester_platform_authority" };
+  }
+  // AUD-0038 — THE MEMBERS RANK RULE, the same one the direct factor routes use
+  // (assertActorOutranksMfaTarget): the approver must STRICTLY outrank the
+  // requester in this workspace. An ADMIN approving the OWNER's (or another
+  // ADMIN's) request was the indirect way round "an ADMIN cannot reset the
+  // OWNER". A request nobody outranks (the OWNER's) is not approvable here.
+  if ((await assertActorOutranksMfaTarget({ teamId: row.teamId, actorUserId: input.approverUserId, targetUserId: row.userId })) !== null) {
+    return { ok: false, reason: "approver_rank_insufficient" };
   }
   if (input.preflightOnly) {
     return { ok: true, approvedNow: false, teamId: row.teamId, targetUserId: row.userId };
@@ -1261,3 +1285,57 @@ export async function listRecoveryRequestApprovals(input: {
 // second copy, reachable from nothing. The worker GC is the single expiry
 // authority for this table. `markRecoveryCompleted` above is the other terminal
 // transition and is now wired to real enrolment.
+
+
+/**
+ * AUD-0039 — PLATFORM-CONTROLLED RECOVERY for a platform-authority account.
+ *
+ * Tenant recovery approval is refused for platform accounts (a customer
+ * administrator must never strip a platform administrator's factor). A platform
+ * administrator who loses their factor is recovered here instead: by ANOTHER
+ * platform administrator (actor != target), whose own session verified a second
+ * factor (requirePlatformAdmin) and who stepped up for this account (the route),
+ * with a stated reason, recorded in the PLATFORM audit trail. The effect is the
+ * tenant approval's own, applied account-wide: active factors revoked, unused
+ * recovery codes invalidated, sessions and pending step-ups ended — so the
+ * operator signs in again and is sent to guided enrollment (AUD-0021), not
+ * locked out.
+ */
+export type PlatformRecoverFactorsResult =
+  | { ok: true; revokedFactors: number }
+  | { ok: false; reason: "self_recovery_forbidden" | "target_not_platform_authority" | "target_not_found" };
+
+export async function platformRecoverFactors(input: {
+  operatorUserId: string;
+  targetUserId: string;
+  reason: string;
+}): Promise<PlatformRecoverFactorsResult> {
+  if (input.operatorUserId === input.targetUserId) return { ok: false, reason: "self_recovery_forbidden" };
+  const target = await prisma.user.findUnique({ where: { id: input.targetUserId }, select: { id: true } });
+  if (!target) return { ok: false, reason: "target_not_found" };
+  if (!(await resolvePlatformAdmin(input.targetUserId, null)).allowed) return { ok: false, reason: "target_not_platform_authority" };
+  const now = new Date();
+  const revoked = await prisma.$transaction(async (tx) => {
+    const r = await tx.mfaFactor.updateMany({
+      where: { userId: input.targetUserId, status: "ACTIVE" },
+      data: { status: "REVOKED", revokedAt: now, revokedReason: "platform_recovery" },
+    });
+    await tx.mfaRecoveryCode.updateMany({
+      where: { userId: input.targetUserId, usedAt: null, batchInvalidatedAt: null },
+      data: { batchInvalidatedAt: now },
+    });
+    return r.count;
+  });
+  await revokeAllSessionsForUser({ teamId: null, userId: input.targetUserId, reason: "OPERATOR_REVOKED", actorUserId: input.operatorUserId });
+  await cancelOutstandingStepUpChallenges(input.targetUserId);
+  await emitPlatformAudit({
+    action: "mfa.platform_recovery.completed",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.operatorUserId,
+    resourceType: "user",
+    resourceId: input.targetUserId,
+    metadata: { revokedFactors: revoked, reason: input.reason.slice(0, 400) },
+  });
+  return { ok: true, revokedFactors: revoked };
+}

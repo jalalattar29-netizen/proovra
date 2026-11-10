@@ -80,6 +80,7 @@ describe("PLATFORM ADMIN — drill-down and search (live PostgreSQL 16)", () => 
             email,
             authMethod: "PASSWORD",
             authAt: Math.floor(Date.now() / 1000),
+        mfaAt: Math.floor(Date.now() / 1000), // AUD-0021: platform routes need an MFA-verified session
           },
           secret,
           60 * 60,

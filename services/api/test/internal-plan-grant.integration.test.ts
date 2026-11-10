@@ -148,7 +148,7 @@ describe("INTERNAL PLAN GRANT (live PostgreSQL 16)", () => {
       tag: `ipg-${Date.now().toString(36)}`,
       mintToken: (userId, email) =>
         signJwt(
-          { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) },
+          { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000), mfaAt: Math.floor(Date.now() / 1000) },
           process.env.AUTH_JWT_SECRET!,
           3600,
         ),

@@ -34,6 +34,7 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { platformSessionVerifiedMfa } from "../middleware/require-platform-admin.js";
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
@@ -59,7 +60,8 @@ export async function investigationDiagnosticsRoutes(app: FastifyInstance) {
       // Global queue rows are platform facts: only the platform authority
       // receives them. Every other caller gets the workspace-scoped sections
       // and withheld queue rows (OPS-025).
-      const platform = await resolvePlatformAdmin(actor.userId);
+      // AUD-0021 — platform facts only for a session that verified a second factor.
+      const platform = { allowed: (await resolvePlatformAdmin(actor.userId)).allowed && platformSessionVerifiedMfa(req) };
       const diagnostics = await buildInvestigationDiagnostics({
         teamId,
         prisma,

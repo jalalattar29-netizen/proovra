@@ -48,6 +48,7 @@ import {
   workspaceKindLabel,
 } from "../../../../../lib/labels/adminPlatformLabels";
 import { EvidenceCreditGrant } from "./EvidenceCreditGrant";
+import { PlatformFactorRecovery } from "./PlatformFactorRecovery";
 
 type Detail = {
   id: string;
@@ -535,6 +536,37 @@ export default function AdminPersonDetailPage() {
                   }}
                 />
               </div>
+
+              {/* AUD-0039 — a platform administrator's second factor is recovered by the platform. */}
+              {detail.platformRole && detail.mfaEnrolled ? (
+                <div
+                  style={{
+                    marginTop: 20,
+                    paddingTop: 18,
+                    borderTop: "1px solid var(--border-default)",
+                  }}
+                  data-admin-platform-recovery-section
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: "var(--ink-muted)",
+                      marginBottom: 10,
+                    }}
+                  >
+                    Second-factor recovery
+                  </div>
+                  <PlatformFactorRecovery
+                    userId={detail.id}
+                    onRecovered={() => {
+                      void load();
+                    }}
+                  />
+                </div>
+              ) : null}
 
               <div
                 style={{

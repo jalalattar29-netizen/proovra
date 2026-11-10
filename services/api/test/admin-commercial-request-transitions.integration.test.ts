@@ -108,6 +108,7 @@ describe("PLATFORM ADMIN — commercial request status transitions (live Postgre
         email,
         authMethod: "PASSWORD",
         authAt: Math.floor(Date.now() / 1000),
+        mfaAt: Math.floor(Date.now() / 1000), // AUD-0021: platform routes need an MFA-verified session
         ...(role === "admin" ? { role: "admin" as const } : {}),
       },
       secret,

@@ -229,6 +229,20 @@ vi.mock("../src/services/security/mfa-admin-lifecycle.service.js", () => ({
     return { ok: true, events: [] };
   },
   requireUserReenrollment: async () => ({ ok: true, revokedFactorCount: 0 }),
+  // AUD-0038 — recovery approval now asks the factor-removal rank rule. The
+  // same rule over this fixture's membership rows (no fixture user holds
+  // platform authority, so the AUD-0039 branch never applies here).
+  assertActorOutranksMfaTarget: async (i: { teamId: string; actorUserId: string; targetUserId: string }) => {
+    if (i.actorUserId === i.targetUserId) return "self_target_forbidden";
+    const rank: Record<string, number> = { OWNER: 4, ADMIN: 3, MEMBER: 2, VIEWER: 1 };
+    const roleOf = (userId: string) =>
+      (H.db.__store.get("teamMember") as Array<{ teamId: string; userId: string; role: string; status: string }>).find(
+        (m) => m.teamId === i.teamId && m.userId === userId && m.status === "ACTIVE",
+      )?.role;
+    return (rank[roleOf(i.actorUserId) ?? ""] ?? 0) > (rank[roleOf(i.targetUserId) ?? ""] ?? 0)
+      ? null
+      : "rank_insufficient";
+  },
   resetTrustedDevicesForUser: async () => ({ ok: true, resetCount: 0 }),
   revokeUserFactor: async () => ({ ok: true }),
 }));

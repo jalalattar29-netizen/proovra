@@ -5,6 +5,9 @@ import { prisma } from "../db.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
+import { getAuthUserId } from "../auth.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { platformRecoverFactors } from "../services/security/mfa-recovery-request.service.js";
 import {
   getAdminPersonDetail,
   listAdminPeople,
@@ -244,6 +247,83 @@ export async function adminUsersRoutes(app: FastifyInstance) {
           downloadCount: e.downloadCount,
         })),
       });
+    },
+  );
+  /*
+   * AUD-0039 — PLATFORM-CONTROLLED second-factor recovery for a platform
+   * administrator. Customer workspace recovery refuses platform accounts (a
+   * workspace administrator must never strip a platform administrator's
+   * factor); this is the path that replaces it, so a legitimate operator who
+   * lost their factor is not locked out:
+   *   - another platform administrator, on a second-factor-verified session
+   *     (requirePlatformAdmin), never the account itself;
+   *   - a fresh, single-use MFA_FACTOR_REVOKE step-up bound to the target;
+   *   - a stated reason, recorded in the platform audit trail;
+   *   - the target's sessions end and they enrol again at next sign-in.
+   *
+   * TENANT_SCOPE_EXCEPTION: platform_admin_global -- gated by
+   * requirePlatformAdmin, which IS the authorization boundary here.
+   */
+  app.post(
+    "/v1/admin/users/:id/mfa/platform-recovery",
+    { preHandler: requirePlatformAdmin },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = z.object({ id: z.string().uuid() }).safeParse(req.params);
+      const body = z
+        .object({
+          /** The operator's own workspace: step-up challenges are team-bound. */
+          teamId: z.string().uuid(),
+          reason: z.string().trim().min(10).max(400),
+        })
+        .safeParse(req.body ?? {});
+      if (!params.success || !body.success) {
+        return reply.code(400).send(
+          createErrorResponse(ErrorCode.VALIDATION_ERROR, req.id, undefined, "Invalid platform recovery request"),
+        );
+      }
+      const actorUserId = getAuthUserId(req);
+      const targetId = params.data.id;
+      if (actorUserId === targetId) {
+        return reply.code(403).send(
+          createErrorResponse(
+            ErrorCode.FORBIDDEN,
+            req.id,
+            { reason: "self_recovery_forbidden" },
+            "Another platform administrator must recover your second factor.",
+          ),
+        );
+      }
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.data.teamId,
+        userId: actorUserId,
+        purpose: "MFA_FACTOR_REVOKE",
+        resourceKind: "user",
+        resourceId: targetId,
+      });
+      if (gate.sent) return;
+      const result = await platformRecoverFactors({
+        operatorUserId: actorUserId,
+        targetUserId: targetId,
+        reason: body.data.reason,
+      });
+      if (!result.ok) {
+        if (result.reason === "target_not_found") {
+          return reply.code(404).send(createErrorResponse(ErrorCode.USER_NOT_FOUND, req.id, undefined, "No such account"));
+        }
+        return reply.code(409).send(
+          createErrorResponse(
+            ErrorCode.CONFLICT,
+            req.id,
+            { reason: result.reason },
+            result.reason === "target_not_platform_authority"
+              ? "This account does not hold platform authority; use its workspace's recovery process."
+              : "Another platform administrator must recover your second factor.",
+          ),
+        );
+      }
+      return reply.code(200).send({ recovered: true, revokedFactors: result.revokedFactors });
     },
   );
 }

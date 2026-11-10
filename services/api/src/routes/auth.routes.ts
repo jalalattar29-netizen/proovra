@@ -739,9 +739,11 @@ export async function authRoutes(app: FastifyInstance) {
         code: "MFA_ENROLLMENT_REQUIRED",
         mfaEnrollmentToken,
         mfaEnrollmentExpiresInSeconds: MFA_ENROLLMENT_TTL_SECONDS,
-        reason: "org_policy_requires_mfa",
+        reason: decision.basis === "PLATFORM_AUTHORITY" ? "platform_authority_requires_mfa" : "org_policy_requires_mfa",
         message:
-          "Your organization requires multi-factor authentication. Please enroll an authenticator to continue.",
+          decision.basis === "PLATFORM_AUTHORITY"
+            ? "Platform administrators must use multi-factor authentication. Please enroll an authenticator to continue."
+            : "Your organization requires multi-factor authentication. Please enroll an authenticator to continue.",
         user: {
           id: user.id,
           email: user.email,

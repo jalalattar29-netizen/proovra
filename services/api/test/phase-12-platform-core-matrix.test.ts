@@ -119,7 +119,7 @@ vi.mock("../src/middleware/auth.js", () => ({
       reply.code(401).send({ error: { code: "unauthenticated" } });
       return;
     }
-    req.user = { sub: H.actorUserId, platformRole: H.platformAdmin ? "admin" : null };
+    req.user = { sub: H.actorUserId, platformRole: H.platformAdmin ? "admin" : null, mfaAt: Math.floor(Date.now() / 1000) }; // AUD-0021: MFA-verified session
   },
 }));
 

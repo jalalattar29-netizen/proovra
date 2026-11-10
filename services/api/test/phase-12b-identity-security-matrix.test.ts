@@ -687,7 +687,12 @@ vi.mock("../src/auth.js", () => ({
   getAuthUserId: () => S.actorUserId,
   getAuthSessionId: () => "support-session-hash",
 }));
-vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
+// AUD-0021 — the fake session verified a second factor (platform routes require it).
+vi.mock("../src/middleware/auth.js", () => ({
+  requireAuth: async (req: { user?: Record<string, unknown> }) => {
+    req.user = { ...(req.user ?? {}), mfaAt: Math.floor(Date.now() / 1000) };
+  },
+}));
 vi.mock("../src/middleware/authorize.js", () => ({
   authorizeOrFail: async (
     _req: unknown,

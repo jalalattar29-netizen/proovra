@@ -56,7 +56,7 @@ describe("support access boundaries", () => {
       tag: `sab-${kit.tag()}`,
       mintToken: (userId: string, email: string) =>
         signJwt(
-          { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) },
+          { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000), mfaAt: Math.floor(Date.now() / 1000) },
           process.env.AUTH_JWT_SECRET as string,
           3600,
         ),
@@ -95,7 +95,8 @@ describe("support access boundaries", () => {
     anchor = h.fixtures.teamA.teamId;
     const staffDeps = deps();
     async function staffMember(): Promise<Person> {
-      const p = await kit.person(anchor, "ADMIN");
+      // AUD-0021 — platform staff act on a second-factor-verified session.
+      const p = await kit.person(anchor, "ADMIN", { mfaVerified: true });
       await prisma.user.update({ where: { id: p.id }, data: { platformRole: "admin" } });
       await registerSessionForToken(staffDeps, p.id, p.token);
       return p;
@@ -502,7 +503,8 @@ describe("support access boundaries", () => {
     let activationProof: string;
 
     beforeAll(async () => {
-      responder = await kit.person(customer.w1, "MEMBER");
+      // AUD-0021 — the responder holds platform authority, so its session verified a second factor.
+      responder = await kit.person(customer.w1, "MEMBER", { mfaVerified: true });
       await prisma.organizationMembership.create({ data: { organizationId: customer.orgId, userId: responder.id, role: "ORG_ADMIN" } });
       await prisma.teamMember.updateMany({ where: { teamId: customer.w1, userId: responder.id }, data: { role: "ADMIN" } });
       await prisma.user.update({ where: { id: responder.id }, data: { platformRole: "admin" } });

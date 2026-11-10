@@ -61,7 +61,10 @@ export async function makeUser(c: Ctx, tag: string, opts: { platformRole?: strin
     data: Object.entries(REQUIRED_LEGAL_VERSIONS).map(([policyKey, policyVersion]) => ({ userId: u.id, policyKey, policyVersion: policyVersion as string, source: "ops-truth" })),
   });
   if (opts.plan) await c.prisma.entitlement.create({ data: { userId: u.id, plan: opts.plan, active: true } });
-  const token = signJwt({ sub: u.id, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) }, process.env.AUTH_JWT_SECRET!, 3600);
+  // AUD-0021 — a platform administrator's session exists only after a verified
+  // second factor, so theirs carries `mfaAt` (as production now issues it).
+  const now = Math.floor(Date.now() / 1000);
+  const token = signJwt({ sub: u.id, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: now, ...(opts.platformRole ? { mfaAt: now } : {}) }, process.env.AUTH_JWT_SECRET!, 3600);
   const payload = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString("utf8"));
   await recordAuthenticatedSession({ userId: u.id, teamId: null, sid: payload.sid, iat: payload.iat, exp: payload.exp, ipPreview: "127.0.0.1", uaPreview: "ops-truth" });
   return { id: u.id as string, email, token };

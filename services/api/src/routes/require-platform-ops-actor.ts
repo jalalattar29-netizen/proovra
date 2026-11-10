@@ -64,6 +64,7 @@ import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { resolvePlatformAdmin } from "../services/platform-admin.service.js";
+import { platformSessionVerifiedMfa } from "../middleware/require-platform-admin.js";
 
 export type PlatformOpsActor = { userId: string };
 
@@ -88,6 +89,12 @@ export async function requirePlatformOpsActor(
     null;
 
   const platform = await resolvePlatformAdmin(userId, role);
+  // AUD-0021 — platform authority requires a session that verified a second factor.
+  if (platform.allowed && !platformSessionVerifiedMfa(req)) {
+    req.log.warn({ userId, url: req.url }, "admin.platform_session_without_mfa_refused");
+    reply.code(403).send({ error: { code: "permission_denied", reason: "PLATFORM_ADMIN_MFA_REQUIRED" } });
+    return null;
+  }
   if (!platform.allowed) {
     if (platform.claimedAdmin) {
       // A token asserting `role: admin` that the database does not confirm is

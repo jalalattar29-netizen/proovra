@@ -34,6 +34,7 @@ import type {
 } from "fastify";
 import { z } from "zod";
 import * as prismaPkg from "@prisma/client";
+import { platformSessionVerifiedMfa } from "../middleware/require-platform-admin.js";
 
 import { getAuthUserId } from "../auth.js";
 import {
@@ -831,7 +832,8 @@ export async function opsRoutes(app: FastifyInstance) {
       // observability and alert routing are PROCESS-WIDE facts. They are
       // attached only for the platform authority; a workspace member of any
       // role receives the workspace-scoped fields above and nothing else.
-      const platform = await resolvePlatformAdmin(actor.userId);
+      // AUD-0021 — platform facts only for a session that verified a second factor.
+      const platform = { allowed: (await resolvePlatformAdmin(actor.userId)).allowed && platformSessionVerifiedMfa(req) };
       if (platform.allowed) {
         // OPS-008 — the Operations sweep's coverage, measured from the run
         // rows the scheduler ranks by. Platform-only: it counts every tenant.

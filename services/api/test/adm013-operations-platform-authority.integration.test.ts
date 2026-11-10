@@ -84,7 +84,8 @@ describe("/v1/operations/* platform authority (live PostgreSQL 16)", () => {
     // keeps the workspace membership real, so a 403 in the negative cases
     // cannot be explained away as "that user was not in the workspace".
     platformTeamId = f.teamA.teamId;
-    platformToken = f.teamA.ownerToken;
+    // AUD-0021 — the platform operator's session verified a second factor.
+    platformToken = await harness.mintSessionToken(f.teamA.ownerUserId, null, { mfaVerified: true });
     // `platformRole: "admin"` is what `resolvePlatformAdmin` reads. The JWT
     // role claim is advisory and is deliberately NOT trusted on its own, so
     // the database row is the thing that has to be set.

@@ -125,6 +125,10 @@ const EXPECTED_CONSUMERS = [
   // canonical label, and the contrast of that label ON THE ADMIN SHELL is
   // asserted below rather than assumed — see the dark-surface test.
   "app/(app)/admin/users/[id]/EvidenceCreditGrant.tsx",
+  // AUD-0039 — platform second-factor recovery, on the same admin user page and
+  // in the same form shell (adm-credit-grant), so the admin-shell contrast
+  // asserted for the grant is the contrast this reason label paints.
+  "app/(app)/admin/users/[id]/PlatformFactorRecovery.tsx",
   // The team's ONE create-assignment dialog. It moved out of the Work tab so
   // the team header could open the SAME form instead of growing a second one;
   // its five fields carry the canonical label exactly as they did in the tab.
