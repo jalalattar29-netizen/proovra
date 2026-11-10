@@ -83,7 +83,6 @@ import { SiuWorklistPanel } from "../../app/(app)/cases/components/SiuWorklistPa
 import { MatterAccessTab } from "./MatterAccessTab";
 import type { CaseScope } from "./types";
 import { usePlatformContext } from "../../lib/platform-context";
-import type { PlatformContextEnvelope } from "../../lib/platform-context/types";
 import { ReasonedActionButton } from "../../app/(app)/evidence/[id]/components/ReasonedActionButton";
 
 // =============================================================================
