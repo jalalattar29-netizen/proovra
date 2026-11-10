@@ -26,6 +26,7 @@
  * seals it; a staging failure keeps the session for a retry. Every other exit
  * from an opened session (Discard, Try Again, a start failure) releases it.
  */
+import { isSessionGone } from "../../src/capture/capture-retry";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AppState, Platform, Switch, View, StyleSheet } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -123,6 +124,7 @@ import {
 import {
   executeContinuousRecovery,
   planContinuousRecovery,
+  captureSessionWindowOpen,
   recoverOnce,
 } from "../../src/capture/continuous-recovery";
 import {
@@ -144,7 +146,7 @@ import {
 
 type SessionRef = { session: DirectCaptureSession; evidenceId: string };
 
-type Recovery = null | { kind: "ended" } | { kind: "orphan" } | { kind: "leftover" } | { kind: "mismatch" };
+type Recovery = null | { kind: "ended" } | { kind: "expired" } | { kind: "orphan" } | { kind: "leftover" } | { kind: "mismatch" };
 
 export default function ContinuousCaptureScreen() {
   const router = useRouter();
@@ -471,7 +473,9 @@ export default function ContinuousCaptureScreen() {
             syncFromNative();
             pump();
           } else {
-            setRecovery({ kind: "ended" });
+            // AUD-0065 — a session whose window has closed is not offered as
+            // recoverable: the first declaration would be refused.
+            setRecovery(captureSessionWindowOpen(live.expiresAtUtc) ? { kind: "ended" } : { kind: "expired" });
           }
         } else if (native.active) {
           setRecovery({ kind: "orphan" });
@@ -896,6 +900,13 @@ export default function ContinuousCaptureScreen() {
       // pending, in Capture.
       toast.addToast("Recording staged — review and finish it in Capture", "success");
     } catch (err) {
+      // AUD-0065 — the server closed the session (its window expired, or it
+      // was reaped) at any step, not only at staging: say THAT, never an
+      // account sign-out, and do not offer a retry that cannot succeed.
+      if (isSessionGone(err)) {
+        dispatch({ type: "STAGE_FAILED", message: CONTINUOUS_SESSION_GONE });
+        return;
+      }
       // UC-STR-001 — the session is KEPT: its segments are at storage and
       // declared. Continue retries staging; Discard releases it.
       const detail = toSafeUserError(err, { message: "" }).message;
@@ -984,6 +995,17 @@ export default function ContinuousCaptureScreen() {
             </ProovraText>
             <ProovraButton label="Recover recording" loading={busy} onPress={() => void recoverEnded()} />
             <ProovraButton label="Discard recording" variant="ghost" onPress={() => void reset()} />
+          </ProovraCard>
+        )}
+
+        {recovery?.kind === "expired" && (
+          <ProovraCard style={styles.card}>
+            <ProovraText variant="body" weight="semibold">A recording ended while PROOVRA was closed.</ProovraText>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              Its capture session has expired, so the recording can no longer be added to it. The recording is still on this device — discard it when you no longer need it.
+            </ProovraText>
+            <ProovraButton label="Discard recording" onPress={() => void reset()} />
+            <ProovraButton label="Try to recover anyway" variant="ghost" loading={busy} onPress={() => void recoverEnded()} />
           </ProovraCard>
         )}
 

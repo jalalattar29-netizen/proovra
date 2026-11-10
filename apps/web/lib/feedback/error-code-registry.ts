@@ -519,6 +519,7 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   CERTIFICATION_STATEMENT_MISSING: { disposition: "customer", where: "global" },
   CERTIFICATION_STATEMENT_CHANGED: { disposition: "customer", where: "global" },
   ATTESTATION_REVOKE_ATTESTOR_ONLY: { disposition: "customer", where: "global" },
+  CAPTURE_WINDOW_EXPIRED: { disposition: "customer", where: "global" },
   DESTINATION_NOT_IN_WORKSPACE: { disposition: "customer", where: "global" },
   WEBHOOK_ENDPOINT_URL_INVALID: { disposition: "customer", where: "global" },
   WEBHOOK_ENDPOINT_EVENTS_INVALID: { disposition: "customer", where: "global" },

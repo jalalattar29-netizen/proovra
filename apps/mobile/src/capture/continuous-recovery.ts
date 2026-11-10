@@ -121,6 +121,20 @@ export function declaredFromLedger(seg: RecoveryLedgerSegment): DeclaredSegment 
   };
 }
 
+/**
+ * AUD-0065 — is the capture session's window still open?
+ *
+ * A capture session lasts an hour (sliding on each declaration). "Recover
+ * recording" was offered for a session that had already expired; recovery then
+ * failed on the first declaration. An unknown expiry is not judged here (the
+ * server decides); a past one is closed.
+ */
+export function captureSessionWindowOpen(expiresAtUtc: string | null | undefined, nowMs: number = Date.now()): boolean {
+  const at = Date.parse(expiresAtUtc ?? "");
+  if (!Number.isFinite(at)) return true;
+  return at > nowMs;
+}
+
 /** PURE — the recovery decision. */
 export function planContinuousRecovery(
   ledger: RecoveryLedger | null,

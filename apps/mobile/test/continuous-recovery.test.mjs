@@ -159,6 +159,7 @@ before(async () => {
     "src/capture/continuous-session-store.ts",
     "src/capture/capture-session-store.ts",
     "test/support/expo-stub.mjs",
+    "src/capture/capture-retry.ts",
   ]);
 });
 
@@ -458,4 +459,30 @@ test("AUD-004: the screen recovers from the ledger and never deletes by prefix w
   assert.match(src, /await bindContinuousSession\(\{/);
   assert.match(src, /drainUploadQueue\(\{/);
   assert.ok(!/while \(queueRef\.current\.length > 0 \|\| workersRef\.current > 0\)/.test(src), "the unbounded drain loop is back");
+});
+
+/* -------------------------------------------- AUD-0065 — an expired session */
+
+test("AUD-0065 — a session whose window has closed is not offered as recoverable", () => {
+  const now = Date.parse("2026-11-09T11:48:00.000Z");
+  // The audit's session: created 10:41:48, expired 11:41:48; recovery at 11:48.
+  assert.equal(M.captureSessionWindowOpen("2026-11-09T11:41:48.000Z", now), false);
+  assert.equal(M.captureSessionWindowOpen("2026-11-09T12:41:48.000Z", now), true);
+  // An unknown expiry is the server's to judge.
+  assert.equal(M.captureSessionWindowOpen("", now), true);
+  assert.equal(M.captureSessionWindowOpen(undefined, now), true);
+});
+
+test("AUD-0065 — the capture window's own code is a gone session; the old code still is", () => {
+  assert.equal(M.isSessionGone({ code: "CAPTURE_WINDOW_EXPIRED" }), true);
+  assert.equal(M.isSessionGone({ code: "SESSION_EXPIRED" }), true);
+  assert.equal(M.isSessionGone({ code: "UNAUTHORIZED" }), false);
+});
+
+test("AUD-0065 — the screen states an expired session, and a gone session at any step is said as such", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../app/(stack)/continuous-capture.tsx", import.meta.url), "utf8");
+  assert.match(src, /setRecovery\(captureSessionWindowOpen\(live\.expiresAtUtc\) \? \{ kind: "ended" \} : \{ kind: "expired" \}\)/);
+  assert.match(src, /recovery\?\.kind === "expired"/);
+  assert.match(src, /if \(isSessionGone\(err\)\) \{\s*dispatch\(\{ type: "STAGE_FAILED", message: CONTINUOUS_SESSION_GONE \}\);/);
 });

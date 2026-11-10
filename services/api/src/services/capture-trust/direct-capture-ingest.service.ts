@@ -163,7 +163,9 @@ export type DirectCaptureClientSource = (typeof DIRECT_CAPTURE_CLIENT_SOURCES)[n
 export const DIRECT_CAPTURE_DENIALS = {
   SESSION_NOT_FOUND: 404,
   SESSION_NOT_ACTIVE: 409,
-  SESSION_EXPIRED: 409,
+  // AUD-0065 — its own code: the shared copy for SESSION_EXPIRED is an
+  // account sign-out, and a capture session closing is not one.
+  CAPTURE_WINDOW_EXPIRED: 409,
   SESSION_ALREADY_RESERVED: 409,
   // AUD-026 — a client attempt id names exactly one capture.
   CAPTURE_ATTEMPT_CONFLICT: 409,
@@ -601,7 +603,7 @@ async function requireActive(
     // the bind retry (the seal committed, the bind did not) refused forever.
     // The late call is refused; the session stays ACTIVE for its bind.
     await expireSession(db, session, now);
-    throw new DirectCaptureError("SESSION_EXPIRED");
+    throw new DirectCaptureError("CAPTURE_WINDOW_EXPIRED");
   }
   return session;
 }
@@ -614,7 +616,7 @@ async function expireSession(db: PrismaClient, session: SessionRow, now: Date): 
 }
 
 /**
- * AUD-0017 — the SESSION_EXPIRED refusals raised inside a transaction whose
+ * AUD-0017 — the CAPTURE_WINDOW_EXPIRED refusals raised inside a transaction whose
  * expiry (the interruption) is still to be written, after that transaction.
  */
 const deferredExpiries = new WeakMap<object, SessionRow>();
@@ -623,7 +625,7 @@ const deferredExpiries = new WeakMap<object, SessionRow>();
  * requireActive for a caller INSIDE an interactive transaction (AUD-0017).
  *
  * The checks are the same and run on no connection at all. An expired session
- * is refused SESSION_EXPIRED exactly as before, but its interruption is not
+ * is refused CAPTURE_WINDOW_EXPIRED exactly as before, but its interruption is not
  * written here: it used to commit on the global client — a second pooled
  * connection, waited for while this transaction held its own and the session
  * lock — and the refusal rolls this transaction back anyway. The interruption
@@ -635,14 +637,14 @@ function requireActiveInTransaction(session: SessionRow, now: Date): SessionRow 
     throw new DirectCaptureError("SESSION_NOT_ACTIVE");
   }
   if (session.expiresAtUtc && session.expiresAtUtc.getTime() <= now.getTime()) {
-    const refusal = new DirectCaptureError("SESSION_EXPIRED");
+    const refusal = new DirectCaptureError("CAPTURE_WINDOW_EXPIRED");
     deferredExpiries.set(refusal, session);
     throw refusal;
   }
   return session;
 }
 
-/** Write the expiry a transaction's SESSION_EXPIRED refusal deferred (none: no-op). */
+/** Write the expiry a transaction's CAPTURE_WINDOW_EXPIRED refusal deferred (none: no-op). */
 async function settleDeferredExpiry(db: PrismaClient, err: unknown, now: Date): Promise<void> {
   if (typeof err !== "object" || err === null) return;
   const session = deferredExpiries.get(err);

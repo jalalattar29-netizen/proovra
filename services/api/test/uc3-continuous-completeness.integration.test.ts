@@ -693,7 +693,7 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     const custodyBefore = await prisma.custodyEvent.count({ where: { evidenceId } });
     const late = await declare(token, sessionId, 3, "e".repeat(64), "SCREEN_SEGMENT");
     expect(late.statusCode, late.body).toBeGreaterThanOrEqual(400);
-    expect(late.body).toMatch(/SESSION_EXPIRED/);
+    expect(late.body).toMatch(/CAPTURE_WINDOW_EXPIRED/); // AUD-0065 — its own code
     const still = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { status: true } });
     expect(still.status).toBe("ACTIVE");
     expect(await prisma.custodyEvent.count({ where: { evidenceId } })).toBe(custodyBefore);

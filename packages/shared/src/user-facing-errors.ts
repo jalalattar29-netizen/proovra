@@ -209,6 +209,13 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     actionLabel: "Sign in",
     actionHref: "/login",
   },
+  // AUD-0065 — a capture session's window closed: the capture, not the account.
+  CAPTURE_WINDOW_EXPIRED: {
+    title: "This capture session has ended",
+    message:
+      "The capture session expired before this upload finished, so it can no longer be added to it. Anything still on this device stays there until you discard it.",
+    severity: "warning",
+  },
   SESSION_EXPIRED: {
     title: "Your session expired",
     message: "For your security you've been signed out. Sign in again to continue.",

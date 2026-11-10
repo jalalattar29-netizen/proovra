@@ -301,6 +301,9 @@ test("the registry does not describe codes the API no longer emits", () => {
     // PATCH /v1/security-policy as `code: e.code`.
     ["SSO_REQUIRED_NO_ACTIVE_CONNECTION", "services/api/src/services/identity/org-security-policy.service.ts"],
     ["SSO_REQUIRED_ACTOR_NOT_SIGNED_IN_WITH_SSO", "services/api/src/services/identity/org-security-policy.service.ts"],
+    // AUD-0065 — a direct-capture session's window closed, raised by the
+    // capture service (DirectCaptureError) and answered by the capture routes.
+    ["CAPTURE_WINDOW_EXPIRED", "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"],
   ] as const) {
     assert.ok(
       read(authority).includes('"' + c + '"'),

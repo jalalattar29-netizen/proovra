@@ -148,6 +148,9 @@ export async function retryCapture<T>(work: (attempt: number) => Promise<T>, pol
 
 /** Server refusals that mean the SESSION is gone (expired, reaped, discarded). */
 const SESSION_GONE_CODES = new Set([
+  // AUD-0065 — the capture session's window closed (its own code; an older
+  // server sent SESSION_EXPIRED, kept for it).
+  "CAPTURE_WINDOW_EXPIRED",
   "SESSION_EXPIRED",
   "SESSION_NOT_ACTIVE",
   "SESSION_NOT_FOUND",
