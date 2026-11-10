@@ -720,7 +720,8 @@ export type CommandCenterEnvelope = {
   opsHealth?: {
     telemetry: OpsHealthState;
     reconcile: OpsHealthState;
-    securityRollup: OpsHealthState;
+    /** AUD-0030 — null when the viewer may not read security. */
+    securityRollup: OpsHealthState | null;
   };
   /**
    * Phase 32.8C FINAL-3 — persona-aware capability matrix. Frontend

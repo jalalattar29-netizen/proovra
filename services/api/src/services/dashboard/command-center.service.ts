@@ -1203,7 +1203,12 @@ export type CommandCenterEnvelope = {
   opsHealth: {
     telemetry: OpsHealthState;
     reconcile: OpsHealthState;
-    securityRollup: OpsHealthState;
+    /**
+     * AUD-0030 — null when the viewer may not read security (`audit.read`):
+     * withheld like the security sections, never a classifier status and a
+     * 7-day security-event count to a member the sections are withheld from.
+     */
+    securityRollup: OpsHealthState | null;
   };
   unsupportedSignals: Array<{ signal: string; reason: string }>;
 };
@@ -3252,17 +3257,20 @@ export async function buildCommandCenter(input: {
         degradedSince: new Date().toISOString(),
         canonicalSourceHealthy: true,
       })),
-      evaluateSecurityRollupHealth({ teamId: input.teamId }).catch(() => ({
-        status: "DEGRADED" as const,
-        severity: "warning" as const,
-        reason:
-          "Security rollup health evaluator could not complete on this cycle.",
-        recoverable: true,
-        lastSuccessfulRunAt: null,
-        retrying: true,
-        degradedSince: new Date().toISOString(),
-        canonicalSourceHealthy: true,
-      })),
+      // AUD-0030 — only for a viewer who may read security.
+      input.canReadSecurity
+        ? evaluateSecurityRollupHealth({ teamId: input.teamId }).catch(() => ({
+            status: "DEGRADED" as const,
+            severity: "warning" as const,
+            reason:
+              "Security rollup health evaluator could not complete on this cycle.",
+            recoverable: true,
+            lastSuccessfulRunAt: null,
+            retrying: true,
+            degradedSince: new Date().toISOString(),
+            canonicalSourceHealthy: true,
+          }))
+        : Promise.resolve(null),
     ]);
 
   // Routing queue — top-N actionable items, severity ≥ warning.
