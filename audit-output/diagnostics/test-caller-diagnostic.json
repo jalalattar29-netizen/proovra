@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "cf4c5a90bf57dfbc35bf31d90d95c876a4ad9a9f62e394f9b9bbac43d8a1fa77",
+  "capabilityRouteInventoryHash": "9f8be09076ab15fdc1b0d83f45ea96c2c6fbfa6ffded61027585ed650bf7fc07",
   "totals": {
-    "routes": 1242,
+    "routes": 1243,
     "routesWithAnyTestCaller": 55,
     "testOnlyRoutes": 9,
     "testCallSites": 127,
@@ -860,6 +860,12 @@
     },
     {
       "routeId": "GET /v1/break-glass/grants",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/break-glass/my-grants",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7589,5 +7595,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "093bff44a46652d8edae3c50e27121f6714d3d0e381cac6d80ec2038e824c337"
+  "contentHash": "837bc69d097db9f172459283706327b70db0f0dabaedaff55b7ab32608173c37"
 }
