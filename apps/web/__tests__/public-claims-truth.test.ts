@@ -49,3 +49,16 @@ test("AUD-0009 — no certification heading while the certification registry is 
     assert.doesNotMatch(section, /Certifications/);
   }
 });
+
+test("AUD-0008 — use-case copy does not sell per-client or per-program workspaces with their own retention", () => {
+  // The product has one workspace per account (plan-catalog: one Personal
+  // Workspace; FREE/PRO/TEAM are tiers of it) and separates matters as cases
+  // with restricted access. It has no per-client retention scope.
+  const copy = read("apps/web/components/use-case-data.ts");
+  const visible = copy.replace(/^\s*\/\/.*$/gm, "");
+  assert.doesNotMatch(visible, /retention scopes?/i);
+  assert.doesNotMatch(copy, /Workspace separation by/);
+  assert.doesNotMatch(copy, /(Matter|Program) workspaces/);
+  assert.doesNotMatch(copy, /Workspaces isolate evidence/);
+  assert.doesNotMatch(copy, /has its own workspace/);
+});

@@ -242,8 +242,11 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
         body: "The custody history is part of the record — not a separate spreadsheet — so it survives every handoff inside or outside the firm.",
       },
       {
-        title: "Workspace separation for matters and clients",
-        body: "Matter workspaces isolate evidence by engagement, with separate access lists and retention scopes for each client.",
+        // AUD-0008 — the product has one workspace per account and separates
+        // matters as cases with restricted access; it sells no per-client
+        // workspaces and has no per-client retention scope.
+        title: "Separation by matter and client",
+        body: "Each matter is its own case. Restrict a case to the people and Collaboration Teams working on it, so evidence for one client stays out of reach of colleagues on another.",
       },
     ],
 
@@ -500,8 +503,9 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
         body: "The custody history is part of every claim-evidence record — not a spreadsheet — so it survives adjuster, SIU, and external-counsel handoff.",
       },
       {
-        title: "Workspace separation by product line",
-        body: "Workspaces isolate evidence by product line — property, auto, commercial — with separate access lists, retention scopes, and governance.",
+        // AUD-0008 — cases with restricted access, not separate workspaces.
+        title: "Separation by product line",
+        body: "Organize claims into cases by product line — property, auto, commercial — and restrict each case to the adjusters, SIU reviewers and counsel working it.",
       },
     ],
 
@@ -570,7 +574,7 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
       },
       {
         q: "How is retention handled across product lines?",
-        a: "Workspaces isolate evidence by product line. Retention rules attached to each record govern how long claim evidence is kept and how disposition is handled.",
+        a: "Cases separate evidence by product line, each restricted to the people working it. Retention rules attached to each record govern how long claim evidence is kept and how disposition is handled.",
       },
       {
         q: "Does AI assess whether a claim is valid?",
@@ -758,8 +762,9 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
         body: "The custody history is part of every case-evidence record so it survives HR, legal, audit, and external-counsel handoff.",
       },
       {
-        title: "Workspace separation by case",
-        body: "Each case has its own workspace with isolated access, retention scope, and governance — privacy by default.",
+        // AUD-0008 — cases with restricted access, not separate workspaces.
+        title: "Separation by case",
+        body: "Restrict each case to the investigators working it, so its evidence stays out of reach of everyone else in the workspace.",
       },
     ],
 
@@ -996,8 +1001,9 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
       "Editorial discipline lives at the record level. Retention rules, access controls, audit logs, and source-protection workspace boundaries travel with the source material from intake into post-publication scrutiny.",
     governanceItems: [
       {
-        title: "Workspace separation by story",
-        body: "Each story has its own workspace with isolated access, retention scope, and governance — source protection by default.",
+        // AUD-0008 — cases with restricted access, not separate workspaces.
+        title: "Separation by story",
+        body: "Keep each story in its own case and restrict it to the reporters and editors working it, so source material stays out of reach of the rest of the newsroom.",
       },
       {
         title: "Role separation between reporter, editor, fact-check, legal",
@@ -1274,8 +1280,9 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
         body: "The custody history is part of every control-evidence record so it survives internal audit, external audit, and regulatory handoff.",
       },
       {
-        title: "Program workspaces for separation of duties",
-        body: "Each program — ISO, SOX-style, privacy, security — has its own workspace with isolated access, retention scope, and governance.",
+        // AUD-0008 — cases with restricted access, not separate workspaces.
+        title: "Separation of duties by program",
+        body: "Keep each program — ISO, SOX-style, privacy, security — in its own cases, restricted to the people and Collaboration Teams responsible for it.",
       },
     ],
 
@@ -1340,7 +1347,7 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
       },
       {
         q: "How is retention handled across control programs?",
-        a: "Workspaces isolate evidence by program. Retention rules attached to each record govern how long control evidence is kept and how disposition is handled.",
+        a: "Cases separate evidence by program, each restricted to the people responsible for it. Retention rules attached to each record govern how long control evidence is kept and how disposition is handled.",
       },
       {
         q: "Does PROOVRA replace our GRC platform?",
@@ -1552,8 +1559,9 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
         body: "The custody history is part of every public-sector record so it survives inspection, oversight, audit, and transparency review.",
       },
       {
-        title: "Workspace separation by agency, program, or matter",
-        body: "Workspaces isolate evidence by agency, program, or matter — with separate access lists, retention scopes, and governance.",
+        // AUD-0008 — cases with restricted access, not separate workspaces.
+        title: "Separation by agency, program, or matter",
+        body: "Organize records into cases by agency, program, or matter, and restrict each case to the people and Collaboration Teams responsible for it.",
       },
       {
         title: "Freedom-of-information and public-records support",
@@ -1622,7 +1630,7 @@ export const USE_CASES: Record<string, UseCasePageContent> = {
       },
       {
         q: "How is retention handled across record types?",
-        a: "Workspaces isolate evidence by agency, program, or matter. Retention rules attached to each record govern how long public evidence is kept and how disposition is handled across statutes.",
+        a: "Cases separate evidence by agency, program, or matter, each restricted to the people responsible for it. Retention rules attached to each record govern how long public evidence is kept and how disposition is handled across statutes.",
       },
       {
         q: "Can oversight offices re-check the evidence independently?",
