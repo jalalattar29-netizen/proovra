@@ -114,8 +114,15 @@ test("a credential failure is never attributed to one of the two fields", () => 
     LOGIN.indexOf("fieldErrorsFromApiError(err,"),
     LOGIN.indexOf("fieldErrorsFromApiError(err,") + 260,
   );
-  assert.match(call, /email: "Enter a valid email address\."/);
-  assert.doesNotMatch(call, /password:\s*"/);
+  // AUD-0024 moved the sentence into the shared dictionary so it reads in the
+  // page's language. The pin follows it: the fallback is the dictionary's
+  // format sentence, and its English entry is still that sentence.
+  assert.match(call, /email: t\("loginErrorEmailInvalid"\)/);
+  assert.match(
+    read("packages/shared/src/i18n.ts"),
+    /\n    loginErrorEmailInvalid: "Enter a valid email address\.",/,
+  );
+  assert.doesNotMatch(call, /password:/);
 });
 
 // ===========================================================================
