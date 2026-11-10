@@ -891,6 +891,12 @@ export function otsCustodyEventLines(payload: Record<string, unknown> | null | u
   const height = typeof chain?.blockHeight === "number" ? chain.blockHeight : typeof p.bitcoinBlockHeight === "number" ? p.bitcoinBlockHeight : null;
   const confirmations = typeof chain?.confirmations === "number" ? chain.confirmations : null;
   const lines: Array<string | null> = [];
+  // AUD-0022 — a stamp recorded while OpenTimestamps was off created no proof.
+  // The worker no longer appends such an event, but the chain is append-only
+  // and keeps the ones it wrote: they read as what happened, not "updated".
+  if (s(p.otsStatus) === "DISABLED") {
+    return ["OpenTimestamps anchoring not requested; no proof was created"];
+  }
   if (!verification) {
     lines.push(s(p.otsStatus) === "PENDING" || !s(p.otsStatus) ? "OpenTimestamps proof submitted; Bitcoin attestation pending" : "OpenTimestamps proof updated");
   } else if (verification === "PENDING") {
