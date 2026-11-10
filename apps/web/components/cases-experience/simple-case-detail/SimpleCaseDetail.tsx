@@ -90,6 +90,7 @@ import { ReasonedActionButton } from "../../../app/(app)/evidence/[id]/component
 // inline hex styles, which is what made it the last surface still wearing the
 // pre-redesign modal language.
 import { Modal } from "../matter-modals/Modal";
+import { MatterAccessTab } from "../MatterAccessTab";
 // The one status chip. Tone is its only colour input; the row previously
 // carried a private three-tone palette built by hand.
 import {
@@ -2515,6 +2516,24 @@ function SettingsTab({
           />
         </div>
       </div>
+
+      {/* AUD-0053 — who can reach this case. The API lets Pro and Team
+          workspaces restrict a case to people and Collaboration Teams, and the
+          Teams page says teams control case access, but only the Enterprise
+          case page offered the control. The SAME panel the Enterprise page
+          uses (MatterAccessTab: per-person grants, Collaboration Team grants,
+          manage gated by viewer.canManageAccess), inside Settings so the
+          five-tab layout stays. */}
+      {caseTeamId ? (
+        <div className="cases-panel" data-simple-case-settings-access style={{ padding: 16 }}>
+          <MatterAccessTab
+            caseId={caseId}
+            teamId={caseTeamId}
+            caseOwnerUserId={caseDetail.ownerUserId}
+            viewer={viewer}
+          />
+        </div>
+      ) : null}
 
       {/* Danger zone — clear hierarchy separating it from the routine
           settings above (§21). */}
