@@ -206,7 +206,20 @@ export async function executeAccountClosure(
       const others = await tx.organizationMembership.count({
         where: { organizationId: m.organizationId, userId: { not: userId } },
       });
-      if (others === 0) {
+      /*
+       * AUD-0020 — account closure closes only workspaces the person OWNS
+       * (LIFE-13; the preflight already judges by Team.ownerUserId). An Owned
+       * workspace's SYSTEM container keeps its ORG_OWNER row when the
+       * workspace is transferred, so "solo container" is not proof that its
+       * workspaces are this person's: archiving it closed the new owner's
+       * workspace, revoked their membership, and left them no closure request
+       * to reopen from. A container that still holds a live workspace someone
+       * else owns stays live; only this person's membership of it ends below.
+       */
+      const othersWorkspaces = await tx.team.count({
+        where: { organizationId: m.organizationId, ownerUserId: { not: userId }, closedAtUtc: null },
+      });
+      if (others === 0 && othersWorkspaces === 0) {
         // PROGRAM CONVERGENCE (2026-07-22) — the ONE Organization→ARCHIVED
         // transition (org-closure engine), never a second inline status write.
         await archiveOrganizationStatusTx(tx, { organizationId: m.organizationId });

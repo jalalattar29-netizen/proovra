@@ -60520,8 +60520,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.update@351",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:351",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.update@364",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:364",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60555,8 +60555,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@389",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:389",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@402",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:402",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "recordAccountClosureWaiting",
       "kind": "DATABASE",
@@ -60590,8 +60590,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@433",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:433",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@446",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:446",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "recordAccountClosureOutcome",
       "kind": "DATABASE",
@@ -60625,8 +60625,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@495",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:495",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@508",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:508",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "processAccountClosures",
       "kind": "DATABASE",
@@ -60660,8 +60660,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@518",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:518",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@531",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:531",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "processAccountClosures",
       "kind": "DATABASE",
@@ -60695,8 +60695,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountDataExportRequest.updateMany@332",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:332",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountDataExportRequest.updateMany@345",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:345",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60730,8 +60730,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#apiCredential.updateMany@252",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:252",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#apiCredential.updateMany@265",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:265",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60765,8 +60765,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#authenticatedSession.updateMany@264",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:264",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#authenticatedSession.updateMany@277",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:277",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60800,8 +60800,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#emailVerificationToken.updateMany@292",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:292",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#emailVerificationToken.updateMany@305",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:305",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60835,8 +60835,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#externalIdentityMapping.updateMany@281",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:281",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#externalIdentityMapping.updateMany@294",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:294",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60870,8 +60870,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#passwordResetToken.updateMany@288",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:288",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#passwordResetToken.updateMany@301",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:301",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60905,8 +60905,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#teamInvite.updateMany@247",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:247",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#teamInvite.updateMany@260",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:260",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60940,8 +60940,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@296",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:296",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@309",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:309",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60975,8 +60975,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@338",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:338",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@351",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:351",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -61010,8 +61010,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#userIdentityLink.updateMany@276",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:276",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#userIdentityLink.updateMany@289",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:289",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
