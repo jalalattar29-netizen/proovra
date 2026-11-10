@@ -183,6 +183,28 @@
   min-width: 240px;
   max-width: 100%;
 }
+/* AUD-0060 — on a phone the search takes the toolbar's full width.
+   The `width: 100%` in the 720px block near the top of this file never
+   applied: it sits BEFORE the 340px rule above at the same specificity, so
+   the later rule won. And `.cases-toolbar-right` is `flex: 0 0 auto`, so even
+   a 100% field resolved against a content-sized parent. At 375px the input
+   measured 46..386 — past the edge, under the body's overflow-x clip. This
+   block comes after the base rules and lets the right cluster fill (and
+   shrink to) the toolbar row. */
+@media (max-width: 720px) {
+  .cases-toolbar-right {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .cases-toolbar-right .cases-search-field {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+  .cases-toolbar-right .cases-filter-search {
+    min-width: 0;
+  }
+}
 
 /* §3 — the duplicate native "Any status" <select> was removed; the status
    SEGMENT strip is now the ONLY status filter, at every width. The risk

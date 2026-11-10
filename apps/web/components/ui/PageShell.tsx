@@ -182,7 +182,14 @@ export function PageHeader({
         /* Stable class so a page can control how its header actions wrap at
            narrow widths. `min-width: 0` lets the row shrink inside the header
            instead of overflowing it — without it the actions kept their
-           content width and were clipped by the body's overflow-x. */
+           content width and were clipped by the body's overflow-x.
+
+           `max-width: 100%` is what actually bounds it. With `flex-shrink: 0`
+           the row is sized at its max-content width, so on a 375px screen a
+           back link + reason field + "Suspend customer" measured 361..508 and
+           "Verify Chain" 257..378 — past the edge, under the body's
+           overflow-x clip, unreachable. Capped at the header's width, the row
+           is forced to use the `flex-wrap` it already declares. (AUD-0060) */
         <div
           className="ui-page-header__actions"
           style={{
@@ -192,6 +199,7 @@ export function PageHeader({
             gap: 10,
             flexShrink: 0,
             minWidth: 0,
+            maxWidth: "100%",
           }}
         >
           {secondaryActions}

@@ -730,7 +730,7 @@ function LoginPageContent() {
             WebkitBackdropFilter: "blur(10px)",
           }}
         >
-          <span className="mr-2" style={{ color: "#E64880" }}>✓</span>
+          <span className="mr-2" style={{ color: "#C92C63" }}>✓</span>
           {label}
         </div>
       ))}

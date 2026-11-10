@@ -98,8 +98,15 @@ export function VerifyInstantly() {
           <div className="rounded-[24px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
             {/* Tab strip — all three render with their original visual style.
                 "Verification URL" is the only active mode; the other two are
-                inert visual labels (no click handler, no view switch). */}
-            <div className="flex gap-1 rounded-2xl bg-[var(--proovra-page-bg-soft)] p-1">
+                inert visual labels (no click handler, no view switch).
+                `flex-wrap`: the three no-wrap labels need more than a 375px
+                card, and "Enter Hash" ran to 295..382 under the body's
+                overflow-x clip. They now wrap to a second line instead.
+                (AUD-0060) */}
+            <div
+              className="flex flex-wrap gap-1 rounded-2xl bg-[var(--proovra-page-bg-soft)] p-1"
+              data-verify-instantly-modes
+            >
               <button
                 type="button"
                 aria-current="true"
