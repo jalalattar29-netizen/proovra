@@ -364,6 +364,9 @@ const UpdateTeamBody = z.object({
     .optional(),
 });
 
+/** AUD-0052 — a collaboration-team member id (`:memberId`). */
+const MEMBER_ID = z.string().uuid();
+
 const AddMemberBody = z.object({
   userId: z.string().uuid(),
   role: z
@@ -1149,6 +1152,18 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           requireActiveTeam: true,
         });
         if (!binding) return;
+        // AUD-0052 — a malformed member id is the caller's input error, not
+        // an infrastructure fault: it reached the lookup and answered 500 with
+        // an operational alert.
+        if (!MEMBER_ID.safeParse(req.params.memberId).success) {
+          return reply.code(400).send({
+            error: {
+              code: "invalid_member_id",
+              message: "The member id is not valid.",
+              requestId: req.id ?? null,
+            },
+          });
+        }
         const ctx = {
           workspaceId: binding.workspace.workspaceId,
           userId: binding.workspace.userId,
@@ -1253,6 +1268,18 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           requireActiveTeam: true,
         });
         if (!binding) return;
+        // AUD-0052 — a malformed member id is the caller's input error, not
+        // an infrastructure fault: it reached the lookup and answered 500 with
+        // an operational alert.
+        if (!MEMBER_ID.safeParse(req.params.memberId).success) {
+          return reply.code(400).send({
+            error: {
+              code: "invalid_member_id",
+              message: "The member id is not valid.",
+              requestId: req.id ?? null,
+            },
+          });
+        }
         const ctx = {
           workspaceId: binding.workspace.workspaceId,
           userId: binding.workspace.userId,
