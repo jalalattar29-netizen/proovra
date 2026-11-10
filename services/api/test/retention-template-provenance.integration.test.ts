@@ -11,6 +11,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { intakeConsentDisclosureText } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -123,7 +124,7 @@ describe("retention custody event carries the template trio (live PostgreSQL 16)
         consent: {
           acceptedAtUtc: new Date().toISOString(),
           policyVersion: opened.link.consentPolicyVersion || "v1",
-          disclosureTextHash: createHash("sha256").update(opened.link.consentDisclosureText ?? "").digest("hex"),
+          disclosureTextHash: createHash("sha256").update(intakeConsentDisclosureText(opened.link.consentDisclosureText)).digest("hex"),
           termsAcknowledged: true,
           identityDisclosed: true,
           ipHash: null,

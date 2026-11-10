@@ -9,6 +9,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { intakeConsentDisclosureText } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -65,7 +66,7 @@ describe("ET-INT-02 — intake part retry (live PostgreSQL 16)", () => {
     const sid = opened.session.id;
     await h.app.inject({
       method: "POST", url: `/v1/external-intake/${t}/sessions/${sid}/consent`,
-      payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(opened.link.consentDisclosureText ?? "").digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
+      payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(intakeConsentDisclosureText(opened.link.consentDisclosureText)).digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
     });
     const body = { partIndex: 0, mimeType: "text/plain", originalFileName: "statement.txt", sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null };
     const first = await h.app.inject({ method: "POST", url: `/v1/external-intake/${t}/sessions/${sid}/parts`, payload: body });

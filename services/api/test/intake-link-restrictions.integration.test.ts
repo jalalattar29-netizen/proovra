@@ -10,6 +10,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { intakeConsentDisclosureText } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -92,7 +93,7 @@ describe("ET-INT-06 — intake link restrictions (live PostgreSQL 16)", () => {
       method: "POST",
       url: `/v1/external-intake/${t}/sessions/${sid}/consent`,
       remoteAddress: inside,
-      payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(opened.link.consentDisclosureText ?? "").digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
+      payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(intakeConsentDisclosureText(opened.link.consentDisclosureText)).digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
     });
     const part = await h.app.inject({
       method: "POST",
@@ -126,7 +127,7 @@ describe("ET-INT-06 — intake link restrictions (live PostgreSQL 16)", () => {
       method: "POST",
       url: `/v1/external-intake/${t}/sessions/${sid}/consent`,
       remoteAddress: inside,
-      payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(opened.link.consentDisclosureText ?? "").digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
+      payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(intakeConsentDisclosureText(opened.link.consentDisclosureText)).digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
     });
     const part = await h.app.inject({
       method: "POST",
