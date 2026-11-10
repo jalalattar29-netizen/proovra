@@ -130,6 +130,18 @@ function coerceRole(raw: string | null | undefined): WorkspaceRole | null {
   return isWorkspaceRole(raw) ? raw : null;
 }
 
+/**
+ * AUD-0047 — the switcher name of a personal workspace somebody else owns:
+ * "<Owner>'s workspace", or a generic label when the owner has no name on
+ * record. Never an id, and never the owner's email address. Bounded like
+ * every Team name (120).
+ */
+function sharedWorkspaceName(ownerName: string | null): string {
+  if (!ownerName) return "Shared workspace";
+  const label = `${ownerName}'s workspace`;
+  return label.length > 120 ? label.slice(0, 120) : label;
+}
+
 export type BuildPlatformContextInput = {
   userId: string;
   requestId: string;
@@ -957,6 +969,21 @@ export async function buildPlatformContext(
   };
   const personalTeams: PersonalTeamRow[] = [];
   /**
+   * AUD-0047 — ACTIVE memberships in personal workspaces somebody ELSE owns.
+   *
+   * A Pro or Team owner's workspace is their own personal Team
+   * (`isPersonal = true`, single-occupant billing) with members invited into
+   * it. Those rows used to stop at `personalTeams` and never reach the
+   * switcher, so an invitee could accept and then never open the workspace.
+   * The caller's OWN personal Team is not collected here — it is
+   * `personalSpace`.
+   */
+  const sharedPersonalRows: Array<{
+    workspaceId: string;
+    ownerUserId: string;
+    role: ReturnType<typeof coerceRole>;
+  }> = [];
+  /**
    * ARCH-003 — workspace id → WORKSPACE membership id.
    *
    * Collected here, from the same rows the switcher is built from, so the
@@ -1041,6 +1068,13 @@ export async function buildPlatformContext(
           memberCount: m.team._count?.members ?? 0,
           billingPlan: (m.team.billingPlan as unknown as string) ?? null,
         });
+        if ((m.team.ownerUserId as unknown as string) !== userRow.id) {
+          sharedPersonalRows.push({
+            workspaceId: m.team.id,
+            ownerUserId: m.team.ownerUserId as unknown as string,
+            role: coerceRole(m.role as unknown as string),
+          });
+        }
         continue;
       }
 
@@ -1079,6 +1113,46 @@ export async function buildPlatformContext(
     }
   } catch {
     availableWorkspacesStatus = "degraded";
+  }
+
+  // ===========================================================================
+  // AUD-0047 — joined personal workspaces, NAMED.
+  //
+  // A personal Team's stored name is the owner's bootstrap label, which may be
+  // built from their email address, so it is not what the switcher shows. The
+  // name is derived from the owner's display name instead — read for every
+  // owner in ONE query — and falls back to a generic label, never to an id.
+  // ===========================================================================
+  const sharedPersonalWorkspaces: Array<{
+    workspaceId: string;
+    name: string;
+    role: ReturnType<typeof coerceRole>;
+  }> = [];
+  if (sharedPersonalRows.length > 0) {
+    const ownerNames = new Map<string, string>();
+    try {
+      const owners = await prisma.user.findMany({
+        where: {
+          id: { in: Array.from(new Set(sharedPersonalRows.map((r) => r.ownerUserId))) },
+        },
+        select: { id: true, displayName: true, firstName: true, lastName: true },
+      });
+      for (const o of owners) {
+        const ownerName =
+          o.displayName?.trim() ||
+          [o.firstName, o.lastName].filter(Boolean).join(" ").trim();
+        if (ownerName) ownerNames.set(o.id, ownerName);
+      }
+    } catch {
+      // Names degrade to the generic label; the options themselves do not.
+    }
+    for (const r of sharedPersonalRows) {
+      sharedPersonalWorkspaces.push({
+        workspaceId: r.workspaceId,
+        name: sharedWorkspaceName(ownerNames.get(r.ownerUserId) ?? null),
+        role: r.role,
+      });
+    }
   }
 
   // ===========================================================================
@@ -1156,9 +1230,17 @@ export async function buildPlatformContext(
    * entitlement (`resolveWorkspaceEffectivePlan`, PERSONAL branch). When the
    * personal space happens to be the active workspace we prefer the resolved
    * value so the two sections cannot disagree.
+   *
+   * AUD-0047 — "the personal space is active" means the caller's OWN one.
+   * Inside a joined personal workspace the scope is PERSONAL too, and reading
+   * `workspace.plan` there handed the member's own Personal Space the owner's
+   * PRO/TEAM plan.
    */
   const personalSpacePlan =
-    workspace.scope === "PERSONAL" && workspace.plan
+    workspace.scope === "PERSONAL" &&
+    personalTeamId !== null &&
+    workspace.id === personalTeamId &&
+    workspace.plan
       ? workspace.plan
       : (accountPlan ?? null);
 
@@ -1246,14 +1328,30 @@ export async function buildPlatformContext(
     const personalId: string | null = workspaceIdNonEmpty
       ? (workspace.id as string)
       : personalSpace.id ?? null;
-    activeSpace = {
-      type: "PERSONAL",
-      id: personalId,
-      displayName: "Personal Space",
-      roleLabel: "Owner",
-      // Same SERVER-resolved active plan (personal Entitlement overlay).
-      plan: workspace.plan,
-    };
+    // AUD-0047 — a PERSONAL workspace is not necessarily the caller's own. In
+    // one a Pro/Team owner invited them into, it carries that workspace's name
+    // and the caller's real role, never "Personal Space" / "Owner".
+    const joined = personalId
+      ? sharedPersonalWorkspaces.find((w) => w.workspaceId === personalId)
+      : undefined;
+    activeSpace = joined
+      ? {
+          type: "PERSONAL",
+          id: joined.workspaceId,
+          displayName: joined.name,
+          roleLabel: joined.role,
+          plan: workspace.plan,
+          shared: true,
+        }
+      : {
+          type: "PERSONAL",
+          id: personalId,
+          displayName: "Personal Space",
+          roleLabel: "Owner",
+          // Same SERVER-resolved active plan (personal Entitlement overlay).
+          plan: workspace.plan,
+          shared: false,
+        };
   }
 
   // ===========================================================================
@@ -1318,6 +1416,21 @@ export async function buildPlatformContext(
   // POINT 7 — `personalSpaceAllowedFlag` is now resolved ONCE at the top of
   // this function, BEFORE selection, so it governs bootstrap, stale-pointer
   // healing and the no-healthy-selection fallback as well as this list.
+  //
+  // AUD-0047 — "Shared with you": personal workspaces somebody else owns. The
+  // rule above is about the caller's OWN Personal Space; these are offered on
+  // the condition the switch route applies to them. Its personal-space gate
+  // (`assertPersonalSpaceAllowed`) runs for EVERY `isPersonal` target, so for
+  // an identity without a Personal Space they would be choices it refuses.
+  const sharedWorkspaceOptions = personalSpaceAllowedFlag
+    ? sharedPersonalWorkspaces.map((w) => ({
+        workspaceId: w.workspaceId,
+        name: w.name,
+        kind: "PERSONAL" as const,
+        role: w.role,
+        lifecycleStatus: "active" as const,
+      }))
+    : [];
   const contextOptions = {
     personalSpace: personalTeamId && personalSpaceAllowedFlag
       ? {
@@ -1329,6 +1442,7 @@ export async function buildPlatformContext(
         }
       : null,
     ownedWorkspaces: ownedWorkspaceOptions,
+    sharedWorkspaces: sharedWorkspaceOptions,
     organizations: Array.from(orgGroups.values()),
     activeContext: {
       workspaceId: activeSpace.id,
@@ -1529,6 +1643,16 @@ export async function buildPlatformContext(
   const canonicalOrgWorkspaces = contextOptionRows
     .filter((r) => r.kind === "ORGANIZATION")
     .map(toCanonicalWorkspace);
+  // AUD-0047 — the same rows the switcher offers, so the two cannot disagree.
+  const canonicalShared = sharedWorkspaceOptions.map((w) =>
+    toCanonicalWorkspace({
+      workspaceId: w.workspaceId,
+      name: w.name,
+      kind: "PERSONAL",
+      role: w.role,
+      organizationId: null,
+    }),
+  );
 
   const canonicalPersonal: CanonicalContextWorkspace | null =
     personalTeamId && personalSpaceAllowedFlag
@@ -1547,7 +1671,7 @@ export async function buildPlatformContext(
   // enterable. A pointer at anything else resolves to `null` — never to a
   // substitute, which is what "no silent fallback" means here.
   const canonicalCurrentWorkspace: CanonicalContextWorkspace | null =
-    [canonicalPersonal, ...canonicalOwned, ...canonicalOrgWorkspaces].find(
+    [canonicalPersonal, ...canonicalOwned, ...canonicalShared, ...canonicalOrgWorkspaces].find(
       (w): w is CanonicalContextWorkspace =>
         w !== null && w.workspaceId === activeSpace.id,
     ) ?? null;
@@ -1587,6 +1711,7 @@ export async function buildPlatformContext(
     },
     personalSpace: canonicalPersonal,
     ownedWorkspaces: canonicalOwned,
+    sharedWorkspaces: canonicalShared,
     organizations: canonicalOrganizations,
     organizationMemberships: canonicalOrgMemberships,
     organizationWorkspaces: canonicalOrgWorkspaces,

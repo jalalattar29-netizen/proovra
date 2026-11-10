@@ -338,6 +338,85 @@ test("P3: server contextOptions groups OWNED under 'Your workspaces' — never a
   assert.equal(m.workspaces.total, 3);
 });
 
+// AUD-0047 — a Pro/Team workspace the user JOINED (another person's
+// personal workspace) is offered under "Shared with you", and being in it
+// does not mark the user's own Personal Space as current.
+const ctxWithShared = (): NonNullable<AccountMenuInput["contextOptions"]> => ({
+  personalSpace: { workspaceId: "personal-1", name: "Personal Space", role: "OWNER" },
+  ownedWorkspaces: [],
+  sharedWorkspaces: [
+    { workspaceId: "shared-pro", name: "Dana Owner's workspace", role: "MEMBER" },
+    { workspaceId: "shared-team", name: "Sam Lead's workspace", role: "ADMIN" },
+  ],
+  organizations: [
+    {
+      organizationId: "org-A",
+      organizationName: "Acme Corp",
+      workspaces: [{ workspaceId: "ws-A1", workspaceName: "Acme", workspaceRole: "MEMBER" }],
+    },
+  ],
+});
+
+test("AUD-0047: joined Pro/Team workspaces are listed under Shared with you, with the member's role", () => {
+  const m = resolveAccountMenu(input({ contextOptions: ctxWithShared() }));
+  assert.deepEqual(
+    m.workspaces.shared.map((w) => [w.id, w.label, w.kind, w.roleLabel, w.active]),
+    [
+      ["shared-pro", "Dana Owner's workspace", "PERSONAL", "MEMBER", false],
+      ["shared-team", "Sam Lead's workspace", "PERSONAL", "ADMIN", false],
+    ],
+  );
+  // The user's own Personal Space is unchanged and still the active one.
+  assert.equal(m.workspaces.personal?.id, "personal-1");
+  assert.equal(m.workspaces.personal?.label, "Personal Space");
+  assert.equal(m.workspaces.personal?.active, true);
+  // Shared workspaces never leak into Organizations or Your workspaces.
+  assert.ok(!flatWorkspaces(m).some((w) => w.id.startsWith("shared-")));
+  assert.equal(m.workspaces.owned.length, 0);
+  assert.equal(m.workspaces.total, 4);
+});
+
+test("AUD-0047: inside a joined workspace, IT is active — not the user's own Personal Space", () => {
+  const m = resolveAccountMenu(
+    input({
+      activeSpace: { type: "PERSONAL", id: "shared-team" },
+      contextOptions: ctxWithShared(),
+    }),
+  );
+  assert.equal(m.workspaces.personal?.active, false);
+  assert.deepEqual(
+    m.workspaces.shared.filter((w) => w.active).map((w) => w.id),
+    ["shared-team"],
+  );
+});
+
+// Which shared options exist is the SERVER's decision (it withholds them where
+// its switch route would refuse); the client flag only hides the user's own.
+test("AUD-0047: the client's managed-identity flag hides only the user's OWN Personal Space", () => {
+  const m = resolveAccountMenu(
+    input({ contextOptions: ctxWithShared(), personalSpaceAllowed: false }),
+  );
+  assert.equal(m.workspaces.personal, null);
+  assert.equal(m.workspaces.shared.length, 2);
+});
+
+test("AUD-0047: an API without sharedWorkspaces reads as none", () => {
+  const m = resolveAccountMenu(input({ contextOptions: ctxWithOrgs([]) }));
+  assert.deepEqual(m.workspaces.shared, []);
+  assert.equal(m.workspaces.total, 1);
+});
+
+test("AUD-0047: the switcher panel renders the Shared with you group through the same option + switch", () => {
+  const src = read("components/app-shell-v2/AppAccountToolbar.tsx");
+  assert.match(src, /data-context-group="SHARED"/);
+  assert.match(src, /Shared with you/);
+  const group = src.slice(src.indexOf('data-context-group="SHARED"'));
+  assert.match(
+    group.slice(0, 900),
+    /menu\.workspaces\.shared\.map[\s\S]*<SwitcherOption[\s\S]*onSelect=\{handleSwitchWorkspace\}/,
+  );
+});
+
 // ---------------------------------------------------------------------------
 // 7. No dead links — every rendered link's destination actually loads.
 // ---------------------------------------------------------------------------

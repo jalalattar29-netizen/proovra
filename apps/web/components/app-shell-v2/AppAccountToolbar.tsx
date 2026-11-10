@@ -107,6 +107,16 @@ function getWorkspaceLabels(
 
   if (active) {
     if (active.type === "PERSONAL") {
+      // AUD-0047 — a Pro/Team workspace the actor JOINED is PERSONAL too; it
+      // carries its own name and the actor's real role from the server.
+      if (active.shared) {
+        return {
+          name: active.displayName,
+          scopeLine: active.roleLabel
+            ? `Shared with you • ${active.roleLabel}`
+            : "Shared with you",
+        };
+      }
       return { name: "Personal Space", scopeLine: "Personal • Owner" };
     }
 
@@ -435,7 +445,9 @@ export function AppAccountToolbar({
               aria-label={`Active workspace: ${workspaceName}. Open workspace switcher.`}
             >
               <span className="app-topbar-v2-workspace-icon" aria-hidden="true">
-                {activeSpace?.type === "PERSONAL" ? (
+                {activeSpace?.type === "PERSONAL" && activeSpace.shared ? (
+                  <Users size={16} strokeWidth={1.9} />
+                ) : activeSpace?.type === "PERSONAL" ? (
                   <UserCircle size={16} strokeWidth={1.9} />
                 ) : (
                   <Building2 size={16} strokeWidth={1.9} />
@@ -504,6 +516,7 @@ export function AppAccountToolbar({
                     shell authority) rather than at any one route. */}
                 {!menu.workspaces.personal &&
                 menu.workspaces.owned.length === 0 &&
+                menu.workspaces.shared.length === 0 &&
                 menu.workspaces.organizations.length === 0 ? (
                   <div
                     className="app-topbar-v2-workspace-menu-empty"
@@ -545,6 +558,28 @@ export function AppAccountToolbar({
                         option={w}
                         icon={<Users size={14} strokeWidth={1.9} />}
                         chip="Workspace"
+                        onSelect={handleSwitchWorkspace}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+
+                {/* AUD-0047 — Pro/Team workspaces the actor joined by
+                    invitation. Same option renderer, same switch. */}
+                {menu.workspaces.shared.length > 0 ? (
+                  <div
+                    className="app-topbar-v2-workspace-menu-group"
+                    data-context-group="SHARED"
+                  >
+                    <div className="app-topbar-v2-workspace-menu-group-label">
+                      Shared with you
+                    </div>
+                    {menu.workspaces.shared.map((w) => (
+                      <SwitcherOption
+                        key={w.id}
+                        option={w}
+                        icon={<Users size={14} strokeWidth={1.9} />}
+                        chip={w.roleLabel ? formatRoleChip(w.roleLabel) : "Shared"}
                         onSelect={handleSwitchWorkspace}
                       />
                     ))}
@@ -652,7 +687,9 @@ export function AppAccountToolbar({
                       data-account-menu-header-workspace
                       className="app-topbar-v2-account-menu-workspace-badge"
                     >
-                      {activeSpace.type === "PERSONAL" ? (
+                      {activeSpace.type === "PERSONAL" && activeSpace.shared ? (
+                        <Users size={11} strokeWidth={2} />
+                      ) : activeSpace.type === "PERSONAL" ? (
                         <UserCircle size={11} strokeWidth={2} />
                       ) : (
                         <Building2 size={11} strokeWidth={2} />
@@ -780,9 +817,16 @@ export function AppAccountToolbar({
   );
 }
 
+/** AUD-0047 — `MEMBER` → `Member` for the shared-workspace role chip. */
+function formatRoleChip(role: string): string {
+  const cleaned = role.replace(/_/g, " ").trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+}
+
 /**
  * P4 — one canonical switcher-option renderer shared by every group in the
- * context-switcher panel (Personal / Your workspaces / Organizations).
+ * context-switcher panel (Personal / Your workspaces / Shared with you /
+ * Organizations).
  */
 function SwitcherOption({
   option,

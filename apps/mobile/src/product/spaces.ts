@@ -30,8 +30,9 @@
  *
  * So this module reads the CANONICAL block instead, where the distinction is
  * structural rather than a field to remember: `personalSpace`,
- * `ownedWorkspaces`, `organizations` (organization ids ONLY) and
- * `organizationWorkspaces` (workspace ids, each naming its organization).
+ * `ownedWorkspaces`, `sharedWorkspaces`, `organizations` (organization ids
+ * ONLY) and `organizationWorkspaces` (workspace ids, each naming its
+ * organization).
  *
  * Pure: no React, no react-native, no fetch.
  */
@@ -67,7 +68,14 @@ export const WORKSPACE_CREATION_NOTE =
   "New workspaces are set up with PROOVRA rather than created here. Your organization " +
   "administrator or your account contact can add one.";
 
-export type SpaceKind = "PERSONAL" | "OWNED" | "ORGANIZATION";
+/**
+ * `SHARED` (AUD-0047) is a PERSONAL workspace somebody ELSE owns that the
+ * caller joined by invitation — a Pro or Team owner's workspace. The server
+ * calls it PERSONAL, and it is: single-occupant billing, the owner's plan. It
+ * is a kind of its own here because a person reads "Personal Space" as THEIR
+ * space, and labelling somebody else's that way is the mislabel the audit found.
+ */
+export type SpaceKind = "PERSONAL" | "OWNED" | "SHARED" | "ORGANIZATION";
 
 export interface Space {
   /** The WORKSPACE id — what `switch-workspace` takes and every scoped read uses. */
@@ -91,6 +99,8 @@ export interface Space {
 export interface SpacesView {
   personal: Space | null;
   owned: Space[];
+  /** AUD-0047 — "Shared with you": Pro/Team workspaces the caller joined. */
+  shared: Space[];
   organization: Space[];
   activeWorkspaceId: string | null;
   /**
@@ -124,7 +134,7 @@ function workspace(raw: unknown, kind: SpaceKind, orgName: string | null = null)
 /** The name of a workspace the caller belongs to. A null id is the Personal Space. */
 export function spaceNameFor(view: SpacesView, teamId: string | null): string | null {
   if (teamId === null) return view.personal?.name ?? "Personal Space";
-  const all = [view.personal, ...view.owned, ...view.organization];
+  const all = [view.personal, ...view.owned, ...view.shared, ...view.organization];
   return all.find((s) => s?.id === teamId)?.name ?? null;
 }
 
@@ -148,6 +158,11 @@ export function projectSpaces(envelope: unknown): SpacesView {
     .map((raw) => workspace(raw, "OWNED"))
     .filter((w): w is Space => w !== null);
 
+  // AUD-0047 — absent on an API that predates it, which reads as none.
+  const shared = rows(canonical.sharedWorkspaces)
+    .map((raw) => workspace(raw, "SHARED"))
+    .filter((w): w is Space => w !== null);
+
   const organization = rows(canonical.organizationWorkspaces)
     .map((raw) => {
       const orgId = str(obj(raw).organizationId);
@@ -160,6 +175,7 @@ export function projectSpaces(envelope: unknown): SpacesView {
   return {
     personal,
     owned,
+    shared,
     organization,
     // The canonical fallback is `currentWorkspace`; `activeContext` is not a canonical key.
     activeWorkspaceId: str(active.id) ?? str(obj(canonical.currentWorkspace).workspaceId),
@@ -169,7 +185,12 @@ export function projectSpaces(envelope: unknown): SpacesView {
 
 /** Every space, in the order a person reads them: theirs, then shared. */
 export function allSpaces(view: SpacesView): Space[] {
-  return [...(view.personal ? [view.personal] : []), ...view.owned, ...view.organization];
+  return [
+    ...(view.personal ? [view.personal] : []),
+    ...view.owned,
+    ...view.shared,
+    ...view.organization,
+  ];
 }
 
 export function isActiveSpace(space: Space, view: SpacesView): boolean {
@@ -189,6 +210,8 @@ export function spaceKindLabel(kind: SpaceKind): string {
       return "Personal Space";
     case "OWNED":
       return "Your workspace";
+    case "SHARED":
+      return "Shared with you";
     case "ORGANIZATION":
       return "Organization workspace";
   }
@@ -205,5 +228,11 @@ export function spaceSummaryLine(space: Space): string | null {
     parts.push(`${space.memberCount} member${space.memberCount === 1 ? "" : "s"}`);
   }
   if (space.organizationName) parts.push(space.organizationName);
+  // AUD-0047 — in somebody else's workspace the caller's role is the fact that
+  // matters ("Member", "Admin"); it is never assumed to be Owner.
+  if (space.kind === "SHARED" && space.role) {
+    const role = space.role.replace(/_/g, " ").trim().toLowerCase();
+    parts.push(role.charAt(0).toUpperCase() + role.slice(1));
+  }
   return parts.length > 0 ? parts.join(" · ") : null;
 }

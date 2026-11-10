@@ -483,9 +483,10 @@ describe("§1 — ARCH-003: the platform context is versioned and unambiguous", 
       /currentWorkspaceSource: "POINTER" \| "REPAIRED_TO_PERSONAL" \| "NONE";/,
     );
     // The healed target is looked up among workspaces already proven enterable,
-    // so a repair can never widen the set.
+    // so a repair can never widen the set. (AUD-0047 — `canonicalShared` is
+    // the joined Pro/Team workspaces, built from the same ACTIVE memberships.)
     expect(BUILDER).toMatch(
-      /canonicalCurrentWorkspace[\s\S]{0,400}?\[canonicalPersonal, \.\.\.canonicalOwned, \.\.\.canonicalOrgWorkspaces\]/,
+      /canonicalCurrentWorkspace[\s\S]{0,400}?\[canonicalPersonal, \.\.\.canonicalOwned, \.\.\.canonicalShared, \.\.\.canonicalOrgWorkspaces\]/,
     );
     // …and the source is derived from the POINTER, not asserted.
     expect(BUILDER).toMatch(

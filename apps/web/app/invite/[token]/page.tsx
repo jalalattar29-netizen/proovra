@@ -64,7 +64,7 @@ import "../invite.css";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import { formatUserDateTime } from "../../../lib/date";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
@@ -75,6 +75,7 @@ import type {
   SystemStateTone,
 } from "../../../components/feedback/ProovraSystemState";
 import { apiFetch, isApiResponseError } from "../../../lib/api";
+import { requestWorkspaceSwitch } from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
 import { useAuth } from "../../providers";
 import {
@@ -215,6 +216,7 @@ export default function InviteAcceptPage() {
   const params = useParams<{ token: string }>();
   const token = params?.token ?? "";
   const { user, authReady } = useAuth();
+  const router = useRouter();
 
   const [lookup, setLookup] = useState<InvitationLookupOutcome>({
     kind: "pending",
@@ -231,6 +233,14 @@ export default function InviteAcceptPage() {
    * lands during the same tick.
    */
   const acceptInFlight = useRef(false);
+
+  /**
+   * AUD-0047 — the workspace the accept response named. Held to switch into
+   * it when the reader presses Open workspace; never rendered.
+   */
+  const acceptedWorkspaceId = useRef<string | null>(null);
+  /** Same double-press guard as accept, for the switch-then-navigate. */
+  const openInFlight = useRef(false);
 
   // -- the READ -------------------------------------------------------------
 
@@ -306,12 +316,15 @@ export default function InviteAcceptPage() {
           `/v1/teams/invites/${encodeURIComponent(token)}/accept`,
           { method: "POST", body: JSON.stringify({}) },
         )) as { workspaceId?: string; alreadyMember?: boolean };
+        acceptedWorkspaceId.current =
+          typeof result?.workspaceId === "string" ? result.workspaceId : null;
 
         /*
           THE DESTINATION IS A NAV PATH, NOT AN ID RENDERED ANYWHERE.
 
           `workspaceId` comes back from the accept response and is used to
-          build the link the reader presses. It is never displayed.
+          switch into the workspace when the reader presses Open workspace.
+          It is never displayed.
         */
         setAccept({
           kind: "accepted",
@@ -337,6 +350,37 @@ export default function InviteAcceptPage() {
       }
     })();
   }, [token]);
+
+  /**
+   * AUD-0047 — OPEN WORKSPACE MEANS THE WORKSPACE JUST JOINED.
+   *
+   * It used to be a plain link to `/home`, which opens whatever context the
+   * reader's pointer already named — their own space — so a person who joined
+   * a Pro or Team workspace landed in their own Free one. The pointer is moved
+   * first, through the platform-context provider's own switch request (the
+   * server re-authorizes the new membership), and only then does the page
+   * navigate. A refused switch still navigates: the membership exists, and the
+   * workspace switcher offers it.
+   */
+  const onOpenWorkspace = useCallback(
+    (destination: string) => {
+      if (openInFlight.current) return;
+      openInFlight.current = true;
+      void (async () => {
+        const workspaceId = acceptedWorkspaceId.current;
+        if (workspaceId) {
+          try {
+            await requestWorkspaceSwitch(workspaceId);
+          } catch (err) {
+            captureException(err, { feature: "invite_open_workspace" });
+          }
+        }
+        openInFlight.current = false;
+        router.push(destination);
+      })();
+    },
+    [router],
+  );
 
   const onRetry = useCallback(() => {
     setAccept({ kind: "idle" });
@@ -374,7 +418,16 @@ export default function InviteAcceptPage() {
   const createAccountHref = `/register?returnUrl=${encodeURIComponent(returnPath)}`;
 
   const actions = view.actions
-    .map((a) => toSystemAction(a, { onAccept, onRetry, signInHref, createAccountHref, view }))
+    .map((a) =>
+      toSystemAction(a, {
+        onAccept,
+        onOpenWorkspace,
+        onRetry,
+        signInHref,
+        createAccountHref,
+        view,
+      }),
+    )
     .filter((a): a is SystemStateAction => a !== null);
 
   return (
@@ -524,6 +577,7 @@ function toSystemAction(
   action: InvitationAction,
   ctx: {
     onAccept: () => void;
+    onOpenWorkspace: (destination: string) => void;
     onRetry: () => void;
     signInHref: string;
     createAccountHref: string;
@@ -571,9 +625,11 @@ function toSystemAction(
         testId: "invite-switch-account",
       };
     case "open-workspace":
+      // AUD-0047 — a control, not a link: it switches into the accepted
+      // workspace before navigating.
       return {
         label: "Open workspace",
-        href: ctx.view.destination ?? "/home",
+        onClick: () => ctx.onOpenWorkspace(ctx.view.destination ?? "/home"),
         variant,
         testId: "invite-open-workspace",
       };

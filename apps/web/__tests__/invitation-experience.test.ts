@@ -639,3 +639,29 @@ test("token shape is checked before anything is sent", () => {
   // And the page uses it, so a guess costs no request and no rate-limit budget.
   assert.match(PAGE, /isWellFormedWorkspaceInviteToken\(token\)/);
 });
+
+// ===========================================================================
+// AUD-0047 — OPEN WORKSPACE OPENS THE WORKSPACE JUST JOINED
+// ===========================================================================
+
+test("Open workspace switches into the accepted workspace, then navigates", () => {
+  // It was a plain `/home` link, which opens whatever context the reader's
+  // pointer already named — their own space — so a person who joined a Pro or
+  // Team workspace landed in their own Free one.
+  const action = PAGE.slice(PAGE.indexOf('case "open-workspace":'));
+  const body = action.slice(0, action.indexOf("case ", 10));
+  assert.ok(!/href:/.test(body), "Open workspace must not be a bare link");
+  assert.match(body, /onClick: \(\) => ctx\.onOpenWorkspace\(/);
+
+  // The handler moves the pointer through the platform-context provider's own
+  // switch request (no second copy of the endpoint) with the id the ACCEPT
+  // response named, and only then navigates.
+  const handler = PAGE.slice(PAGE.indexOf("const onOpenWorkspace = useCallback"));
+  assert.ok(handler.length > 0);
+  const switchAt = handler.indexOf("await requestWorkspaceSwitch(workspaceId)");
+  const pushAt = handler.indexOf("router.push(destination)");
+  assert.ok(switchAt > 0 && pushAt > switchAt, "switch first, navigate after");
+  assert.match(PAGE, /import \{ requestWorkspaceSwitch \} from "\.\.\/\.\.\/\.\.\/lib\/platform-context"/);
+  assert.ok(!PAGE.includes("/v1/platform/context"), "no second copy of the endpoint");
+  assert.match(PAGE, /acceptedWorkspaceId\.current =\s*typeof result\?\.workspaceId === "string"/);
+});

@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "cf4c5a90bf57dfbc35bf31d90d95c876a4ad9a9f62e394f9b9bbac43d8a1fa77",
-  "consumerInventoryHash": "6840322edf6049a85f9069ee2f619085dfccd3a8a6fbde7edd302679f094f02c",
+  "consumerInventoryHash": "abf8e779c4563de2f2dbe098e7cddbd1c0bd3b098fd031caf5c6a14299ac1ba7",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1242,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11435,
+      "METHOD_ON_VALUE": 11444,
       "UNRESOLVED_IDENTIFIER": 1649
     },
     "MutationFixpointRounds": 10,
@@ -292,7 +292,7 @@
       "method": "DELETE",
       "route": "/v1/capture/sessions/:id",
       "registeringFile": "services/api/src/routes/capture.routes.ts",
-      "productConsumer": "apps/mobile/src/capture/capture-draft.ts:189",
+      "productConsumer": "apps/mobile/src/capture/capture-draft.ts:206",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -412,7 +412,7 @@
       "method": "DELETE",
       "route": "/v1/collaboration-teams/:teamId/members/:memberId",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:692",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:698",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -1948,7 +1948,7 @@
       "method": "GET",
       "route": "/v1/capture/direct-sessions/:id/parts",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:442",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:444",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1984,7 +1984,7 @@
       "method": "GET",
       "route": "/v1/capture/sessions",
       "registeringFile": "services/api/src/routes/capture.routes.ts",
-      "productConsumer": "apps/mobile/src/capture/capture-draft.ts:279",
+      "productConsumer": "apps/mobile/src/capture/capture-draft.ts:296",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -1996,7 +1996,7 @@
       "method": "GET",
       "route": "/v1/capture/sessions/:id",
       "registeringFile": "services/api/src/routes/capture.routes.ts",
-      "productConsumer": "apps/mobile/src/capture/capture-draft.ts:267",
+      "productConsumer": "apps/mobile/src/capture/capture-draft.ts:284",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2452,7 +2452,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/overview",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:843",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:849",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2764,7 +2764,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/capture.tsx:1754",
+      "productConsumer": "apps/mobile/app/(stack)/capture.tsx:1757",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2812,7 +2812,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id/artifacts/status",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/capture.tsx:927",
+      "productConsumer": "apps/mobile/app/(stack)/capture.tsx:928",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7312,7 +7312,7 @@
       "method": "PATCH",
       "route": "/v1/capture/sessions/:id",
       "registeringFile": "services/api/src/routes/capture.routes.ts",
-      "productConsumer": "apps/mobile/src/capture/capture-draft.ts:169",
+      "productConsumer": "apps/mobile/src/capture/capture-draft.ts:186",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9064,7 +9064,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/complete",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:258",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:260",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9076,7 +9076,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/continuous-complete",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:318",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:320",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9088,7 +9088,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/discard",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:373",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:375",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9100,7 +9100,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/evidence",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:112",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:114",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9112,7 +9112,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:198",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:200",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9124,7 +9124,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/parts/:partIndex/loss",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:398",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:400",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9136,7 +9136,7 @@
       "method": "POST",
       "route": "/v1/capture/direct-sessions/:id/screen-complete",
       "registeringFile": "services/api/src/routes/capture-trust.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:303",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:305",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -9172,7 +9172,7 @@
       "method": "POST",
       "route": "/v1/capture/sessions",
       "registeringFile": "services/api/src/routes/capture.routes.ts",
-      "productConsumer": "apps/mobile/src/capture/capture-draft.ts:132",
+      "productConsumer": "apps/mobile/src/capture/capture-draft.ts:149",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9592,7 +9592,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/invites/:inviteId/revoke",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:713",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:719",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9616,7 +9616,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/lead-recovery",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:609",
+      "productConsumer": "apps/web/lib/api/collaboration-teams.ts:615",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -10228,7 +10228,7 @@
       "method": "POST",
       "route": "/v1/evidence/:id/parts",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/mobile/src/direct-capture.ts:218",
+      "productConsumer": "apps/mobile/src/direct-capture.ts:220",
       "machineConsumer": "scripts/smoke-prod.mjs:50",
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -48748,8 +48748,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@662",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:662",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@663",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:663",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -48781,8 +48781,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1381",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1381",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1393",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1393",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateCollaborationTeam",
       "kind": "DATABASE",
@@ -48814,8 +48814,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@1598",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1598",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@1610",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1610",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "archiveCollaborationTeam",
       "kind": "DATABASE",
@@ -48847,8 +48847,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@1720",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1720",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@1732",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1732",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "unarchiveCollaborationTeam",
       "kind": "DATABASE",
@@ -48880,8 +48880,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@514",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:514",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.updateMany@515",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:515",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recordActivity",
       "kind": "DATABASE",
@@ -48926,8 +48926,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@501",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:501",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@502",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:502",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recordActivity",
       "kind": "DATABASE",
@@ -48972,8 +48972,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@3439",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:3439",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@3451",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:3451",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createAssignment",
       "kind": "DATABASE",
@@ -49005,8 +49005,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.updateMany@1623",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1623",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.updateMany@1635",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1635",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "archiveCollaborationTeam",
       "kind": "DATABASE",
@@ -49038,8 +49038,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.updateMany@3663",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:3663",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.updateMany@3675",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:3675",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateAssignment",
       "kind": "DATABASE",
@@ -49071,8 +49071,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@2381",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2381",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@2393",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2393",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "revokeInvite",
       "kind": "DATABASE",
@@ -49104,8 +49104,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@2496",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2496",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@2508",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2508",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -49138,8 +49138,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1640",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1640",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@1652",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1652",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "archiveCollaborationTeam",
       "kind": "DATABASE",
@@ -49171,8 +49171,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2608",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2608",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2620",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2620",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -49205,8 +49205,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1862",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1862",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1874",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1874",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -49239,8 +49239,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1973",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1973",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1985",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1985",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recoverCollaborationTeamLead",
       "kind": "DATABASE",
@@ -49272,8 +49272,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2651",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2651",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2663",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2663",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -49306,8 +49306,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@674",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:674",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@675",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:675",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -49339,8 +49339,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1839",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1839",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1851",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1851",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -49373,8 +49373,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1956",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1956",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1968",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1968",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recoverCollaborationTeamLead",
       "kind": "DATABASE",
@@ -49406,8 +49406,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1966",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1966",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1978",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1978",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recoverCollaborationTeamLead",
       "kind": "DATABASE",
@@ -49439,8 +49439,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2069",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2069",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2081",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2081",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "changeMemberRole",
       "kind": "DATABASE",
@@ -49472,8 +49472,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2143",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2143",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2155",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2155",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "suspendMember",
       "kind": "DATABASE",
@@ -49505,8 +49505,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2241",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2241",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2253",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2253",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "reinstateMember",
       "kind": "DATABASE",
@@ -49538,8 +49538,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2299",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2299",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2311",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2311",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "removeMember",
       "kind": "DATABASE",
@@ -49572,8 +49572,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2635",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2635",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2647",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2647",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -91222,8 +91222,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@352",
-      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:352",
+      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@364",
+      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:364",
       "file": "services/api/src/services/platform-context/platform-context.service.ts",
       "enclosingDeclaration": "buildPlatformContext",
       "kind": "DATABASE",
@@ -91256,8 +91256,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@434",
-      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:434",
+      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@446",
+      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:446",
       "file": "services/api/src/services/platform-context/platform-context.service.ts",
       "enclosingDeclaration": "buildPlatformContext",
       "kind": "DATABASE",
@@ -106648,7 +106648,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/capture/capture-draft.ts",
-          "line": 189,
+          "line": 206,
           "caller": "discardCaptureDraft",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -106674,7 +106674,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/capture/capture-draft.ts:189 (discardCaptureDraft, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureDraftList.ts:111 (useCaptureDraftList, WEB); apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts:262 (useCaptureDraftPersistence, WEB)",
+      "dispositionEvidence": "apps/mobile/src/capture/capture-draft.ts:206 (discardCaptureDraft, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureDraftList.ts:111 (useCaptureDraftList, WEB); apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts:262 (useCaptureDraftPersistence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107434,7 +107434,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 692,
+          "line": 698,
           "caller": "removeMember",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107444,7 +107444,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:692 (removeMember, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:698 (removeMember, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115725,7 +115725,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 152,
+          "line": 157,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -116071,7 +116071,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 442,
+          "line": 444,
           "caller": "listDirectCaptureParts",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -116081,7 +116081,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:442 (listDirectCaptureParts, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:444 (listDirectCaptureParts, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116234,7 +116234,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/capture/capture-draft.ts",
-          "line": 279,
+          "line": 296,
           "caller": "listCaptureDrafts",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -116252,7 +116252,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/capture/capture-draft.ts:279 (listCaptureDrafts, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureDraftList.ts:93 (useCaptureDraftList, WEB)",
+      "dispositionEvidence": "apps/mobile/src/capture/capture-draft.ts:296 (listCaptureDrafts, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureDraftList.ts:93 (useCaptureDraftList, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116292,7 +116292,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/capture/capture-draft.ts",
-          "line": 267,
+          "line": 284,
           "caller": "readCaptureDraft",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -116310,7 +116310,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/capture/capture-draft.ts:267 (readCaptureDraft, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureDraftList.ts:124 (useCaptureDraftList, WEB)",
+      "dispositionEvidence": "apps/mobile/src/capture/capture-draft.ts:284 (readCaptureDraft, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureDraftList.ts:124 (useCaptureDraftList, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118004,7 +118004,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 370,
+          "line": 376,
           "caller": "listTeams",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118014,7 +118014,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/teams.tsx:121 (CollaborationScreen, MOBILE); apps/mobile/src/ui/team-responsibility.tsx:86 (TeamResponsibilityPanel, MOBILE); apps/web/lib/api/collaboration-teams.ts:370 (listTeams, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/teams.tsx:121 (CollaborationScreen, MOBILE); apps/mobile/src/ui/team-responsibility.tsx:86 (TeamResponsibilityPanel, MOBILE); apps/web/lib/api/collaboration-teams.ts:376 (listTeams, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118110,7 +118110,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 420,
+          "line": 426,
           "caller": "getCollaborationEntitlement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118118,7 +118118,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 523,
+          "line": 529,
           "caller": "getTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118126,7 +118126,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 867,
+          "line": 873,
           "caller": "listTeamResponsibility",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118248,7 +118248,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 764,
+          "line": 770,
           "caller": "listActivity",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118258,7 +118258,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:112 (CollaborationSettingsSection, MOBILE); apps/mobile/src/ui/collaboration-settings.tsx:165 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:764 (listActivity, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:112 (CollaborationSettingsSection, MOBILE); apps/mobile/src/ui/collaboration-settings.tsx:165 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:770 (listActivity, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118383,7 +118383,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 596,
+          "line": 602,
           "caller": "getTeamArchiveImpact",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118393,7 +118393,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:127 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:596 (getTeamArchiveImpact, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:127 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:602 (getTeamArchiveImpact, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118460,7 +118460,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 935,
+          "line": 941,
           "caller": "listAssignableTargets",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118470,7 +118470,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/create-assignment.tsx:106 (CreateAssignmentSheet, MOBILE); apps/web/lib/api/collaboration-teams.ts:935 (listAssignableTargets, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/create-assignment.tsx:106 (CreateAssignmentSheet, MOBILE); apps/web/lib/api/collaboration-teams.ts:941 (listAssignableTargets, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118545,7 +118545,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 819,
+          "line": 825,
           "caller": "listAssignments",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118555,7 +118555,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/collaboration-work.tsx:113 (CollaborationWorkSection, MOBILE); apps/mobile/src/ui/collaboration-work.tsx:133 (CollaborationWorkSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:819 (listAssignments, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/collaboration-work.tsx:113 (CollaborationWorkSection, MOBILE); apps/mobile/src/ui/collaboration-work.tsx:133 (CollaborationWorkSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:825 (listAssignments, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118713,7 +118713,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 444,
+          "line": 450,
           "caller": "listEligibleMembers",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118723,7 +118723,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/collaboration-add-members.tsx:62 (CollaborationAddMembers, MOBILE); apps/web/lib/api/collaboration-teams.ts:444 (listEligibleMembers, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/collaboration-add-members.tsx:62 (CollaborationAddMembers, MOBILE); apps/web/lib/api/collaboration-teams.ts:450 (listEligibleMembers, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118834,7 +118834,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 487,
+          "line": 493,
           "caller": "listTeamMembers",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118844,7 +118844,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/create-assignment.tsx:73 (CreateAssignmentSheet, MOBILE); apps/mobile/src/ui/team-responsibility.tsx:268 (ResponsibilitySheet, MOBILE); apps/web/lib/api/collaboration-teams.ts:487 (listTeamMembers, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/create-assignment.tsx:73 (CreateAssignmentSheet, MOBILE); apps/mobile/src/ui/team-responsibility.tsx:268 (ResponsibilitySheet, MOBILE); apps/web/lib/api/collaboration-teams.ts:493 (listTeamMembers, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118939,7 +118939,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 843,
+          "line": 849,
           "caller": "getTeamOverview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -118949,7 +118949,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:843 (getTeamOverview, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:849 (getTeamOverview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119031,7 +119031,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 420,
+          "line": 426,
           "caller": "getCollaborationEntitlement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119041,7 +119041,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:109 (CollaborationTeamDetailScreen, MOBILE); apps/mobile/app/(tabs)/teams.tsx:171 (CollaborationScreen, MOBILE); apps/web/lib/api/collaboration-teams.ts:420 (getCollaborationEntitlement, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:109 (CollaborationTeamDetailScreen, MOBILE); apps/mobile/app/(tabs)/teams.tsx:171 (CollaborationScreen, MOBILE); apps/web/lib/api/collaboration-teams.ts:426 (getCollaborationEntitlement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119121,7 +119121,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 867,
+          "line": 873,
           "caller": "listTeamResponsibility",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119131,7 +119131,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/team-responsibility.tsx:71 (TeamResponsibilityPanel, MOBILE); apps/web/lib/api/collaboration-teams.ts:867 (listTeamResponsibility, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/team-responsibility.tsx:71 (TeamResponsibilityPanel, MOBILE); apps/web/lib/api/collaboration-teams.ts:873 (listTeamResponsibility, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119582,7 +119582,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 201,
+          "line": 206,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119663,7 +119663,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 119,
+          "line": 124,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119673,7 +119673,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/index.tsx:176 (HomeScreen, MOBILE); apps/web/components/command-center/CommandCenter.tsx:173 (CommandCenter, WEB); apps/web/components/home-experience/useHomeData.ts:119 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/index.tsx:176 (HomeScreen, MOBILE); apps/web/components/command-center/CommandCenter.tsx:173 (CommandCenter, WEB); apps/web/components/home-experience/useHomeData.ts:124 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119879,7 +119879,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 138,
+          "line": 143,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119889,7 +119889,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/index.tsx:183 (HomeScreen, MOBILE); apps/web/components/home-experience/useHomeData.ts:138 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/index.tsx:183 (HomeScreen, MOBILE); apps/web/components/home-experience/useHomeData.ts:143 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -119952,7 +119952,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 125,
+          "line": 130,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -119962,7 +119962,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/index.tsx:177 (HomeScreen, MOBILE); apps/web/components/home-experience/useHomeData.ts:125 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/index.tsx:177 (HomeScreen, MOBILE); apps/web/components/home-experience/useHomeData.ts:130 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -120098,7 +120098,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 211,
+          "line": 216,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121042,7 +121042,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/capture.tsx",
-          "line": 1754,
+          "line": 1757,
           "caller": "CaptureScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -121148,7 +121148,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/capture.tsx:1754 (CaptureScreen, MOBILE); apps/mobile/app/(stack)/evidence-archive.tsx:52 (EvidenceArchiveScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:433 (EvidenceDetailScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/capture.tsx:1757 (CaptureScreen, MOBILE); apps/mobile/app/(stack)/evidence-archive.tsx:52 (EvidenceArchiveScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:433 (EvidenceDetailScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121436,7 +121436,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/capture.tsx",
-          "line": 927,
+          "line": 928,
           "caller": "CaptureScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -121518,7 +121518,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/capture.tsx:927 (CaptureScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:470 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:590 (EvidenceDetailScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/capture.tsx:928 (CaptureScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:470 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:590 (EvidenceDetailScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -132989,7 +132989,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 166,
+          "line": 171,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -135653,7 +135653,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 188,
+          "line": 193,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -137566,7 +137566,7 @@
         },
         {
           "file": "apps/web/lib/platform-context/PlatformContextProvider.tsx",
-          "line": 414,
+          "line": 433,
           "caller": "PlatformContextProvider",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -137592,7 +137592,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/product/platform-context.ts:133 (sharedPlatformContextRequest, MOBILE); apps/web/lib/platform-context/PlatformContextProvider.tsx:414 (PlatformContextProvider, WEB); apps/web/lib/runbooks/request-authorization.ts:37 (resolveRunbookAccessForRequest, WEB)",
+      "dispositionEvidence": "apps/mobile/src/product/platform-context.ts:133 (sharedPlatformContextRequest, MOBILE); apps/web/lib/platform-context/PlatformContextProvider.tsx:433 (PlatformContextProvider, WEB); apps/web/lib/runbooks/request-authorization.ts:37 (resolveRunbookAccessForRequest, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -137677,7 +137677,7 @@
         },
         {
           "file": "apps/web/app/(app)/settings/_sections/RolesSection.tsx",
-          "line": 109,
+          "line": 113,
           "caller": "RolesSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -137695,7 +137695,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/role-permissions-sheet.tsx:26 (RolePermissionsSheet, MOBILE); apps/mobile/src/ui/settings-roles.tsx:57 (SettingsRolesSheet, MOBILE); apps/web/app/(app)/settings/_sections/RolesSection.tsx:109 (RolesSection, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/role-permissions-sheet.tsx:26 (RolePermissionsSheet, MOBILE); apps/mobile/src/ui/settings-roles.tsx:57 (SettingsRolesSheet, MOBILE); apps/web/app/(app)/settings/_sections/RolesSection.tsx:113 (RolesSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -140066,7 +140066,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 155,
+          "line": 160,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -146720,7 +146720,7 @@
         },
         {
           "file": "apps/web/components/home-experience/useHomeData.ts",
-          "line": 161,
+          "line": 166,
           "caller": "useHomeData",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148116,7 +148116,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/capture/capture-draft.ts",
-          "line": 169,
+          "line": 186,
           "caller": "updateCaptureDraft",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -148134,7 +148134,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/capture/capture-draft.ts:169 (updateCaptureDraft, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts:153 (useCaptureDraftPersistence, WEB)",
+      "dispositionEvidence": "apps/mobile/src/capture/capture-draft.ts:186 (updateCaptureDraft, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts:153 (useCaptureDraftPersistence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148270,7 +148270,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 549,
+          "line": 555,
           "caller": "updateTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148280,7 +148280,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:183 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:549 (updateTeam, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:183 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:555 (updateTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148417,7 +148417,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 905,
+          "line": 911,
           "caller": "updateAssignment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148638,7 +148638,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 679,
+          "line": 685,
           "caller": "updateMember",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148648,7 +148648,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:226 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:679 (updateMember, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:226 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:685 (updateMember, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -159619,7 +159619,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 258,
+          "line": 260,
           "caller": "completeDirectCapture",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -159629,7 +159629,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:258 (completeDirectCapture, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:260 (completeDirectCapture, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -159737,7 +159737,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 318,
+          "line": 320,
           "caller": "sealContinuousRecording",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -159747,7 +159747,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:318 (sealContinuousRecording, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:320 (sealContinuousRecording, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -159855,7 +159855,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 373,
+          "line": 375,
           "caller": "discardDirectCaptureSession",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -159865,7 +159865,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:373 (discardDirectCaptureSession, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:375 (discardDirectCaptureSession, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -159939,7 +159939,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 112,
+          "line": 114,
           "caller": "reserveDirectCaptureEvidence",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -159949,7 +159949,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:112 (reserveDirectCaptureEvidence, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:114 (reserveDirectCaptureEvidence, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -160055,7 +160055,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 198,
+          "line": 200,
           "caller": "uploadDirectCaptureItem",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -160065,7 +160065,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:198 (uploadDirectCaptureItem, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:200 (uploadDirectCaptureItem, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -160132,7 +160132,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 398,
+          "line": 400,
           "caller": "stateDirectCapturePartLost",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -160142,7 +160142,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:398 (stateDirectCapturePartLost, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:400 (stateDirectCapturePartLost, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -160208,7 +160208,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 303,
+          "line": 305,
           "caller": "sealScreenFrames",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -160218,7 +160218,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:303 (sealScreenFrames, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:305 (sealScreenFrames, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -160472,7 +160472,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/capture/capture-draft.ts",
-          "line": 132,
+          "line": 149,
           "caller": "openCaptureDraft",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -160490,7 +160490,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/capture/capture-draft.ts:132 (openCaptureDraft, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts:136 (useCaptureDraftPersistence, WEB)",
+      "dispositionEvidence": "apps/mobile/src/capture/capture-draft.ts:149 (openCaptureDraft, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts:136 (useCaptureDraftPersistence, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162215,7 +162215,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 747,
+          "line": 753,
           "caller": "acceptInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162225,7 +162225,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/invite/[token].tsx:86 (CollaborationInviteScreen, MOBILE); apps/web/lib/api/collaboration-teams.ts:747 (acceptInvite, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/invite/[token].tsx:86 (CollaborationInviteScreen, MOBILE); apps/web/lib/api/collaboration-teams.ts:753 (acceptInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162376,7 +162376,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 497,
+          "line": 503,
           "caller": "createTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162386,7 +162386,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(tabs)/teams.tsx:198 (CollaborationScreen, MOBILE); apps/web/lib/api/collaboration-teams.ts:497 (createTeam, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(tabs)/teams.tsx:198 (CollaborationScreen, MOBILE); apps/web/lib/api/collaboration-teams.ts:503 (createTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162550,7 +162550,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 567,
+          "line": 573,
           "caller": "archiveTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162560,7 +162560,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:142 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:567 (archiveTeam, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:142 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:573 (archiveTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162665,7 +162665,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 884,
+          "line": 890,
           "caller": "createAssignment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162675,7 +162675,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/create-assignment.tsx:134 (submit, MOBILE); apps/mobile/src/ui/team-responsibility.tsx:200 (TeamResponsibilityPanel, MOBILE); apps/web/lib/api/collaboration-teams.ts:884 (createAssignment, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/create-assignment.tsx:134 (submit, MOBILE); apps/mobile/src/ui/team-responsibility.tsx:200 (TeamResponsibilityPanel, MOBILE); apps/web/lib/api/collaboration-teams.ts:890 (createAssignment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162898,7 +162898,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 713,
+          "line": 719,
           "caller": "revokeInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -162908,7 +162908,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:713 (revokeInvite, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:719 (revokeInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -163028,7 +163028,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 609,
+          "line": 615,
           "caller": "recoverTeamLead",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163038,7 +163038,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:609 (recoverTeamLead, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/collaboration-teams.ts:615 (recoverTeamLead, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -163110,7 +163110,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 630,
+          "line": 636,
           "caller": "addExistingMember",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163120,7 +163120,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/collaboration-add-members.tsx:95 (submit, MOBILE); apps/web/lib/api/collaboration-teams.ts:630 (addExistingMember, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/collaboration-add-members.tsx:95 (submit, MOBILE); apps/web/lib/api/collaboration-teams.ts:636 (addExistingMember, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -163205,7 +163205,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 660,
+          "line": 666,
           "caller": "addExistingMembersBulk",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163215,7 +163215,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/collaboration-add-members.tsx:102 (submit, MOBILE); apps/web/lib/api/collaboration-teams.ts:660 (addExistingMembersBulk, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/collaboration-add-members.tsx:102 (submit, MOBILE); apps/web/lib/api/collaboration-teams.ts:666 (addExistingMembersBulk, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -163300,7 +163300,7 @@
         },
         {
           "file": "apps/web/lib/api/collaboration-teams.ts",
-          "line": 621,
+          "line": 627,
           "caller": "unarchiveTeam",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -163310,7 +163310,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:207 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:621 (unarchiveTeam, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/collaboration-settings.tsx:207 (CollaborationSettingsSection, MOBILE); apps/web/lib/api/collaboration-teams.ts:627 (unarchiveTeam, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -167086,7 +167086,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/direct-capture.ts",
-          "line": 218,
+          "line": 220,
           "caller": "uploadDirectCaptureItem",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -167112,7 +167112,7 @@
       ],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:218 (uploadDirectCaptureItem, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:869 (finalizeSession, WEB)",
+      "dispositionEvidence": "apps/mobile/src/direct-capture.ts:220 (uploadDirectCaptureItem, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:869 (finalizeSession, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -186769,8 +186769,8 @@
         },
         {
           "file": "apps/web/lib/platform-context/PlatformContextProvider.tsx",
-          "line": 475,
-          "caller": "PlatformContextProvider",
+          "line": 284,
+          "caller": "requestWorkspaceSwitch",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -186779,7 +186779,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/org-invite/[token].tsx:154 (openWorkspace, MOBILE); apps/mobile/app/(stack)/spaces.tsx:120 (SpacesScreen, MOBILE); apps/web/lib/platform-context/PlatformContextProvider.tsx:475 (PlatformContextProvider, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/org-invite/[token].tsx:154 (openWorkspace, MOBILE); apps/mobile/app/(stack)/spaces.tsx:120 (SpacesScreen, MOBILE); apps/web/lib/platform-context/PlatformContextProvider.tsx:284 (requestWorkspaceSwitch, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -194834,7 +194834,7 @@
         },
         {
           "file": "apps/web/app/invite/[token]/page.tsx",
-          "line": 305,
+          "line": 315,
           "caller": "InviteAcceptPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -194844,7 +194844,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/workspace-invite.tsx:79 (WorkspaceInvite, MOBILE); apps/web/app/invite/[token]/page.tsx:305 (InviteAcceptPage, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/workspace-invite.tsx:79 (WorkspaceInvite, MOBILE); apps/web/app/invite/[token]/page.tsx:315 (InviteAcceptPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -194913,7 +194913,7 @@
         },
         {
           "file": "apps/web/app/invite/[token]/page.tsx",
-          "line": 259,
+          "line": 269,
           "caller": "InviteAcceptPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -194923,7 +194923,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/workspace-invite.tsx:58 (WorkspaceInvite, MOBILE); apps/web/app/invite/[token]/page.tsx:259 (InviteAcceptPage, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/workspace-invite.tsx:58 (WorkspaceInvite, MOBILE); apps/web/app/invite/[token]/page.tsx:269 (InviteAcceptPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

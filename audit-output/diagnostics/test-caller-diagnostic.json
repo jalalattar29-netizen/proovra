@@ -8,9 +8,9 @@
   "capabilityRouteInventoryHash": "cf4c5a90bf57dfbc35bf31d90d95c876a4ad9a9f62e394f9b9bbac43d8a1fa77",
   "totals": {
     "routes": 1242,
-    "routesWithAnyTestCaller": 54,
+    "routesWithAnyTestCaller": 55,
     "testOnlyRoutes": 9,
-    "testCallSites": 126,
+    "testCallSites": 127,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -4558,9 +4558,11 @@
     },
     {
       "routeId": "POST /v1/cases",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "apps/web/__tests__/render/access-gate-plan-refusal.render.test.tsx"
+      ]
     },
     {
       "routeId": "POST /v1/cases/:id/access",
@@ -7587,5 +7589,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "619415d191d7c117710921a5c83e480c1a147c00b7c05295b3a767e49da5c9d8"
+  "contentHash": "093bff44a46652d8edae3c50e27121f6714d3d0e381cac6d80ec2038e824c337"
 }
