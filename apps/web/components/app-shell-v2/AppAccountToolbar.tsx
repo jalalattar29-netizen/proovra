@@ -24,6 +24,7 @@ import type { ForwardRefExoticComponent, RefAttributes } from "react";
 
 import { LanguageSwitcher } from "../language-switcher";
 import { NotificationBell } from "./NotificationBell";
+import { useMenuButtonKeyboard } from "../app-primitives/useMenuButtonKeyboard";
 import { GlobalRuntimeIndicator } from "../operational";
 import { usePlatformContext } from "../../lib/platform-context";
 import {
@@ -331,6 +332,29 @@ export function AppAccountToolbar({
     setSwitcherOpen((prev) => !prev);
   }, []);
 
+  // AUD-0064 — both header menus declare aria-haspopup="menu", so both keep
+  // the menu-button keyboard contract: Enter/Space/ArrowDown open and focus
+  // the first item, arrows/Home/End move, Escape returns to the trigger.
+  const setSwitcherOpenFromKeys = useCallback((next: boolean) => {
+    if (next) {
+      setAccountOpen(false);
+      setPendingSwitch(null);
+    }
+    setSwitcherOpen(next);
+  }, []);
+  const switcherKeys = useMenuButtonKeyboard({
+    open: switcherOpen,
+    setOpen: setSwitcherOpenFromKeys,
+  });
+  const setAccountOpenFromKeys = useCallback((next: boolean) => {
+    if (next) setSwitcherOpen(false);
+    setAccountOpen(next);
+  }, []);
+  const accountKeys = useMenuButtonKeyboard({
+    open: accountOpen,
+    setOpen: setAccountOpenFromKeys,
+  });
+
   const isMac =
     typeof navigator !== "undefined" &&
     /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -433,13 +457,17 @@ export function AppAccountToolbar({
             data-app-context-chip
             data-platform-state={state.name}
             ref={switcherRef}
+            onBlur={switcherKeys.onRootBlur}
           >
             <button
+              ref={switcherKeys.triggerRef}
               type="button"
               className={`app-topbar-v2-workspace-button ${
                 switcherOpen ? "is-open" : ""
               }`}
               onClick={openSwitcher}
+              onKeyDown={switcherKeys.onTriggerKeyDown}
+              onKeyUp={switcherKeys.onTriggerKeyUp}
               aria-haspopup="menu"
               aria-expanded={switcherOpen}
               aria-label={`Active workspace: ${workspaceName}. Open workspace switcher.`}
@@ -464,8 +492,11 @@ export function AppAccountToolbar({
 
             {switcherOpen ? (
               <div
+                ref={switcherKeys.menuRef}
                 className="app-topbar-v2-workspace-menu"
                 role="menu"
+                aria-label="Switch workspace"
+                onKeyDown={switcherKeys.onMenuKeyDown}
                 data-app-context-switcher
               >
                 <div className="app-topbar-v2-workspace-menu-header">
@@ -619,11 +650,15 @@ export function AppAccountToolbar({
             className="app-topbar-v2-account"
             data-app-topbar-account
             ref={accountRef}
+            onBlur={accountKeys.onRootBlur}
           >
             <button
+              ref={accountKeys.triggerRef}
               type="button"
               className={`app-topbar-v2-user ${accountOpen ? "is-open" : ""}`}
               onClick={() => setAccountOpen((prev) => !prev)}
+              onKeyDown={accountKeys.onTriggerKeyDown}
+              onKeyUp={accountKeys.onTriggerKeyUp}
               aria-haspopup="menu"
               aria-expanded={accountOpen}
             >
@@ -673,8 +708,11 @@ export function AppAccountToolbar({
 
             {accountOpen ? (
               <div
+                ref={accountKeys.menuRef}
                 className="app-topbar-v2-account-menu"
                 role="menu"
+                aria-label="Account"
+                onKeyDown={accountKeys.onMenuKeyDown}
                 data-app-topbar-account-menu
                 data-platform-state={state.name}
               >
