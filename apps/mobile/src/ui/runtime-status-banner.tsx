@@ -20,7 +20,7 @@
  * One poll (60s) serves every mounted consumer; it stops when none remain.
  */
 import React, { useEffect, useState, useSyncExternalStore } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { useRouter } from "expo-router";
 import {
   contextualServiceNotices,
@@ -138,7 +138,8 @@ export function RuntimeStatusBanner({ requires }: { requires: ReadonlyArray<Tena
 
 /* -------------------------------------------------------- header indicator */
 
-export function ServiceStatusIndicator() {
+/** `style` places the pill in its host row (AUD-0028: the header lets it shrink; the label ellipsizes). */
+export function ServiceStatusIndicator({ style }: { style?: StyleProp<ViewStyle> } = {}) {
   const router = useRouter();
   const { envelope } = usePlatformContext();
   const { status, error, settled } = useServiceStatus();
@@ -148,7 +149,7 @@ export function ServiceStatusIndicator() {
   if (summary.level === "OK") return null;
   const issue = summary.level === "ISSUE";
   return (
-    <View testID={`service-status-${summary.level.toLowerCase()}`}>
+    <View testID={`service-status-${summary.level.toLowerCase()}`} style={style}>
       <Pressable
         onPress={() => setOpen((v) => !v)}
         accessibilityRole="button"

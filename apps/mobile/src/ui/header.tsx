@@ -22,7 +22,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { SHELL_SURFACE, useShellSurface } from "./shell-surface";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { apiFetch } from "../api";
 import { useAuth } from "../auth-context";
@@ -36,6 +36,7 @@ import {
 import { usePlatformContext } from "../product/platform-context";
 import { theme } from "../theme/theme";
 import { ServiceStatusIndicator } from "./runtime-status-banner";
+import { headerMetrics } from "./header-layout";
 
 // The canonical mark, as the web header's left zone carries the brand.
 import MARK from "../../assets/brand/proovra-mark.png";
@@ -104,10 +105,16 @@ export function ProovraHeader() {
   const onArtwork = useShellSurface();
   const accountName = accountDisplayName(user);
   const initials = accountInitials(user);
+  // AUD-0028 — every control inside the screen at phone widths (header-layout.ts).
+  const metrics = headerMetrics(useWindowDimensions().width);
 
   return (
     <View
-      style={[styles.header, onArtwork && styles.headerOnArtwork, { flexDirection: isRTL ? "row-reverse" : "row" }]}
+      style={[
+        styles.header,
+        onArtwork && styles.headerOnArtwork,
+        { flexDirection: isRTL ? "row-reverse" : "row", gap: metrics.gap, paddingHorizontal: metrics.paddingHorizontal },
+      ]}
       accessibilityRole="header"
     >
       <Image
@@ -131,7 +138,7 @@ export function ProovraHeader() {
         accessibilityRole="search"
         accessibilityLabel="Search evidence, cases and reports"
         testID="header-search"
-        style={({ pressed }) => [styles.search, pressed && styles.searchPressed]}
+        style={({ pressed }) => [styles.search, { minWidth: metrics.searchMinWidth }, pressed && styles.searchPressed]}
       >
         <Text
           numberOfLines={1}
@@ -165,7 +172,11 @@ export function ProovraHeader() {
         accessibilityRole="button"
         accessibilityLabel={`Active workspace: ${workspaceName}. Open workspace switcher.`}
         testID="header-workspace"
-        style={({ pressed }) => [styles.workspace, pressed && styles.workspacePressed]}
+        style={({ pressed }) => [
+          styles.workspace,
+          { maxWidth: metrics.workspaceMaxWidth, minWidth: metrics.workspaceMinWidth },
+          pressed && styles.workspacePressed,
+        ]}
       >
         <Text numberOfLines={1} style={[styles.workspaceText, { fontFamily }]}>
           {workspaceName}
@@ -188,7 +199,7 @@ export function ProovraHeader() {
         Global service status (web AppAccountToolbar → ServiceStatusIndicator):
         renders nothing while every core capability is healthy.
       */}
-      <ServiceStatusIndicator />
+      <ServiceStatusIndicator style={styles.statusSlot} />
 
       <Pressable
         onPress={() => router.push("/notifications")}
@@ -268,6 +279,8 @@ const styles = StyleSheet.create({
   workspace: {
     minHeight: 44,
     maxWidth: 140,
+    // AUD-0028 — the chip gives way before the account control is pushed off-screen.
+    flexShrink: 1,
     justifyContent: "center",
     paddingHorizontal: theme.space.s3,
     borderRadius: SEARCH.radius,
@@ -280,7 +293,11 @@ const styles = StyleSheet.create({
     color: theme.color.ink.secondary,
     fontWeight: "500",
   },
+  // AUD-0028 — the status pill (shown only during an incident) gives way too;
+  // its one-line label ellipsizes rather than pushing the account control out.
+  statusSlot: { flexShrink: 1, minWidth: 44 },
   bell: {
+    flexShrink: 0,
     minHeight: 44,
     minWidth: 44,
     alignItems: "center",
@@ -302,6 +319,7 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 10, color: theme.color.ink.onAccent, fontWeight: "700" },
   avatar: {
+    flexShrink: 0,
     minHeight: 44,
     minWidth: 44,
     alignItems: "center",
