@@ -69,11 +69,35 @@ test("server denial (anti-enum 404: wrong workspace / revoked membership / suspe
   __resetDeepLinkGeneration();
   const out = await resolveMobileDeepLink("proovra://evidence/ev-hidden", {
     resolve: async () => {
-      throw new Error("404");
+      // As apiFetch throws it: an HTTP refusal carries its status.
+      throw Object.assign(new Error("HTTP 404: API error"), { statusCode: 404 });
     },
     hasActiveWork: idle,
   });
   assert.deepEqual(out, { status: "denied" });
+});
+
+test("AUD-0034 — no answer from the server (offline) is OFFLINE, never 'not available'", async () => {
+  __resetDeepLinkGeneration();
+  const out = await resolveMobileDeepLink("proovra://evidence/ev-1", {
+    resolve: async () => {
+      // fetch's own transport failure: no HTTP status at all.
+      throw new TypeError("Network request failed");
+    },
+    hasActiveWork: idle,
+  });
+  assert.deepEqual(out, { status: "offline" });
+  // Every HTTP refusal is still one denial, whatever its status.
+  for (const statusCode of [403, 404, 409, 500]) {
+    __resetDeepLinkGeneration();
+    const denied = await resolveMobileDeepLink("proovra://evidence/ev-1", {
+      resolve: async () => {
+        throw Object.assign(new Error(`HTTP ${statusCode}`), { statusCode });
+      },
+      hasActiveWork: idle,
+    });
+    assert.deepEqual(denied, { status: "denied" }, String(statusCode));
+  }
 });
 
 test("a non-ok resolver response is DENIED, never navigated (no client inference)", async () => {

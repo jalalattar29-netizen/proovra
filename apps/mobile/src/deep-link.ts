@@ -442,6 +442,7 @@ function verifyUrlSegments(u: URL): string[] {
 export type MobileDeepLinkOutcome =
   | { status: "navigate"; route: string; workspaceId: string }
   | { status: "denied" } // anti-enum: covers missing / mismatch / membership / suspension
+  | { status: "offline" } // AUD-0034: no answer from the server at all (transport failure)
   | { status: "blocked_busy" } // active capture/upload — unsafe context change
   | { status: "unsupported" } // not a canonical link → ignored safely
   | { status: "stale" }; // superseded by a newer link — discarded
@@ -484,9 +485,18 @@ export async function resolveMobileDeepLink(
       resourceType: parsed.resourceType,
       resourceId: parsed.resourceId,
     });
-  } catch {
-    // Anti-enumeration 404 (or transport failure) — one indistinguishable denial.
-    return myGeneration === generation ? { status: "denied" } : { status: "stale" };
+  } catch (err) {
+    if (myGeneration !== generation) return { status: "stale" };
+    // AUD-0034 — no HTTP answer at all (the device is offline, or the request
+    // never reached the server) is not a denial, and saying "This item is not
+    // available" for it is wrong. It reveals nothing about the record: the
+    // server was never asked. Every HTTP refusal stays one indistinguishable
+    // denial (anti-enumeration).
+    const status = (err as { statusCode?: unknown; status?: unknown } | null) ?? null;
+    if (typeof status?.statusCode !== "number" && typeof status?.status !== "number") {
+      return { status: "offline" };
+    }
+    return { status: "denied" };
   }
 
   // A newer link superseded this one while resolving — discard.
