@@ -126,6 +126,37 @@ export type CanonicalEnqueueInput = {
 };
 
 /**
+ * THE ENQUEUE DEADLINE, for every api producer (AUD-0057).
+ *
+ * A Redis connection queues commands while Redis is unreachable, so an
+ * enqueue never settles during an outage and the request that asked for the
+ * work hangs with it. The canonical client bounded its own enqueue
+ * (2026-10-06); the search-index and redaction producers built their own
+ * queues and did not, and the search-index enqueue runs in evidence
+ * completion's fan-out — so with Redis down a completion committed the record
+ * and then gave no answer for minutes. Every producer decides within
+ * ENQUEUE_TIMEOUT_MS (default 5 s) instead; its caller has already persisted
+ * the durable row, and the reconcilers re-enqueue onto the same job id.
+ */
+export async function withEnqueueDeadline(
+  enqueue: Promise<EnqueueOutcome>,
+): Promise<EnqueueOutcome> {
+  const timeoutMs = Math.max(500, Number(process.env.ENQUEUE_TIMEOUT_MS) || 5000);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    enqueue,
+    new Promise<EnqueueOutcome>((resolve) => {
+      timer = setTimeout(
+        () => resolve({ enqueued: false, reason: "queue_unavailable:timeout" } as EnqueueOutcome),
+        timeoutMs,
+      );
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+/**
  * Enqueue a registered unit of work.
  *
  * Returns the shared `EnqueueOutcome` verbatim so every api producer reports
@@ -170,9 +201,7 @@ export async function enqueueCanonicalWork(
    * the reconciler's re-enqueue, collapses onto the same job), and the caller
    * reports QUEUE_UNAVAILABLE — "saved, will be picked up" — which is the truth.
    */
-  const timeoutMs = Math.max(500, Number(process.env.ENQUEUE_TIMEOUT_MS) || 5000);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const outcome = await Promise.race([
+  const outcome = await withEnqueueDeadline(
     enqueueCanonicalJob({
       queue: queue as unknown as QueueHandleLike,
       entry,
@@ -181,15 +210,7 @@ export async function enqueueCanonicalWork(
       delayMs: input.delayMs,
       traceparent: currentTraceparent(),
     }),
-    new Promise<EnqueueOutcome>((resolve) => {
-      timer = setTimeout(
-        () => resolve({ enqueued: false, reason: "queue_unavailable:timeout" } as EnqueueOutcome),
-        timeoutMs,
-      );
-    }),
-  ]).finally(() => {
-    if (timer) clearTimeout(timer);
-  });
+  );
 
   bump(
     outcome.enqueued ? "canonical_enqueue_total" : "canonical_enqueue_failed_total",
