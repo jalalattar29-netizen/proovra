@@ -9,13 +9,21 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { bootOps, seedIncident, sweep, type Ctx } from "./operations-truth-fixtures.js";
+import { seedIncident, sweep, type Ctx } from "./operations-truth-fixtures.js";
 
 describe("command centre — a read, scoped to what the viewer may read", () => {
   let c: Ctx;
 
   beforeAll(async () => {
-    c = await bootOps();
+    // The canonical acquisition (bootIntegrationHarness), as bootOps does it.
+    const { bootIntegrationHarness } = await import("./integration-harness.js");
+    const h = await bootIntegrationHarness();
+    const { prisma } = await import("../src/db.js");
+    const { registerPrisma } = await import("@proovra/shared-runtime");
+    registerPrisma(prisma as never);
+    const inj = (method: string, url: string, token?: string, body?: unknown, headers: Record<string, string> = {}) =>
+      h.app.inject({ method: method as never, url, headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...headers }, ...(body !== undefined ? { payload: body as never } : {}) });
+    c = { h, prisma: prisma as never, inj } as Ctx;
     await c.prisma.team.update({ where: { id: c.h.fixtures.teamA.teamId }, data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" } });
   }, 300_000);
 
