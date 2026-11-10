@@ -582,8 +582,16 @@ export async function evaluateMemberAccess(
     resourceId?: string;
   },
   client: PrismaClient = defaultPrisma,
+  /**
+   * AUD-0017 (TXP-017) — where a refusal's permission-denied security event is
+   * written, when that is not `client`. A caller inside a transaction reads on
+   * its transaction (one connection) and records the refusal on the module
+   * client, so the record survives the rollback the refusal causes. The event
+   * is fire-and-forget: nothing waits on it.
+   */
+  options: { eventClient?: PrismaClient } = {},
 ): Promise<AccessDecision> {
-  const { decision } = await evaluateMemberAccessWithSnapshot(input, client);
+  const { decision } = await evaluateMemberAccessWithSnapshot(input, client, options);
   return decision;
 }
 
@@ -613,6 +621,7 @@ export async function evaluateMemberAccessWithSnapshot(
     resourceId?: string;
   },
   client: PrismaClient = defaultPrisma,
+  options: { eventClient?: PrismaClient } = {},
 ): Promise<{ decision: AccessDecision; snapshot: MemberAccessSnapshot | null }> {
   const snapshot = await loadMemberAccessSnapshot(
     { teamId: input.teamId, userId: input.userId },
@@ -643,7 +652,7 @@ export async function evaluateMemberAccessWithSnapshot(
       resourceKind: input.resourceKind,
       resourceId: input.resourceId,
     },
-    client,
+    options.eventClient ?? client,
   );
   return { decision, snapshot };
 }

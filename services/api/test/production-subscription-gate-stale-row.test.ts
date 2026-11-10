@@ -223,7 +223,8 @@ describe("Phase 9 STEP 5 — billing-guards is a thin adapter (no competing engi
     // gate: `resolveWorkspaceCommercialContext`, which declares
     // `type: "WORKSPACE"` (the guards used to pick PERSONAL_ACCOUNT for a
     // Personal workspace while the seat resolver used WORKSPACE).
-    expect(ADAPTER).toMatch(/resolveWorkspaceCommercialContext\(workspace\)/);
+    // AUD-0017 — on the caller's connection (`client`).
+    expect(ADAPTER).toMatch(/resolveWorkspaceCommercialContext\(workspace(?:, client)?\)/);
     expect(ADAPTER).not.toMatch(/type:\s*"PERSONAL_ACCOUNT"/);
     const seats = readFileSync(
       fileURLToPath(new URL("../src/services/billing/workspace-seats.service.ts", import.meta.url)),

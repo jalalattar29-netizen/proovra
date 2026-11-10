@@ -1110,7 +1110,8 @@ describe("PHASE 12B CLUSTER 8 — mirrored evaluator", () => {
       path.join(REPO_API, "src/services/identity/account-lifecycle-preflight.service.ts"),
     );
     expect(src).toMatch(/countActiveHoldsAllStores\(/);
-    expect(src).toMatch(/prisma\.evidenceLegalHold\.count/);
+    // AUD-0017 — counted on the preflight's client (the closure's transaction, or the module client).
+    expect(src).toMatch(/(?:prisma|client)\.evidenceLegalHold\.count/);
     // No second store may reappear.
     expect(src).not.toMatch(/prisma\.caseLegalHold\./);
     expect(src).not.toMatch(/prisma\.legalHold\./);

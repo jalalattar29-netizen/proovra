@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { objectKeyFileNameFragment } from "../services/storage/object-key-file-name.js";
 import { releaseRefusedUploadReservation } from "../services/evidence-upload-refusal.service.js";
 import { bumpCaptureFailure, objectLockPolicyFromEnv } from "@proovra/shared-runtime";
 import {
@@ -7125,7 +7126,9 @@ const fallbackFileName =
   safeOriginalFileName ??
   `part-${body.partIndex + 1}${ext ? `.${ext}` : ""}`;
 
-const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${fallbackFileName}`;
+// AUD-0054 — the key carries a byte-bounded fragment of the name; the full
+// name is stored on the part row below.
+const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${objectKeyFileNameFragment(fallbackFileName) ?? `part-${body.partIndex + 1}`}`;
 
           // Upload truth semantics: do NOT mark uploadedAtUtc here.
           // A presigned URL being issued is not proof the object was uploaded.

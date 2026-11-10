@@ -136,7 +136,8 @@ describe("createEvidence — every row carries a REAL team id", () => {
     expect(src).toMatch(/ensurePersonalWorkspace/);
     // The else-branch (no teamId) must assign the personal team id.
     expect(src).toMatch(
-      /const personal = await ensurePersonalWorkspace\(\{\s*userId: params\.ownerUserId,?\s*\}\);\s*effectiveTeamId = personal\.teamId;/,
+      // AUD-0017 — optionally on the caller's transaction (`db`).
+      /const personal = await ensurePersonalWorkspace\(\s*\{\s*userId: params\.ownerUserId,?\s*\},?\s*(?:db as never,?\s*)?\);\s*effectiveTeamId = personal\.teamId;/,
     );
   });
 

@@ -82,9 +82,19 @@ export async function recordBillingReviewItem(input: {
   });
   const detail = (input.detail ?? {}) as prismaPkg.Prisma.InputJsonObject;
   if (!existing) {
-    await prisma.billingReviewItem
-      .create({
-        data: {
+    /*
+     * AUD-0017 (TXP-020) — the insert runs on the caller's client like every
+     * other leg here. It used the module client, so inside a caller's
+     * transaction (the credit-reversal webhook holds FOR UPDATE on the
+     * entitlement) it asked the pool for a second connection, and the review
+     * item committed even when that transaction rolled back. `skipDuplicates`
+     * instead of catching P2002: a unique violation would abort the caller's
+     * transaction. A concurrent delivery that created it first falls through
+     * to the update, on the same client.
+     */
+    const { count } = await client.billingReviewItem.createMany({
+      data: [
+        {
           userId: input.userId,
           provider: input.provider,
           providerResourceId: input.providerResourceId,
@@ -94,12 +104,10 @@ export async function recordBillingReviewItem(input: {
           refundReviewRequired: input.refundReviewRequired === true,
           detail,
         },
-      })
-      .catch(async (err: unknown) => {
-        // A concurrent delivery created it first: fall through to the update.
-        if ((err as { code?: string }).code !== "P2002") throw err;
-        await recordBillingReviewItem(input);
-      });
+      ],
+      skipDuplicates: true,
+    });
+    if (count === 0) await recordBillingReviewItem(input, client);
     return;
   }
   const stronger =

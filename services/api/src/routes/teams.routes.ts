@@ -2593,6 +2593,8 @@ export async function teamsRoutes(app: FastifyInstance) {
       const noticeIds: string[] = [];
       try {
         await prisma.$transaction(async (tx) => {
+          // AUD-0017 (TXP-022) — the workspace scope is resolved on this transaction's
+          // connection (it was handed the module client while holding this one).
           // LOCKED RE-VALIDATION (members audit SEC-04). The removed member's
           // row and the transfer target's row are locked FOR UPDATE in one
           // statement, in id order (two removals naming each other cannot
@@ -2625,13 +2627,13 @@ export async function teamsRoutes(app: FastifyInstance) {
             const [lateEvidence, lateCases] = await Promise.all([
               tx.evidence.count({
                 where: {
-                  AND: [await workspaceEvidenceWhere(teamId, prisma)],
+                  AND: [await workspaceEvidenceWhere(teamId, tx as never)],
                   ownerUserId: target.userId,
                   lifecycleState: { not: "DESTROYED" },
                 },
               }),
               tx.case.count({
-                where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: target.userId },
+                where: { AND: [await workspaceCaseWhere(teamId, tx as never)], ownerUserId: target.userId },
               }),
             ]);
             if (lateEvidence > 0 || lateCases > 0) {
@@ -2640,7 +2642,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           }
           if (transferToUserId) {
             const evidenceWhere = {
-              AND: [await workspaceEvidenceWhere(teamId, prisma)],
+              AND: [await workspaceEvidenceWhere(teamId, tx as never)],
               ownerUserId: target.userId,
               lifecycleState: { not: "DESTROYED" as const },
             };
@@ -2666,7 +2668,7 @@ export async function teamsRoutes(app: FastifyInstance) {
               });
             }
             await tx.case.updateMany({
-              where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: target.userId },
+              where: { AND: [await workspaceCaseWhere(teamId, tx as never)], ownerUserId: target.userId },
               data: { ownerUserId: transferToUserId },
             });
           }

@@ -1,4 +1,5 @@
 import { prisma } from "../db.js";
+import { objectKeyFileNameFragment } from "./storage/object-key-file-name.js";
 import { emitTenantAudit } from "./audit/tenant-audit.service.js";
 import { resolveRetentionOnCreate } from "./governance.service.js";
 import {
@@ -7,6 +8,7 @@ import {
   resolveEnforcementScopeForRequester,
   assertWorkspaceAllowsStorageGrowth,
 } from "./billing-enforcement.service.js";
+import { randomBytes } from "node:crypto";
 import * as prismaPkg from "@prisma/client";
 import { ensureLegacyGuestCustodyIdentity } from "./evidence-legacy-custody.js";
 import { triggerEvidenceCreated } from "./automation/automation-triggers.js";
@@ -235,6 +237,37 @@ export async function assertInteractiveEvidenceCreateAllowed(params: {
   throw err;
 }
 
+/**
+ * AUD-0017 — a read whose failure must not abort the transaction it runs in.
+ *
+ * With no caller transaction the read runs on the module client exactly as
+ * before (`rethrowWithoutTransaction` keeps a read that used to throw,
+ * throwing). On a caller's transaction it runs on that connection inside a
+ * SAVEPOINT: a failure rolls back to the savepoint, so the transaction stays
+ * usable, and the fallback is returned.
+ */
+async function readThatMayFail<T, F>(
+  tx: prismaPkg.Prisma.TransactionClient | undefined,
+  fallback: F,
+  read: (client: prismaPkg.Prisma.TransactionClient) => Promise<T>,
+  opts: { rethrowWithoutTransaction?: boolean } = {},
+): Promise<T | F> {
+  if (!tx) {
+    const p = read(prisma);
+    return opts.rethrowWithoutTransaction ? p : p.catch(() => fallback);
+  }
+  const savepoint = `evidence_read_${randomBytes(6).toString("hex")}`;
+  await tx.$executeRawUnsafe(`SAVEPOINT ${savepoint}`);
+  try {
+    const value = await read(tx);
+    await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${savepoint}`);
+    return value;
+  } catch {
+    await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+    return fallback;
+  }
+}
+
 export async function createEvidence(params: {
   ownerUserId: string;
   teamId?: string | null;
@@ -326,7 +359,16 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   // that fails is not recorded rather than signed into the fingerprint.
   const deviceTimeIso = sanitizeClientDeviceTimeIso(params.deviceTimeIso ?? null);
 
-  const owner = await prisma.user.findUnique({
+  /*
+   * AUD-0017 (TXP-004 / TXP-005) — a caller that passes its transaction holds
+   * a pooled connection for it. Every pre-write read below runs on THAT
+   * connection, not the module client: asking the pool for a second one while
+   * holding the first is what wedged a burst of draft-bound creates and
+   * direct-capture reserves. Without a caller transaction nothing changes.
+   */
+  const db = params.transaction ?? prisma;
+
+  const owner = await db.user.findUnique({
     where: { id: params.ownerUserId },
     select: {
       id: true,
@@ -369,7 +411,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   let isPersonalWorkspaceCapture = false;
 
   if (effectiveTeamId) {
-    const targetTeam = await prisma.team.findUnique({
+    const targetTeam = await db.team.findUnique({
       where: { id: effectiveTeamId },
       select: { isPersonal: true, ownerUserId: true },
     });
@@ -377,7 +419,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
       targetTeam?.isPersonal === true &&
       targetTeam.ownerUserId === params.ownerUserId;
 
-    const membership = await prisma.teamMember.findUnique({
+    const membership = await db.teamMember.findUnique({
       where: {
         teamId_userId: {
           teamId: effectiveTeamId,
@@ -396,7 +438,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     if (!activeMembership && isPersonalWorkspaceCapture) {
       // Self-heal: the bootstrap upserts the OWNER membership row for
       // the caller's own personal team.
-      await ensurePersonalWorkspace({ userId: params.ownerUserId });
+      await ensurePersonalWorkspace({ userId: params.ownerUserId }, db as never);
     } else if (!activeMembership) {
       const err: Error & { statusCode?: number; code?: string } = new Error(
         "Forbidden team workspace"
@@ -406,9 +448,12 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
       throw err;
     }
   } else {
-    const personal = await ensurePersonalWorkspace({
-      userId: params.ownerUserId,
-    });
+    const personal = await ensurePersonalWorkspace(
+      {
+        userId: params.ownerUserId,
+      },
+      db as never,
+    );
     effectiveTeamId = personal.teamId;
     isPersonalWorkspaceCapture = true;
   }
@@ -425,7 +470,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   // already blocks NEW personal spaces; this also covers a grandfathered
   // personal Team whose owner has since become managed.
   if (isPersonalWorkspaceCapture) {
-    await assertPersonalSpaceAllowed(params.ownerUserId);
+    await assertPersonalSpaceAllowed(params.ownerUserId, db as never);
   }
 
   // Snapshots and TEAM billing semantics only apply to REAL team
@@ -435,7 +480,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   // workspace name snapshot, no ORGANIZATION_ACCOUNT identity level.
   const workspaceTeam =
     effectiveTeamId && !isPersonalWorkspaceCapture
-      ? await prisma.team.findUnique({
+      ? await db.team.findUnique({
           where: { id: effectiveTeamId },
           select: {
             id: true,
@@ -447,15 +492,19 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
         })
       : null;
 
-  const scope = await resolveEnforcementScopeForRequester({
-    ownerUserId: params.ownerUserId,
-    teamId: isPersonalWorkspaceCapture ? null : effectiveTeamId,
-  });
+  const scope = await resolveEnforcementScopeForRequester(
+    {
+      ownerUserId: params.ownerUserId,
+      teamId: isPersonalWorkspaceCapture ? null : effectiveTeamId,
+    },
+    db,
+  );
 
-  await assertWorkspaceAllowsEvidenceCreation(scope);
+  await assertWorkspaceAllowsEvidenceCreation(scope, db);
   await assertWorkspaceAllowsStorageGrowth({
     scope,
     incomingBytes: 0n,
+    client: db,
   });
 
   // HISTORICAL custody only: fires solely when the Evidence owner is a
@@ -478,10 +527,13 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   // by departmentId can read the same canonical shape from the chain.
   const departmentScopeContext =
     effectiveTeamId && !isPersonalWorkspaceCapture
-      ? await resolveUserDepartmentScope({
-          teamId: effectiveTeamId,
-          userId: params.ownerUserId,
-        }).catch(() => null)
+      ? await readThatMayFail(params.transaction, null, (client) =>
+          resolveUserDepartmentScope({
+            teamId: effectiveTeamId!,
+            userId: params.ownerUserId,
+            prisma: client as never,
+          }),
+        )
       : null;
   const departmentScopeStrictWhere = departmentScopeContext
     ? buildStrictDepartmentScopeWhere(departmentScopeContext)
@@ -494,13 +546,21 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   // canonical writer for EVERY channel (web, intake, mobile, extension,
   // Android, iOS). It used to be applied only by the web POST /v1/evidence
   // route and the intake orchestration, so direct captures carried none.
-  // Read before the transaction on the global client: a policy read that fails
-  // must not abort the record's transaction (it degrades to "no default").
-  const retentionOnCreate = await resolveRetentionOnCreate({
-    teamId: effectiveTeamId,
-    now: capturedAt,
-    evidenceType: params.type,
-  });
+  // A policy read that fails must not abort the record's transaction (it
+  // degrades to "no default"). Read before the record's own transaction; on a
+  // caller's transaction it runs under a savepoint (AUD-0017).
+  const retentionOnCreate = await readThatMayFail(
+    params.transaction,
+    undefined,
+    (client) =>
+      resolveRetentionOnCreate({
+        teamId: effectiveTeamId,
+        now: capturedAt,
+        evidenceType: params.type,
+        client: client as never,
+      }),
+    { rethrowWithoutTransaction: true },
+  );
   const normalizedMimeType = normalizeUploadMimeType(params.mimeType);
   const resolvedFileNames = resolveRootEvidenceDisplayFileName({
   originalFileName: params.originalFileName ?? null,
@@ -611,7 +671,8 @@ data: {
       },
     });
 
-const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileName}`;
+// AUD-0054 — byte-bounded name fragment; the display name is stored whole.
+const key = `evidence/${evidence.id}/original-${objectKeyFileNameFragment(resolvedFileNames.displayFileName) ?? "file"}`;
 
     await appendCustodyEventTx(tx, {
       evidenceId: evidence.id,

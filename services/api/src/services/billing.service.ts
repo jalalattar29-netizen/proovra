@@ -151,8 +151,16 @@ export function listStorageAddonDefinitions() {
  * (entitlements(user_id) WHERE active) is the database backstop, and a unique
  * violation from it is answered with the winner's row.
  */
-export async function ensureEntitlement(userId: string) {
-  const existing = await prisma.entitlement.findFirst({
+export async function ensureEntitlement(
+  userId: string,
+  /**
+   * AUD-0017 — read on the caller's transaction when it has one. Entitlements
+   * are created at sign-up, so the read is the whole call on that path; the
+   * one-time initialisation below keeps its own serialised transaction.
+   */
+  client: Pick<typeof prisma, "entitlement"> = prisma,
+) {
+  const existing = await client.entitlement.findFirst({
     where: { userId, active: true },
     orderBy: { createdAt: "desc" },
   });

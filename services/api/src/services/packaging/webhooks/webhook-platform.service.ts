@@ -42,7 +42,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../../db.js";
 import { inputRefusal } from "../../../errors.js";
-import { assertLimitEntitlementTx } from "../entitlement.service.js";
+import { assertLimitEntitlementTx, resolveEntitlement } from "../entitlement.service.js";
 
 // -----------------------------------------------------------------------------
 // Bounded constants — keep all magic numbers here.
@@ -156,6 +156,13 @@ export async function createWebhookEndpoint(
   // the insert. It used to be compared with a usage meter nothing wrote, so
   // it never tripped; and a count outside the insert's transaction would
   // admit every concurrent create at the boundary.
+  // AUD-0017 (TXP-019) — the ceiling is resolved before the transaction; only
+  // the live count is taken under the lock, on the transaction's connection.
+  const resolved = await resolveEntitlement({
+    prisma,
+    teamId: input.teamId,
+    key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
+  });
   const row = await prisma.$transaction(async (tx) => {
     const admitted = await assertLimitEntitlementTx({
       tx,
@@ -163,6 +170,7 @@ export async function createWebhookEndpoint(
       teamId: input.teamId,
       key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
       requested: 1,
+      resolved,
     });
     if (!admitted.ok) {
       throw new WebhookEndpointLimitError(admitted.limit, admitted.current);

@@ -39,7 +39,7 @@
  *     `Entitlement` row, not on the personal Team.
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 // PHASE 10 §13.2 (2026-07-22) — managed-identity guard (no personal space).
@@ -192,7 +192,14 @@ export async function ensurePersonalWorkspace(
   });
 
   try {
-    const created = await client.$transaction(async (tx) => {
+    // AUD-0017 — a caller's transaction client has no `$transaction`: the
+    // bootstrap's writes then join that transaction (they are atomic with it)
+    // instead of asking the pool for a second connection.
+    const inTransaction = <T,>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> =>
+      typeof (client as { $transaction?: unknown }).$transaction === "function"
+        ? client.$transaction(fn)
+        : fn(client as unknown as Prisma.TransactionClient);
+    const created = await inTransaction(async (tx) => {
       // Phase 2.7X Stage 6 — atomically create the Organization
       // alongside the personal Team so the team is never observed
       // with a NULL `organization_id`. Stage 7 will tighten the

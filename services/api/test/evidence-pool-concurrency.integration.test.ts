@@ -119,4 +119,44 @@ describe("AUD-0017 evidence create/complete above the pool size (live PostgreSQL
       expect(await prisma.custodyEvent.count({ where: { evidenceId: p.id, eventType: "EVIDENCE_COMPLETED" as never } })).toBe(1);
     }
   }, 300_000);
+
+  // TXP-004 — a create bound to a web capture draft runs `createEvidence` inside
+  // the route's transaction; every pre-write read (owner, membership, scope,
+  // allowance) used the global client while that transaction held a connection.
+  // Another member of workspace A acts, so the per-user create limit used above
+  // does not decide this case.
+  it(`${POOL * 2} concurrent draft-bound creates at pool ${POOL} all succeed, each bound to its draft (TXP-004)`, async () => {
+    const A = h.fixtures.teamA;
+    const n = POOL * 2;
+    const drafts: string[] = [];
+    for (let i = 0; i < n; i += 1) {
+      const d = await prisma.captureSession.create({
+        data: { ownerUserId: A.adminUserId, teamId: A.teamId, status: "DRAFT" },
+        select: { id: true },
+      });
+      drafts.push(d.id);
+    }
+    const t0 = Date.now();
+    const results = await Promise.all(
+      drafts.map((captureSessionId) =>
+        h.app.inject({
+          method: "POST",
+          url: "/v1/evidence",
+          headers: { authorization: `Bearer ${A.adminToken}` },
+          payload: { type: "PHOTO", mimeType: "image/jpeg", teamId: A.teamId, captureSessionId },
+        }),
+      ),
+    );
+    const elapsed = Date.now() - t0;
+    const statuses = results.map((r) => r.statusCode);
+    expect(statuses.filter((s) => s >= 500), results.map((r) => r.body.slice(0, 160)).join("\n")).toEqual([]);
+    expect(statuses.every((s) => s === 200 || s === 201), statuses.join(",")).toBe(true);
+    const bound = await prisma.captureSession.findMany({
+      where: { id: { in: drafts } },
+      select: { finalizedEvidenceId: true },
+    });
+    expect(bound.every((b) => !!b.finalizedEvidenceId)).toBe(true);
+    expect(new Set(bound.map((b) => b.finalizedEvidenceId)).size).toBe(n);
+    expect(elapsed).toBeLessThan(30_000);
+  }, 120_000);
 });

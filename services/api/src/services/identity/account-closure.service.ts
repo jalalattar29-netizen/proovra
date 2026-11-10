@@ -191,7 +191,7 @@ export async function executeAccountClosure(
     });
     const accessAlreadyEnded = user?.providerUserId === `closed:${userId}`;
     if (opts.closureRequestId && !accessAlreadyEnded) {
-      const { blockers } = await evaluateAccountClosurePreflight(userId);
+      const { blockers } = await evaluateAccountClosurePreflight(userId, tx as never); // AUD-0017 (TXP-025)
       if (blockers.length > 0) throw new AccountClosureBlockedError(blockers);
     }
 
@@ -337,7 +337,7 @@ export async function executeAccountClosure(
     // its access ended; anonymisation completes once the hold is released.
     if (opts.closureRequestId) {
       await lockClosableWorkspacesTx(tx as never, userId);
-      const { blockers } = await evaluateAccountClosurePreflight(userId);
+      const { blockers } = await evaluateAccountClosurePreflight(userId, tx as never); // AUD-0017 (TXP-025)
       const holds = blockers.filter((b) => b.code === "LEGAL_HOLD_ACTIVE");
       if (holds.length > 0) throw new AccountClosureDeferredError(holds);
     }

@@ -45,6 +45,7 @@
 import type { PlanType, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import type { ScopeClient } from "../workspace-billing.service.js";
 import {
   getPlanCapabilities,
   resolveWorkspaceMemberCeiling,
@@ -68,12 +69,17 @@ import {
  */
 export async function resolveWorkspaceCommercialContext(
   workspace: { id: string; ownerUserId: string },
+  /** AUD-0017 — the caller's transaction, when it holds one. */
+  client?: unknown,
 ): Promise<CommercialContext> {
-  return resolveCommercialContext({
-    type: "WORKSPACE",
-    teamId: workspace.id,
-    requesterUserId: workspace.ownerUserId,
-  });
+  return resolveCommercialContext(
+    {
+      type: "WORKSPACE",
+      teamId: workspace.id,
+      requesterUserId: workspace.ownerUserId,
+    },
+    client ? { client: client as ScopeClient } : {},
+  );
 }
 
 /** Where a workspace member is counted: ACTIVE, and not the owner. */
@@ -143,7 +149,7 @@ export async function resolveWorkspaceSeatState(
     };
   }
 
-  const ctx = await resolveWorkspaceCommercialContext(workspace);
+  const ctx = await resolveWorkspaceCommercialContext(workspace, client);
   const plan = ctx.plan;
   // The contract PROJECTION is not the limits object: a DRAFT, SUSPENDED or
   // TERMINATED contract must not raise a ceiling, and

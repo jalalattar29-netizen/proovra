@@ -27,16 +27,26 @@ import { prisma } from "./db.js";
 import {
   resolveEvidenceFundingSource,
   resolveWorkspaceScopeForEvidence,
+  type WorkerDbClient,
 } from "./workspace-billing.js";
 
-export async function resolveEvidenceOutputIssuance(record: {
-  id: string;
-  ownerUserId: string;
-  teamId: string | null;
-}): Promise<OutputIssuanceEntitlement> {
+/**
+ * AUD-0017 (TXP-023/024) — `client` is the connection the inputs are read on:
+ * the report and package commit admissions pass their transaction; every other
+ * caller keeps the global client. Inside a transaction a failed read aborts it,
+ * so the reads after it fail too and the answer is UNRESOLVED (retry).
+ */
+export async function resolveEvidenceOutputIssuance(
+  record: {
+    id: string;
+    ownerUserId: string;
+    teamId: string | null;
+  },
+  client: WorkerDbClient = prisma,
+): Promise<OutputIssuanceEntitlement> {
   let funding: "PLAN" | "EVIDENCE_CREDIT" | null = null;
   try {
-    funding = await resolveEvidenceFundingSource(record.id);
+    funding = await resolveEvidenceFundingSource(record.id, client);
   } catch {
     funding = null;
   }
@@ -51,7 +61,7 @@ export async function resolveEvidenceOutputIssuance(record: {
   let earned: OutputEarnedFact = null;
   try {
     earned = readOutputEarnedFact(
-      await prisma.evidence.findUnique({
+      await client.evidence.findUnique({
         where: { id: record.id },
         select: { outputEarnedPlan: true, outputEarnedBasis: true },
       }),
@@ -63,13 +73,16 @@ export async function resolveEvidenceOutputIssuance(record: {
   let plan: string | null = null;
   let lifecycle: OutputIssuanceLifecycle = null;
   try {
-    const scope = await resolveWorkspaceScopeForEvidence({
-      ownerUserId: record.ownerUserId,
-      teamId: record.teamId,
-    });
+    const scope = await resolveWorkspaceScopeForEvidence(
+      {
+        ownerUserId: record.ownerUserId,
+        teamId: record.teamId,
+      },
+      client,
+    );
     plan = String(scope.plan);
     const reading = await readCommercialLifecycle(
-      prisma,
+      client,
       scope.billingShape === "SINGLE_OCCUPANT" || !scope.teamId
         ? { kind: "PERSONAL", ownerUserId: scope.ownerUserId, plan }
         : { kind: "WORKSPACE", teamId: scope.teamId, plan },
@@ -95,13 +108,16 @@ export const OUTPUT_ENTITLEMENT_UNRESOLVED = "OUTPUT_ENTITLEMENT_UNRESOLVED";
  * applies the shared `decideOutputProduction`. A failed read is null: the
  * writer creates nothing and answers `entitlement_unresolved`.
  */
-export async function workerOutputEntitlement(subject: {
-  id: string;
-  ownerUserId: string;
-  teamId: string | null;
-}): Promise<OutputIssuanceEntitlement | null> {
+export async function workerOutputEntitlement(
+  subject: {
+    id: string;
+    ownerUserId: string;
+    teamId: string | null;
+  },
+  client: WorkerDbClient = prisma,
+): Promise<OutputIssuanceEntitlement | null> {
   try {
-    return await resolveEvidenceOutputIssuance(subject);
+    return await resolveEvidenceOutputIssuance(subject, client);
   } catch {
     return null;
   }

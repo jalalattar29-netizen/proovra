@@ -176,7 +176,7 @@ async function resolveCollaborationTeamWorkspacePlan(
     });
   }
   // CT-09 — the ONE workspace subject every collaboration gate resolves.
-  const ctx = await resolveWorkspaceCommercialContext(row.workspace);
+  const ctx = await resolveWorkspaceCommercialContext(row.workspace, client); // AUD-0017: on the caller's connection
   return {
     plan: ctx.scope.plan,
     workspaceId: row.workspace.id,
@@ -341,7 +341,7 @@ export async function assertCanCreateCollaborationTeam(
   }
 
   // CT-09 — the ONE workspace subject every collaboration gate resolves.
-  const ctx = await resolveWorkspaceCommercialContext(workspace);
+  const ctx = await resolveWorkspaceCommercialContext(workspace, client); // AUD-0017: on the caller's connection
   const plan = ctx.scope.plan;
 
   // WCR-07 — CONTRACT FIRST. `resolveEffectiveCollaborationTeamLimit` returns
@@ -687,7 +687,7 @@ export async function assertSubscriptionActiveOrGraceAllowed(
       details: { workspaceId: input.workspaceId },
     });
   }
-  const ctx = await resolveWorkspaceCommercialContext(workspace);
+  const ctx = await resolveWorkspaceCommercialContext(workspace, client); // AUD-0017: on the caller's connection
   const life = ctx.lifecycle;
   const status = (life.providerStatus ??
     (life.state === "CANCELLED" ? "CANCELLED" : "ACTIVE")) as SubscriptionStatus;

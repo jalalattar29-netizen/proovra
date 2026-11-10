@@ -4939,7 +4939,8 @@ async function runReportGeneration(
             // F-07 (independent forward audit) — THE run admission, again, under
             // this lock: entitlement, workspace, organization and (for a
             // regeneration) legal hold, as they are NOW.
-            await assertRunAdmittedAtCommit(command, live!);
+            // AUD-0017 (TXP-023) — on this transaction's connection.
+            await assertRunAdmittedAtCommit(command, live!, tx);
 
             // Phase C #5 — distinct event type for the worker-time identity
             // re-snapshot (REPORT_IDENTITY_CONTEXT_RECORDED, not the intake-time

@@ -600,12 +600,55 @@ async function requireActive(
     // append CAPTURE_SESSION_INTERRUPTED to a sealed record's custody and leave
     // the bind retry (the seal committed, the bind did not) refused forever.
     // The late call is refused; the session stays ACTIVE for its bind.
-    if (!(await reservedRecordSealed(db, session))) {
-      await interruptSession(db, session, "EXPIRED", now);
-    }
+    await expireSession(db, session, now);
     throw new DirectCaptureError("SESSION_EXPIRED");
   }
   return session;
+}
+
+/** requireActive's expiry: interrupt the session unless its record is already sealed (F-23). */
+async function expireSession(db: PrismaClient, session: SessionRow, now: Date): Promise<void> {
+  if (!(await reservedRecordSealed(db, session))) {
+    await interruptSession(db, session, "EXPIRED", now);
+  }
+}
+
+/**
+ * AUD-0017 — the SESSION_EXPIRED refusals raised inside a transaction whose
+ * expiry (the interruption) is still to be written, after that transaction.
+ */
+const deferredExpiries = new WeakMap<object, SessionRow>();
+
+/**
+ * requireActive for a caller INSIDE an interactive transaction (AUD-0017).
+ *
+ * The checks are the same and run on no connection at all. An expired session
+ * is refused SESSION_EXPIRED exactly as before, but its interruption is not
+ * written here: it used to commit on the global client — a second pooled
+ * connection, waited for while this transaction held its own and the session
+ * lock — and the refusal rolls this transaction back anyway. The interruption
+ * travels on the error and `settleDeferredExpiry` commits it once the
+ * transaction has ended, so the session is still interrupted as before.
+ */
+function requireActiveInTransaction(session: SessionRow, now: Date): SessionRow {
+  if (session.status !== prismaPkg.CaptureSessionStatus.ACTIVE) {
+    throw new DirectCaptureError("SESSION_NOT_ACTIVE");
+  }
+  if (session.expiresAtUtc && session.expiresAtUtc.getTime() <= now.getTime()) {
+    const refusal = new DirectCaptureError("SESSION_EXPIRED");
+    deferredExpiries.set(refusal, session);
+    throw refusal;
+  }
+  return session;
+}
+
+/** Write the expiry a transaction's SESSION_EXPIRED refusal deferred (none: no-op). */
+async function settleDeferredExpiry(db: PrismaClient, err: unknown, now: Date): Promise<void> {
+  if (typeof err !== "object" || err === null) return;
+  const session = deferredExpiries.get(err);
+  if (!session) return;
+  deferredExpiries.delete(err);
+  await expireSession(db, session, now);
 }
 
 async function reservedRecordSealed(db: PrismaClient, session: SessionRow): Promise<boolean> {
@@ -680,7 +723,7 @@ export async function reserveDirectCaptureEvidence(
         input.ownerUserId,
       );
       if (isLiveSealClaim(session, now)) throw new DirectCaptureError("SESSION_BUSY");
-      await requireActive(db, session, now);
+      requireActiveInTransaction(session, now);
       if (session.finalizedEvidenceId) {
         throw new DirectCaptureError("SESSION_ALREADY_RESERVED");
       }
@@ -717,7 +760,11 @@ export async function reserveDirectCaptureEvidence(
       };
     },
     { timeout: 30_000, maxWait: 10_000 },
-  );
+  ).catch(async (err: unknown) => {
+    // AUD-0017 — an expiry refused inside the transaction is written now.
+    await settleDeferredExpiry(db, err, now);
+    throw err;
+  });
   await reserved.afterCommit?.();
   return {
     evidenceId: reserved.evidenceId,
@@ -857,17 +904,19 @@ export async function declareDirectCapturePart(
         if (isLiveSealClaim(locked, now)) throw new DirectCaptureError("SESSION_BUSY");
         if (isStaleSealClaim(locked, now)) {
           // A crashed seal: its lease is over, so the session is open again.
-          await db.captureSession.updateMany({
+          await tx.captureSession.updateMany({
             where: { id: locked.id, status: prismaPkg.CaptureSessionStatus.ACTIVE, endReason: CAPTURE_SEAL_CLAIM.endReason },
             data: { endReason: null },
           });
         }
-        const fresh = await requireActive(db, locked, now);
-        return declareUnderSessionLock(tx as unknown as PrismaClient, db, fresh, input, sha256, signatureVerdict, now);
+        const fresh = requireActiveInTransaction(locked, now);
+        return declareUnderSessionLock(tx, fresh, input, sha256, signatureVerdict, now);
       },
       { timeout: 30_000, maxWait: 10_000 },
     );
   } catch (err) {
+    // AUD-0017 — an expiry refused inside the transaction is written now.
+    await settleDeferredExpiry(db, err, now);
     if (isLockWaitCancelled(err)) throw new DirectCaptureError("SESSION_BUSY");
     throw err;
   }
@@ -882,20 +931,26 @@ function isLockWaitCancelled(err: unknown): boolean {
   return /\b(55P03|57014)\b|lock timeout|statement timeout/i.test(text);
 }
 
+/**
+ * AUD-0017 — everything here runs on the declaring transaction `tx`: the trust
+ * event and the expiry slide used to run on the global client, so each
+ * declaration held its transaction's connection (and the session lock) while
+ * waiting for a second one, and a burst of declarations wedged the pool.
+ */
 async function declareUnderSessionLock(
-  tx: PrismaClient,
-  db: PrismaClient,
+  tx: prismaPkg.Prisma.TransactionClient,
   session: SessionRow,
   input: DeclareDirectCapturePartInput,
   sha256: string,
   signatureVerdict: string,
   now: Date,
 ): Promise<{ declaration: PartDeclaration; created: boolean; sessionExpiresAtUtc: string | null }> {
+  const txc = tx as unknown as PrismaClient;
   // AUD-37 — an index stated lost stays lost: it is never declared again.
-  if ((await readLostPartIndexes(tx, session)).has(input.partIndex)) {
+  if ((await readLostPartIndexes(txc, session)).has(input.partIndex)) {
     throw new DirectCaptureError("PART_LOST");
   }
-  const existing = (await readPartDeclarations(tx, session)).get(input.partIndex);
+  const existing = (await readPartDeclarations(txc, session)).get(input.partIndex);
   if (existing) {
     // The same index with a different digest is a second, conflicting claim.
     if (existing.sha256 !== sha256) throw new DirectCaptureError("PART_ALREADY_DECLARED");
@@ -907,7 +962,7 @@ async function declareUnderSessionLock(
   }
 
   await emitCaptureTrustEvent({
-    prisma: db,
+    tx,
     teamId: session.teamId!,
     captureSessionId: session.id,
     evidenceId: null,
@@ -935,7 +990,7 @@ async function declareUnderSessionLock(
 
   // UC-STR-003 — the slid expiry is RETURNED, so the client's durable record
   // follows the server's session instead of the expiry it was given at open.
-  const extended = await extendDirectCaptureSessionOnActivity(db, session, now);
+  const extended = await extendDirectCaptureSessionOnActivity(txc, session, now);
   const expiresAt = extended ?? session.expiresAtUtc;
 
   return {
@@ -1247,7 +1302,7 @@ export async function declareDirectCapturePartLost(input: {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${session.id}`}))`;
         const locked = await loadOwnedDirectCaptureSession(tx as unknown as PrismaClient, session.id, input.ownerUserId);
         if (isLiveSealClaim(locked, now)) throw new DirectCaptureError("SESSION_BUSY");
-        const fresh = await requireActive(db, locked, now);
+        const fresh = requireActiveInTransaction(locked, now);
         const txc = tx as unknown as PrismaClient;
         if ((await readLostPartIndexes(txc, fresh)).has(input.partIndex)) {
           return { partIndex: input.partIndex, created: false };
@@ -1283,6 +1338,8 @@ export async function declareDirectCapturePartLost(input: {
       { timeout: 30_000, maxWait: 10_000 },
     );
   } catch (err) {
+    // AUD-0017 — an expiry refused inside the transaction is written now.
+    await settleDeferredExpiry(db, err, now);
     if (isLockWaitCancelled(err)) throw new DirectCaptureError("SESSION_BUSY");
     throw err;
   }
@@ -1411,7 +1468,17 @@ export type DirectCaptureSealPlan = {
 };
 
 export type DirectCaptureSealPlanner = (ctx: {
+  /**
+   * The seal's own client, for the plan's later steps (`verifyStorage`), which
+   * run after the claim transaction has ended. Never queried by the planner.
+   */
   db: PrismaClient;
+  /**
+   * AUD-0017 — the claim transaction: every read the planner makes UNDER the
+   * session lock goes through it (the global client would need a second pooled
+   * connection while this one is held). Dead once the planner returns.
+   */
+  tx: PrismaClient;
   session: SessionRow;
   declarations: Map<number, PartDeclaration>;
   now: Date;
@@ -1505,7 +1572,7 @@ export async function completeDirectCapture(input: {
     if (loaded.status === prismaPkg.CaptureSessionStatus.BOUND && loaded.finalizedEvidenceId) {
       // Idempotent re-seal. The planner still validates what was sent, so a
       // different manifest is refused rather than answered as sealed.
-      const plan = input.plan ? await input.plan({ db, session: loaded, declarations, now }) : null;
+      const plan = input.plan ? await input.plan({ db, tx, session: loaded, declarations, now }) : null;
       const ev = await tx.evidence.findUnique({
         where: { id: loaded.finalizedEvidenceId },
         select: { status: true, fileSha256: true },
@@ -1541,20 +1608,23 @@ export async function completeDirectCapture(input: {
     const session =
       recordSealed && loaded.status === prismaPkg.CaptureSessionStatus.ACTIVE
         ? loaded
-        : await requireActive(db, loaded, now);
+        : requireActiveInTransaction(loaded, now);
     if (!session.finalizedEvidenceId) throw new DirectCaptureError("SESSION_NOT_RESERVED");
     const plan: DirectCaptureSealPlan = input.plan
-      ? await input.plan({ db, session, declarations, now })
+      ? await input.plan({ db, tx, session, declarations, now })
       : { manifestPartIndex: null };
 
     // The ONE finalization output-policy boundary (2026-09-29, audit D3): the
     // same policy the web upload obeys. REPORT-004: sealing always proceeds;
     // when the policy refuses the report or package, the record's first outputs
-    // are held until it allows them.
-    await evaluateFinalizationGovernance({
-      evidenceId: session.finalizedEvidenceId,
-      actorUserId: input.ownerUserId,
-    });
+    // are held until it allows them. AUD-0017 — decided on THIS transaction.
+    await evaluateFinalizationGovernance(
+      {
+        evidenceId: session.finalizedEvidenceId,
+        actorUserId: input.ownerUserId,
+      },
+      txClient,
+    );
 
     await extendDirectCaptureSessionOnActivity(tx, session, now);
     const claim = await tx.captureSession.updateMany({
@@ -1564,7 +1634,11 @@ export async function completeDirectCapture(input: {
     });
     if (claim.count !== 1) throw new DirectCaptureError("SESSION_NOT_ACTIVE");
     return { kind: "claimed" as const, session, declarations, plan, evidenceId: session.finalizedEvidenceId };
-  }, SEAL_STEP_TRANSACTION);
+  }, SEAL_STEP_TRANSACTION).catch(async (err: unknown) => {
+    // AUD-0017 — an expiry refused inside the claim is written now.
+    await settleDeferredExpiry(db, err, now);
+    throw err;
+  });
 
   if (claimed.kind === "already") return claimed.result;
   const { session, declarations, plan, evidenceId } = claimed;

@@ -212,10 +212,14 @@ export async function lockEvidenceCapacitySubject(
  * exists (the email-based limit bypass was REMOVED in the Phase 9 final
  * closure; limits are canonical for every account, internal or customer).
  */
-export async function resolveEnforcementScopeForRequester(params: {
-  ownerUserId: string;
-  teamId?: string | null;
-}): Promise<WorkspaceScope> {
+export async function resolveEnforcementScopeForRequester(
+  params: {
+    ownerUserId: string;
+    teamId?: string | null;
+  },
+  /** AUD-0017 — the caller's transaction, when it holds one. */
+  client?: prismaPkg.Prisma.TransactionClient,
+): Promise<WorkspaceScope> {
   // §9.7 (2026-07-22) — the enforcement chokepoint consumes the CANONICAL
   // COMMERCIAL ENVELOPE with an EXPLICIT subject (workspace-by-persisted-id
   // when a teamId is targeted, else the requester's personal account). The
@@ -231,8 +235,9 @@ export async function resolveEnforcementScopeForRequester(params: {
             requesterUserId: params.ownerUserId,
           }
         : { type: "PERSONAL_ACCOUNT", userId: params.ownerUserId },
+      client ? { client } : {},
     ),
-    prisma.user.findUnique({
+    (client ?? prisma).user.findUnique({
       where: { id: params.ownerUserId },
       select: { email: true },
     }),

@@ -2755,11 +2755,15 @@ export async function assignmentTargetExistsInWorkspace(
  * see them, so every picker row, hydrated label and new task is intersected
  * with this.
  */
-async function targetReachFor(userId: string): Promise<{
+async function targetReachFor(
+  userId: string,
+  /** AUD-0017 (TXP-018) — the caller's connection, inside its transaction. */
+  client?: PrismaClient,
+): Promise<{
   caseWhere: Prisma.CaseWhereInput;
   evidenceWhere: Prisma.EvidenceWhereInput;
 }> {
-  const ids = await accessibleWorkspaceIdsFor(userId);
+  const ids = await accessibleWorkspaceIdsFor(userId, client);
   return {
     caseWhere: caseReachWhere(userId, ids),
     evidenceWhere: evidenceReachWhere(userId, ids),
@@ -2774,7 +2778,7 @@ async function assignmentTargetReachableBy(
   targetType: CollaborationTeamAssignmentTarget,
   targetId: string,
 ): Promise<boolean> {
-  const reach = await targetReachFor(userId);
+  const reach = await targetReachFor(userId, client);
   if (targetType === "CASE") {
     return Boolean(
       await client.case.findFirst({

@@ -109,7 +109,10 @@ describe("what the contributor sends fits what stores it", () => {
      * `000-<name>`. Tying the key to the full display name is what turned the
      * fixed 500 into a 400 from the object store.
      */
-    expect(ORCHESTRATION).toContain("const PART_KEY_FILE_NAME_MAX = 120;");
+    // AUD-0054 — bounded in UTF-8 BYTES by the one helper every evidence key
+    // uses (object-key-file-name.ts; its behaviour is pinned in
+    // object-key-file-name.test.ts).
+    expect(ORCHESTRATION).toContain("objectKeyFileNameFragment(fileName)");
     expect(ORCHESTRATION).toContain(
       "storageKeyFileNameFragment(fileName) ?? `part-${partIndex + 1}`",
     );

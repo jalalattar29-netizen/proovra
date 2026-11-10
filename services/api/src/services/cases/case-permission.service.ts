@@ -109,8 +109,10 @@ export type CaseAssignmentRole =
 export async function getCaseAssignmentRoles(
   caseId: string,
   userId: string,
+  // AUD-0017 — the caller's transaction client when it asks inside one.
+  client: PrismaClient = defaultPrisma,
 ): Promise<CaseAssignmentRole[]> {
-  const rows = await prisma.caseAssignment.findMany({
+  const rows = await client.caseAssignment.findMany({
     where: { caseId, assignedToUserId: userId, status: "ACTIVE" },
     select: { role: true },
   });
@@ -583,7 +585,7 @@ export async function authorizeCaseEvidenceLink(
   const decision = evaluateCaseMutationPermission({
     mutation: "EVIDENCE_LINK",
     accessRole: access.role as CaseAccessRole,
-    assignmentRoles: await getCaseAssignmentRoles(input.caseId, input.userId),
+    assignmentRoles: await getCaseAssignmentRoles(input.caseId, input.userId, client),
   });
   if (!decision.allowed) {
     return { allowed: false, status: 403, subject: "case", reason: decision.reason };

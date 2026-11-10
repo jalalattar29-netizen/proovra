@@ -63,6 +63,7 @@ import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { logger } from "./logger.js";
 import { resolveEvidenceOutputIssuance } from "./output-issuance.js";
+import type { WorkerDbClient } from "./workspace-billing.js";
 
 
 /**
@@ -137,13 +138,19 @@ export type ReportCommandResolution =
 export async function assertRunAdmittedAtCommit(
   command: Pick<ResolvedReportCommand, "teamId" | "artifactType" | "forceRegenerate">,
   live: { id: string; teamId: string | null; ownerUserId: string; status: unknown; lifecycleState: unknown; deletedAt: Date | null },
+  // AUD-0017 (TXP-023/024) — the commit transaction's client: the admission
+  // reads on the connection that holds the record's lock, never a second one.
+  client: WorkerDbClient = prisma,
 ): Promise<void> {
-  const admission = await decideRunAdmission({
-    evidence: live,
-    requestTeamId: command.teamId,
-    artifactType: command.artifactType,
-    forceRegenerate: command.forceRegenerate,
-  });
+  const admission = await decideRunAdmission(
+    {
+      evidence: live,
+      requestTeamId: command.teamId,
+      artifactType: command.artifactType,
+      forceRegenerate: command.forceRegenerate,
+    },
+    client,
+  );
   if (admission.kind === "REFUSED") throw new OutputProductionRefusedError(admission.refusal);
   if (admission.kind === "BLOCKED") throw new OutputPolicyBlockedError(admission.reasonCode);
   if (!admission.entitlementResolved) {
@@ -180,35 +187,45 @@ export type RunAdmission =
  *   3. its organization must be ACTIVE;
  *   4. a REGENERATION is refused under any effective legal hold (an
  *      unreadable hold is a hold).
+ *
+ * AUD-0017 (TXP-023/024) — every read runs on `client`: a commit transaction
+ * passes its `tx` (it already holds a pooled connection, and a read on the
+ * global client would wait for a second one); the claim keeps the global one.
  */
-export async function decideRunAdmission(input: {
-  evidence: { id: string; teamId: string | null; ownerUserId: string; status: unknown; lifecycleState: unknown; deletedAt: Date | null };
-  requestTeamId: string;
-  artifactType: string;
-  forceRegenerate: boolean;
-}): Promise<RunAdmission> {
+export async function decideRunAdmission(
+  input: {
+    evidence: { id: string; teamId: string | null; ownerUserId: string; status: unknown; lifecycleState: unknown; deletedAt: Date | null };
+    requestTeamId: string;
+    artifactType: string;
+    forceRegenerate: boolean;
+  },
+  client: WorkerDbClient = prisma,
+): Promise<RunAdmission> {
   const { evidence } = input;
   const decision = decideOutputProduction({
     subject: evidence as never,
     artifactType: input.artifactType === "VERIFICATION_PACKAGE" ? "VERIFICATION_PACKAGE" : "REPORT",
-    entitlement: await workerOutputEntitlement({
-      id: evidence.id,
-      ownerUserId: evidence.ownerUserId,
-      teamId: evidence.teamId ?? null,
-    }),
+    entitlement: await workerOutputEntitlement(
+      {
+        id: evidence.id,
+        ownerUserId: evidence.ownerUserId,
+        teamId: evidence.teamId ?? null,
+      },
+      client,
+    ),
   });
   if (!decision.produce && decision.refusal) return { kind: "REFUSED", refusal: decision.refusal };
   // The record's workspace — its team, or its owner's personal workspace for
   // a Personal record stored with team_id NULL (2026-09-29): the same
   // resolution the writer used, re-derived here at run time.
-  const workspaceId = await resolveEvidenceWorkspaceId(evidence as never, prisma);
+  const workspaceId = await resolveEvidenceWorkspaceId(evidence as never, client);
   if (!workspaceId || workspaceId !== input.requestTeamId) return { kind: "BLOCKED", reasonCode: "workspace_mismatch" };
   // Lifecycle lives on the Organization (a Team has no status of its own), so
   // "is this workspace still allowed to do work" resolves through the org,
   // which is also where suspension is applied.
-  const workspace = await prisma.team.findUnique({ where: { id: workspaceId }, select: { organizationId: true } });
+  const workspace = await client.team.findUnique({ where: { id: workspaceId }, select: { organizationId: true } });
   if (!workspace) return { kind: "BLOCKED", reasonCode: "workspace_not_found" };
-  const organization = await prisma.organization.findUnique({
+  const organization = await client.organization.findUnique({
     where: { id: workspace.organizationId },
     select: { status: true },
   });
@@ -218,7 +235,7 @@ export async function decideRunAdmission(input: {
   // not, because there is nothing yet to preserve.
   if (input.forceRegenerate) {
     const held = (
-      await evaluateEffectiveLegalHold(prisma, { teamId: workspaceId, evidenceId: evidence.id }).catch(() => ({ held: true }))
+      await evaluateEffectiveLegalHold(client as never, { teamId: workspaceId, evidenceId: evidence.id }).catch(() => ({ held: true }))
     ).held;
     if (held) return { kind: "BLOCKED", reasonCode: "legal_hold_active" };
   }

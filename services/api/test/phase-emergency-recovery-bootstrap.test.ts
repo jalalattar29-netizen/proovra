@@ -111,7 +111,10 @@ describe("Phase EMERGENCY-RECOVERY — workspace-bootstrap service", () => {
   });
 
   it("creates Team + OWNER TeamMember inside a transaction", () => {
-    expect(BOOTSTRAP).toMatch(/client\.\$transaction\(async \(tx\)/);
+    // AUD-0017 — the bootstrap's own transaction, or the caller's when it is
+    // handed one (a transaction client has no `$transaction`).
+    expect(BOOTSTRAP).toMatch(/client\.\$transaction\(fn\)/);
+    expect(BOOTSTRAP).toMatch(/inTransaction\(async \(tx\)/);
     expect(BOOTSTRAP).toMatch(/tx\.team\.create/);
     // PHASE 3 (2026-07-21): the OWNER membership is created through the
     // canonical orchestrator (PERSONAL_BOOTSTRAP intent) — same tx client.
