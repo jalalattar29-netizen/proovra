@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollRegionProps } from "../../lib/ui/scrollRegion";
 import { type CSSProperties, type ElementType, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 // Pricing page icon set — lucide-react only. The phosphor-named aliases
@@ -1274,8 +1275,9 @@ export default function MarketingPricingPage() {
         const capacityRows = compareRows.slice(0, groupIdx) as RowType[];
         const operationsRows = compareRows.slice(groupIdx + 1) as RowType[];
 
-        const TableBlock = ({ rows }: { rows: RowType[] }) => (
-          <div className="mt-4 overflow-x-auto rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
+        // AUD-0061 — scrolls sideways at phone width; focusable + named so a keyboard can scroll it (lib/ui/scrollRegion).
+        const TableBlock = ({ rows, label }: { rows: RowType[]; label: string }) => (
+          <div {...scrollRegionProps(label)} className="mt-4 overflow-x-auto rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
             <table className="w-full min-w-[840px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-[var(--proovra-border-warm)] bg-[var(--proovra-page-bg-soft)]">
@@ -1343,7 +1345,7 @@ export default function MarketingPricingPage() {
           <>
             <section className="w-full relative mx-auto mt-8 max-w-7xl px-6 pb-8 md:mt-10 md:px-8 md:pb-10">
               <SectionKicker>Plans &amp; Capacity</SectionKicker>
-              <TableBlock rows={capacityRows} />
+              <TableBlock rows={capacityRows} label="Plans and capacity comparison" />
               <div className="mt-3 text-[0.78rem] text-[#64748B]">
                 Prices shown in{" "}
                 <span className="font-medium text-[#0F172A]">
@@ -1356,7 +1358,7 @@ export default function MarketingPricingPage() {
 
             <section className="w-full relative mx-auto max-w-7xl px-6 pb-12 md:px-8 md:pb-16">
               <SectionKicker>Operations &amp; Governance</SectionKicker>
-              <TableBlock rows={operationsRows} />
+              <TableBlock rows={operationsRows} label="Operations and governance comparison" />
             </section>
           </>
         );

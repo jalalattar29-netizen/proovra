@@ -1,4 +1,5 @@
 "use client";
+import { scrollRegionProps } from "../../lib/ui/scrollRegion";
 import { identifierLabel } from "@proovra/shared";
 import { formatUserDateTime } from "../../lib/date";
 
@@ -112,7 +113,12 @@ export function AiCapabilityStatusTable() {
         // Compact live-status widget — a justified direct-table variant
         // (app-panel app-panel__body + chips). Shares only the canonical polished
         // scrollbar (.legal-scroll); keeps its own compact chrome.
-        <div className="legal-scroll" style={{ overflowX: "auto" }}>
+        // AUD-0061 — scrolls sideways at phone width; focusable + named so a keyboard can scroll it (lib/ui/scrollRegion).
+        <div
+          className="legal-scroll"
+          style={{ overflowX: "auto" }}
+          {...scrollRegionProps("AI capability status")}
+        >
           <table style={{ width: "100%", minWidth: 860, fontSize: 13, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ textAlign: "left", opacity: 0.7 }}>

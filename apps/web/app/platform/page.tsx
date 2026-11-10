@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollRegionProps } from "../../lib/ui/scrollRegion";
 import { type ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -1811,8 +1812,11 @@ function ScreensSection() {
           </p>
         </div>
 
-        {/* Tab bar */}
-        <div className="mx-auto mt-10 max-w-[1280px] overflow-x-auto">
+        {/* Tab bar. AUD-0061 — scrolls sideways at phone width; focusable + named so a keyboard can scroll it (lib/ui/scrollRegion). */}
+        <div
+          {...scrollRegionProps("Platform views")}
+          className="mx-auto mt-10 max-w-[1280px] overflow-x-auto"
+        >
           <div className="flex min-w-fit items-stretch rounded-[16px] border border-[#E5E7EB] bg-white p-1">
             {tabs.map((t, i) => {
               const Icon = t.icon;

@@ -29,6 +29,7 @@
  * `teamId`, so one payer's spending appeared under another payer's plan.
  */
 
+import { scrollRegionProps } from "../../../../lib/ui/scrollRegion";
 import { Badge } from "../../../../components/ui/Badge";
 import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 import type { AppTone } from "../../../../components/app-primitives/AppStatusBadge";
@@ -622,7 +623,10 @@ export function BillingHistorySection({
           cards below 720px. It is not a Billing table: it is the same surface
           the rest of the product lists records in.
         */
-        <div className="app-table-surface app-table-surface--scroll">
+        <div
+          className="app-table-surface app-table-surface--scroll"
+          {...scrollRegionProps("Billing history")}
+        >
           <table className="app-table" data-responsive data-billing-history-table>
             <thead>
               <tr>

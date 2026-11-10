@@ -16,8 +16,9 @@
  *      through the same priority chain the page used before).
  *   3. The main preview renders the SELECTED item (renderPreview()
  *      reads `selectedItem`, not `defaultItem`).
- *   4. Each card carries aria-selected / aria-pressed mirroring
- *      the selection state.
+ *   4. Each card carries aria-selected mirroring the selection
+ *      state — and NOT aria-pressed, which role="option" does not
+ *      allow (AUD-0061, axe aria-allowed-attr).
  *   5. The selected card gets a visible "--selected" class so the
  *      operator can see which file is in the main preview.
  *   6. Native <button> gives Enter/Space keyboard handling for free;
@@ -146,10 +147,11 @@ describe("Pin 3 — cards are buttons with onClick + keyboard + aria + selected 
     assert.match(src, /onClick=\{\(\) => setSelectedPreviewItemId\(item\.id\)\}/);
   });
 
-  it("each card carries aria-selected, aria-pressed, role=\"option\", and a data-attr that mirrors selection", () => {
+  it("each card carries aria-selected (never aria-pressed), role=\"option\", and a data-attr that mirrors selection", () => {
     const src = read(LIB);
     assert.match(src, /aria-selected=\{isSelected\}/);
-    assert.match(src, /aria-pressed=\{isSelected\}/);
+    // AUD-0061 — aria-pressed is not an allowed attribute on role="option".
+    assert.doesNotMatch(src, /aria-pressed=\{isSelected\}/);
     assert.match(src, /role="option"/);
     assert.match(
       src,
@@ -182,11 +184,11 @@ describe("Pin 4 — CSS gives the button the look + selected state", () => {
     assert.match(css, /button\.evidence-detail-item-card\s*\{[\s\S]{0,400}text-align:\s*(?:left|start)/);
   });
 
-  it("--selected (or aria-pressed=true) renders a visible highlight border + background", () => {
+  it("--selected (or aria-selected=true) renders a visible highlight border + background", () => {
     const css = read(CSS);
     assert.match(
       css,
-      /\.evidence-detail-item-card--selected,\s*\n?\s*button\.evidence-detail-item-card\[aria-pressed="true"\]/,
+      /\.evidence-detail-item-card--selected,\s*\n?\s*button\.evidence-detail-item-card\[aria-selected="true"\]/,
     );
   });
 

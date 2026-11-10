@@ -442,6 +442,7 @@ export default function AdminPeoplePage() {
           rows={data?.items ?? []}
           getRowId={(r) => r.id}
           loading={loading}
+          rowActionLabel={(r) => `Open ${r.email ?? r.name ?? "person"}`}
           onRowClick={(r) => router.push(
             detailHrefWithReturn(
               `/admin/users/${encodeURIComponent(r.id)}`,

@@ -421,7 +421,7 @@ button.evidence-detail-item-card:focus-visible {
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.18);
 }
 .evidence-detail-item-card--selected,
-button.evidence-detail-item-card[aria-pressed="true"] {
+button.evidence-detail-item-card[aria-selected="true"] {
   border-color: var(--accent-500);
   background: var(--surface-translucent-selected);
   box-shadow: 0 0 0 1px var(--accent-500) inset;

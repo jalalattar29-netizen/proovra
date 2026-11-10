@@ -25,6 +25,7 @@
  *   * Errors go through toSafeUserError — never a raw error.message.
  */
 
+import { scrollRegionProps } from "../../lib/ui/scrollRegion";
 import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
@@ -199,7 +200,10 @@ export function SearchAuditLogPanel({ teamId }: { teamId: string | null }) {
         {rows.length > 0 ? (
           // The table scrolls inside its own surface; the page never scrolls
           // sideways because this panel is wide.
-          <div className="app-table-surface app-table-surface--scroll">
+          <div
+            className="app-table-surface app-table-surface--scroll"
+            {...scrollRegionProps("Search audit log")}
+          >
             <table data-search-audit-table className="app-table">
               <thead>
                 <tr>

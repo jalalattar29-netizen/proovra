@@ -1,3 +1,4 @@
+import { scrollRegionProps } from "../../lib/ui/scrollRegion";
 import {
   ArrowRight,
   BrainCircuit,
@@ -129,8 +130,11 @@ export function EvidenceLifecycle() {
           </p>
         </div>
 
-        {/* 7-card row */}
-        <div className="mt-12 -mx-5 overflow-x-auto px-5 pb-2 md:mx-0 md:overflow-visible md:px-0">
+        {/* 7-card row. AUD-0061 — scrolls sideways at phone width; focusable + named so a keyboard can scroll it (lib/ui/scrollRegion). */}
+        <div
+          {...scrollRegionProps("Evidence lifecycle stages")}
+          className="mt-12 -mx-5 overflow-x-auto px-5 pb-2 md:mx-0 md:overflow-visible md:px-0"
+        >
           <div className="grid min-w-[1180px] grid-cols-7 gap-4 md:min-w-0 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             {STAGES.map((stage, idx) => (
               <LifecycleCard key={stage.n} stage={stage} showArrow={idx < STAGES.length - 1} />

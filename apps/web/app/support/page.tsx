@@ -1,3 +1,4 @@
+import { scrollRegionProps } from "../../lib/ui/scrollRegion";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -729,7 +730,9 @@ export default function SupportPage() {
             </p>
           </div>
 
+          {/* AUD-0061 — scrolls sideways at phone width; focusable + named so a keyboard can scroll it (lib/ui/scrollRegion). */}
           <div
+            {...scrollRegionProps("Response expectations")}
             className="overflow-x-auto rounded-[20px] border bg-white shadow-[0_2px_10px_rgba(8,18,22,0.03)]"
             style={{ borderColor: "#E2E8F0" }}
           >
