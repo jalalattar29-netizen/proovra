@@ -395,3 +395,15 @@ enforced in code and proven behaviourally; the test named is the proof.
   trash or to the archive does not, because both can be reversed from the same
   screen and legal holds still refuse them. Permanent destruction goes through
   the governed destruction review.
+- **AUD-0011 — workspace kinds (decided 2026-11-10: OWNED is preserved).** The
+  persisted tenancy kind (`Team.workspaceKind`, Prisma `WorkspaceKind`) has three
+  values: `PERSONAL` (the owner's bootstrap Personal Space), `OWNED` (a
+  self-service workspace a person owns and funds on FREE/PRO/TEAM, outside an
+  Organization) and `ORGANIZATION` (an enterprise Organization's workspace).
+  `TARGET_WORKSPACE_KINDS` in `packages/shared/src/architecture/workspace-kinds.ts`
+  is a different axis: the two-value SCOPE vocabulary (personal vs shared) that
+  the runtime envelope still emits as `PERSONAL | TEAM`. On that axis OWNED is
+  shared, with ORGANIZATION (`isOrganizationWorkspaceKind`), and commercially it
+  is `SHARED` (`billingShapeForWorkspaceKind`). OWNED is not retired and is not
+  a target-model gap; new code that needs the tenancy kind reads
+  `WorkspaceKind`, and code that needs the scope reads the target constant.

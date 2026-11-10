@@ -20,6 +20,13 @@
  *   INV-14: This is the canonical scope-axis vocabulary for the workspace
  *           kind. New scope discriminators are forbidden.
  *
+ * AUD-0011 (2026-11-10) — this is the SCOPE axis (personal vs shared), not the
+ * persisted tenancy kind. Prisma WorkspaceKind keeps three values, PERSONAL |
+ * OWNED | ORGANIZATION, and OWNED is preserved: a self-service workspace a person
+ * owns outside an Organization, which on this axis is shared (it answers true to
+ * isOrganizationWorkspaceKind via the legacy TEAM scope). See
+ * docs/architecture/members-and-access-model.md, section 6.
+ *
  * See: docs/architecture/proovra-domain-model.md
  * See: docs/architecture/architecture-invariants.md
  */
