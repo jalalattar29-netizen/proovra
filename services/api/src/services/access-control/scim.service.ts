@@ -915,6 +915,31 @@ export async function scimCreateUser(
     };
   }
 
+  /*
+   * AUD-0044 — RFC 7644 §3.3: a POST for a userName this directory already
+   * holds under ANOTHER externalId is a uniqueness conflict, answered 409 with
+   * nothing changed. It used to fall through to the create path, which found
+   * the account by email and re-linked it under the new externalId (201, same
+   * id, externalId replaced). The same externalId stays idempotent (above).
+   * Unlinked (deactivated) identities count: the userName is still theirs.
+   */
+  // Directory identities only: an SSO sign-in link (OIDC/SAML JIT) for the
+  // same person is not a SCIM userName, and SCIM may still provision them.
+  const userNameHolder = await client.externalIdentityMapping.findFirst({
+    where: {
+      organizationId: ctx.organizationId,
+      provider: "GENERIC_SCIM",
+      OR: [
+        { externalEmail: { equals: parsed.data.userName, mode: "insensitive" } },
+        { externalEmail: { equals: email, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (userNameHolder) {
+    return { ok: false, status: 409, detail: "user_name_taken" };
+  }
+
   // ---------------------------------------------------------------------------
   // PHASE 12B — ONE ATOMIC CREATE INTENT (zero partial mutation).
   //
@@ -1147,8 +1172,15 @@ export async function scimReadUser(
     select: { id: true, email: true, createdAt: true, updatedAt: true },
   });
   if (!user) return null;
+  /*
+   * AUD-0044 — a DEACTIVATED user is still a resource of this directory
+   * (RFC 7644): it is read with active=false. Deactivation unlinks the
+   * mapping (so the directory identity no longer signs in), and reads only
+   * considered linked mappings, so a deactivated user answered 404. The latest
+   * mapping is read whether or not it is linked; `active` says which.
+   */
   const mapping = await client.externalIdentityMapping.findFirst({
-    where: { ...scimDirectoryUserScope(ctx.teamId), userId: user.id, unlinkedAtUtc: null },
+    where: { ...scimDirectoryUserScope(ctx.teamId), userId: user.id },
     orderBy: { linkedAtUtc: "desc" },
   });
   if (!mapping) return null;
@@ -1161,7 +1193,7 @@ export async function scimReadUser(
     id: user.id,
     userName: mapping.externalEmail ?? email,
     displayName: mapping.displayName,
-    active: member?.status === "ACTIVE",
+    active: member?.status === "ACTIVE" && mapping.unlinkedAtUtc === null,
     emails: email ? [{ value: email, primary: true }] : [],
     externalId: mapping.externalSubjectId,
     created: user.createdAt,
@@ -1185,26 +1217,38 @@ export async function scimListUsers(
   const count = Math.min(Math.max(Math.floor(input.count ?? 50), 1), 200);
 
   // Parse a tiny SCIM filter subset: `userName eq "x"` or `externalId eq "x"`.
-  let externalSubjectIdEq: string | undefined;
+  // AUD-0044 — `userName eq` matches the userName the resource reports
+  // (the directory email); it was matched against externalId. `externalId eq`
+  // is unchanged.
+  let filterWhere: Record<string, unknown> = {};
   if (input.filter) {
     const m =
       /^(userName|externalId)\s+eq\s+"([^"]+)"$/i.exec(input.filter.trim());
-    if (m) externalSubjectIdEq = m[2];
+    if (m) {
+      // A userName filter also still matches the external id, as it did:
+      // clients that set userName to their own subject keep resolving.
+      filterWhere =
+        m[1]!.toLowerCase() === "username"
+          ? { OR: [{ externalEmail: { equals: m[2], mode: "insensitive" } }, { externalSubjectId: m[2] }] }
+          : { externalSubjectId: m[2] };
+    }
   }
 
+  // AUD-0044 — deactivated users are listed (active=false), one row per
+  // person: the latest mapping, linked or not.
   const where = {
     ...scimDirectoryUserScope(ctx.teamId),
-    unlinkedAtUtc: null,
-    ...(externalSubjectIdEq
-      ? { externalSubjectId: externalSubjectIdEq }
-      : {}),
+    ...filterWhere,
   };
-  const totalResults = await client.externalIdentityMapping.count({ where });
+  const totalResults = (
+    await client.externalIdentityMapping.findMany({ where, distinct: ["userId"], select: { userId: true } })
+  ).length;
   const mappings = await client.externalIdentityMapping.findMany({
     where,
+    distinct: ["userId"],
     skip: startIndex - 1,
     take: count,
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ userId: "asc" }, { linkedAtUtc: "desc" }],
   });
 
   const userIds = mappings.map((m) => m.userId);
@@ -1230,7 +1274,7 @@ export async function scimListUsers(
         id: u.id,
         userName: m.externalEmail ?? email,
         displayName: m.displayName,
-        active: member?.status === "ACTIVE",
+        active: member?.status === "ACTIVE" && m.unlinkedAtUtc === null,
         emails: email ? [{ value: email, primary: true }] : [],
         externalId: m.externalSubjectId,
         created: u.createdAt,

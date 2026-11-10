@@ -561,8 +561,9 @@ describe("SCOPE J2 — unlink/relink keeps history; relink makes no duplicate us
     const mapping = fake._mappings.find((m) => m.userId === userId);
     expect(mapping).toBeTruthy();
     expect(mapping?.unlinkedAtUtc).not.toBeNull();
-    // scimReadUser filters on unlinkedAtUtc:null → not resolvable now.
-    expect(await scimReadUser(CTX, userId, fake as never)).toBeNull();
+    // AUD-0044 — a deactivated user is still a resource of the directory
+    // (RFC 7644): readable, with active=false — it used to answer 404.
+    expect(await scimReadUser(CTX, userId, fake as never)).toMatchObject({ id: userId, active: false });
 
     // History untouched.
     expect(fake._evidence).toHaveLength(1);
