@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import sharp from "sharp";
-import { extractPdfTextWithPdfjs, openPdf } from "../pdf/pdfjs-runtime.js";
+import { closePdf, extractPdfTextWithPdfjs, openPdf } from "../pdf/pdfjs-runtime.js";
 import ffmpegPath from "ffmpeg-static";
 
 export type ExtractedPreview = {
@@ -212,21 +212,26 @@ async function buildPdfFirstPagePreview(buffer: Buffer): Promise<string | null> 
 
     // The worker's one PDF.js build (see pdf/pdfjs-runtime.ts).
     const pdf = await openPdf(buffer, { disableFontFace: true });
-    const page = await pdf.getPage(1);
-    const viewport = page.getViewport({ scale: 1.45 });
+    let rendered: Buffer;
+    try {
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: 1.45 });
 
-    const width = Math.max(1, Math.floor(viewport.width));
-    const height = Math.max(1, Math.floor(viewport.height));
-    const canvas = canvasModule.createCanvas(width, height);
-    const context = canvas.getContext("2d");
+      const width = Math.max(1, Math.floor(viewport.width));
+      const height = Math.max(1, Math.floor(viewport.height));
+      const canvas = canvasModule.createCanvas(width, height);
+      const context = canvas.getContext("2d");
 
-    await page.render({
-      canvasContext: context,
-      viewport,
-    }).promise;
+      await page.render({
+        canvasContext: context,
+        viewport,
+      }).promise;
 
-    const rendered = canvas.toBuffer("image/png");
-    await pdf.destroy?.();
+      rendered = canvas.toBuffer("image/png");
+    } finally {
+      // The loading task owns the teardown (closePdf); the document is released on failure too.
+      await closePdf(pdf);
+    }
 
     const optimized = await sharp(rendered)
       .resize(1200, 1600, {

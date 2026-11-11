@@ -14,6 +14,7 @@
  *   3. no package known to bundle its own PDF.js is in the lockfile;
  *   4. worker source imports PDF.js only through src/pdf/pdfjs-runtime.ts, and
  *      nothing imports pdf-parse;
+ *   3b. the pinned PDF.js's Node engines admit the worker image's Node major;
  *   5. when installed: the resolved pdfjs-dist, its API build (pdf.mjs) and its
  *      worker build (pdf.worker.mjs) all state that exact version, and no
  *      PDF.js worker file is copied into the worker's sources or build output.
@@ -52,6 +53,28 @@ else if (pin && resolved[0] !== pin) fail(`pnpm-lock.yaml resolves pdfjs-dist ${
 for (const b of PDFJS_BUNDLERS) {
   if (new RegExp(`^ {2}'?${b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@`, "m").test(lock)) {
     fail(`pnpm-lock.yaml contains ${b}, which bundles its own PDF.js`);
+  }
+}
+
+// 3b. the pinned PDF.js supports the Node major the worker image runs. pdfjs-dist 6
+// requires Node >= 22.13; on the worker's node:20 image its worker thread threw on
+// ArrayBuffer.prototype.transferToFixedLength and page renders never settled.
+const dockerfile = join(workerDir, "Dockerfile");
+const imageMajor = existsSync(dockerfile) ? /^FROM\s+node:(\d+)/m.exec(readFileSync(dockerfile, "utf8"))?.[1] : undefined;
+if (resolved.length === 1 && imageMajor) {
+  // The lockfile's package entry: its header line, then the lines indented under it.
+  const lines = lock.split(/\r?\n/);
+  const header = lines.findIndex((l) => l === `  pdfjs-dist@${resolved[0]}:` || l === `  'pdfjs-dist@${resolved[0]}':`);
+  const body = [];
+  for (let i = header + 1; header >= 0 && i < lines.length && lines[i].startsWith("    "); i++) body.push(lines[i]);
+  const engines = /engines: \{node: '([^']+)'\}/.exec(body.join("\n"))?.[1];
+  if (engines) {
+    // Each alternative's lower bound major; the image's major qualifies when some alternative starts at or below it.
+    const admits = engines.split("||").some((alt) => {
+      const m = /^\s*(?:>=|\^|~)?\s*(\d+)/.exec(alt);
+      return m ? Number(m[1]) <= Number(imageMajor) : false;
+    });
+    if (!admits) fail(`pdfjs-dist ${resolved[0]} requires Node ${engines}; the worker image runs node:${imageMajor}`);
   }
 }
 

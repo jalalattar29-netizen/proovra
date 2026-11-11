@@ -321,7 +321,7 @@ async function renderRedactedImage(source: Buffer, rects: NormalizedRect[]): Pro
 }
 
 // ── PDF — rasterize each page, burn rects, reassemble (flattened raster) ─────
-async function renderRedactedPdf(source: Buffer, rects: NormalizedRect[]): Promise<Buffer> {
+export async function renderRedactedPdf(source: Buffer, rects: NormalizedRect[]): Promise<Buffer> {
   const canvasModule = (await import("@napi-rs/canvas")) as unknown as {
     createCanvas: (w: number, h: number) => {
       getContext: (t: "2d") => {
@@ -339,7 +339,7 @@ async function renderRedactedPdf(source: Buffer, rects: NormalizedRect[]): Promi
   if (canvasModule.Path2D && !globalThis.Path2D) globalThis.Path2D = canvasModule.Path2D;
 
   // The worker's one PDF.js build (see pdf/pdfjs-runtime.ts).
-  const { openPdf } = await import("../pdf/pdfjs-runtime.js");
+  const { closePdf, openPdf } = await import("../pdf/pdfjs-runtime.js");
   const pdf = await openPdf(source, { disableFontFace: true });
 
   const { default: PDFDocument } = (await import("pdfkit")) as unknown as {
@@ -358,32 +358,36 @@ async function renderRedactedPdf(source: Buffer, rects: NormalizedRect[]): Promi
     doc.on("error", () => rejectDone(new Error("pdf_assembly_failed")));
   });
 
-  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
-    const page = await pdf.getPage(pageNo);
-    const viewport = page.getViewport({ scale: PDF_RASTER_SCALE });
-    const w = Math.max(1, Math.floor(viewport.width));
-    const h = Math.max(1, Math.floor(viewport.height));
-    const canvas = canvasModule.createCanvas(w, h);
-    const ctx = canvas.getContext("2d");
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    // Burn this page's rects INTO the raster (destructive; the text layer is
-    // gone because the output is a flattened image-only PDF).
-    for (const r of rects) {
-      if (r.page !== pageNo) continue;
-      ctx.fillStyle = "black";
-      ctx.fillRect(
-        Math.max(0, Math.floor(r.x * w)),
-        Math.max(0, Math.floor(r.y * h)),
-        Math.max(1, Math.ceil(r.width * w)),
-        Math.max(1, Math.ceil(r.height * h)),
-      );
+  try {
+    for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+      const page = await pdf.getPage(pageNo);
+      const viewport = page.getViewport({ scale: PDF_RASTER_SCALE });
+      const w = Math.max(1, Math.floor(viewport.width));
+      const h = Math.max(1, Math.floor(viewport.height));
+      const canvas = canvasModule.createCanvas(w, h);
+      const ctx = canvas.getContext("2d");
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      // Burn this page's rects INTO the raster (destructive; the text layer is
+      // gone because the output is a flattened image-only PDF).
+      for (const r of rects) {
+        if (r.page !== pageNo) continue;
+        ctx.fillStyle = "black";
+        ctx.fillRect(
+          Math.max(0, Math.floor(r.x * w)),
+          Math.max(0, Math.floor(r.y * h)),
+          Math.max(1, Math.ceil(r.width * w)),
+          Math.max(1, Math.ceil(r.height * h)),
+        );
+      }
+      const png = canvas.toBuffer("image/png");
+      // Point-size page matching the raster scale back to PDF units.
+      doc.addPage({ size: [w / PDF_RASTER_SCALE, h / PDF_RASTER_SCALE], margin: 0 });
+      doc.image(png, 0, 0, { width: w / PDF_RASTER_SCALE, height: h / PDF_RASTER_SCALE });
     }
-    const png = canvas.toBuffer("image/png");
-    // Point-size page matching the raster scale back to PDF units.
-    doc.addPage({ size: [w / PDF_RASTER_SCALE, h / PDF_RASTER_SCALE], margin: 0 });
-    doc.image(png, 0, 0, { width: w / PDF_RASTER_SCALE, height: h / PDF_RASTER_SCALE });
+  } finally {
+    // The loading task owns the teardown (closePdf); the document is released on failure too.
+    await closePdf(pdf);
   }
-  await pdf.destroy?.();
   doc.end();
   return finished;
 }

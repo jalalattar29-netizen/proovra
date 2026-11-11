@@ -182,4 +182,26 @@ describe("CI integrity gate", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("fails when the pinned PDF.js requires a newer Node than the worker image runs (pdfjs-dist 6 on node:20)", () => {
+    const root = mkdtempSync(join(tmpdir(), "pdfjs-gate-"));
+    try {
+      const w = join(root, "services", "worker");
+      mkdirSync(join(w, "src"), { recursive: true });
+      writeFileSync(join(w, "package.json"), JSON.stringify({ name: "fixture-worker", dependencies: { "pdfjs-dist": "6.5.438" } }));
+      writeFileSync(join(w, "Dockerfile"), "FROM node:20-alpine3.23 AS base\n");
+      const lockFor = (engines: string) =>
+        `packages:\n\n  pdfjs-dist@6.5.438:\n    resolution: {integrity: sha512-x}\n    engines: {node: '${engines}'}\n\n`;
+      writeFileSync(join(root, "pnpm-lock.yaml"), lockFor(">=22.13.0 || >=24"));
+      const refused = run({ PDFJS_GATE_WORKER_DIR: w, PDFJS_GATE_REPO_DIR: root });
+      expect(refused.status).toBe(1);
+      expect(refused.stderr).toContain("pdfjs-dist 6.5.438 requires Node >=22.13.0 || >=24; the worker image runs node:20");
+
+      writeFileSync(join(root, "pnpm-lock.yaml"), lockFor(">=20.19.0 || >=22.13.0 || >=24"));
+      const admitted = run({ PDFJS_GATE_WORKER_DIR: w, PDFJS_GATE_REPO_DIR: root });
+      expect(admitted.stderr).not.toContain("requires Node");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
