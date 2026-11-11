@@ -505,6 +505,19 @@ export type PlatformContextOrganizationWorkspaceOption = {
   lifecycleStatus: "active";
 };
 
+/**
+ * AUD-0047 — a PERSONAL workspace somebody ELSE owns that the caller joined
+ * by invitation (a Pro or Team owner's workspace). `name` is server-derived
+ * from the owner ("<Owner>'s workspace"); `role` is the caller's own.
+ */
+export type PlatformContextSharedWorkspaceOption = {
+  workspaceId: string;
+  name: string;
+  kind: "PERSONAL";
+  role: WorkspaceRole | null;
+  lifecycleStatus: "active";
+};
+
 export type PlatformContextContextOptions = {
   personalSpace: {
     workspaceId: string;
@@ -514,6 +527,11 @@ export type PlatformContextContextOptions = {
     lifecycleStatus: "active";
   } | null;
   ownedWorkspaces: ReadonlyArray<PlatformContextOwnedWorkspaceOption>;
+  /**
+   * AUD-0047 — "Shared with you". Optional only so an API that predates it
+   * reads as "none"; the caller's own Personal Space is never in it.
+   */
+  sharedWorkspaces?: ReadonlyArray<PlatformContextSharedWorkspaceOption>;
   organizations: ReadonlyArray<{
     organizationId: string;
     organizationName: string | null;
@@ -531,8 +549,18 @@ export type PlatformContextActiveSpace =
   | {
       type: "PERSONAL";
       id: string | null;
-      displayName: "Personal Space";
-      roleLabel: "Owner";
+      /**
+       * "Personal Space" for the caller's own. AUD-0047 — in a personal
+       * workspace somebody else owns (`shared: true`) it is that workspace's
+       * name, and `roleLabel` is the caller's real role.
+       */
+      displayName: string;
+      roleLabel: "Owner" | WorkspaceRole | null;
+      /**
+       * AUD-0047 — true inside a personal workspace the caller JOINED. Absent
+       * (an older API) or false means the caller's own Personal Space.
+       */
+      shared?: boolean;
       /**
        * PHASE 12 POINT 4 STEP 1 — SERVER-resolved plan of the ACTIVE space.
        * The canonical place to read the active plan. Never re-derive it from

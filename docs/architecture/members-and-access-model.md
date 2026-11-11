@@ -293,6 +293,13 @@ enforced in code and proven behaviourally; the test named is the proof.
   is linked to a restricted case they are not on. Proof:
   `members-reaudit2-case-reach` "Defect 4 …", `members-assignee-authority-writers`
   "defect 4 (lead) …".
+- **R-CERT-001 — only the attestor revokes a signed attestation** (AUD-0033,
+  2026-11-10). A custodian or qualified-person declaration that has been
+  signed (ATTESTED) is the signer's own statement: only the person who signed
+  it may revoke it. Neither another member who may generate reports on the
+  record nor the workspace OWNER can; they are refused with 403
+  ATTESTATION_REVOKE_ATTESTOR_ONLY. An unsigned request follows the route's
+  report permission. Proof: `evidence-declaration-statement` "AUD-0033 …".
 - **Audit commits with the change.** Every case access-list change, invitation
   action, case link/unlink, external-access revoke and evidence archive/trash
   writes its audit in the mutation's transaction; a failed audit rolls the
@@ -388,3 +395,15 @@ enforced in code and proven behaviourally; the test named is the proof.
   trash or to the archive does not, because both can be reversed from the same
   screen and legal holds still refuse them. Permanent destruction goes through
   the governed destruction review.
+- **AUD-0011 — workspace kinds (decided 2026-11-10: OWNED is preserved).** The
+  persisted tenancy kind (`Team.workspaceKind`, Prisma `WorkspaceKind`) has three
+  values: `PERSONAL` (the owner's bootstrap Personal Space), `OWNED` (a
+  self-service workspace a person owns and funds on FREE/PRO/TEAM, outside an
+  Organization) and `ORGANIZATION` (an enterprise Organization's workspace).
+  `TARGET_WORKSPACE_KINDS` in `packages/shared/src/architecture/workspace-kinds.ts`
+  is a different axis: the two-value SCOPE vocabulary (personal vs shared) that
+  the runtime envelope still emits as `PERSONAL | TEAM`. On that axis OWNED is
+  shared, with ORGANIZATION (`isOrganizationWorkspaceKind`), and commercially it
+  is `SHARED` (`billingShapeForWorkspaceKind`). OWNED is not retired and is not
+  a target-model gap; new code that needs the tenancy kind reads
+  `WorkspaceKind`, and code that needs the scope reads the target constant.

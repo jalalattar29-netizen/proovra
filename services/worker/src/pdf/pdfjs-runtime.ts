@@ -52,8 +52,19 @@ export type PdfjsDocument = {
   numPages: number;
   getPage(pageNumber: number): Promise<PdfjsPage>;
   getMetadata(): Promise<{ info?: Record<string, unknown> | null; metadata?: unknown }>;
-  destroy(): Promise<void>;
+  destroy?: () => Promise<void>;
+  /** The task that opened it, which owns its teardown. */
+  loadingTask?: { destroy(): Promise<void> };
 };
+
+/**
+ * Release an opened PDF through the loading task that opened it, which owns the
+ * teardown in every PDF.js line (6 removed PDFDocumentProxy.destroy()).
+ */
+export async function closePdf(doc: Pick<PdfjsDocument, "destroy" | "loadingTask">): Promise<void> {
+  if (doc.loadingTask) await doc.loadingTask.destroy();
+  else await doc.destroy?.();
+}
 export type PdfjsModule = {
   version: string;
   build: string;
@@ -169,7 +180,7 @@ export async function extractPdfTextWithPdfjs(pdf: Uint8Array | Buffer): Promise
     });
     return text;
   } finally {
-    await doc.destroy();
+    await closePdf(doc);
   }
 }
 

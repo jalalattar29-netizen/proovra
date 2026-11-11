@@ -25,6 +25,7 @@
 // enterprise evaluation, governance documentation, compliance review.
 // =========================================================================
 
+import { scrollRegionProps } from "../../lib/ui/scrollRegion";
 import { Fragment } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -691,7 +692,11 @@ function HowTechnologyWorks() {
               boxShadow: "0 22px 60px rgba(0,0,0,0.35)",
             }}
           >
-            <div className="-mx-2 overflow-x-auto md:mx-0 md:overflow-visible">
+            {/* AUD-0061 — scrolls sideways at phone width; focusable + named so a keyboard can scroll it (lib/ui/scrollRegion). */}
+            <div
+              {...scrollRegionProps("Evidence workflow stages")}
+              className="-mx-2 overflow-x-auto md:mx-0 md:overflow-visible"
+            >
               <ol className="flex min-w-[820px] items-start justify-between gap-2 md:min-w-0">
                 {TIMELINE.map((s, i) => (
                   <Fragment key={s.label}>
@@ -1758,7 +1763,11 @@ function NewGovernanceArchitecture() {
                   </div>
 
                   {/* 7-step horizontal flow */}
-                  <div className="mt-8 -mx-2 overflow-x-auto md:mx-0 md:overflow-visible">
+                  {/* AUD-0061 — scrolls sideways at phone width; focusable + named so a keyboard can scroll it (lib/ui/scrollRegion). */}
+                  <div
+                    {...scrollRegionProps("Evidence operations workflow")}
+                    className="mt-8 -mx-2 overflow-x-auto md:mx-0 md:overflow-visible"
+                  >
                     <ol className="flex min-w-[920px] items-start justify-between gap-2 md:min-w-0">
                       {WORKFLOW.map((s, i) => (
                         <Fragment key={s.label}>

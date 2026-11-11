@@ -714,7 +714,13 @@
   border-radius: 8px;
   background: #FBFCFE;
   border: 1px solid var(--content-hover-border);
-  color: #94A3B8;
+  /* AUD-0025 — the "Search or jump to…" label is TEXT, on every internal
+     page. #94A3B8 measured 2.50:1 on this #FBFCFE ground (AA needs 4.5).
+     `--silver-ink` is the muted-ink authority the admin console already
+     substitutes here for the same reason: 5.34:1 on #FBFCFE. Hover still
+     darkens to --content-ink-muted below. The magnifier keeps its own
+     colour (`.app-header-search svg`). */
+  color: var(--silver-ink, #5B6B7B);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;

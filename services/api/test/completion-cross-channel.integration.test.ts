@@ -22,6 +22,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { intakeConsentDisclosureText } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -248,7 +249,7 @@ describe("one creation + finalization authority across channels (live PostgreSQL
       consent: {
         acceptedAtUtc: new Date().toISOString(),
         policyVersion: opened.link.consentPolicyVersion || "v1",
-        disclosureTextHash: sha256(opened.link.consentDisclosureText ?? ""),
+        disclosureTextHash: sha256(intakeConsentDisclosureText(opened.link.consentDisclosureText)),
         termsAcknowledged: true,
         identityDisclosed: true,
         ipHash: null,

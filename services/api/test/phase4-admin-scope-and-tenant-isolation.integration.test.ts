@@ -116,6 +116,7 @@ describe("PHASE 4 — Admin scope, tenant isolation and audience (live PostgreSQ
             email,
             authMethod: "PASSWORD",
             authAt: Math.floor(Date.now() / 1000),
+        mfaAt: Math.floor(Date.now() / 1000), // AUD-0021: platform routes need an MFA-verified session
           },
           secret,
           60 * 60,

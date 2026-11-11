@@ -180,21 +180,24 @@ export function assertSeedTeamDesignated(teamId: string): void {
   }
 }
 
-export function assertSeedingEnabled(): void {
+/** Why seeding may not run here, or null when it may. */
+export function seedingRefusal(): "SEEDING_DISABLED" | "SEEDING_PROD_GUARDED" | null {
   const enabled =
     (process.env.OPERATIONAL_SEEDING_ENABLED ?? "false").toLowerCase() ===
     "true";
-  if (!enabled) {
-    throw new OperationalSeedError("SEEDING_DISABLED");
-  }
+  if (!enabled) return "SEEDING_DISABLED";
   if (process.env.NODE_ENV === "production") {
     const allow =
       (process.env.OPERATIONAL_SEEDING_ALLOW_PRODUCTION ?? "false").toLowerCase() ===
       "true";
-    if (!allow) {
-      throw new OperationalSeedError("SEEDING_PROD_GUARDED");
-    }
+    if (!allow) return "SEEDING_PROD_GUARDED";
   }
+  return null;
+}
+
+export function assertSeedingEnabled(): void {
+  const refusal = seedingRefusal();
+  if (refusal) throw new OperationalSeedError(refusal);
 }
 
 /**

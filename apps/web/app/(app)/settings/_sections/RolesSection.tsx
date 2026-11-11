@@ -97,8 +97,12 @@ export function RolesSection() {
   // Personal Space is always Owner; an organization space carries the server's
   // own role label.
   const activeSpace = envelope?.activeSpace ?? null;
+  // AUD-0047 — a Pro/Team workspace the actor JOINED is PERSONAL too, and
+  // there the server's role label is the actor's real role, not Owner.
   const myRole: string | null =
-    activeSpace?.type === "PERSONAL" ? "OWNER" : activeSpace?.roleLabel ?? null;
+    activeSpace?.type === "PERSONAL" && !activeSpace.shared
+      ? "OWNER"
+      : activeSpace?.roleLabel ?? null;
 
   const [state, setState] = useState<State>({ kind: "LOADING" });
 

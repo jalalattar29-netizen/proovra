@@ -8,6 +8,7 @@ import {
 import { PasswordVisibilityToggle } from "../../components/auth/PasswordVisibilityToggle";
 
 import {
+  Fragment,
   Suspense,
   FormEvent,
   useEffect,
@@ -15,6 +16,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -112,6 +114,29 @@ function ShieldIcon() {
   );
 }
 
+/*
+ * AUD-0024 — every sentence on this page comes from the shared dictionary.
+ *
+ * A sentence that carries a value or a link is ONE dictionary entry with
+ * `{name}` placeholders, never English fragments glued around it: German puts
+ * the verb last, Turkish puts the possessive on the noun, Arabic reads the
+ * other way, and only the whole sentence lets each language choose its order.
+ */
+function fillCopy(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (m, k: string) => values[k] ?? m);
+}
+
+/** Same placeholders, filled with elements (the brand mark, the legal links). */
+function renderCopy(template: string, parts: Record<string, ReactNode>): ReactNode[] {
+  return template
+    .split(/(\{\w+\})/)
+    .filter((piece) => piece !== "")
+    .map((piece, i) => {
+      const name = /^\{(\w+)\}$/.exec(piece)?.[1];
+      return name && name in parts ? <Fragment key={i}>{parts[name]}</Fragment> : piece;
+    });
+}
+
 // The acceptance requirement is DERIVED from the canonical legal corpus in
 // `@proovra/shared/legal`, not restated here. This page used to carry its own
 // copy of the three dates; so did login and verify-email and the API. All four
@@ -135,6 +160,7 @@ function ShieldIcon() {
  * control — and no secrets or client state.
  */
 function LoginShell() {
+  const { t } = useLocale();
   return (
     <main
       style={{
@@ -148,10 +174,10 @@ function LoginShell() {
       }}
     >
       <h1 style={{ fontSize: "22px", fontWeight: 700, margin: 0 }}>
-        Sign in to PROOVRA
+        {t("loginShellTitle")}
       </h1>
       <p role="status" aria-live="polite" style={{ margin: 0, opacity: 0.75 }}>
-        Preparing the sign-in form…
+        {t("loginShellPreparing")}
       </p>
     </main>
   );
@@ -166,7 +192,7 @@ export default function LoginPage() {
 }
 
 function LoginPageContent() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { setToken } = useAuth();
   const { addToast } = useToast();
   const router = useRouter();
@@ -229,7 +255,7 @@ function LoginPageContent() {
   const startSingleSignOn = async () => {
     setError(null);
     if (!email.trim()) {
-      setError("Enter your work email first.");
+      setError(t("loginErrorSsoEmailFirst"));
       return;
     }
     try {
@@ -239,7 +265,7 @@ function LoginPageContent() {
         { auth: false },
       )) as { sso?: boolean; loginPath?: string };
       if (!found?.sso || !found.loginPath) {
-        setError("No single sign-on is set up for that email address. Sign in another way, or ask your administrator.");
+        setError(t("loginErrorSsoNotSetUp"));
         return;
       }
       const next = nextUrlRef.current.startsWith("/") ? nextUrlRef.current : "/home";
@@ -247,7 +273,7 @@ function LoginPageContent() {
         `${apiBaseUrl()}${found.loginPath}?redirectAfter=${encodeURIComponent(next)}`,
       );
     } catch (err) {
-      setError(toSafeUserError(err, { message: "Single sign-on could not be started. Try again." }).message);
+      setError(toSafeUserError(err, { message: t("loginErrorSsoStartFailed") }).message);
     }
   };
 
@@ -306,7 +332,17 @@ function LoginPageContent() {
     setBusy(true);
     setError(null);
     setFieldErrors({});
-    setStatus(`Signing in via ${provider}...`);
+    setStatus(
+      t(
+        provider === "google"
+          ? "loginStatusSigningInGoogle"
+          : provider === "apple"
+            ? "loginStatusSigningInApple"
+            : provider === "guest"
+              ? "loginStatusSigningInGuest"
+              : "loginStatusSigningInEmail",
+      ),
+    );
 
     // Guest JWT (if any) lives in memory only — the auth context holds it
     // for the lifetime of this tab and never persists it to storage.
@@ -393,7 +429,7 @@ function LoginPageContent() {
         return;
       }
 
-      const msg = toSafeUserError(err, { message: "Login failed" }).message;
+      const msg = toSafeUserError(err, { message: t("loginErrorFailed") }).message;
       const requestId = isApiResponseError(err) ? err.requestId : undefined;
       const errCode = isApiResponseError(err) ? err.code : undefined;
 
@@ -426,7 +462,7 @@ function LoginPageContent() {
        */
       setFieldErrors(
         fieldErrorsFromApiError(err, ["email", "password"], {
-          email: "Enter a valid email address.",
+          email: t("loginErrorEmailInvalid"),
         }),
       );
 
@@ -440,10 +476,12 @@ function LoginPageContent() {
         provider === "guest" || provider === "email"
           ? ""
           : provider.charAt(0).toUpperCase() + provider.slice(1);
-      const displayMsg = providerLabel ? `${providerLabel} sign-in failed: ${msg}` : msg;
+      const displayMsg = providerLabel
+        ? fillCopy(t("loginProviderFailed"), { provider: providerLabel, message: msg })
+        : msg;
 
       setError(displayMsg);
-      setStatus("Sign in failed.");
+      setStatus(t("loginStatusFailed"));
       // Request id goes to a copyable support reference — never inline.
       addToast(displayMsg, "error", 6000, requestId ? { supportReference: requestId } : undefined);
     } finally {
@@ -472,7 +510,8 @@ function LoginPageContent() {
       shape: "pill",
       logo_alignment: "left",
       width: Math.round(width),
-      locale: "en",
+      // Google draws its own label; it follows the page's language.
+      locale,
     });
   };
 
@@ -487,6 +526,15 @@ function LoginPageContent() {
   handleAuthRef.current = handleAuth;
   const renderGoogleButtonRef = useRef(renderGoogleButton);
   renderGoogleButtonRef.current = renderGoogleButton;
+
+  // A language chosen after the button was drawn redraws it in that language.
+  // The SDK is not re-initialised; renderGoogleButton is a no-op until it loads.
+  const renderedLocaleRef = useRef(locale);
+  useEffect(() => {
+    if (renderedLocaleRef.current === locale) return;
+    renderedLocaleRef.current = locale;
+    renderGoogleButtonRef.current();
+  }, [locale]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -514,7 +562,7 @@ function LoginPageContent() {
             callback: (response: GoogleCredentialResponse) => {
               const idToken = response.credential;
               if (!idToken) {
-                setError("Google login failed.");
+                setError(t("loginErrorGoogleFailed"));
                 void armGoogle().catch(() => undefined);
                 return;
               }
@@ -586,7 +634,7 @@ function LoginPageContent() {
     const auth = AppleID?.auth;
 
     if (!appleReady || !auth?.signIn) {
-      const msg = "Apple sign-in is not ready yet.";
+      const msg = t("loginErrorAppleNotReady");
       setError(msg);
       addToast(msg, "error");
       return;
@@ -608,7 +656,7 @@ function LoginPageContent() {
       const code = response.authorization?.code;
 
       if (!idToken && !code) {
-        const msg = "Apple sign-in failed: No token received.";
+        const msg = t("loginErrorAppleNoToken");
         setError(msg);
         addToast(msg, "error");
         return;
@@ -616,7 +664,7 @@ function LoginPageContent() {
 
       await handleAuth("/v1/auth/apple", idToken, code);
     } catch (err) {
-      const msg = toSafeUserError(err, { message: "Apple sign-in failed" }).message;
+      const msg = toSafeUserError(err, { message: t("loginErrorAppleFailed") }).message;
       setError(msg);
       addToast(msg, "error");
     }
@@ -637,11 +685,11 @@ function LoginPageContent() {
      * this page must never answer before authentication.
      */
     const pre: FieldErrorMap = {};
-    if (!email.trim()) pre.email = "Enter your email address.";
+    if (!email.trim()) pre.email = t("loginErrorEmailRequired");
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      pre.email = "Enter a valid email address.";
+      pre.email = t("loginErrorEmailInvalid");
     }
-    if (!password) pre.password = "Enter your password.";
+    if (!password) pre.password = t("loginErrorPasswordRequired");
     if (hasFieldErrors(pre)) {
       setFieldErrors(pre);
       return;
@@ -690,38 +738,37 @@ function LoginPageContent() {
       <span style={{ color: "#E64880" }}>
         <ShieldIcon />
       </span>
-      Welcome Back
+      {t("loginEyebrow")}
     </div>
 
     <h1 className="mt-5 max-w-[760px] text-[2rem] font-medium leading-[0.98] tracking-[-0.045em] text-[#1B1230] md:text-[2.7rem] xl:text-[3.25rem]">
-      Return to your{" "}
-      <span
-        style={{
-          background: "linear-gradient(90deg,#C92C63 0%,#D63E76 38%,#E14A68 68%,#8B3DE6 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          backgroundClip: "text",
-          color: "transparent",
-        }}
-      >
-        PROOVRA
-      </span>{" "}
-      workspace.
+      {renderCopy(t("loginHeroTitle"), {
+        brand: (
+          <span
+            style={{
+              background: "linear-gradient(90deg,#C92C63 0%,#D63E76 38%,#E14A68 68%,#8B3DE6 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              color: "transparent",
+            }}
+          >
+            PROOVRA
+          </span>
+        ),
+      })}
     </h1>
 
     <p className="mt-5 max-w-[760px] text-[1rem] leading-[1.82] tracking-[-0.006em] text-[#4B3B4F]">
-      Sign in to continue reviewing evidence records, verification reports, cases,
-      workspaces, and protected review workflows.
+      {t("loginHeroLead")}
     </p>
 
     <div className="mt-6 flex flex-wrap gap-2.5">
-      {[
-        "Evidence Operations Workspace",
-        "Secure Review Access",
-        "Reports, Cases & Verification Materials",
-      ].map((label) => (
+      {(
+        ["loginChipWorkspace", "loginChipSecureAccess", "loginChipMaterials"] as const
+      ).map((key) => (
         <div
-          key={label}
+          key={key}
           className="rounded-full border px-3.5 py-2 text-[0.78rem] font-medium text-[#21162D] backdrop-blur-md"
           style={{
             background: "rgba(255,255,255,0.16)",
@@ -730,8 +777,8 @@ function LoginPageContent() {
             WebkitBackdropFilter: "blur(10px)",
           }}
         >
-          <span className="mr-2" style={{ color: "#E64880" }}>✓</span>
-          {label}
+          <span className="mr-2" style={{ color: "#C92C63" }}>✓</span>
+          {t(key)}
         </div>
       ))}
     </div>
@@ -766,21 +813,20 @@ function LoginPageContent() {
                           <span style={{ color: "#E64880" }}>
                             <ShieldIcon />
                           </span>
-                          Account access
+                          {t("loginCardEyebrow")}
                         </div>
 
                         <h2 className="mt-4 text-[1.9rem] font-semibold tracking-[-0.04em] text-[#1B1230] md:text-[2.15rem]">
-                          Sign in
+                          {t("signInTitle")}
                         </h2>
 
                         <p className="mt-3 text-[0.96rem] leading-[1.78] text-[#4B3B4F]">
-                          Continue with your preferred sign-in method and return safely to your
-                          PROOVRA workspace.
+                          {t("loginCardLead")}
                         </p>
                       </div>
 
                       <div className="auth-actions" style={{ display: "grid", gap: 12 }}>
-                        <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label="Continue with Google">
+                        <div ref={googleBtnHostRef} style={SocialHostStyle} aria-label={t("signInGoogle")}>
                           <div
                             ref={googleBtnWrapRef}
                             style={{
@@ -796,7 +842,7 @@ function LoginPageContent() {
                         <div style={SocialHostStyle}>
                           <button
                             type="button"
-                            aria-label="Continue with Apple"
+                            aria-label={t("signInApple")}
                             disabled={busy}
                             onClick={() => void startApple()}
                             className="auth-social-btn"
@@ -827,7 +873,7 @@ function LoginPageContent() {
                         <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
                           {/* PRO-076: the field is named by a label, not only its placeholder. */}
                           <label htmlFor="login-email" className="app-visually-hidden">
-                            Email
+                            {t("loginEmailLabel")}
                           </label>
                           <div className="auth-input-wrap">
                             <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--silver-ink)" }}>
@@ -836,7 +882,7 @@ function LoginPageContent() {
                             <input
                               id="login-email"
                               className="auth-input"
-                              placeholder="Email"
+                              placeholder={t("loginEmailLabel")}
                               type="email"
                               autoComplete="email"
                               value={email}
@@ -869,7 +915,7 @@ function LoginPageContent() {
 
                           <div style={{ display: "grid", gap: 6 }}>
                             <label htmlFor="login-password" className="app-visually-hidden">
-                              Password
+                              {t("loginPasswordLabel")}
                             </label>
                             <div className="auth-input-wrap">
                               <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--silver-ink)" }}>
@@ -884,7 +930,7 @@ function LoginPageContent() {
                               <input
                                 id="login-password"
                                 className="auth-input auth-input--with-trailing-action"
-                                placeholder="Password"
+                                placeholder={t("loginPasswordLabel")}
                                 type={showPassword ? "text" : "password"}
                                 autoComplete="current-password"
                                 value={password}
@@ -938,7 +984,7 @@ function LoginPageContent() {
                                   font: "inherit",
                                 }}
                               >
-                                Use single sign-on
+                                {t("loginUseSso")}
                               </button>
                               <button
                                 ref={forgotTriggerRef}
@@ -955,25 +1001,29 @@ function LoginPageContent() {
                                   font: "inherit",
                                 }}
                               >
-                                Forgot password?
+                                {t("loginForgotPassword")}
                               </button>
                             </div>
                           </div>
 
 <p data-auth-legal-notice style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: "#4B3B4F" }}>
-  If our{" "}
-  <Link href="/legal/terms" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
-    Terms of Service
-  </Link>
-  {", "}
-  <Link href="/legal/privacy" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
-    Privacy Policy
-  </Link>
-  {" or "}
-  <Link href="/legal/cookies" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
-    Cookie Policy
-  </Link>
-  {" need your acceptance, we will ask right after you sign in."}
+  {renderCopy(t("loginLegalNotice"), {
+    terms: (
+      <Link href="/legal/terms" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
+        {t("loginLegalTerms")}
+      </Link>
+    ),
+    privacy: (
+      <Link href="/legal/privacy" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
+        {t("loginLegalPrivacy")}
+      </Link>
+    ),
+    cookies: (
+      <Link href="/legal/cookies" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
+        {t("loginLegalCookies")}
+      </Link>
+    ),
+  })}
 </p>
                           {/*
                             The Auth CTA, not the application primary. Its
@@ -989,7 +1039,7 @@ function LoginPageContent() {
                             aria-busy={busy}
                             data-auth-email-cta="SIGN_IN"
                           >
-                            Sign in with Email
+                            {t("loginSubmitEmail")}
                           </button>
                         </form>
 
@@ -1012,11 +1062,10 @@ function LoginPageContent() {
                             }}
                           >
                             <div style={{ fontWeight: 600 }}>
-                              Verify your email address
+                              {t("loginVerifyTitle")}
                             </div>
                             <div style={{ color: "#4B3B4F", fontSize: 14, lineHeight: 1.6 }}>
-                              Please verify your email address before signing in.
-                              The link in your inbox will activate your account.
+                              {t("loginVerifyBody")}
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
                               <button
@@ -1025,7 +1074,7 @@ function LoginPageContent() {
                                 onClick={async () => {
                                   if (verifyResendBusy || !email) return;
                                   setVerifyResendBusy(true);
-                                  setVerifyResendStatus("Sending verification email…");
+                                  setVerifyResendStatus(t("loginVerifySending"));
                                   try {
                                     await apiFetch(
                                       "/v1/auth/email/resend-verification",
@@ -1035,11 +1084,9 @@ function LoginPageContent() {
                                       },
                                       { auth: false },
                                     );
-                                    setVerifyResendStatus("Verification email sent.");
+                                    setVerifyResendStatus(t("loginVerifySent"));
                                   } catch {
-                                    setVerifyResendStatus(
-                                      "Please wait before requesting another verification email.",
-                                    );
+                                    setVerifyResendStatus(t("loginVerifyWait"));
                                   } finally {
                                     window.setTimeout(
                                       () => setVerifyResendBusy(false),
@@ -1065,7 +1112,7 @@ function LoginPageContent() {
                                     verifyResendBusy || !email ? "not-allowed" : "pointer",
                                 }}
                               >
-                                {verifyResendBusy ? "Resend pending…" : "Resend verification email"}
+                                {verifyResendBusy ? t("loginVerifyResendPending") : t("loginVerifyResend")}
                               </button>
                               <button
                                 type="button"
@@ -1083,7 +1130,7 @@ function LoginPageContent() {
                                   cursor: "pointer",
                                 }}
                               >
-                                Use a different email
+                                {t("loginVerifyUseDifferent")}
                               </button>
                             </div>
                             {verifyResendStatus ? (
@@ -1150,7 +1197,7 @@ function LoginPageContent() {
                           color: "#4B3B4F",
                         }}
                       >
-                        <span>{t("register")}? </span>
+                        <span>{t("loginNoAccount")} </span>
                         <Link href="/register" style={{ color: "#D63E76", fontWeight: 600 }}>
                           {t("register")}
                         </Link>

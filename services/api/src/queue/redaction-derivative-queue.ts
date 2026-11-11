@@ -38,6 +38,7 @@ import {
 } from "@proovra/shared";
 
 import { bump } from "../services/ops/metrics.service.js";
+import { withEnqueueDeadline } from "./canonical-queue-client.js";
 
 export const redactionDerivativeQueueName = REDACTION_DERIVATIVE_QUEUE_NAME;
 export const redactionDerivativeJobName = REDACTION_DERIVATIVE_JOB_NAME;
@@ -102,12 +103,15 @@ export async function enqueueRedactionDerivativeRender(input: {
     };
   }
 
-  const outcome = await enqueueCanonicalJob({
-    queue: queue as unknown as QueueHandleLike,
-    entry: REGISTRY_ENTRY,
-    commandId: input.derivativeId,
-    traceId: input.traceId ?? "",
-  });
+  // AUD-0057 — bounded like every api producer (canonical-queue-client).
+  const outcome = await withEnqueueDeadline(
+    enqueueCanonicalJob({
+      queue: queue as unknown as QueueHandleLike,
+      entry: REGISTRY_ENTRY,
+      commandId: input.derivativeId,
+      traceId: input.traceId ?? "",
+    }),
+  );
 
   if (outcome.enqueued) {
     bump("redaction_derivative_enqueue_total");

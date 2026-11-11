@@ -48,6 +48,7 @@ import { mfaRequiredForRole, type MfaPolicyLevel } from "@proovra/shared";
 
 import { SIGN_IN_SECOND_FACTOR_KINDS, readMfaStatus } from "./mfa.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
+import { resolvePlatformAdmin } from "../platform-admin.service.js";
 
 /**
  * PHASE R8.1.4 — fail-mode policy for the enforcement circuit
@@ -178,6 +179,8 @@ export interface LoginMfaEnforcementResult {
    */
   policyTeamId: string | null;
   policyLevel: MfaPolicyLevel | null;
+  /** AUD-0021 — set when the requirement comes from platform authority, not a workspace policy. */
+  basis?: "PLATFORM_AUTHORITY";
 }
 
 export interface ResolveLoginMfaEnforcementInput {
@@ -267,6 +270,26 @@ export async function resolveLoginMfaEnforcement(
   }
 
   // No team memberships → fall through to personal enrollment.
+  // AUD-0021 — PLATFORM AUTHORITY ALWAYS NEEDS A SECOND FACTOR. Platform
+  // administrators reached the platform API with a password only: this
+  // decision looked at workspace policy and enrolled factors, never at the
+  // platform role. The one platform-admin authority (database role or the
+  // environment allowlist) now makes MFA mandatory: challenge when a factor is
+  // enrolled, guided enrollment when none is (never a silent lockout).
+  // requirePlatformAdmin refuses any session without a verified factor.
+  const platformAuthority = await resolvePlatformAdmin(input.userId, null)
+    .then((d) => d.allowed)
+    .catch(() => false);
+  if (platformAuthority) {
+    return {
+      outcome: activeFactorCount > 0 ? "MFA_REQUIRED" : "ENROLLMENT_REQUIRED",
+      activeFactorCount,
+      policyTeamId: null,
+      policyLevel: null,
+      basis: "PLATFORM_AUTHORITY",
+    };
+  }
+
   if (memberships.length === 0) {
     if (activeFactorCount > 0) {
       // User opted in personally — honour the factor.

@@ -18,6 +18,14 @@ import {
   sumDerivedAssetStorageBytes,
 } from "@proovra/shared-runtime";
 
+/**
+ * AUD-0017 (TXP-023/024) — the client a scope or funding read runs on. A caller
+ * holding an interactive transaction (the report and package commit admission)
+ * passes its `tx`, so the reads use that connection instead of waiting on a
+ * second one from the pool. Every other caller keeps the global client.
+ */
+export type WorkerDbClient = prismaPkg.Prisma.TransactionClient;
+
 export type WorkerWorkspaceScope = {
   billingShape: "SINGLE_OCCUPANT" | "SHARED";
   ownerUserId: string;
@@ -63,10 +71,13 @@ function toBigIntOrZero(value: unknown): bigint {
   return 0n;
 }
 
-async function getActiveStorageAddonBytes(params: {
-  ownerUserId: string;
-  teamId?: string | null;
-}) {
+async function getActiveStorageAddonBytes(
+  params: {
+    ownerUserId: string;
+    teamId?: string | null;
+  },
+  client: WorkerDbClient = prisma,
+) {
   // The API's `storageAddonQuotaWhere`, stated per host. A row stamped with the
   // owner's PERSONAL workspace is the Personal subject too, or the storage gate
   // here refuses what the Billing meter shows and the API admits.
@@ -78,7 +89,7 @@ async function getActiveStorageAddonBytes(params: {
           { team: { ownerUserId: params.ownerUserId, workspaceKind: prismaPkg.WorkspaceKind.PERSONAL } },
         ],
       };
-  const aggregate = await prisma.workspaceStorageAddon.aggregate({
+  const aggregate = await client.workspaceStorageAddon.aggregate({
     where: {
       ownerUserId: params.ownerUserId,
       ...subject,
@@ -98,9 +109,10 @@ async function getActiveStorageAddonBytes(params: {
 }
 
 export async function getPersonalWorkspaceScope(
-  ownerUserId: string
+  ownerUserId: string,
+  client: WorkerDbClient = prisma,
 ): Promise<WorkerWorkspaceScope> {
-  const entitlement = await prisma.entitlement.findFirst({
+  const entitlement = await client.entitlement.findFirst({
     where: {
       userId: ownerUserId,
       active: true,
@@ -115,10 +127,13 @@ export async function getPersonalWorkspaceScope(
     },
   });
 
-  const activeStorageAddonBytes = await getActiveStorageAddonBytes({
-    ownerUserId,
-    teamId: null,
-  });
+  const activeStorageAddonBytes = await getActiveStorageAddonBytes(
+    {
+      ownerUserId,
+      teamId: null,
+    },
+    client,
+  );
 
   // PHASE 12 — POINT 7 (2026-08-05). This used to mirror the API's
   // PERSONAL-scope "PRO upgrade": a TEAM-plan owner's personal space resolved
@@ -134,7 +149,7 @@ export async function getPersonalWorkspaceScope(
   //
   // INTERNAL PLAN GRANT — the same shared policy and the same reader as the
   // API: the HIGHER of the provider-derived entitlement and an active grant.
-  const internalGrant = await readActiveInternalPlanGrant(prisma, ownerUserId);
+  const internalGrant = await readActiveInternalPlanGrant(client, ownerUserId);
   const personalPlan = resolvePersonalEffectivePlan({
     providerPlan: (entitlement?.plan ?? prismaPkg.PlanType.FREE) as prismaPkg.PlanType,
     internalGrantPlan: (internalGrant?.plan ?? null) as prismaPkg.PlanType | null,
@@ -155,9 +170,10 @@ export async function getPersonalWorkspaceScope(
 }
 
 export async function getTeamWorkspaceScope(
-  teamId: string
+  teamId: string,
+  client: WorkerDbClient = prisma,
 ): Promise<WorkerWorkspaceScope> {
-  const team = await prisma.team.findUnique({
+  const team = await client.team.findUnique({
     where: { id: teamId },
     select: {
       id: true,
@@ -185,14 +201,14 @@ export async function getTeamWorkspaceScope(
   // ONLY for the PERSONAL workspace kind (the personal-space subject — this
   // is what keeps personal captures on auto-bootstrapped personal teams
   // resolving at the owner's real plan).
-  const ownerEntitlement = await prisma.entitlement.findFirst({
+  const ownerEntitlement = await client.entitlement.findFirst({
     where: { userId: team.ownerUserId, active: true },
     orderBy: { createdAt: "desc" },
     select: { plan: true },
   });
   const ownerPlan = ownerEntitlement?.plan ?? prismaPkg.PlanType.FREE;
   // INTERNAL PLAN GRANT — governs only the owner's PERSONAL workspace kind.
-  const ownerInternalGrant = await readActiveInternalPlanGrant(prisma, team.ownerUserId);
+  const ownerInternalGrant = await readActiveInternalPlanGrant(client, team.ownerUserId);
   const workspaceKind = normalizeWorkspaceKind({
     workspaceKind: (team as { workspaceKind?: string | null }).workspaceKind ?? null,
     isPersonal: (team as { isPersonal?: boolean | null }).isPersonal ?? null,
@@ -224,10 +240,13 @@ export async function getTeamWorkspaceScope(
    * to the next, for the same payer.
    */
   const isPersonalSubject = workspaceKind === "PERSONAL";
-  const activeStorageAddonBytes = await getActiveStorageAddonBytes({
-    ownerUserId: team.ownerUserId,
-    teamId: isPersonalSubject ? null : team.id,
-  });
+  const activeStorageAddonBytes = await getActiveStorageAddonBytes(
+    {
+      ownerUserId: team.ownerUserId,
+      teamId: isPersonalSubject ? null : team.id,
+    },
+    client,
+  );
 
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — read the ACTIVE contract's
   // storage term. Deliberately a direct, bounded read rather than an import of
@@ -236,7 +255,7 @@ export async function getTeamWorkspaceScope(
   // otherwise) is the same rule stated in one place per host, exactly as the
   // effective-plan policy already is.
   const contract = team.organizationId
-    ? await prisma.enterpriseContract.findUnique({
+    ? await client.enterpriseContract.findUnique({
         where: { organizationId: team.organizationId },
         select: { status: true, storageGb: true },
       })
@@ -292,15 +311,18 @@ export async function workspaceContractWithheld(teamId: string): Promise<boolean
   return contract?.status !== "ACTIVE";
 }
 
-export async function resolveWorkspaceScopeForEvidence(params: {
-  ownerUserId: string;
-  teamId?: string | null;
-}): Promise<WorkerWorkspaceScope> {
+export async function resolveWorkspaceScopeForEvidence(
+  params: {
+    ownerUserId: string;
+    teamId?: string | null;
+  },
+  client: WorkerDbClient = prisma,
+): Promise<WorkerWorkspaceScope> {
   if (params.teamId) {
-    return getTeamWorkspaceScope(params.teamId);
+    return getTeamWorkspaceScope(params.teamId, client);
   }
 
-  return getPersonalWorkspaceScope(params.ownerUserId);
+  return getPersonalWorkspaceScope(params.ownerUserId, client);
 }
 
 export async function resolveEffectivePlanForEvidence(params: {
@@ -521,8 +543,9 @@ export async function assertWorkspaceStorageAvailable(params: {
  */
 export async function resolveEvidenceFundingSource(
   evidenceId: string,
+  client: WorkerDbClient = prisma,
 ): Promise<EvidenceFundingSource> {
-  const entry = await prisma.evidenceCreditLedgerEntry.findUnique({
+  const entry = await client.evidenceCreditLedgerEntry.findUnique({
     where: { evidenceId },
     select: { entryType: true },
   });

@@ -41,7 +41,12 @@ vi.mock("../src/db.js", () => ({
     team: { findUnique: async () => ({ organizationId: "44444444-4444-4444-8444-444444444444" }) },
   },
 }));
-vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
+// AUD-0021 — the fake session verified a second factor (platform routes require it).
+vi.mock("../src/middleware/auth.js", () => ({
+  requireAuth: async (req: { user?: Record<string, unknown> }) => {
+    req.user = { ...(req.user ?? {}), mfaAt: Math.floor(Date.now() / 1000) };
+  },
+}));
 // PHASE 12B C10 — support-access / break-glass are now PLATFORM-STAFF gated
 // (they previously gated on the CUSTOMER capability `identity.org_policy.manage`
 // alone, so an org admin could mint support access over their own org). These

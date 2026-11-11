@@ -91,6 +91,12 @@ export type AccountClosureConsequence = {
  * CLOSED — closure is irreversible, so an unreadable billing state must stop
  * it rather than be assumed harmless.
  */
+/** The connection the preflight reads on: the module client, or the closure's transaction. */
+type PreflightClient = Pick<
+  typeof prisma,
+  "organizationMembership" | "team" | "subscription" | "teamMember" | "evidenceLegalHold"
+>;
+
 async function judgeSubscriptionCandidates(
   userId: string,
   rows: ReadonlyArray<{
@@ -98,6 +104,7 @@ async function judgeSubscriptionCandidates(
     cancelAtPeriodEnd: boolean;
     currentPeriodEnd: Date | null;
   }>,
+  client: PreflightClient,
 ): Promise<ClosureSubscriptionCandidate[]> {
   const verdicts = new Map<string, boolean>();
 
@@ -113,7 +120,10 @@ async function judgeSubscriptionCandidates(
       const { resolveCommercialContext } = await import(
         "../billing/commercial-context.service.js"
       );
-      const ctx = await resolveCommercialContext({ ownerUserId: userId, teamId });
+      const ctx = await resolveCommercialContext(
+        { ownerUserId: userId, teamId },
+        client === prisma ? {} : { client: client as never },
+      );
       verdict = ctx.lifecycle.paidActive;
     } catch {
       verdict = true;
@@ -146,10 +156,13 @@ async function judgeSubscriptionCandidates(
  * Degrades to 0 ONLY for a genuinely-absent legacy relation; any other error
  * propagates, because "we could not check" must never read as "no holds".
  */
-async function countActiveHoldsAllStores(scope: {
-  teamId?: string;
-  team?: { ownerUserId?: string; organizationId?: string };
-}): Promise<number> {
+async function countActiveHoldsAllStores(
+  scope: {
+    teamId?: string;
+    team?: { ownerUserId?: string; organizationId?: string };
+  },
+  client: PreflightClient = prisma,
+): Promise<number> {
   const teamFilter = scope.teamId
     ? { teamId: scope.teamId }
     : { team: scope.team };
@@ -161,24 +174,31 @@ async function countActiveHoldsAllStores(scope: {
   // legacy counts on top now DOUBLE-COUNTS every converted hold — and the
   // queries throw outright once 20271108000000 drops those tables. One count
   // over the one authority is both correct and drop-safe.
-  return prisma.evidenceLegalHold.count({
+  return client.evidenceLegalHold.count({
     where: { status: "ACTIVE", ...teamFilter },
   });
 }
 
 export async function evaluateAccountClosurePreflight(
   userId: string,
+  /**
+   * AUD-0017 (TXP-025) — the closure execution re-judges INSIDE its
+   * transaction, under the workspace locks; it passes that transaction so the
+   * re-judgement reads on the connection it already holds (and under its
+   * snapshot) instead of asking the pool for more.
+   */
+  client: PreflightClient = prisma,
 ): Promise<{ blockers: AccountClosureBlocker[]; consequences: AccountClosureConsequence[] }> {
   const blockers: AccountClosureBlocker[] = [];
   const consequences: AccountClosureConsequence[] = [];
 
   const [ownedOrgMemberships, ownedTeams, activeHoldCount, activeSubs] =
     await Promise.all([
-      prisma.organizationMembership.findMany({
+      client.organizationMembership.findMany({
         where: { userId, role: "ORG_OWNER" },
         select: { organizationId: true, organization: { select: { kind: true, status: true } } },
       }),
-      prisma.team.findMany({
+      client.team.findMany({
         where: { ownerUserId: userId },
         select: {
           id: true,
@@ -191,7 +211,7 @@ export async function evaluateAccountClosurePreflight(
       // PHASE 12B CLUSTER 8 — count ACTIVE holds of EVERY scope across ALL
       // stores. Closing an account is irreversible, so a hold sitting in a
       // not-yet-converted legacy store has to block it too.
-      countActiveHoldsAllStores({ team: { ownerUserId: userId } }),
+      countActiveHoldsAllStores({ team: { ownerUserId: userId } }, client),
       // The subscriptions themselves, not just a count: one that is already
       // CANCELLING (cancelAtPeriodEnd) needs different words from one that is
       // not. Telling somebody to cancel a subscription they have already
@@ -201,7 +221,7 @@ export async function evaluateAccountClosurePreflight(
       // authority which of them actually are. `teamId` is selected because it
       // is the row's SUBJECT, and a workspace's subscription is not its
       // purchaser's personal one.
-      prisma.subscription.findMany({
+      client.subscription.findMany({
         where: { userId, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
         select: {
           teamId: true,
@@ -215,7 +235,7 @@ export async function evaluateAccountClosurePreflight(
   // implicit personal org (the caller is its only member) never blocks.
   if (ownedOrgMemberships.length > 0) {
     const orgIds = ownedOrgMemberships.map((m) => m.organizationId);
-    const withOthers = await prisma.organizationMembership.groupBy({
+    const withOthers = await client.organizationMembership.groupBy({
       by: ["organizationId"],
       where: {
         organizationId: { in: orgIds },
@@ -276,7 +296,7 @@ export async function evaluateAccountClosurePreflight(
     };
     const heldIds = ownedTeams.filter((t) => !closesWithAccount(t)).map((t) => t.id);
     if (heldIds.length > 0) {
-      const withMembers = await prisma.teamMember.groupBy({
+      const withMembers = await client.teamMember.groupBy({
         by: ["teamId"],
         where: {
           teamId: { in: heldIds },
@@ -296,7 +316,7 @@ export async function evaluateAccountClosurePreflight(
     }
     const closingIds = ownedTeams.filter(closesWithAccount).map((t) => t.id);
     const others = closingIds.length > 0
-      ? await prisma.teamMember.count({
+      ? await client.teamMember.count({
           where: {
             teamId: { in: closingIds },
             userId: { not: userId },
@@ -325,7 +345,7 @@ export async function evaluateAccountClosurePreflight(
 
   if (activeSubs.length > 0) {
     const subscriptionBlocker = buildSubscriptionClosureBlocker(
-      await judgeSubscriptionCandidates(userId, activeSubs),
+      await judgeSubscriptionCandidates(userId, activeSubs, client),
     );
     if (subscriptionBlocker) blockers.push(subscriptionBlocker);
   }

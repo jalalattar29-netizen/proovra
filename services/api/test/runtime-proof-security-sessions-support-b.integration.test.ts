@@ -74,7 +74,7 @@ describe("K2 security (B) — sessions, break-glass, support access, portal (liv
 
   const mint = (userId: string, email: string) =>
     jwt.signJwt(
-      { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) },
+      { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000), mfaAt: Math.floor(Date.now() / 1000) },
       process.env.AUTH_JWT_SECRET as string,
       3600,
     );

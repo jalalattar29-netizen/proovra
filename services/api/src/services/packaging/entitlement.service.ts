@@ -645,6 +645,15 @@ export async function assertLimitEntitlementTx(input: {
   teamId: string;
   key: EntitlementKey;
   requested: number;
+  /**
+   * AUD-0017 (TXP-019) — the limit, resolved by the caller BEFORE its
+   * transaction (`resolveEntitlement` on the same key and workspace). The
+   * limit is the plan's and the contract's, not something the lock protects;
+   * resolving it here, after the lock, ran the whole commercial resolution on
+   * a second pooled connection while this transaction held one. Omitted, it
+   * is resolved here as before.
+   */
+  resolved?: EntitlementProjection;
 }): Promise<{ ok: true; limit: number; current: number } | { ok: false; limit: number; current: number }> {
   if (classifyKind(input.key) !== "LIMIT") {
     throw new Error(`entitlement_key_not_a_limit:${input.key}`);
@@ -654,11 +663,13 @@ export async function assertLimitEntitlementTx(input: {
     throw new Error(`entitlement_limit_without_counter:${input.key}`);
   }
   await input.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`entitlement-limit:${input.key}:${input.teamId}`}))`;
-  const projection = await resolveEntitlement({
-    prisma: input.prisma ?? defaultPrisma,
-    teamId: input.teamId,
-    key: input.key,
-  });
+  const projection =
+    input.resolved ??
+    (await resolveEntitlement({
+      prisma: input.prisma ?? defaultPrisma,
+      teamId: input.teamId,
+      key: input.key,
+    }));
   const limit = typeof projection.value === "number" ? projection.value : 0;
   const current = await counter(input.tx, input.teamId);
   const requested = Math.max(0, Math.floor(input.requested));

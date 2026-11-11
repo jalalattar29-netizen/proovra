@@ -30,6 +30,7 @@ import { readCommercialLifecycle } from "@proovra/shared-runtime";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import {
   resolveWorkspaceScopeForUser,
+  type ScopeClient,
   type WorkspaceScope,
 } from "../workspace-billing.service.js";
 import { getWorkspaceSeatUsage } from "../workspace-usage.service.js";
@@ -96,9 +97,10 @@ export type CommercialLifecycle = {
  */
 async function resolvePaidLifecycle(
   scope: WorkspaceScope,
+  client: ScopeClient = prisma,
 ): Promise<CommercialLifecycle> {
   const reading = await readCommercialLifecycle(
-    prisma,
+    client,
     scope.billingShape === "SINGLE_OCCUPANT" || !scope.teamId
       ? { kind: "PERSONAL", ownerUserId: scope.ownerUserId, plan: String(scope.plan) }
       : { kind: "WORKSPACE", teamId: scope.teamId, plan: String(scope.plan) },
@@ -189,19 +191,32 @@ export async function resolveCommercialContext(
         ownerUserId: string;
         teamId?: string | null;
       },
+  /**
+   * AUD-0017 — a caller inside an interactive transaction passes its `tx`, so
+   * the envelope is resolved on that connection (and sees that transaction's
+   * own writes) instead of asking the pool for a second one.
+   */
+  options: { client?: ScopeClient } = {},
 ): Promise<CommercialContext> {
+  const client = options.client ?? prisma;
   if ("type" in params) {
     const subject = params;
     if (subject.type === "PERSONAL_ACCOUNT") {
-      return resolveCommercialContextLegacy({
-        ownerUserId: subject.userId,
-        teamId: null,
-      });
+      return resolveCommercialContextLegacy(
+        {
+          ownerUserId: subject.userId,
+          teamId: null,
+        },
+        client,
+      );
     }
-    const ctx = await resolveCommercialContextLegacy({
-      ownerUserId: subject.requesterUserId,
-      teamId: subject.teamId,
-    });
+    const ctx = await resolveCommercialContextLegacy(
+      {
+        ownerUserId: subject.requesterUserId,
+        teamId: subject.teamId,
+      },
+      client,
+    );
     // Declared-kind verification, FAIL CLOSED on mismatch. The envelope's
     // `enterpriseContract` is non-null exactly when the workspace is backed
     // by a CUSTOMER organization (resolveEnterpriseContract returns null for
@@ -221,7 +236,7 @@ export async function resolveCommercialContext(
     }
     return ctx;
   }
-  return resolveCommercialContextLegacy(params);
+  return resolveCommercialContextLegacy(params, client);
 }
 
 /**
@@ -266,24 +281,30 @@ export async function resolveCommercialPlan(
   };
 }
 
-async function resolveCommercialContextLegacy(params: {
-  ownerUserId: string;
-  teamId?: string | null;
-}): Promise<CommercialContext> {
-  const scope = await resolveWorkspaceScopeForUser({
-    ownerUserId: params.ownerUserId,
-    teamId: params.teamId ?? null,
-  });
+async function resolveCommercialContextLegacy(
+  params: {
+    ownerUserId: string;
+    teamId?: string | null;
+  },
+  client: ScopeClient = prisma,
+): Promise<CommercialContext> {
+  const scope = await resolveWorkspaceScopeForUser(
+    {
+      ownerUserId: params.ownerUserId,
+      teamId: params.teamId ?? null,
+    },
+    client,
+  );
   const capabilities = getPlanCapabilities(scope.plan);
   // Seats only: the envelope carries no storage figure (capacity, 2026-11-03).
-  const usage = await getWorkspaceSeatUsage(scope);
-  const lifecycle = await resolvePaidLifecycle(scope);
+  const usage = await getWorkspaceSeatUsage(scope, client);
+  const lifecycle = await resolvePaidLifecycle(scope, client);
 
   // Billing owner: team workspaces bill the team's billing owner; personal
   // workspaces bill the owner themselves.
   let billingOwnerUserId: string | null = scope.ownerUserId;
   if (scope.teamId) {
-    const team = await prisma.team.findUnique({
+    const team = await client.team.findUnique({
       where: { id: scope.teamId },
       select: { billingOwnerUserId: true, ownerUserId: true },
     });
@@ -294,7 +315,7 @@ async function resolveCommercialContextLegacy(params: {
   // Enterprise contract only for a CUSTOMER organization (resolver returns
   // null for SYSTEM containers / missing orgs).
   const enterpriseContract = scope.organizationId
-    ? await resolveEnterpriseContract(scope.organizationId)
+    ? await resolveEnterpriseContract(scope.organizationId, client as never)
     : null;
 
   return {

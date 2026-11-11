@@ -11,6 +11,7 @@
  * is unchanged.
  */
 
+import { scrollRegionProps } from "../../../../lib/ui/scrollRegion";
 import { Fragment, useCallback, useEffect, useState } from "react";
 
 import { identifierLabel, type SubprocessorProjection } from "@proovra/shared";
@@ -163,7 +164,7 @@ function Shell() {
             padding, and wide-table breakout as every markdown table —
             without routing this live data through markdown. Cell
             typography still comes from the shell's article chain. */}
-        <div className="legal-table-wrapper">
+        <div className="legal-table-wrapper" {...scrollRegionProps("Subprocessors")}>
           <table data-subprocessors-table className="legal-table">
             <thead>
               <tr>

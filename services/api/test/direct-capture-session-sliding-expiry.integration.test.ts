@@ -121,6 +121,6 @@ describe("direct-capture session expiry slides on activity (live PostgreSQL 16)"
         signed: null,
         now: at(24 * 60 + 1),
       }),
-    ).rejects.toMatchObject({ code: "SESSION_EXPIRED" });
+    ).rejects.toMatchObject({ code: "CAPTURE_WINDOW_EXPIRED" });
   });
 });

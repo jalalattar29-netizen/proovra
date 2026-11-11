@@ -531,7 +531,10 @@ export default function AdminOrganizationDetailPage({
                   {lifecycleBusy === "resume" ? "Resuming…" : "Resume customer"}
                 </Button>
               ) : (
-                <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                /* `adm-row` wraps: the reason field and the button share a
+                   row while they fit and stack when they do not, so
+                   "Suspend customer" is never pushed past a 375px edge. */
+                <span className="adm-row" data-testid="customer-suspend-row">
                   <label style={{ fontSize: 12 }}>
                     <span className="app-visually-hidden">Suspension reason</span>
                     <input

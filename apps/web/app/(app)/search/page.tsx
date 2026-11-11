@@ -1836,9 +1836,16 @@ function SearchInner() {
                 placeholder="Search evidence, cases, reports, notes, OCR text…"
                 className="search-form__input"
                 maxLength={200}
+                /* AUD-0061 — A COMBOBOX, BECAUSE IT BEHAVES AS ONE. A plain
+                   text input may not carry aria-expanded (axe
+                   aria-allowed-attr, critical); the field opens a suggestion
+                   listbox, so it says so with the role that allows it, and
+                   points at that listbox while it is open. */
+                role="combobox"
                 aria-label="Search query"
                 aria-autocomplete="list"
                 aria-expanded={suggestOpen}
+                aria-controls={suggestOpen ? SEARCH_TYPEAHEAD_LISTBOX_ID : undefined}
                 data-search-input
               />
             <AppAnchoredOverlay
@@ -3521,6 +3528,9 @@ function formatDateTime(iso: string): string {
 // in the parent; this component just renders the visible state.
 // ---------------------------------------------------------------------------
 
+/** The suggestion listbox the query combobox controls (AUD-0061). */
+const SEARCH_TYPEAHEAD_LISTBOX_ID = "search-typeahead-listbox";
+
 function SearchTypeahead({
   query,
   suggestions,
@@ -3550,7 +3560,13 @@ function SearchTypeahead({
   const showRecentEmpty = showRecent && recent.length === 0;
 
   return (
-    <div className="search-typeahead" role="listbox" data-search-typeahead>
+    <div
+      id={SEARCH_TYPEAHEAD_LISTBOX_ID}
+      className="search-typeahead"
+      role="listbox"
+      aria-label="Search suggestions"
+      data-search-typeahead
+    >
       {showRecentEmpty ? (
         <p className="search-typeahead__empty" data-search-typeahead-recent-empty>
           Tip: try searching by filename, case name, or report title.

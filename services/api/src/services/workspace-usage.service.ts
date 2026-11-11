@@ -313,9 +313,10 @@ export type WorkspaceUsage = {
  */
 export async function getWorkspaceSeatUsage(
   scope: WorkspaceScope,
+  client: Pick<prismaPkg.Prisma.TransactionClient, "teamMember"> = prisma,
 ): Promise<{ teamMemberCount: number; seatLimit: number | null; seatRemaining: number | null }> {
   const teamMemberCount = scope.teamId
-    ? await prisma.teamMember.count({
+    ? await client.teamMember.count({
         // A seat is an ACTIVE member; the owner never holds one (members audit ENT-04).
         where: { teamId: scope.teamId, status: "ACTIVE", userId: { not: scope.ownerUserId } },
       })
@@ -325,9 +326,22 @@ export async function getWorkspaceSeatUsage(
   return { teamMemberCount, seatLimit, seatRemaining };
 }
 
+/**
+ * AUD-0017 — `options.client` lets a caller inside an interactive transaction
+ * measure on its OWN connection. Read on the global client from inside a
+ * transaction, these ~8 parallel reads each took another pool connection while
+ * the transaction held one, and concurrent completions starved the pool.
+ */
+export type WorkspaceUsageClient = Pick<
+  prismaPkg.Prisma.TransactionClient,
+  "team" | "evidence" | "report" | "verificationPackage" | "teamMember" | "evidencePartDerivedAsset"
+>;
+
 export async function getWorkspaceUsage(
-  scope: WorkspaceScope
+  scope: WorkspaceScope,
+  options?: { client?: WorkspaceUsageClient },
 ): Promise<WorkspaceUsage> {
+  const db: WorkspaceUsageClient = options?.client ?? prisma;
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the plan-capabilities local
   // was removed. The one value this function still took from it — the base
   // storage limit — is now resolved contract-first by
@@ -362,11 +376,11 @@ export async function getWorkspaceUsage(
   // evidenceScopeFor population (a PERSONAL workspace widens to its owner's
   // NULL-team rows; any other is strict).
   const usageTeam = scope.teamId
-    ? await prisma.team.findUnique({
+    ? await db.team.findUnique({
         where: { id: scope.teamId },
         select: { id: true, isPersonal: true, ownerUserId: true },
       })
-    : await prisma.team.findFirst({
+    : await db.team.findFirst({
         where: { ownerUserId: scope.ownerUserId, isPersonal: true },
         select: { id: true, isPersonal: true, ownerUserId: true },
       });
@@ -410,15 +424,15 @@ export async function getWorkspaceUsage(
     retainedReportAggregate,
     retainedPackageAggregate,
   ] = await Promise.all([
-    prisma.evidence.aggregate({
+    db.evidence.aggregate({
       where: evidenceWhere,
       _sum: { sizeBytes: true },
     }),
-    prisma.report.aggregate({
+    db.report.aggregate({
       where: reportWhere,
       _sum: { sizeBytes: true },
     }),
-    prisma.verificationPackage.aggregate({
+    db.verificationPackage.aggregate({
       where: publishedPackageWhere(verificationPackageWhere),
       _sum: { sizeBytes: true },
     }),
@@ -431,20 +445,20 @@ export async function getWorkspaceUsage(
     // ET-SEC-22 `evidenceWhere` IS an `AND`, so the spread was overwritten and
     // the WORKSPACE POPULATION was dropped: the meter counted every record in
     // the database. Composed, never spread.
-    prisma.evidence.count({
+    db.evidence.count({
       where: { AND: [populationWhere, allowanceSlotEvidenceWhere()] },
     }),
     // P5 domain remediation (2026-07-21) — a seat is an ACTIVE member;
     // suspended/revoked members consume none, and the owner never holds one
     // (members audit ENT-04). Counted by the one seat reader.
-    getWorkspaceSeatUsage(scope).then((seats) => seats.teamMemberCount),
+    getWorkspaceSeatUsage(scope, db).then((seats) => seats.teamMemberCount),
     // UC-0 (D5) — derived review materials are stored bytes too.
-    sumDerivedAssetStorageBytes(prisma, {
+    sumDerivedAssetStorageBytes(db, {
       teamId: scope.teamId ?? personalTeamForUsage?.id ?? null,
     }),
-    prisma.evidence.aggregate({ where: retainedWhere, _sum: { sizeBytes: true } }),
-    prisma.report.aggregate({ where: { evidence: retainedWhere }, _sum: { sizeBytes: true } }),
-    prisma.verificationPackage.aggregate({
+    db.evidence.aggregate({ where: retainedWhere, _sum: { sizeBytes: true } }),
+    db.report.aggregate({ where: { evidence: retainedWhere }, _sum: { sizeBytes: true } }),
+    db.verificationPackage.aggregate({
       where: publishedPackageWhere({ evidence: retainedWhere }),
       _sum: { sizeBytes: true },
     }),
@@ -570,10 +584,12 @@ export async function getWorkspaceUsage(
 }
 
 export async function assertWorkspaceStorageAvailable(params: {
+  /** AUD-0017 — the caller's transaction client, when it holds one. */
+  client?: WorkspaceUsageClient;
   scope: WorkspaceScope;
   incomingBytes?: bigint | number | null;
 }) {
-  const usage = await getWorkspaceUsage(params.scope);
+  const usage = await getWorkspaceUsage(params.scope, { client: params.client });
 
   const incoming =
     typeof params.incomingBytes === "bigint"

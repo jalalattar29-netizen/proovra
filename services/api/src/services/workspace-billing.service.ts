@@ -1,5 +1,13 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
+
+/**
+ * AUD-0017 — the connection a scope is resolved on. Callers inside an
+ * interactive transaction pass their `tx`, so resolving the scope never asks
+ * the pool for a second connection while the transaction holds one (under a
+ * burst that wedged the pool). Defaults to the module client.
+ */
+export type ScopeClient = prismaPkg.Prisma.TransactionClient;
 import { ensureEntitlement } from "./billing.service.js";
 // §9.4 corrected — the canonical API classifier entry (delegates to the
 // shared single implementation).
@@ -163,11 +171,14 @@ export function storageAddonQuotaWhere(subject: {
   };
 }
 
-async function getActiveWorkspaceStorageAddonBytes(params: {
-  ownerUserId: string;
-  teamId?: string | null;
-}): Promise<bigint> {
-  const aggregate = await prisma.workspaceStorageAddon.aggregate({
+async function getActiveWorkspaceStorageAddonBytes(
+  params: {
+    ownerUserId: string;
+    teamId?: string | null;
+  },
+  client: ScopeClient = prisma,
+): Promise<bigint> {
+  const aggregate = await client.workspaceStorageAddon.aggregate({
     where: {
       ...storageAddonQuotaWhere({ ownerUserId: params.ownerUserId, teamId: params.teamId ?? null }),
       status: {
@@ -228,25 +239,29 @@ export function commercialPrincipalOf(scope: {
 }
 
 export async function getPersonalWorkspaceScope(
-  userId: string
+  userId: string,
+  client: ScopeClient = prisma,
 ): Promise<WorkspaceScope> {
   const [entitlement, internalGrant, activeStorageAddonBytes, personalTeam] =
     await Promise.all([
-      ensureEntitlement(userId),
+      ensureEntitlement(userId, client),
       // INTERNAL PLAN GRANT — read beside the provider entitlement, never
       // written into it.
-      readActiveInternalPlanGrant(prisma, userId),
-      getActiveWorkspaceStorageAddonBytes({
-        ownerUserId: userId,
-        teamId: null,
-      }),
+      readActiveInternalPlanGrant(client, userId),
+      getActiveWorkspaceStorageAddonBytes(
+        {
+          ownerUserId: userId,
+          teamId: null,
+        },
+        client,
+      ),
       // Phase A1 — read the personal Team (created by
       // `ensurePersonalWorkspace` on first authenticated request) so
       // we can return its organizationId. Read-only lookup; we never
       // bootstrap from this path. If the row does not exist yet,
       // organizationId stays null and the existing legacy
       // personal-mode behaviour is preserved.
-      prisma.team.findFirst({
+      client.team.findFirst({
         where: { ownerUserId: userId, isPersonal: true },
         select: { organizationId: true },
       }),
@@ -306,9 +321,10 @@ export async function getPersonalWorkspaceScope(
 }
 
 export async function getTeamWorkspaceScope(
-  teamId: string
+  teamId: string,
+  client: ScopeClient = prisma,
 ): Promise<WorkspaceScope> {
-  const team = await prisma.team.findUnique({
+  const team = await client.team.findUnique({
     where: { id: teamId },
     select: {
       id: true,
@@ -345,10 +361,10 @@ export async function getTeamWorkspaceScope(
   // workspace kind — the personal-space subject — and for the
   // legacyRecordCapOverride, which is a per-payer cap, not a plan).
   const [ownerEntitlement, ownerInternalGrant] = await Promise.all([
-    ensureEntitlement(team.ownerUserId),
+    ensureEntitlement(team.ownerUserId, client),
     // INTERNAL PLAN GRANT — governs only when this Team row IS the owner's
     // PERSONAL workspace (the policy ignores it for every other kind).
-    readActiveInternalPlanGrant(prisma, team.ownerUserId),
+    readActiveInternalPlanGrant(client, team.ownerUserId),
   ]);
 
   const workspaceKind = resolveWorkspaceKind({
@@ -426,6 +442,7 @@ export async function getTeamWorkspaceScope(
     billingShape === "SINGLE_OCCUPANT"
       ? { ownerUserId: team.ownerUserId, teamId: null }
       : { ownerUserId: team.ownerUserId, teamId: team.id },
+    client,
   );
 
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the contract is resolved
@@ -434,7 +451,7 @@ export async function getTeamWorkspaceScope(
   // as before — ignoring it entirely and using the catalog placeholder.
   const contractLimits = resolveEnterpriseContractLimits(
     team.organizationId
-      ? await resolveEnterpriseContract(team.organizationId)
+      ? await resolveEnterpriseContract(team.organizationId, client as never)
       : null,
   );
 
@@ -517,21 +534,27 @@ export async function getTeamWorkspaceScope(
   return scope;
 }
 
-export async function resolveEvidenceWorkspaceScope(params: {
-  ownerUserId: string;
-  teamId?: string | null;
-}): Promise<WorkspaceScope> {
+export async function resolveEvidenceWorkspaceScope(
+  params: {
+    ownerUserId: string;
+    teamId?: string | null;
+  },
+  client: ScopeClient = prisma,
+): Promise<WorkspaceScope> {
   if (params.teamId) {
-    return getTeamWorkspaceScope(params.teamId);
+    return getTeamWorkspaceScope(params.teamId, client);
   }
-  return getPersonalWorkspaceScope(params.ownerUserId);
+  return getPersonalWorkspaceScope(params.ownerUserId, client);
 }
 
-export async function resolveWorkspaceScopeForUser(params: {
-  ownerUserId: string;
-  teamId?: string | null;
-}): Promise<WorkspaceScope> {
-  return resolveEvidenceWorkspaceScope(params);
+export async function resolveWorkspaceScopeForUser(
+  params: {
+    ownerUserId: string;
+    teamId?: string | null;
+  },
+  client: ScopeClient = prisma,
+): Promise<WorkspaceScope> {
+  return resolveEvidenceWorkspaceScope(params, client);
 }
 
 // PHASE 9 CONVERGENCE (2026-07-22) — `getWorkspaceCapabilities` DELETED: it

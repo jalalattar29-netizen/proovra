@@ -282,13 +282,27 @@ type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> & {
   error?: string;
 };
 
+/**
+ * AUD-0059 — an error is announced, not only drawn. While `error` is set the
+ * input carries aria-invalid="true" and its aria-describedby names the error
+ * text (after any description the caller passed, e.g. a hint), so a screen
+ * reader reads "invalid entry, <message>" on focus. The error id derives from
+ * the input's id (`<id>-error`) so a caller can reference it; inputs without
+ * an id get a generated one.
+ */
 export function Input({
   value,
   onChange,
   error,
   className,
+  "aria-describedby": describedBy,
+  "aria-invalid": ariaInvalid,
   ...props
 }: InputProps) {
+  const generatedId = useId();
+  const errorId = `${props.id ?? generatedId}-error`;
+  const describedByIds =
+    [describedBy, error ? errorId : undefined].filter(Boolean).join(" ") || undefined;
   return (
     <div>
       <input
@@ -296,8 +310,14 @@ export function Input({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         {...props}
+        aria-invalid={error ? true : ariaInvalid}
+        aria-describedby={describedByIds}
       />
-      {error && <div className="input-error">{error}</div>}
+      {error && (
+        <div id={errorId} className="input-error">
+          {error}
+        </div>
+      )}
     </div>
   );
 }

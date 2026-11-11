@@ -47,6 +47,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { intakeConsentDisclosureText } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import {
@@ -165,7 +166,7 @@ describe("EVIDENCE — commercial denial contract across creation flows", () => 
           acceptedAtUtc: new Date().toISOString(),
           policyVersion: opened.link.consentPolicyVersion || "v1",
           disclosureTextHash: createHash("sha256")
-            .update(opened.link.consentDisclosureText ?? "")
+            .update(intakeConsentDisclosureText(opened.link.consentDisclosureText))
             .digest("hex"),
           termsAcknowledged: true,
           identityDisclosed: true,

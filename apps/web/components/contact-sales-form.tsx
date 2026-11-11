@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { Input, useToast } from "./ui";
-import { LeadFieldLabel, PremiumSelect } from "./request-demo-form";
+import {
+  LeadFieldLabel,
+  LeadTextarea,
+  PremiumSelect,
+  useFocusFirstInvalidField,
+} from "./request-demo-form";
 import {
   CONTACT_SALES_DEFAULTS,
   CONTACT_SALES_TEAM_SIZE_OPTIONS,
@@ -38,6 +43,7 @@ export function ContactSalesForm({
   >({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
+  const { formRef, focusFirstInvalid } = useFocusFirstInvalidField();
 
   const teamSizeOptions = [...CONTACT_SALES_TEAM_SIZE_OPTIONS];
   const topicOptions = [...DISCUSSION_TOPIC_OPTIONS];
@@ -53,6 +59,7 @@ export function ContactSalesForm({
 
     if (Object.keys(nextErrors).length > 0) {
       addToast("Please fix the highlighted fields.", "warning");
+      focusFirstInvalid();
       return;
     }
 
@@ -102,7 +109,7 @@ export function ContactSalesForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="mt-5 grid gap-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <LeadFieldLabel htmlFor="cs-fullName" required>Full name</LeadFieldLabel>
@@ -191,10 +198,9 @@ export function ContactSalesForm({
             onChange={(v) => set("discussionTopic", v)}
             options={topicOptions}
             placeholder="What you want to discuss"
+            fieldId="cs-discussionTopic"
+            error={errors.discussionTopic ? "Select a primary topic." : undefined}
           />
-          {errors.discussionTopic ? (
-            <div className="input-error">Select a primary topic.</div>
-          ) : null}
         </div>
         <div>
           <LeadFieldLabel id="cs-stage-label" required>What stage are you in?</LeadFieldLabel>
@@ -205,10 +211,9 @@ export function ContactSalesForm({
             onChange={(v) => set("stage", v)}
             options={stageOptions}
             placeholder="Select your current stage"
+            fieldId="cs-stage"
+            error={errors.stage}
           />
-          {errors.stage ? (
-            <div className="input-error">{errors.stage}</div>
-          ) : null}
         </div>
       </div>
 
@@ -237,35 +242,27 @@ export function ContactSalesForm({
 
       <div>
         <LeadFieldLabel htmlFor="cs-currentChallenge" required>Current challenge</LeadFieldLabel>
-        <textarea
+        <LeadTextarea
           id="cs-currentChallenge"
-          aria-required="true"
+          required
           value={form.currentChallenge}
-          onChange={(e) => set("currentChallenge", e.target.value)}
+          onChange={(v) => set("currentChallenge", v)}
+          error={errors.currentChallenge}
           placeholder="Describe the challenge you are trying to solve, such as evidence intake from external parties, review bottlenecks, governance requirements, deployment planning, procurement review, integrations, audit readiness, or legal hold needs."
-          className={`input min-h-[110px] w-full resize-y ${
-            errors.currentChallenge ? "input-has-error" : ""
-          }`}
+          className="min-h-[110px]"
         />
-        {errors.currentChallenge ? (
-          <div className="input-error">{errors.currentChallenge}</div>
-        ) : null}
       </div>
 
       <div>
         <LeadFieldLabel htmlFor="cs-additionalDetails">Security, governance, or procurement notes</LeadFieldLabel>
-        <textarea
+        <LeadTextarea
           id="cs-additionalDetails"
           value={form.additionalDetails ?? ""}
-          onChange={(e) => set("additionalDetails", e.target.value)}
+          onChange={(v) => set("additionalDetails", v)}
+          error={errors.additionalDetails}
           placeholder="Share any security, governance, retention, legal hold, SSO/SCIM, procurement, contract, timeline, or stakeholder requirements we should know before responding."
-          className={`input min-h-[80px] w-full resize-y ${
-            errors.additionalDetails ? "input-has-error" : ""
-          }`}
+          className="min-h-[80px]"
         />
-        {errors.additionalDetails ? (
-          <div className="input-error">{errors.additionalDetails}</div>
-        ) : null}
       </div>
 
       <div className="hidden" aria-hidden="true">

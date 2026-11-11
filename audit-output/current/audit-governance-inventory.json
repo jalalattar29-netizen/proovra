@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 444,
+    "AuditFilesInventoried": 446,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -115,7 +115,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 350
+    "ProductBehaviorTestsInventoried": 353
   },
   "reportRoles": {
     "counts": {
@@ -132,8 +132,8 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 350,
-    "DOMAIN_AUTHORITY": 62,
+    "PRODUCT_BEHAVIOR_TEST": 353,
+    "DOMAIN_AUTHORITY": 61,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
@@ -535,6 +535,23 @@
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [
         "apps/web/app/verify/[token]/public-verify-consistency.ts"
+      ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "apps/web/__tests__/render/access-gate-plan-refusal.render.test.tsx",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [
+        "apps/web/lib/api.ts"
       ],
       "importedBy": [],
       "spawns": [],
@@ -1371,21 +1388,6 @@
         "e2e/helpers/api-client.ts",
         "e2e/updated-report/_stack.ts"
       ],
-      "importedBy": [],
-      "spawns": [],
-      "readsArtifacts": [],
-      "writesArtifacts": [],
-      "declaresArtifacts": [],
-      "packageScripts": [],
-      "ciConsumers": [],
-      "sourceOfTruthFor": [],
-      "disposition": "RETAINED"
-    },
-    {
-      "path": "scripts/generate-operations-truth-ledger.mjs",
-      "role": "DOMAIN_AUTHORITY",
-      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
-      "imports": [],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -2904,6 +2906,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/test/capture-capability-role.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/test/capture-closure-pass.contract.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
@@ -3996,6 +4013,21 @@
     },
     {
       "path": "services/api/test/org-billing-rollup-seat-authority.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/owned-workspace-transfer-closure.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

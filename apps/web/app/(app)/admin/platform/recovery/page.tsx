@@ -430,7 +430,10 @@ function ReadinessSummary({
           </div>
         </div>
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+      {/* `adm-row` wraps, so on a 375px screen the step-up restore button
+          drops under the backup one instead of running past the edge
+          (measured 223..455 in a non-wrapping row). AUD-0060. */}
+      <div className="adm-row" style={{ marginTop: 16 }} data-testid="recovery-validation-actions">
         <Button variant="primary" size="sm"
           onClick={onRunBackup}
           disabled={busy !== null}

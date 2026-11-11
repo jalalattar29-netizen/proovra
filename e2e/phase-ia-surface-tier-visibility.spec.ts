@@ -428,10 +428,18 @@ test.describe("Phase IA-surface-tier — direct URL is blocked", () => {
     }) => {
       // `/platform` is a public marketing route. It was being held to an
       // internal-console standard, which it could never meet and should
-      // not: it has no app shell, and therefore no main landmark at all.
+      // not: it has no app shell.
+      //
+      // AUD-0015 — "no app shell" used to be read as "no main landmark at
+      // all", which was the accessibility defect itself: a public page with
+      // no <main> for a screen reader or a skip link to land on. The page now
+      // has exactly one landmark, the PUBLIC one; the app shell's landmark is
+      // still absent, which is what this test is about.
       const res = await page.goto(path);
       expect(res?.status()).toBeLessThan(500);
-      expect(await page.getByRole("main").count()).toBe(0);
+      expect(await page.getByRole("main").count()).toBe(1);
+      expect(await page.locator("main[data-public-main]").count()).toBe(1);
+      expect(await page.locator("main#app-main-content").count()).toBe(0);
       const body = await page.locator("body").innerText();
       expect(body).not.toMatch(OPERATIONS_CONSOLE_COPY);
     });

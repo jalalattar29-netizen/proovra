@@ -68,8 +68,13 @@ export function useHomeData(): HomeData {
   const platformCtx = usePlatformContext();
   const envelope = platformCtx?.envelope ?? null;
   const activeSpaceForPlan = envelope?.activeSpace ?? null;
+  // AUD-0047 — inside a Pro/Team workspace the actor JOINED (PERSONAL, but
+  // not theirs) the plan is that workspace's, which the server resolved onto
+  // the active space; the actor's own Personal Space plan would read FREE.
   const plan =
-    activeSpaceForPlan?.type === "PERSONAL"
+    activeSpaceForPlan?.type === "PERSONAL" && activeSpaceForPlan.shared
+      ? activeSpaceForPlan.plan ?? null
+      : activeSpaceForPlan?.type === "PERSONAL"
       ? envelope?.personalSpace?.plan ?? envelope?.account?.accountPlan ?? null
       : activeSpaceForPlan?.type === "ORGANIZATION"
         ? envelope?.organizations?.find((o) => o.id === activeSpaceForPlan.id)?.plan ?? null

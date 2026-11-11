@@ -142,8 +142,10 @@ export async function getSignerControlStates(
  */
 export async function getEffectiveSignerStatus(
   signerId: string,
+  // AUD-0017 — a caller inside a transaction reads on its own connection.
+  client: Pick<typeof prisma, "signerControlState"> = prisma,
 ): Promise<SignerControlStatus> {
-  const row = await prisma.signerControlState.findUnique({ where: { signerId } });
+  const row = await client.signerControlState.findUnique({ where: { signerId } });
   return (row?.status as SignerControlStatus | undefined) ?? "ACTIVE";
 }
 
@@ -168,8 +170,11 @@ export class SignerNotUsableError extends Error {
  * value: a job queued before a revocation and executed after it must observe
  * the revocation, and an in-memory cache is exactly how that guarantee is lost.
  */
-export async function assertSignerUsable(signerId: string): Promise<void> {
-  const status = await getEffectiveSignerStatus(signerId);
+export async function assertSignerUsable(
+  signerId: string,
+  client: Pick<typeof prisma, "signerControlState"> = prisma,
+): Promise<void> {
+  const status = await getEffectiveSignerStatus(signerId, client);
   if (!statusPermitsSigning(status)) {
     throw new SignerNotUsableError(signerId, status);
   }

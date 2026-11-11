@@ -4,6 +4,7 @@
  * before/without the browser surface.
  */
 import { spawnSync } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -120,6 +121,12 @@ export type GuestSession = {
   /** The registered address. Enterprise provisioning is keyed by it. */
   email: string;
   api: APIRequestContext;
+  /**
+   * AUD-0021 — present on a platform administrator (elevateToPlatformAdmin):
+   * the next authenticator code the replay guard will accept, for a browser
+   * sign-in that is asked for the second factor.
+   */
+  secondFactor?: { nextCode(): Promise<string> };
 };
 
 export async function makeApi(token?: string): Promise<APIRequestContext> {
@@ -313,6 +320,109 @@ export async function createGuestSession(
   });
 
   return { token: body.token, userId: body.user.id, email, api };
+}
+
+/** RFC 4648 base32, as the API's enrolment answer carries the secret. */
+function decodeBase32(input: string): Buffer {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = 0;
+  let value = 0;
+  const out: number[] = [];
+  for (const ch of input.replace(/=+$/, "").toUpperCase()) {
+    const idx = alphabet.indexOf(ch);
+    if (idx < 0) throw new Error("the enrolment secret is not base32");
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(out);
+}
+
+/** RFC 6238 (SHA-1, 6 digits, 30 s): what the API's mfa-totp verifies. */
+function totpAt(secret: Buffer, step: number): string {
+  const counter = Buffer.alloc(8);
+  counter.writeUInt32BE(Math.floor(step / 0x1_0000_0000), 0);
+  counter.writeUInt32BE(step >>> 0, 4);
+  const hmac = createHmac("sha1", secret).update(counter).digest();
+  const offset = hmac[hmac.length - 1]! & 0x0f;
+  const binary =
+    ((hmac[offset]! & 0x7f) << 24) |
+    ((hmac[offset + 1]! & 0xff) << 16) |
+    ((hmac[offset + 2]! & 0xff) << 8) |
+    (hmac[offset + 3]! & 0xff);
+  return (binary % 1_000_000).toString().padStart(6, "0");
+}
+
+/**
+ * AUD-0021 — A PLATFORM ADMINISTRATOR AS PRODUCTION NOW HAS ONE.
+ *
+ * Platform authority answers only a session that verified a second factor, so
+ * a guest promoted by SQL alone holds a password session the platform routes
+ * refuse. This takes the account the real way: it enrols an authenticator
+ * through `/v1/identity/mfa/enroll/*` while still an ordinary user, is promoted
+ * (`promote`, the caller's SQL), then signs in again with password AND code
+ * through `/v1/auth/email/login` + `/v1/auth/mfa/verify`. The returned session
+ * is that MFA-verified one; the original is disposed.
+ */
+export async function elevateToPlatformAdmin(
+  session: GuestSession,
+  promote: (userId: string) => unknown,
+): Promise<GuestSession> {
+  const started = await session.api.post("/v1/identity/mfa/enroll/start", {
+    data: { label: "E2E authenticator" },
+  });
+  if (!started.ok()) {
+    throw new Error(`MFA enrolment start failed (HTTP ${started.status()}): ${await started.text()}`);
+  }
+  const { factorId, secretBase32 } = (await started.json()) as { factorId: string; secretBase32: string };
+  const secret = decodeBase32(secretBase32);
+  // The replay guard takes each step once, in increasing order, within
+  // current ±1: enrol on the current step, sign in on the next one.
+  const step = Math.floor(Date.now() / 1000 / 30);
+  const verified = await session.api.post("/v1/identity/mfa/enroll/verify", {
+    data: { factorId, code: totpAt(secret, step) },
+  });
+  if (!verified.ok()) {
+    throw new Error(`MFA enrolment verify failed (HTTP ${verified.status()}): ${await verified.text()}`);
+  }
+  await promote(session.userId);
+  await session.api.dispose();
+
+  const anon = await makeApi();
+  const first = await anon.post("/v1/auth/email/login", {
+    data: { email: session.email, password: SESSION_PASSWORD },
+  });
+  const challenge = (await first.json().catch(() => null)) as { mfaRequired?: boolean; mfaPendingToken?: string } | null;
+  if (!first.ok() || challenge?.mfaRequired !== true || !challenge.mfaPendingToken) {
+    throw new Error(`the administrator's sign-in did not ask for the second factor (HTTP ${first.status()})`);
+  }
+  const answered = await anon.post("/v1/auth/mfa/verify", {
+    data: { mfaPendingToken: challenge.mfaPendingToken, code: totpAt(secret, step + 1) },
+  });
+  if (!answered.ok()) {
+    throw new Error(`the administrator's second factor was refused (HTTP ${answered.status()}): ${await answered.text()}`);
+  }
+  const { token } = (await answered.json()) as { token: string };
+  await anon.dispose();
+  let lastStep = step + 1;
+  const nextCode = async (): Promise<string> => {
+    for (;;) {
+      const nowSeconds = Date.now() / 1000;
+      const current = Math.floor(nowSeconds / 30);
+      // The previous step only while 5 s of the current one remain.
+      const oldest = nowSeconds % 30 < 25 ? current - 1 : current;
+      const next = Math.max(lastStep + 1, oldest);
+      if (next <= current + 1) {
+        lastStep = next;
+        return totpAt(secret, next);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
+  };
+  return { ...session, token, api: await makeApi(token), secondFactor: { nextCode } };
 }
 
 export async function disposeSession(s: GuestSession) {

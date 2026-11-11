@@ -32,13 +32,14 @@ export type QueuePolicy = {
 
 export const REPORT_QUEUE_POLICY: QueuePolicy = {
   queueName: "report",
-  attempts: 5,
-  backoffInitialMs: 1000,
+  // AUD-0056 — the window outlasts a short storage outage (registry ARTIFACT).
+  attempts: 8,
+  backoffInitialMs: 5000,
   backoffType: "exponential",
   retainFailed: true,
   deadLetterQueue: "report-dlq",
   notes:
-    "Report generation jobs retry up to 5 times with exponential backoff (1s, 2s, 4s, 8s, 16s). Repeatedly failing jobs land on report-dlq for operator triage; failed jobs are NOT auto-deleted.",
+    "Report generation jobs make up to 8 attempts with exponential backoff (5s, 10s, 20s, 40s, 80s, 160s, 320s between them, about 10.6 minutes in all), so a short storage outage does not end them. Failures that cannot succeed on retry stop at the first attempt. Repeatedly failing jobs land on report-dlq for operator triage; failed jobs are NOT auto-deleted.",
 };
 
 export const OTS_UPGRADE_QUEUE_POLICY: QueuePolicy = {

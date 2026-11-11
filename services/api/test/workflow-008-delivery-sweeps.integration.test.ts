@@ -9,7 +9,7 @@
  * Whether production's worker carries the base URL and secrets is a deployment
  * fact no local test can reach.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -114,6 +114,130 @@ describe("WORKFLOW-008 the worker sweeps against the real API", () => {
     const after = await prisma.communicationMessage.findUniqueOrThrow({ where: { id: due.id } });
     expect(["SENT", "QUEUED"]).toContain(after.status);
     expect(after.attemptCount).toBe(2);
+  });
+
+  it("AUD-0003 — a due webhook retry is picked up by the sweep, with no operator action", async () => {
+    // At the audit a retry due in 30 s was still RETRY_SCHEDULED 40 s later and
+    // moved only when the route was called by hand. The endpoint here is
+    // disabled, so picking the row up ends it CANCELLED without any network call.
+    const prior = process.env.INTEGRATIONS_ENABLED;
+    process.env.INTEGRATIONS_ENABLED = "true";
+    try {
+      const endpoint = await prisma.webhookEndpoint.create({
+        data: {
+          teamId: org.workspaceId,
+          url: "https://hooks.example.com/aud-0003",
+          secretCiphertext: "not-used",
+          secretPrefix: "whsec_test",
+          createdByUserId: org.owner.userId,
+          status: "DISABLED",
+        } as never,
+        select: { id: true },
+      });
+      const delivery = await prisma.integrationWebhookDelivery.create({
+        data: {
+          endpointId: endpoint.id,
+          teamId: org.workspaceId,
+          eventId: randomUUID(),
+          eventType: "evidence.created",
+          payloadJson: {},
+          status: "RETRY_SCHEDULED",
+          attemptCount: 1,
+          nextAttemptAtUtc: new Date(Date.now() - 1000),
+        },
+        select: { id: true },
+      });
+      const sweep = API_DELIVERY_SWEEPS.find((s) => s.path === "/v1/integrations/process-webhook-retries");
+      expect(sweep, "no worker sweep calls the webhook retry route").toBeDefined();
+      const result = await runApiDeliverySweep(sweep!, { timeoutMs: 60_000 });
+      expect(result.ok).toBe(true);
+      const after = await prisma.integrationWebhookDelivery.findUniqueOrThrow({ where: { id: delivery.id } });
+      expect(after.status).toBe("CANCELLED");
+      expect(after.errorMessage).toBe("endpoint_inactive");
+    } finally {
+      if (prior === undefined) delete process.env.INTEGRATIONS_ENABLED;
+      else process.env.INTEGRATIONS_ENABLED = prior;
+    }
+  });
+
+  it("AUD-0042 — a slow webhook receiver does not delay capture; the sweep delivers the queued event", async () => {
+    // At the audit POST /v1/evidence took 10.2 s with one slow receiver
+    // subscribed, because evidence.created was sent inline. Here the receiver
+    // takes 3 s: the request must return well before that, with the event
+    // queued, and the worker sweep must then deliver it.
+    const saved = { INTEGRATIONS_ENABLED: process.env.INTEGRATIONS_ENABLED, API_KEY_SECRET: process.env.API_KEY_SECRET };
+    process.env.INTEGRATIONS_ENABLED = "true";
+    process.env.API_KEY_SECRET = process.env.API_KEY_SECRET || "ab".repeat(32);
+    const { issueWebhookSecret } = await import("../src/services/integrations/webhooks.service.js");
+    const { __setWebhookHttpClientForTests } = await import("../src/services/integrations/webhook-dispatcher.js");
+    const sends: string[] = [];
+    const restore = __setWebhookHttpClientForTests(async (req) => {
+      sends.push(req.url);
+      await new Promise((r) => setTimeout(r, 3_000));
+      return { status: 200, bodyPreview: null, errorMessage: null };
+    });
+    try {
+      const A = h.fixtures.teamA;
+      await prisma.team.update({ where: { id: A.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
+      const secret = issueWebhookSecret()!;
+      const endpoint = await prisma.webhookEndpoint.create({
+        data: {
+          teamId: A.teamId,
+          url: "https://hooks.example.com/aud-0042-slow",
+          secretCiphertext: secret.secretCiphertext,
+          secretPrefix: secret.secretPrefix,
+          createdByUserId: A.ownerUserId,
+          eventTypes: ["evidence.created"],
+        } as never,
+        select: { id: true },
+      });
+      const bytes = Buffer.from(`aud-0042 ${randomUUID()}`);
+      const t0 = Date.now();
+      const res = await h.app.inject({
+        method: "POST",
+        url: "/v1/evidence",
+        headers: { authorization: `Bearer ${A.adminToken}` },
+        payload: {
+          type: "DOCUMENT",
+          mimeType: "text/plain",
+          originalFileName: "t.txt",
+          checksumSha256Base64: createHash("sha256").update(bytes).digest("base64"),
+          teamId: A.teamId,
+        },
+      });
+      const elapsed = Date.now() - t0;
+      expect(res.statusCode, res.body).toBe(201);
+      expect(elapsed, `capture waited ${elapsed} ms on the receiver`).toBeLessThan(2_500);
+      expect(sends).toEqual([]);
+      const queued = await prisma.integrationWebhookDelivery.findMany({ where: { endpointId: endpoint.id } });
+      expect(queued.map((d) => d.status)).toEqual(["RETRY_SCHEDULED"]);
+
+      const sweep = API_DELIVERY_SWEEPS.find((s) => s.path === "/v1/integrations/process-webhook-retries")!;
+      const result = await runApiDeliverySweep(sweep, { timeoutMs: 60_000 });
+      expect(result.ok).toBe(true);
+      expect(sends).toEqual(["https://hooks.example.com/aud-0042-slow"]);
+      const after = await prisma.integrationWebhookDelivery.findUniqueOrThrow({ where: { id: queued[0]!.id } });
+      expect(after.status).toBe("SENT");
+    } finally {
+      restore();
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  }, 60_000);
+
+  it("AUD-0003 — every maintenance route the audit found uncalled has a worker sweep", () => {
+    const paths = API_DELIVERY_SWEEPS.map((s) => s.path);
+    for (const p of [
+      "/v1/governance/reconcile-retention",
+      "/v1/integrations/process-webhook-retries",
+      "/v1/integrations/webhooks/cleanup-deliveries",
+      "/v1/integrations/process-secret-cleanup",
+      "/v1/review-operations/reconcile-slas",
+    ]) {
+      expect(paths, p).toContain(p);
+    }
   });
 
   it("a requested personal data export is produced by the lifecycle tick", async () => {

@@ -24,7 +24,7 @@ import { buildReportViewModel } from "../src/report-v2/build-view-model.js";
 import { REPORT_PAGE, REPORT_PAGE_PT } from "../src/report-v2/page-geometry.js";
 import { renderReportHtml } from "../src/report-v2/render-html.js";
 import { REPORT_PDF_CREATOR, renderPdfFromHtml, resolveBrowserExecutablePath } from "../src/report-v2/render-pdf.js";
-import { openPdf } from "../src/pdf/pdfjs-runtime.js";
+import { closePdf, openPdf } from "../src/pdf/pdfjs-runtime.js";
 import { supersessionStatement } from "../src/report-v2/required-statements.js";
 import { getReportCss } from "../src/report-v2/templates/report.css.js";
 import type { ReportV2Input } from "../src/report-v2/types.js";
@@ -175,7 +175,7 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
         expect(info.Producer).toBe(REPORT_PDF_CREATOR);
         expect(JSON.stringify(info)).not.toMatch(browserIdentity);
       } finally {
-        await doc.destroy();
+        await closePdf(doc);
       }
     },
     RENDER_TIMEOUT,
@@ -364,7 +364,7 @@ async function rasterPages(pdf: Uint8Array | Buffer, scale = 0.35): Promise<Rast
       out.push({ width: canvas.width, height: canvas.height, data: img.data as unknown as Uint8ClampedArray });
     }
   } finally {
-    await doc.destroy();
+    await closePdf(doc);
   }
   return out;
 }

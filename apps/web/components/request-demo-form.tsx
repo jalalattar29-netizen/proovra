@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppListbox } from "./app-primitives/AppListbox";
 import { Input, useToast } from "./ui";
 import {
@@ -40,6 +40,8 @@ export function PremiumSelect({
   labelId,
   describedBy,
   required = false,
+  fieldId,
+  error,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -48,20 +50,113 @@ export function PremiumSelect({
   labelId: string;
   describedBy?: string;
   required?: boolean;
+  /** Base for the error text's id (`<fieldId>-error`); required with `error`. */
+  fieldId?: string;
+  /** AUD-0059 — the field's error, announced on the trigger and shown below it. */
+  error?: string;
 }) {
+  const errorId = fieldId ? leadErrorId(fieldId) : undefined;
   return (
-    <AppListbox
-      value={value || null}
-      onChange={onChange}
-      options={options}
-      placeholder={placeholder ?? "Select"}
-      ariaLabelledby={labelId}
-      triggerProps={{
-        "aria-describedby": describedBy,
-        "aria-required": required || undefined,
-      }}
-    />
+    <>
+      <AppListbox
+        value={value || null}
+        onChange={onChange}
+        options={options}
+        placeholder={placeholder ?? "Select"}
+        ariaLabelledby={labelId}
+        triggerProps={{
+          "aria-describedby": joinIds(describedBy, error ? errorId : undefined),
+          "aria-required": required || undefined,
+          "aria-invalid": error ? true : undefined,
+        }}
+      />
+      <LeadFieldError id={errorId} message={error} />
+    </>
   );
+}
+
+/*
+ * AUD-0059 — lead-form field errors are announced, not only drawn.
+ *
+ * Before: after an empty submit every field turned red, but no control had
+ * aria-invalid or an aria-describedby naming its error, focus stayed on the
+ * submit button, and the only announcement was the "Please fix the
+ * highlighted fields." toast. Now (the pattern /register uses for its email
+ * and password fields): an invalid control carries aria-invalid="true" and
+ * aria-describedby naming its `.input-error` text, keeping any hint id first,
+ * and a failed submit moves focus to the first invalid control in the form.
+ * The shared text Input (ui-legacy) applies the same rule to its own error.
+ */
+
+/** The id of a lead-form field's error text. Matches the shared Input's. */
+export function leadErrorId(fieldId: string): string {
+  return `${fieldId}-error`;
+}
+
+function joinIds(...ids: Array<string | undefined>): string | undefined {
+  return ids.filter(Boolean).join(" ") || undefined;
+}
+
+/** A lead-form field's error text, with the id its control describes itself by. */
+export function LeadFieldError({ id, message }: { id?: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <div id={id} className="input-error">
+      {message}
+    </div>
+  );
+}
+
+/** A lead-form textarea whose error is announced (AUD-0059). */
+export function LeadTextarea({
+  id,
+  value,
+  onChange,
+  error,
+  required = false,
+  placeholder,
+  className,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+  required?: boolean;
+  placeholder?: string;
+  className?: string;
+}) {
+  const errorId = leadErrorId(id);
+  return (
+    <>
+      <textarea
+        id={id}
+        aria-required={required || undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`input w-full resize-y ${className ?? ""} ${error ? "input-has-error" : ""}`}
+      />
+      <LeadFieldError id={errorId} message={error} />
+    </>
+  );
+}
+
+/**
+ * Moves focus to the first invalid control of a form after a failed submit.
+ * Runs after the render that set aria-invalid, so the control is announced
+ * with its error when focus lands on it.
+ */
+export function useFocusFirstInvalidField() {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [request, setRequest] = useState(0);
+  useEffect(() => {
+    if (request === 0) return;
+    formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [request]);
+  const focusFirstInvalid = useCallback(() => setRequest((n) => n + 1), []);
+  return { formRef, focusFirstInvalid };
 }
 
 /** The label above a lead-form field; `htmlFor` for inputs, `id` for selects. */
@@ -121,6 +216,7 @@ export function RequestDemoForm({
   >({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
+  const { formRef, focusFirstInvalid } = useFocusFirstInvalidField();
 
   const teamSizeOptions = [...TEAM_SIZE_OPTIONS];
   const primaryInterestOptions = [...PRIMARY_INTEREST_OPTIONS];
@@ -141,6 +237,7 @@ export function RequestDemoForm({
 
     if (Object.keys(nextErrors).length > 0) {
       addToast("Please fix the highlighted fields.", "warning");
+      focusFirstInvalid();
       return;
     }
 
@@ -185,7 +282,7 @@ export function RequestDemoForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="mt-5 grid gap-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <LeadFieldLabel htmlFor="rd-fullName" required>Full name</LeadFieldLabel>
@@ -310,10 +407,9 @@ export function RequestDemoForm({
             }
             options={primaryInterestOptions}
             placeholder="What you want to evaluate"
+            fieldId="rd-primaryInterest"
+            error={errors.primaryInterest}
           />
-          {errors.primaryInterest ? (
-            <div className="input-error">{errors.primaryInterest}</div>
-          ) : null}
         </div>
 
         <div>
@@ -330,54 +426,45 @@ export function RequestDemoForm({
             }
             options={organizationTypeOptions}
             placeholder="Select organization type"
+            fieldId="rd-organizationType"
+            error={errors.organizationType}
           />
-          {errors.organizationType ? (
-            <div className="input-error">{errors.organizationType}</div>
-          ) : null}
         </div>
       </div>
 
       <div>
         <LeadFieldLabel htmlFor="rd-useCase" required>Primary use case</LeadFieldLabel>
-        <textarea
+        <LeadTextarea
           id="rd-useCase"
-          aria-required="true"
+          required
           value={form.useCase}
-          onChange={(e) =>
+          onChange={(value) =>
             setForm((prev: RequestDemoFormValues) => ({
               ...prev,
-              useCase: e.target.value,
+              useCase: value,
             }))
           }
+          error={errors.useCase}
           placeholder="Describe your workflow, for example claims review, legal matter review, external evidence intake, compliance investigation, incident response, or public verification."
-          className={`input min-h-[96px] w-full resize-y ${
-            errors.useCase ? "input-has-error" : ""
-          }`}
+          className="min-h-[96px]"
         />
-        {errors.useCase ? (
-          <div className="input-error">{errors.useCase}</div>
-        ) : null}
       </div>
 
       <div>
         <LeadFieldLabel htmlFor="rd-message">Additional context</LeadFieldLabel>
-        <textarea
+        <LeadTextarea
           id="rd-message"
           value={form.message ?? ""}
-          onChange={(e) =>
+          onChange={(value) =>
             setForm((prev: RequestDemoFormValues) => ({
               ...prev,
-              message: e.target.value,
+              message: value,
             }))
           }
+          error={errors.message}
           placeholder="Tell us what you want to evaluate, current challenges, systems involved, review process, governance requirements, or timeline."
-          className={`input min-h-[72px] w-full resize-y ${
-            errors.message ? "input-has-error" : ""
-          }`}
+          className="min-h-[72px]"
         />
-        {errors.message ? (
-          <div className="input-error">{errors.message}</div>
-        ) : null}
       </div>
 
       <div className="hidden" aria-hidden="true">

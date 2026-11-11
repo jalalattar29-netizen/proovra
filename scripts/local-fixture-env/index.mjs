@@ -213,6 +213,13 @@ export function redirectAllowListProblems(name, entries) {
  */
 const FIXTURE_KEY_DIR = resolve(REPO_ROOT, ".local-fixture-keys");
 
+/**
+ * The fixture's MFA envelope key. Exported because a seeder that enrols an
+ * authenticator for a fixture account (seed-admin-fixture.ts, AUD-0021) has to
+ * seal the secret with the key the fixture API opens it with.
+ */
+export const LOCAL_FIXTURE_MFA_KEK_BASE64 = Buffer.alloc(32, 7).toString("base64");
+
 function ensureFixtureSigningKeys() {
   const privatePath = resolve(FIXTURE_KEY_DIR, "signing-private.pem");
   const publicPath = resolve(FIXTURE_KEY_DIR, "signing-public.pem");
@@ -342,7 +349,7 @@ function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
     // as console noise on every personal-role page load during the browser
     // matrix. Production has the feature on; the fixture should look like it.
     WORKFLOW_INTAKE_LINKS_ENABLED: "true",
-    MFA_SECRET_KEK_BASE64: Buffer.alloc(32, 7).toString("base64"),
+    MFA_SECRET_KEK_BASE64: LOCAL_FIXTURE_MFA_KEK_BASE64,
 
     // Storage: a local address with nothing behind it. See the note above.
     S3_ENDPOINT: "http://localhost:59900",

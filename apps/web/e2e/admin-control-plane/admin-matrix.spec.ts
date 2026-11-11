@@ -48,6 +48,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 // The consent version lives in ONE place; reading it here means a bump cannot
 // silently leave this suite seeding a stale decision that the app re-prompts on.
 import { CONSENT_VERSION } from "../../lib/consent";
+import { settleFixtureSignIn } from "./_fixture-login";
 
 const REPO = resolve(process.cwd());
 const WEB = process.env.PROOVRA_FIXTURE_WEB_BASE ?? "http://localhost:3311";
@@ -274,6 +275,8 @@ async function signIn(page: Page, email: string): Promise<void> {
       await submit.click({ timeout: 30_000 });
       await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 90_000 });
     });
+  // AUD-0021 — a platform administrator answers the second-factor challenge.
+  await settleFixtureSignIn(page, email, WEB);
 }
 
 /**

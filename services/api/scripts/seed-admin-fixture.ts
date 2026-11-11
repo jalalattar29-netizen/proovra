@@ -69,6 +69,9 @@ import { REQUIRED_LEGAL_VERSIONS } from "../src/legal/legal-versioning.js";
 // own hash format would seed accounts nobody can sign in to, which is the one
 // thing this fixture must not do.
 import { hashPassword } from "../src/services/email-password-auth.service.js";
+import { sealSecret } from "../src/services/security/mfa-secret-storage.js";
+import { encodeBase32 } from "../src/services/security/mfa-totp.js";
+import { LOCAL_FIXTURE_MFA_KEK_BASE64 } from "../../../scripts/local-fixture-env/index.mjs";
 import { localSeedDatabaseRefusal } from "./lib/local-seed-guard.js";
 
 /**
@@ -81,6 +84,21 @@ import { localSeedDatabaseRefusal } from "./lib/local-seed-guard.js";
  * different passwords is six chances to waste a minute.
  */
 const FIXTURE_PASSWORD = "fixture-local-only-password";
+
+/**
+ * AUD-0021 — the platform administrator's authenticator secret.
+ *
+ * A platform administrator signs in with a password AND a verified second
+ * factor; without one the sign-in is sent to enrolment and the console refuses
+ * every request. The fixture therefore enrols the platform admin exactly as
+ * production would hold it: an ACTIVE, verified TOTP factor, sealed with the
+ * real envelope (the development KEK — this seeder refuses non-local
+ * databases). The secret is in the repository like the password above, so it is
+ * worthless anywhere else. The admin control-plane sign-in helper
+ * (apps/web/e2e/admin-control-plane/_fixture-login.ts) computes its codes from
+ * the same 32 bytes; change both together.
+ */
+const FIXTURE_TOTP_SECRET = Buffer.from("proovra-fixture-local-only-totp!", "utf8");
 
 // -----------------------------------------------------------------------------
 // Refusals, before any write.
@@ -252,6 +270,28 @@ async function seedActors(): Promise<void> {
     await prisma.entitlement.create({
       data: { userId: a.userId, plan: a.plan, active: true },
     });
+
+    if (a.platformRole === "admin") {
+      // Sealed with the key the fixture API runs with (scripts/local-fixture-env),
+      // so the API can open it.
+      process.env.MFA_SECRET_KEK_BASE64 = LOCAL_FIXTURE_MFA_KEK_BASE64;
+      const sealed = sealSecret(FIXTURE_TOTP_SECRET);
+      const now = new Date();
+      await prisma.mfaFactor.create({
+        data: {
+          userId: a.userId,
+          kind: "TOTP",
+          status: "ACTIVE",
+          label: "Fixture authenticator",
+          secretCiphertext: Buffer.from(sealed.ciphertext),
+          secretIv: Buffer.from(sealed.iv),
+          secretAuthTag: Buffer.from(sealed.authTag),
+          secretKekId: sealed.kekId,
+          verifiedAtUtc: now,
+          enrolledAt: now,
+        },
+      });
+    }
 
     // Without acceptance the authenticated surfaces answer 428 and every page
     // renders its degraded state, which would make the whole fixture look
@@ -600,6 +640,7 @@ async function main(): Promise<void> {
       "",
       `  sign in as (password: ${FIXTURE_PASSWORD}):`,
       ...ACTORS.map((a) => `    ${a.email.padEnd(36)} ${a.plan}${a.platformRole === "admin" ? "  PLATFORM ADMIN" : ""}`),
+      `  the platform admin's authenticator key (add it to any TOTP app): ${encodeBase32(FIXTURE_TOTP_SECRET)}`,
       "",
       "  dynamic routes (open these; a parent list working proves nothing):",
       `    /admin/customers/${ORG_POPULATED}`,

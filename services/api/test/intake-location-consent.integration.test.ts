@@ -17,6 +17,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { intakeConsentDisclosureText } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -105,7 +106,7 @@ describe("F-36 — intake location consent controls collection (live PostgreSQL 
         consent: {
           acceptedAtUtc: new Date().toISOString(),
           policyVersion: opened.link.consentPolicyVersion || "v1",
-          disclosureTextHash: createHash("sha256").update(opened.link.consentDisclosureText ?? "").digest("hex"),
+          disclosureTextHash: createHash("sha256").update(intakeConsentDisclosureText(opened.link.consentDisclosureText)).digest("hex"),
           termsAcknowledged: true,
           identityDisclosed: true,
           ipHash: null,

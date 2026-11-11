@@ -600,8 +600,9 @@ describe("SCIM User lifecycle — reactivate", () => {
   });
 
   it("reactivate flips SUSPENDED→ACTIVE, re-links mapping, and audits", async () => {
-    // After deactivate the mapping is unlinked → not resolvable.
-    expect(await scimReadUser(CTX, userId, fake as never)).toBeNull();
+    // After deactivate the mapping is unlinked: AUD-0044 — still a resource,
+    // read with active=false (it used to answer 404).
+    expect(await scimReadUser(CTX, userId, fake as never)).toMatchObject({ id: userId, active: false });
 
     const res = await scimReactivateUser(CTX, userId, fake as never);
     expect(res.ok).toBe(true);

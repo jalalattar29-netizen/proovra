@@ -329,6 +329,12 @@ export async function ensureEvidenceOtsInitialized(params: {
 
     if (claimed.count === 0) return false;
 
+    // AUD-0022 — a DISABLED stamp applied nothing: no proof was created, and
+    // the record's own otsStatus (written above) already says anchoring was not
+    // requested. Appending OTS_APPLIED put "OpenTimestamps proof updated" on
+    // the custody chain of every such record.
+    if (stamp.status === "DISABLED") return true;
+
     await appendCustodyEventTx(tx, {
       evidenceId,
       eventType:

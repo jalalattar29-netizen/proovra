@@ -28,7 +28,7 @@
 3. If the suspicious surface is broad, use **Revoke-all** for that user (step-up gated).
 4. If the suspicious surface is org-wide, open `/security-center/identity/runtime` and use the **emergency revoke** (step-up gated).
 5. Open `/settings/security/audit`. Filter event kind = "Sessions". Confirm the revocation audit emitted.
-6. Open `/security-center/mfa-recovery`. If the operator needs to recover, follow the quorum-based recovery flow.
+6. Open `/security-center/mfa-recovery`. If the operator needs to recover, follow the admin-approved recovery flow (one workspace admin approves; see below).
 
 ### SAML outage detected
 
@@ -57,8 +57,9 @@
 ### MFA recovery request
 
 1. Open `/security-center/mfa-recovery`.
-2. Inspect each pending request: reason, email-verification status, quorum progress.
-3. If the request is legitimate, approve. Quorum requirements apply (multi-admin sign-off).
+2. Inspect each pending request: reason, email-verification status, approvals so far.
+3. If the request is legitimate, approve. One approval from a workspace admin completes the request: every product path creates requests with a requirement of one approval, and there is no workspace or organization setting that raises it. A second admin's approval is not required and is refused once the request is no longer pending. (The service can count up to three approvals, but nothing configures more than one; do not describe this recovery as multi-admin sign-off.) Approval revokes the member's factors and ends their sessions; it forces re-enrollment and does not grant a session.
+   **Who may decide** (approve or reject): someone who outranks the requester in that workspace (OWNER > ADMIN > MEMBER > VIEWER), so an ADMIN decides MEMBER and VIEWER requests and the OWNER decides ADMIN requests. The workspace OWNER's own request may be decided by **another live ORG_OWNER** of the workspace's customer Organization who is an OWNER or ADMIN of that workspace (AUD-0038, decision b). An ORG_ADMIN or ORG_SECURITY_ADMIN may not decide it. In a personal, Pro or Team workspace there is no second owner, so its OWNER recovers with their recovery codes. A platform administrator's factors are never recovered here; they use the platform recovery procedure.
 4. If suspicious, reject with reason. The audit emits `mfa_recovery_request_rejected`.
 
 ### Suspicious session detected

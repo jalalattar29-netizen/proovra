@@ -38,6 +38,7 @@ import {
 
 import { bump } from "../services/ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
+import { withEnqueueDeadline } from "./canonical-queue-client.js";
 
 const REGISTRY_ENTRY = getWorkEntryOrThrow(
   JOB_NAMES.REBUILD_SEARCH_DOCUMENT,
@@ -117,15 +118,18 @@ export async function enqueueSearchIndexingJob(
     return { enqueued: false, reason: "unknown_document_kind" };
   }
 
-  const outcome = await enqueueCanonicalJob({
-    queue: queue as unknown as QueueHandleLike,
-    entry: REGISTRY_ENTRY,
-    commandId,
-    traceId: input.reason.slice(0, 64),
-    delayMs: input.delayMs,
-    removeOnComplete: 200,
-    removeOnFail: 200,
-  });
+  // AUD-0057 — bounded like every api producer (canonical-queue-client).
+  const outcome = await withEnqueueDeadline(
+    enqueueCanonicalJob({
+      queue: queue as unknown as QueueHandleLike,
+      entry: REGISTRY_ENTRY,
+      commandId,
+      traceId: input.reason.slice(0, 64),
+      delayMs: input.delayMs,
+      removeOnComplete: 200,
+      removeOnFail: 200,
+    }),
+  );
 
   if (outcome.enqueued) {
     bump("search_indexing_enqueued_total");

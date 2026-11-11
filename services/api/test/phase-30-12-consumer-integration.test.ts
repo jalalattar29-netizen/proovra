@@ -189,7 +189,7 @@ describe("Phase 30.12 — completeStorageMultipart bridge", () => {
 
   it("HASHED never stamps verified_at (nothing was verified against a reference)", () => {
     expect(src).toMatch(
-      /"verified_at_utc"\s*=\s*CASE WHEN \$4 = 'VERIFIED' THEN COALESCE\("verified_at_utc", NOW\(\)\) ELSE "verified_at_utc" END/,
+      /"verified_at_utc"\s*=\s*CASE WHEN \$4::varchar = 'VERIFIED' THEN COALESCE\("verified_at_utc", NOW\(\)\) ELSE "verified_at_utc" END/,
     );
   });
 

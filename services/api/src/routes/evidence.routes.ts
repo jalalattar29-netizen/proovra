@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { objectKeyFileNameFragment } from "../services/storage/object-key-file-name.js";
 import { releaseRefusedUploadReservation } from "../services/evidence-upload-refusal.service.js";
 import { bumpCaptureFailure, objectLockPolicyFromEnv } from "@proovra/shared-runtime";
 import {
@@ -782,6 +783,8 @@ const CERTIFICATION_REFUSALS: ReadonlyArray<{ code: string }> = [
   { code: "CERTIFICATION_ALREADY_ATTESTED" },
   { code: "CERTIFICATION_STATEMENT_MISSING" },
   { code: "CERTIFICATION_STATEMENT_CHANGED" },
+  // AUD-0033 — only the attestor may revoke a signed attestation (R-CERT-001).
+  { code: "ATTESTATION_REVOKE_ATTESTOR_ONLY" },
 ];
 const CERTIFICATION_REFUSAL_CODES = new Set(CERTIFICATION_REFUSALS.map((r) => r.code));
 
@@ -1633,6 +1636,9 @@ function getTierLimit(plan: prismaPkg.PlanType) {
     case PlanType.PRO:
     case PlanType.TEAM:
       return { max: 60, windowSec: 60 };
+    // AUD-0010 — Enterprise had no case and fell to the Free tier (10/min).
+    case PlanType.ENTERPRISE:
+      return { max: 120, windowSec: 60 };
     case PlanType.FREE:
     default:
       return { max: 10, windowSec: 60 };
@@ -1971,6 +1977,34 @@ function auditVerificationAction(
 async function getUserPlan(userId: string) {
   const { plan } = await resolveCommercialPlan({ type: "PERSONAL_ACCOUNT", userId });
   return (plan ?? PlanType.FREE) as typeof PlanType[keyof typeof PlanType];
+}
+
+/**
+ * AUD-0010 — THE THROTTLE SUBJECT, decided explicitly: the limit is per PERSON
+ * (the key names the user), sized by the plan that GOVERNS THE REQUEST — the
+ * target workspace's plan when the request names one, the person's own plan
+ * otherwise. It always read the personal plan, so a member of an Enterprise
+ * workspace capturing into it was throttled at their personal Free tier.
+ * Unresolvable falls back to the personal plan (never a wider limit).
+ */
+async function getThrottlePlan(userId: string, teamId: string | null | undefined) {
+  if (teamId) {
+    try {
+      // Only a workspace the person actively belongs to sizes their limit: the
+      // throttle runs before the create's own authorization, and naming
+      // someone else's Enterprise workspace must not widen it.
+      const member = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId, userId } },
+        select: { status: true },
+      });
+      if (member?.status !== "ACTIVE") return getUserPlan(userId);
+      const { plan } = await resolveCommercialPlan({ type: "WORKSPACE", teamId, requesterUserId: userId });
+      if (plan) return plan as typeof PlanType[keyof typeof PlanType];
+    } catch {
+      /* fall back to the personal plan */
+    }
+  }
+  return getUserPlan(userId);
 }
 
 function bigintToString(v: unknown): string | null {
@@ -6333,7 +6367,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     await _emitEvidenceCreateSpans(req.body);
     const body = CreateEvidenceBody.parse(req.body);
     const ownerUserId = getAuthUserId(req);
-    const plan = await getUserPlan(ownerUserId);
+    const plan = await getThrottlePlan(ownerUserId, body.teamId ?? null);
     const limit = getTierLimit(plan);
     const rate = await enforceRateLimit({
       key: `ratelimit:evidence:create:${plan}:${ownerUserId}`,
@@ -7125,7 +7159,9 @@ const fallbackFileName =
   safeOriginalFileName ??
   `part-${body.partIndex + 1}${ext ? `.${ext}` : ""}`;
 
-const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${fallbackFileName}`;
+// AUD-0054 — the key carries a byte-bounded fragment of the name; the full
+// name is stored on the part row below.
+const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${objectKeyFileNameFragment(fallbackFileName) ?? `part-${body.partIndex + 1}`}`;
 
           // Upload truth semantics: do NOT mark uploadedAtUtc here.
           // A presigned URL being issued is not proof the object was uploaded.
@@ -11789,7 +11825,8 @@ try {
         throw err;
       }
 
-      const plan = await getUserPlan(ownerUserId);
+      // AUD-0010 — sized by the plan of the workspace the record belongs to.
+      const plan = await getThrottlePlan(ownerUserId, (evidence as { teamId?: string | null } | null)?.teamId ?? null);
       const limit = getTierLimit(plan);
       const rate = await enforceRateLimit({
         key: `ratelimit:evidence:complete:${plan}:${ownerUserId}`,

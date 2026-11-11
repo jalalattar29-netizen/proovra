@@ -193,6 +193,9 @@ describe("PLATFORM ADMIN — authorization matrix (live PostgreSQL 16)", () => {
     userId: string,
     email: string,
     role: "admin" | null,
+    // AUD-0021 — a platform admin session exists only after a verified second
+    // factor, so the production-shaped admin token carries `mfaAt`.
+    opts: { mfa?: boolean } = {},
   ): string {
     return signJwt(
       {
@@ -202,6 +205,7 @@ describe("PLATFORM ADMIN — authorization matrix (live PostgreSQL 16)", () => {
         authMethod: "PASSWORD",
         authAt: Math.floor(Date.now() / 1000),
         ...(role === "admin" ? { role: "admin" as const } : {}),
+        ...((opts.mfa ?? role === "admin") ? { mfaAt: Math.floor(Date.now() / 1000) } : {}),
       },
       secret,
       60 * 60,
@@ -290,6 +294,18 @@ describe("PLATFORM ADMIN — authorization matrix (live PostgreSQL 16)", () => {
   // =========================================================================
 
   describe("ADM-001 — a withdrawn platform-admin grant is withdrawn immediately", () => {
+    it("AUD-0021: a REAL platform admin whose session did not verify a second factor is refused; the same admin with one is served", async () => {
+      const noMfa = mintTokenWithRole(platformAdmin.userId, platformAdmin.email, "admin", { mfa: false });
+      await registerSessionForToken(deps, platformAdmin.userId, noMfa);
+      for (const url of ["/v1/admin/overview", "/v1/admin/users"]) {
+        const refused = await inject({ method: "GET", url, token: noMfa });
+        expect(refused.statusCode, refused.body).toBe(403);
+        expect(refused.body).toContain("PLATFORM_ADMIN_MFA_REQUIRED");
+        const served = await inject({ method: "GET", url, token: platformAdmin.token });
+        expect(served.statusCode, served.body).toBe(200);
+      }
+    });
+
     it("refuses EVERY platform-admin read to a token whose admin claim outlived the DB role", async () => {
       for (const route of PLATFORM_ADMIN_READS) {
         const res = await inject({ ...route, token: demotedAdmin.token });
@@ -349,10 +365,13 @@ describe("PLATFORM ADMIN — authorization matrix (live PostgreSQL 16)", () => {
       // The mirror hazard: a "fast negative" on the missing claim would lock a
       // freshly-promoted operator out until they signed out and back in.
       const promoted = await seedUser(deps, "promoted");
+      // AUD-0021 — platform authority needs an MFA-verified session; this user's
+      // session verified a factor before the promotion (the claim is what is missing).
       const tokenWithoutClaim = mintTokenWithRole(
         promoted.userId,
         promoted.email,
         null,
+        { mfa: true },
       );
       await registerSessionForToken(deps, promoted.userId, tokenWithoutClaim);
 

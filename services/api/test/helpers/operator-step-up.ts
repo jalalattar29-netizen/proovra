@@ -30,13 +30,17 @@ export async function seedOperator(
 
   const user = await seedUser(deps, label);
   await prisma.user.update({ where: { id: user.userId }, data: { platformRole: "admin" } });
+  // AUD-0021 — production issues a platform administrator's session only after a
+  // verified second factor, so it carries `mfaAt`; this operator's does too.
+  const signedAt = Math.floor(Date.now() / 1000);
   const token = signJwt(
     {
       sub: user.userId,
       provider: "EMAIL",
       email: user.email,
       authMethod: "PASSWORD",
-      authAt: Math.floor(Date.now() / 1000),
+      authAt: signedAt,
+      mfaAt: signedAt,
       role: "admin" as const,
     },
     process.env.AUTH_JWT_SECRET as string,

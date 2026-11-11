@@ -173,7 +173,8 @@ export async function scimRoutes(app: FastifyInstance) {
         return reply
           .type("application/scim+json")
           .code(result.status)
-          .send(scimError(result.status, result.detail));
+          // AUD-0044 — RFC 7644 §3.12: a 409 on create is `uniqueness`.
+          .send(scimError(result.status, result.detail, result.status === 409 ? "uniqueness" : undefined));
       }
       return reply
         .type("application/scim+json")

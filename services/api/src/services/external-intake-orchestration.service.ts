@@ -39,6 +39,7 @@
  *     pipelines mask it via maskPublicEmail per the Phase 1 baseline.
  */
 
+import { objectKeyFileNameFragment } from "./storage/object-key-file-name.js";
 import { evaluateFinalizationGovernance } from "./governance/finalization-governance.service.js";
 import { Prisma } from "@prisma/client";
 import type {
@@ -226,17 +227,10 @@ const PART_MIME_TYPE_MAX = 128;
  * which is the right separation anyway — where a file lives should not be
  * decided by what somebody's phone called it.
  */
-const PART_KEY_FILE_NAME_MAX = 120;
-
-/** The file-name fragment that goes into the object key. */
-function storageKeyFileNameFragment(fileName: string | null): string | null {
-  if (!fileName) return null;
-  if (fileName.length <= PART_KEY_FILE_NAME_MAX) return fileName;
-  const dot = fileName.lastIndexOf(".");
-  const ext = dot > 0 && fileName.length - dot <= 12 ? fileName.slice(dot) : "";
-  const stem = ext ? fileName.slice(0, dot) : fileName;
-  return stem.slice(0, PART_KEY_FILE_NAME_MAX - ext.length) + ext;
-}
+// AUD-0054 — bounded in UTF-8 BYTES by the one helper every evidence key
+// uses (a character bound let 4-byte characters overflow the segment).
+const storageKeyFileNameFragment = (fileName: string | null): string | null =>
+  objectKeyFileNameFragment(fileName);
 
 /**
  * The contributor's file name, reduced to something the column can hold.
@@ -1279,7 +1273,8 @@ export async function submitExternalIntake(
           workflowTemplateVersion: input.link.workflowTemplateVersion,
           partCount: parts.length,
         },
-        attemptInline: true,
+        // AUD-0042 — queued: a slow receiver must not delay this request.
+        attemptInline: false,
       });
     } catch {
       // never abort the submission on webhook delivery failure

@@ -21,7 +21,7 @@ import { AppError, ErrorCode } from "../errors.js";
 // (team-scoped, durable, audit-backed) is the single source of truth.
 // The five `/v1/api-keys*` handlers below now return HTTP 410 Gone
 // and the quota counter reads directly from Prisma.
-import { batchAnalysisService } from "../services/batch-analysis.service.js";
+import { BatchStatus, batchAnalysisService } from "../services/batch-analysis.service.js";
 import { getEmailService } from "../services/email.service.js";
 // CR1 Phase E — legacy `getWebhookService` import removed. Its only use
 // in this file was a dead try/catch that fetched the service and
@@ -636,6 +636,30 @@ export async function enterpriseRoutes(app: FastifyInstance) {
             metadata: { reason: "not_found" },
           });
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
+        }
+
+        // Only a PENDING job can start. This route answered 200 "Batch
+        // processing started" for a CANCELLED (or finished, or running) job,
+        // and the background claim then refused it, so nothing ran and the
+        // caller was told it had (remediation 2026-11-10, tracked apart from
+        // the AUD ledger). A race between two PENDING calls still ends with
+        // one claim; the job does run, so neither answer is untrue.
+        if (job.status !== BatchStatus.PENDING) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_process",
+            outcome: "failure",
+            severity: "info",
+            resourceType: "batch_job",
+            resourceId: id,
+            metadata: { reason: "not_pending", status: String(job.status) },
+          });
+          throw new AppError(
+            ErrorCode.CONFLICT,
+            job.status === BatchStatus.PROCESSING
+              ? "This batch job is already processing."
+              : "This batch job has already ended and cannot be started.",
+          );
         }
 
         const processingPromise = batchAnalysisService.processBatch(userId, id);

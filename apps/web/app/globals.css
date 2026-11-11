@@ -508,7 +508,8 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
-[role="listbox"]:focus-visible {
+[role="listbox"]:focus-visible,
+[data-scroll-region]:focus-visible {
   /* Canonical PROOVRA focus ring — the app-primary indigo/lavender used by
      the accepted Home/Cases fields (replaces the legacy teal #9ed8cf focus
      app-wide). Removing the green focus is the single highest-leverage step
@@ -517,9 +518,17 @@ textarea:focus-visible,
      `[role="listbox"]`: an open AppListbox moves focus to its popup, which is
      a `<ul>`, so a keyboard open fell through to the browser's default black
      ring while a mouse open showed nothing. The popup now takes the same ring
-     as every other focused control. */
+     as every other focused control.
+
+     `[data-scroll-region]`: a horizontally scrolling table or rail is a tab
+     stop (lib/ui/scrollRegion.ts, AUD-0061) so arrow keys can scroll it; it
+     takes the same ring, drawn INSIDE its box (below) because several of
+     these sit in cards that clip overflow. */
   outline: 2px solid #8b7cf6;
   outline-offset: 2px;
+}
+[data-scroll-region]:focus-visible {
+  outline-offset: -2px;
 }
 
 ::selection {

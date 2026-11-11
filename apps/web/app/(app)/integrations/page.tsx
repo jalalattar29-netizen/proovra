@@ -1655,8 +1655,12 @@ function SignatureDocsPanel() {
 
           <h3 style={subHeadingStyle}>Retry behavior</h3>
           <p style={mutedStyle}>
-            Any non-2xx response (or a network error) marks the delivery
-            as failed and schedules an exponential backoff retry. After
+            A 5xx response, a 408 or 429, or a network error marks the
+            attempt as failed and schedules an exponential backoff retry.
+            Any other 4xx response is final: the delivery fails at once
+            and is not retried, because a wrong URL or a refused request
+            does not correct itself. Fix the endpoint, then use{" "}
+            <strong>Retry</strong> on the row. After
             enough consecutive failures the dispatcher auto-disables the
             endpoint and surfaces it in the &ldquo;Needs attention&rdquo;
             page banner. Always return a 2xx response as soon as you

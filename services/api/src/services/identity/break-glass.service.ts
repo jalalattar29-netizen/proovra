@@ -21,6 +21,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { checkOrgAccess } from "../organization/org-access.js";
 import { emitOrgAuditEvent } from "../organization/org-audit.service.js";
+import { resolvePlatformAdmin } from "../platform-admin.service.js";
 
 export type EmergencyRole = "EMERGENCY_READ_ONLY" | "EMERGENCY_OPERATOR";
 
@@ -172,6 +173,13 @@ export type EvaluateEmergencyAccessInput = {
    */
   stepUpProofId?: string | null;
   nowMs?: number;
+  /**
+   * AUD-0037 — the route verified a FRESH step-up of the HOLDER, bound to this
+   * grant. The use proof then belongs to the person using the grant, and the
+   * activation proof (the activating operator's) is not compared: a holder who
+   * is not the activator could never present it.
+   */
+  holderStepUpVerified?: boolean;
 };
 
 /** True for schema-absence errors that MUST fail closed (never allow). */
@@ -304,7 +312,7 @@ export async function evaluateEmergencyAccess(
   if (row.emergencyUserId !== input.actorUserId) return deny("actor_mismatch");
 
   // Server-verified step-up reference binding (when the caller presents one).
-  if (input.stepUpProofId != null && input.stepUpProofId !== row.stepUpProofId) {
+  if (!input.holderStepUpVerified && input.stepUpProofId != null && input.stepUpProofId !== row.stepUpProofId) {
     return deny("step_up_mismatch");
   }
 
@@ -389,17 +397,39 @@ export async function activateBreakGlass(
    * also refuses a suspended or archived Organization). The same rule
    * support-access applies to the customer approver it records.
    */
+  /*
+   * AUD-0040 (R-BG-002) — the holder is always a different person from the
+   * operator who grants: emergency access is never self-issued.
+   */
+  if (input.emergencyUserId === input.requestedByUserId) {
+    throw bgError(
+      "BREAK_GLASS_SELF_GRANT",
+      "Emergency access must be granted to someone other than the operator granting it.",
+      400,
+    );
+  }
+  /*
+   * AUD-0037 (R-BG-001) — a grant may name either an eligible customer
+   * Organization administrator (D30, above) or a PLATFORM responder, for any
+   * Organization. A responder used to be refused unless they also
+   * administered the customer Organization.
+   */
   const emergencyAccess = await checkOrgAccess(client, {
     orgId: input.organizationId,
     userId: input.emergencyUserId,
     minRole: "ORG_ADMIN",
   });
   if (emergencyAccess.kind !== "ok") {
-    throw bgError(
-      "BREAK_GLASS_EMERGENCY_USER_INVALID",
-      "The emergency user must be an active administrator of this organization.",
-      400,
-    );
+    const responder = await resolvePlatformAdmin(input.emergencyUserId, null)
+      .then((d) => d.allowed)
+      .catch(() => false);
+    if (!responder) {
+      throw bgError(
+        "BREAK_GLASS_EMERGENCY_USER_INVALID",
+        "The emergency user must be an active administrator of this organization or a platform responder.",
+        400,
+      );
+    }
   }
 
   const now = input.nowMs ?? Date.now();
@@ -426,6 +456,22 @@ export async function activateBreakGlass(
    * for terms nobody agreed to. The operator is told what already exists and
    * decides.
    */
+  /*
+   * AUD-0036 — only a LIVE grant is exclusive. A grant past its expiry is
+   * history: its stored status stayed ACTIVE (revocation was the only status
+   * writer), so it held the partial unique index and refused every new grant
+   * for the same person "until" a time already past. It is closed here first.
+   */
+  await client.emergencyAccessGrant.updateMany({
+    where: {
+      organizationId: input.organizationId,
+      emergencyUserId: input.emergencyUserId,
+      status: "ACTIVE",
+      expiresAtUtc: { lte: new Date(now) },
+    },
+    data: { status: "EXPIRED" },
+  });
+
   let row;
   try {
     // Typed delegate (generated client). If the table is not yet applied at

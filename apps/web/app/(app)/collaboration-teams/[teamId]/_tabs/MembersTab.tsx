@@ -209,9 +209,17 @@ function MembersTab({
    */
   const visibleMembers = roster ?? team.members;
   const activeMemberCount = team.activeMemberCount;
+  /**
+   * AUD-0051 — capacity is counted the way the server enforces it: accepted
+   * members who are not the workspace owner (`capacityMemberCount`). Comparing
+   * `activeMemberCount` — owner included — with the limit disabled "Add" one
+   * place early (Team: 9 of 10 read as full) and showed "11 of 10" for a valid
+   * team. An older server without the field falls back to the old count.
+   */
+  const capacityMemberCount = team.capacityMemberCount ?? activeMemberCount;
   const maxMembersPerTeam = entitlement?.collaborationTeamMembers.limit ?? 0;
   const atCapacity =
-    entitlement !== null && activeMemberCount >= maxMembersPerTeam;
+    entitlement !== null && capacityMemberCount >= maxMembersPerTeam;
   const capacityKnown = entitlement !== null && maxMembersPerTeam > 0;
   return (
     <section data-testid="tab-members-content" className="app-panel">
@@ -220,7 +228,7 @@ function MembersTab({
           <h2 className="app-panel__title">Members ({activeMemberCount})</h2>
           {capacityKnown ? (
             <MemberCapacityBadge
-              memberCount={activeMemberCount}
+              memberCount={capacityMemberCount}
               maxMembersPerTeam={maxMembersPerTeam}
               atCapacity={atCapacity}
               plan={planLabel}

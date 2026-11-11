@@ -865,7 +865,9 @@ describe("tsa_failure + case_assignment — full state-mutation parity", () => {
     // maxParamLength (default 100) 404s before the schema's 200-char
     // cap can answer 400. Either way the write never happens.
     const oversized = await mutate(`tsa_failure:${"x".repeat(300)}`, "read");
-    expect([400, 404]).toContain(oversized.status);
+    // AUD-0063: fastify 5.12 answers an over-long parameter 414 (URI Too Long)
+    // where 5.7 answered 404; the request is still refused before any write.
+    expect([400, 404, 414]).toContain(oversized.status);
     expect(H.stateUpserts.some((s) => String(s.itemKey).length > 200)).toBe(false);
   });
 

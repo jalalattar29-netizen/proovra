@@ -59,6 +59,12 @@ export type IntegrationHarness = {
    * that the refusal changed nothing awaits this before it reads the database.
    */
   handlersSettled: () => Promise<void>;
+  /**
+   * AUD-0021 — mint a session token like the fixtures' (PASSWORD provenance),
+   * optionally for a session that VERIFIED a second factor (`mfaAt`): platform
+   * routes accept only such sessions, as production now issues them.
+   */
+  mintSessionToken: (userId: string, email: string | null, opts?: { mfaVerified?: boolean }) => Promise<string>;
   cleanup: () => Promise<void>;
 };
 
@@ -433,6 +439,15 @@ export async function bootIntegrationHarness(): Promise<IntegrationHarness> {
   return {
     app,
     fixtures,
+    mintSessionToken: async (userId, email, opts) => {
+      const { signJwt } = await import("../src/services/jwt.js");
+      const now = Math.floor(Date.now() / 1000);
+      return signJwt(
+        { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: now, ...(opts?.mfaVerified ? { mfaAt: now } : {}) },
+        process.env.AUTH_JWT_SECRET as string,
+        60 * 60,
+      );
+    },
     handlersSettled: async () => {
       while (inFlightHandlers.size > 0) await Promise.allSettled([...inFlightHandlers]);
     },

@@ -161,7 +161,9 @@ export const AUTOMATION_ACTION_CATALOG: Readonly<
   WEBHOOK_DELIVERY_INTERNAL_ONLY: {
     label: "Deliver a signed webhook",
     description:
-      "Posts a signed event to a webhook destination this workspace registered — one attempt, HTTPS only.",
+      // AUD-0046 — the attempt policy as the dispatcher applies it
+      // (WEBHOOK_MAX_TOTAL_ATTEMPTS, classifyTransportOutcome).
+      "Posts a signed event to a webhook destination this workspace registered, HTTPS only. A request that never reached the receiver is tried up to four times; an event the receiver answered with an error is not sent again.",
     internalOnly: true,
   },
 };

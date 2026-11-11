@@ -904,13 +904,18 @@ export function PreviewWorkspace({
           // listbox role on the wrapper + aria-selected on each
           // card give screen readers the same model as a single-
           // select gallery.
+          //
+          // AUD-0061 — aria-selected ONLY. The card also carried
+          // aria-pressed, which is not an allowed attribute on
+          // role="option" (axe aria-allowed-attr, critical) and told
+          // assistive technology it was a toggle button and an option
+          // at once. Selection is the option's own state.
           return (
             <button
               key={item.id}
               type="button"
               role="option"
               aria-selected={isSelected}
-              aria-pressed={isSelected}
               onClick={() => setSelectedPreviewItemId(item.id)}
               className={
                 isSelected

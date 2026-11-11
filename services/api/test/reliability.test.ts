@@ -171,7 +171,8 @@ describe("queue policies", () => {
     expect(OTS_UPGRADE_QUEUE_POLICY.attempts).toBe(otsEntry.retry.attempts);
     // The documented numbers themselves, so a registry edit that changes the
     // operator contract has to change this line too.
-    expect(REPORT_QUEUE_POLICY.attempts).toBe(5);
+    // AUD-0056 (2026-11-10): 5 -> 8, the report retry window outlasts a short storage outage.
+    expect(REPORT_QUEUE_POLICY.attempts).toBe(8);
     expect(OTS_UPGRADE_QUEUE_POLICY.attempts).toBe(20);
 
     // DLQ presence — the sink is a registered queue, not a source token.

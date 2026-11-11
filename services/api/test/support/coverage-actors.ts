@@ -14,7 +14,8 @@ export type Injected = { statusCode: number; body: string; json: () => any };
 export type CoverageKit = {
   tag: () => string;
   /** A user with legal acceptance and a session; `role` adds an ACTIVE membership. */
-  person: (teamId: string | null, role?: string) => Promise<Person>;
+  /** `mfaVerified` models a session that completed a second factor (platform authority needs one, AUD-0021). */
+  person: (teamId: string | null, role?: string, opts?: { mfaVerified?: boolean }) => Promise<Person>;
   call: (
     method: string,
     url: string,
@@ -32,7 +33,7 @@ export async function coverageKit(h: IntegrationHarness): Promise<CoverageKit> {
   };
   const tag = () => randomUUID().slice(0, 8);
 
-  async function person(teamId: string | null, role?: string): Promise<Person> {
+  async function person(teamId: string | null, role?: string, opts?: { mfaVerified?: boolean }): Promise<Person> {
     const email = `cov-${tag()}@test.proovra.local`;
     const user = await prisma.user.create({
       data: { email, provider: "EMAIL", providerUserId: email, currentWorkspaceId: teamId } as never,
@@ -50,7 +51,14 @@ export async function coverageKit(h: IntegrationHarness): Promise<CoverageKit> {
       await prisma.teamMember.create({ data: { teamId, userId: user.id, role, status: "ACTIVE" } as never });
     }
     const token = signJwt(
-      { sub: user.id, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) },
+      {
+        sub: user.id,
+        provider: "EMAIL",
+        email,
+        authMethod: "PASSWORD",
+        authAt: Math.floor(Date.now() / 1000),
+        ...(opts?.mfaVerified ? { mfaAt: Math.floor(Date.now() / 1000) } : {}),
+      },
       process.env.AUTH_JWT_SECRET as string,
       3600,
     );

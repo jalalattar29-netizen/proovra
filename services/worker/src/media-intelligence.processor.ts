@@ -1110,9 +1110,9 @@ async function processComputePerceptualHashesJob(
   // Lazy-import sharp so the processor can still start if the native
   // binding is unavailable for the host. A throwing import here marks
   // the job as deferred (returns success) and lets ops install sharp.
-  let sharp: typeof import("sharp");
+  let sharp: typeof import("sharp").default;
   try {
-    sharp = (await import("sharp")).default as unknown as typeof import("sharp");
+    sharp = (await import("sharp")).default as unknown as typeof import("sharp").default;
   } catch (err) {
     logger.warn(
       { jobId, err: err instanceof Error ? err.message : "unknown" },

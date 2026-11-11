@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollRegionProps } from "../../lib/ui/scrollRegion";
 import { type CSSProperties, type ElementType, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 // Pricing page icon set — lucide-react only. The phosphor-named aliases
@@ -776,17 +777,17 @@ export default function MarketingPricingPage() {
       ],
     },
     {
-      // Enforcement note: `enterpriseFeatures.objectLock` has no gate consumer
-      // in the codebase today. It is retained as an Enterprise row because
-      // Object Lock is a real storage posture the platform configures, but no
-      // per-plan gate turns it on or off — which is why it is not claimed as a
-      // capability the customer switches.
-      label: "Object Lock / immutable storage",
+      // AUD-0005 — every evidence object is written under the same S3 Object
+      // Lock: COMPLIANCE mode, 2,920 days (8 years), on every plan
+      // (evidence-retention-lifecycle.ts). No per-plan gate exists, so the row
+      // says what the storage does for everyone; it said "Not included" on
+      // every plan but Enterprise.
+      label: "Object Lock / immutable storage (8 years)",
       values: [
-        "Not included",
-        "Not included",
-        "Not included",
-        "Not included",
+        "Included",
+        "Included",
+        "Included",
+        "Included",
         "Included",
       ],
     },
@@ -1274,8 +1275,9 @@ export default function MarketingPricingPage() {
         const capacityRows = compareRows.slice(0, groupIdx) as RowType[];
         const operationsRows = compareRows.slice(groupIdx + 1) as RowType[];
 
-        const TableBlock = ({ rows }: { rows: RowType[] }) => (
-          <div className="mt-4 overflow-x-auto rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
+        // AUD-0061 — scrolls sideways at phone width; focusable + named so a keyboard can scroll it (lib/ui/scrollRegion).
+        const TableBlock = ({ rows, label }: { rows: RowType[]; label: string }) => (
+          <div {...scrollRegionProps(label)} className="mt-4 overflow-x-auto rounded-[20px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
             <table className="w-full min-w-[840px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-[var(--proovra-border-warm)] bg-[var(--proovra-page-bg-soft)]">
@@ -1343,7 +1345,7 @@ export default function MarketingPricingPage() {
           <>
             <section className="w-full relative mx-auto mt-8 max-w-7xl px-6 pb-8 md:mt-10 md:px-8 md:pb-10">
               <SectionKicker>Plans &amp; Capacity</SectionKicker>
-              <TableBlock rows={capacityRows} />
+              <TableBlock rows={capacityRows} label="Plans and capacity comparison" />
               <div className="mt-3 text-[0.78rem] text-[#64748B]">
                 Prices shown in{" "}
                 <span className="font-medium text-[#0F172A]">
@@ -1356,7 +1358,7 @@ export default function MarketingPricingPage() {
 
             <section className="w-full relative mx-auto max-w-7xl px-6 pb-12 md:px-8 md:pb-16">
               <SectionKicker>Operations &amp; Governance</SectionKicker>
-              <TableBlock rows={operationsRows} />
+              <TableBlock rows={operationsRows} label="Operations and governance comparison" />
             </section>
           </>
         );

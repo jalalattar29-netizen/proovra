@@ -381,8 +381,9 @@ describe("PHASE 3 — dispatchTestEventToEndpoint behavior", () => {
       expect(result!.outcome).toBe("queued");
       expect(httpCalls).toBe(0);
       // The row was still written so the retry sweeper can pick it up.
+      // AUD-0042: that means due RETRY_SCHEDULED — the sweeper never claims PENDING.
       expect(rows).toHaveLength(1);
-      expect(rows[0].status).toBe("PENDING");
+      expect(rows[0].status).toBe("RETRY_SCHEDULED");
     });
   });
 });

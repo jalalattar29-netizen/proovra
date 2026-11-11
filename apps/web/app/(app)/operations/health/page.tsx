@@ -43,6 +43,7 @@
  * live on `/admin/platform/observability` behind the platform gate.
  */
 
+import { scrollRegionProps } from "../../../../lib/ui/scrollRegion";
 import Link from "next/link";
 
 import "./workspace-health.css";
@@ -455,7 +456,11 @@ function WorkspaceHealthPageInner() {
                   })}
                 </p>
               ) : null}
-              <div className="app-table-surface app-table-surface--scroll">
+              {/* AUD-0061 — scrolls sideways at phone width; focusable + named so a keyboard can scroll it (lib/ui/scrollRegion). */}
+              <div
+                className="app-table-surface app-table-surface--scroll"
+                {...scrollRegionProps(copy.health.conditionsHeading)}
+              >
                 <table className="app-table">
                   <caption className="app-visually-hidden">
                     {copy.health.conditionsHeading}

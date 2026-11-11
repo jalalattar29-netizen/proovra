@@ -43,6 +43,7 @@ import {
 } from "../evidence/evidence-part-writer.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { error as logError } from "../../utils/logger.js";
 import {
   abortMultipartUpload,
   completeMultipartUpload,
@@ -2042,10 +2043,14 @@ export async function completeStorageMultipart(
         // ET-UPL-05 — VERIFIED only when the whole-object digest matched a
         // reference the client declared; otherwise HASHED (server digest
         // recorded, nothing verified against it, no verified_at).
+        // AUD-0019 — $4 is typed once (varchar, the column's type). Used both as
+        // the SET value and in the CASE comparison it was deduced as varchar
+        // AND text, Postgres refused the statement ("inconsistent types
+        // deduced for parameter $4"), and no part could ever settle.
         `UPDATE "evidence_upload_session_parts"
-           SET "state" = $4,
+           SET "state" = $4::varchar,
                "server_sha256" = COALESCE("server_sha256", $3),
-               "verified_at_utc" = CASE WHEN $4 = 'VERIFIED' THEN COALESCE("verified_at_utc", NOW()) ELSE "verified_at_utc" END,
+               "verified_at_utc" = CASE WHEN $4::varchar = 'VERIFIED' THEN COALESCE("verified_at_utc", NOW()) ELSE "verified_at_utc" END,
                "failure_reason" = NULL,
                "updated_at_utc" = NOW()
            WHERE "session_id" = $1 AND "team_id" = $2
@@ -2055,11 +2060,16 @@ export async function completeStorageMultipart(
         serverSha256,
         matchedReference ? "VERIFIED" : "HASHED",
       );
-    } catch {
-      /* part-level updates are best-effort here; the session row
-       * already records completion. If parts don't flip, the
-       * subsequent completeUploadSession() call will refuse, which
-       * is the correct fail-closed posture. */
+    } catch (err) {
+      // Fail-closed stays: unsettled parts make completeUploadSession()
+      // refuse. But the cause is no longer discarded (AUD-0019: a SQL error
+      // here was swallowed and surfaced only as "pending parts" forever).
+      bump("multipart_part_settle_failed_total");
+      logError("upload_session.part_settle_failed", {
+        sessionId: input.sessionId,
+        teamId: input.teamId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

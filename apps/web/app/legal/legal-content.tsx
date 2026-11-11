@@ -1,5 +1,6 @@
 import { getLegalDocument, LEGAL_SLUGS, titleFromSlug } from "@proovra/shared/legal";
 import type { ReactNode } from "react";
+import { scrollRegionProps } from "../../lib/ui/scrollRegion";
 
 /**
  * LEGAL IDENTITY AND TEXT COME FROM `@proovra/shared/legal`.
@@ -416,6 +417,19 @@ export function renderLegalMarkdown(
   // Table parsing — GitHub-flavoured pipe tables
   // ---------------------------------------------------------------------------
 
+  /**
+   * The text of the most recent heading, so a table's scroll region can be
+   * named after the section it belongs to (AUD-0061). Markdown emphasis and
+   * link syntax are reduced to their visible words.
+   */
+  let lastHeadingText = "";
+  const plainHeading = (text: string): string =>
+    text
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[*`]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
   const parseCells = (row: string): string[] =>
     row
       .trim()
@@ -477,8 +491,19 @@ export function renderLegalMarkdown(
       lineHeight: 1.55,
     };
 
+    // AUD-0061 — at phone width this wrapper is the only thing that scrolls
+    // the table, so it is a named, focusable region (keyboard users scroll it
+    // with the arrow keys). Named after its section; the column headings
+    // when the document has no heading above it.
+    const regionLabel = lastHeadingText
+      ? `${lastHeadingText} (table)`
+      : `Table: ${headers.map(plainHeading).join(", ")}`;
     const node = (
-      <div key={`tw-${start}`} className="legal-table-wrapper">
+      <div
+        key={`tw-${start}`}
+        className="legal-table-wrapper"
+        {...scrollRegionProps(regionLabel)}
+      >
         <table className="legal-table" style={tableStyle}>
           <thead style={{ background: "#F8FAFC" }}>
             <tr>
@@ -577,6 +602,7 @@ export function renderLegalMarkdown(
 
     if (trimmed.startsWith("### ")) {
       flushLists();
+      lastHeadingText = plainHeading(trimmed.slice(4));
       tagged.push({
         kind: "block",
         node: (
@@ -589,6 +615,7 @@ export function renderLegalMarkdown(
 
     if (trimmed.startsWith("## ")) {
       flushLists();
+      lastHeadingText = plainHeading(trimmed.slice(3));
       tagged.push({
         kind: "block",
         node: (
@@ -601,6 +628,7 @@ export function renderLegalMarkdown(
 
     if (trimmed.startsWith("# ")) {
       flushLists();
+      lastHeadingText = plainHeading(trimmed.slice(2));
       tagged.push({
         kind: "block",
         node: (

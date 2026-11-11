@@ -145,6 +145,16 @@ test("4. wrong account — the invitation is VALID, only the session is wrong", 
   assert.ok(!v.actions.includes("accept"));
 });
 
+test("4b. AUD-0047 — a managed or no-personal-space identity is told why, not that the link failed", () => {
+  for (const code of ["MANAGED_IDENTITY_NO_PERSONAL_SPACE", "ORG_POLICY_NO_PERSONAL_SPACE"] as const) {
+    const v = at({ auth: SIGNED_IN, accept: { kind: "refused", code } });
+    assert.equal(v.kind, "identity-not-eligible", code);
+    assert.ok(v.actions.includes("switch-account"), code);
+    assert.ok(!v.actions.includes("accept"), code);
+    assert.ok(!v.actions.includes("retry"), code);
+  }
+});
+
 test("5. already a member — a success, and no second mutation", () => {
   const v = at({
     auth: SIGNED_IN,
@@ -638,4 +648,30 @@ test("token shape is checked before anything is sent", () => {
   assert.ok(!isWellFormedWorkspaceInviteToken(null));
   // And the page uses it, so a guess costs no request and no rate-limit budget.
   assert.match(PAGE, /isWellFormedWorkspaceInviteToken\(token\)/);
+});
+
+// ===========================================================================
+// AUD-0047 — OPEN WORKSPACE OPENS THE WORKSPACE JUST JOINED
+// ===========================================================================
+
+test("Open workspace switches into the accepted workspace, then navigates", () => {
+  // It was a plain `/home` link, which opens whatever context the reader's
+  // pointer already named — their own space — so a person who joined a Pro or
+  // Team workspace landed in their own Free one.
+  const action = PAGE.slice(PAGE.indexOf('case "open-workspace":'));
+  const body = action.slice(0, action.indexOf("case ", 10));
+  assert.ok(!/href:/.test(body), "Open workspace must not be a bare link");
+  assert.match(body, /onClick: \(\) => ctx\.onOpenWorkspace\(/);
+
+  // The handler moves the pointer through the platform-context provider's own
+  // switch request (no second copy of the endpoint) with the id the ACCEPT
+  // response named, and only then navigates.
+  const handler = PAGE.slice(PAGE.indexOf("const onOpenWorkspace = useCallback"));
+  assert.ok(handler.length > 0);
+  const switchAt = handler.indexOf("await requestWorkspaceSwitch(workspaceId)");
+  const pushAt = handler.indexOf("router.push(destination)");
+  assert.ok(switchAt > 0 && pushAt > switchAt, "switch first, navigate after");
+  assert.match(PAGE, /import \{ requestWorkspaceSwitch \} from "\.\.\/\.\.\/\.\.\/lib\/platform-context"/);
+  assert.ok(!PAGE.includes("/v1/platform/context"), "no second copy of the endpoint");
+  assert.match(PAGE, /acceptedWorkspaceId\.current =\s*typeof result\?\.workspaceId === "string"/);
 });

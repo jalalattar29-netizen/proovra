@@ -32,6 +32,7 @@
  * page").
  */
 import * as prismaPkg from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { appendCustodyEventTx } from "@proovra/shared-runtime";
@@ -61,16 +62,22 @@ type GovernedOutputAction = "generate_report" | "generate_package" | "publish_pu
  * decided for `actions` in order; the first refusal wins. No side effects.
  *
  * A record with no workspace row has no workspace policy to evaluate.
+ *
+ * AUD-0017 — `client` is the caller's interactive transaction when it decides
+ * inside one (so no second pooled connection is needed); default: the global.
  */
-export async function decideGovernedOutputActions(input: {
-  evidenceId: string;
-  actorUserId: string;
-  actions: readonly GovernedOutputAction[];
-}): Promise<
+export async function decideGovernedOutputActions(
+  input: {
+    evidenceId: string;
+    actorUserId: string;
+    actions: readonly GovernedOutputAction[];
+  },
+  client: PrismaClient = prisma,
+): Promise<
   | { allowed: true; evidenceId: string | null }
   | { allowed: false; evidenceId: string; action: GovernedOutputAction; code: string; reason: string }
 > {
-  const evidence = await prisma.evidence.findUnique({
+  const evidence = await client.evidence.findUnique({
     where: { id: input.evidenceId },
     select: { id: true, teamId: true, retentionUntilUtc: true },
   });
@@ -78,12 +85,12 @@ export async function decideGovernedOutputActions(input: {
   if (!evidence?.teamId) return { allowed: true, evidenceId: evidence?.id ?? null };
 
   // ACTIVE-only membership authorizes (P0 remediation, 2026-07-21).
-  const membership = await prisma.teamMember.findUnique({
+  const membership = await client.teamMember.findUnique({
     where: { teamId_userId: { teamId: evidence.teamId, userId: input.actorUserId } },
     select: { role: true, status: true },
   });
   const role = membership?.status === "ACTIVE" ? membership.role : undefined;
-  const reviewState = { isReviewed: await evidenceIsReviewed(evidence.id) };
+  const reviewState = { isReviewed: await evidenceIsReviewed(evidence.id, client) };
 
   for (const action of input.actions) {
     const decision = await enforceSensitiveAction(action, {
@@ -97,7 +104,7 @@ export async function decideGovernedOutputActions(input: {
       reviewState,
       // The workflow template overlay can only tighten an allowed decision.
       consultTemplatePolicy: true,
-    });
+    }, client);
     if (!decision.allowed) {
       return { allowed: false, evidenceId: evidence.id, action, code: decision.code, reason: decision.reason };
     }
@@ -142,19 +149,31 @@ export async function evaluateOutputRegenerationGovernance(input: {
 /**
  * Decide the record's first outputs at finalization and record the answer on
  * the record. Never refuses: the caller seals in every case (REPORT-004).
+ *
+ * AUD-0017 — a caller inside an interactive transaction passes it as `tx`:
+ * every read and write then runs on that transaction's connection (the hold
+ * runs IN it rather than in a nested transaction of its own), instead of
+ * waiting for a second pooled connection while holding the first.
  */
-export async function evaluateFinalizationGovernance(input: {
-  evidenceId: string;
-  /** The person on whose authority the record is finalized. */
-  actorUserId: string;
-  ip?: string | null;
-  userAgent?: string | null;
-}): Promise<FinalizationGovernanceDecision> {
-  const decision = await decideGovernedOutputActions({
-    evidenceId: input.evidenceId,
-    actorUserId: input.actorUserId,
-    actions: FINALIZATION_GOVERNED_ACTIONS,
-  }).catch(
+export async function evaluateFinalizationGovernance(
+  input: {
+    evidenceId: string;
+    /** The person on whose authority the record is finalized. */
+    actorUserId: string;
+    ip?: string | null;
+    userAgent?: string | null;
+  },
+  tx?: prismaPkg.Prisma.TransactionClient,
+): Promise<FinalizationGovernanceDecision> {
+  const client = (tx as unknown as PrismaClient | undefined) ?? prisma;
+  const decision = await decideGovernedOutputActions(
+    {
+      evidenceId: input.evidenceId,
+      actorUserId: input.actorUserId,
+      actions: FINALIZATION_GOVERNED_ACTIONS,
+    },
+    client,
+  ).catch(
     // An unreadable policy holds the outputs (the fail-closed direction for
     // outputs); it never blocks sealing.
     () => ({ allowed: false as const, evidenceId: input.evidenceId, action: "generate_report" as const, code: "GOVERNANCE_CHECK_FAILED", reason: "policy_lookup_failed" }),
@@ -162,7 +181,7 @@ export async function evaluateFinalizationGovernance(input: {
   if (decision.allowed) {
     // A retry after the policy was relaxed clears an earlier hold.
     if (decision.evidenceId) {
-      await prisma.evidence.updateMany({
+      await client.evidence.updateMany({
         where: { id: decision.evidenceId, outputsHeldAtUtc: { not: null }, status: { notIn: ["SIGNED", "REPORTED"] } },
         data: { outputsHeldAtUtc: null, outputsHeldReason: null, outputsHeldActorUserId: null },
       });
@@ -174,20 +193,20 @@ export async function evaluateFinalizationGovernance(input: {
   // ET-CUS-11: the hold and its custody event commit together or the request
   // fails. ET-INT-13: ONE refusal event per unchanged refusal, decided under the
   // record lock, so concurrent retries append once.
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidenceId}))`;
-    await tx.evidence.updateMany({
+  const holdWithin = async (htx: prismaPkg.Prisma.TransactionClient) => {
+    await htx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidenceId}))`;
+    await htx.evidence.updateMany({
       where: { id: evidenceId },
       data: {
         outputsHeldReason: decision.reason.slice(0, 64),
         outputsHeldActorUserId: input.actorUserId,
       },
     });
-    await tx.evidence.updateMany({
+    await htx.evidence.updateMany({
       where: { id: evidenceId, outputsHeldAtUtc: null },
       data: { outputsHeldAtUtc: new Date() },
     });
-    const latest = await tx.custodyEvent.findFirst({
+    const latest = await htx.custodyEvent.findFirst({
       where: { evidenceId },
       orderBy: { sequence: "desc" },
       select: { eventType: true, payload: true },
@@ -200,13 +219,17 @@ export async function evaluateFinalizationGovernance(input: {
     ) {
       return;
     }
-    await appendCustodyEventTx(tx, {
+    await appendCustodyEventTx(htx, {
       evidenceId,
       eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
       payload: { action, reason: decision.reason, actorUserId: input.actorUserId, outputsHeld: true },
       ip: input.ip ?? null,
       userAgent: input.userAgent ?? null,
     });
-  });
+  };
+  // Inside the caller's transaction the hold is part of it (it commits with the
+  // caller's writes); otherwise it is a transaction of its own.
+  if (tx) await holdWithin(tx);
+  else await prisma.$transaction(holdWithin);
   return { allowed: true, outputsHeld: true, action, code: decision.code, reason: decision.reason };
 }

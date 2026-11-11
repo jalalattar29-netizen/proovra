@@ -157,7 +157,8 @@ describe("K8 operations — platform and workspace operations mutations (live Po
     A = harness.fixtures.teamA;
     B = harness.fixtures.teamB;
     operatorId = A.ownerUserId;
-    operatorToken = A.ownerToken;
+    // AUD-0021 — the platform operator's session verified a second factor.
+    operatorToken = await harness.mintSessionToken(A.ownerUserId, null, { mfaVerified: true });
     await prisma.user.update({ where: { id: operatorId }, data: { platformRole: "admin" } });
     await seedTotp(operatorId);
   }, 180_000);

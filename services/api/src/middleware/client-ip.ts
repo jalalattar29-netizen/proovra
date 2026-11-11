@@ -83,9 +83,30 @@ export function assertProxyTrustPolicyValidOrThrow(): void {
   cachedPolicy = { mode: "off", source: "invalid-config-failed-closed-nonprod" };
 }
 
-/** The value `server.ts` must pass to Fastify's `trustProxy` option. */
-export function fastifyTrustProxy(): false | number | string[] {
-  return fastifyTrustProxyValue(proxyTrustPolicy());
+/** Fastify's trust-function form: `hop` 0 is the socket peer, counting leftward. */
+export type FastifyTrustProxyFunction = (address: string, hop: number) => boolean;
+
+/**
+ * The value `server.ts` must pass to Fastify's `trustProxy` option.
+ *
+ * AUD-0063 — `hop` mode is passed as a FUNCTION that trusts the nearest N hops.
+ * Fastify 5.12 (the release carrying the advisory fixes) treats a NUMERIC
+ * trustProxy as "trust nothing", because a hop count does not check who the
+ * immediate peer is. Passed through unchanged, every request behind Caddy
+ * would resolve to Caddy's address: per-IP limits would collapse onto one key
+ * and audit rows would record the proxy. The function keeps the hop-count
+ * semantics the policy states; its safety still rests on what the policy
+ * documents for `hop` — the API is reachable only through that proxy (bound to
+ * 127.0.0.1 behind one Caddy hop). `cidr` (which does check the peer) and
+ * `off` pass through as before.
+ */
+export function fastifyTrustProxy(): false | string[] | FastifyTrustProxyFunction {
+  const value = fastifyTrustProxyValue(proxyTrustPolicy());
+  if (typeof value === "number") {
+    const hops = value;
+    return (_address: string, hop: number) => hop < hops;
+  }
+  return value;
 }
 
 /** Whether a proxy is trusted at all — retained for callers that only need the boolean. */

@@ -177,7 +177,17 @@ describe("platform authority over Operations (live PostgreSQL 16)", () => {
       const { recordAuthenticatedSession } = await import("../src/services/access-control/session-inventory.service.js");
       const pretender = await makeUser(c, "pa-pretender", { plan: "PRO" });
       const forged = signJwt(
-        { sub: pretender.id, provider: "EMAIL", email: pretender.email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000), platformRole: "admin", role: "admin" } as never,
+        {
+          sub: pretender.id,
+          provider: "EMAIL",
+          email: pretender.email,
+          authMethod: "PASSWORD",
+          authAt: Math.floor(Date.now() / 1000),
+          // AUD-0021: an MFA-verified session, so the refusal below is the forged role claim's alone.
+          mfaAt: Math.floor(Date.now() / 1000),
+          platformRole: "admin",
+          role: "admin",
+        } as never,
         process.env.AUTH_JWT_SECRET!,
         3600,
       );

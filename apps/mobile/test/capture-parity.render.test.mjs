@@ -124,7 +124,7 @@ test("the page opens with the web hero, trust strip and intake rail", async () =
   const r = await render();
   assert.ok(r.hasText("Capture Evidence"));
   assert.ok(r.hasText("Collect, map, fingerprint, and prepare evidence materials before Review & Sign."));
-  for (const t of ["Integrity by design", "End-to-end protected", "Verifiable audit trail"]) assert.ok(r.hasText(t), t);
+  for (const t of ["Integrity by design", "Encrypted in transit and at rest", "Verifiable audit trail"]) assert.ok(r.hasText(t), t);
   // The rail is shown before anything is staged (web renders it unconditionally).
   assert.equal(r.byTestId("capture-intake-rail").length, 1);
   assert.ok(r.hasText("Intake plan") && r.hasText("Add materials") && r.hasText("Finish & sign"));

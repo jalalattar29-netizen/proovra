@@ -31,7 +31,12 @@ import { formatUserDateTime } from "../../../../../../../lib/date";
 import { useTenantGuard } from "../../../../../../../lib/platform-context";
 import { Button } from "../../../../../../../components/ui/Button";
 import { Card } from "../../../../../../../components/ui/Card";
-import { AppListbox } from "../../../../../../../components/app-primitives/AppListbox";
+import {
+  GovernanceSelectField,
+  GovernanceTextArea,
+  GovernanceTextField,
+  governanceFieldGridStyle,
+} from "../../../../../../../components/governance/GovernanceFormField";
 import { Badge } from "../../../../../../../components/ui/Badge";
 import { EmptyState } from "../../../../../../../components/ui/EmptyState";
 import { useConfirmAction } from "../../../../../../../components/ui/ConfirmActionModal";
@@ -61,15 +66,8 @@ type Phase =
 const SEVERITIES = ["MINOR", "MAJOR", "CRITICAL"] as const;
 const NEXT_STATES = ["INVESTIGATING", "IDENTIFIED", "MONITORING", "RESOLVED"] as const;
 
-const inputStyle = {
-  width: "100%",
-  padding: "6px 8px",
-  borderRadius: 6,
-  border: "1px solid rgba(15, 23, 42, 0.18)",
-  fontSize: 12.5,
-  background: "transparent",
-  color: "inherit",
-} as const;
+/** Vertical rhythm between the labelled fields inside one authoring card. */
+const statusFieldStackStyle = { display: "grid", gap: 10 } as const;
 
 export function StatusPublicationSection({ teamId }: { teamId: string | null }) {
   const { stamp, isStale } = useTenantGuard();
@@ -484,43 +482,39 @@ export function StatusPublicationSection({ teamId }: { teamId: string | null }) 
               }}
             >
               <Card variant="summary" padding="comfortable" title="Declare an incident">
-                <label style={{ ...mutedStyle, display: "block", marginBottom: 4 }}>
-                  What is happening
-                </label>
-                <input
-                  style={inputStyle}
-                  value={title}
-                  maxLength={200}
-                  onChange={(e) => setTitle(e.target.value)}
-                  data-testid="status-incident-title"
-                />
-                <label
-                  style={{ ...mutedStyle, display: "block", margin: "8px 0 4px" }}
-                >
-                  How bad is it
-                </label>
-                <AppListbox<(typeof SEVERITIES)[number]>
-                  ariaLabel="How bad is it"
-                  value={severity}
-                  onChange={setSeverity}
-                  options={SEVERITIES.map((s) => ({
-                    value: s,
-                    label: s.charAt(0) + s.slice(1).toLowerCase(),
-                  }))}
-                  triggerProps={{ "data-testid": "status-incident-severity" }}
-                />
-                <label
-                  style={{ ...mutedStyle, display: "block", margin: "8px 0 4px" }}
-                >
-                  First update (optional)
-                </label>
-                <textarea
-                  style={{ ...inputStyle, minHeight: 64 }}
-                  value={summary}
-                  maxLength={2000}
-                  onChange={(e) => setSummary(e.target.value)}
-                  data-testid="status-incident-body"
-                />
+                {/* AUD-0061 — every field is a real <label htmlFor> bound to its
+                    control through the governance field primitive. These were
+                    sibling <label>s with no `for`, so the inputs had no
+                    accessible name at all (axe `label`, critical). */}
+                <div style={statusFieldStackStyle}>
+                  <GovernanceTextField
+                    id="status-incident-title"
+                    label="What is happening"
+                    value={title}
+                    maxLength={200}
+                    onChange={setTitle}
+                    testId="status-incident-title"
+                  />
+                  <GovernanceSelectField
+                    id="status-incident-severity"
+                    label="How bad is it"
+                    value={severity}
+                    onChange={(next) => setSeverity(next as (typeof SEVERITIES)[number])}
+                    options={SEVERITIES.map((s) => ({
+                      value: s,
+                      label: s.charAt(0) + s.slice(1).toLowerCase(),
+                    }))}
+                    testId="status-incident-severity"
+                  />
+                  <GovernanceTextArea
+                    id="status-incident-body"
+                    label="First update (optional)"
+                    value={summary}
+                    maxLength={2000}
+                    onChange={setSummary}
+                    testId="status-incident-body"
+                  />
+                </div>
                 <div style={{ marginTop: 10 }}>
                   <Button
                     variant="primary"
@@ -536,51 +530,39 @@ export function StatusPublicationSection({ teamId }: { teamId: string | null }) 
               </Card>
 
               <Card variant="summary" padding="comfortable" title="Schedule maintenance">
-                <label style={{ ...mutedStyle, display: "block", marginBottom: 4 }}>
-                  Title
-                </label>
-                <input
-                  style={inputStyle}
-                  value={maintTitle}
-                  maxLength={200}
-                  onChange={(e) => setMaintTitle(e.target.value)}
-                  data-testid="status-maintenance-title"
-                />
-                <label
-                  style={{ ...mutedStyle, display: "block", margin: "8px 0 4px" }}
-                >
-                  What customers should expect
-                </label>
-                <textarea
-                  style={{ ...inputStyle, minHeight: 56 }}
-                  value={maintDescription}
-                  maxLength={2000}
-                  onChange={(e) => setMaintDescription(e.target.value)}
-                  data-testid="status-maintenance-description"
-                />
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ ...mutedStyle, display: "block", marginBottom: 4 }}>
-                      Starts
-                    </label>
-                    <input
+                <div style={statusFieldStackStyle}>
+                  <GovernanceTextField
+                    id="status-maintenance-title"
+                    label="Title"
+                    value={maintTitle}
+                    maxLength={200}
+                    onChange={setMaintTitle}
+                    testId="status-maintenance-title"
+                  />
+                  <GovernanceTextArea
+                    id="status-maintenance-description"
+                    label="What customers should expect"
+                    value={maintDescription}
+                    maxLength={2000}
+                    onChange={setMaintDescription}
+                    testId="status-maintenance-description"
+                  />
+                  <div style={{ ...governanceFieldGridStyle, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+                    <GovernanceTextField
+                      id="status-maintenance-start"
+                      label="Starts"
                       type="datetime-local"
-                      style={inputStyle}
                       value={maintStart}
-                      onChange={(e) => setMaintStart(e.target.value)}
-                      data-testid="status-maintenance-start"
+                      onChange={setMaintStart}
+                      testId="status-maintenance-start"
                     />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ ...mutedStyle, display: "block", marginBottom: 4 }}>
-                      Ends
-                    </label>
-                    <input
+                    <GovernanceTextField
+                      id="status-maintenance-end"
+                      label="Ends"
                       type="datetime-local"
-                      style={inputStyle}
                       value={maintEnd}
-                      onChange={(e) => setMaintEnd(e.target.value)}
-                      data-testid="status-maintenance-end"
+                      onChange={setMaintEnd}
+                      testId="status-maintenance-end"
                     />
                   </div>
                 </div>
@@ -682,27 +664,32 @@ function IncidentUpdateRow({
         </Badge>
         <span style={mutedStyle}>started {formatUserDateTime(startedAtUtc)}</span>
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+      <div
+        style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "flex-end" }}
+      >
         <div style={{ width: 180, maxWidth: "100%" }}>
-          <AppListbox
-            ariaLabel="Next state"
+          <GovernanceSelectField
+            id={`status-incident-next-state-${incidentId}`}
+            label="Next state"
             value={nextState}
             onChange={setNextState}
             options={NEXT_STATES.map((s) => ({
               value: s,
               label: s.charAt(0) + s.slice(1).toLowerCase(),
             }))}
-            triggerProps={{ "data-testid": `status-incident-next-state-${incidentId}` }}
+            testId={`status-incident-next-state-${incidentId}`}
           />
         </div>
-        <input
-          style={{ ...inputStyle, flex: 1, minWidth: 200 }}
-          placeholder="What changed?"
-          value={body}
-          maxLength={2000}
-          onChange={(e) => setBody(e.target.value)}
-          data-testid={`status-incident-update-body-${incidentId}`}
-        />
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <GovernanceTextField
+            id={`status-incident-update-body-${incidentId}`}
+            label="What changed?"
+            value={body}
+            maxLength={2000}
+            onChange={setBody}
+            testId={`status-incident-update-body-${incidentId}`}
+          />
+        </div>
         <Button
           variant="secondary"
           size="sm"

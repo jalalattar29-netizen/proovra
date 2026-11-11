@@ -104,6 +104,33 @@ describe("INGEST-005 the resumable sequence (live PostgreSQL and object store)",
     expect(rows[0]).toMatchObject({ partIndex: 0 });
   });
 
+  it("AUD-0019: storage completion settles every part (VERIFIED), the session completes, the record seals, and repeating completion changes nothing", async () => {
+    const s = await uploadedSession();
+    const res = await complete(s);
+    expect(res.statusCode, res.body).toBe(200);
+    // The settle UPDATE used to fail in Postgres (parameter $4 typed varchar AND
+    // text) and the error was swallowed: parts stayed UPLOADED_UNVERIFIED and the
+    // session could never complete.
+    const settled = await prisma.evidenceUploadSessionPart.findMany({ where: { sessionId: s.sessionId }, select: { state: true, serverSha256: true } });
+    expect(settled.length).toBeGreaterThan(0);
+    expect(settled.every((p) => p.state === "VERIFIED" && p.serverSha256 === s.sha)).toBe(true);
+
+    const done = await post(`/v1/uploads/sessions/${s.sessionId}/complete`, { teamId: s.teamId });
+    expect(done.statusCode, done.body).toBe(200);
+    const again = await post(`/v1/uploads/sessions/${s.sessionId}/complete`, { teamId: s.teamId });
+    expect(again.statusCode, again.body).toBe(200);
+    const session = await prisma.$queryRawUnsafe<Array<{ state: string }>>(`SELECT "state" FROM "evidence_upload_sessions" WHERE "id" = $1`, s.sessionId);
+    expect(session[0]?.state).toBe("COMPLETED");
+
+    const sealed = await post(`/v1/evidence/${s.evidenceId}/complete`, {});
+    expect(sealed.statusCode, sealed.body).toBeLessThan(300);
+    const resealed = await post(`/v1/evidence/${s.evidenceId}/complete`, {});
+    expect(resealed.statusCode, resealed.body).toBeLessThan(300);
+    const record = await prisma.evidence.findUniqueOrThrow({ where: { id: s.evidenceId }, select: { status: true, fileSha256: true } });
+    expect(["SIGNED", "REPORTED"]).toContain(record.status);
+    expect(await parts(s.evidenceId)).toHaveLength(1);
+  });
+
   it("INGEST-006: bytes that are not what the client hashed fail the session and bridge nothing", async () => {
     const s = await uploadedSession({ declaredSha256: "0".repeat(64) });
     const res = await complete(s);

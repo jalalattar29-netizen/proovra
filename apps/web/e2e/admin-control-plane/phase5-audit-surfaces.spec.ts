@@ -21,6 +21,7 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
+import { settleFixtureSignIn } from "./_fixture-login";
 
 /** The canonical Admin read-failure surface — a semantic locator, not a phrase. */
 const FAILURE_SURFACE = "[data-admin-read-failure]";
@@ -91,6 +92,8 @@ async function signIn(page: Page, email: string) {
   }
   await page.locator('button[type="submit"]:visible').first().click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
+  // AUD-0021 — a platform administrator answers the second-factor challenge.
+  await settleFixtureSignIn(page, email, WEB);
 }
 
 /** Console errors and hydration warnings, collected for the whole page life. */

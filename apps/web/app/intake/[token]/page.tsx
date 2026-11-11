@@ -257,6 +257,7 @@ function friendlyIntakeError(err: {
   return "We couldn't complete that. Please try again, or contact the sender.";
 }
 import "./intake.css";
+import { intakeConsentDisclosureText } from "@proovra/shared/workflow-intake-link";
 import {
   IntakeCompletionProgress,
   type IntakeCompletion,
@@ -353,11 +354,6 @@ type StagedPart = {
   retryFile?: File | null;
 };
 
-const DEFAULT_DISCLOSURE = [
-  "Files you upload through this secure link will be added to the workspace",
-  "that issued the link. By accepting you confirm the upload is yours to share,",
-  "and you agree to the workspace's evidence handling terms.",
-].join(" ");
 
 function kindFromMime(mime: string): AcceptedKind {
   const m = mime.toLowerCase();
@@ -683,7 +679,7 @@ export default function ExternalIntakePage({
       }
     }
     const policyVersion = link.consentPolicyVersion ?? "default";
-    const text = link.consentDisclosureText ?? DEFAULT_DISCLOSURE;
+    const text = intakeConsentDisclosureText(link.consentDisclosureText);
     let hash: string;
     try {
       hash = await disclosureHash(text);
@@ -1242,7 +1238,7 @@ export default function ExternalIntakePage({
           <h2 className="ipk-section-title">The terms you are accepting</h2>
           <div className="ipk-panel">
             <p className="ipk-panel__body">
-              {link.consentDisclosureText ?? DEFAULT_DISCLOSURE}
+              {intakeConsentDisclosureText(link.consentDisclosureText)}
             </p>
           </div>
           {requiresPseudonym ? (

@@ -17,6 +17,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { intakeConsentDisclosureText } from "@proovra/shared";
 
 import { MOCK_LOCATION_DETAIL } from "@proovra/shared";
 
@@ -109,7 +110,7 @@ describe("F-01 / F-04 / F-21 — intake acquisition truth (live PostgreSQL 16)",
       remoteAddress: ip,
       method: "POST",
       url: `/v1/external-intake/${t}/sessions/${sid}/consent`,
-      payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(opened.link.consentDisclosureText ?? "").digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
+      payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(intakeConsentDisclosureText(opened.link.consentDisclosureText)).digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
     });
     expect(consent.statusCode, consent.body).toBeLessThan(300);
     return sid;

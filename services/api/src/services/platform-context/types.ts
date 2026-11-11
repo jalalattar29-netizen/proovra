@@ -755,9 +755,24 @@ export type PlatformContextActiveSpace =
   | {
       type: "PERSONAL";
       id: string | null;
-      displayName: "Personal Space";
-      /** Role label rendered in chips. Always "Owner" for personal mode. */
-      roleLabel: "Owner";
+      /**
+       * "Personal Space" for the caller's OWN personal workspace. AUD-0047 —
+       * for a personal workspace somebody else owns and the caller joined by
+       * invitation (`shared: true`), the same name the switcher's
+       * `sharedWorkspaces` option carries ("<Owner>'s workspace").
+       */
+      displayName: string;
+      /**
+       * Role label rendered in chips. "Owner" for the caller's own personal
+       * workspace; the caller's real `WorkspaceRole` in a joined one.
+       */
+      roleLabel: "Owner" | WorkspaceRole | null;
+      /**
+       * AUD-0047 — true when this PERSONAL workspace belongs to somebody else
+       * and the caller is an ACTIVE member of it (a Pro/Team owner invited
+       * them). False for the caller's own Personal Space.
+       */
+      shared: boolean;
       /**
        * PHASE 12 POINT 4 STEP 1 — SERVER-resolved plan of the ACTIVE space.
        * The canonical place to read the active plan; consumers must not
@@ -888,6 +903,21 @@ export type PlatformContextOrganizationWorkspaceOption = {
   lifecycleStatus: "active";
 };
 
+/**
+ * AUD-0047 — a PERSONAL workspace somebody ELSE owns, which the caller joined
+ * by invitation (a Pro or Team owner's single-occupant workspace with members
+ * added). One per ACTIVE membership. `name` is derived from the owner's
+ * display name ("<Owner>'s workspace") and is never a raw id.
+ */
+export type PlatformContextSharedWorkspaceOption = {
+  workspaceId: string;
+  name: string;
+  kind: "PERSONAL";
+  /** The caller's role in it — never "OWNER" by assumption. */
+  role: WorkspaceRole | null;
+  lifecycleStatus: "active";
+};
+
 export type PlatformContextContextOptions = {
   personalSpace:
     | (Omit<PlatformContextWorkspaceOption, "kind" | "role"> & {
@@ -898,6 +928,12 @@ export type PlatformContextContextOptions = {
   ownedWorkspaces: ReadonlyArray<
     Omit<PlatformContextWorkspaceOption, "kind"> & { kind: "OWNED" }
   >;
+  /**
+   * AUD-0047 — "Shared with you": ACTIVE memberships in other people's
+   * personal workspaces. The caller's own personal workspace stays in
+   * `personalSpace`; it never appears here.
+   */
+  sharedWorkspaces: ReadonlyArray<PlatformContextSharedWorkspaceOption>;
   organizations: ReadonlyArray<{
     organizationId: string;
     organizationName: string | null;
@@ -1022,6 +1058,12 @@ export type CanonicalPlatformContext = {
    */
   personalSpace: CanonicalContextWorkspace | null;
   ownedWorkspaces: ReadonlyArray<CanonicalContextWorkspace>;
+  /**
+   * AUD-0047 — PERSONAL workspaces somebody else owns that the caller is an
+   * ACTIVE member of. Kind PERSONAL, the caller's real workspace role, and
+   * never the caller's own Personal Space (that is `personalSpace`).
+   */
+  sharedWorkspaces: ReadonlyArray<CanonicalContextWorkspace>;
   /** ORGANIZATION IDS ONLY. */
   organizations: ReadonlyArray<CanonicalContextOrganization>;
   organizationMemberships: ReadonlyArray<CanonicalContextOrganizationMembership>;

@@ -41,6 +41,7 @@
  * from primitives, so a card cannot drift from a row.
  */
 
+import { scrollRegionProps } from "../../../../lib/ui/scrollRegion";
 import * as React from "react";
 
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
@@ -565,6 +566,7 @@ export function RecordsSurface({
       <div
         className="app-table-surface app-table-surface--scroll ilk-records--wide"
         data-intake-links-table-surface
+        {...scrollRegionProps("Intake links")}
       >
         <table className="app-table ilk-table" data-intake-links-table aria-label="Intake links">
           <colgroup>

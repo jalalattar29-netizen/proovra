@@ -417,11 +417,24 @@ export async function processDelivery(input: {
    * So the row moves to AMBIGUOUS and enters bounded reconciliation. It keeps
    * its idempotency key, so if reconciliation ever resolves to "not committed"
    * the resend is the SAME intent rather than a new one. Destination health is
-   * NOT incremented here: an unknown outcome is not evidence that the
-   * destination is unhealthy, and counting it would auto-disable a perfectly
-   * good endpoint after ten slow responses.
+   * NOT incremented for a LOST answer: an unknown outcome is not evidence that
+   * the destination is unhealthy, and counting it would auto-disable a
+   * perfectly good endpoint after ten slow responses. A 5xx answer is not
+   * unknown — see AUD-0046 below.
    */
   if (outcome === "AMBIGUOUS") {
+    /*
+     * AUD-0046 — a DEFINITE error answer (the receiver replied 5xx) is not an
+     * unknown outcome for the destination's health: the endpoint answered,
+     * and it answered that it failed. It still is not resent (the receiver may
+     * have acted before failing), but it counts toward consecutive failures,
+     * so a receiver that answers 500 to everything reaches the documented
+     * auto-disable instead of silently dropping every event. A lost answer
+     * (no status: timeout, reset after write) still does not count.
+     */
+    if (typeof attempt.status === "number" && attempt.status >= 500 && attempt.status < 600) {
+      await markDestinationFailure(prisma, destination.id, reason, nowMs);
+    }
     return finaliseAmbiguous(prisma, delivery, attempt.status, reason, nowMs);
   }
 

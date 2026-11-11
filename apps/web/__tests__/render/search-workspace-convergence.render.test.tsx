@@ -32,7 +32,7 @@
 
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, waitFor, act, cleanup } from "@testing-library/react";
+import { render, waitFor, act, cleanup, fireEvent } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
 // Seams — every request the console makes, recorded in order
@@ -1244,6 +1244,29 @@ describe("polish — the type label is one authority", () => {
     const page = document.querySelector("[data-search-page]") as HTMLElement;
     expect(page.querySelector("[data-search-typeahead-overlay]")).toBeNull();
     expect(input.getAttribute("aria-autocomplete")).toBe("list");
+  });
+
+  it("30. the query field is a combobox, so aria-expanded is allowed on it (AUD-0061)", async () => {
+    await mountRendered("organization");
+    const input = document.querySelector("[data-search-input]") as HTMLInputElement;
+    // A plain textbox may not carry aria-expanded (axe aria-allowed-attr).
+    expect(input.getAttribute("role")).toBe("combobox");
+    expect(input.getAttribute("aria-label")).toBe("Search query");
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+    // Closed: it points at nothing, because the listbox is not in the DOM.
+    expect(input.hasAttribute("aria-controls")).toBe(false);
+
+    await act(async () => {
+      fireEvent.focus(input);
+    });
+    await settle();
+    expect(input.getAttribute("aria-expanded")).toBe("true");
+    const controls = input.getAttribute("aria-controls");
+    expect(controls).toBe("search-typeahead-listbox");
+    const listbox = document.getElementById(controls as string);
+    expect(listbox, "aria-controls names a listbox that exists while open").not.toBeNull();
+    expect(listbox?.getAttribute("role")).toBe("listbox");
+    expect(listbox?.getAttribute("aria-label")).toBe("Search suggestions");
   });
 });
 

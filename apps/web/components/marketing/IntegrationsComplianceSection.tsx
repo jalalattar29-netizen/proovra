@@ -165,7 +165,7 @@ export function IntegrationsComplianceSection() {
           >
             <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#BE123C]">
               <ShieldCheck size={12} strokeWidth={2.2} />
-              Compliance &amp; Certifications
+              Compliance support
             </span>
             <h2 className="mt-5 max-w-[460px] text-[32px] font-extrabold leading-[1.05] tracking-[-0.025em] text-[#0F172A] md:text-[38px]">
               Built for regulated industries.

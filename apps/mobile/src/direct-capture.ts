@@ -105,6 +105,8 @@ export async function reserveDirectCaptureEvidence(
      * location state reads "not shared" / "unavailable", never "not recorded".
      */
     locationRequestOutcome?: "DENIED" | "UNAVAILABLE" | "TIMEOUT" | "NOT_REQUESTED";
+    /** AUD-0035 — the picked file's own name (`reservedOriginalFileName`). */
+    originalFileName?: string;
   },
 ): Promise<string> {
   const res = await withTimeout(

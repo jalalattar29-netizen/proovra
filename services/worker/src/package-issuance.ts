@@ -238,7 +238,8 @@ export async function commitIssuance(input: IssuanceCommitInput): Promise<void> 
       select: { teamId: true, artifactType: true, forceRegenerate: true },
     });
     if (!asked) throw new ReportClaimLost(input.command.requestId);
-    await assertRunAdmittedAtCommit(asked, live!);
+    // AUD-0017 (TXP-024) — on this transaction's connection.
+    await assertRunAdmittedAtCommit(asked, live!, tx);
     const baseline = await tx.report.findUnique({
       where: { evidenceId_version: { evidenceId: input.evidenceId, version: input.version } },
       select: { id: true, pdfSha256: true },

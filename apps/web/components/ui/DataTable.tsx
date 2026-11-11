@@ -20,12 +20,16 @@
  *
  * ROW ACTIONS
  *   `rowActions(row)` renders a trailing actions cell (right-aligned).
- *   `onRowClick(row)` makes rows keyboard-focusable + clickable.
+ *   `onRowClick(row)` gives every row ONE primary "Open" button in that
+ *   cell (the keyboard and screen-reader path) and keeps a click anywhere
+ *   else on the row as a pointer shortcut to the same action.
  *
  * DENSITY: `density="compact"` (default) | "comfortable".
  *
  * A11Y: real <table> semantics, <th scope="col">, caption via
- * `aria-label`; clickable rows expose role/button affordances and honour
+ * `aria-label`; the scroll container is a focusable named region so a
+ * keyboard can scroll a table wider than the screen; rows are never
+ * themselves interactive (see "ROWS ARE CONTAINERS" below) and honour
  * reduced-motion (see globals.css .ui-datatable__row).
  *
  * USAGE
@@ -43,6 +47,26 @@
  */
 
 import React from "react";
+
+import { scrollRegionProps } from "../../lib/ui/scrollRegion";
+import { Button } from "./Button";
+
+/**
+ * Whether a row click started on a control of its own — a link to another
+ * record, a button, a field. That control already did what was asked; the
+ * row's pointer shortcut must not ALSO run (before, clicking the "Customer"
+ * link in a workspace row navigated to the customer and then router.push()ed
+ * to the workspace).
+ */
+function startedOnNestedControl(event: React.MouseEvent<HTMLElement>): boolean {
+  const target = event.target as Element | null;
+  const control = target?.closest?.(
+    'a[href], button, input, select, textarea, label, summary, [role="button"], [role="link"]',
+  );
+  return Boolean(
+    control && control !== event.currentTarget && event.currentTarget.contains(control),
+  );
+}
 
 export interface DataTableColumn<T> {
   key: string;
@@ -67,6 +91,12 @@ export interface DataTableProps<T> {
   /** Trailing right-aligned per-row actions cell. */
   rowActions?: (row: T, index: number) => React.ReactNode;
   onRowClick?: (row: T, index: number) => void;
+  /**
+   * Accessible name of a row's primary "Open" button, e.g. `Open Acme Corp`.
+   * Without it the button is named "Open" plus the text of the row's first
+   * cell, which is unique but can be long.
+   */
+  rowActionLabel?: (row: T, index: number) => string;
   /**
    * PROGRESSIVE DISCLOSURE for a row.
    *
@@ -113,6 +143,7 @@ export function DataTable<T>({
   emptyState,
   rowActions,
   onRowClick,
+  rowActionLabel,
   expandedContent,
   density = "compact",
   ariaLabel,
@@ -120,12 +151,17 @@ export function DataTable<T>({
   style,
 }: DataTableProps<T>) {
   const pad = DENSITY_PAD[density];
-  const totalCols = columns.length + (rowActions ? 1 : 0);
   const clickable = Boolean(onRowClick);
+  const hasActionsCell = Boolean(rowActions) || clickable;
+  const totalCols = columns.length + (hasActionsCell ? 1 : 0);
+  const idBase = React.useId();
 
   return (
     <div
       data-ui-datatable-scroll
+      /* AUD-0061 — a table wider than a phone scrolls inside this box, and
+         only a focusable box can be scrolled from the keyboard. */
+      {...scrollRegionProps(ariaLabel ?? "Table")}
       className={["ui-datatable", className].filter(Boolean).join(" ")}
       style={{
         width: "100%",
@@ -178,7 +214,7 @@ export function DataTable<T>({
                 {col.header}
               </th>
             ))}
-            {rowActions ? (
+            {hasActionsCell ? (
               <th
                 scope="col"
                 aria-label="Actions"
@@ -248,22 +284,32 @@ export function DataTable<T>({
             rows.map((row, index) => {
               const id = getRowId(row, index);
               const detail = expandedContent ? expandedContent(row, index) : null;
+              const firstCellId = `${idBase}-r${index}-c0`;
+              const openId = `${idBase}-r${index}-open`;
+              const openLabel = rowActionLabel ? rowActionLabel(row, index) : null;
               return (
                 <React.Fragment key={id}>
+                {/*
+                  ROWS ARE CONTAINERS, NOT CONTROLS (AUD-0061).
+
+                  A clickable row used to be role="button" with tabIndex=0, and
+                  its cells hold links (the customer, the owner): a button
+                  containing links, which assistive technology cannot represent
+                  (axe nested-interactive, 50 rows on /admin/workspaces). The
+                  row is now a plain <tr>; its action is ONE real button in the
+                  actions cell, reachable by Tab and announced with the row it
+                  opens. A click elsewhere on the row stays as a pointer
+                  shortcut to that same action.
+                */}
                 <tr
                   data-ui-datatable-row
                   data-clickable={clickable || undefined}
                   className="ui-datatable__row"
-                  tabIndex={clickable ? 0 : undefined}
-                  role={clickable ? "button" : undefined}
-                  onClick={clickable ? () => onRowClick!(row, index) : undefined}
-                  onKeyDown={
+                  onClick={
                     clickable
                       ? (e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            onRowClick!(row, index);
-                          }
+                          if (startedOnNestedControl(e)) return;
+                          onRowClick!(row, index);
                         }
                       : undefined
                   }
@@ -272,7 +318,7 @@ export function DataTable<T>({
                     transition: "background-color 140ms ease",
                   }}
                 >
-                  {columns.map((col) => {
+                  {columns.map((col, colIndex) => {
                     const content = col.render
                       ? col.render(row, index)
                       : String(
@@ -281,6 +327,7 @@ export function DataTable<T>({
                     return (
                       <td
                         key={col.key}
+                        id={clickable && colIndex === 0 && !openLabel ? firstCellId : undefined}
                         style={{
                           padding: pad,
                           textAlign: col.align ?? "left",
@@ -294,7 +341,7 @@ export function DataTable<T>({
                       </td>
                     );
                   })}
-                  {rowActions ? (
+                  {hasActionsCell ? (
                     <td
                       // The TABLE owns row height, not the caller.
                       //
@@ -344,7 +391,21 @@ export function DataTable<T>({
                       }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {rowActions(row, index)}
+                      {clickable ? (
+                        <Button
+                          id={openId}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          data-row-primary-action
+                          aria-label={openLabel ?? undefined}
+                          aria-labelledby={openLabel ? undefined : `${openId} ${firstCellId}`}
+                          onClick={() => onRowClick!(row, index)}
+                        >
+                          Open
+                        </Button>
+                      ) : null}
+                      {rowActions ? rowActions(row, index) : null}
                     </td>
                   ) : null}
                 </tr>

@@ -53,6 +53,7 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
+import { HeldEmergencyGrantsPanel } from "../../../../components/identity-security/HeldEmergencyGrantsPanel";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -780,6 +781,11 @@ function Shell() {
           {notice}
         </Card>
       ) : null}
+
+      {/* AUD-0037 — break-glass grants that name THIS staffer as holder, with
+          the one action a holder may take. Renders nothing when they hold
+          none; the table further down lists every grant on the platform. */}
+      <HeldEmergencyGrantsPanel />
 
       {/* Active support context for THIS tab. The token itself is never shown —
           only that one is held and when it lapses. */}

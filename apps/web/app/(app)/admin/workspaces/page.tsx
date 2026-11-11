@@ -399,6 +399,7 @@ export default function AdminWorkspacesPage() {
           rows={data?.items ?? []}
           getRowId={(r) => r.id}
           loading={loading}
+          rowActionLabel={(r) => `Open workspace ${r.name}`}
           onRowClick={(r) => router.push(
             detailHrefWithReturn(
               `/admin/workspaces/${encodeURIComponent(r.id)}`,

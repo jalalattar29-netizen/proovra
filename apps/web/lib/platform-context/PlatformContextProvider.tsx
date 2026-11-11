@@ -268,6 +268,25 @@ const PlatformContextReactContext = createContext<PlatformContextValue | null>(
   null,
 );
 
+/**
+ * The ONE request that moves the server's workspace pointer and returns the
+ * rebuilt envelope. `switchWorkspace` below is its in-shell caller.
+ *
+ * AUD-0047 — exported for the one surface that must switch OUTSIDE the
+ * provider: the public invitation page, whose "Open workspace" has to land
+ * the reader in the workspace they just joined before the shell mounts. It
+ * goes through this function rather than its own copy of the endpoint, so the
+ * provider module stays the only place that addresses /v1/platform/context.
+ */
+export async function requestWorkspaceSwitch(
+  workspaceId: string | null,
+): Promise<PlatformContextEnvelope> {
+  return (await apiFetch("/v1/platform/context/switch-workspace", {
+    method: "POST",
+    body: JSON.stringify({ workspaceId }),
+  })) as PlatformContextEnvelope;
+}
+
 export function usePlatformContext(): PlatformContextValue {
   const ctx = useContext(PlatformContextReactContext);
   if (!ctx) {
@@ -472,13 +491,7 @@ export function PlatformContextProvider({
       });
 
       try {
-        const envelope = (await apiFetch(
-          "/v1/platform/context/switch-workspace",
-          {
-            method: "POST",
-            body: JSON.stringify({ workspaceId }),
-          },
-        )) as PlatformContextEnvelope;
+        const envelope = await requestWorkspaceSwitch(workspaceId);
         if (seq !== fetchSequenceRef.current) return;
         ingestEnvelope(envelope);
       } catch (err) {

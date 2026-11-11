@@ -305,7 +305,7 @@ describe("admin-search route gate", () => {
 
     vi.doMock("../src/middleware/auth.js", () => ({
       requireAuth: vi.fn(async (req: FastifyRequest) => {
-        req.user = { sub: "admin", provider: "EMAIL" };
+        req.user = { sub: "admin", provider: "EMAIL", mfaAt: Math.floor(Date.now() / 1000) }; // AUD-0021: MFA-verified admin session
       }),
     }));
     vi.doMock("../src/services/platform-admin.service.js", () => ({

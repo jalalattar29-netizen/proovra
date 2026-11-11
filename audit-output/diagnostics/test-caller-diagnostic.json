@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "3875c54a0cd63a2b35e40ee1866c90bad2313896ac1c2bc5d0342beb16f424ad",
+  "capabilityRouteInventoryHash": "9f8be09076ab15fdc1b0d83f45ea96c2c6fbfa6ffded61027585ed650bf7fc07",
   "totals": {
-    "routes": 1241,
-    "routesWithAnyTestCaller": 54,
+    "routes": 1243,
+    "routesWithAnyTestCaller": 55,
     "testOnlyRoutes": 9,
-    "testCallSites": 126,
+    "testCallSites": 127,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -860,6 +860,12 @@
     },
     {
       "routeId": "GET /v1/break-glass/grants",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/break-glass/my-grants",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -4067,6 +4073,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/admin/users/:id/mfa/platform-recovery",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/ai/capture/analyze-session",
       "testCallerCount": 0,
       "testOnly": false,
@@ -4552,9 +4564,11 @@
     },
     {
       "routeId": "POST /v1/cases",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "apps/web/__tests__/render/access-gate-plan-refusal.render.test.tsx"
+      ]
     },
     {
       "routeId": "POST /v1/cases/:id/access",
@@ -7581,5 +7595,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "0af101907e37f9acef8972732c564b53c15d4027424c69f688f4ae193edc45df"
+  "contentHash": "837bc69d097db9f172459283706327b70db0f0dabaedaff55b7ab32608173c37"
 }

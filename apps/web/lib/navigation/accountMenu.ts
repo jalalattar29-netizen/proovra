@@ -9,7 +9,8 @@
  *   Header ............ avatar · name · email · active-workspace badge
  *   Section 1 ......... Account Settings · Security · Notification
  *                       Preferences · Billing
- *   Section 2 ......... Workspace Switcher (Personal + Organizations),
+ *   Section 2 ......... Workspace Switcher (Personal + Shared with you +
+ *                       Organizations),
  *                       switches the active workspace in place — NEVER
  *                       navigates to a Teams/Workspaces admin page.
  *   Organization ...... Organization Settings — ONLY when the user has an
@@ -92,6 +93,12 @@ export type AccountMenuModel = {
   workspaces: {
     personal: AccountMenuWorkspaceOption | null;
     owned: AccountMenuWorkspaceOption[];
+    /**
+     * AUD-0047 — "Shared with you": PERSONAL workspaces somebody else owns
+     * that the actor joined by invitation (Pro / Team owners' workspaces).
+     * Kind PERSONAL, labelled with the server's name and the actor's role.
+     */
+    shared: AccountMenuWorkspaceOption[];
     organizations: AccountMenuOrganizationGroup[];
     /** Total switchable spaces across all groups. */
     total: number;
@@ -118,6 +125,12 @@ export type AccountMenuContextOptionsInput = {
     role: "OWNER";
   } | null;
   ownedWorkspaces: ReadonlyArray<{
+    workspaceId: string;
+    name: string | null;
+    role: string | null;
+  }>;
+  /** AUD-0047 — absent on an API that predates it, which reads as none. */
+  sharedWorkspaces?: ReadonlyArray<{
     workspaceId: string;
     name: string | null;
     role: string | null;
@@ -237,6 +250,12 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
   // ---------------------------------------------------------------------------
   const activeWorkspaceId =
     input.activeSpace?.type === "ORGANIZATION" ? input.activeSpace.id : null;
+  // AUD-0047 — a PERSONAL active space is not necessarily the actor's OWN:
+  // inside a Pro/Team workspace they joined, the type is PERSONAL too. The id
+  // says which one is active; the type alone marked the actor's own Personal
+  // Space as current while they were working in somebody else's.
+  const activePersonalId =
+    input.activeSpace?.type === "PERSONAL" ? input.activeSpace.id : null;
 
   // PHASE 10 §13.2 STEP 6 (2026-07-23) — a managed enterprise identity has no
   // personal space; `personalSpaceAllowed === false` suppresses the switcher
@@ -249,7 +268,10 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
           label: "Personal Space",
           kind: "PERSONAL",
           roleLabel: "Owner",
-          active: input.activeSpace?.type === "PERSONAL",
+          active:
+            input.activeSpace?.type === "PERSONAL" &&
+            (activePersonalId === null ||
+              activePersonalId === input.personalSpace.id),
         }
       : null;
 
@@ -276,6 +298,18 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
     roleLabel: w.role,
     active: activeWorkspaceId === w.workspaceId,
   }));
+  // AUD-0047 — joined personal workspaces, exactly as the server offered them.
+  // Selecting one goes through the same switch as every other option; the
+  // server re-authorizes the membership.
+  const shared: AccountMenuWorkspaceOption[] = (
+    input.contextOptions?.sharedWorkspaces ?? []
+  ).map((w) => ({
+    id: w.workspaceId,
+    label: w.name ?? "Shared workspace",
+    kind: "PERSONAL" as const,
+    roleLabel: w.role,
+    active: activePersonalId === w.workspaceId,
+  }));
   const organizationGroups: AccountMenuOrganizationGroup[] = (
     input.contextOptions?.organizations ?? []
   ).map((group) => ({
@@ -293,6 +327,7 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
   const total =
     (personal ? 1 : 0) +
     owned.length +
+    shared.length +
     organizationGroups.reduce((n, g) => n + g.workspaces.length, 0);
 
   // ---------------------------------------------------------------------------
@@ -329,7 +364,7 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
 
   return {
     account,
-    workspaces: { personal, owned, organizations: organizationGroups, total },
+    workspaces: { personal, owned, shared, organizations: organizationGroups, total },
     organization,
     support,
   };

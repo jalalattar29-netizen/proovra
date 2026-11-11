@@ -27,7 +27,7 @@ export async function assignmentRequiresPlacement(
     select: { id: true, ownerUserId: true, organizationId: true },
   });
   if (!workspace) return true;
-  const context = await resolveWorkspaceCommercialContext(workspace);
+  const context = await resolveWorkspaceCommercialContext(workspace, client); // AUD-0017: on the caller's connection
   if (context.plan !== "ENTERPRISE") return true;
   if (!workspace.organizationId) return true;
   const contract = await client.enterpriseContract.findUnique({

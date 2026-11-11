@@ -691,7 +691,7 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
     });
     const expired = await call("POST", `/v1/capture/direct-sessions/${sid2}/evidence`, token, { type: "PHOTO" });
     expect(expired.statusCode).toBe(409);
-    expect(expired.json().denial).toBe("SESSION_EXPIRED");
+    expect(expired.json().denial).toBe("CAPTURE_WINDOW_EXPIRED"); // AUD-0065 — its own code
     expect(
       (await prisma.captureSession.findUniqueOrThrow({ where: { id: sid2 }, select: { status: true } })).status,
     ).toBe("INTERRUPTED");

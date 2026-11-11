@@ -18,7 +18,7 @@
 
 let cached:
   | null
-  | { ok: true; sharp: typeof import("sharp") }
+  | { ok: true; sharp: typeof import("sharp").default }
   | { ok: false; reason: string } = null;
 
 /**
@@ -26,15 +26,15 @@ let cached:
  * calls return the cached result.
  */
 export async function detectDerivedAssetCapability(): Promise<
-  { ok: true; sharp: typeof import("sharp") } | { ok: false; reason: string }
+  { ok: true; sharp: typeof import("sharp").default } | { ok: false; reason: string }
 > {
   if (cached !== null) return cached;
   try {
-    const mod = (await import("sharp")) as typeof import("sharp") & {
-      default?: typeof import("sharp");
+    const mod = (await import("sharp")) as unknown as typeof import("sharp").default & {
+      default?: typeof import("sharp").default;
     };
     // sharp can be loaded as CJS default or ESM named — handle both.
-    const lib = (mod.default ?? mod) as typeof import("sharp");
+    const lib = (mod.default ?? mod) as typeof import("sharp").default;
     // Probe a 1x1 image — verifies the native binary actually
     // works, not just that the package resolved.
     await lib({

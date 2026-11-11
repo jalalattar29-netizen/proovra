@@ -86,26 +86,14 @@ export function Modal({
     dismissDisabledRef.current = dismissDisabled;
   });
 
-  // Focus trap + initial focus + restore focus on close. Installed once per
-  // opening, never on a re-render.
+  // Focus trap + restore focus on close. Installed once per opening, never on
+  // a re-render. Initial focus is its own effect below, keyed on the portal.
   useEffect(() => {
     if (!open) return;
     previouslyFocusedRef.current =
       (typeof document !== "undefined"
         ? (document.activeElement as HTMLElement | null)
         : null) ?? null;
-
-    const focusFirst = () => {
-      const dialog = dialogRef.current;
-      if (!dialog) return;
-      const focusables = Array.from(
-        dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-      ).filter((el) => !el.hasAttribute("data-matter-modal-close"));
-      const first = focusables[0] ?? dialog;
-      first.focus();
-    };
-    // Defer one paint so children render before we focus into them.
-    const t = setTimeout(focusFirst, 0);
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !dismissDisabledRef.current) {
@@ -159,7 +147,6 @@ export function Modal({
     document.body.dataset.dialogOpen = "true";
 
     return () => {
-      clearTimeout(t);
       document.removeEventListener("keydown", onKey, true);
       document.body.style.overflow = prevOverflow;
       const remaining = Number(document.body.dataset.dialogOpenCount ?? "1") - 1;
@@ -193,6 +180,33 @@ export function Modal({
   useEffect(() => {
     setPortalTarget(document.body);
   }, []);
+
+  // INITIAL FOCUS — once per opening, and only once the dialog EXISTS.
+  //
+  // This used to be scheduled from the trap effect above. A Modal that MOUNTS
+  // already open (the Evidence Library's compact "Queue selection" sheet is
+  // rendered as `<Modal open>` the moment a row is activated) renders nothing
+  // on that first pass — the portal target is not known yet — so the deferred
+  // focus could fire against a null `dialogRef` and do nothing. Focus stayed on
+  // the row title behind an `aria-modal` dialog (AUD-0025). Keyed on the
+  // portal target, this runs in the commit that put the dialog in the DOM.
+  // It is NOT keyed on any prop that changes while open, so a re-render never
+  // pulls focus back to the first control (see the ref note above).
+  useEffect(() => {
+    if (!open || !portalTarget) return;
+    const focusFirst = () => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusables = Array.from(
+        dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter((el) => !el.hasAttribute("data-matter-modal-close"));
+      const first = focusables[0] ?? dialog;
+      first.focus();
+    };
+    // Defer one paint so children render before we focus into them.
+    const t = setTimeout(focusFirst, 0);
+    return () => clearTimeout(t);
+  }, [open, portalTarget]);
 
   if (!open || !portalTarget) return null;
 

@@ -1559,8 +1559,8 @@
     "phase": "P8",
     "name": "the timestamp authority is called under the workspace capacity lock again",
     "file": "services/api/src/services/evidence-complete.service.ts",
-    "find": "      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n        inputKind: tsaInputKind,\n      });\n\n      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n      });",
-    "replace": "      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n      });\n\n      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n        inputKind: tsaInputKind,\n      });",
+    "find": "      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n        inputKind: tsaInputKind,\n      });\n\n      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n        // AUD-0017 — measured on this transaction's connection, under its lock.\n        client: tx,\n      });",
+    "replace": "      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n        // AUD-0017 — measured on this transaction's connection, under its lock.\n        client: tx,\n      });\n\n      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n        inputKind: tsaInputKind,\n      });",
     "tests": [
       {
         "cwd": "services/api",
@@ -4460,7 +4460,7 @@
     "aud": "F-07",
     "name": "report commit: the run admission is not re-decided",
     "file": "services/worker/src/processor.ts",
-    "find": "            await assertRunAdmittedAtCommit(command, live!);",
+    "find": "            await assertRunAdmittedAtCommit(command, live!, tx);",
     "replace": "",
     "tests": [
       {
@@ -4485,7 +4485,7 @@
     "aud": "F-07",
     "name": "package commit: the run admission is not re-decided",
     "file": "services/worker/src/package-issuance.ts",
-    "find": "    await assertRunAdmittedAtCommit(asked, live!);",
+    "find": "    await assertRunAdmittedAtCommit(asked, live!, tx);",
     "replace": "",
     "tests": [
       {
@@ -6022,8 +6022,8 @@
     "aud": "F-23",
     "name": "a late call interrupts an expired session whose record is sealed",
     "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
-    "find": "    if (!(await reservedRecordSealed(db, session))) {\n      await interruptSession(db, session, \"EXPIRED\", now);\n    }",
-    "replace": "    await interruptSession(db, session, \"EXPIRED\", now);",
+    "find": "  if (!(await reservedRecordSealed(db, session))) {\n    await interruptSession(db, session, \"EXPIRED\", now);\n  }",
+    "replace": "  await interruptSession(db, session, \"EXPIRED\", now);",
     "tests": [
       {
         "cwd": "services/api",
@@ -7969,8 +7969,8 @@
     "aud": "LIFE-09",
     "name": "account closure skips the execution-time blocker check",
     "file": "services/api/src/services/identity/account-closure.service.ts",
-    "find": "      const { blockers } = await evaluateAccountClosurePreflight(userId);\n      if (blockers.length > 0) throw new AccountClosureBlockedError(blockers);\n    }",
-    "replace": "      const { blockers } = await evaluateAccountClosurePreflight(userId);\n      void blockers;\n    }",
+    "find": "      const { blockers } = await evaluateAccountClosurePreflight(userId, tx as never); // AUD-0017 (TXP-025)\n      if (blockers.length > 0) throw new AccountClosureBlockedError(blockers);\n    }",
+    "replace": "      const { blockers } = await evaluateAccountClosurePreflight(userId, tx as never); // AUD-0017 (TXP-025)\n      void blockers;\n    }",
     "tests": [
       {
         "cwd": "services/api",

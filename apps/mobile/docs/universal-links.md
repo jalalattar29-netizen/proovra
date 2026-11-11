@@ -20,7 +20,7 @@ sometimes goes nowhere useful.
 | Path | Native destination |
 |---|---|
 | `/intake/*` | `(stack)/intake/[token].tsx` |
-| `/portal`, `/portal/accept/*` | `(stack)/portal/*` |
+| `/portal`, `/portal/accept/*`, `/portal/????????????????????????????????????????????????????????????????` (a 64-character token) | `(stack)/portal/*` |
 | `/legal/*` | `(stack)/legal/[slug].tsx` |
 | `/verify/<ref>` | `verify/[id].tsx`, which hands to `verify.tsx` |
 | `/verify/package/<id>` | `verify/package/[id].tsx`, which opens the web page in an in-app browser |
@@ -37,8 +37,11 @@ sometimes goes nowhere useful.
 with no native analogue, and claiming it would break the web SSO round-trip by
 bouncing the callback into an app that cannot complete it. Android path prefixes
 cannot exclude a sub-path, so neither platform claims all of `/portal`. The API
-mints `/portal/accept/<grantId>`, so that is what is claimed. A `/portal/<token>`
-link opens in the browser, and `proovra://portal/<token>` still opens the app.
+mints `/portal/accept/<grantId>`, so that is claimed. The reviewer dashboard,
+`/portal/<token>`, is claimed by its exact shape (AUD-0004): a portal token is
+always 64 hex characters, so Android claims `pathPattern` `/portal/` plus 64
+`.` and iOS `/portal/` plus 64 `?`. Neither can match `/portal/sso/...`. Deeper
+dashboard paths (`/portal/<token>/work/<id>`) open in the browser.
 
 `/evidence/*` and `/cases/*` are claimed (MOBILE-006): the evidence and case
 links in notifications and e-mails open the app, which asks the server

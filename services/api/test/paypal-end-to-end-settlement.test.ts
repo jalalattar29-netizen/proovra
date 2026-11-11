@@ -83,6 +83,11 @@ vi.mock("../src/db.js", () => {
         state.reviewItems.push(data);
         return data;
       }),
+      // AUD-0017 — the review item is inserted on the caller's client with skipDuplicates.
+      createMany: vi.fn(async ({ data }: { data: Array<Record<string, unknown>> }) => {
+        state.reviewItems.push(...data);
+        return { count: data.length };
+      }),
       update: vi.fn(async () => ({})),
     },
     workspaceStorageAddon: {

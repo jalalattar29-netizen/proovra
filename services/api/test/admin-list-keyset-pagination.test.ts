@@ -175,7 +175,7 @@ vi.mock("../src/auth.js", () => ({
 
 vi.mock("../src/middleware/auth.js", () => ({
   requireAuth: async (req: { user?: unknown }) => {
-    req.user = { sub: IDS.ACTOR, platformRole: "admin" };
+    req.user = { sub: IDS.ACTOR, platformRole: "admin", mfaAt: Math.floor(Date.now() / 1000) }; // AUD-0021: an MFA-verified admin session
   },
 }));
 

@@ -309,3 +309,10 @@ test("a portal comment is attributed by the server's authorDisplay, not just the
   });
   assert.equal(c.authorLabel, "R. Patel");
 });
+
+test("AUD-0048: the default intake disclosure is byte-identical to the one the API validates against", async () => {
+  const shared = await import("@proovra/shared");
+  assert.equal(I.DEFAULT_INTAKE_DISCLOSURE, shared.DEFAULT_INTAKE_CONSENT_DISCLOSURE);
+  assert.equal(I.intakeDisclosure({ consentDisclosureText: null, consentPolicyVersion: null }).text, shared.intakeConsentDisclosureText(null));
+  assert.equal(I.intakeDisclosure({ consentDisclosureText: "Custom", consentPolicyVersion: "v2" }).text, "Custom");
+});

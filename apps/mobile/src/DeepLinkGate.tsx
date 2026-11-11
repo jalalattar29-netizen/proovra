@@ -163,6 +163,9 @@ export function DeepLinkGate() {
       } else if (outcome.status === "denied") {
         // Anti-enumeration: one generic message for every denial cause.
         Alert.alert("Not available", "This item is not available.");
+      } else if (outcome.status === "offline") {
+        // AUD-0034 — offline is said as offline, never as "not available".
+        Alert.alert("You appear to be offline", "Connect to the internet, then open the link again.");
       } else if (outcome.status === "blocked_busy") {
         Alert.alert(
           "Capture in progress",

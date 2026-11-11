@@ -202,6 +202,26 @@ export function formatWorkflowIntakeTokenWireValue(body: string): string {
 // audit trail can prove what the contributor saw and accepted.
 // -----------------------------------------------------------------------------
 
+/**
+ * The disclosure a contributor is shown when the link carries no custom text.
+ * ONE definition: the web intake page and the mobile app show and hash it, and
+ * the API validates the posted hash against it (AUD-0048 — the clients hashed
+ * this text while the server hashed "", so every default-consent link refused
+ * its contributors). Changing the wording changes the hash every client sends,
+ * so it must change here and nowhere else; recorded consent snapshots keep the
+ * hash they were accepted under.
+ */
+export const DEFAULT_INTAKE_CONSENT_DISCLOSURE = [
+  "Files you upload through this secure link will be added to the workspace",
+  "that issued the link. By accepting you confirm the upload is yours to share,",
+  "and you agree to the workspace's evidence handling terms.",
+].join(" ");
+
+/** The disclosure text shown — and hashed — for a link (its own text, else the default). */
+export function intakeConsentDisclosureText(linkText: string | null | undefined): string {
+  return linkText ?? DEFAULT_INTAKE_CONSENT_DISCLOSURE;
+}
+
 export const WorkflowIntakeConsentSnapshotSchema = z.object({
   acceptedAtUtc: z.string().datetime(),
   policyVersion: z.string().min(1).max(40),

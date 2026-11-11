@@ -70,11 +70,13 @@ export async function assertWorkAssigneeEligible(
 ): Promise<void> {
   const membership = await evaluateMemberAccess(
     { teamId: input.workspaceId, userId: input.assigneeUserId, permission: input.permission },
-    // Inside a transaction the capability is read on the shared client (same
-    // READ COMMITTED visibility): a refusal writes a permission-denied
-    // security event, and that write must not ride a transaction this very
-    // refusal is about to roll back.
-    options.inTransaction ? defaultPrisma : client,
+    // AUD-0017 (TXP-017) — read on the caller's connection (inside a
+    // transaction, the one it already holds). A refusal writes a
+    // permission-denied security event, and that write must not ride a
+    // transaction this very refusal is about to roll back: inside a
+    // transaction it goes to the shared client, fire-and-forget.
+    client,
+    options.inTransaction ? { eventClient: defaultPrisma } : {},
   );
   if (!membership.allowed) throw new AssigneeEligibilityError("NOT_ELIGIBLE");
 

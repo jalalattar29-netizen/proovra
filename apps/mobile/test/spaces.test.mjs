@@ -129,3 +129,69 @@ test("no create path exists, because POST /v1/teams always refuses", () => {
 test("the surface says where a workspace does come from", () => {
   assert.match(S.WORKSPACE_CREATION_NOTE, /administrator|account contact/i);
 });
+
+// ---------------------------------------------------------------------------
+// AUD-0047 — Pro and Team workspaces the user JOINED are listed and switchable.
+// ---------------------------------------------------------------------------
+
+const withShared = {
+  activeSpace: { id: "w-personal" },
+  canonical: {
+    ...envelope.canonical,
+    sharedWorkspaces: [
+      {
+        workspaceId: "w-shared-pro",
+        name: "Dana Owner's workspace",
+        kind: "PERSONAL",
+        workspaceRole: "MEMBER",
+        workspaceMembershipId: "m1",
+        organizationId: null,
+      },
+      { workspaceId: "w-shared-team", name: "Sam Lead's workspace", kind: "PERSONAL", workspaceRole: "ADMIN" },
+    ],
+  },
+};
+
+test("AUD-0047: joined workspaces are their own group, with the member's role", () => {
+  const v = S.projectSpaces(withShared);
+  assert.deepEqual(
+    v.shared.map((s) => [s.id, s.name, s.kind, s.role]),
+    [
+      ["w-shared-pro", "Dana Owner's workspace", "SHARED", "MEMBER"],
+      ["w-shared-team", "Sam Lead's workspace", "SHARED", "ADMIN"],
+    ],
+  );
+  // The user's own Personal Space is unchanged; nothing leaks into other groups.
+  assert.equal(v.personal.id, "w-personal");
+  assert.deepEqual(v.owned.map((s) => s.id), ["w-owned"]);
+  assert.deepEqual(v.organization.map((s) => s.id), ["w-org"]);
+  assert.equal(S.spaceKindLabel("SHARED"), "Shared with you");
+  assert.doesNotMatch(S.spaceKindLabel("SHARED"), /personal space/i);
+  assert.equal(S.spaceSummaryLine(v.shared[0]), "Member");
+  assert.equal(S.spaceSummaryLine(v.shared[1]), "Admin");
+});
+
+test("AUD-0047: a joined workspace switches like any other and is named when active", () => {
+  const v = S.projectSpaces({ ...withShared, activeSpace: { id: "w-shared-team" } });
+  const team = v.shared.find((s) => s.id === "w-shared-team");
+  assert.equal(S.isActiveSpace(team, v), true);
+  assert.equal(S.canSwitchTo(team, v), false);
+  assert.equal(S.canSwitchTo(v.personal, v), true);
+  assert.deepEqual(S.buildSwitchWorkspaceBody("w-shared-pro"), { workspaceId: "w-shared-pro" });
+  assert.equal(S.spaceNameFor(v, "w-shared-team"), "Sam Lead's workspace");
+  assert.deepEqual(
+    S.allSpaces(v).map((s) => s.id),
+    ["w-personal", "w-owned", "w-shared-pro", "w-shared-team", "w-org"],
+  );
+});
+
+test("AUD-0047: an API without sharedWorkspaces reads as none", () => {
+  assert.deepEqual(S.projectSpaces(envelope).shared, []);
+});
+
+test("AUD-0047: the Spaces screen renders the shared group through the same row and switch", () => {
+  const screen = readFileSync(resolve(HERE, "../app/(stack)/spaces.tsx"), "utf8");
+  const at = screen.indexOf('title="Shared with you"');
+  assert.ok(at > 0, "Shared with you section");
+  assert.match(screen.slice(at, at + 700), /view\.shared\.map[\s\S]*<SpaceRow[\s\S]*onSwitch=\{\(\) => void switchTo\(s\)\}/);
+});

@@ -111,6 +111,7 @@ export function GovernanceTextField({
   span,
   type = "text",
   testAttr,
+  testId,
 }: {
   id: string;
   label: string;
@@ -124,8 +125,11 @@ export function GovernanceTextField({
   span?: boolean;
   type?: "text" | "datetime-local" | "number";
   testAttr?: string;
+  /** A `data-testid` for the control, for surfaces whose probes key on one. */
+  testId?: string;
 }) {
-  const props = testAttr ? { [testAttr]: "" } : {};
+  const props: Record<string, string> = testAttr ? { [testAttr]: "" } : {};
+  if (testId) props["data-testid"] = testId;
   return (
     <FieldFrame id={id} label={label} error={error} hint={hint} span={span}>
       <input
@@ -157,6 +161,7 @@ export function GovernanceTextArea({
   disabled,
   rows = 3,
   testAttr,
+  testId,
 }: {
   id: string;
   label: string;
@@ -169,8 +174,11 @@ export function GovernanceTextArea({
   disabled?: boolean;
   rows?: number;
   testAttr?: string;
+  /** A `data-testid` for the control, for surfaces whose probes key on one. */
+  testId?: string;
 }) {
-  const props = testAttr ? { [testAttr]: "" } : {};
+  const props: Record<string, string> = testAttr ? { [testAttr]: "" } : {};
+  if (testId) props["data-testid"] = testId;
   return (
     <FieldFrame id={id} label={label} error={error} hint={hint} span>
       <textarea
@@ -201,6 +209,7 @@ export function GovernanceSelectField({
   disabled,
   span,
   testAttr,
+  testId,
 }: {
   id: string;
   label: string;
@@ -212,8 +221,11 @@ export function GovernanceSelectField({
   disabled?: boolean;
   span?: boolean;
   testAttr?: string;
+  /** A `data-testid` for the control, for surfaces whose probes key on one. */
+  testId?: string;
 }) {
-  const props = testAttr ? { [testAttr]: "" } : {};
+  const props: Record<string, string> = testAttr ? { [testAttr]: "" } : {};
+  if (testId) props["data-testid"] = testId;
   return (
     <FieldFrame id={id} label={label} error={error} hint={hint} span={span}>
       <AppListbox

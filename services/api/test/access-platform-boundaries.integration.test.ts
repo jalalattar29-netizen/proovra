@@ -37,7 +37,7 @@ describe("access and platform boundaries (live PostgreSQL)", () => {
     tag: `ap-${randomUUID().slice(0, 8)}`,
     mintToken: (userId: string, email: string) =>
       signJwt(
-        { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) },
+        { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000), mfaAt: Math.floor(Date.now() / 1000) },
         process.env.AUTH_JWT_SECRET as string,
         3600,
       ),

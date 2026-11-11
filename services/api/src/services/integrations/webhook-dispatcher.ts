@@ -228,6 +228,24 @@ export const TEST_EVENT_MAX_PAYLOAD_BYTES = 4 * 1024; // 4 KiB
 /** Canonical event-type literal for test deliveries. */
 export const TEST_EVENT_TYPE = "webhook.test" as const;
 
+/**
+ * AUD-0042 — the state a new delivery row starts in.
+ *
+ * Inline: PENDING, and the caller attempts it now. Queued (attemptInline
+ * false): due RETRY_SCHEDULED, which is what the retry sweeper claims — the
+ * worker calls it every minute (AUD-0003). A queued row used to be written
+ * PENDING, a state the sweeper never claims, so it was never sent.
+ */
+export function initialDeliveryState(attemptInline: boolean | undefined): {
+  status: "PENDING" | "RETRY_SCHEDULED";
+  attemptCount: 0;
+  nextAttemptAtUtc: Date | null;
+} {
+  return attemptInline === false
+    ? { status: "RETRY_SCHEDULED", attemptCount: 0, nextAttemptAtUtc: new Date() }
+    : { status: "PENDING", attemptCount: 0, nextAttemptAtUtc: null };
+}
+
 export async function dispatchTestEventToEndpoint(
   input: DispatchTestEventInput,
   client: PrismaClient = defaultPrisma,
@@ -285,8 +303,7 @@ export async function dispatchTestEventToEndpoint(
         eventId,
         eventType: TEST_EVENT_TYPE,
         payloadJson: payloadJson as unknown as Prisma.InputJsonValue,
-        status: "PENDING",
-        attemptCount: 0,
+        ...initialDeliveryState(input.attemptInline),
       },
     });
   } catch {
@@ -346,8 +363,7 @@ export async function emitWebhookEvent(
           eventId,
           eventType: input.eventType,
           payloadJson: payloadJson as unknown as Prisma.InputJsonValue,
-          status: "PENDING",
-          attemptCount: 0,
+          ...initialDeliveryState(input.attemptInline),
         },
       });
       enqueued += 1;

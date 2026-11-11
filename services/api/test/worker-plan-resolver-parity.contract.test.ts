@@ -79,7 +79,8 @@ describe("Worker plan-resolver parity with API", () => {
     expect(API_BILLING).toMatch(/providerPlan:\s*entitlement\.plan/);
     for (const src of [WORKER_BILLING, API_BILLING]) {
       expect(src).toMatch(/resolvePersonalEffectivePlan\(\{/);
-      expect(src).toMatch(/readActiveInternalPlanGrant\(prisma,/);
+      // AUD-0017 — read on the caller's connection (`client`, defaulting to `prisma`).
+      expect(src).toMatch(/readActiveInternalPlanGrant\((?:prisma|client),/);
       expect(src).toMatch(/internalGrantPlan:/);
     }
   });

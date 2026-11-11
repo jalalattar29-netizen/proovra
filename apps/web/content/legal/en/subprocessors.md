@@ -1,6 +1,6 @@
 # Subprocessors
 
-Last Updated: 2026-11-07
+Last Updated: 2026-11-10
 
 This page identifies the third-party service providers PROOVRA may engage to support delivery of the digital evidence operations platform. It is intended to improve visibility into the infrastructure and service-provider layer supporting evidence capture, preservation, hashing, signing, timestamping, custody, verification, reporting, and reviewer workflows.
 
@@ -24,6 +24,8 @@ The register below identifies each provider, the service area it supports, its p
 | Google (OAuth) | Federated sign-in | Federated sign-in where the user chooses Google sign-in | OAuth identifiers; minimal profile data (email, name) | Google-supported regions | Independent controller for the OAuth surface | Currently used for users who choose Google sign-in |
 | Apple (Sign in with Apple) | Federated sign-in | Federated sign-in where the user chooses Apple sign-in | OAuth identifiers; minimal profile data | Apple-supported regions | Independent controller for the OAuth surface | Currently used for users who choose Apple sign-in |
 | OpenAI | AI assistance | Advisory metadata-first AI assistance for capture, chat, and verification-result interpretation where AI features are enabled | Operational metadata; structured workspace context; verification result codes; minimal text necessary for the requested feature | OpenAI-supported regions; SCCs apply for non-EEA transfers where required | Processor | Where AI features are enabled for the workspace |
+| Microsoft Azure — AI Document Intelligence | Document OCR (optional media intelligence) | Extract text, layout and tables from document evidence where document intelligence is configured and enabled | Document content submitted for extraction; the extracted text | The configured Azure region | Processor | Where configured (provider key set) and enabled |
+| Deepgram | Audio and video transcription (optional media intelligence) | Transcribe speech and separate speakers in audio or video evidence where transcription is configured and enabled | Audio content submitted for transcription; the transcript | United States (Deepgram's US service) | Processor | Where configured (provider key set) and enabled |
 | Twilio | Communications | SMS, WhatsApp, and verification messaging where the Communications feature is configured | Phone number; message metadata; verification metadata | Twilio-supported regions; SCCs apply for non-EEA transfers where required | Processor | Where configured |
 | Resend | Email delivery | Send transactional and policy emails (account, security, billing, legal, lead notifications) in production | Email addresses; message metadata; minimal message body required for the transactional email | Resend-supported regions; SCCs apply for non-EEA transfers where required | Processor | Where configured (production email path) |
 | Sentry | Error and reliability monitoring | Detect crashes, errors, and performance regressions across API, worker, web, and mobile surfaces | Diagnostic telemetry; error traces; minimal request context; account identifiers only where included; user-agent metadata | Sentry-supported regions | Processor | Where enabled (Sentry DSN configured) |

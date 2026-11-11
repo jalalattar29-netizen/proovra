@@ -126,6 +126,53 @@ describe("auth-identity remediation — SCIM directory reach (live PostgreSQL 16
     expect(await prisma.externalIdentityMapping.count({ where: { userId: inside.id, organizationId: org.organizationId } })).toBe(1);
   });
 
+  it("AUD-0044: a userName already held is 409 uniqueness; a deactivated user stays readable with active=false", async () => {
+    const u = await directoryUser("unique");
+    const before = await prisma.externalIdentityMapping.findFirstOrThrow({
+      where: { userId: u.id, organizationId: org.organizationId },
+      select: { externalSubjectId: true },
+    });
+    // The same userName under another externalId (the audit's second POST).
+    const dup = await scimCall("POST", "/v2/scim/Users", {
+      schemas: [USER],
+      userName: u.email,
+      emails: [{ value: u.email, primary: true }],
+      active: true,
+    });
+    expect(dup.statusCode, dup.body).toBe(409);
+    expect((JSON.parse(dup.body) as Json).scimType).toBe("uniqueness");
+    const after = await prisma.externalIdentityMapping.findMany({
+      where: { userId: u.id, organizationId: org.organizationId },
+      select: { externalSubjectId: true },
+    });
+    expect(after).toEqual([before]);
+
+    // Deactivate: still a resource, read and filtered, with active=false.
+    const off = await scimCall("PATCH", `/v2/scim/Users/${u.id}`, {
+      schemas: [PATCH],
+      Operations: [{ op: "replace", path: "active", value: false }],
+    });
+    expect(off.statusCode, off.body).toBe(200);
+    const read = await scimCall("GET", `/v2/scim/Users/${u.id}`);
+    expect(read.statusCode, read.body).toBe(200);
+    expect((JSON.parse(read.body) as Json).active).toBe(false);
+    const listed = await scimCall("GET", `/v2/scim/Users?filter=${encodeURIComponent(`userName eq "${u.email}"`)}`);
+    expect(listed.statusCode, listed.body).toBe(200);
+    const list = JSON.parse(listed.body) as { totalResults: number; Resources: Json[] };
+    expect(list.totalResults).toBe(1);
+    expect(list.Resources[0]).toMatchObject({ id: u.id, active: false });
+
+    // Reactivate: active=true again, still one resource.
+    const on = await scimCall("PATCH", `/v2/scim/Users/${u.id}`, {
+      schemas: [PATCH],
+      Operations: [{ op: "replace", path: "active", value: true }],
+    });
+    expect(on.statusCode, on.body).toBe(200);
+    const again = JSON.parse((await scimCall("GET", `/v2/scim/Users?filter=${encodeURIComponent(`userName eq "${u.email}"`)}`)).body) as { totalResults: number; Resources: Json[] };
+    expect(again.totalResults).toBe(1);
+    expect(again.Resources[0]).toMatchObject({ id: u.id, active: true });
+  });
+
   it("PRO-012: a deprovisioning PATCH sent as application/scim+json takes effect; JSON keeps working", async () => {
     const u = await directoryUser("media");
     expect((await me(u.token)).statusCode).toBe(200);

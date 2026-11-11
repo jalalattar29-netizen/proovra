@@ -892,6 +892,8 @@ export {
   WORKFLOW_INTAKE_TOKEN_VERSION,
   WORKFLOW_INTAKE_TOKEN_RANDOM_BYTES,
   WorkflowIntakeConsentSnapshotSchema,
+  DEFAULT_INTAKE_CONSENT_DISCLOSURE,
+  intakeConsentDisclosureText,
   WorkflowIntakeLinkStatusSchema,
   WorkflowIntakeSessionStatusSchema,
   canTransitionWorkflowIntakeSession,
@@ -2864,3 +2866,4 @@ export * from "./evidence-artifact-projection.js";
 
 // PRO-061 / PRO-064 / PRO-067 — the one outbound URL policy (pure part).
 export * from "./outbound-url-policy.js";
+export * from "./public-verification-page.js";

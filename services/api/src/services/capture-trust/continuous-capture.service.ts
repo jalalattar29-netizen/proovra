@@ -104,7 +104,7 @@ export async function completeContinuousCaptureSession(
   }
   const manifestDigest = sha256HexOf(input.manifestJson);
 
-  const plan: DirectCaptureSealPlanner = async ({ db: client, session: locked, declarations, now }) => {
+  const plan: DirectCaptureSealPlanner = async ({ db: client, tx, session: locked, declarations, now }) => {
     // AUD-017 — the highest running recorder count declared with a segment
     // (null when no declaration carried one: a legacy client).
     let declaredRecordedThroughMax: number | null = null;
@@ -118,7 +118,8 @@ export async function completeContinuousCaptureSession(
     // could hide it (recordedSegmentCount = the surviving count) and seal
     // COMPLETE. A loss proves its segment was recorded: the bound includes it,
     // and a session with any loss is never complete.
-    const lostThrough = await readLostRecordedThroughMin(client, locked);
+    // AUD-0017 — read under the session lock, on the claim transaction.
+    const lostThrough = await readLostRecordedThroughMin(tx, locked);
     if (lostThrough !== null) {
       declaredRecordedThroughMax = Math.max(declaredRecordedThroughMax ?? 0, lostThrough);
     }

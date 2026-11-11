@@ -226,6 +226,23 @@ async function countSiuRecordsWithheld(
   return withheld;
 }
 
+/**
+ * AUD-0029 — a saved view's name is unique per (workspace, creator). Saving or
+ * renaming onto a name the person already used reached the database's unique
+ * constraint and answered 500 with a critical operational alert; it is the
+ * person's choice to resolve, so it is a 409 that says so.
+ */
+const SAVED_VIEW_NAME_TAKEN = {
+  error: {
+    code: "saved_view_name_taken",
+    message: "You already have a saved view with this name. Choose another name.",
+  },
+} as const;
+
+function isSavedViewNameTaken(err: unknown): boolean {
+  return (err as { code?: string } | null)?.code === "P2002";
+}
+
 export async function siuRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------
   // Intake templates (bounded, static)
@@ -990,11 +1007,17 @@ export async function siuRoutes(app: FastifyInstance) {
       if (!member || member.status !== "ACTIVE") {
         return reply.code(403).send({ error: { code: "member_inactive" } });
       }
-      const view = await createSavedView({
-        payload: body,
-        userId,
-        organizationId: member.team?.organizationId ?? null,
-      });
+      let view;
+      try {
+        view = await createSavedView({
+          payload: body,
+          userId,
+          organizationId: member.team?.organizationId ?? null,
+        });
+      } catch (err) {
+        if (isSavedViewNameTaken(err)) return reply.code(409).send(SAVED_VIEW_NAME_TAKEN);
+        throw err;
+      }
       return reply.code(201).send({ view });
     },
   );
@@ -1018,13 +1041,19 @@ export async function siuRoutes(app: FastifyInstance) {
       if (!member || member.status !== "ACTIVE") {
         return reply.code(403).send({ error: { code: "member_inactive" } });
       }
-      const view = await updateSavedView({
-        id: params.id,
-        teamId: q.teamId,
-        userId,
-        payload: body,
-        canManageShared: member.role === "OWNER" || member.role === "ADMIN",
-      });
+      let view;
+      try {
+        view = await updateSavedView({
+          id: params.id,
+          teamId: q.teamId,
+          userId,
+          payload: body,
+          canManageShared: member.role === "OWNER" || member.role === "ADMIN",
+        });
+      } catch (err) {
+        if (isSavedViewNameTaken(err)) return reply.code(409).send(SAVED_VIEW_NAME_TAKEN);
+        throw err;
+      }
       if (!view) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }

@@ -24,6 +24,7 @@ import type { ForwardRefExoticComponent, RefAttributes } from "react";
 
 import { LanguageSwitcher } from "../language-switcher";
 import { NotificationBell } from "./NotificationBell";
+import { useMenuButtonKeyboard } from "../app-primitives/useMenuButtonKeyboard";
 import { GlobalRuntimeIndicator } from "../operational";
 import { usePlatformContext } from "../../lib/platform-context";
 import {
@@ -107,6 +108,16 @@ function getWorkspaceLabels(
 
   if (active) {
     if (active.type === "PERSONAL") {
+      // AUD-0047 — a Pro/Team workspace the actor JOINED is PERSONAL too; it
+      // carries its own name and the actor's real role from the server.
+      if (active.shared) {
+        return {
+          name: active.displayName,
+          scopeLine: active.roleLabel
+            ? `Shared with you • ${active.roleLabel}`
+            : "Shared with you",
+        };
+      }
       return { name: "Personal Space", scopeLine: "Personal • Owner" };
     }
 
@@ -321,6 +332,29 @@ export function AppAccountToolbar({
     setSwitcherOpen((prev) => !prev);
   }, []);
 
+  // AUD-0064 — both header menus declare aria-haspopup="menu", so both keep
+  // the menu-button keyboard contract: Enter/Space/ArrowDown open and focus
+  // the first item, arrows/Home/End move, Escape returns to the trigger.
+  const setSwitcherOpenFromKeys = useCallback((next: boolean) => {
+    if (next) {
+      setAccountOpen(false);
+      setPendingSwitch(null);
+    }
+    setSwitcherOpen(next);
+  }, []);
+  const switcherKeys = useMenuButtonKeyboard({
+    open: switcherOpen,
+    setOpen: setSwitcherOpenFromKeys,
+  });
+  const setAccountOpenFromKeys = useCallback((next: boolean) => {
+    if (next) setSwitcherOpen(false);
+    setAccountOpen(next);
+  }, []);
+  const accountKeys = useMenuButtonKeyboard({
+    open: accountOpen,
+    setOpen: setAccountOpenFromKeys,
+  });
+
   const isMac =
     typeof navigator !== "undefined" &&
     /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -423,19 +457,25 @@ export function AppAccountToolbar({
             data-app-context-chip
             data-platform-state={state.name}
             ref={switcherRef}
+            onBlur={switcherKeys.onRootBlur}
           >
             <button
+              ref={switcherKeys.triggerRef}
               type="button"
               className={`app-topbar-v2-workspace-button ${
                 switcherOpen ? "is-open" : ""
               }`}
               onClick={openSwitcher}
+              onKeyDown={switcherKeys.onTriggerKeyDown}
+              onKeyUp={switcherKeys.onTriggerKeyUp}
               aria-haspopup="menu"
               aria-expanded={switcherOpen}
               aria-label={`Active workspace: ${workspaceName}. Open workspace switcher.`}
             >
               <span className="app-topbar-v2-workspace-icon" aria-hidden="true">
-                {activeSpace?.type === "PERSONAL" ? (
+                {activeSpace?.type === "PERSONAL" && activeSpace.shared ? (
+                  <Users size={16} strokeWidth={1.9} />
+                ) : activeSpace?.type === "PERSONAL" ? (
                   <UserCircle size={16} strokeWidth={1.9} />
                 ) : (
                   <Building2 size={16} strokeWidth={1.9} />
@@ -452,8 +492,11 @@ export function AppAccountToolbar({
 
             {switcherOpen ? (
               <div
+                ref={switcherKeys.menuRef}
                 className="app-topbar-v2-workspace-menu"
                 role="menu"
+                aria-label="Switch workspace"
+                onKeyDown={switcherKeys.onMenuKeyDown}
                 data-app-context-switcher
               >
                 <div className="app-topbar-v2-workspace-menu-header">
@@ -504,6 +547,7 @@ export function AppAccountToolbar({
                     shell authority) rather than at any one route. */}
                 {!menu.workspaces.personal &&
                 menu.workspaces.owned.length === 0 &&
+                menu.workspaces.shared.length === 0 &&
                 menu.workspaces.organizations.length === 0 ? (
                   <div
                     className="app-topbar-v2-workspace-menu-empty"
@@ -551,6 +595,28 @@ export function AppAccountToolbar({
                   </div>
                 ) : null}
 
+                {/* AUD-0047 — Pro/Team workspaces the actor joined by
+                    invitation. Same option renderer, same switch. */}
+                {menu.workspaces.shared.length > 0 ? (
+                  <div
+                    className="app-topbar-v2-workspace-menu-group"
+                    data-context-group="SHARED"
+                  >
+                    <div className="app-topbar-v2-workspace-menu-group-label">
+                      Shared with you
+                    </div>
+                    {menu.workspaces.shared.map((w) => (
+                      <SwitcherOption
+                        key={w.id}
+                        option={w}
+                        icon={<Users size={14} strokeWidth={1.9} />}
+                        chip={w.roleLabel ? formatRoleChip(w.roleLabel) : "Shared"}
+                        onSelect={handleSwitchWorkspace}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+
                 {menu.workspaces.organizations.map((group) => (
                   <div
                     key={group.organizationId}
@@ -584,11 +650,15 @@ export function AppAccountToolbar({
             className="app-topbar-v2-account"
             data-app-topbar-account
             ref={accountRef}
+            onBlur={accountKeys.onRootBlur}
           >
             <button
+              ref={accountKeys.triggerRef}
               type="button"
               className={`app-topbar-v2-user ${accountOpen ? "is-open" : ""}`}
               onClick={() => setAccountOpen((prev) => !prev)}
+              onKeyDown={accountKeys.onTriggerKeyDown}
+              onKeyUp={accountKeys.onTriggerKeyUp}
               aria-haspopup="menu"
               aria-expanded={accountOpen}
             >
@@ -638,8 +708,11 @@ export function AppAccountToolbar({
 
             {accountOpen ? (
               <div
+                ref={accountKeys.menuRef}
                 className="app-topbar-v2-account-menu"
                 role="menu"
+                aria-label="Account"
+                onKeyDown={accountKeys.onMenuKeyDown}
                 data-app-topbar-account-menu
                 data-platform-state={state.name}
               >
@@ -652,7 +725,9 @@ export function AppAccountToolbar({
                       data-account-menu-header-workspace
                       className="app-topbar-v2-account-menu-workspace-badge"
                     >
-                      {activeSpace.type === "PERSONAL" ? (
+                      {activeSpace.type === "PERSONAL" && activeSpace.shared ? (
+                        <Users size={11} strokeWidth={2} />
+                      ) : activeSpace.type === "PERSONAL" ? (
                         <UserCircle size={11} strokeWidth={2} />
                       ) : (
                         <Building2 size={11} strokeWidth={2} />
@@ -780,9 +855,16 @@ export function AppAccountToolbar({
   );
 }
 
+/** AUD-0047 — `MEMBER` → `Member` for the shared-workspace role chip. */
+function formatRoleChip(role: string): string {
+  const cleaned = role.replace(/_/g, " ").trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+}
+
 /**
  * P4 — one canonical switcher-option renderer shared by every group in the
- * context-switcher panel (Personal / Your workspaces / Organizations).
+ * context-switcher panel (Personal / Your workspaces / Shared with you /
+ * Organizations).
  */
 function SwitcherOption({
   option,

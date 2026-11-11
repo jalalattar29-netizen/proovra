@@ -171,7 +171,10 @@ export function maskInvitedEmail(email: string): string {
  * `INVITE_REVOKED` (410), `INVITE_EXPIRED` (410),
  * `WORKSPACE_NOT_ACCEPTING_MEMBERS` (409), `INVITE_EMAIL_MISMATCH` (403),
  * `WORKSPACE_MEMBERS_NOT_INCLUDED` (402), `WORKSPACE_SEAT_LIMIT_REACHED`
- * (409), `INVITE_ALREADY_USED` (409), `WORKSPACE_SEAT_CONTENTION` (409).
+ * (409), `INVITE_ALREADY_USED` (409), `WORKSPACE_SEAT_CONTENTION` (409),
+ * `MANAGED_IDENTITY_NO_PERSONAL_SPACE` (403) and `ORG_POLICY_NO_PERSONAL_SPACE`
+ * (403) — the last two for a personal workspace the identity may not use
+ * (AUD-0047).
  *
  * The union is exhaustive on purpose. The resolver switches over it without a
  * `default`, so adding a refusal to the service and forgetting to decide what
@@ -187,6 +190,8 @@ export const WORKSPACE_INVITATION_REFUSAL_CODES = [
   "WORKSPACE_MEMBERS_NOT_INCLUDED",
   "WORKSPACE_SEAT_LIMIT_REACHED",
   "WORKSPACE_SEAT_CONTENTION",
+  "MANAGED_IDENTITY_NO_PERSONAL_SPACE",
+  "ORG_POLICY_NO_PERSONAL_SPACE",
 ] as const;
 
 export type WorkspaceInvitationRefusalCode =

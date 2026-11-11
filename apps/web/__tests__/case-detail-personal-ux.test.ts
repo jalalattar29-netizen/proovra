@@ -576,3 +576,18 @@ test("Backend delete-case route still has the legal-hold gate AND only unlinks e
   // `prisma.evidence.deleteMany`.
   assert.doesNotMatch(CASE_ROUTES, /prisma\.evidence\.deleteMany/);
 });
+
+// ===========================================================================
+// AUD-0053 — Pro/Team case pages can restrict a case (inside Settings)
+// ===========================================================================
+
+test("AUD-0053: Settings mounts the same case-access panel as the Enterprise page, for a workspace case", () => {
+  const start = COMPONENT.indexOf("function SettingsTab(");
+  assert.ok(start > 0, "SettingsTab not found");
+  const settings = COMPONENT.slice(start);
+  assert.match(COMPONENT, /import \{ MatterAccessTab \} from "\.\.\/MatterAccessTab";/);
+  assert.match(
+    settings,
+    /\{caseTeamId \? \(\s*<div className="cases-panel" data-simple-case-settings-access[^>]*>\s*<MatterAccessTab\s+caseId=\{caseId\}\s+teamId=\{caseTeamId\}\s+caseOwnerUserId=\{caseDetail\.ownerUserId\}\s+viewer=\{viewer\}\s*\/>/,
+  );
+});

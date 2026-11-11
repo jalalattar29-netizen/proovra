@@ -72,7 +72,7 @@ export async function parseImageMetadata(
   // Augment dimensions / colour space via sharp's header read (cheap —
   // sharp does not decode the full raster for .metadata()). Best-effort.
   try {
-    const sharpMod = (await import("sharp")).default as unknown as typeof import("sharp");
+    const sharpMod = (await import("sharp")).default as unknown as typeof import("sharp").default;
     const meta = await sharpMod(bytes).metadata();
     if (tm.widthPx == null && typeof meta.width === "number") tm.widthPx = meta.width;
     if (tm.heightPx == null && typeof meta.height === "number") tm.heightPx = meta.height;

@@ -195,6 +195,27 @@ export default function SpacesScreen() {
             </ProovraPageSection>
           ) : null}
 
+          {/*
+            AUD-0047 — Pro and Team workspaces the user joined by invitation:
+            somebody else's personal workspace, so neither "Personal" nor
+            "Your workspaces". Same row, same server-authorized switch.
+          */}
+          {view.shared.length > 0 ? (
+            <ProovraPageSection title="Shared with you">
+              <ProovraCard>
+                {view.shared.map((s) => (
+                  <SpaceRow
+                    key={s.id}
+                    space={s}
+                    active={isActiveSpace(s, view)}
+                    busy={busy}
+                    onSwitch={() => void switchTo(s)}
+                  />
+                ))}
+              </ProovraCard>
+            </ProovraPageSection>
+          ) : null}
+
           <ProovraPageSection title="Organization workspaces">
             {view.organization.length === 0 ? (
               <ProovraEmpty

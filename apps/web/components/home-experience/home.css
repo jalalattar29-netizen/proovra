@@ -285,7 +285,11 @@
 }
 .self-serve-home .home-alert[data-exec-status="needs_attention"] .home-alert__badge {
   background: var(--home-warn-soft);
-  color: var(--home-warn);
+  /* AUD-0025 — the badge is 10.5px TEXT. --home-warn (#EA580C, the
+     decorative orange) measured 3.19:1 on this tint. --warning-standard is
+     the readable warning ink (#C2410C): 4.64:1 on the tint, 5.18:1 on white.
+     The rail keeps --home-warn. */
+  color: var(--warning-standard, #c2410c);
 }
 
 .self-serve-home .home-alert__body {
@@ -310,7 +314,9 @@
 .self-serve-home .home-alert__also {
   margin: 5px 0 0;
   font-size: 0.8rem;
-  color: #94a3b8;
+  /* AUD-0025 — was #94a3b8, 2.56:1 on the white card. --home-muted (#64748b,
+     the sentence above it) is 4.76:1. */
+  color: var(--home-muted);
 }
 
 /* Outlined, never a filled red slab: a solid red block reads as the page's

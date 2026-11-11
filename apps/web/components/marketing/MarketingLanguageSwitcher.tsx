@@ -113,7 +113,8 @@ export function MarketingLanguageSwitcher({
                 }`}
               >
                 <span className="flex flex-col items-start">
-                  <span>{l.name}</span>
+                  {/* AUD-0024 — each language's own name is in that language. */}
+                  <span lang={l.code}>{l.name}</span>
                   {/* MOBILE-009 — only English is complete; the others are said to be partial. */}
                   {l.code !== "en" ? (
                     <span className="text-[11px] font-normal text-[#64748B]">Partial translation</span>

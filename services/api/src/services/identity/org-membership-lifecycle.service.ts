@@ -234,10 +234,10 @@ async function transition(
 
   // Audit AFTER the durable transition, never before: an audit row for a
   // transition that did not happen is worse than no audit row.
-  await emitTenantAudit({
+  const audit = {
     action: `identity.org_membership_${input.to.toLowerCase()}`,
-    outcome: "success",
-    sourceApp: "API",
+    outcome: "success" as const,
+    sourceApp: "API" as const,
     actorUserId: input.actorUserId,
     organizationId: input.organizationId,
     resourceType: "organization_membership",
@@ -248,7 +248,16 @@ async function transition(
       source: input.source,
       generation: Number(updated.status_generation),
     },
-  }).catch(() => null);
+  };
+  if (input.prisma) {
+    // AUD-0017 (TXP-021) — on the caller's transaction, written with the
+    // transition it records (the workspace-lifecycle pattern). On the module
+    // client it asked the pool for a second connection while the caller's
+    // transaction held one, and waited on the audit chain's lock from there.
+    await emitTenantAudit(audit, input.prisma as never);
+  } else {
+    await emitTenantAudit(audit).catch(() => null);
+  }
 
   return {
     ok: true,

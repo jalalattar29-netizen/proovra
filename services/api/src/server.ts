@@ -247,6 +247,7 @@ import { siuRoutes } from "./routes/siu.routes.js";
 import { operationsSignersRoutes } from "./routes/operations-signers.routes.js";
 import { opsRoutes } from "./routes/ops.routes.js";
 import { opsSeedRoutes } from "./routes/ops-seed.routes.js";
+import { seedingRefusal } from "./services/ops/operational-seed.service.js";
 import { governanceSnapshotRoutes } from "./routes/governance-snapshot.routes.js";
 import { runtimeReadinessRoutes } from "./routes/runtime-readiness.routes.js";
 import { workflowInstancesRoutes } from "./routes/workflow-instances.routes.js";
@@ -1281,8 +1282,14 @@ allowedHeaders: [
   // header, but the registration itself is now gated so production
   // deployments do not even mount the surface unless explicitly opted
   // in via OPERATIONAL_SEEDING_ENABLED=true.
+  // AUD-0013 — and, in production, OPERATIONAL_SEEDING_ALLOW_PRODUCTION=true:
+  // the mount follows the rule the seed itself enforces (seedingRefusal).
+  // ENABLED alone mounted the routes in production, where reads need no seed
+  // secret, while every write there was refused SEEDING_PROD_GUARDED.
   if (process.env.OPERATIONAL_SEEDING_ENABLED === "true") {
-    await app.register(opsSeedRoutes);
+    if (seedingRefusal() === null) {
+      await app.register(opsSeedRoutes);
+    }
   }
   // Phase IA-home-acceptance — dev/staging-only impersonation login for
   // the Playwright Home acceptance suite. NEVER mounted in production

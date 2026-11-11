@@ -446,6 +446,24 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         });
         if (gate.sent) return;
       }
+      /*
+       * AUD-0043 — switching a connection ON (PENDING or DISABLED -> ACTIVE)
+       * lets its identity provider sign people in to the Organization: the
+       * same authority as creating it, so the same step-up. Only revocation
+       * asked for one.
+       */
+      if (body.nextStatus === "ACTIVE") {
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: body.teamId,
+          userId: actor.userId,
+          purpose: "EXTERNAL_IDENTITY_LINK",
+          resourceKind: "sso_connection",
+          resourceId: id,
+        });
+        if (gate.sent) return;
+      }
       try {
         const projection = await transitionSsoConnection({
           teamId: body.teamId,

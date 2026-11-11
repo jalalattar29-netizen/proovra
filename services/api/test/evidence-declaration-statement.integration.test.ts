@@ -125,4 +125,42 @@ describe("D38 evidence declaration statements (live PostgreSQL 16)", () => {
     });
     expect(row).toMatchObject({ status: "REQUESTED", statementMarkdown: null, signatureText: null });
   });
+
+  // AUD-0033 (R-CERT-001) — a signed attestation is revoked only by its attestor.
+  it("AUD-0033 — the workspace OWNER and another member cannot revoke an attestation someone else signed; the attestor can", async () => {
+    const { teamA } = harness.fixtures;
+    const declarationType = "CUSTODIAN";
+    const latest = () =>
+      prisma.evidenceCertification.findFirst({
+        where: { evidenceId: teamA.evidenceId, declarationType },
+        orderBy: { version: "desc" },
+      });
+    // A fresh version: revoke whatever the earlier case left signed, as its signer.
+    const before = await latest();
+    if (before?.status === "ATTESTED") {
+      const tokenOf: Record<string, string> = {
+        [teamA.ownerUserId]: teamA.ownerToken,
+        [teamA.adminUserId]: teamA.adminToken,
+      };
+      const cleared = await post(`${base()}/revoke`, tokenOf[before.attestedByUserId!]!, { declarationType, reason: "reset for AUD-0033" });
+      expect(cleared.statusCode, cleared.body).toBe(200);
+    }
+    const requested = await post(`${base()}/request`, teamA.ownerToken, { declarationType, statementMarkdown: STATEMENT });
+    expect(requested.statusCode, requested.body).toBe(200);
+    // The ADMIN signs.
+    const signed = await post(`${base()}/attest`, teamA.adminToken, signer(STATEMENT));
+    expect(signed.statusCode, signed.body).toBe(200);
+    expect(await latest()).toMatchObject({ status: "ATTESTED", attestedByUserId: teamA.adminUserId });
+
+    for (const [who, token] of [["owner", teamA.ownerToken], ["member", teamA.memberToken]] as const) {
+      const res = await post(`${base()}/revoke`, token, { declarationType, reason: "not mine to withdraw" });
+      expect(res.statusCode, `${who}: ${res.body}`).toBe(403);
+      expect(json(res).error).toMatchObject({ code: "ATTESTATION_REVOKE_ATTESTOR_ONLY" });
+      expect(await latest()).toMatchObject({ status: "ATTESTED", revokedByUserId: null });
+    }
+
+    const own = await post(`${base()}/revoke`, teamA.adminToken, { declarationType, reason: "withdrawn by the signer" });
+    expect(own.statusCode, own.body).toBe(200);
+    expect(await latest()).toMatchObject({ status: "REVOKED", revokedByUserId: teamA.adminUserId });
+  });
 });

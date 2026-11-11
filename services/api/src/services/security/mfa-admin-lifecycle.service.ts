@@ -36,13 +36,19 @@ import {
 } from "../pagination/keyset-cursor.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
+import { resolvePlatformAdmin } from "../platform-admin.service.js";
+import { organizationLifecycleApplies } from "../identity/workspace-kind.js";
 
 export type MfaAdminScopeFailure =
   | "admin_not_in_team"
   | "admin_not_admin"
   | "target_not_in_team"
   // PRO-022 (AUTH-16) — see `assertActorOutranksMfaTarget`.
-  | "rank_insufficient";
+  | "rank_insufficient"
+  // AUD-0026 — an administrator may not lower their OWN protection here.
+  | "self_target_forbidden"
+  // AUD-0039 — a platform account's factors are recovered by the platform.
+  | "target_platform_authority";
 
 /**
  * PRO-022 (AUTH-16) — WHOSE FACTORS AN ADMINISTRATOR MAY REMOVE.
@@ -55,9 +61,22 @@ export type MfaAdminScopeFailure =
  * The rule is the members-management rank (rbac.service.ts ROLE-04): OWNER >
  * ADMIN > MEMBER > VIEWER, and the actor must STRICTLY outrank the target in
  * the workspace the action is taken from. So an ADMIN manages the factors of
- * MEMBERs and VIEWERs, never of the OWNER or another ADMIN. An administrator
- * acting on their OWN factors is not a rank question (the route's step-up
- * proves it is them) and stays allowed.
+ * MEMBERs and VIEWERs, never of the OWNER or another ADMIN.
+ *
+ * AUD-0026 — an administrator may NOT target themself here. This route's step-up
+ * (MFA_FACTOR_REVOKE) accepts an authenticator code, while removing one's own
+ * passkey on the member route (PASSKEY_REMOVE) demands the passkey itself; the
+ * admin route on self was the weaker way round that ladder. A person changes
+ * their own factors on their own protected routes.
+ *
+ * AUD-0039 — nor may a WORKSPACE administrator remove the factors of an account
+ * that holds PLATFORM authority (dual membership: a platform administrator who
+ * is also a member of a customer workspace). That account's second factor
+ * guards the whole platform, not this workspace; its recovery belongs to the
+ * platform (platformRecoverFactors: another MFA-verified platform
+ * administrator, stepped up, in the platform audit trail). A lookup failure
+ * refuses. Platform authority cannot be self-granted, so this is not the
+ * escape hatch the next paragraph rules out.
  *
  * Deliberately NOT extended to the target's roles in other workspaces: any
  * person can own a workspace of their own, so such a rule would let a member
@@ -66,8 +85,14 @@ export type MfaAdminScopeFailure =
  */
 const MFA_ADMIN_RANK: Record<string, number> = { OWNER: 4, ADMIN: 3, MEMBER: 2, VIEWER: 1 };
 
-export async function assertActorOutranksMfaTarget(input: ScopeCheckInput): Promise<"rank_insufficient" | null> {
-  if (input.actorUserId === input.targetUserId) return null;
+export async function assertActorOutranksMfaTarget(
+  input: ScopeCheckInput,
+): Promise<"rank_insufficient" | "self_target_forbidden" | "target_platform_authority" | null> {
+  if (input.actorUserId === input.targetUserId) return "self_target_forbidden";
+  const targetPlatform = await resolvePlatformAdmin(input.targetUserId, null)
+    .then((d) => d.allowed)
+    .catch(() => true);
+  if (targetPlatform) return "target_platform_authority";
   const [actor, target] = await Promise.all([
     prisma.teamMember.findFirst({
       where: { teamId: input.teamId, userId: input.actorUserId, status: "ACTIVE" },
@@ -81,6 +106,66 @@ export async function assertActorOutranksMfaTarget(input: ScopeCheckInput): Prom
   const actorRank = actor ? MFA_ADMIN_RANK[actor.role] ?? 0 : 0;
   const targetRank = target ? MFA_ADMIN_RANK[target.role] ?? 0 : 0;
   return actorRank > targetRank ? null : "rank_insufficient";
+}
+
+/**
+ * AUD-0038 DECISION (option b, 2026-11-11) — WHO MAY DECIDE A RECOVERY REQUEST.
+ *
+ * The members rank rule above decides it, with one addition for the request
+ * nobody in the workspace outranks: the workspace OWNER's. A workspace has one
+ * OWNER, so under the rank rule alone the OWNER who lost their second factor
+ * had recovery codes and nothing else. Where the workspace belongs to a
+ * customer Organization, ANOTHER live ORG_OWNER of that Organization may decide
+ * it — the Organization's own highest authority, which already holds the
+ * OWNER's workspace in its hands (ownership transfer, closure). The approver
+ * still has to pass every other gate: an ACTIVE OWNER/ADMIN membership in the
+ * workspace (the recovery queue's scope), not the requester (self is refused
+ * above), the platform-authority exclusion (AUD-0039), email verification of
+ * the request, and step-up bound to the requester.
+ *
+ * Deliberately narrow:
+ *   - only the OWNER's request — an ADMIN's request already has an approver
+ *     (the OWNER), so the peer rule does not widen who decides it;
+ *   - only an ORG_OWNER — an ORG_ADMIN or ORG_SECURITY_ADMIN is below the
+ *     Organization's owners and stays refused, as a workspace ADMIN is;
+ *   - only a CUSTOMER Organization (`organizationLifecycleApplies`) — a personal
+ *     or owned (Pro/Team) workspace sits in an internal SYSTEM container whose
+ *     "owner" is not a second person, so its OWNER keeps recovery codes.
+ * The direct factor-removal routes are NOT changed: they keep the strict rank.
+ */
+export async function assertActorMayDecideMfaRecovery(
+  input: ScopeCheckInput,
+): Promise<"rank_insufficient" | "self_target_forbidden" | "target_platform_authority" | null> {
+  const rank = await assertActorOutranksMfaTarget(input);
+  if (rank !== "rank_insufficient") return rank;
+  return (await peerOrganizationOwnerMayDecide(input)) ? null : "rank_insufficient";
+}
+
+async function peerOrganizationOwnerMayDecide(input: ScopeCheckInput): Promise<boolean> {
+  const [workspace, targetMembership] = await Promise.all([
+    prisma.team.findUnique({
+      where: { id: input.teamId },
+      select: { workspaceKind: true, organizationId: true, closedAtUtc: true, organization: { select: { status: true } } },
+    }),
+    prisma.teamMember.findFirst({
+      where: { teamId: input.teamId, userId: input.targetUserId, status: "ACTIVE" },
+      select: { role: true },
+    }),
+  ]);
+  if (targetMembership?.role !== "OWNER") return false;
+  if (!workspace?.organizationId || workspace.closedAtUtc !== null) return false;
+  if (!organizationLifecycleApplies(workspace.workspaceKind ?? "UNKNOWN")) return false;
+  if (workspace.organization?.status !== "ACTIVE") return false;
+  const approverIsOrgOwner = await prisma.organizationMembership.findFirst({
+    where: {
+      organizationId: workspace.organizationId,
+      userId: input.actorUserId,
+      role: "ORG_OWNER",
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  return approverIsOrgOwner !== null;
 }
 
 interface ScopeCheckInput {

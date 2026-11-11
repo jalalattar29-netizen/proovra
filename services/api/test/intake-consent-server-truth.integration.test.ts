@@ -7,6 +7,7 @@
  * never compared with the link's, and a re-post overwrote the record.
  */
 import { createHash } from "node:crypto";
+import { DEFAULT_INTAKE_CONSENT_DISCLOSURE, intakeConsentDisclosureText } from "@proovra/shared";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -29,13 +30,13 @@ describe("ET-INT-11 — intake consent (live PostgreSQL 16)", () => {
     await h?.cleanup();
   });
 
-  async function openSession() {
+  async function openSession(consentDisclosureText?: string) {
     const A = h.fixtures.teamA;
     const link = await h.app.inject({
       method: "POST",
       url: "/v1/workflow/intake-links",
       headers: { authorization: `Bearer ${A.ownerToken}` },
-      payload: { teamId: A.teamId, workflowTemplateSlug: "general-evidence-record", intakeMode: "EXTERNAL_REUSABLE", recipientLabel: "consent", expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() },
+      payload: { teamId: A.teamId, workflowTemplateSlug: "general-evidence-record", intakeMode: "EXTERNAL_REUSABLE", recipientLabel: "consent", ...(consentDisclosureText ? { consentDisclosureText } : {}), expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() },
     });
     expect(link.statusCode, link.body).toBe(201);
     const t = encodeURIComponent((link.json() as { rawToken: string }).rawToken);
@@ -44,7 +45,7 @@ describe("ET-INT-11 — intake consent (live PostgreSQL 16)", () => {
     const good = {
       acceptedAtUtc: new Date().toISOString(),
       policyVersion: opened.link.consentPolicyVersion || "v1",
-      disclosureTextHash: createHash("sha256").update(opened.link.consentDisclosureText ?? "").digest("hex"),
+      disclosureTextHash: createHash("sha256").update(intakeConsentDisclosureText(opened.link.consentDisclosureText)).digest("hex"),
       termsAcknowledged: true,
       identityDisclosed: true,
       ipHash: null,
@@ -52,10 +53,37 @@ describe("ET-INT-11 — intake consent (live PostgreSQL 16)", () => {
     };
     const post = (consent: Record<string, unknown>) =>
       h.app.inject({ method: "POST", url: `/v1/external-intake/${t}/sessions/${opened.session.id}/consent`, remoteAddress: ip, payload: { consent } });
-    return { sid: opened.session.id, good, post };
+    return { sid: opened.session.id, good, post, linkText: opened.link.consentDisclosureText };
   }
   const row = (sid: string) =>
     prisma.workflowIntakeSession.findUniqueOrThrow({ where: { id: sid }, select: { consentAcceptedAtUtc: true, consentSnapshotJson: true } });
+
+  it("AUD-0048: a link without custom text accepts the hash of the canonical default disclosure the contributor was shown", async () => {
+    const { sid, good, post, linkText } = await openSession();
+    expect(linkText).toBeNull();
+    expect(good.disclosureTextHash).toBe(createHash("sha256").update(DEFAULT_INTAKE_CONSENT_DISCLOSURE).digest("hex"));
+    const r = await post(good);
+    expect(r.statusCode, r.body).toBe(200);
+    expect((await row(sid)).consentAcceptedAtUtc).not.toBeNull();
+  });
+
+  it("AUD-0048: on a default link the hash of an empty disclosure (what the server used to expect) is refused", async () => {
+    const { sid, good, post } = await openSession();
+    const r = await post({ ...good, disclosureTextHash: createHash("sha256").update("").digest("hex") });
+    expect(r.statusCode, r.body).toBe(400);
+    expect((await row(sid)).consentAcceptedAtUtc).toBeNull();
+  });
+
+  it("a link with custom disclosure text accepts that text's hash and refuses the default's", async () => {
+    const custom = "Custom audit disclosure: uploads go to the issuing workspace.";
+    const { sid, good, post, linkText } = await openSession(custom);
+    if (linkText !== custom) return expect(linkText).toBe(custom);
+    const wrong = await post({ ...good, disclosureTextHash: createHash("sha256").update(DEFAULT_INTAKE_CONSENT_DISCLOSURE).digest("hex") });
+    expect(wrong.statusCode, wrong.body).toBe(400);
+    const ok = await post(good);
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect((await row(sid)).consentAcceptedAtUtc).not.toBeNull();
+  });
 
   it("termsAcknowledged:false is refused and nothing is recorded", async () => {
     const { sid, good, post } = await openSession();

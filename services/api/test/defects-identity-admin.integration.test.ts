@@ -137,7 +137,7 @@ describe("identity administration defects (live PostgreSQL 16)", () => {
 
   const mint = (userId: string, email: string) =>
     jwt.signJwt(
-      { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) },
+      { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000), mfaAt: Math.floor(Date.now() / 1000) },
       process.env.AUTH_JWT_SECRET as string,
       3600,
     );
@@ -455,6 +455,34 @@ describe("identity administration defects (live PostgreSQL 16)", () => {
     });
     expect(created.statusCode, created.body).toBe(201);
     expect(await prisma.ssoConnection.count({ where: { teamId: b.teamId, displayName: bBody.displayName } })).toBe(1);
+  });
+
+  // AUD-0043 — switching a connection on is stepped up, as creating it is.
+  it("AUD-0043 — re-activating a disabled SSO connection needs the same step-up as creating it", async () => {
+    const b = harness.fixtures.teamB;
+    const conn = await prisma.ssoConnection.findFirstOrThrow({ where: { teamId: b.teamId }, orderBy: { createdAt: "desc" }, select: { id: true } });
+    await prisma.ssoConnection.update({ where: { id: conn.id }, data: { status: "DISABLED" } });
+    const url = `/v1/admin/identity/providers/${conn.id}/transition`;
+    const bare = await call({ method: "POST", url, token: b.ownerToken, payload: { teamId: b.teamId, nextStatus: "ACTIVE" } });
+    expect(bare.statusCode, bare.body).toBe(401);
+    expect(errorCode(bare)).toBe("STEP_UP_REQUIRED");
+    expect((await prisma.ssoConnection.findUniqueOrThrow({ where: { id: conn.id } })).status).toBe("DISABLED");
+    const stepped = await call({
+      method: "POST",
+      url,
+      token: b.ownerToken,
+      payload: { teamId: b.teamId, nextStatus: "ACTIVE" },
+      challengeId: await approvedChallenge({
+        token: b.ownerToken,
+        userId: b.ownerUserId,
+        teamId: b.teamId,
+        purpose: "EXTERNAL_IDENTITY_LINK",
+        resourceKind: "sso_connection",
+        resourceId: conn.id,
+      }),
+    });
+    expect(stepped.statusCode, stepped.body).toBe(200);
+    expect((await prisma.ssoConnection.findUniqueOrThrow({ where: { id: conn.id } })).status).toBe("ACTIVE");
   });
 
   // ===========================================================================

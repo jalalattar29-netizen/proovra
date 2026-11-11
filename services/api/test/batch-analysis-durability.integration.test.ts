@@ -303,3 +303,34 @@ describe("BD-2 — the write carries its own ownership predicate", () => {
     expect(seen.job?.claimed_at_utc).toBeNull();
   });
 });
+
+describe("process answers what will happen (misleading 200, tracked apart from the AUD ledger)", () => {
+  // The route answered 200 "Batch processing started" for a CANCELLED job; the
+  // background claim then refused it, so nothing ran and the job was unchanged.
+  const post = (id: string) =>
+    harness.app.inject({
+      method: "POST",
+      url: `/v1/batch-analysis/${id}/process`,
+      headers: { authorization: `Bearer ${harness.fixtures.teamA.ownerToken}` },
+    });
+
+  it("a cancelled job is refused 409 and stays cancelled", async () => {
+    const id = await seed("cancelled", 1);
+    const res = await post(id);
+    expect(res.statusCode, res.body).toBe(409);
+    const seen = await otherSees(id);
+    expect(seen.job?.status).toBe("CANCELLED");
+    expect(seen.job?.claimed_at_utc).toBeNull();
+  });
+
+  it("a completed job is refused 409", async () => {
+    const id = await seed("completed", 1);
+    expect((await post(id)).statusCode).toBe(409);
+  });
+
+  it("control: a pending job is accepted", async () => {
+    const id = await seed("pending", 1);
+    const res = await post(id);
+    expect(res.statusCode, res.body).toBe(200);
+  });
+});
