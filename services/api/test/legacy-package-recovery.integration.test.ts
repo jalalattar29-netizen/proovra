@@ -581,9 +581,15 @@ describe("legacy report/package recovery (Postgres + Redis + MinIO, real process
       const applied = await cli.recoverEvidenceOutputs({ evidenceId: ev.evidenceId, apply: true });
       const requestId = applied.results[0]!.requestId!;
       const job = await jobFor(requestId);
+      // AUD-0056 — the budget is the one the job was enqueued with (the ARTIFACT
+      // retry policy, widened from 5 to 8 attempts), never a literal: every
+      // attempt before the last is retryable, the last is terminal.
+      const attempts = job.opts.attempts!;
+      expect(attempts).toBeGreaterThan(1);
+      const last = attempts - 1;
 
-      // Attempts 1..4 fail retryably: FAILED_RETRYABLE, each with its root cause.
-      for (let attempt = 0; attempt < 4; attempt += 1) {
+      // Attempts 1..last fail retryably: FAILED_RETRYABLE, each with its root cause.
+      for (let attempt = 0; attempt < last; attempt += 1) {
         seam.retryableBuildFailures = 1;
         expect(await runJob(job, attempt)).toBeTruthy();
         const r = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: requestId } });
@@ -591,13 +597,13 @@ describe("legacy report/package recovery (Postgres + Redis + MinIO, real process
       }
       // 9 — no "completed" for the job while it is failing; one outcome per attempt.
       expect(lines.filter((l) => /GenerateReportJob completed/.test(l.msg))).toEqual([]);
-      expect(lines.filter((l) => l.msg === "GenerateReportJob failed (retryable)")).toHaveLength(4);
-      expect(lines.filter((l) => /^GenerateReportJob (succeeded|failed)/.test(l.msg))).toHaveLength(4);
+      expect(lines.filter((l) => l.msg === "GenerateReportJob failed (retryable)")).toHaveLength(last);
+      expect(lines.filter((l) => /^GenerateReportJob (succeeded|failed)/.test(l.msg))).toHaveLength(last);
 
       // 6 — the LAST attempt is terminal, with the root code, a DLQ record and the condition.
       lines.length = 0;
       seam.retryableBuildFailures = 1;
-      expect(await runJob(job, 4)).toBeTruthy();
+      expect(await runJob(job, last)).toBeTruthy();
       const terminal = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: requestId } });
       expect([terminal.state, terminal.terminalReasonCode]).toEqual(["FAILED_TERMINAL", "ACC_PACKAGE_BUILD_FAILED"]);
       expect(lines.filter((l) => /^GenerateReportJob (succeeded|failed)/.test(l.msg)).map((l) => l.msg)).toEqual(["GenerateReportJob failed (terminal)"]);
@@ -609,7 +615,7 @@ describe("legacy report/package recovery (Postgres + Redis + MinIO, real process
       });
       expect(incident.status).toBe("OPEN");
       // A replayed terminal write changes nothing.
-      expect(await runJob(job, 4)).toBeNull();
+      expect(await runJob(job, last)).toBeNull();
       expect((await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: requestId } })).state).toBe("FAILED_TERMINAL");
 
       // 10 — the sink is history, not backlog; its unresolved entry is new.

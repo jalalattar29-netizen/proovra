@@ -120,7 +120,7 @@ test("a credential failure is never attributed to one of the two fields", () => 
   assert.match(call, /email: t\("loginErrorEmailInvalid"\)/);
   assert.match(
     read("packages/shared/src/i18n.ts"),
-    /\n    loginErrorEmailInvalid: "Enter a valid email address\.",/,
+    /\n {4}loginErrorEmailInvalid: "Enter a valid email address\.",/,
   );
   assert.doesNotMatch(call, /password:/);
 });

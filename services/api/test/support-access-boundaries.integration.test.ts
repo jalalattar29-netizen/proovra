@@ -499,8 +499,6 @@ describe("support access boundaries", () => {
     let responder: Person;
     let grantId: string;
     let victimSession: string;
-    // The grant binds the step-up that activated it; the responder presents that id.
-    let activationProof: string;
 
     beforeAll(async () => {
       // AUD-0021 — the responder holds platform authority, so its session verified a second factor.
@@ -509,7 +507,6 @@ describe("support access boundaries", () => {
       await prisma.teamMember.updateMany({ where: { teamId: customer.w1, userId: responder.id }, data: { role: "ADMIN" } });
       await prisma.user.update({ where: { id: responder.id }, data: { platformRole: "admin" } });
       const proof = await ceremony(staff, anchor, "ORG_SECURITY_POLICY_UPDATE");
-      activationProof = proof["x-proovra-step-up-challenge-id"]!;
       const res = await kit.call(
         "POST",
         "/v1/break-glass/activate",

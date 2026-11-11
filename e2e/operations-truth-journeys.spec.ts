@@ -32,6 +32,7 @@ import {
   SESSION_PASSWORD,
   clearTestRateLimits,
   createGuestSession,
+  elevateToPlatformAdmin,
   makeApi,
   provisionEnterpriseOrg,
   type GuestSession,
@@ -77,13 +78,20 @@ function sql(query: string, params: unknown[] = []): Array<Record<string, unknow
   return JSON.parse(run.stdout || "[]");
 }
 
-async function signIn(page: Page, email: string) {
+async function signIn(page: Page, email: string, secondFactor?: GuestSession["secondFactor"]) {
   await clearTestRateLimits();
   await answerCookieBanner(page);
   await page.goto("/login");
   await page.locator('input[placeholder="Email"]:visible').first().fill(email);
   await page.locator('input[placeholder="Password"]:visible').first().fill(SESSION_PASSWORD);
   await page.locator('[data-auth-email-cta="SIGN_IN"]:visible').first().click();
+  if (secondFactor) {
+    // AUD-0021 — a platform administrator is asked for the second factor.
+    await page.waitForURL(/\/auth\/mfa-challenge/, { timeout: 30_000 });
+    const codeBox = page.locator('[data-cc-mfa-input="totp"]');
+    await codeBox.fill(await secondFactor.nextCode());
+    await codeBox.press("Enter");
+  }
   await page.waitForURL(/\/home/, { timeout: 30_000 });
 }
 
@@ -178,7 +186,13 @@ test.describe("Journey A — report failure to recovery, through Operations", ()
     // (2026-10-13) BullMQ's LAST attempt of a retryable failure is terminal at
     // once, recording the ROOT cause (never only retry_budget_exhausted); the
     // durable 12-claim ceiling remains the backstop for lease expiries.
-    test.setTimeout(720_000);
+    // AUD-0056 — the ARTIFACT retry window was widened so a short storage
+    // outage no longer ends a report: 8 attempts with exponential backoff from
+    // 5 s (5+10+20+40+80+160+320 = 635 s of waiting, plus the attempts
+    // themselves; packages/shared/src/queue-integrity/retry-policy.ts). This
+    // journey keeps storage down until that window is spent, so its bounds
+    // follow the window; what it asserts is unchanged.
+    test.setTimeout(1_080_000);
     await clearTestRateLimits();
     A = await createGuestSession({ plan: "PRO" });
 
@@ -194,7 +208,7 @@ test.describe("Journey A — report failure to recovery, through Operations", ()
         [evidenceId],
       )[0] ?? null;
     await expect
-      .poll(() => lastRequest()?.state ?? null, { timeout: 600_000, intervals: [3000] })
+      .poll(() => lastRequest()?.state ?? null, { timeout: 900_000, intervals: [3000] })
       .toBe("FAILED_TERMINAL");
     const cause = String(lastRequest()!.terminal_reason_code ?? "");
     expect(cause, "a bounded code, never a message").toMatch(/^[A-Za-z][A-Za-z0-9_]{1,63}$/);
@@ -690,11 +704,15 @@ test.describe("Journey D — queue failures belong to the platform, not the cust
   test("a real final failure is ONE platform condition the Platform Admin sees and the customer does not; replay refuses what it must", async ({
     page,
   }) => {
-    test.setTimeout(600_000);
+    // AUD-0056 — BullMQ spends every attempt of the widened ARTIFACT window
+    // (8 attempts, 635 s of backoff) before the job is in the failed set.
+    test.setTimeout(1_080_000);
     await clearTestRateLimits();
     const customer = await createGuestSession({ plan: "PRO" });
-    const admin = await createGuestSession({ plan: "PRO" });
-    sql("UPDATE users SET platform_role = 'admin' WHERE id = $1", [admin.userId]);
+    // AUD-0021 — a platform administrator holds an MFA-verified session.
+    const admin = await elevateToPlatformAdmin(await createGuestSession({ plan: "PRO" }), (id) =>
+      sql("UPDATE users SET platform_role = 'admin' WHERE id = $1", [id]),
+    );
     const customerSpace = personalSpaceOf(customer.userId);
     const adminSpace = personalSpaceOf(admin.userId);
 
@@ -722,7 +740,7 @@ test.describe("Journey D — queue failures belong to the platform, not the cust
             };
             return listed.jobs.some((j) => j.jobId === failedJobId);
           },
-          { timeout: 240_000, intervals: [2000] },
+          { timeout: 900_000, intervals: [2000] },
         )
         .toBe(true);
 
@@ -739,7 +757,7 @@ test.describe("Journey D — queue failures belong to the platform, not the cust
       expect(JSON.stringify(await adminList.json())).toContain(String(condition.id));
       // ... in the browser — the platform console names the source and the
       // queue, and the row is platform-wide, never a customer's workspace ...
-      await signIn(page, admin.email);
+      await signIn(page, admin.email, admin.secondFactor);
       await page.goto("/admin/operations");
       const row = page.getByRole("row").filter({ hasText: "Background jobs failing" }).filter({ hasText: "Job report" });
       await expect(row).toHaveCount(1, { timeout: 30_000 });
@@ -1033,8 +1051,10 @@ test.describe("Journey F — the permission matrix, by direct API call", () => {
     const revoked = await member("MEMBER", { status: "REVOKED" });
     const expired = await member("MEMBER", { expired: true });
     await clearTestRateLimits();
-    const platformAdmin = await createGuestSession({ plan: "PRO" });
-    sql("UPDATE users SET platform_role = 'admin' WHERE id = $1", [platformAdmin.userId]);
+    // AUD-0021 — a platform administrator holds an MFA-verified session.
+    const platformAdmin = await elevateToPlatformAdmin(await createGuestSession({ plan: "PRO" }), (id) =>
+      sql("UPDATE users SET platform_role = 'admin' WHERE id = $1", [id]),
+    );
     const otherTenant = await createGuestSession({ plan: "PRO" });
 
     const ALL: OpsCaps = {

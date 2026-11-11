@@ -95,7 +95,7 @@ describe(`AUD-0017 evidence create/complete above the pool size (live PostgreSQL
     });
     expect(part.statusCode, part.body).toBeLessThan(300);
     const up = (part.json() as { upload: { putUrl: string; headers?: Record<string, string> } }).upload;
-    const put = await fetch(up.putUrl, { method: "PUT", body: bytes, headers: { "content-type": "text/plain", ...(up.headers ?? {}) } });
+    const put = await fetch(up.putUrl, { method: "PUT", body: new Uint8Array(bytes), headers: { "content-type": "text/plain", ...(up.headers ?? {}) } });
     expect(put.status).toBe(200);
   }
 
