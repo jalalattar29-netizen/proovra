@@ -67,6 +67,26 @@ describe("legal markdown tables", () => {
   });
 });
 
+/**
+ * AUD-0061 (completed 2026-11-11) — the focusable wrapper must be the thing
+ * that scrolls. The shared legal typography chain made every descendant
+ * `<table>` `display:block; overflow-x:auto`, so at phone width the wrapped
+ * `.legal-table` scrolled itself inside its (non-scrolling) focusable wrapper:
+ * axe still reported scrollable-region-focusable on /legal/privacy at 375 px,
+ * and arrow keys on the focused region moved nothing. A `.legal-table` is
+ * never its own scroll container; tables outside the renderer keep the
+ * block/scroll fallback.
+ */
+describe("a wrapped legal table never scrolls itself", () => {
+  it("the legal typography exempts .legal-table from the block/scroll rule", () => {
+    const styles = read("components/legal/legalArticleStyles.ts");
+    expect(styles).not.toMatch(/\[&_table\]:block/);
+    expect(styles).not.toMatch(/\[&_table\]:overflow-x-auto/);
+    expect(styles).toMatch(/\[&_table:not\(\.legal-table\)\]:block/);
+    expect(styles).toMatch(/\[&_table:not\(\.legal-table\)\]:overflow-x-auto/);
+  });
+});
+
 describe("the shared focus ring covers every scroll region", () => {
   it("globals.css gives [data-scroll-region] the canonical ring, drawn inside the box", () => {
     const css = read("app/globals.css");
