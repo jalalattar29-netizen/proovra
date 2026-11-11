@@ -40,6 +40,7 @@
 import { expect, test, type BrowserContext, type Page, type Request } from "@playwright/test";
 
 import { CONSENT_VERSION } from "../../lib/consent";
+import { settleFixtureSignIn } from "./_fixture-login";
 
 const WEB = process.env.PROOVRA_FIXTURE_WEB_BASE ?? "http://localhost:3311";
 const PASSWORD = "fixture-local-only-password";
@@ -97,6 +98,8 @@ async function signIn(page: Page) {
   }
   await page.locator('button[type="submit"]:visible').first().click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
+  // AUD-0021 — a platform administrator answers the second-factor challenge.
+  await settleFixtureSignIn(page, ADMIN, WEB);
 }
 
 /** The record's current status, reset through the REAL PATCH endpoint. */

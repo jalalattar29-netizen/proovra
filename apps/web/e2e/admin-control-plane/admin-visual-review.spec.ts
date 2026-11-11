@@ -49,6 +49,7 @@ import { fileURLToPath } from "node:url";
 import { test, type BrowserContext, type Page } from "@playwright/test";
 
 import { CONSENT_VERSION } from "../../lib/consent";
+import { settleFixtureSignIn } from "./_fixture-login";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../../../..");
@@ -159,6 +160,8 @@ async function signIn(page: Page) {
   }
   await page.locator('button[type="submit"]:visible').first().click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
+  // AUD-0021 — a platform administrator answers the second-factor challenge.
+  await settleFixtureSignIn(page, ADMIN, WEB);
 }
 
 /**

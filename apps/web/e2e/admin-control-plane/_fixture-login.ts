@@ -1,3 +1,8 @@
+import { createHash, createHmac } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { expect, type Page } from "@playwright/test";
 
 /**
@@ -50,6 +55,62 @@ import { expect, type Page } from "@playwright/test";
  */
 
 const AUTH_PATH = "/v1/auth/email/login";
+const MFA_VERIFY_PATH = "/v1/auth/mfa/verify";
+
+/**
+ * AUD-0021 — the platform administrator's authenticator secret, the same 32
+ * bytes services/api/scripts/seed-admin-fixture.ts enrols (change both together).
+ * Local-only: the seeder refuses non-local databases.
+ */
+const FIXTURE_TOTP_SECRET = Buffer.from("proovra-fixture-local-only-totp!", "utf8");
+const TOTP_PERIOD_SECONDS = 30;
+
+/** RFC 6238 (SHA-1, 6 digits, 30 s) — what the API's mfa-totp verifies. */
+function totpCode(step: number): string {
+  const counter = Buffer.alloc(8);
+  counter.writeUInt32BE(Math.floor(step / 0x1_0000_0000), 0);
+  counter.writeUInt32BE(step >>> 0, 4);
+  const hmac = createHmac("sha1", FIXTURE_TOTP_SECRET).update(counter).digest();
+  const offset = hmac[hmac.length - 1]! & 0x0f;
+  const binary =
+    ((hmac[offset]! & 0x7f) << 24) |
+    ((hmac[offset + 1]! & 0xff) << 16) |
+    ((hmac[offset + 2]! & 0xff) << 8) |
+    (hmac[offset + 3]! & 0xff);
+  return (binary % 1_000_000).toString().padStart(6, "0");
+}
+
+/**
+ * The next code the API's replay guard accepts. It takes each time step once,
+ * in increasing order, within current ±1; so a run that signs the administrator
+ * in more often than every 30 s has to WAIT for a fresh step rather than replay
+ * one. The last step spent is kept in a file per fixture API, because spec files
+ * may run in fresh worker processes against the same database.
+ */
+async function nextFixtureTotpCode(apiKey: string): Promise<string> {
+  const dir = join(tmpdir(), "proovra-admin-fixture-totp");
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, `${createHash("sha256").update(apiKey).digest("hex").slice(0, 16)}.json`);
+  let lastStep = -Infinity;
+  try {
+    lastStep = Number((JSON.parse(readFileSync(file, "utf8")) as { lastStep?: number }).lastStep ?? -Infinity);
+  } catch {
+    /* first sign-in against this fixture */
+  }
+  for (;;) {
+    const nowSeconds = Date.now() / 1000;
+    const current = Math.floor(nowSeconds / TOTP_PERIOD_SECONDS);
+    // The previous step is offered only while 5 s of the current one remain, so
+    // a boundary crossed in flight cannot turn a correct code into a refusal.
+    const oldest = nowSeconds % TOTP_PERIOD_SECONDS < 25 ? current - 1 : current;
+    const step = Math.max(lastStep + 1, oldest);
+    if (step <= current) {
+      writeFileSync(file, JSON.stringify({ lastStep: step }));
+      return totpCode(step);
+    }
+    await new Promise((r) => setTimeout(r, 1_000));
+  }
+}
 
 /**
  * HOW MANY REAL PASSWORD LOGINS THIS WORKER HAS PERFORMED.
@@ -117,6 +178,39 @@ async function dismissConsent(page: Page): Promise<void> {
     }
   }
   await banner.first().waitFor({ state: "hidden", timeout: 8_000 }).catch(() => {});
+}
+
+/**
+ * AUD-0021 — answer the sign-in's MFA challenge as the fixture platform
+ * administrator would: the enrolled authenticator's current code, typed into
+ * the real /auth/mfa-challenge form. Throws when the API refuses it.
+ */
+export async function answerFixtureMfaChallenge(page: Page, email: string, web: string): Promise<void> {
+  await page.waitForURL((u) => u.pathname.startsWith("/auth/mfa-challenge"), { timeout: 30_000 });
+  const codeBox = page.locator('[data-cc-mfa-input="totp"]');
+  await codeBox.waitFor({ state: "visible", timeout: 30_000 });
+  const apiKey = process.env.PROOVRA_FIXTURE_API_BASE ?? web;
+  await codeBox.fill(await nextFixtureTotpCode(apiKey));
+  const verified = page.waitForResponse(
+    (r) => r.url().includes(MFA_VERIFY_PATH) && r.request().method() === "POST",
+    { timeout: 30_000 },
+  );
+  await codeBox.press("Enter");
+  const verdict = await verified;
+  if (!verdict.ok()) {
+    throw new Error(`the second factor for ${email} was refused: HTTP ${verdict.status()}`);
+  }
+}
+
+/**
+ * AUD-0021 — finish a sign-in that the API answered with the MFA challenge (a
+ * platform administrator): answer it and wait to leave the challenge page. A
+ * sign-in that was not challenged (every other fixture account) is untouched.
+ */
+export async function settleFixtureSignIn(page: Page, email: string, web: string): Promise<void> {
+  if (!new URL(page.url()).pathname.startsWith("/auth/mfa-challenge")) return;
+  await answerFixtureMfaChallenge(page, email, web);
+  await page.waitForURL((u) => !u.pathname.startsWith("/auth/mfa-challenge"), { timeout: 60_000 });
 }
 
 export type FixtureLoginOptions = {
@@ -246,6 +340,17 @@ export async function signInAsFixtureUser(
     throw new Error(
       `sign-in for ${email} was refused: HTTP ${response.status()} ${code}`,
     );
+  }
+
+  /*
+   * AUD-0021 — a platform administrator's password is only the first step: the
+   * API answers with an MFA challenge and the page moves to
+   * /auth/mfa-challenge. Answer it the way the administrator would, with the
+   * enrolled authenticator's code typed into the real form.
+   */
+  const answer = (await response.json().catch(() => null)) as { mfaRequired?: boolean } | null;
+  if (answer?.mfaRequired === true) {
+    await answerFixtureMfaChallenge(page, email, web);
   }
 
   // Only now is a navigation actually owed to us.

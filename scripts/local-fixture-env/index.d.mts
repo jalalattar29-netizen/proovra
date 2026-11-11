@@ -24,3 +24,6 @@ export class UnsafeFixtureEnvironmentError extends Error {
 export const LOCAL_FIXTURE_DEFAULTS: Readonly<Record<string, string>>;
 export const LOCAL_FIXTURE_OS_BASELINE: ReadonlyArray<string>;
 export const LOCAL_FIXTURE_FORBIDDEN: ReadonlyArray<string>;
+
+/** The fixture's MFA envelope key (base64, 32 bytes). */
+export declare const LOCAL_FIXTURE_MFA_KEK_BASE64: string;

@@ -31,6 +31,7 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
 
 import { CONSENT_VERSION } from "../../lib/consent";
+import { answerFixtureMfaChallenge } from "./_fixture-login";
 
 const WEB = process.env.PROOVRA_FIXTURE_WEB_BASE ?? "http://localhost:3311";
 const PASSWORD = "fixture-local-only-password";
@@ -100,7 +101,14 @@ test("sign-in through home into /admin produces zero console errors", async ({ b
   // minutes print.
   journeyErrors.length = 0;
   await pass.press("Enter");
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
+  // AUD-0021 — the platform administrator's password is followed by the
+  // second-factor challenge; it is part of the journey, so its page is held to
+  // the same zero-console-error rule.
+  await answerFixtureMfaChallenge(page, ADMIN, WEB);
+  await page.waitForURL(
+    (u) => !u.pathname.startsWith("/login") && !u.pathname.startsWith("/auth/mfa-challenge"),
+    { timeout: 60_000 },
+  );
 
   // Let the post-login surface settle completely — the shell's first mount is
   // exactly where the unkeyed-pair warning used to fire, once, and a capture
