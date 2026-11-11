@@ -192,6 +192,13 @@ const COPY: Record<
       "Every seat on the workspace's plan is in use, so this invitation can't be completed right now. A workspace administrator can free a seat or change the plan.",
     kind: "workspace-unavailable",
   },
+  "identity-not-eligible": {
+    statusLabel: "Invitation",
+    title: "This account can't join this workspace",
+    message:
+      "Your organization manages where this account can work, and it doesn't allow personal workspaces like this one. Sign in with another account, or ask the person who invited you to use a different address.",
+    kind: "forbidden",
+  },
   unknown: {
     statusLabel: "Invitation",
     title: "This invitation link isn't available",

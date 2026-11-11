@@ -113,6 +113,11 @@ export type InvitationViewKind =
   | "not-accepting"
   /** Plan does not include members, or every seat is taken. */
   | "capacity"
+  /**
+   * The signed-in identity may not use a personal workspace: it is managed by
+   * an Organization, or its Organization's policy forbids one (AUD-0047).
+   */
+  | "identity-not-eligible"
   /** Unknown, malformed, or otherwise not available. Deliberately opaque. */
   | "unknown"
   /** Lookup or accept could not complete. Retryable, and NOT a verdict. */
@@ -321,6 +326,18 @@ function fromRefusal(
       // not something the invitee can buy their way out of. No retry: the
       // administrator has to act.
       return view("capacity", context, terminalActions(auth), null, "warning");
+    case "MANAGED_IDENTITY_NO_PERSONAL_SPACE":
+    case "ORG_POLICY_NO_PERSONAL_SPACE":
+      // The invitation is valid, but THIS identity's Organization governs where
+      // it may work, and that excludes personal workspaces (AUD-0047, option a).
+      // Signing in with another account is the one thing the reader can do.
+      return view(
+        "identity-not-eligible",
+        context,
+        ["switch-account", "go-dashboard"],
+        null,
+        "warning",
+      );
     case "WORKSPACE_SEAT_CONTENTION":
       // The one genuinely transient refusal — twenty-five failed attempts on
       // the per-workspace lock. Retry is real here, so it is offered.

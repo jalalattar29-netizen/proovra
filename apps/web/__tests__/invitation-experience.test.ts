@@ -145,6 +145,16 @@ test("4. wrong account — the invitation is VALID, only the session is wrong", 
   assert.ok(!v.actions.includes("accept"));
 });
 
+test("4b. AUD-0047 — a managed or no-personal-space identity is told why, not that the link failed", () => {
+  for (const code of ["MANAGED_IDENTITY_NO_PERSONAL_SPACE", "ORG_POLICY_NO_PERSONAL_SPACE"] as const) {
+    const v = at({ auth: SIGNED_IN, accept: { kind: "refused", code } });
+    assert.equal(v.kind, "identity-not-eligible", code);
+    assert.ok(v.actions.includes("switch-account"), code);
+    assert.ok(!v.actions.includes("accept"), code);
+    assert.ok(!v.actions.includes("retry"), code);
+  }
+});
+
 test("5. already a member — a success, and no second mutation", () => {
   const v = at({
     auth: SIGNED_IN,

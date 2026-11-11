@@ -55,6 +55,7 @@ import {
   withSeatClaimRetry,
 } from "../billing/workspace-seats.service.js";
 import { organizationLifecycleApplies } from "./workspace-kind.js";
+import { assertPersonalSpaceAllowed } from "./identity-mode.service.js";
 import {
   BillingLimitError,
   assertSubscriptionActiveOrGraceAllowed,
@@ -627,6 +628,7 @@ export async function acceptWorkspaceInvitation(
     select: {
       closedAtUtc: true,
       workspaceKind: true,
+      isPersonal: true,
       organization: { select: { status: true } },
     },
   });
@@ -669,6 +671,35 @@ export async function acceptWorkspaceInvitation(
       "Verify your email address, then accept this invitation.",
       403,
     );
+  }
+
+  /**
+   * AUD-0047 — A PERSONAL WORKSPACE HAS TO BE ONE THIS IDENTITY CAN ENTER.
+   *
+   * A managed enterprise identity, and a member of an Organization whose policy
+   * is `noPersonalSpace`, is refused every PERSONAL workspace: the switch route
+   * applies `assertPersonalSpaceAllowed` to any `isPersonal` target and the
+   * switcher does not offer one. Acceptance did not ask, so such a person could
+   * accept a Pro or Team invitation, take a seat, and then be refused the
+   * workspace they had just joined. The decision recorded for AUD-0047
+   * (option a, 2026-11-11) keeps that policy and moves the refusal to the
+   * front: the same predicate and the same codes, before any seat or
+   * membership is written. Organization workspaces are not personal and are
+   * unaffected.
+   */
+  if (workspace.isPersonal) {
+    try {
+      await assertPersonalSpaceAllowed(input.actorUserId, client);
+    } catch (err) {
+      const e = err as { code?: unknown; message?: unknown };
+      if (
+        e.code === "MANAGED_IDENTITY_NO_PERSONAL_SPACE" ||
+        e.code === "ORG_POLICY_NO_PERSONAL_SPACE"
+      ) {
+        throw new WorkspaceInvitationError(e.code, String(e.message), 403);
+      }
+      throw err;
+    }
   }
 
   const existingMembership = await client.teamMember.findUnique({

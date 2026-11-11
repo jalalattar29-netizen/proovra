@@ -319,17 +319,17 @@ describe("AUD-0047 — joined Pro/Team workspaces are offered and enterable (liv
   });
 
   /*
-   * CURRENT POLICY, RECORDED (AUD-0047 open decision, 2026-11-11). A managed
-   * enterprise identity, and a member of an Organization whose policy forbids
-   * personal workspaces, may ACCEPT an invitation into somebody's Pro or Team
-   * workspace (the invitation service has no identity-mode check), but the
-   * switch route's personal-space gate applies to every PERSONAL target, so
-   * they are not offered it and are refused entry with the typed code. Their
-   * Organization workspace is unaffected. Allowing them in is a change to the
-   * managed-identity rule ("org-controlled lifecycle, no personal space"), not
-   * a repair; if that decision is taken, this case changes with it.
+   * AUD-0047 DECISION (option a, 2026-11-11). A managed enterprise identity,
+   * and a member of an Organization whose policy forbids personal workspaces,
+   * is refused every PERSONAL workspace: the switch route's personal-space
+   * gate applies to any PERSONAL target. Acceptance now asks the same question
+   * first, so an invitation into somebody's Pro or Team workspace is refused
+   * with the same typed code, no membership or seat is written, and the
+   * invitation stays pending rather than being consumed by a person who could
+   * not use it. Their Organization workspace is unaffected, and a membership
+   * written before the check existed (grandfathered) still opens nothing.
    */
-  it("CURRENT POLICY — a managed identity or a no-personal-space Organization member can accept but is neither offered nor admitted", async () => {
+  it("AUD-0047 (a) — a managed identity or a no-personal-space Organization member is refused at accept, nothing is written, and entry stays refused", async () => {
     const proOwner = await seedPersonalTenant(deps, "PRO");
     const managedOrg = await seedOrganizationTenant(deps, { memberCount: 1 });
     const policyOrg = await seedOrganizationTenant(deps, { memberCount: 1, noPersonalSpace: true });
@@ -345,7 +345,7 @@ describe("AUD-0047 — joined Pro/Team workspaces are offered and enterable (liv
       [policyMember, /^ORG_POLICY_NO_PERSONAL_SPACE$/, policyOrg.workspaceId],
     ] as const) {
       const rawToken = `wsit_v1_${randomBytes(32).toString("base64url")}`;
-      await prisma.teamInvite.create({
+      const invite = (await prisma.teamInvite.create({
         data: {
           teamId: proOwner.personalTeamId,
           email: who.email.toLowerCase(),
@@ -354,24 +354,36 @@ describe("AUD-0047 — joined Pro/Team workspaces are offered and enterable (liv
           expiresAt: new Date(Date.now() + 86_400_000),
           invitedByUserId: proOwner.owner.userId,
         } as never,
-      });
-      const accepted = await inject({
+      })) as { id: string };
+      const refusedAccept = await inject({
         method: "POST",
         url: `/v1/teams/invites/${rawToken}/accept`,
         token: who.token,
         payload: {},
       });
-      expect(accepted.statusCode, accepted.body).toBe(200);
-      const membership = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: proOwner.personalTeamId, userId: who.userId } },
-        select: { status: true },
-      });
-      expect(membership?.status).toBe("ACTIVE");
+      expect(refusedAccept.statusCode, refusedAccept.body).toBe(403);
+      expect((refusedAccept.json() as { error: { code: string } }).error.code).toMatch(expectedCode);
+      expect(
+        await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: proOwner.personalTeamId, userId: who.userId } },
+          select: { status: true },
+        }),
+      ).toBeNull();
+      expect(
+        await prisma.teamInvite.findUnique({
+          where: { id: invite.id },
+          select: { acceptedAt: true, revokedAt: true },
+        }),
+      ).toEqual({ acceptedAt: null, revokedAt: null });
 
       const ctx = await context(who.token);
       expect(ctx.contextOptions.sharedWorkspaces).toEqual([]);
       expect(ctx.canonical.sharedWorkspaces).toEqual([]);
 
+      // A membership written before the accept check existed still opens nothing.
+      await prisma.teamMember.create({
+        data: { teamId: proOwner.personalTeamId, userId: who.userId, role: "MEMBER", status: "ACTIVE" },
+      });
       const refused = await switchTo(who.token, proOwner.personalTeamId);
       expect(refused.statusCode, refused.body).toBe(403);
       expect((refused.json() as { code: string }).code).toMatch(expectedCode);

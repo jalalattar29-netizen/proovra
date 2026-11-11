@@ -115,6 +115,11 @@ export const WORKSPACE_INVITE_COPY: Record<InvitationViewKind, { title: string; 
     message:
       "Every seat on the workspace's plan is in use, so this invitation can't be completed right now. A workspace administrator can free a seat or change the plan.",
   },
+  "identity-not-eligible": {
+    title: "This account can't join this workspace",
+    message:
+      "Your organization manages where this account can work, and it doesn't allow personal workspaces like this one. Sign in with another account, or ask the person who invited you to use a different address.",
+  },
   unknown: {
     title: "This invitation link isn't available",
     message: "The link may be incorrect or no longer active. Ask an administrator for a new invitation.",
