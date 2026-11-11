@@ -229,6 +229,40 @@ describe("privileged identity — factor removal authority (live PostgreSQL)", (
       expect(await activeFactors(peer.userId)).toBe(1);
     });
 
+    // AUD-0038 (completed 2026-11-11) — the finding asked for the rank on
+    // approve AND reject: an ADMIN who may not approve the OWNER's or a peer
+    // ADMIN's recovery may not close it either.
+    it("an ADMIN cannot reject the OWNER's or a peer ADMIN's recovery; the request stays open", async () => {
+      const o = await org(2);
+      const [admin, peer] = o.members as [SeededUser, SeededUser];
+      await setRole(o, admin, "ADMIN");
+      await setRole(o, peer, "ADMIN");
+      await ceremony.enroll(o.owner.userId);
+      await ceremony.enroll(peer.userId);
+      for (const target of [o.owner, peer]) {
+        const id = await verifiedRequest(o, target);
+        const res = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${id}/reject`, admin.token, { reason: "not mine to decide" });
+        expect(res.statusCode, res.body).toBe(403);
+        expect(res.json().error).toBe("approver_rank_insufficient");
+        expect((await prisma.mfaRecoveryRequest.findUniqueOrThrow({ where: { id } })).status).toBe("PENDING_ADMIN_REVIEW");
+      }
+    });
+
+    it("control: the OWNER rejects an ADMIN's recovery and an ADMIN rejects a MEMBER's", async () => {
+      const o = await org(2);
+      const [admin, member] = o.members as [SeededUser, SeededUser];
+      await setRole(o, admin, "ADMIN");
+      await setRole(o, member, "MEMBER");
+      const adminRequest = await verifiedRequest(o, admin);
+      const byOwner = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${adminRequest}/reject`, o.owner.token, {});
+      expect(byOwner.statusCode, byOwner.body).toBe(200);
+      expect((await prisma.mfaRecoveryRequest.findUniqueOrThrow({ where: { id: adminRequest } })).status).toBe("REJECTED");
+      const memberRequest = await verifiedRequest(o, member);
+      const byAdmin = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${memberRequest}/reject`, admin.token, {});
+      expect(byAdmin.statusCode, byAdmin.body).toBe(200);
+      expect((await prisma.mfaRecoveryRequest.findUniqueOrThrow({ where: { id: memberRequest } })).status).toBe("REJECTED");
+    });
+
     it("control: the OWNER approves an ADMIN's recovery; the factors go and the ADMIN's sessions end", async () => {
       const o = await org(1);
       const admin = o.members[0]!;

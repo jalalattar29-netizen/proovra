@@ -920,7 +920,9 @@ export interface RejectRecoveryRequestResult {
     | "request_not_found"
     | "approver_not_admin"
     | "request_not_pending"
-    | "cannot_self_reject";
+    | "cannot_self_reject"
+    // AUD-0038 — rejecting is held to the same rank as approving.
+    | "approver_rank_insufficient";
 }
 
 export async function rejectRecoveryRequest(
@@ -952,6 +954,12 @@ export async function rejectRecoveryRequest(
     select: { id: true },
   });
   if (!adminCheck) return { ok: false, reason: "approver_not_admin" };
+  // AUD-0038 — the members rank rule applies to the decision either way. An
+  // ADMIN who may not approve the OWNER's (or a peer ADMIN's) recovery may not
+  // close it either: a rejection ends the request the person is relying on.
+  if ((await assertActorOutranksMfaTarget({ teamId: row.teamId, actorUserId: input.approverUserId, targetUserId: row.userId })) !== null) {
+    return { ok: false, reason: "approver_rank_insufficient" };
+  }
   await prisma.mfaRecoveryRequest.update({
     where: { id: row.id },
     data: {

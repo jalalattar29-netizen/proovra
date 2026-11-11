@@ -800,7 +800,9 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         }
         if (
           result.reason === "approver_not_admin" ||
-          result.reason === "cannot_self_reject"
+          result.reason === "cannot_self_reject" ||
+          // AUD-0038 — same rank as approval
+          result.reason === "approver_rank_insufficient"
         ) {
           reply.code(403);
           return { error: result.reason };
