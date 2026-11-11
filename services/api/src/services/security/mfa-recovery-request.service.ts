@@ -43,7 +43,7 @@ import { safeEmitSecurityEvent } from "./security-event.service.js";
 import { getEmailService } from "../email.service.js";
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
 import { cancelOutstandingStepUpChallenges } from "../identity-security/step-up.service.js";
-import { assertActorOutranksMfaTarget } from "./mfa-admin-lifecycle.service.js";
+import { assertActorMayDecideMfaRecovery } from "./mfa-admin-lifecycle.service.js";
 import { resolvePlatformAdmin } from "../platform-admin.service.js";
 // PHASE 11 — canonical internal URL builder.
 import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
@@ -771,8 +771,11 @@ export async function approveRecoveryRequest(
   // (assertActorOutranksMfaTarget): the approver must STRICTLY outrank the
   // requester in this workspace. An ADMIN approving the OWNER's (or another
   // ADMIN's) request was the indirect way round "an ADMIN cannot reset the
-  // OWNER". A request nobody outranks (the OWNER's) is not approvable here.
-  if ((await assertActorOutranksMfaTarget({ teamId: row.teamId, actorUserId: input.approverUserId, targetUserId: row.userId })) !== null) {
+  // OWNER". The OWNER's own request, which nobody in the workspace outranks,
+  // may be decided by another live ORG_OWNER of the workspace's customer
+  // Organization (AUD-0038 decision b, assertActorMayDecideMfaRecovery); in a
+  // personal or owned workspace it has no approver here.
+  if ((await assertActorMayDecideMfaRecovery({ teamId: row.teamId, actorUserId: input.approverUserId, targetUserId: row.userId })) !== null) {
     return { ok: false, reason: "approver_rank_insufficient" };
   }
   if (input.preflightOnly) {
@@ -957,7 +960,7 @@ export async function rejectRecoveryRequest(
   // AUD-0038 — the members rank rule applies to the decision either way. An
   // ADMIN who may not approve the OWNER's (or a peer ADMIN's) recovery may not
   // close it either: a rejection ends the request the person is relying on.
-  if ((await assertActorOutranksMfaTarget({ teamId: row.teamId, actorUserId: input.approverUserId, targetUserId: row.userId })) !== null) {
+  if ((await assertActorMayDecideMfaRecovery({ teamId: row.teamId, actorUserId: input.approverUserId, targetUserId: row.userId })) !== null) {
     return { ok: false, reason: "approver_rank_insufficient" };
   }
   await prisma.mfaRecoveryRequest.update({

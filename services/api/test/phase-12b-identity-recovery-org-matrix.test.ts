@@ -243,6 +243,20 @@ vi.mock("../src/services/security/mfa-admin-lifecycle.service.js", () => ({
       ? null
       : "rank_insufficient";
   },
+  // AUD-0038 decision (b) — the recovery decision is the rank rule plus a peer
+  // ORG_OWNER on the workspace OWNER's request. No fixture user holds an
+  // Organization role, so here it is the rank rule alone.
+  assertActorMayDecideMfaRecovery: async (i: { teamId: string; actorUserId: string; targetUserId: string }) => {
+    if (i.actorUserId === i.targetUserId) return "self_target_forbidden";
+    const rank: Record<string, number> = { OWNER: 4, ADMIN: 3, MEMBER: 2, VIEWER: 1 };
+    const roleOf = (userId: string) =>
+      (H.db.__store.get("teamMember") as Array<{ teamId: string; userId: string; role: string; status: string }>).find(
+        (m) => m.teamId === i.teamId && m.userId === userId && m.status === "ACTIVE",
+      )?.role;
+    return (rank[roleOf(i.actorUserId) ?? ""] ?? 0) > (rank[roleOf(i.targetUserId) ?? ""] ?? 0)
+      ? null
+      : "rank_insufficient";
+  },
   resetTrustedDevicesForUser: async () => ({ ok: true, resetCount: 0 }),
   revokeUserFactor: async () => ({ ok: true }),
 }));

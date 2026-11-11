@@ -37,6 +37,7 @@ import {
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
 import { resolvePlatformAdmin } from "../platform-admin.service.js";
+import { organizationLifecycleApplies } from "../identity/workspace-kind.js";
 
 export type MfaAdminScopeFailure =
   | "admin_not_in_team"
@@ -105,6 +106,66 @@ export async function assertActorOutranksMfaTarget(
   const actorRank = actor ? MFA_ADMIN_RANK[actor.role] ?? 0 : 0;
   const targetRank = target ? MFA_ADMIN_RANK[target.role] ?? 0 : 0;
   return actorRank > targetRank ? null : "rank_insufficient";
+}
+
+/**
+ * AUD-0038 DECISION (option b, 2026-11-11) — WHO MAY DECIDE A RECOVERY REQUEST.
+ *
+ * The members rank rule above decides it, with one addition for the request
+ * nobody in the workspace outranks: the workspace OWNER's. A workspace has one
+ * OWNER, so under the rank rule alone the OWNER who lost their second factor
+ * had recovery codes and nothing else. Where the workspace belongs to a
+ * customer Organization, ANOTHER live ORG_OWNER of that Organization may decide
+ * it — the Organization's own highest authority, which already holds the
+ * OWNER's workspace in its hands (ownership transfer, closure). The approver
+ * still has to pass every other gate: an ACTIVE OWNER/ADMIN membership in the
+ * workspace (the recovery queue's scope), not the requester (self is refused
+ * above), the platform-authority exclusion (AUD-0039), email verification of
+ * the request, and step-up bound to the requester.
+ *
+ * Deliberately narrow:
+ *   - only the OWNER's request — an ADMIN's request already has an approver
+ *     (the OWNER), so the peer rule does not widen who decides it;
+ *   - only an ORG_OWNER — an ORG_ADMIN or ORG_SECURITY_ADMIN is below the
+ *     Organization's owners and stays refused, as a workspace ADMIN is;
+ *   - only a CUSTOMER Organization (`organizationLifecycleApplies`) — a personal
+ *     or owned (Pro/Team) workspace sits in an internal SYSTEM container whose
+ *     "owner" is not a second person, so its OWNER keeps recovery codes.
+ * The direct factor-removal routes are NOT changed: they keep the strict rank.
+ */
+export async function assertActorMayDecideMfaRecovery(
+  input: ScopeCheckInput,
+): Promise<"rank_insufficient" | "self_target_forbidden" | "target_platform_authority" | null> {
+  const rank = await assertActorOutranksMfaTarget(input);
+  if (rank !== "rank_insufficient") return rank;
+  return (await peerOrganizationOwnerMayDecide(input)) ? null : "rank_insufficient";
+}
+
+async function peerOrganizationOwnerMayDecide(input: ScopeCheckInput): Promise<boolean> {
+  const [workspace, targetMembership] = await Promise.all([
+    prisma.team.findUnique({
+      where: { id: input.teamId },
+      select: { workspaceKind: true, organizationId: true, closedAtUtc: true, organization: { select: { status: true } } },
+    }),
+    prisma.teamMember.findFirst({
+      where: { teamId: input.teamId, userId: input.targetUserId, status: "ACTIVE" },
+      select: { role: true },
+    }),
+  ]);
+  if (targetMembership?.role !== "OWNER") return false;
+  if (!workspace?.organizationId || workspace.closedAtUtc !== null) return false;
+  if (!organizationLifecycleApplies(workspace.workspaceKind ?? "UNKNOWN")) return false;
+  if (workspace.organization?.status !== "ACTIVE") return false;
+  const approverIsOrgOwner = await prisma.organizationMembership.findFirst({
+    where: {
+      organizationId: workspace.organizationId,
+      userId: input.actorUserId,
+      role: "ORG_OWNER",
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  return approverIsOrgOwner !== null;
 }
 
 interface ScopeCheckInput {

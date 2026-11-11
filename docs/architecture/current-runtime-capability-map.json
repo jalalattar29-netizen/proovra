@@ -152,16 +152,16 @@
       "PUBLIC_DATA": 39,
       "GLOBAL_USER_SELF": 57,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 703,
+      "WORKSPACE_SCOPED": 704,
       "ORGANIZATION_SCOPED": 134,
-      "MULTI_TENANT_PLATFORM_ADMIN": 143,
+      "MULTI_TENANT_PLATFORM_ADMIN": 142,
       "TOKEN_SCOPED": 38,
       "PROVIDER_SCOPED": 4,
       "MACHINE_SCOPED": 17,
       "NO_DATA_ACCESS": 54
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 990,
+    "OrganizationRoutesMeasured": 991,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
@@ -179,8 +179,8 @@
         "tagged": 29
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 411,
-        "tagged": 411
+        "primary": 412,
+        "tagged": 412
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 396,
@@ -191,8 +191,8 @@
         "tagged": 134
       },
       "PLATFORM_ADMIN": {
-        "primary": 143,
-        "tagged": 143
+        "primary": 142,
+        "tagged": 142
       },
       "API_KEY_SCOPED": {
         "primary": 5,
@@ -11694,7 +11694,7 @@
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
       "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:348",
       "machineConsumer": null,
-      "authorization": "MULTI_GATE",
+      "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
@@ -95823,8 +95823,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.update@267",
-      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:267",
+      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.update@328",
+      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:328",
       "file": "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
       "enclosingDeclaration": "revokeUserFactor",
       "kind": "DATABASE",
@@ -95856,8 +95856,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.updateMany@330",
-      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:330",
+      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.updateMany@391",
+      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:391",
       "file": "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
       "enclosingDeclaration": "requireUserReenrollment",
       "kind": "DATABASE",
@@ -95889,8 +95889,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#trustedDevice.updateMany@400",
-      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:400",
+      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#trustedDevice.updateMany@461",
+      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:461",
       "file": "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
       "enclosingDeclaration": "resetTrustedDevicesForUser",
       "kind": "DATABASE",
@@ -95990,8 +95990,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaFactor.updateMany@1327",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1327",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaFactor.updateMany@1330",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1330",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "platformRecoverFactors",
       "kind": "DATABASE",
@@ -96023,8 +96023,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaFactor.updateMany@825",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:825",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaFactor.updateMany@828",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:828",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "approveRecoveryRequest",
       "kind": "DATABASE",
@@ -96056,8 +96056,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryCode.updateMany@1331",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1331",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryCode.updateMany@1334",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1334",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "platformRecoverFactors",
       "kind": "DATABASE",
@@ -96089,8 +96089,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryCode.updateMany@829",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:829",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryCode.updateMany@832",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:832",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "approveRecoveryRequest",
       "kind": "DATABASE",
@@ -96221,8 +96221,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@963",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:963",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@966",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:966",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "rejectRecoveryRequest",
       "kind": "DATABASE",
@@ -96254,8 +96254,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@1033",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1033",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@1036",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1036",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "markRecoveryCompleted",
       "kind": "DATABASE",
@@ -96353,74 +96353,74 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@806",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@809",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:809",
+      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
+      "enclosingDeclaration": "approveRecoveryRequest",
+      "kind": "DATABASE",
+      "target": "mfaRecoveryRequest",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/mfa-admin.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@824",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:824",
+      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
+      "enclosingDeclaration": "approveRecoveryRequest",
+      "kind": "DATABASE",
+      "target": "mfaRecoveryRequest",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/mfa-admin.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequestApproval.create@806",
       "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:806",
-      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
-      "enclosingDeclaration": "approveRecoveryRequest",
-      "kind": "DATABASE",
-      "target": "mfaRecoveryRequest",
-      "mutationKind": "updateMany",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": true,
-      "entryRoutes": [
-        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/mfa-admin.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@821",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:821",
-      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
-      "enclosingDeclaration": "approveRecoveryRequest",
-      "kind": "DATABASE",
-      "target": "mfaRecoveryRequest",
-      "mutationKind": "updateMany",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": true,
-      "entryRoutes": [
-        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/mfa-admin.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequestApproval.create@803",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:803",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "approveRecoveryRequest",
       "kind": "DATABASE",
@@ -176436,6 +176436,7 @@
         "externalIdentityMapping",
         "mfaFactor",
         "mfaRecoveryRequest",
+        "organizationMembership",
         "organizationSecurityPolicy",
         "riskSignal",
         "ssoConnection",
@@ -176481,13 +176482,11 @@
       "path": "/v1/identity/mfa-admin/recovery-requests/:requestId/reject",
       "productionRegistered": true,
       "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:783",
-      "authorizationClass": "MULTI_GATE",
+      "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
-        "handler body -> services/api/src/services/security/mfa-admin-lifecycle.service.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
-        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -176507,17 +176506,19 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "MULTI_GATE",
-      "authorizationAuthority": "MULTI_GATE",
-      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
-      "tenantType": "PLATFORM",
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
         "mfaRecoveryRequest",
+        "organizationMembership",
+        "team",
         "teamMember",
         "user"
       ],

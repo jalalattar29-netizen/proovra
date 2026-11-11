@@ -263,6 +263,82 @@ describe("privileged identity — factor removal authority (live PostgreSQL)", (
       expect((await prisma.mfaRecoveryRequest.findUniqueOrThrow({ where: { id: memberRequest } })).status).toBe("REJECTED");
     });
 
+    // AUD-0038 decision (b), 2026-11-11 — the OWNER's request, which nobody in
+    // the workspace outranks, may be decided by ANOTHER live ORG_OWNER of the
+    // workspace's customer Organization who administers the workspace.
+    const setOrgRole = (o: OrganizationTenant, m: SeededUser, role: "ORG_OWNER" | "ORG_ADMIN", status: "ACTIVE" | "SUSPENDED" = "ACTIVE") =>
+      prisma.organizationMembership.update({
+        where: { organization_memberships_org_user_uniq: { organizationId: o.organizationId, userId: m.userId } },
+        data: { role, status, suspendedAtUtc: status === "SUSPENDED" ? new Date() : null },
+      });
+
+    it("AUD-0038 (b): a second ORG_OWNER approves the workspace OWNER's recovery with step-up; the factors go", async () => {
+      const o = await org(1);
+      const peerOwner = o.members[0]!;
+      await setRole(o, peerOwner, "ADMIN");
+      await setOrgRole(o, peerOwner, "ORG_OWNER");
+      await ceremony.enroll(o.owner.userId);
+      const id = await verifiedRequest(o, o.owner);
+      const unproven = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${id}/approve`, peerOwner.token, {});
+      expect(unproven.statusCode, unproven.body).not.toBe(200);
+      expect(await activeFactors(o.owner.userId)).toBe(1);
+      const header = await ceremony.approvedHeader({
+        token: peerOwner.token,
+        userId: peerOwner.userId,
+        teamId: o.workspaceId,
+        purpose: "MFA_REENROLLMENT_REQUIRE",
+        resourceKind: "user",
+        resourceId: o.owner.userId,
+      });
+      const res = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${id}/approve`, peerOwner.token, {}, header);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().approvedNow).toBe(true);
+      expect(await activeFactors(o.owner.userId)).toBe(0);
+    });
+
+    it("AUD-0038 (b): a second ORG_OWNER may reject the workspace OWNER's recovery", async () => {
+      const o = await org(1);
+      const peerOwner = o.members[0]!;
+      await setRole(o, peerOwner, "ADMIN");
+      await setOrgRole(o, peerOwner, "ORG_OWNER");
+      await ceremony.enroll(o.owner.userId);
+      const id = await verifiedRequest(o, o.owner);
+      const res = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${id}/reject`, peerOwner.token, { reason: "not requested by the owner" });
+      expect(res.statusCode, res.body).toBe(200);
+      expect((await prisma.mfaRecoveryRequest.findUniqueOrThrow({ where: { id } })).status).toBe("REJECTED");
+      expect(await activeFactors(o.owner.userId)).toBe(1);
+    });
+
+    it("AUD-0038 (b) stays narrow: an ORG_ADMIN, a suspended ORG_OWNER, another Organization's owner, and an ORG_OWNER on a peer ADMIN's request are all refused", async () => {
+      const o = await org(3);
+      const [orgAdmin, suspendedOwner, peerOwner] = o.members as [SeededUser, SeededUser, SeededUser];
+      for (const m of o.members) await setRole(o, m, "ADMIN");
+      await setOrgRole(o, orgAdmin, "ORG_ADMIN");
+      await setOrgRole(o, suspendedOwner, "ORG_OWNER", "SUSPENDED");
+      await setOrgRole(o, peerOwner, "ORG_OWNER");
+      // An ORG_OWNER of a DIFFERENT Organization who administers this workspace.
+      const other = await org(0);
+      await prisma.teamMember.create({ data: { teamId: o.workspaceId, userId: other.owner.userId, role: "ADMIN", status: "ACTIVE" } });
+      await ceremony.enroll(o.owner.userId);
+      await ceremony.enroll(orgAdmin.userId);
+      const ownerRequest = await verifiedRequest(o, o.owner);
+      for (const who of [orgAdmin, suspendedOwner, other.owner]) {
+        for (const verb of ["approve", "reject"] as const) {
+          const res = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${ownerRequest}/${verb}`, who.token, {});
+          expect(res.statusCode, `${verb} by ${who.email}: ${res.body}`).toBe(403);
+          expect(res.json().error).toBe("approver_rank_insufficient");
+        }
+      }
+      // The peer rule is for the OWNER's request only: an ADMIN's request already has its approver.
+      const adminRequest = await verifiedRequest(o, orgAdmin);
+      const byPeerOwner = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${adminRequest}/approve`, peerOwner.token, {});
+      expect(byPeerOwner.statusCode, byPeerOwner.body).toBe(403);
+      expect(byPeerOwner.json().error).toBe("approver_rank_insufficient");
+      expect((await prisma.mfaRecoveryRequest.findUniqueOrThrow({ where: { id: ownerRequest } })).status).toBe("PENDING_ADMIN_REVIEW");
+      expect(await activeFactors(o.owner.userId)).toBe(1);
+      expect(await activeFactors(orgAdmin.userId)).toBe(1);
+    });
+
     it("control: the OWNER approves an ADMIN's recovery; the factors go and the ADMIN's sessions end", async () => {
       const o = await org(1);
       const admin = o.members[0]!;
