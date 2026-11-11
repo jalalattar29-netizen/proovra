@@ -276,7 +276,9 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   "workspace.review_qc",
   "workspace.review_disagreements",
   "workspace.review_metrics",
-  "workspace.review_queues",
+  // `workspace.review_queues` (/review/queues) is NOT here (AUD-0049): the
+  // shared queues are REVIEW_TASKS_AND_QUEUES, which the Team plan includes;
+  // it is gated on the server-projected `reviewQueuesIncluded` below.
   "workspace.review_external",
   "workspace.review_redaction",
   // Governance / compliance.
@@ -2537,6 +2539,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Multi-select reviewer queues + bulk action bar.",
     domain: "REVIEW_OPERATIONS",
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
+    // AUD-0049 — the plan's shared-queue entitlement (REVIEW_TASKS_AND_QUEUES), as the API decides it.
+    requiredPlanFeature: "reviewQueuesIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
 

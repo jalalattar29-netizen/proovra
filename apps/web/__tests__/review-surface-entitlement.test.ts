@@ -72,6 +72,41 @@ test("the reviewer-operations navigation entries are reachable from a Personal W
  * queue, operations, escalations, queue detail and SLA pages, so a TEAM owner
  * whose plan includes them, and whose API serves them, was told to upgrade.
  */
+/**
+ * AUD-0049 (reopened 2026-11-11) — /review/queues is the fourth page the
+ * finding names. The plan catalogue gives TEAM `reviewQueuesIncluded`
+ * (REVIEW_TASKS_AND_QUEUES) and the API serves its queue to a Team workspace,
+ * but the route stayed in ENTERPRISE_ONLY_ROUTE_IDS, so a Team owner was still
+ * told to upgrade there.
+ */
+test("AUD-0049 — /review/queues opens on TEAM (reviewQueuesIncluded) and refuses PRO, FREE and an unknown answer", () => {
+  const route = ROUTE_REGISTRY.find((r) => r.id === "workspace.review_queues");
+  assert.ok(route);
+  assert.equal(route!.href, "/review/queues");
+  assert.equal(routeRequiresEnterpriseWorkspace(route!), false);
+  const base = {
+    route: route!,
+    activeSpaceType: "PERSONAL" as const,
+    isPlatformAdmin: false,
+    capabilities: Object.fromEntries((route!.requiredCapabilities ?? []).map((c) => [c, true])),
+    workspace: { id: "w-1", status: "active" },
+    personalSpace: { id: "w-1", status: "active" },
+    isEnterpriseWorkspace: false,
+  };
+  const team = resolveRouteAccess({ ...base, planFeatures: { reviewQueuesIncluded: true } });
+  assert.equal(team.canLoad, true, team.reason);
+  assert.equal(team.canSeeNav, true);
+  for (const value of [false, null]) {
+    const pro = resolveRouteAccess({ ...base, planFeatures: { reviewQueuesIncluded: value } });
+    assert.equal(pro.canLoad, false, String(value));
+    assert.equal(pro.canSeeNav, false, String(value));
+    assert.doesNotMatch(pro.reason, /Enterprise workspace experience/);
+  }
+  // Enterprise is unchanged: its context carries the flag too.
+  const ent = resolveRouteAccess({ ...base, isEnterpriseWorkspace: true, planFeatures: { reviewQueuesIncluded: true } });
+  assert.equal(ent.canLoad, true, ent.reason);
+});
+
 test("AUD-0049 — the route gate opens the reviewer operations pages on TEAM and refuses them on PRO", () => {
   const ids = ["review.queue", "review.operations", "review.escalations", "review.queue_detail", "review.sla"];
   for (const id of ids) {
@@ -96,7 +131,7 @@ test("AUD-0049 — the route gate opens the reviewer operations pages on TEAM an
     }
   }
   // The advanced surfaces are still Enterprise-workspace routes.
-  for (const id of ["workspace.review", "workspace.review_queues", "workspace.review_metrics"]) {
+  for (const id of ["workspace.review", "workspace.review_metrics"]) {
     const route = ROUTE_REGISTRY.find((r) => r.id === id);
     if (route) assert.equal(routeRequiresEnterpriseWorkspace(route), true, id);
   }
