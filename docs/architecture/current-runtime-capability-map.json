@@ -152,9 +152,9 @@
       "PUBLIC_DATA": 39,
       "GLOBAL_USER_SELF": 57,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 704,
+      "WORKSPACE_SCOPED": 703,
       "ORGANIZATION_SCOPED": 134,
-      "MULTI_TENANT_PLATFORM_ADMIN": 142,
+      "MULTI_TENANT_PLATFORM_ADMIN": 143,
       "TOKEN_SCOPED": 38,
       "PROVIDER_SCOPED": 4,
       "MACHINE_SCOPED": 17,
@@ -179,8 +179,8 @@
         "tagged": 29
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 412,
-        "tagged": 412
+        "primary": 411,
+        "tagged": 411
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 396,
@@ -191,8 +191,8 @@
         "tagged": 134
       },
       "PLATFORM_ADMIN": {
-        "primary": 142,
-        "tagged": 142
+        "primary": 143,
+        "tagged": 143
       },
       "API_KEY_SCOPED": {
         "primary": 5,
@@ -11694,7 +11694,7 @@
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
       "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:348",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
@@ -95990,8 +95990,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaFactor.updateMany@1319",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1319",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaFactor.updateMany@1327",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1327",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "platformRecoverFactors",
       "kind": "DATABASE",
@@ -96056,8 +96056,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryCode.updateMany@1323",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1323",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryCode.updateMany@1331",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1331",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "platformRecoverFactors",
       "kind": "DATABASE",
@@ -96221,8 +96221,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@955",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:955",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@963",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:963",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "rejectRecoveryRequest",
       "kind": "DATABASE",
@@ -96254,8 +96254,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@1025",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1025",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@1033",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1033",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "markRecoveryCompleted",
       "kind": "DATABASE",
@@ -128869,7 +128869,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/digest-preferences",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1185",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1187",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -128929,7 +128929,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/digest-preferences/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1290",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1292",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -128995,7 +128995,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/digest-preferences/snooze-link",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1352",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1354",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129114,7 +129114,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/policy/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1072",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1074",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129246,7 +129246,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1571",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1573",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129303,7 +129303,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-requests/:requestId/approvals",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1039",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1041",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -129432,7 +129432,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-requests/detail/:requestId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1001",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1003",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149776,7 +149776,7 @@
       "method": "PATCH",
       "path": "/v1/identity/mfa-admin/digest-preferences",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1209",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1211",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149862,7 +149862,7 @@
       "method": "PATCH",
       "path": "/v1/identity/mfa-admin/policy/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1087",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1089",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -176114,7 +176114,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/digest-preferences/preview/send-test",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1436",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1438",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -176481,11 +176481,13 @@
       "path": "/v1/identity/mfa-admin/recovery-requests/:requestId/reject",
       "productionRegistered": true,
       "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:783",
-      "authorizationClass": "AUTHENTICATED",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "handler body -> services/api/src/services/security/mfa-admin-lifecycle.service.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -176505,12 +176507,12 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
@@ -176891,7 +176893,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:963",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:965",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -176959,7 +176961,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/:requestId/resend-email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:917",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:919",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -177025,7 +177027,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/:requestId/verify-email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:827",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:829",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/mfa-admin.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -177094,7 +177096,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/analytics/page-viewed",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:899",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:901",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/mfa-admin.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
