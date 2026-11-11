@@ -318,6 +318,70 @@ describe("AUD-0047 — joined Pro/Team workspaces are offered and enterable (liv
     });
   });
 
+  /*
+   * CURRENT POLICY, RECORDED (AUD-0047 open decision, 2026-11-11). A managed
+   * enterprise identity, and a member of an Organization whose policy forbids
+   * personal workspaces, may ACCEPT an invitation into somebody's Pro or Team
+   * workspace (the invitation service has no identity-mode check), but the
+   * switch route's personal-space gate applies to every PERSONAL target, so
+   * they are not offered it and are refused entry with the typed code. Their
+   * Organization workspace is unaffected. Allowing them in is a change to the
+   * managed-identity rule ("org-controlled lifecycle, no personal space"), not
+   * a repair; if that decision is taken, this case changes with it.
+   */
+  it("CURRENT POLICY — a managed identity or a no-personal-space Organization member can accept but is neither offered nor admitted", async () => {
+    const proOwner = await seedPersonalTenant(deps, "PRO");
+    const managedOrg = await seedOrganizationTenant(deps, { memberCount: 1 });
+    const policyOrg = await seedOrganizationTenant(deps, { memberCount: 1, noPersonalSpace: true });
+    const managed = managedOrg.members[0]!;
+    const policyMember = policyOrg.members[0]!;
+    await prisma.user.update({
+      where: { id: managed.userId },
+      data: { identityMode: "MANAGED_ENTERPRISE", managingOrganizationId: managedOrg.organizationId } as never,
+    });
+
+    for (const [who, expectedCode, orgWorkspaceId] of [
+      [managed, /^MANAGED_IDENTITY_NO_PERSONAL_SPACE$/, managedOrg.workspaceId],
+      [policyMember, /^ORG_POLICY_NO_PERSONAL_SPACE$/, policyOrg.workspaceId],
+    ] as const) {
+      const rawToken = `wsit_v1_${randomBytes(32).toString("base64url")}`;
+      await prisma.teamInvite.create({
+        data: {
+          teamId: proOwner.personalTeamId,
+          email: who.email.toLowerCase(),
+          role: "MEMBER",
+          tokenHash: createHash("sha256").update(rawToken).digest("hex"),
+          expiresAt: new Date(Date.now() + 86_400_000),
+          invitedByUserId: proOwner.owner.userId,
+        } as never,
+      });
+      const accepted = await inject({
+        method: "POST",
+        url: `/v1/teams/invites/${rawToken}/accept`,
+        token: who.token,
+        payload: {},
+      });
+      expect(accepted.statusCode, accepted.body).toBe(200);
+      const membership = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: proOwner.personalTeamId, userId: who.userId } },
+        select: { status: true },
+      });
+      expect(membership?.status).toBe("ACTIVE");
+
+      const ctx = await context(who.token);
+      expect(ctx.contextOptions.sharedWorkspaces).toEqual([]);
+      expect(ctx.canonical.sharedWorkspaces).toEqual([]);
+
+      const refused = await switchTo(who.token, proOwner.personalTeamId);
+      expect(refused.statusCode, refused.body).toBe(403);
+      expect((refused.json() as { code: string }).code).toMatch(expectedCode);
+
+      const entered = await switchTo(who.token, orgWorkspaceId);
+      expect(entered.statusCode, entered.body).toBe(200);
+      expect((entered.json() as Envelope).activeSpace).toMatchObject({ type: "ORGANIZATION", id: orgWorkspaceId });
+    }
+  });
+
   it("CONTROL — an Organization-workspace member is offered and enters it exactly as before", async () => {
     const org = await seedOrganizationTenant(deps, { memberCount: 1 });
     const m = org.members[0]!;
