@@ -121,9 +121,9 @@
     "openai": "^6.36.0",
     "pg": "^8.18.0",
     "prisma": "^7.3.0",
-    "xml-crypto": "^6.0.1",
+    "xml-crypto": "^6.4.0",
     "xpath": "^0.0.34",
-    "zod": "^4.3.6"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@eslint/js": "^8.57.1",
