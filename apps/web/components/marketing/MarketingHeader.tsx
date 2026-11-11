@@ -244,7 +244,16 @@ export function MarketingHeader() {
         (isTrackablePublicPath) emits nothing — no tokens are ever sent.
       */}
       <PublicPageView />
+{/*
+  AUD-0024 — this chrome's labels are English literals shared by every public
+  page. On a page that declares another language (the sign-in page in Arabic
+  or German) the header states its own language and direction, so assistive
+  technology reads it as English and Arabic layout does not reverse it.
+*/}
 <header
+lang="en"
+dir="ltr"
+data-marketing-header
 className="absolute top-0 left-0 right-0 z-50 w-full"style={{
   fontFamily: "var(--font-jakarta), Inter, system-ui, sans-serif",
   background: "transparent",
