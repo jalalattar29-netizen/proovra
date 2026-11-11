@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 447,
+    "AuditFilesInventoried": 446,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -133,7 +133,7 @@
   },
   "byRole": {
     "PRODUCT_BEHAVIOR_TEST": 353,
-    "DOMAIN_AUTHORITY": 62,
+    "DOMAIN_AUTHORITY": 61,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
@@ -1388,21 +1388,6 @@
         "e2e/helpers/api-client.ts",
         "e2e/updated-report/_stack.ts"
       ],
-      "importedBy": [],
-      "spawns": [],
-      "readsArtifacts": [],
-      "writesArtifacts": [],
-      "declaresArtifacts": [],
-      "packageScripts": [],
-      "ciConsumers": [],
-      "sourceOfTruthFor": [],
-      "disposition": "RETAINED"
-    },
-    {
-      "path": "scripts/generate-operations-truth-ledger.mjs",
-      "role": "DOMAIN_AUTHORITY",
-      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
-      "imports": [],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
