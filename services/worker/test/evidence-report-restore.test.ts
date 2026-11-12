@@ -15,8 +15,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const mapCalls: Array<{ lat: unknown; lng: unknown; accuracyMeters: unknown }> = [];
 vi.mock("../src/capture-location-map.js", () => ({
-  // The map tile render fails (no network in tests): the textual coordinates
-  // must survive on the fallback map.
+  // (2026-11-12) The report never asks the local renderer for its grid
+  // pseudo-map: the spy proves no call is made.
   renderCaptureLocationMapPreviewDataUrl: vi.fn(async (input: { lat: unknown; lng: unknown; accuracyMeters: unknown }) => {
     mapCalls.push({ lat: input.lat, lng: input.lng, accuracyMeters: input.accuracyMeters });
     return null;
@@ -25,6 +25,7 @@ vi.mock("../src/capture-location-map.js", () => ({
 
 import {
   ACCOUNT_AUTHENTICATION_VERIFIED,
+  CAPTURE_LOCATION_REPORT_MAP_UNAVAILABLE_NOTE,
   checkRenderedReportText,
   deriveCanonicalArtifactFacts,
   RETIRED_REPORT_CARDS,
@@ -272,20 +273,25 @@ describe("OpenTimestamps: one canonical state on every card", () => {
 });
 
 describe("Capture location: the stored location, or nothing at all (2026-10-14)", () => {
-  it("location present: map and coordinates come from the same stored values; a failed map keeps the text", async () => {
+  it("location present: the stored coordinates print; no pseudo-map stands in for a basemap", async () => {
     mapCalls.length = 0;
     const { vm, html, text: t } = await render(regressionRecordInput("recorded"));
     expect(vm.meta.captureLocationState).toBe("recorded");
     expect(html).toContain('data-capture-location="recorded"');
-    // The map renderer received exactly the stored coordinates…
-    expect(mapCalls).toEqual([{ lat: "52.521", lng: "13.405", accuracyMeters: "102" }]);
-    // …and the printed coordinates are the same values (privacy-rounded at
+    // The printed coordinates are the stored values (privacy-rounded at
     // capture to 3 decimals; never padded or re-rounded here).
     expect(html).toMatch(/data-capture-field="Latitude">52\.521</);
     expect(html).toMatch(/data-capture-field="Longitude">13\.405</);
     expect(t).toContain("± 102 meters");
-    // The tile map failed: the fallback map is drawn and the text survives.
-    expect(html).toMatch(/class="capture-context-map" src="data:image\/svg\+xml/);
+    // (2026-11-12) No map source is configured here: no image at all (never
+    // the local grid PNG or the SVG pseudo-map), and the panel says so; the
+    // facts and the boundary survive. (The configured street map:
+    // report-map-imagery.test.ts.)
+    expect(mapCalls).toEqual([]);
+    expect(html).not.toMatch(/<img[^>]*capture-context-map/);
+    expect(html).toContain('data-capture-map="unavailable"');
+    expect(t).toContain("Map preview unavailable");
+    expect(t).toContain(CAPTURE_LOCATION_REPORT_MAP_UNAVAILABLE_NOTE);
     expect(t).toMatch(/Location metadata is device\/browser-reported/);
   });
 

@@ -56,13 +56,16 @@ describe("report — the canonical location state", () => {
       expect(vm.meta.locationState?.state).toBe(c.state);
       expect(html).not.toMatch(/Location[^<]{0,40}Blocked|Blocked[^<]{0,40}Location/i);
       if (c.map) {
-        expect(html).toContain('class="capture-context-map"');
+        // (2026-11-12) No map source configured here: the panel states it, never a pseudo-map.
+        expect(html).toContain('data-capture-map="unavailable"');
+        expect(html).not.toContain('class="capture-context-map"');
         expect(vm.meta.captureContext?.statusLabel).toBe("Location recorded");
         expect(text(summary)).toContain("Location recorded");
       } else {
         // No coordinates: no map, no coordinates, never an empty map shell.
         expect(html).not.toContain('class="capture-context-map"');
         expect(html).not.toContain("capture-context-map-shell");
+        expect(html).not.toContain("data-capture-map=");
         expect(text(html)).not.toMatch(/Latitude|Longitude/);
       }
       if (c.label && !c.map) expect(text(summary)).toContain(c.label);

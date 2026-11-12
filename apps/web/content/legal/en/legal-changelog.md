@@ -1,6 +1,6 @@
 # Legal Changelog
 
-Last Updated: 2026-11-08
+Last Updated: 2026-11-12
 
 This page provides a version history for PROOVRA's legal and compliance documentation. It is intended to improve transparency around material updates to policies, terms, privacy notices, cookie practices, and related compliance documents.
 
@@ -49,6 +49,12 @@ This version is currently associated with the following core documents:
 Where required by PROOVRA's implementation, users may be asked to re-accept updated legal terms after a material revision.
 
 ## 3. CHANGE HISTORY
+
+### 2026-11-12 — Subprocessors: map tile provider for report maps
+
+**Subprocessors**
+- Added Geoapify as a conditional map tile provider used for the Capture Location map in newly generated PDF reports, and described when it is contacted and what it receives: the tiles around a saved location the report is authorized to show, from which the provider can infer the approximate area shown, but no evidence content, record identifiers, user or account data, or coordinates.
+- The Privacy Policy, Terms and Cookie Policy are unchanged; no new acceptance is requested.
 
 ### 2026-11-08 — Cookie Policy: MaxMind statement corrected
 

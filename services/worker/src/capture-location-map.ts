@@ -19,6 +19,13 @@ import {
  */
 // The approved-endpoint policy lives in @proovra/shared (one rule for the
 // report worker and the web map): resolveApprovedTileTemplate.
+//
+// SCOPE (2026-11-12): this module now serves the VERIFICATION PACKAGE's
+// capture-context PNG only, which keeps AUD-025 / AUD-19 unchanged: it never
+// fetches tiles. The PDF report no longer embeds this local render (a
+// coordinate grid with seeded curves is not a map); its street map comes from
+// the explicitly configured source in report-map-imagery.ts (owner decision
+// 2026-11-12), with "Map preview unavailable" as the outage fallback.
 export { resolveApprovedTileTemplate };
 
 export type CaptureLocationMapMode = "static" | "fallback" | "off";

@@ -1,6 +1,6 @@
 import { REPORT_BRAND } from "../brand.js";
 import { reportAssetDataUrl } from "../asset-data-url.js";
-import { REPORT_PAGE, REPORT_PAGE_AREA_HEIGHT_MM } from "../page-geometry.js";
+import { REPORT_MAP_IMAGE, REPORT_PAGE, REPORT_PAGE_AREA_HEIGHT_MM } from "../page-geometry.js";
 
 export function getReportCss(): string {
   const c = REPORT_BRAND.colors;
@@ -4138,22 +4138,71 @@ body {
   gap: 2mm !important;
 }
 
+/* (2026-11-12) The street map: left column, framed at the composed image's
+   exact aspect ratio (REPORT_MAP_IMAGE) so it is never stretched, cropped or
+   letterboxed. The source credit is real text over the bottom-right corner. */
 .capture-context-map-shell {
-  /* Reduced from 40mm to keep the Executive Summary (confirmation cards +
-     optional acquisition + capture context + executive table + outcomes)
-     within one printed page and off the fixed footer. */
-  height: 30mm !important;
-  min-height: 30mm !important;
-  max-height: 32mm !important;
-  background: rgba(243, 246, 244, 0.96) !important;
-  box-shadow: none !important;
+  position: relative !important;
+  margin: 0 !important;
+  width: 100% !important;
+  aspect-ratio: ${REPORT_MAP_IMAGE.widthPx} / ${REPORT_MAP_IMAGE.heightPx} !important;
+  /* An outline, not a border: the box keeps the image's exact shape. */
+  border: 0 !important;
+  box-shadow: 0 0 0 1px rgba(12, 28, 25, 0.22) !important;
+  border-radius: 7px !important;
+  overflow: hidden !important;
+  background: #f2efe9 !important;
 }
 
 .capture-context-map {
+  display: block !important;
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover !important;
-  image-rendering: auto !important;
+  object-fit: fill !important;
+}
+
+.capture-context-map-attribution {
+  position: absolute !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  padding: 0.35mm 1mm !important;
+  border-top-left-radius: 4px !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+  color: #1d2b29 !important;
+  font-size: 6.4px !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
+
+/* The OUTAGE FALLBACK (map source not configured or failing): no map — one
+   compact full-width note, then the six recorded facts in three columns. */
+.capture-context-layout.capture-context-layout-no-map {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 1mm !important;
+}
+
+.capture-context-layout-no-map .capture-context-metadata {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.capture-context-map-unavailable {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 2mm !important;
+  border: 1px dashed rgba(12, 28, 25, 0.24) !important;
+  border-radius: 7px !important;
+  padding: 1.15mm 1.45mm !important;
+  background: rgba(255, 255, 255, 0.36) !important;
+}
+
+.capture-context-map-unavailable .capture-context-label {
+  flex: 0 0 auto !important;
+}
+
+.capture-context-map-unavailable-note {
+  color: ${c.muted} !important;
+  font-size: 7.6px !important;
+  line-height: 1.25 !important;
 }
 
 /* Layout stability: never split a metadata panel across a page boundary,

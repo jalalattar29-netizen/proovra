@@ -457,8 +457,11 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     expect(css).toMatch(
       /\.executive-summary-page[\s\S]{0,160}page-break-inside:\s*auto/,
     );
-    // The Executive Summary map was reduced to fit one page.
-    expect(css).toContain("height: 30mm");
+    // (2026-11-12) The street map's frame has the composed image's exact
+    // shape (never stretched or cropped); without a map, one compact note
+    // plus three-column fact cards.
+    expect(css).toMatch(/\.capture-context-map-shell \{[\s\S]{0,200}aspect-ratio: \$\{REPORT_MAP_IMAGE\.widthPx\} \/ \$\{REPORT_MAP_IMAGE\.heightPx\}/);
+    expect(css).toMatch(/\.capture-context-layout-no-map \.capture-context-metadata[\s\S]{0,80}repeat\(3,/);
   });
 
   it("does NOT render the acquisition table for a non-intake (web) context", async () => {

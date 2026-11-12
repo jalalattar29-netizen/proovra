@@ -15,7 +15,8 @@
  * report; a long manifest URL and a v2 supersession notice still pass.
  */
 import { VERIFICATION_LIMITATION } from "@proovra/shared";
-import { describe, expect, it } from "vitest";
+import sharp from "sharp";
+import { describe, expect, it, vi } from "vitest";
 
 import { OutputVerificationError } from "../src/output-verification-error.js";
 import { assertOtsProofBinding, assertRenderedReport, extractPdfText } from "../src/output-verification.js";
@@ -23,6 +24,7 @@ import { checkReportGeometry, readReportGeometry, type PageGeometry } from "../s
 import { buildReportViewModel } from "../src/report-v2/build-view-model.js";
 import { REPORT_PAGE, REPORT_PAGE_PT } from "../src/report-v2/page-geometry.js";
 import { renderReportHtml } from "../src/report-v2/render-html.js";
+import { resetReportMapTileCacheForTest } from "../src/report-map-imagery.js";
 import { REPORT_PDF_CREATOR, renderPdfFromHtml, resolveBrowserExecutablePath } from "../src/report-v2/render-pdf.js";
 import { closePdf, openPdf } from "../src/pdf/pdfjs-runtime.js";
 import { supersessionStatement } from "../src/report-v2/required-statements.js";
@@ -611,12 +613,59 @@ describe.skipIf(!BROWSER)("the report's recorded location follows its audience",
   );
 
   it(
-    "authorized report: the coordinates and the map print",
+    "authorized report, no map source configured: the coordinates print and the outage note is stated — never a pseudo-map",
     async () => {
       const input = regressionRecordInput("recorded");
       expect(input.recordedLocationDisclosed).toBe(true);
-      expect(await htmlOf(input)).toContain(`<img class="capture-context-map"`);
-      expect(await pdfText(input)).toMatch(/52\.521/);
+      const html = await htmlOf(input);
+      expect(html).toContain('data-capture-map="unavailable"');
+      expect(html).not.toContain(`<img class="capture-context-map"`);
+      const text = await pdfText(input);
+      expect(text).toMatch(/52\.521/);
+      expect(text).toMatch(/Map preview unavailable/i);
+    },
+    RENDER_TIMEOUT,
+  );
+
+  it(
+    "authorized report, map source configured (stub tile server): the street map, its credit and the cards print, and the canonical gate accepts the PDF",
+    async () => {
+      const tile = await sharp({ create: { width: 256, height: 256, channels: 3, background: { r: 232, g: 228, b: 220 } } }).png().toBuffer();
+      const saved = { ...process.env };
+      const requested: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: unknown) => {
+          requested.push(String(url));
+          return new Response(new Uint8Array(tile), { status: 200, headers: { "content-type": "image/png" } });
+        }),
+      );
+      try {
+        resetReportMapTileCacheForTest();
+        Object.assign(process.env, {
+          CAPTURE_LOCATION_MAP_MODE: "static",
+          CAPTURE_LOCATION_TILE_URL: "https://tiles.proovra.example/{z}/{x}/{y}.png",
+          CAPTURE_LOCATION_TILE_SOURCE: "proovra",
+          CAPTURE_LOCATION_TILE_ATTRIBUTION: "© OpenStreetMap contributors",
+        });
+        const input = regressionRecordInput("recorded");
+        const html = await htmlOf(input);
+        expect(requested.length).toBeGreaterThan(0);
+        expect(html).toContain('data-capture-map="rendered"');
+        expect(html).toContain(`<img class="capture-context-map" src="data:image/png;base64,`);
+        const pdf = await renderPdf(html);
+        const text = (await extractPdfText(pdf)).replace(/\s+/g, " ");
+        expect(text).toMatch(/© OpenStreetMap contributors/);
+        expect(text).toMatch(/52\.521/);
+        expect(text).not.toMatch(/Map preview unavailable/i);
+        await assertRenderedReport(Buffer.from(pdf), factsOf(input), input.version, {
+          supersedesVersion: input.supersession?.previousVersion ?? null,
+        });
+      } finally {
+        vi.unstubAllGlobals();
+        process.env = saved;
+        resetReportMapTileCacheForTest();
+      }
     },
     RENDER_TIMEOUT,
   );

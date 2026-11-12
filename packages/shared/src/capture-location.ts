@@ -56,6 +56,126 @@ export const CAPTURE_LOCATION_MAP_ATTRIBUTION =
 export const CAPTURE_LOCATION_LOCAL_RENDER_LABEL =
   "Map imagery unavailable · rendered locally from recorded coordinates";
 
+/**
+ * (2026-11-12) The PDF report's OUTAGE FALLBACK: what it states in place of a
+ * map when the configured map source is not configured, refused, slow or
+ * failing at generation time. A coordinate grid or a synthesised background is
+ * never drawn as if it were a map; the recorded coordinates, accuracy, time
+ * and source print beside this note unchanged.
+ */
+export const CAPTURE_LOCATION_REPORT_MAP_UNAVAILABLE_LABEL = "Map preview unavailable";
+export const CAPTURE_LOCATION_REPORT_MAP_UNAVAILABLE_NOTE =
+  "Map imagery could not be retrieved when this report was generated, so no map is drawn. The recorded coordinates and accuracy are stated here.";
+
+/**
+ * THE PDF REPORT'S MAP VIEWPORT (2026-11-12): pure Web-Mercator framing for a
+ * `width` × `height` image built from 256-px XYZ tiles at an integer zoom.
+ *
+ *   - The recorded position is the exact centre of the image.
+ *   - The accuracy circle is geographic: radiusPx = accuracy ÷ metres-per-pixel
+ *     at the recorded latitude — never clamped to a visual size.
+ *   - The zoom is the highest (≤ maxZoom) whose circle diameter fits within
+ *     `fillRatio` of the image's shorter side, so the full circle shows with
+ *     padding at any radius; with no recorded accuracy, `defaultZoom`.
+ *   - `tiles` is every tile the image overlaps (x wrapped around the
+ *     antimeridian; rows outside the world are omitted), each with its
+ *     offset inside the image.
+ */
+export type CaptureLocationReportViewport = {
+  zoom: number;
+  width: number;
+  height: number;
+  /** Image-space centre: the recorded position. */
+  markerX: number;
+  markerY: number;
+  metersPerPixel: number;
+  /** null when no accuracy was recorded (no circle is drawn). */
+  accuracyRadiusPx: number | null;
+  scaleBarMeters: number;
+  scaleBarPx: number;
+  scaleBarLabel: string;
+  /** World-pixel position of the image's top-left corner at `zoom`. */
+  originX: number;
+  originY: number;
+  tiles: Array<{ z: number; x: number; y: number; left: number; top: number }>;
+};
+
+export function buildCaptureLocationReportViewport(params: {
+  lat: string | number;
+  lng: string | number;
+  accuracyMeters?: string | number | null;
+  width: number;
+  height: number;
+  maxZoom?: number;
+  minZoom?: number;
+  defaultZoom?: number;
+  fillRatio?: number;
+}): CaptureLocationReportViewport | null {
+  const lat = toFiniteNumber(params.lat);
+  const lng = toFiniteNumber(params.lng);
+  if (lat === null || lng === null || lat < -85.05 || lat > 85.05 || lng < -180 || lng > 180) return null;
+  const width = Math.round(params.width);
+  const height = Math.round(params.height);
+  if (!(width > 0 && height > 0)) return null;
+  const accuracyRaw = toFiniteNumber(params.accuracyMeters ?? null);
+  const accuracy = accuracyRaw !== null && accuracyRaw > 0 ? accuracyRaw : null;
+  const maxZoom = params.maxZoom ?? 18;
+  const minZoom = params.minZoom ?? 2;
+  const fillRatio = params.fillRatio ?? 0.68;
+  const metersPerPixelAt = (z: number) =>
+    (Math.cos((lat * Math.PI) / 180) * 2 * Math.PI * EARTH_RADIUS_METERS) / (DEFAULT_TILE_SIZE * 2 ** z);
+
+  let zoom = Math.min(maxZoom, params.defaultZoom ?? 16);
+  if (accuracy !== null) {
+    const maxRadiusPx = (Math.min(width, height) * fillRatio) / 2;
+    zoom = minZoom;
+    for (let z = maxZoom; z >= minZoom; z -= 1) {
+      if (accuracy / metersPerPixelAt(z) <= maxRadiusPx) {
+        zoom = z;
+        break;
+      }
+    }
+  }
+  const metersPerPixel = metersPerPixelAt(zoom);
+  const center = latLngToWorldPixel(lat, lng, zoom);
+  const originX = center.x - width / 2;
+  const originY = center.y - height / 2;
+  const worldTiles = 2 ** zoom;
+  const tiles: CaptureLocationReportViewport["tiles"] = [];
+  for (let ty = Math.floor(originY / DEFAULT_TILE_SIZE); ty * DEFAULT_TILE_SIZE < originY + height; ty += 1) {
+    if (ty < 0 || ty >= worldTiles) continue;
+    for (let tx = Math.floor(originX / DEFAULT_TILE_SIZE); tx * DEFAULT_TILE_SIZE < originX + width; tx += 1) {
+      tiles.push({
+        z: zoom,
+        x: ((tx % worldTiles) + worldTiles) % worldTiles,
+        y: ty,
+        left: tx * DEFAULT_TILE_SIZE - originX,
+        top: ty * DEFAULT_TILE_SIZE - originY,
+      });
+    }
+  }
+  // The scale bar: the longest 1-2-5 length that spans at most a quarter of
+  // the width — always rounded DOWN, so it never dominates the map.
+  const maxBarMeters = metersPerPixel * width * 0.25;
+  const magnitude = 10 ** Math.floor(Math.log10(maxBarMeters));
+  const scaleBarMeters = [5, 2, 1].map((m) => m * magnitude).find((m) => m <= maxBarMeters) ?? magnitude;
+  return {
+    zoom,
+    width,
+    height,
+    markerX: width / 2,
+    markerY: height / 2,
+    metersPerPixel,
+    accuracyRadiusPx: accuracy === null ? null : accuracy / metersPerPixel,
+    scaleBarMeters,
+    scaleBarPx: scaleBarMeters / metersPerPixel,
+    scaleBarLabel: formatScaleBarLabel(scaleBarMeters),
+    originX,
+    originY,
+    tiles,
+  };
+}
+
 const EARTH_RADIUS_METERS = 6_378_137;
 const DEFAULT_TILE_SIZE = 256;
 const DEFAULT_TILE_GRID = 3;
@@ -1360,4 +1480,8 @@ export {
   resolveApprovedTileTemplate,
   resolveInteractiveMapTileSource,
   type InteractiveMapTileSource,
+  OPENSTREETMAP_TILE_ATTRIBUTION,
+  resolveReportMapTileSource,
+  type ReportMapTileRefusal,
+  type ReportMapTileSource,
 } from "./tile-endpoint-policy.js";

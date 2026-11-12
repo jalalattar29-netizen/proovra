@@ -1,7 +1,9 @@
 /**
  * THE ONE MAP POLICY (2026-10-18).
  *
- *   - server (report worker, PDF, package): every public provider refused;
+ *   - server (verification package, approved-endpoint rule): every public
+ *     provider refused. The PDF report's map has its own explicitly
+ *     configured source since 2026-11-12 (report-map-viewport.test.mjs);
  *   - interactive map, approved PRIVATE endpoint: loads automatically;
  *   - interactive map, otherwise: the public OpenStreetMap tiles the map used
  *     until ebea6a075 — but only after explicit consent, with the notice.

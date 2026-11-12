@@ -3,14 +3,11 @@ import QRCode from "qrcode";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import { buildProvenanceTimeline, CAPTURE_TIME_NOT_AVAILABLE, tsaFailureNote } from "@proovra/shared";
 import sharp from "sharp";
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import {
   evidenceLocationMeaning,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
+  CAPTURE_LOCATION_REPORT_MAP_UNAVAILABLE_NOTE,
   buildCaptureLocationDisplayModel,
-  buildCaptureLocationPdfFallbackSvg,
   deriveCanonicalArtifactAvailability,
   evidenceLocationSourceLabel,
   formatCaptureLocationAccuracy,
@@ -110,7 +107,7 @@ import {
   buildAnchorRows,
   resolveAnchorSummary,
 } from "./technical-model.js";
-import { renderCaptureLocationMapPreviewDataUrl } from "../capture-location-map.js";
+import { renderCaptureLocationReportMap } from "../report-map-imagery.js";
 
 type DisplayDescriptor = {
   displayTitle: string;
@@ -389,34 +386,6 @@ function buildExecutiveRows(
 // legally stable and viewer-independent.
 function formatReportTimestamp(value: string | null | undefined): string {
   return formatTimestampForReportUtc(value);
-}
-
-async function writeCaptureContextDebugArtifact(
-  dataUrl: string,
-  evidenceId: string
-): Promise<void> {
-  if (process.env.PROOVRA_CAPTURE_MAP_DEBUG !== "true") {
-    return;
-  }
-
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match?.[1] || !match[2]) {
-    console.warn("[report-v2] capture-context debug artifact skipped: unsupported data URL");
-    return;
-  }
-
-  const extension = match[1].includes("png") ? "png" : match[1].includes("svg") ? "svg" : "bin";
-  const outputPath = path.join(
-    os.tmpdir(),
-    `proovra-capture-location-map-debug-${evidenceId}.${extension}`
-  );
-
-  await fs.writeFile(outputPath, Buffer.from(match[2], "base64"));
-  console.info("[report-v2] capture-context debug artifact written", {
-    outputPath,
-    mimeType: match[1],
-    bytes: Buffer.byteLength(match[2], "base64"),
-  });
 }
 
 async function optimizePreviewDataUrl(
@@ -1612,6 +1581,21 @@ const locationState = resolveEvidenceLocation({
 });
 const isIntakeLinkLocation = isIntakeLinkLocationSource(reportedLocationSource);
 
+// 2026-11-12 — THE STREET MAP (owner decision revising AUD-025 / AUD-19 for
+// this feature): requested ONLY here, for a newly generated report that prints
+// a saved, authorized location (captureLat / captureLng are null otherwise),
+// from the one configured source; the composed PNG is embedded in the PDF.
+// A source that is not configured, refused, slow or failing yields the honest
+// "Map preview unavailable" note; generation always continues.
+const captureMap =
+  hasCaptureContext && captureLat !== null && captureLng !== null
+    ? await renderCaptureLocationReportMap({
+        lat: captureLat,
+        lng: captureLng,
+        accuracyMeters: input.evidence.gps.accuracyMeters,
+      })
+    : null;
+
 const captureContext = hasCaptureContext && captureLat !== null && captureLng !== null
   ? {
       title: isIntakeLinkLocation ? "Upload session location" : "Capture location",
@@ -1642,26 +1626,13 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       // produced before this feature shipped renders byte-identically.
       sourceLabel: evidenceLocationSourceLabel(reportedLocationSource),
       legalBoundary: CAPTURE_LOCATION_LEGAL_BOUNDARY,
-      mapPreviewDataUrl:
-        (await renderCaptureLocationMapPreviewDataUrl({
-          lat: captureLat,
-          lng: captureLng,
-          accuracyMeters: input.evidence.gps.accuracyMeters,
-          width: 1800,
-          height: 760,
-          zoom: 16,
-          tileGrid: 5,
-        })) ??
-        `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-          buildCaptureLocationPdfFallbackSvg({
-            lat: captureLat,
-            lng: captureLng,
-            accuracyMeters: input.evidence.gps.accuracyMeters,
-            width: 1800,
-            height: 760,
-            zoom: 16,
-          })
-        )}`,
+      // Never the locally synthesised grid "map" (2026-11-12): a real street
+      // map from the configured source, or the outage note.
+      map:
+        captureMap?.status === "rendered"
+          ? { dataUrl: captureMap.dataUrl, attribution: captureMap.attribution }
+          : null,
+      mapUnavailableNote: CAPTURE_LOCATION_REPORT_MAP_UNAVAILABLE_NOTE,
     }
   : null;
 
@@ -1669,20 +1640,10 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
   console.info("[report-v2] capture-context build", {
     evidenceId: input.evidence.id,
     hasCaptureContext,
-    mapPreviewLength: captureContext?.mapPreviewDataUrl?.length ?? 0,
-    usesSvgFallback:
-      captureContext?.mapPreviewDataUrl?.startsWith("data:image/svg+xml") ?? false,
-    usesPngPreview:
-      captureContext?.mapPreviewDataUrl?.startsWith("data:image/png") ?? false,
+    mapPreview: captureMap ? captureMap.status : "none",
+    ...(captureMap?.status === "unavailable" ? { mapUnavailableReason: captureMap.reason } : {}),
   });
 
-  if (captureContext?.mapPreviewDataUrl) {
-    await writeCaptureContextDebugArtifact(
-      captureContext.mapPreviewDataUrl,
-      input.evidence.id
-    );
-  }
-  
   return {
     mode,
     presentationMode,

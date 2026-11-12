@@ -12,6 +12,11 @@
  * outbound requests are allowed, the map still renders (locally), its
  * coordinates still print, and nothing logged carries a coordinate or a tile
  * URL.
+ *
+ * (2026-11-12) "By default" is exact: the PDF report's street map may fetch
+ * tiles only from a deliberately configured source (owner decision revising
+ * AUD-025 / AUD-19 for that feature — report-map-imagery.test.ts). With no
+ * configuration, as here, nothing is requested; the package never fetches.
  */
 import http from "node:http";
 import https from "node:https";

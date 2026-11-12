@@ -397,8 +397,10 @@ const fingerprintRows: KeyValueRow[] = [
     tsaInputDigestHex: safe(canonicalMaterials.timestampState.tsaInputDigestHex),
     tsaInputKind: safe(canonicalMaterials.timestampState.tsaInputKind),
     otsHash: safe(canonicalMaterials.otsState.otsHash),
-    // ANCHORED: the boundary, stated once. FAILED / UNAVAILABLE: the bounded
-    // reason in words, never the stored code.
+    // ANCHORED: the boundary, stated once — none for a chain-verified proof
+    // (2026-11-12: its "What the Bitcoin verification establishes" callout is
+    // retired; the rows carry the verified status and block facts).
+    // FAILED / UNAVAILABLE: the bounded reason in words, never the stored code.
     otsDetail:
       otsAnchoring.state === "ANCHORED"
         ? (otsReportBoundary(otsAnchoring) ?? "")
@@ -406,11 +408,9 @@ const fingerprintRows: KeyValueRow[] = [
           ? (OTS_FAILURE_LABELS[otsAnchoring.failureCode] ?? OTS_FAILURE_LABELS.OTS_PROCESSING_FAILED!)
           : "",
     otsDetailTitle:
-      otsAnchoring.verification === "CHAIN_VERIFIED"
-        ? "What the Bitcoin verification establishes"
-        : otsAnchoring.state === "ANCHORED"
-          ? "What the Bitcoin attestation establishes"
-          : "Anchoring detail",
+      otsAnchoring.state === "ANCHORED"
+        ? "What the Bitcoin attestation establishes"
+        : "Anchoring detail",
     otsDetailTone: otsAnchoring.state === "ANCHORED" ? "neutral" : otsTone,
     anchorHash: safe(anchorSummary?.anchorHash),
 timestampReferenceNote:

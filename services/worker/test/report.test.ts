@@ -1,4 +1,4 @@
-import { OTS_CHAIN_VERIFIED_BOUNDARY, OTS_REPORT_CHAIN_VERIFIED_BOUNDARY, VERIFICATION_LIMITATION } from "@proovra/shared";
+import { OTS_CHAIN_VERIFIED_BOUNDARY, VERIFICATION_LIMITATION } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
 // LEGACY-003: the report-v2 barrel was removed — production
 // (src/processor.ts) imports the concrete modules directly, so these tests
@@ -323,7 +323,7 @@ describe("report v2 pipeline", () => {
     expect(html).not.toContain("Verified by PROOVRA against Bitcoin");
   });
 
-  it("an upgraded proof independently verified against the Bitcoin main chain renders Verified by PROOVRA against Bitcoin, consistently, with the verified boundary once", async () => {
+  it("an upgraded proof independently verified against the Bitcoin main chain renders Verified by PROOVRA against Bitcoin, consistently, with no retired verification callout", async () => {
     const up = upgradedProof();
     const vm = await buildReportViewModel(
       buildInput({
@@ -343,8 +343,12 @@ describe("report v2 pipeline", () => {
     const html = renderReportHtml(vm);
     expect(html).toContain("Verified against the Bitcoin main chain by PROOVRA");
     expect(html).toContain(`Merkle root matches Bitcoin block ${up.blockHeight}`);
-    // The report's own, shorter boundary (2026-10-30), once; the live surfaces' longer sentence not at all.
-    expect(html.split(escapeHtml(OTS_REPORT_CHAIN_VERIFIED_BOUNDARY)).length - 1).toBe(1);
+    // (2026-11-12) The "What the Bitcoin verification establishes" callout is retired: neither its
+    // heading nor its paragraph prints, and the live surfaces' longer sentence never did.
+    expect(html).not.toContain("What the Bitcoin verification establishes");
+    expect(html).not.toContain("What the Bitcoin attestation establishes");
+    expect(html).not.toContain(escapeHtml("PROOVRA checked the proof's commitment against the named block's merkle root"));
+    expect(html).not.toContain("Reviewers can repeat the check using their own node");
     expect(html).not.toContain(escapeHtml(OTS_CHAIN_VERIFIED_BOUNDARY));
     expect(html).not.toContain("Anchoring material handling");
     // One report, one statement: never also "not checked".

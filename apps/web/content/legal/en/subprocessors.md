@@ -1,6 +1,6 @@
 # Subprocessors
 
-Last Updated: 2026-11-10
+Last Updated: 2026-11-12
 
 This page identifies the third-party service providers PROOVRA may engage to support delivery of the digital evidence operations platform. It is intended to improve visibility into the infrastructure and service-provider layer supporting evidence capture, preservation, hashing, signing, timestamping, custody, verification, reporting, and reviewer workflows.
 
@@ -29,14 +29,17 @@ The register below identifies each provider, the service area it supports, its p
 | Twilio | Communications | SMS, WhatsApp, and verification messaging where the Communications feature is configured | Phone number; message metadata; verification metadata | Twilio-supported regions; SCCs apply for non-EEA transfers where required | Processor | Where configured |
 | Resend | Email delivery | Send transactional and policy emails (account, security, billing, legal, lead notifications) in production | Email addresses; message metadata; minimal message body required for the transactional email | Resend-supported regions; SCCs apply for non-EEA transfers where required | Processor | Where configured (production email path) |
 | Sentry | Error and reliability monitoring | Detect crashes, errors, and performance regressions across API, worker, web, and mobile surfaces | Diagnostic telemetry; error traces; minimal request context; account identifiers only where included; user-agent metadata | Sentry-supported regions | Processor | Where enabled (Sentry DSN configured) |
+| Geoapify | Map imagery for PDF reports | Street-map tiles for the Capture Location map of a newly generated PDF report, requested only when that report includes a saved location the report is authorized to show | Map tile indices (zoom level and tile position) that identify the approximate area shown on the map; the requesting server's IP address, a fixed application identifier and PROOVRA's own API key. No evidence content, record identifiers, user or account data, or coordinates are sent | European Union | Processor | Where configured (map imagery for PDF reports enabled) |
 
 A provider is included in this register only where it is actually engaged for the platform or where activation is explicitly conditional on configuration. PROOVRA does not list providers it does not use. PROOVRA seeks to give reasonable advance notice of changes to the register where commercially practicable.
 
 ## 2. CONDITIONAL PROVIDERS AND DEPLOYMENT-SPECIFIC USE
 
-Some providers are used only for specific deployments, plans, regions, or features. For example, payment providers are engaged only for paid checkout, OAuth providers only where the user selects that sign-in method, AI providers only where AI assistance is enabled, communications providers only where messaging or verification workflows are configured, geo providers only where adaptive authentication uses geographic signals, and edge/CDN providers only where that edge layer is deployed. If a provider is not active for a customer's deployment or workspace, that provider may not process that customer's personal data.
+Some providers are used only for specific deployments, plans, regions, or features. For example, payment providers are engaged only for paid checkout, OAuth providers only where the user selects that sign-in method, AI providers only where AI assistance is enabled, communications providers only where messaging or verification workflows are configured, geo providers only where adaptive authentication uses geographic signals, map tile providers only where map imagery for PDF reports is configured, and edge/CDN providers only where that edge layer is deployed. If a provider is not active for a customer's deployment or workspace, that provider may not process that customer's personal data.
 
 Some providers also operate at different layers depending on configuration. For example, AWS may serve as the production storage and KMS provider in one deployment while Cloudflare R2 may serve as the production storage provider in another deployment. The Subprocessor Register reflects all providers that may be engaged across PROOVRA's supported deployment options.
+
+Where map imagery for PDF reports is configured, PROOVRA's report service requests street-map tiles from that one map tile provider (Geoapify) while it generates a report that includes a saved location the report is authorized to show. The request names only the map tiles around that location, so the provider can infer the approximate area shown on the map, but it receives no evidence content, record identifiers, user or account data, or coordinates. The finished map is embedded in the PDF; opening the PDF later makes no request. Reports without a location make no request. If the provider is unavailable, the report states that the map preview is unavailable and shows the recorded location details without a map.
 
 ## 3. AI PROVIDER BOUNDARY
 

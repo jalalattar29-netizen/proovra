@@ -977,7 +977,13 @@ export type ReportViewModel = {
       capturedAtLabel: string;
       sourceLabel: string;
       legalBoundary: string;
-      mapPreviewDataUrl: string;
+      /**
+       * The street map composed from the configured map source at generation
+       * (2026-11-12), with the source's required credit; null when the source
+       * is not configured or failed — then `mapUnavailableNote` is stated.
+       */
+      map: { dataUrl: string; attribution: string } | null;
+      mapUnavailableNote: string;
     } | null;
     previewPolicy: ReportPreviewPolicy;
     anchorSummary: ReportAnchorSummary | null;

@@ -30,3 +30,11 @@ export const REPORT_PAGE_PT = {
   marginTop: REPORT_PAGE.marginTopMm * PT_PER_MM,
   footerZone: REPORT_PAGE.marginBottomMm * PT_PER_MM,
 } as const;
+
+/**
+ * THE CAPTURE-LOCATION MAP IMAGE (2026-11-12): the pixel size the report map
+ * is composed at, and — through the stylesheet's aspect-ratio — the exact
+ * shape of its frame, so the image is never stretched or cropped. 880 px
+ * across the ~80 mm map column prints at ≈ 280 dpi (tile labels stay legible).
+ */
+export const REPORT_MAP_IMAGE = { widthPx: 880, heightPx: 332 } as const;

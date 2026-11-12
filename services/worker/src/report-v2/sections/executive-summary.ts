@@ -1,6 +1,10 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
-import { captureCompletenessNote, captureCompletenessRows } from "@proovra/shared";
+import {
+  CAPTURE_LOCATION_REPORT_MAP_UNAVAILABLE_LABEL,
+  captureCompletenessNote,
+  captureCompletenessRows,
+} from "@proovra/shared";
 import {
   getCaptureContextTimestampLabel,
   captureMethodDisplayLabel,
@@ -274,10 +278,18 @@ function renderCaptureLocation(vm: ReportViewModel): string {
         <div class="executive-confirmation-kicker">${escapeHtml(cc.title ?? "Capture location")}</div>
         <div class="capture-context-intro">${escapeHtml(cc.description)}</div>
       </div>
-      <div class="capture-context-layout" data-capture-location="recorded">
-        <div class="capture-context-map-shell">
-          <img class="capture-context-map" src="${cc.mapPreviewDataUrl}" alt="Capture location preview" />
-        </div>
+      <div class="capture-context-layout${cc.map ? "" : " capture-context-layout-no-map"}" data-capture-location="recorded" data-capture-map="${cc.map ? "rendered" : "unavailable"}">
+        ${
+          cc.map
+            ? `<figure class="capture-context-map-shell">
+          <img class="capture-context-map" src="${escapeHtml(cc.map.dataUrl)}" alt="Street map centred on the recorded location, with its accuracy radius" />
+          <figcaption class="capture-context-map-attribution">${escapeHtml(cc.map.attribution)}</figcaption>
+        </figure>`
+            : `<div class="capture-context-map-unavailable">
+          <div class="capture-context-label">${escapeHtml(CAPTURE_LOCATION_REPORT_MAP_UNAVAILABLE_LABEL)}</div>
+          <div class="capture-context-map-unavailable-note">${escapeHtml(cc.mapUnavailableNote)}</div>
+        </div>`
+        }
         <div class="capture-context-metadata">
           ${[
             ["Location", cc.statusLabel],
