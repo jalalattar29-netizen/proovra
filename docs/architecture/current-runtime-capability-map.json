@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1556,
-    "ReachableSensitiveMutations": 1533,
-    "ClassifiedSensitiveMutations": 1533,
+    "TerminalWriters": 1557,
+    "ReachableSensitiveMutations": 1534,
+    "ClassifiedSensitiveMutations": 1534,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 23,
@@ -79,7 +79,7 @@
       "CASE": 91,
       "EVIDENCE_CUSTODY_FINALIZATION": 365,
       "LEGAL_HOLD_RETENTION_DELETION": 61,
-      "EXTERNAL_REVIEW_INTAKE_SHARE": 100,
+      "EXTERNAL_REVIEW_INTAKE_SHARE": 101,
       "BILLING_SUBSCRIPTION_SEAT": 104,
       "SSO_OIDC_SCIM_PROVISIONING": 62,
       "AUTOMATION_QUEUE_WEBHOOK": 118,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1367,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1368,
       "JOB_ATTRIBUTED_REACHABLE": 155,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11476,
+      "METHOD_ON_VALUE": 11477,
       "UNRESOLVED_IDENTIFIER": 1655
     },
     "MutationFixpointRounds": 10,
@@ -53695,8 +53695,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequest.update@1307",
-      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1307",
+      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequest.update@1350",
+      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1350",
       "file": "services/api/src/services/evidence-request.service.ts",
       "enclosingDeclaration": "linkResponseFromIntakeSession",
       "kind": "DATABASE",
@@ -53794,15 +53794,15 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequest.update@809",
-      "terminalLocation": "services/api/src/services/evidence-request.service.ts:809",
+      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequest.update@813",
+      "terminalLocation": "services/api/src/services/evidence-request.service.ts:813",
       "file": "services/api/src/services/evidence-request.service.ts",
-      "enclosingDeclaration": "transitionEvidenceRequest",
+      "enclosingDeclaration": "transitionEvidenceRequestTx",
       "kind": "DATABASE",
       "target": "evidenceRequest",
       "mutationKind": "update",
       "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
+      "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/evidence-requests/:id/cancel",
         "POST /v1/evidence-requests/:id/close",
@@ -53821,7 +53821,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -53830,8 +53830,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequest.updateMany@980",
-      "terminalLocation": "services/api/src/services/evidence-request.service.ts:980",
+      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequest.updateMany@998",
+      "terminalLocation": "services/api/src/services/evidence-request.service.ts:998",
       "file": "services/api/src/services/evidence-request.service.ts",
       "enclosingDeclaration": "sendEvidenceRequest",
       "kind": "DATABASE",
@@ -53964,8 +53964,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequestDeliverable.update@1266",
-      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1266",
+      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequestDeliverable.update@1309",
+      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1309",
       "file": "services/api/src/services/evidence-request.service.ts",
       "enclosingDeclaration": "linkResponseFromIntakeSession",
       "kind": "DATABASE",
@@ -53997,8 +53997,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequestDeliverable.update@1725",
-      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1725",
+      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequestDeliverable.update@1768",
+      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1768",
       "file": "services/api/src/services/evidence-request.service.ts",
       "enclosingDeclaration": "waiveDeliverable",
       "kind": "DATABASE",
@@ -54076,8 +54076,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequestResponse.create@1199",
-      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1199",
+      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequestResponse.create@1242",
+      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1242",
       "file": "services/api/src/services/evidence-request.service.ts",
       "enclosingDeclaration": "linkResponseFromIntakeSession",
       "kind": "DATABASE",
@@ -54109,8 +54109,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequestResponse.update@1448",
-      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1448",
+      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequestResponse.update@1491",
+      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1491",
       "file": "services/api/src/services/evidence-request.service.ts",
       "enclosingDeclaration": "reviewEvidenceRequestResponse",
       "kind": "DATABASE",
@@ -54142,8 +54142,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequestResponse.update@1576",
-      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1576",
+      "writerId": "services/api/src/services/evidence-request.service.ts#evidenceRequestResponse.update@1619",
+      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1619",
       "file": "services/api/src/services/evidence-request.service.ts",
       "enclosingDeclaration": "requestMoreEvidenceForResponse",
       "kind": "DATABASE",
@@ -54167,6 +54167,72 @@
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/evidence-request.service.ts#workflowIntakeLink.updateMany@1022",
+      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1022",
+      "file": "services/api/src/services/evidence-request.service.ts",
+      "enclosingDeclaration": "sendEvidenceRequest",
+      "kind": "DATABASE",
+      "target": "workflowIntakeLink",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/evidence-requests/:id/send"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/evidence-requests.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/evidence-request.service.ts#workflowIntakeLink.updateMany@1039",
+      "terminalLocation": "services/api/src/services/evidence-request.service.ts:1039",
+      "file": "services/api/src/services/evidence-request.service.ts",
+      "enclosingDeclaration": "sendEvidenceRequest",
+      "kind": "DATABASE",
+      "target": "workflowIntakeLink",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/evidence-requests/:id/send"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/evidence-requests.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -54203,39 +54269,6 @@
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/evidence-request.service.ts#workflowIntakeLink.updateMany@999",
-      "terminalLocation": "services/api/src/services/evidence-request.service.ts:999",
-      "file": "services/api/src/services/evidence-request.service.ts",
-      "enclosingDeclaration": "sendEvidenceRequest",
-      "kind": "DATABASE",
-      "target": "workflowIntakeLink",
-      "mutationKind": "updateMany",
-      "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
-      "insideTransaction": true,
-      "entryRoutes": [
-        "POST /v1/evidence-requests/:id/send"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence-requests.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",

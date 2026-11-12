@@ -729,112 +729,123 @@ async function lockEvidenceRequestTx(tx: Prisma.TransactionClient, requestId: st
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`evidence-request:${requestId}`}))`;
 }
 
+/**
+ * One state change of one request, inside the caller's transaction and under
+ * the request's lock. Links a terminal change revokes are pushed onto
+ * `revokedLinkIds` for the caller to index once the transaction commits.
+ */
+async function transitionEvidenceRequestTx(
+  tx: Prisma.TransactionClient,
+  input: TransitionEvidenceRequestInput,
+  revokedLinkIds: string[],
+): Promise<RequestRow> {
+  // PRO-048 / EVIDENCE-03 — one state change at a time per request. The
+  // read below decided the transition and the update wrote it unconditionally,
+  // so a cancel and a close that overlapped both succeeded, with both
+  // timestamps and both terminal events. Under this lock the second one reads
+  // the first one's state and is refused as terminal.
+  await lockEvidenceRequestTx(tx, input.id);
+  const existing = await tx.evidenceRequest.findUnique({
+    where: { id: input.id },
+  });
+  if (!existing || existing.teamId !== input.teamId) {
+    throw new EvidenceRequestError("request_not_found");
+  }
+
+  const transition = canTransitionEvidenceRequest(
+    existing.status as EvidenceRequestStatus,
+    input.to,
+  );
+  if (!transition.ok) {
+    if (transition.reason === "terminal_from_status") {
+      throw new EvidenceRequestError("request_terminal");
+    }
+    throw new EvidenceRequestError("transition_not_allowed", {
+      from: existing.status,
+      to: input.to,
+      reason: transition.reason,
+    });
+  }
+
+  // Phase 7.5 — required-note guard. Caller can pass `null` (no note),
+  // empty string, or a real note. Real note required for sensitive
+  // transitions so the audit log carries justification.
+  if (REQUIRE_REVIEWER_NOTE_ON_TRANSITION.includes(input.to)) {
+    const note = (input.reviewerNote ?? "").trim();
+    if (note.length === 0) {
+      throw new EvidenceRequestError("reviewer_note_required", {
+        requiredFor: input.to,
+      });
+    }
+  }
+
+  const data: Prisma.EvidenceRequestUpdateInput = {
+    status: input.to,
+  };
+  const now = new Date();
+
+  switch (input.to) {
+    case "SENT":
+      data.sentAtUtc = now;
+      break;
+    case "VIEWED":
+      if (!existing.firstOpenedAtUtc) data.firstOpenedAtUtc = now;
+      break;
+    case "CANCELLED":
+      data.cancelledAtUtc = now;
+      break;
+    case "CLOSED":
+      data.closedAtUtc = now;
+      break;
+    case "FULFILLED":
+    case "PARTIALLY_FULFILLED":
+    case "NEEDS_MORE_INFO":
+      data.reviewerDecisionAt = now;
+      data.reviewerDecisionBy = { connect: { id: input.actorUserId } };
+      if (input.reviewerNote !== undefined) {
+        data.reviewerNote = input.reviewerNote ?? null;
+      }
+      break;
+    default:
+      break;
+  }
+
+  await tx.evidenceRequest.update({
+    where: { id: input.id },
+    data,
+  });
+
+  await appendRequestEvent(
+    tx,
+    input.id,
+    `EVIDENCE_REQUEST_${input.to}`,
+    input.actorUserId,
+    input.payload,
+  );
+
+  // ET-INT-08 — a CANCELLED or CLOSED request revokes every intake link it
+  // issued (its own and each request-more follow-up), in this transaction.
+  // Before, the links stayed live: contributors kept submitting, records
+  // kept finalizing and responses attached to the terminal request.
+  if (isTerminalEvidenceRequestStatus(input.to)) {
+    revokedLinkIds.push(...(await revokeRequestIntakeLinksTx(tx, {
+      requestId: input.id,
+      teamId: input.teamId,
+      primaryLinkId: existing.intakeLinkId,
+      actorUserId: input.actorUserId,
+      reason: `evidence_request_${input.to.toLowerCase()}`,
+    })));
+  }
+
+  return loadRequest(tx, input.id);
+}
+
 export async function transitionEvidenceRequest(
   input: TransitionEvidenceRequestInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<RequestRow> {
-  let revokedLinkIds: string[] = [];
-  return client.$transaction(async (tx) => {
-    // PRO-048 / EVIDENCE-03 — one state change at a time per request. The
-    // read below decided the transition and the update wrote it unconditionally,
-    // so a cancel and a close that overlapped both succeeded, with both
-    // timestamps and both terminal events. Under this lock the second one reads
-    // the first one's state and is refused as terminal.
-    await lockEvidenceRequestTx(tx, input.id);
-    const existing = await tx.evidenceRequest.findUnique({
-      where: { id: input.id },
-    });
-    if (!existing || existing.teamId !== input.teamId) {
-      throw new EvidenceRequestError("request_not_found");
-    }
-
-    const transition = canTransitionEvidenceRequest(
-      existing.status as EvidenceRequestStatus,
-      input.to,
-    );
-    if (!transition.ok) {
-      if (transition.reason === "terminal_from_status") {
-        throw new EvidenceRequestError("request_terminal");
-      }
-      throw new EvidenceRequestError("transition_not_allowed", {
-        from: existing.status,
-        to: input.to,
-        reason: transition.reason,
-      });
-    }
-
-    // Phase 7.5 — required-note guard. Caller can pass `null` (no note),
-    // empty string, or a real note. Real note required for sensitive
-    // transitions so the audit log carries justification.
-    if (REQUIRE_REVIEWER_NOTE_ON_TRANSITION.includes(input.to)) {
-      const note = (input.reviewerNote ?? "").trim();
-      if (note.length === 0) {
-        throw new EvidenceRequestError("reviewer_note_required", {
-          requiredFor: input.to,
-        });
-      }
-    }
-
-    const data: Prisma.EvidenceRequestUpdateInput = {
-      status: input.to,
-    };
-    const now = new Date();
-
-    switch (input.to) {
-      case "SENT":
-        data.sentAtUtc = now;
-        break;
-      case "VIEWED":
-        if (!existing.firstOpenedAtUtc) data.firstOpenedAtUtc = now;
-        break;
-      case "CANCELLED":
-        data.cancelledAtUtc = now;
-        break;
-      case "CLOSED":
-        data.closedAtUtc = now;
-        break;
-      case "FULFILLED":
-      case "PARTIALLY_FULFILLED":
-      case "NEEDS_MORE_INFO":
-        data.reviewerDecisionAt = now;
-        data.reviewerDecisionBy = { connect: { id: input.actorUserId } };
-        if (input.reviewerNote !== undefined) {
-          data.reviewerNote = input.reviewerNote ?? null;
-        }
-        break;
-      default:
-        break;
-    }
-
-    await tx.evidenceRequest.update({
-      where: { id: input.id },
-      data,
-    });
-
-    await appendRequestEvent(
-      tx,
-      input.id,
-      `EVIDENCE_REQUEST_${input.to}`,
-      input.actorUserId,
-      input.payload,
-    );
-
-    // ET-INT-08 — a CANCELLED or CLOSED request revokes every intake link it
-    // issued (its own and each request-more follow-up), in this transaction.
-    // Before, the links stayed live: contributors kept submitting, records
-    // kept finalizing and responses attached to the terminal request.
-    if (isTerminalEvidenceRequestStatus(input.to)) {
-      revokedLinkIds = await revokeRequestIntakeLinksTx(tx, {
-        requestId: input.id,
-        teamId: input.teamId,
-        primaryLinkId: existing.intakeLinkId,
-        actorUserId: input.actorUserId,
-        reason: `evidence_request_${input.to.toLowerCase()}`,
-      });
-    }
-
-    return loadRequest(tx, input.id);
-  }).then(async (result) => {
+  const revokedLinkIds: string[] = [];
+  return client.$transaction((tx) => transitionEvidenceRequestTx(tx, input, revokedLinkIds)).then(async (result) => {
     for (const intakeLinkId of revokedLinkIds) indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId }, client);
     // Phase 8 — fire-and-forget notifications for sensitive transitions.
     // Outside the transaction so a failure here cannot roll back the
@@ -940,6 +951,7 @@ export async function sendEvidenceRequest(
 
   let rawToken: string | null = null;
   let intakeLinkId: string | null = existing.intakeLinkId;
+  let sentWithBind = false;
 
   // External recipient — generate intake link if not already bound. For
   // INTERNAL_USER recipients we deliberately skip token issuance; no
@@ -974,6 +986,12 @@ export async function sendEvidenceRequest(
     // last write won, so the others stayed ACTIVE with no request; a cancel that
     // ran between the mint and the bind left the bound link ACTIVE on a
     // cancelled request. A link that loses is revoked at once.
+    //
+    // The send that binds its link also marks the request SENT in the same
+    // transaction. Done as two transactions, an overlapping send could read the
+    // request bound but still OPEN, skip the claim and race the binder for the
+    // SENT step: the loser answered 409 SENT → SENT, and when that loser was
+    // the binder its token, the only one minted for the bound link, was lost.
     const minted = result.link.id;
     const bound = await client.$transaction(async (tx) => {
       await lockEvidenceRequestTx(tx, input.id);
@@ -994,6 +1012,11 @@ export async function sendEvidenceRequest(
           input.actorUserId,
           { intakeLinkId: minted } as Prisma.InputJsonValue,
         );
+        await transitionEvidenceRequestTx(
+          tx,
+          { id: input.id, teamId: input.teamId, actorUserId: input.actorUserId, to: "SENT" },
+          [],
+        );
         return { won: true as const };
       }
       await tx.workflowIntakeLink.updateMany({
@@ -1010,11 +1033,28 @@ export async function sendEvidenceRequest(
         select: { status: true, intakeLinkId: true },
       });
       return { won: false as const, status: now?.status ?? null, intakeLinkId: now?.intakeLinkId ?? null };
+    }).catch(async (err: unknown) => {
+      // A refused SENT step rolls the claim back with it, so the minted link is
+      // bound to nothing: revoke it rather than leave it live, then refuse.
+      await client.workflowIntakeLink
+        .updateMany({
+          where: { id: minted, teamId: input.teamId, status: { not: "REVOKED" } },
+          data: {
+            status: "REVOKED",
+            revokedAtUtc: new Date(),
+            revokedByUserId: input.actorUserId,
+            revokedReason: "evidence_request_send_refused",
+          },
+        })
+        .catch(() => null);
+      indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId: minted }, client);
+      throw err;
     });
     indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId: minted }, client);
     if (bound.won) {
       rawToken = result.rawToken;
       intakeLinkId = minted;
+      sentWithBind = true;
     } else {
       if (!bound.status || isTerminalEvidenceRequestStatus(bound.status as EvidenceRequestStatus)) {
         throw new EvidenceRequestError("request_terminal");
@@ -1026,11 +1066,14 @@ export async function sendEvidenceRequest(
     }
   }
 
-  // Mark the request SENT (covers both internal and external).
-  await transitionEvidenceRequest(
-    { id: input.id, teamId: input.teamId, actorUserId: input.actorUserId, to: "SENT" },
-    client,
-  );
+  // Mark the request SENT (covers both internal and external), unless the
+  // link this send bound already did it in the same transaction.
+  if (!sentWithBind) {
+    await transitionEvidenceRequest(
+      { id: input.id, teamId: input.teamId, actorUserId: input.actorUserId, to: "SENT" },
+      client,
+    );
+  }
 
   // Phase 8 — fire-and-forget notification. Notification failures must
   // never block the workflow; safeSendEmailNotification swallows errors

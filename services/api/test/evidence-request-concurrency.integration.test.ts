@@ -81,8 +81,22 @@ describe("evidence requests under concurrency (PRO-048)", () => {
       await prisma.evidenceRequest.update({ where: { id }, data: { status: "OPEN" } });
       const before = new Set((await prisma.workflowIntakeLink.findMany({ select: { id: true } })).map((l) => l.id));
       const sends = await Promise.all([0, 1, 2].map(() => call("POST", `${base}/${id}/send`, teamA.memberToken)));
-      for (const s of sends) expect(s.statusCode, s.body).toBe(200);
-      const tokens = sends.map((s) => (JSON.parse(s.body) as { rawToken?: string | null }).rawToken).filter(Boolean);
+      // A send that overlaps the winner answers 200 with no token. One whose
+      // first read lands after the winner committed SENT is, to the database, a
+      // sequential repeat and gets the positive control's refusal (409 SENT →
+      // SENT) — that, and nothing else, is the only other admissible answer.
+      // Whether a request is that late depends on the runner's scheduling.
+      for (const s of sends) {
+        if (s.statusCode === 200) continue;
+        expect(s.statusCode, s.body).toBe(409);
+        expect(JSON.parse(s.body), s.body).toEqual({
+          error: { code: "transition_not_allowed", details: { from: "SENT", to: "SENT", reason: "transition_not_allowed" } },
+        });
+      }
+      const tokens = sends
+        .filter((s) => s.statusCode === 200)
+        .map((s) => (JSON.parse(s.body) as { rawToken?: string | null }).rawToken)
+        .filter(Boolean);
       expect(tokens.length, "exactly one send hands out a token").toBe(1);
 
       const row = await prisma.evidenceRequest.findUniqueOrThrow({ where: { id }, select: { intakeLinkId: true, status: true } });
@@ -91,6 +105,9 @@ describe("evidence requests under concurrency (PRO-048)", () => {
       expect(active.map((l) => l.id), `round ${round}`).toEqual([row.intakeLinkId]);
       const linkEvents = await prisma.evidenceRequestEvent.count({ where: { evidenceRequestId: id, eventType: "EVIDENCE_REQUEST_LINK_CREATED" } });
       expect(linkEvents).toBe(1);
+      expect(row.status).toBe("SENT");
+      const sentEvents = await prisma.evidenceRequestEvent.count({ where: { evidenceRequestId: id, eventType: "EVIDENCE_REQUEST_SENT" } });
+      expect(sentEvents, "one SENT transition, made by the send that bound the link").toBe(1);
 
       const cancel = await call("POST", `${base}/${id}/cancel`, teamA.memberToken, { reviewerNote: "No longer needed." });
       expect(cancel.statusCode, cancel.body).toBe(200);
