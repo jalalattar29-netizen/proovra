@@ -130,8 +130,14 @@ jobs:
       - name: Lint
         run: pnpm -r lint
 
+      # ONE PACKAGE AT A TIME. Six packages rebuild @proovra/shared (and its
+      # siblings) in their own `pretypecheck`; run four at once and one tsc
+      # truncates dist/index.d.ts while another program is reading it, which
+      # surfaces as "File '.../packages/shared/dist/index.d.ts' is not a
+      # module" (TS2306) in whichever package lost the race. Serial order is
+      # topological, so each rebuild lands before its dependants read it.
       - name: Typecheck
-        run: pnpm -r typecheck
+        run: pnpm -r --workspace-concurrency=1 typecheck
 
       # ---------------------------------------------------------------
       # Phase 2.5E — Hard CI enforcement of migration safety.
