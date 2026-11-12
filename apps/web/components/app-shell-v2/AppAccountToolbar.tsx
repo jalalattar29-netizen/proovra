@@ -431,10 +431,6 @@ export function AppAccountToolbar({
             </div>
           ) : null}
 
-          {/* The assistant launcher mounts here, so it can never sit over a
-              page's own controls. See ProovraChatWidget. */}
-          <span id="app-header-assistant-slot" className="app-header-assistant-slot" />
-
           <NotificationBell />
 
           <div className="app-topbar-v2-language" aria-label="Language">

@@ -199,17 +199,27 @@ describe("RT-008: a migrated select keeps its hooks and its reason", () => {
 describe("V-018: the help nudge and the page's primary controls", () => {
   const css = read("components/ai/assistant.css");
 
-  it("is spoken, not drawn over the page, and never takes a pointer", () => {
+  it("stays in the launcher's column and never takes a pointer", () => {
     const hint = rulesFor(css, ".assistant-hint")[0];
     expect(hint).toContain("pointer-events: none");
-    expect(hint).toContain("clip-path: inset(50%)");
+    expect(hint).toContain("inset-inline-end: 0");
+    expect(hint).toContain("inline-size: 3rem");
+    expect(hint).not.toMatch(/right:\s*3\.75rem/);
   });
 
-  it("mounts the launcher in the header, which holds no page controls", () => {
-    expect(read("components/app-shell-v2/AppAccountToolbar.tsx")).toContain('id="app-header-assistant-slot"');
+  // 2026-11-12 (owner decision): the launcher floats at the viewport's
+  // bottom-right again, fixed while the page scrolls; the header holds no
+  // assistant entry and no empty slot for one.
+  it("floats fixed at the bottom-right, never in the header", () => {
+    const dock = rulesFor(css, ".assistant-dock")[0];
+    expect(dock).toContain("position: fixed");
+    expect(dock).toContain("right: 1.5rem");
+    expect(dock).toContain("bottom: 1.5rem");
+    expect(read("components/app-shell-v2/AppAccountToolbar.tsx")).not.toContain("assistant");
+    expect(read("components/app-shell-v2/app-shell-v2.css")).not.toContain("app-header-assistant-slot");
     const widget = read("components/ai/ProovraChatWidget.tsx");
-    expect(widget).toContain('document.getElementById("app-header-assistant-slot")');
-    expect(widget).toContain("createPortal(launcher, headerSlot)");
+    expect(widget).not.toContain("createPortal");
+    expect(widget).not.toContain("app-header-assistant-slot");
   });
 
   it("leaves room at the foot of every page to scroll clear of the launcher", () => {
