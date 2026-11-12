@@ -695,7 +695,11 @@ jobs:
       - name: Build Shared
         run: pnpm --filter @proovra/shared build
 
+      # The API's tsc program peaks near Node's default ~4 GB heap; the same
+      # build-time budget the API Dockerfile gives it (see playwright-e2e.yml).
       - name: Build API
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm --filter proovra-api build
 
       - name: Build Worker

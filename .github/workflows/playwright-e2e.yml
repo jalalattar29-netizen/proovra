@@ -238,7 +238,13 @@ jobs:
           $MC version enable local/proovra-e2e
           $MC version info local/proovra-e2e | grep -qi "enabled" || { echo "::error::proovra-e2e is not versioned"; exit 1; }
 
+      # The API's tsc program peaks near Node's default ~4 GB heap (3.6 GB
+      # measured 2026-11-13) and aborts with exit 134 on an unlucky run (shard
+      # 1/2 on c7849f800, while shard 2/2 built the same SHA). Same build-time
+      # budget the API Dockerfile gives this compile; nothing at runtime.
       - name: Build shared + API + worker
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           pnpm run build:shared
           pnpm --filter proovra-api build

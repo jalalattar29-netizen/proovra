@@ -389,8 +389,12 @@ jobs:
       # with fail-fast on, hit /health, and grep the log for
       # `runtime.schema_validation.healthy`.
       # ---------------------------------------------------------------
+      # The API's tsc program peaks near Node's default ~4 GB heap; the same
+      # build-time budget the API Dockerfile gives it (see playwright-e2e.yml).
       - name: Build API
         working-directory: services/api
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm build
 
       - name: Boot API and assert schema validation passes
