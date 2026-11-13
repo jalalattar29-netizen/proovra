@@ -20,6 +20,9 @@ export type ReadinessIssue = {
 
 export type CapturePlanMode = "CHECKLIST_REQUIRED" | "FLEXIBLE";
 
+/** The blocker this authority raises for a session with nothing staged. */
+export const EMPTY_SESSION_ISSUE_CODE = "capture_empty_session";
+
 export type SessionReadinessSummary = {
   totalItems: number;
   requiredTotal: number;
@@ -181,7 +184,7 @@ export function buildSessionReadiness({
 
   if (items.length === 0) {
     blockers.push({
-      code: "capture_empty_session",
+      code: EMPTY_SESSION_ISSUE_CODE,
       severity: "blocker",
       label: "Add at least one material to finish.",
       detail: "Capture requires at least one staged material before Review & Sign can start.",

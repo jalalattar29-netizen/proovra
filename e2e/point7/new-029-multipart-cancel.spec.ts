@@ -188,6 +188,8 @@ async function startLiveUpload(input: {
   const finalize = page.locator("button.capture-finish-button");
   await expect(finalize).toBeEnabled({ timeout: 30_000 });
   await finalize.click();
+  // Review & Sign opens the review dialog; its confirm starts the upload.
+  await page.locator("[data-capture-review-confirm]").click();
 
   const session = await waitForLiveMultipartSession({ teamId, timeoutMs: 45_000 });
   expect(session.multipart_upload_id, "session has a live S3 multipart").toBeTruthy();

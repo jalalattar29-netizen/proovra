@@ -33,9 +33,9 @@
  * preparation off the screen.
  */
 
-import { AlertTriangle, Check, OctagonAlert } from "lucide-react";
+import { AlertTriangle, Check, CircleDashed, OctagonAlert } from "lucide-react";
 
-import type { ReadinessIssue, SessionReadiness } from "./session-readiness";
+import { EMPTY_SESSION_ISSUE_CODE, type ReadinessIssue, type SessionReadiness } from "./session-readiness";
 
 /** The rail's existing cap. Beyond this the count carries the remainder. */
 const VISIBLE_LIMIT = 4;
@@ -48,11 +48,15 @@ function IssueGroup({
   title,
   icon,
   issues,
+  onSelectIssue,
+  itemLabel,
 }: {
   kind: "blockers" | "warnings";
   title: string;
   icon: React.ReactNode;
   issues: ReadonlyArray<ReadinessIssue>;
+  onSelectIssue?: (issue: ReadinessIssue) => void;
+  itemLabel?: (itemId: string) => string | undefined;
 }) {
   const visible = issues.slice(0, VISIBLE_LIMIT);
   const overflow = issues.length - visible.length;
@@ -70,8 +74,24 @@ function IssueGroup({
       <ul className="capture-signal-list">
         {visible.map((issue) => (
           <li key={issueKey(issue)}>
-            <strong>{issue.label}</strong>
-            {issue.detail ? <small>{issue.detail}</small> : null}
+            {/* A route to the fix, when the page can offer one: the row, the
+                requirement or the setting the issue is about. */}
+            {onSelectIssue ? (
+              <button
+                type="button"
+                className="capture-signal-link"
+                onClick={() => onSelectIssue(issue)}
+                data-capture-signal-issue={issue.code}
+              >
+                <strong>{issue.label}</strong>
+                <small>{describe(issue, itemLabel)}</small>
+              </button>
+            ) : (
+              <>
+                <strong>{issue.label}</strong>
+                <small>{describe(issue, itemLabel)}</small>
+              </>
+            )}
           </li>
         ))}
       </ul>
@@ -84,14 +104,69 @@ function IssueGroup({
   );
 }
 
+/** Names the file an item-level issue is about, ahead of the authority's detail. */
+function describe(issue: ReadinessIssue, itemLabel?: (itemId: string) => string | undefined): string {
+  const name = issue.itemId ? itemLabel?.(issue.itemId) : undefined;
+  return name ? `${name} — ${issue.detail}` : issue.detail;
+}
+
+/**
+ * The authority emits an item that is not mapped twice — once as
+ * `capture_item_unmapped` and once as the item-quality "Needs mapping" — so
+ * the same sentence appeared twice per file. Shown once per item and label;
+ * the authority's arrays are untouched.
+ */
+function uniqueByItemAndLabel(issues: ReadonlyArray<ReadinessIssue>): ReadinessIssue[] {
+  const seen = new Set<string>();
+  return issues.filter((issue) => {
+    if (!issue.itemId) return true;
+    const key = `${issue.itemId}|${issue.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+
 export function CaptureReadinessSignals({
   readiness,
+  onSelectIssue,
+  itemLabel,
 }: {
   readiness: SessionReadiness;
+  /** Optional: makes each issue a button that leads to its fix. */
+  onSelectIssue?: (issue: ReadinessIssue) => void;
+  /** Optional: the file name for an item-level issue. */
+  itemLabel?: (itemId: string) => string | undefined;
 }) {
-  const blockers = readiness.blockers;
-  const warnings = readiness.warnings;
+  // A NEW DRAFT IS NOT AN ERROR. With nothing staged, the authority's
+  // "add at least one material" blocker is simply the next step, and any
+  // per-session warning (e.g. a recommended setting) is premature. Both are
+  // still the authority's verdict — Review & Sign stays disabled — but the
+  // page says it once, calmly, instead of in red. Any OTHER blocker (a
+  // required setting) is still listed.
+  const empty = readiness.status === "empty";
+  const blockers = empty
+    ? readiness.blockers.filter((issue) => issue.code !== EMPTY_SESSION_ISSUE_CODE)
+    : readiness.blockers;
+  const warnings = empty ? [] : uniqueByItemAndLabel(readiness.warnings);
   const clear = blockers.length === 0 && warnings.length === 0;
+
+  if (clear && empty) {
+    return (
+      <div
+        className="capture-signals capture-signals--empty"
+        data-capture-signals="empty"
+        data-capture-blocker-count={readiness.blockers.length}
+        data-capture-warning-count="0"
+      >
+        <span className="capture-signal-empty">
+          <CircleDashed size={14} strokeWidth={2.2} aria-hidden="true" />
+          Nothing added yet. Add your first file to get started.
+        </span>
+      </div>
+    );
+  }
 
   if (clear) {
     return (
@@ -124,6 +199,8 @@ export function CaptureReadinessSignals({
           title="Blockers"
           icon={<OctagonAlert size={15} strokeWidth={2.2} aria-hidden="true" />}
           issues={blockers}
+          onSelectIssue={onSelectIssue}
+          itemLabel={itemLabel}
         />
       ) : null}
 
@@ -133,6 +210,8 @@ export function CaptureReadinessSignals({
           title="Warnings"
           icon={<AlertTriangle size={15} strokeWidth={2.2} aria-hidden="true" />}
           issues={warnings}
+          onSelectIssue={onSelectIssue}
+          itemLabel={itemLabel}
         />
       ) : null}
     </div>

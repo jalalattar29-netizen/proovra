@@ -44,7 +44,7 @@ export function CaptureBottomBar({
             {busy
               ? `Finishing evidence session… ${progress}%`
               : (sessionStatus ??
-                "Review & Sign locks the session, records integrity metadata, and starts verification artifact generation.")}
+                "Check what will be sealed, then sign. Nothing is uploaded until you confirm.")}
           </p>
         </div>
 
@@ -61,6 +61,7 @@ export function CaptureBottomBar({
           <Button
             onClick={onFinalize}
             disabled={finishDisabled}
+            data-capture-finalize
             className="capture-finish-button proovra-cta-btn capture-primary-finalize-action"
           >
             {busy ? "Finishing…" : "Review & Sign"}

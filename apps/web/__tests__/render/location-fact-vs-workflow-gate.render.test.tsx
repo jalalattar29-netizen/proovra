@@ -125,7 +125,6 @@ describe("the separate WORKFLOW gate may block — and only the workflow", () =>
         error={null}
         locationPermissionDenied={false}
         sessionItems={[item]}
-        sessionCountLabel="1 item"
         sessionStatus={null}
         currentSessionId="CAP-2026-10-16"
         selectedCollectionPlan={plan("required")}

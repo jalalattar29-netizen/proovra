@@ -81,6 +81,7 @@ test("a plan that REQUIRES location blocks Finish while location is off", async 
   plain.unmount?.();
   // Like the web (CaptureRequirements disabled={busy || hasSessionItems}), the plan is chosen BEFORE staging.
   const r = await stageDocument(async (x) => {
+    await x.press("Change setup");
     await x.press("No plan selected");
     await x.press("Site survey");
     await settle();
@@ -95,11 +96,11 @@ test("a plan that REQUIRES location blocks Finish while location is off", async 
 
 test("the session says how many items are unmapped and offers the web's bulk actions", async () => {
   const r = await stageDocument();
-  assert.ok(r.hasText("1 unmapped"));
+  assert.ok(r.hasText("1 not assigned"));
   assert.equal(r.byTestId("capture-bulk-actions").length, 1);
-  const clear = r.byLabel("Clear all mappings").find((n) => n.props.onPress);
+  const clear = r.byLabel("Clear all assignments").find((n) => n.props.onPress);
   assert.equal(clear.props.disabled ?? clear.props.accessibilityState?.disabled, true, "nothing is mapped, yet Clear was enabled");
-  await r.press("Remove pending items");
+  await r.press("Remove items not yet uploaded");
   await settle();
   assert.equal(r.byTestId("capture-session-status").length, 0, "the pending item was not removed");
 });

@@ -120,37 +120,46 @@ const pressable = (r, label) => r.byLabel(label).find((n) => n.props.onPress);
 
 /* ------------------------------------------------------------- page head -- */
 
-test("the page opens with the web hero, trust strip and intake rail", async () => {
+test("the page opens with a compact header, the setup summary and Add evidence first", async () => {
   const r = await render();
   assert.ok(r.hasText("Capture Evidence"));
-  assert.ok(r.hasText("Collect, map, fingerprint, and prepare evidence materials before Review & Sign."));
+  assert.ok(r.hasText("Drafts save your setup, notes and file details — not file contents. Files are uploaded and sealed when you Finish & Sign."));
+  // The five-stage rail is gone: its later stages were not a real sequence.
+  assert.equal(r.byTestId("capture-intake-rail").length, 0);
+  assert.equal(r.byTestId("capture-setup-summary").length, 1);
+  assert.ok(r.hasText("Add evidence") && r.hasText("Add your first file to get started."));
+  // The empty footer offers the first add, not a disabled Finish.
+  assert.equal(r.byTestId("capture-finish-empty").length, 1);
+  assert.equal(r.byLabel("Finish & Sign (0)").length, 0);
+  // The trust statements are on demand in Help and guidance.
+  await r.press("Help and guidance");
   for (const t of ["Integrity by design", "Encrypted in transit and at rest", "Verifiable audit trail"]) assert.ok(r.hasText(t), t);
-  // The rail is shown before anything is staged (web renders it unconditionally).
-  assert.equal(r.byTestId("capture-intake-rail").length, 1);
-  assert.ok(r.hasText("Intake plan") && r.hasText("Add materials") && r.hasText("Finish & sign"));
 });
 
 /* ------------------------------------------------ plan, mode, requirements -- */
 
-test("the canonical default plan is preselected and its requirements are listed with the finish gate", async () => {
+test("the canonical default plan is preselected and its requirements say what the mode enforces", async () => {
   const r = await render();
   assert.equal(r.byTestId("capture-requirements").length, 1);
   assert.ok(r.hasText("General Evidence Record"), "the web default plan was not selected");
-  assert.ok(r.hasText("Required mapped") && r.hasText("0/1"));
-  assert.ok(r.hasText("Optional mapped") && r.hasText("0/1"));
-  assert.ok(r.hasText("Unmapped materials"));
-  assert.ok(r.hasText("Finish gate") && r.hasText("1 required unmapped"));
-  assert.ok(r.hasText("Primary evidence file") && r.hasText("Required to finish") && r.hasText("Blocks Review & Sign"));
-  assert.ok(r.hasText("Supporting context") && r.hasText("Optional context") && r.hasText("Does not block finish"));
+  // Flexible is the default: a required step is RECOMMENDED there, never "blocks".
+  assert.ok(r.hasText("General Evidence Record · 0 of 1 recommended assigned"));
+  assert.ok(r.hasText("Flexible mode: these do not block signing."));
+  assert.ok(r.hasText("Primary evidence file") && r.hasText("Recommended"));
+  assert.ok(r.hasText("Supporting context") && r.hasText("Optional"));
+  assert.equal(r.hasText("Blocks Review & Sign"), false);
+  // With nothing staged, an open step offers the add itself.
+  assert.ok(pressable(r, "Add file for Primary evidence file"));
 });
 
 test("Intake structure: Guided maps an incoming item and gates Finish on every required step", async () => {
   const r = await render();
-  assert.ok(r.hasText("Intake structure"));
+  await r.press("Change setup");
+  assert.ok(r.hasText("Collection mode") && r.hasText("Capture context"));
   await r.press("No plan selected").catch(() => undefined);
   await r.press("General Evidence Record");
   await r.press("Incident Report");
-  await r.press("Guided, Checklist required");
+  await r.press("Guided");
   await settle();
   await r.press("Files");
   await settle();
@@ -162,14 +171,16 @@ test("Intake structure: Guided maps an incoming item and gates Finish on every r
 
   // The PDF fits only "Written statement" and was mapped onto it.
   assert.ok(r.hasText("Primary · Written statement"), "Guided mode did not map the item");
-  assert.ok(r.hasText("Checklist required"));
+  assert.ok(r.hasText("Template and mode are fixed once evidence is staged. Clear the session to change them."));
   // Scene overview is still open, and in Guided mode that BLOCKS.
   assert.ok(r.hasText("Not ready to finalize"));
   assert.ok(r.hasText("Scene overview has not been mapped to a staged material."));
   assert.ok(r.hasText("Still unmapped: Scene overview"));
   assert.equal(disabled(pressable(r, "Finish & Sign (1)")), true, "Guided mode let Finish through with a required step open");
   // The structure and plan are locked once material is staged.
-  assert.equal(disabled(pressable(r, "Flexible, General intake")), true);
+  assert.equal(disabled(pressable(r, "Flexible")), true);
+  // The open required step is labelled for what it is in Guided mode.
+  assert.ok(r.hasText("Required"));
 });
 
 test("Flexible leaves an open required step as progress, not a blocker", async () => {
@@ -179,8 +190,15 @@ test("Flexible leaves an open required step as progress, not a blocker", async (
   assert.ok(r.hasText("Ready to finalize"));
   assert.ok(r.hasText("1 material added · 0/1 required items mapped"));
   assert.equal(disabled(pressable(r, "Finish & Sign (1)")), false);
-  assert.ok(r.hasText("Readiness · Draft · 1/3"), "no operational summary band");
-  assert.ok(r.hasText("Informational only — finalization is governed by the upload flow."));
+  // The workflow-quality guidance is on demand, not a band in the flow.
+  assert.equal(r.byTestId("capture-operational-summary").length, 0);
+  await r.press("Help and guidance");
+  assert.ok(r.byTestId("capture-guidance").length === 1);
+  // A Flexible open step offers to assign the staged file directly.
+  await r.press("Mark a file as primary evidence for Primary evidence file");
+  await r.press("Primary · Primary evidence file");
+  await settle();
+  assert.ok(r.hasText("1 material added · 1/1 required items mapped"));
 });
 
 /* ---------------------------------------------------- material management -- */
@@ -189,7 +207,7 @@ test("a material row maps through the role sheet and carries notes and a source"
   const r = await render();
   await r.press("Files");
   await settle();
-  assert.ok(r.hasText("Evidence material management"));
+  assert.ok(r.hasText("Staged evidence"));
   assert.ok(r.hasText("Needs mapping"), "the row did not report its quality status");
   assert.ok(r.hasText("Context · Unmapped"));
 
@@ -197,7 +215,7 @@ test("a material row maps through the role sheet and carries notes and a source"
   await r.press("Primary · Primary evidence file");
   await settle();
   assert.ok(r.hasText("Matches selected requirement"));
-  assert.ok(r.hasText("0 unmapped"));
+  assert.ok(r.hasText("0 not assigned"));
 
   await r.press("Notes for claim.pdf");
   assert.ok(r.hasText("Your notes") && r.hasText("Primary evidence file • Primary evidence"));
@@ -233,6 +251,7 @@ test("Finish sends the operator's role, note, mapping and source with the part (
   await r.type("Source (optional)", "Phone camera, on-site");
   await settle();
   await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
   await settle();
   const part = requests.find((q) => q.path === "/v1/evidence/ev-1/parts");
   assert.ok(part, "no part was created");
@@ -255,7 +274,13 @@ test("Clear Session asks first, in the web's words, and Keep Session keeps it", 
   await r.press("Keep Session");
   assert.equal(r.byTestId("capture-materials").length, 1);
   await r.press("Clear Session");
-  const confirm = r.byLabel("Clear Session").filter((n) => n.props.onPress).at(-1);
+  // The footer keeps its own "Clear Session" (it opens this sheet); the confirm
+  // is the one inside the sheet, i.e. NOT under the footer.
+  const inFooter = (n) => {
+    for (let p = n; p; p = p.parent) if (p.props?.testID === "capture-finish") return true;
+    return false;
+  };
+  const confirm = r.byLabel("Clear Session").filter((n) => n.props.onPress && !inFooter(n)).at(-1);
   await act(async () => { await confirm.props.onPress(); });
   await settle();
   assert.ok(requests.some((q) => q.method === "DELETE" && q.path === "/v1/capture/sessions/draft-1"));
@@ -277,7 +302,8 @@ test("unfinished server drafts are offered, and Resume restores their metadata a
   assert.ok(requests.some((q) => q.method === "GET" && q.path === "/v1/capture/sessions/d-7"));
   // What it restored: plan, mode, location.
   assert.ok(r.hasText("Incident Report"));
-  assert.ok(pressable(r, "Guided, Checklist required").props.accessibilityState.selected, "plan mode not restored");
+  await r.press("Change setup");
+  assert.ok(pressable(r, "Guided").props.accessibilityState.selected, "plan mode not restored");
   assert.equal(r.byLabel("Include location metadata").find((n) => n.props.onValueChange).props.value, true, "location not restored");
   // What it could not: the files, listed by name and mapping.
   assert.ok(r.hasText("2 materials to re-attach"));
@@ -334,6 +360,7 @@ test("resuming a never-finalized local session finishes through a NEW direct ses
   // The draft restored the item's mapping.
   assert.ok(r.hasText("Primary · Primary evidence file"), "the draft's mapping was not restored on resume");
   await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
   await settle();
   assert.equal(requests.some((q) => q.path.includes("/direct-sessions/draft-9")), false, "declared parts against the DRAFT id");
   assert.ok(requests.some((q) => q.path === "/v1/capture/direct-sessions" && q.method === "POST"), "no acquisition session was opened");

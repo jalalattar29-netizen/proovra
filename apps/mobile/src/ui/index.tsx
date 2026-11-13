@@ -24,7 +24,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocale } from "../locale-context";
 import { theme, statusTone } from "../theme/theme";
@@ -79,6 +79,9 @@ export function ProovraScreen({
   testID?: string;
 }) {
   const { breakpoint, contentMaxWidth } = useResponsive();
+  // The SafeAreaView below covers top/left/right only, so a footer would sit
+  // under the home indicator. The footer takes the bottom inset itself.
+  const insets = useSafeAreaInsets();
   // ONE canonical clamp: phones stay full-bleed; tablets center a readable
   // column so stack/auth/detail surfaces never stretch edge-to-edge (M4).
   const clamp = breakpoint !== "compact";
@@ -90,7 +93,7 @@ export function ProovraScreen({
   );
   const body = clamp ? <View style={styles.centerColumn}>{inner}</View> : inner;
   const footerNode = footer ? (
-    <View style={styles.footer}>
+    <View style={[styles.footer, { paddingBottom: Math.max(theme.space.s3, insets.bottom) }]}>
       <View style={clamp ? { width: "100%", maxWidth, alignSelf: "center" } : undefined}>{footer}</View>
     </View>
   ) : null;

@@ -47,7 +47,8 @@ function ModeOption({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityLabel={`${title}, ${sub}`}
+      accessibilityLabel={title}
+      accessibilityHint={sub}
       accessibilityState={{ selected: active, disabled }}
       style={{
         flex: 1,
@@ -69,7 +70,22 @@ function ModeOption({
   );
 }
 
-/** "Collection setup · Intake structure": Guided / Flexible / Location. */
+const LOCATION_REQUIREMENT_LABEL = {
+  optional: "Optional for this template",
+  recommended: "Recommended by this template",
+  required: "Required by this template",
+} as const;
+
+/**
+ * SETUP: collection mode, then capture context.
+ *
+ * Verified in `buildSessionReadiness`: Guided (CHECKLIST_REQUIRED) blocks
+ * Finish & Sign until every required step is assigned; Flexible reports them
+ * but does not block. Location is NOT a third mode — it is a separate switch
+ * that coexists with either, and the template's `locationRequirement` decides
+ * whether leaving it off is a warning or a blocker. It is shown apart for that
+ * reason.
+ */
 export function CaptureIntakeStructure({
   planMode,
   onPlanMode,
@@ -79,7 +95,10 @@ export function CaptureIntakeStructure({
   hasSessionItems,
   locationStatus,
   locationLocked,
+  locationRequirement,
 }: {
+  /** The template's rule for location, stated beside the switch. */
+  locationRequirement?: "optional" | "recommended" | "required";
   planMode: CapturePlanMode;
   onPlanMode: (m: CapturePlanMode) => void;
   useLocation: boolean;
@@ -96,16 +115,18 @@ export function CaptureIntakeStructure({
 }) {
   const locked = busy || hasSessionItems;
   return (
-    <ProovraCard testID="capture-intake-structure" style={{ gap: theme.space.s2 }}>
-      <SectionLabel>Collection setup</SectionLabel>
-      <ProovraText variant="h3" weight="semibold">Intake structure</ProovraText>
-      <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-        Choose whether this session follows a required checklist, flexible intake, or location-enabled collection.
-      </ProovraText>
+    <View testID="capture-intake-structure" style={{ gap: theme.space.s2 }}>
+      <SectionLabel>Collection mode</SectionLabel>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
-        <ModeOption title="Guided" sub="Checklist required" active={planMode === "CHECKLIST_REQUIRED"} disabled={locked} onPress={() => onPlanMode("CHECKLIST_REQUIRED")} />
-        <ModeOption title="Flexible" sub="General intake" active={planMode === "FLEXIBLE"} disabled={locked} onPress={() => onPlanMode("FLEXIBLE")} />
+        <ModeOption title="Guided" sub="Required items must be assigned before Finish & Sign" active={planMode === "CHECKLIST_REQUIRED"} disabled={locked} onPress={() => onPlanMode("CHECKLIST_REQUIRED")} />
+        <ModeOption title="Flexible" sub="Start right away; required items are recommended" active={planMode === "FLEXIBLE"} disabled={locked} onPress={() => onPlanMode("FLEXIBLE")} />
       </View>
+      {hasSessionItems ? (
+        <ProovraText variant="label" color={theme.color.ink.muted} testID="capture-setup-locked">
+          Template and mode are fixed once evidence is staged. Clear the session to change them.
+        </ProovraText>
+      ) : null}
+      <SectionLabel>Capture context</SectionLabel>
       <View
         style={{
           flexDirection: "row",
@@ -119,9 +140,11 @@ export function CaptureIntakeStructure({
         }}
       >
         <View style={{ gap: 2, flex: 1 }}>
-          <ProovraText variant="bodySm" weight="semibold">Location</ProovraText>
+          <ProovraText variant="bodySm" weight="semibold">Include device location</ProovraText>
           <ProovraText variant="label" color={theme.color.ink.secondary}>
-            {locationLocked ? "Set when the recording started" : useLocation ? "Included" : "Not included"}
+            {`${LOCATION_REQUIREMENT_LABEL[locationRequirement ?? "optional"]} · ${
+              locationLocked ? "Set when the recording started" : useLocation ? "Included" : "Not included"
+            }`}
           </ProovraText>
         </View>
         <Switch value={useLocation} onValueChange={onUseLocation} disabled={busy} accessibilityLabel="Include location metadata" />
@@ -131,64 +154,29 @@ export function CaptureIntakeStructure({
           {locationStatus}
         </ProovraText>
       ) : null}
-    </ProovraCard>
-  );
-}
-
-function Metric({ label, value, tone }: { label: string; value: string; tone?: "risk" | "pending" | "verified" }) {
-  const t = tone ? theme.color.status[tone] : null;
-  return (
-    <View
-      style={{
-        flex: 1,
-        minWidth: 90,
-        borderWidth: 1,
-        borderRadius: theme.radius.sm,
-        padding: theme.space.s2,
-        borderColor: t ? t.border : theme.color.border.default,
-        backgroundColor: t ? t.bg : theme.color.surface.card,
-      }}
-    >
-      <ProovraText variant="label" color={theme.color.ink.secondary}>{label}</ProovraText>
-      <ProovraText variant="h3" weight="bold" color={t ? t.fg : theme.color.ink.primary}>{value}</ProovraText>
     </View>
   );
 }
 
-/** Web CaptureRequirements: plan picker, summary strip, finish gate, requirement rows. */
-export function CaptureRequirements({
+/** The template picker: a row that opens the existing plan sheet. Locked once material is staged. */
+export function CaptureTemplatePicker({
   templates,
   plan,
   onSelectPlan,
-  readiness,
-  stepItemCounts,
   busy,
   hasSessionItems,
 }: {
   templates: CollectionPlanTemplate[] | null;
   plan: CollectionPlanTemplate | null;
   onSelectPlan: (t: CollectionPlanTemplate | null) => void;
-  readiness: SessionReadiness;
-  /** How many staged items map to each step id. */
-  stepItemCounts: Record<string, number>;
   busy: boolean;
   hasSessionItems: boolean;
 }) {
   const [picker, setPicker] = useState(false);
   const locked = busy || hasSessionItems;
-  const missingRequired = readiness.missingRequiredSteps.length;
-  const optionalSteps = plan?.steps.filter((s) => !s.required) ?? [];
-  const optionalMapped = optionalSteps.filter((s) => (stepItemCounts[s.id] ?? 0) > 0).length;
-  const progress = readiness.requiredTotal > 0 ? Math.round((readiness.requiredCompleted / readiness.requiredTotal) * 100) : 100;
-
   return (
-    <ProovraCard testID="capture-requirements" style={{ gap: theme.space.s3 }}>
-      <View style={{ gap: 2 }}>
-        <SectionLabel>Requirements</SectionLabel>
-        <ProovraText variant="h3" weight="semibold">{plan?.name ?? "Evidence intake"}</ProovraText>
-        {plan?.description ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{plan.description}</ProovraText> : null}
-      </View>
-
+    <View style={{ gap: theme.space.s2 }} testID="capture-template-picker">
+      <SectionLabel>Template</SectionLabel>
       {templates === null ? (
         <ProovraText variant="label" color={theme.color.ink.muted}>
           Collection plans could not be loaded. You can capture without one.
@@ -196,85 +184,10 @@ export function CaptureRequirements({
       ) : (
         <ProovraListRow
           title={plan ? plan.name : "No plan selected"}
-          subtitle={locked ? "The plan is fixed once material is staged." : "Collection plan"}
+          subtitle={locked ? "The plan is fixed once material is staged." : plan?.description || "Collection plan"}
           onPress={locked ? undefined : () => setPicker(true)}
         />
       )}
-
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
-        <Metric label="Required mapped" value={`${readiness.requiredCompleted}/${readiness.requiredTotal}`} tone={missingRequired > 0 ? "risk" : "verified"} />
-        <Metric label="Optional mapped" value={`${optionalMapped}/${optionalSteps.length}`} />
-        <Metric label="Unmapped materials" value={String(readiness.unmappedCount)} tone={readiness.unmappedCount > 0 ? "pending" : "verified"} />
-      </View>
-
-      <View style={{ gap: 6 }} accessibilityLabel="Required mapping progress" testID="capture-finish-gate">
-        <View style={{ flexDirection: "row", justifyContent: "space-between", gap: theme.space.s2 }}>
-          <ProovraText variant="label" color={theme.color.ink.secondary}>Finish gate</ProovraText>
-          <ProovraText variant="label" weight="semibold">
-            {missingRequired > 0 ? `${missingRequired} required unmapped` : "All required mapped"}
-          </ProovraText>
-        </View>
-        <View style={{ height: 6, borderRadius: 3, backgroundColor: theme.color.surface.muted, overflow: "hidden" }}>
-          <View style={{ width: `${progress}%`, height: 6, backgroundColor: theme.color.accent.a500 }} />
-        </View>
-      </View>
-
-      {plan
-        ? plan.steps.map((step, index) => {
-            const count = stepItemCounts[step.id] ?? 0;
-            const mapped = count > 0;
-            const requiredMissing = step.required && !mapped;
-            const accepts = step.acceptedKinds.map(captureKindLabel).join(", ");
-            const mappingLabel = mapped
-              ? `${count} material${count === 1 ? "" : "s"} mapped`
-              : step.required
-                ? "Required unmapped"
-                : "Optional unmapped";
-            return (
-              <View
-                key={step.id}
-                testID={`capture-requirement-${step.id}`}
-                style={{
-                  flexDirection: "row",
-                  gap: theme.space.s2,
-                  borderTopWidth: 1,
-                  borderTopColor: theme.color.border.subtle,
-                  paddingTop: theme.space.s2,
-                }}
-              >
-                <ProovraText variant="label" weight="bold" color={theme.color.ink.muted}>{String(index + 1)}</ProovraText>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s2 }}>
-                    <ProovraText variant="bodySm" weight="semibold">{step.title}</ProovraText>
-                    <ProovraBadge label={step.required ? "Required to finish" : "Optional context"} tone={step.required ? "governance" : "neutral"} />
-                  </View>
-                  {step.description ? <ProovraText variant="label" color={theme.color.ink.secondary}>{step.description}</ProovraText> : null}
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
-                    <ProovraBadge label={mappingLabel} tone={mapped ? "verified" : requiredMissing ? "risk" : "neutral"} />
-                    {accepts ? <ProovraText variant="label" color={theme.color.ink.muted}>{`Accepts ${accepts}`}</ProovraText> : null}
-                  </View>
-                </View>
-                <View style={{ alignItems: "flex-end", maxWidth: 120 }}>
-                  <ProovraText
-                    variant="label"
-                    weight="semibold"
-                    color={mapped ? theme.color.status.verified.fg : requiredMissing ? theme.color.status.risk.fg : theme.color.ink.secondary}
-                  >
-                    {mapped ? "Mapped" : step.required ? "Unmapped" : "Optional"}
-                  </ProovraText>
-                  <ProovraText variant="label" color={theme.color.ink.muted}>
-                    {mapped
-                      ? `${count} linked item${count === 1 ? "" : "s"}`
-                      : step.required
-                        ? "Blocks Review & Sign"
-                        : "Does not block finish"}
-                  </ProovraText>
-                </View>
-              </View>
-            );
-          })
-        : null}
-
       <ProovraSheet visible={picker} title="Collection plan" onClose={() => setPicker(false)}>
         <ProovraListRow
           title="No plan"
@@ -298,6 +211,107 @@ export function CaptureRequirements({
         ))}
         <ProovraButton label="Close" variant="ghost" onPress={() => setPicker(false)} />
       </ProovraSheet>
+    </View>
+  );
+}
+
+/**
+ * REQUIREMENTS — the template's checklist, as something the person can act on.
+ *
+ * Every state is read from `buildSessionReadiness` and the step counts. The
+ * label follows the ACTIVE mode: in Guided a required step blocks Finish &
+ * Sign ("Required"); in Flexible it does not ("Recommended") — the old copy
+ * said "Blocks Review & Sign" in both modes. An open step offers its next
+ * action directly: assign a staged file, or add one.
+ */
+export function CaptureRequirements({
+  plan,
+  planMode,
+  readiness,
+  stepItemCounts,
+  busy,
+  onAddForStep,
+  onAssignForStep,
+}: {
+  plan: CollectionPlanTemplate | null;
+  planMode: CapturePlanMode;
+  readiness: SessionReadiness;
+  /** How many staged items map to each step id. */
+  stepItemCounts: Record<string, number>;
+  busy: boolean;
+  onAddForStep: (stepId: string) => void;
+  onAssignForStep: (stepId: string) => void;
+}) {
+  const steps = plan?.steps ?? [];
+  if (steps.length === 0) return null;
+  const guided = planMode === "CHECKLIST_REQUIRED";
+  const hasUnassigned = readiness.unmappedCount > 0;
+  const ordered = [...steps.filter((s) => s.required), ...steps.filter((s) => !s.required)];
+
+  return (
+    <ProovraCard testID="capture-requirements" style={{ gap: theme.space.s3, marginBottom: theme.space.s3 }}>
+      <View style={{ gap: 2 }}>
+        <ProovraText variant="h3" weight="semibold">Requirements</ProovraText>
+        <ProovraText variant="label" color={theme.color.ink.secondary}>
+          {`${plan?.name ?? ""}${
+            readiness.requiredTotal > 0
+              ? ` · ${readiness.requiredCompleted} of ${readiness.requiredTotal} ${guided ? "required" : "recommended"} assigned`
+              : ""
+          }`}
+        </ProovraText>
+        {!guided && readiness.requiredTotal > 0 ? (
+          <ProovraText variant="label" color={theme.color.ink.muted}>Flexible mode: these do not block signing.</ProovraText>
+        ) : null}
+      </View>
+
+      {ordered.map((step) => {
+        const count = stepItemCounts[step.id] ?? 0;
+        const mapped = count > 0;
+        const tier = step.required ? (guided ? "required" : "recommended") : "optional";
+        const tierLabel = tier === "required" ? "Required" : tier === "recommended" ? "Recommended" : "Optional";
+        const blocking = tier === "required" && !mapped;
+        const accepts = step.acceptedKinds.map(captureKindLabel).join(", ");
+        const primary = /^primary[_-]/i.test(step.id);
+        const actionLabel = hasUnassigned ? (primary ? "Mark a file as primary evidence" : "Assign a file") : "Add file";
+        return (
+          <View
+            key={step.id}
+            testID={`capture-requirement-${step.id}`}
+            accessibilityLabel={`${step.title}, ${tierLabel}, ${mapped ? `${count} assigned` : "not assigned"}`}
+            style={{
+              gap: 6,
+              borderTopWidth: 1,
+              borderTopColor: theme.color.border.subtle,
+              paddingTop: theme.space.s2,
+              opacity: tier === "optional" && !mapped ? 0.9 : 1,
+            }}
+          >
+            <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s2 }}>
+              <ProovraText variant="bodySm" weight={tier === "optional" ? "regular" : "semibold"}>{step.title}</ProovraText>
+              <ProovraBadge label={tierLabel} tone={tier === "required" ? "risk" : tier === "recommended" ? "pending" : "neutral"} />
+            </View>
+            {step.description ? (
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                {`${step.description}${accepts ? ` Accepts ${accepts}.` : ""}`}
+              </ProovraText>
+            ) : null}
+            {mapped ? (
+              <ProovraText variant="label" weight="semibold" color={theme.color.status.verified.fg}>
+                {`${count} file${count === 1 ? "" : "s"} assigned`}
+              </ProovraText>
+            ) : (
+              <ProovraButton
+                label={actionLabel}
+                accessibilityLabel={`${actionLabel} for ${step.title}`}
+                variant={blocking ? "primary" : "secondary"}
+                fullWidth={false}
+                disabled={busy}
+                onPress={() => (hasUnassigned ? onAssignForStep(step.id) : onAddForStep(step.id))}
+              />
+            )}
+          </View>
+        );
+      })}
     </ProovraCard>
   );
 }

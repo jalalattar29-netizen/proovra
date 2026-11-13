@@ -211,7 +211,8 @@ export async function openCapture(
 ): Promise<void> {
   await installCaptureApi(page, opts);
   await page.goto("/capture");
-  await page.waitForSelector("[data-capture-trust-strip]", { timeout: 30_000 });
+  // The add-evidence panel is the first working surface on the page.
+  await page.waitForSelector("[data-capture-add-evidence]", { timeout: 30_000 });
 }
 
 /** Widths the brief names, plus the one the app must never break at. */

@@ -18,12 +18,14 @@ test.describe("capture — composition and hierarchy", () => {
   }) => {
     await openCapture(page);
 
-    // The canonical five-stage rail, and nothing beside it claiming to be a
-    // stepper.
+    // No stepper at all (2026-11-13): the compact header orients, and its
+    // facts come from the session's own state.
     await expect(page.locator(".capture-enterprise-steps")).toHaveCount(0);
+    await expect(page.locator("[data-capture-intake-rail]")).toHaveCount(0);
+    await expect(page.locator("[data-capture-header]")).toHaveCount(1);
 
-    // One drop zone, and it is not in the hero.
-    const heroBox = await page.locator(".capture-enterprise-title-card").boundingBox();
+    // One drop zone, and it is not in the header.
+    const heroBox = await page.locator("[data-capture-header]").boundingBox();
     const dropzones = page.locator("[data-capture-dropzone], .capture-dropzone");
     const count = await dropzones.count();
     if (count > 0 && heroBox) {
@@ -39,6 +41,8 @@ test.describe("capture — composition and hierarchy", () => {
     page,
   }) => {
     await openCapture(page);
+    // Trust statements are explanatory copy, on demand in Help and guidance.
+    await page.locator("[data-capture-guidance] > summary").click();
     const items = page.locator("[data-capture-trust-item]");
     await expect(items).toHaveCount(3);
     await expect(items.nth(0)).toContainText("Integrity by design");
@@ -88,8 +92,11 @@ test.describe("capture — readiness truth", () => {
       );
     }
 
-    // The verdict is words, not only colour.
-    await expect(summary).toContainText(/Ready to finalize|Not ready to finalize/);
+    // The verdict is words, not only colour. A new draft states its next step
+    // calmly instead of "Not ready" (2026-11-13); the button is still disabled.
+    await expect(summary).toContainText(
+      /Ready to finalize|Not ready to finalize|Add your first file to get started/,
+    );
   });
 
   test("an empty session says why it cannot finalize, in words", async ({ page }) => {
@@ -108,7 +115,13 @@ test.describe("capture — readiness truth", () => {
     await expect(signals).toHaveCount(1);
 
     const state = await signals.getAttribute("data-capture-signals");
-    if (state === "clear") {
+    if (state === "empty") {
+      // A new draft: one calm sentence, not a red blocker card.
+      await expect(signals).toContainText("Add your first file to get started");
+      await expect(page.locator('[data-capture-signal-group="blockers"]')).toHaveCount(0);
+      const box = await signals.boundingBox();
+      expect(box!.height, "the empty state must be one compact row").toBeLessThan(90);
+    } else if (state === "clear") {
       await expect(signals).toContainText("No blockers");
       await expect(signals).toContainText("No warnings");
       const box = await signals.boundingBox();
@@ -234,7 +247,7 @@ test.describe("capture — responsive", () => {
     // above cannot see it — this measures the cause instead.
     await page.setViewportSize({ width: 1024, height: 900 });
     await openCapture(page);
-    const rail = await page.locator(".capture-command-center").first().boundingBox();
+    const rail = await page.locator(".capture-rail").first().boundingBox();
     const main = await page.locator(".capture-main-panel").first().boundingBox();
     expect(rail).not.toBeNull();
     expect(main).not.toBeNull();
@@ -263,6 +276,8 @@ test.describe("capture — the rail's dense surfaces", () => {
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openCapture(page);
+    // Integrity preparation now lives in the collapsed Session details.
+    await page.locator("[data-capture-session-details] > summary").click();
 
     // It was `gap: 1px` over a tinted background with opaque white cells, so
     // the tint showed through every gap as a rule and each of the four
@@ -362,12 +377,34 @@ function contrastRatio(a: string, b: string): number {
  * removed its focus ring. Measured from the real cascade, at rest and hovered.
  */
 test.describe("capture — the screen recording card's actions", () => {
-  test("Choose what to record keeps a legible primary fill at rest, on hover, and shows a focus ring", async ({ page }) => {
+  test("Screen opens the browser chooser directly; the live card's Stop keeps a legible primary fill and a focus ring", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
+    // A real MediaStream (canvas) stands in for the surface the user would
+    // pick in the browser's chooser; MediaRecorder is the real one.
+    await page.addInitScript(() => {
+      (window as unknown as { __gdm: number }).__gdm = 0;
+      navigator.mediaDevices.getDisplayMedia = async () => {
+        (window as unknown as { __gdm: number }).__gdm += 1;
+        const c = document.createElement("canvas");
+        c.width = 160;
+        c.height = 90;
+        const ctx = c.getContext("2d")!;
+        setInterval(() => {
+          ctx.fillStyle = `hsl(${Date.now() % 360} 70% 50%)`;
+          ctx.fillRect(0, 0, 160, 90);
+        }, 60);
+        return c.captureStream(15);
+      };
+    });
     await openCapture(page);
-    await page.getByRole("button", { name: /^Screen/ }).first().click();
-    const button = page.locator("[data-capture-screen-recorder] button.app-primary-action").first();
-    await expect(button).toHaveText(/Choose what to record/);
+    await page.locator("[data-capture-add-action='screen']").click();
+    // ONE click reached the chooser: no intermediate card to click through.
+    await expect(page.locator("[data-capture-screen-recorder]")).toHaveAttribute("data-screen-recorder-state", "recording");
+    await expect(page.getByText("Choose what to record")).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { __gdm: number }).__gdm)).toBe(1);
+
+    const button = page.locator("[data-screen-recorder-stop]");
+    await expect(button).toHaveText(/Stop recording/);
     const read = () =>
       button.evaluate((el) => {
         const s = getComputedStyle(el);
@@ -377,8 +414,7 @@ test.describe("capture — the screen recording card's actions", () => {
     expect(rest.image, "the primary fill is the canonical gradient").toMatch(/gradient/);
     await button.hover();
     const hovered = await read();
-    expect(hovered.image, "hover keeps the primary fill (no white tile background)").toMatch(/gradient/);
-    // White text must sit on the purple fill: compare against the gradient's first stop.
+    expect(hovered.image, "hover keeps the primary fill").toMatch(/gradient/);
     const stop = (hovered.image.match(/rgba?\([^)]+\)/) ?? ["rgb(124, 58, 237)"])[0];
     expect(contrastRatio(hovered.color, stop), "label contrast on hover").toBeGreaterThanOrEqual(4.5);
     await page.mouse.move(0, 0);
@@ -387,5 +423,68 @@ test.describe("capture — the screen recording card's actions", () => {
     await page.keyboard.press("Tab");
     const focused = await read();
     expect(focused.outline, "keyboard focus shows a ring").not.toBe("none");
+
+    // Stopping produces exactly one staged recording, however often Add is pressed.
+    await button.click();
+    await page.getByRole("button", { name: "Add recording to session" }).dblclick();
+    await expect(page.locator("[data-capture-staged-item]")).toHaveCount(1);
+    await expect(page.locator(".capture-staged__name").first()).toHaveText(/^screen-recording-.*\.webm$/);
   });
+
+  test("a cancelled chooser stages nothing and leaves the page as it was", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.addInitScript(() => {
+      navigator.mediaDevices.getDisplayMedia = () =>
+        Promise.reject(Object.assign(new Error("Permission denied"), { name: "NotAllowedError" }));
+    });
+    await openCapture(page);
+    await page.locator("[data-capture-add-action='screen']").click();
+    await expect(page.locator("[data-capture-screen-recorder]")).toContainText(/cancelled or not allowed/);
+    await expect(page.locator("[data-capture-staged-item]")).toHaveCount(0);
+    await page.getByRole("button", { name: "Close screen recording" }).click();
+    await expect(page.locator("[data-capture-screen-recorder]")).toHaveCount(0);
+  });
+});
+
+/*
+ * 2026-11-13 — the staged list used to be eight fixed columns whose minimums
+ * exceeded the working column once the rail took its share: Status and Actions
+ * painted outside the card and "Preview" broke across two lines. The list now
+ * sizes itself to its own width (a CSS container). Measured with a long name
+ * and mixed types at the widths where the old table broke.
+ */
+test.describe("capture — staged evidence fits its card", () => {
+  const PNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  for (const width of [1440, 1280, 1200, 1024, 768, 390, 375, 320]) {
+    test(`${width}: every cell and action stays inside the list`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openCapture(page);
+      await page.locator('input[type="file"][aria-label="Upload evidence files"]').setInputFiles([
+        { name: "insurance-claim-2026-11-13-front-door-damage-north-facade-close-up-photo-final-v3.png", mimeType: "image/png", buffer: PNG },
+        { name: "loss-context.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4") },
+        { name: "statement.m4a", mimeType: "audio/mp4", buffer: Buffer.from("a") },
+      ]);
+      await expect(page.locator("[data-capture-staged-item]")).toHaveCount(3);
+      const strays = await page.evaluate(() => {
+        const list = document.querySelector(".capture-staged__list")!.getBoundingClientRect();
+        const out: string[] = [];
+        for (const el of Array.from(
+          document.querySelectorAll<HTMLElement>(".capture-staged__item > *, .capture-staged__action, .capture-staged__badge, .capture-staged__assign-trigger"),
+        )) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0) continue;
+          if (r.left < list.left - 1 || r.right > list.right + 1) out.push(el.className.slice(0, 60));
+        }
+        return out;
+      });
+      expect(strays).toEqual([]);
+      const pageOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(pageOverflow).toBeLessThanOrEqual(0);
+    });
+  }
 });

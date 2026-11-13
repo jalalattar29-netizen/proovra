@@ -176,6 +176,7 @@ test("Finish with an unknown workspace reserves nothing and loses nothing", asyn
   const r = await render(Capture);
   await stageFile(Capture, r);
   await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
   await settle();
   assert.equal(opens().length, 0, "no session may open against an unknown workspace");
   assert.equal(requests.filter((q) => q.path.includes("/evidence")).length, 0);
@@ -187,6 +188,7 @@ test("positive control: Finish in an organization names it", async () => {
   const r = await render(Capture);
   await stageFile(Capture, r);
   await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
   await settle();
   assert.equal(opens().length, 1);
   assert.equal(opens()[0].body.teamId, TEST_TEAM_ID);
@@ -199,6 +201,7 @@ test("positive control: a CONFIRMED Personal Space still omits teamId", async ()
   assert.ok(r.hasText("Saving to Personal Space"));
   await stageFile(Capture, r);
   await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
   await settle();
   assert.equal(opens().length, 1);
   assert.equal("teamId" in opens()[0].body, false);
@@ -211,6 +214,7 @@ test("a switch after staging does not move the session", async () => {
   await act(async () => { Capture.refreshPlatformContext(); });
   await settle();
   await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
   await settle();
   assert.equal(opens()[0].body.teamId, TEST_TEAM_ID, "it files where the draft was opened");
   assert.ok(r.hasText("Saving to Test Workspace"));

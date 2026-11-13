@@ -317,11 +317,18 @@ test("source contract — page.tsx imports the canonical role-label helper from 
   // alongside isPrimaryChecklistStepId / isSupportingChecklistStepId.
   // page.tsx must IMPORT it from there — never re-implement the
   // template-aware role logic locally.
-  assert.match(
-    PAGE,
-    /getRoleFromChecklistStep[\s\S]{0,200}from\s+"\.\/_lib\/captureReadiness"/,
-    "page.tsx must import getRoleFromChecklistStep from _lib/captureReadiness",
+  // The staged list moved into _lib/CaptureMaterialsList.tsx (2026-11-13);
+  // the role label is still the canonical helper, imported, never re-made.
+  const LIST = readFileSync(
+    resolve(__dirname, "..", "app", "(app)", "capture", "_lib", "CaptureMaterialsList.tsx"),
+    "utf8",
   );
+  assert.match(
+    LIST,
+    /getRoleFromChecklistStep[\s\S]{0,200}from\s+"\.\/captureReadiness"/,
+    "the staged list must import getRoleFromChecklistStep from captureReadiness",
+  );
+  assert.doesNotMatch(LIST, /(const|function)\s+getRoleFromChecklistStep\s*[=(]/);
   // The canonical helper file MUST export the role-label function and
   // both prefix predicates so any future consumer reads from one place.
   assert.match(READINESS, /export function getRoleFromChecklistStep\b/);

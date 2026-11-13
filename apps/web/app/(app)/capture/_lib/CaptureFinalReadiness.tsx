@@ -33,7 +33,7 @@
  * server-side and may still refuse.
  */
 
-import { CircleAlert, CircleCheck, Loader } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed, Loader } from "lucide-react";
 
 import type { SessionReadiness } from "./session-readiness";
 
@@ -79,10 +79,16 @@ function notReadyDetail(readiness: SessionReadiness, busy: boolean): string {
 export function CaptureFinalReadiness({
   readiness,
   busy,
+  onAddFirst,
+  onResolve,
 }: {
   readiness: SessionReadiness;
   /** The SAME flag `finishDisabled` folds in. Passed, never recomputed. */
   busy: boolean;
+  /** Empty draft: the one next action (open the file picker). */
+  onAddFirst?: () => void;
+  /** Not ready: take the operator to the first thing that needs them. */
+  onResolve?: () => void;
 }) {
   // Byte-for-byte the bottom bar's own predicate. If this line and
   // `finishDisabled` ever drift, they drift together.
@@ -90,7 +96,16 @@ export function CaptureFinalReadiness({
   const extra = readiness.blockers.length > 1 ? readiness.blockers.length - 1 : 0;
   // The complete list, which the bottom bar used to print underneath this in a
   // second verdict of its own. One statement, and it is this one.
-  const missing = readiness.missingRequiredSteps.map((step) => step.title);
+  // Only when the authority actually blocks on them (Guided mode). In
+  // Flexible mode a missing required step is not a reason the button is
+  // disabled, so naming it here would misstate the gate.
+  const blocksOnSteps = readiness.blockers.some((b) => b.code === "capture_required_step_missing");
+  const missing = blocksOnSteps ? readiness.missingRequiredSteps.map((step) => step.title) : [];
+  // A new draft is the ordinary start of the flow, not a failure: same
+  // verdict (the button is still disabled), stated as the next step. Any
+  // second blocker (e.g. a required setting) keeps the "not ready" form.
+  const empty = !busy && readiness.status === "empty" && readiness.blockers.length <= 1;
+  const tone = busy ? "busy" : ready ? "ready" : empty ? "empty" : "blocked";
 
   return (
     <section
@@ -98,6 +113,7 @@ export function CaptureFinalReadiness({
       data-capture-final-readiness={ready ? "ready" : "not_ready"}
       data-capture-can-finalize={readiness.canFinalize ? "true" : "false"}
       data-capture-busy={busy ? "true" : "false"}
+      data-capture-readiness-tone={tone}
       aria-live="polite"
     >
       <span className="capture-final-readiness__icon" aria-hidden="true">
@@ -105,6 +121,8 @@ export function CaptureFinalReadiness({
           <Loader size={18} strokeWidth={2.2} />
         ) : ready ? (
           <CircleCheck size={18} strokeWidth={2.2} />
+        ) : empty ? (
+          <CircleDashed size={18} strokeWidth={2.2} />
         ) : (
           <CircleAlert size={18} strokeWidth={2.2} />
         )}
@@ -112,17 +130,33 @@ export function CaptureFinalReadiness({
 
       <div className="capture-final-readiness__copy">
         {/* The verdict as WORDS. Colour repeats it; it never carries it. */}
-        <strong>{ready ? "Ready to finalize" : "Not ready to finalize"}</strong>
+        <strong>
+          {ready ? "Ready to finalize" : empty ? "Add your first file to get started" : "Not ready to finalize"}
+        </strong>
         <p>
-          {ready ? readyDetail(readiness) : notReadyDetail(readiness, busy)}
-          {!ready && extra > 0 ? ` (+${extra} more)` : ""}
+          {ready
+            ? readyDetail(readiness)
+            : empty
+              ? "Review & Sign becomes available once evidence is staged."
+              : notReadyDetail(readiness, busy)}
+          {!ready && !empty && extra > 0 ? ` (+${extra} more)` : ""}
         </p>
         {!ready && missing.length > 0 ? (
           <small className="capture-final-readiness__missing">
-            Still unmapped: {missing.join(", ")}
+            Still to assign: {missing.join(", ")}
           </small>
         ) : null}
       </div>
+
+      {empty && onAddFirst ? (
+        <button type="button" className="capture-final-readiness__action" onClick={onAddFirst}>
+          Add files
+        </button>
+      ) : !ready && !busy && !empty && onResolve ? (
+        <button type="button" className="capture-final-readiness__action" onClick={onResolve}>
+          Show what&apos;s needed
+        </button>
+      ) : null}
     </section>
   );
 }

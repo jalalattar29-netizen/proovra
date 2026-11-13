@@ -25,12 +25,10 @@ import {
   INTAKE_TEMPLATES_PATH,
   READINESS_PANEL_LEVEL_LABEL,
   computeCaptureSuggestions,
-  computeIntakeStages,
   orderCaptureTemplates,
   parseIntakeTemplates,
   type CaptureReadiness,
   type CollectionPlanTemplate,
-  type PlannedItem,
 } from "../product/capture-plan";
 
 /** Loads the SERVER catalogue, the default plan first. There is no on-device seed list. */
@@ -97,62 +95,6 @@ function HideButton({ label, onPress, color }: { label: string; onPress: () => v
     >
       <ProovraText variant="label" color={color}>Hide</ProovraText>
     </Pressable>
-  );
-}
-
-/** Web CaptureIntakeRail — "Intake plan" and the five numbered stages. Always shown. */
-export function CaptureIntakeRail({
-  items,
-  templateSelected,
-  readiness,
-}: {
-  items: PlannedItem[];
-  templateSelected: boolean;
-  readiness: CaptureReadiness;
-}) {
-  const stages = computeIntakeStages({ items, templateSelected, readiness });
-  return (
-    <ProovraCard testID="capture-intake-rail" accessibilityLabel="Capture intake progression">
-      <ProovraText variant="label" weight="bold" color={theme.color.ink.muted} style={UPPER}>Intake plan</ProovraText>
-      <View style={{ gap: theme.space.s2, marginTop: theme.space.s2 }}>
-        {stages.map((s, idx) => {
-          const tone =
-            s.status === "complete" ? theme.color.status.verified : s.status === "active" ? theme.color.status.governance : theme.color.status.neutral;
-          return (
-            <View
-              key={s.id}
-              style={{ flexDirection: "row", alignItems: "center", gap: theme.space.s2 }}
-              accessibilityState={s.status === "active" ? { selected: true } : undefined}
-              testID={`capture-intake-stage-${s.id}-${s.status}`}
-            >
-              <View
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 12,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: s.status === "pending" ? theme.color.surface.card : tone.solid,
-                  borderWidth: 1,
-                  borderColor: s.status === "pending" ? theme.color.border.default : tone.solid,
-                }}
-              >
-                <ProovraText variant="label" weight="bold" color={s.status === "pending" ? theme.color.ink.muted : "#FFFFFF"}>
-                  {s.status === "complete" ? "✓" : String(idx + 1)}
-                </ProovraText>
-              </View>
-              <ProovraText
-                variant="bodySm"
-                weight={s.status === "active" ? "semibold" : "regular"}
-                color={s.status === "pending" ? theme.color.ink.muted : theme.color.ink.primary}
-              >
-                {s.label}
-              </ProovraText>
-            </View>
-          );
-        })}
-      </View>
-    </ProovraCard>
   );
 }
 

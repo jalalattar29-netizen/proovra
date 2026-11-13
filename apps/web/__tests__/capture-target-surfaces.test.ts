@@ -84,7 +84,15 @@ test("blockers and warnings render from the readiness authority, never reclassif
   // ONE HOME. The rail already answered "what is blocking me?" in this
   // position; the component replaced those two hand-rolled sections rather
   // than adding a third copy in the main column.
-  assert.match(PANEL, /<CaptureReadinessSignals readiness=\{sessionReadiness\} \/>/);
+  assert.match(PANEL, /<CaptureReadinessSignals\s+readiness=\{sessionReadiness\}/);
+  // A new draft is presented calmly: the ONE issue the authority raises for an
+  // empty session is filtered by its code (presentation), never re-derived.
+  assert.match(SIGNALS, /issue.code !== EMPTY_SESSION_ISSUE_CODE/);
+  assert.match(
+    read("apps/web/app/(app)/capture/_lib/session-readiness.ts"),
+    /EMPTY_SESSION_ISSUE_CODE = "capture_empty_session"/,
+  );
+  assert.match(SIGNALS, /readiness\.status === "empty"/);
   assert.doesNotMatch(
     code(PAGE),
     /CaptureReadinessSignals/,
@@ -138,7 +146,7 @@ test("Final Readiness projects the SAME predicate that gates Review & Sign", () 
   // Both the bar and the summary are handed the same objects.
   assert.match(
     PAGE,
-    /<CaptureFinalReadiness readiness=\{sessionReadiness\} busy=\{busy\} \/>/,
+    /<CaptureFinalReadiness\s+readiness=\{sessionReadiness\}\s+busy=\{busy\}/,
   );
   assert.match(PAGE, /finishDisabled=\{finishDisabled\}/);
   assert.doesNotMatch(

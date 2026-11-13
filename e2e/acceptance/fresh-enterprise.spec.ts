@@ -436,6 +436,8 @@ test("S10 workspace switch; analyst uploads real evidence, it seals and reports"
   });
   await expect(page.getByText("1 material added").first()).toBeVisible();
   await page.getByRole("button", { name: "Review & Sign", exact: true }).last().click();
+  // Review & Sign opens the review dialog; signing is its explicit confirm.
+  await page.locator("[data-capture-review-confirm]").click();
   await page.waitForURL(/\/evidence\/[0-9a-f-]{36}/, { timeout: 60_000 });
   s.facts.evidenceId = page.url().match(/evidence\/([0-9a-f-]{36})/)![1]!;
   // The worker seals and reports in the background: the page settles on its own record.

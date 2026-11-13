@@ -92,7 +92,7 @@ test("the screen offers the web intake actions (CaptureDropzone: Files, Photo, V
 
 test("native screen capture is offered as a SOURCE here, not on Home", async () => {
   const r = await render();
-  assert.ok(r.hasText("Other capture sources"));
+  assert.ok(r.hasText("Screen recording"));
   // T-19 — on iOS (this harness) the only screen source is the CONTINUOUS
   // broadcast flow, so the control is named for it; the old assertion pinned
   // Android's "Screen capture" label over a different flow.

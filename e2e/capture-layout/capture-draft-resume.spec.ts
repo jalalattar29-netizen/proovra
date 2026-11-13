@@ -48,12 +48,10 @@ test.describe("capture — draft resume", () => {
     await expect(banner).toContainText("unfinished capture session");
 
     // The state BEFORE resuming, so the assertions after it are about change
-    // and not about defaults that happened to match.
-    const location = page.locator(".capture-setup-location input");
-    await expect(location).not.toBeChecked();
-    await expect(
-      page.locator(".capture-setup-mode", { hasText: "Guided" }),
-    ).not.toHaveClass(/active/);
+    // and not about defaults that happened to match. Setup is in the header
+    // (2026-11-13): the summary states it, and Change setup opens the controls.
+    await expect(page.locator("[data-capture-summary-mode]")).toHaveText("Flexible");
+    await expect(page.locator("[data-capture-summary-location]")).toContainText("Off");
 
     // 4. Resume.
     await resumeTheDraft(page);
@@ -64,12 +62,13 @@ test.describe("capture — draft resume", () => {
     await expect(page.locator(".capture-drafts-modal")).toHaveCount(0);
 
     // planMode — CHECKLIST_REQUIRED, not the FLEXIBLE default.
-    await expect(
-      page.locator(".capture-setup-mode", { hasText: "Guided" }),
-    ).toHaveClass(/active/);
+    await expect(page.locator("[data-capture-summary-mode]")).toHaveText("Guided");
+    await page.locator("[data-capture-setup-toggle]").click();
+    await expect(page.getByRole("radio", { name: /Guided/ })).toBeChecked();
 
     // useLocation — persisted, returned, and previously thrown away.
-    await expect(location).toBeChecked();
+    await expect(page.locator("[data-capture-location-toggle]")).toBeChecked();
+    await expect(page.locator("[data-capture-summary-location]")).toContainText("Included");
 
     // internalNotes — restored into the private note field.
     await expect(page.locator(".capture-notes-card textarea")).toHaveValue(
@@ -122,7 +121,7 @@ test.describe("capture — draft resume", () => {
     const toast = page.getByText(/Draft restored/i).first();
     await expect(toast).toBeVisible();
     await expect(toast).toContainText("Re-attach 2 files");
-    await expect(page.locator(".capture-setup-location input")).toBeChecked();
+    await expect(page.locator("[data-capture-summary-location]")).toContainText("Included");
   });
 
   test("the draft controls carry destructive and neutral semantics correctly", async ({

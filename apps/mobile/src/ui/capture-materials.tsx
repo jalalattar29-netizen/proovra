@@ -8,28 +8,23 @@
  * status, actions); the role dropdown is a bottom sheet. Every verdict is read
  * from `buildSessionReadiness` / `itemQualityStatus`; nothing is decided here.
  */
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Image, Pressable, View } from "react-native";
 
 import { theme } from "../theme/theme";
 import { ProovraBadge, ProovraButton, ProovraCard, ProovraFormField, ProovraInput, ProovraListRow, ProovraSheet, ProovraText } from "./index";
 import {
-  OPERATIONAL_LEVEL_LABEL,
   captureKindLabel,
-  computeCaptureSuggestions,
   finalReadinessCopy,
   formatCaptureFileSize,
   itemQualityStatus,
   roleForStep,
   roleFromChecklistStep,
   roleRequirementLabel,
-  type CaptureReadiness,
   type CapturePlanMode,
   type CollectionPlanTemplate,
   type SessionReadiness,
 } from "../product/capture-plan";
-
-const UPPER = { textTransform: "uppercase" as const, letterSpacing: 0.4 };
 
 export interface CaptureMaterial {
   id: string;
@@ -82,7 +77,12 @@ export function CaptureMaterialsBoard({
   onRemove,
   onMap,
   onUpdate,
+  assignRequestId,
+  onAssignRequestHandled,
 }: {
+  /** Opens this item's assignment sheet (a requirement's "Assign a file"). */
+  assignRequestId?: string | null;
+  onAssignRequestHandled?: () => void;
   items: CaptureMaterial[];
   plan: CollectionPlanTemplate | null;
   planMode: CapturePlanMode;
@@ -101,6 +101,12 @@ export function CaptureMaterialsBoard({
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [mapping, setMapping] = useState<CaptureMaterial | null>(null);
+  useEffect(() => {
+    if (!assignRequestId) return;
+    const target = items.find((i) => i.id === assignRequestId) ?? null;
+    if (target) setMapping(target);
+    onAssignRequestHandled?.();
+  }, [assignRequestId, items, onAssignRequestHandled]);
   const totalBytes = items.reduce((sum, i) => sum + (i.sizeBytes ?? 0), 0);
   const count = items.length;
   const disabled = busy || locked;
@@ -108,15 +114,12 @@ export function CaptureMaterialsBoard({
   return (
     <ProovraCard testID="capture-materials" style={{ gap: theme.space.s3, marginBottom: theme.space.s3 }}>
       <View style={{ gap: 2 }}>
-        <ProovraText variant="label" weight="bold" color={theme.color.ink.muted} style={UPPER}>Evidence material management</ProovraText>
-        <ProovraText variant="h3" weight="semibold">{`${count} item${count === 1 ? "" : "s"} added`}</ProovraText>
-        <ProovraText variant="label" color={theme.color.ink.secondary}>
-          Compact review rows surface mapping, status, type, size, and warnings for faster operational scanning.
-        </ProovraText>
+        <ProovraText variant="h3" weight="semibold">Staged evidence</ProovraText>
+        <ProovraText variant="label" color={theme.color.ink.secondary}>{`${count} item${count === 1 ? "" : "s"} added`}</ProovraText>
       </View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s2 }}>
         <ProovraText variant="label" color={theme.color.ink.secondary}>{formatCaptureFileSize(totalBytes)}</ProovraText>
-        <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>{`${readiness.unmappedCount} unmapped`}</ProovraText>
+        <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>{`${readiness.unmappedCount} not assigned`}</ProovraText>
         <View testID="capture-draft-pill">
           <ProovraBadge label={draftPillLabel(draftSaveState, hasDraft)} tone={draftSaveState === "error" ? "risk" : draftSaveState === "saving" ? "pending" : "neutral"} />
         </View>
@@ -125,14 +128,14 @@ export function CaptureMaterialsBoard({
       {!busy ? (
         <View style={{ flexDirection: "row", gap: theme.space.s2, flexWrap: "wrap" }} accessibilityLabel="Bulk actions" testID="capture-bulk-actions">
           <ProovraButton
-            label="Clear all mappings"
+            label="Clear all assignments"
             variant="ghost"
             fullWidth={false}
             disabled={items.every((i) => !i.checklistStepId) || locked}
             onPress={onClearMappings}
           />
           <ProovraButton
-            label="Remove pending items"
+            label="Remove items not yet uploaded"
             variant="ghost"
             fullWidth={false}
             disabled={items.every((i) => i.uploaded || i.uploading) || locked}
@@ -283,65 +286,30 @@ export function CaptureMaterialsBoard({
   );
 }
 
-const LEVEL_TONE = {
-  draft: theme.color.status.neutral,
-  developing: theme.color.status.pending,
-  ready: theme.color.status.verified,
-} as const;
-
-/** Web CaptureOperationalSummary — hidden with no items; informational only. */
-export function CaptureOperationalSummary({ readiness, itemCount }: { readiness: CaptureReadiness; itemCount: number }) {
-  if (itemCount === 0) return null;
-  const tone = LEVEL_TONE[readiness.level];
-  const top = computeCaptureSuggestions(readiness, 1)[0] ?? null;
-  return (
-    <View
-      testID="capture-operational-summary"
-      accessibilityLabel={`Capture readiness summary — readiness ${OPERATIONAL_LEVEL_LABEL[readiness.level]}`}
-      style={{ borderWidth: 1, borderColor: tone.border, backgroundColor: tone.bg, borderRadius: theme.radius.md, padding: theme.space.s3, gap: theme.space.s2, marginBottom: theme.space.s3 }}
-    >
-      <ProovraText variant="label" weight="bold" color={tone.fg} style={UPPER}>
-        {`Readiness · ${OPERATIONAL_LEVEL_LABEL[readiness.level]} · ${readiness.score.satisfied}/${readiness.score.total}`}
-      </ProovraText>
-      {top ? (
-        <ProovraText variant="label" color={tone.fg}>{`Next: ${top.title} — ${top.body}`}</ProovraText>
-      ) : (
-        <ProovraText variant="label" color={tone.fg}>All workflow criteria satisfied for this intake. Finalize when ready.</ProovraText>
-      )}
-      <ProovraText variant="label" color={tone.fg}>Informational only — finalization is governed by the upload flow.</ProovraText>
-    </View>
-  );
-}
-
 /** Web CaptureFinalReadiness — the sentence the Finish gate means, from the same values. */
-export function CaptureFinalReadiness({ readiness, busy }: { readiness: SessionReadiness; busy: boolean }) {
+export function CaptureFinalReadiness({
+  readiness,
+  busy,
+  compact = false,
+}: {
+  readiness: SessionReadiness;
+  busy: boolean;
+  /** The footer form: the verdict and its reason in one short block. */
+  compact?: boolean;
+}) {
   const copy = finalReadinessCopy(readiness, busy);
   const tone = busy ? theme.color.status.neutral : copy.ready ? theme.color.status.verified : theme.color.status.pending;
   return (
     <View
       testID={`capture-final-readiness-${copy.ready ? "ready" : "not_ready"}`}
       accessibilityLiveRegion="polite"
-      style={{ borderWidth: 1, borderColor: tone.border, backgroundColor: tone.bg, borderRadius: theme.radius.md, padding: theme.space.s3, gap: 4, marginBottom: theme.space.s2 }}
+      style={{ borderWidth: 1, borderColor: tone.border, backgroundColor: tone.bg, borderRadius: theme.radius.md, padding: compact ? theme.space.s2 : theme.space.s3, gap: compact ? 2 : 4, marginBottom: compact ? 0 : theme.space.s2 }}
     >
       <ProovraText variant="bodySm" weight="semibold" color={tone.fg}>{copy.title}</ProovraText>
-      <ProovraText variant="label" color={tone.fg}>{copy.detail}</ProovraText>
+      <ProovraText variant="label" color={tone.fg} numberOfLines={compact ? 2 : undefined}>{copy.detail}</ProovraText>
       {!copy.ready && copy.missing.length > 0 ? (
         <ProovraText variant="label" color={tone.fg}>{`Still unmapped: ${copy.missing.join(", ")}`}</ProovraText>
       ) : null}
-    </View>
-  );
-}
-
-/** The web CaptureBottomBar heading and its explanatory line. */
-export function CaptureFinishHeading({ busy, progress }: { busy: boolean; progress: number }) {
-  return (
-    <View style={{ gap: 2 }} testID="capture-finish-heading">
-      <ProovraText variant="bodySm" weight="semibold">{busy ? "Finalizing" : "Finish & Sign"}</ProovraText>
-      <ProovraText variant="label" color={theme.color.ink.secondary}>
-        {busy
-          ? `Finishing evidence session… ${progress}%`
-          : "Finish & Sign locks the session, records integrity metadata, and starts verification artifact generation."}
-      </ProovraText>
     </View>
   );
 }

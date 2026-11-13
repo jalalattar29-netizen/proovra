@@ -27,19 +27,20 @@ import {
 import { useToast } from "../../src/toast-context";
 import { formatUserDateTime } from "../../src/lib/date";
 import {
-  CaptureIntakeRail,
   CaptureReadinessPanel,
   CaptureSuggestionsPanel,
   useIntakeTemplates,
 } from "../../src/ui/capture-plan-sections";
-import { CaptureIntakeStructure, CaptureRequirements } from "../../src/ui/capture-requirements";
-import { CaptureHero } from "../../src/ui/capture-intro";
+import {
+  CaptureIntakeStructure,
+  CaptureRequirements,
+  CaptureTemplatePicker,
+} from "../../src/ui/capture-requirements";
 import { CaptureDraftReattachNotice, CaptureDraftsBanner } from "../../src/ui/capture-drafts";
+import { CaptureTrustStatements } from "../../src/ui/capture-intro";
 import {
   CaptureFinalReadiness,
-  CaptureFinishHeading,
   CaptureMaterialsBoard,
-  CaptureOperationalSummary,
   type DraftSaveState,
 } from "../../src/ui/capture-materials";
 import { CaptureAiReview } from "../../src/ui/capture-ai-review";
@@ -57,6 +58,7 @@ import {
 } from "../../src/product/capture-activity";
 import {
   DEFAULT_TEMPLATE_ID,
+  formatCaptureFileSize,
   assignRequiredStep,
   buildSessionReadiness,
   computeCaptureReadiness,
@@ -304,6 +306,14 @@ export default function CaptureScreen() {
   >(null);
   const [draftSaveState, setDraftSaveState] = useState<DraftSaveState>("idle");
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  // Setup (template, mode, location) opens in place from the summary card.
+  const [setupOpen, setSetupOpen] = useState(false);
+  // Finish & Sign opens the review sheet; its confirm calls completeSession.
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [guidanceOpen, setGuidanceOpen] = useState(false);
+  // A requirement's "Assign a file" opens that item's assignment sheet.
+  const [assignRequestId, setAssignRequestId] = useState<string | null>(null);
+  const clearAssignRequest = useCallback(() => setAssignRequestId(null), []);
   // Web "Unfinished capture sessions" (useCaptureDraftList): the server DRAFTs.
   const [serverDrafts, setServerDrafts] = useState<CaptureDraftDetail[]>([]);
   const [draftsOpen, setDraftsOpen] = useState(false);
@@ -1901,17 +1911,133 @@ if (!isRecording || busy) return;
     { kind: "AUDIO", label: "Audio", helper: "Record note" },
   ];
 
+  // REQUIREMENT ACTIONS. "Add file" opens the document picker; "Assign a file"
+  // opens the first unassigned item's existing assignment sheet.
+  const assignForStep = () => {
+    const first = sessionItemsRef.current.find((i) => !i.checklistStepId);
+    if (first) setAssignRequestId(first.id);
+  };
+  // What the device answered, or what a recording carries — stated in the
+  // always-visible summary, not only inside the collapsed setup.
+  const locationStatusLine = carriedLocationStatus(carriedLocation) ?? (useLocation ? locationCheck : null);
+  const workspaceForSummary = destination ? { state: "resolved" as const, ...destination } : workspace;
+  const modeLabel = planMode === "CHECKLIST_REQUIRED" ? "Guided" : "Flexible";
+  const locationSummary = carriedLocation?.recordedAtStart
+    ? "Set by recording"
+    : useLocation
+      ? "Included"
+      : template?.locationRequirement === "required"
+        ? "Off — required"
+        : "Off";
+
+  /**
+   * THE NEXT ACTION, ALWAYS IN REACH. A safe-area-aware footer below the
+   * scroll area (ProovraScreen `footer`): with nothing staged it offers the
+   * first add; once something is staged it states the readiness verdict and
+   * carries Finish & Sign, which now opens a review sheet before sealing.
+   */
+  const footer = personalSpaceBlocked ? null : hasItems ? (
+    <View style={styles.footer} testID="capture-finish">
+      <CaptureFinalReadiness readiness={sessionReadiness} busy={sessionCompletingEvidence} compact />
+      <View style={styles.footerActions} accessibilityLabel="Session final actions">
+        <ProovraButton
+          label={discarding ? "Clearing…" : "Clear Session"}
+          variant="secondary"
+          fullWidth={false}
+          disabled={sessionCompletingEvidence || isRecording || discarding}
+          onPress={() => setClearConfirmOpen(true)}
+        />
+        <View style={styles.footerPrimary}>
+          <ProovraButton
+            label={sessionCompletingEvidence ? `Finishing… ${uploadProgress}%` : `Finish & Sign (${sessionItems.length})`}
+            loading={sessionCompletingEvidence}
+            disabled={sessionCreatingEvidence || isRecording || !sessionReadiness.canFinalize}
+            onPress={() => setReviewOpen(true)}
+          />
+        </View>
+      </View>
+    </View>
+  ) : (
+    <View style={styles.footer} testID="capture-finish-empty">
+      <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+        Add your first file to get started.
+      </ProovraText>
+      <ProovraButton
+        label="Add files"
+        disabled={sessionCompletingEvidence || isRecording}
+        onPress={() => runIntakeAction("DOCUMENT")}
+      />
+    </View>
+  );
+
   return (
     // Capture is a full-screen flow and renders OUTSIDE the app shell, as the
     // web does: shell navigation must not be one tap away mid-recording
     // (RC-10, test/shell-gates.test.mjs). Back is disabled while recording.
-    <ProovraScreen>
+    <ProovraScreen footer={footer}>
       <View style={styles.headerRow}>
         <ProovraButton label="Back" variant="ghost" fullWidth={false} disabled={isRecording} onPress={() => router.back()} />
       </View>
 
-      {/* Web order: the intake rail, the drafts, then the page's own title. */}
-      <CaptureIntakeRail items={plannedItems} templateSelected={template !== null} readiness={captureReadiness} />
+      {/*
+        ONE COMPACT HEADER. The intake rail and the hero used to stand between
+        the person and the add actions; the rail's later stages were not a
+        real sequence. The header names the screen and the setup that governs
+        the session; setup opens in place.
+      */}
+      <View style={styles.titleBlock} testID="capture-header">
+        <ProovraText variant="h2" weight="bold" accessibilityRole="header">Capture Evidence</ProovraText>
+        <ProovraText variant="label" color={theme.color.ink.secondary}>
+          Drafts save your setup, notes and file details — not file contents. Files are uploaded and sealed when you Finish &amp; Sign.
+        </ProovraText>
+      </View>
+
+      {!personalSpaceBlocked ? (
+        <ProovraCard style={styles.summaryCard} testID="capture-setup-summary">
+          <CaptureDestination workspace={workspaceForSummary} />
+          <View style={styles.summaryFacts}>
+            <ProovraBadge label={template ? template.name : "No plan"} tone="neutral" />
+            <ProovraBadge label={modeLabel} tone="neutral" />
+            <ProovraBadge
+              label={`Location: ${locationSummary}`}
+              tone={!useLocation && template?.locationRequirement === "required" ? "risk" : "neutral"}
+            />
+          </View>
+          {locationStatusLine ? (
+            <ProovraText variant="label" color={theme.color.ink.secondary} testID="capture-location-status">
+              {locationStatusLine}
+            </ProovraText>
+          ) : null}
+          <ProovraButton
+            label={setupOpen ? "Hide setup" : "Change setup"}
+            variant="secondary"
+            fullWidth={false}
+            onPress={() => setSetupOpen((v) => !v)}
+          />
+          {setupOpen ? (
+            <View style={styles.setupBody} testID="capture-setup">
+              <CaptureTemplatePicker
+                templates={templates}
+                plan={template}
+                onSelectPlan={selectTemplate}
+                busy={sessionCompletingEvidence}
+                hasSessionItems={hasItems}
+              />
+              <CaptureIntakeStructure
+                planMode={planMode}
+                onPlanMode={setPlanMode}
+                useLocation={useLocation}
+                onUseLocation={onUseLocation}
+                busy={sessionCompletingEvidence}
+                hasSessionItems={hasItems}
+                locationStatus={null}
+                locationLocked={!!carriedLocation?.recordedAtStart}
+                locationRequirement={template?.locationRequirement}
+              />
+            </View>
+          ) : null}
+        </ProovraCard>
+      ) : null}
 
       {pendingRecords.length > 0 ? (
         <ProovraCard style={styles.resumeCard} testID="capture-resume-banner">
@@ -1977,59 +2103,27 @@ if (!isRecording || busy) return;
         />
       ) : null}
 
-      <CaptureHero />
-
-      {!personalSpaceBlocked ? (
-        <CaptureDestination workspace={destination ? { state: "resolved", ...destination } : workspace} />
-      ) : null}
-
       {personalSpaceBlocked ? (
         <View testID="personal-space-blocked">
           <ProovraEmptyState title={PERSONAL_SPACE_UNAVAILABLE_TITLE} message={PERSONAL_SPACE_UNAVAILABLE_MESSAGE} />
         </View>
       ) : (
         <>
-          <CaptureReadinessPanel readiness={captureReadiness} itemCount={sessionItems.length} />
-          {hasItems ? <CaptureSuggestionsPanel readiness={captureReadiness} /> : null}
-
-          <View style={styles.block}>
-            <CaptureIntakeStructure
-              planMode={planMode}
-              onPlanMode={setPlanMode}
-              useLocation={useLocation}
-              onUseLocation={onUseLocation}
-              busy={sessionCompletingEvidence}
-              hasSessionItems={hasItems}
-              locationStatus={carriedLocationStatus(carriedLocation) ?? (useLocation ? locationCheck : null)}
-              locationLocked={!!carriedLocation?.recordedAtStart}
-            />
-          </View>
-
-          <View style={styles.block}>
-            <CaptureRequirements
-              templates={templates}
-              plan={template}
-              onSelectPlan={selectTemplate}
-              readiness={sessionReadiness}
-              stepItemCounts={stepItemCounts}
-              busy={sessionCompletingEvidence}
-              hasSessionItems={hasItems}
-            />
-          </View>
-
           {resumedDraft && !reattachDismissed && !hasItems ? (
             <CaptureDraftReattachNotice detail={resumedDraft} plan={template} onDismiss={() => setReattachDismissed(true)} />
           ) : null}
 
-          {/* Web CaptureDropzone — "Evidence capture · Add source files". */}
+          {/* ADD EVIDENCE — first, and the one place material enters. */}
           <ProovraCard style={styles.block} testID="capture-intake-actions">
             <View style={styles.dropHead}>
               <View style={{ flex: 1, gap: 2 }}>
-                <ProovraText variant="label" weight="bold" color={theme.color.ink.muted} style={styles.upper}>Evidence capture</ProovraText>
-                <ProovraText variant="h3" weight="semibold">Add source files</ProovraText>
-                <ProovraText variant="label" color={theme.color.ink.secondary}>Upload, capture, or record materials for this session.</ProovraText>
+                <ProovraText variant="h3" weight="semibold">{hasItems ? "Add more evidence" : "Add evidence"}</ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.secondary}>
+                  {hasItems
+                    ? `${sessionItems.length} item${sessionItems.length === 1 ? "" : "s"} staged. Add more at any time before Finish & Sign.`
+                    : "Add your first file to get started."}
+                </ProovraText>
               </View>
-              <ProovraBadge label={hasItems ? "Session in progress" : "Ready for intake"} tone={hasItems ? "pending" : "neutral"} />
             </View>
             <View style={styles.actionGrid} accessibilityLabel="Evidence intake actions">
               {INTAKE_ACTIONS.map((a, idx) => {
@@ -2039,6 +2133,7 @@ if (!isRecording || busy) return;
                     key={a.kind}
                     accessibilityRole="button"
                     accessibilityLabel={a.label}
+                    accessibilityHint={a.helper}
                     accessibilityState={{ selected: active, disabled: sessionCompletingEvidence }}
                     disabled={sessionCompletingEvidence}
                     onPress={() => runIntakeAction(a.kind)}
@@ -2054,9 +2149,6 @@ if (!isRecording || busy) return;
                 );
               })}
             </View>
-            <ProovraText variant="label" color={theme.color.ink.muted}>
-              Mapping, integrity checks, and readiness warnings update as soon as materials are staged.
-            </ProovraText>
 
             {/*
              * NATIVE ACQUISITION SOURCES (UC-2 / UC-3 / UC-5). They open their
@@ -2067,7 +2159,7 @@ if (!isRecording || busy) return;
              */}
             <View style={styles.sourcesBlock}>
               <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
-                Other capture sources
+                Screen recording
               </ProovraText>
               {Platform.OS === "android" ? (
                 <>
@@ -2218,33 +2310,20 @@ if (!isRecording || busy) return;
               onRemove={removeFromSession}
               onMap={(id, patch) => applyPlan(id, patch)}
               onUpdate={(id, patch) => applyPlan(id, patch)}
+              assignRequestId={assignRequestId}
+              onAssignRequestHandled={clearAssignRequest}
             />
           ) : null}
 
-          <CaptureOperationalSummary readiness={captureReadiness} itemCount={sessionItems.length} />
-
-          {hasItems ? <CaptureActivityDisclosure events={activity} /> : null}
-
-          {hasItems ? (
-            <ProovraCard style={styles.sessionCard} testID="capture-finish">
-              <CaptureFinalReadiness readiness={sessionReadiness} busy={sessionCompletingEvidence} />
-              <CaptureFinishHeading busy={sessionCompletingEvidence} progress={uploadProgress} />
-              <View style={styles.sessionActions} accessibilityLabel="Session final actions">
-                <ProovraButton
-                  label={sessionCompletingEvidence ? `Finishing… ${uploadProgress}%` : `Finish & Sign (${sessionItems.length})`}
-                  loading={sessionCompletingEvidence}
-                  disabled={sessionCreatingEvidence || isRecording || !sessionReadiness.canFinalize}
-                  onPress={completeSession}
-                />
-                <ProovraButton
-                  label={discarding ? "Clearing…" : "Clear Session"}
-                  variant="secondary"
-                  disabled={sessionCompletingEvidence || isRecording || discarding}
-                  onPress={() => setClearConfirmOpen(true)}
-                />
-              </View>
-            </ProovraCard>
-          ) : null}
+          <CaptureRequirements
+            plan={template}
+            planMode={planMode}
+            readiness={sessionReadiness}
+            stepItemCounts={stepItemCounts}
+            busy={sessionCompletingEvidence || isRecording}
+            onAddForStep={() => runIntakeAction("DOCUMENT")}
+            onAssignForStep={assignForStep}
+          />
 
           {hasItems ? (
             <CaptureSessionStatus
@@ -2281,11 +2360,77 @@ if (!isRecording || busy) return;
             />
           ) : null}
 
+          {hasItems ? <CaptureActivityDisclosure events={activity} /> : null}
+
+          {/* Guidance on demand: the trust statements and the workflow-quality
+              criteria inform, but they are not the next action. */}
+          <ProovraCard style={styles.block} testID="capture-guidance">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Help and guidance"
+                accessibilityState={{ expanded: guidanceOpen }}
+                onPress={() => setGuidanceOpen((v) => !v)}
+                style={styles.disclosureRow}
+              >
+                <ProovraText variant="bodySm" weight="semibold">Help and guidance</ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.muted}>{guidanceOpen ? "Hide" : "Show"}</ProovraText>
+              </Pressable>
+              {guidanceOpen ? (
+                <View style={{ gap: theme.space.s2 }}>
+                  <CaptureTrustStatements />
+                  <CaptureReadinessPanel readiness={captureReadiness} itemCount={sessionItems.length} />
+                  {hasItems ? <CaptureSuggestionsPanel readiness={captureReadiness} /> : null}
+                </View>
+              ) : null}
+          </ProovraCard>
+
           {/*
-            TWO ORIGINS MET IN ONE DRAFT.
-            A statement with a next step, not a silent refusal. Nothing staged
-            is discarded by either action here.
+            REVIEW BEFORE SIGNING. Finish & Sign used to seal on the first tap.
+            This sheet shows what will be sealed and what sealing does; its
+            confirm calls the existing completeSession, whose guards all apply.
           */}
+          <ProovraSheet visible={reviewOpen} title="Review before signing" onClose={() => setReviewOpen(false)}>
+            <View testID="capture-review-sheet" style={{ gap: theme.space.s2 }}>
+              <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
+                {`${sessionItems.length} item${sessionItems.length === 1 ? "" : "s"} · ${formatCaptureFileSize(totalBytes)}`}
+              </ProovraText>
+              {sessionItems.slice(0, 8).map((i) => {
+                const step = template?.steps.find((s) => s.id === i.checklistStepId) ?? null;
+                return (
+                  <ProovraText key={i.id} variant="label" numberOfLines={1}>
+                    {`${i.originalFilename ?? i.id} — ${step ? step.title : "Not assigned"}`}
+                  </ProovraText>
+                );
+              })}
+              {sessionItems.length > 8 ? (
+                <ProovraText variant="label" color={theme.color.ink.muted}>{`+${sessionItems.length - 8} more`}</ProovraText>
+              ) : null}
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                {`${template ? template.name : "No plan"} · ${modeLabel} · Location ${useLocation ? "included" : "not included"}`}
+              </ProovraText>
+              {sessionReadiness.warnings.length > 0 ? (
+                <ProovraText variant="label" color={theme.color.status.pending.fg}>
+                  {`${sessionReadiness.warnings.length} warning${sessionReadiness.warnings.length === 1 ? "" : "s"} to consider: ${sessionReadiness.warnings
+                    .slice(0, 3)
+                    .map((w) => w.label)
+                    .join("; ")}. Warnings do not stop signing.`}
+                </ProovraText>
+              ) : null}
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                Signing creates the evidence record in your workspace, uploads each file, has the server recompute its SHA-256 fingerprint, and seals the record. The report and package follow. It does not establish that the content is true, who authored it, or where it was captured.
+              </ProovraText>
+            </View>
+            <ProovraButton
+              label="Sign and finalize"
+              disabled={sessionCompletingEvidence || !sessionReadiness.canFinalize}
+              onPress={() => {
+                setReviewOpen(false);
+                void completeSession();
+              }}
+            />
+            <ProovraButton label="Back to capture" variant="ghost" onPress={() => setReviewOpen(false)} />
+          </ProovraSheet>
+
           {/*
             DECISION 3 — a screen recording is sealed as its own record. What
             would mix with it is offered as a SEPARATE record linked to it;
@@ -2305,6 +2450,11 @@ if (!isRecording || busy) return;
             <ProovraButton label="Not now" variant="ghost" onPress={() => setLinkOffer(null)} />
           </ProovraSheet>
 
+          {/*
+            TWO ORIGINS MET IN ONE DRAFT.
+            A statement with a next step, not a silent refusal. Nothing staged
+            is discarded by either action here.
+          */}
           <ProovraSheet
             visible={mixedOrigin !== null}
             title={mixedOrigin?.title ?? ""}
@@ -2354,18 +2504,22 @@ if (!isRecording || busy) return;
 }
 
 const styles = StyleSheet.create({
-  headerRow: { flexDirection: "row", marginTop: theme.space.s2, marginBottom: theme.space.s2 },
+  headerRow: { flexDirection: "row", marginTop: theme.space.s2, marginBottom: theme.space.s1 },
+  titleBlock: { gap: 4, marginBottom: theme.space.s3 },
+  summaryCard: { gap: theme.space.s2, marginBottom: theme.space.s3 },
+  summaryFacts: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 },
+  setupBody: { gap: theme.space.s3, marginTop: theme.space.s2, paddingTop: theme.space.s3, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle },
   resumeCard: { gap: theme.space.s2, marginBottom: theme.space.s3, borderColor: theme.color.accent.a500 },
   resumeActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s2 },
   pendingRow: { gap: 2, paddingTop: theme.space.s2, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle },
   staleNote: { marginBottom: theme.space.s3 },
   block: { marginBottom: theme.space.s3 },
-  upper: { textTransform: "uppercase", letterSpacing: 0.4 },
   dropHead: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: theme.space.s2 },
   actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginVertical: theme.space.s3 },
   actionTile: {
     flexBasis: "47%",
     flexGrow: 1,
+    minHeight: 56,
     borderWidth: 1,
     borderColor: theme.color.border.default,
     borderRadius: theme.radius.md,
@@ -2373,9 +2527,9 @@ const styles = StyleSheet.create({
     padding: theme.space.s3,
     gap: 2,
   },
-  actionTilePrimary: { borderColor: theme.color.accent.a500, backgroundColor: theme.color.accent.a050 },
+  actionTilePrimary: { flexBasis: "100%", borderColor: theme.color.accent.a500, backgroundColor: theme.color.accent.a050 },
   actionTileActive: { borderColor: theme.color.accent.a600, borderWidth: 2 },
-  sourcesBlock: { gap: theme.space.s2, marginTop: theme.space.s3, paddingTop: theme.space.s3, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle },
+  sourcesBlock: { gap: theme.space.s2, paddingTop: theme.space.s3, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle },
   cameraCard: { padding: 0, overflow: "hidden", marginBottom: theme.space.s3 },
   audioCard: { gap: theme.space.s2, marginBottom: theme.space.s3 },
   audioActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 },
@@ -2385,8 +2539,10 @@ const styles = StyleSheet.create({
   overlayBadge: { backgroundColor: "rgba(15,23,42,0.78)", color: "#FFFFFF", paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, fontSize: 12, fontWeight: "700", overflow: "hidden" },
   counterBadge: { backgroundColor: theme.color.semantic.success, color: "#FFFFFF", paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill, fontSize: 12, fontWeight: "800", overflow: "hidden" },
   cameraControls: { padding: theme.space.s3, gap: theme.space.s2 },
-  sessionCard: { gap: theme.space.s2, marginBottom: theme.space.s3 },
-  sessionActions: { marginTop: 8, gap: theme.space.s2 },
+  footer: { gap: theme.space.s2 },
+  footerActions: { flexDirection: "row", alignItems: "center", gap: theme.space.s2 },
+  footerPrimary: { flex: 1 },
+  disclosureRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 },
 });
 
 /** The two screen sources Capture opens (declared last: the routes themselves sit under the platform gate above). */

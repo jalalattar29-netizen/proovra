@@ -115,6 +115,8 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
   const [error, setError] = useState<string | null>(null);
   const [facts, setFacts] = useState<ScreenRecordingFacts>(EMPTY_FACTS);
   const [recording, setRecording] = useState<File | null>(null);
+  /** Recorded time, excluding pauses, ticking while the recorder is live. */
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -122,6 +124,17 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
   const factsRef = useRef<ScreenRecordingFacts>(EMPTY_FACTS);
   const startedMsRef = useRef<number>(0);
   const discardRef = useRef(false);
+  /**
+   * ONE CHOOSER, ONE STAGED ITEM. React state lags a click by a render, so a
+   * double click on Screen could otherwise open the browser's chooser twice,
+   * and a double click on Add could stage the same recording twice. These refs
+   * are read and set synchronously inside the click.
+   */
+  const sessionActiveRef = useRef(false);
+  const addingRef = useRef(false);
+  /** Accumulated recorded time before the current live stretch. */
+  const accumulatedMsRef = useRef(0);
+  const liveSinceRef = useRef<number | null>(null);
 
   const updateFacts = (patch: Partial<ScreenRecordingFacts>) => {
     factsRef.current = { ...factsRef.current, ...patch };
@@ -153,11 +166,34 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
     [],
   );
 
+  useEffect(() => {
+    if (state !== "recording") return;
+    // Refs only: the interval reads the live stretch, it never restarts it.
+    const id = window.setInterval(() => {
+      const since = liveSinceRef.current;
+      setElapsedMs(accumulatedMsRef.current + (since === null ? 0 : Date.now() - since));
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [state]);
+
+  /**
+   * Opens the browser's own screen / window / tab chooser.
+   *
+   * CALL IT FROM THE CLICK. `getDisplayMedia` is the first awaited call, so
+   * it runs inside the user gesture the browser requires; nothing async runs
+   * before it. A second call while a chooser is open or a recording is live
+   * or awaiting review is ignored.
+   */
   const start = useCallback(async () => {
     if (!isScreenRecordingSupported()) {
       setState("unsupported");
       return;
     }
+    if (sessionActiveRef.current) return;
+    sessionActiveRef.current = true;
+    accumulatedMsRef.current = 0;
+    liveSinceRef.current = null;
+    setElapsedMs(0);
     setError(null);
     setRecording(null);
     discardRef.current = false;
@@ -171,11 +207,14 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
       // the user's choice in the browser dialog, read back from the tracks.
       stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
     } catch (err) {
+      sessionActiveRef.current = false;
       const name = (err as { name?: string } | null)?.name;
+      // Chrome reports BOTH a dismissed chooser and a refused permission as
+      // NotAllowedError, so the copy names both and claims neither.
       setState(name === "NotAllowedError" || name === "AbortError" ? "idle" : "failed");
       setError(
         name === "NotAllowedError" || name === "AbortError"
-          ? "Screen sharing was not allowed. Nothing was recorded."
+          ? "Screen sharing was cancelled or not allowed. Nothing was recorded."
           : toSafeUserError(err, { message: "The browser could not start screen recording." }).message,
       );
       return;
@@ -195,6 +234,7 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
     try {
       recorder = new MediaRecorder(stream, { mimeType });
     } catch (err) {
+      sessionActiveRef.current = false;
       releaseStream();
       setState("failed");
       setError(toSafeUserError(err, { message: "The browser could not start screen recording." }).message);
@@ -206,12 +246,18 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
     };
     recorder.onstop = () => {
       releaseStream();
+      if (liveSinceRef.current !== null) {
+        accumulatedMsRef.current += Date.now() - liveSinceRef.current;
+        liveSinceRef.current = null;
+      }
+      setElapsedMs(accumulatedMsRef.current);
       updateFacts({
         stoppedAtUtc: new Date().toISOString(),
         durationMs: Math.max(0, Date.now() - startedMsRef.current),
       });
       if (discardRef.current) {
         chunksRef.current = [];
+        sessionActiveRef.current = false;
         setState("idle");
         return;
       }
@@ -219,6 +265,7 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
       const blob = new Blob(chunksRef.current, { type: type.split(";")[0] });
       chunksRef.current = [];
       if (blob.size === 0) {
+        sessionActiveRef.current = false;
         setState("failed");
         setError("The recording is empty. Nothing was added to the session.");
         return;
@@ -241,6 +288,7 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
       });
     }
     recorder.start(1000);
+    liveSinceRef.current = Date.now();
     setState("recording");
   }, []);
 
@@ -248,6 +296,11 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
     const r = recorderRef.current;
     if (r && r.state === "recording") {
       r.pause();
+      if (liveSinceRef.current !== null) {
+        accumulatedMsRef.current += Date.now() - liveSinceRef.current;
+        liveSinceRef.current = null;
+      }
+      setElapsedMs(accumulatedMsRef.current);
       updateFacts({ pauseCount: factsRef.current.pauseCount + 1 });
       setState("paused");
     }
@@ -257,6 +310,7 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
     const r = recorderRef.current;
     if (r && r.state === "paused") {
       r.resume();
+      liveSinceRef.current = Date.now();
       setState("recording");
     }
   }, []);
@@ -274,6 +328,7 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
       r.stop();
     } else {
       releaseStream();
+      sessionActiveRef.current = false;
       setState(isScreenRecordingSupported() ? "idle" : "unsupported");
     }
     setRecording(null);
@@ -282,7 +337,8 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
 
   /** Stage the recording through the canonical session path. */
   const addToSession = useCallback(async () => {
-    if (!recording) return;
+    if (!recording || addingRef.current) return;
+    addingRef.current = true;
     setState("adding");
     setError(null);
     const label = screenRecordingSourceLabel(factsRef.current);
@@ -290,6 +346,7 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
       await addFilesToSession([recording], { sessionEvidenceType: "VIDEO", sourceLabel: label });
       onRecorded?.(factsRef.current, label);
       setRecording(null);
+      sessionActiveRef.current = false;
       setState("idle");
     } catch (err) {
       logCaptureClientError("web_capture_add_screen_recording", err, {});
@@ -300,8 +357,26 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
           message: "The screen recording could not be added to the session. Retry to add it.",
         }).message,
       );
+    } finally {
+      addingRef.current = false;
     }
   }, [recording, addFilesToSession, onRecorded]);
 
-  return { state, error, facts, recording, start, pause, resume, stop, discard, addToSession };
+  /** Clears a cancelled / refused message without touching anything staged. */
+  const dismissError = useCallback(() => setError(null), []);
+
+  return {
+    state,
+    error,
+    facts,
+    recording,
+    elapsedMs,
+    start,
+    pause,
+    resume,
+    stop,
+    discard,
+    addToSession,
+    dismissError,
+  };
 }

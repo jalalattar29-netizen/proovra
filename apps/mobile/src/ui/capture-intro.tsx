@@ -1,6 +1,6 @@
 /**
- * CAPTURE INTRO — the web capture hero (capture/page.tsx:748-777) and its
- * `CaptureTrustStrip`.
+ * CAPTURE TRUST STATEMENTS — the web `CaptureTrustStrip`, shown on demand in
+ * Capture's "Help and guidance" (the page heading moved to the compact header).
  *
  * The web's browser-extension card is deliberately NOT ported: the extension
  * channel is desktop-web only, and test/mobile-boot-contract.test.mjs pins that
@@ -14,7 +14,6 @@ import { View } from "react-native";
 
 import { theme } from "../theme/theme";
 import { ProovraText } from "./index";
-import { ProovraPageHeader } from "./patterns";
 
 const TRUST_ITEMS = [
   { id: "integrity", title: "Integrity by design", detail: "Hash, map, and verify automatically" },
@@ -23,13 +22,9 @@ const TRUST_ITEMS = [
   { id: "audit", title: "Verifiable audit trail", detail: "Recorded evidence operations and preservation history" },
 ] as const;
 
-export function CaptureHero() {
+export function CaptureTrustStatements() {
   return (
-    <View style={{ gap: theme.space.s3, marginBottom: theme.space.s3 }} testID="capture-hero">
-      <ProovraPageHeader
-        title="Capture Evidence"
-        subtitle="Collect, map, fingerprint, and prepare evidence materials before Review & Sign. Drafts save metadata only — file contents are not stored until finalization."
-      />
+    <View style={{ gap: theme.space.s2 }}>
       <View style={{ gap: theme.space.s2 }} testID="capture-trust-strip">
         {TRUST_ITEMS.map((t) => (
           <View

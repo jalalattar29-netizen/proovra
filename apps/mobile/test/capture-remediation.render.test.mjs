@@ -166,6 +166,7 @@ test("a restart after resume still seals through continuous-complete", async () 
   await r.press("Resume");
   await settle();
   await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
   await settle();
   assert.ok(requests.some((q) => q.method === "POST" && q.path === "/v1/capture/direct-sessions/cs-screen/continuous-complete"));
   assert.ok(!requests.some((q) => q.path === "/v1/capture/direct-sessions/cs-screen/complete"), "sealed through /complete (MANIFEST_SEAL_ROUTE_REQUIRED)");
@@ -177,6 +178,7 @@ test("location OFF ⇒ the reservation says NOT_REQUESTED", async () => {
   await r.press("Files");
   await settle();
   await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
   await settle();
   const reserve = requests.find((q) => q.path === "/v1/capture/direct-sessions/cs-new/evidence");
   assert.equal(reserve.body.locationRequestOutcome, "NOT_REQUESTED");
@@ -192,6 +194,7 @@ test("location ON: the toggle states the device's answer at once; a denial at Fi
     buttons.find((b) => b.text === "Finish without location").onPress();
   };
   const r = await render();
+  await r.press("Change setup");
   const toggle = r.byLabel("Include location metadata").find((n) => n.props.onValueChange);
   await act(async () => toggle.props.onValueChange(true));
   await settle();
@@ -199,6 +202,7 @@ test("location ON: the toggle states the device's answer at once; a denial at Fi
   await r.press("Files");
   await settle();
   await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
   await settle();
   assert.deepEqual(asked, [["Retry", "Finish without location", "Cancel"]]);
   const reserve = requests.find((q) => q.path === "/v1/capture/direct-sessions/cs-new/evidence");
@@ -210,11 +214,13 @@ test("location ON + Cancel at Finish reserves nothing", async () => {
   globalThis.__LOCATION__ = { fail: true };
   globalThis.__ALERT__ = (_t, _m, buttons) => buttons.find((b) => b.text === "Cancel").onPress();
   const r = await render();
+  await r.press("Change setup");
   const toggle = r.byLabel("Include location metadata").find((n) => n.props.onValueChange);
   await act(async () => toggle.props.onValueChange(true));
   await r.press("Files");
   await settle();
   await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
   await settle();
   assert.equal(requests.filter((q) => q.path.startsWith("/v1/capture/direct-sessions")).length, 0);
   assert.ok(r.hasText("Finish cancelled. Nothing was reserved; your items are still staged."));
@@ -253,6 +259,7 @@ test("a resumed session's new part goes after the server's parts, and PART_ALREA
   await r.press("Resume");
   await settle();
   await r.press("Finish & Sign (2)");
+  await r.press("Sign and finalize");
   await settle();
   assert.deepEqual(declaredAt, [2, 3], `declared at ${JSON.stringify(declaredAt)}`);
   assert.ok(requests.some((q) => q.path === "/v1/capture/direct-sessions/cs-old/complete"));

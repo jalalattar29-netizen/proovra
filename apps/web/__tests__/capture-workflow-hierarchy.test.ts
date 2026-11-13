@@ -42,8 +42,7 @@ const READINESS_PANEL = read("apps/web/app/(app)/capture/_lib/CaptureReadinessPa
 const SUGGESTIONS = read("apps/web/app/(app)/capture/_lib/CaptureSuggestionsPanel.tsx");
 const CSS = read("apps/web/components/capture-v2/capture-v2.css");
 const WORKSPACE = read("apps/web/components/capture-v2/capture-workspace.css");
-const RAIL = read("apps/web/app/(app)/capture/_lib/CaptureIntakeRail.tsx");
-const STAGES = read("apps/web/app/(app)/capture/_lib/captureIntakeStages.ts");
+const HEADER = read("apps/web/app/(app)/capture/_lib/CaptureHeader.tsx");
 
 // ---------------------------------------------------------------------------
 // One stepper
@@ -65,38 +64,37 @@ test("the page-local four-step list is gone", () => {
   );
 });
 
-test("the canonical five-stage rail survives, and still drives from session state", () => {
-  assert.match(PAGE, /<CaptureIntakeRail/);
-  assert.match(PAGE, /items=\{sessionItems\}/);
-  assert.match(PAGE, /readiness=\{computeCaptureReadiness\(\{/);
-  // The five stages are the canonical catalog, not a copy in the page.
-  for (const label of [
-    "Select template",
-    "Add materials",
-    "Add context",
-    "Review readiness",
-    "Finish & sign",
+test("no step indicator: the five-stage rail is gone and the header orients instead (2026-11-13)", () => {
+  // The rail's "current step" was often below the fold and its later stages
+  // (Add context, Review readiness) were not a real sequence the page
+  // enforces. Orientation is now the compact header, which reads the setup
+  // that governs the session from page state and opens Setup in place.
+  assert.doesNotMatch(code(PAGE), /CaptureIntakeRail/);
+  assert.ok(
+    !existsSync(resolve(ROOT, "apps/web/app/(app)/capture/_lib/CaptureIntakeRail.tsx")),
+    "the rail component had no other consumer and is deleted",
+  );
+  assert.match(PAGE, /<CaptureHeader/);
+  for (const prop of [
+    "workspaceName={workspaceName}",
+    "plan={selectedCollectionPlan}",
+    "planMode={planMode}",
+    "draftLabel={draftLabel}",
   ]) {
-    assert.ok(
-      STAGES.includes(label),
-      `the canonical stage catalog must still name "${label}"`,
-    );
+    assert.ok(PAGE.includes(prop), `the header must read ${prop} from page state`);
   }
-  assert.match(RAIL, /stages\.map\(/);
+  assert.match(HEADER, /aria-expanded=\{setupOpen\}/, "Change setup is a real disclosure");
 });
 
 // ---------------------------------------------------------------------------
 // One ingestion point
 // ---------------------------------------------------------------------------
 
-test("the hero carries no upload action", () => {
-  const hero = code(
-    PAGE.slice(PAGE.indexOf("<PageHeader"), PAGE.indexOf("<CaptureTrustStrip")),
-  );
-  assert.doesNotMatch(hero, /primaryAction=/, "the hero must not carry an action");
-  assert.doesNotMatch(hero, /Upload evidence/);
-  assert.doesNotMatch(hero, /openFilePicker/);
-  // …and the binding that existed only for it is gone.
+test("the header carries no upload action", () => {
+  const header = code(HEADER);
+  assert.doesNotMatch(header, /primaryAction=/, "the header must not carry an action");
+  assert.doesNotMatch(header, /Upload evidence/);
+  assert.doesNotMatch(header, /openFilePicker|type="file"/);
   assert.doesNotMatch(code(PAGE), /ActionButton/);
 });
 
@@ -167,11 +165,7 @@ test("the working column is a stack of panels, not a card of cards", () => {
   }
 });
 
-test("the hero and the closing surfaces live INSIDE the working column", () => {
-  // The hero used to be a full-width band above the grid with the trust strip
-  // pinned to its right, and Final Readiness and the action bar used to sit
-  // below the grid. All four are bands of the working column now, which is
-  // what makes the column read as one workflow from title to Review & Sign.
+test("add evidence and the closing surfaces live INSIDE the working column", () => {
   const grid = PAGE.indexOf('<section className="capture-enterprise-grid">');
   const column = enclosingSource(PAGE, 'className="capture-enterprise-card capture-main-panel"', "jsx");
   const mainOpen = PAGE.indexOf(column, grid);
@@ -179,15 +173,18 @@ test("the hero and the closing surfaces live INSIDE the working column", () => {
   assert.ok(grid > -1 && mainOpen > grid);
 
   for (const inside of [
-    '<section className="capture-hero">',
-    "<CaptureTrustStrip />",
-    "<CaptureActivityDisclosure",
+    "<CaptureDropzone",
+    "<CaptureMaterialsList",
+    "<CaptureRequirements",
     "<CaptureFinalReadiness",
     "<CaptureBottomBar",
+    "<CaptureActivityDisclosure",
+    "<CaptureTrustStrip />",
   ]) {
     assert.ok(column.includes(inside), `${inside} must render inside the column`);
   }
-  // And the rail is the column's sibling, not part of it.
+  // The header sits above the grid; the rail is the column's sibling.
+  assert.ok(PAGE.indexOf("<CaptureHeader") < grid);
   assert.ok(PAGE.indexOf("<CaptureSessionPanel", mainClose) > mainClose);
 });
 
@@ -221,23 +218,32 @@ test("the setup strip no longer clips its own controls", () => {
   assert.ok(WORKSPACE.includes("overflow: visible !important;"));
 });
 
-test("the rail leads with Session status and keeps ONE issue surface", () => {
-  assert.ok(PANEL.includes('data-capture-session-status='), "no session status surface");
-  assert.ok(PANEL.includes("statusChecks.map("), "the status checks must render");
-  // Those checks are reads of the authority, never rules of their own.
+test("the rail leads with ONE session summary and keeps ONE issue surface", () => {
+  assert.ok(PANEL.includes("data-capture-session-status="), "no session summary surface");
+  // The Operations command center's tiles and the status ring repeated the
+  // summary; they are gone, not hidden.
+  assert.doesNotMatch(code(PANEL), /capture-command-metrics|capture-status-ring|statusChecks/);
   assert.ok(!PANEL.includes("function computeStatus"));
-  assert.ok(PANEL.includes("<CaptureReadinessSignals readiness={sessionReadiness} />"));
+  assert.equal(code(PANEL).split("<CaptureReadinessSignals").length - 1, 1);
+  assert.match(PANEL, /<CaptureReadinessSignals\s+readiness=\{sessionReadiness\}/);
 });
 
 test("every capture capability the page had is still wired", () => {
   for (const marker of [
     "CaptureCameraOverlay",
     "CaptureSessionPanel",
-    "CaptureOperationalSummary",
     "CaptureReadinessPanel",
     "CaptureBottomBar",
     "CaptureSuggestionsPanel",
     "ContextualHelp",
+    "CaptureHeader",
+    "CaptureSetupPanel",
+    "CaptureMaterialsList",
+    "CaptureReviewDialog",
+    "CaptureScreenRecorderCard",
+    "CaptureLocationStatus",
+    "CaptureDraftReattachNotice",
+    "UploadOperationsPanel",
   ]) {
     assert.ok(PAGE.includes(marker), `capture lost ${marker}`);
   }
@@ -281,47 +287,32 @@ test("UC-PROV-011: the trust strip claims no end-to-end protection the pipeline 
 // Top-of-page order, and the two blocks that left
 // ---------------------------------------------------------------------------
 
-test("the page states its identity before it gives advice", () => {
-  // Help, Capture readiness and Suggested next steps used to render in the
-  // band above the grid — so a reader met "what to do next" before "where am
-  // I". Order is the whole point of this test: positions, not presence.
-  const hero = PAGE.indexOf('<section className="capture-hero">');
-  const trust = PAGE.indexOf("<CaptureTrustStrip />");
-  const help = PAGE.indexOf("<ContextualHelp");
-  const readiness = PAGE.indexOf("<CaptureReadinessPanel");
-  const suggestions = PAGE.indexOf("<CaptureSuggestionsPanel");
-  const setup = PAGE.indexOf('<section className="capture-setup-strip">');
-  const requirements = PAGE.indexOf("<CaptureRequirements");
-  const materials = PAGE.indexOf("<CaptureDropzone");
-  const activity = PAGE.indexOf("<CaptureActivityDisclosure");
-  const finalReadiness = PAGE.indexOf("<CaptureFinalReadiness");
-  const actions = PAGE.indexOf("<CaptureBottomBar");
-  const rail = PAGE.indexOf("<CaptureIntakeRail");
-
+test("the page leads with the action: header, add evidence, staged list, requirements, finish, then detail", () => {
+  // The order the redesign exists for (2026-11-13): what the operator came to
+  // do comes first; guidance, trust statements and quality criteria follow
+  // the action they support, on demand. Positions, not presence.
   const order = [
-    ["intake plan", rail],
-    ["hero", hero],
-    ["trust strip", trust],
-    ["help", help],
-    ["capture readiness", readiness],
-    ["suggested next steps", suggestions],
-    ["collection setup", setup],
-    ["requirements", requirements],
-    ["evidence materials", materials],
-    ["session activity", activity],
-    ["final readiness", finalReadiness],
-    ["review & sign", actions],
+    ["header", PAGE.indexOf("<CaptureHeader")],
+    ["add evidence", PAGE.indexOf("<CaptureDropzone")],
+    ["staged evidence", PAGE.indexOf("<CaptureMaterialsList")],
+    ["requirements", PAGE.indexOf("<CaptureRequirements")],
+    ["final readiness", PAGE.indexOf("<CaptureFinalReadiness")],
+    ["review & sign", PAGE.indexOf("<CaptureBottomBar")],
+    ["session activity", PAGE.indexOf("<CaptureActivityDisclosure")],
+    ["help", PAGE.indexOf("<ContextualHelp")],
+    ["trust strip", PAGE.indexOf("<CaptureTrustStrip />")],
+    ["capture readiness", PAGE.indexOf("<CaptureReadinessPanel")],
+    ["suggested next steps", PAGE.indexOf("<CaptureSuggestionsPanel")],
   ] as const;
 
   for (const [name, index] of order) {
     assert.ok(index > -1, `${name} is not on the page at all`);
   }
   for (let i = 1; i < order.length; i++) {
-    assert.ok(
-      order[i][1] > order[i - 1][1],
-      `${order[i][0]} must come after ${order[i - 1][0]}`,
-    );
+    assert.ok(order[i][1] > order[i - 1][1], `${order[i][0]} must come after ${order[i - 1][0]}`);
   }
+  // Guidance is a disclosure, collapsed by default.
+  assert.match(PAGE, /<details className="capture-more__guide"/);
 });
 
 test("the workspace storage banner is gone from Capture", () => {
@@ -359,16 +350,10 @@ test("the deleted guidance block left no source behind", () => {
   }
 });
 
-test("the hero carries the route's own identity mark", () => {
-  const hero = PAGE.slice(
-    PAGE.indexOf('<section className="capture-hero">'),
-    PAGE.indexOf("<CaptureTrustStrip"),
-  );
-  assert.match(hero, /capture-hero__mark/);
-  assert.match(hero, /<Camera size=\{22\}/);
-  assert.match(WORKSPACE, /\.capture-hero__mark \{/);
-  // Still no ingestion control in the hero.
-  assert.doesNotMatch(code(hero), /openFilePicker|primaryAction=/);
+test("the header carries the route's own identity mark and no ingestion control", () => {
+  assert.match(HEADER, /capture-hero__mark/);
+  assert.match(HEADER, /<Camera size=\{20\}/);
+  assert.doesNotMatch(code(HEADER), /openFilePicker|primaryAction=|type="file"/);
 });
 
 // ---------------------------------------------------------------------------

@@ -32,6 +32,14 @@ const CARD = "[data-capture-direct-web-capture]";
 const TITLE = ".capture-direct-web__title";
 const LEARN_MORE = "[data-capture-direct-web-learn-more]";
 
+/**
+ * The extension explanation is contextual help (2026-11-13): it lives in
+ * Capture's collapsed "Help and guidance", distinct from Screen recording.
+ */
+async function openGuidance(page: Page): Promise<void> {
+  await page.locator("[data-capture-guidance] > summary").click();
+}
+
 /** One computed property, from the real cascade. */
 async function computed(page: Page, selector: string, prop: string): Promise<string> {
   return page.locator(selector).evaluate(
@@ -53,6 +61,7 @@ test.describe("Direct Web Capture card", () => {
     page,
   }) => {
     await openCapture(page);
+    await openGuidance(page);
     const card = page.locator(CARD);
     await expect(card).toBeVisible();
 
@@ -73,11 +82,12 @@ test.describe("Direct Web Capture card", () => {
 
   test("it sits on the same surface as the panels around it", async ({ page }) => {
     await openCapture(page);
+    await openGuidance(page);
 
     // `.capture-hero` is a sibling panel in the same column. "Integrates with
     // the page" is measurable: same surface colour, same border colour.
     const cardBg = await computed(page, CARD, "background-color");
-    const panelBg = await computed(page, ".capture-hero", "background-color");
+    const panelBg = await computed(page, "[data-capture-header]", "background-color");
     expect(cardBg).toBe(panelBg);
 
     // Including the translucency and the absence of a shadow: §B1 made these
@@ -87,7 +97,7 @@ test.describe("Direct Web Capture card", () => {
 
     // The border is the same ink, not merely a similar one.
     const cardBorder = await computed(page, CARD, "border-top-color");
-    expect(cardBorder).toBe(await computed(page, ".capture-hero", "border-top-color"));
+    expect(cardBorder).toBe(await computed(page, "[data-capture-header]", "border-top-color"));
 
     // And it is not the retired green: `rgba(11, 46, 39, 0.14)` has its GREEN
     // channel above both others, which is what made the old card read as a
@@ -98,13 +108,14 @@ test.describe("Direct Web Capture card", () => {
 
   test("unpublished: a secondary note BELOW the working sources, never a promoted panel above them", async ({ page }) => {
     await openCapture(page);
+    await openGuidance(page);
     // No promoted heading panel while nothing can be installed.
     await expect(page.locator(TITLE)).toHaveCount(0);
     await expect(page.locator(`${CARD}.capture-direct-web--note`)).toBeVisible();
     // It follows Evidence materials (the working capture sources) in the document.
     const order = await page.evaluate(() => {
       const note = document.querySelector("[data-capture-direct-web-capture]");
-      const drop = document.querySelector(".capture-drop-zone-enterprise");
+      const drop = document.querySelector("[data-capture-add-evidence]");
       return note && drop ? drop.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING : -1;
     });
     expect(order, "the note must come after the working capture sources").toBeGreaterThan(0);
@@ -119,6 +130,7 @@ test.describe("Direct Web Capture card", () => {
     page,
   }) => {
     await openCapture(page);
+    await openGuidance(page);
     const link = page.locator(LEARN_MORE);
     await expect(link).toHaveText("How extension capture works");
     expect(Number(await computed(page, LEARN_MORE, "font-weight"))).toBeGreaterThanOrEqual(700);
@@ -131,6 +143,7 @@ test.describe("Direct Web Capture card", () => {
 
   test("an unpublished extension offers no install control, at any width", async ({ page }) => {
     await openCapture(page);
+    await openGuidance(page);
 
     for (const w of WIDTHS) {
       await page.setViewportSize({ width: w.width, height: w.height });
@@ -156,6 +169,7 @@ test.describe("Direct Web Capture card", () => {
     page,
   }) => {
     await openCapture(page);
+    await openGuidance(page);
     const line = page.locator("[data-capture-direct-web-availability]");
     await expect(line).toBeVisible();
     const text = (await line.textContent())?.toLowerCase() ?? "";

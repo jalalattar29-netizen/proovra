@@ -31,7 +31,7 @@ const PDF = {
 
 async function stageOneMaterial(page: import("@playwright/test").Page) {
   await page.setInputFiles('input[aria-label="Upload evidence files"]', PDF);
-  await expect(page.locator(".capture-material-dropdown-trigger").first()).toBeVisible();
+  await expect(page.locator("[data-capture-assign-trigger]").first()).toBeVisible();
 }
 
 test.describe("capture — the ready branch", () => {
@@ -81,10 +81,11 @@ test.describe("capture — the clear branch", () => {
     // Clear the two things the authority warns about: the plan recommends
     // location metadata, and the staged material is not mapped to a
     // requirement yet.
-    await nudge(page.locator(".capture-setup-location input"));
-    await nudge(page.locator(".capture-material-dropdown-trigger").first());
+    await page.locator("[data-capture-setup-toggle]").click();
+    await nudge(page.locator("[data-capture-location-toggle]"));
+    await nudge(page.locator("[data-capture-assign-trigger]").first());
     await page
-      .locator(".capture-material-dropdown-menu button")
+      .locator(".capture-staged__menu [role=option]")
       .nth(1)
       .click({ force: true });
 
