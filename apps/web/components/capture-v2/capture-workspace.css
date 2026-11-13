@@ -3732,6 +3732,34 @@
   font-size: 0.74rem;
 }
 
+/* Selected assignment: dark text on the pale lavender row. capture-v2.css
+   forces white text (and -webkit-text-fill-color) on every selected
+   .capture-material-dropdown-menu option, which vanishes on this light
+   background. The accent bar keeps the selection visible while hover or
+   keyboard focus sits on another option. */
+.capture-flow .capture-staged__menu button.active {
+  box-shadow: inset 3px 0 0 var(--cf-accent) !important;
+}
+
+.capture-flow .capture-staged__menu button.active span,
+.capture-flow .capture-staged__menu button.active:hover span,
+.capture-flow .capture-staged__menu button.active:focus-visible span {
+  color: var(--cf-accent-strong) !important;
+  -webkit-text-fill-color: var(--cf-accent-strong) !important;
+}
+
+.capture-flow .capture-staged__menu button.active small,
+.capture-flow .capture-staged__menu button.active:hover small,
+.capture-flow .capture-staged__menu button.active:focus-visible small {
+  color: var(--cf-muted) !important;
+  -webkit-text-fill-color: var(--cf-muted) !important;
+}
+
+.capture-flow .capture-staged__menu button:focus-visible {
+  outline: 2px solid var(--cf-accent);
+  outline-offset: -2px;
+}
+
 .capture-staged__badge {
   display: inline-flex;
   max-width: 100%;
