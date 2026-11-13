@@ -2894,3 +2894,1865 @@
   font-size: var(--cap-fs-meta, 0.85rem);
   line-height: 1.45;
 }
+
+
+/* ===========================================================================
+   CAPTURE FLOW (2026-11-13) — appended here rather than shipped as its own
+   sheet: this file is already Capture's composition authority and loads last,
+   and the product keeps one stylesheet per surface (R10 CSS hygiene).
+=========================================================================== */
+/* ===========================================================================
+   CAPTURE — FLOW LAYOUT (2026-11-13)
+   ===========================================================================
+
+   Loads AFTER capture-v2.css (palette, states) and capture-workspace.css
+   (shell, two-column grid). It styles the surfaces the redesigned page renders:
+
+     header + setup        .capture-head, .capture-setup
+     add evidence          .capture-add
+     staged evidence       .capture-staged  (a CSS container; see below)
+     requirements          .capture-reqs
+     the end of the flow   .capture-finish  (sticky on small screens)
+     secondary detail      .capture-more
+     the rail              .capture-rail
+     review dialog         .capture-review
+
+   Scoped under `.capture-flow` (the shell) so it cannot reach another route.
+   `!important` only where a legacy capture rule already declares it.
+=========================================================================== */
+
+.capture-flow {
+  --cf-ink: var(--capture-ink, #101828);
+  --cf-muted: var(--capture-muted, #667085);
+  --cf-line: var(--capture-line, rgba(16, 24, 40, 0.08));
+  --cf-line-strong: var(--capture-line-strong, rgba(16, 24, 40, 0.13));
+  --cf-accent: var(--capture-accent, #7c3aed);
+  --cf-accent-strong: var(--capture-accent-strong, #5b21b6);
+  --cf-accent-soft: var(--capture-accent-soft, rgba(124, 58, 237, 0.1));
+  --cf-red: var(--capture-red-dark, #b42318);
+  --cf-red-soft: rgba(240, 68, 56, 0.08);
+  --cf-amber: #b54708;
+  --cf-amber-soft: rgba(247, 144, 9, 0.1);
+  --cf-green: #067647;
+  --cf-green-soft: rgba(18, 183, 106, 0.1);
+  --cf-surface: #ffffff;
+  --cf-quiet: #f9fafb;
+  --cf-radius: 16px;
+  --cf-pad: 22px;
+  /* The floating AI launcher's corner (3rem + its 0.75–1.5rem inset). */
+  --cf-launcher-clearance: 4.75rem;
+}
+
+.capture-visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Shared panel geometry for every surface in the working column. */
+.capture-flow .capture-main-panel > .capture-add,
+.capture-flow .capture-main-panel > .capture-staged,
+.capture-flow .capture-main-panel > .capture-reqs,
+.capture-flow .capture-main-panel > .capture-screen-card,
+.capture-flow .capture-main-panel > .capture-audio-card,
+.capture-flow .capture-head,
+.capture-flow .capture-setup,
+.capture-flow .capture-rail__card {
+  margin: 0 !important;
+  padding: var(--cf-pad) !important;
+  border: 1px solid var(--cf-line-strong) !important;
+  border-radius: var(--cf-radius) !important;
+  background: var(--cf-surface) !important;
+  box-shadow: none !important;
+  min-width: 0;
+}
+
+.capture-flow .capture-main-panel {
+  gap: 16px !important;
+}
+
+.capture-flow.capture-enterprise-shell {
+  gap: 16px !important;
+}
+
+.capture-flow h1,
+.capture-flow h2,
+.capture-flow h3 {
+  margin: 0;
+}
+
+.capture-flow button:focus-visible,
+.capture-flow select:focus-visible,
+.capture-flow input:focus-visible,
+.capture-flow textarea:focus-visible,
+.capture-flow summary:focus-visible,
+.capture-review button:focus-visible {
+  outline: 2px solid var(--cf-accent) !important;
+  outline-offset: 2px !important;
+}
+
+/* ---------------------------------------------------------------------------
+   HEADER
+--------------------------------------------------------------------------- */
+
+.capture-head {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-block: 18px !important;
+}
+
+.capture-head__title-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.capture-head .capture-hero__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--cf-accent-soft);
+  color: var(--cf-accent);
+}
+
+.capture-head__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.capture-head__title {
+  color: var(--cf-ink) !important;
+  font-size: clamp(1.4rem, 1.15rem + 0.8vw, 1.75rem) !important;
+  font-weight: 760 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.02em;
+}
+
+.capture-flow .capture-head__lede {
+  margin: 4px 0 0 !important;
+  font-size: 0.86rem !important;
+  line-height: 1.45 !important;
+  color: var(--cf-muted) !important;
+}
+
+.capture-head__setup-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 10px;
+  background: var(--cf-surface);
+  color: var(--cf-ink);
+  font-size: 0.86rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.capture-head__setup-toggle:hover {
+  background: var(--cf-quiet);
+}
+
+.capture-head__setup-toggle[aria-expanded="true"] .capture-head__chevron {
+  transform: rotate(180deg);
+}
+
+.capture-head__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.capture-head__facts > div {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--cf-quiet);
+  border: 1px solid var(--cf-line);
+}
+
+.capture-head__facts dt {
+  color: var(--cf-muted);
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.capture-head__facts dd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--cf-ink);
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capture-head__facts dd.is-required {
+  color: var(--cf-red);
+}
+
+/* ---------------------------------------------------------------------------
+   SETUP
+--------------------------------------------------------------------------- */
+
+.capture-setup {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 18px 22px;
+}
+
+.capture-setup__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.capture-setup__label {
+  padding: 0;
+  color: var(--cf-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* AppListbox owns its trigger's look; the setup panel only sizes it. */
+.capture-setup__select {
+  width: 100%;
+}
+
+.capture-flow .capture-setup__hint,
+.capture-flow .capture-setup__lock {
+  margin: 0 !important;
+  font-size: 0.8rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-flow .capture-setup__lock {
+  grid-column: 1 / -1;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--cf-quiet);
+}
+
+.capture-setup__mode,
+.capture-setup__switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.capture-setup__mode.is-active,
+.capture-setup__switch.is-on {
+  border-color: var(--cf-accent);
+  background: var(--cf-accent-soft);
+}
+
+.capture-setup__modes:disabled .capture-setup__mode {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.capture-setup__mode input,
+.capture-setup__switch input {
+  margin-top: 3px;
+  accent-color: var(--cf-accent);
+}
+
+.capture-setup__mode span,
+.capture-setup__switch span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.capture-setup__mode strong,
+.capture-setup__switch strong {
+  color: var(--cf-ink);
+  font-size: 0.88rem;
+}
+
+.capture-setup__mode small,
+.capture-setup__switch small {
+  color: var(--cf-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.capture-flow .capture-setup .capture-location-note {
+  margin: 0 !important;
+  font-size: 0.76rem !important;
+}
+
+/* ---------------------------------------------------------------------------
+   ADD EVIDENCE
+--------------------------------------------------------------------------- */
+
+.capture-add {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.capture-add.is-dragging {
+  border-color: var(--cf-accent) !important;
+  background: var(--cf-accent-soft) !important;
+}
+
+.capture-add__title {
+  color: var(--cf-ink) !important;
+  font-size: 1.12rem !important;
+  font-weight: 740 !important;
+}
+
+.capture-flow .capture-add__lead {
+  margin: 2px 0 0 !important;
+  font-size: 0.9rem !important;
+  color: var(--cf-muted) !important;
+}
+
+.capture-add__actions {
+  display: grid;
+  grid-template-columns: minmax(200px, 0.9fr) minmax(0, 2.1fr);
+  gap: 10px;
+}
+
+.capture-add__primary,
+.capture-add__method {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.capture-add__primary {
+  border: 0;
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  color: #ffffff;
+}
+
+.capture-add__primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.capture-add__method {
+  border: 1px solid var(--cf-line-strong);
+  background: var(--cf-surface);
+  color: var(--cf-ink);
+}
+
+.capture-add__method:hover:not(:disabled) {
+  border-color: var(--cf-accent);
+  background: var(--cf-accent-soft);
+}
+
+.capture-add__method svg {
+  flex: none;
+  color: var(--cf-accent);
+}
+
+.capture-add__primary:disabled,
+.capture-add__method:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.capture-add__primary span,
+.capture-add__method span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.capture-add__primary strong,
+.capture-add__method strong {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: inherit !important;
+}
+
+.capture-add__primary small,
+.capture-add__method small {
+  overflow: hidden;
+  font-size: 0.76rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capture-add__primary small {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.capture-add__method small {
+  color: var(--cf-muted);
+}
+
+.capture-add__methods {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.capture-add__drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 112px;
+  padding: 16px;
+  border: 1.5px dashed var(--cf-line-strong);
+  border-radius: 12px;
+  background: var(--cf-quiet);
+  color: var(--cf-muted);
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.capture-add.is-compact .capture-add__drop {
+  min-height: 0;
+  padding: 10px 14px;
+}
+
+.capture-add__browse {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cf-accent-strong);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* The compact density: once evidence is staged the panel steps back. */
+.capture-add.is-compact {
+  gap: 10px;
+  padding-block: 16px !important;
+}
+
+.capture-add.is-compact .capture-add__primary,
+.capture-add.is-compact .capture-add__method {
+  min-height: 46px;
+  padding-block: 8px;
+}
+
+.capture-add.is-compact .capture-add__title {
+  font-size: 1rem !important;
+}
+
+/* Contextual help (a native <details>). */
+.capture-screen-help {
+  font-size: 0.82rem;
+}
+
+.capture-screen-help summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--cf-accent-strong);
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+
+.capture-screen-help summary::-webkit-details-marker {
+  display: none;
+}
+
+.capture-screen-help .capture-screen-card__limits {
+  margin: 8px 0 0;
+  padding-inline-start: 18px;
+  color: var(--cf-muted);
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------------------
+   SCREEN RECORDING CARD
+--------------------------------------------------------------------------- */
+
+.capture-flow .capture-main-panel > .capture-screen-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.capture-flow .capture-screen-card.is-live {
+  border-color: rgba(217, 45, 32, 0.45) !important;
+  box-shadow: 0 0 0 3px rgba(217, 45, 32, 0.08) !important;
+}
+
+.capture-screen-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.capture-screen-card__head > strong {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--cf-ink);
+  font-size: 1rem;
+}
+
+.capture-screen-card__live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d92d20;
+  animation: capture-live-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capture-screen-card__live-dot {
+    animation: none;
+  }
+}
+
+@keyframes capture-live-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.capture-screen-card__time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--cf-ink);
+}
+
+.capture-flow .capture-screen-card__state,
+.capture-flow .capture-screen-card__facts {
+  margin: 0 !important;
+  font-size: 0.86rem !important;
+}
+
+.capture-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--cf-line-strong, rgba(16, 24, 40, 0.13));
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--cf-ink, #101828);
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+   STAGED EVIDENCE — sized by its OWN width, not the viewport.
+--------------------------------------------------------------------------- */
+
+.capture-staged {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  container-type: inline-size;
+  container-name: capture-staged;
+}
+
+.capture-staged__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.capture-staged__title {
+  color: var(--cf-ink) !important;
+  font-size: 1.12rem !important;
+  font-weight: 740 !important;
+}
+
+.capture-flow .capture-staged__meta {
+  margin: 2px 0 0 !important;
+  font-size: 0.84rem !important;
+}
+
+.capture-staged__draft {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--cf-line);
+  background: var(--cf-quiet);
+  color: var(--cf-muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.capture-staged__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.capture-staged__bulk-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 9px;
+  background: var(--cf-surface);
+  color: var(--cf-ink);
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.capture-staged__bulk-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.capture-staged__list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--cf-line);
+  border-radius: 12px;
+}
+
+/* WIDE: Evidence | Assignment | Status | Actions. Only Evidence shrinks. */
+.capture-staged__columns,
+.capture-staged__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, 230px) minmax(96px, max-content) max-content;
+  align-items: center;
+  column-gap: 14px;
+  padding: 10px 14px;
+}
+
+.capture-staged__columns {
+  border-bottom: 1px solid var(--cf-line);
+  color: var(--cf-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.capture-staged__item {
+  position: relative;
+  row-gap: 10px;
+  border-bottom: 1px solid var(--cf-line);
+}
+
+.capture-staged__item:last-child {
+  border-bottom: 0;
+}
+
+.capture-staged__item:focus {
+  outline: none;
+}
+
+.capture-staged__item.is-assigning {
+  z-index: 3;
+  background: var(--cf-quiet);
+}
+
+.capture-staged__evidence {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.capture-staged__thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--cf-accent-soft);
+  color: var(--cf-accent);
+}
+
+.capture-staged__thumb img,
+.capture-staged__thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.capture-staged__name-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.capture-staged__name {
+  overflow: hidden;
+  color: var(--cf-ink);
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capture-staged__facts {
+  color: var(--cf-muted);
+  font-size: 0.78rem;
+}
+
+.capture-staged__assign {
+  position: relative;
+  min-width: 0;
+}
+
+.capture-staged__assign-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 10px;
+  background: var(--cf-surface);
+  color: var(--cf-ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.capture-staged__assign-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.capture-staged__assign-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.capture-staged__assign-text strong,
+.capture-staged__assign-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capture-staged__assign-text strong {
+  font-size: 0.84rem;
+}
+
+.capture-staged__assign-text small {
+  color: var(--cf-muted);
+  font-size: 0.74rem;
+}
+
+.capture-flow .capture-staged__menu {
+  position: absolute !important;
+  inset-inline: 0 auto !important;
+  top: calc(100% + 4px) !important;
+  z-index: 30 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: max(100%, 260px) !important;
+  max-width: min(360px, 90vw) !important;
+  max-height: 320px !important;
+  overflow: auto !important;
+  padding: 6px !important;
+  border: 1px solid var(--cf-line-strong) !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.14) !important;
+}
+
+.capture-flow .capture-staged__menu button {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 2px !important;
+  width: 100% !important;
+  padding: 8px 10px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: var(--cf-ink) !important;
+  text-align: start !important;
+  cursor: pointer;
+}
+
+.capture-flow .capture-staged__menu button:hover,
+.capture-flow .capture-staged__menu button.active {
+  background: var(--cf-accent-soft) !important;
+}
+
+.capture-flow .capture-staged__menu button span {
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.capture-flow .capture-staged__menu button small {
+  color: var(--cf-muted);
+  font-size: 0.74rem;
+}
+
+.capture-staged__badge {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.capture-staged__badge.is-success {
+  background: var(--cf-green-soft);
+  color: var(--cf-green);
+}
+
+.capture-staged__badge.is-warning {
+  background: var(--cf-amber-soft);
+  color: var(--cf-amber);
+}
+
+.capture-staged__badge.is-critical {
+  background: var(--cf-red-soft);
+  color: var(--cf-red);
+}
+
+.capture-staged__badge.is-progress {
+  background: var(--cf-accent-soft);
+  color: var(--cf-accent-strong);
+}
+
+.capture-staged__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.capture-staged__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 9px;
+  background: var(--cf-surface);
+  color: var(--cf-ink);
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.capture-staged__action.is-danger {
+  color: var(--cf-red);
+}
+
+.capture-staged__details {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--cf-quiet);
+}
+
+.capture-flow .capture-staged__fullname,
+.capture-flow .capture-staged__helper,
+.capture-flow .capture-staged__hint {
+  margin: 0 !important;
+  font-size: 0.8rem !important;
+  overflow-wrap: anywhere;
+}
+
+.capture-staged__fullname span {
+  margin-inline-end: 6px;
+  color: var(--cf-muted);
+  font-weight: 700;
+}
+
+.capture-staged__field-label {
+  margin-top: 4px;
+  color: var(--cf-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.capture-staged__field-label span {
+  color: var(--cf-muted);
+  font-weight: 500;
+}
+
+.capture-staged__details textarea,
+.capture-staged__input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.86rem;
+}
+
+.capture-staged__details textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+/* MEDIUM: Status drops under the evidence; actions stay on the row. */
+@container capture-staged (max-width: 760px) {
+  .capture-staged__columns {
+    display: none;
+  }
+
+  .capture-staged__item {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 210px);
+    grid-template-areas:
+      "evidence assign"
+      "status actions";
+  }
+
+  .capture-staged__evidence {
+    grid-area: evidence;
+  }
+
+  .capture-staged__assign {
+    grid-area: assign;
+  }
+
+  .capture-staged__status {
+    grid-area: status;
+    padding-inline-start: 56px;
+  }
+
+  .capture-staged__actions {
+    grid-area: actions;
+  }
+}
+
+/* NARROW: one card per item, everything stacked, nothing scrolls sideways. */
+@container capture-staged (max-width: 520px) {
+  .capture-staged__item {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "evidence"
+      "status"
+      "assign"
+      "actions";
+    padding: 12px;
+  }
+
+  .capture-staged__status {
+    padding-inline-start: 0;
+  }
+
+  .capture-staged__actions {
+    justify-content: stretch;
+  }
+
+  .capture-staged__action {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 40px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   REQUIREMENTS
+--------------------------------------------------------------------------- */
+
+.capture-flow .capture-main-panel > .capture-reqs {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+.capture-reqs__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.capture-reqs__title {
+  color: var(--cf-ink) !important;
+  font-size: 1.04rem !important;
+  font-weight: 740 !important;
+}
+
+.capture-flow .capture-reqs__meta {
+  margin: 2px 0 0 !important;
+  font-size: 0.84rem !important;
+}
+
+.capture-reqs__mode-note {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--cf-quiet);
+  color: var(--cf-muted);
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.capture-reqs__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capture-reqs__item {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--cf-line);
+  border-radius: 12px;
+  background: var(--cf-surface);
+}
+
+.capture-reqs__item:focus {
+  outline: 2px solid var(--cf-accent);
+  outline-offset: 2px;
+}
+
+.capture-reqs__item.is-blocking {
+  border-color: rgba(180, 35, 24, 0.28);
+}
+
+.capture-reqs__item.is-optional {
+  background: var(--cf-quiet);
+}
+
+.capture-reqs__icon {
+  color: var(--cf-muted);
+}
+
+.capture-reqs__item.is-met .capture-reqs__icon {
+  color: var(--cf-green);
+}
+
+.capture-reqs__item.is-blocking .capture-reqs__icon {
+  color: var(--cf-red);
+}
+
+.capture-reqs__copy {
+  min-width: 0;
+}
+
+.capture-flow .capture-reqs__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 !important;
+}
+
+.capture-reqs__name strong {
+  color: var(--cf-ink);
+  font-size: 0.9rem;
+}
+
+.capture-reqs__item.is-optional .capture-reqs__name strong {
+  font-weight: 600;
+}
+
+.capture-reqs__tier {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.capture-reqs__tier.is-required {
+  background: var(--cf-red-soft);
+  color: var(--cf-red);
+}
+
+.capture-reqs__tier.is-recommended {
+  background: var(--cf-amber-soft);
+  color: var(--cf-amber);
+}
+
+.capture-reqs__tier.is-optional {
+  background: rgba(16, 24, 40, 0.05);
+  color: var(--cf-muted);
+}
+
+.capture-flow .capture-reqs__desc {
+  margin: 3px 0 0 !important;
+  font-size: 0.8rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-reqs__accepts {
+  color: var(--cf-muted);
+}
+
+.capture-reqs__done {
+  color: var(--cf-green);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.capture-reqs__action {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: 9px;
+  background: var(--cf-surface);
+  color: var(--cf-accent-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.capture-reqs__action.is-primary {
+  border-color: var(--cf-accent);
+  background: var(--cf-accent-soft);
+}
+
+@media (max-width: 560px) {
+  .capture-reqs__item {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .capture-reqs__state {
+    grid-column: 2;
+  }
+
+  .capture-reqs__action {
+    width: 100%;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THE END OF THE FLOW — verdict + Review & Sign, together.
+--------------------------------------------------------------------------- */
+
+.capture-finish {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--cf-line-strong);
+  border-radius: var(--cf-radius);
+  background: var(--cf-surface);
+}
+
+.capture-flow .capture-finish .capture-final-readiness {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin: 0 !important;
+  padding: 14px var(--cf-pad) !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--cf-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.capture-flow .capture-final-readiness__copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.capture-flow .capture-final-readiness[data-capture-readiness-tone="empty"],
+.capture-flow .capture-final-readiness[data-capture-readiness-tone="empty"] .capture-final-readiness__icon {
+  color: var(--cf-muted) !important;
+}
+
+.capture-flow .capture-final-readiness[data-capture-readiness-tone="empty"] strong {
+  color: var(--cf-ink) !important;
+}
+
+.capture-final-readiness__action {
+  flex: none;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--cf-accent);
+  border-radius: 10px;
+  background: var(--cf-accent-soft);
+  color: var(--cf-accent-strong);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.capture-flow .capture-finish .capture-bottom-bar {
+  position: static !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.capture-flow .capture-finish .capture-bottom-bar-inner {
+  margin: 0 !important;
+  padding: 14px var(--cf-pad) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* SMALL SCREENS: the verdict and the action stay in reach at the bottom of
+   the viewport while the operator scrolls the working column. The launcher
+   keeps its corner: the bar's content clears it on the inline-end side. */
+@media (max-width: 860px) {
+  /* Sticky only once something is staged: on a new draft Add files is
+     already the first thing on screen, and a pinned bar would cover it. */
+  .capture-flow .capture-finish[data-capture-finish="active"] {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    border-radius: var(--cf-radius) var(--cf-radius) 0 0;
+    box-shadow: 0 -8px 24px rgba(16, 24, 40, 0.1);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .capture-flow .capture-finish .capture-final-readiness {
+    padding: 10px 14px !important;
+    padding-inline-end: var(--cf-launcher-clearance) !important;
+  }
+
+  .capture-flow .capture-finish .capture-final-readiness p,
+  .capture-flow .capture-finish .capture-final-readiness__missing {
+    display: none !important;
+  }
+
+  .capture-flow .capture-finish .capture-bottom-bar-inner {
+    padding: 10px 14px !important;
+    padding-inline-end: var(--cf-launcher-clearance) !important;
+  }
+
+  .capture-flow .capture-finish .capture-bottom-bar-inner > div:first-child {
+    display: none !important;
+  }
+
+  .capture-flow .capture-finish .capture-phase5-final-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .capture-flow .capture-finish .capture-phase5-final-actions > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 44px !important;
+    white-space: nowrap;
+  }
+
+  .capture-final-readiness__action {
+    min-height: 36px;
+    padding: 0 10px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   SECONDARY DETAIL
+--------------------------------------------------------------------------- */
+
+.capture-more {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.capture-flow .capture-more > .capture-activity {
+  margin: 0 !important;
+}
+
+.capture-more__guide,
+.capture-details {
+  border: 1px solid var(--cf-line-strong);
+  border-radius: var(--cf-radius);
+  background: var(--cf-surface);
+}
+
+.capture-more__guide {
+  padding: 0 var(--cf-pad);
+}
+
+.capture-more__guide > summary,
+.capture-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 52px;
+  color: var(--cf-ink);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.capture-more__guide > summary::-webkit-details-marker,
+.capture-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.capture-more__guide[open] > summary svg,
+.capture-details[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.capture-more__guide[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: var(--cf-pad);
+}
+
+/* ---------------------------------------------------------------------------
+   THE RAIL
+--------------------------------------------------------------------------- */
+
+.capture-flow .capture-rail {
+  gap: 12px !important;
+}
+
+.capture-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.capture-summary__label {
+  color: var(--cf-ink) !important;
+  font-size: 1.04rem !important;
+  font-weight: 740 !important;
+}
+
+.capture-flow .capture-summary__detail {
+  margin: 0 !important;
+  font-size: 0.84rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-summary.blocked {
+  border-color: rgba(180, 35, 24, 0.28) !important;
+}
+
+.capture-summary__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--cf-muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.capture-summary__bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(16, 24, 40, 0.07);
+}
+
+.capture-summary__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--cf-accent);
+}
+
+.capture-signals--empty {
+  display: flex;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--cf-quiet);
+}
+
+.capture-signal-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--cf-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.capture-signal-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.capture-signal-link strong {
+  text-decoration: underline;
+  text-decoration-color: rgba(16, 24, 40, 0.25);
+  text-underline-offset: 3px;
+}
+
+.capture-signal-link:hover strong {
+  text-decoration-color: currentColor;
+}
+
+.capture-flow .capture-notes-card textarea {
+  width: 100%;
+  min-height: 84px;
+}
+
+.capture-details {
+  padding: 0 var(--cf-pad) !important;
+}
+
+.capture-details[open] {
+  padding-bottom: var(--cf-pad) !important;
+}
+
+.capture-details__sub {
+  margin-top: 14px;
+}
+
+/* Below 1180px the rail stacks under the working column as one column. */
+@media (max-width: 1180px) {
+  .capture-flow .capture-rail {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .capture-flow {
+    --cf-pad: 16px;
+  }
+
+  .capture-head__title-row {
+    flex-wrap: wrap;
+  }
+
+  .capture-head__titles {
+    flex-basis: calc(100% - 56px);
+  }
+
+  .capture-head__setup-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .capture-add__actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .capture-add__methods {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .capture-add.is-empty .capture-add__drop {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .capture-add__methods {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   REVIEW DIALOG
+--------------------------------------------------------------------------- */
+
+.capture-review {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(86vh, 760px);
+  overflow: hidden;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 30px 80px rgba(16, 24, 40, 0.28);
+  color: var(--capture-ink, #101828);
+}
+
+.capture-review__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(16, 24, 40, 0.08);
+}
+
+.capture-review__head > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.capture-review__head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 760;
+}
+
+.capture-review__head p {
+  margin: 2px 0 0;
+  color: #667085;
+  font-size: 0.84rem;
+}
+
+.capture-review__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: rgba(124, 58, 237, 0.1);
+  color: #7c3aed;
+}
+
+.capture-review__body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow: auto;
+  padding: 18px 20px;
+}
+
+.capture-review__body h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.capture-review__items {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid rgba(16, 24, 40, 0.08);
+  border-radius: 12px;
+}
+
+.capture-review__items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(16, 24, 40, 0.06);
+  font-size: 0.84rem;
+}
+
+.capture-review__items li:last-child {
+  border-bottom: 0;
+}
+
+.capture-review__name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capture-review__assign {
+  flex: none;
+  max-width: 50%;
+  overflow: hidden;
+  color: #667085;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capture-review__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.capture-review__facts dt {
+  color: #667085;
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.capture-review__facts dd {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.capture-review__warnings {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(247, 144, 9, 0.08);
+  color: #93370d;
+  font-size: 0.84rem;
+}
+
+.capture-review__warnings ul,
+.capture-review__what ul {
+  margin: 0;
+  padding-inline-start: 18px;
+  line-height: 1.5;
+}
+
+.capture-review__warnings p,
+.capture-review__what p {
+  margin: 8px 0 0;
+}
+
+.capture-review__what {
+  font-size: 0.84rem;
+}
+
+.capture-review__boundary {
+  color: #667085;
+  font-size: 0.8rem;
+}
+
+.capture-review__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(16, 24, 40, 0.08);
+}
+
+@media (max-width: 560px) {
+  .capture-review-backdrop {
+    padding: 0 !important;
+    align-items: end !important;
+  }
+
+  .capture-review {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .capture-review__facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .capture-review__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   SMALL-SCREEN REFINEMENTS
+   The header states the setup as one line of text rather than five chips, so
+   Add evidence reaches the first screen; the finish actions share the bar.
+--------------------------------------------------------------------------- */
+
+.capture-flow .capture-rail > .capture-details,
+.capture-flow .capture-rail > .capture-rail__card {
+  align-self: stretch;
+  width: auto;
+}
+
+.capture-flow .capture-finish .capture-phase5-final-actions {
+  display: flex !important;
+  gap: 10px !important;
+  min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .capture-flow .capture-finish .capture-phase5-final-actions > button {
+    flex: 1 1 0 !important;
+    padding-inline: 10px !important;
+  }
+
+  .capture-flow .capture-finish .capture-phase5-final-actions > button.capture-clear-button {
+    flex: 0.8 1 0 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .capture-head {
+    gap: 10px;
+  }
+
+  .capture-head__title-row {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+
+  .capture-head__titles {
+    flex-basis: auto;
+  }
+
+  .capture-head .capture-hero__mark {
+    display: none;
+  }
+
+  .capture-flow .capture-head__lede {
+    font-size: 0.8rem !important;
+  }
+
+  .capture-head__setup-toggle {
+    width: auto;
+    min-height: 36px;
+    padding: 0 10px;
+  }
+
+  .capture-head__setup-toggle span {
+    font-size: 0.8rem;
+  }
+
+  .capture-head__facts {
+    display: block;
+    color: var(--cf-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+
+  .capture-head__facts > div {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .capture-head__facts > div + div::before {
+    content: " · ";
+    color: var(--cf-muted);
+  }
+
+  .capture-head__facts dt {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .capture-head__facts dd {
+    display: inline;
+    font-size: 0.8rem;
+    white-space: normal;
+  }
+
+  .capture-head__facts dd svg {
+    display: none;
+  }
+}
+
+.capture-head__fact-prefix {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .capture-head__fact-prefix {
+    display: inline;
+  }
+}
+
+/* The extension note inside Help and guidance sits on the same surface as the
+   page's panels: white, the same border, no shadow. */
+.capture-flow .capture-more__guide [data-capture-direct-web-capture] {
+  background: #ffffff !important;
+  border: 1px solid var(--cf-line-strong) !important;
+  box-shadow: none !important;
+}
+
+/* STICKY NEEDS A REAL SCROLLPORT. Legacy rules give the page shell, the shell
+   and the grid `overflow-x: hidden`, which makes each of them a scroll
+   container that never scrolls — so the finish bar stuck to THEM, i.e. never.
+   `clip` keeps the same horizontal containment without creating a scroll
+   container, so the bar sticks to the viewport. */
+.capture-page-shell.capture-enterprise-page:has(.capture-flow),
+.capture-flow.capture-enterprise-shell,
+.capture-flow .capture-enterprise-grid {
+  overflow-x: clip !important;
+  overflow-y: visible !important;
+}
+
+@media (max-width: 640px) {
+  .capture-head__title-row {
+    flex-wrap: wrap;
+  }
+
+  .capture-head__titles {
+    flex: 1 1 100%;
+  }
+
+  .capture-head__setup-toggle {
+    order: 3;
+  }
+}
+
+/* The verdict never wraps a letter at a time: when the bar is narrow, its
+   action moves under the sentence instead of squeezing it. */
+@media (max-width: 860px) {
+  .capture-flow .capture-finish .capture-final-readiness {
+    flex-wrap: wrap !important;
+    row-gap: 8px !important;
+  }
+
+  .capture-flow .capture-finish .capture-final-readiness__copy {
+    flex: 1 1 160px;
+    min-width: 160px;
+  }
+
+  .capture-flow .capture-finish .capture-final-readiness__copy strong {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+}

@@ -11,9 +11,6 @@
 /* Loads AFTER capture-v2.css: it is the page-level composition authority and
    must outrank the override blocks that sheet accumulated. */
 @import "../components/capture-v2/capture-workspace.css";
-/* The redesigned Capture flow (header, add evidence, staged list, finish).
-   Loads after both capture sheets it builds on. */
-@import "../components/capture-v2/capture-flow.css";
 @import "../components/command-center/command-center.css";
 @import "../components/cases-experience/cases-experience.css";
 @import "../components/workspace-admin/workspace-admin.css";

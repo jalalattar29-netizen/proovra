@@ -341,14 +341,14 @@ export function CaptureMaterialsList({
                   </p>
                   {/* "Your notes" (was "Reviewer note"); field privateNote. */}
                   <label className="capture-staged__field-label" htmlFor={`${notesId}-note`}>
-                    Your notes <span>(private to you)</span>
+                    <strong>Your notes</strong>
                   </label>
                   <textarea
                     id={`${notesId}-note`}
                     value={item.privateNote ?? ""}
                     onChange={(event) => onUpdateItem(item.id, { privateNote: event.target.value })}
                     disabled={busy}
-                    placeholder="Add a note about this material."
+                    placeholder="Add a note about this material (private to you)."
                     maxLength={1000}
                     className="capture-material-note"
                   />
@@ -369,8 +369,8 @@ export function CaptureMaterialsList({
                     maxLength={120}
                   />
                   <p className="capture-staged__hint">
-                    Shown on the evidence record as the item&apos;s source context. Not included in the public
-                    verification page or report.
+                    Shown on the evidence record as the item&apos;s source context.{" "}
+                    Not included in the public verification page or report.
                   </p>
                 </div>
               ) : null}

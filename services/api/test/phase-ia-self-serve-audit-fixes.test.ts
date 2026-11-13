@@ -357,12 +357,24 @@ describe("Phase IA-self-serve-audit-fixes — Cases List terminology", () => {
 // ============================================================================
 
 describe("Phase IA-self-serve-audit-fixes — Capture terminology", () => {
-  const CAPTURE = readWeb("app/(app)/capture/page.tsx");
-  const SUMMARY = readWeb("app/(app)/capture/_lib/CaptureOperationalSummary.tsx");
+  // The page and the components that now render its header and staged list
+  // (2026-11-13 redesign): the copy pinned below lives in those.
+  const CAPTURE = [
+    "app/(app)/capture/page.tsx",
+    "app/(app)/capture/_lib/CaptureHeader.tsx",
+    "app/(app)/capture/_lib/CaptureMaterialsList.tsx",
+  ]
+    .map(readWeb)
+    .join("\n");
+  const PANEL = readWeb("components/capture-v2/CaptureSessionPanel.tsx");
 
-  it("CaptureOperationalSummary aria-label uses 'readiness summary' (not 'operational summary')", () => {
-    expect(SUMMARY).toMatch(/Capture readiness summary/);
-    expect(SUMMARY).not.toMatch(/Capture operational summary —/);
+  it("the operational summary band is gone; the one summary is named in product terms", () => {
+    // 2026-11-13 Capture redesign: CaptureOperationalSummary repeated the
+    // session summary and was removed. The rail's one summary is a
+    // "Session summary", never an "operational summary".
+    expect(CAPTURE).not.toMatch(/CaptureOperationalSummary/);
+    expect(PANEL).toMatch(/Session summary/);
+    expect(PANEL).not.toMatch(/operational summary/i);
   });
 
   it("the capture page names itself in product terms, not internal ones", () => {
@@ -377,7 +389,7 @@ describe("Phase IA-self-serve-audit-fixes — Capture terminology", () => {
     //
     // The terminology is what mattered, and it is asserted where the page now
     // says it — plus the ABSENCE that was the actual point.
-    expect(CAPTURE).toMatch(/title="Capture Evidence"/);
+    expect(CAPTURE).toMatch(/>Capture Evidence<\/h1>/);
     expect(CAPTURE).not.toMatch(/Evidence intake workspace/i);
   });
 

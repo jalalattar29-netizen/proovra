@@ -35,7 +35,8 @@
 
 import { AlertTriangle, Check, CircleDashed, OctagonAlert } from "lucide-react";
 
-import { EMPTY_SESSION_ISSUE_CODE, type ReadinessIssue, type SessionReadiness } from "./session-readiness";
+import { EMPTY_SESSION_ISSUE_CODE } from "./readiness-issue-codes";
+import type { ReadinessIssue, SessionReadiness } from "./session-readiness";
 
 /** The rail's existing cap. Beyond this the count carries the remainder. */
 const VISIBLE_LIMIT = 4;

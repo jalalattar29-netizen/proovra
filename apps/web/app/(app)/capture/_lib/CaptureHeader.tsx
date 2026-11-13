@@ -78,8 +78,8 @@ export function CaptureHeader({
         <div className="capture-head__titles">
           <h1 className="capture-head__title">Capture Evidence</h1>
           <p className="capture-head__lede">
-            Drafts save your setup, notes and file details — not file contents. Files are uploaded, hashed and
-            sealed when you Review &amp; Sign.
+            Drafts save metadata only — your setup, notes and file details. File contents are not stored until
+            finalization, when you Review &amp; Sign.
           </p>
         </div>
         <button

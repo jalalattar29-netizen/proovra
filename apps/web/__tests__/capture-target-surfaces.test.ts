@@ -88,9 +88,15 @@ test("blockers and warnings render from the readiness authority, never reclassif
   // A new draft is presented calmly: the ONE issue the authority raises for an
   // empty session is filtered by its code (presentation), never re-derived.
   assert.match(SIGNALS, /issue.code !== EMPTY_SESSION_ISSUE_CODE/);
+  // The constant names the authority's own literal; both sides are pinned so
+  // they cannot drift (the authority file itself is byte-pinned by CR5).
+  assert.match(
+    read("apps/web/app/(app)/capture/_lib/readiness-issue-codes.ts"),
+    /EMPTY_SESSION_ISSUE_CODE = "capture_empty_session"/,
+  );
   assert.match(
     read("apps/web/app/(app)/capture/_lib/session-readiness.ts"),
-    /EMPTY_SESSION_ISSUE_CODE = "capture_empty_session"/,
+    /code: "capture_empty_session"/,
   );
   assert.match(SIGNALS, /readiness\.status === "empty"/);
   assert.doesNotMatch(

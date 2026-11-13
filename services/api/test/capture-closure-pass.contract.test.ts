@@ -63,10 +63,15 @@ const AI = readFileSync(
   resolve(REPO_ROOT, "apps", "web", "components", "ai", "CaptureAiAssistant.tsx"),
   "utf8",
 );
-const CAPTURE_PAGE = readFileSync(
-  resolve(REPO_ROOT, "apps", "web", "app", "(app)", "capture", "page.tsx"),
-  "utf8",
-);
+// The page plus the staged-evidence list it renders: the per-item notes and
+// source field moved into _lib/CaptureMaterialsList.tsx (2026-11-13).
+const CAPTURE_PAGE =
+  readFileSync(resolve(REPO_ROOT, "apps", "web", "app", "(app)", "capture", "page.tsx"), "utf8") +
+  "\n" +
+  readFileSync(
+    resolve(REPO_ROOT, "apps", "web", "app", "(app)", "capture", "_lib", "CaptureMaterialsList.tsx"),
+    "utf8",
+  );
 
 describe("Part A — Plan-gated report polling + banner", () => {
   /*

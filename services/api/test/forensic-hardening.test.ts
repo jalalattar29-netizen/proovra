@@ -414,7 +414,9 @@ describe("capture draft governance (Governance Item 2)", () => {
       "(app)",
       "capture",
       "page.tsx"
-    );
+    ) +
+      // The page's compact header renders the note (2026-11-13 redesign).
+      readRepoFile("apps", "web", "app", "(app)", "capture", "_lib", "CaptureHeader.tsx");
 
     // Phase 28-I — normalise JSX whitespace (the prose can wrap across
     // multiple lines in the source) before asserting the bounded copy.
