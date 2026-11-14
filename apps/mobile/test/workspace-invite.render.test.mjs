@@ -114,3 +114,46 @@ test("a collaboration token still takes the collaboration flow", async () => {
   assert.ok(r.hasText("You’ve been invited to join a collaboration group."));
   assert.ok(!requests.some((q) => q.path === "/v1/teams/invites/lookup"));
 });
+
+// F-07 (Free-user audit, 2026-11-13) — "Open workspace" never switched: it was
+// router.replace("/") alone, so the reader landed in whatever space the server
+// pointer named. It now moves the pointer through the server switch first.
+test("Open workspace switches into the accepted workspace, then goes Home", async () => {
+  routes["/v1/platform/context/switch-workspace"] = () => ({ status: 200, body: {} });
+  const r = await render();
+  await r.press("Accept invitation");
+  await settle();
+  await r.press("Open workspace");
+  await settle();
+  const switched = requests.find((q) => q.method === "POST" && q.path === "/v1/platform/context/switch-workspace");
+  assert.deepEqual(switched?.body, { workspaceId: "ws-1" });
+  assert.equal(M.calls.replace.at(-1), "/");
+});
+
+test("a switch refused by the organization's SSO rule is shown, and the screen stays", async () => {
+  routes["/v1/platform/context/switch-workspace"] = () => ({
+    status: 403,
+    body: { message: "Not a member of this workspace", code: "workspace_membership_required", reason: "mandatory_sso_required" },
+  });
+  const r = await render();
+  await r.press("Accept invitation");
+  await settle();
+  const before = M.calls.replace.length;
+  await r.press("Open workspace");
+  await settle();
+  assert.ok(r.hasText("Invitation accepted — the workspace didn't open"));
+  assert.ok(r.hasText("This organization requires its single sign-on. Sign in again with “Sign in with your organization (SSO)”, then open this invitation once more to enter the workspace."));
+  assert.equal(M.calls.replace.length, before, "navigated Home despite the refusal");
+  assert.equal(r.byLabel("Sign in with another account").length, 1);
+});
+
+// F-26e — a settled refusal is not "we couldn't check this invitation".
+test("EMAIL_NOT_VERIFIED renders its own state with a verification action", async () => {
+  routes[`/v1/teams/invites/${TOKEN}/accept`] = () => ({ status: 403, body: { error: { code: "EMAIL_NOT_VERIFIED" } } });
+  const r = await render();
+  await r.press("Accept invitation");
+  await settle();
+  assert.ok(r.hasText("Verify your email address first"));
+  assert.ok(!r.hasText("We couldn't check this invitation"));
+  assert.equal(r.byLabel("Send verification email").length, 1);
+});

@@ -74,12 +74,78 @@ export type InvitationAcceptOutcome =
   /** The accept call failed transiently. The invitation is NOT invalid. */
   | { kind: "unreachable" };
 
+/**
+ * F-07 / F-26e (Free-user audit, 2026-11-13) — WHY AN ACCEPTED INVITATION
+ * COULD NOT BE OPENED.
+ *
+ * Acceptance writes the membership; ENTERING the workspace is a separate
+ * decision (`POST /v1/platform/context/switch-workspace`) that also applies
+ * the organization's session rules — single sign-on, allowed sign-in methods,
+ * session age, the concurrent-session limit. Both clients used to swallow a
+ * refused switch and land the reader in whatever space they were in before,
+ * still saying "you now have access". The refusal is now classified (by
+ * `classifyWorkspaceEntryRefusal`, from stable codes only) and rendered as the
+ * access state it is. No security check is relaxed: the switch is still the
+ * server's decision, and the membership it refused still grants nothing until
+ * the session satisfies the policy.
+ */
+export type InvitationEntryBlock =
+  /** The organization requires its single sign-on for this workspace. */
+  | "sso-required"
+  /** The organization does not accept the way this session signed in. */
+  | "sign-in-method"
+  /** The session is too old or idle for the organization's policy. */
+  | "sign-in-again"
+  /** The organization's concurrent-session limit is reached. */
+  | "session-limit"
+  /** Settled refusal with nothing the reader can do (org inactive, not set up). */
+  | "unavailable"
+  /** The switch request itself failed (network, 5xx). Retryable. */
+  | "interrupted";
+
+export type InvitationEntryOutcome =
+  | { kind: "idle" }
+  | { kind: "opening" }
+  | { kind: "blocked"; block: InvitationEntryBlock };
+
 export type ResolveInvitationInput = {
   token: string;
   auth: InvitationAuthState;
   lookup: InvitationLookupOutcome;
   accept: InvitationAcceptOutcome;
+  /** The Open workspace attempt after an accept; omitted = not attempted. */
+  entry?: InvitationEntryOutcome;
 };
+
+/** The sign-in-method refusals of an organization's login policy (enterprise-security-policy.policy.ts). */
+const SSO_ENTRY_REASONS: ReadonlySet<string> = new Set([
+  "mandatory_sso_required",
+  "saml_required",
+  "sso_connection_unbound",
+  "sso_connection_inactive",
+  "sso_connection_wrong_organization",
+]);
+
+/**
+ * Classify a refused workspace switch from its STABLE fields — HTTP status,
+ * `code` and `reason` as the switch route sends them — never from message text.
+ * Anything without a status is an interruption, not a verdict.
+ */
+export function classifyWorkspaceEntryRefusal(input: {
+  statusCode?: number | null;
+  code?: string | null;
+  reason?: string | null;
+}): InvitationEntryBlock {
+  const status = typeof input.statusCode === "number" ? input.statusCode : 0;
+  const code = input.code ?? "";
+  const reason = input.reason ?? "";
+  if (!status || status >= 500) return "interrupted";
+  if (code === "concurrent_session_limit_reached") return "session-limit";
+  if (code === "session_policy_reauth_required") return "sign-in-again";
+  if (code === "workspace_membership_required" && SSO_ENTRY_REASONS.has(reason)) return "sso-required";
+  if (code === "workspace_membership_required" && reason === "auth_method_not_allowed") return "sign-in-method";
+  return "unavailable";
+}
 
 // =============================================================================
 // OUTPUT — exactly one view
@@ -121,7 +187,19 @@ export type InvitationViewKind =
   /** Unknown, malformed, or otherwise not available. Deliberately opaque. */
   | "unknown"
   /** Lookup or accept could not complete. Retryable, and NOT a verdict. */
-  | "unreachable";
+  | "unreachable"
+  /** F-26e — the signed-in account's address is not verified yet. */
+  | "email-not-verified"
+  /** F-26e — the reader's membership here is suspended; an admin restores it. */
+  | "membership-suspended"
+  /** F-26e — issued before the reader's access ended; a new invitation is needed. */
+  | "superseded"
+  /** F-26e — the workspace's plan or contract admits no new member right now. */
+  | "workspace-plan-inactive"
+  /** F-26e — the account must accept the current legal terms first (428). */
+  | "legal-acceptance-required"
+  /** Accepted, but the workspace could not be opened: see `entryBlock`. */
+  | "accepted-not-opened";
 
 /** What the page is allowed to offer. Resolved here, never in the renderer. */
 export type InvitationAction =
@@ -132,7 +210,13 @@ export type InvitationAction =
   | "switch-account"
   | "open-workspace"
   | "go-home"
-  | "go-dashboard";
+  | "go-dashboard"
+  /** Send the address-verification email again (returns to this invitation). */
+  | "send-verification"
+  /** Open the place where the current legal terms are accepted. */
+  | "review-terms"
+  /** Try opening the accepted workspace again. */
+  | "retry-open";
 
 export type InvitationView = {
   kind: InvitationViewKind;
@@ -145,6 +229,8 @@ export type InvitationView = {
   actions: InvitationAction[];
   /** Where `open-workspace` goes, when that action is offered. */
   destination: string | null;
+  /** Why an accepted workspace could not be opened (`accepted-not-opened` only). */
+  entryBlock?: InvitationEntryBlock | null;
   /**
    * True for the states that describe a workspace/plan condition rather than a
    * defect in the invitation — used to pick a status tone without the renderer
@@ -179,6 +265,28 @@ export function resolveInvitationView(
     return view("accepting", contextOf(lookup), [], null, "info");
   }
   if (accept.kind === "accepted") {
+    const entry = input.entry ?? { kind: "idle" };
+    if (entry.kind === "blocked") {
+      return {
+        ...view(
+          "accepted-not-opened",
+          contextOf(lookup),
+          entryActions(entry.block),
+          accept.destination,
+          entry.block === "interrupted" ? "warning" : "info",
+        ),
+        entryBlock: entry.block,
+      };
+    }
+    if (entry.kind === "opening") {
+      return view(
+        accept.alreadyMember ? "already-member" : "accepted",
+        contextOf(lookup),
+        [],
+        accept.destination,
+        "success",
+      );
+    }
     return accept.alreadyMember
       ? view(
           "already-member",
@@ -342,6 +450,56 @@ function fromRefusal(
       // The one genuinely transient refusal — twenty-five failed attempts on
       // the per-workspace lock. Retry is real here, so it is offered.
       return view("unreachable", context, ["retry", "go-dashboard"], null, "warning");
+    case "EMAIL_NOT_VERIFIED":
+      // The invitation is valid; the address has to be proven first. After
+      // verifying, Try again re-reads the invitation and offers Accept.
+      return view(
+        "email-not-verified",
+        context,
+        ["send-verification", "retry", "go-dashboard"],
+        null,
+        "warning",
+      );
+    case "MEMBERSHIP_SUSPENDED":
+      // An invitation never reverses a suspension; the governed restore does.
+      return view("membership-suspended", null, terminalActions(auth), null, "warning");
+    case "INVITE_SUPERSEDED":
+      // Issued before the reader's access ended: the access it described is
+      // the access that was ended. A new invitation is the way back.
+      return view("superseded", null, terminalActions(auth), null, "info");
+    case "ENTERPRISE_CONTRACT_REQUIRED":
+    case "SUBSCRIPTION_INACTIVE":
+      // A condition of the INVITING workspace's plan or contract — never the
+      // reader's own plan, and no detail of it is shown. The invitation stays
+      // valid until it expires; an administrator has to act.
+      return view("workspace-plan-inactive", context, terminalActions(auth), null, "warning");
+    case "LEGAL_REACCEPT_REQUIRED":
+      // The accept route's legal pre-handler (428). Accepting the current
+      // terms is the reader's own step; Try again then re-offers Accept.
+      return view(
+        "legal-acceptance-required",
+        context,
+        ["review-terms", "retry"],
+        null,
+        "warning",
+      );
+  }
+}
+
+/** What the reader can do about a refused entry. */
+function entryActions(block: InvitationEntryBlock): InvitationAction[] {
+  switch (block) {
+    case "sso-required":
+    case "sign-in-method":
+    case "sign-in-again":
+      // A fresh session that satisfies the organization; the invitation link
+      // brings the reader back here, and Accept then answers alreadyMember.
+      return ["switch-account", "go-dashboard"];
+    case "session-limit":
+    case "interrupted":
+      return ["retry-open", "go-dashboard"];
+    case "unavailable":
+      return ["go-dashboard"];
   }
 }
 

@@ -596,6 +596,11 @@ vi.mock("../src/services/organization/org-invite-delivery.service.js", () => ({
   },
   getOrgInviteDeliveryStates: async () => new Map(),
   processDueOrgInviteDeliveries: async () => ({ processed: 0 }),
+  // F-08 — the organization invitation ceilings. Their arithmetic and their
+  // refusal are proven against PostgreSQL in e-identity-invites.integration.test.ts;
+  // here the allowance is roomy so the matrix exercises the routes' other rules.
+  resolveOrganizationInvitationAllowance: async () => ({ pending: 0, maxPending: 1000, sentLast24h: 0, maxPer24h: 5000 }),
+  organizationInvitationRefusal: () => null,
 }));
 vi.mock("../src/services/identity/membership-provisioning.service.js", () => ({
   parseWorkspaceAssignments: (v: unknown) => v ?? [],

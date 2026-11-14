@@ -33,7 +33,10 @@ import {
   CANCELLABLE_CLOSURE_STATUSES,
   COOLING_OFF_MS,
 } from "../services/identity/account-closure.service.js";
-import { evaluateAccountClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
+import {
+  evaluateAccountClosurePreflight,
+  publicVerificationKeptConsequence,
+} from "../services/identity/account-lifecycle-preflight.service.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 
 /** The exact phrase the user must type. Compared case-insensitively. */
@@ -72,18 +75,23 @@ export async function accountClosureRoutes(app: FastifyInstance) {
     async (req: FastifyRequest) => {
       const userId = getAuthUserId(req);
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
-      const [latest, preflight] = await Promise.all([
+      const [latest, preflight, publicVerification] = await Promise.all([
         prisma.accountClosureRequest.findFirst({
           where: { userId },
           select: REQUEST_SELECT,
           orderBy: { requestedAtUtc: "desc" },
         }),
         evaluateAccountClosurePreflight(userId),
+        // F-17 — closure leaves public verification pages live (policy);
+        // say so, with the per-record control, before the person confirms.
+        publicVerificationKeptConsequence(userId),
       ]);
       return {
         request: latest,
         blockers: preflight.blockers,
-        consequences: preflight.consequences,
+        consequences: publicVerification
+          ? [...preflight.consequences, publicVerification]
+          : preflight.consequences,
         confirmationPhrase: CLOSURE_CONFIRMATION_PHRASE,
         coolingOffDays: Math.round(COOLING_OFF_MS / 86_400_000),
       };

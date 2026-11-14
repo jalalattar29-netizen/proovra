@@ -107,7 +107,7 @@ describe("Phase A1 — evidence org tenancy (source contract)", () => {
     );
     // Personal factory reads the bootstrap personal team's organizationId.
     expect(WORKSPACE_BILLING).toMatch(
-      /isPersonal:\s*true[\s\S]*select:\s*\{\s*organizationId:\s*true\s*\}/,
+      /isPersonal:\s*true[\s\S]*select:\s*\{\s*organizationId:\s*true(,\s*storageBytesOverride:\s*true)?\s*\}/,
     );
     // Team factory passes the team's organizationId straight through.
     expect(WORKSPACE_BILLING).toContain(

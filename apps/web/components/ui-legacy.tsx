@@ -27,7 +27,7 @@ type ToastType = "success" | "error" | "info" | "warning";
 export interface ToastOptions {
   title?: string;
   supportReference?: string;
-  action?: { label: string; href?: string; onClick?: () => void };
+  action?: { label: string; href?: string; onClick?: () => void; newTab?: boolean };
 }
 
 interface Toast extends ProovraToastData {

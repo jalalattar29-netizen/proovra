@@ -140,7 +140,7 @@ test("an unverified address gets the verify panel, a held Resend, and Use a diff
   await r.press("Resend verification email");
   await settle();
   assert.deepEqual(posts.at(-1), { path: "/v1/auth/email/resend-verification", body: { email: "a@b.co" } });
-  assert.ok(r.hasText("Verification email sent."));
+  assert.ok(r.hasText("If this address still needs verification, a new link is on its way."));
   const held = r.byLabel("Resend pending…")[0];
   assert.ok(held?.props.accessibilityState?.disabled, "resend is not held after sending");
   await r.press("Use a different email");

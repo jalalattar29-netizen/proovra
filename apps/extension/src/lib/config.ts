@@ -11,9 +11,16 @@ declare const __PROOVRA_AUTH_AUTHORIZE_URL__: string;
 declare const __PROOVRA_AUTH_TOKEN_URL__: string;
 declare const __PROOVRA_OAUTH_CLIENT_ID__: string;
 declare const __PROOVRA_EXTENSION_VERSION__: string;
+declare const __PROOVRA_WEB_ORIGIN__: string;
 
 export const CONFIG = {
   apiOrigin: __PROOVRA_API_ORIGIN__,
+  /**
+   * The PROOVRA web app origin (PROOVRA_WEB_ORIGIN), used ONLY to open the
+   * plans page after a quota refusal and the record after a capture
+   * (popup-links.ts). Empty when not configured: no link is shown.
+   */
+  webOrigin: __PROOVRA_WEB_ORIGIN__,
   authAuthorizeUrl: __PROOVRA_AUTH_AUTHORIZE_URL__,
   authTokenUrl: __PROOVRA_AUTH_TOKEN_URL__,
   oauthClientId: __PROOVRA_OAUTH_CLIENT_ID__,

@@ -501,7 +501,12 @@ export function AppSidebarV2() {
   // Nothing is listed until the context has decided: with no envelope yet the
   // resolver reads an unknown workspace as one that needs setting up, keeps
   // those entries visible, and a Personal user briefly saw Review.
-  const contextResolving = hasNoContextYet(state);
+  // F-18 — the same holds when the first load FAILED with nothing to fall
+  // back on (network, sign-in needed): the missing envelope read as
+  // "Requires permission" on Billing and "Setup needed" everywhere. The page
+  // gate says what happened; the rail lists nothing until the context does.
+  const contextResolving =
+    hasNoContextYet(state) || (state.name === "FAILED" && !state.previous);
   const resolved = (contextResolving ? [] : ROUTE_REGISTRY).map((route: RouteDefinition) => {
     const access = resolveRouteAccess({
       route,

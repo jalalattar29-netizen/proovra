@@ -224,6 +224,55 @@ export async function listJobs(userId: string): Promise<BatchJobMetadata[]> {
   return rows.map(toMetadata);
 }
 
+/** A job without its items: what the job list shows. */
+export type BatchJobSummary = Omit<BatchJobMetadata, "items" | "description" | "estimatedCompletion">;
+
+/** F-21 — the most jobs one list read returns. */
+export const BATCH_JOB_LIST_LIMIT = 100;
+
+/**
+ * F-21 — the job list the console polls: the caller's newest jobs, bounded,
+ * WITHOUT items. `listJobs` loaded every item (with its result JSON) of every
+ * job the caller ever made on each 4 s poll, and the list shows only job-level
+ * counts. `truncated` says older jobs exist beyond the bound.
+ */
+export async function listJobSummaries(
+  userId: string,
+  limit: number = BATCH_JOB_LIST_LIMIT,
+): Promise<{ jobs: BatchJobSummary[]; truncated: boolean }> {
+  const rows = await prisma.batchAnalysisJob.findMany({
+    where: { ownerUserId: userId },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
+  });
+  return {
+    jobs: rows.slice(0, limit).map((row) => ({
+      id: row.id,
+      userId: row.ownerUserId,
+      teamId: row.teamId,
+      name: row.name,
+      status: JOB_STATUS_FROM_DB[row.status],
+      createdAt: row.createdAt,
+      startedAt: row.startedAtUtc ?? undefined,
+      completedAt: row.completedAtUtc ?? undefined,
+      totalItems: row.totalItems,
+      processedItems: row.processedItems,
+      failedItems: row.failedItems,
+    })),
+    truncated: rows.length > limit,
+  };
+}
+
+/** F-21 — how many jobs the caller owns (optionally in these states), counted in the database. */
+export async function countJobs(
+  userId: string,
+  statuses?: ReadonlyArray<prismaPkg.BatchAnalysisJobStatus>,
+): Promise<number> {
+  return prisma.batchAnalysisJob.count({
+    where: { ownerUserId: userId, ...(statuses ? { status: { in: [...statuses] } } : {}) },
+  });
+}
+
 /**
  * Process a batch job.
  *
@@ -559,6 +608,8 @@ export const batchAnalysisService = {
   createJob,
   getJob,
   listJobs,
+  listJobSummaries,
+  countJobs,
   processBatch,
   cancelJob,
   getAggregateResults,

@@ -439,18 +439,26 @@ describe("Phase R9 — signup eager bootstrap", () => {
     // the security-hardened `prisma.user.create` pattern satisfies it.
     // The migration from upsert → create was deliberate: silent upsert
     // overwrote existing rows, blocking the EMAIL_ALREADY_EXISTS gate.
+    //
+    // F-22 — the bootstrap lives in `bootstrapRegisteredAccount` so a resumed
+    // (unfinished) signup runs exactly the same steps; that helper is what
+    // calls ensurePersonalWorkspace.
     const upsertIdx = body.indexOf("prisma.user.upsert");
     const createIdx = body.indexOf("prisma.user.create");
     const userPersistIdx = Math.max(upsertIdx, createIdx);
-    const bootstrapIdx = body.indexOf(
-      "ensurePersonalWorkspace({ userId: user.id })",
-    );
-    // Last `return user;` inside the function body.
-    const returnIdx = body.lastIndexOf("return user;");
+    const bootstrapIdx = body.indexOf("await bootstrapRegisteredAccount(user);");
+    // Last return inside the function body.
+    const returnIdx = body.lastIndexOf("return { user, resumed: false };");
 
     expect(userPersistIdx).toBeGreaterThan(0);
     expect(bootstrapIdx).toBeGreaterThan(userPersistIdx);
     expect(returnIdx).toBeGreaterThan(bootstrapIdx);
+
+    const helper = EMAIL_AUTH_SRC.slice(
+      EMAIL_AUTH_SRC.indexOf("async function bootstrapRegisteredAccount"),
+      fnStart,
+    );
+    expect(helper).toContain("ensurePersonalWorkspace({ userId: user.id })");
   });
 
   it("registerWithEmailPassword sets currentWorkspaceId only when NULL (no clobber)", () => {

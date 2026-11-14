@@ -742,7 +742,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: true,
     sidebarEligible: true,
     denialGuidance:
-      "Intake links are managed by workspace owners, admins, and members. Ask the owner of this workspace to add you as a member, or open Billing to start your own workspace.",
+      // F-21 — this text outranks the plan reason in PageRouteGate, so it must
+      // be true for a Free owner (plan without intake) as well as for an
+      // invited viewer (role without INTAKE_LINKS_MANAGE).
+      "Intake links are included in paid plans and are managed by a workspace's owners, admins, and members. On a plan without intake links, open Billing to change plan; in a workspace you were invited to, ask its owner for member access.",
   },
   // Phase C — the /workflows surface administers EvidenceWorkflowTemplate
   // catalog entries (Phase B). It is NOT an operations surface; reviewer

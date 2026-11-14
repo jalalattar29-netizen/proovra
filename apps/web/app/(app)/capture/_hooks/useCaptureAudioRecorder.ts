@@ -7,6 +7,7 @@ import {
   pickSupportedAudioMimeType,
 } from "../_lib/file-utils";
 import {
+  CaptureStagingLimitError,
   describeAudioAddFailure,
   describeMediaError,
   logCaptureClientError,
@@ -270,7 +271,10 @@ export function useCaptureAudioRecorder({
 
       resetAudioRecorderState();
     } catch (err) {
-      logCaptureClientError("web_capture_add_audio_to_session", err, {});
+      // F-24 — the recording is kept (no reset) and a staging limit is named.
+      if (!(err instanceof CaptureStagingLimitError)) {
+        logCaptureClientError("web_capture_add_audio_to_session", err, {});
+      }
       setAudioRecorderState("failed");
       setAudioRecorderError(describeAudioAddFailure(err));
     }

@@ -34,7 +34,7 @@ top level of it.
 |---|---|---|---|---|
 | OK | `parseTenantAuditPage` | `GET /v1/audit/tenant` | items, nextCursorId | items, nextCursorId |
 | OK | `parseSessionProbe` | `GET /v1/auth/session-light` | authenticated | authenticated |
-| OK | `parseBatchJobs` | `GET /v1/batch-analysis` | data | data |
+| OK | `parseBatchJobs` | `GET /v1/batch-analysis` | data, truncated | data |
 | OK | `parseBillingAccounts` | `GET /v1/billing/accounts` | accounts | accounts |
 | OK | `parseBillingProjection` | `GET /v1/billing/accounts/:type/:id` | <SPREAD>, account, actionRequired, actions, collaboration, plan, usage | account, actionRequired, actions, collaboration, contract, dependentStorageCancellation,… |
 | OK | `parsePaymentHistory` | `GET /v1/billing/accounts/:type/:id/history` | activity, count, items | items |
@@ -44,7 +44,7 @@ top level of it.
 | OK | `parseStorageAddons` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | storageAddons |
 | OK | `parseEvidenceCreditOffer` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | payg |
 | OK | `parseIntakeTemplates` | `GET /v1/capture/intake-templates` | templates | templates |
-| OK | `parseEligibleCases` | `GET /v1/cases` | items | items |
+| OK | `parseEligibleCases` | `GET /v1/cases` | hasMore, items, nextCursor | items |
 | OK | `parseAttachCandidates` | `GET /v1/cases/:id/available-evidence` | items | items |
 | OK | `parseCaseEvidenceRows` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
 | OK | `parseCaseNotes` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
@@ -200,7 +200,7 @@ top level of it.
 | OK | `parseOrgInviteAccept` | `POST /v1/org-invites/:token/accept` | <SPREAD>, assignedWorkspaceIds, invitationAccepted, organizationId, role, workspaceOpened | assignedWorkspaceIds, enterpriseWorkspaceId, organizationId, role, setupRedirect |
 | OK | `parseOrgInviteLookup` | `POST /v1/org-invites/lookup` | context, state | context, state |
 | OK | `parsePortalAuth` | `POST /v1/portal/auth` | expiresAtUtc, newLogin, reviewerEmail, role, sessionId | expiresAtUtc, newLogin, reviewerEmail, role, sessionId |
-| OK | `parseWorkspaceInviteAccept` | `POST /v1/teams/invites/:token/accept` | alreadyMember, role, workspaceId | alreadyMember |
+| OK | `parseWorkspaceInviteAccept` | `POST /v1/teams/invites/:token/accept` | alreadyMember, role, workspaceId | alreadyMember, workspaceId |
 | OK | `parseWorkspaceInviteLookup` | `POST /v1/teams/invites/lookup` | context, state | context, state |
 | OK | `parseCreatedIntakeLink` | `POST /v1/workflow/intake-links` | delivery, link, rawToken, warning | delivery, link, rawToken |
 | OK | `parseRevealedContact` | `POST /v1/workflow/intake-links/:id/recipient-contact` | recipientContact | recipientContact, recipientEmail, recipientPhone |

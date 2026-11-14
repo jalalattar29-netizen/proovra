@@ -14,8 +14,34 @@ import { clearToken, getStoredToken, signIn, signOut } from "./lib/auth.js";
 import { sha256Hex } from "./lib/sha256.js";
 import { runPreserveFlow, type PreserveRequest } from "./lib/preserve-flow.js";
 import { createCaptureRegistry, type CaptureStatus } from "./lib/capture-registry.js";
+import {
+  PENDING_RELEASE_KEY,
+  rememberUnreleased,
+  releasePending,
+  type PendingRelease,
+  type PendingReleaseStore,
+} from "./lib/pending-release.js";
 
 const STATUS_KEY = "proovra.capture.status";
+
+/** F-12 — sessions whose reservation a refused sign-in left unreleased. */
+const pendingReleaseStore: PendingReleaseStore = {
+  async read() {
+    const out = await chrome.storage.local.get(PENDING_RELEASE_KEY);
+    const v = out?.[PENDING_RELEASE_KEY];
+    return Array.isArray(v) ? (v as PendingRelease[]) : [];
+  },
+  async write(entries) {
+    await chrome.storage.local.set({ [PENDING_RELEASE_KEY]: entries });
+  },
+};
+
+/** Release remembered reservations with a working token; never throws. */
+async function releaseStranded(): Promise<void> {
+  const token = (await getStoredToken())?.accessToken;
+  if (!token) return;
+  await releasePending(pendingReleaseStore, token, (t, id) => apiClient.discardSession(t, id)).catch(() => undefined);
+}
 
 const registry = createCaptureRegistry({
   store: {
@@ -54,6 +80,7 @@ const registry = createCaptureRegistry({
           .then((t) => t.url ?? t.pendingUrl ?? null)
           .catch(() => null),
         waitForOnline,
+        rememberUnreleased: (captureSessionId) => rememberUnreleased(pendingReleaseStore, captureSessionId),
       },
       req,
       signal,
@@ -161,7 +188,11 @@ chrome.runtime.onMessage.addListener((message: Msg, sender, sendResponse) => {
   }
   if (message.kind === "SIGN_IN") {
     signIn()
-      .then((r) => sendResponse({ ok: true, account: r.account }))
+      .then((r) => {
+        sendResponse({ ok: true, account: r.account });
+        // F-12 — release what an ended sign-in left reserved.
+        void releaseStranded();
+      })
       .catch((err: unknown) => {
         console.debug("sign-in failed:", err);
         sendResponse({ ok: false });

@@ -13,7 +13,8 @@
  *        totals (TSA / OTS / signed / verify / needing-attention).
  *   3. GET /v1/billing/overview                    — storage (account).
  *   4. GET /v1/reports?teamId=                      — reports list.
- *   5. GET /v1/workflow/intake-links?teamId=        — active intake links.
+ *   5. GET /v1/workflow/intake-links?teamId=        — active intake links
+ *        (only when planFeatures.intakeIncluded; so is 7).
  *   6. GET /v1/me/inbox                             — submission review
  *        items (filtered to intake categories by the normalizer).
  *   7. GET /v1/communications/messages?teamId=&purpose=INTAKE_LINK
@@ -56,6 +57,13 @@ export type HomeDataState =
   | { status: "loading"; viewModel: null }
   | { status: "ready"; viewModel: HomeViewModel }
   | { status: "error"; viewModel: HomeViewModel; message: string };
+
+/** F-21 — the retryable message shown when a slice failed transiently. */
+export const HOME_PARTIAL_LOAD_MESSAGE =
+  "Some of this page could not be loaded. What is shown may be incomplete.";
+
+/** F-21 — the minimum time between focus/visibility revalidations of Home. */
+export const HOME_FOCUS_REFRESH_MIN_INTERVAL_MS = 30_000;
 
 /** State plus a stable reload fn so inline mutations can refresh the view. */
 export type HomeData = HomeDataState & { reload: () => void };
@@ -120,15 +128,43 @@ export function useHomeData(): HomeData {
         ? `${path}${path.includes("?") ? "&" : "?"}teamId=${encodeURIComponent(workspaceId)}`
         : path;
 
+    /*
+     * F-21 — A FAILED READ IS NOT AN EMPTY ONE.
+     *
+     * Every slice used to resolve a failure to null, so a network outage or a
+     * 5xx rendered as an empty dashboard and `status: "error"` was never set.
+     * A slice still tolerates failure (one slice never blanks the page), but a
+     * transient one — no response, 5xx, 408/429 — is now counted, and the run
+     * ends in the retryable error state. A 4xx refusal (no capability, not a
+     * member) stays an honest absence, as before.
+     */
+    const transientFailures = new Set<string>();
+    const soft =
+      (slice: string) =>
+      (err: unknown): null => {
+        const status = (err as { statusCode?: unknown; status?: unknown } | null)?.statusCode ??
+          (err as { status?: unknown } | null)?.status;
+        // apiFetch reports "no response" as NETWORK_ERROR with statusCode 0.
+        if (typeof status !== "number" || status < 400 || status >= 500 || status === 408 || status === 429) {
+          transientFailures.add(slice);
+        }
+        return null;
+      };
+
+    // F-21 — the intake slices are read only where the plan includes intake:
+    // the route those cards link to is gated on the same flag, so for a plan
+    // without it both reads were wasted on every load and every refocus.
+    const intakeIncluded = planFeatures?.intakeIncluded === true;
+
     const ccPromise: Promise<HomeCommandCenterInput | null> = workspaceId
       ? apiFetch(scoped("/v1/dashboard/command-center"), { method: "GET" }).catch(
-          () => null,
+          soft("commandCenter"),
         )
       : Promise.resolve(null);
 
     const trustPromise: Promise<HomeTrustSummaryInput | null> = workspaceId
       ? apiFetch(scoped("/v1/dashboard/trust-summary"), { method: "GET" }).catch(
-          () => null,
+          soft("trustSummary"),
         )
       : Promise.resolve(null);
 
@@ -142,7 +178,7 @@ export function useHomeData(): HomeData {
       workspaceId
         ? apiFetch(scoped("/v1/dashboard/records-by-type"), {
             method: "GET",
-          }).catch(() => null)
+          }).catch(soft("recordsByType"))
         : Promise.resolve(null);
 
     /*
@@ -155,23 +191,24 @@ export function useHomeData(): HomeData {
       HomeBillingInput
     >("/v1/billing/overview", () =>
       apiFetch("/v1/billing/overview", { method: "GET" }),
-    ).catch(() => null);
+    ).catch(soft("billing"));
 
     const reportsPromise: Promise<HomeReportsInput | null> = apiFetch(
       scoped("/v1/reports"),
       { method: "GET" },
-    ).catch(() => null);
+    ).catch(soft("reports"));
 
-    const intakeLinksPromise: Promise<HomeIntakeLinksInput | null> = workspaceId
-      ? apiFetch(scoped("/v1/workflow/intake-links"), { method: "GET" }).catch(
-          () => null,
-        )
-      : Promise.resolve(null);
+    const intakeLinksPromise: Promise<HomeIntakeLinksInput | null> =
+      workspaceId && intakeIncluded
+        ? apiFetch(scoped("/v1/workflow/intake-links"), { method: "GET" }).catch(
+            soft("intakeLinks"),
+          )
+        : Promise.resolve(null);
 
     const inboxPromise: Promise<HomeInboxInput | null> = apiFetch(
       "/v1/me/inbox?pageSize=50",
       { method: "GET" },
-    ).catch(() => null);
+    ).catch(soft("inbox"));
 
     /**
      * ATTENTION ARCHITECTURE PHASE 4C (2026-08-22) — THE canonical workspace
@@ -198,14 +235,14 @@ export function useHomeData(): HomeData {
               (res as { summary?: HomeOperationsSummaryInput } | null)
                 ?.summary ?? null,
             )
-            .catch(() => null)
+            .catch(soft("operationsSummary"))
         : Promise.resolve(null);
 
     const communicationsPromise: Promise<HomeCommunicationsInput | null> =
-      workspaceId
+      workspaceId && intakeIncluded
         ? apiFetch(scoped("/v1/communications/messages?purpose=INTAKE_LINK"), {
             method: "GET",
-          }).catch(() => null)
+          }).catch(soft("communications"))
         : Promise.resolve(null);
 
     // Phase HOME-KPI — newest 100 accessible records. User-scoped on
@@ -216,7 +253,7 @@ export function useHomeData(): HomeData {
     const evidenceListPromise: Promise<HomeEvidenceListInput | null> = apiFetch(
       "/v1/evidence?limit=100&sort=newest",
       { method: "GET" },
-    ).catch(() => null);
+    ).catch(soft("evidenceList"));
 
     /*
      * NO BARRIER.
@@ -368,6 +405,16 @@ export function useHomeData(): HomeData {
       }),
     ]);
 
+    // F-21 — the run is over: if any slice failed transiently, say so (with
+    // the data that did arrive still on screen) so the page can offer a retry.
+    if (runId === runIdRef.current && transientFailures.size > 0) {
+      setState((prev) =>
+        prev.viewModel
+          ? { status: "error", viewModel: prev.viewModel, message: HOME_PARTIAL_LOAD_MESSAGE }
+          : prev,
+      );
+    }
+
     // `orgs` is intentionally read via `orgsRef` (not a dep) so this
     // callback stays referentially stable across renders.
   }, [workspaceId, activeSpaceType, activeSpace?.displayName, plan, planFeatures]);
@@ -393,11 +440,14 @@ export function useHomeData(): HomeData {
   // throttled so back-to-back focus events don't hammer the API.
   // No endpoint changes, no schema changes, no classifier changes.
   //
-  // 2-second throttle: prevents a focus-then-visibility double-fire
-  // and any rapid tab toggling. The data is bounded (≤100 rows of
-  // ≤10 fields each) so a stale window of up to 2 s is acceptable.
+  // F-21 — 30-second throttle. A refocus re-runs every read above (up to
+  // ten GETs, two of them uncached aggregations), and at 2 s ordinary tab
+  // switching re-ran the whole set many times a minute. Navigating back to
+  // /home remounts the page and reloads regardless, which is the stale case
+  // this refetch was added for; a stale window of up to 30 s after a tab
+  // switch is acceptable for a dashboard with no live counters.
   const lastReloadAtRef = useRef<number>(0);
-  const STALE_WINDOW_MS = 2_000;
+  const STALE_WINDOW_MS = HOME_FOCUS_REFRESH_MIN_INTERVAL_MS;
   useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return;
     const maybeRefresh = () => {

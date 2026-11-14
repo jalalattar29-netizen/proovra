@@ -9,11 +9,12 @@ import {
   type WorkspaceBillingStatus,
 } from "@proovra/shared-billing";
 // Domain classifier — single implementation in the general domain package.
-import { normalizeWorkspaceKind } from "@proovra/shared";
+import { firstIssuanceExemptFromStorageLimit, normalizeWorkspaceKind } from "@proovra/shared";
 // PHASE 12 REMEDIATION §6.1 (2026-08-06) — the ONE seat-occupancy authority,
 // shared with the API so their arithmetic cannot diverge.
 import {
   countActiveSeatOccupancy,
+  evidenceScopeFor,
   readActiveInternalPlanGrant,
   sumDerivedAssetStorageBytes,
 } from "@proovra/shared-runtime";
@@ -352,46 +353,40 @@ export async function getWorkspaceUsage(
   // provably gone: the canonical executor writes it after verifying the objects
   // no longer exist. ACTIVE, ARCHIVED and TRASHED all consume storage, because
   // they all are storage.
-  const evidenceWhere = scope.teamId
-    ? {
-        teamId: scope.teamId,
-        lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
-      }
-    : {
-        ownerUserId: scope.ownerUserId,
-        teamId: null,
-        lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
-      };
-
-  const reportWhere = scope.teamId
-    ? {
-        evidence: {
-          teamId: scope.teamId,
-          lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
-        },
-      }
-    : {
-        evidence: {
-          ownerUserId: scope.ownerUserId,
-          teamId: null,
-          lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
-        },
-      };
-
-  const verificationPackageWhere = scope.teamId
-    ? {
-        evidence: {
-          teamId: scope.teamId,
-          lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
-        },
-      }
-    : {
-        evidence: {
-          ownerUserId: scope.ownerUserId,
-          teamId: null,
-          lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] },
-        },
-      };
+  //
+  // F-02 (2026-11-13) — THE SAME POPULATION AS THE API'S USAGE MEASURE
+  // (`evidenceScopeFor`, workspace-usage.service.ts): a PERSONAL workspace
+  // widens to its owner's legacy NULL-team rows, and a scope reached without a
+  // team (a legacy NULL-team record) is measured over its owner's personal
+  // workspace. This host counted only `team_id = <personal team>` (or only the
+  // NULL-team rows), so its storage gate saw fewer bytes than the API's for
+  // the same payer.
+  const personalOwnerUserId = scope.billingShape === "SINGLE_OCCUPANT" ? scope.ownerUserId : null;
+  const usageTeamId =
+    scope.teamId ??
+    (personalOwnerUserId
+      ? (
+          await prisma.team.findFirst({
+            where: { ownerUserId: personalOwnerUserId, isPersonal: true },
+            select: { id: true },
+          })
+        )?.id ?? null
+      : null);
+  const populationWhere: prismaPkg.Prisma.EvidenceWhereInput = usageTeamId
+    ? (evidenceScopeFor({
+        physicalWorkspaceId: usageTeamId,
+        workspaceKind: personalOwnerUserId ? "PERSONAL" : "ORGANIZATION",
+        personalOwnerUserId,
+      }) as prismaPkg.Prisma.EvidenceWhereInput)
+    : { AND: [{ ownerUserId: scope.ownerUserId }, { teamId: null }] };
+  const evidenceWhere: prismaPkg.Prisma.EvidenceWhereInput = {
+    AND: [
+      populationWhere,
+      { lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] as prismaPkg.EvidenceLifecycleState[] } },
+    ],
+  };
+  const reportWhere = { evidence: evidenceWhere };
+  const verificationPackageWhere = { evidence: evidenceWhere };
 
   const [
     evidenceAggregate,
@@ -426,10 +421,9 @@ export async function getWorkspaceUsage(
     scope.teamId
       ? countActiveSeatOccupancy({ teamId: scope.teamId }, prisma)
       : Promise.resolve(0),
-    // UC-0 (D5) — same derived-bytes authority as the API. This calculator's
-    // personal scope is `team_id IS NULL`, and a derived row always carries a
-    // team id, so that scope holds no derived bytes.
-    sumDerivedAssetStorageBytes(prisma, { teamId: scope.teamId ?? null }),
+    // UC-0 (D5) — same derived-bytes authority as the API, over the same
+    // workspace (F-02: the owner's personal workspace for a NULL-team scope).
+    sumDerivedAssetStorageBytes(prisma, { teamId: usageTeamId }),
   ]);
 
   const evidenceStorageBytes = toBigIntOrZero(evidenceAggregate._sum.sizeBytes);
@@ -580,6 +574,12 @@ export async function assertWorkspaceAllowsReportArtifact(params: {
    * without a record is refused rather than answered from the plan.
    */
   evidenceId: string;
+  /**
+   * F-02 — the report version this artifact is issued for (the reserved
+   * version; the package's paired report version). Absent = gated as any
+   * later artifact.
+   */
+  issuanceVersion?: number;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
   // FREE THREE-RECORD CONTRACT — a single record is answered by THE issuance
@@ -601,9 +601,12 @@ export async function assertWorkspaceAllowsReportArtifact(params: {
     throw err;
   }
 
-  const usage = await assertWorkspaceStorageAvailable({
+  const usage = await assertArtifactStorage({
     scope,
     incomingBytes: params.incomingBytes ?? 0n,
+    evidenceId: params.evidenceId,
+    issuanceVersion: params.issuanceVersion,
+    outputs,
   });
 
   return {
@@ -612,12 +615,47 @@ export async function assertWorkspaceAllowsReportArtifact(params: {
   };
 }
 
+/**
+ * F-02 (2026-11-13) — the storage step of both artifact gates. The FIRST
+ * issuance a record earned at finalization (its first report version and that
+ * version's package pair) is owed by the product promise and is not refused
+ * by the allowance (`firstIssuanceExemptFromStorageLimit`, @proovra/shared —
+ * the API's offer reads the same rule). Its bytes still count toward usage.
+ * Every other artifact is gated exactly as before.
+ */
+async function assertArtifactStorage(params: {
+  scope: WorkerWorkspaceScope;
+  incomingBytes: bigint | number;
+  evidenceId: string;
+  issuanceVersion: number | undefined;
+  outputs: { decision: string; basis: string };
+}): Promise<WorkerWorkspaceUsage> {
+  const version = params.issuanceVersion;
+  if (typeof version === "number" && Number.isInteger(version) && version >= 1) {
+    const earlierReports = await prisma.report.count({
+      where: { evidenceId: params.evidenceId, version: { lt: version } },
+    });
+    if (
+      firstIssuanceExemptFromStorageLimit({
+        decision: params.outputs.decision,
+        basis: params.outputs.basis,
+        isFirstReportVersion: earlierReports === 0,
+      })
+    ) {
+      return getWorkspaceUsage(params.scope);
+    }
+  }
+  return assertWorkspaceStorageAvailable({ scope: params.scope, incomingBytes: params.incomingBytes });
+}
+
 export async function assertWorkspaceAllowsVerificationPackageArtifact(params: {
   ownerUserId: string;
   teamId?: string | null;
   incomingBytes?: bigint | number | null;
   /** REQUIRED — see `assertWorkspaceAllowsReportArtifact`. */
   evidenceId: string;
+  /** F-02 — see `assertWorkspaceAllowsReportArtifact`. */
+  issuanceVersion?: number;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
   // FREE THREE-RECORD CONTRACT — a single record is answered by THE issuance
@@ -639,9 +677,12 @@ export async function assertWorkspaceAllowsVerificationPackageArtifact(params: {
     throw err;
   }
 
-  const usage = await assertWorkspaceStorageAvailable({
+  const usage = await assertArtifactStorage({
     scope,
     incomingBytes: params.incomingBytes ?? 0n,
+    evidenceId: params.evidenceId,
+    issuanceVersion: params.issuanceVersion,
+    outputs,
   });
 
   return {

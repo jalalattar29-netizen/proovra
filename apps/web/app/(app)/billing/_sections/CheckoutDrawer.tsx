@@ -22,6 +22,7 @@
 import {
   describeBillingError,
   offerAvailabilityNote,
+  purchaseAvailabilityNote,
   safeCheckoutResumeUrl,
   safePayPalResumeUrl,
   storageAdditionalPrompt,
@@ -70,8 +71,17 @@ export type CheckoutIntent =
  */
 type Provider = PaymentProvider;
 
-/** Providers that cannot sell this size, by the server's offer. */
-function unavailableFor(offer: StorageAddonOffer | null | undefined): Provider[] {
+/**
+ * Providers that cannot sell this offer, by the server's offer.
+ *
+ * FREE-AUDIT REMEDIATION (2026-11-13, F-26c) — plans and credits carry the same
+ * per-provider availability storage sizes do, so a provider without its price,
+ * plan id or credentials is shown as unavailable instead of answering 503 after
+ * the click. An offer without the field (an older server) restricts nothing.
+ */
+function unavailableFor(
+  offer: { checkoutAvailability?: { stripe: boolean; paypal: boolean } } | null | undefined,
+): Provider[] {
   const availability = offer?.checkoutAvailability;
   if (!availability) return [];
   return [
@@ -146,7 +156,13 @@ export function CheckoutDrawer({
   const wallet = projection.wallet;
 
   const selectedOffer = offers.find((offer) => offer.key === selectedAddon) ?? null;
-  const unavailableProviders = intent.kind === "STORAGE" ? unavailableFor(selectedOffer) : [];
+  const selectedPlanOffer = planOffers.find((offer) => offer.planKey === selectedPlan) ?? null;
+  const unavailableProviders =
+    intent.kind === "STORAGE"
+      ? unavailableFor(selectedOffer)
+      : intent.kind === "PLAN"
+        ? unavailableFor(selectedPlanOffer)
+        : unavailableFor(wallet);
   const fallbackProvider: Provider = chosenProvider === "STRIPE" ? "PAYPAL" : "STRIPE";
   const provider: Provider =
     unavailableProviders.includes(chosenProvider) && !unavailableProviders.includes(fallbackProvider)
@@ -463,8 +479,6 @@ export function CheckoutDrawer({
         ? "Extra capacity, billed monthly alongside your plan. You can cancel it at any time."
         : "Select the plan that fits your evidence and collaboration needs.";
 
-  const selectedPlanOffer = planOffers.find((p) => p.planKey === selectedPlan);
-
   /**
    * The primary action names the PLAN it is about to buy.
    *
@@ -511,7 +525,8 @@ export function CheckoutDrawer({
               nothingToBuy ||
               (intent.kind === "STORAGE" &&
                 (!selectedAddon || noProviderSells || storageBlocked || heldPrompt !== null)) ||
-              (intent.kind === "PLAN" && !selectedPlan)
+              (intent.kind === "PLAN" && (!selectedPlan || noProviderSells)) ||
+              (intent.kind === "CREDITS" && noProviderSells)
             }
             data-billing-checkout-continue
             onClick={() => void startCheckout()}
@@ -969,7 +984,15 @@ export function CheckoutDrawer({
             headingId={`billing-provider-choice-${intent.kind.toLowerCase()}`}
             unavailable={unavailableProviders}
             note={
-              intent.kind === "STORAGE" && selectedOffer ? offerAvailabilityNote(selectedOffer) : null
+              intent.kind === "STORAGE"
+                ? selectedOffer
+                  ? offerAvailabilityNote(selectedOffer)
+                  : null
+                : intent.kind === "PLAN"
+                  ? selectedPlanOffer
+                    ? purchaseAvailabilityNote(selectedPlanOffer.checkoutAvailability, "plan")
+                    : null
+                  : purchaseAvailabilityNote(wallet?.checkoutAvailability, "credit")
             }
           />
         ) : null}

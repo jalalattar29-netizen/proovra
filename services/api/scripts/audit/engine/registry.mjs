@@ -719,7 +719,8 @@ export const CHANGED_PATH_CLASSES = Object.freeze([
       // UC-1 — the extension's build + validation scripts. They ship nothing but
       // decide whether the extension is releasable (esbuild bundle, MV3 lint), on
       // the same reasoning as the lint/runner configs above.
-      /^apps\/extension\/build[\w-]*\.mjs$/.test(p) ||
+      // release.mjs builds the store package (fail-closed origin checks).
+      /^apps\/extension\/(build[\w-]*|release)\.mjs$/.test(p) ||
       /^apps\/extension\/scripts\//.test(p),
   },
   { class: "INFRASTRUCTURE", test: (p) => p.startsWith("infra/") || p.startsWith("deploy/") },

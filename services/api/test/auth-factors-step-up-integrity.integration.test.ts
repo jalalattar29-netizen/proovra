@@ -77,7 +77,7 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   async function withPassword(userId: string, password: string): Promise<void> {
-    await prisma.user.update({ where: { id: userId }, data: { passwordHash: hashPassword(password) } });
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(password) } });
   }
 
   const lastCodeTo = (phone: string): string | undefined =>
@@ -873,7 +873,7 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
     it("three concurrent requests: one 201, two 409, one open row", async () => {
       const email = `af-closure-${randomUUID().slice(0, 8)}@test.proovra.local`;
       const user = await prisma.user.create({
-        data: { email, provider: "EMAIL", providerUserId: email, passwordHash: hashPassword("ClosureDupPass123"), emailVerifiedAt: new Date() },
+        data: { email, provider: "EMAIL", providerUserId: email, passwordHash: await hashPassword("ClosureDupPass123"), emailVerifiedAt: new Date() },
         select: { id: true },
       });
       const { REQUIRED_LEGAL_VERSIONS } = await import("../src/legal/legal-versioning.js");

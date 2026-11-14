@@ -275,6 +275,21 @@ describe("EVIDENCE FUNDING — one record, one payer (live PostgreSQL 16)", () =
       expect(byUser.activeStorageAddonBytes).toBe(10n * 1024n * 1024n * 1024n);
       expect(byTeam.activeStorageAddonBytes).toBe(byUser.activeStorageAddonBytes);
     });
+
+    it("F-09: the personal Team's storage override is visible from either input", async () => {
+      // Admission reaches a personal capture by user id; completion and the
+      // worker reach the same record by its personal Team id. Reached by user
+      // id the override used to read null, so the two phases measured
+      // different storage allowances for one subject.
+      const t = await seedPersonalTenant(deps, "FREE");
+      const override = 2n * 1024n * 1024n * 1024n;
+      await prisma.team.update({ where: { id: t.personalTeamId }, data: { storageBytesOverride: override } });
+
+      const byUser = await resolveScope({ ownerUserId: t.owner.userId, teamId: null });
+      const byTeam = await resolveScope({ ownerUserId: t.owner.userId, teamId: t.personalTeamId });
+      expect(byTeam.storageBytesOverride).toBe(override);
+      expect(byUser.storageBytesOverride).toBe(byTeam.storageBytesOverride);
+    });
     it("a shared workspace is the payer, never the member who uploaded", async () => {
       const member = await seedUser(deps, "team-member");
       await setAccountPlan(deps, member.userId, "PRO");

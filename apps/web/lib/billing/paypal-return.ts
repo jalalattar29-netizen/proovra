@@ -50,6 +50,8 @@ export const PAYPAL_RETURN_PARAMS = [
   "PayerID",
   "subscription_id",
   "ba_token",
+  // Stripe returns name their checkout attempt (F-13 / F-14).
+  "attempt",
 ] as const;
 
 const PAYPAL_ID = /^[A-Za-z0-9-]{6,64}$/;
@@ -171,17 +173,167 @@ export function payPalUnidentifiedReturn(params: ParamReader): PayPalReturnMessa
  * can report that they returned and what happens next, and nothing more. In
  * particular it claims no payment, whichever way they came back.
  */
-export type StripeReturn = { kind: "RETURNED" | "CANCELED"; product: PayPalReturnProduct };
+export type StripeReturn = {
+  kind: "RETURNED" | "CANCELED";
+  product: PayPalReturnProduct;
+  /**
+   * FREE-AUDIT REMEDIATION (2026-11-13, F-13 / F-14) — the checkout attempt the
+   * server put on the return URL, or null (an older session). It is only a
+   * question to ask: the server answers for its owner alone, from Stripe.
+   */
+  attemptId: string | null;
+};
+
+const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function parseStripeReturn(params: ParamReader): StripeReturn | null {
   const provider = params.get("provider");
   if (provider && provider !== "stripe") return null;
-  if (params.get("success") === "1") return { kind: "RETURNED", product: product(params) };
-  if (params.get("canceled") === "1") return { kind: "CANCELED", product: product(params) };
+  const raw = params.get("attempt");
+  const attemptId = raw && ATTEMPT_ID.test(raw) ? raw.toLowerCase() : null;
+  if (params.get("success") === "1") return { kind: "RETURNED", product: product(params), attemptId };
+  if (params.get("canceled") === "1") return { kind: "CANCELED", product: product(params), attemptId };
   return null;
 }
 
-export type CheckoutReturnNotice = { title: string; message: string };
+export type CheckoutReturnNotice = {
+  title: string;
+  message: string;
+  /** How the notice reads. Absent = still waiting. */
+  tone?: "pending" | "success" | "error" | "info";
+  /** The API's request id, for support. */
+  supportReference?: string;
+};
+
+/** How many times a still-settling Stripe return is re-checked, and how far apart. */
+export const STRIPE_RETURN_MAX_CHECKS = 4;
+
+/** The server's answer for ONE attempt (re-check or abandon), narrowed to what is read. */
+export type StripeAttemptAnswer = {
+  outcome?: string;
+  currentStatus?: string;
+  waitingFor?: string;
+  warning?: string;
+};
+
+/** Whether a re-check answer is final, or worth asking again shortly. */
+export function stripeReturnSettled(answer: StripeAttemptAnswer): boolean {
+  return Boolean(answer.currentStatus) && answer.currentStatus !== "PENDING";
+}
+
+/**
+ * A Stripe re-check (success return) in the customer's words — from the attempt's
+ * PERSISTED state after the server read Stripe and applied it through the
+ * webhook's own writer. The query string decided nothing.
+ */
+export function stripeAttemptNotice(ret: StripeReturn, answer: StripeAttemptAnswer): CheckoutReturnNotice {
+  const noun = PRODUCT_NOUN[ret.product];
+  switch (answer.currentStatus) {
+    case "COMPLETED":
+      return { tone: "success", title: "Payment confirmed", message: `Stripe confirmed your payment and your ${noun} is applied.` };
+    case "FAILED":
+      return {
+        tone: "error",
+        title: "Not applied",
+        message: `This checkout did not complete, so your ${noun} was not applied. If you were charged, support reviews it; you do not need to pay again.`,
+      };
+    case "CANCELED":
+    case "EXPIRED":
+      return { tone: "info", title: "Checkout closed", message: `This Stripe checkout was closed before payment, so nothing was charged and your ${noun} was not applied.` };
+    case "ABANDONED":
+      return {
+        tone: "info",
+        title: "Checkout abandoned",
+        message: `This checkout was abandoned, so your ${noun} was not applied. If Stripe later confirms a payment for it, PROOVRA still applies it.`,
+      };
+    default:
+      if (answer.waitingFor === "PAYMENT_PAGE") {
+        return { tone: "info", title: "Payment not received", message: `Stripe has not received a payment for this checkout, so nothing has been charged and your ${noun} is not applied.` };
+      }
+      return {
+        tone: "pending",
+        title: "Waiting for Stripe to confirm",
+        message: `Stripe is still processing this payment. Your ${noun} is applied as soon as Stripe confirms it, and PROOVRA keeps checking automatically. Check Billing activity before paying again.`,
+      };
+  }
+}
+
+/** A provider-first abandon (cancel return) in the customer's words. */
+export function stripeCancelNotice(ret: StripeReturn, answer: StripeAttemptAnswer): CheckoutReturnNotice {
+  const noun = PRODUCT_NOUN[ret.product];
+  switch (answer.outcome) {
+    case "ABANDONED":
+      return {
+        tone: "info",
+        title: "Stripe checkout not finished",
+        message: `You left Stripe checkout before paying, so this ${noun} was not applied. That checkout is closed, and you can start another whenever you like.`,
+      };
+    case "UPDATED":
+      // The provider had already settled it: what it says stands.
+      return stripeAttemptNotice(ret, answer);
+    case "ABANDON_NOT_ALLOWED":
+      return {
+        tone: "pending",
+        title: "Payment is being processed",
+        message: answer.warning ?? `Stripe shows this ${noun} as paid and being processed, so it was left open. PROOVRA applies it as soon as Stripe completes it.`,
+      };
+    case "ALREADY_RESOLVED":
+      // A stale or second return: the checkout had already ended (paid, closed or
+      // expired). Nothing was changed by this return.
+      return {
+        tone: "info",
+        title: "This checkout already ended",
+        message: `This Stripe checkout is no longer open, and leaving it changed nothing. Billing shows your current ${noun} and Billing activity shows how the checkout ended.`,
+      };
+    case "PROVIDER_CANCEL_FAILED":
+      return {
+        tone: "info",
+        title: "Stripe checkout not finished",
+        message: `You left Stripe checkout before paying, so this ${noun} was not applied. Stripe could not confirm the checkout page was closed, so it still shows under Billing activity, where you can abandon it.`,
+      };
+    default:
+      return {
+        tone: "info",
+        title: "Stripe checkout not finished",
+        message: `You left Stripe checkout before finishing, so this ${noun} was not applied here. Billing activity shows the checkout's status.`,
+      };
+  }
+}
+
+/** A re-check or abandon the server refused, or could not answer. */
+export function stripeReturnFailureNotice(
+  ret: StripeReturn,
+  failure: { statusCode?: unknown; requestId?: unknown },
+): CheckoutReturnNotice {
+  const noun = PRODUCT_NOUN[ret.product];
+  const reference =
+    typeof failure.requestId === "string" && failure.requestId.trim()
+      ? { supportReference: failure.requestId.trim() }
+      : {};
+  if (failure.statusCode === 404) {
+    return {
+      tone: "error",
+      title: "Checkout not found",
+      message: `We could not match this Stripe checkout to your account, so nothing was applied. If you were charged, contact support.`,
+      ...reference,
+    };
+  }
+  if (failure.statusCode === 429) {
+    return {
+      tone: "info",
+      title: "Checked several times already",
+      message: `That was checked several times just now. Please wait a few minutes, then refresh Billing to see where this ${noun} stands.`,
+    };
+  }
+  return ret.kind !== "RETURNED"
+    ? stripeReturnNotice(ret)
+    : {
+        tone: "pending",
+        title: "Waiting for Stripe to confirm",
+        message: `We could not confirm this payment yet. Your ${noun} is applied once Stripe confirms it, and PROOVRA keeps checking automatically. Check Billing activity before paying again.`,
+        ...reference,
+      };
+}
 
 export function stripeReturnNotice(ret: StripeReturn): CheckoutReturnNotice {
   const noun = PRODUCT_NOUN[ret.product];

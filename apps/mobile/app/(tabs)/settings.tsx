@@ -24,6 +24,7 @@ import { toSafeUserError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import { formatUserDateTime } from "../../src/lib/date";
 import { usePlatformContext } from "../../src/product/platform-context";
+import { professionalSurfaceVisible, settingsRowVisible } from "../../src/product/navigation";
 import { summarizeSignInMethods } from "../../src/product/account-security";
 import {
   EMPTY_SECURITY_SUMMARY,
@@ -419,36 +420,49 @@ export default function SettingsScreen() {
             surface to reach them from, so they sit beside the plan they are
             about.
           */}
-          <ProovraListRow
-            title="Quotas & usage"
-            subtitle="Account allowances, usage breakdown, and reset windows"
-            onPress={() => router.push("/(stack)/operations/quotas")}
-          />
-          <ProovraListRow
-            title="Batch analysis"
-            subtitle="Batch processing jobs and queue status"
-            onPress={() => router.push("/(stack)/operations/batch-analysis")}
-          />
+          {/* Free audit — the web gates both consoles on the PROFESSIONAL
+              tier (lib/surface/tiers.ts); the rows follow the same rule. */}
+          {professionalSurfaceVisible(envelope) ? (
+            <>
+              <ProovraListRow
+                title="Quotas & usage"
+                subtitle="Account allowances, usage breakdown, and reset windows"
+                onPress={() => router.push("/(stack)/operations/quotas")}
+              />
+              <ProovraListRow
+                title="Batch analysis"
+                subtitle="Batch processing jobs and queue status"
+                onPress={() => router.push("/(stack)/operations/batch-analysis")}
+              />
+            </>
+          ) : null}
         </ProovraCard>
 
         {/* Collaboration */}
         <ProovraCard style={styles.card}>
           <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Collaboration</ProovraText>
-          <ProovraListRow
-            title="Collaboration groups"
-            subtitle="Groups you belong to in this workspace"
-            onPress={() => router.push("/teams")}
-          />
+          {/* Free audit F-08 — the rows follow the nav's own plan decision for
+              this workspace. Evidence requests stays: its list route answers
+              every signed-in member. */}
+          {settingsRowVisible("workspace.collaboration_teams", envelope) ? (
+            <ProovraListRow
+              title="Collaboration groups"
+              subtitle="Groups you belong to in this workspace"
+              onPress={() => router.push("/teams")}
+            />
+          ) : null}
           <ProovraListRow
             title="Evidence requests"
             subtitle="Requests to submit evidence"
             onPress={() => router.push("/evidence-requests")}
           />
-          <ProovraListRow
-            title="Intake links"
-            subtitle="View and revoke secure intake links"
-            onPress={() => router.push("/intake-links")}
-          />
+          {settingsRowVisible("workspace.intake_links", envelope) ? (
+            <ProovraListRow
+              title="Intake links"
+              subtitle="View and revoke secure intake links"
+              onPress={() => router.push("/intake-links")}
+            />
+          ) : null}
         </ProovraCard>
 
         {/* Privacy & legal */}

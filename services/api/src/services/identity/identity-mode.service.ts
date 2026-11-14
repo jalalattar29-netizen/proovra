@@ -435,10 +435,20 @@ export async function resolvePersonalSpaceEligibility(
   }
 
   // POINT 7 — the org-policy rule. Only CUSTOMER Organizations the user
-  // actually belongs to participate: an `OrganizationMembership` row IS the
-  // membership (the model carries no status column — removal deletes the row),
-  // and a SYSTEM container org (the 1:1 container behind a Personal/Owned
-  // workspace) owns no policy at all.
+  // actually belongs to participate, and a SYSTEM container org (the 1:1
+  // container behind a Personal/Owned workspace) owns no policy at all.
+  //
+  // F-20 (Free-user audit, 2026-11-13) — "belongs to" is an EFFECTIVE
+  // membership: the one definition `organizationMembershipGrantsAccess`
+  // states (status ACTIVE, `validUntilUtc` not passed). This used to match any
+  // membership ROW, on the stated belief that the model has no status column
+  // and removal deletes the row. Since ARCH-004 removal and leave keep the row
+  // as REVOKED, so a person who left or was removed from a `noPersonalSpace`
+  // organization was refused their own Personal Space forever. A SUSPENDED or
+  // REVOKED or lapsed membership grants nothing in that organization, and so
+  // imposes nothing either. A MANAGED identity is unaffected: it is refused
+  // above, whatever its memberships (AUD-0047).
+  const now = new Date();
   let rows: Array<{ organizationId: string; noPersonalSpace: boolean }>;
   try {
     rows = (await client.organizationSecurityPolicy.findMany({
@@ -446,7 +456,13 @@ export async function resolvePersonalSpaceEligibility(
         noPersonalSpace: true,
         organization: {
           kind: "CUSTOMER",
-          memberships: { some: { userId } },
+          memberships: {
+            some: {
+              userId,
+              status: "ACTIVE",
+              OR: [{ validUntilUtc: null }, { validUntilUtc: { gt: now } }],
+            },
+          },
         },
       },
       select: { organizationId: true, noPersonalSpace: true },

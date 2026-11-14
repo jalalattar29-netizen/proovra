@@ -575,15 +575,17 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     },
   );
 
+  // F-21 (Free-user audit) — the canonical subprocessor seed is gated like
+  // the sibling create (trust.subprocessor.manage). It is not read-only: for
+  // every canonical slug it UPSERTS the workspace's row ("seed re-applied")
+  // through the same writer as the gated create — state back to ACTIVE,
+  // contractRef cleared, a new version authored by the caller — so any member
+  // (a VIEWER included) could overwrite what an admin had recorded. A personal
+  // workspace is not locked out: its OWNER holds every non-service permission
+  // (packages/shared/src/permissions.ts ROLE_PERMISSIONS.OWNER).
   app.post(
     "/v1/trust/subprocessors/seed",
-    // Production fix — same rationale as /v1/trust/articles/seed
-    // above. The canonical subprocessor list is platform
-    // documentation, not customer content. Any authenticated
-    // workspace member can request the idempotent canonical seed.
-    // Authoring custom subprocessor rows (POST
-    // /v1/trust/subprocessors) remains gated (trust.subprocessor.manage — re-audit N-1).
-    { preHandler: requireAuth },
+    { preHandler: [requireAuth, requireWorkspacePermission("trust.subprocessor.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;

@@ -82,15 +82,50 @@ test("a dead verification link offers a fresh one, and says when it was sent", a
 });
 
 test("a failed resend is Retry needed, with the form still there", async () => {
-  // A dead token (the verify read fails too) — an ABSENT token is the missing-token card, below.
+  // A dead token (400), then the resend fails — an ABSENT token is the missing-token card, below.
   globalThis.__EXPO_PARAMS__ = { token: "vt-dead" };
-  answer = () => ({ status: 503, body: { message: "down" } });
+  answer = (p) =>
+    p === "/v1/auth/email/verify"
+      ? { status: 400, body: { error: { code: "INVALID_OR_EXPIRED", message: "x" } } }
+      : { status: 503, body: { message: "down" } };
   const r = await render(Verify);
   await r.type("Email address", "me@example.com");
   await r.press("Resend verification email");
   await settle();
   assert.ok(r.hasText("We couldn’t send the email"));
   assert.ok(r.byLabel("Email address").length >= 1);
+});
+
+test("F-05 — a throttled verification is not a dead link: it says wait, and the link is untouched", async () => {
+  globalThis.__EXPO_PARAMS__ = { token: "vt-busy" };
+  answer = (p) => (p === "/v1/auth/email/verify" ? { status: 429, body: { message: "rate_limited" } } : { status: 200, body: {} });
+  const r = await render(Verify);
+  assert.equal(r.byTestId("verify-rate-limited").length, 1, r.texts().join(" | "));
+  assert.equal(r.byTestId("verify-invalid").length, 0);
+  assert.ok(!r.hasText("Verification link invalid or expired"));
+  assert.ok(r.byLabel("Try again").length >= 1);
+});
+
+test("F-05 — an outage is not a dead link either; Try again verifies with the same link", async () => {
+  globalThis.__EXPO_PARAMS__ = { token: "vt-outage" };
+  let calls = 0;
+  answer = (p) => {
+    if (p !== "/v1/auth/email/verify") return { status: 200, body: {} };
+    calls += 1;
+    return calls === 1
+      ? { status: 503, body: { message: "down" } }
+      : { status: 200, body: { token: "sess-2", user: { id: "u2", email: "me@example.com" } } };
+  };
+  const r = await render(Verify);
+  assert.equal(r.byTestId("verify-unreachable").length, 1, r.texts().join(" | "));
+  assert.equal(r.byTestId("verify-invalid").length, 0);
+  await r.press("Try again");
+  await settle();
+  assert.equal(r.byTestId("verify-success").length, 1, r.texts().join(" | "));
+  assert.deepEqual(
+    posts.filter((p) => p.path === "/v1/auth/email/verify").map((p) => p.body),
+    [{ token: "vt-outage" }, { token: "vt-outage" }],
+  );
 });
 
 test("no token is the web's missing-token card, with no resend form (verify-email/page.tsx:333)", async () => {

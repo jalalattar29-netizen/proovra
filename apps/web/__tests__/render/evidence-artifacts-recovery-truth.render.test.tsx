@@ -168,6 +168,31 @@ describe("NOT_INCLUDED says its actual reason", () => {
   });
 });
 
+/**
+ * F-02 (2026-11-13) — a package the storage allowance refused says so and
+ * links where storage is managed, instead of a bare "Recover" that rebuilds
+ * the package only for the worker to refuse it again.
+ */
+describe("a package refused by the storage allowance", () => {
+  it("states the storage reason and the step, with a Billing link and no recovery verb", () => {
+    const { container } = mount(
+      workspace(READY, {
+        state: "ELIGIBLE_NOT_GENERATED",
+        action: "NONE",
+        actionUnavailableReason: "STORAGE_LIMIT",
+        terminalReasonCode: "NOT_APPLICABLE_STORAGE_LIMIT",
+      }),
+    );
+    const panel = container.querySelector("[data-evidence-section='package-recovery']")!;
+    expect(panel).not.toBeNull();
+    expect(panel.getAttribute("data-evidence-output-action")).toBe("NONE");
+    expect(panel.textContent).toContain("the storage allowance is full");
+    expect(panel.textContent).toMatch(/Free up storage or add storage in Billing/);
+    expect(panel.querySelector("a[data-evidence-link='billing-storage']")?.getAttribute("href")).toBe("/billing");
+    expect(panel.querySelector("[data-evidence-action='package-recovery']")).toBeNull();
+  });
+});
+
 describe("a first report awaiting confirmed payment", () => {
   it("offers no Generate and says why", () => {
     const { container } = mount(

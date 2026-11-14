@@ -913,11 +913,24 @@ const TECHNICAL_TABS: ReadonlyArray<{ id: TechnicalTabId; label: string }> = [
   { id: "access", label: "Access Activity" },
 ];
 
-type VerifyLinkNotice = { kind: "LINK_ENDED" | "RATE_LIMITED"; title: string; detail: string };
+type VerifyLinkNotice = { kind: "LINK_ENDED" | "RATE_LIMITED" | "NOT_FOUND"; title: string; detail: string };
 
 /** AUD-28 — the expected, non-failure answers of the verify API, in plain words. */
 function verifyLinkNoticeOf(err: unknown): VerifyLinkNotice | null {
   const status = (err as { statusCode?: number } | null)?.statusCode;
+  // F-11 (2026-11-13) — the API's ordinary 404 ("Evidence not found") answers
+  // every reference it will not show, byte-identical by design (anti-
+  // enumeration). It is an expected answer, not a failure of this page: it
+  // was reported to Sentry and shown as "Verification Failed" with a retry
+  // that could never succeed.
+  if (status === 404) {
+    return {
+      kind: "NOT_FOUND",
+      title: "No verification record found for this link",
+      detail:
+        "This link does not open a verification record. Check that it was copied completely, or ask the person who shared it for the current link.",
+    };
+  }
   if (status === 410) {
     return {
       kind: "LINK_ENDED",
@@ -1094,7 +1107,7 @@ export default function VerifyPage() {
         if (notice) {
           setLinkNotice(notice);
           setError(null);
-          if (notice.kind === "LINK_ENDED") clearPolling();
+          if (notice.kind === "LINK_ENDED" || notice.kind === "NOT_FOUND") clearPolling();
           return;
         }
 

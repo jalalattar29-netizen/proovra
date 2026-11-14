@@ -110,11 +110,30 @@ export async function accountDataExportRoutes(app: FastifyInstance) {
 
       // ONE active request per user — this is also the rate limit: a new
       // request is possible only after the previous one completes/expires.
-      const active = await prisma.accountDataExportRequest.findFirst({
-        where: { userId, status: { in: ["REQUESTED", "PROCESSING", "READY"] } },
-        select: { id: true, status: true },
+      // F-25 — the check and the insert run under one per-user advisory lock,
+      // so two concurrent requests (double click, two tabs, a retry) cannot
+      // both pass the check. A READY package past its expiry is not active:
+      // the lifecycle tick only nulls it later, and until then it blocked.
+      const now = new Date();
+      const created = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`account-data-export:${userId}`}))`;
+        const active = await tx.accountDataExportRequest.findFirst({
+          where: {
+            userId,
+            OR: [
+              { status: { in: ["REQUESTED", "PROCESSING"] } },
+              { status: "READY", OR: [{ expiresAtUtc: null }, { expiresAtUtc: { gt: now } }] },
+            ],
+          },
+          select: { id: true },
+        });
+        if (active) return null;
+        return tx.accountDataExportRequest.create({
+          data: { userId, status: "REQUESTED" },
+          select: { id: true, status: true, requestedAtUtc: true },
+        });
       });
-      if (active) {
+      if (!created) {
         return reply.code(409).send({
           error: {
             code: "export_request_active",
@@ -123,11 +142,6 @@ export async function accountDataExportRoutes(app: FastifyInstance) {
           },
         });
       }
-
-      const created = await prisma.accountDataExportRequest.create({
-        data: { userId, status: "REQUESTED" },
-        select: { id: true, status: true, requestedAtUtc: true },
-      });
       await emitPlatformAudit({
         action: "identity.data_export_requested",
         outcome: "success",

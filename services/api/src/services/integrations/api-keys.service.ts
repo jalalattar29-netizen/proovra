@@ -36,6 +36,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { assertLimitEntitlementTx, resolveEntitlement } from "../packaging/entitlement.service.js";
 
 const INTEGRATIONS_FLAG = "INTEGRATIONS_ENABLED";
 const API_KEY_SECRET_ENV = "API_KEY_SECRET";
@@ -195,7 +196,8 @@ export class ApiCredentialError extends Error {
       | "credential_not_found"
       | "credential_already_revoked"
       | "credential_not_active"
-      | "invalid_grace_minutes",
+      | "invalid_grace_minutes"
+      | "api_key_limit_reached",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -222,17 +224,51 @@ export async function createApiCredential(
   const issued = issueApiKey();
   if (!issued) throw new ApiCredentialError("secret_missing");
 
-  const credential = await client.apiCredential.create({
-    data: {
+  /*
+   * F-15 (Free-user audit, 2026-11-13) — THE KEY CEILING THE PACKAGING ENGINE
+   * ALREADY STATES. `INTEGRATION_API_KEYS_MAX` is that engine's LIMIT for this
+   * very object (default 1; product lines 3 / 10; an ACTIVE Enterprise contract
+   * 100) and nothing enforced it, so every account — each owns a Personal
+   * workspace whose OWNER holds `integration.api_key.manage` — could mint keys
+   * without bound. It is answered the way the engine answers its other LIMIT:
+   * resolved before the transaction (AUD-0017), then a live count of ACTIVE
+   * credentials under the per-(workspace, key) lock, in the insert's own
+   * transaction, so concurrent creates at the boundary admit exactly one.
+   * Existing keys are untouched; revoking one frees its place.
+   */
+  const resolved = await resolveEntitlement({
+    prisma: client,
+    teamId: input.teamId,
+    key: "INTEGRATION_API_KEYS_MAX",
+  });
+  const credential = await client.$transaction(async (tx) => {
+    const admitted = await assertLimitEntitlementTx({
+      tx,
+      prisma: client,
       teamId: input.teamId,
-      name: input.name.slice(0, 180),
-      description: input.description?.slice(0, 2000) ?? null,
-      keyPrefix: issued.keyPrefix,
-      keyHash: issued.keyHash,
-      scopes: validScopes,
-      createdByUserId: input.actorUserId,
-      status: "ACTIVE",
-    },
+      key: "INTEGRATION_API_KEYS_MAX",
+      requested: 1,
+      resolved,
+    });
+    if (!admitted.ok) {
+      throw new ApiCredentialError("api_key_limit_reached", {
+        key: "INTEGRATION_API_KEYS_MAX",
+        limit: admitted.limit,
+        current: admitted.current,
+      });
+    }
+    return tx.apiCredential.create({
+      data: {
+        teamId: input.teamId,
+        name: input.name.slice(0, 180),
+        description: input.description?.slice(0, 2000) ?? null,
+        keyPrefix: issued.keyPrefix,
+        keyHash: issued.keyHash,
+        scopes: validScopes,
+        createdByUserId: input.actorUserId,
+        status: "ACTIVE",
+      },
+    });
   });
 
   return { credential, rawKey: issued.rawKey };

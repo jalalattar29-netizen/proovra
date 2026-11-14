@@ -109,6 +109,17 @@ export function CommandPalette() {
       // command-palette search even before query filtering.
       if (!access.canSeeNav) continue;
       if (!route.commandPaletteVisible) continue;
+      // F-21 — the same suppression the sidebar applies (AppSidebarV2): an
+      // organization-only destination is not offered outside an organization
+      // workspace. Its page answers NEEDS_ORGANIZATION and its data routes
+      // refuse a personal workspace, so the row only ever led to a dead end.
+      if (
+        access.accessState === "NEEDS_ORGANIZATION" &&
+        envelope?.activeSpace?.type !== "ORGANIZATION" &&
+        envelope?.platform?.isPlatformAdmin !== true
+      ) {
+        continue;
+      }
       /*
        * No pre-ranking here any more.
        *

@@ -65,7 +65,8 @@ import React, {
   useState,
 } from "react";
 
-import { apiFetch, setActiveWorkspaceId } from "../api";
+import { apiFetch, setActiveWorkspaceId, setApiToken } from "../api";
+import { SESSION_EXPIRED_EVENT } from "../session-events";
 import { activeWorkspaceIdFromEnvelope } from "./activeWorkspace";
 import {
   emit as emitStateEvent,
@@ -205,6 +206,19 @@ function describeVersionMismatch(envelope: PlatformContextEnvelope): string {
 //     known at build time (Next.js strips false references in prod
 //     bundles).
 const MIN_REFRESH_INTERVAL_MS = 60_000;
+
+/**
+ * F-18 — the context load is the request every app page waits on. A hung
+ * connection used to hold the resolving placeholder forever; after this long it
+ * fails as a NETWORK_ERROR, which the page gate offers to retry.
+ */
+const CONTEXT_FETCH_TIMEOUT_MS = 20_000;
+
+function contextFetchSignal(): AbortSignal | undefined {
+  return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(CONTEXT_FETCH_TIMEOUT_MS)
+    : undefined;
+}
 
 function isFocusRefreshEnabled(): boolean {
   // The flag is a NEXT_PUBLIC_ env var so it is inlined at build time
@@ -420,6 +434,10 @@ export function PlatformContextProvider({
 
   const refresh = useCallback(async () => {
     const seq = ++fetchSequenceRef.current;
+    // F-18 — a refresh out of FAILED keeps the last-known envelope on screen
+    // (SWITCHING to the same workspace) instead of dropping to
+    // LOADING_CONTEXT, which unmounted every page and lost what was on it.
+    // That is what "I've signed in again — continue" relies on.
     setState((prev) =>
       prev.name === "READY"
         ? {
@@ -427,11 +445,18 @@ export function PlatformContextProvider({
             previous: prev.envelope,
             targetWorkspaceId: prev.envelope.workspace.id,
           }
-        : { name: "LOADING_CONTEXT" },
+        : prev.name === "FAILED" && prev.previous
+          ? {
+              name: "SWITCHING",
+              previous: prev.previous,
+              targetWorkspaceId: prev.previous.workspace.id,
+            }
+          : { name: "LOADING_CONTEXT" },
     );
     try {
       const envelope = (await apiFetch("/v1/platform/context", {
         method: "GET",
+        signal: contextFetchSignal(),
       })) as PlatformContextEnvelope;
       if (seq !== fetchSequenceRef.current) {
         // A newer fetch has already completed — drop this stale
@@ -521,6 +546,69 @@ export function PlatformContextProvider({
     void refresh();
     // refresh's identity is stable across renders because of useCallback.
   }, [refresh, testEnvelope]);
+
+  // ----------------------------------------------------------------
+  // F-18 — a session that ends while the app is open.
+  //
+  // `apiFetch` announces a 401 that says "no valid session". The announcement
+  // is a hint, not a verdict: the context asks the server once
+  // (GET /v1/platform/context, no replay). Only a 401 to THAT changes the
+  // state — to FAILED / AUTH_REQUIRED with the last envelope KEPT, so the page
+  // and whatever is typed into it stay mounted under the sign-in notice
+  // (SignedOutAppGate). A success means the 401 was not about the session and
+  // nothing changes. One check at a time, none once already signed out, never
+  // a redirect: there is no loop to fall into.
+  // ----------------------------------------------------------------
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  const sessionCheckInflightRef = useRef(false);
+  useEffect(() => {
+    if (testEnvelope) return;
+    if (typeof window === "undefined") return;
+    const onSessionEnded = (): void => {
+      if (sessionCheckInflightRef.current) return;
+      const current = stateRef.current;
+      const envelope =
+        current.name === "READY"
+          ? current.envelope
+          : current.name === "SWITCHING"
+            ? current.previous
+            : null;
+      // Nothing to protect (first load, or already FAILED): the context's own
+      // load decides those states.
+      if (!envelope) return;
+      sessionCheckInflightRef.current = true;
+      void apiFetch(
+        "/v1/platform/context",
+        { method: "GET", signal: contextFetchSignal() },
+        { retryAuthOnce: false },
+      )
+        .then(() => undefined)
+        .catch((err: unknown) => {
+          const e = err as ApiErrorLike;
+          if (e?.statusCode !== 401) return;
+          // Confirmed: the server refused the session twice. Only now drop the
+          // refused in-memory credential (a fresh sign-in replaces the cookie).
+          setApiToken(null);
+          // Supersede any context fetch still in flight.
+          fetchSequenceRef.current += 1;
+          setState({
+            name: "FAILED",
+            errorCode: "AUTH_REQUIRED",
+            message: "Your session has ended. Sign in again to continue.",
+            requestId: e.requestId ?? null,
+            previous: envelope,
+          });
+        })
+        .finally(() => {
+          sessionCheckInflightRef.current = false;
+        });
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionEnded);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionEnded);
+  }, [testEnvelope]);
 
   // ----------------------------------------------------------------
   // CR1.6 — Focus-triggered envelope refresh (opt-in, throttled).

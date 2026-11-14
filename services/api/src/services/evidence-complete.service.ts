@@ -58,6 +58,7 @@ import { warn as logWarn } from "../utils/logger.js";
 import { bump } from "./ops/metrics.service.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { effectiveChecklistPlan, validateRequiredChecklistMapping } from "./capture-checklist-gate.js";
+import { storedBytesMatchBoundDigest } from "./evidence/evidence-part-binding.service.js";
 import { getIntakeTemplate } from "./capture-intake-templates.js";
 
 type HttpError = Error & { statusCode: number; code?: string };
@@ -1287,6 +1288,14 @@ export async function completeEvidence(params: {
 
         for (const { part, bucket, key, meta, size } of heads) {
           const sha256 = await digestOf(prehashed, bucket, key, meta);
+
+          // F-03 (Free-user audit 2026-11-13) — the part row (its name, note,
+          // role, checklist step) was bound to the file whose staged digest the
+          // client declared. Bytes that are not that file are refused here,
+          // before anything is signed, timestamped or written to custody.
+          if (!storedBytesMatchBoundDigest(part.clientSignals, sha256)) {
+            throw captureCompletionError("PART_DIGEST_MISMATCH");
+          }
 
           sizeBytesNum += size;
 

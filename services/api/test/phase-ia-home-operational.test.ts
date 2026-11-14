@@ -406,7 +406,10 @@ describe("Phase IA-home-operational — useful empty states", () => {
   it("report production empty is plan-aware", () => {
     // FREE THREE-RECORD CONTRACT (2026-10-14): a Free account is told its
     // three records include their outputs — not upsold a report it has.
-    expect(SECTIONS).toMatch(/each of your three Free records includes its report, verification package and verification page/);
+    // F-27d — without a hard-coded count: the allowance is the catalog's (or a
+    // frozen downgrade grandfather), never a literal in the copy.
+    expect(SECTIONS).toMatch(/each record in your Free allowance includes its report, verification package and verification page/);
+    expect(SECTIONS).not.toMatch(/three Free records/);
     expect(SECTIONS).not.toMatch(/Reports are included with Pay-Per-Evidence, Pro, and Team/);
   });
 });

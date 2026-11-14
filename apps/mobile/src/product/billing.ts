@@ -283,6 +283,26 @@ export const PURCHASE_PENDING_NOTE =
   "available in the app yet. Everything else on this screen — what you are paying " +
   "for, what you have paid, and cancelling — works here.";
 
+/**
+ * FREE-AUDIT REMEDIATION (2026-11-13, F-09) — the single source of upgrade copy
+ * for native screens, keyed on `purchaseAvailability()` (billing-purchase.ts).
+ * Kept here, import-free, beside the note it chooses.
+ *
+ * `purchaseNoteFor`: the limitation sentence, or null when this build can buy.
+ * `upgradeActionLabel`: the words on an upgrade prompt that leads to Billing.
+ * A build that cannot buy says "See plans" (what the destination can show),
+ * never "Upgrade plan" (a purchase it cannot make).
+ */
+export type PurchaseAvailabilityKind = "EXTERNAL_CHECKOUT" | "NOT_IN_THIS_BUILD";
+
+export function purchaseNoteFor(availability: PurchaseAvailabilityKind): string | null {
+  return availability === "EXTERNAL_CHECKOUT" ? null : PURCHASE_PENDING_NOTE;
+}
+
+export function upgradeActionLabel(availability: PurchaseAvailabilityKind): string {
+  return availability === "EXTERNAL_CHECKOUT" ? "Upgrade plan" : "See plans";
+}
+
 /** "+100 GB storage" from the server's byte count (a string: it is a BigInt server-side). */
 export function storageAddonLabel(bytes: string | null): string | null {
   if (!bytes || !/^\d+$/.test(bytes)) return null;

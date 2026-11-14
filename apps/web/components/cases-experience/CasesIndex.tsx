@@ -75,6 +75,7 @@ import {
   useActiveWorkspaceId,
   useEnterpriseSurfaceAccess,
   usePersonalSpace,
+  usePlanFeature,
   usePlatformContext,
 } from "../../lib/platform-context";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
@@ -185,6 +186,12 @@ export function CasesIndex() {
   // Phase 2.1 — Create Case modal local state. Toggled by the new
   // "Create case" button in the header and by the empty-state CTA.
   const [createOpen, setCreateOpen] = useState(false);
+  // Free audit F-10 — creating a case is a plan entitlement of the ACTIVE
+  // workspace (`planFeatures.casesIncluded`, the field POST /v1/cases enforces
+  // with 409 CASES_NOT_INCLUDED). Locked only when the server SAYS false: an
+  // unknown value keeps the affordance and the server stays the authority.
+  // Viewing cases is not gated.
+  const createLocked = usePlanFeature("casesIncluded") === false;
   const router = useRouter();
 
   // Phase CASES-PERSONAL-UX — debounce the search input (300ms). The
@@ -427,17 +434,28 @@ export function CasesIndex() {
                  "New Case" header button — identical gradient, border,
                  shadow, radius, height, text colour and hover. One primary
                  style app-wide (no more white-bg / indigo-text variant). */
-              <button
-                type="button"
-                className="app-header-primary-action"
-                data-create-case-trigger
-                onClick={() => setCreateOpen(true)}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-                <span>Create case</span>
-              </button>
+              createLocked ? (
+                <Link
+                  href="/billing"
+                  className="app-secondary-action"
+                  data-create-case-locked
+                  title="This workspace's plan doesn't include cases"
+                >
+                  View plans
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="app-header-primary-action"
+                  data-create-case-trigger
+                  onClick={() => setCreateOpen(true)}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  <span>Create case</span>
+                </button>
+              )
             }
           />
         }
@@ -448,7 +466,7 @@ export function CasesIndex() {
           surface="cases"
           collapsedByDefault
           stateNotes={
-            envelope.total === 0
+            envelope.total === 0 && !createLocked
               ? [
                   "No cases yet — use the Create case button above, or link evidence into an existing case.",
                 ]
@@ -470,7 +488,7 @@ export function CasesIndex() {
           canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
           workspaceGeneration={workspaceId ?? "none"}
           onClearFilters={() => setFilters(DEFAULT_FILTERS)}
-          onCreateCase={() => setCreateOpen(true)}
+          onCreateCase={createLocked ? null : () => setCreateOpen(true)}
           onReload={reload}
         />
       </PageShell>
@@ -480,7 +498,7 @@ export function CasesIndex() {
           close. Navigation to the new case workspace happens on
           successful create. */}
       <CreateCaseModal
-        open={createOpen}
+        open={createOpen && !createLocked}
         teamId={workspaceId}
         onClose={() => setCreateOpen(false)}
         onCreated={(newCase) => {
@@ -756,7 +774,8 @@ function MatterQueueTable({
   anyFilterActive: boolean;
   canSeeAdvancedCaseOps: boolean;
   onClearFilters: () => void;
-  onCreateCase: () => void;
+  /** null — the active workspace's plan does not include cases (F-10). */
+  onCreateCase: (() => void) | null;
   onReload: () => Promise<void> | void;
 }) {
   const [selectedIds, setSelectedIds] = useState<ReadonlyArray<string>>([]);
@@ -863,7 +882,23 @@ function MatterQueueTable({
         // clear path so the user doesn't think the page is broken.
         // PROOVRA enterprise redesign renders each inside the restyled
         // `.cases-empty` centered surface, keeping the pinned copy + CTA.
-        totalBeforeFilter === 0 && !anyFilterActive ? (
+        totalBeforeFilter === 0 && !anyFilterActive && !onCreateCase ? (
+          <div
+            className="cases-empty"
+            data-matter-queue-empty
+            data-empty-state="cases-not-included"
+          >
+            <strong>Cases aren&apos;t included in this plan</strong>
+            <p>
+              This workspace&apos;s plan doesn&apos;t include cases. Your
+              evidence records remain available — upgrade to group them into
+              cases.
+            </p>
+            <Link href="/billing" data-empty-state-cta="view-plans" style={PRIMARY_CTA_STYLE}>
+              View plans
+            </Link>
+          </div>
+        ) : totalBeforeFilter === 0 && !anyFilterActive ? (
           <div
             className="cases-empty"
             data-matter-queue-empty
@@ -877,7 +912,7 @@ function MatterQueueTable({
             <button
               type="button"
               data-empty-state-cta="create-case"
-              onClick={onCreateCase}
+              onClick={onCreateCase ?? undefined}
               style={PRIMARY_CTA_STYLE}
             >
               Create case

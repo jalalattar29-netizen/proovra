@@ -132,8 +132,10 @@ export function captureFailureToast(
     severity: opts.explained ? "warning" : "error",
     options: {
       title: safe.title,
+      // F-12 — the remedy opens in a NEW tab: following it in this tab
+      // unloads Capture and loses every staged file and in-browser recording.
       ...(safe.actionLabel && safe.actionHref
-        ? { action: { label: safe.actionLabel, href: safe.actionHref } }
+        ? { action: { label: safe.actionLabel, href: safe.actionHref, newTab: true } }
         : {}),
       ...(opts.requestId && !opts.explained
         ? { supportReference: opts.requestId }
@@ -198,8 +200,28 @@ export function describeDropFailure(error: unknown): string {
   return toSafeUserError(error, { message: DROP_FAILURE_MESSAGE }).message;
 }
 
+/**
+ * F-24 (Free-user audit 2026-11-13) — a staging limit refused the material.
+ * `addFilesToSession` used to RETURN after showing the limit, so a recorder
+ * took that as success and cleared its recording. It now throws this; its
+ * message names the limit (count, per-file size or session size) and is shown
+ * verbatim, never replaced by a generic "could not be added — retry".
+ */
+export class CaptureStagingLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CaptureStagingLimitError";
+  }
+}
+
+/** The sentence for a failed staging: the limit itself, else the safe mapping. */
+export function describeStagingFailure(error: unknown, fallback: string): string {
+  if (error instanceof CaptureStagingLimitError) return error.message;
+  return toSafeUserError(error, { message: fallback }).message;
+}
+
 export const AUDIO_ADD_FAILURE_MESSAGE =
   "Audio recording could not be added to the evidence session.";
 export function describeAudioAddFailure(error: unknown): string {
-  return toSafeUserError(error, { message: AUDIO_ADD_FAILURE_MESSAGE }).message;
+  return describeStagingFailure(error, AUDIO_ADD_FAILURE_MESSAGE);
 }

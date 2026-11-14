@@ -71,6 +71,7 @@ import {
   AI_USAGE_KEY,
   countPersonalEvidenceRecords,
   evidenceCreationScope,
+  readPersonalAdmissionInputs,
   startOfCurrentMonthUtc,
 } from "../billing-enforcement.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
@@ -87,7 +88,13 @@ import { countOpenBillingReviewItems } from "./billing-review.service.js";
 // catalogue decision, and the ONE personal-evidence counter, both shared with
 // the enforcement path so the meter cannot disagree with the gate.
 import { storageAddonOffersForPlan } from "../workspace-usage.service.js";
-import { resolveCommercialOffer, stripeOfferAvailability } from "./commercial-offer.service.js";
+import {
+  resolveCommercialOffer,
+  selfServiceProductForPlan,
+  stripeOfferAvailability,
+  type CommercialOffer,
+} from "./commercial-offer.service.js";
+import { resolveRuntimeSecret } from "../../config/runtime-secrets.js";
 import {
   getPlanPriceCents,
   getStorageAddonCurrency,
@@ -391,6 +398,13 @@ export type PlanOffer = {
   /** Server-composed from the canonical catalog. Never written in the client. */
   summary: string;
   /**
+   * FREE-AUDIT REMEDIATION (2026-11-13, F-26c) — CHECKOUT offers only: which
+   * provider can sell this plan now, from configuration (the same rule storage
+   * offers use). A provider without its price or plan id, or its credentials,
+   * answered 503 PAYMENTS_UNAVAILABLE after the click.
+   */
+  checkoutAvailability?: CheckoutAvailability;
+  /**
    * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — WHAT this offer does,
    * decided here.
    *
@@ -426,6 +440,9 @@ export type PlanOffer = {
    */
   effectSummary: string;
 };
+
+/** Per provider: can a checkout for this offer be started now (configuration only). */
+export type CheckoutAvailability = { stripe: boolean; paypal: boolean };
 
 export type StorageAddonOffer = {
   key: string;
@@ -550,6 +567,8 @@ export type BillingAccountProjection = {
      * wrong, and this product sells a fixed one.
      */
     creditsPerPurchase: number;
+    /** F-26c — which provider can sell a credit now. Present with the buy action. */
+    checkoutAvailability?: CheckoutAvailability;
   };
   /**
    * PERSONAL accounts only. Absent for a contract-managed Organization, whose
@@ -1094,6 +1113,9 @@ function planOffersFor(params: {
     return {
       ...described,
       action,
+      ...(action === "CHECKOUT"
+        ? { checkoutAvailability: planCheckoutAvailability(planKey, params.currency) }
+        : {}),
       // A purchase and an upgrade both start now. Only a downgrade waits, and
       // it waits because the current period is already paid for.
       //
@@ -1197,6 +1219,42 @@ function describeOffer(
 }
 
 /**
+ * FREE-AUDIT REMEDIATION (2026-11-13, F-26c) — ONE availability rule for every
+ * self-service offer the page shows. It answers from configuration and this
+ * process's last Stripe price read-back, never from a provider call, and never
+ * holds a secret value: only whether one resolves. "Available" is not a promise;
+ * the checkout still verifies the price.
+ */
+function providerCredentialsConfigured(provider: "STRIPE" | "PAYPAL"): boolean {
+  if (provider === "STRIPE") return resolveRuntimeSecret("STRIPE_SECRET_KEY").source !== "missing";
+  return (
+    Boolean(process.env.PAYPAL_CLIENT_ID?.trim()) &&
+    resolveRuntimeSecret("PAYPAL_SECRET").source !== "missing"
+  );
+}
+
+function checkoutAvailabilityFor(offer: CommercialOffer, paypalPlanEnv: string | null): CheckoutAvailability {
+  return {
+    stripe: providerCredentialsConfigured("STRIPE") && stripeOfferAvailability(offer).available,
+    paypal:
+      providerCredentialsConfigured("PAYPAL") &&
+      (paypalPlanEnv === null || Boolean(process.env[paypalPlanEnv]?.trim())),
+  };
+}
+
+function planCheckoutAvailability(planKey: "PRO" | "TEAM", currency: BillingCurrency): CheckoutAvailability {
+  return checkoutAvailabilityFor(
+    resolveCommercialOffer(selfServiceProductForPlan(planKey as prismaPkg.PlanType), currency),
+    `PAYPAL_${planKey}_PLAN_ID_${currency}`,
+  );
+}
+
+/** A credit is a PayPal ORDER: it needs PayPal's credentials, no plan id. */
+function creditCheckoutAvailability(currency: BillingCurrency): CheckoutAvailability {
+  return checkoutAvailabilityFor(resolveCommercialOffer({ kind: "EVIDENCE_CREDIT" }, currency), null);
+}
+
+/**
  * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — keyed on the PLAN, and
  * the list comes from the ONE authority rather than being re-derived here.
  *
@@ -1217,10 +1275,7 @@ function offersFor(params: {
         // BILLING REMEDIATION (2026-10-30, AUD-21) — per SKU and per provider, so
         // one missing price does not hide an offer the other provider can sell,
         // and the page does not invite a purchase that can only be refused.
-        checkoutAvailability: {
-          stripe: stripeOfferAvailability(offer).available,
-          paypal: Boolean(process.env[`PAYPAL_PLAN_STORAGE_${d.key}_${currency}`]?.trim()),
-        },
+        checkoutAvailability: checkoutAvailabilityFor(offer, `PAYPAL_PLAN_STORAGE_${d.key}_${currency}`),
         key: d.key,
         label: d.label,
         storageBytes: d.storageBytes.toString(),
@@ -1611,12 +1666,18 @@ export async function buildBillingAccountProjection(input: {
       const cap = lapsedPlan
         ? (creationScope.commercialLimits?.effectiveLifetimeRecordCap ?? null)
         : ctx.limits.effectiveLifetimeRecordCap;
-      const creditsAvailable = Math.max(0, scope.credits ?? 0);
+      // The gate's own inputs: plan-occupying records (credit-funded sealed
+      // records excluded) and credits not already committed to admitted
+      // over-allowance uploads. `held` stays the count of records held.
+      const admissionInputs = await readPersonalAdmissionInputs(account.id, {
+        credits: scope.credits ?? 0,
+        cap,
+      });
       const nextAdmission = resolvePersonalEvidenceAdmission({
         plan: creationScope.plan,
-        currentRecordCount: held,
+        currentRecordCount: admissionInputs.planOccupying,
         effectiveLifetimeRecordCap: cap,
-        availableEvidenceCredits: creditsAvailable,
+        availableEvidenceCredits: admissionInputs.availableCredits,
       });
 
       // The parts, separately, because the single number they were collapsed
@@ -1630,8 +1691,8 @@ export async function buildBillingAccountProjection(input: {
         recordsHeld: held,
         recordsInTrash: await countPersonalEvidenceRecords(account.id, { trashedOnly: true }),
         creditsAvailable: Math.max(0, scope.credits ?? 0),
-        planCapacityRemaining: cap === null ? null : Math.max(0, cap - held),
-        overCap: cap !== null && held > cap,
+        planCapacityRemaining: cap === null ? null : Math.max(0, cap - admissionInputs.planOccupying),
+        overCap: cap !== null && admissionInputs.planOccupying > cap,
         next: nextAdmission,
         ...(lapsedPlan
           ? {
@@ -1998,6 +2059,9 @@ export async function buildBillingAccountProjection(input: {
             consumedCredits: wallet.consumedCredits,
             hasLedgerHistory: wallet.hasLedgerHistory,
             creditsPerPurchase: EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase,
+            ...(canManage && account.type === "PERSONAL"
+              ? { checkoutAvailability: creditCheckoutAvailability(currency) }
+              : {}),
             ...(showAmounts
               ? {
                   // BILLING PAYPAL INTEGRITY (2026-09-28) — the price checkout

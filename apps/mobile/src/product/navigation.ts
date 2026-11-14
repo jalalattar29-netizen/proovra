@@ -287,6 +287,34 @@ export function resolveNativeRouteAccess(route: NativeNavRoute, input: Navigatio
   return ALLOWED;
 }
 
+/**
+ * Free audit F-08 — whether a Settings row that opens a nav destination is
+ * offered: the SAME decision the shell nav makes (`canSeeNav`), so Settings
+ * never lists a destination the navigation hides for this workspace's plan
+ * (Intake links without `intakeIncluded`, Collaboration Teams without
+ * `teamCollaborationIncluded`). No envelope yet: the row stays — the screen
+ * itself states its own access, and absence is not a refusal.
+ */
+export function settingsRowVisible(routeId: string, envelope: unknown): boolean {
+  if (!envelope || typeof envelope !== "object") return true;
+  const route = NATIVE_NAV_ROUTES.find((r) => r.id === routeId);
+  if (!route) return true;
+  return resolveNativeRouteAccess(route, navigationInputFromEnvelope(envelope)).canSeeNav;
+}
+
+/**
+ * Free audit — the web's PROFESSIONAL surface tier (apps/web/lib/surface/
+ * access.ts): the server-projected `planFeatures.professionalSurfacesIncluded`,
+ * an enterprise workspace, or a platform administrator. Unknown fails closed
+ * once the envelope has loaded; before it loads the row stays, as above.
+ */
+export function professionalSurfaceVisible(envelope: unknown): boolean {
+  if (!envelope || typeof envelope !== "object") return true;
+  const input = navigationInputFromEnvelope(envelope);
+  if (input.isPlatformAdmin || input.isEnterpriseWorkspace) return true;
+  return input.planFeatures?.["professionalSurfacesIncluded"] === true;
+}
+
 /** `DEGRADATION_CHIP_LABELS` (canonicalNavigationGroups.ts), verbatim. */
 export const DEGRADATION_CHIP_LABELS = {
   NEEDS_ORGANIZATION: "Requires organization",

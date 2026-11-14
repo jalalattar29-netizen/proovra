@@ -16,6 +16,7 @@ import {
   getStatusPillStyle,
 } from "../../../../components/dashboard/styles";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { SurfaceGate } from "../../../../components/surface/SurfaceGate";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 interface BatchJob {
@@ -31,13 +32,20 @@ interface BatchJob {
 }
 
 // Phase 38.14 — wrap in canonical PageRouteGate.
+// F-21 — and in the surface gate: this page's PROFESSIONAL tier rule was keyed
+// to the retired /dashboard/batch-analysis URL, so a Free account loaded it.
 export default function BatchAnalysisPage() {
   return (
-    <PageRouteGate routeId="dashboard.batch_analysis">
-      <BatchAnalysisPageInner />
-    </PageRouteGate>
+    <SurfaceGate>
+      <PageRouteGate routeId="dashboard.batch_analysis">
+        <BatchAnalysisPageInner />
+      </PageRouteGate>
+    </SurfaceGate>
   );
 }
+
+/** F-21 — poll cadence while a job is running; none once every job has settled. */
+const BATCH_POLL_INTERVAL_MS = 4_000;
 
 function BatchAnalysisPageInner() {
   const { user } = useAuth();
@@ -45,26 +53,50 @@ function BatchAnalysisPageInner() {
   const { confirm } = useConfirmAction();
 
   const [jobs, setJobs] = useState<BatchJob[]>([]);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showNewJobForm, setShowNewJobForm] = useState(false);
   const [evidenceIds, setEvidenceIds] = useState("");
   const [jobName, setJobName] = useState("");
   const [jobDescription, setJobDescription] = useState("");
 
+  /*
+   * F-21 — POLL ONLY WHILE SOMETHING CAN CHANGE, AND ONLY WHILE VISIBLE.
+   *
+   * This polled every 4 s for as long as the page was mounted — hidden tab or
+   * not, and with every job long finished — and each poll is an audited list
+   * read. A settled list changes only when the person acts here (create,
+   * process, cancel), and each of those reloads the list itself.
+   */
+  const hasActiveJobs = jobs.some((j) => j.status === "pending" || j.status === "processing");
+
   useEffect(() => {
     void loadJobs();
-
-    const interval = window.setInterval(() => {
-      void loadJobs();
-    }, 4000);
-
-    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!hasActiveJobs) return;
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void loadJobs();
+    }, BATCH_POLL_INTERVAL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void loadJobs();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveJobs, user?.id]);
 
   const loadJobs = async () => {
     try {
       const data = await apiFetch("/v1/batch-analysis");
       setJobs(Array.isArray(data?.data) ? data.data : []);
+      setTruncated(data?.truncated === true);
     } catch (err) {
       console.debug("Failed to load jobs", err);
     } finally {
@@ -529,6 +561,11 @@ function BatchAnalysisPageInner() {
           </Card>
         ) : (
           <div className="dashboard-batch-job-list">
+            {truncated ? (
+              <p className="text-sm" data-batch-list-truncated>
+                Showing your {jobs.length} most recent jobs.
+              </p>
+            ) : null}
             {jobs.map((job) => (
               <Card
                 key={job.id}

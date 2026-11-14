@@ -22,6 +22,7 @@
 import * as prismaPkg from "@prisma/client";
 import {
   NEW_VERSION_ACTION,
+  firstIssuanceExemptFromStorageLimit,
   resolveEvidenceOutputActions,
   outputBlockingRestriction,
   type EvidenceOutputActions,
@@ -382,6 +383,17 @@ export async function loadEvidenceOutputFacts(input: {
       }).then((rows) => rows.map(asPublishedPackage))
     : [];
   const pairedBy = new Map(pairedPackages.map((p) => [p.evidenceId, p]));
+  // F-02 — each record's FIRST report version: an owed first issuance is not
+  // refused for storage (`firstIssuanceExemptFromStorageLimit`).
+  const firstReports = reports.length
+    ? await prisma.report.findMany({
+        where: { evidenceId: { in: reports.map((r) => r.evidenceId) } },
+        orderBy: [{ evidenceId: "asc" }, { version: "asc" }],
+        distinct: ["evidenceId"],
+        select: { evidenceId: true, version: true },
+      })
+    : [];
+  const firstReportVersionBy = new Map(firstReports.map((r) => [r.evidenceId, r.version]));
 
   const orgIds = [...new Set(teams.map((t) => t.organizationId).filter((o): o is string => !!o))];
   const orgs = orgIds.length
@@ -510,6 +522,13 @@ export async function loadEvidenceOutputFacts(input: {
           eligibility?.issuance.decision === "ENTITLED" &&
           eligibility.issuance.mayIssueHistoricalFirstOutputs === false,
         newVersionFitsStorage: newVersionEstimate?.fitsStorage ?? null,
+        firstIssuanceStorageExempt:
+          latestReport != null &&
+          firstIssuanceExemptFromStorageLimit({
+            decision: eligibility?.issuance.decision ?? null,
+            basis: eligibility?.issuance.basis ?? null,
+            isFirstReportVersion: firstReportVersionBy.get(ev.id) === latestReport.version,
+          }),
         storedOutputMissing:
           reportObject === "NOT_FOUND" ? "REPORT" : packageObject === "NOT_FOUND" ? "PACKAGE" : null,
       };

@@ -280,9 +280,15 @@ describe("EV phase 6 — verify + resend endpoints", () => {
     );
     expect(svc).toMatch(/EMAIL_VERIFICATION_RESEND_COOLDOWN_MS/);
     expect(svc).toMatch(/findUnverifiedEmailUserByEmail\(/);
-    // Neutral 200 OK regardless of branch.
-    expect((body.match(/reply\.code\(200\)\.send\(\{\s*ok:\s*true\s*\}\)/g) || []).length)
+    // Neutral 200 OK regardless of branch: one body, built once, sent by
+    // every branch (F-06 — it carries the constant cooldown, never the real
+    // remaining time, which would say whether the address has an account).
+    expect(body).toMatch(
+      /const neutral = \{\s*ok:\s*true,\s*retryAfterSec:\s*EMAIL_VERIFICATION_RESEND_RETRY_AFTER_SEC\s*\}/,
+    );
+    expect((body.match(/reply\.code\(200\)\.send\(neutral\)/g) || []).length)
       .toBeGreaterThanOrEqual(2);
+    expect(body).not.toMatch(/reply\.code\(200\)\.send\(\{/);
     expect(body).not.toMatch(/reply\.code\(404\)/);
   });
 });

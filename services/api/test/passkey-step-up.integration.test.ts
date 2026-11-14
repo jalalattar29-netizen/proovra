@@ -122,7 +122,7 @@ describe("passkey step-up (live PostgreSQL, software authenticator)", () => {
   async function person(): Promise<Person> {
     const email = `pk-${tag()}@test.proovra.local`;
     const user = await prisma.user.create({
-      data: { email, provider: "EMAIL", providerUserId: email, passwordHash: hashPassword(PASSWORD) },
+      data: { email, provider: "EMAIL", providerUserId: email, passwordHash: await hashPassword(PASSWORD) },
       select: { id: true },
     });
     await prisma.userLegalAcceptance.createMany({

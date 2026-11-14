@@ -7,7 +7,14 @@
  * later, an attestation independently verified) is information, and only a
  * signal that FAILED since issue is an integrity alarm.
  */
-import { signalMovement, type SignalMovement, type TrustDecision } from "@proovra/shared";
+import {
+  applyStoredBytesToTrustDecision,
+  signalMovement,
+  storedBytesIntegrityContradicts,
+  type SignalMovement,
+  type StoredBytesIntegrity,
+  type TrustDecision,
+} from "@proovra/shared";
 
 export type TrustDecisionConsistencySource =
   | "REPORT_SNAPSHOT"
@@ -115,15 +122,65 @@ function pushReason(
   reasons.push(reason);
 }
 
-function basisOf(input: BuildTrustDecisionConsistencyInput): TrustDecisionBasis {
-  if (input.source !== "REPORT_SNAPSHOT" && input.source !== "VERIFICATION_PACKAGE_SNAPSHOT") return { kind: "LIVE" };
-  const at = toEpoch(input.snapshotGeneratedAtUtc);
-  return {
-    kind: "AS_ISSUED",
-    artifact: input.source === "REPORT_SNAPSHOT" ? "REPORT" : "VERIFICATION_PACKAGE",
-    version: input.source === "REPORT_SNAPSHOT" ? (input.latestReportVersion ?? null) : (input.latestVerificationPackageVersion ?? null),
-    issuedAtUtc: at === null ? null : new Date(at).toISOString(),
-  };
+/**
+ * F-26a (2026-11-13) — every surface now presents the record's LIVE verdict
+ * (`resolvePresentedTrustDecision`); the issued snapshot is the "since issue"
+ * comparison only. `AS_ISSUED` stays in the type for clients that still
+ * render it, and is no longer produced.
+ */
+function basisOf(): TrustDecisionBasis {
+  return { kind: "LIVE" };
+}
+
+/**
+ * F-26a (2026-11-13) — THE VERDICT THE SIGNED-IN RECORD PAGE AND PUBLIC
+ * VERIFY BOTH PRESENT, from the same authoritative facts.
+ *
+ * The record page used to show the trust decision SNAPSHOTTED at report
+ * issuance unless a live hash, signature or custody check failed — so a
+ * timestamp validated or a proof anchored after issuance read differently on
+ * the two pages, and (worse) a stored original since found missing or
+ * substituted, or digest columns that disagree with the signed fingerprint,
+ * never displaced the snapshot's verdict on the record page while Public
+ * Verify required review. Both now present the live decision with the
+ * stored-bytes state applied; the snapshot remains the "since issue"
+ * comparison (`buildTrustDecisionConsistency`). Disclosure policy changes what
+ * each page SHOWS around the verdict (titles, file names, location, identity),
+ * never the verdict itself.
+ */
+export function resolvePresentedTrustDecision<D extends TrustDecision>(input: {
+  liveTrustDecision: D;
+  snapshotTrustDecision: TrustDecision | null;
+  /** The snapshot was read from the latest REPORT (else its package). */
+  snapshotFromReport: boolean;
+  canonicalHashMatches: boolean;
+  signatureValid: boolean;
+  custodyChainValid: boolean;
+  storedBytes: StoredBytesIntegrity | null;
+  digestColumnsMatchSignedFingerprint: boolean | null;
+}): {
+  trustDecision: D;
+  liveCoreChecksFailed: boolean;
+  storedBytesContradict: boolean;
+  source: TrustDecisionConsistencySource;
+} {
+  const storedBytesContradict = storedBytesIntegrityContradicts(input.storedBytes);
+  // ET-SEC-10 (Invariant F) — when a LIVE core check fails now, the snapshot
+  // is not even the comparison basis.
+  const liveCoreChecksFailed =
+    !(input.canonicalHashMatches && input.signatureValid && input.custodyChainValid) ||
+    storedBytesContradict ||
+    input.digestColumnsMatchSignedFingerprint === false;
+  const trustDecision = applyStoredBytesToTrustDecision(input.liveTrustDecision, input.storedBytes, {
+    digestColumnsMatchSignedFingerprint: input.digestColumnsMatchSignedFingerprint,
+  });
+  const source: TrustDecisionConsistencySource =
+    !liveCoreChecksFailed && input.snapshotTrustDecision
+      ? input.snapshotFromReport
+        ? "REPORT_SNAPSHOT"
+        : "VERIFICATION_PACKAGE_SNAPSHOT"
+      : "LIVE_SHARED_FALLBACK";
+  return { trustDecision, liveCoreChecksFailed, storedBytesContradict, source };
 }
 
 export function buildTrustDecisionConsistency(
@@ -132,7 +189,7 @@ export function buildTrustDecisionConsistency(
   if (!input.snapshotTrustDecision) {
     return {
       source: input.source,
-      basis: basisOf(input),
+      basis: basisOf(),
       consistentWithSnapshot: null,
       tone: "neutral",
       accessOnly: false,
@@ -330,7 +387,7 @@ export function buildTrustDecisionConsistency(
 
   return {
     source: input.source,
-    basis: basisOf(input),
+    basis: basisOf(),
     consistentWithSnapshot: reasons.length === 0,
     tone,
     accessOnly,

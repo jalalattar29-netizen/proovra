@@ -1,13 +1,26 @@
 "use client";
 
-import { useParams } from "next/navigation";
+/**
+ * /share/[id] — A RETIRED LINK SHAPE (Free audit F-27a).
+ *
+ * No product journey links here: `publicShareUrl` (packages/shared
+ * tenant-url.ts) has no caller, no email, notification or app deep link
+ * builds a /share/ URL, and there is no backend route or token model behind
+ * it (external-access-content.ts: "share-link … STUB"). Sharing today is the
+ * record's verification link, opened at /verify/<reference>.
+ *
+ * The page used to echo the URL segment back as "Evidence ID" and to name a
+ * "Share Evidence" action that does not exist. It now says the link format is
+ * retired and points to /verify — it neither reads nor shows the segment, so
+ * nothing about a token or record is reflected or implied.
+ */
+
+import Link from "next/link";
 import { Card } from "../../../components/ui";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../../components/marketing/EnterpriseFooter";
 
 export default function SharePage() {
-  const params = useParams<{ id: string }>();
-
   return (
     <div className="page landing-page">
       <div className="relative min-h-screen overflow-hidden">
@@ -29,39 +42,25 @@ export default function SharePage() {
               <Card className="relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] bg-white/95 p-0 shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
 
                 <div className="relative z-10 px-7 py-8 md:px-8 md:py-9">
-                  <div className="mb-5">
-                    <div>
-                      <h2 className="m-0 text-[1.55rem] font-semibold tracking-[-0.03em] text-[#1d3136]">
-                        Share Link Page Not Active
-                      </h2>
-                      <p className="mt-2 mb-0 text-[0.96rem] leading-[1.8] text-[#55666a]">
-                        This page is not used in the current sharing flow.
-                        Please return to the evidence page and use{" "}
-                        <strong>Share Evidence</strong> to:
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[18px] border border-[rgba(79,112,107,0.16)] bg-[rgba(255,255,255,0.38)] p-4">
-                    <ul className="m-0 pl-5 text-[0.92rem] leading-[1.9] text-[#55666a]">
-                      <li>Copy the verification link</li>
-                      <li>Download the PDF report</li>
-                      <li>Download the verification package</li>
-                    </ul>
-                  </div>
-
-                  <div className="mt-5 rounded-[18px] border border-[rgba(79,112,107,0.16)] bg-[rgba(255,255,255,0.38)] p-4">
-                    <p className="m-0 text-[0.86rem] leading-[1.7] text-[#66777b]">
-                      Evidence ID:{" "}
-                      <code className="rounded bg-[rgba(183,157,132,0.12)] px-2 py-1 text-[#7f6450]">
-                        {params?.id ?? "Unknown"}
-                      </code>
+                  <div className="mb-5" data-share-retired>
+                    <h2 className="m-0 text-[1.55rem] font-semibold tracking-[-0.03em] text-[#1d3136]">
+                      This link format is no longer used
+                    </h2>
+                    <p className="mt-2 mb-0 text-[0.96rem] leading-[1.8] text-[#55666a]">
+                      PROOVRA records are shared with their verification link,
+                      which opens on the Verify page. If someone sent you a
+                      record, ask them for its verification link, or enter the
+                      record&apos;s reference on the Verify page.
                     </p>
                   </div>
 
-                  <p className="mt-4 mb-0 text-[0.86rem] leading-[1.7] text-[#66777b]">
-                    Public verification remains available through the evidence verification page.
-                  </p>
+                  <Link
+                    href="/verify"
+                    className="inline-flex items-center rounded-[14px] bg-[#1d3136] px-5 py-3 text-[0.95rem] font-semibold text-white no-underline"
+                    data-share-retired-verify
+                  >
+                    Open the Verify page
+                  </Link>
                 </div>
               </Card>
             </div>

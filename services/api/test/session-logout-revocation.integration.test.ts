@@ -46,7 +46,7 @@ describe("AUD-020 — logout revokes the presented session (live PostgreSQL 16)"
         lastName: label,
         provider: "EMAIL",
         providerUserId: email,
-        passwordHash: hashPassword(PASSWORD),
+        passwordHash: await hashPassword(PASSWORD),
         emailVerifiedAt: new Date(),
       },
       select: { id: true },

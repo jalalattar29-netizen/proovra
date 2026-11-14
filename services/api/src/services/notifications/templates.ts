@@ -694,11 +694,14 @@ function renderMembershipLifecycle(
   const copy: Record<MembershipLifecycleEvent, { title: string; line: string }> = {
     WORKSPACE_ACCESS_REMOVED: {
       title: "Your workspace access was removed",
-      line: `Your access to the workspace ${d.workspaceName} was removed. Records you created there stay with the workspace under its retention and legal hold rules.`,
+      // F-16 — the removal also ends every session of the account (Phase 19
+      // invariant, session-revocation.service.ts), so the person is told why
+      // their devices asked them to sign in again.
+      line: `Your access to the workspace ${d.workspaceName} was removed. Records you created there stay with the workspace under its retention and legal hold rules. For security, a change to your workspace access signs you out on every device; sign in again to continue in your own workspace.`,
     },
     WORKSPACE_ACCESS_SUSPENDED: {
       title: "Your workspace access was suspended",
-      line: `Your access to the workspace ${d.workspaceName} was suspended. A workspace administrator can restore it.`,
+      line: `Your access to the workspace ${d.workspaceName} was suspended. A workspace administrator can restore it. For security, a change to your workspace access signs you out on every device; sign in again to continue in your own workspace.`,
     },
     WORKSPACE_ACCESS_RESTORED: {
       title: "Your workspace access was restored",

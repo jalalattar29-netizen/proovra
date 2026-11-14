@@ -94,6 +94,7 @@ import { projectProvenanceChain } from "../services/capture-trust/provenance-pro
 import { readCaptureTrustTimeline } from "../services/capture-trust/trust-event.service.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isDomainError } from "../errors.js";
 import { evaluateExtensionCaptureTargetPolicy } from "../services/auth/extension-scope.js";
 
 // =============================================================================
@@ -924,9 +925,35 @@ function sendDirectCaptureError(reply: FastifyReply, err: unknown): FastifyReply
   if (status >= 500) throw err;
   // Canonical creation / completion refusals (commercial gates, personal-space
   // policy, upload-session gate) keep their own bounded code.
-  return reply.code(status).send({
+  //
+  // F-27c (Free-user audit 2026-11-13) — `denial` stays the stable contract
+  // mobile and the extension read. A governed refusal (DomainError: the
+  // record-cap family, credits, lifecycle) also carries its public sentence —
+  // the one POST /v1/evidence answers, incl. how many unfinished uploads hold
+  // slots — and `code`, the field the web reads. A storage refusal says what
+  // it measured. Nothing else crosses: an ungoverned 4xx message stays home.
+  const refusal = {
     denial: typeof e.code === "string" ? e.code : "CAPTURE_REQUEST_REFUSED",
+  };
+  const denial = refusal.denial;
+  const message = isDomainError(err)
+    ? err.publicMessage
+    : denial === "STORAGE_LIMIT_REACHED"
+      ? "Storage limit reached. Add storage or upgrade your plan to keep preserving evidence. Your existing records remain available."
+      : undefined;
+  return reply.code(status).send({
+    ...refusal,
+    ...(message ? { code: denial, message } : {}),
+    ...(denial === "STORAGE_LIMIT_REACHED" ? storageRefusalDetail(err) : {}),
   });
+}
+
+/** The measured usage a storage refusal carries — bytes only, no identifiers. */
+function storageRefusalDetail(err: unknown): { detail?: { storageBytesUsed: string; storageBytesLimit: string } } {
+  const d = (err as { details?: { storageBytesUsed?: unknown; storageBytesLimit?: unknown } }).details;
+  return typeof d?.storageBytesUsed === "string" && typeof d?.storageBytesLimit === "string"
+    ? { detail: { storageBytesUsed: d.storageBytesUsed, storageBytesLimit: d.storageBytesLimit } }
+    : {};
 }
 
 function sendPersonalSpaceDenial(reply: FastifyReply, err: unknown): FastifyReply {

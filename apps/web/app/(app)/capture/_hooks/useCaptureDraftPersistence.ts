@@ -108,6 +108,10 @@ export function useCaptureDraftPersistence({
   // draft. Without this flag the debounce kept re-firing on every
   // keystroke and the backend kept responding 409 forever.
   const lockedRef = useRef(false);
+  // F-04 — a resumed draft keeps its saved file details until files are
+  // re-attached: autosave omits `items` while none are staged, instead of
+  // overwriting the server snapshot with an empty list.
+  const keepSavedItemsRef = useRef(false);
 
   draftIdRef.current = draftId;
 
@@ -131,6 +135,8 @@ export function useCaptureDraftPersistence({
 
     try {
       const items = payload.items.map(snapshotItem);
+      if (items.length > 0) keepSavedItemsRef.current = false;
+      const omitItems = keepSavedItemsRef.current && items.length === 0;
 
       if (!draftIdRef.current) {
         const created = await apiFetch("/v1/capture/sessions", {
@@ -157,7 +163,7 @@ export function useCaptureDraftPersistence({
             planMode: payload.planMode,
             internalNotes: payload.internalNotes || null,
             useLocation: payload.useLocation,
-            items,
+            ...(omitItems ? {} : { items }),
           }),
         });
       }
@@ -252,6 +258,7 @@ const isMeaningful =
     // recovery path from a locked draft. Reset lockedRef so the next
     // edit can create a fresh CaptureSession via POST.
     lockedRef.current = false;
+    keepSavedItemsRef.current = false;
     setDraftId(null);
     setSavingState("idle");
     setLastSavedAt(null);
@@ -271,6 +278,29 @@ const isMeaningful =
     }
   }, []);
 
+  /**
+   * F-04 (Free-user audit 2026-11-13) — RESUME ADOPTS THE DRAFT. The draft id
+   * lived only in this hook's state, so after a reload "Resume" restored the
+   * draft's metadata while autosave created a NEW draft and Finish reserved a
+   * NEW record, and the record the old draft reserved kept holding a slot for
+   * ~24 h. Adopting the id makes autosave patch that draft and Finish send it
+   * as captureSessionId: the server resumes its reserved record when the
+   * re-attached files are the ones it holds, or releases it and reserves
+   * afresh when they are not.
+   */
+  const adoptDraft = useCallback((id: string) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    pendingPayloadRef.current = null;
+    lockedRef.current = false;
+    keepSavedItemsRef.current = true;
+    draftIdRef.current = id;
+    setDraftId(id);
+    setSavingState("idle");
+  }, []);
+
   // The draft id is "consumed" by finalization on the server when the
   // /v1/evidence create call passes captureSessionId. After a successful
   // finalize, drop the local id so the next session is fresh.
@@ -285,6 +315,7 @@ const isMeaningful =
     // draft. Reset lockedRef so the operator can immediately begin a
     // new capture session in the same page.
     lockedRef.current = false;
+    keepSavedItemsRef.current = false;
     setDraftId(null);
     setSavingState("idle");
     setLastSavedAt(null);
@@ -305,5 +336,6 @@ const isMeaningful =
     scheduleSave,
     discardDraft,
     acknowledgeFinalized,
+    adoptDraft,
   };
 }

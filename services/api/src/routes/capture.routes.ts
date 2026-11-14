@@ -27,6 +27,7 @@ import {
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
 import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { releaseEvidenceReservationTx } from "@proovra/shared-runtime";
 
 /*
  * Capture routes.
@@ -146,6 +147,13 @@ function toApiSession(s: prismaPkg.CaptureSession) {
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
   };
+}
+
+/** F-04 — the draft was bound to another record between read and lock. */
+class DraftRebound extends Error {
+  constructor(readonly evidenceId: string | null) {
+    super("DRAFT_REBOUND");
+  }
 }
 
 async function loadOwnedDraft(
@@ -615,34 +623,63 @@ export async function captureRoutes(app: FastifyInstance) {
       try {
         const session = await loadOwnedDraft(ownerUserId, id);
 
-        if (session.status !== prismaPkg.CaptureSessionStatus.DRAFT) {
+        if (session.status !== prismaPkg.CaptureSessionStatus.DRAFT || session.acquisitionMode !== null) {
           // Idempotent: no-op for non-draft states.
           return reply
             .code(200)
             .send({ session: toApiSession(session) });
         }
 
-        const updated = await prisma.$transaction(async (tx) => {
-          const next = await tx.captureSession.update({
-            where: { id: session.id },
-            data: {
-              status: prismaPkg.CaptureSessionStatus.DISCARDED,
-              discardedAtUtc: new Date(),
-            },
+        // F-04 (Free-user audit 2026-11-13) — a discard also releases the
+        // UNSEALED record the draft reserved (the caller's own), through the
+        // reservation authority. Lock order is finalization's: record lock,
+        // then the draft row; a rebind meanwhile retries with the new lock.
+        const discardOnce = (lockId: string | null) =>
+          prisma.$transaction(async (tx) => {
+            if (lockId) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockId}))`;
+            const now = new Date();
+            const claim = await tx.captureSession.updateMany({
+              where: { id: session.id, ownerUserId, status: prismaPkg.CaptureSessionStatus.DRAFT },
+              data: { status: prismaPkg.CaptureSessionStatus.DISCARDED, discardedAtUtc: now },
+            });
+            const next = await tx.captureSession.findUniqueOrThrow({ where: { id: session.id } });
+            if (claim.count !== 1) return { next, released: false };
+            const evidenceId = next.finalizedEvidenceId ?? null;
+            if (evidenceId !== lockId) throw new DraftRebound(evidenceId);
+            const owned = evidenceId
+              ? (await tx.evidence.findUnique({ where: { id: evidenceId }, select: { ownerUserId: true } }))?.ownerUserId === ownerUserId
+              : false;
+            const released =
+              owned && evidenceId
+                ? await releaseEvidenceReservationTx(tx, { evidenceId, reason: "CAPTURE_SESSION_DISCARDED", now, captureSessionId: next.id })
+                : false;
+            await tx.captureSessionEvent.create({
+              data: {
+                sessionId: next.id,
+                actorUserId: ownerUserId,
+                eventType: prismaPkg.CaptureSessionEventType.DISCARDED,
+                ...(released ? { payload: { evidenceId, reason: "reservation_released" } as prismaPkg.Prisma.InputJsonValue } : {}),
+              },
+            });
+            return { next, released };
           });
 
-          await tx.captureSessionEvent.create({
-            data: {
-              sessionId: next.id,
-              actorUserId: ownerUserId,
-              eventType: prismaPkg.CaptureSessionEventType.DISCARDED,
-            },
-          });
-
-          return next;
-        });
-
-        return reply.code(200).send({ session: toApiSession(updated) });
+        let outcome: { next: prismaPkg.CaptureSession; released: boolean } | null = null;
+        let lockId = session.finalizedEvidenceId ?? null;
+        for (let attempt = 0; attempt < 3 && !outcome; attempt += 1) {
+          try {
+            outcome = await discardOnce(lockId);
+          } catch (err) {
+            if (!(err instanceof DraftRebound)) throw err;
+            lockId = err.evidenceId;
+          }
+        }
+        if (!outcome) {
+          return reply.code(409).send({ code: "CAPTURE_SESSION_BUSY", message: "This draft is being finished. Try again in a moment." });
+        }
+        return reply
+          .code(200)
+          .send({ session: toApiSession(outcome.next), reservationReleased: outcome.released });
       } catch (err) {
         const statusCode =
           err instanceof Error && "statusCode" in err

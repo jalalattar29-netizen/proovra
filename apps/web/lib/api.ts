@@ -1,4 +1,5 @@
 import { observeContractHeader } from "./contract-skew";
+import { SESSION_EXPIRED_EVENT } from "./session-events";
 
 const DEFAULT_API_BASE = "https://api.proovra.com";
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_API_BASE;
@@ -101,7 +102,41 @@ function asObject(value: unknown): Record<string, unknown> | null {
 type ApiFetchOpts = {
   auth?: boolean;
   retryAuthOnce?: boolean;
+  /**
+   * Return the success body as the exact TEXT the server sent instead of
+   * parsed JSON. For downloads whose bytes are the artifact (the account data
+   * export, whose SHA-256 is shown to the person): re-serialising parsed JSON
+   * is not guaranteed to reproduce those bytes.
+   */
+  rawText?: boolean;
 };
+
+/**
+ * F-18 — THE SESSION ENDED WHILE THE PAGE WAS OPEN.
+ *
+ * A 401 that the one-time replay did not cure, on an authenticated request,
+ * whose code says "no valid session" (`UNAUTHORIZED`, `TOKEN_EXPIRED`) rather
+ * than naming a decision (a step-up challenge, a refused factor). It used to be
+ * thrown to whichever component asked and rendered as that component's generic
+ * error; nothing told the app shell. This announces it once per response; the
+ * platform context confirms it against the server before it changes anything
+ * on screen (see PlatformContextProvider), so a stray 401 cannot sign anyone
+ * out and nothing here redirects or retries.
+ */
+const SESSION_ENDED_CODES = new Set(["", "UNAUTHORIZED", "TOKEN_EXPIRED", "unauthenticated"]);
+
+function announceSessionEnded(): void {
+  if (typeof window === "undefined") return;
+  // The in-memory bearer slot is NOT cleared here: it is the post-OAuth and
+  // guest-claim credential, and one codeless 401 must not drop it. The
+  // platform context clears it only after its own confirming request is
+  // also refused (PlatformContextProvider).
+  try {
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+  } catch {
+    // An environment without events has no shell to tell.
+  }
+}
 
 /**
  * In-memory only. The web app authenticates via the HttpOnly `proovra_session`
@@ -359,7 +394,7 @@ function readKeyFor(
   if (method !== "GET") return null;
   if (init.body != null) return null;
   if (init.signal) return null;
-  return `${url}|auth:${opts?.auth !== false}|retry:${opts?.retryAuthOnce !== false}|gen:${writeGeneration}`;
+  return `${url}|auth:${opts?.auth !== false}|retry:${opts?.retryAuthOnce !== false}|raw:${opts?.rawText === true}|gen:${writeGeneration}`;
 }
 
 function cloneResult(value: unknown): unknown {
@@ -448,6 +483,16 @@ async function runApiFetch(
 
     const obj = asObject(parsed);
     const errObj = obj ? asObject(obj["error"]) : null;
+
+    if (res.status === 401 && finalOpts.auth) {
+      const serverCode =
+        errObj && typeof errObj["code"] === "string"
+          ? (errObj["code"] as string)
+          : obj && typeof obj["code"] === "string"
+            ? (obj["code"] as string)
+            : "";
+      if (SESSION_ENDED_CODES.has(serverCode)) announceSessionEnded();
+    }
 
     /**
      * A NESTED CODE IS THE STANDARD SHAPE, message or not.
@@ -581,6 +626,10 @@ async function runApiFetch(
     }
 
     throw error;
+  }
+
+  if (opts?.rawText) {
+    return await res.text();
   }
 
   const contentType = res.headers.get("content-type") ?? "";

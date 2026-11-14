@@ -63,6 +63,10 @@ import {
 } from "../services/billing-enforcement.service.js";
 
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
+import { decodeKeysetCursor, keysetAfter, keysetPage } from "../services/pagination/keyset-cursor.js";
+
+/** F-21 — the largest page of GET /v1/cases, and the default (the old fixed cap). */
+const CASE_LIST_PAGE_MAX = 200;
 const CreateCaseBody = z.object({
   name: z.string().min(1).max(120),
   teamId: z.string().uuid().optional(),
@@ -586,6 +590,29 @@ export async function casesRoutes(app: FastifyInstance) {
       return parsed.success ? parsed.data.eligibleForEvidenceId ?? null : null;
     })();
 
+    // F-21 — a keyset cursor (services/pagination/keyset-cursor) on both
+    // branches. The list stopped at the newest 200 with nothing to say more
+    // existed, so an older accessible case could not be picked in the
+    // evidence filter or the attach selector. The default page stays 200 (a
+    // client that sends no cursor gets exactly what it got before) and the
+    // reply now carries `nextCursor` / `hasMore`.
+    const pageQuery = z
+      .object({
+        cursor: z.string().max(512).optional(),
+        limit: z.coerce.number().int().min(1).max(CASE_LIST_PAGE_MAX).optional(),
+      })
+      .safeParse({ cursor: (req.query as { cursor?: unknown })?.cursor, limit: (req.query as { limit?: unknown })?.limit });
+    if (!pageQuery.success) {
+      return reply.code(400).send({ code: "VALIDATION_ERROR", message: "Invalid cursor or limit" });
+    }
+    const pageLimit = pageQuery.data.limit ?? CASE_LIST_PAGE_MAX;
+    const after = decodeKeysetCursor(pageQuery.data.cursor);
+    if (after === null) {
+      return reply.code(400).send({ code: "VALIDATION_ERROR", message: "Invalid cursor" });
+    }
+    const pageWhere = after ? [keysetAfter("createdAt", after)] : [];
+    const pageOrder = [{ createdAt: "desc" as const }, { id: "desc" as const }];
+
     if (eligibleForEvidenceId) {
       // ONE SCOPE (members audit ACC-03 / ACC-04). Which workspaces: the
       // canonical accessible-workspace authority (ACTIVE, unexpired, live
@@ -629,7 +656,7 @@ export async function casesRoutes(app: FastifyInstance) {
       //        excluding the inactive status values that the
       //        attach gate would later fail on anyway.
 
-      const eligibleItems = await prisma.case.findMany({
+      const eligibleFetched = await prisma.case.findMany({
         where: {
           AND: [
             { teamId: evidence.teamId },
@@ -642,11 +669,14 @@ export async function casesRoutes(app: FastifyInstance) {
               },
             },
             caseReachWhere(ownerUserId, accessibleWorkspaceIds),
+            ...pageWhere,
           ],
         },
-        orderBy: { createdAt: "desc" },
-        take: 200,
+        orderBy: pageOrder,
+        take: pageLimit + 1,
       });
+      const eligiblePage = keysetPage(eligibleFetched, pageLimit, (c) => ({ at: c.createdAt, id: c.id }));
+      const eligibleItems = eligiblePage.rows;
 
       await auditCaseAction(req, {
         userId: ownerUserId,
@@ -672,7 +702,9 @@ export async function casesRoutes(app: FastifyInstance) {
         },
       });
 
-      return reply.code(200).send({ items: eligibleItems });
+      return reply
+        .code(200)
+        .send({ items: eligibleItems, nextCursor: eligiblePage.nextCursor, hasMore: eligiblePage.hasMore });
     }
 
     // Default behaviour — the same canonical scope (members audit ACC-04).
@@ -682,11 +714,16 @@ export async function casesRoutes(app: FastifyInstance) {
     // tenants must consume `/v1/cases/matter-queue` (case-workspace.routes)
     // which carries a cursor + bounded page size. This endpoint is the
     // simple non-paginated index — capped at a safe default.
-    const items = await prisma.case.findMany({
-      where: caseReachWhere(ownerUserId, accessibleWorkspaceIds),
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
+    const page = keysetPage(
+      await prisma.case.findMany({
+        where: { AND: [caseReachWhere(ownerUserId, accessibleWorkspaceIds), ...pageWhere] },
+        orderBy: pageOrder,
+        take: pageLimit + 1,
+      }),
+      pageLimit,
+      (c) => ({ at: c.createdAt, id: c.id }),
+    );
+    const items = page.rows;
 
     await auditCaseAction(req, {
       userId: ownerUserId,
@@ -703,7 +740,7 @@ export async function casesRoutes(app: FastifyInstance) {
       metadata: { count: items.length },
     });
 
-    return reply.code(200).send({ items });
+    return reply.code(200).send({ items, nextCursor: page.nextCursor, hasMore: page.hasMore });
   });
 
   app.get(

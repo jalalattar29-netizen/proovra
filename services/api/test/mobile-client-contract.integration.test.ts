@@ -73,7 +73,7 @@ describe("mobile request builders against the real routes (live PostgreSQL)", ()
         lastName: "Contract",
         provider: "EMAIL",
         providerUserId: email,
-        passwordHash: hashPassword(PASSWORD),
+        passwordHash: await hashPassword(PASSWORD),
         emailVerifiedAt: new Date(),
       } as never,
       select: { id: true },

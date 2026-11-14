@@ -26,6 +26,13 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import { payerLegacyWorkspaceIds } from "./billing-accounts.service.js";
 import { APPROVAL_EXPIRY_MS } from "./checkout-attempt-recovery.service.js";
+import { CHECKOUT_REUSE_WINDOW_MS } from "./checkout-attempts.service.js";
+
+/** The reads this guard makes; a checkout gate passes its locked transaction. */
+export type StorageDuplicateClient = Pick<
+  prismaPkg.Prisma.TransactionClient,
+  "team" | "workspaceStorageAddon" | "billingCheckoutAttempt"
+>;
 
 const LIVE = [prismaPkg.WorkspaceStorageAddonStatus.ACTIVE, prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE];
 
@@ -49,46 +56,63 @@ export async function findStorageDuplicate(input: {
   /** The customer's statement. A null count comes from a client that sends none. */
   confirmation?: { heldCount: number | null } | null;
   now?: Date;
+  /**
+   * FREE-AUDIT REMEDIATION (2026-11-13, DUP-STORAGE) — the gate's transaction,
+   * holding `personalStorageCheckoutLockKey`. The route's early call (no client)
+   * answers fast; the gate's call under the lock is the one that decides.
+   */
+  client?: StorageDuplicateClient;
 }): Promise<StorageDuplicateFinding | null> {
+  const db = input.client ?? prisma;
   const now = input.now ?? new Date();
   const since = new Date(now.getTime() - APPROVAL_EXPIRY_MS);
-  const legacy = await payerLegacyWorkspaceIds(input.userId);
+  // A purchase the other provider is still CREATING (no provider id yet) is as
+  // open as a bound one: it is the other half of the two-tab race.
+  const inFlightSince = new Date(now.getTime() - CHECKOUT_REUSE_WINDOW_MS);
+  const legacy = await payerLegacyWorkspaceIds(input.userId, db);
 
-  const [activeCount, openPayPal, openStripe] = await Promise.all([
-    // The same rows Billing lists for this payer, so the count they confirm can
-    // match it. A row of a workspace they no longer own is not theirs to stack.
-    prisma.workspaceStorageAddon.count({
-      where: {
-        ownerUserId: input.userId,
-        addonKey: input.addonKey,
-        status: { in: LIVE },
-        OR: [{ teamId: null }, { teamId: { in: legacy } }],
-      },
-    }),
-    prisma.workspaceStorageAddon.findFirst({
-      where: {
-        ownerUserId: input.userId,
-        addonKey: input.addonKey,
-        status: prismaPkg.WorkspaceStorageAddonStatus.PENDING,
-        externalSubscriptionId: { not: null },
-        createdAt: { gte: since },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, createdAt: true, paymentProvider: true },
-    }),
-    prisma.billingCheckoutAttempt.findFirst({
-      where: {
-        userId: input.userId,
-        product: prismaPkg.BillingCheckoutProduct.STORAGE_ADDON,
-        storageAddonKey: input.addonKey,
-        status: prismaPkg.BillingCheckoutAttemptStatus.PENDING,
-        providerResourceId: { not: null },
-        createdAt: { gte: since },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, createdAt: true, provider: true },
-    }),
-  ]);
+  // Sequential on purpose: inside a transaction the reads share one connection.
+  const activeCount = await db.workspaceStorageAddon.count({
+    where: {
+      ownerUserId: input.userId,
+      addonKey: input.addonKey,
+      status: { in: LIVE },
+      OR: [{ teamId: null }, { teamId: { in: legacy } }],
+    },
+  });
+  const openPayPal = await db.workspaceStorageAddon.findFirst({
+    where: {
+      ownerUserId: input.userId,
+      addonKey: input.addonKey,
+      status: prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+      // Only the OTHER provider's: a newer row of this provider must not hide
+      // an older open one of the other (findFirst returns one row).
+      paymentProvider: { not: input.provider },
+      createdAt: { gte: since },
+      OR: [
+        { externalSubscriptionId: { not: null } },
+        { createdAt: { gte: inFlightSince } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, createdAt: true, paymentProvider: true },
+  });
+  const openStripe = await db.billingCheckoutAttempt.findFirst({
+    where: {
+      userId: input.userId,
+      product: prismaPkg.BillingCheckoutProduct.STORAGE_ADDON,
+      storageAddonKey: input.addonKey,
+      status: prismaPkg.BillingCheckoutAttemptStatus.PENDING,
+      provider: { not: input.provider },
+      createdAt: { gte: since },
+      OR: [
+        { providerResourceId: { not: null } },
+        { createdAt: { gte: inFlightSince } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, createdAt: true, provider: true },
+  });
 
   // The same provider's own gate handles its open attempt, and can reuse it.
   const other =

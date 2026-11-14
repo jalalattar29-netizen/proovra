@@ -814,6 +814,29 @@ export function hasNoContextYet(s: PlatformContextState): boolean {
   return s.name === "IDLE" || s.name === "LOADING_CONTEXT";
 }
 
+/**
+ * F-18 — THE CONTEXT COULD NOT BE LOADED, AND NOTHING WAS REFUSED.
+ *
+ * The first load failed for a reason that says nothing about the person's
+ * access — the network, a timeout, a server error, a build/schema mismatch —
+ * and there is no earlier envelope to fall back on. Reading the missing
+ * envelope as an access decision showed "Requires permission" and "Workspace
+ * setup required" for what was a dropped connection. Gates and the sidebar
+ * show a retryable "could not load" state instead. AUTH_REQUIRED (sign in),
+ * PERMISSION_DENIED / WORKSPACE_MEMBERSHIP_REQUIRED (a real refusal) and
+ * USER_NOT_FOUND keep their own states.
+ */
+export function isContextLoadFailure(s: PlatformContextState): boolean {
+  return (
+    s.name === "FAILED" &&
+    !s.previous &&
+    (s.errorCode === "NETWORK_ERROR" ||
+      s.errorCode === "OPERATIONAL" ||
+      s.errorCode === "STALE_ENVELOPE" ||
+      s.errorCode === "SCHEMA_VERSION_MISMATCH")
+  );
+}
+
 // Convenience predicate used by the workspace switcher + tests.
 export function isReady(
   s: PlatformContextState,

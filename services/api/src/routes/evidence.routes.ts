@@ -162,6 +162,7 @@ import {
   tsaValidatedFromRetainedToken,
   evidenceVerificationStatusLabel,
   overallIntegrityOf,
+  digestColumnsMatchSignedFingerprint as digestColumnsMatchSignedFingerprintOf,
   buildCustodyDisplayCounts,
   custodyCutoffSequence,
   splitCustodyAtCutoff,
@@ -266,7 +267,8 @@ const OUTPUT_REASON_MESSAGE: Partial<Record<OutputActionUnavailableReason, strin
   CONSISTENCY_REVIEW_REQUIRED:
     "This record's outputs need a review before anything is regenerated. The issue has been reported.",
   PAIR_INCOMPLETE: "A new version can be created once the current report and its verification package are both available.",
-  STORAGE_LIMIT: "A new version would exceed this workspace's storage allowance.",
+  STORAGE_LIMIT:
+    "This output would exceed the storage allowance that covers this record. Free up storage or add storage in Billing, then try again.",
   RETRY_AVAILABLE: "The last attempt failed and can be retried first.",
   WORKSPACE_UNRESOLVED:
     "This older evidence record needs a workspace association before new output generation can be requested.",
@@ -308,6 +310,7 @@ import { evidenceSavedViewsRoutes } from "./evidence.saved-views.routes.js";
 import { CANONICAL_STATE_BODIES, CANONICAL_STATE_HTTP } from "./_canonical-verification-state.js";
 import { assertInteractiveEvidenceCreateAllowed, createEvidence } from "../services/evidence.service.js";
 import {
+  assertWorkspaceAllowsStorageGrowth,
   resolveEnforcementScopeForRequester,
   scopeIncludesAiOperations,
   ownerIncludesReviewCapability,
@@ -341,7 +344,13 @@ import {
   type VerificationShareRow,
   type VerificationShareState,
   workingEvidenceWhere,
+  releaseEvidenceReservationTx,
 } from "@proovra/shared-runtime";
+import {
+  boundPartsMatchManifest,
+  isSameBoundFile,
+  type DeclaredPartFile,
+} from "../services/evidence/evidence-part-binding.service.js";
 import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { validateUploadedFile } from "../services/security/file-validation.service.js";
 import {
@@ -553,7 +562,10 @@ import { buildEvidenceReviewGovernance } from "../services/evidence-review/gover
 // enforce — otherwise the tab can show for callers who would 404 on
 // every click, or hide for callers who legitimately have access.
 import { requirePermission } from "../services/governance.service.js";
-import { buildTrustDecisionConsistency } from "../services/trust-decision-consistency.service.js";
+import {
+  buildTrustDecisionConsistency,
+  resolvePresentedTrustDecision,
+} from "../services/trust-decision-consistency.service.js";
 import { buildPublicVerifyConsistencySections } from "../services/public-verify-consistency.service.js";
 import {
   projectBasicPublicVerification,
@@ -597,6 +609,22 @@ const CreateEvidenceBody = z.object({
   // Optional: link this Evidence to an existing CaptureSession draft so that
   // the draft is moved to FINALIZED status and the audit trail is preserved.
   captureSessionId: z.string().uuid().optional(),
+  // F-03 (Free-user audit 2026-11-13) — the files this Finish declares, in
+  // part-index order. With a draft id, the draft's reserved record is resumed
+  // only while every part it already holds is still the file declared at that
+  // index; otherwise that unsealed reservation is released and a fresh record
+  // is reserved in the same transaction. Optional: a client that omits it keeps
+  // the earlier resume-by-draft behaviour.
+  parts: z
+    .array(
+      z.object({
+        originalFileName: z.string().trim().min(1).max(255).optional(),
+        mimeType: z.string().min(1).max(128).optional(),
+        sha256Base64: z.string().min(1).max(128).optional(),
+      }),
+    )
+    .max(MAX_EVIDENCE_PARTS)
+    .optional(),
   // Enterprise Capture Environment layer — silently-collected client
   // context. The browser sends Intl timezone + navigator.language so the
   // privacy-safe CaptureEnvironment record can record where the material
@@ -1806,7 +1834,18 @@ async function assertNotIntakeBoundRecord(evidenceId: string): Promise<void> {
   }
 }
 
-async function resolveResumableDraftRecord(ownerUserId: string, captureSessionId: string) {
+/**
+ * F-03 — the draft's reserved record no longer fits the files this Finish
+ * declares: the caller releases that unsealed reservation (the reservation
+ * authority) and reserves a fresh record in the same transaction.
+ */
+type StaleDraftReservation = { stale: true; id: string };
+
+async function resolveResumableDraftRecord(
+  ownerUserId: string,
+  captureSessionId: string,
+  manifest?: readonly DeclaredPartFile[] | null,
+) {
   const draft = await prisma.captureSession.findFirst({
     where: {
       id: captureSessionId,
@@ -1825,7 +1864,7 @@ async function resolveResumableDraftRecord(ownerUserId: string, captureSessionId
       deletedAt: null,
       status: { in: [prismaPkg.EvidenceStatus.CREATED, prismaPkg.EvidenceStatus.UPLOADING] },
     },
-    select: { id: true, teamId: true, status: true, retentionUntilUtc: true },
+    select: { id: true, teamId: true, status: true, retentionUntilUtc: true, originalFileName: true },
   });
   if (!ev) return null;
   const expired = await prisma.$transaction((tx) => isEvidenceReservationExpiredTx(tx, ev.id, new Date()));
@@ -1833,8 +1872,22 @@ async function resolveResumableDraftRecord(ownerUserId: string, captureSessionId
   const parts = await prisma.evidencePart.findMany({
     where: { evidenceId: ev.id },
     orderBy: { partIndex: "asc" },
-    select: { partIndex: true, originalFileName: true, mimeType: true, sizeBytes: true },
+    select: { partIndex: true, originalFileName: true, mimeType: true, sizeBytes: true, clientSignals: true },
   });
+  // F-03 — a reservation is resumed only for the files it was made for. Any
+  // part it holds that is not the file now declared at its index (removed,
+  // reordered, replaced — same name and size with other bytes included), or a
+  // record named for another primary file, makes it stale.
+  if (manifest) {
+    const primary = manifest[0]?.originalFileName ?? null;
+    const recordPrimary = sanitizeFileName(ev.originalFileName);
+    if (
+      !boundPartsMatchManifest(parts, manifest) ||
+      (primary !== null && recordPrimary !== null && primary !== recordPrimary)
+    ) {
+      return { stale: true, id: ev.id } satisfies StaleDraftReservation;
+    }
+  }
   return {
     id: ev.id,
     teamId: ev.teamId,
@@ -6376,13 +6429,19 @@ export async function evidenceRoutes(app: FastifyInstance) {
     });
 
     if (!rate.allowed) {
-      await auditEvidenceAction(req, {
+      // F-21 — the refusal is still audited on the chain, but the 429 does not
+      // wait for the platform-wide chain lock: a blocked outcome is never a
+      // must-commit write (auditEvidenceAction swallows its failure), the same
+      // contract the auth limiters use (fire-and-forget). Retry-After comes
+      // from the limiter's own window reset.
+      void auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.create",
         outcome: "blocked",
         severity: "warning",
         metadata: { reason: "rate_limit_exceeded", plan },
-      });
+      }).catch(noteCustodyFailure);
+      reply.header("Retry-After", String(Math.max(1, Math.ceil((rate.resetAtMs - Date.now()) / 1000))));
       return reply.code(429).send({ message: "Rate limit exceeded" });
     }
 
@@ -6461,9 +6520,22 @@ export async function evidenceRoutes(app: FastifyInstance) {
       // sealed (completeEvidence finalizes it). A retry after a mid-upload
       // failure therefore returns the SAME unsealed record, with the parts it
       // already holds, instead of minting a second one and orphaning the first.
+      // F-03 — only while the files this Finish declares are still the files
+      // the reserved record's parts are bound to. Otherwise the stale unsealed
+      // reservation is released below, in the creating transaction, so the
+      // fresh record does not need a second allowance slot.
+      let staleDraftReservationId: string | null = null;
       if (body.captureSessionId) {
-        const resumable = await resolveResumableDraftRecord(ownerUserId, body.captureSessionId);
-        if (resumable) return reply.code(200).send(resumable);
+        const manifest: DeclaredPartFile[] | null = body.parts
+          ? body.parts.map((p) => ({
+              originalFileName: sanitizeFileName(p.originalFileName),
+              mimeType: normalizeMimeType(p.mimeType) ?? "application/octet-stream",
+              sha256Base64: normalizeChecksumSha256Base64(p.sha256Base64),
+            }))
+          : null;
+        const resumable = await resolveResumableDraftRecord(ownerUserId, body.captureSessionId, manifest);
+        if (resumable && "stale" in resumable) staleDraftReservationId = resumable.id;
+        else if (resumable) return reply.code(200).send(resumable);
       }
 
 // F-20 (independent forward audit) — a web capture DRAFT is bound to the
@@ -6472,6 +6544,35 @@ export async function evidenceRoutes(app: FastifyInstance) {
 // best-effort write after the record committed, its failure swallowed, so a
 // record could seal under the client's own plan instead.
 const createWithDraftBinding = async (tx?: Prisma.TransactionClient) => {
+  // F-03 — release the draft's stale reservation first (soft delete +
+  // EVIDENCE_DELETED, under its evidence lock, only while still unsealed: a
+  // late finalize of the old attempt either won already — nothing is
+  // released — or now finds the record gone). Lock order is finalization's:
+  // the record's lock, then the capacity lock createEvidence takes.
+  if (tx && staleDraftReservationId) {
+    const released = await releaseEvidenceReservationTx(tx, {
+      evidenceId: staleDraftReservationId,
+      reason: "CAPTURE_SELECTION_CHANGED",
+      now: new Date(),
+      captureSessionId: body.captureSessionId ?? null,
+    });
+    // The stale decision was read before this transaction. If the earlier
+    // attempt sealed in between, its record stands (it holds its own slot)
+    // and this Finish must not reserve a second one behind the user's back.
+    // An already-released record (discard, reaper) simply proceeds.
+    if (!released) {
+      const prior = await tx.evidence.findUnique({
+        where: { id: staleDraftReservationId },
+        select: { deletedAt: true },
+      });
+      if (prior && !prior.deletedAt) {
+        throw Object.assign(
+          new Error("The earlier Finish & Sign of this capture completed first; its record is already sealed."),
+          { statusCode: 409, code: "CAPTURE_ALREADY_FINISHED" },
+        );
+      }
+    }
+  }
   const created = await createEvidence({
   ownerUserId,
   // Phase HOME-DATA-OWNERSHIP — pass the client's active workspace id
@@ -7097,6 +7198,67 @@ message:
   });
 }
 
+      // F-12 (Free-user audit 2026-11-13) — EARLY feedback on the DECLARED
+      // size, before a byte moves. A file that ALONE would take the workspace
+      // past its storage limit can never be sealed, so it is refused now
+      // instead of after the whole transfer. Advisory: the seal still measures
+      // the actual bytes of every part and decides; a failure to measure here
+      // never blocks an upload.
+      {
+        let storageRefused = false;
+        try {
+          const storageScope = await resolveEnforcementScopeForRequester({
+            ownerUserId: evidence.ownerUserId,
+            teamId: evidence.teamId ?? null,
+          });
+          await assertWorkspaceAllowsStorageGrowth({ scope: storageScope, incomingBytes: BigInt(body.sizeBytes ?? 0) });
+        } catch (err) {
+          storageRefused = (err as { code?: unknown }).code === "STORAGE_LIMIT_REACHED";
+        }
+        if (storageRefused) {
+          const payload = await buildStorageLimitPayload({
+            ownerUserId,
+            evidenceId: id,
+            teamId: evidence.teamId ?? null,
+            req,
+            reason: "part_presign_blocked",
+            incomingBytes: String(body.sizeBytes ?? 0),
+          });
+          await auditEvidenceAction(req, {
+            userId: ownerUserId,
+            action: "evidence.part_presign_created",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: id,
+            teamId: evidence.teamId,
+            metadata: { reason: "STORAGE_LIMIT_REACHED", partIndex: body.partIndex },
+          });
+          return reply.code(409).send(payload);
+        }
+      }
+
+      // F-03 — the file this presign declares for the index. An index already
+      // issued is returned again only for the SAME file (the idempotent retry);
+      // a different one is refused, so one file's bytes can never be signed
+      // into a part row that names another file (the intake door's ET-INT-02
+      // rule). The digest is the staged-file hint web capture sends, else the
+      // checksum signed into this URL.
+      const declaredFile: DeclaredPartFile = {
+        originalFileName: sanitizeFileName(body.originalFileName),
+        mimeType: normalizeMimeType(body.mimeType) ?? "application/octet-stream",
+        sha256Base64:
+          normalizeChecksumSha256Base64(
+            body.clientSignals && typeof body.clientSignals === "object" && !Array.isArray(body.clientSignals)
+              ? ((body.clientSignals as { clientHintSha256Base64?: unknown }).clientHintSha256Base64 as string | undefined)
+              : undefined,
+          ) ?? normalizedChecksum,
+      };
+      const refuseOtherFile = () =>
+        Object.assign(new Error("This part index already holds a different file."), {
+          statusCode: 409,
+          code: "PART_INDEX_TAKEN",
+        });
+
       try {
         const result = await prisma.$transaction(async (tx) => {
           // ET-UPL-01 — the ONE byte-write authority: evidence lock, owner,
@@ -7121,6 +7283,7 @@ message:
           });
 
           if (existing) {
+            if (!isSameBoundFile(existing, declaredFile)) throw refuseOtherFile();
             return { part: existing, created: false as const };
           }
 
@@ -7168,7 +7331,7 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${o
           // uploadedByUserId is stored as the presign requester for traceability,
           // but uploadedAtUtc is intentionally null until completeEvidence()
           // verifies the object via headObject() and computes its sha256.
-          const { part } = await writeEvidencePart(
+          const { part, created: inserted } = await writeEvidencePart(
             {
               evidenceId: id,
               principal: { kind: "OWNER", userId: ownerUserId },
@@ -7201,6 +7364,11 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${o
             tx,
           );
 
+          if (!inserted) {
+            // A concurrent presign took the index first: the same rule applies.
+            if (!isSameBoundFile(part, declaredFile)) throw refuseOtherFile();
+            return { part, created: false as const };
+          }
           return { part, created: true as const };
         });
 
@@ -7284,6 +7452,9 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${o
         const message = err instanceof Error ? err.message : "Unexpected error";
         if (refusedCode === "FILE_VALIDATION_BLOCKED") {
           return reply.code(statusCode).send({ message, code: refusedCode, reservationReleased });
+        }
+        if (refusedCode === "PART_INDEX_TAKEN") {
+          return reply.code(409).send({ message, code: refusedCode });
         }
         return reply.code(statusCode).send({ message });
       }
@@ -10834,16 +11005,31 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           })),
         });
 
-        // ET-SEC-10 (Invariant F) — a stored snapshot is what was true when the
-        // report/package was issued. When the LIVE hash, signature or custody check
-        // fails now, the live decision is the truth and the snapshot may not mask it.
-        const liveCoreChecksFailed = !(canonicalHashMatches && signatureValid && custodyChain.valid);
-        const trustDecision = liveCoreChecksFailed ? liveTrustDecision : snapshotTrustDecision ?? liveTrustDecision;
-        const trustDecisionConsistencySource = !liveCoreChecksFailed && snapshotTrustDecision
-          ? latestReport?.trustDecisionSnapshot
-            ? "REPORT_SNAPSHOT"
-            : "VERIFICATION_PACKAGE_SNAPSHOT"
-          : "LIVE_SHARED_FALLBACK";
+        // F-26a (2026-11-13) — THE SAME VERDICT AS PUBLIC VERIFY, from the same
+        // facts: the live decision with the stored-bytes state and the
+        // digest-column agreement applied (`resolvePresentedTrustDecision`).
+        // The issued snapshot is the "since issue" comparison only.
+        const ownerDigestParts = await prisma.evidencePart.findMany({
+          where: { evidenceId: id },
+          select: { partIndex: true, sha256: true },
+        });
+        const { trustDecision, source: trustDecisionConsistencySource } = resolvePresentedTrustDecision({
+          liveTrustDecision,
+          snapshotTrustDecision,
+          snapshotFromReport: Boolean(latestReport?.trustDecisionSnapshot),
+          canonicalHashMatches,
+          signatureValid,
+          custodyChainValid: custodyChain.valid,
+          storedBytes: ownerStoredBytes,
+          digestColumnsMatchSignedFingerprint: digestColumnsMatchSignedFingerprintOf(
+            {
+              fingerprintCanonicalJson: evidence.fingerprintCanonicalJson,
+              fileSha256: evidence.fileSha256,
+              parts: ownerDigestParts.map((p) => ({ partIndex: p.partIndex, sha256: p.sha256 ?? null })),
+            },
+            sha256Hex,
+          ),
+        });
 
         const custodyDisplayContext = {
           itemCount: content.summary.itemCount,
@@ -11835,7 +12021,9 @@ try {
       });
 
       if (!rate.allowed) {
-        await auditEvidenceAction(req, {
+        // F-21 — audited without waiting on the chain lock; Retry-After from the
+        // limiter's window reset (see the create route).
+        void auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.complete",
           outcome: "blocked",
@@ -11843,7 +12031,8 @@ try {
           resourceId: id,
           teamId: evidence.teamId,
           metadata: { reason: "rate_limit_exceeded", plan },
-        });
+        }).catch(noteCustodyFailure);
+        reply.header("Retry-After", String(Math.max(1, Math.ceil((rate.resetAtMs - Date.now()) / 1000))));
         return reply.code(429).send({ message: "Rate limit exceeded" });
       }
 
@@ -12149,7 +12338,7 @@ if (
         // expired reservation. Expected denials, answered and audited as such.
         {
           const code = (err as { code?: unknown }).code;
-          if (code === "INTAKE_SUBMISSION_REQUIRED" || code === "EVIDENCE_RESERVATION_EXPIRED") {
+          if (code === "INTAKE_SUBMISSION_REQUIRED" || code === "EVIDENCE_RESERVATION_EXPIRED" || code === "PART_DIGEST_MISMATCH") {
             await auditEvidenceAction(req, {
               userId: ownerUserId,
               action: "evidence.complete",
@@ -12164,7 +12353,9 @@ if (
               message:
                 code === "INTAKE_SUBMISSION_REQUIRED"
                   ? "This record is sealed only through its intake submission."
-                  : "This capture's reservation expired before it was finalized. Start the capture again.",
+                  : code === "PART_DIGEST_MISMATCH"
+                    ? "A stored file is not the file that was staged for it, so nothing was sealed. Remove that file, add it again and finish again."
+                    : "This capture's reservation expired before it was finalized. Start the capture again.",
             });
           }
         }
@@ -15379,10 +15570,6 @@ const liveTrustDecision = buildEvidenceTrustDecision({
 // ET-SEC-10 (Invariant F) — a stored snapshot is what was true when the
 // report/package was issued. When the LIVE hash, signature or custody check
 // fails now, the live decision is the truth and the snapshot may not mask it.
-const liveCoreChecksFailed =
-  !(canonicalHashMatches && signatureValid && custodyChain.valid) ||
-  storedBytesContradict ||
-  digestColumnsMatchSignedFingerprint === false;
 // UC-TRUST-005 — the stored-bytes state is an input to the headline: a gone or
 // substituted original forces review; one not re-verified inside the freshness
 // window never keeps a "high reliance" verdict.
@@ -15392,16 +15579,17 @@ const liveCoreChecksFailed =
 // validated or a package sealed after a report was issued never reads
 // "Not checked" in one place and "Verified" in another. What changed since the
 // issued report is stated explicitly by trustDecisionConsistency.
-const trustDecision = publicVerifyTrustShared.applyStoredBytesToTrustDecision(
+// F-26a — THE one resolver the signed-in record page uses too.
+const { trustDecision, source: trustDecisionConsistencySource } = resolvePresentedTrustDecision({
   liveTrustDecision,
+  snapshotTrustDecision,
+  snapshotFromReport: Boolean(latestReport?.trustDecisionSnapshot),
+  canonicalHashMatches,
+  signatureValid,
+  custodyChainValid: custodyChain.valid,
   storedBytes,
-  { digestColumnsMatchSignedFingerprint },
-);
-const trustDecisionConsistencySource = !liveCoreChecksFailed && snapshotTrustDecision
-  ? latestReport?.trustDecisionSnapshot
-    ? "REPORT_SNAPSHOT"
-    : "VERIFICATION_PACKAGE_SNAPSHOT"
-  : "LIVE_SHARED_FALLBACK";
+  digestColumnsMatchSignedFingerprint,
+});
 
 const timestampLayerBlocksIntegrity = timestampDigestMatches === false;
 

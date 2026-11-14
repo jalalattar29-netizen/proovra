@@ -140,7 +140,7 @@ describe("Members re-audit D1a — membership concurrency and governed refusals 
 
   async function withPassword(userId: string): Promise<string> {
     const password = `D1a-${randomUUID()}`;
-    await prisma.user.update({ where: { id: userId }, data: { passwordHash: hashPassword(password) } });
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(password) } });
     return password;
   }
 

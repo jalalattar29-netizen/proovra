@@ -105,6 +105,40 @@ test("overview: a member without BILLING_MANAGE / SETTINGS_MANAGE gets no dead a
   assert.equal(r.byLabel("Roles & permissions").length + (r.hasText("Roles & permissions") ? 1 : 0), 0, "Roles offered without SETTINGS_VIEW");
 });
 
+test("F-08: a Free personal space is not offered Intake links or Collaboration groups; account-level rows stay", async () => {
+  routes["/v1/platform/context"] = () =>
+    platformContextEnvelope({
+      activeSpace: { id: "p1", type: "PERSONAL", plan: "FREE", displayName: "Personal Space", status: "active" },
+      capabilities: { SETTINGS_VIEW: true, INTAKE_LINKS_MANAGE: true, TEAM_VIEW: true },
+      planFeatures: { intakeIncluded: false, teamCollaborationIncluded: false, casesIncluded: false },
+      personalSpace: { status: "active", id: "p1", label: "Personal Space", ownerUserId: "user-1", plan: "FREE" },
+    });
+  const r = await render();
+  assert.equal(r.hasText("Intake links"), false, "Intake links offered where the plan excludes it");
+  assert.equal(r.hasText("Collaboration groups"), false, "Collaboration groups offered where the plan excludes it");
+  // The web gates Quotas and Batch analysis on the PROFESSIONAL tier
+  // (apps/web/lib/surface/tiers.ts); Free has no professionalSurfacesIncluded.
+  assert.equal(r.hasText("Quotas & usage"), false, "Quotas offered to a Free space");
+  assert.equal(r.hasText("Batch analysis"), false, "Batch analysis offered to a Free space");
+  // Evidence requests' list route answers every signed-in member (evidence-requests.routes.ts).
+  for (const row of ["Evidence requests", "Billing & plan"]) {
+    assert.ok(r.byLabel(row).length > 0 || r.hasText(row), `${row} is missing`);
+  }
+});
+
+test("F-08: a paid workspace whose plan includes them keeps both rows", async () => {
+  routes["/v1/platform/context"] = () =>
+    platformContextEnvelope({
+      capabilities: { SETTINGS_VIEW: true, INTAKE_LINKS_MANAGE: true },
+      planFeatures: { intakeIncluded: true, teamCollaborationIncluded: true, professionalSurfacesIncluded: true },
+    });
+  const r = await render();
+  assert.ok(r.byLabel("Intake links").length > 0 || r.hasText("Intake links"));
+  assert.ok(r.byLabel("Collaboration groups").length > 0 || r.hasText("Collaboration groups"));
+  assert.ok(r.byLabel("Quotas & usage").length > 0 || r.hasText("Quotas & usage"));
+  assert.ok(r.byLabel("Batch analysis").length > 0 || r.hasText("Batch analysis"));
+});
+
 test("overview: no recent sign-ins says so", async () => {
   routes["/v1/identity-security/my-sessions"] = () => ({ sessions: [] });
   const r = await render();

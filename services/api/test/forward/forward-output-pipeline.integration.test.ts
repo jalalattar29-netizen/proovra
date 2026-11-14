@@ -125,11 +125,16 @@ vi.mock("../../../worker/src/report-v2/build-report-pdf.js", () => {
       seam.lastRenderInput = input as typeof seam.lastRenderInput;
       return render();
     },
-    buildReportPdfV2WithSignatureOutcome: async () => ({
-      status: "UNSIGNED_OPT_OUT" as const,
-      pdf: render(),
-      warning: "PDF signing is not exercised by this case.",
-    }),
+    // F-26b — the processor renders once, through this entry, with the
+    // issuance facts; the input it hands over is what the suite inspects.
+    buildReportPdfV2WithSignatureOutcome: async (input: unknown) => {
+      seam.lastRenderInput = input as typeof seam.lastRenderInput;
+      return {
+        status: "UNSIGNED_OPT_OUT" as const,
+        pdf: render(),
+        warning: "PDF signing is not exercised by this case.",
+      };
+    },
   };
 });
 

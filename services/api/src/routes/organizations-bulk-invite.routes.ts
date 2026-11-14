@@ -69,8 +69,10 @@ import { verifyAccountStepUp } from "../services/identity-security/account-step-
 import {
   attemptInitialOrgInviteDelivery,
   lockOrganizationInviteSlotTx,
+  organizationInvitationRefusal,
   recordOrgInviteDeliveryPending,
   resendOrgInviteDelivery,
+  resolveOrganizationInvitationAllowance,
   type OrgInviteDeliveryState,
 } from "../services/organization/org-invite-delivery.service.js";
 
@@ -345,10 +347,14 @@ async function requireOrgAdmin(input: {
   | { ok: true; role: OrgRole }
   | { ok: false; denial: ReturnType<typeof orgAccessDenial> }
 > {
+  // F-08 — every bulk route invites (or resends) on behalf of the
+  // organization: a CUSTOMER-organization surface only. The SYSTEM container
+  // behind a Personal workspace, whose owner is ORG_OWNER, is refused.
   const result = await checkOrgAccess(prisma, {
     orgId: input.orgId,
     userId: input.userId,
     minRole: "ORG_ADMIN",
+    requireKind: "CUSTOMER",
   });
   if (result.kind !== "ok") return { ok: false, denial: orgAccessDenial(result) };
   return { ok: true, role: result.role };
@@ -860,6 +866,27 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     return false;
   }
 
+  /**
+   * F-08 — the organization's pending and 24-hour invitation ceilings, asked
+   * for the whole batch before any row is written or any email is sent. A
+   * batch that does not fit is refused as a whole (the operator splits it),
+   * never half-sent.
+   */
+  async function batchWithinAllowance(
+    orgId: string,
+    planned: ReadonlyArray<PlannedRow>,
+    reply: FastifyReply,
+  ): Promise<boolean> {
+    const requested = planned.filter((p) => p.outcome === "WOULD_INVITE").length;
+    const refusal = organizationInvitationRefusal(
+      await resolveOrganizationInvitationAllowance(prisma, orgId),
+      requested,
+    );
+    if (!refusal) return true;
+    reply.code(refusal.status).send(refusal.body);
+    return false;
+  }
+
   /** Enforce the row cap; return the bounded slice + a truthful truncation note. */
   function boundRows<T>(rows: T[]): { rows: T[]; truncated: null | { received: number; accepted: number; note: string } } {
     if (rows.length <= BULK_INVITE_MAX_ROWS) return { rows, truncated: null };
@@ -924,6 +951,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
       rows: bounded.rows,
     });
     if (!(await ownerRowsProved(req, reply, ctx.userId, planned, body.stepUp))) return;
+    if (!(await batchWithinAllowance(ctx.orgId, planned, reply))) return;
 
     const batchId = randomUUID();
     await emitOrgAuditEvent(prisma, {
@@ -1149,6 +1177,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
       });
     }
     if (!(await ownerRowsProved(req, reply, ctx.userId, planned, stepUpProof))) return;
+    if (!(await batchWithinAllowance(ctx.orgId, planned, reply))) return;
 
     const batchId = randomUUID();
     await emitOrgAuditEvent(prisma, {

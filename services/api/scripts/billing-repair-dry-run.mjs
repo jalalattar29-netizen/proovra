@@ -112,6 +112,41 @@ const FINDINGS = [
        where revoked_at_utc is null and expires_at_utc <= now()`,
   },
   {
+    // FREE-AUDIT REMEDIATION (2026-11-13, DUP-STORAGE) — what the release does NOT
+    // fix by itself: add-ons that went live before the duplicate-activation rule.
+    // Stacking a size is allowed, so a count here is not proof of a mistake. The
+    // narrower line is a later add-on whose purchase started before the earlier
+    // one went live (the two-tab shape). Review per payer in the admin billing
+    // detail; the customer can cancel one from Billing (storage-addons/cancel);
+    // a refund is decided by an operator at the provider.
+    id: "R12_PERSONAL_STORAGE_SAME_SIZE_STACKED",
+    meaning: "payers holding more than one live add-on of the same size (stacking is allowed; review only)",
+    sql: `
+      select count(*)::int as n, min(first_at) as first_at, max(first_at) as last_at
+        from (select a.owner_user_id, a.addon_key, min(a.activated_at_utc) as first_at
+                from workspace_storage_addons a
+               where a.status in ('ACTIVE','PAST_DUE') and a.billing_cycle = 'MONTHLY'
+               group by a.owner_user_id, a.addon_key
+              having count(*) > 1) d`,
+  },
+  {
+    id: "R12B_PERSONAL_STORAGE_DUPLICATE_SHAPE",
+    meaning: "live add-ons whose purchase started before another live add-on of the same size went live (likely unintended; exact for PayPal purchases, whose row is the attempt: a card add-on row is written at activation, so card-later duplicates show only in R12)",
+    sql: `
+      select count(*)::int as n, min(later.created_at) as first_at, max(later.created_at) as last_at
+        from workspace_storage_addons later
+       where later.status in ('ACTIVE','PAST_DUE') and later.billing_cycle = 'MONTHLY'
+         and exists (select 1 from workspace_storage_addons earlier
+                      where earlier.owner_user_id = later.owner_user_id
+                        and earlier.addon_key = later.addon_key
+                        and earlier.id <> later.id
+                        and earlier.status in ('ACTIVE','PAST_DUE')
+                        and earlier.activated_at_utc is not null
+                        and later.activated_at_utc is not null
+                        and earlier.activated_at_utc < later.activated_at_utc
+                        and earlier.activated_at_utc > later.created_at)`,
+  },
+  {
     id: "R9_BOUND_PAYPAL_ATTEMPTS_ABANDONED",
     meaning: "locally closed PayPal storage attempts that may still be approvable; re-read by the sweep for 30 days",
     sql: `

@@ -29,7 +29,13 @@
 
 import { apiFetch } from "./api";
 import { computeFileIntegrityBase64, uploadWithPut } from "./upload-utils";
-import { CAPTURE_PUT_TIMEOUT_MS, CAPTURE_REQUEST_TIMEOUT_MS, withTimeout } from "./capture/capture-retry";
+import {
+  CAPTURE_REQUEST_TIMEOUT_MS,
+  putTimeoutMsForSize,
+  retryCapture,
+  withTimeout,
+  type RetryPolicy,
+} from "./capture/capture-retry";
 import {
   buildScreenCompletePath,
   buildContinuousCompletePath,
@@ -189,11 +195,13 @@ export async function uploadDirectCaptureItem(
   } = {},
 ): Promise<{ partIndex: number; sha256Hex: string; sizeBytes: number }> {
   const requestMs = timeouts.requestMs ?? CAPTURE_REQUEST_TIMEOUT_MS;
-  const putMs = timeouts.putMs ?? CAPTURE_PUT_TIMEOUT_MS;
   // The integrity layer returns the hex digest directly — it no longer round-
   // trips through `globalThis.atob`, which is not guaranteed on Hermes.
   const integrity = await computeFileIntegrityBase64(item.uri);
   const sha256Hex = integrity.sha256Hex;
+  // Free audit F-11 — the whole-file PUT deadline scales with the file. A
+  // fixed 120 s made any file needing more uplink time unfinishable.
+  const putMs = timeouts.putMs ?? putTimeoutMsForSize(integrity.sizeBytes);
 
   const declared = await withTimeout(
     (signal) =>
@@ -481,6 +489,15 @@ export async function uploadDirectCaptureItemAllocated(
     /** A session opened by this very finalize holds nothing yet: skip the first read. */
     freshSession?: boolean;
     timeouts?: Parameters<typeof uploadDirectCaptureItem>[3];
+    /**
+     * Free audit F-11 — retry a RETRYABLE failure (no answer, timeout, 408 /
+     * 429 / 5xx, a refused presigned URL) at the SAME part index: the
+     * declaration of the same index and digest is idempotent and the presign
+     * of an existing index mints a fresh URL for the same object, so a retry
+     * never creates a second part or a second custody event. Absent, one
+     * attempt (the previous behaviour).
+     */
+    retry?: RetryPolicy;
     listParts?: (s: DirectCaptureSession) => Promise<DirectCapturePart[]>;
     upload?: typeof uploadDirectCaptureItem;
   } = {},
@@ -504,7 +521,8 @@ export async function uploadDirectCaptureItemAllocated(
   for (let attempt = 0; attempt <= PART_ALLOCATION_RETRIES; attempt += 1) {
     const partIndex = nextFreePartIndex(server, taken);
     try {
-      return await upload(session, evidenceId, { ...item, partIndex }, options.timeouts);
+      const once = () => upload(session, evidenceId, { ...item, partIndex }, options.timeouts);
+      return await (options.retry ? retryCapture(once, options.retry) : once());
     } catch (err) {
       if ((err as { code?: string } | null)?.code !== "PART_ALREADY_DECLARED") throw err;
       lastErr = err;

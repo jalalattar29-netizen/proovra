@@ -10,6 +10,7 @@ import { Card } from "../../../../components/ui/Card";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { SurfaceGate } from "../../../../components/surface/SurfaceGate";
 
 /** A null limit is no enforced limit: the page shows the count alone. */
 interface Quotas {
@@ -44,11 +45,15 @@ function safePercent(used: number, limit: number): number {
 }
 
 // Phase 38.14 — wrap in canonical PageRouteGate.
+// F-21 — and in the surface gate: the PROFESSIONAL tier rule was keyed to the
+// retired /dashboard/quotas URL, so a Free account loaded this page.
 export default function QuotasPage() {
   return (
-    <PageRouteGate routeId="dashboard.quotas">
-      <QuotasPageInner />
-    </PageRouteGate>
+    <SurfaceGate>
+      <PageRouteGate routeId="dashboard.quotas">
+        <QuotasPageInner />
+      </PageRouteGate>
+    </SurfaceGate>
   );
 }
 

@@ -89,6 +89,8 @@ export async function emailLogin(email: string, password: string): Promise<Login
 
 export interface RegisterResult {
   verificationSent: boolean;
+  /** F-06 — the provider's real answer (email-verification.service). */
+  verificationDelivery: "sent" | "unconfirmed" | "failed" | "cooldown";
   email: string;
 }
 
@@ -101,7 +103,18 @@ export async function registerAccount(input: {
     method: "POST",
     body: JSON.stringify(input),
   });
-  return { verificationSent: data["verificationSent"] === true, email: String(data["email"] ?? input.email) };
+  const raw = data["verificationDelivery"];
+  const verificationDelivery: RegisterResult["verificationDelivery"] =
+    raw === "sent" || raw === "unconfirmed" || raw === "failed" || raw === "cooldown"
+      ? raw
+      : data["verificationSent"] === false
+        ? "failed"
+        : "sent";
+  return {
+    verificationSent: data["verificationSent"] === true,
+    verificationDelivery,
+    email: String(data["email"] ?? input.email),
+  };
 }
 
 export async function verifyEmail(token: string, password?: string): Promise<AuthSession> {

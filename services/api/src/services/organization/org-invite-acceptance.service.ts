@@ -312,17 +312,46 @@ async function runAcceptance(
 
     // §8 concurrency — guarded claim BEFORE any grant. The row lock
     // serializes concurrent transactions; exactly one observes count 1.
+    //
+    // F-08 follow-through (members audit F8) — the claim re-checks, AT CLAIM
+    // TIME, everything the read above checked: not revoked, not expired, and
+    // still the token that was presented (a delivery retry rotates the hash).
+    // It guarded only `acceptedAt`, so a revoke (or expiry, or rotation) that
+    // committed between the read and this write still granted membership and
+    // seats on an invitation the administrator had been told was revoked. The
+    // workspace-invitation claim already guards all four.
+    const claimedAt = new Date();
     const claimed = await tx.organizationInvite.updateMany({
-      where: { id: invite.id, acceptedAt: null },
-      data: { acceptedAt: new Date(), acceptedByUserId: userId },
+      where: {
+        id: invite.id,
+        tokenHash,
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: claimedAt },
+      },
+      data: { acceptedAt: claimedAt, acceptedByUserId: userId },
     });
     if (claimed.count === 0) {
       const winner = await tx.organizationInvite.findUnique({
         where: { id: invite.id },
-        select: { acceptedByUserId: true },
+        select: { acceptedByUserId: true, acceptedAt: true, revokedAt: true, expiresAt: true, tokenHash: true },
       });
       if (winner?.acceptedByUserId === userId) {
         return replayProjection();
+      }
+      const unclaimed = !!winner && !winner.acceptedByUserId && !winner.acceptedAt;
+      if (unclaimed && winner?.revokedAt) {
+        await recordRejection("revoked");
+        return { kind: "revoked" as const };
+      }
+      if (unclaimed && winner?.expiresAt instanceof Date && winner.expiresAt.getTime() <= claimedAt.getTime()) {
+        await recordRejection("expired");
+        return { kind: "expired" as const };
+      }
+      if (unclaimed && typeof winner?.tokenHash === "string" && winner.tokenHash !== tokenHash) {
+        // Rotated by a delivery retry: the presented link is no longer the
+        // invitation's credential. Same answer as an unknown token.
+        return { kind: "not_found" as const };
       }
       await recordRejection("already_accepted");
       return { kind: "already_accepted" as const };

@@ -534,6 +534,21 @@ async function assertStorageAddonAllowed(params: {
  * above a real buyer and well below a loop. The storage is shared across
  * processes where Redis is configured.
  */
+/**
+ * FREE-AUDIT REMEDIATION (2026-11-13) — every billing 429 says when to retry, from
+ * the limiter's own window (the auth and contact routes' pattern). Clients that
+ * retried on a fixed schedule had nothing to wait for.
+ */
+function retryAfterSeconds(rate: { resetAtMs: number }): string {
+  return String(Math.max(1, Math.ceil((rate.resetAtMs - Date.now()) / 1000)));
+}
+
+/**
+ * FREE-AUDIT REMEDIATION (2026-11-13) — the plan change, cancel, resume and
+ * add-on cancel routes reach a live provider too, and had no per-person bound.
+ * They share one `subscription_change` bucket at the same 20 per 5 minutes the
+ * checkout and payment actions use: far above a person, far below a loop.
+ */
 function billingMutationLimit(kind: string, max: number) {
   return async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const rate = await enforceRateLimit({
@@ -542,7 +557,7 @@ function billingMutationLimit(kind: string, max: number) {
       windowSec: 300,
     });
     if (rate.allowed) return;
-    await reply.code(429).send(
+    await reply.code(429).header("Retry-After", retryAfterSeconds(rate)).send(
       createErrorResponse(
         ErrorCode.RATE_LIMIT_EXCEEDED,
         req.id,
@@ -835,7 +850,7 @@ export async function billingRoutes(app: FastifyInstance) {
    */
   app.post(
     "/v1/billing/subscription/plan",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("subscription_change", 20)] },
     async (req, reply) => {
       const body = ChangePlanBody.parse(req.body ?? {});
       const userId = getAuthUserId(req);
@@ -977,7 +992,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/billing/subscription/cancel",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("subscription_change", 20)] },
     async (req, reply) => {
       const userId = getAuthUserId(req);
       // Parsed to REFUSE unknown keys rather than to read anything: the body
@@ -1080,7 +1095,7 @@ export async function billingRoutes(app: FastifyInstance) {
    */
   app.post(
     "/v1/billing/subscription/resume",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("subscription_change", 20)] },
     async (req, reply) => {
       const userId = getAuthUserId(req);
       CancelSubscriptionBody.parse(req.body ?? {});
@@ -1132,7 +1147,7 @@ export async function billingRoutes(app: FastifyInstance) {
    */
   app.post(
     "/v1/billing/storage-addons/cancel",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("subscription_change", 20)] },
     async (req, reply) => {
       const userId = getAuthUserId(req);
       const body = CancelStorageAddonBody.parse(req.body ?? {});
@@ -1373,7 +1388,7 @@ export async function billingRoutes(app: FastifyInstance) {
           windowSec: 300,
         });
         if (!rate.allowed) {
-          return reply.code(429).send({
+          return reply.code(429).header("Retry-After", retryAfterSeconds(rate)).send({
             ...createErrorResponse(
               ErrorCode.RATE_LIMIT_EXCEEDED,
               req.id,
@@ -1458,7 +1473,7 @@ export async function billingRoutes(app: FastifyInstance) {
       windowSec: 300,
     });
     if (!rate.allowed) {
-      reply.code(429).send(
+      reply.code(429).header("Retry-After", retryAfterSeconds(rate)).send(
         createErrorResponse(
           ErrorCode.RATE_LIMIT_EXCEEDED,
           req.id,
@@ -1586,7 +1601,7 @@ export async function billingRoutes(app: FastifyInstance) {
         windowSec: 300,
       });
       if (!rate.allowed) {
-        return reply.code(429).send(
+        return reply.code(429).header("Retry-After", retryAfterSeconds(rate)).send(
           createErrorResponse(
             ErrorCode.RATE_LIMIT_EXCEEDED,
             req.id,
@@ -1913,7 +1928,7 @@ export async function billingRoutes(app: FastifyInstance) {
         windowSec: 300,
       });
       if (!rate.allowed) {
-        return reply.code(429).send(
+        return reply.code(429).header("Retry-After", retryAfterSeconds(rate)).send(
           createErrorResponse(
             ErrorCode.RATE_LIMIT_EXCEEDED,
             req.id,
@@ -2388,6 +2403,7 @@ export async function billingRoutes(app: FastifyInstance) {
         currency: offerCurrency,
         teamId: null,
         workspacePlan: scope.plan,
+        confirmation: body.confirmAdditional ? { heldCount: body.heldCount ?? null } : null,
       });
       if (started.kind === "BLOCKED") return reply.code(409).send(started.httpBody);
       const result = {
@@ -2592,6 +2608,7 @@ export async function billingRoutes(app: FastifyInstance) {
         extraStorageBytes: definition.storageBytes,
         currency,
         amountCents,
+        confirmation: body.confirmAdditional ? { heldCount: body.heldCount ?? null } : null,
         create: async (attemptId) => {
           const result = await createPayPalStorageAddonCheckout({
             userId,
@@ -2622,6 +2639,7 @@ export async function billingRoutes(app: FastifyInstance) {
         },
       });
 
+      if (gated.kind === "DUPLICATE") return reply.code(409).send(gated.finding);
       if (gated.kind === "BLOCKED") {
         return reply.code(409).send({
           message:

@@ -59,7 +59,8 @@ test("Evidence Detail page requests the eligibility-narrowed case list (not the 
   // The Promise.allSettled pair must call the eligibility URL.
   assert.match(
     DETAIL_PAGE,
-    /apiFetch\(\s*\n?\s*`\/v1\/cases\?eligibleForEvidenceId=\$\{encodeURIComponent\(evidenceId\)\}`,?\s*\n?\s*\)/,
+    // F-21 — through listAllCases, which follows every page of the same URL.
+    /apiFetch\(\s*\n?\s*`\/v1\/cases\?eligibleForEvidenceId=\$\{encodeURIComponent\(evidenceId\)\}\$\{cursorParam \? `&\$\{cursorParam\}` : ""\}`,?\s*\n?\s*\)/,
   );
 });
 

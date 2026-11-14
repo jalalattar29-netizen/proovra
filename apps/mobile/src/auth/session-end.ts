@@ -70,7 +70,11 @@ export function workspaceSwitchRefusal(err: unknown): string | null {
 
 export const SESSION_END_NOTICE: Readonly<Record<SessionEndReason, string>> = {
   expired: "Your session expired. Please sign in again.",
-  ended: "You were signed out. This session was ended from another device or by your organization.",
+  // F-16 — being removed from, suspended in or leaving a workspace also ends
+  // every session of the account (session-revocation.service.ts, Phase 19),
+  // and the 401 carries no reason, so the sentence names that cause too.
+  ended:
+    "You were signed out. This session was ended from another device, by your organization, or because your access to a workspace changed.",
   organization_policy: "Your organization's security policy no longer accepts this sign-in. Please sign in again.",
   organization_sso: ORGANIZATION_SSO_NOTICE,
 };

@@ -13,7 +13,7 @@ captured bytes through the canonical capture-trust pipeline (`acquisitionMode = 
 
 ```bash
 cd apps/extension
-PROOVRA_API_ORIGIN=https://api.proovra.com \n  PROOVRA_STORAGE_ORIGINS=https://<bucket>.s3.<region>.amazonaws.com \n  pnpm release
+PROOVRA_API_ORIGIN=https://api.proovra.com \n  PROOVRA_WEB_ORIGIN=https://www.proovra.com \n  PROOVRA_STORAGE_ORIGINS=https://<bucket>.s3.<region>.amazonaws.com \n  pnpm release
 ```
 
 The `release` script (`release.mjs`) is **fail-closed**:

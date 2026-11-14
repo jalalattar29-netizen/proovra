@@ -390,11 +390,17 @@ test("source contract — useHomeData registers visibilitychange + focus refetch
     "the focus / visibility handler must call reload()",
   );
   // The listener MUST be throttled so rapid tab toggling doesn't
-  // hammer the API. We lock the existence of the 2-second window.
+  // hammer the API. F-21 (Free-user audit): the window is 30 s — at 2 s
+  // ordinary tab switching re-ran Home's ten reads many times a minute.
   assert.match(
     SRC,
-    /STALE_WINDOW_MS\s*=\s*2_000/,
-    "refetch must be throttled (2s window) to avoid focus storms",
+    /STALE_WINDOW_MS\s*=\s*HOME_FOCUS_REFRESH_MIN_INTERVAL_MS/,
+    "refetch must be throttled to avoid focus storms",
+  );
+  assert.match(
+    SRC,
+    /HOME_FOCUS_REFRESH_MIN_INTERVAL_MS\s*=\s*30_000/,
+    "the focus/visibility throttle window is 30 s",
   );
   // The cleanup MUST remove both listeners on unmount.
   assert.match(

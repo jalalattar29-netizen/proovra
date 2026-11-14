@@ -142,3 +142,12 @@ test("the pending note names what is missing and what is not", () => {
   // It must say the rest works, or it reads as "billing is unavailable".
   assert.match(B.PURCHASE_PENDING_NOTE, /cancelling/i);
 });
+
+test("F-09: upgrade copy follows what the build can sell", () => {
+  // A store build: the limitation is said, and no prompt promises a purchase.
+  assert.equal(B.purchaseNoteFor("NOT_IN_THIS_BUILD"), B.PURCHASE_PENDING_NOTE);
+  assert.equal(B.upgradeActionLabel("NOT_IN_THIS_BUILD"), "See plans");
+  // The private build sells from Billing: no "not available" note, the purchase verb.
+  assert.equal(B.purchaseNoteFor("EXTERNAL_CHECKOUT"), null);
+  assert.equal(B.upgradeActionLabel("EXTERNAL_CHECKOUT"), "Upgrade plan");
+});

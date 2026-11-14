@@ -38,7 +38,8 @@ export interface ProovraToastData {
   /** Optional support/trace reference (rendered via ProovraSupportReference). */
   supportReference?: string;
   /** Optional single inline action. */
-  action?: { label: string; href?: string; onClick?: () => void };
+  /** `newTab` opens `href` in a new tab, so the page that raised it keeps its state. */
+  action?: { label: string; href?: string; onClick?: () => void; newTab?: boolean };
 }
 
 export function ProovraToast({
@@ -97,7 +98,11 @@ export function ProovraToast({
 
         {toast.action ? (
           toast.action.href ? (
-            <a href={toast.action.href} style={{ ...actionStyle, color: tone.accent }}>
+            <a
+              href={toast.action.href}
+              style={{ ...actionStyle, color: tone.accent }}
+              {...(toast.action.newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+            >
               {toast.action.label}
             </a>
           ) : (

@@ -120,9 +120,26 @@ test("success is the web's verify card: address, spam note, held Resend, Change 
   await r.press("Resend email");
   await settle();
   assert.deepEqual(posts.at(-1), { path: "/v1/auth/email/resend-verification", body: { email: "new@example.com" } });
-  assert.ok(r.hasText("Verification email sent."));
+  assert.ok(r.hasText("If this address still needs verification, a new link is on its way."));
   assert.ok(r.byLabel("Resend pending…")[0]?.props.accessibilityState?.disabled);
   await r.press("Change email");
   assert.equal(r.byTestId("register-verify").length, 0);
   assert.equal(r.byTestId("register-email")[0].props.value, "");
+});
+
+test("F-06: a refused verification email is not reported as sent", async () => {
+  answer = ((prev) => (path) =>
+    path === "/v1/auth/email/register"
+      ? { status: 201, body: { verificationSent: false, verificationDelivery: "failed", resendAfterSec: 0, email: "new@example.com" } }
+      : prev(path))(answer);
+  const r = await render();
+  await r.type("Email address", "new@example.com");
+  await r.type("Password", PW);
+  await r.type("Confirm password", PW);
+  await r.press(CONSENT);
+  await submit(r);
+  await settle();
+  assert.equal(r.byTestId("register-verify").length, 1);
+  assert.equal(r.hasText("We’ve sent a verification email to new@example.com. Please open the email and click the verification link to activate your PROOVRA account."), false);
+  assert.ok(r.hasText("Your account was created, but we couldn’t send the verification email to new@example.com just now. Use “Resend email” to try again."));
 });

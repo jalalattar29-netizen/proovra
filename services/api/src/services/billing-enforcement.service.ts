@@ -1,5 +1,5 @@
 import * as prismaPkg from "@prisma/client";
-import { allowanceSlotEvidenceWhere } from "@proovra/shared-runtime";
+import { allowanceSlotEvidenceWhere, evidenceScopeFor } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { DomainError } from "../errors.js";
 import {
@@ -89,9 +89,18 @@ type AllowancePopulationClient = Pick<prismaPkg.Prisma.TransactionClient, "team"
  * workspace's records, or a Personal subject's records (legacy NULL-team rows
  * and its personal Team). Admission and settlement both ask this, so the
  * rolling-window count can no longer differ by which scope builder ran.
+ *
+ * F-01 (Free-user audit, 2026-11-13) — a Personal subject's population is its
+ * WORKSPACE's population (`evidenceScopeFor`, the one storage usage already
+ * counts): every record in the owner's Personal Team, whoever submitted it,
+ * plus the owner's legacy NULL-team rows. A Pro/Team Personal workspace holds
+ * members, and their captures carry `ownerUserId = member` as submitter
+ * attribution; keyed on `ownerUserId = owner` those records were counted in
+ * nobody's allowance (not the owner's, and not the member's, whose Personal
+ * Space they do not live in) and settlement refused to fund them.
  */
 async function allowancePopulationWhere(
-  scope: WorkspaceScope,
+  scope: Pick<WorkspaceScope, "billingShape" | "ownerUserId" | "teamId">,
   client: Pick<prismaPkg.Prisma.TransactionClient, "team">,
 ): Promise<prismaPkg.Prisma.EvidenceWhereInput> {
   if (scope.billingShape === "SHARED") {
@@ -101,10 +110,15 @@ async function allowancePopulationWhere(
     where: { ownerUserId: scope.ownerUserId, isPersonal: true },
     select: { id: true },
   });
-  return {
-    ownerUserId: scope.ownerUserId,
-    OR: [{ teamId: null }, ...(personalTeam ? [{ teamId: personalTeam.id }] : [])],
-  };
+  if (!personalTeam) {
+    // No Personal Team yet: the subject's rows can only be its legacy NULL-team rows.
+    return { AND: [{ ownerUserId: scope.ownerUserId }, { teamId: null }] };
+  }
+  return evidenceScopeFor({
+    physicalWorkspaceId: personalTeam.id,
+    workspaceKind: "PERSONAL",
+    personalOwnerUserId: scope.ownerUserId,
+  }) as prismaPkg.Prisma.EvidenceWhereInput;
 }
 
 /**
@@ -120,7 +134,7 @@ async function allowancePopulationWhere(
  *     later record sealed first did not occupy the slot it had taken.
  */
 async function measureAllowance(
-  scope: WorkspaceScope,
+  scope: Pick<WorkspaceScope, "billingShape" | "ownerUserId" | "teamId">,
   client: AllowancePopulationClient,
   options: { since?: Date | null; settling?: EvidenceCapacityCursor | null } = {},
 ): Promise<{ planOccupying: number; planPrior: number; unsealed: number }> {
@@ -161,13 +175,63 @@ async function measureAllowance(
 }
 
 /**
+ * F-07 (Free-user audit, 2026-11-13) — THE plan-occupying count of a Personal
+ * payer, for the downgrade grandfather (`setPersonalPlan`).
+ *
+ * The freeze used to count every slot-holding record
+ * (`countPersonalEvidenceRecords`), credit-funded ones included, while the
+ * gate and settlement compare the frozen cap with `planOccupying`, which
+ * excludes them. Every upgrade/downgrade cycle therefore turned each
+ * credit-funded record into one extra free plan slot. One definition now
+ * serves both: `measureAllowance(...).planOccupying` over the canonical
+ * population (sealed plan-funded records whatever their lifecycle — trashed
+ * and archived keep their slot — plus live unsealed reservations; legacy
+ * NULL-team rows and members' captures in the Personal workspace included;
+ * records funded by a consumed credit excluded).
+ *
+ * Takes the payer's evidence-capacity lock on the caller's transaction, so a
+ * concurrent settlement either commits before the count (and is seen as plan-
+ * or credit-funded) or waits until the plan write has committed.
+ */
+export async function measurePersonalPlanOccupancy(
+  ownerUserId: string,
+  client: AllowancePopulationClient & Pick<prismaPkg.Prisma.TransactionClient, "$executeRaw">,
+): Promise<number> {
+  const subject = { billingShape: "SINGLE_OCCUPANT" as const, ownerUserId, teamId: null };
+  await lockEvidenceCapacitySubject(subject, client);
+  return (await measureAllowance(subject, client)).planOccupying;
+}
+
+/**
+ * Free audit (review of F-07/F-12) — the creation gate's OWN admission inputs
+ * for a Personal subject, for projections (Billing meter, Capture's pre-upload
+ * notice). Same population, same plan-occupying count (credit-funded sealed
+ * records excluded) and same uncommitted-credit rule as the gate, read without
+ * the capacity lock: it informs, the gate still decides.
+ */
+export async function readPersonalAdmissionInputs(
+  ownerUserId: string,
+  input: { credits: number; cap: number | null },
+  client: AllowancePopulationClient = prisma,
+): Promise<{ planOccupying: number; availableCredits: number }> {
+  const measured = await measureAllowance(
+    { billingShape: "SINGLE_OCCUPANT", ownerUserId, teamId: null },
+    client,
+  );
+  return {
+    planOccupying: measured.planOccupying,
+    availableCredits: uncommittedCredits({ credits: input.credits }, measured, input.cap),
+  };
+}
+
+/**
  * UC-COM-003 — credits already COMMITTED to admitted, unsealed records beyond
  * the allowance. A banked credit is spent at completion, so without this one
  * credit admitted any number of over-allowance captures and all but one were
  * refused at seal after their bytes were uploaded.
  */
 function uncommittedCredits(
-  scope: WorkspaceScope,
+  scope: Pick<WorkspaceScope, "credits">,
   measured: { planOccupying: number; unsealed: number },
   cap: number | null,
 ): number {
@@ -188,7 +252,7 @@ function uncommittedCredits(
  * lock, in the same order as settlement.
  */
 export async function lockEvidenceCapacitySubject(
-  scope: WorkspaceScope,
+  scope: Pick<WorkspaceScope, "billingShape" | "ownerUserId" | "teamId">,
   client: Pick<EvidenceCapacitySettlementClient, "$executeRaw">,
 ) {
   // UC-COM-002 — keyed on the COMMERCIAL PRINCIPAL, never on scope.teamId.
@@ -598,8 +662,10 @@ export async function assertWorkspaceAllowsEvidenceCreation(
       // finished, say so: they are not gone for good. Each frees its slot when
       // it is finished or released, or 24 hours after it was last touched
       // (EVIDENCE_RESERVATION_TTL_MS, the reservation authority's window).
+      // F-27d — the number is the RESOLVED cap this refusal was decided on
+      // (catalog value, or the frozen downgrade grandfather), never a literal.
       publicMessage: isFree
-        ? `You have reached the record limit included in the Free plan: 3 records. Deleting a record does not restore a slot.${unfinishedUploadsClause(lifetime.unsealed)} Existing records remain available — buy evidence credits or upgrade to add more.`
+        ? freeLimitReachedMessage(effectiveLifetimeCap ?? null, lifetime.unsealed)
         : `You have reached the record limit included in your current plan.${unfinishedUploadsClause(lifetime.unsealed)} Existing records remain available — buy evidence credits or upgrade to add more.`,
       reportability: "EXPECTED_DENIAL",
       severity: "info",
@@ -610,6 +676,17 @@ export async function assertWorkspaceAllowsEvidenceCreation(
       },
     },
   );
+}
+
+/**
+ * F-27d — the FREE_LIMIT_REACHED refusal, stating the allowance it was decided
+ * on (`effectiveLifetimeRecordCap`: the catalog's FREE value, or a frozen
+ * downgrade grandfather) instead of a hard-coded "3 records".
+ */
+export function freeLimitReachedMessage(cap: number | null, unfinishedUploads: number): string {
+  const allowance =
+    cap === null ? "" : `: ${cap} ${cap === 1 ? "record" : "records"}`;
+  return `You have reached the record limit included in the Free plan${allowance}. Deleting a record does not restore a slot.${unfinishedUploadsClause(unfinishedUploads)} Existing records remain available — buy evidence credits or upgrade to add more.`;
 }
 
 /** PRO-078 — the sentence for slots held by uploads that were never finished. */
@@ -682,21 +759,19 @@ export async function countPersonalEvidenceRecords(
   },
 ): Promise<number> {
   const db = options?.client ?? prisma;
-  const personalTeam = await db.team.findFirst({
-    where: { ownerUserId, isPersonal: true },
-    select: { id: true },
-  });
+  // F-01 — the SAME population admission and settlement count (the Personal
+  // workspace's records, members' captures included).
+  const population = await allowancePopulationWhere(
+    { billingShape: "SINGLE_OCCUPANT", ownerUserId, teamId: null },
+    db,
+  );
 
   const excludeEvidenceId = options?.excludeEvidenceId ?? null;
 
   return db.evidence.count({
     where: {
-      ownerUserId,
-      OR: [
-        { teamId: null },
-        ...(personalTeam ? [{ teamId: personalTeam.id }] : []),
-      ],
       AND: [
+        population,
         allowanceSlotEvidenceWhere(),
         ...(options?.trashedOnly ? [{ lifecycleState: "TRASHED" as const }] : []),
         ...(options?.createdBeforeEvidence
@@ -895,13 +970,19 @@ export async function settleEvidenceCompletionFunding(
    */
   const subject = await client.evidence.findUnique({
     where: { id: params.evidenceId },
-    select: { ownerUserId: true, teamId: true },
+    select: { id: true },
   });
   if (subject) {
+    // F-01 — "belongs" is membership of the payer's allowance POPULATION, the
+    // one admission counted it in: a SHARED workspace's records, or a Personal
+    // workspace's records whoever submitted them. Comparing the record's
+    // `ownerUserId` (the submitter) with the payer refused every member capture
+    // in a Pro/Team Personal workspace after its bytes were uploaded.
+    const population = await allowancePopulationWhere(scope, client);
     const belongs =
-      scope.billingShape === "SINGLE_OCCUPANT"
-        ? scope.ownerUserId === subject.ownerUserId
-        : scope.teamId === subject.teamId;
+      (await client.evidence.count({
+        where: { AND: [{ id: params.evidenceId }, population] },
+      })) === 1;
     if (!belongs) {
       throw new DomainError("Evidence funding scope does not match the record", {
         httpStatus: 500,

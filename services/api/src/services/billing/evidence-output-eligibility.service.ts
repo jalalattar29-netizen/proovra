@@ -109,9 +109,19 @@ function project(input: {
   lifecycle: OutputIssuanceLifecycle;
   /** ET-COM-04 — the record's stored funding fact, when it has one. */
   earned: OutputEarnedFact;
+  /**
+   * The stored funding facts could not be READ. Not "no fact": for a FREE
+   * record the fact IS the entitlement, so answering without it turned a
+   * transient read failure into a definite "not included" with a pricing link.
+   * The decision is UNRESOLVED instead (a credit-funded record is still
+   * answered by its ledger row).
+   */
+  earnedUnreadable?: boolean;
 }): EvidenceOutputEligibility {
   const issuance = resolveOutputIssuanceEntitlement({
-    plan: input.plan,
+    // An unreadable earned fact leaves the decision without its input: the
+    // one resolver answers UNRESOLVED for an unknown plan (credits excepted).
+    plan: input.earnedUnreadable ? null : input.plan,
     funding: input.funding,
     lifecycle: input.lifecycle,
     earned: input.earned,
@@ -268,15 +278,21 @@ export async function resolveEvidenceOutputEligibility(input: {
   const lifecycle = await resolveSubjectLifecycle(
     subject && plan ? { ...subject, plan } : null,
   );
-  return project({ plan, funding, lifecycle, earned: earnedById.get(input.evidenceId) ?? null });
+  return project({
+    plan,
+    funding,
+    lifecycle,
+    earned: earnedById?.get(input.evidenceId) ?? null,
+    earnedUnreadable: earnedById === null,
+  });
 }
 
 /**
  * ET-COM-04 — the stored funding facts of a set of records. A failed read is
- * "no fact" for every record: the current lifecycle then decides, which can
- * only be the stricter answer.
+ * `null` — UNREADABLE, never "no fact": the stricter-looking answer without
+ * the fact is a wrong refusal for a FREE allowance record (F-09, 2026-11-13).
  */
-async function readEarnedFacts(evidenceIds: readonly string[]): Promise<Map<string, OutputEarnedFact>> {
+async function readEarnedFacts(evidenceIds: readonly string[]): Promise<Map<string, OutputEarnedFact> | null> {
   const out = new Map<string, OutputEarnedFact>();
   if (evidenceIds.length === 0) return out;
   try {
@@ -286,7 +302,7 @@ async function readEarnedFacts(evidenceIds: readonly string[]): Promise<Map<stri
     });
     for (const row of rows) out.set(row.id, readOutputEarnedFact(row));
   } catch {
-    // no facts
+    return null;
   }
   return out;
 }
@@ -335,7 +351,8 @@ export async function resolveEvidenceOutputEligibilityMany(input: {
         // No ledger consumption row = PLAN; a failed read = unresolved.
         funding: fundingById === null ? null : (fundingById.get(evidenceId) ?? "PLAN"),
         lifecycle,
-        earned: earnedById.get(evidenceId) ?? null,
+        earned: earnedById?.get(evidenceId) ?? null,
+        earnedUnreadable: earnedById === null,
       }),
     );
   }

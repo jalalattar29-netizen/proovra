@@ -7,8 +7,11 @@
 export {
   resolveInvitationView,
   isRetryableRefusal,
+  classifyWorkspaceEntryRefusal,
 } from "@proovra/shared";
 export type {
+  InvitationEntryBlock,
+  InvitationEntryOutcome,
   InvitationAuthState,
   InvitationLookupOutcome,
   InvitationAcceptOutcome,

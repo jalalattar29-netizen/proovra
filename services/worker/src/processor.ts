@@ -160,6 +160,12 @@ import {
   buildReportPdfV2,
   buildReportPdfV2WithSignatureOutcome,
 } from "./report-v2/build-report-pdf.js";
+import { assertPdfSigningProductionSafetyOrThrow, type PdfSigningOutcome } from "./pdf/signPdf.js";
+import {
+  buildReportIssuanceRenderFacts,
+  verificationPageOpensAtIssuance,
+  type ReportIssuanceRenderFacts,
+} from "./report-v2/issuance-render-facts.js";
 import {
   resolveCustodyCapturePresentation,
   packageCustodyEntry,
@@ -506,13 +512,12 @@ type ReportBuildParams = {
 };
 
 type PreparedReportArtifacts = {
-  reportPdf: Buffer;
-  // Phase A2 — bounded outcome of the PDF artifact signing step.
-  // Persisted on the Report row so the API can surface artifact
-  // trust without inferring from labels. Always non-null; the
-  // worker chooses one of SIGNED / UNSIGNED_OPT_OUT /
-  // SIGNING_UNAVAILABLE.
-  pdfSigningOutcome: import("./pdf/signPdf.js").PdfSigningOutcome;
+  /**
+   * F-05 / F-26b — the issuance facts the published report states, rendered
+   * ONCE in phase B. The PDF signing outcome is that render's own (it is no
+   * longer taken from a discarded provisional PDF).
+   */
+  issuanceRenderFacts: ReportIssuanceRenderFacts;
   verificationZip: Buffer | null;
   verifyUrl: string;
   /**
@@ -3167,8 +3172,7 @@ await recordIntegrityObservation({
   // The canonical page opens without login and without owner publication. Only
   // a legal/privacy/security withdrawal makes it unavailable, and a report
   // issued then says so instead of printing a link that would not open.
-  const publicVerifyPublishedAtIssuance =
-    evidence.verificationAccessState !== "WITHDRAWN";
+  const publicVerifyPublishedAtIssuance = verificationPageOpensAtIssuance(evidence.verificationAccessState);
 
 
   // THE ACQUISITION IDENTITY SNAPSHOT — what was true when the record was
@@ -3460,72 +3464,27 @@ const trustDecision = buildTrustDecision({
   isIntake: reportAcquisition?.isIntake === true,
 });
 
-  // Phase 31.11 — bounded media intelligence projection. Never throws,
-  // never blocks: a null result means the report renders byte-identical
-  // to the pre-31.10 legacy output. A non-null result means the
-  // advisory "Media Intelligence Observations" section will render.
-  const reportMediaIntelligence = await buildReportMediaIntelligence({
-    teamId: evidence.teamId ?? null,
-    evidenceId,
-  });
-
-  // Enterprise Technical Metadata layer — compact technical summary
-  // projection (media facts + EXIF summary + capture environment).
-  // Never throws; null means the "Media Technical Summary" section
-  // renders nothing.
-  const reportTechnicalSummary = await buildReportTechnicalSummary({
-    teamId: evidence.teamId ?? null,
-    evidenceId,
-  });
-
-  // UC-4 — bounded DERIVED screen-review summary (provenance-only). Null when
-  // no reconstruction exists, so the report is byte-identical for non-UC-4.
-  const reportDerivedReview = await buildReportDerivedReview({
-    teamId: evidence.teamId ?? null,
-    evidenceId,
-    ownerUserId: evidence.ownerUserId ?? null,
-  });
-
-  const reportBuildParams: ReportBuildParams = {
-    evidence: reportEvidencePayload,
-    custodyEvents: custodyEventsForReport,
-    version: provisionalVersion,
-    generatedAtUtc: now.toISOString(),
-    buildInfo: env.WORKER_BUILD_INFO ?? null,
-    verifyUrl,
-    publicVerificationPublished: publicVerifyPublishedAtIssuance,
-    // UC-TRUST-008 — the exact bytes this report certifies (re-read above).
-    certifiedOriginal: {
-      recordedSha256: expectedOriginalDigest,
-      objectVersionIds:
-        parts.length > 0 ? parts.map((p) => p.storageVersionId ?? null) : [evidence.storageVersionId ?? null],
-      rereadAtUtc: now.toISOString(),
-    },
+  // F-05 / F-26b (2026-11-13) — ONE render per report. The facts the published
+  // PDF states are established here and rendered in phase B; the signing
+  // outcome persisted on the Report row is that render's own. (A provisional
+  // PDF used to be rendered and signed here and discarded: the published PDF
+  // never received these facts, and the stored signature status described the
+  // discarded bytes.) The production signing assertion still runs before any
+  // version is reserved, exactly as the provisional render made it run.
+  const issuanceRenderFacts = buildReportIssuanceRenderFacts({
+    verificationAccessState: evidence.verificationAccessState ?? null,
+    // UC-TRUST-008 — the digest the stored bytes were re-read and matched to
+    // above (a mismatch never reaches this line).
+    rereadMatchedDigest: expectedOriginalDigest ?? null,
+    objectVersionIds:
+      parts.length > 0 ? parts.map((p) => p.storageVersionId ?? null) : [evidence.storageVersionId ?? null],
+    rereadAtUtc: now,
     // UC-PROV-003 — the validated manifest facts of the capture that sealed.
     captureManifest: (await loadProvenanceChainForPackage(evidence.id))?.captureManifestFacts ?? null,
-    downloadUrl: evidenceDetailUrl,
-    externalMode: false,
-    recordedLocationDisclosed: AUTHORIZED_REPORT_SHOWS_RECORDED_LOCATION,
-    mediaIntelligence: reportMediaIntelligence,
-    technicalSummary: reportTechnicalSummary,
-    acquisition: reportAcquisition,
-    derivedReview: reportDerivedReview,
-  };
-
-// Phase A2 — call the signature-aware variant so the Report row
-// can persist the explicit pdfSignatureStatus + signedAtUtc +
-// signerKeyId + warning. The legacy bytes-only signature
-// (`buildReportPdfV2`) is preserved for callers that only need
-// the PDF; new code paths use the outcome variant.
-const pdfSigningOutcome: import("./pdf/signPdf.js").PdfSigningOutcome =
-  options?.skipProvisionalPdf === true
-    ? {
-        status: "UNSIGNED_OPT_OUT",
-        pdf: Buffer.alloc(0),
-        warning: "Not rendered: package-only recovery embeds the stored report.",
-      }
-    : await buildReportPdfV2WithSignatureOutcome(reportBuildParams);
-const reportPdf = pdfSigningOutcome.pdf;
+  });
+  if (options?.skipProvisionalPdf !== true) {
+    assertPdfSigningProductionSafetyOrThrow();
+  }
 
 const verificationZip: Buffer | null = null;
 
@@ -3540,11 +3499,7 @@ const verificationZip: Buffer | null = null;
   }
 
 return {
-  reportPdf,
-  // Phase A2 — propagate the signing outcome to the finalize
-  // transaction below so the Report row carries the structured
-  // signature status.
-  pdfSigningOutcome,
+  issuanceRenderFacts,
   verificationZip,
   verifyUrl,
   verificationRef,
@@ -3994,6 +3949,8 @@ async function loadCommittedReportForPackage(params: {
       trustDecisionSnapshot: true,
       s3VersionId: true,
       issuanceCustodyThroughSequence: true,
+      pdfSignatureStatus: true,
+      pdfSignerKeyId: true,
     },
   });
   if (!report) throw createWorkerError("REPORT_VERSION_NOT_FOUND", false);
@@ -4101,6 +4058,9 @@ async function loadCommittedReportForPackage(params: {
     effectiveVerificationStatus,
     effectiveRecordedIntegrityVerifiedAtUtc,
     finalizedReportPdf: verified.bytes,
+    // F-26b — the stored report's own signature facts (it was signed when it
+    // was issued); this run renders nothing.
+    reportPdfSignature: { status: report.pdfSignatureStatus ?? null, signerKeyId: report.pdfSignerKeyId ?? null },
     finalizedTrustDecision,
     // A package for a committed report is checked against the record read
     // when it is assembled.
@@ -4788,7 +4748,11 @@ async function runReportGeneration(
         // snapshot (equality — no lifecycle skew is possible).
         const reportCanonicalFacts = renderSnapshot.facts;
         assertRenderInputs(reportCanonicalFacts, effectiveReportEvidencePayload, custodyAtIssue);
-        const finalizedReportPdf = await buildReportPdfV2({
+        // F-05 / F-26b — THE render of this report: the issuance facts are
+        // rendered into the published bytes, and the signing outcome persisted
+        // below (Report row, custody event, package) is these bytes' own.
+        const finalizedPdfSigningOutcome: PdfSigningOutcome = await buildReportPdfV2WithSignatureOutcome({
+          ...prepared.issuanceRenderFacts,
           supersession,
           evidence: effectiveReportEvidencePayload,
           custodyEvents: finalizedCustodyForReport,
@@ -4806,6 +4770,7 @@ async function runReportGeneration(
           derivedReview: finalizedReportDerivedReview,
           recordLegalHold: finalizedRecordLegalHold,
         });
+        const finalizedReportPdf = finalizedPdfSigningOutcome.pdf;
         // AFTER RENDERING: the text extracted from the PDF bytes states the
         // record's facts and nothing stronger, on usable pages (the geometric
         // gate); an updated report carries its supersession notice. A
@@ -4822,6 +4787,9 @@ async function runReportGeneration(
           incomingBytes: BigInt(finalizedReportPdf.length),
           // Credit-funded records earn their report on a FREE account.
           evidenceId: evidence.id,
+          // F-02 — the record's first report, earned at finalization, is not
+          // refused for storage.
+          issuanceVersion: prepared.version,
         });
 
         // Phase O1.5C — bounded report.upload span. NEVER PDF bytes
@@ -5064,7 +5032,7 @@ async function runReportGeneration(
 
             // Phase A2 — a distinct custody event for the PDF signing decision.
             const pdfCustodyEventType =
-              prepared.pdfSigningOutcome.status === "SIGNED"
+              finalizedPdfSigningOutcome.status === "SIGNED"
                 ? prismaPkg.CustodyEventType.REPORT_PDF_SIGNED
                 : prismaPkg.CustodyEventType.REPORT_PDF_UNSIGNED_OPT_OUT;
             await appendCustodyEventTx(tx, {
@@ -5073,14 +5041,14 @@ async function runReportGeneration(
               atUtc: prepared.now,
               payload: {
                 reportVersion: prepared.version,
-                pdfSignatureStatus: prepared.pdfSigningOutcome.status,
+                pdfSignatureStatus: finalizedPdfSigningOutcome.status,
                 pdfSignerKeyId:
-                  prepared.pdfSigningOutcome.status === "SIGNED"
-                    ? prepared.pdfSigningOutcome.signerKeyId
+                  finalizedPdfSigningOutcome.status === "SIGNED"
+                    ? finalizedPdfSigningOutcome.signerKeyId
                     : null,
                 pdfSignedAtUtc:
-                  prepared.pdfSigningOutcome.status === "SIGNED"
-                    ? prepared.pdfSigningOutcome.signedAtUtc.toISOString()
+                  finalizedPdfSigningOutcome.status === "SIGNED"
+                    ? finalizedPdfSigningOutcome.signedAtUtc.toISOString()
                     : null,
               },
             });
@@ -5209,19 +5177,19 @@ async function runReportGeneration(
                       previewCaption: item.previewCaption ?? null,
                     })) as unknown as Prisma.InputJsonValue,
                 // Phase A2 — explicit PDF artifact signature columns.
-                pdfSignatureStatus: prepared.pdfSigningOutcome.status,
+                pdfSignatureStatus: finalizedPdfSigningOutcome.status,
                 pdfSignedAtUtc:
-                  prepared.pdfSigningOutcome.status === "SIGNED"
-                    ? prepared.pdfSigningOutcome.signedAtUtc
+                  finalizedPdfSigningOutcome.status === "SIGNED"
+                    ? finalizedPdfSigningOutcome.signedAtUtc
                     : null,
                 pdfSignerKeyId:
-                  prepared.pdfSigningOutcome.status === "SIGNED"
-                    ? prepared.pdfSigningOutcome.signerKeyId
+                  finalizedPdfSigningOutcome.status === "SIGNED"
+                    ? finalizedPdfSigningOutcome.signerKeyId
                     : null,
                 pdfSigningWarning:
-                  prepared.pdfSigningOutcome.status === "SIGNED"
+                  finalizedPdfSigningOutcome.status === "SIGNED"
                     ? null
-                    : prepared.pdfSigningOutcome.warning,
+                    : finalizedPdfSigningOutcome.warning,
                 issuanceCustodyThroughSequence,
               },
             });
@@ -5266,6 +5234,10 @@ async function runReportGeneration(
               effectiveVerificationStatus,
               effectiveRecordedIntegrityVerifiedAtUtc,
               finalizedReportPdf,
+              reportPdfSignature: {
+                status: finalizedPdfSigningOutcome.status,
+                signerKeyId: finalizedPdfSigningOutcome.status === "SIGNED" ? finalizedPdfSigningOutcome.signerKeyId : null,
+              },
               finalizedTrustDecision,
               reportIssuedAtUtc: prepared.now,
               custodyThroughSequence:
@@ -5529,10 +5501,9 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           publicVerification: { publishedAtIssuance: prepared.publicVerifyPublishedAtIssuance },
           evidenceFiles: prepared.verificationEvidenceFiles,
           reportPdf: finalized.finalizedReportPdf,
-          reportPdfSignature: {
-            status: prepared.pdfSigningOutcome.status,
-            signerKeyId: prepared.pdfSigningOutcome.status === "SIGNED" ? prepared.pdfSigningOutcome.signerKeyId : null,
-          },
+          // F-26b — the signature facts of THE embedded bytes: this run's
+          // render, or (package-only recovery) the stored report's own row.
+          reportPdfSignature: finalized.reportPdfSignature,
           reportFileName: `proovra-verification-report-v${prepared.version}.pdf`,
           // FORMAT 5 — the seal binds the checksum index and, through it, the
           // exact report bytes above. Chronology is stated, never implied: a
@@ -5994,6 +5965,9 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
             incomingBytes: built.reduce((sum, b) => sum + BigInt(b.staged.sizeBytes), BigInt(0)),
             // Credit-funded records earn their package on a FREE account.
             evidenceId: evidence.id,
+            // F-02 — the package pair of the record's first report, earned at
+            // finalization, is not refused for storage.
+            issuanceVersion: prepared.version,
           });
         } catch (gateError) {
           throw toPackageAllowanceRefusal(gateError);

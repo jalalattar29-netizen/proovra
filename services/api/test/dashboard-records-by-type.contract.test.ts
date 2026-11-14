@@ -188,7 +188,11 @@ describe("Phase HOME-RECORDS-BY-TYPE — frontend hook wiring", () => {
     const slice = enclosingSource(HOOK, "/v1/dashboard/records-by-type", "statement", {
       fileName: "useHomeData.ts",
     });
-    expect(slice).toMatch(/\.catch\(\(\)\s*=>\s*null\)/);
+    // F-21 (Free-user audit) — still partial-failure tolerant: `soft(slice)`
+    // resolves null like `.catch(() => null)` did, and also records a
+    // transient failure so Home can offer a retry.
+    expect(slice).toMatch(/\.catch\(soft\("recordsByType"\)\)/);
+    expect(HOOK).toMatch(/\(err: unknown\): null => \{[\s\S]*?return null;/);
   });
 
   it("threads `recordsByType` through to normalizeHomeViewModel", () => {

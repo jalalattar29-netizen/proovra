@@ -72,12 +72,12 @@ describe("Phase A2 — worker PDF signing outcome (source contract)", () => {
     expect(PROCESSOR_SRC).toContain(
       "buildReportPdfV2WithSignatureOutcome",
     );
-    expect(PROCESSOR_SRC).toContain("pdfSigningOutcome");
+    expect(PROCESSOR_SRC).toContain("finalizedPdfSigningOutcome");
   });
 
   it("processor persists the four PDF artifact columns on the Report row", () => {
     expect(PROCESSOR_SRC).toMatch(
-      /pdfSignatureStatus:\s*prepared\.pdfSigningOutcome\.status/,
+      /pdfSignatureStatus:\s*finalizedPdfSigningOutcome\.status/,
     );
     expect(PROCESSOR_SRC).toContain("pdfSignedAtUtc:");
     expect(PROCESSOR_SRC).toContain("pdfSignerKeyId:");
@@ -94,7 +94,7 @@ describe("Phase A2 — worker PDF signing outcome (source contract)", () => {
     // The gating literal must compare against "SIGNED" — never
     // infer signed state from a truthy check.
     expect(PROCESSOR_SRC).toMatch(
-      /pdfSigningOutcome\.status\s*===\s*"SIGNED"/,
+      /finalizedPdfSigningOutcome\.status\s*===\s*"SIGNED"/,
     );
   });
 

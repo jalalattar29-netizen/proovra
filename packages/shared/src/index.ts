@@ -218,8 +218,14 @@ export type {
   OrganizationInvitationContext,
   OrganizationInvitationWorkspaceGrant,
 } from "./organization-invitation-contract.js";
-export { resolveInvitationView, isRetryableRefusal } from "./workspace-invitation-view.js";
+export {
+  resolveInvitationView,
+  isRetryableRefusal,
+  classifyWorkspaceEntryRefusal,
+} from "./workspace-invitation-view.js";
 export type {
+  InvitationEntryBlock,
+  InvitationEntryOutcome,
   InvitationAuthState,
   InvitationLookupOutcome,
   InvitationAcceptOutcome,
@@ -375,6 +381,9 @@ export {
   outputLifecycleRefusal,
   OUTPUT_PRODUCING_LIFECYCLE_STATE_LIST,
   decideOutputProduction,
+  // F-02 (2026-11-13) — the first issuance a record earned is not refused for storage.
+  STORAGE_EXEMPT_FIRST_ISSUANCE_BASES,
+  firstIssuanceExemptFromStorageLimit,
   // TERMINAL-LOCKOUT CLOSURE (RGA-07) — the shared technical-terminal predicate
   // and the bounded supersession ceiling, consulted by both the offer and the
   // request writer so a dead TECHNICAL terminal cannot permanently lock a

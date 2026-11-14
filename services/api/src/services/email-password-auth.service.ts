@@ -1,7 +1,7 @@
 import { evaluateExistingAccountLink } from "./security/enterprise-account-linking.service.js";
-import { randomBytes, scryptSync, timingSafeEqual, createHash } from "node:crypto";
+import { randomBytes, scrypt, timingSafeEqual, createHash, type ScryptOptions } from "node:crypto";
 import { prisma } from "../db.js";
-import { AuthProvider } from "@prisma/client";
+import { AuthProvider, type User } from "@prisma/client";
 import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
 import { ensureEntitlement } from "./billing.service.js";
 import { error as logError } from "../utils/logger.js";
@@ -58,21 +58,53 @@ function sha256Hex(input: string): string {
 /**
  * Password hash format:
  * scrypt$N$r$p$saltHex$hashHex
+ *
+ * F-21 — the derivation runs on the libuv thread pool (`crypto.scrypt`), not on
+ * the event loop (`scryptSync` used to block every other request for the whole
+ * derivation). The parameters, salt length, key length and encoding are exactly
+ * the ones every stored hash was written with, so old and new hashes are the
+ * same bytes in the same format.
  */
-export function hashPassword(password: string): string {
-  const N = 16384;
-  const r = 8;
-  const p = 1;
+const SCRYPT_N = 16384;
+const SCRYPT_R = 8;
+const SCRYPT_P = 1;
+const SCRYPT_SALT_BYTES = 16;
+const SCRYPT_KEY_BYTES = 32;
+/**
+ * Bounded work. N=16384, r=8 needs 128·N·r = 16 MiB; the ceiling leaves room for
+ * that and refuses a stored hash whose parameters would ask for more, so a row
+ * cannot make one verification allocate without limit.
+ */
+const SCRYPT_MAXMEM = 64 * 1024 * 1024;
+/** A stored key longer than this is not one this codebase wrote. */
+const SCRYPT_MAX_STORED_KEY_BYTES = 64;
 
-  const salt = randomBytes(16);
-  const key = scryptSync(password, salt, 32, { N, r, p });
+function deriveScrypt(
+  password: string,
+  salt: Buffer,
+  keyLength: number,
+  options: ScryptOptions,
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, keyLength, { ...options, maxmem: SCRYPT_MAXMEM }, (err, key) =>
+      err ? reject(err) : resolve(key),
+    );
+  });
+}
 
-  // ✅ FIX: use backticks
+export async function hashPassword(password: string): Promise<string> {
+  const N = SCRYPT_N;
+  const r = SCRYPT_R;
+  const p = SCRYPT_P;
+
+  const salt = randomBytes(SCRYPT_SALT_BYTES);
+  const key = await deriveScrypt(password, salt, SCRYPT_KEY_BYTES, { N, r, p });
+
   return `scrypt$${N}$${r}$${p}$${salt.toString("hex")}$${key.toString("hex")}`;
 }
 
 /**
- * A real hash of a value nobody can present, derived once at module load.
+ * A real hash of a value nobody can present, derived once per process.
  *
  * WHY IT EXISTS. `loginWithEmailPassword` used to return early when no
  * account matched, so the scrypt verification — by far the most expensive
@@ -88,9 +120,18 @@ export function hashPassword(password: string): string {
  * is no value an attacker could supply that would make this comparison
  * succeed.
  */
-const ABSENT_ACCOUNT_HASH = hashPassword(randomBytes(32).toString("hex"));
+let absentAccountHash: Promise<string> | null = null;
+function getAbsentAccountHash(): Promise<string> {
+  absentAccountHash ??= hashPassword(randomBytes(32).toString("hex"));
+  return absentAccountHash;
+}
 
-export function verifyPassword(password: string, stored: string): boolean {
+/** Do the same work as a real verification and discard the answer. */
+async function burnPasswordVerification(password: string): Promise<void> {
+  await verifyPassword(password, await getAbsentAccountHash());
+}
+
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split("$");
 
   if (parts.length !== 6) return false;
@@ -102,79 +143,71 @@ export function verifyPassword(password: string, stored: string): boolean {
   const saltHex = parts[4];
   const hashHex = parts[5];
 
-  // ✅ FIX: correct logical operators
   if (!Number.isFinite(N) || !Number.isFinite(r) || !Number.isFinite(p)) {
     return false;
   }
 
   const salt = Buffer.from(saltHex, "hex");
   const expected = Buffer.from(hashHex, "hex");
+  // An empty or oversized stored key is not a hash this codebase wrote; an
+  // empty one would otherwise compare equal to an empty derivation.
+  if (expected.length === 0 || expected.length > SCRYPT_MAX_STORED_KEY_BYTES) return false;
 
-  const actual = scryptSync(password, salt, expected.length, { N, r, p });
+  let actual: Buffer;
+  try {
+    actual = await deriveScrypt(password, salt, expected.length, { N, r, p });
+  } catch {
+    // Parameters scrypt refuses, or above the memory ceiling.
+    return false;
+  }
 
   return timingSafeEqual(actual, expected);
 }
 
-export async function registerWithEmailPassword(params: {
-  email: string;
-  password: string;
-  displayName?: string | null;
-}) {
-  const email = normalizeEmail(params.email);
+/**
+ * F-22 — the registration result. `resumed` is true when the address already
+ * held an unfinished signup by the same registrant (see
+ * {@link isResumableSignup}) and this call finished it instead of refusing.
+ */
+export type RegisterWithEmailPasswordResult = {
+  user: User;
+  resumed: boolean;
+};
 
-  // D24 — the same floor as reset and change. The register form enforces
-  // it; the server accepted any eight characters from a direct call.
-  if (!isPasswordPolicyCompliant(params.password)) {
-    throw new WeakPasswordError();
-  }
+/**
+ * F-22 — an earlier attempt committed the User row and then failed (the
+ * entitlement bootstrap threw, the verification token could not be written,
+ * the process died before answering). Answering that registrant's retry with
+ * 409 "already exists" was a dead end: sign-in says "verify your email" and no
+ * link was ever sent.
+ *
+ * The retry is resumable only when the account is still unverified AND the
+ * retry presents the password the account was registered with — the same
+ * proof a verification link needs beside it (PROV-001), so it grants nothing a
+ * stranger lacks today: no session is minted, and the only effect is a fresh
+ * link to the address's own mailbox. A verified account, or a different
+ * password, is refused with the unchanged 409, so an owner's account is never
+ * touched by someone else's sign-up.
+ *
+ * One verification always runs, so a verified and an unverified collision cost
+ * the same.
+ */
+async function isResumableSignup(
+  existing: Pick<User, "emailVerifiedAt" | "passwordHash">,
+  password: string,
+): Promise<boolean> {
+  const matches = await verifyPassword(
+    password,
+    existing.passwordHash ?? (await getAbsentAccountHash()),
+  );
+  return matches && !existing.emailVerifiedAt && Boolean(existing.passwordHash);
+}
 
-  const provider = AuthProvider.EMAIL;
-  const providerUserId = email;
-
-  // Security: refuse registration when an EMAIL provider account
-  // already exists for this address. The prior implementation silently
-  // upserted, which (a) overwrote the existing passwordHash on every
-  // re-submission and (b) gave the frontend no way to surface a real
-  // "account already exists" affordance. We now read first, then
-  // create — Prisma's @@unique(provider, providerUserId) catches the
-  // race condition (two concurrent registrations) and translates to
-  // the same EmailAlreadyExistsError below.
-  const existing = await prisma.user.findFirst({
-    where: { provider, providerUserId },
-    select: { id: true },
-  });
-
-  if (existing) {
-    throw new EmailAlreadyExistsError();
-  }
-
-  const passwordHash = hashPassword(params.password);
-
-  let user;
-  try {
-    user = await prisma.user.create({
-      data: {
-        provider,
-        providerUserId,
-        email,
-        displayName: params.displayName ?? null,
-        passwordHash,
-      },
-    });
-  } catch (err) {
-    // Prisma P2002 = unique constraint violation. Race between the
-    // findFirst above and this create — surface as the same conflict.
-    if (
-      err &&
-      typeof err === "object" &&
-      "code" in err &&
-      (err as { code?: unknown }).code === "P2002"
-    ) {
-      throw new EmailAlreadyExistsError();
-    }
-    throw err;
-  }
-
+/**
+ * The bootstrap a new account needs beyond its User row. Both steps are
+ * idempotent, so a resumed signup simply runs them again.
+ */
+async function bootstrapRegisteredAccount(user: User): Promise<void> {
   // UC-COM-004 — the ONE entitlement bootstrap (create, then re-read the winner on a unique
   // violation of entitlements_user_id_active_key). Never check-then-create here.
   await ensureEntitlement(user.id);
@@ -206,8 +239,80 @@ export async function registerWithEmailPassword(params: {
       error: (err as Error)?.message ?? String(err),
     });
   }
+}
 
-  return user;
+export async function registerWithEmailPassword(params: {
+  email: string;
+  password: string;
+  displayName?: string | null;
+}): Promise<RegisterWithEmailPasswordResult> {
+  const email = normalizeEmail(params.email);
+
+  // D24 — the same floor as reset and change. The register form enforces
+  // it; the server accepted any eight characters from a direct call.
+  if (!isPasswordPolicyCompliant(params.password)) {
+    throw new WeakPasswordError();
+  }
+
+  const provider = AuthProvider.EMAIL;
+  const providerUserId = email;
+
+  // Security: refuse registration when an EMAIL provider account
+  // already exists for this address. The prior implementation silently
+  // upserted, which (a) overwrote the existing passwordHash on every
+  // re-submission and (b) gave the frontend no way to surface a real
+  // "account already exists" affordance. We now read first, then
+  // create — Prisma's @@unique(provider, providerUserId) catches the
+  // race condition (two concurrent registrations) and translates to
+  // the same EmailAlreadyExistsError below. F-22: an unfinished signup by
+  // the same registrant is resumed instead (isResumableSignup).
+  const resumeOrRefuse = async (): Promise<RegisterWithEmailPasswordResult | null> => {
+    const existing = await prisma.user.findFirst({ where: { provider, providerUserId } });
+    if (!existing) return null;
+    if (!(await isResumableSignup(existing, params.password))) {
+      throw new EmailAlreadyExistsError();
+    }
+    await bootstrapRegisteredAccount(existing);
+    return { user: existing, resumed: true };
+  };
+
+  const resumed = await resumeOrRefuse();
+  if (resumed) return resumed;
+
+  const passwordHash = await hashPassword(params.password);
+
+  let user: User;
+  try {
+    user = await prisma.user.create({
+      data: {
+        provider,
+        providerUserId,
+        email,
+        displayName: params.displayName ?? null,
+        passwordHash,
+      },
+    });
+  } catch (err) {
+    // Prisma P2002 = unique constraint violation. Race between the
+    // findFirst above and this create — the winner's row decides, exactly
+    // as if it had been there at the read (a double-submitted form resumes,
+    // anyone else gets the conflict).
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code?: unknown }).code === "P2002"
+    ) {
+      const winner = await resumeOrRefuse();
+      if (winner) return winner;
+      throw new EmailAlreadyExistsError();
+    }
+    throw err;
+  }
+
+  await bootstrapRegisteredAccount(user);
+
+  return { user, resumed: false };
 }
 
 export async function loginWithEmailPassword(params: {
@@ -224,7 +329,7 @@ export async function loginWithEmailPassword(params: {
   });
 
   /*
-   * Every failure costs the same. See ABSENT_ACCOUNT_HASH above: an account
+   * Every failure costs the same. See getAbsentAccountHash above: an account
    * that does not exist, and one that exists without a password, both run a
    * full scrypt verification against a hash that cannot match, so the three
    * ways to fail are indistinguishable by response AND by duration.
@@ -233,11 +338,11 @@ export async function loginWithEmailPassword(params: {
    * reader and to the linter.
    */
   if (!user || !user.passwordHash) {
-    void verifyPassword(params.password, ABSENT_ACCOUNT_HASH);
+    await burnPasswordVerification(params.password);
     return null;
   }
 
-  if (!verifyPassword(params.password, user.passwordHash)) {
+  if (!(await verifyPassword(params.password, user.passwordHash))) {
     return null;
   }
 
@@ -295,17 +400,17 @@ export async function changePasswordForUser(params: {
   if (!user.passwordHash) {
     return { ok: false, reason: "no_password_set" };
   }
-  if (!verifyPassword(params.currentPassword, user.passwordHash)) {
+  if (!(await verifyPassword(params.currentPassword, user.passwordHash))) {
     return { ok: false, reason: "current_password_mismatch" };
   }
-  if (verifyPassword(params.newPassword, user.passwordHash)) {
+  if (await verifyPassword(params.newPassword, user.passwordHash)) {
     return { ok: false, reason: "same_as_current" };
   }
   if (!isPasswordPolicyCompliant(params.newPassword)) {
     return { ok: false, reason: "weak_new_password" };
   }
 
-  const newHash = hashPassword(params.newPassword);
+  const newHash = await hashPassword(params.newPassword);
   await prisma.user.update({
     where: { id: user.id },
     data: { passwordHash: newHash },
@@ -421,7 +526,7 @@ export async function resetPasswordWithToken(params: {
     };
   }
 
-  const newHash = hashPassword(params.newPassword);
+  const newHash = await hashPassword(params.newPassword);
 
   /*
    * PRO-004 — ONE TOKEN, ONE PASSWORD.
@@ -513,33 +618,100 @@ class ResetRefused extends Error {
 // when resend is hammered.
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 
-export async function createEmailVerificationToken(userId: string) {
+export async function createEmailVerificationToken(
+  userId: string,
+  options: {
+    /**
+     * F-06 — false leaves earlier unused links working until the provider has
+     * accepted the new one ({@link settleEmailVerificationTokenDelivery}), so a
+     * resend the provider refuses does not kill a link already in the inbox.
+     */
+    retirePriorTokens?: boolean;
+  } = {},
+) {
   const rawToken = randomBytes(32).toString("hex");
   const tokenHash = sha256Hex(rawToken);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_TTL_MS);
+  const retirePriorTokens = options.retirePriorTokens ?? true;
+
+  const create = prisma.emailVerificationToken.create({
+    data: {
+      userId,
+      tokenHash,
+      expiresAt,
+    },
+    select: { id: true, createdAt: true },
+  });
 
   // Invalidate any prior unused tokens for this user, then issue a
   // fresh one. Wrapped in a transaction so a flooded resend can never
   // race two valid tokens for the same user.
-  await prisma.$transaction([
-    prisma.emailVerificationToken.updateMany({
-      where: {
-        userId,
-        usedAt: null,
-      },
-      data: { usedAt: now },
-    }),
-    prisma.emailVerificationToken.create({
-      data: {
-        userId,
-        tokenHash,
-        expiresAt,
-      },
-    }),
-  ]);
+  const row = retirePriorTokens
+    ? (
+        await prisma.$transaction([
+          prisma.emailVerificationToken.updateMany({
+            where: {
+              userId,
+              usedAt: null,
+            },
+            data: { usedAt: now },
+          }),
+          create,
+        ])
+      )[1]
+    : await create;
 
-  return { rawToken, expiresAt };
+  return { rawToken, expiresAt, tokenId: row.id, createdAt: row.createdAt };
+}
+
+/**
+ * F-06 — record what the provider said about the link just minted.
+ *
+ *   - `acknowledged`: the new link is the working one; every OLDER unused link
+ *     is retired (the "only the most recent link works" rule, applied once the
+ *     most recent link is known to exist in the mailbox).
+ *   - `ambiguous`: the message may or may not have gone out. The new link stays
+ *     (it may be in the inbox) and so do the older ones (it may not be).
+ *   - `refused`: the provider refused, or no transport exists. The link never
+ *     left this process, so the row is removed: it cannot be used by anyone,
+ *     and it must not count as a recent send for the resend cooldown.
+ */
+export async function settleEmailVerificationTokenDelivery(
+  token: { tokenId: string; userId: string; createdAt: Date },
+  outcome: "acknowledged" | "ambiguous" | "refused",
+): Promise<void> {
+  if (outcome === "refused") {
+    await prisma.emailVerificationToken.deleteMany({
+      where: { id: token.tokenId, usedAt: null },
+    });
+    return;
+  }
+  if (outcome === "acknowledged") {
+    await prisma.emailVerificationToken.updateMany({
+      where: {
+        userId: token.userId,
+        usedAt: null,
+        id: { not: token.tokenId },
+        createdAt: { lt: token.createdAt },
+      },
+      data: { usedAt: new Date() },
+    });
+  }
+}
+
+/**
+ * F-06 — when the newest link that may have reached the mailbox was minted.
+ * Refused sends leave no row ({@link settleEmailVerificationTokenDelivery}), so
+ * this is the honest basis for the per-address resend cooldown.
+ */
+export async function latestDeliverableVerificationTokenAt(userId: string): Promise<Date | null> {
+  const latest = await prisma.emailVerificationToken.findFirst({
+    where: { userId, usedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  return latest?.createdAt ?? null;
 }
 
 // Returns either the freshly verified user or a structured failure.
@@ -596,7 +768,7 @@ export async function consumeEmailVerificationToken(
   );
   if (firstVerificationOfPassword) {
     if (!options.password) return { ok: false, reason: "password_required" };
-    if (!verifyPassword(options.password, account?.passwordHash as string)) {
+    if (!(await verifyPassword(options.password, account?.passwordHash as string))) {
       return { ok: false, reason: "password_incorrect" };
     }
   }

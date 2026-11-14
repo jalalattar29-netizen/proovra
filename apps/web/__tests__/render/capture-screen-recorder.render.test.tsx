@@ -11,6 +11,7 @@ import {
   useCaptureScreenRecorder,
 } from "../../app/(app)/capture/_hooks/useCaptureScreenRecorder";
 import { CaptureScreenRecorderCard } from "../../app/(app)/capture/_lib/CaptureScreenRecorderCard";
+import { CaptureStagingLimitError } from "../../app/(app)/capture/_lib/capture-errors";
 
 /**
  * Web screen capture (owner mandate R02 / LCH-004) — getDisplayMedia +
@@ -209,6 +210,27 @@ describe("useCaptureScreenRecorder", () => {
     });
     expect(addFilesToSession).toHaveBeenCalledTimes(2);
     expect(result.current.state).toBe("idle");
+  });
+
+  it("F-24: a recording over a staging limit is kept and the limit is named, never a misleading success", async () => {
+    install();
+    const limit = "PROOVRA-SCREEN.webm is too large. Maximum single file size is 500.00 MB.";
+    const addFilesToSession = vi
+      .fn<(f: File[], o?: unknown) => Promise<void>>()
+      .mockRejectedValueOnce(new CaptureStagingLimitError(limit));
+    const onRecorded = vi.fn();
+    const { result } = renderHook(() => useCaptureScreenRecorder({ addFilesToSession, onRecorded }));
+    await act(async () => {
+      await result.current.start();
+    });
+    act(() => result.current.stop());
+    await act(async () => {
+      await result.current.addToSession();
+    });
+    expect(result.current.error).toBe(limit);
+    expect(result.current.recording).not.toBeNull();
+    expect(result.current.state).toBe("stopped");
+    expect(onRecorded).not.toHaveBeenCalled();
   });
 
   it("an unsupported browser reports unsupported", () => {

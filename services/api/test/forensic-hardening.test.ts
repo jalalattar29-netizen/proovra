@@ -201,15 +201,18 @@ describe("public verify semantics (Governance Item 1)", () => {
   });
 
   // AUD-26 (2026-10-20): the result says which verdict a surface shows.
-  it("states its basis: as issued with report vN at its time, or live", () => {
-    const asIssued = buildTrustDecisionConsistency({
+  // F-26a (2026-11-13): every surface now shows the LIVE verdict; the issued
+  // snapshot is the "since issue" comparison, never the presented verdict.
+  it("states its basis: the live verdict, with or without an issued snapshot to compare", () => {
+    const comparedToReport = buildTrustDecisionConsistency({
       snapshotTrustDecision: cloneTrustDecision(),
       liveTrustDecision: cloneTrustDecision(),
       source: "REPORT_SNAPSHOT",
       snapshotGeneratedAtUtc: "2026-01-01T10:20:00.000Z",
       latestReportVersion: 3,
     });
-    expect(asIssued.basis).toEqual({ kind: "AS_ISSUED", artifact: "REPORT", version: 3, issuedAtUtc: "2026-01-01T10:20:00.000Z" });
+    expect(comparedToReport.basis).toEqual({ kind: "LIVE" });
+    expect(comparedToReport.source).toBe("REPORT_SNAPSHOT");
     const live = buildTrustDecisionConsistency({
       snapshotTrustDecision: null,
       liveTrustDecision: cloneTrustDecision(),

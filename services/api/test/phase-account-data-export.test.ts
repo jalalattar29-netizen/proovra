@@ -80,7 +80,12 @@ describe("routes: step-up + universality + user binding", () => {
 
   it("one active request per user (409 export_request_active)", () => {
     expect(ROUTES).toMatch(/export_request_active/);
-    expect(ROUTES).toMatch(/\["REQUESTED", "PROCESSING", "READY"\]/);
+    // F-25 — REQUESTED/PROCESSING always count; READY only until it expires;
+    // checked and created under one per-user advisory lock.
+    expect(ROUTES).toMatch(/status: \{ in: \["REQUESTED", "PROCESSING"\] \}/);
+    expect(ROUTES).toMatch(/status: "READY", OR: \[\{ expiresAtUtc: null \}, \{ expiresAtUtc: \{ gt: now \} \}\]/);
+    expect(ROUTES).toContain("account-data-export:");
+    expect(ROUTES).toMatch(/pg_advisory_xact_lock/);
   });
 
   it("download is strictly user-bound and READY-only; no public/signed URL exists", () => {

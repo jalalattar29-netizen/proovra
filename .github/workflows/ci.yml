@@ -1163,6 +1163,9 @@ jobs:
         working-directory: apps/extension
         env:
           PROOVRA_API_ORIGIN: https://api.proovra.com
+          # Free audit F-27b — the popup's "View plans" and "Open record" links
+          # open this web origin; without it the release ships no links.
+          PROOVRA_WEB_ORIGIN: https://www.proovra.com
           PROOVRA_STORAGE_ORIGINS: ${{ vars.PROOVRA_STORAGE_ORIGINS }}
         run: |
           # Say WHY in an annotation (release.mjs's refusal goes to stderr,

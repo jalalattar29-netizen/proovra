@@ -124,9 +124,11 @@ import {
   attemptInitialOrgInviteDelivery,
   getOrgInviteDeliveryStates,
   lockOrganizationInviteSlotTx,
+  organizationInvitationRefusal,
   processDueOrgInviteDeliveries,
   recordOrgInviteDeliveryPending,
   resendOrgInviteDelivery,
+  resolveOrganizationInvitationAllowance,
 } from "../services/organization/org-invite-delivery.service.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
@@ -1016,10 +1018,14 @@ export async function organizationsRoutes(app: FastifyInstance) {
       const body = InviteBody.parse(req.body);
       const inviteRole: OrgRoleValue = body.role ?? "ORG_MEMBER";
 
+      // F-08 — invitations are a CUSTOMER-organization surface: the SYSTEM
+      // organization behind every Personal workspace (whose owner is
+      // ORG_OWNER) is refused before anything is written or sent.
       const access = await checkOrgAccess(prisma, {
         orgId,
         userId,
         minRole: "ORG_ADMIN",
+        requireKind: "CUSTOMER",
       });
       if (access.kind !== "ok") {
         const denial = orgAccessDenial(access);
@@ -1074,6 +1080,15 @@ export async function organizationsRoutes(app: FastifyInstance) {
             code: "invalid_workspace_assignment",
           });
         }
+      }
+
+      // F-08 — the organization's pending and 24-hour invitation ceilings.
+      const overAllowance = organizationInvitationRefusal(
+        await resolveOrganizationInvitationAllowance(prisma, orgId),
+        1,
+      );
+      if (overAllowance) {
+        return reply.code(overAllowance.status).send(overAllowance.body);
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -1549,10 +1564,27 @@ export async function organizationsRoutes(app: FastifyInstance) {
             wasAlreadyRevoked: true,
           };
 
-        await tx.organizationInvite.update({
-          where: { id: invite.id },
+        // Guarded like the acceptance claim (members audit F8): a revoke that
+        // loses the race to an acceptance must not report "revoked" over a
+        // membership that was just granted.
+        const revoked = await tx.organizationInvite.updateMany({
+          where: { id: invite.id, acceptedAt: null, revokedAt: null },
           data: { revokedAt: new Date(), revokedByUserId: userId },
         });
+        if (revoked.count === 0) {
+          const now = await tx.organizationInvite.findUnique({
+            where: { id: invite.id },
+            select: { acceptedAt: true },
+          });
+          if (now?.acceptedAt) return { kind: "already_accepted" as const };
+          return {
+            kind: "ok" as const,
+            inviteId: invite.id,
+            email: invite.email,
+            role: invite.role,
+            wasAlreadyRevoked: true,
+          };
+        }
 
         await emitOrgAuditEvent(tx, {
           organizationId: orgId,
@@ -1613,10 +1645,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
       );
       const userId = getAuthUserId(req);
 
+      // F-08 — a resend sends email: a customer-organization surface only.
       const access = await checkOrgAccess(prisma, {
         orgId,
         userId,
         minRole: "ORG_ADMIN",
+        requireKind: "CUSTOMER",
       });
       if (access.kind !== "ok") {
         const denial = orgAccessDenial(access);

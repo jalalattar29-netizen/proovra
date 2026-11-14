@@ -28,6 +28,7 @@ import { fetchSocialSignInNonce, loadAppleIdentity, loadGoogleIdentity } from ".
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { ForgotPasswordModal } from "../../components/marketing/ForgotPasswordModal";
 import { ssoSignInFailureMessage } from "../../lib/identity/ssoSignIn";
+import { safeReturnPath } from "../../lib/navigation/safe-return-path";
 
 const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
@@ -197,7 +198,9 @@ function LoginPageContent() {
   const { addToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextUrl = searchParams.get("next") || searchParams.get("returnUrl") || "/home";
+  // F-26g — validated once, here: every use below (router, SSO redirectAfter,
+  // OAuth callback storage, MFA hand-off, verification resend) reads this.
+  const nextUrl = safeReturnPath(searchParams.get("next") || searchParams.get("returnUrl"));
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -268,7 +271,7 @@ function LoginPageContent() {
         setError(t("loginErrorSsoNotSetUp"));
         return;
       }
-      const next = nextUrlRef.current.startsWith("/") ? nextUrlRef.current : "/home";
+      const next = safeReturnPath(nextUrlRef.current);
       window.location.assign(
         `${apiBaseUrl()}${found.loginPath}?redirectAfter=${encodeURIComponent(next)}`,
       );
@@ -318,7 +321,7 @@ function LoginPageContent() {
     if (!isMountedRef.current) return;
     if (inFlightRef.current) return;
 
-    const currentNextUrl = nextUrlRef.current.startsWith("/") ? nextUrlRef.current : "/home";
+    const currentNextUrl = safeReturnPath(nextUrlRef.current);
 
     const provider = path.includes("google")
       ? "google"
@@ -1080,7 +1083,9 @@ function LoginPageContent() {
                                       "/v1/auth/email/resend-verification",
                                       {
                                         method: "POST",
-                                        body: JSON.stringify({ email }),
+                                        // F-26f — the link carries where this
+                                        // sign-in was going.
+                                        body: JSON.stringify({ email, next: nextUrlRef.current }),
                                       },
                                       { auth: false },
                                     );

@@ -56,9 +56,11 @@ export async function resolveEvidenceOutputIssuance(
 
   // ET-COM-04 — THE STORED FUNDING FACT. A record that earned its outputs when
   // it was finalized keeps them: a report job queued before the plan lapsed
-  // still runs. A failed read is "no fact" — the current lifecycle then
-  // decides, which can only be the stricter answer.
+  // still runs. F-09 (2026-11-13) — a failed read is UNRESOLVED, not "no
+  // fact": for a FREE allowance record the fact IS the entitlement, and
+  // answering without it settled an entitled record NOT_APPLICABLE.
   let earned: OutputEarnedFact = null;
+  let earnedUnreadable = false;
   try {
     earned = readOutputEarnedFact(
       await client.evidence.findUnique({
@@ -68,6 +70,7 @@ export async function resolveEvidenceOutputIssuance(
     );
   } catch {
     earned = null;
+    earnedUnreadable = true;
   }
 
   let plan: string | null = null;
@@ -92,7 +95,8 @@ export async function resolveEvidenceOutputIssuance(
     lifecycle = null;
   }
   return resolveOutputIssuanceEntitlement({
-    plan: plan as Parameters<typeof resolveOutputIssuanceEntitlement>[0]["plan"],
+    // An unknown plan is the one resolver's UNRESOLVED answer (retry later).
+    plan: earnedUnreadable ? null : (plan as Parameters<typeof resolveOutputIssuanceEntitlement>[0]["plan"]),
     funding,
     lifecycle,
     earned,

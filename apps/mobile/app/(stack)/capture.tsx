@@ -7,7 +7,7 @@ import {
   View
 } from "react-native";
 import { theme } from "../../src/theme/theme";
-import { toSafeUserError } from "../../src/errors/safe-error";
+import { nativeErrorAction, toSafeUserError } from "../../src/errors/safe-error";
 import {
   mixedOriginPrompt,
   resolveDraftAcquisition,
@@ -68,7 +68,8 @@ import {
   type PlannedItem,
 } from "../../src/product/capture-plan";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { apiFetch } from "../../src/api";
+import { apiFetch, getAuthToken } from "../../src/api";
+import { DEFAULT_CAPTURE_RETRY } from "../../src/capture/capture-retry";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import {
@@ -212,6 +213,14 @@ type StagedItemInput = {
   source: DirectCaptureItemSource;
 };
 
+/**
+ * Free audit F-06 — said when an item was staged but its capture session (the
+ * server draft) could not be opened. The item is NOT lost; Finish & Sign does
+ * not need the draft.
+ */
+const DRAFT_OPEN_FAILED_MESSAGE =
+  "Your item is kept on this device, but the capture session could not be started yet. Tap Retry, or keep capturing and finish as usual.";
+
 /** The acquisition origin an item carries for the mixed-origin guard. */
 function originOf(acquisitionMode: string | null | undefined): string | null {
   // A screen acquisition's items carry its MODE; an ordinary item carries none
@@ -262,6 +271,12 @@ export default function CaptureScreen() {
   const [showSettingsLink, setShowSettingsLink] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The next step offered beside an error — a plan refusal's "View plans", or
+   * "Retry" for a capture session that could not be started. Keyed to the
+   * sentence it belongs to, so a later, different error never shows it.
+   */
+  const [errorAction, setErrorAction] = useState<{ forMessage: string; label: string; onPress: () => void } | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
 
@@ -1116,7 +1131,22 @@ hasActiveDraft: isSessionActive || isRecording,
       }
 
       try {
-        const draftId = await ensureDraft();
+        /*
+         * Free audit F-06 — the draft is opened BESIDE the item, never instead
+         * of it. A failed draft call (offline, a slow network, a refusal) used
+         * to land in the catch below before the item was staged, so the photo,
+         * video, file or recording just produced was dropped. The item is now
+         * staged either way — exactly as when the workspace is not yet known —
+         * and the draft is retried (Retry, the next item, or Finish & Sign,
+         * which does not need it).
+         */
+        let draftId: string | null = null;
+        let draftFailure: unknown = null;
+        try {
+          draftId = await ensureDraft();
+        } catch (draftErr) {
+          draftFailure = draftErr;
+        }
         const group = linkGroupRef.current;
         if (group && draftId && linkRegisteredRef.current !== draftId) {
           linkRegisteredRef.current = draftId;
@@ -1152,6 +1182,28 @@ hasActiveDraft: isSessionActive || isRecording,
         setSessionState(nextItems);
         recordActivity(stagedActivity(input));
 
+        if (draftFailure) {
+          const reason = toSafeUserError(draftFailure, { message: "The capture session could not be started." });
+          const msg = `${DRAFT_OPEN_FAILED_MESSAGE} ${reason.message}`;
+          setError(msg);
+          setErrorAction({
+            forMessage: msg,
+            label: "Retry",
+            onPress: () => {
+              setError(null);
+              setErrorAction(null);
+              void ensureDraft()
+                .then(() => persistSession())
+                .catch((retryErr) => {
+                  const again = `${DRAFT_OPEN_FAILED_MESSAGE} ${toSafeUserError(retryErr, { message: "The capture session could not be started." }).message}`;
+                  setError(again);
+                });
+            },
+          });
+          addToast("Item kept on this device", "warning");
+          return;
+        }
+
         addToast(
           `${nextItems.length} item${nextItems.length === 1 ? "" : "s"} added`,
           "success"
@@ -1164,7 +1216,7 @@ hasActiveDraft: isSessionActive || isRecording,
         setInfo(null);
       }
     },
-    [ensureDraft, setSessionState, addToast, recordActivity]
+    [ensureDraft, setSessionState, addToast, recordActivity, persistSession]
   );
 
   const removeFromSession = useCallback(
@@ -1728,6 +1780,12 @@ if (!isRecording || busy) return;
           {
             freshSession,
             taken: sessionItemsRef.current.filter((c) => c.uploaded).map((c) => c.partIndex),
+            // Free audit F-11 — the PUT deadline now scales with the file
+            // (uploadDirectCaptureItem), and a dropped connection, a timeout,
+            // a busy server or an expired upload URL is retried at the SAME
+            // part (jittered backoff, Retry-After honoured) instead of failing
+            // the whole Finish. A signed-out session stops retrying.
+            retry: { ...DEFAULT_CAPTURE_RETRY, shouldStop: () => getAuthToken() === null },
           },
         );
 
@@ -1814,8 +1872,14 @@ if (!isRecording || busy) return;
 
       router.push(`/evidence/${activeEvidenceId}`);
     } catch (err) {
-      const msg = toSafeUserError(err, { message: "Failed to finish session" }).message;
+      const safe = toSafeUserError(err, { message: "Failed to finish session" });
+      const msg = safe.message;
       setError(msg);
+      // Free audit F-04 — a record / storage / plan refusal names its next
+      // step: the native Billing screen (which states, on a store build, where
+      // a plan can be bought).
+      const action = nativeErrorAction(safe);
+      setErrorAction(action ? { forMessage: msg, label: action.label, onPress: () => router.push(action.route as "/billing") } : null);
       addToast(msg, "error");
     } finally {
       setBusy(false);
@@ -2494,6 +2558,9 @@ if (!isRecording || busy) return;
           />
 
           {error ? <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{error}</ProovraText> : null}
+          {error && errorAction && errorAction.forMessage === error ? (
+            <ProovraButton label={errorAction.label} variant="secondary" fullWidth={false} onPress={errorAction.onPress} />
+          ) : null}
           {info ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{info}</ProovraText> : null}
           {showSettingsLink ? <ProovraButton label="Open Settings" variant="secondary" onPress={() => Linking.openSettings()} /> : null}
         </>

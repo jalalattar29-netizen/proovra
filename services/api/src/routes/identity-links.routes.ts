@@ -479,6 +479,8 @@ export async function identityLinksRoutes(app: FastifyInstance) {
           });
         }
       }
+      // F-21 — derived off the event loop, before the transaction opens.
+      const newPasswordHash = await hashPassword(body.newPassword);
       try {
         await prisma.$transaction(async (tx) => {
           if (legacyOAuth && address && !isDetachedLegacySubject(legacyOAuth.subject)) {
@@ -505,7 +507,7 @@ export async function identityLinksRoutes(app: FastifyInstance) {
           const written = await tx.user.updateMany({
             where: { id: userId, passwordHash: null },
             data: {
-              passwordHash: hashPassword(body.newPassword),
+              passwordHash: newPasswordHash,
               ...(legacyOAuth && address
                 ? { provider: "EMAIL", providerUserId: address }
                 : {}),

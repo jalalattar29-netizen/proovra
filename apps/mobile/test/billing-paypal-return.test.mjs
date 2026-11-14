@@ -112,3 +112,24 @@ test("storage a Free account may keep is not said to end with the plan", () => {
   assert.match(text, /1 recurring storage add-on will be cancelled/);
   assert.match(text, /1 storage add-on you can keep on Free stays active/);
 });
+
+test("F-09: only the private build with private billing can check out; store profiles cannot", () => {
+  const saved = { d: process.env.EXPO_PUBLIC_DISTRIBUTION, b: process.env.EXPO_PUBLIC_PRIVATE_BILLING };
+  try {
+    delete process.env.EXPO_PUBLIC_DISTRIBUTION;
+    delete process.env.EXPO_PUBLIC_PRIVATE_BILLING;
+    assert.equal(P.purchaseAvailability(), "NOT_IN_THIS_BUILD");
+    process.env.EXPO_PUBLIC_DISTRIBUTION = "PRIVATE";
+    assert.equal(P.purchaseAvailability(), "NOT_IN_THIS_BUILD");
+    process.env.EXPO_PUBLIC_PRIVATE_BILLING = "enabled";
+    assert.equal(P.purchaseAvailability(), "EXTERNAL_CHECKOUT");
+  } finally {
+    if (saved.d === undefined) delete process.env.EXPO_PUBLIC_DISTRIBUTION; else process.env.EXPO_PUBLIC_DISTRIBUTION = saved.d;
+    if (saved.b === undefined) delete process.env.EXPO_PUBLIC_PRIVATE_BILLING; else process.env.EXPO_PUBLIC_PRIVATE_BILLING = saved.b;
+  }
+  // The store profile still sets neither flag (no preview flags leak into store builds).
+  const eas = JSON.parse(readFileSync(new URL("../eas.json", import.meta.url), "utf8"));
+  assert.equal(eas.build.production.env.EXPO_PUBLIC_DISTRIBUTION, undefined);
+  assert.equal(eas.build.production.env.EXPO_PUBLIC_PRIVATE_BILLING, undefined);
+  assert.equal(eas.build.preview.env.EXPO_PUBLIC_PRIVATE_BILLING, "enabled");
+});

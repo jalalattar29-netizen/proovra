@@ -123,6 +123,25 @@ export function parseMatterQueue(payload: unknown): MatterQueue {
 }
 
 /** The web's useEnterpriseSurfaceAccess — server-projected, fail-closed. */
+/**
+ * Free audit F-10 — case CREATION is a plan entitlement of the ACTIVE
+ * workspace: the server's `planFeatures.casesIncluded`, the same catalog field
+ * `POST /v1/cases` enforces (assertWorkspaceAllowsCases, 409
+ * CASES_NOT_INCLUDED). True only when the server SAYS false: an envelope that
+ * has not loaded (or predates the field) keeps the button, and the server
+ * stays the enforcement point. No platform-admin pass — the server gate has
+ * none. Viewing cases is not gated (CASES_VIEW is a baseline capability).
+ */
+export function casesPlanLocked(envelope: unknown): boolean {
+  return o(o(envelope)["planFeatures"])["casesIncluded"] === false;
+}
+
+export const CASES_PLAN_LOCKED_COPY = {
+  title: "Cases aren't included in this plan",
+  body: "This workspace's plan doesn't include cases. Your evidence records remain available — upgrade to group them into cases.",
+  action: "View plans",
+} as const;
+
 export function canSeeAdvancedCaseOps(envelope: unknown): boolean {
   const e = o(envelope);
   return o(e["platform"])["isPlatformAdmin"] === true || o(e["flags"])["isEnterpriseWorkspace"] === true;

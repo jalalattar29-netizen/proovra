@@ -102,6 +102,7 @@ import {
   sendCustomEmailViaResend,
 } from "../email.service.js";
 import { emitOrgAuditEvent } from "./org-audit.service.js";
+import { getPlanCapabilities } from "../plan-catalog.service.js";
 
 /**
  * THE WORK THIS MODULE RECOVERS.
@@ -356,6 +357,87 @@ export async function lockOrganizationInviteSlotTx(
 ): Promise<void> {
   const key = `org-invite:${input.organizationId}:${input.email.trim().toLowerCase()}`;
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+}
+
+// ---------------------------------------------------------------------------
+// 0b. F-08 (Free-user audit, 2026-11-13) — the organization invitation abuse
+//     rails. Organization invitations had none: no pending ceiling, no daily
+//     ceiling, 200 rows per bulk call, any number of calls. They are an
+//     Enterprise customer-organization surface (callers gate on
+//     `checkOrgAccess({ requireKind: "CUSTOMER" })`), so the ceilings are the
+//     ENTERPRISE catalog row's own operational abuse rails —
+//     `maxPendingInvitesPerTeam` / `maxInvitesPer24h`, the numbers the
+//     workspace invitation path applies to an Enterprise workspace without a
+//     contract seat count — applied to the organization as the subject. Like
+//     the workspace path: expired invitations are not pending (they cannot be
+//     accepted), and the 24-hour count is of what was SENT, revoked ones
+//     included, so revoking a burst does not buy another burst.
+//     The count is taken before the per-address transactions, so concurrent
+//     creators can overshoot by at most their own concurrency; it is a rate
+//     rail, not a seat (seats are claimed at acceptance under their lock).
+// ---------------------------------------------------------------------------
+
+export type OrganizationInvitationAllowance = {
+  pending: number;
+  maxPending: number;
+  sentLast24h: number;
+  maxPer24h: number;
+};
+
+export async function resolveOrganizationInvitationAllowance(
+  client: Pick<PrismaClient, "organizationInvite">,
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<OrganizationInvitationAllowance> {
+  const caps = getPlanCapabilities("ENTERPRISE");
+  const [pending, sentLast24h] = await Promise.all([
+    client.organizationInvite.count({
+      where: { organizationId, acceptedAt: null, revokedAt: null, expiresAt: { gt: now } },
+    }),
+    client.organizationInvite.count({
+      where: { organizationId, createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
+    }),
+  ]);
+  return {
+    pending,
+    maxPending: caps.maxPendingInvitesPerTeam,
+    sentLast24h,
+    maxPer24h: caps.maxInvitesPer24h,
+  };
+}
+
+/**
+ * Whether `requested` more invitations fit. Null admits; otherwise the typed
+ * refusal both create routes send, before any row or delivery is written.
+ */
+export function organizationInvitationRefusal(
+  allowance: OrganizationInvitationAllowance,
+  requested: number,
+): null | {
+  status: 409 | 429;
+  body: { error: { code: string; message: string }; code: string; message: string };
+} {
+  const n = Math.max(0, Math.floor(requested));
+  if (n === 0) return null;
+  const refuse = (status: 409 | 429, code: string, message: string) => ({
+    status,
+    body: { error: { code, message }, code, message },
+  });
+  if (allowance.pending + n > allowance.maxPending) {
+    return refuse(
+      409,
+      "ORG_INVITE_LIMIT_REACHED",
+      `This organization can have ${allowance.maxPending} invitations waiting to be accepted. Revoke some, or wait for them to be accepted.`,
+    );
+  }
+  if (allowance.sentLast24h + n > allowance.maxPer24h) {
+    return refuse(
+      429,
+      "ORG_INVITE_RATE_LIMIT_REACHED",
+      `This organization can send ${allowance.maxPer24h} invitations in 24 hours. Try again later.`,
+    );
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------

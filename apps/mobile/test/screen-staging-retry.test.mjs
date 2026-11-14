@@ -133,7 +133,7 @@ test("AUD-005: 5xx and 429 are retried with backoff inside one staging", async (
   server.failNext(/parts\/1\/declaration$/, { status: 429, code: "RATE_LIMITED" }, 1);
   const delays = [];
   const staged = await M.stageScreenCapture(RESULT(), {
-    retry: { attempts: 3, baseDelayMs: 100, maxDelayMs: 1000, sleep: async (ms) => { delays.push(ms); } },
+    retry: { attempts: 3, baseDelayMs: 100, maxDelayMs: 1000, random: () => 1 /* Free audit F-11: jitter pinned to its upper bound */, sleep: async (ms) => { delays.push(ms); } },
   });
   assert.equal(staged.frameCount, 3);
   assert.deepEqual(delays, [100, 100]);

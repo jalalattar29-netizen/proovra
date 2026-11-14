@@ -439,7 +439,7 @@ describe("defects — teams, collaboration, saved views (live PostgreSQL 16)", (
         select: { passwordHash: true },
       });
       const password = `D46-${randomUUID()}`;
-      await prisma.user.update({ where: { id: owner }, data: { passwordHash: hashPassword(password) } });
+      await prisma.user.update({ where: { id: owner }, data: { passwordHash: await hashPassword(password) } });
       try {
         const res = await call({
           method: "POST",

@@ -210,7 +210,12 @@ describe("E10.1 Test 1 — DEF-037: auth route rate limits", () => {
       repoPath("services/api/src/services/email-password-auth.service.ts"),
       "utf8",
     );
-    expect(service).toMatch(/const ABSENT_ACCOUNT_HASH = hashPassword\(randomBytes\(/);
+    // F-21 — the absent-account hash is derived once per process on the
+    // thread pool (async scrypt) and the burn verifies against exactly it.
+    expect(service).toMatch(/absentAccountHash \?\?= hashPassword\(randomBytes\(/);
+    expect(service).toMatch(
+      /async function burnPasswordVerification\(password: string\)[\s\S]{0,120}?await verifyPassword\(password, await getAbsentAccountHash\(\)\);/,
+    );
 
     // Scoped to the login function. `if (!user) return null` is correct in the
     // neighbouring readers; it is only the CREDENTIAL check that must not
@@ -220,7 +225,7 @@ describe("E10.1 Test 1 — DEF-037: auth route rate limits", () => {
       service.indexOf("export type ChangePasswordResult"),
     );
     expect(loginFn).toMatch(
-      /if \(!user \|\| !user\.passwordHash\) \{[\s\S]{0,200}?void verifyPassword\(params\.password, ABSENT_ACCOUNT_HASH\);/,
+      /if \(!user \|\| !user\.passwordHash\) \{[\s\S]{0,200}?await burnPasswordVerification\(params\.password\);/,
     );
     expect(loginFn).not.toMatch(/if \(!user\) return null;/);
   });

@@ -2130,6 +2130,14 @@ letter-spacing: -0.005em;
       text-align: center;
     }
 
+    /* F-05 (2026-11-13) — the certified-original statement carries a
+       64-character digest and storage version ids: unbreakable tokens wrap
+       inside the column instead of running into the side margin (the
+       geometric release gate refused the page). */
+    .cover-verify-hint[data-certified-original] {
+      overflow-wrap: anywhere;
+    }
+
 .cover-verify-url {
   display: block;
   margin-top: 6px;

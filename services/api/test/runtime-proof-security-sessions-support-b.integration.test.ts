@@ -89,7 +89,7 @@ describe("K2 security (B) — sessions, break-glass, support access, portal (liv
         lastName: label,
         provider: "EMAIL",
         providerUserId: email,
-        passwordHash: opts.password ? hashPassword(opts.password) : null,
+        passwordHash: opts.password ? await hashPassword(opts.password) : null,
         emailVerifiedAt: new Date(),
         platformRole: opts.platformRole ?? null,
       },
@@ -704,7 +704,7 @@ describe("K2 security (B) — sessions, break-glass, support access, portal (liv
       expect(wrong.statusCode).toBe(400);
       expect(json(wrong)).toEqual({ error: { code: "current_password_invalid" } });
       const unchanged = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
-      expect(verifyPassword(password, unchanged.passwordHash!)).toBe(true);
+      expect(await verifyPassword(password, unchanged.passwordHash!)).toBe(true);
       expect(await signedIn(other.token)).toBe(true);
       const failure = await platformAudit("identity_security.password_change", user.id);
       expect(failure).toMatchObject({ userId: user.id, outcome: "error" });
@@ -719,8 +719,8 @@ describe("K2 security (B) — sessions, break-glass, support access, portal (liv
       expect(res.statusCode, res.body).toBe(200);
       expect(json(res)).toEqual({ ok: true, revokedOtherSessions: 1 });
       const changed = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
-      expect(verifyPassword(next, changed.passwordHash!)).toBe(true);
-      expect(verifyPassword(password, changed.passwordHash!)).toBe(false);
+      expect(await verifyPassword(next, changed.passwordHash!)).toBe(true);
+      expect(await verifyPassword(password, changed.passwordHash!)).toBe(false);
       // The promise the page makes: this device stays, the other one is out.
       expect(await signedIn(current.token)).toBe(true);
       expect(await signedIn(other.token)).toBe(false);

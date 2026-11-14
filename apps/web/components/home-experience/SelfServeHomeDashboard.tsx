@@ -35,6 +35,7 @@
 
 import { useState } from "react";
 
+import { ProovraAlert } from "../feedback/ProovraAlert";
 import { PageShell, PageSection } from "../ui";
 
 import "./home.css";
@@ -107,6 +108,20 @@ export function SelfServeHomeDashboard() {
           (hero-aware: capture-first onboarding vs. "All evidence").
           Search / inbox live in the global app header, not duplicated. */}
       <HomeHeader hero={vm.heroAction} />
+
+      {/* F-21 — a transient read failure is said, with a retry, instead of
+          rendering as an empty workspace. */}
+      {state.status === "error" ? (
+        <div data-home-load-error>
+          <ProovraAlert
+            severity="warning"
+            title="Couldn't load everything"
+            actions={[{ label: "Try again", onClick: () => state.reload() }]}
+          >
+            {state.message}
+          </ProovraAlert>
+        </div>
+      ) : null}
 
       {/* Enterprise information architecture — the single long page is now
           four focused workspace views (segmented control). Operations,

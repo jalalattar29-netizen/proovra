@@ -251,9 +251,16 @@ export async function platformContextRoutes(app: FastifyInstance) {
               userId,
             },
           },
-          select: { status: true },
+          select: { status: true, accessExpiresAtUtc: true },
         });
-        if (!membership || membership.status !== "ACTIVE") {
+        // F-11 — the same expiry the canonical chain applies
+        // (`member_access_expired`, access-policy.service.ts): a time-boxed
+        // membership that has lapsed is refused here too, instead of being
+        // switched into and then answered 404 on every request.
+        const accessLapsed =
+          membership?.accessExpiresAtUtc != null &&
+          membership.accessExpiresAtUtc.getTime() <= Date.now();
+        if (!membership || membership.status !== "ACTIVE" || accessLapsed) {
           auditSwitch("denied", "workspace_membership_required");
           return reply.code(403).send({
             message: "Not a member of this workspace",

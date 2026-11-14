@@ -48,6 +48,7 @@ import {
   usePlanFeatureGate,
 } from "../../../../lib/platform-context";
 import { apiFetch } from "../../../../lib/api";
+import { listAllCases } from "../../../../lib/cases/listAllCases";
 import { claimAndBeginReview } from "./components/EvidenceReviewActionsPanel";
 import { getEvidenceDeletionEligibility } from "../lib/evidence-delete-eligibility";
 import { captureException } from "../../../../lib/sentry";
@@ -300,8 +301,11 @@ function EvidenceDetailPageInner() {
       // authoritative if a client bypasses the UI.
       const [workspaceResult, casesResult] = await Promise.allSettled([
         apiFetch(`/v1/evidence/${evidenceId}/review-workspace`),
-        apiFetch(
-          `/v1/cases?eligibleForEvidenceId=${encodeURIComponent(evidenceId)}`,
+        // F-21 — every page: the selector stopped at the newest 200 cases.
+        listAllCases((cursorParam) =>
+          apiFetch(
+            `/v1/cases?eligibleForEvidenceId=${encodeURIComponent(evidenceId)}${cursorParam ? `&${cursorParam}` : ""}`,
+          ),
         ),
       ]);
       if (liveEvidenceId.current !== evidenceId) return;

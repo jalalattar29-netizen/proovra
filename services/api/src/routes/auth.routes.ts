@@ -26,6 +26,8 @@ import {
   EmailVerifyBody,
   passwordProofRefusal,
   processResendVerification,
+  EMAIL_VERIFICATION_RESEND_RETRY_AFTER_SEC,
+  verificationReturnPath,
   confirmVerificationToken,
 } from "../services/email-verification.service.js";
 
@@ -340,10 +342,16 @@ const AppleBody = z.object({
   code: z.string().min(1).optional(),
 });
 
+// The password FLOOR is the account password policy, enforced once in the
+// service (isPasswordPolicyCompliant → `weak_new_password`); a second, lower
+// floor here only produced a different error shape for the same refusal.
 const EmailRegisterBody = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z.string().min(1).max(1024),
   displayName: z.string().min(1).optional(),
+  // F-26f — the in-app path the sign-up was heading to; validated by
+  // verificationReturnPath and carried in the emailed link only.
+  next: z.string().max(2048).optional(),
 });
 
 const EmailLoginBody = z.object({
@@ -357,7 +365,7 @@ const PasswordResetRequestBody = z.object({
 
 const PasswordResetConfirmBody = z.object({
   token: z.string().min(10),
-  newPassword: z.string().min(8),
+  newPassword: z.string().min(1).max(1024),
 });
 
 // PHASE R8.1.2 — login-time MFA verify body. Exactly one of `code`
@@ -1060,12 +1068,13 @@ export async function authRoutes(app: FastifyInstance) {
     const body = EmailRegisterBody.parse(req.body);
 
     let user;
+    let resumed = false;
     try {
-      user = await registerWithEmailPassword({
+      ({ user, resumed } = await registerWithEmailPassword({
         email: body.email,
         password: body.password,
         displayName: body.displayName ?? null,
-      });
+      }));
     } catch (err) {
       if (err instanceof EmailAlreadyExistsError) {
         auditAuthEvent(req, {
@@ -1111,14 +1120,15 @@ export async function authRoutes(app: FastifyInstance) {
     const dispatch = await dispatchVerificationEmail({
       userId: user.id,
       toEmail,
+      returnPath: verificationReturnPath(body.next),
     });
-    if (!dispatch.delivered) {
+    if (dispatch.delivery === "failed" || dispatch.delivery === "unconfirmed") {
       auditAuthEvent(req, {
         userId: user.id,
         action: "auth.email_verification_send",
         outcome: "failure",
         severity: "warning",
-        metadata: { email: toEmail, error: dispatch.error },
+        metadata: { email: toEmail, delivery: dispatch.delivery, error: dispatch.error },
       });
     }
 
@@ -1132,16 +1142,28 @@ export async function authRoutes(app: FastifyInstance) {
         email: user.email,
         displayName: body.displayName ?? null,
         verificationSent: dispatch.delivered,
+        verificationDelivery: dispatch.delivery,
+        // F-22 — an unfinished signup by the same registrant, finished now.
+        resumed,
       },
     });
 
-    fireRegisterCompletedAnalytics(user.id, req, {
-      provider: user.provider,
-      method: "email_password",
-    });
+    if (!resumed) {
+      fireRegisterCompletedAnalytics(user.id, req, {
+        provider: user.provider,
+        method: "email_password",
+      });
+    }
 
+    // F-06 — `verificationSent` is true only when the provider ACCEPTED the
+    // email; `verificationDelivery` says which honest state applies and
+    // `resendAfterSec` is the real per-address cooldown. The registrant just
+    // created (or proved the password of) this account, so none of it tells
+    // them anything about an address they do not control.
     return reply.code(201).send({
       verificationSent: dispatch.delivered,
+      verificationDelivery: dispatch.delivery,
+      resendAfterSec: dispatch.retryAfterSec,
       email: toEmail,
     });
   });
@@ -1372,10 +1394,17 @@ export async function authRoutes(app: FastifyInstance) {
         internalNavPath(`/reset-password?token=${encodeURIComponent(result.rawToken)}`),
       );
 
+      // F-06 — the transport reports a refusal or a timeout as an outcome,
+      // not an exception; only the not-configured service throws. Both are
+      // recorded. The response stays neutral (non-enumerating) either way.
+      let sendOutcome: string;
       try {
         const emailService = getEmailService();
-        await emailService.sendPasswordResetEmail(body.email, resetUrl);
+        sendOutcome = (await emailService.sendPasswordResetEmail(body.email, resetUrl)).kind;
       } catch {
+        sendOutcome = "threw";
+      }
+      if (sendOutcome !== "acknowledged") {
         auditAuthEvent(req, {
           userId: null,
           action: "auth.password_reset_email_send",
@@ -1383,6 +1412,7 @@ export async function authRoutes(app: FastifyInstance) {
           severity: "warning",
           metadata: {
             email: body.email,
+            delivery: sendOutcome,
           },
         });
       }
@@ -1538,12 +1568,20 @@ export async function authRoutes(app: FastifyInstance) {
       return replyRateLimited(reply, rl.resetAtMs);
     }
 
-    const parsed = z.object({ email: z.string().email().max(320) }).safeParse(req.body);
+    // F-06 — every branch answers the same body, including the cooldown the
+    // client should wait before asking again (the real per-address window).
+    const neutral = { ok: true, retryAfterSec: EMAIL_VERIFICATION_RESEND_RETRY_AFTER_SEC };
+    const parsed = z
+      .object({ email: z.string().email().max(320), next: z.string().max(2048).optional() })
+      .safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(200).send({ ok: true });
+      return reply.code(200).send(neutral);
     }
 
-    const spec = await processResendVerification(parsed.data.email);
+    const spec = await processResendVerification(
+      parsed.data.email,
+      verificationReturnPath(parsed.data.next),
+    );
     auditAuthEvent(req, {
       userId: spec.userId,
       action: "auth.email_verification_resend",
@@ -1555,7 +1593,7 @@ export async function authRoutes(app: FastifyInstance) {
         ...(spec.error ? { error: spec.error } : {}),
       },
     });
-    return reply.code(200).send({ ok: true });
+    return reply.code(200).send(neutral);
   });
 
   // ---------------------------------------------------------------------------

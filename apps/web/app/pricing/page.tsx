@@ -205,17 +205,27 @@ export default function MarketingPricingPage() {
 
   const buildCtaHref = (planId: PlanId): string => {
     if (planId === "enterprise") return "/contact-sales";
-    if (!hasSession) return appRegister;
     // PHASE 11 §5 — the ONE billing workspace locator produces every billing
     // link. No hand-written `?workspace=` / `?team=` vocabulary here.
-    if (planId === "personal")
-      return buildBillingHref({ kind: "personal" }, { basePath: appBilling });
-    if (planId === "team")
-      return buildBillingHref({ kind: "team" }, { plan: "TEAM", basePath: appBilling });
-    return buildBillingHref(
-      { kind: "personal" },
-      { plan: planId.toUpperCase() as "PAYG" | "PRO" | "TEAM", basePath: appBilling },
-    );
+    //
+    // FREE-AUDIT REMEDIATION (2026-11-13, F-26d) — Team is a tier of the SAME
+    // Personal Workspace, so it names the personal account like Pro does (a
+    // `workspace=team` locator resolves to no billing account). The plan hint
+    // survives sign-up: it travels inside the internal return path the register
+    // page already honours, and Billing reads it once the account is known.
+    const billingHref =
+      planId === "personal"
+        ? buildBillingHref({ kind: "personal" }, { basePath: appBilling })
+        : buildBillingHref(
+            { kind: "personal" },
+            { plan: planId.toUpperCase() as "PAYG" | "PRO" | "TEAM", basePath: appBilling },
+          );
+    if (!hasSession) {
+      return planId === "personal"
+        ? appRegister
+        : `${appRegister}?returnUrl=${encodeURIComponent(billingHref)}`;
+    }
+    return billingHref;
   };
 
   const buildCtaLabel = (planId: PlanId): string => {
@@ -523,6 +533,10 @@ export default function MarketingPricingPage() {
     },
   ];
 
+  // F-27d — the FREE allowance the outputs are included for is the served
+  // catalog value (PLAN_CAPABILITIES.FREE.maxEvidenceRecords), never a literal.
+  const freeRecordsIncluded = `Included for ${catalogValue(catalog?.free?.maxEvidenceRecords)} records`;
+
   const compareRows: (
     | {
         label: string;
@@ -582,11 +596,11 @@ export default function MarketingPricingPage() {
     {
       // FREE THREE-RECORD CONTRACT (owner decision 2026-10-14).
       label: "Verification package",
-      values: ["Included for 3 records", "Included", "Included", "Included", "Included"],
+      values: [freeRecordsIncluded, "Included", "Included", "Included", "Included"],
     },
     {
       label: "PDF reports",
-      values: ["Included for 3 records", "Included", "Included", "Included", "Included"],
+      values: [freeRecordsIncluded, "Included", "Included", "Included", "Included"],
     },
     {
       label: "Public verification page",

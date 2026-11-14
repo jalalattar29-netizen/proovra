@@ -206,7 +206,7 @@ export async function verifyAccountStepUp(input: {
       const okPw =
         typeof proof.currentPassword === "string" &&
         proof.currentPassword.length > 0 &&
-        verifyPassword(proof.currentPassword, user.passwordHash);
+        (await verifyPassword(proof.currentPassword, user.passwordHash));
       if (!okPw) {
         return deny("STEP_UP_INVALID", 401, "The current password is incorrect.");
       }

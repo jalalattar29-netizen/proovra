@@ -94,6 +94,22 @@ export async function checkOrgAccess(
     userId: string;
     minRole?: OrgRole;
     roles?: ReadonlyArray<OrgRole>;
+    /**
+     * F-08 (Free-user audit, 2026-11-13) — THE SURFACE EXISTS ONLY FOR A
+     * CUSTOMER ORGANIZATION.
+     *
+     * Every account owns a SYSTEM organization: the container personal
+     * bootstrap creates behind its Personal workspace, in which the account is
+     * ORG_OWNER (workspace-bootstrap.service.ts). Role alone therefore admits
+     * every Free account to any surface that asks only for ORG_ADMIN+. A
+     * surface that belongs to an Enterprise customer organization — invitations
+     * above all, which make the platform send email under an org name the same
+     * role can edit — passes `requireKind: "CUSTOMER"`, and a member of any
+     * other kind of organization is refused `forbidden` (a member, so not
+     * concealed). Customer organizations are created only by Enterprise
+     * provisioning; `/v1/me/orgs` already lists only them.
+     */
+    requireKind?: "CUSTOMER";
   },
 ): Promise<OrgAccessOutcome> {
   const minRole: OrgRole = input.minRole ?? "ORG_MEMBER";
@@ -101,7 +117,7 @@ export async function checkOrgAccess(
 
   const org = await prisma.organization.findUnique({
     where: { id: input.orgId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, kind: true },
   });
   if (!org) return { kind: "not_found" };
 
@@ -148,6 +164,9 @@ export async function checkOrgAccess(
   // Checked AFTER membership, so a non-member of a closed org is concealed
   // like any other non-member rather than told the org is closed.
   if (org.status === "ARCHIVED" || org.status === "SUSPENDED") {
+    return { kind: "forbidden" };
+  }
+  if (input.requireKind && org.kind !== input.requireKind) {
     return { kind: "forbidden" };
   }
 

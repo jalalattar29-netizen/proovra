@@ -57,8 +57,17 @@ type Jwk = { kid: string; kty: string; n: string; e: string; alg?: string };
 let googleJwksCache: Jwk[] | null = null;
 let appleJwksCache: Jwk[] | null = null;
 
+/**
+ * Every call to Google / Apple (JWKS, token exchange) is bounded, the same way
+ * the email transport bounds its provider call (AbortSignal.timeout). Without
+ * it a stalled provider held the sign-in request — and its socket — open
+ * indefinitely. A timeout throws like any other transport failure, and the
+ * routes already answer that as a failed sign-in.
+ */
+const OAUTH_PROVIDER_FETCH_TIMEOUT_MS = 10_000;
+
 async function fetchJwks(url: string): Promise<Jwk[]> {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(OAUTH_PROVIDER_FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`Failed to fetch JWKS: ${url}`);
   const data = (await res.json()) as { keys: Jwk[] };
   return data.keys;
@@ -238,6 +247,7 @@ export async function exchangeGoogleCodeForIdToken(code: string): Promise<string
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
+    signal: AbortSignal.timeout(OAUTH_PROVIDER_FETCH_TIMEOUT_MS),
   });
 
   const json = (await res.json()) as {
@@ -359,6 +369,7 @@ export async function exchangeAppleCodeForIdToken(code: string): Promise<string>
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
+    signal: AbortSignal.timeout(OAUTH_PROVIDER_FETCH_TIMEOUT_MS),
   });
 
   const json = (await res.json()) as {

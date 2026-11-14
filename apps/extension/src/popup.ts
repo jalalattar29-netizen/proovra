@@ -16,6 +16,7 @@ import {
 } from "./lib/popup-context.js";
 import { RESTRICTED_PAGE_COPY, pageRestriction } from "./lib/page-eligibility.js";
 import { CAPTURE_ALREADY_RUNNING, SESSION_ENDED, statusLine } from "./lib/status-copy.js";
+import { followUpLink, retryOffered } from "./lib/popup-links.js";
 import type { CaptureStatus } from "./lib/capture-registry.js";
 
 /** Shown when sign-in does not complete, for any reason. */
@@ -120,7 +121,15 @@ function applyStatus(s: CaptureStatus | null) {
   const running = s?.state === "RUNNING";
   captureButtons(!running && workspaces.length > 0);
   $("cancel").hidden = !running || Boolean(s?.cancelRequested);
-  $("retry").hidden = !(s?.state === "FAILED" && s.reason !== "SIGNED_OUT" && workspaces.length > 0);
+  // Free audit F-27b — a plan / credit / storage refusal is not fixed by
+  // trying again: no Retry, and a link to the plans page instead.
+  $("retry").hidden = !retryOffered(s, workspaces.length > 0);
+  // F-11b — a preserved record can be opened in PROOVRA.
+  const link = followUpLink(s, CONFIG.webOrigin);
+  const followUp = $("follow-up") as HTMLButtonElement;
+  followUp.hidden = !link;
+  followUp.textContent = link?.label ?? "";
+  followUp.dataset.url = link?.url ?? "";
   const status = $("status");
   status.dataset.captureState = s?.state ?? "";
   status.dataset.evidenceId = s?.state === "SUCCEEDED" && s.evidenceId ? s.evidenceId : "";
@@ -321,6 +330,11 @@ document.addEventListener("DOMContentLoaded", () => {
   $("capture-viewport").addEventListener("click", () => void preserve("VIEWPORT"));
   $("capture-full").addEventListener("click", () => void preserve("FULL_PAGE"));
   $("retry").addEventListener("click", () => void preserve(lastStatus?.mode ?? "VIEWPORT"));
+  $("follow-up").addEventListener("click", () => {
+    // Recomputed from the status, never read back from the DOM.
+    const link = followUpLink(lastStatus, CONFIG.webOrigin);
+    if (link) void chrome.tabs.create({ url: link.url });
+  });
   $("cancel").addEventListener("click", async () => {
     const tabId = await targetTabId();
     if (tabId === null) return;

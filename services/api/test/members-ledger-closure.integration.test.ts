@@ -313,7 +313,7 @@ describe("Members ledger closure (live PostgreSQL)", () => {
     const email = `n6-${tag()}@test.proovra.local`;
     const password = "N6-Password-Change-1!";
     const user = await prisma.user.create({
-      data: { email, provider: "EMAIL", providerUserId: email, passwordHash: hashPassword(password) },
+      data: { email, provider: "EMAIL", providerUserId: email, passwordHash: await hashPassword(password) },
       select: { id: true },
     });
     const { REQUIRED_LEGAL_VERSIONS } = await import("../src/legal/legal-versioning.js");

@@ -84,10 +84,13 @@ import {
   type WorkspaceInvitationLookup,
 } from "@proovra/shared";
 import {
+  classifyWorkspaceEntryRefusal,
   resolveInvitationView,
   type InvitationAcceptOutcome,
   type InvitationAction,
   type InvitationAuthState,
+  type InvitationEntryBlock,
+  type InvitationEntryOutcome,
   type InvitationLookupOutcome,
   type InvitationView,
 } from "../../../lib/invitations/resolveInvitationView";
@@ -213,6 +216,70 @@ const COPY: Record<
       "Something interrupted the connection. Your invitation hasn't changed — try again in a moment.",
     kind: "unavailable",
   },
+  // F-26e — the settled refusals that used to fall through to "unreachable".
+  "email-not-verified": {
+    statusLabel: "Invitation",
+    title: "Verify your email address first",
+    message:
+      "This invitation can be accepted once the address on your account is verified. We can send you a verification email; open it, then come back and accept.",
+    kind: "forbidden",
+  },
+  "membership-suspended": {
+    statusLabel: "Invitation",
+    title: "Your access to this workspace is suspended",
+    message:
+      "An invitation can't lift a suspension. Ask a workspace administrator to restore your access.",
+    kind: "forbidden",
+  },
+  superseded: {
+    statusLabel: "Invitation",
+    title: "This invitation is no longer valid for you",
+    message:
+      "It was sent before your access to this workspace ended. Ask a workspace administrator for a new invitation.",
+    kind: "invitation-invalid",
+  },
+  "workspace-plan-inactive": {
+    statusLabel: "Invitation",
+    title: "This workspace can't add members right now",
+    message:
+      "The workspace's plan or contract isn't set up to admit new members at the moment. Your invitation stays valid until it expires — ask the workspace administrator to resolve it.",
+    kind: "workspace-unavailable",
+  },
+  "legal-acceptance-required": {
+    statusLabel: "Invitation",
+    title: "Accept the updated terms to continue",
+    message:
+      "Our terms have changed since you last accepted them. Review and accept them in Settings, then come back to this invitation and accept it.",
+    kind: "forbidden",
+  },
+  "accepted-not-opened": {
+    statusLabel: "Invitation",
+    title: "Invitation accepted — the workspace didn't open",
+    message:
+      "You're now a member, but this workspace couldn't be opened with your current sign-in.",
+    kind: "invitation-accepted",
+  },
+};
+
+/**
+ * F-07 — why an accepted workspace did not open, in words the member can act
+ * on. Keyed by the shared classifier's own names; replaces the generic
+ * `accepted-not-opened` message so the reader is never told they are "in"
+ * while their next screen is somewhere else.
+ */
+const ENTRY_BLOCK_MESSAGE: Record<InvitationEntryBlock, string> = {
+  "sso-required":
+    "This organization requires its single sign-on. Sign in again through your organization's SSO, then open this invitation link once more to enter the workspace.",
+  "sign-in-method":
+    "This organization doesn't accept the way you signed in. Sign in with a method it allows, then open this invitation link again.",
+  "sign-in-again":
+    "This organization needs a more recent sign-in. Sign in again, then open this invitation link to enter the workspace.",
+  "session-limit":
+    "This organization limits how many sessions can be open at once. Sign out on another device, then try again.",
+  unavailable:
+    "The workspace can't be opened right now. Your membership is in place; contact the workspace administrator if this continues.",
+  interrupted:
+    "Something interrupted the connection while opening the workspace. Your membership is in place — try again.",
 };
 
 // =============================================================================
@@ -231,6 +298,10 @@ export default function InviteAcceptPage() {
   const [accept, setAccept] = useState<InvitationAcceptOutcome>({
     kind: "idle",
   });
+  /** F-07 — the Open workspace attempt, so a refused switch is SHOWN. */
+  const [entry, setEntry] = useState<InvitationEntryOutcome>({ kind: "idle" });
+  /** F-26e — the verification email was requested from this page. */
+  const [verificationSent, setVerificationSent] = useState(false);
   /** Bumped by Try again, which is the only thing that re-runs the lookup. */
   const [lookupAttempt, setLookupAttempt] = useState(0);
 
@@ -366,20 +437,48 @@ export default function InviteAcceptPage() {
    * a Pro or Team workspace landed in their own Free one. The pointer is moved
    * first, through the platform-context provider's own switch request (the
    * server re-authorizes the new membership), and only then does the page
-   * navigate. A refused switch still navigates: the membership exists, and the
-   * workspace switcher offers it.
+   * navigate.
+   *
+   * F-07 (Free-user audit, 2026-11-13) — A REFUSED SWITCH IS SHOWN, NOT
+   * SWALLOWED. It used to be caught, reported, and followed by the same
+   * navigation, so the reader landed in their previous space (usually their
+   * own Free one) under "you now have access" — and their next capture was
+   * filed there. The switch route also applies the organization's session
+   * rules (SSO, sign-in method, session age, concurrent sessions); its refusal
+   * is classified from stable fields and rendered as the access state it is.
+   * Nothing is relaxed: the server still decides, and navigation happens only
+   * once it has said yes.
    */
   const onOpenWorkspace = useCallback(
     (destination: string) => {
       if (openInFlight.current) return;
       openInFlight.current = true;
+      setEntry({ kind: "opening" });
       void (async () => {
         const workspaceId = acceptedWorkspaceId.current;
         if (workspaceId) {
           try {
             await requestWorkspaceSwitch(workspaceId);
           } catch (err) {
-            captureException(err, { feature: "invite_open_workspace" });
+            // Flat switch refusals arrive as an Error carrying `statusCode`,
+            // `code` and the body's `reason`; a network failure has none.
+            const e = (err ?? {}) as {
+              statusCode?: number;
+              code?: string;
+              body?: { error?: { reason?: unknown } };
+            };
+            const reason = e.body?.error?.reason;
+            const block = classifyWorkspaceEntryRefusal({
+              statusCode: isApiResponseError(err) ? e.statusCode : null,
+              code: typeof e.code === "string" ? e.code : null,
+              reason: typeof reason === "string" ? reason : null,
+            });
+            if (block === "interrupted") {
+              captureException(err, { feature: "invite_open_workspace" });
+            }
+            openInFlight.current = false;
+            setEntry({ kind: "blocked", block });
+            return;
           }
         }
         openInFlight.current = false;
@@ -389,8 +488,33 @@ export default function InviteAcceptPage() {
     [router],
   );
 
+  /**
+   * F-26e — EMAIL_NOT_VERIFIED. The verification email is requested for the
+   * signed-in address with this invitation as its internal return path
+   * (`/invite/<token>`, the same continuation sign-in uses), so verifying
+   * brings the reader back here. The endpoint answers the same neutral body
+   * whatever the account state, so nothing private is learnt from it.
+   */
+  const onSendVerification = useCallback(() => {
+    const email = user?.email ?? "";
+    if (!email || verificationSent) return;
+    setVerificationSent(true);
+    void apiFetch(
+      "/v1/auth/email/resend-verification",
+      {
+        method: "POST",
+        body: JSON.stringify({ email, next: `/invite/${encodeURIComponent(token)}` }),
+      },
+      { auth: false },
+    ).catch((err) => {
+      setVerificationSent(false);
+      captureException(err, { feature: "invite_send_verification" });
+    });
+  }, [user, token, verificationSent]);
+
   const onRetry = useCallback(() => {
     setAccept({ kind: "idle" });
+    setEntry({ kind: "idle" });
     setLookupAttempt((n) => n + 1);
   }, []);
 
@@ -407,11 +531,15 @@ export default function InviteAcceptPage() {
   );
 
   const view = useMemo(
-    () => resolveInvitationView({ token, auth, lookup, accept }),
-    [token, auth, lookup, accept],
+    () => resolveInvitationView({ token, auth, lookup, accept, entry }),
+    [token, auth, lookup, accept, entry],
   );
 
-  const copy = COPY[view.kind];
+  const baseCopy = COPY[view.kind];
+  const copy =
+    view.kind === "accepted-not-opened" && view.entryBlock
+      ? { ...baseCopy, message: ENTRY_BLOCK_MESSAGE[view.entryBlock] }
+      : baseCopy;
   const busy = view.kind === "loading" || view.kind === "accepting";
 
   /**
@@ -430,6 +558,8 @@ export default function InviteAcceptPage() {
         onAccept,
         onOpenWorkspace,
         onRetry,
+        onSendVerification,
+        verificationSent,
         signInHref,
         createAccountHref,
         view,
@@ -586,6 +716,8 @@ function toSystemAction(
     onAccept: () => void;
     onOpenWorkspace: (destination: string) => void;
     onRetry: () => void;
+    onSendVerification: () => void;
+    verificationSent: boolean;
     signInHref: string;
     createAccountHref: string;
     view: InvitationView;
@@ -653,6 +785,28 @@ function toSystemAction(
         href: "/",
         variant: "text",
         testId: "invite-home",
+      };
+    case "send-verification":
+      return {
+        label: ctx.verificationSent ? "Verification email sent" : "Send verification email",
+        onClick: ctx.onSendVerification,
+        variant,
+        testId: "invite-send-verification",
+      };
+    case "review-terms":
+      // The legal re-acceptance card lives in Settings → Privacy & data.
+      return {
+        label: "Review the terms",
+        href: "/settings#privacy",
+        variant,
+        testId: "invite-review-terms",
+      };
+    case "retry-open":
+      return {
+        label: "Try again",
+        onClick: () => ctx.onOpenWorkspace(ctx.view.destination ?? "/home"),
+        variant,
+        testId: "invite-retry-open",
       };
   }
 }

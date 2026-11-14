@@ -17,6 +17,9 @@ import type { ReadinessIssue } from "./_lib/session-readiness";
 import { useActiveSpace } from "../../../lib/platform-context/useTenantModel";
 import { CaptureDirectWebCaptureCard, CaptureDirectWebCaptureNote } from "./_lib/CaptureDirectWebCaptureCard";
 import { CaptureDraftReattachNotice } from "./_lib/CaptureDraftReattachNotice";
+import { CaptureAllowanceNotice } from "./_lib/CaptureAllowanceNotice";
+import { captureAllowanceNotices } from "./_lib/capture-allowance";
+import { useCaptureAllowance } from "./_hooks/useCaptureAllowance";
 import { CaptureFinalReadiness } from "./_lib/CaptureFinalReadiness";
 import { CaptureActivityDisclosure } from "./_lib/CaptureActivityDisclosure";
 import { computeCaptureReadiness } from "./_lib/captureReadiness";
@@ -54,7 +57,7 @@ import {
 } from "./_lib/file-utils";
 
 import { filesFromDataTransfer } from "./_lib/folder-utils";
-import { describeDropFailure, logCaptureClientError } from "./_lib/capture-errors";
+import { CaptureStagingLimitError, describeDropFailure, logCaptureClientError } from "./_lib/capture-errors";
 import { buildSessionReadiness } from "./_lib/session-readiness";
 import { buildSessionWorkflowSnapshot } from "./_lib/session-workflow";
 import { useCaptureSessionOrchestration } from "./_hooks/useCaptureSessionOrchestration";
@@ -107,6 +110,11 @@ function CapturePageInner() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const activeSpace = useActiveSpace();
   const workspaceName = activeSpace?.displayName ?? null;
+  // F-12 — the caller's OWN Personal Space only (a joined personal workspace
+  // is funded by its owner's account, not the viewer's).
+  const allowanceFacts = useCaptureAllowance(
+    activeSpace?.type === "PERSONAL" && !activeSpace.shared ? activeSpace.id : null,
+  );
   const [openMaterialDropdownId, setOpenMaterialDropdownId] = useState<
     string | null
   >(null);
@@ -429,6 +437,9 @@ function CapturePageInner() {
     try {
       await addFilesToSession(files, { sessionEvidenceType: batchType });
     } catch (err) {
+      // F-24 — a staging limit is already on screen in its own words; it is
+      // an outcome, not a fault, and must not be re-described by the caller.
+      if (err instanceof CaptureStagingLimitError) return;
       logCaptureClientError("web_capture_handle_dropped_files", err, {
         fileCount: files.length,
       });
@@ -497,6 +508,11 @@ function CapturePageInner() {
       sessionTimeline,
       useLocation,
     ]
+  );
+
+  const allowanceNotices = useMemo(
+    () => captureAllowanceNotices(allowanceFacts, totalStagedBytes),
+    [allowanceFacts, totalStagedBytes],
   );
 
   // ROUTES TO THE FIX. A blocker, a warning or an open requirement leads to the
@@ -766,6 +782,9 @@ function CapturePageInner() {
                                 return;
                               }
 
+                              // F-04 — continue THIS draft (and the record it
+                              // reserved), not a new one.
+                              draftPersistence.adoptDraft(draft.id);
                               setResumeDraftId(draft.id);
                               setResumeDraftDetail(detail);
                               setResumeMetadataApplied(false);
@@ -814,6 +833,10 @@ function CapturePageInner() {
                 onDismiss={() => setReattachDismissed(true)}
               />
             ) : null}
+
+            {/* F-12 — what the account projection already says the creation
+                and storage gates will decide, before any upload. */}
+            <CaptureAllowanceNotice notices={allowanceNotices} />
 
             {/* ADD EVIDENCE — the first panel in the working column, and the
                 one place material enters the session. */}

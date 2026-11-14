@@ -90,10 +90,26 @@ test("the plan's group capacity is shown, with Upgrade at the limit (PlanLimitBa
   r = await render();
   assert.ok(r.hasText("TEAM plan · 5 of 5 teams used"));
   assert.ok(r.hasText("Your TEAM plan allows up to 5 active Teams. Upgrade to add more."));
-  assert.equal(r.byLabel("Upgrade").length, 1);
+  // F-09 — this test build sells nothing (no private-billing flags), so the
+  // prompt at the limit says what Billing can show, not a purchase.
+  assert.equal(r.byLabel("Upgrade").length, 0);
+  assert.equal(r.byLabel("See plans").length, 1);
   r.unmount();
   routes["/v1/collaboration-teams/entitlement"] = () => ({ canCreateCollaborationTeam: false, featureIncluded: false, plan: "FREE", collaborationTeams: { used: 0, limit: 0 } });
   r = await render();
   assert.ok(r.hasText("Collaboration Teams are available on Pro, Team, and Enterprise plans. Existing Teams and their data remain accessible."));
-  assert.equal(r.byLabel("Upgrade plan").length, 1);
+  assert.equal(r.byLabel("Upgrade plan").length, 0);
+  assert.equal(r.byLabel("See plans").length, 1);
+  r.unmount();
+  // A private build that can buy keeps the purchase verb (F-09).
+  process.env.EXPO_PUBLIC_DISTRIBUTION = "PRIVATE";
+  process.env.EXPO_PUBLIC_PRIVATE_BILLING = "enabled";
+  try {
+    r = await render();
+    assert.equal(r.byLabel("Upgrade plan").length, 1);
+    r.unmount();
+  } finally {
+    delete process.env.EXPO_PUBLIC_DISTRIBUTION;
+    delete process.env.EXPO_PUBLIC_PRIVATE_BILLING;
+  }
 });

@@ -1041,3 +1041,94 @@ describe("AUD-19: claims the server cannot back", () => {
     expect(message).not.toMatch(/charged/i);
   });
 });
+
+// ---------------------------------------------------------------------------
+// FREE-AUDIT REMEDIATION (2026-11-13) — F-26d and F-26c
+// ---------------------------------------------------------------------------
+
+describe("F-26d: the plan a Pricing CTA chose", () => {
+  it("opens the checkout drawer on that plan once, and removes the hint from the URL", async () => {
+    search = "workspace=personal&plan=PRO";
+    serve({ projection: free });
+    await mountPage();
+    await waitFor(() =>
+      expect(within(q("[data-billing-plan-option='PRO']")!).getByRole<HTMLInputElement>("radio").checked).toBe(true),
+    );
+    expect(router.replace).toHaveBeenCalledWith("/billing?workspace=personal", { scroll: false });
+  });
+
+  it("a plan the server does not offer, or a made-up value, opens nothing", async () => {
+    search = "workspace=personal&plan=TEAM";
+    serve({ projection: free });
+    await mountPage();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(q("[data-billing-plan-option='PRO']")).toBeNull();
+
+    router.replace.mockReset();
+    search = "plan=ENTERPRISE";
+    serve({ projection: free });
+    await mountPage();
+    expect(router.replace).not.toHaveBeenCalledWith(expect.stringContaining("plan"), expect.anything());
+    expect(q("[data-billing-plan-option='PRO']")).toBeNull();
+  });
+});
+
+describe("F-26c: a provider that cannot sell a plan or a credit", () => {
+  const withAvailability = (stripe: boolean, paypal: boolean) =>
+    free({ planOffers: [{ ...CHECKOUT_PRO, checkoutAvailability: { stripe, paypal } }] });
+
+  it("is disabled in the drawer with a sentence, and the other provider is chosen", async () => {
+    render(
+      <CheckoutDrawer
+        open
+        intent={{ kind: "PLAN", planKey: "PRO" }}
+        projection={withAvailability(false, true)}
+        onClose={noop}
+        onCompleted={noop}
+        onError={noop}
+      />,
+    );
+    const card = within(q("[data-billing-provider-option='STRIPE']")!).getByRole<HTMLInputElement>("radio");
+    const paypal = within(q("[data-billing-provider-option='PAYPAL']")!).getByRole<HTMLInputElement>("radio");
+    expect(card.disabled).toBe(true);
+    expect(paypal.checked).toBe(true);
+    expect(screen.getByText(/Card payment is not available for this plan right now/)).toBeTruthy();
+    expect(continueButton().disabled).toBe(false);
+  });
+
+  it("when neither provider can sell it, Continue is disabled instead of ending in a 503", async () => {
+    render(
+      <CheckoutDrawer
+        open
+        intent={{ kind: "PLAN", planKey: "PRO" }}
+        projection={withAvailability(false, false)}
+        onClose={noop}
+        onCompleted={noop}
+        onError={noop}
+      />,
+    );
+    expect(continueButton().disabled).toBe(true);
+    expect(screen.getByText(/This plan cannot be bought right now/)).toBeTruthy();
+  });
+
+  it("credits follow the wallet's availability", async () => {
+    const projection = free({
+      wallet: {
+        availableCredits: 0,
+        purchasedCredits: 0,
+        grantedCredits: 0,
+        consumedCredits: 0,
+        hasLedgerHistory: false,
+        creditsPerPurchase: 1,
+        unitPriceCents: 500,
+        currency: "USD",
+        checkoutAvailability: { stripe: true, paypal: false },
+      },
+    } as Partial<BillingAccountProjection>);
+    render(
+      <CheckoutDrawer open intent={{ kind: "CREDITS" }} projection={projection} onClose={noop} onCompleted={noop} onError={noop} />,
+    );
+    expect(within(q("[data-billing-provider-option='PAYPAL']")!).getByRole<HTMLInputElement>("radio").disabled).toBe(true);
+    expect(screen.getByText(/PayPal is not available for evidence credits right now/)).toBeTruthy();
+  });
+});

@@ -386,8 +386,12 @@ export function paymentWhereForAccount(input: {
 }
 
 /** The workspaces a payer owns outside a customer organization, whose billing is its own account's. */
-export async function payerLegacyWorkspaceIds(userId: string): Promise<string[]> {
-  const rows = await prisma.team.findMany({
+export async function payerLegacyWorkspaceIds(
+  userId: string,
+  // A caller inside a transaction passes it, so the read uses that connection.
+  client: Pick<prismaPkg.Prisma.TransactionClient, "team"> = prisma,
+): Promise<string[]> {
+  const rows = await client.team.findMany({
     where: {
       ownerUserId: userId,
       workspaceKind: { in: [prismaPkg.WorkspaceKind.PERSONAL, prismaPkg.WorkspaceKind.OWNED] },

@@ -152,6 +152,9 @@ export async function applyStripeSubscriptionObject(input: {
       currentPeriodEnd,
       observedAtUtc: input.observedAtUtc,
       source: input.source,
+      // Dates the purchase for the duplicate rule (subscription metadata carries
+      // it for sessions created since 2026-11-13).
+      checkoutAttemptId: attemptIdFrom(meta.attemptId),
     });
     return { outcome: "APPLIED", kind: "STORAGE_ADDON" };
   }
@@ -325,6 +328,11 @@ export async function settleStripeCheckoutSession(input: {
   session: StripeCheckoutSession;
   /** Binds the session to the caller (recovery); omitted by the webhook. */
   expectedUserId?: string | null;
+  /**
+   * Who is applying it. Recovery passes `billing_reconciliation`, so a storage
+   * refusal it would act on honours the sweep hold; the webhook omits it.
+   */
+  source?: string;
   log?: { warn: (obj: unknown, msg: string) => void };
 }): Promise<StripeSessionSettlement> {
   const { session } = input;
@@ -401,6 +409,25 @@ export async function settleStripeCheckoutSession(input: {
     if (!priceMatches) {
       input.log?.warn({ provider: "STRIPE", sessionId: session.id }, "stripe.credit_amount_mismatch");
       await recordStripeSessionAttemptOutcome({ session, userId, product: attemptProduct, status: A.PENDING, checkoutState: "NEEDS_REVIEW" });
+      // FREE-AUDIT REMEDIATION (2026-11-13) — the buyer paid and got nothing, so
+      // the review item is written NOW, as the PayPal capture path does. It used
+      // to appear only when the hourly sweep reached the payment. Same key as the
+      // sweep's (provider, session id, AMOUNT_MISMATCH): one item, never two.
+      await recordBillingReviewItem({
+        userId,
+        provider: STRIPE,
+        providerResourceId: session.id,
+        product: "EVIDENCE_CREDIT",
+        reason: "AMOUNT_MISMATCH",
+        refundReviewRequired: true,
+        detail: {
+          source: "stripe.checkout.session.completed",
+          observedAmountCents: amountCents,
+          observedCurrency: currency,
+          expectedAmountCents: expected.amountCents,
+          expectedCurrency: expected.currency,
+        },
+      });
       return { product, outcome: "REJECTED", reason: "AMOUNT_MISMATCH" };
     }
     const grant = await grantEvidenceCredits({
@@ -433,8 +460,9 @@ export async function settleStripeCheckoutSession(input: {
       claimed: { userId, teamId, addonKey: storageAddonKey, attemptId: null },
       currentPeriodEnd: null,
       observedAtUtc: null,
-      source: "stripe.checkout.session.completed",
+      source: input.source ?? "stripe.checkout.session.completed",
       externalPaymentId: session.id,
+      checkoutAttemptId: attemptIdFrom(meta.attemptId),
     });
     if (applied.outcome === "REFUSED" || applied.outcome === "IGNORED") {
       input.log?.warn({ provider: "STRIPE", sessionId: session.id, outcome: applied.outcome }, "stripe.storage_addon_checkout_refused");

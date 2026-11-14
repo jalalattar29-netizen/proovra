@@ -53,6 +53,8 @@ type Session = {
   subscription: string | null;
   created: number;
   expires_at: number;
+  success_url?: string | null;
+  cancel_url?: string | null;
 };
 
 class FakeStripe {
@@ -111,6 +113,8 @@ class FakeStripe {
         subscription: null,
         created: ++this.clock,
         expires_at: this.clock + 86_400,
+        success_url: form.get("success_url"),
+        cancel_url: form.get("cancel_url"),
       };
       this.sessions.set(id, session);
       if (key) this.byKey.set(key, id);
@@ -158,6 +162,9 @@ class FakeStripe {
 describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
   let prisma: typeof import("../src/db.js")["prisma"];
+  let settleStripeCheckoutSession: typeof import("../src/services/billing/stripe-settlement.service.js")["settleStripeCheckoutSession"];
+  let startStripeStorageCheckout: typeof import("../src/services/billing/stripe-checkout-start.service.js")["startStripeStorageCheckout"];
+  let withPendingStorageAddonCheckoutGate: typeof import("../src/services/billing/pending-checkout-attempt.service.js")["withPendingStorageAddonCheckoutGate"];
   let deps: FixtureDeps;
   const tag = `bsa-${Date.now().toString(36)}-${randomUUID().slice(0, 6)}`;
 
@@ -218,6 +225,9 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     harness = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    ({ settleStripeCheckoutSession } = await import("../src/services/billing/stripe-settlement.service.js"));
+    ({ startStripeStorageCheckout } = await import("../src/services/billing/stripe-checkout-start.service.js"));
+    ({ withPendingStorageAddonCheckoutGate } = await import("../src/services/billing/pending-checkout-attempt.service.js"));
     const offers = await import("../src/services/billing/commercial-offer.service.js");
     for (const currency of ["USD", "EUR"] as const) {
       for (const o of offers.allSelfServiceOffers(currency)) {
@@ -600,5 +610,262 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
       expect((await call("POST", `${foreign}/abandon`, other.owner.token, { confirmed: true })).statusCode).toBe(404);
       expect((await call("POST", `${attemptBase(t, attempt.id)}/recheck`, other.owner.token, {})).statusCode).toBe(404);
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // FREE-AUDIT REMEDIATION (2026-11-13) — F-13, F-14, DUP-STORAGE
+  // -------------------------------------------------------------------------
+
+  it("F-13: the Stripe return names its attempt; the cancel return frees the next plan checkout; a stale cancel after payment changes nothing", async () => {
+    const t = await payer();
+    const fake = new FakeStripe();
+    await withStripe(fake, async () => {
+      const a = await call("POST", "/v1/billing/checkout/stripe", t.owner.token, { plan: "PRO", currency: "USD" });
+      expect(a.statusCode, a.body).toBe(200);
+      const sessionId = json(a).session.id as string;
+      const attempt = await prisma.billingCheckoutAttempt.findFirstOrThrow({ where: { userId: t.owner.userId } });
+      const session = fake.sessions.get(sessionId)!;
+      expect(session.cancel_url!.endsWith(`/billing?canceled=1&attempt=${attempt.id}`)).toBe(true);
+      expect(session.success_url!.endsWith(`/billing?success=1&attempt=${attempt.id}`)).toBe(true);
+
+      // Backed out of Stripe: before, this blocked every plan checkout.
+      const blocked = await call("POST", "/v1/billing/checkout/stripe", t.owner.token, { plan: "TEAM", currency: "USD" });
+      expect(json(blocked).code).toBe("PLAN_CHECKOUT_ALREADY_OPEN");
+      // What the cancel return asks: abandon THIS attempt, provider-first.
+      const back = await call("POST", `${attemptBase(t, attempt.id)}/abandon`, t.owner.token, { confirmed: true });
+      expect(json(back)).toMatchObject({ outcome: "ABANDONED", cancelsAtProvider: true });
+      expect(fake.sessions.get(sessionId)!.status).toBe("expired");
+      const next = await call("POST", "/v1/billing/checkout/stripe", t.owner.token, { plan: "TEAM", currency: "USD" });
+      expect(next.statusCode, next.body).toBe(200);
+
+      // A paid credit, then its stale cancel link: the payment stands.
+      const c = await call("POST", "/v1/billing/credits/checkout/stripe", t.owner.token, { currency: "USD" });
+      const creditSession = json(c).session.id as string;
+      expect(fake.sessions.get(creditSession)!.cancel_url).toMatch(/canceled=1&kind=credits&attempt=/);
+      const creditAttempt = await prisma.billingCheckoutAttempt.findFirstOrThrow({
+        where: { userId: t.owner.userId, product: "EVIDENCE_CREDIT" },
+      });
+      const credits0 = (await prisma.entitlement.findFirstOrThrow({ where: { userId: t.owner.userId, active: true } })).credits ?? 0;
+      fake.pay(creditSession, { paid: true });
+      await settleStripeCheckoutSession({ session: fake.sessions.get(creditSession) as never });
+      const stale = await call("POST", `${attemptBase(t, creditAttempt.id)}/abandon`, t.owner.token, { confirmed: true });
+      expect(json(stale).outcome).toBe("ALREADY_RESOLVED");
+      expect((await prisma.billingCheckoutAttempt.findUniqueOrThrow({ where: { id: creditAttempt.id } })).status).toBe("COMPLETED");
+      const credits1 = (await prisma.entitlement.findFirstOrThrow({ where: { userId: t.owner.userId, active: true } })).credits ?? 0;
+      expect(credits1 - credits0).toBe(1);
+    });
+  });
+
+  it("F-14: the success return's re-check settles a paid session before the webhook; the late and repeated webhook add nothing", async () => {
+    const t = await payer();
+    const fake = new FakeStripe();
+    await withStripe(fake, async () => {
+      const c = await call("POST", "/v1/billing/credits/checkout/stripe", t.owner.token, { currency: "EUR" });
+      const sessionId = json(c).session.id as string;
+      const attempt = await prisma.billingCheckoutAttempt.findFirstOrThrow({ where: { userId: t.owner.userId } });
+      const credits0 = (await prisma.entitlement.findFirstOrThrow({ where: { userId: t.owner.userId, active: true } })).credits ?? 0;
+
+      // Returned while Stripe still shows the page open: pending, nothing granted.
+      const early = await call("POST", `${attemptBase(t, attempt.id)}/recheck`, t.owner.token, {});
+      expect(json(early)).toMatchObject({ currentStatus: "PENDING", outcome: "STILL_PENDING", waitingFor: "PAYMENT_PAGE" });
+
+      fake.pay(sessionId, { paid: true });
+      const confirmed = await call("POST", `${attemptBase(t, attempt.id)}/recheck`, t.owner.token, {});
+      expect(json(confirmed)).toMatchObject({ currentStatus: "COMPLETED", outcome: "UPDATED" });
+
+      const late = await settleStripeCheckoutSession({ session: fake.sessions.get(sessionId) as never });
+      const repeated = await settleStripeCheckoutSession({ session: fake.sessions.get(sessionId) as never });
+      expect(late.outcome).toBe("ALREADY_GRANTED");
+      expect(repeated.outcome).toBe("ALREADY_GRANTED");
+      const credits1 = (await prisma.entitlement.findFirstOrThrow({ where: { userId: t.owner.userId, active: true } })).credits ?? 0;
+      expect(credits1 - credits0).toBe(1);
+      expect(await prisma.payment.count({ where: { userId: t.owner.userId, providerPaymentId: sessionId } })).toBe(1);
+    });
+  });
+
+  it("F-13: an unpaid card plan checkout older than the approval window is expired at Stripe by the next plan checkout", async () => {
+    const t = await payer();
+    const fake = new FakeStripe();
+    await withStripe(fake, async () => {
+      const a = await call("POST", "/v1/billing/checkout/stripe", t.owner.token, { plan: "PRO", currency: "USD" });
+      const sessionId = json(a).session.id as string;
+      const attempt = await prisma.billingCheckoutAttempt.findFirstOrThrow({ where: { userId: t.owner.userId } });
+      await prisma.billingCheckoutAttempt.update({
+        where: { id: attempt.id },
+        data: { createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) },
+      });
+      const next = await call("POST", "/v1/billing/checkout/stripe", t.owner.token, { plan: "TEAM", currency: "USD" });
+      expect(next.statusCode, next.body).toBe(200);
+      expect(fake.sessions.get(sessionId)!.status).toBe("expired");
+      expect(await prisma.billingCheckoutAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).toMatchObject({
+        status: "CANCELED",
+        checkoutState: "LOCALLY_EXPIRED",
+      });
+    });
+  });
+
+  it("F-13: a card plan checkout whose payment is settling is never expired, however old", async () => {
+    const t = await payer();
+    const fake = new FakeStripe();
+    await withStripe(fake, async () => {
+      const a = await call("POST", "/v1/billing/checkout/stripe", t.owner.token, { plan: "PRO", currency: "USD" });
+      const sessionId = json(a).session.id as string;
+      const attempt = await prisma.billingCheckoutAttempt.findFirstOrThrow({ where: { userId: t.owner.userId } });
+      await prisma.billingCheckoutAttempt.update({
+        where: { id: attempt.id },
+        data: { createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) },
+      });
+      fake.pay(sessionId, { paid: false }); // completed, payment still settling
+      const next = await call("POST", "/v1/billing/checkout/stripe", t.owner.token, { plan: "TEAM", currency: "USD" });
+      expect(next.statusCode).toBe(409);
+      expect(fake.sessions.get(sessionId)!.status).toBe("complete");
+      expect((await prisma.billingCheckoutAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).status).toBe("PENDING");
+    });
+  });
+
+  it("DUP-STORAGE: a card and a PayPal purchase of the same size started together open exactly one checkout; another size stays allowed", async () => {
+    const fake = new FakeStripe();
+    await withStripe(fake, async () => {
+      for (let round = 0; round < 4; round++) {
+        const t = await payer();
+        const paypalCreate = vi.fn(async () => ({
+          result: {},
+          providerSubId: `I-${randomUUID().slice(0, 12).toUpperCase()}`,
+          providerHttpStatus: 201,
+          providerDebugId: null,
+          providerEnvironment: "sandbox",
+          providerClientIdFingerprint: "fp",
+          providerPlanId: "P-FAKE",
+          providerCurrency: "EUR",
+          approvalLinkIdentity: null,
+        }));
+        const [card, paypal] = await Promise.all([
+          startStripeStorageCheckout({
+            userId: t.owner.userId,
+            addonKey: "PERSONAL_10_GB",
+            currency: "EUR",
+            teamId: null,
+            workspacePlan: "FREE",
+          }),
+          withPendingStorageAddonCheckoutGate({
+            ownerUserId: t.owner.userId,
+            teamId: null,
+            addonKey: "PERSONAL_10_GB",
+            extraStorageBytes: 1n,
+            currency: "EUR",
+            amountCents: 299,
+            create: paypalCreate,
+          }),
+        ]);
+        const opened = [card.kind === "CREATED", paypal.kind === "CREATED"].filter(Boolean).length;
+        expect(opened, JSON.stringify({ card: card.kind, paypal: paypal.kind })).toBe(1);
+        if (card.kind === "BLOCKED") expect(card.httpBody.code).toBe("STORAGE_PURCHASE_PENDING");
+        if (paypal.kind === "DUPLICATE") expect(paypal.finding.code).toBe("STORAGE_PURCHASE_PENDING");
+        expect(paypalCreate.mock.calls.length).toBe(paypal.kind === "CREATED" ? 1 : 0);
+
+        // A different size is a different purchase, and stays allowed.
+        const other = await startStripeStorageCheckout({
+          userId: t.owner.userId,
+          addonKey: "PERSONAL_50_GB",
+          currency: "EUR",
+          teamId: null,
+          workspacePlan: "FREE",
+        });
+        expect(other.kind).toBe("CREATED");
+      }
+    });
+  });
+
+  it("the subscription mutations are bounded per person, and a billing 429 says when to retry", async () => {
+    const t = await payer();
+    let last: { statusCode: number; headers: Record<string, unknown>; body: string } | null = null;
+    for (let i = 0; i < 21; i++) {
+      last = await call("POST", "/v1/billing/subscription/cancel", t.owner.token, {});
+    }
+    expect(last!.statusCode).toBe(429);
+    const retryAfter = Number(last!.headers["retry-after"]);
+    expect(Number.isInteger(retryAfter) && retryAfter >= 1 && retryAfter <= 300).toBe(true);
+    // The bucket is per person: another person is unaffected.
+    const other = await payer();
+    expect((await call("POST", "/v1/billing/subscription/cancel", other.owner.token, {})).statusCode).not.toBe(429);
+  });
+
+  it("F-26c: plan and credit offers say which provider can sell them, from configuration", async () => {
+    const t = await payer();
+    const view = async () => {
+      const res = await call("GET", `/v1/billing/accounts/PERSONAL/${t.owner.userId}`, t.owner.token);
+      expect(res.statusCode, res.body).toBe(200);
+      return json(res);
+    };
+    const paypalEnv = ["PAYPAL_CLIENT_ID", "PAYPAL_SECRET", "PAYPAL_PRO_PLAN_ID_USD", "PAYPAL_PRO_PLAN_ID_EUR"] as const;
+    const saved = Object.fromEntries(paypalEnv.map((k) => [k, process.env[k]]));
+    try {
+      for (const k of paypalEnv) delete process.env[k];
+      const previousKey = process.env.STRIPE_SECRET_KEY;
+      delete process.env.STRIPE_SECRET_KEY;
+      try {
+        // Nothing configured: no provider can sell; the buttons would only 503.
+        const none = await view();
+        const pro = none.planOffers.find((o: { planKey: string }) => o.planKey === "PRO");
+        expect(pro.checkoutAvailability).toEqual({ stripe: false, paypal: false });
+        expect(none.wallet.checkoutAvailability).toEqual({ stripe: false, paypal: false });
+      } finally {
+        if (previousKey === undefined) delete process.env.STRIPE_SECRET_KEY;
+        else process.env.STRIPE_SECRET_KEY = previousKey;
+      }
+
+      await withStripe(new FakeStripe(), async () => {
+        // Stripe key and prices configured; PayPal credentials present but no plan id.
+        process.env.PAYPAL_CLIENT_ID = "client-test";
+        process.env.PAYPAL_SECRET = "secret-test";
+        const cardOnly = await view();
+        const pro = cardOnly.planOffers.find((o: { planKey: string }) => o.planKey === "PRO");
+        expect(pro.checkoutAvailability).toEqual({ stripe: true, paypal: false });
+        // A credit is a PayPal order: credentials are enough.
+        expect(cardOnly.wallet.checkoutAvailability).toEqual({ stripe: true, paypal: true });
+
+        process.env.PAYPAL_PRO_PLAN_ID_USD = "P-PRO-USD";
+        process.env.PAYPAL_PRO_PLAN_ID_EUR = "P-PRO-EUR";
+        const both = await view();
+        expect(both.planOffers.find((o: { planKey: string }) => o.planKey === "PRO").checkoutAvailability).toEqual({
+          stripe: true,
+          paypal: true,
+        });
+      });
+    } finally {
+      for (const k of paypalEnv) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
+  });
+
+  it("DUP-STORAGE: a card purchase still being created blocks the PayPal route for that size before PayPal is called", async () => {
+    const t = await payer();
+    await prisma.billingCheckoutAttempt.create({
+      data: {
+        userId: t.owner.userId,
+        product: "STORAGE_ADDON",
+        provider: "STRIPE",
+        storageAddonKey: "PERSONAL_10_GB",
+        amountCents: 299,
+        currency: "EUR",
+        status: "PENDING",
+        checkoutState: "PROVIDER_CREATE_IN_PROGRESS",
+      },
+    });
+    const spy = vi.spyOn(globalThis, "fetch");
+    try {
+      const res = await call("POST", "/v1/billing/storage-addons/checkout/paypal", t.owner.token, {
+        addonKey: "PERSONAL_10_GB",
+        billingCycle: "MONTHLY",
+        currency: "EUR",
+      });
+      expect(res.statusCode, res.body).toBe(409);
+      expect(json(res)).toMatchObject({ code: "STORAGE_PURCHASE_PENDING", details: { pendingProvider: "STRIPE" } });
+      expect(spy.mock.calls.filter(([u]) => String(u).includes("paypal.com"))).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

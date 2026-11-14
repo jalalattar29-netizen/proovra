@@ -54,7 +54,7 @@ describe("MFA enrolment during sign-in (live PostgreSQL)", () => {
     const { hashPassword } = await import("../src/services/email-password-auth.service.js");
     await prisma.user.update({
       where: { id: member.userId },
-      data: { passwordHash: hashPassword(password), emailVerifiedAt: new Date() },
+      data: { passwordHash: await hashPassword(password), emailVerifiedAt: new Date() },
     });
     const evidence = await prisma.evidence.create({
       data: { ownerUserId: org.owner.userId, teamId: org.workspaceId, organizationId: org.organizationId, type: "PHOTO" },

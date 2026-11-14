@@ -161,7 +161,10 @@ describe("Unified unread calculation — one backend computation platform-wide",
     // guard that forbids naming a mistake also forbids recording it.
     expect(NOTIFICATION_BELL).not.toMatch(/inbox\?filter=unread/);
     // The poll loop drives loadSummary, not the full item fetch.
-    expect(NOTIFICATION_BELL).toMatch(/await loadSummary\(\);\s*\n\s*if \(alive\) timer/);
+    // F-21 (Free-user audit) — the tick skips the request while the tab is
+    // hidden; when it runs, it is still the lightweight summary.
+    expect(NOTIFICATION_BELL).toMatch(/if \(!hidden\(\)\) \{\s*\n\s*lastLoadAt = Date\.now\(\);\s*\n\s*await loadSummary\(\);/);
+    expect(NOTIFICATION_BELL).toMatch(/if \(alive\) timer = setTimeout\(tick, POLL_INTERVAL_MS\);/);
     expect(NOTIFICATION_BELL).toMatch(/if \(!open\) return;\s*\n\s*void loadItems\(\)/);
   });
 

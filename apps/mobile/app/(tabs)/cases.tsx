@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useLocale } from "../../src/locale-context";
 import { apiFetch, apiFetchText } from "../../src/api";
 import { useToast } from "../../src/toast-context";
-import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
+import { nativeErrorAction, toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { describeRelativeTime } from "../../src/lib/relative-time";
 import { theme, statusTone } from "../../src/theme/theme";
 import {
@@ -28,8 +28,10 @@ import { caseStatusDisplay } from "../../src/product/domain-display";
 import { usePlatformContext } from "../../src/product/platform-context";
 import { ChallengeStepUpSheet, useChallengeStepUp } from "../../src/ui/challenge-step-up";
 import {
+  CASES_PLAN_LOCKED_COPY,
   CREATE_CASE_COPY,
   MATTER_QUEUE_COPY as COPY,
+  casesPlanLocked,
   archiveCaseConfirm,
   caseTotalLabel,
   createdCaseId,
@@ -85,6 +87,11 @@ export default function CasesScreen() {
   const stepUp = useChallengeStepUp(teamId);
   const workspaceName = platform.context?.displayName ?? null;
   const advanced = canSeeAdvancedCaseOps(platform.envelope);
+  // Free audit F-10 — the ACTIVE workspace's plan decides whether a case can
+  // be created (a Free member of a paid workspace can; a Free personal space
+  // cannot). Viewing stays open; the server still enforces.
+  const createLocked = casesPlanLocked(platform.envelope);
+  const openPlans = useCallback(() => router.push("/billing"), [router]);
 
   const [state, setState] = useState<QueueState>({ phase: "loading" });
   const [search, setSearch] = useState("");
@@ -251,11 +258,19 @@ export default function CasesScreen() {
         </ProovraText>
         {queue.items.length === 0 ? (
           queue.total === 0 && !anyFilterActive ? (
-            <ProovraEmptyState
-              title={COPY.noneTitle}
-              message={COPY.noneBody}
-              action={<ProovraButton label="Create case" fullWidth={false} onPress={openCreate} />}
-            />
+            createLocked ? (
+              <ProovraEmptyState
+                title={CASES_PLAN_LOCKED_COPY.title}
+                message={CASES_PLAN_LOCKED_COPY.body}
+                action={<ProovraButton label={CASES_PLAN_LOCKED_COPY.action} fullWidth={false} onPress={openPlans} />}
+              />
+            ) : (
+              <ProovraEmptyState
+                title={COPY.noneTitle}
+                message={COPY.noneBody}
+                action={<ProovraButton label="Create case" fullWidth={false} onPress={openCreate} />}
+              />
+            )
           ) : (
             <ProovraEmptyState
               title={COPY.noMatchTitle}
@@ -322,7 +337,13 @@ export default function CasesScreen() {
     <ProovraShell>
       <ProovraSection
         title={t("cases")}
-        action={<ProovraButton label="Create case" fullWidth={false} onPress={openCreate} />}
+        action={
+          createLocked ? (
+            <ProovraButton label={CASES_PLAN_LOCKED_COPY.action} variant="secondary" fullWidth={false} onPress={openPlans} />
+          ) : (
+            <ProovraButton label="Create case" fullWidth={false} onPress={openCreate} />
+          )
+        }
       >
         <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{COPY.subtitle}</ProovraText>
         {state.phase === "ready" ? (
@@ -381,6 +402,18 @@ export default function CasesScreen() {
               />
             </ProovraFormField>
             <ProovraText variant="label" color={theme.color.ink.muted}>{CREATE_CASE_COPY.helper}</ProovraText>
+            {/* A plan refusal (CASES_NOT_INCLUDED) names its next step. */}
+            {createError && nativeErrorAction(createError) ? (
+              <ProovraButton
+                label={nativeErrorAction(createError)!.label}
+                variant="secondary"
+                fullWidth={false}
+                onPress={() => {
+                  setCreating(false);
+                  router.push(nativeErrorAction(createError)!.route as "/billing");
+                }}
+              />
+            ) : null}
             <ProovraSupportReference reference={createError?.requestId} />
             <View style={styles.sheetActions}>
               <ProovraButton label="Cancel" variant="secondary" fullWidth={false} disabled={createBusy} onPress={closeCreate} />

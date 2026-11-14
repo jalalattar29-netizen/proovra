@@ -496,6 +496,25 @@ export async function middleware(req: NextRequest) {
       "/tools",
       "/persona",
       "/dashboard",
+      // F-21 (Free-user audit) — live (app)-tree prefixes this list missed,
+      // so on a split deployment the marketing host served them outside the
+      // app host (and its session) instead of bouncing them there.
+      // `/collaboration` above matches only `/collaboration/...`, not
+      // `/collaboration-teams`. Pinned against the route tree by
+      // __tests__/f21-app-prefixes-cover-app-tree.test.ts.
+      "/people",
+      "/collaboration-teams",
+      "/trust-center",
+      "/org-invites",
+      "/packaging",
+      "/exchange",
+      "/executive",
+      "/budget-center",
+      "/audit-transparency",
+      "/redaction",
+      "/evidence-lifecycle",
+      "/governance-platform",
+      "/intelligence-quality",
     ];
     const isAppPath = APP_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 

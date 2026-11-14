@@ -203,7 +203,7 @@ describe("Sessions, step-up and provider claims (live PostgreSQL)", () => {
     const row = await prisma.user.update({
       where: { id: person.userId },
       data: {
-        passwordHash: passwords.hashPassword("Correct-horse-9-battery"),
+        passwordHash: await passwords.hashPassword("Correct-horse-9-battery"),
         emailVerifiedAt: new Date(),
         currentWorkspaceId: org.workspaceId,
       },
@@ -231,7 +231,7 @@ describe("Sessions, step-up and provider claims (live PostgreSQL)", () => {
     const row = await prisma.user.update({
       where: { id: person.userId },
       data: {
-        passwordHash: passwords.hashPassword("Correct-horse-9-battery"),
+        passwordHash: await passwords.hashPassword("Correct-horse-9-battery"),
         emailVerifiedAt: new Date(),
         currentWorkspaceId: org.workspaceId,
       },

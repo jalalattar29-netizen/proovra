@@ -727,11 +727,17 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
    * are live, and give it back when finished, released, or 24 hours after
    * they were last touched. "Deleting a record does not restore a slot" is
    * about sealed records (owner decision 2026-10-14) and stays.
+   *
+   * F-27d (Free audit) — no number. This copy is keyed by code alone and
+   * cannot know the allowance it is about: the catalog value
+   * (`PLAN_CAPABILITIES.FREE.maxEvidenceRecords`) is not the effective cap of
+   * an account whose cap was frozen at a downgrade, and a hard-coded "3"
+   * outlives a catalog change. The server's refusal states the resolved cap.
    */
   FREE_LIMIT_REACHED: {
     title: "Free record limit reached",
     message:
-      "The Free plan includes 3 evidence records, each with its report, verification package and verification page. Deleting a record does not restore a slot. An upload that was started but never finished also holds a slot, until it is finished or released and for at most 24 hours after it was last touched. Your existing records remain available — buy evidence credits or upgrade to add more.",
+      "Every evidence record the Free plan includes is in use; each one keeps its report, verification package and verification page. Deleting a record does not restore a slot. An upload that was started but never finished also holds a slot, until it is finished or released and for at most 24 hours after it was last touched. Your existing records remain available — buy evidence credits or upgrade to add more.",
     severity: "warning",
     actionLabel: "View plans",
     actionHref: "/billing",
@@ -770,6 +776,35 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     severity: "warning",
     actionLabel: "Buy credits",
     actionHref: "/billing",
+  },
+  /**
+   * F-09 / F-03 (Free-user audit 2026-11-13) — Capture refusals that used to
+   * fall to "Please review your input and try again". Each says what happened
+   * and the one thing to do; staged materials are kept in every case.
+   */
+  EVIDENCE_RESERVATION_EXPIRED: {
+    title: "This capture expired",
+    message:
+      "The record reserved for this capture was not finished within 24 hours, so it was not sealed. Your staged materials are kept — choose Finish & Sign again to start a new record.",
+    severity: "warning",
+  },
+  CAPTURE_ALREADY_FINISHED: {
+    title: "This capture was already sealed",
+    message:
+      "An earlier Finish & Sign of this capture completed first, so its record is sealed with the files it started with. Your staged materials are kept — open Evidence to see the sealed record, or start a new capture for the changed files.",
+    severity: "warning",
+  },
+  PART_INDEX_TAKEN: {
+    title: "Staged files changed",
+    message:
+      "The files staged now are not the ones this record was started with, so nothing was uploaded into it. Your staged materials are kept — choose Finish & Sign again to continue with the current files.",
+    severity: "warning",
+  },
+  PART_DIGEST_MISMATCH: {
+    title: "A file changed after it was staged",
+    message:
+      "A stored file is not the file that was staged for it, so nothing was sealed. Remove that file, add it again, and choose Finish & Sign again.",
+    severity: "warning",
   },
   STORAGE_LIMIT_REACHED: {
     title: "Storage limit reached",
@@ -1346,6 +1381,29 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message:
       "Review actions need an active membership in this workspace. Ask a workspace admin to restore it.",
     severity: "warning",
+  },
+  /**
+   * Free audit F-10 — the plan gates of `POST /v1/cases` and intake-link
+   * creation (billing-enforcement.service.ts assertWorkspaceAllowsCases /
+   * assertWorkspaceAllowsIntake, 409). Unmapped, the native app read them as
+   * "Please review your input" — about a plan, not an input. The gate is the
+   * ACTIVE workspace's plan, so the copy says "this workspace", not "your".
+   */
+  CASES_NOT_INCLUDED: {
+    title: "Cases aren't included in this plan",
+    message:
+      "This workspace's plan doesn't include cases. Your evidence records remain available — upgrade to group them into cases.",
+    severity: "info",
+    actionLabel: "View plans",
+    actionHref: "/billing",
+  },
+  INTAKE_NOT_INCLUDED: {
+    title: "Intake links aren't included in this plan",
+    message:
+      "This workspace's plan doesn't include external intake links. Your evidence records remain available — upgrade to collect evidence from others.",
+    severity: "info",
+    actionLabel: "View plans",
+    actionHref: "/billing",
   },
   CASES_MANAGE_REQUIRED: {
     title: "You can't manage cases here",

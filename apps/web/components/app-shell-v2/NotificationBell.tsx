@@ -320,15 +320,42 @@ export function NotificationBell() {
      */
     if (!workspaceResolved) return;
     let alive = true;
+    let running = false;
+    let lastLoadAt = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    const hidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
+    /*
+     * F-21 — NOT WHILE NOBODY IS LOOKING. A hidden tab kept asking every
+     * 120 s for as long as it stayed open. The chain keeps ticking (cheaply)
+     * while hidden but skips the request; coming back to the tab refreshes
+     * at once if the last answer is older than one interval.
+     */
     async function tick() {
-      await loadSummary();
+      if (running) return;
+      running = true;
+      try {
+        if (!hidden()) {
+          lastLoadAt = Date.now();
+          await loadSummary();
+        }
+      } finally {
+        running = false;
+      }
       if (alive) timer = setTimeout(tick, POLL_INTERVAL_MS);
     }
+    const onVisibility = () => {
+      if (!alive || hidden() || running) return;
+      if (Date.now() - lastLoadAt < POLL_INTERVAL_MS) return;
+      if (timer) clearTimeout(timer);
+      timer = null;
+      void tick();
+    };
     void tick();
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
     return () => {
       alive = false;
       if (timer) clearTimeout(timer);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [loadSummary, workspaceResolved]);
 

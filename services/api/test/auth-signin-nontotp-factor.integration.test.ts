@@ -76,7 +76,7 @@ describe("AUTH-LOCKOUT-NONTOTP — sign-in with a phone-only account (live Postg
     const m = o.members[0]!;
     await prisma.user.update({
       where: { id: m.userId },
-      data: { passwordHash: hashPassword(password), emailVerifiedAt: new Date() },
+      data: { passwordHash: await hashPassword(password), emailVerifiedAt: new Date() },
     });
     return { o, m };
   }

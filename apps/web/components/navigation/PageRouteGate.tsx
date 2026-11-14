@@ -54,9 +54,9 @@ import {
 import { getRouteDefinition } from "../../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../../lib/navigation/routeAccessResolver";
 import { routeAccessInputFromEnvelope } from "../../lib/navigation/useRouteDestination";
-import { hasNoContextYet } from "../../lib/platform-context/types";
+import { hasNoContextYet, isContextLoadFailure } from "../../lib/platform-context/types";
 import { ProovraDenialState } from "../feedback/ProovraDenialState";
-import type { SystemStateAction } from "../feedback/ProovraSystemState";
+import { ProovraSystemState, type SystemStateAction } from "../feedback/ProovraSystemState";
 import { SignedOutAppState } from "./SignedOutAppState";
 
 export function PageRouteGate({
@@ -66,7 +66,7 @@ export function PageRouteGate({
   routeId: string;
   children: ReactNode;
 }) {
-  const { envelope, state } = usePlatformContext();
+  const { envelope, state, refresh } = usePlatformContext();
   // PERSONAL-FIRST RESCUE fragments come from the centralized
   // platform-context hooks — direct envelope reads for the workspace
   // fragment are forbidden outside lib/platform-context (see
@@ -143,6 +143,56 @@ export function PageRouteGate({
         >
           Checking whether this area is available in your workspace…
         </span>
+      </div>
+    );
+  }
+
+  // F-18 — the context could not be LOADED (network, timeout, server error,
+  // schema mismatch) and there is no earlier envelope. That is not an access
+  // decision: without this branch the resolver read the missing envelope as
+  // "Requires permission" / "Workspace setup required". Say what happened and
+  // offer the one action that can fix it. Retrying is explicit — never
+  // automatic — so a broken service cannot put the page in a loop.
+  if (isContextLoadFailure(state) && state.name === "FAILED") {
+    const schema = state.errorCode === "SCHEMA_VERSION_MISMATCH";
+    return (
+      <div
+        data-page-route-gate
+        data-page-route-gate-state="CONTEXT_UNAVAILABLE"
+        data-page-route-gate-route-id={routeId}
+        data-page-route-gate-denial-reason=""
+        data-page-route-gate-actions
+        data-testid={`route-gate-${routeId}`}
+      >
+        <ProovraSystemState
+          kind={schema ? "unavailable" : "server-error"}
+          context="authenticated"
+          presentation="contained"
+          statusLabel={schema ? "Update available" : "Not loaded"}
+          title={schema ? "Reload to continue" : "We couldn\u2019t load your workspace"}
+          message={
+            schema
+              ? "A newer version of PROOVRA is available. Reload the page to continue."
+              : "This page could not be loaded because PROOVRA could not be reached. Nothing about your access has changed. Check your connection and try again."
+          }
+          actions={[
+            schema
+              ? {
+                  label: "Reload page",
+                  onClick: () => window.location.reload(),
+                  variant: "primary",
+                  testId: "page-route-gate-reload",
+                }
+              : {
+                  label: "Try again",
+                  onClick: () => void refresh(),
+                  variant: "primary",
+                  testId: "page-route-gate-retry",
+                },
+          ]}
+          supportReference={state.requestId}
+          testId={`route-gate-panel-${routeId}`}
+        />
       </div>
     );
   }

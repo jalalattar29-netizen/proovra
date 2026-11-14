@@ -184,7 +184,9 @@ export function AuthNote({ tone, children, testID }: { tone: "error" | "status";
 /** The web resend copy (login/page.tsx:1044-1066, register/page.tsx:745-768). */
 export const RESEND_COPY = {
   sending: "Sending verification email…",
-  sent: "Verification email sent.",
+  // The resend route answers every address alike (no account enumeration), so
+  // the confirmation cannot claim an email went out.
+  sent: "If this address still needs verification, a new link is on its way.",
   wait: "Please wait before requesting another verification email.",
   pending: "Resend pending…",
 } as const;

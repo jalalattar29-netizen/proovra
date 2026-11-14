@@ -53,6 +53,11 @@ type MobileApiError = Error & {
    * a challenge had been raised but not how to answer it.
    */
   body?: Record<string, unknown>;
+  /**
+   * The wait a refusal asked for (Retry-After, delta-seconds), in ms. Read by
+   * the capture retry rule so a 429/503 is never retried earlier than asked.
+   */
+  retryAfterMs?: number;
 };
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -145,6 +150,8 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
     err.statusCode = res.status;
     err.code = code;
     if (obj) err.body = obj;
+    const retryAfter = res.headers.get("retry-after")?.trim();
+    if (retryAfter && /^\d+$/.test(retryAfter)) err.retryAfterMs = Number(retryAfter) * 1000;
 
     const detailsRaw = errObj ? errObj["details"] : undefined;
     if (detailsRaw && typeof detailsRaw === "object") {

@@ -1879,10 +1879,10 @@
   {
     "id": "P9-L",
     "phase": "P9",
-    "name": "the consistency result does not say it is as issued",
+    "name": "the presented verdict is the issued snapshot again, not the record now (F-26a)",
     "file": "services/api/src/services/trust-decision-consistency.service.ts",
-    "find": "  if (input.source !== \"REPORT_SNAPSHOT\" && input.source !== \"VERIFICATION_PACKAGE_SNAPSHOT\") return { kind: \"LIVE\" };",
-    "replace": "  if (Date.now() > 0) return { kind: \"LIVE\" };",
+    "find": "  const trustDecision = applyStoredBytesToTrustDecision(input.liveTrustDecision, input.storedBytes, {",
+    "replace": "  const trustDecision = applyStoredBytesToTrustDecision(((!liveCoreChecksFailed && input.snapshotTrustDecision) || input.liveTrustDecision) as D, input.storedBytes, {",
     "tests": [
       {
         "cwd": "services/api",
@@ -1890,7 +1890,7 @@
         "args": [
           "vitest",
           "run",
-          "test/forensic-hardening.test.ts"
+          "test/presented-trust-decision.test.ts"
         ]
       }
     ]

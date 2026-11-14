@@ -61,12 +61,23 @@ describe("resolveEvidenceOutputIssuance — the stored funding fact (ET-COM-04)"
     });
   });
 
-  it("an unreadable fact is no fact — the stricter current-lifecycle answer stands", async () => {
+  // F-09 (2026-11-13) — this read "an unreadable fact is no fact — the stricter
+  // current-lifecycle answer stands". For a FREE allowance record the fact IS
+  // the entitlement, so the "stricter" answer was a definite refusal of an
+  // entitled record (settled NOT_APPLICABLE, never retried). Unreadable is
+  // UNRESOLVED: nothing is issued now and the request retries.
+  it("an unreadable fact is UNRESOLVED, never a refusal", async () => {
     evidenceFindUnique.mockRejectedValue(new Error("db down"));
-    expect(await resolveEvidenceOutputIssuance(RECORD)).toMatchObject({
-      decision: "NOT_ENTITLED",
-      basis: "PAYMENT_LAPSED",
-    });
+    expect(await resolveEvidenceOutputIssuance(RECORD)).toMatchObject({ decision: "UNRESOLVED", basis: "UNKNOWN" });
+  });
+
+  it("a FREE allowance record whose fact cannot be read is UNRESOLVED, not NOT_ENTITLED / FREE_PLAN", async () => {
+    scopeFor.mockResolvedValue({ plan: "FREE", billingShape: "SINGLE_OCCUPANT", ownerUserId: "u-1", teamId: "t-personal" });
+    lifecycle.mockResolvedValue({ state: "ACTIVE", providerStatus: null });
+    evidenceFindUnique.mockResolvedValue({ outputEarnedPlan: "FREE", outputEarnedBasis: "FREE_ALLOWANCE" });
+    expect(await resolveEvidenceOutputIssuance(RECORD)).toMatchObject({ decision: "ENTITLED", basis: "EARNED_AT_FINALIZATION" });
+    evidenceFindUnique.mockRejectedValue(new Error("db down"));
+    expect(await resolveEvidenceOutputIssuance(RECORD)).toMatchObject({ decision: "UNRESOLVED" });
   });
 
   it("the earned fact also survives an unreadable lifecycle (it would otherwise be UNRESOLVED)", async () => {

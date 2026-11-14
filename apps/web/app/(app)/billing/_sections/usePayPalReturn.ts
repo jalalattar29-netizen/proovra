@@ -8,15 +8,28 @@
  *
  * See `lib/billing/paypal-return.ts` for why the browser grants nothing here.
  *
- * It also reads Stripe's return. Stripe's own webhook settles that purchase, so
- * there is nothing to ask: `returnNotice` says the customer is back and what
- * happens next, and stays on the page until they dismiss it.
+ * It also reads Stripe's return.
+ *
+ * FREE-AUDIT REMEDIATION (2026-11-13, F-13 / F-14) — a Stripe return names its
+ * checkout attempt. On success the page asks the server to RE-CHECK that attempt
+ * (the server reads the session from Stripe and applies it with the webhook's own
+ * writer), a few times, and reports the attempt's persisted state: confirmed,
+ * still processing, failed or closed. On cancel it asks the server to abandon the
+ * attempt provider-first (Stripe expires the session; a paid or processing one is
+ * never touched), so an abandoned card checkout no longer blocks the next one.
+ * An older return without an attempt id keeps the notice-only behaviour.
+ * `returnNotice` stays on the page until dismissed.
  */
 
 import { useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
-import { reportPayPalReturnCanceled } from "../../../../lib/api/billing-accounts";
+import {
+  abandonCheckoutAttempt,
+  recheckCheckoutAttempt,
+  reportPayPalReturnCanceled,
+  type BillingAccountRef,
+} from "../../../../lib/api/billing-accounts";
 import { captureException } from "../../../../lib/sentry";
 import {
   parsePayPalReturn,
@@ -27,9 +40,16 @@ import {
   payPalSubscriptionConfirmPath,
   payPalUnidentifiedReturn,
   stripPayPalReturnParams,
+  stripeAttemptNotice,
+  stripeCancelNotice,
+  stripeReturnFailureNotice,
   stripeReturnNotice,
+  stripeReturnSettled,
+  STRIPE_RETURN_MAX_CHECKS,
   type CheckoutReturnNotice,
   type PayPalReturnMessage,
+  type StripeAttemptAnswer,
+  type StripeReturn,
 } from "../../../../lib/billing/paypal-return";
 
 type ParamReader = { get(name: string): string | null; toString(): string };
@@ -44,12 +64,20 @@ export function usePayPalReturn(input: {
   onSettled: () => void;
   replaceUrl: (search: string) => void;
   retryDelayMs?: number;
+  /**
+   * The viewer's PERSONAL billing account, once the server has listed it. Every
+   * self-service purchase belongs to it; a Stripe return waits for it.
+   */
+  personalAccount?: BillingAccountRef | null;
 }): { confirming: boolean; returnNotice: CheckoutReturnNotice | null; dismissReturnNotice: () => void } {
   const handled = useRef(false);
   const latest = useRef(input);
   latest.current = input;
   const [confirming, setConfirming] = useState(false);
   const [returnNotice, setReturnNotice] = useState<CheckoutReturnNotice | null>(null);
+  // A Stripe return that names its attempt, waiting for the account list.
+  const [stripePending, setStripePending] = useState<StripeReturn | null>(null);
+  const stripeHandled = useRef(false);
 
   useEffect(() => {
     if (handled.current) return;
@@ -60,7 +88,8 @@ export function usePayPalReturn(input: {
       handled.current = true;
       latest.current.replaceUrl(stripPayPalReturnParams(search));
       setReturnNotice(stripeReturnNotice(stripe));
-      latest.current.onSettled();
+      if (stripe.attemptId) setStripePending(stripe);
+      else latest.current.onSettled();
       return;
     }
 
@@ -132,6 +161,47 @@ export function usePayPalReturn(input: {
     // Runs once, on the params present when the page first loaded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const account = input.personalAccount ?? null;
+  useEffect(() => {
+    const ret = stripePending;
+    if (!ret || !ret.attemptId || !account || stripeHandled.current) return;
+    stripeHandled.current = true;
+    const attemptId = ret.attemptId;
+    const delay = latest.current.retryDelayMs ?? PAYPAL_RETURN_RETRY_MS;
+    setConfirming(true);
+    (async () => {
+      try {
+        if (ret.kind !== "RETURNED") {
+          // Leaving Stripe is the customer's own act of abandoning THIS checkout.
+          // Provider-first on the server: an open session is expired at Stripe; a
+          // paid, processing or already-ended one is reported, never overwritten.
+          const answer = (await abandonCheckoutAttempt(account, attemptId, true)) as StripeAttemptAnswer;
+          setReturnNotice(stripeCancelNotice(ret, answer));
+          return;
+        }
+        let answer: StripeAttemptAnswer = {};
+        for (let check = 1; check <= STRIPE_RETURN_MAX_CHECKS; check++) {
+          answer = (await recheckCheckoutAttempt(account, attemptId)) as StripeAttemptAnswer;
+          if (stripeReturnSettled(answer) || check === STRIPE_RETURN_MAX_CHECKS) break;
+          latest.current.onSettled();
+          await new Promise((r) => setTimeout(r, delay));
+        }
+        setReturnNotice(stripeAttemptNotice(ret, answer));
+      } catch (err) {
+        captureException(err, { feature: "billing_stripe_return", kind: ret.kind });
+        setReturnNotice(
+          stripeReturnFailureNotice(ret, {
+            statusCode: (err as { statusCode?: unknown }).statusCode,
+            requestId: (err as { requestId?: unknown }).requestId,
+          }),
+        );
+      } finally {
+        setConfirming(false);
+        latest.current.onSettled();
+      }
+    })();
+  }, [stripePending, account]);
 
   return { confirming, returnNotice, dismissReturnNotice: () => setReturnNotice(null) };
 }

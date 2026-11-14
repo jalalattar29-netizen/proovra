@@ -307,18 +307,17 @@ describe("Phase 31.11 — processor wiring", () => {
     );
   });
 
-  it("BOTH buildReportPdfV2 call sites attach mediaIntelligence", () => {
-    // G4.x consolidated the provisional-report path onto the
-    // `buildReportPdfV2WithSignatureOutcome` wrapper, so the worker
-    // now has ONE direct `buildReportPdfV2(` call (finalized path)
-    // plus the wrapper-mediated provisional path. Both still go
-    // through `buildReportMediaIntelligence`.
-    const direct = src.match(/buildReportPdfV2\(/g) ?? [];
-    const wrapper = src.match(/buildReportPdfV2WithSignatureOutcome\(/g) ?? [];
-    expect(direct.length + wrapper.length).toBeGreaterThanOrEqual(2);
-    const occurrences =
-      src.match(/buildReportMediaIntelligence\(/g) ?? [];
-    expect(occurrences.length).toBeGreaterThanOrEqual(2);
+  it("the ONE report render attaches mediaIntelligence", () => {
+    // F-26b (Free-user audit, 2026-11-13) — the discarded provisional render
+    // is gone: the worker renders the published PDF once, through
+    // `buildReportPdfV2WithSignatureOutcome`, and that render carries the
+    // media-intelligence projection.
+    const direct = src.match(/await buildReportPdfV2\(/g) ?? [];
+    const wrapper = src.match(/await buildReportPdfV2WithSignatureOutcome\(/g) ?? [];
+    expect(direct.length).toBe(0);
+    expect(wrapper.length).toBe(1);
+    const occurrences = src.match(/buildReportMediaIntelligence\(/g) ?? [];
+    expect(occurrences.length).toBe(1);
   });
 
   it("projection runs against evidence.teamId — anti-enumeration", () => {
@@ -327,17 +326,12 @@ describe("Phase 31.11 — processor wiring", () => {
     );
   });
 
-  it("projection result attached as `mediaIntelligence:` on the ReportBuildParams payload", () => {
-    // The provisional-report path uses a `reportBuildParams` const,
-    // the finalized-report path inlines the object literal. Both
-    // must carry the field.
-    expect(src).toMatch(
-      /mediaIntelligence:\s*reportMediaIntelligence/,
-    );
+  it("projection result attached as `mediaIntelligence:` on the render payload", () => {
     expect(src).toMatch(
       /mediaIntelligence:\s*finalizedReportMediaIntelligence/,
     );
   });
+
 });
 
 // =============================================================================

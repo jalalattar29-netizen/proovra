@@ -121,7 +121,7 @@ export function outputUnavailableReasonCopy(
     case "WORKSPACE_UNRESOLVED":
       return "This older record needs a workspace association before a new report or verification package can be requested. Everything already generated for it stays available.";
     case "STORAGE_LIMIT":
-      return "A new version would exceed this workspace's storage allowance.";
+      return "This output would exceed the storage allowance that covers this record. Free up storage or add storage in Billing, then try again.";
     case "RETRY_AVAILABLE":
       return "The last attempt failed and can be retried first.";
     case "ACTIONS_UNAVAILABLE":

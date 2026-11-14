@@ -242,9 +242,9 @@ export function deriveEvidenceOutputAttention(input: {
       state: "BLOCKED",
       severity: "WARNING",
       code: "GENERATION_STALLED",
-      title: "Report generation is taking longer than expected",
+      title: "Report generation is taking longer than usual",
       safeMessage:
-        "The signed evidence record is preserved. The report and verification package are still pending; review their status on Artifacts.",
+        "The request is still queued or being processed, and the page keeps checking on its own. The signed evidence record is preserved; review the status on Artifacts.",
       focus: "progress",
       statedByRecordBanner: false,
     };

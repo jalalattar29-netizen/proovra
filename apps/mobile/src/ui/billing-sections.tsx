@@ -24,9 +24,10 @@ import {
   ProovraEmpty,
   ProovraConfirmSheet,
 } from "./index";
+import { purchaseAvailability } from "../product/billing-purchase";
 import {
   BILLING_OVERVIEW_PATH,
-  PURCHASE_PENDING_NOTE,
+  purchaseNoteFor,
   STORAGE_ADDON_CANCEL_PATH,
   SUBSCRIPTION_CANCEL_PATH,
   buildBillingHistoryPath,
@@ -69,6 +70,7 @@ export function BillingSections({
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const purchaseNote = purchaseNoteFor(purchaseAvailability());
   // T-14 — per-payment Re-check / Stop (web StorageAndHistory :475 / :562).
   const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
   const [stopping, setStopping] = useState<PaymentRow | null>(null);
@@ -348,15 +350,18 @@ export function BillingSections({
         </ProovraText>
       ) : null}
 
-      <ProovraCard>
-        {/*
-          Named on its own, beside the catalogue — not used to justify removing
-          reads, history or cancellation.
-        */}
-        <ProovraText variant="label" color={theme.color.ink.muted}>
-          {PURCHASE_PENDING_NOTE}
-        </ProovraText>
-      </ProovraCard>
+      {purchaseNote ? (
+        <ProovraCard>
+          {/*
+            Named on its own, beside the catalogue — not used to justify removing
+            reads, history or cancellation. F-09: only on a build that cannot buy;
+            the private build sells from this screen and said it could not.
+          */}
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            {purchaseNote}
+          </ProovraText>
+        </ProovraCard>
+      ) : null}
 
       <ProovraConfirmSheet
         visible={pending !== null}

@@ -618,7 +618,7 @@ export async function assertQuotaEntitlement(input: {
 // assertLimitEntitlementTx — LIMIT keys, by live count (PRO-062)
 // ===========================================================================
 
-type LimitTx = Pick<PrismaClient, "$executeRaw" | "lifecycleWebhookEndpoint">;
+type LimitTx = Pick<PrismaClient, "$executeRaw" | "lifecycleWebhookEndpoint" | "apiCredential">;
 
 /**
  * What each LIMIT key counts. A key with no counter cannot be enforced, so it
@@ -630,6 +630,12 @@ const LIMIT_LIVE_COUNTERS: Partial<
   // The lifecycle webhook endpoints the dispatcher would send to.
   INTEGRATION_WEBHOOK_ENDPOINTS_MAX: (tx, teamId) =>
     tx.lifecycleWebhookEndpoint.count({ where: { teamId, state: "ACTIVE" } }),
+  // F-15 (Free-user audit, 2026-11-13) — the integration API keys that can
+  // authenticate (`requireApiKey` accepts only ACTIVE credentials). The key was
+  // declared, defaulted and sold per product line, and enforced nowhere: any
+  // workspace owner (every account owns one) could mint unlimited keys.
+  INTEGRATION_API_KEYS_MAX: (tx, teamId) =>
+    tx.apiCredential.count({ where: { teamId, status: "ACTIVE" } }),
 };
 
 /**

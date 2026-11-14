@@ -16,8 +16,12 @@
  *   - reloads the workspace only when an output's state, generation, version
  *     or offered action actually CHANGES, so a poll cannot spam the detail
  *     read;
- *   - stops after a stale window and surfaces an actionable state rather
- *     than looping forever;
+ *   - after a stale window surfaces "taking longer than usual" and keeps
+ *     checking at a slow cadence while the server still reports live work
+ *     (F-08, 2026-11-13: it used to STOP, so a request that was merely
+ *     queued behind others — the report worker runs two at a time — finished
+ *     unseen until the person clicked "Re-check"); the server's null interval
+ *     still ends polling;
  *   - pauses while the tab is hidden, and disposes its timer on unmount.
  *
  * The artifact-status fields are the subscription key. The workspace snapshot
@@ -57,6 +61,8 @@ type ArtifactStatusResponse = {
 const STALE_PENDING_AFTER_MS = 60_000;
 /** A retry the pipeline scheduled itself is polled slowly, for longer. */
 const SLOW_POLL_BUDGET_MS = 10 * 60_000;
+/** Past its window, live work is still followed — at this slower cadence. */
+const STALE_POLL_INTERVAL_MS = 30_000;
 const DEFAULT_INTERVAL_MS = 3000;
 
 /** What changes on screen when the outputs change. */
@@ -188,8 +194,10 @@ export function useArtifactReadinessPoll(input: {
         const startedAt = pollStartedAtRef.current ?? Date.now();
         const budget = interval >= 30_000 ? SLOW_POLL_BUDGET_MS : STALE_PENDING_AFTER_MS;
         if (Date.now() - startedAt > budget) {
+          // Said, not abandoned: the page keeps following the request slowly
+          // and clears this state on the next visible change.
           setStalePending(true);
-          return;
+          interval = Math.max(interval, STALE_POLL_INTERVAL_MS);
         }
       } catch {
         /* a failed status read never invents a state; try again */

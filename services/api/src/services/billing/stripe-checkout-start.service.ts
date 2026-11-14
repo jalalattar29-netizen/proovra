@@ -40,6 +40,7 @@ import {
 } from "./checkout-attempts.service.js";
 import { isStripeHostedCheckoutUrl } from "./reconciliation/stripe.provider.js";
 import { expireStalePlanAttempts } from "./checkout-attempt-recovery.service.js";
+import { findStorageDuplicate, type StorageDuplicateFinding } from "./storage-purchase-guard.service.js";
 import { StripeCustomerUnresolved, resolveStripeCheckoutCustomer } from "./stripe-customer-binding.service.js";
 import {
   defaultReconciliationProviders,
@@ -290,11 +291,17 @@ export async function startStripeStorageCheckout(input: {
   currency: string;
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
+  /** The customer's stacking statement, re-checked under the storage lock. */
+  confirmation?: { heldCount: number | null } | null;
 }): Promise<StripeCheckoutStart> {
   const amountCents = getStorageAddonPriceCents({
     addonKey: input.addonKey,
     currency: input.currency as Parameters<typeof getStorageAddonPriceCents>[0]["currency"],
   });
+  // FREE-AUDIT REMEDIATION (2026-11-13, DUP-STORAGE) — the duplicate check that
+  // decides runs INSIDE the attempt transaction, under the payer's storage lock
+  // the PayPal gate takes too, so a card tab and a PayPal tab cannot both pass.
+  let duplicate: StorageDuplicateFinding | null = null;
   const gate = await openCheckoutAttempt({
     userId: input.userId,
     product: prismaPkg.BillingCheckoutProduct.STORAGE_ADDON,
@@ -302,7 +309,27 @@ export async function startStripeStorageCheckout(input: {
     storageAddonKey: input.addonKey,
     amountCents,
     currency: input.currency,
+    extraBlock: async (tx) => {
+      duplicate = await findStorageDuplicate({
+        userId: input.userId,
+        addonKey: input.addonKey,
+        provider: STRIPE,
+        confirmation: input.confirmation ?? null,
+        client: tx,
+      });
+      return duplicate
+        ? {
+            kind: "BLOCKED" as const,
+            reason: "CHECKOUT_IN_PROGRESS" as const,
+            attempt: { id: "", planKey: null, providerBound: false, createdAt: new Date(), provider: STRIPE },
+          }
+        : null;
+    },
   });
+  const found = duplicate as StorageDuplicateFinding | null;
+  if (found) {
+    return { kind: "BLOCKED", httpBody: { message: found.message, code: found.code, details: found.details } };
+  }
   if (gate.kind === "REUSE") {
     const session = await reusable(gate);
     if (session) {

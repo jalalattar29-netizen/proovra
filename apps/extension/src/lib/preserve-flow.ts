@@ -105,6 +105,13 @@ export type PreserveDeps = {
   sleep?: (ms: number) => Promise<void>;
   /** Resolves when the browser reports it is online, or after `timeoutMs`. */
   waitForOnline?: (timeoutMs: number) => Promise<void>;
+  /**
+   * Free audit F-12 — a sign-in that ended after the session opened leaves a
+   * reserved record the discard cannot release without a token. The session
+   * is handed here so the same discard runs after the user signs in again
+   * (pending-release.ts).
+   */
+  rememberUnreleased?: (captureSessionId: string) => Promise<void>;
 };
 
 const SOURCE_BY_ROLE: Record<CapturedArtifact["role"], string> = {
@@ -378,8 +385,12 @@ export async function runPreserveFlow(
 
     // UC-ARCH-009 — seal-or-discard. Discard is idempotent and refuses a sealed
     // session, so it is safe to send whether or not the seal happened, and its
-    // answer SETTLES the unknown case. With a revoked token it cannot run; the
-    // capture-reaper releases the reservation.
+    // answer SETTLES the unknown case. With a revoked token it cannot run now:
+    // the session is remembered and discarded after the next sign-in (F-12);
+    // the server's reservation sweep remains the backstop.
+    if (reason === "SIGNED_OUT") {
+      await deps.rememberUnreleased?.(sessionId).catch(() => undefined);
+    }
     if (reason !== "SIGNED_OUT") {
       try {
         deps.progress("discarding");

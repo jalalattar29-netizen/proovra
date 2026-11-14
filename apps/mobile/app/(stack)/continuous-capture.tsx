@@ -34,7 +34,7 @@ import { requestRecordingPermissionsAsync } from "expo-audio";
 import { SCREEN_CONTINUOUS_STREAM_BOUNDS } from "@proovra/shared";
 
 import { theme } from "../../src/theme/theme";
-import { toSafeUserError } from "../../src/errors/safe-error";
+import { nativeErrorAction, toSafeUserError } from "../../src/errors/safe-error";
 import {
   ProovraScreen,
   ProovraCard,
@@ -160,6 +160,8 @@ export default function ContinuousCaptureScreen() {
   const userId = useAuth().user?.id ?? null;
   const [state, dispatch] = useReducer(continuousFlowReducer, INITIAL_CONTINUOUS_FLOW);
   const [busy, setBusy] = useState(false);
+  /** A limit refusal's next step, keyed to the error sentence it belongs to. */
+  const [limitAction, setLimitAction] = useState<{ forMessage: string; label: string; route: string } | null>(null);
   const [notificationDenied, setNotificationDenied] = useState(false);
   const [recovery, setRecovery] = useState<Recovery>(null);
   const isIOS = Platform.OS === "ios";
@@ -381,9 +383,14 @@ export default function ContinuousCaptureScreen() {
       pump();
     } catch (err) {
       await releaseSession();
+      const safe = toSafeUserError(err, { message: "PROOVRA could not open a capture session, so the recording was stopped." });
+      // Free audit F-04 — a record / storage / plan refusal names its next
+      // step (the native Billing screen); "Try Again" cannot change a plan.
+      const action = nativeErrorAction(safe);
+      setLimitAction(action ? { forMessage: safe.message, ...action } : null);
       dispatch({
         type: "FAIL",
-        message: toSafeUserError(err, { message: "PROOVRA could not open a capture session, so the recording was stopped." }).message,
+        message: safe.message,
         recoverable: true,
       });
     } finally {
@@ -1217,7 +1224,9 @@ export default function ContinuousCaptureScreen() {
         {state.phase === "error" && (
           <ProovraCard style={styles.card}>
             <ProovraText variant="body" color={theme.color.status.risk.fg}>{state.message}</ProovraText>
-            {state.recoverable ? (
+            {limitAction && limitAction.forMessage === state.message ? (
+              <ProovraButton label={limitAction.label} onPress={() => router.push(limitAction.route as "/billing")} />
+            ) : state.recoverable ? (
               <ProovraButton label="Try Again" onPress={() => void reset()} />
             ) : (
               <ProovraButton label="Start a new recording" onPress={() => void reset()} />

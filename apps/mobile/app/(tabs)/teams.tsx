@@ -57,6 +57,8 @@ import {
   type TeamsStatusFilter,
 } from "../../src/product/collaboration";
 import { theme } from "../../src/theme/theme";
+import { purchaseAvailability } from "../../src/product/billing-purchase";
+import { upgradeActionLabel } from "../../src/product/billing";
 import {
   ProovraShell,
   ProovraCard,
@@ -221,10 +223,12 @@ export default function CollaborationScreen() {
   const openTeam = (id: string, tab?: string) =>
     router.push((tab ? `/collaboration-team/${id}?tab=${tab}` : `/collaboration-team/${id}`) as never);
 
+  // F-09 — the label names what this build can do at Billing: buy, or see plans.
+  const upgradeLabel = upgradeActionLabel(purchaseAvailability());
   const upgradeButton = (
     <ProovraButton
-      label="Upgrade plan"
-      accessibilityLabel={planLocked ? "Upgrade plan" : `Upgrade — ${disabledReason ?? "plan limit reached"}`}
+      label={upgradeLabel}
+      accessibilityLabel={planLocked ? upgradeLabel : `${upgradeLabel} — ${disabledReason ?? "plan limit reached"}`}
       variant={planLocked ? "primary" : "secondary"}
       fullWidth={false}
       onPress={() => router.push("/billing" as never)}
@@ -270,7 +274,7 @@ export default function CollaborationScreen() {
                 {`${entitlement.plan ? `${entitlement.plan} plan · ` : ""}${entitlement.teamsUsed} of ${entitlement.teamsLimit} teams used`}
               </ProovraText>
               {entitlement.teamsUsed >= entitlement.teamsLimit ? (
-                <ProovraButton label="Upgrade" variant="ghost" fullWidth={false} onPress={() => router.push("/billing" as never)} />
+                <ProovraButton label={upgradeLabel === "Upgrade plan" ? "Upgrade" : upgradeLabel} variant="ghost" fullWidth={false} onPress={() => router.push("/billing" as never)} />
               ) : null}
               {atCapacity ? upgradeButton : null}
             </View>

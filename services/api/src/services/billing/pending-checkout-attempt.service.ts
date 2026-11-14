@@ -12,7 +12,11 @@ import {
   abandonCheckoutAttempt,
   APPROVAL_EXPIRY_MS,
 } from "./checkout-attempt-recovery.service.js";
-import { CHECKOUT_REUSE_WINDOW_MS } from "./checkout-attempts.service.js";
+import {
+  CHECKOUT_REUSE_WINDOW_MS,
+  personalStorageCheckoutLockKey,
+} from "./checkout-attempts.service.js";
+import { findStorageDuplicate, type StorageDuplicateFinding } from "./storage-purchase-guard.service.js";
 
 type SubscriptionClient = Pick<
   prismaPkg.Prisma.TransactionClient["subscription"],
@@ -118,6 +122,8 @@ export async function withPendingStorageAddonCheckoutGate<T>(input: {
   extraStorageBytes: bigint;
   currency: string;
   amountCents: number;
+  /** The customer's stacking statement, re-checked under the storage lock. */
+  confirmation?: { heldCount: number | null } | null;
   create: (attemptId: string) => Promise<{
     result: T;
     providerSubId: string;
@@ -132,11 +138,19 @@ export async function withPendingStorageAddonCheckoutGate<T>(input: {
 }): Promise<
   | { kind: "CREATED"; result: T; attemptId: string }
   | { kind: "BLOCKED"; attempt: PendingStorageAddonCheckoutAttempt }
+  | { kind: "DUPLICATE"; finding: StorageDuplicateFinding }
 > {
   const gate = await prisma.$transaction(async (tx) => {
     await (tx as LockClient).$executeRaw`
       SELECT pg_advisory_xact_lock(hashtext(${`billing-storage-checkout:PAYPAL:${input.ownerUserId}:${input.teamId ?? "personal"}`}))
     `;
+    // FREE-AUDIT REMEDIATION (2026-11-13, DUP-STORAGE) — the payer's storage
+    // lock, shared with the Stripe gate, taken after the per-provider one.
+    if (input.teamId === null) {
+      await (tx as LockClient).$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${personalStorageCheckoutLockKey(input.ownerUserId)}))
+      `;
+    }
 
     // BILLING PAYPAL INTEGRITY (2026-09-28) — only an attempt that can still
     // be approved blocks: a BOUND one inside the approval window, or an
@@ -178,6 +192,20 @@ export async function withPendingStorageAddonCheckoutGate<T>(input: {
       };
     }
 
+    // The deciding duplicate check: under the shared lock, so an open (or
+    // still-creating) card purchase of this size is seen, and the live count
+    // the customer confirmed is the count now.
+    if (input.teamId === null) {
+      const finding = await findStorageDuplicate({
+        userId: input.ownerUserId,
+        addonKey: input.addonKey,
+        provider: prismaPkg.PaymentProvider.PAYPAL,
+        confirmation: input.confirmation ?? null,
+        client: tx,
+      });
+      if (finding) return { kind: "DUPLICATE" as const, finding };
+    }
+
     const attempt = await tx.workspaceStorageAddon.create({
       data: {
         ownerUserId: input.ownerUserId,
@@ -200,7 +228,7 @@ export async function withPendingStorageAddonCheckoutGate<T>(input: {
     return { kind: "ATTEMPT" as const, attemptId: attempt.id };
   });
 
-  if (gate.kind === "BLOCKED") return gate;
+  if (gate.kind === "BLOCKED" || gate.kind === "DUPLICATE") return gate;
 
   // The transaction has committed before the network call. A process crash or
   // lost response therefore leaves one durable attempt with one stable

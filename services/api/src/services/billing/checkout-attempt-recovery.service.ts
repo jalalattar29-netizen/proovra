@@ -320,6 +320,10 @@ async function checkAttempt(
       settled = await (deps.settleStripeSession ?? settleStripeCheckoutSession)({
         session,
         expectedUserId: account.id,
+        // A read-back, not the provider's own event: a storage refusal it finds
+        // honours the sweep hold (BILLING_AUTO_ADDON_CANCELLATION); the webhook
+        // for the same session still applies it in full.
+        source: "billing_reconciliation",
       });
     } catch {
       return finish("PROVIDER_UNAVAILABLE");
@@ -762,7 +766,14 @@ export const APPROVAL_EXPIRY_MS = 24 * 60 * 60 * 1000;
 function isExpiredApproval(check: CheckoutAttemptCheck, attempt: LoadedAttempt, now: Date): boolean {
   return (
     check.outcome === "STILL_PENDING" &&
-    check.waitingFor === "APPROVAL" &&
+    // FREE-AUDIT REMEDIATION (2026-11-13, F-13) — an unpaid, still-open Stripe
+    // payment page is the card equivalent of an unapproved PayPal checkout. It
+    // never matched "APPROVAL", so an abandoned card checkout was never closed
+    // here and kept blocking every plan checkout until Stripe expired it.
+    // Closing it expires the session AT Stripe first (abandonCheckoutAttempt);
+    // a paid or processing session is never STILL_PENDING on PAYMENT_PAGE.
+    (check.waitingFor === "APPROVAL" ||
+      (attempt.provider === prismaPkg.PaymentProvider.STRIPE && check.waitingFor === "PAYMENT_PAGE")) &&
     now.getTime() - attempt.createdAt.getTime() > APPROVAL_EXPIRY_MS &&
     (check.currentStatus === A.PENDING || check.currentStatus === prismaPkg.SubscriptionStatus.TRIALING)
   );

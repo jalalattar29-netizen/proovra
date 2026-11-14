@@ -26,6 +26,7 @@ import {
 } from "../../lib/legalAcceptance";
 import { evaluatePassword } from "../../lib/passwordRules";
 import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
+import { safeReturnPath } from "../../lib/navigation/safe-return-path";
 
 type GoogleCredentialResponse = { credential?: string };
 
@@ -231,6 +232,9 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // redirect). 0 = idle.
 type RegisterStep = 0 | 1 | 2 | 3 | 4;
 
+/** F-06 — the API's `verificationDelivery` (email-verification.service). */
+type VerificationDelivery = "sent" | "unconfirmed" | "failed" | "cooldown";
+
 const REGISTER_STEP_LABELS: Readonly<Record<Exclude<RegisterStep, 0>, string>> = {
   1: "Creating account...",
   2: "Provisioning workspace...",
@@ -252,7 +256,9 @@ function RegisterPageContent() {
   const { addToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnUrl = searchParams.get("returnUrl") || "/home";
+  // F-26g / F-26f — `next` (invitations, pricing) or the older `returnUrl`,
+  // validated once by the shared open-redirect rule; every use reads this.
+  const returnUrl = safeReturnPath(searchParams.get("next") || searchParams.get("returnUrl"));
 
   // Existing state — preserved verbatim so OAuth/Apple/Guest paths
   // continue to work without behavioural change.
@@ -282,6 +288,28 @@ function RegisterPageContent() {
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [resendBusy, setResendBusy] = useState(false);
   const [resendStatus, setResendStatus] = useState<string | null>(null);
+  // F-06 — what the server said actually happened to the email, and when a
+  // resend would really be attempted (the server's own per-address cooldown).
+  const [verificationDelivery, setVerificationDelivery] = useState<VerificationDelivery>("sent");
+  const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const resendWaitSec =
+    resendAvailableAt === null ? 0 : Math.max(0, Math.ceil((resendAvailableAt - nowMs) / 1000));
+  useEffect(() => {
+    if (resendAvailableAt === null) return;
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      setNowMs(now);
+      if (now >= resendAvailableAt) window.clearInterval(timer);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendAvailableAt]);
+  const holdResendFor = (seconds: unknown) => {
+    const s = typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+    const now = Date.now();
+    setNowMs(now);
+    setResendAvailableAt(s > 0 ? now + s * 1000 : null);
+  };
 
   // Email availability state machine — runs only after a syntactically
   // valid email is typed. Backend endpoint is rate-limited per IP; we
@@ -404,7 +432,7 @@ function RegisterPageContent() {
   const persistPendingOAuthLegalAcceptance = () => {
     savePendingOAuthLegalAcceptance({
       source: "register",
-      returnUrl: returnUrlRef.current.startsWith("/") ? returnUrlRef.current : "/home",
+      returnUrl: safeReturnPath(returnUrlRef.current),
       acceptances: getRequiredAcceptances(),
       createdAt: new Date().toISOString(),
     });
@@ -445,7 +473,7 @@ function RegisterPageContent() {
     if (inFlightRef.current) return;
 
     const accepted = acceptLegalRef.current;
-    const currentReturnUrl = returnUrlRef.current.startsWith("/") ? returnUrlRef.current : "/home";
+    const currentReturnUrl = safeReturnPath(returnUrlRef.current);
 
     if (!accepted) {
       const msg =
@@ -519,6 +547,18 @@ function RegisterPageContent() {
         setRegisterStep(4);
         setStatus(REGISTER_STEP_LABELS[4]);
         setRegisteredEmail((data?.email as string | undefined) ?? email);
+        // F-06 — the provider's real answer, not "we've sent" for any 201.
+        // An older API without the field reports through verificationSent.
+        const delivery = data?.verificationDelivery as VerificationDelivery | undefined;
+        setVerificationDelivery(
+          delivery === "sent" || delivery === "unconfirmed" || delivery === "failed" || delivery === "cooldown"
+            ? delivery
+            : data?.verificationSent === false
+              ? "failed"
+              : "sent",
+        );
+        holdResendFor(data?.resendAfterSec);
+        setResendStatus(null);
         setRegisterSuccess(true);
         return;
       }
@@ -762,28 +802,41 @@ function RegisterPageContent() {
   // defends with `resendBusy` so a frantic double-click doesn't
   // immediately trip the cooldown. Response is neutral by design — we
   // surface a generic confirmation regardless of backend outcome.
+  //
+  // F-06 — the answer is neutral for every address (it must not say whether
+  // one has an account waiting), so the copy says what was asked, not that
+  // an email arrived; the button then waits out the server's real cooldown,
+  // after which a resend is genuinely attempted. A refused or unreachable
+  // request says so and leaves the button available.
   const onResendVerification = async () => {
-    if (resendBusy || !registeredEmail) return;
+    if (resendBusy || resendWaitSec > 0 || !registeredEmail) return;
     setResendBusy(true);
-    setResendStatus("Sending verification email…");
+    setResendStatus("Requesting a new verification email…");
     try {
-      await apiFetch(
+      const res = (await apiFetch(
         "/v1/auth/email/resend-verification",
         {
           method: "POST",
-          body: JSON.stringify({ email: registeredEmail }),
+          body: JSON.stringify({ email: registeredEmail, next: returnUrlRef.current }),
         },
         { auth: false },
-      );
-      setResendStatus("Verification email sent.");
-    } catch {
+      )) as { retryAfterSec?: number } | null;
       setResendStatus(
-        "Please wait before requesting another verification email.",
+        "We’ve asked for a new verification link to be sent to this address. It can take a few minutes to arrive — check your spam folder too.",
       );
+      holdResendFor(res?.retryAfterSec ?? 60);
+    } catch (err) {
+      const status = isApiResponseError(err) ? err.statusCode : 0;
+      if (status === 429) {
+        setResendStatus("Too many requests from this connection. Wait a minute, then try again.");
+        holdResendFor(60);
+      } else {
+        setResendStatus(
+          "We couldn’t reach PROOVRA to request a new email. Check your connection and try again.",
+        );
+      }
     } finally {
-      // Match the backend per-email cooldown so the button stays
-      // disabled for the full window even if the network was instant.
-      window.setTimeout(() => setResendBusy(false), 60_000);
+      setResendBusy(false);
     }
   };
 
@@ -794,6 +847,8 @@ function RegisterPageContent() {
     setRegisteredEmail(null);
     setResendStatus(null);
     setResendBusy(false);
+    setResendAvailableAt(null);
+    setVerificationDelivery("sent");
     setRegisterStep(0);
     setStatus(null);
     setEmail("");
@@ -836,7 +891,12 @@ function RegisterPageContent() {
       return;
     }
 
-    void handleAuth("/v1/auth/email/register", undefined, undefined, { email, password });
+    void handleAuth("/v1/auth/email/register", undefined, undefined, {
+      email,
+      password,
+      // F-26f — carried in the emailed link so verification lands here.
+      next: returnUrlRef.current,
+    });
   };
 
   const SocialHostStyle: CSSProperties = {
@@ -977,14 +1037,45 @@ function RegisterPageContent() {
                             Verify your email address
                           </h2>
 
-                          <p className="mt-3 text-[0.96rem] leading-[1.78] text-[#4B3B4F]">
-                            We&rsquo;ve sent a verification email to{" "}
-                            <strong style={{ color: "#1B1230", wordBreak: "break-all" }}>
-                              {registeredEmail ?? email}
-                            </strong>
-                            . Please open the email and click the verification link to
-                            activate your PROOVRA account.
-                          </p>
+                          {verificationDelivery === "failed" ? (
+                            <p
+                              role="alert"
+                              data-testid="register-verification-failed"
+                              className="mt-3 text-[0.96rem] leading-[1.78] text-[#4B3B4F]"
+                            >
+                              Your account was created, but we couldn&rsquo;t send the
+                              verification email to{" "}
+                              <strong style={{ color: "#1B1230", wordBreak: "break-all" }}>
+                                {registeredEmail ?? email}
+                              </strong>{" "}
+                              just now. Use &ldquo;Resend email&rdquo; to try again.
+                            </p>
+                          ) : verificationDelivery === "sent" ? (
+                            <p
+                              data-testid="register-verification-sent"
+                              className="mt-3 text-[0.96rem] leading-[1.78] text-[#4B3B4F]"
+                            >
+                              We&rsquo;ve sent a verification email to{" "}
+                              <strong style={{ color: "#1B1230", wordBreak: "break-all" }}>
+                                {registeredEmail ?? email}
+                              </strong>
+                              . Please open the email and click the verification link to
+                              activate your PROOVRA account.
+                            </p>
+                          ) : (
+                            <p
+                              data-testid="register-verification-unconfirmed"
+                              className="mt-3 text-[0.96rem] leading-[1.78] text-[#4B3B4F]"
+                            >
+                              We asked for a verification email to be sent to{" "}
+                              <strong style={{ color: "#1B1230", wordBreak: "break-all" }}>
+                                {registeredEmail ?? email}
+                              </strong>
+                              , but couldn&rsquo;t confirm it was accepted. Check your inbox
+                              in a few minutes; if nothing arrives, resend it when the
+                              button below is available.
+                            </p>
+                          )}
 
                           <p className="mt-3 text-[0.86rem] leading-[1.68] text-[#7A687D]">
                             If you don&rsquo;t see the email within a minute, check your
@@ -995,22 +1086,27 @@ function RegisterPageContent() {
                             <button
                               type="button"
                               onClick={() => void onResendVerification()}
-                              disabled={resendBusy}
+                              disabled={resendBusy || resendWaitSec > 0}
+                              data-testid="register-resend"
                               className="auth-social-btn"
                               style={{
-                                background: resendBusy
+                                background: resendBusy || resendWaitSec > 0
                                   ? "var(--accent-050, #f2ecfe)"
                                   : "var(--btn-primary-bg)",
-                                color: resendBusy ? "var(--silver-ink)" : "#ffffff",
+                                color: resendBusy || resendWaitSec > 0 ? "var(--silver-ink)" : "#ffffff",
                                 border: "1px solid var(--btn-primary-border)",
-                                boxShadow: resendBusy
+                                boxShadow: resendBusy || resendWaitSec > 0
                                   ? "none"
                                   : "var(--btn-primary-shadow)",
                                 fontWeight: 600,
-                                cursor: resendBusy ? "not-allowed" : "pointer",
+                                cursor: resendBusy || resendWaitSec > 0 ? "not-allowed" : "pointer",
                               }}
                             >
-                              {resendBusy ? "Resend pending…" : "Resend email"}
+                              {resendBusy
+                                ? "Requesting…"
+                                : resendWaitSec > 0
+                                  ? `Resend available in ${resendWaitSec}s`
+                                  : "Resend email"}
                             </button>
                             <button
                               type="button"
@@ -1029,7 +1125,7 @@ function RegisterPageContent() {
                               Change email
                             </button>
                             <Link
-                              href="/login"
+                              href={returnUrl === "/home" ? "/login" : `/login?next=${encodeURIComponent(returnUrl)}`}
                               className="auth-link"
                               style={{ color: "#D63E76", fontWeight: 600, fontSize: 14 }}
                             >
@@ -1672,7 +1768,7 @@ function RegisterPageContent() {
                           >
                             <span>{t("login")}? </span>
                             <Link
-                              href="/login"
+                              href={returnUrl === "/home" ? "/login" : `/login?next=${encodeURIComponent(returnUrl)}`}
                               style={{ color: "#D63E76", fontWeight: 600 }}
                             >
                               {t("login")}

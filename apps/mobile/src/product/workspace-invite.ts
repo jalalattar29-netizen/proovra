@@ -16,6 +16,7 @@ import {
   WORKSPACE_INVITATION_LOOKUP_STATES,
   isWorkspaceInvitationRefusalCode,
   type InvitationAction,
+  type InvitationEntryBlock,
   type InvitationViewKind,
   type WorkspaceInvitationContext,
   type WorkspaceInvitationLookup,
@@ -53,8 +54,9 @@ export function parseWorkspaceInviteLookup(payload: unknown): WorkspaceInvitatio
   return { state: state as WorkspaceInvitationLookup["state"], context };
 }
 
-export function parseWorkspaceInviteAccept(payload: unknown): { alreadyMember: boolean } {
-  return { alreadyMember: o(payload)["alreadyMember"] === true };
+export function parseWorkspaceInviteAccept(payload: unknown): { alreadyMember: boolean; workspaceId: string | null } {
+  const d = o(payload);
+  return { alreadyMember: d["alreadyMember"] === true, workspaceId: s(d["workspaceId"]) };
 }
 
 /** A 404 or INVITE_NOT_FOUND is a verdict; anything else is an interruption (web §19). */
@@ -128,6 +130,49 @@ export const WORKSPACE_INVITE_COPY: Record<InvitationViewKind, { title: string; 
     title: "We couldn't check this invitation",
     message: "Something interrupted the connection. Your invitation hasn't changed — try again in a moment.",
   },
+  // F-26e — the web page's copy for the settled refusals that used to read as "unreachable".
+  "email-not-verified": {
+    title: "Verify your email address first",
+    message:
+      "This invitation can be accepted once the address on your account is verified. We can send you a verification email; open it, then come back and accept.",
+  },
+  "membership-suspended": {
+    title: "Your access to this workspace is suspended",
+    message: "An invitation can't lift a suspension. Ask a workspace administrator to restore your access.",
+  },
+  superseded: {
+    title: "This invitation is no longer valid for you",
+    message: "It was sent before your access to this workspace ended. Ask a workspace administrator for a new invitation.",
+  },
+  "workspace-plan-inactive": {
+    title: "This workspace can't add members right now",
+    message:
+      "The workspace's plan or contract isn't set up to admit new members at the moment. Your invitation stays valid until it expires — ask the workspace administrator to resolve it.",
+  },
+  "legal-acceptance-required": {
+    title: "Accept the updated terms to continue",
+    message: "Our terms have changed since you last accepted them. Review and accept them, then accept this invitation.",
+  },
+  "accepted-not-opened": {
+    title: "Invitation accepted — the workspace didn't open",
+    message: "You're now a member, but this workspace couldn't be opened with your current sign-in.",
+  },
+};
+
+/** F-07 — why an accepted workspace did not open (the web page's ENTRY_BLOCK_MESSAGE). */
+export const WORKSPACE_INVITE_ENTRY_BLOCK_MESSAGE: Record<InvitationEntryBlock, string> = {
+  "sso-required":
+    "This organization requires its single sign-on. Sign in again with “Sign in with your organization (SSO)”, then open this invitation once more to enter the workspace.",
+  "sign-in-method":
+    "This organization doesn't accept the way you signed in. Sign in with a method it allows, then open this invitation again.",
+  "sign-in-again":
+    "This organization needs a more recent sign-in. Sign in again, then open this invitation to enter the workspace.",
+  "session-limit":
+    "This organization limits how many sessions can be open at once. Sign out on another device, then try again.",
+  unavailable:
+    "The workspace can't be opened right now. Your membership is in place; contact the workspace administrator if this continues.",
+  interrupted:
+    "Something interrupted the connection while opening the workspace. Your membership is in place — try again.",
 };
 
 /** The web's action labels (page.tsx toSystemAction). "Homepage" and "dashboard" are both Home on native. */
@@ -140,4 +185,7 @@ export const WORKSPACE_INVITE_ACTION_LABEL: Record<InvitationAction, string> = {
   "open-workspace": "Open workspace",
   "go-dashboard": "Go to dashboard",
   "go-home": "Go to homepage",
+  "send-verification": "Send verification email",
+  "review-terms": "Review the terms",
+  "retry-open": "Try again",
 };

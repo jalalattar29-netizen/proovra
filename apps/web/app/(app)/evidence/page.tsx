@@ -7,6 +7,7 @@ import { buildEvidenceBulkRequest } from "@proovra/shared";
 import { X } from "lucide-react";
 import { PageShell, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
+import { listAllCases } from "../../../lib/cases/listAllCases";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import {
   useActiveSpaceId,
@@ -396,7 +397,10 @@ function EvidenceLibraryPageInner() {
       // REPORT_NOT_INCLUDED), so deriving it again in the browser was a second
       // opinion about a decision the browser does not get to make.
       const [casesRes, savedViewsRes] = await Promise.allSettled([
-        apiFetch("/v1/cases") as Promise<CasesListResponse>,
+        // F-21 — every page: the list stopped at the newest 200 cases.
+        listAllCases((cursorParam) =>
+          apiFetch(`/v1/cases?limit=200${cursorParam ? `&${cursorParam}` : ""}`),
+        ) as Promise<CasesListResponse>,
         apiFetch("/v1/evidence/saved-views") as Promise<EvidenceSavedViewsResponse>,
       ]);
 
@@ -1195,7 +1199,11 @@ function EvidenceLibraryPageInner() {
         data-inspector={inspectorOpen && !compactInspector ? "open" : "closed"}
       >
       <div className="evidence-library-shell">
-        <EvidenceLibraryHeader refreshing={refreshing} onRefresh={refreshCurrentScope} />
+        <EvidenceLibraryHeader
+          refreshing={refreshing}
+          onRefresh={refreshCurrentScope}
+          canCreateCase={envelope?.planFeatures?.casesIncluded !== false}
+        />
         {/* The full-width "HELP · EVIDENCE INTEGRITY" bar is not part of the
             approved Evidence Library composition and made the page read as a
             mix of two designs. The ContextualHelp CAPABILITY is unchanged and

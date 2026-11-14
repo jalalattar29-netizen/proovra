@@ -169,11 +169,19 @@ export function renderCoverSection(vm: ReportViewModel): string {
   // UC-TRUST-008 — the report says which stored bytes it certifies, and as
   // of when; it is not a statement about the stored object afterwards.
   const certified = vm.certifiedOriginal;
+  // A record may hold up to MAX_EVIDENCE_PARTS (200) stored objects; the cover
+  // names their versions only while they fit, and otherwise states the count
+  // (each version stays bound in the record's custody chain and package).
+  const COVER_VERSION_IDS_MAX = 3;
+  const versionIds = certified?.objectVersionIds ?? [];
+  const versionText =
+    versionIds.length <= COVER_VERSION_IDS_MAX
+      ? `stored object version${versionIds.length === 1 ? "" : "s"} ${versionIds.map((v) => v ?? "unversioned").join(", ")}`
+      : `${versionIds.length} stored object versions, one per preserved item, recorded in the custody chain`;
   const certifiedBlock = certified
     ? `<div class="cover-verify-hint" data-certified-original>
         Certifies the original with SHA-256 ${escapeHtml(certified.recordedSha256)}
-        (stored object version${certified.objectVersionIds.length === 1 ? "" : "s"}
-        ${escapeHtml(certified.objectVersionIds.map((v) => v ?? "unversioned").join(", "))}),
+        (${escapeHtml(versionText)}),
         re-read from storage and matched to the signed fingerprint at ${escapeHtml(certified.rereadAtUtc)}.
         Later changes to the stored object are not covered by this report; check Public Verify for its current state.
       </div>`

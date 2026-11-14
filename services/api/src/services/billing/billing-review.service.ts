@@ -29,6 +29,12 @@ export type BillingReviewReason =
   | "PROVIDER_REFERENCE_UNRESOLVED"
   /** The provider activated a storage subscription that cannot be granted. */
   | "STORAGE_ACTIVATION_REFUSED"
+  /**
+   * A second recurring add-on of the same size activated for a purchase that was
+   * started before the first one went live: the customer never saw it. Not granted;
+   * stopped at the provider (or held, in the sweep) and sent to refund review.
+   */
+  | "DUPLICATE_STORAGE_PURCHASE"
   /** A provider-active storage subscription with no local record (e.g. a deleted workspace). */
   | "STORAGE_SUBSCRIPTION_WITHOUT_RECORD"
   /** Stripe's record of a bound customer names another owner or environment. */

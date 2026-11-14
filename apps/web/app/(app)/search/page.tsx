@@ -846,8 +846,20 @@ function SearchInner() {
    */
   useEffect(() => {
     if (!readiness?.shouldPoll) return;
-    const id = window.setInterval(() => reloadHealth(filter?.q), 15_000);
-    return () => window.clearInterval(id);
+    // F-21 — and only while the tab is visible: a hidden tab asks nothing,
+    // and coming back asks once at once.
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      reloadHealth(filter?.q);
+    }, 15_000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") reloadHealth(filter?.q);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readiness?.shouldPoll, reloadHealth, filter?.q]);
 

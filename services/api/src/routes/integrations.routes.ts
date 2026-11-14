@@ -59,6 +59,7 @@ import { markBoundedOutcome } from "../http/bounded-outcome.js";
 // corresponding new canonical purpose via the alias map in
 // @proovra/shared (legacyAliasesForStoredPurpose / purposeSatisfies).
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 import {
   listApiCredentialUsage,
   projectApiCredentialUsage,
@@ -347,12 +348,17 @@ export async function integrationsRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         if (err instanceof ApiCredentialError) {
+          // F-15 — `api_key_limit_reached` is the packaging engine's
+          // INTEGRATION_API_KEYS_MAX ceiling (429, as the sibling lifecycle
+          // webhook limit answers).
           const status =
             err.code === "feature_disabled" || err.code === "secret_missing"
               ? 503
               : err.code === "invalid_scopes"
                 ? 400
-                : 500;
+                : err.code === "api_key_limit_reached"
+                  ? 429
+                  : 500;
           return reply
             .code(status)
             .send({ error: { code: err.code, details: err.details ?? null } });
@@ -702,6 +708,21 @@ export async function integrationsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "integration.webhook.manage");
       if (!ok) return;
+      // F-15 (Free-user audit, 2026-11-13) — outbound webhooks are the
+      // packaging engine's FEATURE_WEBHOOKS (default off; the INVESTIGATIONS
+      // and ENTERPRISE lines, and an ACTIVE Enterprise contract, include it),
+      // the same entitlement the sibling lifecycle-webhook create
+      // (`/v1/integrations/webhooks/endpoints`) already asks. Pricing lists
+      // webhooks as Enterprise-only. Asked before step-up so a refusal spends
+      // no challenge; existing endpoints keep working and stay manageable.
+      const entitled = await assertFeatureEntitlement({
+        teamId: body.teamId,
+        key: "FEATURE_WEBHOOKS",
+        actorUserId: ok.actorUserId,
+      });
+      if (!entitled.ok) {
+        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
+      }
       // Phase 4 closure — creating a webhook endpoint provisions a
       // signing secret and registers a destination URL that the
       // dispatcher will sign + POST to on every matching event. It is

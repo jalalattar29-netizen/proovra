@@ -404,7 +404,20 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   MIME_TYPE_NOT_ALLOWED: { disposition: "customer", where: PUBLIC_INTAKE },
   // PRO-078 — also sent by the authenticated part upload now; global copy.
   FILE_VALIDATION_BLOCKED: { disposition: "customer", where: "global" },
-  PART_INDEX_TAKEN: { disposition: "customer", where: PUBLIC_INTAKE },
+  // F-03 (Free-user audit 2026-11-13) — also sent by the authenticated part
+  // presign when an issued index is asked for another file; global copy (the
+  // public intake page keeps its own sentence).
+  PART_INDEX_TAKEN: { disposition: "customer", where: "global" },
+  // F-03 — a changed-selection Finish that lost the race with the earlier
+  // attempt's seal; global copy.
+  CAPTURE_ALREADY_FINISHED: { disposition: "customer", where: "global" },
+  // F-04 — a draft discard that lost three consecutive races with a Finish
+  // rebinding the draft. The web discard is fire-and-forget (logged, never
+  // shown); the next discard simply retries.
+  CAPTURE_SESSION_BUSY: {
+    disposition: "internal",
+    why: "Answered only to the Capture draft discard, which never displays its error; a later discard retries.",
+  },
   PART_NOT_UPLOADED: { disposition: "customer", where: PUBLIC_INTAKE },
   SUBMITTER_IDENTITY_INVALID: { disposition: "customer", where: PUBLIC_INTAKE },
   SUBMISSION_NOT_READY: { disposition: "customer", where: PUBLIC_INTAKE },

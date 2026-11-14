@@ -53,6 +53,9 @@ import {
 import { storageAddonStatusFromSubscription } from "./subscription-lifecycle.handlers.js";
 import { UNGRANTABLE_PROVIDER_ACTIVE } from "./dependent-cancellation.service.js";
 import { cancelSupersededSubscriptionAtProvider } from "./base-subscription-supersession.service.js";
+import { personalStorageCheckoutLockKey } from "./checkout-attempts.service.js";
+import { payerLegacyWorkspaceIds } from "./billing-accounts.service.js";
+import { automaticAddonCancellationEnabled } from "./automatic-effects.js";
 
 export type StorageObservation = {
   provider: prismaPkg.PaymentProvider;
@@ -77,6 +80,12 @@ export type StorageObservation = {
   source: string;
   /** Provider payment id when the observation is a completed checkout. */
   externalPaymentId?: string | null;
+  /**
+   * Stripe only: the `billing_checkout_attempts` id the session or subscription
+   * metadata names. It dates the purchase for the duplicate rule; it never
+   * identifies the add-on row (PayPal's row IS its attempt).
+   */
+  checkoutAttemptId?: string | null;
 };
 
 export type StorageActivationResult =
@@ -93,7 +102,9 @@ export type StorageRefusalReason =
   | "WORKSPACE_STORAGE_NOT_SUPPORTED"
   | "PLAN_ID_MISMATCH"
   | "NOT_ELIGIBLE_FOR_PLAN"
-  | "NO_LOCAL_RECORD";
+  | "NO_LOCAL_RECORD"
+  /** Another add-on of this size went live after this purchase was started. */
+  | "DUPLICATE_PURCHASE";
 
 function obj(value: prismaPkg.Prisma.JsonValue | null | undefined): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -237,12 +248,131 @@ async function refuseActiveSubscription(input: {
     provider: input.obs.provider,
     providerResourceId: input.obs.subscriptionId,
     product: "STORAGE_ADDON",
-    reason: input.row ? "STORAGE_ACTIVATION_REFUSED" : "STORAGE_SUBSCRIPTION_WITHOUT_RECORD",
+    reason:
+      input.reason === "DUPLICATE_PURCHASE"
+        ? "DUPLICATE_STORAGE_PURCHASE"
+        : input.row
+          ? "STORAGE_ACTIVATION_REFUSED"
+          : "STORAGE_SUBSCRIPTION_WITHOUT_RECORD",
     providerAction: canceledAtProvider ? "CANCELED_AT_PROVIDER" : "CANCEL_FAILED",
     refundReviewRequired: true,
     detail: { refusal: input.reason, addonKey: input.addonKey, addonId },
   });
   return { canceledAtProvider, addonId };
+}
+
+const LIVE_ADDON: prismaPkg.WorkspaceStorageAddonStatus[] = [
+  prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+  prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
+];
+/** A first-activation decision older than this no longer stands in for a live add-on. */
+const ACTIVATION_CLAIM_TTL_MS = 24 * 60 * 60 * 1000;
+
+function claimedAt(metadata: prismaPkg.Prisma.JsonValue | null | undefined): Date | null {
+  const raw = obj(metadata).activationClaimedAtUtc;
+  if (typeof raw !== "string") return null;
+  const at = new Date(raw);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
+/**
+ * When the customer STARTED the purchase this row settles. PayPal: the row is the
+ * attempt. Stripe: the checkout attempt its metadata (or its session) names.
+ * Null when nothing dates it (a session from before attempts existed).
+ */
+async function purchaseStartedAt(
+  tx: prismaPkg.Prisma.TransactionClient,
+  row: AddonRow,
+  obs: StorageObservation,
+): Promise<Date | null> {
+  if (obs.provider === prismaPkg.PaymentProvider.PAYPAL) return row.createdAt;
+  const where = {
+    userId: row.ownerUserId,
+    product: prismaPkg.BillingCheckoutProduct.STORAGE_ADDON,
+    provider: prismaPkg.PaymentProvider.STRIPE,
+    storageAddonKey: row.addonKey,
+  };
+  const byId = obs.checkoutAttemptId
+    ? await tx.billingCheckoutAttempt.findFirst({
+        where: { ...where, id: obs.checkoutAttemptId },
+        select: { createdAt: true },
+      })
+    : null;
+  if (byId) return byId.createdAt;
+  const sessionId = obs.externalPaymentId ?? row.externalPaymentId ?? null;
+  const bySession = sessionId
+    ? await tx.billingCheckoutAttempt.findFirst({
+        where: { ...where, providerResourceId: sessionId },
+        select: { createdAt: true },
+      })
+    : null;
+  return bySession?.createdAt ?? null;
+}
+
+/**
+ * FREE-AUDIT REMEDIATION (2026-11-13, DUP-STORAGE) — the settlement half of the
+ * duplicate rule. Stacking a size is allowed, but only knowingly: checkout refuses
+ * a second purchase of a size the customer holds unless they confirm it. A purchase
+ * started BEFORE another add-on of the same size went live was therefore never a
+ * decision to hold two (two tabs, an old approval link, an abandoned checkout paid
+ * later). Its activation is not granted.
+ *
+ * Under the payer's storage lock: count the same-size add-ons that went live (or
+ * were decided and are being written) after this purchase started; if none, record
+ * this row's own decision so a concurrent activation sees it. True = duplicate. A
+ * purchase nothing can date keeps the previous behaviour. Needs no schema change:
+ * the decision is a stamp in the row's metadata, read under the lock.
+ */
+async function isDuplicateActivation(row: AddonRow, obs: StorageObservation): Promise<boolean> {
+  if (row.teamId !== null) return false;
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(hashtext(${personalStorageCheckoutLockKey(row.ownerUserId)}))
+    `;
+    const fresh = await tx.workspaceStorageAddon.findUnique({
+      where: { id: row.id },
+      select: { metadata: true },
+    });
+    // This row was already decided (a redelivery, or the return racing the webhook).
+    if (claimedAt(fresh?.metadata)) return false;
+    const startedAt = await purchaseStartedAt(tx, row, obs);
+    if (startedAt) {
+      const legacy = await payerLegacyWorkspaceIds(row.ownerUserId, tx);
+      const now = Date.now();
+      const others = await tx.workspaceStorageAddon.findMany({
+        where: {
+          ownerUserId: row.ownerUserId,
+          addonKey: row.addonKey,
+          id: { not: row.id },
+          status: { in: [...LIVE_ADDON, prismaPkg.WorkspaceStorageAddonStatus.PENDING] },
+          OR: [{ teamId: null }, { teamId: { in: legacy } }],
+        },
+        select: { status: true, activatedAtUtc: true, metadata: true },
+      });
+      const wentLiveSince = others.filter((o) => {
+        if (LIVE_ADDON.includes(o.status)) {
+          return o.activatedAtUtc !== null && o.activatedAtUtc.getTime() > startedAt.getTime();
+        }
+        const claim = claimedAt(o.metadata);
+        return (
+          claim !== null &&
+          claim.getTime() > startedAt.getTime() &&
+          now - claim.getTime() < ACTIVATION_CLAIM_TTL_MS
+        );
+      });
+      if (wentLiveSince.length > 0) return true;
+    }
+    await tx.workspaceStorageAddon.update({
+      where: { id: row.id },
+      data: {
+        metadata: {
+          ...obj(fresh?.metadata),
+          activationClaimedAtUtc: new Date().toISOString(),
+        } as prismaPkg.Prisma.InputJsonObject,
+      },
+    });
+    return false;
+  });
 }
 
 /**
@@ -338,7 +468,32 @@ export async function applyStorageSubscriptionObservation(
     const alreadyLive =
       row.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
       row.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE;
-    const refusal = alreadyLive ? null : await refusalReason(row, obs);
+    const refusal: StorageRefusalReason | null = alreadyLive
+      ? null
+      : ((await refusalReason(row, obs)) ??
+        ((await isDuplicateActivation(row, obs)) ? "DUPLICATE_PURCHASE" : null));
+    if (
+      refusal === "DUPLICATE_PURCHASE" &&
+      obs.source === "billing_reconciliation" &&
+      !automaticAddonCancellationEnabled()
+    ) {
+      // BILLING ACCEPTANCE hold — the sweep does not stop a subscription at the
+      // provider until an operator enables it. Nothing is granted and nothing is
+      // cancelled; the review item says what was held and that a refund review is
+      // owed. A provider webhook or the customer's own return still applies the
+      // refusal in full.
+      await recordBillingReviewItem({
+        userId: row.ownerUserId,
+        provider: obs.provider,
+        providerResourceId: obs.subscriptionId,
+        product: "STORAGE_ADDON",
+        reason: "DUPLICATE_STORAGE_PURCHASE",
+        providerAction: "NONE",
+        refundReviewRequired: true,
+        detail: { addonKey: row.addonKey, addonId: row.id, held: "AUTOMATIC_ADDON_CANCELLATION" },
+      });
+      return { outcome: "REFUSED", addonId: row.id, reason: refusal, canceledAtProvider: false };
+    }
     if (refusal) {
       const refused = await refuseActiveSubscription({
         row,

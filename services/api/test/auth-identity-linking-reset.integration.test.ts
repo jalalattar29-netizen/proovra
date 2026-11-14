@@ -109,7 +109,7 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
         email,
         provider: "EMAIL",
         providerUserId: email,
-        passwordHash: auth.hashPassword(password),
+        passwordHash: await auth.hashPassword(password),
         emailVerifiedAt: new Date(),
       },
     });
@@ -466,8 +466,8 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
       const winnerPassword = a.statusCode === 200 ? P1 : P2;
       const loserPassword = a.statusCode === 200 ? P2 : P1;
       const row = await prisma.user.findUniqueOrThrow({ where: { id: u.id } });
-      expect(auth.verifyPassword(winnerPassword, row.passwordHash!)).toBe(true);
-      expect(auth.verifyPassword(loserPassword, row.passwordHash!)).toBe(false);
+      expect(await auth.verifyPassword(winnerPassword, row.passwordHash!)).toBe(true);
+      expect(await auth.verifyPassword(loserPassword, row.passwordHash!)).toBe(false);
       expect(await revokeAlls()).toBe(before + 1);
       // Replay of the spent link is refused too.
       const replay = await call("POST", "/v1/auth/password-reset/confirm", undefined, { token: t!.rawToken, newPassword: "ReplayAttempt12345" });
@@ -493,7 +493,7 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
       const t = await fx.seedPersonalTenant(deps, "FREE");
       const uid = t.owner.userId;
       const PW = "ClosureHoldPass123";
-      await prisma.user.update({ where: { id: uid }, data: { passwordHash: auth.hashPassword(PW), emailVerifiedAt: new Date() } });
+      await prisma.user.update({ where: { id: uid }, data: { passwordHash: await auth.hashPassword(PW), emailVerifiedAt: new Date() } });
       expect((await login(t.owner.email, PW)).status).toBe(200);
       const preToken = await auth.createPasswordResetTokenForEmail(t.owner.email);
       expect(preToken).not.toBeNull();

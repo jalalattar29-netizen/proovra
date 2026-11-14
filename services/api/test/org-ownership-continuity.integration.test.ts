@@ -46,7 +46,7 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
     const d = deps();
     const t = await fixtures.seedOrganizationTenant(d);
     const { hashPassword } = await import("../src/services/email-password-auth.service.js");
-    await prisma.user.update({ where: { id: t.owner.userId }, data: { passwordHash: hashPassword(STEP_UP_PASSWORD) } });
+    await prisma.user.update({ where: { id: t.owner.userId }, data: { passwordHash: await hashPassword(STEP_UP_PASSWORD) } });
     await prisma.enterpriseContract.update({
       where: { organizationId: t.organizationId },
       data: { contractOwnerUserId: t.owner.userId },

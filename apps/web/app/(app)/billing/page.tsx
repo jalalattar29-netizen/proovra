@@ -98,7 +98,9 @@ import { apiFetch } from "../../../lib/api";
 // responsive table, the action tiers — stays on the canonical app-* set.
 import "./billing.css";
 import {
+  BILLING_PLAN_PARAM,
   buildBillingHref,
+  parseBillingPlanHint,
   parseBillingWorkspaceLocator,
   type BillingWorkspaceLocator,
 } from "../../../lib/navigation/billingWorkspaceLocator";
@@ -145,6 +147,14 @@ function accountFromLocator(
   // account the customer actually has, instead of an error about a subject
   // they never had.
   return null;
+}
+
+/** The return notice's rail colour, from its tone. */
+function returnNoticeTone(tone: "pending" | "success" | "error" | "info" | undefined) {
+  if (tone === "success") return "verified" as const;
+  if (tone === "error") return "risk" as const;
+  if (tone === "info") return "neutral" as const;
+  return "pending" as const;
 }
 
 export default function BillingPage() {
@@ -358,6 +368,10 @@ function BillingPageInner() {
   // this only asks, reports the outcome and refreshes. A browser-side
   // `success=1` grants nothing. Stripe's return is read here too: it has nothing
   // to confirm, so it leaves a notice saying where the purchase stands.
+  const personalAccount = useMemo(
+    () => accounts.find((a) => a.type === "PERSONAL") ?? null,
+    [accounts],
+  );
   const {
     confirming: paypalConfirming,
     returnNotice,
@@ -368,6 +382,8 @@ function BillingPageInner() {
       addToast(message, tone, undefined, supportReference ? { supportReference } : undefined),
     onSettled: refresh,
     replaceUrl: (search) => router.replace(`/billing${search}`, { scroll: false }),
+    // A Stripe return re-checks (or abandons) its attempt on this account.
+    personalAccount,
   });
 
   // ---- Outstanding storage add-on cancellations ---------------------------
@@ -553,6 +569,38 @@ function BillingPageInner() {
     }
     setManagePlanOpen(true);
   }, [projection]);
+
+  // ---- The plan a Pricing CTA chose (F-26d) --------------------------------
+  //
+  // FREE-AUDIT REMEDIATION (2026-11-13) — read ONCE, when the Personal account's
+  // projection is on screen, then removed from the URL. It only opens the surface
+  // the SERVER offers this account: the checkout drawer on that plan when it is a
+  // purchase, the plan manager when the account already has a subscription, the
+  // credit drawer when credits are on sale. A plan the server does not offer
+  // opens nothing. Price and entitlement stay the server's.
+  const planHint = useRef(parseBillingPlanHint(searchParams));
+  useEffect(() => {
+    const hint = planHint.current;
+    if (!hint || !projection || selected?.type !== "PERSONAL" || projection.account.id !== selected.id) return;
+    planHint.current = null;
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete(BILLING_PLAN_PARAM);
+    const qs = next.toString();
+    router.replace(`/billing${qs ? `?${qs}` : ""}`, { scroll: false });
+    if (hint === "PAYG") {
+      if (projection.actions.canBuyEvidenceCredits) setCheckout({ kind: "CREDITS" });
+      return;
+    }
+    const offer = (projection.planOffers ?? []).find((o) => o.planKey === hint);
+    if (!offer || !projection.actions.planManagement.enabled) return;
+    if (offer.action === "CHECKOUT" && projection.actions.planManagement.mode === "CHOOSE") {
+      setCheckout({ kind: "PLAN", planKey: hint });
+      return;
+    }
+    if (projection.actions.planManagement.mode !== "CHOOSE") setManagePlanOpen(true);
+    // `searchParams` is read for the current query only; the hint is consumed once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projection, selected, router]);
 
   // ---- One payment's own lifecycle ---------------------------------------
   //
@@ -1187,7 +1235,7 @@ function BillingPageInner() {
       {paypalConfirming ? (
         <PageSection>
           <p role="status" aria-live="polite" data-billing-paypal-confirming>
-            Confirming your PayPal payment with PayPal…
+            Confirming your payment with your payment provider…
           </p>
         </PageSection>
       ) : null}
@@ -1195,13 +1243,19 @@ function BillingPageInner() {
         <PageSection>
           <Card
             variant="status"
-            tone="pending"
+            tone={returnNoticeTone(returnNotice.tone)}
             role="status"
             aria-live="polite"
             data-billing-return-notice
+            data-billing-return-notice-tone={returnNotice.tone ?? "pending"}
             title={returnNotice.title}
           >
             <p style={{ margin: 0, color: "var(--silver-ink)" }}>{returnNotice.message}</p>
+            {returnNotice.supportReference ? (
+              <p style={{ margin: "8px 0 0", color: "var(--silver-ink)" }} data-billing-return-reference>
+                Support reference: <bdi>{returnNotice.supportReference}</bdi>
+              </p>
+            ) : null}
             <div style={{ marginTop: 12 }}>
               <Button variant="ghost" size="sm" onClick={dismissReturnNotice} data-billing-return-dismiss>
                 Dismiss

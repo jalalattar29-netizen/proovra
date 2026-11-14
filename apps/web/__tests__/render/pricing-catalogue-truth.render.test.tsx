@@ -157,6 +157,26 @@ describe("Pricing page — rendered claims match the catalogue", () => {
     expect(creditAddons).toBe("Monthly, from +10 GB");
   });
 
+  it("F-27d: the outputs Free includes are stated for the catalogue's FREE allowance, whatever it is configured to", async () => {
+    const published = CATALOGUE.free.maxEvidenceRecords;
+    try {
+      await renderLoaded();
+      expect(rowCells("PDF reports")[0]).toBe(`Included for ${published} records`);
+      expect(rowCells("Verification package")[0]).toBe(`Included for ${published} records`);
+      cleanup();
+
+      // A configured allowance that differs from today's published value.
+      CATALOGUE.free.maxEvidenceRecords = 5;
+      await renderLoaded();
+      expect(rowCells("PDF reports")[0]).toBe("Included for 5 records");
+      expect(rowCells("Verification package")[0]).toBe("Included for 5 records");
+      expect(rowCells("Evidence records")[0]).toBe("5 total");
+      expect(document.body.textContent).not.toMatch(/Included for 3 records/);
+    } finally {
+      CATALOGUE.free.maxEvidenceRecords = published;
+    }
+  });
+
   it("defect 15: the Team card advertises TEAM's real capabilities, and no governance", async () => {
     await renderLoaded();
     // The catalogue flags that distinguish TEAM from PRO.
@@ -173,5 +193,16 @@ describe("Pricing page — rendered claims match the catalogue", () => {
     );
     for (const line of team) expect(line).not.toMatch(/governance/i);
     expect(rowCells("Governance controls")[3]).toBe("Not included");
+  });
+});
+
+describe("F-26d: a plan CTA keeps the chosen plan through sign-up", () => {
+  it("a signed-out Pro or Team CTA registers with an internal Billing return that names the plan", async () => {
+    await renderLoaded();
+    const hrefOf = (planId: string) =>
+      [...document.getElementById(`plan-${planId}`)!.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    expect(hrefOf("pro")).toContain(`/register?returnUrl=${encodeURIComponent("/billing?workspace=personal&plan=PRO")}`);
+    // Team is a tier of the same Personal Workspace: it names the personal account too.
+    expect(hrefOf("team")).toContain(`/register?returnUrl=${encodeURIComponent("/billing?workspace=personal&plan=TEAM")}`);
   });
 });

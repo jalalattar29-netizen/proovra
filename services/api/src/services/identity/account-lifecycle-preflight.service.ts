@@ -76,11 +76,55 @@ export type AccountClosureBlocker = {
 
 /** What closure WILL do to other people — shown, never blocking (LIFE-13). */
 export type AccountClosureConsequence = {
-  code: "WORKSPACE_MEMBERS_LOSE_ACCESS";
+  code: "WORKSPACE_MEMBERS_LOSE_ACCESS" | "PUBLIC_VERIFICATION_REMAINS";
   message: string;
-  /** Other ACTIVE or SUSPENDED members across the workspaces the caller owns. */
+  /**
+   * WORKSPACE_MEMBERS_LOSE_ACCESS: other ACTIVE or SUSPENDED members across
+   * the workspaces the caller owns. PUBLIC_VERIFICATION_REMAINS: records whose
+   * public verification page stays available.
+   */
   count: number;
 };
+
+/**
+ * F-17 — WHAT CLOSURE DOES NOT TAKE DOWN.
+ *
+ * A record's canonical verification page (`pvr_` reference) and the links an
+ * issued report or package carries are publication state, not the person's
+ * (members audit SEC-08, owner decision 2026-10-25; creator-share-grants.ts):
+ * an issued report's QR code keeps verifying after its creator leaves.
+ * Closure therefore leaves them live — by policy — and the person has to be
+ * told so BEFORE confirming, together with the control they already have:
+ * withdrawing a record's verification page from that record
+ * (POST /v1/evidence/:id/verification-access/withdraw, offered on the record's
+ * "Manage verification page" panel).
+ *
+ * Counted for the GET preview only, never inside the closure transaction: it
+ * informs, it never blocks.
+ */
+export async function publicVerificationKeptConsequence(
+  userId: string,
+  client: Pick<typeof prisma, "team" | "evidence"> = prisma,
+): Promise<AccountClosureConsequence | null> {
+  const owned = await client.team.findMany({ where: { ownerUserId: userId }, select: { id: true } });
+  const teamIds = owned.map((t) => t.id);
+  const count = await client.evidence.count({
+    where: {
+      verificationRef: { not: null },
+      verificationAccessState: "AVAILABLE",
+      OR: [{ ownerUserId: userId }, ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : [])],
+    },
+  });
+  if (count === 0) return null;
+  return {
+    code: "PUBLIC_VERIFICATION_REMAINS",
+    message:
+      count === 1
+        ? "Leaves 1 record\u2019s public verification page online: anyone with its verification reference, QR code or an issued report or package can still check it after your account closes. To take it down first, open the record and use \u201cWithdraw page\u201d in its verification page settings."
+        : `Leaves ${count} records\u2019 public verification pages online: anyone with a verification reference, QR code or an issued report or package can still check them after your account closes. To take one down first, open the record and use \u201cWithdraw page\u201d in its verification page settings.`,
+    count,
+  };
+}
 
 /**
  * Ask the canonical authority whether each candidate row's SUBJECT is really

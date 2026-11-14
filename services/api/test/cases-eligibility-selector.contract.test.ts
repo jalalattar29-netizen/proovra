@@ -168,7 +168,12 @@ describe("Default branch — ACTIVE-only membership (P0 remediation 2026-07-21)"
     const lastCaseFindMany = BLOCK.slice(
       BLOCK.lastIndexOf("prisma.case.findMany"),
     );
-    expect(lastCaseFindMany).toMatch(/take:\s*200/);
+    // F-21 (Free-user audit) — the page is still at most 200 cases; it now
+    // reads one extra row to say whether another page exists (keyset cursor).
+    expect(lastCaseFindMany).toMatch(/take:\s*pageLimit \+ 1/);
+    expect(ROUTES).toMatch(/const CASE_LIST_PAGE_MAX = 200;/);
+    expect(ROUTES).toMatch(/const pageLimit = pageQuery\.data\.limit \?\? CASE_LIST_PAGE_MAX;/);
+    expect(ROUTES).toMatch(/limit: z\.coerce\.number\(\)\.int\(\)\.min\(1\)\.max\(CASE_LIST_PAGE_MAX\)/);
   });
 });
 

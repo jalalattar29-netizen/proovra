@@ -12,6 +12,28 @@ export function externalCheckoutEnabled(): boolean {
     process.env.EXPO_PUBLIC_PRIVATE_BILLING === "enabled";
 }
 
+/**
+ * FREE-AUDIT REMEDIATION (2026-11-13, F-09) — THE answer to "can this build
+ * sell a plan, storage or a credit?", for every screen that offers an upgrade.
+ *
+ * Approved purchase paths per EAS profile (apps/mobile/eas.json):
+ *   preview      EXPO_PUBLIC_DISTRIBUTION=PRIVATE + EXPO_PUBLIC_PRIVATE_BILLING=enabled
+ *                → EXTERNAL_CHECKOUT: Stripe / PayPal in the in-app browser.
+ *   production   (store builds), development, ios-simulator: neither flag
+ *                → NOT_IN_THIS_BUILD. No in-app purchase exists, and none is
+ *                added here; what stays available is everything that is not a
+ *                checkout (plan, usage, history, cancelling) and the public
+ *                "View Pricing" page the Billing screen already links to.
+ *
+ * Screens ask this instead of reading the flags, so an upgrade button never
+ * promises a purchase the build cannot make.
+ */
+export type PurchaseAvailability = "EXTERNAL_CHECKOUT" | "NOT_IN_THIS_BUILD";
+
+export function purchaseAvailability(): PurchaseAvailability {
+  return externalCheckoutEnabled() ? "EXTERNAL_CHECKOUT" : "NOT_IN_THIS_BUILD";
+}
+
 export function checkoutRequest(intent: PurchaseIntent, provider: PurchaseProvider, currency?: string | null): { path: string; body: Record<string, string | boolean | number> } {
   const body: Record<string, string | boolean | number> = {};
   if (currency === "EUR" || currency === "USD") body.currency = currency;

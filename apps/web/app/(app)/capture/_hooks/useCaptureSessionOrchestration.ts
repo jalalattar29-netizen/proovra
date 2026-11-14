@@ -6,7 +6,7 @@ import { getClientCaptureEnvironment } from "./captureEnvironmentClient";
 
 import { useToast } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
-import { refusedUploadReleasedReservation, withReleasedNote } from "./capture-refusal";
+import { buildResumeManifest, refusedUploadReleasedReservation, reservationUnusable, withReleasedNote } from "./capture-refusal";
 // Phase HOME-DATA-OWNERSHIP — capture stamps the ACTIVE workspace id
 // (personal Team id or team id) on every new evidence record.
 import { useActiveSpace, useTenantGuard } from "../../../../lib/platform-context";
@@ -36,6 +36,7 @@ import { sha256Base64OfBlob } from "../../../../lib/uploads/streaming-sha256";
 import {
   buildStorageLimitMessage,
   buildTeamPlanRequiredDetails,
+  CaptureStagingLimitError,
   captureFailureToast,
   shouldReportCaptureFailure,
   logCaptureClientError,
@@ -397,7 +398,7 @@ export function useCaptureSessionOrchestration({
       if (limitError) {
         setError(limitError);
         addToast(limitError, "error");
-        return;
+        throw new CaptureStagingLimitError(limitError); // F-24
       }
 
       const existingRequiredChecklistIds = new Set(
@@ -515,6 +516,7 @@ export function useCaptureSessionOrchestration({
         "success"
       );
     } catch (err) {
+      if (err instanceof CaptureStagingLimitError) throw err; // on screen already
       logCaptureClientError("web_capture_add_to_session", err, {
         sessionEvidenceType: options?.sessionEvidenceType ?? null,
         fileCount: files.length,
@@ -773,6 +775,8 @@ export function useCaptureSessionOrchestration({
           // bytes yet; each part carries its own checksum (see the part upload).
           intakePlanJson,
           captureSessionId: captureSessionId ?? undefined,
+          // F-03 — resumed only while the reserved parts are these files.
+          parts: captureSessionId ? buildResumeManifest(items) : undefined,
           // Enterprise Capture Environment — silent client tz/locale hints
           // (extracted to ./captureEnvironmentClient for size + reuse).
           ...getClientCaptureEnvironment(),
@@ -1049,7 +1053,8 @@ export function useCaptureSessionOrchestration({
       router.push(`/evidence/${evidenceId}`);
     } catch (err) {
       const released = refusedUploadReleasedReservation(err); // PRO-078
-      if (released) reservationRef.current = null;
+      // F-03 / F-09 — see reservationUnusable.
+      if (released || reservationUnusable(err)) reservationRef.current = null;
       // UC-WEB-001 — a failed item gets a safe error; uploaded ones keep 100%.
       {
         const failedItemId = currentItemId;

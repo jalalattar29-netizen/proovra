@@ -258,7 +258,7 @@ async function seedActors(): Promise<void> {
         // that only set the claim would prove nothing about the gate.
         platformRole: a.platformRole,
         // Hashed with the same function the login route verifies with.
-        passwordHash: hashPassword(FIXTURE_PASSWORD),
+        passwordHash: await hashPassword(FIXTURE_PASSWORD),
         emailVerifiedAt: new Date(),
         currentWorkspaceId:
           a.key === "free-personal" || a.key === "pro-personal"

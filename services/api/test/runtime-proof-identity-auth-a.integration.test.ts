@@ -163,7 +163,7 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
         lastName: opts.label,
         provider: "EMAIL",
         providerUserId: email,
-        passwordHash: opts.password ? hashPassword(opts.password) : null,
+        passwordHash: opts.password ? await hashPassword(opts.password) : null,
         emailVerifiedAt: opts.verified ? new Date() : null,
       },
       select: { id: true },
@@ -473,8 +473,8 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
       expect(res.statusCode, res.body).toBe(200);
       expect(json(res)).toEqual({ ok: true });
       const after = await prisma.user.findUniqueOrThrow({ where: { id: p.id } });
-      expect(verifyPassword("New-Password-5678", after.passwordHash as string)).toBe(true);
-      expect(verifyPassword("Old-Password-1234", after.passwordHash as string)).toBe(false);
+      expect(await verifyPassword("New-Password-5678", after.passwordHash as string)).toBe(true);
+      expect(await verifyPassword("Old-Password-1234", after.passwordHash as string)).toBe(false);
       const row = await prisma.passwordResetToken.findFirstOrThrow({ where: { userId: p.id } });
       expect(row.usedAt).not.toBeNull();
       // D13 — the reset ends every session issued before it.
@@ -916,7 +916,7 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
       expect(added.statusCode, added.body).toBe(200);
       expect(json(added)).toEqual({ passwordConfigured: true });
       const withPassword = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-      expect(verifyPassword("Linked-Account-Pass-1", withPassword.passwordHash as string)).toBe(true);
+      expect(await verifyPassword("Linked-Account-Pass-1", withPassword.passwordHash as string)).toBe(true);
       const addAudit = await auditRow("identity.password_added", { userId });
       expect(addAudit).toMatchObject({ outcome: "success", resourceId: userId });
 
@@ -1080,7 +1080,7 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
       const { ownerToken, ownerUserId } = harness.fixtures.teamA;
       await prisma.user.update({
         where: { id: ownerUserId },
-        data: { passwordHash: hashPassword("Team-A-Owner-Pass-1") },
+        data: { passwordHash: await hashPassword("Team-A-Owner-Pass-1") },
       });
       const blocked = await call({
         method: "POST",

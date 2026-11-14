@@ -372,9 +372,10 @@ export function invitationCannotReviveMembership(
 /**
  * Idempotently grant OPERATIONAL workspace membership for an explicit
  * assignment. The team MUST belong to `organizationId` (validated here —
- * fail-closed) and must not be a personal space. Re-granting an existing
- * membership re-activates it at the already-held role (never demotes an
- * OWNER/ADMIN via an invite assignment).
+ * fail-closed) and must not be a personal space. Re-granting an ACTIVE or
+ * SUSPENDED membership re-activates it at the already-held role (never demotes
+ * an OWNER/ADMIN via an invite assignment); re-granting a REVOKED (ended)
+ * membership is a new grant and takes the assignment's role (F-19).
  */
 export async function grantWorkspaceMembership(
   tx: TxClient,
@@ -451,16 +452,27 @@ export async function grantWorkspaceMembership(
    * assignment is dropped and the rest of the acceptance still commits, rather
    * than the whole acceptance 500ing.
    */
+  const held = await tx.teamMember.findUnique({
+    where: {
+      teamId_userId: { teamId: input.assignment.teamId, userId: input.userId },
+    },
+    select: { status: true, revokedAtUtc: true, role: true },
+  });
   if (input.invitationCreatedAt) {
-    const held = await tx.teamMember.findUnique({
-      where: {
-        teamId_userId: { teamId: input.assignment.teamId, userId: input.userId },
-      },
-      select: { status: true, revokedAtUtc: true },
-    });
     const barred = invitationCannotReviveMembership(held, input.invitationCreatedAt);
     if (barred) return { ok: false, reason: barred };
   }
+  // An ended (REVOKED) membership carries its old role only as history; the
+  // grant that ends the removal takes the role it was issued for (F-19).
+  const revivedRole =
+    held?.status === "REVOKED"
+      ? resolveRolePrecedence({
+          existingRole: null,
+          incomingRole: input.assignment.role,
+          source: input.source ?? "INVITATION",
+          ownerRoleName: "OWNER",
+        })
+      : null;
   const claim = await claimWorkspaceSeatTx(tx as PrismaClient, {
     workspaceId: input.assignment.teamId,
     userId: input.userId,
@@ -477,9 +489,11 @@ export async function grantWorkspaceMembership(
       },
     },
     // Existing row: re-activate, keep the held role (no invite-driven
-    // demotion), clear suspension and removal bookkeeping.
+    // demotion) unless the row was an ended membership, clear suspension and
+    // removal bookkeeping.
     update: {
       status: "ACTIVE",
+      ...(revivedRole ? { role: revivedRole as never } : {}),
       suspendedAtUtc: null,
       suspensionReason: null,
       revokedAtUtc: null,
@@ -667,11 +681,14 @@ export async function provisionMembership(
   organizationMembershipCreated: boolean;
   workspaceGrants: number;
   failedAssignments: Array<{ teamId: string; reason: string }>;
+  /** The role the direct workspace grant left on the row (null: no direct grant). */
+  workspaceRole: string | null;
 }> {
   const result = {
     organizationMembershipCreated: false,
     workspaceGrants: 0,
     failedAssignments: [] as Array<{ teamId: string; reason: string }>,
+    workspaceRole: null as string | null,
   };
 
   // Intents that ALWAYS write the governance layer (organizationId required).
@@ -775,8 +792,23 @@ export async function provisionMembership(
       },
       select: { id: true, role: true, status: true },
     });
+    /**
+     * A REVOKED ROW IS AN ENDED MEMBERSHIP, NOT A HELD ROLE (F-19).
+     *
+     * Removal and leave keep the row and its `role` as history. When the
+     * person is granted access again (for an invitation: one issued after the
+     * removal — `invitationCannotReviveMembership` bars every other revival),
+     * the grant is a NEW membership and takes the role it was issued for,
+     * exactly as a first grant would (automated sources still cannot mint
+     * OWNER). Treating the ended row's role as "held" brought a former ADMIN
+     * back as ADMIN on a VIEWER invitation while the response and the audit
+     * said VIEWER. ACTIVE and SUSPENDED rows keep the held-role rule: no
+     * invite-driven demotion, and reactivation restores the held role.
+     */
+    const revivesEndedMembership =
+      existing?.status === "REVOKED" && !input.preserveExistingStatus;
     const desiredRole = resolveRolePrecedence({
-      existingRole: existing?.role ?? null,
+      existingRole: revivesEndedMembership ? null : existing?.role ?? null,
       incomingRole: input.workspace.role,
       source: input.source,
       ownerRoleName: "OWNER",
@@ -813,6 +845,7 @@ export async function provisionMembership(
         ? {}
         : {
             status: "ACTIVE",
+            ...(revivesEndedMembership ? { role: desiredRole as never } : {}),
             suspendedAtUtc: null,
             suspensionReason: null,
             revokedAtUtc: null,
@@ -829,7 +862,7 @@ export async function provisionMembership(
           ? { accessGrantedByUserId: input.actorUserId }
           : {}),
       },
-      select: { id: true },
+      select: { id: true, role: true },
     });
     await recordMembershipGrant(tx, {
       teamMemberId: row.id,
@@ -837,8 +870,9 @@ export async function provisionMembership(
       intent: input.intent,
       grantedByUserId: input.actorUserId ?? null,
       externalRef: input.externalRef ?? null,
-      grantedRole: desiredRole,
+      grantedRole: row.role,
     });
+    result.workspaceRole = row.role;
     result.workspaceGrants += 1;
   }
 

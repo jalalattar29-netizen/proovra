@@ -261,6 +261,32 @@ export async function computeFileIntegrity(uri: string): Promise<FileIntegrity> 
  */
 export const computeFileIntegrityBase64 = computeFileIntegrity;
 
+/**
+ * PURE — what a storage refusal of the PUT means for a retry (Free audit F-11).
+ *
+ * It used to be a plain Error with no status and no code, which the retry rule
+ * reads as a dropped connection and the copy layer as "You appear to be
+ * offline" — for a refusal of the bytes themselves too.
+ *   403          the presigned URL itself was refused (expired / no longer
+ *                valid): STORAGE_URL_REJECTED, retryable — the next attempt
+ *                presigns a fresh URL for the same part.
+ *   408/429/5xx  storage is busy or failing: retryable (status kept).
+ *   other 4xx    the bytes were refused (digest, length): STORAGE_UPLOAD_REFUSED,
+ *                terminal — sending the same bytes again cannot succeed.
+ * `storageStatus`, not `statusCode`: this is not an API answer, and the session
+ * end and legal gates key on the API's statusCode.
+ */
+export function storageRefusal(status: number): Error & { code?: string; storageStatus: number } {
+  const err = Object.assign(new Error(`Upload failed (${status})`), { storageStatus: status }) as Error & {
+    code?: string;
+    storageStatus: number;
+  };
+  if (status === 403) err.code = "STORAGE_URL_REJECTED";
+  else if (status === 408 || status === 429 || status >= 500) err.code = "NETWORK_ERROR";
+  else if (status >= 400) err.code = "STORAGE_UPLOAD_REFUSED";
+  return err;
+}
+
 export async function uploadWithPut(params: {
   putUrl: string;
   uri: string;
@@ -316,7 +342,7 @@ export async function uploadWithPut(params: {
   if (!result) throw new CaptureTimeoutError("The upload", timeoutMs);
 
   if (![200, 201, 204].includes(result.status)) {
-    throw new Error(`Upload failed (${result.status})`);
+    throw storageRefusal(result.status);
   }
 
   return {

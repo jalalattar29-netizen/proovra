@@ -23,6 +23,8 @@ await build({
     "api-client": join(HERE, "src/lib/api-client.ts"),
     capture: join(HERE, "src/lib/capture.ts"),
     "page-eligibility": join(HERE, "src/lib/page-eligibility.ts"),
+    "popup-links": join(HERE, "src/lib/popup-links.ts"),
+    "pending-release": join(HERE, "src/lib/pending-release.ts"),
   },
   outdir: join(HERE, "test/dist"),
   bundle: true,
@@ -38,6 +40,7 @@ await build({
     __PROOVRA_AUTH_TOKEN_URL__: '""',
     __PROOVRA_OAUTH_CLIENT_ID__: '""',
     __PROOVRA_EXTENSION_VERSION__: '"test"',
+    __PROOVRA_WEB_ORIGIN__: '""',
   },
 });
 console.log("test bundles built in test/dist/");

@@ -12,8 +12,10 @@ import { ProovraScreen, ProovraCard, ProovraButton, ProovraSection, ProovraLoadi
  *
  * The web's states (auth/verify-email/page.tsx): a first verification asks for
  * the account's password (the link alone must not switch on a password someone
- * else chose); any other failure is the invalid-or-expired card with an email
- * field to send a fresh link; a resend lands on "Email sent / Check your inbox"
+ * else chose); the server's verdict on the token (400) is the invalid-or-expired
+ * card with an email field to send a fresh link; a throttle (429) or an
+ * outage / no connection is NOT a dead link (F-05) — the token was never
+ * looked at — and says so, with Try again; a resend lands on "Email sent / Check your inbox"
  * or "Retry needed". The resend is held for a minute after each attempt, as on
  * the web.
  */
@@ -24,6 +26,8 @@ type State =
   | "switch"
   | "missing-token"
   | "invalid"
+  | "rate-limited"
+  | "unreachable"
   | "resend-sent"
   | "resend-error";
 type Session = Awaited<ReturnType<typeof verifyEmail>>;
@@ -97,7 +101,11 @@ export default function VerifyEmailScreen() {
           setState("password");
           setPasswordError("That is not the password chosen for this account.");
         } else {
-          setState("invalid");
+          // F-05 — only the server's answer about the TOKEN means it is dead.
+          const status = (err as { statusCode?: number })?.statusCode ?? 0;
+          if (status === 429) setState("rate-limited");
+          else if (status === 0 || status >= 500) setState("unreachable");
+          else setState("invalid");
         }
       }
     },
@@ -231,6 +239,28 @@ export default function VerifyEmailScreen() {
                 This link has already been used or has expired. Enter your email and we’ll send a fresh verification email.
               </ProovraText>
               {form}
+            </View>
+          ) : state === "rate-limited" || state === "unreachable" ? (
+            <View style={styles.stack} testID={`verify-${state}`}>
+              <ProovraText variant="label" weight="semibold" color={theme.color.status.risk.fg}>
+                {state === "rate-limited" ? "Too many attempts" : "Not confirmed yet"}
+              </ProovraText>
+              <ProovraText variant="h3" weight="semibold">
+                {state === "rate-limited" ? "Too many attempts — wait a moment" : "We couldn’t check your link just now"}
+              </ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                {state === "rate-limited"
+                  ? "There have been too many verification attempts from this connection. Wait a minute and try again — your link still works."
+                  : "PROOVRA could not be reached to confirm this link. Check your connection and try again — your link has not been used and still works."}
+              </ProovraText>
+              <ProovraButton
+                label="Try again"
+                onPress={() => {
+                  setState("verifying");
+                  void submit();
+                }}
+              />
+              {backToSignIn}
             </View>
           ) : state === "resend-sent" ? (
             <View style={styles.stack} testID="verify-resend-sent">

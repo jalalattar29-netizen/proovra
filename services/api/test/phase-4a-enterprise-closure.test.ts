@@ -317,9 +317,12 @@ describe("Phase 4A Closure — canonical permission enforcement on routes (tier 
     // accepts any authenticated workspace member; AUTHORING remains
     // tier-gated (previous test). Pinned to fail-fast if a future
     // phase tries to re-add the gate.
+    // F-21 (Free-user audit) — not tier-gated, but permission-gated like the
+    // create it writes through: the seed upserts (overwrites) every canonical
+    // row, and GET /v1/trust/subprocessors already self-heals an empty one.
     const seedSubHandler = routeSource(src, "POST", "/v1/trust/subprocessors/seed");
-    expect(seedSubHandler).toMatch(/preHandler:\s*requireAuth\b/);
-    expect(seedSubHandler).not.toMatch(/requireWorkspacePermission/);
+    expect(seedSubHandler).not.toMatch(/requireDelegatedTier/);
+    expect(seedSubHandler).toMatch(/requireWorkspacePermission\("trust\.subprocessor\.manage"\)/);
   });
 
   it("department + department-membership mutations are permission-gated", () => {

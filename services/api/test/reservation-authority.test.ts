@@ -76,6 +76,13 @@ describe("evidence reservation has one authority", () => {
       // LEGACY LIFECYCLE RECONCILIATION (2026-10-15) — the owner-run
       // reconciliation releases an expired, never-released reservation through
       // the same canonical release (reason RESERVATION_EXPIRED).
+      // F-04 (Free-user audit) — discarding a web capture draft releases its
+      // unsealed reservation (reason CAPTURE_SESSION_DISCARDED).
+      "services/api/src/routes/capture.routes.ts",
+      // F-03 — a Finish & Sign with a changed file selection releases the
+      // draft's stale reservation in the creating transaction (reason
+      // CAPTURE_SELECTION_CHANGED).
+      "services/api/src/routes/evidence.routes.ts",
       "services/api/src/scripts/three-decisions-backfill.ts",
       "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
       // PRO-078 — a refused first file releases its EMPTY record at once

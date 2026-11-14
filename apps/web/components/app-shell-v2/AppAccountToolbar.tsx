@@ -406,14 +406,18 @@ export function AppAccountToolbar({
         </div>
 
         <div className="app-header-zone-right">
-          <Link
-            href="/cases"
-            className="app-header-primary-action"
-            data-app-header-primary-action
-          >
-            <Plus size={16} strokeWidth={2} />
-            <span>New Case</span>
-          </Link>
+          {/* Free audit F-10 — not offered where the ACTIVE workspace's plan
+              excludes cases (server-projected; unknown keeps it). */}
+          {ctx.envelope?.planFeatures?.casesIncluded === false ? null : (
+            <Link
+              href="/cases"
+              className="app-header-primary-action"
+              data-app-header-primary-action
+            >
+              <Plus size={16} strokeWidth={2} />
+              <span>New Case</span>
+            </Link>
+          )}
 
           <span className="app-header-divider" aria-hidden="true" />
 

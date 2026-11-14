@@ -65,6 +65,33 @@ export interface SafeError {
    * ignores them.
    */
   fields?: Array<{ path: string; message: string }>;
+  /**
+   * THE NEXT STEP the shared dictionary names for this refusal — today only
+   * "/billing" (a plan or record limit, a feature the plan does not include).
+   * Dropping it left every native limit refusal as a sentence with nowhere to
+   * go (Free audit F-04/F-10). A surface shows it as a button and navigates
+   * with the native router; `nativeErrorAction` says whether the app has the
+   * route.
+   */
+  actionLabel?: string;
+  actionHref?: string;
+}
+
+/**
+ * Web routes the shared dictionary names that the native app also has, so a
+ * refusal's action can navigate in-app. "/pricing" is the web's public price
+ * list; the app's Billing screen is where its plans are shown.
+ */
+const NATIVE_ACTION_ROUTES: Readonly<Record<string, string>> = {
+  "/billing": "/billing",
+  "/pricing": "/billing",
+};
+
+/** PURE — the in-app route and label for a safe error's action, or null. */
+export function nativeErrorAction(safe: Pick<SafeError, "actionLabel" | "actionHref">): { label: string; route: string } | null {
+  const route = safe.actionHref ? NATIVE_ACTION_ROUTES[safe.actionHref] : undefined;
+  if (!route) return null;
+  return { label: safe.actionLabel ?? "View plans", route };
 }
 
 interface Extracted {
@@ -260,6 +287,23 @@ export const CAPTURE_REFUSAL_COPY: Readonly<Record<string, { title: string; mess
     message:
       "The capture session already reserved its evidence record. Resume it from your pending records in Capture, or discard it to start a new one.",
   },
+  // Free audit F-11 — local upload outcomes (capture-retry.ts, upload-utils.ts),
+  // which read as "Please try again" or "You appear to be offline" before.
+  TIMEOUT: {
+    title: "The connection was too slow",
+    message:
+      "PROOVRA did not get an answer in time, even after retrying. What you captured is still on this device — try again when the connection is better; files that already uploaded are not sent again.",
+  },
+  STORAGE_URL_REJECTED: {
+    title: "The upload could not be authorised",
+    message:
+      "Storage refused the upload link, even after a fresh one was requested. What you captured is still on this device — try again; files that already uploaded are not sent again.",
+  },
+  STORAGE_UPLOAD_REFUSED: {
+    title: "This file was not accepted",
+    message:
+      "Storage did not accept this file as sent, so nothing of it was stored. Remove the item and add it again; if it keeps happening, contact support.",
+  },
 };
 
 /** Denials whose server `message` is actionable (capture-trust.routes.ts). */
@@ -314,6 +358,7 @@ export function toSafeUserError(err: unknown, fallback?: SafeErrorFallback): Saf
     userFacingErrorFor(realCode) ??
     (x.status === 429 ? userFacingErrorFor("RATE_LIMITED") : null);
   if (explained) {
+    const action = explained as { actionLabel?: string; actionHref?: string };
     return {
       kind,
       title: explained.title,
@@ -324,6 +369,7 @@ export function toSafeUserError(err: unknown, fallback?: SafeErrorFallback): Saf
       status: x.status,
       missingPolicies: kind === "legal" ? x.missingPolicies : undefined,
       fields: x.fields,
+      ...(action.actionHref ? { actionHref: action.actionHref, actionLabel: action.actionLabel } : {}),
     };
   }
 

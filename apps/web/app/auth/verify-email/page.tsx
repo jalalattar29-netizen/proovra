@@ -7,6 +7,7 @@ import { useAuth } from "../../providers";
 import { apiFetch, isApiResponseError } from "../../../lib/api";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
+import { safeReturnPath } from "../../../lib/navigation/safe-return-path";
 
 /**
  * EV5 — Email verification landing page.
@@ -26,9 +27,14 @@ import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
  *     else chose. They are pointed at "forgot password" instead.
  *   - 400 INVALID_OR_EXPIRED → show a calm "link no longer works"
  *     card with a Resend affordance + "Back to sign in" link.
- *   - 429 RATE_LIMITED → reuse the invalid-or-expired UI; the message
- *     is generic by design so we don't expose the bucket state.
- *   - Network error → same fallback.
+ *   - 429 → "too many attempts, wait a minute" with Try again. The token was
+ *     never looked at, so calling the link dead was false (F-06).
+ *   - Network error / 5xx → "couldn't confirm the link right now" with Try
+ *     again; the link is untouched and still works.
+ *
+ * F-26f — success lands on the `next` the emailed link carries (an
+ * invitation, a plan chosen on /pricing), validated by the shared
+ * open-redirect rule; /home otherwise.
  *
  * Visual language matches the rest of the auth surfaces — warm
  * background, glass card, rose accent. The page renders the
@@ -41,6 +47,8 @@ type VerifyState =
   | "password"
   | "success"
   | "invalid"
+  | "rate-limited"
+  | "unreachable"
   | "missing-token"
   | "resend-input"
   | "resend-sent"
@@ -76,6 +84,7 @@ function VerifyEmailPageContent() {
   const searchParams = useSearchParams();
   const { setToken } = useAuth();
   const token = searchParams.get("token") ?? "";
+  const nextPath = safeReturnPath(searchParams.get("next"));
 
   const [state, setState] = useState<VerifyState>(
     token ? "loading" : "missing-token",
@@ -146,11 +155,10 @@ function VerifyEmailPageContent() {
         }
 
         setState("success");
-        window.setTimeout(() => router.push("/home"), 1200);
+        window.setTimeout(() => router.push(nextPath), 1200);
       } catch (err) {
-        // ApiError with code INVALID_OR_EXPIRED or RATE_LIMITED both
-        // resolve to the same calm fallback.
         const code = isApiResponseError(err) ? err.code : "NETWORK_ERROR";
+        const status = isApiResponseError(err) ? (err.statusCode ?? 0) : 0;
         if (code === "EMAIL_VERIFICATION_PASSWORD_REQUIRED") {
           setState("password");
           return;
@@ -165,11 +173,27 @@ function VerifyEmailPageContent() {
           // eslint-disable-next-line no-console
           console.debug("[verify-email] failed", code, err);
         }
+        // Only the server's verdict on the TOKEN means the link is dead.
+        // A throttle, an outage or a dropped connection says nothing about
+        // it, and the link still works once the request gets through.
+        if (status === 429) {
+          setState("rate-limited");
+          return;
+        }
+        if (status === 0 || status >= 500) {
+          setState("unreachable");
+          return;
+        }
         setState("invalid");
       }
     },
-    [token, router, setToken],
+    [token, router, setToken, nextPath],
   );
+
+  const onRetry = async () => {
+    setState("loading");
+    await submit();
+  };
 
   useEffect(() => {
     if (!token || hasFiredRef.current) return;
@@ -196,7 +220,10 @@ function VerifyEmailPageContent() {
     try {
       await apiFetch(
         "/v1/auth/email/resend-verification",
-        { method: "POST", body: JSON.stringify({ email: trimmed }) },
+        {
+          method: "POST",
+          body: JSON.stringify({ email: trimmed, ...(nextPath !== "/home" ? { next: nextPath } : {}) }),
+        },
         { auth: false },
       );
       setState("resend-sent");
@@ -250,7 +277,9 @@ function VerifyEmailPageContent() {
                       error={passwordError}
                     />
                   ) : state === "success" ? (
-                    <VerifySuccessCard onContinue={() => router.push("/home")} />
+                    <VerifySuccessCard onContinue={() => router.push(nextPath)} />
+                  ) : state === "rate-limited" || state === "unreachable" ? (
+                    <VerifyRetryCard kind={state} onRetry={() => void onRetry()} />
                   ) : state === "missing-token" ? (
                     <VerifyMissingCard />
                   ) : state === "resend-sent" ? (
@@ -449,6 +478,34 @@ function VerifySuccessCard({ onContinue }: { onContinue: () => void }) {
       </Body>
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <PrimaryButton onClick={onContinue}>Continue to PROOVRA</PrimaryButton>
+      </div>
+    </div>
+  );
+}
+
+function VerifyRetryCard({
+  kind,
+  onRetry,
+}: {
+  kind: "rate-limited" | "unreachable";
+  onRetry: () => void;
+}) {
+  return (
+    <div role="alert" data-testid={`verify-retry-${kind}`}>
+      <Eyebrow label={kind === "rate-limited" ? "Too many attempts" : "Not confirmed yet"} />
+      <Heading>
+        {kind === "rate-limited"
+          ? "Too many attempts — wait a moment"
+          : "We couldn\u2019t check your link just now"}
+      </Heading>
+      <Body>
+        {kind === "rate-limited"
+          ? "There have been too many verification attempts from this connection. Wait a minute and try again \u2014 your link still works."
+          : "PROOVRA could not be reached to confirm this link. Check your connection and try again \u2014 your link has not been used and still works."}
+      </Body>
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <PrimaryButton onClick={onRetry}>Try again</PrimaryButton>
+        <BackToSignIn />
       </div>
     </div>
   );

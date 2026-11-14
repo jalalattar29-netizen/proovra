@@ -181,7 +181,8 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
 
   it("the 5 protected core files remain green", () => {
     const PINS = [
-      { rel: "src/routes/capture.routes.ts", expected: 21793 },
+      // Rebaselined 2026-11-13: 21,793 -> 26,271 — F-04 (Free-user audit): discarding a draft releases its unsealed reservation through the reservation authority (record lock before the draft row).
+      { rel: "src/routes/capture.routes.ts", expected: 26271 },
       // Rebaselined 2026-09-09 (OTS INTEGRITY DECOUPLING): 46,824 → 51,943.
       // This is a ±10% band, and the accumulated audited growth since 46,824
       // had reached its edge. Finalization now enters the OTS lifecycle

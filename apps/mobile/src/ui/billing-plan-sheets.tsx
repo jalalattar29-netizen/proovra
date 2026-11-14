@@ -134,8 +134,9 @@ export function ManagePlanSheet({
           </View>
         ) : null}
 
-        {/* Plan moves are offered only in private distribution by the parent screen. */}
-        {projection.hasPlanOffers && plan.accessKind === "SUBSCRIPTION" ? (
+        {/* Plan moves are offered only in private distribution by the parent screen,
+            which passes onViewPlans there; the note is for a build that cannot (F-09). */}
+        {projection.hasPlanOffers && plan.accessKind === "SUBSCRIPTION" && !onViewPlans ? (
           <ProovraText variant="label" color={theme.color.ink.muted}>{PURCHASE_PENDING_NOTE}</ProovraText>
         ) : null}
         {onViewPlans ? (

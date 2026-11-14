@@ -54,6 +54,21 @@ export type CheckoutState =
 export const CHECKOUT_REUSE_WINDOW_MS = 2 * 60 * 1000;
 
 /**
+ * FREE-AUDIT REMEDIATION (2026-11-13, DUP-STORAGE) — ONE lock for every personal
+ * storage purchase decision of a payer, whichever provider sells it.
+ *
+ * The Stripe attempt lock and the PayPal storage lock were per provider, and the
+ * cross-provider duplicate check ran before either, outside any lock. Two tabs
+ * (card and PayPal) buying the same size both passed it and became two recurring
+ * add-ons. Every storage checkout gate and the first-activation decision of a
+ * storage subscription now take this key inside their transaction, always after
+ * any per-provider key, so the order is the same everywhere.
+ */
+export function personalStorageCheckoutLockKey(userId: string): string {
+  return `billing-storage-checkout:ANY:${userId}:personal`;
+}
+
+/**
  * May a row in `current` move to `next`?
  *
  * Provider truth moves a PENDING row anywhere. A local ABANDONED row still
@@ -146,6 +161,12 @@ export async function openCheckoutAttempt(input: {
     await (tx as LockClient).$executeRaw`
       SELECT pg_advisory_xact_lock(hashtext(${lockKey}))
     `;
+    if (input.product === prismaPkg.BillingCheckoutProduct.STORAGE_ADDON) {
+      const storageKey = personalStorageCheckoutLockKey(input.userId);
+      await (tx as LockClient).$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtext(${storageKey}))
+      `;
+    }
 
     // BILLING PAYPAL INTEGRITY (2026-09-28) — an attempt the provider never
     // bound (no resource id came back: a lost create response, or a create

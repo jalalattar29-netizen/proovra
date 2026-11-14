@@ -11,6 +11,8 @@ import { formatUserDateTime } from "../../src/lib/date";
 import { theme } from "../../src/theme/theme";
 import { useToast } from "../../src/toast-context";
 import { usePlatformContext, useWorkspaceChangeCount } from "../../src/product/platform-context";
+import { casesPlanLocked } from "../../src/product/matter-queue";
+import { artifactDownloadMessage, packageDownloadMessage } from "../../src/product/artifact-history";
 import { webOrigin } from "../../src/product/intake-create";
 import {
   parseVerificationAccess,
@@ -387,9 +389,19 @@ export default function EvidenceLibraryScreen() {
         return;
       }
       await Linking.openURL(url);
-      addToast("Report downloaded", "success");
-    } catch {
-      addToast("Failed to download report", "error");
+      // Free audit F-07 — the app hands the link to the browser; it does not
+      // download or save anything itself, so it never says "downloaded".
+      addToast("Report opened in your browser", "success");
+    } catch (err) {
+      // The reason (a plan, an output block, a missing record), not a bare "failed".
+      const e = err as { code?: unknown; statusCode?: unknown } | null;
+      addToast(
+        artifactDownloadMessage("report", {
+          code: typeof e?.code === "string" ? e.code : null,
+          statusCode: typeof e?.statusCode === "number" ? e.statusCode : null,
+        }),
+        "error",
+      );
     } finally {
       setInspectorBusy(null);
     }
@@ -406,9 +418,14 @@ export default function EvidenceLibraryScreen() {
         return;
       }
       await Linking.openURL(url);
-      addToast("Verification package downloaded", "success");
-    } catch {
-      addToast("Failed to download verification package", "error");
+      addToast("Verification package opened in your browser", "success");
+    } catch (err) {
+      const e = err as { code?: unknown; statusCode?: unknown } | null;
+      // The same reasons the record page states (artifact-history.ts).
+      addToast(
+        packageDownloadMessage(typeof e?.code === "string" ? e.code : null, typeof e?.statusCode === "number" ? e.statusCode : null),
+        "error",
+      );
     } finally {
       setInspectorBusy(null);
     }
@@ -660,7 +677,10 @@ export default function EvidenceLibraryScreen() {
         subtitle={LIBRARY_DESCRIPTION}
         secondaryActions={
           <>
-            <ProovraButton label="New Case" variant="secondary" fullWidth={false} onPress={() => router.push("/cases")} />
+            {/* Free audit F-10 — not offered where the active workspace's plan excludes cases. */}
+            {casesPlanLocked(platform.envelope) ? null : (
+              <ProovraButton label="New Case" variant="secondary" fullWidth={false} onPress={() => router.push("/cases")} />
+            )}
             <ProovraButton
               label={refreshing ? "Refreshing…" : "Refresh"}
               accessibilityLabel="Refresh"

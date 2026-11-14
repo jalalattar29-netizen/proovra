@@ -56,7 +56,8 @@ describe("PROV-001 — first owner binding (live PostgreSQL)", () => {
   function recordMail() {
     vi.spyOn(emailService, "sendEmailVerificationEmail").mockImplementation(async (to: string, url: string) => {
       mailbox.set(`verify:${to}`, new URL(url).searchParams.get("token") as string);
-      return undefined as never;
+      // F-06 — the dispatcher reads the transport outcome; the stub accepts.
+      return { kind: "acknowledged", providerMessageId: null, httpStatus: 200 } as const;
     });
     vi.spyOn(emailService, "sendPasswordResetEmail").mockImplementation(async (to: string, url: string) => {
       mailbox.set(`reset:${to}`, new URL(url).searchParams.get("token") as string);

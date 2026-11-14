@@ -436,9 +436,13 @@ describe("SCENARIO 11 — TEAM downgrades to PRO holding more records than PRO i
   it("WIRING: the freeze happens in the ONE writer of the plan, and clears on an uncapped plan", () => {
     const billing = strip(api("services/billing.service.ts"));
     const setter = billing.slice(billing.indexOf("export async function setPersonalPlan"));
-    expect(setter).toMatch(/nextCaps\.maxEvidenceRecords === null/);
+    expect(setter).toMatch(/nextLifetimeCap = nextCaps\.maxEvidenceRecords/);
+    expect(setter).toMatch(/nextLifetimeCap === null/);
     expect(setter).toMatch(/legacyRecordCapOverride: null/);
-    expect(setter).toMatch(/countPersonalEvidenceRecords/);
+    // F-07 — frozen from the gate's own plan-occupying measure, never the
+    // slot-holding row count (which includes credit-funded records).
+    expect(setter).toMatch(/measurePersonalPlanOccupancy/);
+    expect(setter).not.toMatch(/countPersonalEvidenceRecords/);
     // No SECOND override field was introduced for the same number.
     expect(billing).not.toMatch(/downgradeRecordCap|grandfatherCap/);
   });

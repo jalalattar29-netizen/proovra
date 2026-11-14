@@ -179,9 +179,13 @@ describe("personal plan limits + storage usage count personal-team rows", () => 
   it("billing-enforcement counts legacy NULL rows AND personal-team rows", () => {
     const src = readSource("../src/services/billing-enforcement.service.ts");
     expect(src).toMatch(/isPersonal:\s*true/);
+    // F-01 — the personal allowance population IS the Personal workspace's
+    // canonical population (evidenceScopeFor: the personal team's rows, whoever
+    // submitted them, + the owner's legacy NULL-team rows).
     expect(src).toMatch(
-      /OR:\s*\[\s*\{\s*teamId:\s*null\s*\},\s*\.\.\.\(personalTeam \? \[\{ teamId: personalTeam\.id \}\] : \[\]\),\s*\]/,
+      /return evidenceScopeFor\(\{\s*physicalWorkspaceId: personalTeam\.id,\s*workspaceKind: "PERSONAL",\s*personalOwnerUserId: scope\.ownerUserId,/,
     );
+    expect(src).toMatch(/\{ AND: \[\{ ownerUserId: scope\.ownerUserId \}, \{ teamId: null \}\] \}/);
   });
 
   it("workspace-usage personal aggregates include personal-team rows", () => {

@@ -173,8 +173,14 @@ export function maskInvitedEmail(email: string): string {
  * `WORKSPACE_MEMBERS_NOT_INCLUDED` (402), `WORKSPACE_SEAT_LIMIT_REACHED`
  * (409), `INVITE_ALREADY_USED` (409), `WORKSPACE_SEAT_CONTENTION` (409),
  * `MANAGED_IDENTITY_NO_PERSONAL_SPACE` (403) and `ORG_POLICY_NO_PERSONAL_SPACE`
- * (403) — the last two for a personal workspace the identity may not use
- * (AUD-0047).
+ * (403) — those two for a personal workspace the identity may not use
+ * (AUD-0047) — and, added by F-26e (Free-user audit, 2026-11-13) because the
+ * service and route throw them and both clients rendered them as "we couldn't
+ * check this invitation… try again": `EMAIL_NOT_VERIFIED` (403),
+ * `MEMBERSHIP_SUSPENDED` (409), `INVITE_SUPERSEDED` (409),
+ * `ENTERPRISE_CONTRACT_REQUIRED` (409), `SUBSCRIPTION_INACTIVE` (402, the
+ * inviting workspace's lifecycle) and `LEGAL_REACCEPT_REQUIRED` (428, the
+ * accept route's legal-acceptance pre-handler).
  *
  * The union is exhaustive on purpose. The resolver switches over it without a
  * `default`, so adding a refusal to the service and forgetting to decide what
@@ -192,6 +198,12 @@ export const WORKSPACE_INVITATION_REFUSAL_CODES = [
   "WORKSPACE_SEAT_CONTENTION",
   "MANAGED_IDENTITY_NO_PERSONAL_SPACE",
   "ORG_POLICY_NO_PERSONAL_SPACE",
+  "EMAIL_NOT_VERIFIED",
+  "MEMBERSHIP_SUSPENDED",
+  "INVITE_SUPERSEDED",
+  "ENTERPRISE_CONTRACT_REQUIRED",
+  "SUBSCRIPTION_INACTIVE",
+  "LEGAL_REACCEPT_REQUIRED",
 ] as const;
 
 export type WorkspaceInvitationRefusalCode =

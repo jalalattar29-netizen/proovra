@@ -102,6 +102,22 @@ export function parseBillingWorkspaceLocator(
 }
 
 /**
+ * FREE-AUDIT REMEDIATION (2026-11-13, F-26d) — THE reader of the plan hint. The
+ * pricing CTAs wrote `?plan=` and nothing read it, so a buyer who chose Pro landed
+ * on Billing with nothing open. Only the self-serve values are accepted; anything
+ * else is no hint. A hint opens a purchase surface for the plan the SERVER offers
+ * this account, and the server still decides price, currency and entitlement.
+ */
+const BILLING_PLAN_HINTS: ReadonlySet<string> = new Set<BillingPlanHint>(["PRO", "TEAM", "PAYG"]);
+
+export function parseBillingPlanHint(params: ParamReader): BillingPlanHint | null {
+  // A URL value matched against the closed hint set — parsing, not a plan
+  // decision (the server's offers decide what opens).
+  const raw = params.get(BILLING_PLAN_PARAM)?.trim().toUpperCase() ?? "";
+  return BILLING_PLAN_HINTS.has(raw) ? (raw as BillingPlanHint) : null;
+}
+
+/**
  * Build a canonical billing href from a locator (+ optional plan hint). This
  * is the ONLY sanctioned way to construct a billing link that names a
  * workspace. The plan hint is a separate checkout concern appended after the

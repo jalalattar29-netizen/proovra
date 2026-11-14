@@ -639,7 +639,7 @@ describe("organization personas against the real API", () => {
       where: { id: disposable.workspaceId },
       data: { billingPlan: "FREE", billingStatus: "INACTIVE" },
     });
-    await prisma.user.update({ where: { id: disposable.owner.userId }, data: { passwordHash: hashPassword(password) } });
+    await prisma.user.update({ where: { id: disposable.owner.userId }, data: { passwordHash: await hashPassword(password) } });
     const owner: Person = { id: disposable.owner.userId, email: disposable.owner.email, token: disposable.owner.token };
     const proof = { stepUp: { method: "password", currentPassword: password } };
 
@@ -700,7 +700,7 @@ describe("organization personas against the real API", () => {
           3600,
         ),
     });
-    await prisma.user.update({ where: { id: contracted.owner.userId }, data: { passwordHash: hashPassword(password) } });
+    await prisma.user.update({ where: { id: contracted.owner.userId }, data: { passwordHash: await hashPassword(password) } });
     await prisma.organizationMembership.create({
       data: { organizationId: contracted.organizationId, userId: successor.id, role: "ORG_ADMIN" },
     });

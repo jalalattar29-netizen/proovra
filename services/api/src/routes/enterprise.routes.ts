@@ -203,9 +203,8 @@ async function getRealUsageStats(userId: string) {
     },
   });
 
-  const activeBatches = (await batchAnalysisService.listJobs(userId)).filter(
-    (job) => job.status === "pending" || job.status === "processing",
-  ).length;
+  // F-21 — counted in the database, not by loading every job and its items.
+  const activeBatches = await batchAnalysisService.countJobs(userId, ["PENDING", "PROCESSING"]);
 
   return {
     dailyAnalyses: {
@@ -237,7 +236,7 @@ async function getRealQuotas(req: FastifyRequest, userId: string) {
     },
   });
 
-  const batchJobsUsed = (await batchAnalysisService.listJobs(userId)).length;
+  const batchJobsUsed = await batchAnalysisService.countJobs(userId);
   // A-3 closure — quota counter sources from canonical `ApiCredential`
   // (Phase 17). Legacy in-memory key-store enumeration is retired.
   const apiKeysUsed = await prisma.apiCredential.count({
@@ -574,7 +573,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
 
       try {
-        const jobs = await batchAnalysisService.listJobs(userId);
+        // F-21 — bounded and item-free (see listJobSummaries).
+        const { jobs, truncated } = await batchAnalysisService.listJobSummaries(userId);
 
         auditEnterpriseAction(req, {
           userId,
@@ -585,6 +585,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         });
 
         return {
+          truncated,
           data: jobs.map((job) => ({
             id: job.id,
             name: job.name,

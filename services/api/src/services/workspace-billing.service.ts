@@ -263,7 +263,7 @@ export async function getPersonalWorkspaceScope(
       // personal-mode behaviour is preserved.
       client.team.findFirst({
         where: { ownerUserId: userId, isPersonal: true },
-        select: { organizationId: true },
+        select: { organizationId: true, storageBytesOverride: true },
       }),
     ]);
 
@@ -302,7 +302,12 @@ export async function getPersonalWorkspaceScope(
     providerPlan: entitlement.plan as prismaPkg.PlanType,
     credits: entitlement.credits ?? 0,
     teamSeats: 0,
-    storageBytesOverride: null,
+    // F-09 (Free audit) — the SAME subject reached by team id reads its Team
+    // row's `storage_bytes_override` (`getTeamWorkspaceScope`), and completion
+    // and the worker reach a personal record that way. Reached by user id it
+    // read nothing, so admission measured a smaller storage allowance than
+    // finalization for one subject. The personal Team row is that subject.
+    storageBytesOverride: personalTeam?.storageBytesOverride ?? null,
     activeStorageAddonBytes,
     // Phase HOME-DATA-OWNERSHIP — `legacyRecordCapOverride` was
     // added by the pricing-hardening migration. The Prisma client

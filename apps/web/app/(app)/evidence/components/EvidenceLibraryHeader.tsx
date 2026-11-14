@@ -23,9 +23,12 @@ import {
 export function EvidenceLibraryHeader({
   refreshing,
   onRefresh,
+  canCreateCase = true,
 }: {
   refreshing: boolean;
   onRefresh: () => void;
+  /** Free audit F-10 — false when the active workspace's plan excludes cases. */
+  canCreateCase?: boolean;
 }) {
   return (
     <>
@@ -56,14 +59,16 @@ export function EvidenceLibraryHeader({
         }
         secondaryActions={
           <>
-            <Link
-              href="/cases"
-              className="app-secondary-action app-secondary-action--lg"
-              data-evidence-new-case
-            >
-              <FolderPlus size={16} strokeWidth={1.9} aria-hidden="true" />
-              New Case
-            </Link>
+            {canCreateCase ? (
+              <Link
+                href="/cases"
+                className="app-secondary-action app-secondary-action--lg"
+                data-evidence-new-case
+              >
+                <FolderPlus size={16} strokeWidth={1.9} aria-hidden="true" />
+                New Case
+              </Link>
+            ) : null}
             <button
               type="button"
               className="app-secondary-action app-secondary-action--lg"

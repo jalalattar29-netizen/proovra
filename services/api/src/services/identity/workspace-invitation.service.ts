@@ -706,15 +706,18 @@ export async function acceptWorkspaceInvitation(
     where: {
       teamId_userId: { teamId: invite.teamId, userId: input.actorUserId },
     },
-    select: { status: true, revokedAtUtc: true },
+    select: { status: true, revokedAtUtc: true, role: true },
   });
   // An existing ACTIVE member re-clicking a link is a success, not an error —
   // and the invitation is CONSUMED (members audit INV-07): left PENDING it kept
   // counting against the pending allowance and stayed replayable until expiry.
+  // The role reported is the one the member HOLDS: an invitation never changes
+  // an active member's role (no invite-driven demotion or promotion), so
+  // reporting the invitation's role would state a role nobody has (F-19).
   if (existingMembership?.status === prismaPkg.TeamMemberStatus.ACTIVE) {
     const consumed: AcceptResult = {
       workspaceId: invite.teamId,
-      role: invite.role,
+      role: existingMembership.role,
       alreadyMember: true,
     };
     await client.$transaction(async (tx) => {
@@ -728,7 +731,24 @@ export async function acceptWorkspaceInvitation(
   }
   assertInvitationCannotReviveMembership(existingMembership, invite.createdAt);
   // Joining is growth: a restricted subscription admits no new member (M6).
-  await assertInvitationLifecycleAllows(invite.teamId, client);
+  //
+  // F-26e — the refusal reaches the INVITEE, who is not the subscriber: the
+  // lifecycle gate's sentence ("Your subscription is PAST_DUE…") and its
+  // details (the owner's plan, provider status, lifecycle state) describe
+  // somebody else's billing. The code is kept — it is the decision — and the
+  // words and details are the invitee's own.
+  try {
+    await assertInvitationLifecycleAllows(invite.teamId, client);
+  } catch (err) {
+    if (err instanceof WorkspaceInvitationError && err.code === "SUBSCRIPTION_INACTIVE") {
+      throw new WorkspaceInvitationError(
+        "SUBSCRIPTION_INACTIVE",
+        "This workspace can't add members right now. Ask the workspace administrator to check its plan.",
+        err.httpStatus,
+      );
+    }
+    throw err;
+  }
 
   /**
    * DO NOT HOLD A CONNECTION WHILE WAITING FOR A LOCK.
@@ -816,7 +836,7 @@ export async function acceptWorkspaceInvitation(
       );
     }
 
-    await provisionMembership(tx as never, {
+    const provisioned = await provisionMembership(tx as never, {
       intent: "WORKSPACE_DIRECT_INVITE",
       source: "INVITATION",
       userId: input.actorUserId,
@@ -826,9 +846,11 @@ export async function acceptWorkspaceInvitation(
       seatClaim,
     });
 
+    // The role reported (response, audit row) is the role PERSISTED, read
+    // back from the membership write — never the invitation's word for it.
     const accepted: AcceptResult = {
       workspaceId: invite.teamId,
-      role: invite.role,
+      role: (provisioned.workspaceRole ?? invite.role) as AcceptResult["role"],
       alreadyMember: false,
     };
     if (input.auditTx) await input.auditTx(tx, accepted);

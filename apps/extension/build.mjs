@@ -36,6 +36,9 @@ const define = {
   ),
   __PROOVRA_OAUTH_CLIENT_ID__: JSON.stringify(env.PROOVRA_OAUTH_CLIENT_ID ?? "proovra-extension"),
   __PROOVRA_EXTENSION_VERSION__: JSON.stringify(pkg.version),
+  // Free audit F-27b / F-11b — the web app origin the popup links to (plans
+  // page, the preserved record). No default: unset, the popup shows no link.
+  __PROOVRA_WEB_ORIGIN__: JSON.stringify(env.PROOVRA_WEB_ORIGIN ?? ""),
 };
 
 rmSync(DIST, { recursive: true, force: true });

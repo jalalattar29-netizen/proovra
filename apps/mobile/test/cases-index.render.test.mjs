@@ -138,3 +138,39 @@ test("an archived case cannot be archived again; enterprise rows name their reas
   assert.equal(r.byLabel("Archive")[0].props.accessibilityState.disabled, true);
   r.unmount();
 });
+
+/* Free audit F-10 — case creation follows the ACTIVE workspace's plan. */
+test("F-10: a workspace whose plan excludes cases offers View plans, not Create case; the list stays viewable", async () => {
+  routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { casesIncluded: false } });
+  routes["/v1/cases/matter-queue"] = () => ({ generatedAt: null, items: [], total: 0 });
+  const r = await render();
+  assert.ok(requests.some((q) => q.path.startsWith("/v1/cases/matter-queue")), "viewing cases is not gated");
+  assert.equal(r.byLabel("Create case").length, 0, "Create case was offered on a plan without cases");
+  assert.ok(r.hasText("Cases aren't included in this plan"));
+  await r.press("View plans");
+  assert.equal(M.calls.push.at(-1), "/billing");
+  r.unmount();
+});
+
+test("F-10: an eligible workspace (paid, or a Free user's invited paid workspace) still offers Create case", async () => {
+  routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { casesIncluded: true } });
+  const r = await render();
+  assert.ok(r.byLabel("Create case").length > 0);
+  assert.equal(r.byLabel("View plans").length, 0);
+  r.unmount();
+});
+
+test("F-10: a late CASES_NOT_INCLUDED refusal names the plan and offers View plans (not 'review your input')", async () => {
+  routes["/v1/cases"] = () => ({ __status: 409, message: "Cases and matters are not included in the current plan", code: "CASES_NOT_INCLUDED" });
+  const r = await render();
+  await r.press("Create case");
+  await r.type("Case name", "Insurance claim");
+  const submit = r.byLabel("Create case").filter((n) => n.props.onPress).at(-1);
+  await act(async () => { await submit.props.onPress(); });
+  await settle();
+  assert.ok(r.hasText("This workspace's plan doesn't include cases. Your evidence records remain available — upgrade to group them into cases."));
+  assert.ok(!r.hasText("Please review your input and try again."));
+  await r.press("View plans");
+  assert.equal(M.calls.push.at(-1), "/billing");
+  r.unmount();
+});

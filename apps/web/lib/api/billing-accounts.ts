@@ -202,6 +202,8 @@ export type PlanOffer = {
   priceCents?: number;
   currency?: "USD" | "EUR";
   summary: string;
+  /** CHECKOUT offers: which provider can sell this plan now (F-26c). Absent = no restriction known. */
+  checkoutAvailability?: { stripe: boolean; paypal: boolean };
   /**
    * WHAT this offer does, decided by the server against a subscription the
    * browser cannot see. The page renders the verb; it never works it out by
@@ -295,6 +297,8 @@ export type BillingAccountProjection = {
     currency?: "USD" | "EUR";
     /** How many credits ONE purchase grants. Server-owned; never chosen here. */
     creditsPerPurchase: number;
+    /** Which provider can sell a credit now (F-26c). Absent = no restriction known. */
+    checkoutAvailability?: { stripe: boolean; paypal: boolean };
   };
   /** PERSONAL accounts only; a contract-managed Organization has no wallet. */
   evidenceAdmission?: EvidenceAdmission;

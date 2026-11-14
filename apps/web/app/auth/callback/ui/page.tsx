@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../../providers";
 import { useToast } from "../../../../components/ui";
 import { authLogger } from "../../../../lib/auth-logger";
+import { safeReturnPath } from "../../../../lib/navigation/safe-return-path";
 import {
   clearPendingOAuthLegalAcceptance,
   readPendingOAuthLegalAcceptance,
@@ -264,14 +265,12 @@ export default function AppleCallbackPage() {
 
         let redirectTo = "/home";
 
+        // F-26g — the same open-redirect rule as /login and /register.
         try {
-          if (pendingLegal?.returnUrl && pendingLegal.returnUrl.startsWith("/")) {
-            redirectTo = pendingLegal.returnUrl;
+          if (pendingLegal?.returnUrl) {
+            redirectTo = safeReturnPath(pendingLegal.returnUrl);
           } else {
-            const stored = sessionStorage.getItem("proovra-return-url");
-            if (stored && stored.startsWith("/")) {
-              redirectTo = stored;
-            }
+            redirectTo = safeReturnPath(sessionStorage.getItem("proovra-return-url"));
           }
           sessionStorage.removeItem("proovra-return-url");
         } catch {

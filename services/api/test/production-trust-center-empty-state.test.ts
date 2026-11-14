@@ -134,15 +134,20 @@ describe("Production fix B — seed POSTs no longer require delegated tier", () 
     expect(slice).toMatch(/preHandler:\s*requireAuth\b/);
   });
 
-  it("POST /v1/trust/subprocessors/seed handler runs under requireAuth only", () => {
+  it("POST /v1/trust/subprocessors/seed is gated like the create it writes through (F-21)", () => {
+    // F-21 (Free-user audit) — the seed UPSERTS every canonical slug (state
+    // back to ACTIVE, contractRef cleared, a new version), so open to every
+    // member it let a VIEWER overwrite an admin's record. The self-heal this
+    // test was written for does not need it: GET /v1/trust/subprocessors
+    // auto-seeds an empty registry for any member (fix A above), and a
+    // personal workspace's OWNER holds the permission. Not the retired tier.
     const idx = ROUTES.indexOf('"/v1/trust/subprocessors/seed"');
     expect(idx).toBeGreaterThan(-1);
     const after = ROUTES.slice(idx + 1);
     const nextRoute = after.search(/\n\s{0,4}app\.(post|get|patch|delete)\(/);
     const slice = ROUTES.slice(idx, idx + 1 + (nextRoute > 0 ? nextRoute : 1500));
     expect(slice).not.toMatch(/requireDelegatedTier/);
-    expect(slice).not.toMatch(/requireWorkspacePermission/);
-    expect(slice).toMatch(/preHandler:\s*requireAuth\b/);
+    expect(slice).toMatch(/requireWorkspacePermission\("trust\.subprocessor\.manage"\)/);
   });
 
   it("Authoring routes are still gated (gate preserved where it matters)", () => {

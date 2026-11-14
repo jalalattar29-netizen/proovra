@@ -29,6 +29,7 @@ import {
   type ScreenContinuousLimitationCode,
   type ScreenContinuousTerminationReason,
 } from "@proovra/shared";
+import { putTimeoutMsForSize } from "./capture/capture-retry";
 
 export type SingleFileAudioTrack = "APP" | "MICROPHONE";
 export type SingleFileOrientationChange = {
@@ -286,6 +287,5 @@ export function buildSingleFileManifest(
  * deadline, then ~250 KB/s.
  */
 export function singleFilePutTimeoutMs(sizeBytes: number | null, floorMs = 120_000): number {
-  const bytes = typeof sizeBytes === "number" && sizeBytes > 0 ? sizeBytes : 0;
-  return Math.max(floorMs, Math.ceil(bytes / (250 * 1024)) * 1000);
+  return putTimeoutMsForSize(sizeBytes, floorMs);
 }

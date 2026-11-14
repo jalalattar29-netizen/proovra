@@ -4,6 +4,7 @@ import type { CameraMode, FacingMode } from "../_lib/types";
 import { normalizeClientMimeType } from "../_lib/file-utils";
 import {
   describeMediaError,
+  describeStagingFailure,
   logCaptureClientError,
 } from "../_lib/capture-errors";
 import type { CaptureSessionAddFiles } from "./useCaptureSessionOrchestration";
@@ -291,8 +292,9 @@ export function useCaptureCamera({
       await addFilesToSessionRef.current?.([capturedFile], {
         sessionEvidenceType: "PHOTO",
       });
-    } catch {
-      setCameraError("Failed to add the captured photo to this evidence session.");
+    } catch (err) {
+      // F-24 — a staging limit is named (count, file size, session size).
+      setCameraError(describeStagingFailure(err, "Failed to add the captured photo to this evidence session."));
     }
   };
 
@@ -365,8 +367,10 @@ export function useCaptureCamera({
           await addFilesToSessionRef.current?.([recordedFile], {
             sessionEvidenceType: "VIDEO",
           });
-        } catch {
-          setCameraError("Failed to add the recorded video to this evidence session.");
+        } catch (err) {
+          // F-24 — the recording was refused, never silently dropped: the
+          // limit it exceeded is said. Items already staged are untouched.
+          setCameraError(describeStagingFailure(err, "Failed to add the recorded video to this evidence session."));
         }
 
         setIsRecording(false);

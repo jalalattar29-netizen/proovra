@@ -438,7 +438,7 @@ describe("privileged identity — factor removal authority (live PostgreSQL)", (
       const target = await fx.seedUser(deps, "platform-only");
       await prisma.user.update({
         where: { id: target.userId },
-        data: { platformRole: "admin", passwordHash: hashPassword(password), emailVerifiedAt: new Date() },
+        data: { platformRole: "admin", passwordHash: await hashPassword(password), emailVerifiedAt: new Date() },
       });
       // Platform-only: no workspace membership anywhere.
       expect(await prisma.teamMember.count({ where: { userId: target.userId } })).toBe(0);

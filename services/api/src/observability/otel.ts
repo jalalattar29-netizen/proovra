@@ -208,13 +208,15 @@ export function initOpenTelemetry(input: {
       "otel.bootstrap_succeeded",
     );
 
-    // Graceful shutdown — flush spans before process exit.
+    // Graceful shutdown — flush spans before process exit. The flush is
+    // remembered so the API's drain (graceful-shutdown.ts) can wait for it
+    // before it exits, instead of cutting it off.
     for (const sig of ["SIGTERM", "SIGINT"] as const) {
       process.once(sig, () => {
-        void sdk
+        otelShutdownInFlight ??= sdk
           .shutdown()
           .catch(() => undefined)
-          .finally(() => undefined);
+          .then(() => undefined);
       });
     }
 
@@ -234,6 +236,16 @@ export function initOpenTelemetry(input: {
  * Operator-safe health snapshot. NEVER returns endpoint URL or
  * header values.
  */
+let otelShutdownInFlight: Promise<void> | null = null;
+
+/**
+ * F-21 — settles when the SDK's signal-time flush has finished (immediately
+ * when no flush was started). The API drain awaits it before exiting.
+ */
+export function otelShutdownSettled(): Promise<void> {
+  return otelShutdownInFlight ?? Promise.resolve();
+}
+
 export function getOtelStatus(): {
   enabled: boolean;
   started: boolean;

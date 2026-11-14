@@ -273,6 +273,29 @@ describe("BD-2 — the job outlives the process that made it", () => {
     expect(await batchAnalysisService.listJobs(STRANGER)).toEqual([]);
   });
 
+  it("F-21 — the polled list is bounded, item-free and says when it is truncated; counts come from the database", async () => {
+    const a = await seed("pending", 3);
+    const b = await seed("processing", 3);
+    const c = await seed("completed", 3);
+
+    const two = await batchAnalysisService.listJobSummaries(OWNER, 2);
+    expect(two.jobs.map((j) => j.id)).toEqual([c, b]);
+    expect(two.truncated).toBe(true);
+    expect(two.jobs[0]).not.toHaveProperty("items");
+    expect(two.jobs[1]).toMatchObject({ status: "processing", totalItems: 3 });
+
+    const all = await batchAnalysisService.listJobSummaries(OWNER, 10_000);
+    expect(all.truncated).toBe(false);
+    expect(all.jobs.map((j) => j.id)).toEqual(expect.arrayContaining([a, b, c]));
+    expect((await batchAnalysisService.listJobSummaries(STRANGER)).jobs).toEqual([]);
+
+    const total = await batchAnalysisService.countJobs(OWNER);
+    const active = await batchAnalysisService.countJobs(OWNER, ["PENDING", "PROCESSING"]);
+    expect(total).toBe(all.jobs.length);
+    expect(active).toBe(all.jobs.filter((j) => j.status === "pending" || j.status === "processing").length);
+    expect(await batchAnalysisService.countJobs(STRANGER)).toBe(0);
+  });
+
   it("deleting a job takes its items with it", async () => {
     const id = await seed("pending", 2);
     await prisma.batchAnalysisJob.delete({ where: { id } });

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { logCaptureClientError } from "../_lib/capture-errors";
+import { CaptureStagingLimitError, describeStagingFailure, logCaptureClientError } from "../_lib/capture-errors";
 import type { CaptureSessionAddFiles } from "./useCaptureSessionOrchestration";
 
 /**
@@ -349,13 +349,14 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
       sessionActiveRef.current = false;
       setState("idle");
     } catch (err) {
-      logCaptureClientError("web_capture_add_screen_recording", err, {});
-      // The recording is kept so "Add to session" can be retried.
+      if (!(err instanceof CaptureStagingLimitError)) {
+        logCaptureClientError("web_capture_add_screen_recording", err, {});
+      }
+      // The recording is kept: "Add to session" can be retried once room is
+      // made, and a staging limit (F-24) is named rather than called a fault.
       setState("stopped");
       setError(
-        toSafeUserError(err, {
-          message: "The screen recording could not be added to the session. Retry to add it.",
-        }).message,
+        describeStagingFailure(err, "The screen recording could not be added to the session. Retry to add it."),
       );
     } finally {
       addingRef.current = false;

@@ -168,7 +168,22 @@ export type ReservationReleaseReason =
   // PRO-078 — the record's first file was refused (file validation), so the
   // record holds nothing and cannot be sealed as it stands. Its reservation
   // used to hold a FREE slot, invisibly, for 24 hours.
-  | "UPLOAD_REFUSED";
+  | "UPLOAD_REFUSED"
+  // F-03 (Free-user audit) — a Finish & Sign retried with a different file
+  // selection: the draft's unsealed record no longer fits the files declared
+  // now, and a fresh record replaces it in the same transaction. Parts may
+  // already have been uploaded into it; none was ever sealed.
+  | "CAPTURE_SELECTION_CHANGED";
+
+const RELEASE_NOTE: Record<ReservationReleaseReason, string> = {
+  CAPTURE_SESSION_DISCARDED: "Reservation released before any content was committed.",
+  CAPTURE_SESSION_EXPIRED: "Reservation released before any content was committed.",
+  RESERVATION_EXPIRED: "Reservation released before any content was committed.",
+  INTAKE_SESSION_RACE_LOST: "Reservation released before any content was committed.",
+  UPLOAD_REFUSED: "Reservation released before any content was committed.",
+  CAPTURE_SELECTION_CHANGED:
+    "Reservation released unsealed: the capture's file selection changed before sealing, and a new record replaces this one. Nothing was sealed under this record.",
+};
 
 /**
  * Release one reservation inside the caller's transaction. Returns false (and
@@ -224,7 +239,7 @@ export async function releaseEvidenceReservationTx(
       reason: params.reason,
       ...(params.captureSessionId ? { captureSessionId: params.captureSessionId } : {}),
       statusAtRelease: evidence.status,
-      note: "Reservation released before any content was committed.",
+      note: RELEASE_NOTE[params.reason],
     },
   });
   return true;

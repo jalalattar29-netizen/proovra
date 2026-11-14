@@ -313,41 +313,44 @@ export async function setPersonalPlan(
    * exactly one place (`resolveCommercialContext(...).limits`), and a second
    * override column would be a second authority over one number.
    *
-   * The count uses the canonical enforcement predicate so the cap that is
-   * frozen and the count it is later compared against are the same population.
+   * F-07 (Free-user audit, 2026-11-13) — the count is the gate's OWN measure,
+   * `planOccupying` (`measurePersonalPlanOccupancy`), not the slot-holding row
+   * count. The gate compares the frozen cap with plan-occupying records, which
+   * exclude credit-funded ones; freezing from a count that included them gave
+   * every upgrade/downgrade cycle (and every repeated FREE write) one free plan
+   * slot per credit-funded record. It is taken INSIDE the plan transaction,
+   * under the payer's evidence-capacity lock, so a settlement running
+   * concurrently cannot move a record between "plan" and "credit" after it was
+   * counted. A count that fails now fails the plan write with it (the provider
+   * event or the reconciliation sweep retries it) instead of writing the plan
+   * with a stale or missing grandfather.
    * Imported dynamically to keep the static graph acyclic: the enforcement
    * module reaches this one through `workspace-billing`.
    */
   const nextCaps = getPlanCapabilities(plan);
-  /**
-   * Tri-state on purpose. "Do not touch it" and "clear it" are different
-   * instructions, and collapsing them into `null` would let a failed count
-   * erase a real grandfather.
-   */
-  let overrideWrite: { legacyRecordCapOverride: number | null } | null = null;
-  if (nextCaps.maxEvidenceRecords === null) {
-    overrideWrite = { legacyRecordCapOverride: null };
-  } else {
-    try {
-      const { countPersonalEvidenceRecords } = await import(
-        "./billing-enforcement.service.js"
-      );
-      const existing = await countPersonalEvidenceRecords(userId);
-      overrideWrite = {
-        legacyRecordCapOverride:
-          existing > nextCaps.maxEvidenceRecords ? existing : null,
-      };
-    } catch {
-      // Count unavailable — leave whatever is there. The plan write proceeds.
-      overrideWrite = null;
-    }
-  }
+  const nextLifetimeCap = nextCaps.maxEvidenceRecords;
+  const measurePlanOccupancy =
+    nextLifetimeCap === null
+      ? null
+      : (await import("./billing-enforcement.service.js")).measurePersonalPlanOccupancy;
 
   // The plan write and its from → to audit row commit together. The lock
   // serialises two writers of this user's plan, so the "from" each one
   // records is the plan the other left.
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`entitlement-plan:${userId}`}))`;
+    // A plan with no lifetime cap (TEAM, ENTERPRISE) CLEARS the override;
+    // one with a cap freezes it at the plan-occupying records when they
+    // exceed what the plan includes.
+    let overrideWrite: { legacyRecordCapOverride: number | null };
+    if (nextLifetimeCap === null || !measurePlanOccupancy) {
+      overrideWrite = { legacyRecordCapOverride: null };
+    } else {
+      const occupying = await measurePlanOccupancy(userId, tx);
+      overrideWrite = {
+        legacyRecordCapOverride: occupying > nextLifetimeCap ? occupying : null,
+      };
+    }
     const previous = await tx.entitlement.findFirst({
       where: { userId, active: true },
       orderBy: { createdAt: "desc" },
@@ -361,7 +364,7 @@ export async function setPersonalPlan(
       data: {
         plan,
         teamSeats: 0,
-        ...(overrideWrite ?? {}),
+        ...overrideWrite,
       },
     });
     if (previous?.plan !== plan) {

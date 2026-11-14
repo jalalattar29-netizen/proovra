@@ -140,6 +140,9 @@ const EXPORT_STATUS_LABEL: Record<string, string> = {
 
 function DataExportCard() {
   const [rows, setRows] = useState<ExportRequestRow[] | null>(null);
+  // F-25 — a failed read is not "no exports": it hid a READY package and
+  // offered a request the server would refuse.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -155,8 +158,9 @@ function DataExportCard() {
         method: "GET",
       })) as { requests: ExportRequestRow[] };
       setRows(res.requests ?? []);
+      setLoadFailed(false);
     } catch {
-      setRows([]);
+      setLoadFailed(true);
     }
   }, []);
   useEffect(() => {
@@ -205,16 +209,15 @@ function DataExportCard() {
       setBusy(true);
       setError(null);
       try {
-        // apiFetch carries the auth token + API base and returns the
-        // parsed JSON package; we re-serialize it into the downloaded
-        // file (integrity sha is visible on the request row + response
-        // header server-side).
-        const pkg = await apiFetch(`/v1/identity/data-export/${id}/download`, {
+        // F-25 — the file saved is the server's bytes, untouched, so its
+        // SHA-256 is the checksum shown on the row. (Re-serialising the
+        // parsed JSON is not guaranteed to reproduce them.)
+        const pkg = (await apiFetch(`/v1/identity/data-export/${id}/download`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(proof ? { stepUp: proof } : {}),
-        });
-        const blob = new Blob([JSON.stringify(pkg, null, 2)], {
+        }, { rawText: true })) as string;
+        const blob = new Blob([pkg], {
           type: "application/json",
         });
         const url = URL.createObjectURL(blob);
@@ -259,7 +262,20 @@ function DataExportCard() {
         excluded and remain available through their own authorized surfaces.
       </p>
 
-      {rows === null ? (
+      {loadFailed ? (
+        <div role="alert" style={{ ...muted, marginTop: 10 }} data-cc-export-load-failed>
+          Your exports could not be loaded, so we can&rsquo;t show whether one is
+          ready or in progress.{" "}
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={() => void reload()}
+            data-cc-export-retry
+          >
+            Try again
+          </button>
+        </div>
+      ) : rows === null ? (
         <p style={{ ...muted, marginTop: 10 }}>Loading…</p>
       ) : rows.length === 0 ? (
         <p style={{ ...muted, marginTop: 10 }}>No exports requested yet.</p>
@@ -285,14 +301,19 @@ function DataExportCard() {
                     : ""}
                 </span>
                 {r.status === "READY" && r.packageSha256 ? (
-                  <span className="set-privacy__export-meta">
-                    Checksum (SHA-256): {r.packageSha256.slice(0, 16)}…
+                  <span
+                    className="set-privacy__export-meta"
+                    style={{ overflowWrap: "anywhere" }}
+                    data-cc-export-checksum
+                  >
+                    SHA-256 of the downloaded file: <code>{r.packageSha256}</code>
                   </span>
                 ) : null}
                 {r.status === "FAILED" ? (
                   <span className="set-privacy__export-meta">
-                    The export could not be generated. You can request a new
-                    one below.
+                    {r.failureCode === "generation_stalled"
+                      ? "The export stopped before it finished. You can request a new one below."
+                      : "The export could not be generated. You can request a new one below."}
                   </span>
                 ) : null}
               </span>
@@ -312,7 +333,7 @@ function DataExportCard() {
         </ul>
       )}
 
-      {!active ? (
+      {!active && !loadFailed && rows !== null ? (
         <div className="mt-4">
           <button
             type="button"
@@ -439,6 +460,10 @@ function AccountClosureCard() {
     confirmationPhrase: string;
     coolingOffDays: number;
   } | null>(null);
+  // F-25 — a failed read used to become "no request, no blockers": an open
+  // COOLING_OFF request and its Cancel control vanished and the request form
+  // came back. Now it says it could not load, and offers nothing else.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [phrase, setPhrase] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -459,13 +484,9 @@ function AccountClosureCard() {
         coolingOffDays: number;
       };
       setState(res);
+      setLoadFailed(false);
     } catch {
-      setState({
-        request: null,
-        blockers: [],
-        confirmationPhrase: "close my account",
-        coolingOffDays: 7,
-      });
+      setLoadFailed(true);
     }
   }, []);
   useEffect(() => {
@@ -565,8 +586,32 @@ function AccountClosureCard() {
         never deleted by account closure — it stays governed by retention
         and legal-hold rules.
       </p>
+      <p className="set-card__sub" data-cc-closure-public-verification>
+        Closing your account does not take down public verification. Each
+        record&rsquo;s verification page, and the links in reports and
+        packages you have issued, keep working for anyone who has them. Links
+        you shared with named people stop working. To take a record&rsquo;s
+        verification page down, open the record and use &ldquo;Withdraw
+        page&rdquo; in its verification page settings before you close your
+        account.
+      </p>
 
-      {open && req ? (
+      {loadFailed ? (
+        <div role="alert" className="mt-3" style={muted} data-cc-closure-load-failed>
+          The status of account closure could not be loaded, so we can&rsquo;t
+          show whether a closure is already scheduled.{" "}
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={() => void reload()}
+            data-cc-closure-retry
+          >
+            Try again
+          </button>
+        </div>
+      ) : state === null ? (
+        <p className="mt-3" style={muted}>Loading…</p>
+      ) : open && req ? (
         <div className="mt-3" data-cc-closure-status={req.status}>
           <p style={{ ...muted, color: "var(--ink-primary, #0f172a)" }}>
             {CLOSURE_STATUS_LABEL[req.status] ?? identifierLabel(req.status)}

@@ -85,6 +85,7 @@ export default function RegisterScreen() {
   const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [delivery, setDelivery] = useState<"sent" | "unconfirmed" | "failed" | "cooldown">("sent");
   const [availability, setAvailability] = useState<EmailAvailability>("idle");
 
   const resend = useVerificationResend(() => resendVerification(sentTo ?? email.trim()));
@@ -155,6 +156,7 @@ export default function RegisterScreen() {
     try {
       const res = await registerAccount({ email: email.trim(), password, displayName: displayName.trim() || undefined });
       resend.reset();
+      setDelivery(res.verificationDelivery);
       setSentTo(res.email);
     } catch (err) {
       const safe = toSafeUserError(err);
@@ -188,11 +190,26 @@ export default function RegisterScreen() {
         <ProovraCard testID="register-verify">
           <AuthCardHead eyebrow="Verify your email" title="Verify your email address" />
           <View accessibilityLiveRegion="polite" style={styles.verifyBody}>
-            <ProovraText variant="body" color={theme.color.ink.secondary}>
-              {"We’ve sent a verification email to "}
-              <ProovraText variant="body" weight="semibold">{sentTo}</ProovraText>
-              {". Please open the email and click the verification link to activate your PROOVRA account."}
-            </ProovraText>
+            {/* F-06 — the register page's three honest states (web register/page.tsx). */}
+            {delivery === "failed" ? (
+              <ProovraText variant="body" color={theme.color.ink.secondary}>
+                {"Your account was created, but we couldn’t send the verification email to "}
+                <ProovraText variant="body" weight="semibold">{sentTo}</ProovraText>
+                {" just now. Use “Resend email” to try again."}
+              </ProovraText>
+            ) : delivery === "sent" ? (
+              <ProovraText variant="body" color={theme.color.ink.secondary}>
+                {"We’ve sent a verification email to "}
+                <ProovraText variant="body" weight="semibold">{sentTo}</ProovraText>
+                {". Please open the email and click the verification link to activate your PROOVRA account."}
+              </ProovraText>
+            ) : (
+              <ProovraText variant="body" color={theme.color.ink.secondary}>
+                {"We asked for a verification email to be sent to "}
+                <ProovraText variant="body" weight="semibold">{sentTo}</ProovraText>
+                {", but couldn’t confirm it was accepted. Check your inbox in a few minutes; if nothing arrives, resend it."}
+              </ProovraText>
+            )}
             <ProovraText variant="bodySm" color={theme.color.ink.muted}>
               {"If you don’t see the email within a minute, check your spam folder. Verification links expire after 24 hours."}
             </ProovraText>

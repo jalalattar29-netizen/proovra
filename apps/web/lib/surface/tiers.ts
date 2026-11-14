@@ -189,6 +189,8 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // /admin/platform/*. They were ENTERPRISE-tier under /admin and stay so:
   // the move changes their URL and gate (tenant, not platform), not their
   // package. First match wins, so these precede the CORE /operations prefix.
+  { pathPrefix: "/operations/batch-analysis", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "batch analysis (PRO upsell; moved from /dashboard/batch-analysis)" },
+  { pathPrefix: "/operations/quotas", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "quota dashboard (PRO upsell; moved from /dashboard/quotas)" },
   { pathPrefix: "/operations/analytics", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "workspace operational analytics (moved from /admin/platform/analytics)" },
   { pathPrefix: "/operations/automation", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "workspace automation rules (moved from /admin/platform/automation)" },
   { pathPrefix: "/operations/reliability", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "workspace upload reliability (moved from /admin/platform/reliability)" },
@@ -265,8 +267,11 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // in ENTERPRISE_ONLY_ROUTE_IDS, and the org routes themselves refuse a
   // non-member server-side. A user with no membership reaches an empty list.
   { pathPrefix: "/organizations", tier: "ENTERPRISE", directAccessPolicy: "allow", reason: "Organizations entity — membership-gated (12B correction); nav visibility stays ENTERPRISE" },
-  { pathPrefix: "/dashboard/batch-analysis", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "batch analysis (PRO upsell)" },
-  { pathPrefix: "/dashboard/quotas", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "quota dashboard (PRO upsell)" },
+  // F-21 — these two rules moved with their pages (Phase R7.5): keyed to the
+  // retired /dashboard/* URLs, which next.config.js 308-redirects, they never
+  // matched, and the live /operations/* pages fell to the CORE /operations
+  // prefix below, so Free and PAYG accounts loaded both. The pages now wrap
+  // SurfaceGate; first match wins, so these precede /operations.
 
   // ---------------------------------------------------------------------
   // PROFESSIONAL — surfaces appropriate for PRO / TEAM plans.

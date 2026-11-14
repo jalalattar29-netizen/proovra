@@ -193,9 +193,14 @@ export function resolveRouteAccess(
         // see the "Create organization" CTA — never silently hidden.
         canSeeNav: true,
         accessState: "NEEDS_ORGANIZATION",
+        // F-21 — organization creation is retired (POST /v1/orgs answers 403
+        // org_self_service_creation_retired) and /workspaces sends a
+        // self-serve account to the Teams upsell, so "Create or switch
+        // organization" led nowhere it named. Switching happens in the account
+        // menu's workspace switcher, which is not a URL.
         reason:
-          "This surface activates inside an organization workspace. Create or switch to an organization to continue.",
-        primaryAction: { label: "Create or switch organization", href: "/workspaces" },
+          "This surface works inside an organization workspace. If you belong to one, switch to it from the account menu's workspace switcher.",
+        primaryAction: { label: "Back to home", href: "/home" },
         secondaryAction: null,
       };
     }
@@ -324,7 +329,9 @@ export function resolveRouteAccess(
         reason:
           "Your role doesn't include the permissions this surface needs. An admin can grant access.",
         primaryAction: { label: "Request access", href: "/settings" },
-        secondaryAction: { label: "Browse all tools", href: "/tools" },
+        // F-21 — not "Browse all tools": /tools is platform-admin only
+        // (PageRouteGate adds that link for platform admins itself).
+        secondaryAction: { label: "Back to home", href: "/home" },
       };
     }
   }

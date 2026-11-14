@@ -792,12 +792,17 @@ function PackageRecoveryPanel({
     );
   }
 
+  // F-02 — a storage refusal says so and links where storage is managed,
+  // instead of a bare "Recover" the worker would refuse again.
+  const storageLimited = pkg.action === "NONE" && pkg.actionUnavailableReason === "STORAGE_LIMIT";
   const title =
     pkg.action === "RECOVER"
       ? `The verification package${forVersion} is missing`
       : pkg.action === "RETRY"
         ? "Recovering the verification package failed"
-        : "The verification package could not be recovered";
+        : storageLimited
+          ? `The verification package${forVersion} was not issued: the storage allowance is full`
+          : "The verification package could not be recovered";
   return (
     <div
       className="app-alert app-alert--warn"
@@ -834,6 +839,13 @@ function PackageRecoveryPanel({
       ) : null}
       <OutputActionButton ctx={ctx} kind="verificationPackage" output={pkg} />
       <OutputUnavailableNote kind="verificationPackage" output={pkg} />
+      {storageLimited ? (
+        <p>
+          <Link href="/billing" data-evidence-link="billing-storage">
+            Manage storage in Billing
+          </Link>
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -975,12 +987,13 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           role="status"
           data-evidence-section="artifact-stale-pending"
         >
-          <strong>Report generation is taking longer than expected</strong>
+          <strong>Report generation is taking longer than usual</strong>
           <p>
-            The signed evidence record is preserved — the chain-of-custody and
-            integrity columns are intact. The downstream report and verification
-            package are still pending. Re-check status below, or contact support
-            if this persists.
+            The request is still queued or being processed — reports are
+            produced in turn, so a busy period can delay this one by several
+            minutes. The signed evidence record is preserved, with its chain of
+            custody and integrity intact. This page keeps checking on its own;
+            you can also re-check now, or contact support if this persists.
           </p>
           <button
             type="button"

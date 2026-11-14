@@ -1173,6 +1173,13 @@ export type EvidenceOutputFacts = {
   /** Would a new pair fit the workspace storage allowance? `null` = unknown. */
   newVersionFitsStorage: boolean | null;
   /**
+   * F-02 — the latest pair is the record's FIRST issuance and the record
+   * earned its outputs at finalization (`firstIssuanceExemptFromStorageLimit`):
+   * the worker does not refuse it for storage, so an earlier storage refusal
+   * is recoverable whatever the allowance says. Absent = not exempt.
+   */
+  firstIssuanceStorageExempt?: boolean;
+  /**
    * AUD-011 — which output of the latest pair a HEAD of its RECORDED version
    * proved gone (single-record views probe it; lists never do). Absent/null =
    * not proven missing (present, not checked, or the store did not answer).
@@ -1365,6 +1372,53 @@ function blockingRestriction(
   return null;
 }
 
+/** F-02 — the request was settled as a storage-allowance refusal. */
+function isStorageLimitRefusal(request: OutputRequestFact): boolean {
+  return (
+    request?.state === "NOT_APPLICABLE" &&
+    (request.terminalReasonCode ?? "").trim().toUpperCase() === "NOT_APPLICABLE_STORAGE_LIMIT"
+  );
+}
+
+/**
+ * F-02 (2026-11-13) — THE FIRST ISSUANCE A RECORD EARNED IS NOT REFUSED FOR
+ * STORAGE.
+ *
+ * The product promise (FREE THREE-RECORD CONTRACT, owner decision 2026-10-14;
+ * pricing: "Each includes its report, verification package and verification
+ * page"; credits: "Report and verification package for each paid record") is
+ * that a record finalized inside its allowance EARNS report v1 and its
+ * verification package. The record's own bytes were admitted against the
+ * storage allowance at completion; refusing the outputs it earned there for
+ * storage afterwards left an entitled record without them (a FULL_FORENSIC
+ * package embeds the originals, so any record over ~half the remaining
+ * allowance was refused its package).
+ *
+ * So the first report version of a record and the package pair of that
+ * version are not refused by the storage allowance when the record earned its
+ * outputs at finalization (the stored earned fact, or a consumed credit).
+ * They still COUNT toward usage like every stored byte; the allowance itself
+ * (250 MiB on FREE) and every later version — an updated report, an automatic
+ * anchored version, a recovery of a lost file as a new version — are gated
+ * exactly as before. No new file cap is imposed.
+ */
+export const STORAGE_EXEMPT_FIRST_ISSUANCE_BASES: ReadonlyArray<string> = ["EARNED_AT_FINALIZATION", "EVIDENCE_CREDIT"];
+
+export function firstIssuanceExemptFromStorageLimit(input: {
+  /** `OutputIssuanceEntitlement.decision` for the record now. */
+  decision: string | null | undefined;
+  /** `OutputIssuanceEntitlement.basis` for the record now. */
+  basis: string | null | undefined;
+  /** No report of an EARLIER version exists for the record. */
+  isFirstReportVersion: boolean;
+}): boolean {
+  return (
+    input.isFirstReportVersion === true &&
+    input.decision === "ENTITLED" &&
+    STORAGE_EXEMPT_FIRST_ISSUANCE_BASES.includes(String(input.basis ?? ""))
+  );
+}
+
 /** What a failed or blocked request means for a customer action. */
 function failedRequestDecision(
   request: NonNullable<OutputRequestFact>,
@@ -1527,6 +1581,17 @@ export function resolveEvidenceOutputActions(
     if (f.packageEligibility === "UNRESOLVED") return none("ENTITLEMENT_UNAVAILABLE");
     if (f.packageEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
     if (f.packageBlockedByGovernance) return none("BLOCKED_BY_POLICY");
+    // F-02 — the last attempt was refused by the storage allowance and a new
+    // attempt would be refused again: say so, instead of a bare RECOVER that
+    // rebuilds the package only for the worker to refuse it once more. Room
+    // made since (an add-on, a deletion) or an owed first issuance offers it.
+    if (
+      isStorageLimitRefusal(f.packageRequest) &&
+      f.firstIssuanceStorageExempt !== true &&
+      f.newVersionFitsStorage === false
+    ) {
+      return none("STORAGE_LIMIT");
+    }
     if (f.packageRequest) {
       const failed = failedRequestDecision(
         f.packageRequest,

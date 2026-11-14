@@ -112,7 +112,7 @@ describe("report legal hold states the canonical record hold (ET-RPT-03)", () =>
 
   it("the finalized report path evaluates the canonical hold and passes it to the builder", () => {
     const src = readFileSync(fileURLToPath(new URL("../src/processor.ts", import.meta.url)), "utf8");
-    const call = src.indexOf("const finalizedReportPdf = await buildReportPdfV2({");
+    const call = src.indexOf("const finalizedPdfSigningOutcome: PdfSigningOutcome = await buildReportPdfV2WithSignatureOutcome({");
     const hold = src.lastIndexOf("const finalizedRecordLegalHold = await evaluateEffectiveLegalHold(prisma, {", call);
     expect(hold).toBeGreaterThan(0);
     // The builder call itself, up to its own closing brace — no fixed budget.

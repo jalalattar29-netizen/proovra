@@ -582,6 +582,23 @@ export function offerAvailabilityNote(offer: StorageAddonOffer): string | null {
     : "Card payment is not available for this size right now. You can pay with PayPal.";
 }
 
+/**
+ * F-26c — the same sentence for a plan or an evidence credit a provider cannot
+ * sell right now (its price, plan id or credentials are not configured).
+ */
+export function purchaseAvailabilityNote(
+  availability: { stripe: boolean; paypal: boolean } | null | undefined,
+  subject: "plan" | "credit",
+): string | null {
+  const { stripe = true, paypal = true } = availability ?? {};
+  if (stripe && paypal) return null;
+  const thing = subject === "plan" ? "this plan" : "evidence credits";
+  if (!stripe && !paypal) return `${subject === "plan" ? "This plan" : "Evidence credits"} cannot be bought right now. Please try again later.`;
+  return stripe
+    ? `PayPal is not available for ${thing} right now. You can pay by card.`
+    : `Card payment is not available for ${thing} right now. You can pay with PayPal.`;
+}
+
 /** "of $9.00 per month", when the viewer may see the amount. */
 function recurringAmount(offer: Pick<StorageAddonOffer, "priceCents" | "currency">): string {
   const price = formatMoney(offer.priceCents, offer.currency);

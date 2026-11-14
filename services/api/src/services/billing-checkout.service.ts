@@ -47,6 +47,17 @@ function billingReturnUrl(appBase: string, query: string): string {
   return `${absoluteInternalUrl(appBase, internalNavPath("/billing"))}?${query}`;
 }
 
+/**
+ * FREE-AUDIT REMEDIATION (2026-11-13, F-13 / F-14) — a Stripe return names the
+ * checkout attempt it belongs to, so Billing can ask the server about THAT attempt
+ * (re-check on success, provider-first abandon on cancel). The id grants nothing:
+ * the attempt routes load it only for its owner, read Stripe, and change it only
+ * by the attempt's allowed transitions.
+ */
+function stripeReturnQuery(base: string, attemptId: string | null | undefined): string {
+  return attemptId ? `${base}&attempt=${encodeURIComponent(attemptId)}` : base;
+}
+
 export async function createPayPalStorageAddonCheckout(params: {
   userId: string;
   addonKey: prismaPkg.StorageAddonKey;
@@ -144,8 +155,9 @@ export async function createStripeCheckoutSession(params: {
 
   const searchParams = new URLSearchParams();
   searchParams.append("mode", mode);
-  searchParams.append("success_url", billingReturnUrl(appBase, "success=1"));
-  searchParams.append("cancel_url", billingReturnUrl(appBase, "canceled=1"));
+  const kind = mode === "payment" ? "&kind=credits" : "";
+  searchParams.append("success_url", billingReturnUrl(appBase, stripeReturnQuery(`success=1${kind}`, params.attemptId)));
+  searchParams.append("cancel_url", billingReturnUrl(appBase, stripeReturnQuery(`canceled=1${kind}`, params.attemptId)));
   searchParams.append("metadata[userId]", params.userId);
   searchParams.append("metadata[plan]", params.plan);
   searchParams.append(
@@ -248,11 +260,11 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   searchParams.append("mode", mode);
   searchParams.append(
     "success_url",
-    billingReturnUrl(appBase, "success=1&kind=storage-addon")
+    billingReturnUrl(appBase, stripeReturnQuery("success=1&kind=storage-addon", params.attemptId))
   );
   searchParams.append(
     "cancel_url",
-    billingReturnUrl(appBase, "canceled=1&kind=storage-addon")
+    billingReturnUrl(appBase, stripeReturnQuery("canceled=1&kind=storage-addon", params.attemptId))
   );
   searchParams.append("payment_method_types[]", "card");
   if (params.customerId) searchParams.append("customer", params.customerId);
@@ -283,6 +295,10 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   if (params.attemptId) {
     searchParams.append("metadata[attemptId]", params.attemptId);
     searchParams.append("client_reference_id", params.attemptId);
+    // FREE-AUDIT REMEDIATION (2026-11-13, DUP-STORAGE) — on the subscription too,
+    // so a `customer.subscription.*` event that arrives before the session event
+    // can date the purchase for the duplicate-activation rule.
+    searchParams.append("subscription_data[metadata][attemptId]", params.attemptId);
   }
 
   if (params.teamId) {
