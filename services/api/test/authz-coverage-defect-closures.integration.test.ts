@@ -331,7 +331,11 @@ describe("coverage defect closures (live PostgreSQL)", () => {
         expect(seeded.statusCode, seeded.body).toBe(200);
       }
       const shared = await prisma.subprocessor.findFirstOrThrow({ where: { teamId: mine.teamId } });
-      expect(await prisma.subprocessor.count({ where: { name: shared.name } })).toBe(2);
+      // Scoped to the two tenants: other suites sharing this database seed the
+      // canonical vendors for their own workspaces.
+      expect(
+        await prisma.subprocessor.count({ where: { name: shared.name, teamId: { in: [mine.teamId, other.teamId] } } }),
+      ).toBe(2);
     });
   });
 
