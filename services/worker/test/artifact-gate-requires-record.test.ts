@@ -17,7 +17,7 @@ vi.mock("../src/db.js", () => ({
     entitlement: { findFirst: vi.fn(async () => ({ plan: "FREE", credits: 0, teamSeats: 0 })) },
     planGrant: { findFirst: vi.fn(async () => null) },
     workspaceStorageAddon: { aggregate: vi.fn(async () => ({ _sum: { extraStorageBytes: null } })) },
-    team: { findUnique: vi.fn(async () => null) },
+    team: { findUnique: vi.fn(async () => null), findFirst: vi.fn(async () => null) },
     enterpriseContract: { findUnique: vi.fn(async () => null) },
   },
 }));

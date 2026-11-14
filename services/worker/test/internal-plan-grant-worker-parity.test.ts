@@ -16,8 +16,9 @@ const state: {
   entitlementPlan: string;
   grant: GrantRow;
   team: Record<string, unknown> | null;
+  personalTeam: { storageBytesOverride: bigint | null } | null;
   grantQueries: Array<Record<string, unknown>>;
-} = { entitlementPlan: "FREE", grant: null, team: null, grantQueries: [] };
+} = { entitlementPlan: "FREE", grant: null, team: null, personalTeam: null, grantQueries: [] };
 
 vi.mock("../src/db.js", () => ({
   prisma: {
@@ -35,6 +36,7 @@ vi.mock("../src/db.js", () => ({
     },
     team: {
       findUnique: vi.fn(async () => state.team),
+      findFirst: vi.fn(async () => state.personalTeam),
     },
     enterpriseContract: {
       findUnique: vi.fn(async () => null),
@@ -51,6 +53,7 @@ beforeEach(() => {
   state.entitlementPlan = "FREE";
   state.grant = null;
   state.team = null;
+  state.personalTeam = null;
   state.grantQueries = [];
 });
 
@@ -90,5 +93,31 @@ describe("worker effective plan — internal plan grant", () => {
     expect((await getTeamWorkspaceScope(base.id)).plan).toBe("TEAM");
     state.team = { ...base, workspaceKind: "OWNED", isPersonal: false };
     expect((await getTeamWorkspaceScope(base.id)).plan).toBe("FREE");
+  });
+});
+
+describe("worker personal scope — storage override parity (F-09)", () => {
+  it("reached by user id, the personal scope reads the personal Team's override, as the team-id path does", async () => {
+    const override = 5n * 1024n * 1024n * 1024n;
+    state.personalTeam = { storageBytesOverride: override };
+    state.team = {
+      id: "22222222-2222-4222-8222-222222222222",
+      ownerUserId: USER,
+      organizationId: "33333333-3333-4333-8333-333333333333",
+      billingPlan: "FREE",
+      billingStatus: "INACTIVE",
+      includedSeats: 0,
+      storageBytesOverride: override,
+      workspaceKind: "PERSONAL",
+      isPersonal: true,
+    };
+    const byUser = await getPersonalWorkspaceScope(USER);
+    const byTeam = await getTeamWorkspaceScope("22222222-2222-4222-8222-222222222222");
+    expect(byUser.storageBytesOverride).toBe(override);
+    expect(byUser.storageBytesOverride).toBe(byTeam.storageBytesOverride);
+  });
+
+  it("no personal Team row: no override", async () => {
+    expect((await getPersonalWorkspaceScope(USER)).storageBytesOverride).toBeNull();
   });
 });

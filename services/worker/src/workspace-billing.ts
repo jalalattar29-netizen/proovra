@@ -136,6 +136,15 @@ export async function getPersonalWorkspaceScope(
     client,
   );
 
+  // F-09 (Free audit) — the same subject reached by team id reads its personal
+  // Team row's `storage_bytes_override` (getTeamWorkspaceScope), and so does
+  // the API's personal builder. Reached by user id (legacy NULL-team records)
+  // the worker read nothing, so one subject had two storage allowances.
+  const personalTeam = await client.team.findFirst({
+    where: { ownerUserId, isPersonal: true },
+    select: { storageBytesOverride: true },
+  });
+
   // PHASE 12 — POINT 7 (2026-08-05). This used to mirror the API's
   // PERSONAL-scope "PRO upgrade": a TEAM-plan owner's personal space resolved
   // at PRO in BOTH processes, kept in sync by a comment pointing at a line
@@ -165,7 +174,7 @@ export async function getPersonalWorkspaceScope(
     teamSeats: entitlement?.teamSeats ?? 0,
     // A Personal Space is never governed by an organization contract.
     contractStorageBytes: null,
-    storageBytesOverride: null,
+    storageBytesOverride: personalTeam?.storageBytesOverride ?? null,
     activeStorageAddonBytes,
   };
 }
