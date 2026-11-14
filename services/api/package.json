@@ -36,7 +36,7 @@
     "dev:populate-investigation": "tsx scripts/dev-populate-investigation.ts",
     "lint": "eslint .",
     "typecheck": "pnpm run typecheck:program",
-    "typecheck:program": "node --max-old-space-size=6144 node_modules/typescript/bin/tsc --noEmit",
+    "typecheck:program": "node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit",
     "test": "vitest run",
     "build:deps": "pnpm -w run prisma:generate && pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-runtime build",
     "test:integration:prepare": "node scripts/integration-prepare.mjs",
