@@ -6,7 +6,11 @@ on:
 
 jobs:
   build-test:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is migrating to Ubuntu 26.04, whose Compose v5
+    # ignores COMPOSE_BAKE=false and delegates the full-stack build to bake,
+    # which refuses the compose file's `network: host` ("pass
+    # --allow=network.host"). See "Build full stack images" below.
+    runs-on: ubuntu-24.04
     env:
       POSTGRES_USER: proovra
       POSTGRES_PASSWORD: proovra_password
