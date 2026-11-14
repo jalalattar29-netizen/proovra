@@ -296,7 +296,11 @@ jobs:
         run: node apps/extension/e2e/uc1-results.mjs gate --browsers=chromium,edge
 
   linux-extension-e2e:
-    runs-on: ubuntu-latest
+    # Pinned: the ubuntu-latest label is migrating to Ubuntu 26.04, where the
+    # repo's Playwright refuses to install Chromium ("does not support chromium
+    # on ubuntu26.04-x64"). Move back to ubuntu-latest with the Playwright
+    # upgrade that supports it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Temp directory on the runner's temp volume

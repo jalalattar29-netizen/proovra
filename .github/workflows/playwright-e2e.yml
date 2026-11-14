@@ -21,7 +21,11 @@ on:
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    # Pinned: the ubuntu-latest label is migrating to Ubuntu 26.04, where the
+    # repo's Playwright refuses to install Chromium ("does not support chromium
+    # on ubuntu26.04-x64"). Move back to ubuntu-latest with the Playwright
+    # upgrade that supports it.
+    runs-on: ubuntu-24.04
     # A JOB THAT CANNOT FINISH CANNOT BE READ.
     #
     # Unbounded, this job ran to the platform ceiling — about five hours —
@@ -484,7 +488,11 @@ jobs:
   # to start if any value resolves off the machine, so this job cannot reach
   # anything but its own service containers.
   admin-control-plane:
-    runs-on: ubuntu-latest
+    # Pinned: the ubuntu-latest label is migrating to Ubuntu 26.04, where the
+    # repo's Playwright refuses to install Chromium ("does not support chromium
+    # on ubuntu26.04-x64"). Move back to ubuntu-latest with the Playwright
+    # upgrade that supports it.
+    runs-on: ubuntu-24.04
     # NOT RAISED. Five shards bring the heaviest shard inside this limit; the
     # timeout is the thing being respected, not the thing being adjusted.
     # Measured with `--list`: heaviest shard is 20 matrix cases, and a matrix
@@ -774,7 +782,11 @@ jobs:
   # branches that matter is not a gate.
   # ===========================================================================
   layout:
-    runs-on: ubuntu-latest
+    # Pinned: the ubuntu-latest label is migrating to Ubuntu 26.04, where the
+    # repo's Playwright refuses to install Chromium ("does not support chromium
+    # on ubuntu26.04-x64"). Move back to ubuntu-latest with the Playwright
+    # upgrade that supports it.
+    runs-on: ubuntu-24.04
     # A FULL PRODUCTION WEB BUILD PLUS 296 BROWSER TESTS.
     #
     # 45 was a guess and the first real run spent about forty minutes without
