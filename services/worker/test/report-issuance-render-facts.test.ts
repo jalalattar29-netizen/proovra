@@ -17,7 +17,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { assertRenderedReport, extractPdfText } from "../src/output-verification.js";
 import { buildReportPdfV2WithSignatureOutcome } from "../src/report-v2/build-report-pdf.js";
@@ -92,6 +92,16 @@ describe("before the fix: the published render carried none of the facts (HTML, 
 });
 
 describe.skipIf(!BROWSER)("the published PDF states its issuance facts (Chromium)", () => {
+  // What is under test is the rendered TEXT. Signing is a separate stage
+  // (phase-a2-pdf-signing-outcome); the CI job exports PDF_SIGNING_ENABLED for
+  // the stack it starts later, and the signer guard reads the database. Pin the
+  // unsigned path so this file states the same facts on every machine.
+  beforeAll(() => {
+    vi.stubEnv("PDF_SIGNING_ENABLED", "false");
+  });
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
   it(
     "published + eligible original: QR link, certification of the exact bytes, manifest facts; the gate accepts it",
     async () => {
