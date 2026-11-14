@@ -42,6 +42,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
+import { isLiveOperatingWorkspace } from "../workspace/operating-workspace.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
@@ -576,6 +577,14 @@ export async function lookupExternalReviewGrantByToken(
       return { ok: false, reason: "grant_not_active" };
     }
     const grant = projectRow(raw);
+    // A2-02 — a token has no member to authorize, so the canonical chain never
+    // asks whether the granting workspace still operates. A closed workspace or
+    // a suspended Organization ends every grant it issued, on every token and
+    // portal path, with the same anti-enumeration answer as a revoked one.
+    if (!(await isLiveOperatingWorkspace(grant.teamId, client))) {
+      bump("external_review_grant_lookup_denied_total");
+      return { ok: false, reason: "grant_not_active" };
+    }
     // PHASE 5 §8.5 (2026-07-22) — Legal Hold PREVAILS at token lookup.
     // Previously hardcoded false ("caller-supplied via separate call")
     // but no caller ever made that call, so a grant over held evidence
@@ -860,6 +869,12 @@ export type ListGrantsInput = {
   caseId?: string | null;
   state?: ExternalReviewAccessState | null;
   limit?: number;
+  /**
+   * A2-08 — what a restricted case closes to the reader
+   * (`hiddenRecordIdsInWorkspace`). A grant on a closed record or case is not
+   * listed; NOT IN drops NULL rows, so a grant naming neither is kept.
+   */
+  hidden?: { evidenceIds: readonly string[]; caseIds: readonly string[] };
 };
 
 export async function listExternalReviewGrants(
@@ -880,6 +895,14 @@ export async function listExternalReviewGrants(
   if (input.state) {
     params.push(input.state);
     where.push(`"state" = $${params.length}`);
+  }
+  if (input.hidden && input.hidden.evidenceIds.length > 0) {
+    params.push([...input.hidden.evidenceIds]);
+    where.push(`("evidence_id" IS NULL OR "evidence_id" <> ALL($${params.length}::uuid[]))`);
+  }
+  if (input.hidden && input.hidden.caseIds.length > 0) {
+    params.push([...input.hidden.caseIds]);
+    where.push(`("case_id" IS NULL OR "case_id" <> ALL($${params.length}::uuid[]))`);
   }
   params.push(limit);
   const limitParam = `$${params.length}`;

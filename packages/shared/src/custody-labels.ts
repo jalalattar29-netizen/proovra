@@ -68,7 +68,10 @@ const LABELS: Readonly<Record<string, string>> = {
   RETENTION_CANDIDATE_IDENTIFIED: "Retention period ended (review required)",
   RETENTION_ARCHIVED: "Moved to the retention archive",
   REPORT_PDF_SIGNED: "Report PDF signed",
-  REPORT_PDF_UNSIGNED_OPT_OUT: "Report PDF issued unsigned (workspace setting)",
+  // AUDIT D-02 (2026-11-14) — the opt-out is the platform operator's
+  // acknowledged configuration (PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK); no
+  // workspace setting controls PDF signing.
+  REPORT_PDF_UNSIGNED_OPT_OUT: "Report PDF issued unsigned (platform configuration)",
   INTEGRITY_REJECTED_HASH_MISMATCH: "Integrity check failed (digest mismatch)",
   CAPTURE_TRUST_EVENT: "Capture session event recorded",
   DUPLICATE_DECISION_RECORDED: "Duplicate decision recorded",

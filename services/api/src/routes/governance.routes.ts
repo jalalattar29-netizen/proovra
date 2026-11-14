@@ -65,6 +65,7 @@ import {
 } from "../services/governance/retention-sweeper.service.js";
 // Phase 19 — sensitive governance routes require step-up.
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
+import { assertTeamAllowsEnterpriseFeature } from "../services/billing-enforcement.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 import { releaseHeldOutputsForWorkspace } from "../services/governance/output-hold-release.service.js";
@@ -264,6 +265,40 @@ export async function governanceRoutes(app: FastifyInstance) {
             error: {
               code: "LEGAL_HOLD_DISCLOSURE_OWNER_ONLY",
               message: "Only the workspace owner can change whether held records may be released.",
+            },
+          });
+        }
+      }
+
+      // GATE 1c — A2-09 (Free-user audit, 2026-11-14): the retention fields are
+      // the Enterprise `retentionPolicy` feature — the same gate the named
+      // retention policies in governance-lifecycle.routes ask — because
+      // `defaultRetentionDays` binds `retentionUntilUtc` on every new record
+      // and Pricing lists retention policies as Enterprise-only. Asked only
+      // when a request CHANGES one of them to something other than the
+      // default, so the other switches on this page stay a free control and a
+      // downgraded workspace can still return its retention to the default.
+      // Before step-up, so a refusal spends no challenge.
+      const current = await loadWorkspaceGovernancePolicy(ok.teamId);
+      const setsRetention =
+        (body.defaultRetentionDays !== undefined &&
+          body.defaultRetentionDays !== null &&
+          body.defaultRetentionDays !== current.defaultRetentionDays) ||
+        (body.evidenceDeletionMode !== undefined &&
+          body.evidenceDeletionMode !== "ALLOWED" &&
+          body.evidenceDeletionMode !== current.evidenceDeletionMode);
+      if (setsRetention) {
+        try {
+          await assertTeamAllowsEnterpriseFeature(ok.teamId, "retentionPolicy");
+        } catch (err) {
+          const status = (err as { statusCode?: number }).statusCode ?? 402;
+          const code = (err as { code?: string }).code ?? "ENTERPRISE_FEATURE_REQUIRED";
+          return reply.code(status).send({
+            code,
+            error: {
+              code,
+              message: "Retention and deletion settings are included only on Enterprise plans.",
+              upgradeCta: "/contact-sales",
             },
           });
         }

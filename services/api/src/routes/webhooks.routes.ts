@@ -46,7 +46,10 @@ import { auditWebhookSignatureVerification } from "../services/security/webhook-
 // storage add-on guard, which now lives in paypal-settlement.service.ts
 // (assertWebhookStorageAddonAllowed, imported above) and imports it from
 // @proovra/shared-billing directly.
-import { webhookDuplicateDisposition } from "../services/billing/webhook-delivery-lease.js";
+import {
+  webhookDuplicateDisposition,
+  webhookLeaseFence,
+} from "../services/billing/webhook-delivery-lease.js";
 // STRIPE SETTLEMENT (2026-09-28) — the session handler and its parsers are
 // shared with provider-first recovery, so both apply a session identically.
 import {
@@ -199,12 +202,17 @@ export async function webhooksRoutes(app: FastifyInstance) {
     // atomic — a duplicate insert raises Prisma P2002 which we
     // translate into a safe no-op 200. The row stays in the table as
     // the durable audit of what was acted on.
+    // AUDIT F-06 — the lease this delivery owns; the final status write is
+    // fenced by it (webhookLeaseFence), so a reclaimed stale handler cannot
+    // overwrite the reclaimer's outcome.
+    let claimedAt = new Date();
     try {
       await prisma.stripeWebhookEvent.create({
         data: {
           stripeEventId: event.id,
           eventType: event.type,
           processingStatus: "RECEIVED",
+          receivedAt: claimedAt,
         },
       });
     } catch (err: unknown) {
@@ -250,6 +258,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
         if (reclaimed.count === 0) {
           return reply.code(503).send({ ok: false, retryable: true });
         }
+        claimedAt = reclaimedAt;
       } else {
         throw err;
       }
@@ -472,8 +481,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
     // (Stripe will retry; the unique-index guard turns the retry into
     // a no-op even if this update silently fails).
     await prisma.stripeWebhookEvent
-      .update({
-        where: { stripeEventId: event.id },
+      .updateMany({
+        where: { stripeEventId: event.id, ...webhookLeaseFence(claimedAt) },
         data: {
           processedAt: new Date(),
           processingStatus: "PROCESSED",
@@ -486,8 +495,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
     } catch (err) {
       const name = err instanceof Error ? err.name : "unknown_stripe_handler_error";
       await prisma.stripeWebhookEvent
-        .update({
-          where: { stripeEventId: event.id },
+        .updateMany({
+          where: { stripeEventId: event.id, ...webhookLeaseFence(claimedAt) },
           data: { processingStatus: "FAILED", errorReason: name.slice(0, 120) },
         })
         .catch(() => null);
@@ -506,10 +515,18 @@ export async function webhooksRoutes(app: FastifyInstance) {
     let verification:
       | Awaited<ReturnType<typeof verifyPayPalWebhook>>
       | null = null;
+    // F-02 — a POST without PayPal's transmission signature and id is refused
+    // here, before any outbound call: it used to cost two PayPal requests
+    // (token + verify) per unauthenticated POST.
+    const transmissionHeader = (name: string) => {
+      const v = req.headers[name];
+      const s = Array.isArray(v) ? v[0] : v;
+      return typeof s === "string" && s.trim().length > 0;
+    };
     const sigCheck = await auditWebhookSignatureVerification({
       provider: "paypal",
       request: req,
-      presentSignature: true,
+      presentSignature: transmissionHeader("paypal-transmission-sig") && transmissionHeader("paypal-transmission-id"),
       verify: async () => {
         verification = await verifyPayPalWebhook(req.headers, rawBody);
         if (verification.verification_status !== "SUCCESS") {
@@ -575,6 +592,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
       .update(rawBody)
       .digest("hex");
 
+    // AUDIT F-06 — the lease this delivery owns (see the Stripe handler).
+    let claimedAt = new Date();
     try {
       await prisma.paypalWebhookEvent.create({
         data: {
@@ -582,6 +601,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
           eventType: event.event_type,
           payloadHash,
           processingStatus: "RECEIVED",
+          receivedAt: claimedAt,
         },
       });
     } catch (err: unknown) {
@@ -647,6 +667,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
         if (reclaimed.count === 0) {
           return reply.code(503).send({ ok: false, retryable: true });
         }
+        claimedAt = reclaimedAt;
 
         // FAILED or an expired RECEIVED lease: PayPal is
         // redelivering after a prior crash / replay; we let it
@@ -678,8 +699,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
     // retry-after-crash + legacy-row paths above).
     const markProcessed = async () => {
       await prisma.paypalWebhookEvent
-        .update({
-          where: { paypalEventId },
+        .updateMany({
+          where: { paypalEventId, ...webhookLeaseFence(claimedAt) },
           data: {
             processedAt: new Date(),
             processingStatus: "PROCESSED",
@@ -691,8 +712,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
     const markFailed = async (reason: string) => {
       const trimmed = reason.length > 400 ? reason.slice(0, 400) : reason;
       await prisma.paypalWebhookEvent
-        .update({
-          where: { paypalEventId },
+        .updateMany({
+          where: { paypalEventId, ...webhookLeaseFence(claimedAt) },
           data: {
             processingStatus: "FAILED",
             errorReason: trimmed,

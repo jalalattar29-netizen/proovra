@@ -214,6 +214,8 @@ export type StripeAttemptAnswer = {
   currentStatus?: string;
   waitingFor?: string;
   warning?: string;
+  /** AUDIT E-02 — the card plan was superseded by a plan already live. */
+  superseded?: boolean;
 };
 
 /** Whether a re-check answer is final, or worth asking again shortly. */
@@ -230,6 +232,15 @@ export function stripeAttemptNotice(ret: StripeReturn, answer: StripeAttemptAnsw
   const noun = PRODUCT_NOUN[ret.product];
   switch (answer.currentStatus) {
     case "COMPLETED":
+      // AUDIT E-02 — the same words the PayPal confirm uses for a superseded plan.
+      if (answer.superseded === true) {
+        return {
+          tone: "info",
+          title: "Your current plan is unchanged",
+          message:
+            "You already have an active plan, so this second card subscription was cancelled at Stripe and support will review the charge. Your current plan is unchanged.",
+        };
+      }
       return { tone: "success", title: "Payment confirmed", message: `Stripe confirmed your payment and your ${noun} is applied.` };
     case "FAILED":
       return {

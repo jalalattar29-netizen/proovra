@@ -293,6 +293,12 @@ export type CheckoutAttemptReconciliation = {
    * (or a Stripe page that is open) "waiting for your approval at PayPal".
    */
   waitingFor?: AttemptWaitingFor;
+  /**
+   * AUDIT E-02 (2026-11-14) — a completed card plan checkout whose subscription
+   * was superseded by a plan already live: nothing was applied, the charge goes
+   * to refund review. Absent otherwise.
+   */
+  superseded?: true;
 };
 
 export type AttemptWaitingFor =

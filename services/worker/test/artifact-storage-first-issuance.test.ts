@@ -13,6 +13,8 @@
  * Executed through the real gates over a mocked database: the allowance is
  * full; only the earned first issuance passes, and its bytes are still counted.
  */
+import { readFileSync } from "node:fs";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { evidenceScopeFor } from "@proovra/shared-runtime";
@@ -21,6 +23,10 @@ const MIB = 1024n * 1024n;
 const issuance = vi.fn();
 const reportCount = vi.fn();
 const evidenceAggregate = vi.fn();
+// AUDIT D-01 — the published package of the previous version, and the original bytes.
+const packageAggregate = vi.fn();
+const previousPackage = vi.fn();
+const originalEvidence = vi.fn();
 
 vi.mock("../src/db.js", () => ({
   prisma: {
@@ -35,12 +41,16 @@ vi.mock("../src/db.js", () => ({
     evidence: {
       aggregate: (...args: unknown[]) => evidenceAggregate(...args),
       count: vi.fn(async () => 2),
+      findUnique: (...args: unknown[]) => originalEvidence(...args),
     },
     report: {
       aggregate: vi.fn(async () => ({ _sum: { sizeBytes: 2n * MIB } })),
       count: (...args: unknown[]) => reportCount(...args),
     },
-    verificationPackage: { aggregate: vi.fn(async () => ({ _sum: { sizeBytes: 100n * MIB } })) },
+    verificationPackage: {
+      aggregate: (...args: unknown[]) => packageAggregate(...args),
+      findFirst: (...args: unknown[]) => previousPackage(...args),
+    },
     evidencePartDerivedAsset: { aggregate: vi.fn(async () => ({ _sum: { sizeBytes: 0 } })) },
   },
 }));
@@ -66,6 +76,9 @@ beforeEach(() => {
   reportCount.mockReset();
   // 140 MiB of evidence + 2 MiB of reports + 100 MiB of packages = 242 MiB of 250.
   evidenceAggregate.mockReset().mockResolvedValue({ _sum: { sizeBytes: 140n * MIB } });
+  packageAggregate.mockReset().mockResolvedValue({ _sum: { sizeBytes: 100n * MIB } });
+  previousPackage.mockReset().mockResolvedValue(null);
+  originalEvidence.mockReset().mockResolvedValue(null);
 });
 
 const gates = [
@@ -147,5 +160,82 @@ describe("the worker's usage population is the API's (evidenceScopeFor)", () => 
       evidenceScopeFor({ physicalWorkspaceId: "personal-team-1", workspaceKind: "PERSONAL", personalOwnerUserId: OWNER }),
     );
     expect(where.AND[1]).toEqual({ lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] } });
+  });
+});
+
+// AUDIT D-01 — a later report version is admitted against the PAIR it will
+// form, so it is refused before commit instead of being left without its
+// package when the package gate refuses afterwards.
+describe("a later report version is admitted against its package pair", () => {
+  // 242 MiB used of 250: a 4 MiB report fits alone.
+  const laterReport = (packagePairFollows: boolean) =>
+    assertWorkspaceAllowsReportArtifact({
+      ownerUserId: OWNER,
+      teamId: null,
+      evidenceId: "ev-1",
+      incomingBytes: 4n * MIB,
+      issuanceVersion: 2,
+      packagePairFollows,
+    });
+
+  it("refuses the report when the previous version's package would not fit beside it", async () => {
+    issuance.mockResolvedValue(EARNED);
+    reportCount.mockResolvedValue(1);
+    previousPackage.mockResolvedValue({ version: 1 });
+    // The previous pair's packages (FULL_FORENSIC + EXTERNAL_DISCLOSURE).
+    packageAggregate.mockImplementation(async (args: { where: { version?: number } }) =>
+      args.where.version === 1 ? { _sum: { sizeBytes: 30n * MIB } } : { _sum: { sizeBytes: 100n * MIB } },
+    );
+    await expect(laterReport(true)).rejects.toMatchObject({ code: "STORAGE_LIMIT_REACHED", statusCode: 409 });
+    expect(previousPackage).toHaveBeenCalledWith({
+      where: { evidenceId: "ev-1", state: "PUBLISHED", version: { lt: 2 } },
+      orderBy: { version: "desc" },
+      select: { version: true },
+    });
+  });
+
+  it("with no earlier package, estimates from the original evidence bytes", async () => {
+    issuance.mockResolvedValue(EARNED);
+    reportCount.mockResolvedValue(1);
+    originalEvidence.mockResolvedValue({ sizeBytes: 20n * MIB });
+    await expect(laterReport(true)).rejects.toMatchObject({ code: "STORAGE_LIMIT_REACHED" });
+    originalEvidence.mockResolvedValue({ sizeBytes: 1n * MIB });
+    await expect(laterReport(true)).resolves.toBeTruthy();
+  });
+
+  it("a report with no package following (or no package owed) is gated on its own bytes, as before", async () => {
+    issuance.mockResolvedValue(EARNED);
+    reportCount.mockResolvedValue(1);
+    previousPackage.mockResolvedValue({ version: 1 });
+    await expect(laterReport(false)).resolves.toBeTruthy();
+    issuance.mockResolvedValue({ ...EARNED, verificationPackageIncluded: false });
+    await expect(laterReport(true)).resolves.toBeTruthy();
+    expect(previousPackage).not.toHaveBeenCalled();
+  });
+
+  it("the owed first issuance stays exempt: no estimate is read", async () => {
+    issuance.mockResolvedValue(EARNED);
+    reportCount.mockResolvedValue(0);
+    await expect(
+      assertWorkspaceAllowsReportArtifact({
+        ownerUserId: OWNER,
+        teamId: null,
+        evidenceId: "ev-1",
+        incomingBytes: 141n * MIB,
+        issuanceVersion: 1,
+        packagePairFollows: true,
+      }),
+    ).resolves.toBeTruthy();
+    expect(previousPackage).not.toHaveBeenCalled();
+  });
+});
+
+describe("the report run states that its package follows (processor.ts)", () => {
+  it("passes packagePairFollows from the run's own package decision", () => {
+    const src = readFileSync(new URL("../src/processor.ts", import.meta.url), "utf8");
+    const call = src.slice(src.indexOf("await assertWorkspaceAllowsReportArtifact({"));
+    expect(call.slice(0, call.indexOf("});"))).toMatch(
+      /packagePairFollows: prepared\.verificationPackageIncluded === true,/,
+    );
   });
 });

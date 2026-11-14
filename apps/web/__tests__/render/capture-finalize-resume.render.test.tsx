@@ -342,3 +342,42 @@ describe("UC-WEB-005 — honest post-seal artifact state", () => {
     expect(messages.some((m) => /still generating/i.test(m))).toBe(false);
   });
 });
+
+describe("C-04 — material added while Finish runs is not wiped by the successful seal", () => {
+  it("clears only the items Finish sealed; an item dropped meanwhile stays staged and the page does not navigate away", async () => {
+    const { result } = setup([item("1", "a.png"), item("2", "b.png")]);
+    apiHandler = (path, init) => {
+      // The operator drops a file while the record is being sealed.
+      if (/\/complete$/.test(path)) {
+        result.current.setSessionItems((prev) => [...prev, item("3", "late.png")]);
+      }
+      return defaultHandler(path, init);
+    };
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(completes().map((c) => c.path)).toEqual(["/v1/evidence/ev-1/complete"]);
+    expect(result.current.sessionItems.map((i) => i.id)).toEqual(["3"]);
+    expect(push).not.toHaveBeenCalled();
+    const messages = addToast.mock.calls.map((c) => String(c[0]));
+    expect(messages.some((m) => /still staged/i.test(m))).toBe(true);
+
+    // The next Finish seals the late item as a NEW record.
+    apiHandler = defaultHandler;
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(2);
+    expect(result.current.sessionItems).toHaveLength(0);
+    expect(push).toHaveBeenCalledWith("/evidence/ev-2");
+  });
+
+  it("with nothing added meanwhile, every item is cleared and the page opens the record", async () => {
+    const { result } = setup([item("1", "a.png"), item("2", "b.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(result.current.sessionItems).toHaveLength(0);
+    expect(push).toHaveBeenCalledWith("/evidence/ev-1");
+  });
+});

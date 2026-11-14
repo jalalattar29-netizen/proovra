@@ -97,6 +97,11 @@ beforeAll(async () => {
 
   OWNER = harness.fixtures.teamA.ownerUserId;
   TEAM = harness.fixtures.teamA.teamId;
+  // A1-01 — Batch analysis is a PROFESSIONAL surface: the routes answer for
+  // the request's own workspace, so the owner works in a workspace whose plan
+  // includes it (TEAM).
+  await prisma.team.update({ where: { id: TEAM }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
+  await prisma.user.update({ where: { id: OWNER }, data: { currentWorkspaceId: TEAM } });
 
   // The harness has pointed DATABASE_URL at its disposable database by now.
   other = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
@@ -355,5 +360,71 @@ describe("process answers what will happen (misleading 200, tracked apart from t
     const id = await seed("pending", 1);
     const res = await post(id);
     expect(res.statusCode, res.body).toBe(200);
+  });
+});
+
+describe("A1-01 — Batch analysis and Quotas & usage are refused to a plan without the PROFESSIONAL surfaces", () => {
+  // The web and native clients hide these surfaces unless the workspace in use
+  // includes `professionalSurfacesIncluded` (FREE and PAYG do not); the API
+  // served them to every signed-in account. It now answers the same question
+  // for the same subject, with a stable refusal a client can word.
+  const call = (method: "GET" | "POST", url: string, token: string, payload?: unknown) =>
+    harness.app.inject({
+      method,
+      url,
+      headers: {
+        authorization: `Bearer ${token}`,
+        ...(payload !== undefined ? { "content-type": "application/json" } : {}),
+      },
+      ...(payload !== undefined ? { payload: payload as never } : {}),
+    });
+  const refusal = {
+    error: { code: "ENTITLEMENT_REQUIRED", details: { entitlement: "PROFESSIONAL_SURFACES" } },
+  };
+
+  it("a Free personal account is refused every read and write, and nothing is created or claimed", async () => {
+    const p = harness.fixtures.personal;
+    await prisma.user.update({ where: { id: p.userId }, data: { currentWorkspaceId: p.teamId } });
+    const job = await prisma.batchAnalysisJob.create({
+      data: {
+        ownerUserId: p.userId,
+        teamId: p.teamId,
+        name: "free batch",
+        status: "PENDING",
+        totalItems: 1,
+        items: { create: [{ evidenceId: p.evidenceId, position: 0, status: "PENDING" as const }] },
+      },
+    });
+    created.push(job.id);
+    const jobsBefore = await prisma.batchAnalysisJob.count({ where: { ownerUserId: p.userId } });
+
+    const attempts: Array<[ "GET" | "POST", string, unknown?]> = [
+      ["GET", "/v1/quotas"],
+      ["GET", "/v1/usage-stats"],
+      ["GET", "/v1/batch-analysis"],
+      ["POST", "/v1/batch-analysis", { evidenceIds: [p.evidenceId], name: "free batch" }],
+      ["GET", `/v1/batch-analysis/${job.id}`],
+      ["POST", `/v1/batch-analysis/${job.id}/process`],
+      ["GET", `/v1/batch-analysis/${job.id}/results`],
+      ["POST", `/v1/batch-analysis/${job.id}/cancel`],
+      ["GET", `/v1/batch-analysis/${job.id}/export`],
+    ];
+    for (const [method, url, body] of attempts) {
+      const res = await call(method, url, p.token, body);
+      expect(res.statusCode, `${method} ${url} ${res.body}`).toBe(403);
+      expect(res.json(), `${method} ${url}`).toMatchObject(refusal);
+    }
+    expect(await prisma.batchAnalysisJob.count({ where: { ownerUserId: p.userId } })).toBe(jobsBefore);
+    const seen = await otherSees(job.id);
+    expect(seen.job?.status).toBe("PENDING");
+    expect(seen.job?.claimed_at_utc).toBeNull();
+  });
+
+  it("control: the same reads answer for a workspace whose plan includes them", async () => {
+    const token = harness.fixtures.teamA.ownerToken;
+    for (const url of ["/v1/quotas", "/v1/usage-stats", "/v1/batch-analysis"]) {
+      const res = await call("GET", url, token);
+      expect(res.statusCode, `${url} ${res.body}`).toBe(200);
+    }
   });
 });

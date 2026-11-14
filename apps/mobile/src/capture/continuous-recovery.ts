@@ -245,7 +245,9 @@ export async function executeContinuousRecovery(
         await deps.persist({ declared, stagedManifest });
       } catch (err) {
         if (isSessionGone(err)) return { kind: "SESSION_GONE", code: String((err as { code: string }).code) };
-        if (classifyCaptureError(err) === "RETRYABLE") throw err;
+        // C-03 — a HELD failure (401, plan/storage refusal) keeps the segment
+        // pending like a retryable one: it is not lost, only not uploaded yet.
+        if (classifyCaptureError(err) !== "TERMINAL") throw err;
         lost.push(seg.sequence);
       }
     }

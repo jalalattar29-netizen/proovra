@@ -164,6 +164,10 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
     await seedTotp(teamA.ownerUserId);
     await seedTotp(teamA.adminUserId);
     await seedTotp(teamB.ownerUserId);
+    // A2-01 — automation webhooks ask FEATURE_WEBHOOKS, written by the
+    // operator path (BILLING-01), never self-granted.
+    const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+    await upsertEntitlementGrant({ teamId: teamA.teamId, key: "FEATURE_WEBHOOKS", value: true, kind: "FEATURE", source: "CUSTOM", grantedByUserId: teamA.ownerUserId });
   }, 180_000);
 
   afterAll(async () => {
@@ -172,6 +176,7 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       const where = { teamId: { in: teamIds } };
       await prisma.automationWebhookDestination.deleteMany({ where }).catch(() => undefined);
       await prisma.automationRule.deleteMany({ where }).catch(() => undefined);
+      await prisma.entitlementGrant.deleteMany({ where }).catch(() => undefined);
       await prisma.redactionProject.deleteMany({ where }).catch(() => undefined);
       await prisma.redactionPolicy.deleteMany({ where }).catch(() => undefined);
       await prisma.videoTimelineEvent.deleteMany({ where }).catch(() => undefined);
@@ -311,6 +316,14 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
   describe("governance", () => {
     it("PUT /v1/governance/policy — step-up + expectedVersion write the server-derived workspace policy and audit the change", async () => {
       const { teamA: a, teamB: b } = h.fixtures;
+      // A2-09 — the retention fields are the Enterprise retentionPolicy
+      // feature: this write runs on an Enterprise workspace (ACTIVE contract),
+      // restored afterwards so the rest of the suite keeps its fixture.
+      const orgA = (await prisma.team.findUniqueOrThrow({ where: { id: a.teamId }, select: { organizationId: true, billingPlan: true, billingStatus: true } }));
+      await prisma.team.update({ where: { id: a.teamId }, data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" } });
+      const { upsertEnterpriseContract } = await import("../src/services/organization/enterprise-contract.service.js");
+      await upsertEnterpriseContract(prisma as never, { organizationId: orgA.organizationId!, status: "ACTIVE", activationState: "ACTIVATED", seatCount: 25 });
+      try {
       const read = await call({ method: "GET", url: "/v1/governance/policy", token: a.ownerToken });
       expect(read.statusCode, read.body).toBe(200);
       const version = read.json().version as number;
@@ -365,6 +378,10 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       });
       expect(stale.statusCode).toBe(409);
       expect((await prisma.workspaceGovernancePolicy.findUniqueOrThrow({ where: { teamId: a.teamId } })).defaultRetentionDays).toBe(400);
+      } finally {
+        await prisma.enterpriseContract.deleteMany({ where: { organizationId: orgA.organizationId! } });
+        await prisma.team.update({ where: { id: a.teamId }, data: { billingPlan: orgA.billingPlan, billingStatus: orgA.billingStatus } as never });
+      }
     });
 
     // (2026-10-18) The governance publish / suspend routes were RETIRED with the

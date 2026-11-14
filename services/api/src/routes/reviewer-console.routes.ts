@@ -50,8 +50,8 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { getAuthUserId } from "../auth.js";
-import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { contextHasCapability, evaluateAuthorizedWorkspace } from "../middleware/authorize.js";
+import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
 import {
   buildDashboard,
   listReviewerOpsQueue,
@@ -92,32 +92,59 @@ async function safeSection<T>(
   }
 }
 
+/**
+ * A2-03 — the reviewer-ops admission (`requireReviewerActor` in
+ * reviewer-ops.routes.ts), applied to the console that composes the same
+ * queue, escalation, SLA and workload data. The canonical chain decides
+ * membership, access expiry and Organization lifecycle; the commercial gate is
+ * the one review-capability ladder at REVIEW_TASKS_AND_QUEUES, the capability
+ * the per-domain reviewer-ops routes require for this data. Deny shapes are
+ * unchanged: 404 for a non-member, 403 REVIEW_ACTOR_BLOCKED for a blocked one.
+ */
 async function ensureReviewerActor(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
 ): Promise<{ userId: string; isReviewerCapable: boolean } | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true, status: true },
+  const outcome = await evaluateAuthorizedWorkspace(req, {
+    workspaceId: teamId,
+    permission: "evidence.read",
+    antiEnumeration: false,
   });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  if (member.status !== "ACTIVE") {
-    reply.code(403).send({
-      error: { code: "REVIEW_ACTOR_BLOCKED", reason: "member_inactive" },
+  if (!outcome.allowed) {
+    if (outcome.reasonCode === "no_actor" || outcome.reasonCode === "missing_team_id") {
+      reply.code(404).send({ error: { code: "not_found" } });
+      return null;
+    }
+    if (outcome.reasonCode === "missing_actor") {
+      reply.code(401).send({ error: { code: "unauthenticated" } });
+      return null;
+    }
+    reply.code(outcome.httpStatus === 503 ? 503 : 403).send({
+      error: {
+        code: "REVIEW_ACTOR_BLOCKED",
+        reason: outcome.reasonCode === "member_not_active" ? "member_inactive" : outcome.reasonCode,
+      },
     });
     return null;
   }
-  const reviewerCheck = await evaluateMemberAccess({
-    teamId,
-    userId,
-    permission: "evidence_request.review",
-  });
-  return { userId, isReviewerCapable: reviewerCheck.allowed };
+  const authorized = outcome.context;
+  // After admission, so a non-member learns nothing about the plan.
+  if (!(await workspaceIncludesReviewCapability(authorized.workspaceId, "REVIEW_TASKS_AND_QUEUES"))) {
+    reply.code(403).send({
+      error: {
+        code: "ENTITLEMENT_REQUIRED",
+        reason: "reviewer_operations_not_included",
+        entitlement: "REVIEW_TASKS_AND_QUEUES",
+        requestId: req.id,
+      },
+    });
+    return null;
+  }
+  return {
+    userId: authorized.userId,
+    isReviewerCapable: contextHasCapability(authorized, "evidence_request.review"),
+  };
 }
 
 export async function reviewerConsoleRoutes(

@@ -13,6 +13,7 @@ import { resolveWorkspaceSeatState } from "../services/billing/workspace-seats.s
 import {
   evaluateWorkspaceAiOperation,
   getWorkspaceAiUsageThisMonth,
+  workspaceIncludesProfessionalSurfaces,
 } from "../services/billing-enforcement.service.js";
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { AppError, ErrorCode } from "../errors.js";
@@ -35,6 +36,49 @@ async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
   if (reply.sent) return;
   await requireLegalAcceptance(req, reply);
+}
+
+/**
+ * A1-01 (Free-user audit, 2026-11-14) — Batch analysis and Quotas & usage are
+ * the PROFESSIONAL surfaces: the web (SurfaceGate, `tiers.ts`) and native
+ * (`professionalSurfaceVisible`) hide them unless the workspace in use
+ * includes `professionalSurfacesIncluded`, and the API now answers the same
+ * question for the same subject — the request's own workspace, proven by
+ * `evaluateCurrentWorkspace` — through `workspaceIncludesProfessionalSurfaces`.
+ * No proven workspace is not included (fail closed).
+ *
+ * The refusal is a stable nested `ENTITLEMENT_REQUIRED` (the code the shared
+ * user-facing catalogue already words), with `details.entitlement` naming the
+ * surface so a client can show "not on your plan" instead of a load failure.
+ */
+const PROFESSIONAL_SURFACES_REFUSAL = {
+  error: {
+    code: "ENTITLEMENT_REQUIRED" as const,
+    message: "Batch analysis and Quotas & usage are included on Pro and above.",
+    details: { entitlement: "PROFESSIONAL_SURFACES" as const },
+  },
+};
+
+/**
+ * A1-02 (Free-user audit, 2026-11-14) — the batch-completion email linked to
+ * `/batch/<id>`, a route the web never had (404). The batch console lives at
+ * `/operations/batch-analysis` (the R7.5 move from `/dashboard/batch-analysis`)
+ * and lists the account's jobs, the finished one included; it takes no job
+ * parameter, so the link names the console.
+ */
+export function batchCompletionEmailLink(appUrl: string | undefined): string {
+  const base = (appUrl || "https://app.proovra.com").replace(/\/+$/, "");
+  return `${base}/operations/batch-analysis`;
+}
+
+async function requireAuthLegalAndProfessional(req: FastifyRequest, reply: FastifyReply) {
+  await requireAuthAndLegal(req, reply);
+  if (reply.sent) return;
+  const current = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
+  if (current.allowed && (await workspaceIncludesProfessionalSurfaces(current.context.workspaceId))) {
+    return;
+  }
+  return reply.code(403).send(PROFESSIONAL_SURFACES_REFUSAL);
 }
 
 function getRequestPath(req: FastifyRequest): string {
@@ -362,7 +406,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
     Body: { evidenceIds: string[]; name: string; description?: string };
   }>(
     "/v1/batch-analysis",
-    { preHandler: [requireAuthAndLegal] },
+    { preHandler: [requireAuthLegalAndProfessional] },
     async (req) => {
       const userId = getAuthUserId(req);
       const { evidenceIds, name, description } = req.body;
@@ -497,7 +541,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id",
-    { preHandler: [requireAuthAndLegal] },
+    { preHandler: [requireAuthLegalAndProfessional] },
     async (req) => {
       const userId = getAuthUserId(req);
       const { id } = req.params;
@@ -568,7 +612,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
   app.get(
     "/v1/batch-analysis",
-    { preHandler: [requireAuthAndLegal] },
+    { preHandler: [requireAuthLegalAndProfessional] },
     async (req) => {
       const userId = getAuthUserId(req);
 
@@ -618,7 +662,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/process",
-    { preHandler: [requireAuthAndLegal] },
+    { preHandler: [requireAuthLegalAndProfessional] },
     async (req) => {
       const userId = getAuthUserId(req);
       const { id } = req.params;
@@ -687,7 +731,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
                       completedJob.name,
                       completedJob.totalItems,
                       completedJob.failedItems,
-                      `${process.env.APP_URL || "https://app.proovra.com"}/batch/${completedJob.id}`
+                      batchCompletionEmailLink(process.env.APP_URL)
                     );
                   }
                 }
@@ -742,7 +786,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/results",
-    { preHandler: [requireAuthAndLegal] },
+    { preHandler: [requireAuthLegalAndProfessional] },
     async (req) => {
       const userId = getAuthUserId(req);
       const { id } = req.params;
@@ -808,7 +852,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/cancel",
-    { preHandler: [requireAuthAndLegal] },
+    { preHandler: [requireAuthLegalAndProfessional] },
     async (req) => {
       const userId = getAuthUserId(req);
       const { id } = req.params;
@@ -886,7 +930,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/export",
-    { preHandler: [requireAuthAndLegal] },
+    { preHandler: [requireAuthLegalAndProfessional] },
     async (req, res) => {
       const userId = getAuthUserId(req);
       const { id } = req.params;
@@ -942,7 +986,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
   app.get(
     "/v1/quotas",
-    { preHandler: [requireAuthAndLegal] },
+    { preHandler: [requireAuthLegalAndProfessional] },
     async (req) => {
       const userId = getAuthUserId(req);
 
@@ -977,7 +1021,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   
   app.get(
     "/v1/usage-stats",
-    { preHandler: [requireAuthAndLegal] },
+    { preHandler: [requireAuthLegalAndProfessional] },
     async (req) => {
       const userId = getAuthUserId(req);
 

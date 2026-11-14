@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { functionSource } from "../../../scripts/source-contract/index.mjs";
+import { pdfSigningCustodyEventType } from "../src/pdf/signPdf.js";
 
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
@@ -85,17 +86,27 @@ describe("Phase A2 — worker PDF signing outcome (source contract)", () => {
   });
 
   it("processor appends the right custody event per outcome", () => {
-    expect(PROCESSOR_SRC).toContain(
-      "CustodyEventType.REPORT_PDF_SIGNED",
+    // AUDIT D-02 — the event type comes from the ONE outcome mapping
+    // (pdfSigningCustodyEventType); no event is appended when it maps to none.
+    expect(PROCESSOR_SRC).toMatch(
+      /const pdfCustodyEventName = pdfSigningCustodyEventType\(finalizedPdfSigningOutcome\.status\);\s*if \(pdfCustodyEventName !== null\) \{\s*await appendCustodyEventTx\(tx, \{\s*evidenceId: prepared\.evidenceId,\s*eventType: prismaPkg\.CustodyEventType\[pdfCustodyEventName\],/,
     );
-    expect(PROCESSOR_SRC).toContain(
-      "CustodyEventType.REPORT_PDF_UNSIGNED_OPT_OUT",
+    // Every unsigned outcome used to be recorded as the operator's opt-out.
+    expect(PROCESSOR_SRC).not.toMatch(
+      /:\s*prismaPkg\.CustodyEventType\.REPORT_PDF_UNSIGNED_OPT_OUT;/,
     );
     // The gating literal must compare against "SIGNED" — never
     // infer signed state from a truthy check.
     expect(PROCESSOR_SRC).toMatch(
       /finalizedPdfSigningOutcome\.status\s*===\s*"SIGNED"/,
     );
+  });
+
+  it("D-02: only the operator's acknowledged opt-out is recorded as an opt-out", () => {
+    expect(pdfSigningCustodyEventType("SIGNED")).toBe("REPORT_PDF_SIGNED");
+    expect(pdfSigningCustodyEventType("UNSIGNED_OPT_OUT")).toBe("REPORT_PDF_UNSIGNED_OPT_OUT");
+    // Signing not configured (non-production) is not an opt-out.
+    expect(pdfSigningCustodyEventType("SIGNING_UNAVAILABLE")).toBeNull();
   });
 
   it("vocabulary discipline — the signing module avoids forbidden artifact phrases", () => {

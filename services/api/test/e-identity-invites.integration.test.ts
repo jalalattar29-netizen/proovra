@@ -22,7 +22,7 @@
  *         endpoints require FEATURE_WEBHOOKS, with Enterprise as the positive
  *         control and an existing key still authenticating.
  */
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getPlanCapabilities } from "@proovra/shared-billing";
@@ -54,6 +54,8 @@ describe("slice E — identity & invitations (live PostgreSQL)", () => {
   let identityMode: typeof import("../src/services/identity/identity-mode.service.js");
   let rbac: typeof import("../src/services/identity/rbac.service.js");
   let seats: typeof import("../src/services/billing/workspace-seats.service.js");
+  let orgLifecycle: typeof import("../src/services/identity/org-membership-lifecycle.service.js");
+  let orgAccess: typeof import("../src/services/organization/org-access.js");
   let legalVersions: Record<string, string>;
   let stepUp: ReturnType<typeof createStepUpCeremony>;
   let systemOrgId: string;
@@ -74,6 +76,8 @@ describe("slice E — identity & invitations (live PostgreSQL)", () => {
     identityMode = await import("../src/services/identity/identity-mode.service.js");
     rbac = await import("../src/services/identity/rbac.service.js");
     seats = await import("../src/services/billing/workspace-seats.service.js");
+    orgLifecycle = await import("../src/services/identity/org-membership-lifecycle.service.js");
+    orgAccess = await import("../src/services/organization/org-access.js");
     legalVersions = (await import("../src/legal/legal-versioning.js")).REQUIRED_LEGAL_VERSIONS as Record<string, string>;
     stepUp = createStepUpCeremony({ prisma, inject: h.app.inject.bind(h.app) as never });
 
@@ -408,6 +412,92 @@ describe("slice E — identity & invitations (live PostgreSQL)", () => {
   });
 
   // ===========================================================================
+  // B-03 — the organization invitation path follows the same revival rules
+  // ===========================================================================
+  describe("B-03 — an organization re-invite revives a removed membership at the invited role", () => {
+    async function orgMember(status: "REVOKED" | "SUSPENDED") {
+      const email = `b03-${tag()}@invitee.test`;
+      const person = await user(email);
+      const { revokeOrganizationMembership, suspendOrganizationMembership } = orgLifecycle;
+      const row = await prisma.organizationMembership.create({
+        data: { organizationId: orgAId, userId: person.id, role: "ORG_ADMIN" },
+      });
+      const move = status === "REVOKED" ? revokeOrganizationMembership : suspendOrganizationMembership;
+      const moved = await move({
+        prisma: prisma as never,
+        organizationId: orgAId,
+        membershipId: row.id,
+        actorUserId: A().ownerUserId,
+        source: "MANUAL",
+        reason: "b03",
+      });
+      expect(moved.ok).toBe(true);
+      return { ...person, membershipId: row.id };
+    }
+    async function invite(email: string, createdAt: Date) {
+      const raw = randomBytes(32).toString("hex");
+      const row = await prisma.organizationInvite.create({
+        data: {
+          organizationId: orgAId,
+          email,
+          role: "ORG_MEMBER",
+          tokenHash: createHash("sha256").update(raw, "utf8").digest("hex"),
+          invitedByUserId: A().ownerUserId,
+          expiresAt: new Date(Date.now() + 7 * 86_400_000),
+          createdAt,
+        },
+      });
+      return { raw, id: row.id };
+    }
+    const accept = (raw: string, person: { token: string }) =>
+      h.app.inject({ method: "POST", url: `/v1/org-invites/${raw}/accept`, headers: bearer(person.token) });
+    const membership = (id: string) =>
+      prisma.organizationMembership.findUniqueOrThrow({ where: { id }, select: { status: true, role: true } });
+
+    it("an invitation issued after the removal reactivates the REVOKED membership at the invited role", async () => {
+      const person = await orgMember("REVOKED");
+      const { revokedAtUtc } = await prisma.organizationMembership.findUniqueOrThrow({ where: { id: person.membershipId } });
+      const inv = await invite(person.email, new Date(revokedAtUtc!.getTime() + 1000));
+      const res = await accept(inv.raw, person);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(await membership(person.membershipId)).toEqual({ status: "ACTIVE", role: "ORG_MEMBER" });
+      expect(await prisma.organizationMembership.count({ where: { organizationId: orgAId, userId: person.id } })).toBe(1);
+      expect((await orgAccess.checkOrgAccess(prisma as never, { orgId: orgAId, userId: person.id })).kind).toBe("ok");
+    });
+
+    it("an invitation issued before the removal is refused INVITE_SUPERSEDED and nothing commits", async () => {
+      const email = `b03-pre-${tag()}@invitee.test`;
+      const inv = await invite(email, new Date(Date.now() - 60_000));
+      const person = await user(email);
+      const row = await prisma.organizationMembership.create({
+        data: { organizationId: orgAId, userId: person.id, role: "ORG_ADMIN" },
+      });
+      await orgLifecycle.revokeOrganizationMembership({
+        prisma: prisma as never,
+        organizationId: orgAId,
+        membershipId: row.id,
+        actorUserId: A().ownerUserId,
+        source: "MANUAL",
+      });
+      const res = await accept(inv.raw, person);
+      expect(res.statusCode, res.body).toBe(409);
+      expect(code(res)).toBe("INVITE_SUPERSEDED");
+      expect(await membership(row.id)).toEqual({ status: "REVOKED", role: "ORG_ADMIN" });
+      expect((await prisma.organizationInvite.findUniqueOrThrow({ where: { id: inv.id } })).acceptedAt).toBeNull();
+    });
+
+    it("a SUSPENDED membership is not revived by an invitation and keeps its role", async () => {
+      const person = await orgMember("SUSPENDED");
+      const inv = await invite(person.email, new Date());
+      const res = await accept(inv.raw, person);
+      expect(res.statusCode, res.body).toBe(409);
+      expect(code(res)).toBe("MEMBERSHIP_SUSPENDED");
+      expect(await membership(person.membershipId)).toEqual({ status: "SUSPENDED", role: "ORG_ADMIN" });
+      expect((await prisma.organizationInvite.findUniqueOrThrow({ where: { id: inv.id } })).acceptedAt).toBeNull();
+    });
+  });
+
+  // ===========================================================================
   // F-16
   // ===========================================================================
   describe("F-16 — removal ends the sessions; a new session is still refused the workspace", () => {
@@ -542,21 +632,42 @@ describe("slice E — identity & invitations (live PostgreSQL)", () => {
       });
     };
 
-    it("a Free Personal workspace gets its default single key; the second is refused and writes nothing", async () => {
+    it("A2-11 — a Free Personal workspace mints no key; a granted ceiling admits keys up to it; a key it holds outlives the grant", async () => {
+      // Pricing: "Integrations & APIs — Not included" off Enterprise. The
+      // unprovisioned default is 0 (it was 1, so every account minted one).
+      const refused = await createKey(P().teamId, P().userId, P().token);
+      expect(refused.statusCode, refused.body).toBe(429);
+      expect(code(refused)).toBe("api_key_limit_reached");
+      expect((refused.json() as { error: { details: { limit: number } } }).error.details.limit).toBe(0);
+      expect(await prisma.apiCredential.count({ where: { teamId: P().teamId, status: "ACTIVE" } })).toBe(0);
+
+      // A ceiling written for the workspace (as a product line writes one)
+      // admits keys up to it, and no further.
+      const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+      await upsertEntitlementGrant({
+        teamId: P().teamId,
+        key: "INTEGRATION_API_KEYS_MAX",
+        value: 1,
+        kind: "LIMIT",
+        source: "CUSTOM",
+        grantedByUserId: P().userId,
+      });
       const first = await createKey(P().teamId, P().userId, P().token);
       expect(first.statusCode, first.body).toBe(201);
       const raw = (first.json() as { rawKey: string }).rawKey;
       const second = await createKey(P().teamId, P().userId, P().token);
       expect(second.statusCode, second.body).toBe(429);
-      expect(code(second)).toBe("api_key_limit_reached");
       expect(await prisma.apiCredential.count({ where: { teamId: P().teamId, status: "ACTIVE" } })).toBe(1);
-      // The existing key still authenticates (no running integration is broken).
+
+      // The grant ends (a downgrade): the key already issued still
+      // authenticates — no running integration is broken — and no new one is
+      // minted.
+      await prisma.entitlementGrant.deleteMany({ where: { teamId: P().teamId, key: "INTEGRATION_API_KEYS_MAX" } });
       const use = await h.app.inject({ method: "GET", url: "/v1/integrations/api/evidence", headers: bearer(raw) });
       expect(use.statusCode, use.body).not.toBe(401);
-      // Revoking frees the place: the count is of ACTIVE keys.
-      await prisma.apiCredential.updateMany({ where: { teamId: P().teamId }, data: { status: "REVOKED", revokedAtUtc: new Date() } });
       const third = await createKey(P().teamId, P().userId, P().token);
-      expect(third.statusCode, third.body).toBe(201);
+      expect(third.statusCode, third.body).toBe(429);
+      expect(await prisma.apiCredential.count({ where: { teamId: P().teamId, status: "ACTIVE" } })).toBe(1);
     });
 
     it("a Free Personal workspace cannot create a webhook endpoint (before any step-up), and an existing one stays listed", async () => {
@@ -611,8 +722,9 @@ describe("slice E — identity & invitations (live PostgreSQL)", () => {
 
     it("an Owned non-contract workspace member cannot reach another workspace's keys (scope unchanged)", async () => {
       const res = await createKey(A().teamId, A().ownerUserId, A().ownerToken);
-      // teamA has no contract and no product line: the default single key.
-      expect(res.statusCode, res.body).toBe(201);
+      // teamA has no contract and no product line: no key (A2-11 default 0).
+      expect(res.statusCode, res.body).toBe(429);
+      expect(code(res)).toBe("api_key_limit_reached");
       const cross = await h.app.inject({
         method: "GET",
         url: `/v1/integrations/api-keys?teamId=${B().teamId}`,

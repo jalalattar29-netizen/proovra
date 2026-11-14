@@ -43,6 +43,7 @@ import {
   parseQuotas,
   parseUsageStats,
   quotaTone,
+  isProfessionalSurfaceRefusal,
   type QuotaLine,
   type UsageStats,
 } from "../../../src/product/operations";
@@ -149,18 +150,31 @@ export default function QuotasScreen() {
   const n = (v: number) => formatOpsCount(v, locale);
   const [quotas, setQuotas] = useState<Section<QuotaLine[]>>({ phase: "loading" });
   const [usage, setUsage] = useState<Section<Usage>>({ phase: "loading" });
+  // A1-01 — the API refuses both reads when the plan does not include this
+  // surface; that is one statement, not two load failures with retries.
+  const [notIncluded, setNotIncluded] = useState(false);
 
   const load = useCallback(async () => {
     setQuotas({ phase: "loading" });
     setUsage({ phase: "loading" });
+    setNotIncluded(false);
+    const refused = (err: unknown) => {
+      if (isProfessionalSurfaceRefusal(err)) setNotIncluded(true);
+    };
 
     await Promise.all([
       apiFetch(QUOTA_PATH)
         .then((d) => setQuotas({ phase: "loaded", data: parseQuotas(d) }))
-        .catch(() => setQuotas({ phase: "failed" })),
+        .catch((err) => {
+          refused(err);
+          setQuotas({ phase: "failed" });
+        }),
       apiFetch(USAGE_STATS_PATH)
         .then((d) => setUsage({ phase: "loaded", data: { stats: parseUsageStats(d), extras: parseUsageExtras(d) } }))
-        .catch(() => setUsage({ phase: "failed" })),
+        .catch((err) => {
+          refused(err);
+          setUsage({ phase: "failed" });
+        }),
     ]);
   }, []);
 
@@ -186,7 +200,14 @@ export default function QuotasScreen() {
 
       {/* Usage cards — the web's first row (Today / This Week / This Month / Average Per Analysis). */}
       {usage.phase === "loading" ? <ProovraLoadingState label={t.quotasLoadingUsage} /> : null}
-      {usage.phase === "failed" ? (
+      {notIncluded ? (
+        <ProovraEmpty
+          presence="page"
+          title={t.professionalNotIncludedTitle}
+          purpose={t.professionalNotIncludedBody}
+        />
+      ) : null}
+      {usage.phase === "failed" && !notIncluded ? (
         // Stated, not silently rendered as zeroes. "We could not read this"
         // and "there was none" are different answers.
         <ProovraErrorState message={t.quotasUsageFailed} onRetry={() => void load()} />
@@ -212,7 +233,7 @@ export default function QuotasScreen() {
 
       {/* Quota cards, then the Current Quotas bars. */}
       {quotas.phase === "loading" ? <ProovraLoadingState label={t.quotasLoadingAllowances} /> : null}
-      {quotas.phase === "failed" ? (
+      {quotas.phase === "failed" && !notIncluded ? (
         <ProovraErrorState message={t.quotasAllowancesFailed} onRetry={() => void load()} />
       ) : null}
       {quotas.phase === "loaded" && lines.length === 0 ? (

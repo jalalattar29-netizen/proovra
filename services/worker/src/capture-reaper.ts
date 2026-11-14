@@ -22,8 +22,10 @@ import { logger } from "./logger.js";
 import { prisma } from "./db.js";
 import { shouldExpireCaptureDraft } from "./capture-draft-governance.js";
 import {
+  EVIDENCE_RESERVATION_TTL_MS,
   expiredEvidenceReservationWhere,
   releaseEvidenceReservationTx,
+  reservationHoldsStagedContentTx,
   runGovernanceReconciliation,
 } from "@proovra/shared-runtime";
 import { CAPTURE_SEAL_CLAIM } from "@proovra/shared";
@@ -326,10 +328,46 @@ export async function releaseExpiredReservations(
         // SEALED is never expired: its seal committed (a seal that outlived its
         // claim lease), only the bind is missing, and the retry binds it.
         // Expiring it made the sealed record permanently unbindable.
-        const reserved = await tx.captureSession.findUnique({ where: { id: s.id }, select: { finalizedEvidenceId: true } });
+        const reserved = await tx.captureSession.findUnique({
+          where: { id: s.id },
+          select: { finalizedEvidenceId: true, status: true, startedAtUtc: true, createdAt: true },
+        });
         if (reserved?.finalizedEvidenceId) {
-          const record = await tx.evidence.findUnique({ where: { id: reserved.finalizedEvidenceId }, select: { status: true } });
+          const record = await tx.evidence.findUnique({
+            where: { id: reserved.finalizedEvidenceId },
+            select: { status: true, deletedAt: true },
+          });
           if (record?.status === prismaPkg.EvidenceStatus.SIGNED || record?.status === prismaPkg.EvidenceStatus.REPORTED) return;
+          // C-02 — an idle session whose record already holds staged parts is
+          // not released at its one-hour idle expiry: the mobile app deletes
+          // its device copies once the parts are staged, so releasing the
+          // record (and deleting its objects) destroyed the capture. The
+          // session is kept to its maximum lifetime (24 h from its start, the
+          // reservation window — MAX_SESSION_LIFETIME_SECONDS in the API) and
+          // is expired and released by a later pass once that has passed.
+          // Only an ACTIVE session can still be sealed; an INTERRUPTED one has
+          // no way back, so it is ended and released as before (AUD-0065).
+          const maxEnd = new Date((reserved.startedAtUtc ?? reserved.createdAt).getTime() + EVIDENCE_RESERVATION_TTL_MS);
+          if (
+            reserved.status === prismaPkg.CaptureSessionStatus.ACTIVE &&
+            maxEnd.getTime() > now.getTime() &&
+            record &&
+            !record.deletedAt &&
+            (record.status === prismaPkg.EvidenceStatus.CREATED || record.status === prismaPkg.EvidenceStatus.UPLOADING) &&
+            (await reservationHoldsStagedContentTx(tx, reserved.finalizedEvidenceId))
+          ) {
+            const kept = await tx.captureSession.updateMany({
+              where: { id: s.id, status: prismaPkg.CaptureSessionStatus.ACTIVE, expiresAtUtc: { lt: now }, OR: notLiveSealClaim },
+              data: { expiresAtUtc: maxEnd },
+            });
+            if (kept.count === 1) {
+              logger.info(
+                { captureSessionId: s.id, evidenceId: reserved.finalizedEvidenceId, keptUntil: maxEnd.toISOString(), trigger },
+                "capture.reaper.session_kept_staged_parts",
+              );
+            }
+            return;
+          }
         }
         const claim = await tx.captureSession.updateMany({
           where: {

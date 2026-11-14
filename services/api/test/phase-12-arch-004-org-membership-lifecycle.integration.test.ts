@@ -34,6 +34,8 @@ describe("§2 — ARCH-004: Organization membership has an auditable lifecycle",
   let prisma: import("@prisma/client").PrismaClient;
   let lifecycle: typeof import("../src/services/identity/org-membership-lifecycle.service.js");
   let orgAccess: typeof import("../src/services/organization/org-access.js");
+  let fixtures: typeof import("./point7/product-fixtures.js");
+  let jwt: typeof import("../src/services/jwt.js");
 
   let organizationId: string;
   let workspaceA: string;
@@ -51,6 +53,8 @@ describe("§2 — ARCH-004: Organization membership has an auditable lifecycle",
       "../src/services/identity/org-membership-lifecycle.service.js"
     );
     orgAccess = await import("../src/services/organization/org-access.js");
+    fixtures = await import("./point7/product-fixtures.js");
+    jwt = await import("../src/services/jwt.js");
 
     workspaceA = h.fixtures.teamA.teamId;
     ownerUserId = h.fixtures.teamA.ownerUserId;
@@ -662,5 +666,91 @@ describe("§2 — ARCH-004: Organization membership has an auditable lifecycle",
         ownerUserId,
       );
     }
+  }, 180_000);
+
+  // B-02 — a managed identity is released when the managing Organization's
+  // membership ends (admin removal or self-leave), never on suspension, and
+  // never when a different Organization's membership ends.
+  const identityOf = (userId: string) =>
+    prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { identityMode: true, managingOrganizationId: true, managedIdentitySource: true },
+    });
+  const manage = (userId: string, orgId: string) =>
+    prisma.user.update({
+      where: { id: userId },
+      data: { identityMode: "MANAGED_ENTERPRISE", managingOrganizationId: orgId, managedIdentitySource: "DOMAIN" },
+    });
+
+  it("16 — B-02: admin removal releases this Organization's managed identity; suspension keeps it", async () => {
+    await restoreBaseline();
+    await manage(subjectUserId, organizationId);
+
+    const suspended = await post(`/v1/orgs/${organizationId}/members/${subjectMembershipId}/suspend`, {
+      reason: "B-02 suspension keeps management",
+    });
+    expect(suspended.statusCode, suspended.body).toBeLessThan(300);
+    expect((await statusOf()).status).toBe("SUSPENDED");
+    expect((await identityOf(subjectUserId)).managingOrganizationId).toBe(organizationId);
+
+    await restoreBaseline();
+    const removed = await h.app.inject({
+      method: "DELETE",
+      url: `/v1/orgs/${organizationId}/members/${subjectMembershipId}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+    });
+    expect(removed.statusCode, removed.body).toBeLessThan(300);
+    expect((await statusOf()).status).toBe("REVOKED");
+    expect(await identityOf(subjectUserId)).toEqual({
+      identityMode: "STANDARD",
+      managingOrganizationId: null,
+      managedIdentitySource: null,
+    });
+  }, 180_000);
+
+  it("17 — B-02: self-leave releases this Organization's managed identity, never another Organization's", async () => {
+    await restoreBaseline();
+    const { seedUser } = fixtures;
+    const { signJwt } = jwt;
+    const deps = {
+      prisma: prisma as never,
+      tag: `b02-${Date.now().toString(36)}`,
+      mintToken: (userId: string, email: string) =>
+        signJwt(
+          { sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) },
+          process.env.AUTH_JWT_SECRET as string,
+          3600,
+        ),
+    };
+    const otherOrgId = (
+      await prisma.team.findUniqueOrThrow({ where: { id: h.fixtures.teamB.teamId }, select: { organizationId: true } })
+    ).organizationId;
+    const leave = async (orgManagingIdentity: string) => {
+      const member = await seedUser(deps as never, "b02-leaver");
+      await prisma.organizationMembership.create({
+        data: { organizationId, userId: member.userId, role: "ORG_MEMBER" },
+      });
+      await manage(member.userId, orgManagingIdentity);
+      const res = await h.app.inject({
+        method: "POST",
+        url: `/v1/orgs/${organizationId}/leave`,
+        headers: { authorization: `Bearer ${member.token}`, "content-type": "application/json" },
+        payload: {},
+      });
+      expect(res.statusCode, res.body).toBeLessThan(300);
+      return identityOf(member.userId);
+    };
+
+    expect(await leave(organizationId)).toEqual({
+      identityMode: "STANDARD",
+      managingOrganizationId: null,
+      managedIdentitySource: null,
+    });
+    // Leaving Organization A never releases Organization B's management.
+    expect(await leave(otherOrgId)).toEqual({
+      identityMode: "MANAGED_ENTERPRISE",
+      managingOrganizationId: otherOrgId,
+      managedIdentitySource: "DOMAIN",
+    });
   }, 180_000);
 });

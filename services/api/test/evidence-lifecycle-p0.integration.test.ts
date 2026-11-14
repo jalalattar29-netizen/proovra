@@ -136,6 +136,44 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
     });
   });
 
+  describe("C-01 — a released unsealed reservation is never restored from the trash", () => {
+    it("RESTORE_FROM_TRASH refuses an unsealed (CREATED/UPLOADING) record; a sealed trashed record still restores", async () => {
+      const A = h.fixtures.teamA;
+      const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
+      for (const status of ["UPLOADING", "CREATED"] as const) {
+        // The state the reservation authority's release leaves: deletedAt only,
+        // lifecycleState still ACTIVE (reads as TRASHED).
+        const released = await prisma.evidence.create({
+          data: {
+            title: `released ${status}`, type: "PHOTO", status, teamId: A.teamId, organizationId: team.organizationId,
+            ownerUserId: A.ownerUserId, deletedAt: new Date(Date.now() - 60_000),
+          } as never,
+          select: { id: true },
+        });
+        const res = await h.app.inject({
+          method: "POST", url: `/v1/evidence/${released.id}/restore`, headers: auth(A.ownerToken), payload: { restore: true },
+        });
+        expect(res.statusCode, res.body).toBe(409);
+        expect(res.body).toContain("EVIDENCE_NOT_SEALED");
+        const after = await prisma.evidence.findUniqueOrThrow({ where: { id: released.id }, select: { deletedAt: true } });
+        expect(after.deletedAt).not.toBeNull();
+        expect(await prisma.custodyEvent.count({ where: { evidenceId: released.id, eventType: "EVIDENCE_RESTORED" } })).toBe(0);
+      }
+
+      // Contrast: a SEALED record in the trash is restored as before.
+      const sealed = await signedTeamRecord(A.ownerUserId);
+      await prisma.evidence.update({
+        where: { id: sealed.id },
+        data: { lifecycleState: "TRASHED", deletedAt: new Date(Date.now() - 60_000), deleteScheduledForUtc: new Date(Date.now() + 30 * 86_400_000) } as never,
+      });
+      const ok = await h.app.inject({
+        method: "POST", url: `/v1/evidence/${sealed.id}/restore`, headers: auth(A.ownerToken), payload: { restore: true },
+      });
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect((await prisma.evidence.findUniqueOrThrow({ where: { id: sealed.id }, select: { deletedAt: true } })).deletedAt).toBeNull();
+    });
+  });
+
   describe("ET-SEC-02 — case linkage never changes ownership", () => {
     it("detaching the last case leaves Evidence.teamId and workspace access unchanged", async () => {
       const A = h.fixtures.teamA;

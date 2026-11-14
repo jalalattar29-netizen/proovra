@@ -173,7 +173,11 @@ export type ReservationReleaseReason =
   // selection: the draft's unsealed record no longer fits the files declared
   // now, and a fresh record replaces it in the same transaction. Parts may
   // already have been uploaded into it; none was ever sealed.
-  | "CAPTURE_SELECTION_CHANGED";
+  | "CAPTURE_SELECTION_CHANGED"
+  // C-08 — a Finish & Sign retried after the person switched workspace: the
+  // draft's unsealed record belongs to the workspace it was reserved in, and a
+  // fresh record in the workspace now selected replaces it.
+  | "CAPTURE_WORKSPACE_CHANGED";
 
 const RELEASE_NOTE: Record<ReservationReleaseReason, string> = {
   CAPTURE_SESSION_DISCARDED: "Reservation released before any content was committed.",
@@ -183,7 +187,28 @@ const RELEASE_NOTE: Record<ReservationReleaseReason, string> = {
   UPLOAD_REFUSED: "Reservation released before any content was committed.",
   CAPTURE_SELECTION_CHANGED:
     "Reservation released unsealed: the capture's file selection changed before sealing, and a new record replaces this one. Nothing was sealed under this record.",
+  CAPTURE_WORKSPACE_CHANGED:
+    "Reservation released unsealed: the capture was finished in another workspace, and a new record there replaces this one. Nothing was sealed under this record.",
 };
+
+/**
+ * True when an unsealed record already holds staged content: a part row, or a
+ * resumable (multipart) upload under way or with a completed part. Creation
+ * reserves a storage location and opens an upload session for every record,
+ * so neither of those proves content. Shared by the refusal release below and
+ * by the Worker's direct-capture session expiry (C-02), which keeps a session
+ * whose record holds staged parts until the session's maximum lifetime.
+ */
+export async function reservationHoldsStagedContentTx(
+  tx: Prisma.TransactionClient,
+  evidenceId: string,
+): Promise<boolean> {
+  if ((await tx.evidencePart.count({ where: { evidenceId } })) > 0) return true;
+  const resumable = await tx.uploadSession.count({
+    where: { evidenceId, OR: [{ isMultipart: true }, { completedPartCount: { gt: 0 } }] },
+  });
+  return resumable > 0;
+}
 
 /**
  * Release one reservation inside the caller's transaction. Returns false (and
@@ -212,11 +237,7 @@ export async function releaseEvidenceReservationTx(
   // neither of those proves content. A refused second file must not discard
   // the record its first file is in.
   if (params.reason === "UPLOAD_REFUSED") {
-    if ((await tx.evidencePart.count({ where: { evidenceId: evidence.id } })) > 0) return false;
-    const resumable = await tx.uploadSession.count({
-      where: { evidenceId: evidence.id, OR: [{ isMultipart: true }, { completedPartCount: { gt: 0 } }] },
-    });
-    if (resumable > 0) return false;
+    if (await reservationHoldsStagedContentTx(tx, evidence.id)) return false;
     if (await heldByLiveSession(tx, evidence.id, params.now)) return false;
   }
   // A time-based release never takes a record a live session can still finish.

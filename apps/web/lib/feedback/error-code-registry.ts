@@ -232,6 +232,9 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
 
   // -- Workspace membership (members audit INV-01 / INV-02) ----------------
   MEMBERSHIP_SUSPENDED: { disposition: "customer", where: "global" },
+  // Free audit B-03 — an organization re-invite issued before the member's
+  // access ended cannot revive it (shared copy in user-facing-errors).
+  INVITE_SUPERSEDED: { disposition: "customer", where: "global" },
   ALREADY_WORKSPACE_MEMBER: { disposition: "customer", where: "global" },
   RETENTION_POLICY_GOVERNED: { disposition: "customer", where: "global" },
   // Members audit ACC-01 — Collaboration Team case access.

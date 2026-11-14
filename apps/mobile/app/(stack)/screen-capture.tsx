@@ -370,10 +370,19 @@ export default function ScreenCaptureScreen() {
       if (!terminal && pending) {
         // AUD-005 — kept: the frames, the session and every confirmed upload.
         pendingRef.current = pending;
+        // C-03 — an ended sign-in or a plan/storage refusal keeps the frames
+        // too, and says what to do instead of "when you are back online".
+        const held = err instanceof ScreenStagingError ? err.held : null;
+        const refusal = toSafeUserError(err, { message: "" }).message;
         dispatch({
           type: "STAGE_PENDING",
           frameCount: pending.result.frames.length,
-          message: `${PENDING_COPY.failed} (${toSafeUserError(err, { message: "" }).message || "network"})`,
+          message:
+            held === "SIGNED_OUT"
+              ? PENDING_COPY.signedOut
+              : held === "REFUSED"
+                ? `${refusal || PENDING_COPY.refusedFallback} ${PENDING_COPY.refused}`
+                : `${PENDING_COPY.failed} (${refusal || "network"})`,
         });
         return;
       }
@@ -563,6 +572,11 @@ const PENDING_COPY = {
     "The upload could not finish. Your frames are kept on this device and nothing was discarded — tap Retry upload when you are back online.",
   resumed:
     "A screen capture from earlier has not finished uploading. Its frames are kept on this device — tap Retry upload to continue, or Discard.",
+  // C-03 — kept on an ended sign-in and on a plan or storage refusal.
+  signedOut:
+    "Your sign-in ended before the upload finished. Your frames are kept on this device and nothing was discarded — sign in again, then tap Retry upload.",
+  refused: "Your frames are kept on this device and nothing was discarded — tap Retry upload once this is resolved, or Discard.",
+  refusedFallback: "This capture could not be accepted on your current plan or storage.",
 } as const;
 
 function Bullet({ text }: { text: string }) {

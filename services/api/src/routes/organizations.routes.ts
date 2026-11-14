@@ -84,6 +84,7 @@ import {
   issueOrganizationExportLinks,
   type OrganizationExportPackage,
 } from "../services/organization/organization-data-export.service.js";
+import { noStorePresignedResponse } from "../http/presigned-response.js";
 import {
   verifyAccountStepUp,
 } from "../services/identity-security/account-step-up.service.js";
@@ -1390,6 +1391,21 @@ export async function organizationsRoutes(app: FastifyInstance) {
        * away for capacity when the truth is "too many people accepted at
        * once" is a wrong answer they would act on.
        */
+      // B-03 — same answers as the workspace-invitation path.
+      if (result.kind === "membership_suspended") {
+        return reply.code(409).send({
+          error: { code: "MEMBERSHIP_SUSPENDED" },
+          message:
+            "Your membership in this organization is suspended. Ask an organization administrator to reinstate it.",
+        });
+      }
+      if (result.kind === "invite_superseded") {
+        return reply.code(409).send({
+          error: { code: "INVITE_SUPERSEDED" },
+          message:
+            "This invitation was issued before your access to this organization ended. Ask for a new invitation.",
+        });
+      }
       if (result.kind === "seat_contention") {
         return reply.code(409).send({
           error: { code: "WORKSPACE_SEAT_CONTENTION" },
@@ -3522,6 +3538,7 @@ export async function organizationDataExportRoutes(app: FastifyInstance) {
       correlationId: req.id,
       metadata: { organizationId: id, offset: body.offset ?? 0, issued: page.links.length },
     }).catch(() => null);
+    noStorePresignedResponse(reply);
     return reply.code(200).send(page);
   });
 }

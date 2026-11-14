@@ -73,6 +73,10 @@ export type OrgInviteAcceptOutcome =
    * once, try again" is the kind of wrong answer an operator acts on.
    */
   | { kind: "seat_contention" }
+  /** B-03 — the person's membership is suspended: reinstatement is the governed restore. */
+  | { kind: "membership_suspended" }
+  /** B-03 — the invitation was issued before the person's removal. */
+  | { kind: "invite_superseded" }
   | {
       kind: "ok";
       organizationId: string;
@@ -113,7 +117,18 @@ export async function acceptOrganizationInvite(input: {
     if (err instanceof WorkspaceSeatContendedError) {
       return { kind: "seat_contention" as const };
     }
+    if (err instanceof OrgInviteMembershipBarredError) {
+      return { kind: err.reason };
+    }
     throw err;
+  }
+}
+
+/** B-03 — thrown inside the acceptance transaction so its claim rolls back. */
+class OrgInviteMembershipBarredError extends Error {
+  constructor(readonly reason: "membership_suspended" | "invite_superseded") {
+    super(reason);
+    this.name = "OrgInviteMembershipBarredError";
   }
 }
 
@@ -358,11 +373,19 @@ async function runAcceptance(
     }
 
     // Winner path — grants are written exactly once.
-    await grantOrganizationMembership(tx, {
+    // B-03 — a REVOKED membership is revived at the invited role when the
+    // invitation postdates the removal; a SUSPENDED one, or a removal the
+    // invitation predates, is refused. Thrown, so the claim above rolls back
+    // and nothing of this acceptance commits.
+    const governance = await grantOrganizationMembership(tx, {
       organizationId: invite.organizationId,
       userId,
       role: invite.role,
+      invitationCreatedAt: invite.createdAt,
     });
+    if (governance.refused) {
+      throw new OrgInviteMembershipBarredError(governance.refused);
+    }
 
     // Parsed once, above, so the seat locks could be taken before any write.
     // Re-parsing here would be a second reading of one stored payload.

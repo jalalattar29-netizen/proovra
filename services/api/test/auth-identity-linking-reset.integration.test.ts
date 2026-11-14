@@ -269,6 +269,170 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
     expect(rows.every((r) => /^[0-9a-f]{64}$/.test(r.nonceHash))).toBe(true);
   });
 
+  it("B-01: a web sign-in or link answers only a nonce bound to this browser; native answers only an unbound one", async () => {
+    const sub = `rem3-b01-${randomUUID()}`;
+    const email = `rem3-b01-${randomUUID().slice(0, 8)}@test.proovra.local`;
+    const post = (url: string, payload: Json, headers: Record<string, string> = {}) =>
+      harness.app.inject({
+        method: "POST",
+        url,
+        remoteAddress: nextIp(),
+        headers: { "content-type": "application/json", ...headers },
+        payload: payload as never,
+      });
+    const webNonce = async () => {
+      const r = await post("/v1/auth/oauth/nonce", { provider: "google" }, { "x-web-client": "1" });
+      expect(r.statusCode, r.body).toBe(200);
+      const setCookie = String(([] as string[]).concat(r.headers["set-cookie"] as never)[0] ?? "");
+      return { nonce: (JSON.parse(r.body) as Json).nonce as string, cookie: setCookie.split(";")[0]! };
+    };
+    const nativeNonce = async () => {
+      const r = await post("/v1/auth/oauth/nonce", { provider: "google" });
+      expect(r.statusCode, r.body).toBe(200);
+      expect(r.headers["set-cookie"]).toBeUndefined();
+      return (JSON.parse(r.body) as Json).nonce as string;
+    };
+    const nonceRow = (nonce: string) =>
+      prisma.socialSignInNonce.findUniqueOrThrow({
+        where: { nonceHash: createHash("sha256").update(`nonce:${nonce}`, "utf8").digest("hex") },
+      });
+
+    // The attack: an unbound (native) nonce, its token posted by the web — with or without a bind cookie.
+    const { cookie: victimCookie } = await webNonce();
+    const unbound = await nativeNonce();
+    const injected = googleIdToken(sub, email, { nonce: unbound });
+    const noCookie = await post("/v1/auth/google", { idToken: injected }, { "x-web-client": "1" });
+    expect(noCookie.statusCode).toBe(401);
+    expect(body(noCookie).code).toBe("nonce_invalid");
+    const withCookie = await post("/v1/auth/google", { idToken: injected }, { "x-web-client": "1", cookie: victimCookie });
+    expect(withCookie.statusCode).toBe(401);
+    expect(body(withCookie).code).toBe("nonce_invalid");
+    expect(withCookie.headers["set-cookie"]).toBeUndefined();
+    expect((await nonceRow(unbound)).consumedAtUtc).toBeNull();
+
+    // Native control: the same unbound nonce, posted without the web header, signs in.
+    const native = await post("/v1/auth/google", { idToken: injected });
+    expect(native.statusCode, native.body).toBe(200);
+    expect((await nonceRow(unbound)).consumedAtUtc).not.toBeNull();
+
+    // A web-bound nonce: the web with its cookie passes; native cannot spend it.
+    const bound = await webNonce();
+    const boundToken = googleIdToken(sub, email, { nonce: bound.nonce });
+    const nativeSpend = await post("/v1/auth/google", { idToken: boundToken });
+    expect(nativeSpend.statusCode).toBe(401);
+    expect(body(nativeSpend).code).toBe("nonce_invalid");
+    const web = await post("/v1/auth/google", { idToken: boundToken }, { "x-web-client": "1", cookie: bound.cookie });
+    expect(web.statusCode, web.body).toBe(200);
+
+    // The link path (signed in, linking Google) applies the same rule.
+    const P = "LinkB01Password123";
+    const owner = await emailUser("b01-link", P);
+    const session = await login(owner.email, P);
+    const linkSub = `rem3-b01-link-${randomUUID()}`;
+    const link = (idToken: string, headers: Record<string, string> = {}) =>
+      post(
+        "/v1/identity/links/google",
+        { idToken, stepUp: { method: "password", currentPassword: P } },
+        { authorization: `Bearer ${session.token!}`, ...headers },
+      );
+    const linkUnbound = await link(googleIdToken(linkSub, email, { nonce: await nativeNonce() }), {
+      "x-web-client": "1",
+      cookie: victimCookie,
+    });
+    expect(linkUnbound.statusCode).toBe(400);
+    expect((body(linkUnbound).error as Json).reason).toBe("nonce_invalid");
+    expect(await prisma.userIdentityLink.count({ where: { provider: "GOOGLE", providerSubjectId: linkSub } })).toBe(0);
+    const linkBound = await webNonce();
+    const linked = await link(googleIdToken(linkSub, email, { nonce: linkBound.nonce }), {
+      "x-web-client": "1",
+      cookie: linkBound.cookie,
+    });
+    expect(linked.statusCode, linked.body).toBe(200);
+    expect(
+      (await prisma.userIdentityLink.findFirstOrThrow({ where: { provider: "GOOGLE", providerSubjectId: linkSub } })).userId,
+    ).toBe(owner.id);
+  });
+
+  it("B-04: a linked sign-in that changes the address keeps it verified only when the provider vouches for it", async () => {
+    const P = "LinkB04Password123";
+    const owner = await emailUser("b04", P);
+    const verifiedBefore = (await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).emailVerifiedAt!;
+    const session = await login(owner.email, P);
+    const sub = `rem3-b04-${randomUUID()}`;
+    const linked = await call("POST", "/v1/identity/links/google", session.token!, {
+      idToken: await freshToken(sub, owner.email),
+      stepUp: { method: "password", currentPassword: P },
+    });
+    expect(linked.statusCode, linked.body).toBe(200);
+    const signIn = async (email: string, emailVerified: boolean) => {
+      const r = await call("POST", "/v1/auth/google", undefined, {
+        idToken: await freshToken(sub, email, { email_verified: emailVerified }),
+      });
+      expect(r.statusCode, r.body).toBe(200);
+      expect((body(r).user as Json).id).toBe(owner.id);
+      return prisma.user.findUniqueOrThrow({ where: { id: owner.id }, select: { email: true, emailVerifiedAt: true } });
+    };
+
+    // Same address: the original verification stamp is kept.
+    expect((await signIn(owner.email, true)).emailVerifiedAt!.getTime()).toBe(verifiedBefore.getTime());
+    // A new address the provider does NOT vouch for: no longer verified.
+    const unvouched = `rem3-b04-unvouched-${randomUUID().slice(0, 8)}@test.proovra.local`;
+    expect(await signIn(unvouched, false)).toEqual({ email: unvouched, emailVerifiedAt: null });
+    // A new address the provider vouches for: verified now.
+    const vouched = `rem3-b04-vouched-${randomUUID().slice(0, 8)}@test.proovra.local`;
+    const after = await signIn(vouched, true);
+    expect(after.email).toBe(vouched);
+    expect(after.emailVerifiedAt).not.toBeNull();
+    expect(after.emailVerifiedAt!.getTime()).toBeGreaterThan(verifiedBefore.getTime());
+  });
+
+  it("B-05: an MFA sign-in still pending when the account closes never mints a session", async () => {
+    const t = await fx.seedPersonalTenant(deps, "FREE");
+    const uid = t.owner.userId;
+    const PW = "ClosurePendingMfa123";
+    await prisma.user.update({ where: { id: uid }, data: { passwordHash: await auth.hashPassword(PW), emailVerifiedAt: new Date() } });
+    await seedTotp(uid);
+    const pending = await call("POST", "/v1/auth/email/login", undefined, { email: t.owner.email, password: PW });
+    expect(pending.statusCode, pending.body).toBe(200);
+    expect(body(pending).mfaRequired).toBe(true);
+
+    const req = await prisma.accountClosureRequest.create({
+      data: { userId: uid, status: "PROCESSING", startedAtUtc: new Date() },
+    });
+    await closure.executeAccountClosure(uid, { closureRequestId: req.id });
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: uid } })).providerUserId).toBe(`closed:${uid}`);
+    await nextSecond(); // a token minted now would carry an iat past the closure's revocation
+    const sessionsBefore = await prisma.authenticatedSession.count({ where: { userId: uid } });
+
+    const v = await call("POST", "/v1/auth/mfa/verify", undefined, {
+      mfaPendingToken: body(pending).mfaPendingToken,
+      code: await code(uid),
+    });
+    expect(v.statusCode, v.body).toBe(401);
+    expect(body(v).message).toBe("mfa_pending_invalid");
+    expect(body(v).token).toBeUndefined();
+    expect(await prisma.authenticatedSession.count({ where: { userId: uid } })).toBe(sessionsBefore);
+  });
+
+  it("B-11: two concurrent uses of one verification link — exactly one succeeds, the other is already_used", async () => {
+    const u = await emailUser("b11", "VerifyRacePass123");
+    for (let round = 0; round < 3; round += 1) {
+      const { rawToken } = await auth.createEmailVerificationToken(u.id);
+      const results = await Promise.all([
+        auth.consumeEmailVerificationToken(rawToken),
+        auth.consumeEmailVerificationToken(rawToken),
+        auth.consumeEmailVerificationToken(rawToken),
+      ]);
+      expect(results.filter((r) => r.ok)).toHaveLength(1);
+      expect(results.filter((r) => !r.ok).map((r) => (r as { reason: string }).reason)).toEqual([
+        "already_used",
+        "already_used",
+      ]);
+      // And a later replay of the spent link is refused too.
+      expect(await auth.consumeEmailVerificationToken(rawToken)).toEqual({ ok: false, reason: "already_used" });
+    }
+  });
+
   // ---------------------------------------------------------------------------
   // PRO-009 (AUTH-03)
   // ---------------------------------------------------------------------------

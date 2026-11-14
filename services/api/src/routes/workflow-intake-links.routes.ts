@@ -33,6 +33,7 @@ import {
 } from "@proovra/shared";
 
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { caseClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import {
   resolveRecipientContactDisclosure,
   revealRecipientContact,
@@ -595,6 +596,9 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         // The same authority that decides whether the address is SHOWN
         // decides whether it can be searched for.
         searchRecipientContact: disclosure === "REVEALED",
+        // A2-08 — a link bound to a restricted case this reader is not on is
+        // not listed, exactly as the case itself is not.
+        hiddenCaseIds: (await hiddenRecordIdsInWorkspace(query.teamId, ok.userId)).caseIds,
       });
 
       // Intake-links-e2e Phase 1 — enrich the list with delivery +
@@ -640,6 +644,11 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
 
       const ok = await requireMember(req, reply, link.teamId);
       if (!ok) return;
+      // A2-08 — a link bound to a case closed to this reader answers exactly
+      // like a link that does not exist.
+      if (link.caseId !== null && (await caseClosedTo(link.caseId, ok.userId))) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
 
       const disclosure = await resolveRecipientContactDisclosure(req, {
         teamId: link.teamId,
@@ -845,8 +854,15 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       }
       const ok = await requireMember(req, reply, link.teamId);
       if (!ok) return;
+      // A2-08 — as the single link: a closed case's link is not found, and a
+      // submission whose record a restricted case closes to the reader is
+      // not listed.
+      if (link.caseId !== null && (await caseClosedTo(link.caseId, ok.userId))) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
+      const hidden = await hiddenRecordIdsInWorkspace(link.teamId, ok.userId);
 
-      const payload = await loadIntakeLinkSubmissions(link);
+      const payload = await loadIntakeLinkSubmissions(link, undefined, hidden.evidenceIds);
       return reply.code(200).send(payload);
     },
   );

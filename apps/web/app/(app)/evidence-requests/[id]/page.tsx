@@ -34,6 +34,7 @@ import { ContextualDeliveryStatus } from "../../../../components/notifications/C
 
 import { apiFetch } from "../../../../lib/api";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useRouteAccess } from "../../../../lib/navigation/useRouteDestination";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 import { EvidenceRequestEventsTab } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
@@ -103,14 +104,19 @@ function formatDateTime(iso: string | null): string {
   }
 }
 
-// Phase C3 — gate the inspector on the existing intake-links capability.
-// Evidence requests are part of the intake operations surface; anyone
-// authorized to manage intake links is authorized to inspect requests
-// they own. Server-side, `requireMember` on the request's teamId is the
-// authoritative isolation gate.
+// A1-03 (Free-user audit, 2026-11-14) — READING a request is gated as the API
+// reads it: `GET /v1/evidence-requests/:id` asks `evidence.read`, mobile shows
+// it to the same people, and the inbox sends viewers here. The page used to
+// sit behind `workspace.intake_links` (INTAKE_LINKS_MANAGE + intakeIncluded),
+// so a viewer — or anyone after a downgrade — opened an inbox item onto a
+// refusal. The page now loads under `workspace.evidence_requests`
+// (EVIDENCE_VIEW, no plan key: retained requests stay readable), and the
+// MANAGEMENT actions keep exactly the old gate (`canManage` below).
+// Server-side, `requireMember` on the request's teamId is the authoritative
+// isolation gate for both.
 export default function EvidenceRequestInspectorPage() {
   return (
-    <PageRouteGate routeId="workspace.intake_links">
+    <PageRouteGate routeId="workspace.evidence_requests">
       <Inner />
     </PageRouteGate>
   );
@@ -130,6 +136,9 @@ function Inner() {
   // Bumped after an assignment change so the activity timeline rereads.
   const [eventsRevision, setEventsRevision] = useState(0);
   const { confirm, askReason } = useConfirmAction();
+  // A1-03 — assigning, re-requesting, waiving and reviewing stay with the
+  // people the inspector always admitted: the intake-links route decision.
+  const canManage = useRouteAccess("workspace.intake_links")?.canLoad === true;
 
   const load = useCallback(async () => {
     if (!requestId) return;
@@ -431,16 +440,25 @@ function Inner() {
         <p style={paragraphStyle}>{data.instructions}</p>
       ) : null}
 
-      <EvidenceRequestAssignment
-        request={data}
-        onSaved={(fresh) => {
-          setData(fresh);
-          setEventsRevision((value) => value + 1);
-        }}
-      />
+      {canManage ? (
+        <EvidenceRequestAssignment
+          request={data}
+          onSaved={(fresh) => {
+            setData(fresh);
+            setEventsRevision((value) => value + 1);
+          }}
+        />
+      ) : (
+        <p style={mutedStyle} data-evidence-request-read-only>
+          You can view this request. Assigning, reviewing and re-requesting are
+          done by the workspace&rsquo;s owners, admins and members on a plan that
+          includes intake.
+        </p>
+      )}
 
       {/* Reviewer action — mark as needs-more-info */}
-      {data.status !== "CLOSED" &&
+      {canManage &&
+      data.status !== "CLOSED" &&
       data.status !== "CANCELLED" &&
       data.status !== "FULFILLED" ? (
         <section
@@ -603,7 +621,8 @@ function Inner() {
                     ? ` · Waived: ${d.waivedReason}`
                     : ""}
                 </div>
-                {d.status !== "WAIVED" &&
+                {canManage &&
+                d.status !== "WAIVED" &&
                 d.status !== "FULFILLED" &&
                 data.status !== "CLOSED" ? (
                   <button
@@ -685,7 +704,7 @@ function Inner() {
                     Reviewer note: {r.reviewerNote}
                   </p>
                 ) : null}
-                {r.status === "RECEIVED" || r.status === "UNDER_REVIEW" ? (
+                {canManage && (r.status === "RECEIVED" || r.status === "UNDER_REVIEW") ? (
                   <div
                     style={{ display: "flex", gap: 6, marginTop: 8 }}
                     data-response-actions

@@ -56,6 +56,11 @@ import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
 } from "./assignment/assignee-eligibility.js";
+import {
+  projectRecipientContact,
+  type RecipientContactDisclosure,
+  type RecipientContactProjection,
+} from "./privacy/recipient-contact-disclosure.js";
 
 // -----------------------------------------------------------------------------
 // Feature flag — Phase 7.5
@@ -1963,9 +1968,17 @@ export async function projectRequestForExternalView(
 // -----------------------------------------------------------------------------
 // Authenticated projection — full visibility for workspace members.
 // Always strips workspace-internal-only fields where ambiguous.
+//
+// A2-07 — the recipient's address and number are a third party's contact, not
+// part of "full visibility": they take the one disclosure decision
+// (`resolveRecipientContactDisclosure`), resolved by the route for the caller.
+// Raw only for REVEALED; every other reader gets the masked form.
 // -----------------------------------------------------------------------------
 
-export function projectRequestForAuthenticatedView(request: RequestRow): {
+export function projectRequestForAuthenticatedView(
+  request: RequestRow,
+  disclosure: RecipientContactDisclosure,
+): RecipientContactProjection & {
   id: string;
   teamId: string;
   evidenceId: string | null;
@@ -1980,8 +1993,6 @@ export function projectRequestForAuthenticatedView(request: RequestRow): {
   dueAtUtc: string | null;
   recipientMode: string;
   recipientLabel: string | null;
-  recipientEmail: string | null;
-  recipientPhone: string | null;
   requestedByUserId: string;
   assignedReviewerUserId: string | null;
   intakeLinkId: string | null;
@@ -2038,8 +2049,7 @@ export function projectRequestForAuthenticatedView(request: RequestRow): {
     dueAtUtc: request.dueAtUtc?.toISOString() ?? null,
     recipientMode: request.recipientMode,
     recipientLabel: request.recipientLabel,
-    recipientEmail: request.recipientEmail,
-    recipientPhone: request.recipientPhone,
+    ...projectRecipientContact(request, disclosure),
     requestedByUserId: request.requestedByUserId,
     assignedReviewerUserId: request.assignedReviewerUserId,
     intakeLinkId: request.intakeLinkId,

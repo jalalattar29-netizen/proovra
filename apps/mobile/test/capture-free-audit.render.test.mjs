@@ -153,3 +153,65 @@ test("F-11: a dropped PUT on the ordinary Finish path is retried at the same par
   assert.equal(new Set(declarations).size, 1, `declared at more than one part: ${declarations.join(", ")}`);
   assert.equal(requests.filter((q) => q.path === "/v1/capture/direct-sessions/cs-new/complete").length, 1);
 });
+
+// C-09 — the reserve's answer is lost (the record WAS reserved on the server).
+// Without an attempt id the retry opened a second session and reserved a
+// second record; the first held an allowance slot until its session expired
+// (a Free account at 2/3 was refused its own retry).
+test("C-09: a retry after a lost reservation answer replays the same attempt and reserves nothing twice", async () => {
+  const opens = new Map(); // clientAttemptId -> { session, reserved }
+  let reserveLost = 1;
+  let seq = 0;
+  routes["/v1/capture/direct-sessions"] = (p, init) => {
+    const body = init.body ? JSON.parse(init.body) : {};
+    if (p === "/v1/capture/direct-sessions") {
+      const prior = body.clientAttemptId ? opens.get(body.clientAttemptId) : null;
+      if (prior) return { session: { captureSessionId: prior.id, expiresAtUtc: "2099-01-01T00:00:00.000Z", reused: true, reservedEvidenceId: prior.reserved } };
+      seq += 1;
+      const s = { id: `cs-${seq}`, reserved: null };
+      if (body.clientAttemptId) opens.set(body.clientAttemptId, s);
+      return { session: { captureSessionId: s.id, expiresAtUtc: "2099-01-01T00:00:00.000Z", reservedEvidenceId: null } };
+    }
+    if (p.endsWith("/evidence")) {
+      const sid = p.split("/")[4];
+      const s = [...opens.values()].find((x) => x.id === sid);
+      if (s) s.reserved = "ev-1";
+      if (reserveLost > 0) {
+        reserveLost -= 1;
+        // The server reserved the record; the answer never arrived.
+        return { __status: 503, body: { error: { code: "SERVICE_UNAVAILABLE", message: "lost" } } };
+      }
+      return { evidence: { evidenceId: "ev-1" } };
+    }
+    if (p.endsWith("/declaration")) return { declaration: {} };
+    if (p.endsWith("/complete")) return { result: { evidenceId: "ev-1" } };
+    if (p.endsWith("/discard")) return { result: { discarded: true } };
+    return undefined;
+  };
+  routes["/v1/evidence/ev-1/parts"] = () => ({ upload: { putUrl: "https://storage.test/put" } });
+  routes["/v1/evidence/ev-1/artifacts/status"] = () => ({ outputs: { report: { state: "READY" } } });
+  routes["/v1/evidence/ev-1"] = () => ({ evidence: { id: "ev-1", tsaStatus: "STAMPED", tsaTokenPresent: true } });
+
+  const r = await render();
+  await r.press("Files");
+  await settle();
+  await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
+  await settle();
+  // The first Finish failed at the reservation; the person finishes again.
+  await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
+  for (let i = 0; i < 30 && !requests.some((q) => q.path.endsWith("/complete")); i += 1) {
+    await act(async () => { await new Promise((x) => setTimeout(x, 100)); });
+  }
+  await settle();
+
+  const openBodies = requests.filter((q) => q.method === "POST" && q.path === "/v1/capture/direct-sessions").map((q) => q.body);
+  assert.ok(openBodies.length >= 2, `expected a re-open, got ${openBodies.length}`);
+  assert.ok(openBodies.every((b) => typeof b.clientAttemptId === "string" && b.clientAttemptId.length > 0), "every open carries an attempt id");
+  assert.equal(new Set(openBodies.map((b) => b.clientAttemptId)).size, 1, "the retry reused the attempt id");
+  assert.equal(seq, 1, "no second session was opened");
+  const reserves = requests.filter((q) => q.method === "POST" && /\/direct-sessions\/[^/]+\/evidence$/.test(q.path));
+  assert.equal(reserves.length, 1, "the record reserved by the lost answer was reused, not reserved again");
+  assert.equal(requests.filter((q) => q.path === "/v1/capture/direct-sessions/cs-1/complete").length, 1);
+});

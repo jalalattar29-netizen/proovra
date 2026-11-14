@@ -196,3 +196,64 @@ test("AUD-005: the flow keeps a retryable staging as `pending` and offers it aga
   assert.deepEqual(r({ phase: "intro" }, { type: "RESUME_PENDING", frameCount: 2, message: "m" }), { phase: "pending", frameCount: 2, message: "m" });
   assert.deepEqual(r({ phase: "active", frameCount: 1 }, { type: "RESUME_PENDING", frameCount: 2, message: "m" }), { phase: "active", frameCount: 1 });
 });
+
+// C-03 — a token that expired mid-staging, or a plan/storage refusal, used to
+// be TERMINAL: the session was discarded and every frame deleted. The frames
+// are the only copy of the capture; they are kept and the refusal is shown.
+test("C-03: a 401 (sign-in ended) keeps the session and every frame, and Retry resumes after sign-in", async () => {
+  server.failNext(/parts\/1\/declaration$/, { status: 401, code: "TOKEN_EXPIRED" }, 1);
+  const err = await M.stageScreenCapture(RESULT(), { retry: FAST, persist: M.savePendingScreenStaging }).then(() => null, (e) => e);
+  assert.ok(err instanceof M.ScreenStagingError);
+  assert.equal(err.retryable, true, "kept, not terminal");
+  assert.equal(err.held, "SIGNED_OUT");
+  assert.equal(framesOnDevice(), 3, "no frame deleted");
+  assert.equal(server.state.sessions.get("cs-1").status, "ACTIVE", "the session was NOT discarded");
+  assert.equal(server.state.requests.filter((r) => /parts\/1\/declaration$/.test(r.path)).length, 1, "a 401 is not retried blindly");
+
+  const pending = await M.loadPendingScreenStaging();
+  assert.ok(pending, "the staging is kept for the retry after sign-in");
+  const staged = await M.stageScreenCapture(RESULT(), { retry: FAST, persist: M.savePendingScreenStaging, pending });
+  assert.equal(staged.session.captureSessionId, "cs-1");
+  assert.deepEqual(declaredParts(), [0, 1, 2, 3]);
+});
+
+test("C-03: a plan or storage refusal keeps the frames and carries the refusal", async () => {
+  for (const [status, code] of [[409, "FREE_LIMIT_REACHED"], [409, "STORAGE_LIMIT_REACHED"], [402, "INSUFFICIENT_EVIDENCE_CREDITS"]]) {
+    globalThis.__FS__ = new Map(frames(3).map((f) => [f.uri, `png bytes ${f.frameIndex}`]));
+    server = installFakeCaptureServer();
+    M.AsyncStorage.__reset();
+    server.failNext(/direct-sessions\/[^/]+\/evidence$/, { status, code }, 1);
+    const err = await M.stageScreenCapture(RESULT(), { retry: FAST, persist: M.savePendingScreenStaging }).then(() => null, (e) => e);
+    assert.ok(err instanceof M.ScreenStagingError, code);
+    assert.equal(err.retryable, true, `${code}: kept`);
+    assert.equal(err.held, "REFUSED", code);
+    assert.equal(err.code, code, `${code}: the refusal is carried to the screen`);
+    assert.equal(framesOnDevice(), 3, `${code}: no frame deleted`);
+    assert.notEqual(server.state.sessions.get("cs-1").status, "DISCARDED", `${code}: the session was not discarded`);
+  }
+});
+
+test("C-03: the retry rule — 401 and plan/storage refusals are HELD (not retried, not terminal)", async () => {
+  const c = M.classifyCaptureError;
+  assert.equal(c({ statusCode: 401, code: "TOKEN_EXPIRED" }), "HELD");
+  assert.equal(c({ statusCode: 401, code: "UNAUTHORIZED" }), "HELD");
+  assert.equal(c({ statusCode: 402, code: "INSUFFICIENT_EVIDENCE_CREDITS" }), "HELD");
+  assert.equal(c({ statusCode: 409, code: "FREE_LIMIT_REACHED" }), "HELD");
+  assert.equal(c({ statusCode: 409, code: "STORAGE_LIMIT_REACHED" }), "HELD");
+  // api.ts marks a 401 that ended the sign-in (sessionEndReason); another 401 is shown as a refusal.
+  assert.equal(M.captureHoldReason({ statusCode: 401, code: "TOKEN_EXPIRED", sessionEnded: "expired" }), "SIGNED_OUT");
+  assert.equal(M.captureHoldReason({ statusCode: 401, code: "STEP_UP_REQUIRED" }), "REFUSED");
+  assert.equal(M.captureHoldReason({ statusCode: 409, code: "FREE_LIMIT_REACHED" }), "REFUSED");
+  assert.equal(M.captureHoldReason({ statusCode: 409, code: "PART_ALREADY_DECLARED" }), null);
+  // Still terminal: refusals no account action can change.
+  assert.equal(c({ statusCode: 403, code: "FORBIDDEN" }), "TERMINAL");
+  assert.equal(c({ statusCode: 415, code: "FILE_VALIDATION_BLOCKED" }), "TERMINAL");
+  let attempts = 0;
+  await assert.rejects(() =>
+    M.retryCapture(async () => {
+      attempts += 1;
+      throw Object.assign(new Error("x"), { statusCode: 401, code: "TOKEN_EXPIRED" });
+    }, FAST),
+  );
+  assert.equal(attempts, 1, "a held failure is not retried");
+});

@@ -305,7 +305,8 @@ export default function CollaborationScreen() {
         // THE ONLY STATE THAT MAY HIDE THE CONTROLS: a plan with zero Teams has nothing to filter.
         <ProovraEmpty
           title={TEAMS_PLAN_LOCKED_COPY}
-          purpose={`${entitlement?.plan ? `Your ${entitlement.plan} plan doesn't include Teams. ` : ""}Teams give you shared assignments, member invites, and collaborative review on cases and evidence. Upgrade to create one.`}
+          // AUDIT E-05 — a build that cannot buy says what Billing can show, not "Upgrade".
+          purpose={`${entitlement?.plan ? `Your ${entitlement.plan} plan doesn't include Teams. ` : ""}Teams give you shared assignments, member invites, and collaborative review on cases and evidence. ${upgradeLabel === "Upgrade plan" ? "Upgrade to create one." : "See plans to compare which plans include them."}`}
         />
       ) : (
         <>

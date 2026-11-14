@@ -589,6 +589,14 @@ export async function assertWorkspaceAllowsReportArtifact(params: {
    * later artifact.
    */
   issuanceVersion?: number;
+  /**
+   * AUDIT D-01 (2026-11-14) — this run builds the version's verification
+   * package after the report commits. A version that is not exempt is then
+   * admitted against the PAIR (report bytes + the estimated package), so a
+   * report that fits alone is not committed only for its package to be
+   * refused, leaving the latest report without its package.
+   */
+  packagePairFollows?: boolean;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
   // FREE THREE-RECORD CONTRACT — a single record is answered by THE issuance
@@ -616,12 +624,48 @@ export async function assertWorkspaceAllowsReportArtifact(params: {
     evidenceId: params.evidenceId,
     issuanceVersion: params.issuanceVersion,
     outputs,
+    pairEstimate:
+      params.packagePairFollows === true && outputs.verificationPackageIncluded
+        ? () => estimatePairedPackageBytes(params.evidenceId, params.issuanceVersion)
+        : undefined,
   });
 
   return {
     scope,
     usage,
   };
+}
+
+/**
+ * AUDIT D-01 — the package a new report version will be paired with, estimated
+ * on the basis the API's NEW_VERSION offer uses (`estimateNewVersionStorage`,
+ * output-recovery.service.ts): the published package bytes of the previous
+ * report version (every profile: each is its own stored object, as the package
+ * gate counts them), or, with no earlier package, the original evidence bytes
+ * (FULL_FORENSIC embeds them). An unknown size estimates nothing.
+ */
+async function estimatePairedPackageBytes(evidenceId: string, version: number | undefined): Promise<bigint> {
+  const previous = await prisma.verificationPackage.findFirst({
+    where: {
+      evidenceId,
+      state: "PUBLISHED",
+      ...(typeof version === "number" ? { version: { lt: version } } : {}),
+    },
+    orderBy: { version: "desc" },
+    select: { version: true },
+  });
+  if (previous) {
+    const pair = await prisma.verificationPackage.aggregate({
+      where: { evidenceId, state: "PUBLISHED", version: previous.version },
+      _sum: { sizeBytes: true },
+    });
+    return toBigIntOrZero(pair._sum.sizeBytes);
+  }
+  const original = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { sizeBytes: true },
+  });
+  return toBigIntOrZero(original?.sizeBytes);
 }
 
 /**
@@ -638,6 +682,8 @@ async function assertArtifactStorage(params: {
   evidenceId: string;
   issuanceVersion: number | undefined;
   outputs: { decision: string; basis: string };
+  /** AUDIT D-01 — bytes that will follow this artifact (its package), when not exempt. */
+  pairEstimate?: () => Promise<bigint>;
 }): Promise<WorkerWorkspaceUsage> {
   const version = params.issuanceVersion;
   if (typeof version === "number" && Number.isInteger(version) && version >= 1) {
@@ -654,7 +700,12 @@ async function assertArtifactStorage(params: {
       return getWorkspaceUsage(params.scope);
     }
   }
-  return assertWorkspaceStorageAvailable({ scope: params.scope, incomingBytes: params.incomingBytes });
+  const following = params.pairEstimate ? await params.pairEstimate() : 0n;
+  const own =
+    typeof params.incomingBytes === "bigint"
+      ? params.incomingBytes
+      : BigInt(Math.max(0, Math.trunc(Number.isFinite(params.incomingBytes) ? params.incomingBytes : 0)));
+  return assertWorkspaceStorageAvailable({ scope: params.scope, incomingBytes: own + following });
 }
 
 export async function assertWorkspaceAllowsVerificationPackageArtifact(params: {

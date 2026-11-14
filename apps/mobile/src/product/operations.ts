@@ -45,6 +45,22 @@ const num = (v: unknown): number | null =>
 // Quotas
 // ---------------------------------------------------------------------------
 
+/**
+ * A1-01 (Free-user audit, 2026-11-14) — the API now refuses Batch analysis and
+ * Quotas & usage to a workspace whose plan does not include the PROFESSIONAL
+ * surfaces: 403 `{ error: { code: "ENTITLEMENT_REQUIRED", details: {
+ * entitlement: "PROFESSIONAL_SURFACES" } } }` (enterprise.routes.ts). The
+ * Settings rows are already hidden for such accounts
+ * (`professionalSurfaceVisible`), but a deep link still opens the screens;
+ * this tells them to say "not on your plan" instead of offering a retry that
+ * can never succeed.
+ */
+export function isProfessionalSurfaceRefusal(err: unknown): boolean {
+  const e = obj(err);
+  if (e["code"] !== "ENTITLEMENT_REQUIRED") return false;
+  return obj(e["details"])["entitlement"] === "PROFESSIONAL_SURFACES";
+}
+
 export const QUOTA_PATH = "/v1/quotas";
 export const USAGE_STATS_PATH = "/v1/usage-stats";
 export const BATCH_ANALYSIS_PATH = "/v1/batch-analysis";

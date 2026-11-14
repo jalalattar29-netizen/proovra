@@ -62,6 +62,18 @@ vi.mock("../src/db.js", () => {
         if (row) row.processingStatus = data.processingStatus;
         return row;
       }),
+      // AUDIT F-06 — the final status write is a lease-fenced updateMany
+      // (where: { paypalEventId, processingStatus: "RECEIVED", receivedAt }).
+      updateMany: vi.fn(
+        async ({ where, data }: { where: { paypalEventId: string; processingStatus?: string }; data: { processingStatus: string } }) => {
+          const row = state.webhookEvents.get(where.paypalEventId);
+          if (!row || (where.processingStatus !== undefined && row.processingStatus !== where.processingStatus)) {
+            return { count: 0 };
+          }
+          row.processingStatus = data.processingStatus;
+          return { count: 1 };
+        },
+      ),
     },
     subscription: {
       findUnique: vi.fn(async ({ where }: { where: { provider_providerSubId: { providerSubId: string } } }) =>
@@ -309,7 +321,8 @@ async function deliver(eventType: string, resource: Record<string, unknown>, eve
   return app.inject({
     method: "POST",
     url: "/webhooks/paypal",
-    headers: { "content-type": "application/json" },
+    // F-02 — a genuine delivery carries PayPal's transmission headers.
+    headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id" },
     payload: JSON.stringify({ id: eventId, event_type: eventType, resource }),
   });
 }

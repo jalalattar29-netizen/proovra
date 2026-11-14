@@ -257,6 +257,10 @@ describe("§2 — ARCH-005: the Automation runtime is durable, fenced and reacha
     teamB = h.fixtures.teamB.teamId;
     ownerA = h.fixtures.teamA.ownerUserId;
     memberA = h.fixtures.teamA.memberUserId;
+    // A2-01 — webhook-action rules ask FEATURE_WEBHOOKS (written by the
+    // operator path, never self-granted).
+    const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+    await upsertEntitlementGrant({ teamId: teamA, key: "FEATURE_WEBHOOKS", value: true, kind: "FEATURE", source: "CUSTOM", grantedByUserId: ownerA });
 
     // One destination on team A, pointing at the real loopback receiver.
     const secret = webhookSvc.createDestinationSecret();

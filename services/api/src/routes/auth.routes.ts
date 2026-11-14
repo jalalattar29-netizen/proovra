@@ -11,6 +11,7 @@ import {
   verifyGoogleIdToken,
 } from "../services/auth.service.js";
 import { bindIdTokenToAttempt } from "../services/auth/social-sign-in-nonce.service.js";
+import { isAccountClosed } from "../services/identity/account-closed.js";
 
 import {
   registerWithEmailPassword,
@@ -165,6 +166,34 @@ const AUTH_EMAIL_RESEND_RATE_LIMIT_PER_IP_PER_MIN = 3;
  */
 function readClientIp(req: FastifyRequest): string {
   return trustedClientIpKey(req).slice(0, 200);
+}
+
+/**
+ * F-01 — A LIMITER REFUSAL IS LOGGED, NOT APPENDED TO THE AUDIT CHAIN.
+ *
+ * Every audit row takes the platform-wide hash-chain lock, so a flood of
+ * refused requests turned into a queue of serialized transactions holding pool
+ * connections — the refusal cost as much as the work it refused. A refusal is
+ * an operational signal: it goes to the request log (the Public Verify gate's
+ * `refuse()` pattern). Real outcomes — success, wrong credentials, denials
+ * after authentication — are still audited.
+ */
+function logAuthRateLimited(
+  req: FastifyRequest,
+  action: string,
+  resetAtMs: number,
+  extra: Record<string, unknown> = {},
+): void {
+  req.log.warn(
+    {
+      action,
+      remaining: 0,
+      resetAtMs,
+      retryAfterSec: Math.max(1, Math.ceil((resetAtMs - Date.now()) / 1000)),
+      ...extra,
+    },
+    "auth.rate_limited",
+  );
 }
 
 // Shared 429 reply — every public auth route returns this exact
@@ -1055,13 +1084,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
-      auditAuthEvent(req, {
-        userId: null,
-        action: "auth.email_register",
-        outcome: "blocked",
-        severity: "warning",
-        metadata: { reason: "rate_limited", scope: "ip" },
-      });
+      logAuthRateLimited(req, "auth.email_register", rl.resetAtMs, { scope: "ip", store: rl.store });
       return replyRateLimited(reply, rl.resetAtMs);
     }
 
@@ -1213,13 +1236,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
-      auditAuthEvent(req, {
-        userId: null,
-        action: "auth.email_login",
-        outcome: "blocked",
-        severity: "warning",
-        metadata: { reason: "rate_limited", scope: "ip" },
-      });
+      logAuthRateLimited(req, "auth.email_login", rl.resetAtMs, { scope: "ip", store: rl.store });
       return reply
         .code(429)
         .header("Retry-After", String(Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000))))
@@ -1350,13 +1367,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
-      auditAuthEvent(req, {
-        userId: null,
-        action: "auth.password_reset_requested",
-        outcome: "blocked",
-        severity: "warning",
-        metadata: { reason: "rate_limited", scope: "ip" },
-      });
+      logAuthRateLimited(req, "auth.password_reset_requested", rl.resetAtMs, { scope: "ip", store: rl.store });
       // Return the same 200 shape that the normal handler returns so
       // we do NOT leak enumeration information via the response shape.
       return reply
@@ -1907,13 +1918,8 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ message: "mfa_pending_invalid" });
     }
     if (await loginMfaIsRateLimited(userId)) {
-      auditAuthEvent(req, {
-        userId,
-        action: "auth.mfa_verify",
-        outcome: "blocked",
-        severity: "warning",
-        metadata: { reason: "rate_limited" },
-      });
+      // F-01 — logged, not chained (see logAuthRateLimited).
+      req.log.warn({ action: "auth.mfa_verify", userId, scope: "user" }, "auth.rate_limited");
       return reply.code(429).send({ message: "rate_limited" });
     }
 
@@ -2040,6 +2046,13 @@ export async function authRoutes(app: FastifyInstance) {
       // hard-deleted in the 5-minute window. Fail closed.
       return reply.code(401).send({ message: "user_not_found" });
     }
+    // B-05 (IDENT-010) — a pending token issued before the account closed
+    // must not mint a session after it: the new iat would pass the closure's
+    // ALL_FOR_USER revocation.
+    if (await isAccountClosed(user.id, prisma)) {
+      clearMfaPendingCookie(req, reply);
+      return reply.code(401).send({ message: "mfa_pending_invalid" });
+    }
     /**
      * 2026-10-28 — SSO PROVENANCE SURVIVES THE MFA STEP. The SAML ACS and the
      * OIDC callback reach this endpoint too, and they sign their VERIFIED
@@ -2159,6 +2172,11 @@ export async function authRoutes(app: FastifyInstance) {
     }
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
+      return reply.code(401).send({ message: "mfa_pending_invalid" });
+    }
+    // B-05 (IDENT-010) — a closed account never completes a sign-in.
+    if (await isAccountClosed(user.id, prisma)) {
+      clearMfaEnrollmentCookie(req, reply);
       return reply.code(401).send({ message: "mfa_pending_invalid" });
     }
     const authMethod = resolveSupportedProvenance(req.user.authMethod) ?? "PASSWORD";

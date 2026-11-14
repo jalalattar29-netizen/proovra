@@ -260,6 +260,26 @@ function denyNoPermission(reply: FastifyReply): FastifyReply {
   return reply.code(403).send({ denial: "NOT_PERMITTED" });
 }
 
+/**
+ * A2-04 (Free-user audit, 2026-11-14) — the plan gate for this surface's
+ * TEAM-tier acts, asked of the SAME ladder `reviewer-ops.routes.ts` enforces
+ * (`workspaceIncludesReviewCapability`): bulk acts need
+ * BULK_REVIEW_OPERATIONS, assigning another reviewer REVIEW_ASSIGNMENTS, and
+ * coding / QC / disagreement writes REVIEW_TASKS_AND_QUEUES (the capability
+ * `POST /v1/coding/schemas` already asks). Only writes are gated: what a
+ * workspace already holds stays readable after a downgrade. The refusal is
+ * the one that route already sends.
+ */
+async function refuseWithoutReviewCapability(
+  reply: FastifyReply,
+  teamId: string,
+  capability: "BULK_REVIEW_OPERATIONS" | "REVIEW_ASSIGNMENTS" | "REVIEW_TASKS_AND_QUEUES",
+): Promise<boolean> {
+  if (await workspaceIncludesReviewCapability(teamId, capability)) return false;
+  reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "REVIEWER_OPERATIONS" });
+  return true;
+}
+
 function requireCap(
   ctx: { workspaceRole: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null; isPlatformAdmin: boolean },
   cap: ReviewerCapability,
@@ -533,6 +553,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_TASKS_AND_QUEUES")) return reply;
       if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const res = await archiveSchema({
@@ -551,6 +572,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_TASKS_AND_QUEUES")) return reply;
       if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);
       // Phase O — Sentry NODE-1P safety net. The repair migration
       // 20270802000000_phase_sentry_batch_schema_drift_repair adds the
@@ -592,6 +614,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_TASKS_AND_QUEUES")) return reply;
       if (!requireCap(ctx, "review.assign")) return denyNoPermission(reply);
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
@@ -656,6 +679,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_TASKS_AND_QUEUES")) return reply;
       if (!requireCap(ctx, "review.code")) return denyNoPermission(reply);
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
@@ -719,6 +743,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_TASKS_AND_QUEUES")) return reply;
       if (!requireCap(ctx, "review.disagree")) return denyNoPermission(reply);
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
@@ -745,6 +770,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_TASKS_AND_QUEUES")) return reply;
       if (!requireCap(ctx, "review.adjudicate")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = TransitionDisagreementBody.parse(req.body);
@@ -801,6 +827,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_ASSIGNMENTS")) return reply;
       if (!requireCap(ctx, "review.assign")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = AssignQcBody.parse(req.body);
@@ -826,6 +853,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_TASKS_AND_QUEUES")) return reply;
       if (!requireCap(ctx, "review.qc.verdict")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = QcVerdictBody.parse(req.body);
@@ -938,6 +966,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "BULK_REVIEW_OPERATIONS")) return reply;
       if (!requireCap(ctx, "review.bulk") || !requireCap(ctx, "review.assign")) {
         return denyNoPermission(reply);
       }
@@ -965,6 +994,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "BULK_REVIEW_OPERATIONS")) return reply;
       if (!requireCap(ctx, "review.bulk") || !requireCap(ctx, "review.decide")) {
         return denyNoPermission(reply);
       }
@@ -1002,6 +1032,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "BULK_REVIEW_OPERATIONS")) return reply;
       if (!requireCap(ctx, "review.bulk") || !requireCap(ctx, "review.code")) {
         return denyNoPermission(reply);
       }

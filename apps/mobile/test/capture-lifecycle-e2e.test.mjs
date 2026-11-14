@@ -558,7 +558,8 @@ test("D13 (2026-09-29): a session opened in a Team workspace names it; without o
 test("D13: the capture screen opens its session in the confirmed workspace", () => {
   // The behaviour itself: capture-workspace-unknown.render.test.mjs.
   const src = readFileSync(resolve(HERE, "../app/(stack)/capture.tsx"), "utf8");
-  assert.match(src, /openDirectCaptureSession\("PROOVRA_MOBILE_APP", \{ teamId: target\?\.teamId \?\? null \}\)/);
+  // C-09 (2026-11-14) — it also carries the capture attempt id.
+  assert.match(src, /openDirectCaptureSession\("PROOVRA_MOBILE_APP", \{ teamId: target\?\.teamId \?\? null(?:, clientAttemptId: attempt\.id)? \}\)/);
 });
 
 test("location (2026-10-16): a denied or unavailable device location is sent as the request outcome, never with coordinates", async () => {

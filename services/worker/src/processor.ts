@@ -160,7 +160,11 @@ import {
   buildReportPdfV2,
   buildReportPdfV2WithSignatureOutcome,
 } from "./report-v2/build-report-pdf.js";
-import { assertPdfSigningProductionSafetyOrThrow, type PdfSigningOutcome } from "./pdf/signPdf.js";
+import {
+  assertPdfSigningProductionSafetyOrThrow,
+  pdfSigningCustodyEventType,
+  type PdfSigningOutcome,
+} from "./pdf/signPdf.js";
 import {
   buildReportIssuanceRenderFacts,
   verificationPageOpensAtIssuance,
@@ -4790,6 +4794,9 @@ async function runReportGeneration(
           // F-02 — the record's first report, earned at finalization, is not
           // refused for storage.
           issuanceVersion: prepared.version,
+          // AUDIT D-01 — this run builds the version's package next: a later
+          // version is admitted against the pair, before anything commits.
+          packagePairFollows: prepared.verificationPackageIncluded === true,
         });
 
         // Phase O1.5C — bounded report.upload span. NEVER PDF bytes
@@ -5031,27 +5038,30 @@ async function runReportGeneration(
             // same record through the public route.
 
             // Phase A2 — a distinct custody event for the PDF signing decision.
-            const pdfCustodyEventType =
-              finalizedPdfSigningOutcome.status === "SIGNED"
-                ? prismaPkg.CustodyEventType.REPORT_PDF_SIGNED
-                : prismaPkg.CustodyEventType.REPORT_PDF_UNSIGNED_OPT_OUT;
-            await appendCustodyEventTx(tx, {
-              evidenceId: prepared.evidenceId,
-              eventType: pdfCustodyEventType,
-              atUtc: prepared.now,
-              payload: {
-                reportVersion: prepared.version,
-                pdfSignatureStatus: finalizedPdfSigningOutcome.status,
-                pdfSignerKeyId:
-                  finalizedPdfSigningOutcome.status === "SIGNED"
-                    ? finalizedPdfSigningOutcome.signerKeyId
-                    : null,
-                pdfSignedAtUtc:
-                  finalizedPdfSigningOutcome.status === "SIGNED"
-                    ? finalizedPdfSigningOutcome.signedAtUtc.toISOString()
-                    : null,
-              },
-            });
+            // AUDIT D-02 — by the actual outcome: SIGNED → REPORT_PDF_SIGNED,
+            // the operator's opt-out → REPORT_PDF_UNSIGNED_OPT_OUT, and signing
+            // that is merely not configured (non-production) is recorded as
+            // no opt-out at all (the Report row keeps its status).
+            const pdfCustodyEventName = pdfSigningCustodyEventType(finalizedPdfSigningOutcome.status);
+            if (pdfCustodyEventName !== null) {
+              await appendCustodyEventTx(tx, {
+                evidenceId: prepared.evidenceId,
+                eventType: prismaPkg.CustodyEventType[pdfCustodyEventName],
+                atUtc: prepared.now,
+                payload: {
+                  reportVersion: prepared.version,
+                  pdfSignatureStatus: finalizedPdfSigningOutcome.status,
+                  pdfSignerKeyId:
+                    finalizedPdfSigningOutcome.status === "SIGNED"
+                      ? finalizedPdfSigningOutcome.signerKeyId
+                      : null,
+                  pdfSignedAtUtc:
+                    finalizedPdfSigningOutcome.status === "SIGNED"
+                      ? finalizedPdfSigningOutcome.signedAtUtc.toISOString()
+                      : null,
+                },
+              });
+            }
 
             // F-05 (independent forward audit) — every event of this issuance is
             // appended above: its cut-off, by SEQUENCE, is recorded WITH the

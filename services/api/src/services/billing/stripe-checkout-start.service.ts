@@ -39,7 +39,8 @@ import {
   type OpenCheckoutAttemptGate,
 } from "./checkout-attempts.service.js";
 import { isStripeHostedCheckoutUrl } from "./reconciliation/stripe.provider.js";
-import { expireStalePlanAttempts } from "./checkout-attempt-recovery.service.js";
+import { APPROVAL_EXPIRY_MS, expireStalePlanAttempts } from "./checkout-attempt-recovery.service.js";
+import { payerLegacyWorkspaceIds } from "./billing-accounts.service.js";
 import { findStorageDuplicate, type StorageDuplicateFinding } from "./storage-purchase-guard.service.js";
 import { StripeCustomerUnresolved, resolveStripeCheckoutCustomer } from "./stripe-customer-binding.service.js";
 import {
@@ -310,13 +311,59 @@ export async function startStripeStorageCheckout(input: {
     amountCents,
     currency: input.currency,
     extraBlock: async (tx) => {
-      duplicate = await findStorageDuplicate({
-        userId: input.userId,
-        addonKey: input.addonKey,
-        provider: STRIPE,
-        confirmation: input.confirmation ?? null,
-        client: tx,
+      // AUDIT E-01 (2026-11-14) — openCheckoutAttempt sees this provider's own
+      // open storage attempt only inside the 2-minute reuse window. A card
+      // checkout of this size that Stripe bound (its page can still be paid)
+      // stays open for the approval window, exactly as a bound PayPal approval
+      // does (pending-checkout-attempt.service.ts), so a second tab cannot
+      // start a second recurring charge. Abandoned, expired, failed or
+      // completed attempts are no longer PENDING and do not block.
+      const openCard = await tx.billingCheckoutAttempt.findFirst({
+        where: {
+          userId: input.userId,
+          product: prismaPkg.BillingCheckoutProduct.STORAGE_ADDON,
+          provider: STRIPE,
+          storageAddonKey: input.addonKey,
+          status: prismaPkg.BillingCheckoutAttemptStatus.PENDING,
+          providerResourceId: { not: null },
+          createdAt: { gte: new Date(Date.now() - APPROVAL_EXPIRY_MS) },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, createdAt: true },
       });
+      if (openCard) {
+        // Counted as findStorageDuplicate counts it (Personal + legacy rows).
+        const legacy = await payerLegacyWorkspaceIds(input.userId, tx);
+        const held = await tx.workspaceStorageAddon.count({
+          where: {
+            ownerUserId: input.userId,
+            addonKey: input.addonKey,
+            status: { in: [prismaPkg.WorkspaceStorageAddonStatus.ACTIVE, prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE] },
+            OR: [{ teamId: null }, { teamId: { in: legacy } }],
+          },
+        });
+        duplicate = {
+          code: "STORAGE_PURCHASE_PENDING",
+          message:
+            "This storage add-on already has a card purchase open. Check that purchase before starting another, so you are not billed twice.",
+          details: {
+            addonKey: input.addonKey,
+            activeCount: held,
+            pendingProvider: STRIPE,
+            attemptId: openCard.id,
+            createdAtUtc: openCard.createdAt.toISOString(),
+            retry: "RECONCILE_STORAGE_ATTEMPT",
+          },
+        };
+      } else {
+        duplicate = await findStorageDuplicate({
+          userId: input.userId,
+          addonKey: input.addonKey,
+          provider: STRIPE,
+          confirmation: input.confirmation ?? null,
+          client: tx,
+        });
+      }
       return duplicate
         ? {
             kind: "BLOCKED" as const,

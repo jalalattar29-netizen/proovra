@@ -26,8 +26,10 @@ import {
   type DirectCaptureSession,
 } from "./direct-capture";
 import {
+  captureHoldReason,
   classifyCaptureError,
   DEFAULT_CAPTURE_RETRY,
+  type CaptureHoldReason,
   isSessionGone,
   localFileMissingError,
   retryCapture,
@@ -145,11 +147,18 @@ export async function discardScreenCaptureFiles(
  * a Retry (now or after an app restart) resumes them. Not retryable: the
  * server refused the capture for good — the session was released and the
  * local frames deleted.
+ *
+ * C-03 — `held`: the sign-in ended (SIGNED_OUT) or the account refused the
+ * capture for now (REFUSED: plan, credits, storage). These are kept exactly
+ * like a retryable failure (`retryable` is true): the person signs in again
+ * or resolves the refusal, then retries. They used to be terminal and deleted
+ * the frames.
  */
 export class ScreenStagingError extends Error {
   readonly retryable: boolean;
   readonly pending: PendingScreenStaging | null;
   readonly code: string | undefined;
+  readonly held: CaptureHoldReason | null;
   constructor(cause: unknown, retryable: boolean, pending: PendingScreenStaging | null) {
     super(cause instanceof Error && cause.message ? cause.message : "The screen capture could not be staged.");
     this.name = "ScreenStagingError";
@@ -157,6 +166,7 @@ export class ScreenStagingError extends Error {
     this.pending = pending;
     const code = (cause as { code?: unknown } | null)?.code;
     this.code = typeof code === "string" ? code : undefined;
+    this.held = captureHoldReason(cause);
   }
 }
 
@@ -355,8 +365,9 @@ export async function stageScreenCapture(
         await save({ session: null, evidenceId: null, declared: [], manifest: null });
         continue;
       }
-      if (classifyCaptureError(err) === "RETRYABLE") {
-        // Network, timeout, 5xx/429: nothing is released and nothing deleted.
+      if (classifyCaptureError(err) !== "TERMINAL") {
+        // Network, timeout, 5xx/429 — and (C-03) an ended sign-in or a plan or
+        // storage refusal (HELD): nothing is released and nothing deleted.
         throw new ScreenStagingError(err, true, state);
       }
       // A refusal no retry can change: release the reservation (never leave a

@@ -721,7 +721,7 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
           harness.app.inject({
             method: "POST",
             url: "/webhooks/paypal",
-            headers: { "content-type": "application/json" },
+            headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id" },
             payload: JSON.stringify({
               id,
               event_type: "PAYMENT.CAPTURE.REFUNDED",
@@ -758,7 +758,7 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
       harness.app.inject({
         method: "POST",
         url: "/webhooks/paypal",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id" },
         payload: JSON.stringify({
           id,
           event_type: "PAYMENT.CAPTURE.COMPLETED",

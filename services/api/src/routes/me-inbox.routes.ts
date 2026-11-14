@@ -74,6 +74,11 @@ import {
   resolveAccessibleWorkspace,
 } from "../services/access/accessible-workspaces.js";
 import {
+  incidentInReach,
+  viewerReachInWorkspace,
+  type ViewerReach,
+} from "../services/access/record-reach.js";
+import {
   isPreferenceEnabled,
   OPTIONAL_INAPP_CATEGORY_TO_TYPE,
   type NotificationPreferenceType,
@@ -1927,6 +1932,41 @@ export async function buildInboxAggregation(
       const inboxRecordVisible: Prisma.EvidenceWhereInput = {
         OR: [{ teamId: null }, evidenceVisibleThroughCasesWhere(userId)],
       };
+      // A2-06 — the same narrowing for the sources that name a record or a
+      // case by id rather than through an Evidence relation: operational
+      // incidents (`relatedEvidenceId`) and evidence requests (`caseId`). One
+      // reach per workspace (`record-reach.ts`), resolved once and only when a
+      // source needs it; a failure fails the source closed through
+      // `safelyLoadSource`, never open.
+      let inboxReachByWorkspace: Promise<Map<string, ViewerReach>> | null = null;
+      const loadInboxReach = (): Promise<Map<string, ViewerReach>> =>
+        (inboxReachByWorkspace ??= Promise.all(
+          teamIds.map(async (workspaceId) => [workspaceId, await viewerReachInWorkspace(workspaceId, userId)] as const),
+        ).then((entries) => new Map(entries)));
+      const incidentsInInboxReach = async (): Promise<Prisma.OperationalIncidentWhereInput> => {
+        const reach = await loadInboxReach();
+        return {
+          OR: teamIds.map((workspaceId) => ({
+            AND: [{ teamId: workspaceId }, incidentInReach(reach.get(workspaceId)!)],
+          })),
+        };
+      };
+      const requestsInInboxReach = async (): Promise<Prisma.EvidenceRequestWhereInput> => {
+        const reach = await loadInboxReach();
+        return {
+          AND: [
+            { OR: [{ evidenceId: null }, { evidence: inboxRecordVisible }] },
+            {
+              OR: teamIds.map((workspaceId): Prisma.EvidenceRequestWhereInput => {
+                const hiddenCaseIds = reach.get(workspaceId)!.hidden.caseIds;
+                return hiddenCaseIds.length === 0
+                  ? { teamId: workspaceId }
+                  : { teamId: workspaceId, OR: [{ caseId: null }, { caseId: { notIn: hiddenCaseIds } }] };
+              }),
+            },
+          ],
+        };
+      };
       const teamNameById = new Map<string, string>(
         accessibleWorkspaces.map((w) => [w.workspaceId, w.name] as [string, string]),
       );
@@ -2543,10 +2583,10 @@ export async function buildInboxAggregation(
           ? []
           : await safelyLoadSource(
               "report_failure",
-              () =>
+              async () =>
                 prisma.operationalIncident.findMany({
                   where: {
-                    teamId: { in: teamIds },
+                    ...(await incidentsInInboxReach()),
                     category: "REPORT",
                     status: { in: ["OPEN", "ACKNOWLEDGED"] },
                   },
@@ -2587,10 +2627,10 @@ export async function buildInboxAggregation(
           ? []
           : await safelyLoadSource(
               "verification_package_failure",
-              () =>
+              async () =>
                 prisma.operationalIncident.findMany({
                   where: {
-                    teamId: { in: teamIds },
+                    ...(await incidentsInInboxReach()),
                     category: "PACKAGE",
                     status: { in: ["OPEN", "ACKNOWLEDGED"] },
                   },
@@ -2689,10 +2729,10 @@ export async function buildInboxAggregation(
           ? []
           : await safelyLoadSource(
               "intake_submission_pending_review",
-              () =>
+              async () =>
                 prisma.evidenceRequest.findMany({
                   where: {
-                    teamId: { in: teamIds },
+                    ...(await requestsInInboxReach()),
                     status: { in: ["RESPONSE_RECEIVED", "UNDER_REVIEW"] },
                     assignedReviewerUserId: null,
                   },
@@ -2725,10 +2765,10 @@ export async function buildInboxAggregation(
           ? []
           : await safelyLoadSource(
               "intake_required_items_missing",
-              () =>
+              async () =>
                 prisma.evidenceRequest.findMany({
                   where: {
-                    teamId: { in: teamIds },
+                    ...(await requestsInInboxReach()),
                     status: { in: ["PARTIALLY_FULFILLED", "NEEDS_MORE_INFO"] },
                   },
                   select: {

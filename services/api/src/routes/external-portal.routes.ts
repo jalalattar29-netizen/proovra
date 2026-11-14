@@ -47,6 +47,7 @@ import {
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { releaseExternalDisclosurePackage } from "../services/external-review/external-review-package.service.js";
+import { noStorePresignedResponse } from "../http/presigned-response.js";
 import { externalPortalCapabilitiesForRole } from "@proovra/shared";
 import { workspaceIncludesExternalReview } from "../services/billing-enforcement.service.js";
 
@@ -94,6 +95,10 @@ import {
   startPortalSsoFlow,
 } from "../services/external-review/portal-sso.service.js";
 import { rotateExternalReviewGrantToken } from "../services/external-review/external-review-grant.service.js";
+import {
+  projectRecipientContact,
+  resolveRecipientContactDisclosure,
+} from "../services/privacy/recipient-contact-disclosure.js";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -779,24 +784,32 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         teamId: ctx.workspaceId,
         grantId: id,
       });
+      // A2-07 — the address an invitation went to is a third party's contact:
+      // the one disclosure decision, masked unless the caller may reveal it.
+      const disclosure = await resolveRecipientContactDisclosure(req, { teamId: ctx.workspaceId });
       return reply.code(200).send({
-        deliveries: rows.map((r) => ({
-          id: r.id,
-          status: r.status,
-          provider: r.provider,
-          recipientEmail: r.recipientEmail,
-          subject: r.subject,
-          attempt: r.attempt,
-          queuedAtUtc: r.queuedAtUtc.toISOString(),
-          sentAtUtc: r.sentAtUtc?.toISOString() ?? null,
-          deliveredAtUtc: r.deliveredAtUtc?.toISOString() ?? null,
-          openedAtUtc: r.openedAtUtc?.toISOString() ?? null,
-          failedAtUtc: r.failedAtUtc?.toISOString() ?? null,
-          revokedAtUtc: r.revokedAtUtc?.toISOString() ?? null,
-          expiredAtUtc: r.expiredAtUtc?.toISOString() ?? null,
-          failureReason: r.failureReason,
-          bulkBatchId: r.bulkBatchId,
-        })),
+        deliveries: rows.map((r) => {
+          const contact = projectRecipientContact({ recipientEmail: r.recipientEmail, recipientPhone: null }, disclosure);
+          return {
+            id: r.id,
+            status: r.status,
+            provider: r.provider,
+            recipientEmail: contact.recipientEmail,
+            recipientEmailMasked: contact.recipientEmailMasked,
+            recipientContactRevealAuthorized: contact.recipientContactRevealAuthorized,
+            subject: r.subject,
+            attempt: r.attempt,
+            queuedAtUtc: r.queuedAtUtc.toISOString(),
+            sentAtUtc: r.sentAtUtc?.toISOString() ?? null,
+            deliveredAtUtc: r.deliveredAtUtc?.toISOString() ?? null,
+            openedAtUtc: r.openedAtUtc?.toISOString() ?? null,
+            failedAtUtc: r.failedAtUtc?.toISOString() ?? null,
+            revokedAtUtc: r.revokedAtUtc?.toISOString() ?? null,
+            expiredAtUtc: r.expiredAtUtc?.toISOString() ?? null,
+            failureReason: r.failureReason,
+            bulkBatchId: r.bulkBatchId,
+          };
+        }),
       });
     },
   );
@@ -1068,6 +1081,7 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       if (!released.ok) {
         return reply.code(released.status).send({ error: { code: released.code } });
       }
+      noStorePresignedResponse(reply);
       return reply.code(200).send({
         packageId: released.packageId,
         disclosureProfile: "EXTERNAL_DISCLOSURE",

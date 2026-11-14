@@ -38,6 +38,7 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
   let legalVersions: Record<string, string>;
   let dashboardCounters: typeof import("../src/services/dashboard/command-center-counters.js");
   let reachModule: typeof import("../src/services/access/record-reach.js");
+  let inboxModule: typeof import("../src/routes/me-inbox.routes.js");
   const A = () => h.fixtures.teamA;
 
   let listed: Person;
@@ -114,6 +115,7 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
     ({ REQUIRED_LEGAL_VERSIONS: legalVersions } = (await import("../src/legal/legal-versioning.js")) as never);
     dashboardCounters = await import("../src/services/dashboard/command-center-counters.js");
     reachModule = await import("../src/services/access/record-reach.js");
+    inboxModule = await import("../src/routes/me-inbox.routes.js");
     await prisma.team.updateMany({
       where: { id: A().teamId },
       data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" },
@@ -1099,4 +1101,240 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
       expect((await get(`/v1/teams/${A().teamId}/cases`, listed)).body).toContain(RESTRICTED_NAME);
     });
   });
+
+  // ===========================================================================
+  // A2-06 — the inbox sources that name a record or a case by id
+  // ===========================================================================
+  describe("A2-06: inbox evidence-request and incident sources follow the restricted case", () => {
+    const REQUEST_ON_CASE = `sentinel-request-case-${randomUUID().slice(0, 8)}`;
+    const REQUEST_ON_RECORD = `sentinel-request-record-${randomUUID().slice(0, 8)}`;
+    const OPEN_REQUEST = `open-request-${randomUUID().slice(0, 8)}`;
+    let requestOnCaseId: string;
+    let requestOnRecordId: string;
+    let openRequestId: string;
+    let incidentId: string;
+
+    beforeAll(async () => {
+      const request = (title: string, status: string, ref: { caseId?: string; evidenceId?: string }) =>
+        prisma.evidenceRequest.create({
+          data: {
+            teamId: A().teamId,
+            requestType: "ADDITIONAL_EVIDENCE",
+            recipientMode: "INTERNAL_USER",
+            requestedByUserId: A().ownerUserId,
+            title,
+            status,
+            ...ref,
+          } as never,
+          select: { id: true },
+        });
+      requestOnCaseId = (await request(REQUEST_ON_CASE, "RESPONSE_RECEIVED", { caseId: restrictedCaseId })).id;
+      requestOnRecordId = (await request(REQUEST_ON_RECORD, "NEEDS_MORE_INFO", { evidenceId: hiddenId })).id;
+      openRequestId = (await request(OPEN_REQUEST, "RESPONSE_RECEIVED", { caseId: openCaseId })).id;
+      incidentId = (
+        await prisma.operationalIncident.create({
+          data: {
+            teamId: A().teamId,
+            category: "REPORT",
+            fingerprint: `a2-06-${tag()}`,
+            title: "report failed",
+            safeSummary: "report failed",
+            relatedEvidenceId: hiddenId,
+          } as never,
+          select: { id: true },
+        })
+      ).id;
+    });
+
+    const inboxBody = async (who: Person) => {
+      const agg = await inboxModule.buildInboxAggregation(who.id, h.app.log as never);
+      if (!agg.ok) throw new Error("inbox aggregation refused");
+      expect(agg.degradedSources).toEqual([]);
+      return JSON.stringify(agg.allItems);
+    };
+
+    it("off-list MEMBER and VIEWER get no item for a closed case's or record's request or incident", async () => {
+      for (const who of [off, offViewer]) {
+        const body = await inboxBody(who);
+        expect(body).toContain(openRequestId);
+        expect(body).toContain(OPEN_REQUEST);
+        expect(body).not.toContain(requestOnCaseId);
+        expect(body).not.toContain(REQUEST_ON_CASE);
+        expect(body).not.toContain(requestOnRecordId);
+        expect(body).not.toContain(REQUEST_ON_RECORD);
+        expect(body).not.toContain(incidentId);
+        absent(body);
+      }
+    });
+
+    it("the listed member keeps every one of them", async () => {
+      const body = await inboxBody(listed);
+      expect(body).toContain(requestOnCaseId);
+      expect(body).toContain(requestOnRecordId);
+      expect(body).toContain(incidentId);
+      expect(body).toContain(openRequestId);
+    });
+  });
+
+  // ===========================================================================
+  // A2-07 — a request's recipient contact follows the one disclosure decision
+  // ===========================================================================
+  describe("A2-07: evidence-request recipient contact is masked for a VIEWER", () => {
+    const RECIPIENT_EMAIL = `recipient-${randomUUID().slice(0, 8)}@contact.test`;
+    const RECIPIENT_PHONE = "+15551234567";
+    let requestId: string;
+
+    beforeAll(async () => {
+      process.env.EVIDENCE_REQUESTS_ENABLED = "true";
+      requestId = (
+        await prisma.evidenceRequest.create({
+          data: {
+            teamId: A().teamId,
+            requestType: "ADDITIONAL_EVIDENCE",
+            recipientMode: "EXTERNAL_CONTRIBUTOR",
+            requestedByUserId: A().ownerUserId,
+            title: `contact-${tag()}`,
+            recipientEmail: RECIPIENT_EMAIL,
+            recipientPhone: RECIPIENT_PHONE,
+            caseId: openCaseId,
+          } as never,
+          select: { id: true },
+        })
+      ).id;
+    });
+
+    it("VIEWER: list and detail carry the masked form, never the raw address or number", async () => {
+      for (const url of [`/v1/evidence-requests/${requestId}`, `/v1/evidence-requests?${teamQ()}&caseId=${openCaseId}`]) {
+        const r = await get(url, offViewer);
+        expect(r.statusCode, `${url}: ${r.body}`).toBe(200);
+        expect(r.body).toContain(requestId);
+        expect(r.body).not.toContain(RECIPIENT_EMAIL);
+        expect(r.body).not.toContain("5551234567");
+        expect(r.body).toContain("recipientEmailMasked");
+      }
+      const detail = (await get(`/v1/evidence-requests/${requestId}`, offViewer)).json() as {
+        request: { recipientEmail: unknown; hasRecipientEmail: unknown; recipientContactRevealAuthorized: unknown };
+      };
+      expect(detail.request).toMatchObject({
+        recipientEmail: null,
+        hasRecipientEmail: true,
+        recipientContactRevealAuthorized: false,
+      });
+    });
+
+    it("MEMBER (holds the reveal authority) reads the raw contact", async () => {
+      const r = await get(`/v1/evidence-requests/${requestId}`, off);
+      expect(r.statusCode, r.body).toBe(200);
+      expect((r.json() as { request: { recipientEmail: string } }).request.recipientEmail).toBe(RECIPIENT_EMAIL);
+    });
+  });
+
+  // ===========================================================================
+  // A2-08 — intake links and external-review grants follow the restricted case
+  // ===========================================================================
+  describe("A2-08: intake links and external-review grants of a restricted case", () => {
+    let closedLinkId: string;
+    let openLinkId: string;
+    let hiddenSessionId: string;
+    let hiddenGrantId: string;
+    let closedCaseGrantId: string;
+    let openGrantId: string;
+    const owner = () => ({ id: A().ownerUserId, token: A().ownerToken });
+
+    beforeAll(async () => {
+      process.env.WORKFLOW_INTAKE_LINKS_ENABLED = "true";
+      process.env.WORKFLOW_INTAKE_TOKEN_SECRET ??= "integration-only-intake-secret-0123456789abcdef";
+      const linkBody = (caseId?: string) => ({
+        teamId: A().teamId,
+        workflowTemplateSlug: "general-evidence-record",
+        intakeMode: "EXTERNAL_ONE_TIME",
+        ...(caseId ? { caseId } : {}),
+        expiresAtUtc: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+      });
+      const closed = await post("/v1/workflow/intake-links", owner(), linkBody(restrictedCaseId));
+      expect(closed.statusCode, closed.body).toBe(201);
+      closedLinkId = (closed.json() as { link: { id: string } }).link.id;
+      const open = await post("/v1/workflow/intake-links", owner(), linkBody());
+      expect(open.statusCode, open.body).toBe(201);
+      openLinkId = (open.json() as { link: { id: string } }).link.id;
+      hiddenSessionId = (
+        await prisma.workflowIntakeSession.create({
+          data: {
+            intakeLinkId: openLinkId,
+            status: "SUBMITTED",
+            evidenceId: hiddenId,
+            submittedAtUtc: new Date(),
+            expiresAtUtc: new Date(Date.now() + 86_400_000),
+          } as never,
+          select: { id: true },
+        })
+      ).id;
+      const grant = (ref: { scopeKind: string; evidenceId?: string; caseId?: string }) =>
+        prisma.externalReviewGrant.create({
+          data: {
+            teamId: A().teamId,
+            tokenHash: `a2-08-${randomUUID()}`,
+            reviewerEmail: `reviewer-${tag()}@grant.test`,
+            invitedByUserId: A().ownerUserId,
+            expiresAtUtc: new Date(Date.now() + 86_400_000),
+            ...ref,
+          } as never,
+          select: { id: true },
+        });
+      hiddenGrantId = (await grant({ scopeKind: "EVIDENCE", evidenceId: hiddenId })).id;
+      closedCaseGrantId = (await grant({ scopeKind: "CASE", caseId: restrictedCaseId })).id;
+      openGrantId = (await grant({ scopeKind: "EVIDENCE", evidenceId: visibleId })).id;
+    });
+
+    it("the link list omits the closed case's link for off-list actors; the listed member keeps it", async () => {
+      for (const who of [off, offViewer, offAdmin]) {
+        const r = await get(`/v1/workflow/intake-links?${teamQ()}&archiveScope=all&limit=200`, who);
+        expect(r.statusCode, r.body).toBe(200);
+        expect(r.body).toContain(openLinkId);
+        expect(r.body).not.toContain(closedLinkId);
+        expect(r.body).not.toContain(restrictedCaseId);
+      }
+      const mine = await get(`/v1/workflow/intake-links?${teamQ()}&archiveScope=all&limit=200`, listed);
+      expect(mine.body).toContain(closedLinkId);
+    });
+
+    it("the closed case's link and its submissions are 404 off the list, 200 on it", async () => {
+      for (const url of [`/v1/workflow/intake-links/${closedLinkId}`, `/v1/workflow/intake-links/${closedLinkId}/submissions`]) {
+        for (const who of [off, offViewer, offAdmin]) {
+          const r = await get(url, who);
+          expect(r.statusCode, `${url}: ${r.body}`).toBe(404);
+        }
+        expect((await get(url, listed)).statusCode).toBe(200);
+      }
+    });
+
+    it("a submission that produced a closed record is not listed off the list", async () => {
+      const url = `/v1/workflow/intake-links/${openLinkId}/submissions`;
+      for (const who of [off, offViewer, offAdmin]) {
+        const r = await get(url, who);
+        expect(r.statusCode, r.body).toBe(200);
+        expect(r.body).not.toContain(hiddenSessionId);
+        absent(r.body);
+      }
+      const mine = await get(url, listed);
+      expect(mine.body).toContain(hiddenSessionId);
+      expect(mine.body).toContain(hiddenId);
+    });
+
+    it("the grant list omits grants on a closed record or case; the listed member keeps them", async () => {
+      for (const who of [off, offAdmin]) {
+        const r = await get(`/v1/external-review/grants?${teamQ()}&limit=200`, who);
+        expect(r.statusCode, r.body).toBe(200);
+        expect(r.body).toContain(openGrantId);
+        expect(r.body).not.toContain(hiddenGrantId);
+        expect(r.body).not.toContain(closedCaseGrantId);
+        absent(r.body);
+      }
+      const mine = await get(`/v1/external-review/grants?${teamQ()}&limit=200`, listed);
+      expect(mine.statusCode, mine.body).toBe(200);
+      expect(mine.body).toContain(hiddenGrantId);
+      expect(mine.body).toContain(closedCaseGrantId);
+    });
+  });
 });
+

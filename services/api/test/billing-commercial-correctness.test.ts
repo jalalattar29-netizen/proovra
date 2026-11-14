@@ -644,10 +644,13 @@ describe("the Billing projection does not re-derive commercial facts", () => {
       projection.indexOf("const used = await countPersonalEvidenceRecords") - 4000,
     );
     expect(projection).toMatch(/resolveEffectiveContractEvidenceCap/);
-    // ...and counts over the SAME window when one applies.
+    // ...and counts over the SAME window when one applies — AUDIT E-04: with the
+    // gate's own plan-occupying count (readPersonalAdmissionInputs + since),
+    // not every slot row.
     expect(projection).toMatch(
-      /countPersonalEvidenceRecords\(account\.id,\s*\{\s*\n?\s*createdSince: since,?\s*\n?\s*\}\)/,
+      /readPersonalAdmissionInputs\(account\.id,\s*\{[^}]*since,?\s*\}\)/,
     );
+    expect(projection).toMatch(/used: windowInputs\.planOccupying,/);
     expect(projection).toMatch(/window: "ROLLING_30_DAYS"/);
     void personalBranch;
 

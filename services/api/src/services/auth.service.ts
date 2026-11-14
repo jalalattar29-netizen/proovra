@@ -560,6 +560,13 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
       },
     });
   } else {
+    // B-04 — the address this sign-in writes. When it differs from the held
+    // one, the old verification stamp proves nothing about it: the account is
+    // verified now if the provider vouches for the new address, otherwise not
+    // at all (invitation acceptance and reset trust `emailVerifiedAt`).
+    const normalizedAddress = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
+    const emailChanged =
+      isOAuthProvider && normalizedAddress(profile.email ?? user.email) !== normalizedAddress(user.email);
     user = await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -571,9 +578,12 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
         // the original audit point), and never applied for non-OAuth
         // providers. Kept ahead of the avatar backfill so the OAuth
         // verification guard is the first conditional in the payload.
-        ...(providerVouchesForEmail && !user.emailVerifiedAt
-          ? { emailVerifiedAt: now }
-          : {}),
+        // A changed address re-decides it (B-04, above).
+        ...(emailChanged
+          ? { emailVerifiedAt: providerVouchesForEmail ? now : null }
+          : providerVouchesForEmail && !user.emailVerifiedAt
+            ? { emailVerifiedAt: now }
+            : {}),
         // Backfill avatarUrl on repeat sign-in ONLY when the row has
         // no avatar yet — this rescues existing accounts created before
         // this fix, but never overwrites a custom uploaded avatar. Also

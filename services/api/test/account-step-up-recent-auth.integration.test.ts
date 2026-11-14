@@ -33,6 +33,8 @@ describe("account step-up — recent auth (live PostgreSQL 16)", () => {
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let verifyAccountStepUp: (typeof import("../src/services/identity-security/account-step-up.service.js"))["verifyAccountStepUp"];
   let hashSessionId: (sid: string) => string;
+  let hashPassword: (typeof import("../src/services/email-password-auth.service.js"))["hashPassword"];
+  let enforceRateLimit: (typeof import("../src/services/rate-limit.js"))["enforceRateLimit"];
   let userA = "";
   let userB = "";
 
@@ -46,6 +48,8 @@ describe("account step-up — recent auth (live PostgreSQL 16)", () => {
     ({ hashSessionId } = await import(
       "../src/services/identity-security/session-revocation.service.js"
     ));
+    ({ hashPassword } = await import("../src/services/email-password-auth.service.js"));
+    ({ enforceRateLimit } = await import("../src/services/rate-limit.js"));
     userA = harness.fixtures.teamA.ownerUserId;
     userB = harness.fixtures.teamB.ownerUserId;
 
@@ -164,5 +168,40 @@ describe("account step-up — recent auth (live PostgreSQL 16)", () => {
     // can satisfy the gate.
     const unknown = randomUUID();
     expect((await call(userA, unknown)).ok).toBe(false);
+  });
+
+  it("B-08: proof attempts share ONE per-user budget across actions, held in the shared limiter", async () => {
+    const email = `b08-${randomUUID().slice(0, 8)}@test.proovra.local`;
+    const user = await prisma.user.create({
+      data: {
+        email,
+        provider: "EMAIL",
+        providerUserId: email,
+        passwordHash: await hashPassword("StepUpBudgetPass123"),
+        emailVerifiedAt: new Date(),
+      },
+      select: { id: true },
+    });
+    const guess = (action: "data_export_request" | "sessions_revoke_others" | "login_method_unlink") =>
+      verifyAccountStepUp({
+        req: reqFor(null),
+        reply: {} as never,
+        userId: user.id,
+        action,
+        proof: { method: "password", currentPassword: "wrong-guess-123" },
+      });
+    const codeOf = (v: Awaited<ReturnType<typeof guess>>) =>
+      v.ok ? "ok" : (v.denial.body as { error: { code: string } }).error.code;
+
+    for (let i = 0; i < 5; i += 1) expect(codeOf(await guess("data_export_request"))).toBe("STEP_UP_INVALID");
+    // A different action does not open a fresh budget for the same person.
+    const other = await guess("sessions_revoke_others");
+    expect(codeOf(other)).toBe("rate_limited");
+    expect(other.ok ? 0 : other.denial.status).toBe(429);
+    expect(codeOf(await guess("login_method_unlink"))).toBe("rate_limited");
+    // The count lives in the shared (cross-instance) limiter, not this process.
+    const shared = await enforceRateLimit({ key: `account-stepup:${user.id}`, max: 5, windowSec: 60, bound: "global" });
+    expect(shared.allowed).toBe(false);
+    expect(shared.store).toBe("redis");
   });
 });

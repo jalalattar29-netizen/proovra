@@ -360,6 +360,96 @@ describe("F-03/F-04: a web reservation fits its files; discard releases it (Post
     expect(r.parts).toEqual([{ partIndex: 0, originalFileName: "a.jpg", sha256: null, privateNote: "note for A" }]);
   }, 240_000);
 
+  // C-08 — a Finish retried after the person confirmed a workspace switch used
+  // to resume the draft's record in the OLD workspace (and charge it there).
+  it("C-08: a retry in another workspace releases the old reservation and reserves in the workspace selected now; null means Personal", async () => {
+    const { seedOwnedWorkspace } = await import("./point7/product-fixtures.js");
+    const t = await seedPersonalTenant(deps, "TEAM");
+    const owned = await seedOwnedWorkspace(deps, { ownerUserId: t.owner.userId, billingPlan: "TEAM", billingStatus: "ACTIVE" });
+    const a = file("a.jpg", `A-${randomBytes(6).toString("hex")}`);
+    const createIn = (draftId: string, teamId: string | null) =>
+      call("POST", "/v1/evidence", t.owner.token, {
+        type: "PHOTO",
+        mimeType: "image/jpeg",
+        ...(teamId ? { teamId } : {}),
+        originalFileName: a.name,
+        captureSessionId: draftId,
+        parts: [{ originalFileName: a.name, mimeType: "image/jpeg", sha256Base64: b64(a.bytes) }],
+      });
+
+    // Null teamId is the caller's Personal workspace: the same draft resumes.
+    const draft = await newDraft(t);
+    const first = await finish(t, draft.id, [a]);
+    expect(first.statusCode, first.body).toBe(201);
+    const personalId = first.json().id as string;
+    await upload(t, personalId, 0, a);
+    const sameNull = await createIn(draft.id, null);
+    expect(sameNull.statusCode, sameNull.body).toBe(200);
+    expect(sameNull.json()).toMatchObject({ id: personalId, resumed: true });
+
+    // The person switches to the owned workspace and finishes again.
+    const moved = await createIn(draft.id, owned.teamId);
+    expect(moved.statusCode, moved.body).toBe(201);
+    const movedId = moved.json().id as string;
+    expect(movedId).not.toBe(personalId);
+    const fresh = await prisma.evidence.findUniqueOrThrow({ where: { id: movedId }, select: { teamId: true } });
+    expect(fresh.teamId).toBe(owned.teamId);
+    const old = await record(personalId);
+    expect(old.ev.deletedAt).not.toBeNull();
+    expect(old.deleted.map((d) => (d.payload as { reason?: string }).reason)).toEqual(["CAPTURE_WORKSPACE_CHANGED"]);
+  }, 240_000);
+
+  // C-06 — a client that sends no staged-file hint (mobile, extension, an API
+  // client; or web when hashing threw) used to bind the row to name and type
+  // only: a second presign of the same name with OTHER bytes was handed the
+  // first row (its note) with the new checksum signed into the URL.
+  it("C-06: with no staged hint, a presign of the same name with other bytes or another size is refused; the same file still retries", async () => {
+    const t = await seedPersonalTenant(deps, "FREE");
+    const a = file("a.jpg", `A-${randomBytes(6).toString("hex")}`, "note for A");
+    const created = await finish(t, null, [a]);
+    const id = created.json().id as string;
+    const bare = (f: StagedFile, extra: Record<string, unknown> = {}) =>
+      call("POST", `/v1/evidence/${id}/parts`, t.owner.token, {
+        partIndex: 0,
+        mimeType: "image/jpeg",
+        originalFileName: f.name,
+        sizeBytes: f.bytes.length,
+        ...(f.note ? { privateNote: f.note } : {}),
+        ...extra,
+      });
+    const first = await bare(a, { checksumSha256Base64: b64(a.bytes) });
+    expect(first.statusCode, first.body).toBe(201);
+
+    const same = await bare(a, { checksumSha256Base64: b64(a.bytes) });
+    expect(same.statusCode, same.body).toBe(200);
+
+    const otherBytes = file("a.jpg", `Z-${randomBytes(6).toString("hex")}`);
+    expect(otherBytes.bytes.length).toBe(a.bytes.length);
+    const refusedDigest = await bare(otherBytes, { checksumSha256Base64: b64(otherBytes.bytes) });
+    expect(refusedDigest.statusCode, refusedDigest.body).toBe(409);
+    expect(refusedDigest.json().code).toBe("PART_INDEX_TAKEN");
+
+    // A row first bound with no digest at all: another size, or a digest now, is another file.
+    const c = file("c.jpg", `C-${randomBytes(6).toString("hex")}`);
+    const created2 = await finish(t, null, [c]);
+    const id2 = created2.json().id as string;
+    const bare2 = (f: StagedFile, extra: Record<string, unknown> = {}) =>
+      call("POST", `/v1/evidence/${id2}/parts`, t.owner.token, {
+        partIndex: 0, mimeType: "image/jpeg", originalFileName: f.name, sizeBytes: f.bytes.length, ...extra,
+      });
+    expect((await bare2(c)).statusCode).toBe(201);
+    expect((await bare2(c)).statusCode, "the same file again").toBe(200);
+    const longer = file("c.jpg", `${c.bytes.toString()}-longer`);
+    const refusedSize = await bare2(longer);
+    expect(refusedSize.statusCode, refusedSize.body).toBe(409);
+    expect(refusedSize.json().code).toBe("PART_INDEX_TAKEN");
+    const refusedNewDigest = await bare2(c, { checksumSha256Base64: b64(c.bytes) });
+    expect(refusedNewDigest.statusCode, refusedNewDigest.body).toBe(409);
+
+    const r = await record(id);
+    expect(r.parts).toEqual([{ partIndex: 0, originalFileName: "a.jpg", sha256: null, privateNote: "note for A" }]);
+  }, 240_000);
+
   it("at the seal, stored bytes that are not the bound file are refused before anything is signed", async () => {
     const t = await seedPersonalTenant(deps, "FREE");
     const a = file("a.jpg", `A-${randomBytes(6).toString("hex")}`);
@@ -368,11 +458,23 @@ describe("F-03/F-04: a web reservation fits its files; discard releases it (Post
     const res = await presign(t, id, 0, a);
     // A store that did not enforce the signed checksum accepted other bytes.
     storeFromPutUrl(res.json().upload.putUrl as string, Buffer.from(`not-A-${randomBytes(6).toString("hex")}`));
+    const sessionBefore = await prisma.uploadSession.findUnique({
+      where: { evidenceId: id },
+      select: { status: true, lastActivityAtUtc: true },
+    });
 
     const refused = await complete(t, id);
     expect(refused.statusCode, refused.body).toBe(409);
     expect(refused.json().code).toBe("PART_DIGEST_MISMATCH");
     await h.handlersSettled();
+    // C-07 — a refused (rolled-back) completion leaves the operations-side
+    // session as it was: it used to move it to VERIFYING outside the
+    // transaction, re-touching the abandoned record's slot hold.
+    const sessionAfter = await prisma.uploadSession.findUnique({
+      where: { evidenceId: id },
+      select: { status: true, lastActivityAtUtc: true },
+    });
+    expect(sessionAfter).toEqual(sessionBefore);
     const r = await record(id);
     expect(["CREATED", "UPLOADING"]).toContain(r.ev.status);
     expect(r.ev.signatureBase64).toBeNull();

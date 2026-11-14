@@ -51,7 +51,7 @@ import {
 } from "./security/file-security-scan.service.js";
 import { validateUploadedFile } from "./security/file-validation.service.js";
 import { safeEmitSecurityEvent } from "./security/security-event.service.js";
-import { safeTransitionUploadSession, settleCompletedUploadSession } from "./reliability/upload-session.service.js";
+import { settleCompletedUploadSession } from "./reliability/upload-session.service.js";
 import { evaluateUploadSessionFinalizeGate } from "./uploads/upload-session.service.js";
 import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
 import { warn as logWarn } from "../utils/logger.js";
@@ -1142,12 +1142,11 @@ export async function completeEvidence(params: {
         throw captureCompletionError("INTAKE_SESSION_NOT_BOUND_TO_EVIDENCE");
       }
 
-      // Phase 12 — move the operations-side session to VERIFYING. Best
-      // effort; failure here MUST NOT break the forensic write path.
-      safeTransitionUploadSession({
-        evidenceId: evidence.id,
-        to: "VERIFYING",
-      }).catch(() => null);
+      // C-07 — no operations-side VERIFYING write here. It ran on the global
+      // client, outside this transaction, so every attempt that later failed
+      // (and rolled back) still touched the session and extended the
+      // abandoned record's 24 h slot hold. settleCompletedUploadSession, after
+      // commit, completes the session from whatever live state it is in.
 
       const parts = await tx.evidencePart.findMany({
         where: { evidenceId: evidence.id },

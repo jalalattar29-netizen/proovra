@@ -109,6 +109,17 @@ describe("Stripe success return — the server re-checks the attempt", () => {
     expect(hook.result.current.confirming).toBe(false);
   });
 
+  it("E-02: a card plan superseded by a plan already live is never reported as applied", async () => {
+    replies = [{ status: 200, body: { outcome: "UPDATED", currentStatus: "COMPLETED", superseded: true } }];
+    const { hook } = run(`success=1&kind=plan&attempt=${ATTEMPT}`);
+    await waitFor(() => expect(hook.result.current.returnNotice?.tone).toBe("info"));
+    const notice = hook.result.current.returnNotice!;
+    expect(notice.message).toMatch(/You already have an active plan/);
+    expect(notice.message).toMatch(/support will review the charge/);
+    expect(notice.message).not.toMatch(/is applied/);
+    expect(attemptCalls()).toHaveLength(1);
+  });
+
   it("a return before the webhook that never settles stays 'waiting' and claims nothing", async () => {
     replies = [
       { status: 200, body: pending },

@@ -234,13 +234,17 @@ describe("Phase IA-intake-completion P4 — Inbox surfacing", () => {
     );
   });
 
-  it("/evidence-requests/[id] surface is gated by INTAKE_LINKS_MANAGE (matches /intake-links)", () => {
+  it("/evidence-requests/[id] loads on EVIDENCE_VIEW (as the API reads it); its actions keep the /intake-links decision (A1-03)", () => {
     const REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
     // The detail page registers under workspace.evidence_requests.
     const block = REGISTRY.match(
-      /id:\s*"workspace\.evidence_requests"[\s\S]{0,1500}\}/,
+      /id:\s*"workspace\.evidence_requests"[\s\S]{0,2000}?\n {2}\}/,
     )?.[0] ?? "";
-    expect(block).toMatch(/requiredCapabilities:\s*\[\s*"INTAKE_LINKS_MANAGE"\s*\]/);
+    expect(block).toMatch(/requiredCapabilities:\s*\[\s*"EVIDENCE_VIEW"\s*\]/);
+    expect(block).not.toMatch(/requiredPlanFeature/);
+    const PAGE = readWeb("app/(app)/evidence-requests/[id]/page.tsx");
+    expect(PAGE).toMatch(/<PageRouteGate routeId="workspace\.evidence_requests">/);
+    expect(PAGE).toMatch(/useRouteAccess\("workspace\.intake_links"\)\?\.canLoad === true/);
   });
 });
 

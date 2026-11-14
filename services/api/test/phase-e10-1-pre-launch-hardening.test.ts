@@ -7,7 +7,7 @@
  *      invoke it before processing the body.
  *   2. The login route key shape is `auth:email-login:ip:*`.
  *   3. The password-reset route key shape is `auth:password-reset:ip:*`.
- *   4. Both routes emit a `blocked` outcome audit event on 429.
+ *   4. Both routes log the refusal on 429 (not chained since F-01, 2026-11-14).
  *   5. Both routes return 429 + Retry-After header on rate-limit hit.
  *   6. The login flow audit message for failure remains "invalid_credentials"
  *      (no enumeration regression).
@@ -135,7 +135,12 @@ describe("E10.1 Test 1 — DEF-037: auth route rate limits", () => {
     expect(Number(resetMax![1])).toBeGreaterThan(0);
   });
 
-  it("rate-limit-blocked path returns 429 + Retry-After header + auditAuthEvent({outcome: 'blocked'})", () => {
+  // Free-user audit F-01 (2026-11-14): a limiter refusal is no longer written to
+  // the audit chain — every chained row takes the one global chain lock, so a
+  // refusal flood serialized on it. The refusal is logged (logAuthRateLimited →
+  // req.log.warn "auth.rate_limited"); rate-limit-refusals-not-chained proves a
+  // flood adds no chain rows. Successful and post-auth denied acts stay audited.
+  it("rate-limit-blocked path returns 429 + Retry-After header + a logged (not chained) refusal", () => {
     // Both routes follow the same shape.
     const blocks = [
       AUTH_ROUTES.slice(
@@ -150,9 +155,12 @@ describe("E10.1 Test 1 — DEF-037: auth route rate limits", () => {
     for (const block of blocks) {
       expect(block).toMatch(/reply[\s\S]*\.code\(429\)/);
       expect(block).toMatch(/Retry-After/);
-      expect(block).toMatch(/outcome:\s*["']blocked["']/);
-      expect(block).toMatch(/reason:\s*["']rate_limited["']/);
+      expect(block).toMatch(/logAuthRateLimited\(req,/);
+      // The refusal branch (up to its 429) never reaches the audit chain.
+      const refusal = block.slice(block.indexOf("if (!rl.allowed)"), block.indexOf(".code(429)"));
+      expect(refusal).not.toMatch(/auditAuthEvent|auditPublicAuthEvent|appendAuditLog/);
     }
+    expect(AUTH_ROUTES).toMatch(/req\.log\.warn\([\s\S]{0,200}"auth\.rate_limited"/);
   });
 
   it("login enumeration safety preserved: ONE 401 for both failure causes", () => {
@@ -295,7 +303,8 @@ describe("E10.1 Test 2 — DEF-038: Stripe webhook idempotency", () => {
       WEBHOOK_ROUTES.indexOf('app.post("/stripe"'),
       WEBHOOK_ROUTES.indexOf('app.post("/paypal"'),
     );
-    expect(handler).toMatch(/stripeWebhookEvent[\s\S]*\.update\(/);
+    // AUDIT F-06: the final write is a lease-fenced updateMany.
+    expect(handler).toMatch(/stripeWebhookEvent[\s\S]*\.update(?:Many)?\(/);
     expect(handler).toMatch(/processingStatus:\s*["']PROCESSED["']/);
   });
 
@@ -313,7 +322,7 @@ describe("E10.1 Test 2 — DEF-038: Stripe webhook idempotency", () => {
       WEBHOOK_ROUTES.indexOf('app.post("/stripe"'),
       WEBHOOK_ROUTES.indexOf('app.post("/paypal"'),
     );
-    expect(handler).toMatch(/\.update\([\s\S]*?\)\s*\.catch\(\(\)\s*=>\s*null\)/);
+    expect(handler).toMatch(/\.update(?:Many)?\([\s\S]*?\)\s*\.catch\(\(\)\s*=>\s*null\)/);
   });
 });
 

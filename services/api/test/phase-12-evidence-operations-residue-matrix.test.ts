@@ -143,6 +143,10 @@ vi.mock("../src/middleware/authorize.js", () => ({
     return { actorUserId: H.actorUserId, teamId: opts.teamId ?? TEAM };
   },
   requireAuthorize: () => async () => {},
+  // A2-07 — every evidence-request projection asks the recipient-contact
+  // disclosure decision, which reads the canonical primitive. This suite does
+  // not model it, so every caller here is MASKED (the fail-closed answer).
+  evaluateAuthorize: async () => ({ allowed: false, reasonCode: "permission_not_granted", httpStatus: 403 }),
 
   // PHASE 12 REMEDIATION — AUTH-005 (2026-08-06). INTENTIONAL CONTRACT
   // CHANGE, and the reason it is required.

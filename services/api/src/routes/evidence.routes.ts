@@ -349,8 +349,10 @@ import {
 import {
   boundPartsMatchManifest,
   isSameBoundFile,
+  withPartBinding,
   type DeclaredPartFile,
 } from "../services/evidence/evidence-part-binding.service.js";
+import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { validateUploadedFile } from "../services/security/file-validation.service.js";
 import {
@@ -360,6 +362,7 @@ import {
   getObjectRange,
   probeStoredObject,
 } from "../storage.js";
+import { noStorePresignedResponse } from "../http/presigned-response.js";
 import { bump as bumpOpsMetric } from "@proovra/shared-runtime/ops";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
@@ -1839,12 +1842,23 @@ async function assertNotIntakeBoundRecord(evidenceId: string): Promise<void> {
  * declares: the caller releases that unsealed reservation (the reservation
  * authority) and reserves a fresh record in the same transaction.
  */
-type StaleDraftReservation = { stale: true; id: string };
+type StaleDraftReservation = {
+  stale: true;
+  id: string;
+  reason: "CAPTURE_SELECTION_CHANGED" | "CAPTURE_WORKSPACE_CHANGED";
+};
 
 async function resolveResumableDraftRecord(
   ownerUserId: string,
   captureSessionId: string,
   manifest?: readonly DeclaredPartFile[] | null,
+  /**
+   * C-08 — the workspace this Finish targets (body.teamId; null = the caller's
+   * Personal workspace). A draft record reserved in another workspace is
+   * stale: it is released and a fresh record is reserved where the person is
+   * finishing now, instead of sealing into (and charging) the old workspace.
+   */
+  requestedTeamId?: string | null,
 ) {
   const draft = await prisma.captureSession.findFirst({
     where: {
@@ -1869,6 +1883,13 @@ async function resolveResumableDraftRecord(
   if (!ev) return null;
   const expired = await prisma.$transaction((tx) => isEvidenceReservationExpiredTx(tx, ev.id, new Date()));
   if (expired) return null;
+  if (requestedTeamId !== undefined) {
+    const targetTeamId =
+      requestedTeamId ?? (await ensurePersonalWorkspace({ userId: ownerUserId }, prisma)).teamId;
+    if (ev.teamId !== targetTeamId) {
+      return { stale: true, id: ev.id, reason: "CAPTURE_WORKSPACE_CHANGED" } satisfies StaleDraftReservation;
+    }
+  }
   const parts = await prisma.evidencePart.findMany({
     where: { evidenceId: ev.id },
     orderBy: { partIndex: "asc" },
@@ -1885,7 +1906,7 @@ async function resolveResumableDraftRecord(
       !boundPartsMatchManifest(parts, manifest) ||
       (primary !== null && recordPrimary !== null && primary !== recordPrimary)
     ) {
-      return { stale: true, id: ev.id } satisfies StaleDraftReservation;
+      return { stale: true, id: ev.id, reason: "CAPTURE_SELECTION_CHANGED" } satisfies StaleDraftReservation;
     }
   }
   return {
@@ -6525,6 +6546,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       // reservation is released below, in the creating transaction, so the
       // fresh record does not need a second allowance slot.
       let staleDraftReservationId: string | null = null;
+      let staleDraftReason: StaleDraftReservation["reason"] = "CAPTURE_SELECTION_CHANGED";
       if (body.captureSessionId) {
         const manifest: DeclaredPartFile[] | null = body.parts
           ? body.parts.map((p) => ({
@@ -6533,9 +6555,16 @@ export async function evidenceRoutes(app: FastifyInstance) {
               sha256Base64: normalizeChecksumSha256Base64(p.sha256Base64),
             }))
           : null;
-        const resumable = await resolveResumableDraftRecord(ownerUserId, body.captureSessionId, manifest);
-        if (resumable && "stale" in resumable) staleDraftReservationId = resumable.id;
-        else if (resumable) return reply.code(200).send(resumable);
+        const resumable = await resolveResumableDraftRecord(
+          ownerUserId,
+          body.captureSessionId,
+          manifest,
+          body.teamId ?? null,
+        );
+        if (resumable && "stale" in resumable) {
+          staleDraftReservationId = resumable.id;
+          staleDraftReason = resumable.reason ?? "CAPTURE_SELECTION_CHANGED";
+        } else if (resumable) return reply.code(200).send(resumable);
       }
 
 // F-20 (independent forward audit) — a web capture DRAFT is bound to the
@@ -6552,7 +6581,7 @@ const createWithDraftBinding = async (tx?: Prisma.TransactionClient) => {
   if (tx && staleDraftReservationId) {
     const released = await releaseEvidenceReservationTx(tx, {
       evidenceId: staleDraftReservationId,
-      reason: "CAPTURE_SELECTION_CHANGED",
+      reason: staleDraftReason,
       now: new Date(),
       captureSessionId: body.captureSessionId ?? null,
     });
@@ -7252,7 +7281,12 @@ message:
               ? ((body.clientSignals as { clientHintSha256Base64?: unknown }).clientHintSha256Base64 as string | undefined)
               : undefined,
           ) ?? normalizedChecksum,
+        // C-06 — the size is part of the binding too (required above).
+        sizeBytes: body.sizeBytes,
       };
+      // C-06 — a NEW row stores the binding (declared digest, size) with the
+      // client's signals, so a later presign or the seal can check it.
+      const boundClientSignals = withPartBinding(body.clientSignals, declaredFile);
       const refuseOtherFile = () =>
         Object.assign(new Error("This part index already holds a different file."), {
           statusCode: 409,
@@ -7352,11 +7386,11 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${o
               checklistStepId: body.checklistStepId?.trim() || null,
               sourceLabel: body.sourceLabel?.trim() || null,
               clientSignals:
-                body.clientSignals === undefined
+                boundClientSignals === undefined
                   ? undefined
-                  : body.clientSignals === null
+                  : boundClientSignals === null
                     ? prismaPkg.Prisma.JsonNull
-                    : body.clientSignals,
+                    : (boundClientSignals as prismaPkg.Prisma.InputJsonValue),
               uploadedByUserId: ownerUserId,
               uploadedAtUtc: null,
               },
@@ -7602,6 +7636,7 @@ return {
         metadata: { partCount: parts.length },
       });
 
+      noStorePresignedResponse(reply);
       return reply.code(200).send({
         evidenceId: id,
         multipart: enrichedParts.length > 1,
@@ -13164,6 +13199,7 @@ limitationsSnapshot: true,
         }
       );
 
+      noStorePresignedResponse(reply);
       return reply.code(200).send({
         evidenceId: id,
         version: latest.version,
@@ -13338,6 +13374,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         select: { version: true },
       });
 
+      noStorePresignedResponse(reply);
       return reply.code(200).send({
         evidenceId: id,
         version: row.version,
@@ -13465,6 +13502,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       const certifiesReportVersion =
         row.reportVersion ?? row.version;
 
+      noStorePresignedResponse(reply);
       return reply.code(200).send({
         evidenceId: id,
         packageId: row.id,
@@ -13595,6 +13633,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         versionId: row.s3VersionId,
         expiresInSeconds: 600,
       });
+      noStorePresignedResponse(reply);
       return reply.code(200).send({
         evidenceId: id,
         packageId: row.id,
@@ -13825,6 +13864,7 @@ const resolvedDisplayName =
   
   const originalKind = detectEvidenceAssetKind(releaseMimeType);
 
+noStorePresignedResponse(reply);
 return reply.code(200).send({
   evidenceId: id,
   bucket: releaseBucket,
@@ -14222,6 +14262,7 @@ displayName: resolvedDisplayName,
         },
       });
 
+noStorePresignedResponse(reply);
 return reply.code(200).send({
   evidenceId: id,
   packageId: latest.id,
@@ -14419,20 +14460,15 @@ action: "evidence.certification_requested",
     //   Layer 1 (per-IP): defends against scraping the UUID space.
     //   Layer 2 (per-evidence-id): defends against rotating-IP /
     //     proxy enumeration of a single record's verify history.
-    // Both buckets are observable via the `verification.page_opened`
-    // audit + the new `public_verify.rate_limited` warn log so an
-    // operator can detect coordinated abuse.
+    // Refusals are observable via the `public_verify.rate_limited` warn
+    // log so an operator can detect coordinated abuse.
     // THE Public Verify gate (services/public-verify/public-verify-gate.ts):
     // one per-client budget shared by every Public Verify read.
+    // F-01 — a refusal is logged by the gate (`public_verify.rate_limited`),
+    // never appended to the audit chain: every chain row takes the platform
+    // audit lock, so a refused flood held pool connections. Admitted views are
+    // still audited below.
     if (!(await admitPublicVerifyClient(req, reply))) {
-      auditVerificationAction(req, {
-        userId: null,
-        action: "verification.page_opened",
-        outcome: "denied",
-        denialReason: "rate_limited",
-        resourceId: null,
-        metadata: { outcome: "rate_limited", bucket: "ip" },
-      });
       return reply;
     }
 

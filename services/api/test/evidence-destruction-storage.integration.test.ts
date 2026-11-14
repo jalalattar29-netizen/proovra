@@ -179,6 +179,8 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
   it("archive, trash and restore perform ZERO storage deletions", async () => {
     const store = new DisposableStore();
     const rec = await seed(store, {
+      // C-01 — only a SEALED record ever leaves the trash.
+      status: "SIGNED",
       // Retained until 2034 and under COMPLIANCE Object Lock — the exact record
       // the pre-convergence UI refused to let anyone move to trash.
       retentionUntilUtc: new Date(Date.now() + 3000 * DAY),

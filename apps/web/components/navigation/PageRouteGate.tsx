@@ -8,7 +8,7 @@
  *
  *   - ALLOWED                → renders children
  *   - NEEDS_ORGANIZATION     → "Create or switch organization" panel
- *   - NEEDS_PERSONAL_OR_ORG  → "Open workspaces" panel (recovery path)
+ *   - NEEDS_PERSONAL_OR_ORG  → account settings / organizations panel (recovery path, A1-04)
  *   - DENIED_NO_CAPABILITY   → "Request access" panel
  *   - NEEDS_UPGRADE          → "Upgrade" panel
  *   - PLATFORM_ADMIN_ONLY    → "Platform administration only" panel

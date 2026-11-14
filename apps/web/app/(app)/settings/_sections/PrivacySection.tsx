@@ -579,10 +579,19 @@ function AccountClosureCard() {
   return (
     <section className="set-card set-danger" data-cc-privacy-closure>
       <h3 className="set-danger__title">Close account</h3>
-      <p className="set-card__sub">
-        Closing your account signs you out everywhere, removes your login
-        methods, and anonymizes your personal details after a{" "}
-        {state?.coolingOffDays ?? 7}-day cancellation window. Evidence is
+      {/*
+        B-07 (Free-user audit, 2026-11-14) — say what closure actually clears
+        (account-closure.service.ts phase B: email, display, first and last
+        name, photo, bio, country) instead of "anonymizes your personal
+        details", which promised more than those columns.
+      */}
+      <p className="set-card__sub" data-cc-closure-cleared>
+        Closing your account signs you out everywhere and removes your login
+        methods. After a {state?.coolingOffDays ?? 7}-day cancellation
+        window, your profile details are cleared: email address, display
+        name, first and last name, photo, bio and country. Security and
+        sign-in records linked to your account, such as past sign-in
+        sessions and consent records, are not cleared. Evidence is
         never deleted by account closure — it stays governed by retention
         and legal-hold rules.
       </p>

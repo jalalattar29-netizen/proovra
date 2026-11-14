@@ -238,7 +238,9 @@ type DeliveryRow = {
   id: string;
   status: string;
   provider: string;
-  recipientEmail: string;
+  // Raw only for a caller who may reveal recipient contact; masked otherwise.
+  recipientEmail: string | null;
+  recipientEmailMasked: string | null;
   subject: string;
   attempt: number;
   queuedAtUtc: string;

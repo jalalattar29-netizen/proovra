@@ -683,6 +683,59 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
     });
   });
 
+  it("E-02: a paid card plan superseded by a plan already live is recorded and answered as superseded, never as applied", async () => {
+    const t = await payer();
+    const fake = new FakeStripe();
+    await withStripe(fake, async () => {
+      const a = await call("POST", "/v1/billing/checkout/stripe", t.owner.token, { plan: "PRO", currency: "USD" });
+      expect(a.statusCode, a.body).toBe(200);
+      const sessionId = json(a).session.id as string;
+      const attempt = await prisma.billingCheckoutAttempt.findFirstOrThrow({ where: { userId: t.owner.userId, product: "PLAN" } });
+      // Meanwhile the buyer approved an older PayPal link: that plan is live first.
+      const kept = await prisma.subscription.create({
+        data: {
+          userId: t.owner.userId,
+          provider: "PAYPAL",
+          providerSubId: `I-E02${randomUUID().slice(0, 10).toUpperCase()}`,
+          status: "ACTIVE",
+          plan: "PRO",
+          currentPeriodEnd: new Date(Date.now() + 20 * 86_400_000),
+        },
+      });
+      const planBefore = (await prisma.entitlement.findFirstOrThrow({ where: { userId: t.owner.userId, active: true } })).plan;
+      const subId = `sub_e02${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+      fake.subs.set(subId, {
+        id: subId,
+        status: "active",
+        currency: "usd",
+        metadata: { userId: t.owner.userId, plan: "PRO", attemptId: attempt.id },
+        current_period_end: Math.floor(Date.now() / 1000) + 30 * 86_400,
+      });
+      fake.pay(sessionId, { paid: true, subscription: subId });
+
+      const res = await call("POST", `${attemptBase(t, attempt.id)}/recheck`, t.owner.token, {});
+      expect(res.statusCode, res.body).toBe(200);
+      expect(json(res)).toMatchObject({ currentStatus: "COMPLETED", superseded: true });
+      expect(await prisma.billingCheckoutAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).toMatchObject({
+        status: "COMPLETED",
+        checkoutState: "SUPERSEDED",
+      });
+      expect(
+        (await prisma.subscription.findUniqueOrThrow({
+          where: { provider_providerSubId: { provider: "STRIPE", providerSubId: subId } },
+        })).supersededBySubscriptionId,
+      ).toBe(kept.id);
+      // The card plan granted nothing.
+      expect((await prisma.entitlement.findFirstOrThrow({ where: { userId: t.owner.userId, active: true } })).plan).toBe(planBefore);
+
+      // A later re-check (or the webhook settling it again) still says so.
+      const again = await call("POST", `${attemptBase(t, attempt.id)}/recheck`, t.owner.token, {});
+      expect(json(again)).toMatchObject({ currentStatus: "COMPLETED", superseded: true });
+      const webhook = await settleStripeCheckoutSession({ session: fake.sessions.get(sessionId) as never });
+      expect(webhook).toMatchObject({ product: "PLAN", outcome: "APPLIED", superseded: true });
+    });
+  });
+
   it("F-13: an unpaid card plan checkout older than the approval window is expired at Stripe by the next plan checkout", async () => {
     const t = await payer();
     const fake = new FakeStripe();
@@ -867,5 +920,61 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it("E-01: an open card storage checkout of a size blocks a second one for the approval window, not only 2 minutes; closed or expired ones do not", async () => {
+    const t = await payer();
+    const fake = new FakeStripe();
+    const start = (addonKey: "PERSONAL_10_GB" | "PERSONAL_50_GB") =>
+      startStripeStorageCheckout({
+        userId: t.owner.userId,
+        addonKey,
+        currency: "EUR",
+        teamId: null,
+        workspacePlan: "FREE",
+      });
+    const sessionCreates = () => fake.calls.filter((c) => c.method === "POST" && c.path === "/checkout/sessions").length;
+    await withStripe(fake, async () => {
+      const first = await start("PERSONAL_10_GB");
+      expect(first.kind).toBe("CREATED");
+      const firstId = (first as { attemptId: string }).attemptId;
+      // Tab A is left open; tab B tries again three hours later.
+      await prisma.billingCheckoutAttempt.update({
+        where: { id: firstId },
+        data: { createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000) },
+      });
+      const creates = sessionCreates();
+      const second = await start("PERSONAL_10_GB");
+      expect(second.kind).toBe("BLOCKED");
+      expect((second as { httpBody: unknown }).httpBody).toMatchObject({
+        code: "STORAGE_PURCHASE_PENDING",
+        details: { pendingProvider: "STRIPE", attemptId: firstId, retry: "RECONCILE_STORAGE_ATTEMPT" },
+      });
+      expect(sessionCreates()).toBe(creates);
+      expect(
+        await prisma.billingCheckoutAttempt.count({
+          where: { userId: t.owner.userId, product: "STORAGE_ADDON", storageAddonKey: "PERSONAL_10_GB" },
+        }),
+      ).toBe(1);
+
+      // Another size is another purchase.
+      expect((await start("PERSONAL_50_GB")).kind).toBe("CREATED");
+
+      // Past the approval window the old page no longer blocks.
+      await prisma.billingCheckoutAttempt.update({
+        where: { id: firstId },
+        data: { createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) },
+      });
+      const third = await start("PERSONAL_10_GB");
+      expect(third.kind).toBe("CREATED");
+
+      // An abandoned attempt does not block either.
+      const thirdId = (third as { attemptId: string }).attemptId;
+      await prisma.billingCheckoutAttempt.update({
+        where: { id: thirdId },
+        data: { createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000), status: "ABANDONED" },
+      });
+      expect((await start("PERSONAL_10_GB")).kind).toBe("CREATED");
+    });
   });
 });

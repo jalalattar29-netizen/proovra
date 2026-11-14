@@ -28,6 +28,8 @@ export type DeclaredPartFile = {
   mimeType: string | null;
   /** Standard base64 SHA-256 of the file's bytes, when the client stated one. */
   sha256Base64: string | null;
+  /** C-06 — the file's declared size, when known (a presign always states one). */
+  sizeBytes?: number | null;
 };
 
 export type BoundPartRow = {
@@ -46,10 +48,51 @@ export function sha256Base64ToHex(value: string | null | undefined): string | nu
   return bytes.length === 32 ? bytes.toString("hex") : null;
 }
 
+/**
+ * C-06 — the binding the server writes into a part row's clientSignals at its
+ * first presign: the digest declared for the file when the client sent no
+ * staged-file hint (the checksum signed into the URL), and the declared size.
+ * A row bound to neither predates this binding (see isSameBoundFile).
+ */
+type ServerPartBinding = { boundSha256Base64?: string; boundSizeBytes?: number };
+
+function signalsObject(clientSignals: unknown): Record<string, unknown> | null {
+  return clientSignals && typeof clientSignals === "object" && !Array.isArray(clientSignals)
+    ? (clientSignals as Record<string, unknown>)
+    : null;
+}
+
 /** The staged-file digest a part row was bound with, as hex; null when none was stated. */
 export function boundPartDigestHex(clientSignals: unknown): string | null {
-  if (!clientSignals || typeof clientSignals !== "object" || Array.isArray(clientSignals)) return null;
-  return sha256Base64ToHex((clientSignals as { clientHintSha256Base64?: unknown }).clientHintSha256Base64 as string);
+  const o = signalsObject(clientSignals);
+  if (!o) return null;
+  return (
+    sha256Base64ToHex(o.clientHintSha256Base64 as string) ?? sha256Base64ToHex(o.boundSha256Base64 as string)
+  );
+}
+
+/** C-06 — the size a part row was bound with at its first presign; null when none. */
+export function boundPartSizeBytes(clientSignals: unknown): number | null {
+  const size = signalsObject(clientSignals)?.boundSizeBytes;
+  return typeof size === "number" && Number.isSafeInteger(size) && size >= 0 ? size : null;
+}
+
+/**
+ * C-06 — the clientSignals to store on a NEW part row: the client's own
+ * signals plus the server binding (declared digest when no hint carries one,
+ * declared size). A non-object value is stored as sent, unbound.
+ */
+export function withPartBinding(clientSignals: unknown, declared: DeclaredPartFile): unknown {
+  const binding: ServerPartBinding = {};
+  const digest = sha256Base64ToHex(declared.sha256Base64);
+  if (digest) binding.boundSha256Base64 = Buffer.from(digest, "hex").toString("base64");
+  if (typeof declared.sizeBytes === "number" && Number.isSafeInteger(declared.sizeBytes) && declared.sizeBytes >= 0) {
+    binding.boundSizeBytes = declared.sizeBytes;
+  }
+  if (Object.keys(binding).length === 0) return clientSignals;
+  if (clientSignals === undefined || clientSignals === null) return binding;
+  const o = signalsObject(clientSignals);
+  return o ? { ...o, ...binding } : clientSignals;
 }
 
 /** True when `declared` is the file the row was bound to. */
@@ -60,6 +103,16 @@ export function isSameBoundFile(row: Omit<BoundPartRow, "partIndex">, declared: 
   // A row bound to a digest is the same file only when the same digest is
   // declared again: a name and a size do not identify bytes.
   if (bound) return sha256Base64ToHex(declared.sha256Base64) === bound;
+  const boundSize = boundPartSizeBytes(row.clientSignals);
+  // A row from before the C-06 binding (no digest, no size bound) keeps the
+  // name-and-type rule, so a capture in flight across the change still resumes.
+  if (boundSize === null) return true;
+  // C-06 — bound with no digest: a digest declared now names bytes the row
+  // never bound, so it is not provably the same file (it used to be reused,
+  // and other bytes sealed under the first file's metadata).
+  if (sha256Base64ToHex(declared.sha256Base64) !== null) return false;
+  // …and a different size is a different file.
+  if (typeof declared.sizeBytes === "number" && declared.sizeBytes !== boundSize) return false;
   return true;
 }
 

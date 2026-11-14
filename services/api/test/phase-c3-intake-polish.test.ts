@@ -293,9 +293,10 @@ describe("Phase C3 — IntakeReReviewBanner component", () => {
 // ===========================================================================
 
 describe("Phase C3 — /evidence-requests/[id] reviewer inspector", () => {
-  it("is wrapped in PageRouteGate", () => {
+  it("is wrapped in PageRouteGate (A1-03: reads on workspace.evidence_requests, actions keep the intake-links decision)", () => {
     expect(REQUEST_INSPECTOR).toContain("PageRouteGate");
-    expect(REQUEST_INSPECTOR).toMatch(/routeId="workspace\.intake_links"/);
+    expect(REQUEST_INSPECTOR).toMatch(/routeId="workspace\.evidence_requests"/);
+    expect(REQUEST_INSPECTOR).toMatch(/useRouteAccess\("workspace\.intake_links"\)/);
   });
 
   it("consumes the authenticated /v1/evidence-requests/:id endpoint", () => {

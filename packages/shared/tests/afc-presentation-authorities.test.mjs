@@ -135,6 +135,14 @@ test("F-28: custody verdicts, event types and PDF signature statuses are named b
   assert.equal(pdfSignatureStatusLabel(null), "Signature status not recorded");
 });
 
+// AUDIT D-02 (2026-11-14) — the unsigned-PDF opt-out is a platform setting;
+// no workspace controls PDF signing, so the custody label must not name one.
+test("D-02: the unsigned-PDF custody event names the platform configuration, never a workspace setting", () => {
+  assert.equal(custodyEventLabel("REPORT_PDF_UNSIGNED_OPT_OUT"), "Report PDF issued unsigned (platform configuration)");
+  assert.doesNotMatch(custodyEventLabel("REPORT_PDF_UNSIGNED_OPT_OUT"), /workspace/i);
+  assert.equal(custodyEventLabel("REPORT_PDF_SIGNED"), "Report PDF signed");
+});
+
 test("F-32: a never-inspected package manifest signature has its own status", () => {
   assert.deepEqual([...VERIFICATION_PACKAGE_SIGNATURE_STATUSES], ["SIGNED", "UNSIGNED", "NOT_INSPECTED", "NOT_APPLICABLE"]);
 });

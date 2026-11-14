@@ -83,6 +83,7 @@ import { evaluateAccountClosurePreflight } from "./account-lifecycle-preflight.s
 // PROGRAM CONVERGENCE (2026-07-22) — the ONE Organization→ARCHIVED transition.
 import { archiveOrganizationStatusTx } from "../organization/org-closure.service.js";
 import { closeWorkspacesTx } from "../workspace/workspace-closure.service.js";
+import { revokeLegacyUnscopedOwnerSharesTx } from "../sharing/creator-share-grants.js";
 import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
 import { enqueueMembershipLifecycleNoticeTx } from "../notifications/membership-lifecycle-notice.js";
 // PHASE 3 (2026-07-22) — canonical membership orchestrator.
@@ -244,6 +245,9 @@ export async function executeAccountClosure(
       actorUserId: userId,
       reason: "account closure",
     });
+    // B-06 — owner links on the user's legacy records with no workspace are
+    // reached by neither leg above; they end with the account all the same.
+    await revokeLegacyUnscopedOwnerSharesTx(tx, { ownerUserId: userId, actorUserId: userId });
 
     // The user's memberships ELSEWHERE end, with their reach (canonical
     // orchestrator: governance memberships removed with provenance closed;

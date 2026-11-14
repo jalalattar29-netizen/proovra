@@ -309,8 +309,9 @@ describe("members re-audit 3 — inbox reach, bulk lifecycle audit, Collaboratio
       },
     ]) {
       it(`${op.action} — refused audit: that record unchanged and reported failed (no raw DB text); the other record lands with its row`, async () => {
-        const refused = await newEvidence();
-        const control = await newEvidence();
+        // C-01 — sealed records: an unsealed one never leaves the trash.
+        const refused = await newEvidence({ status: "SIGNED" });
+        const control = await newEvidence({ status: "SIGNED" });
         await op.prepare(refused);
         await op.prepare(control);
         const before = await snap(refused);

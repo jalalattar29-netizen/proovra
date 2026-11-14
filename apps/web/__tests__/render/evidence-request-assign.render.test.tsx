@@ -7,10 +7,12 @@ const teamId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const dana = "22222222-2222-4222-8222-222222222222";
 const sam = "33333333-3333-4333-8333-333333333333";
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), confirm: vi.fn(), eventsMounts: 0 }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), confirm: vi.fn(), eventsMounts: 0, canManage: true }));
 vi.mock("../../lib/api", () => ({ apiFetch: mocks.fetch }));
 vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () => ({ confirm: mocks.confirm }) }));
 vi.mock("../../components/navigation/PageRouteGate", () => ({ PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+// A1-03 — the management actions follow the intake-links route decision.
+vi.mock("../../lib/navigation/useRouteDestination", () => ({ useRouteAccess: () => ({ canLoad: mocks.canManage }) }));
 vi.mock("../../components/navigation/OperationalBreadcrumb", () => ({ OperationalBreadcrumb: () => null }));
 vi.mock("../../components/notifications/ContextualDeliveryStatus", () => ({ ContextualDeliveryStatus: () => null }));
 vi.mock("../../components/hidden-feature-panels/HiddenFeaturePanels", () => ({
@@ -81,6 +83,7 @@ beforeEach(() => {
   mocks.confirm.mockReset();
   mocks.confirm.mockResolvedValue(true);
   mocks.eventsMounts = 0;
+  mocks.canManage = true;
 });
 
 const assignWrites = () => mocks.fetch.mock.calls.filter(([p, init]) => init?.method === "POST" && String(p).endsWith("/assign"));
@@ -223,5 +226,56 @@ describe("evidence request reviewer assignment", () => {
     await screen.findByText("The reviewer cannot change on a closed or cancelled request.");
     expect(screen.queryByRole("button", { name: "Change reviewer" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Remove reviewer" })).toBeNull();
+  });
+});
+
+/**
+ * A1-03 (Free-user audit, 2026-11-14) — a member who may read a request but not
+ * manage intake (a viewer, or anyone after a downgrade) sees the request, its
+ * checklist and responses, and no control that writes.
+ */
+describe("evidence request inspector — read-only view", () => {
+  it("shows the request without assignment, re-request, waive or review controls", async () => {
+    mocks.canManage = false;
+    server.request = makeRequest({
+      status: "RESPONSE_RECEIVED",
+      deliverables: [{
+        id: "d1", title: "Statement for March", description: "", required: true, acceptedKinds: [], minCount: 1,
+        maxCount: null, locationRequirement: "NONE", captureAfterRequest: false, workflowStepId: null, sortOrder: 0,
+        status: "PENDING", waivedReason: null, fulfilledCount: 0,
+      }],
+      responses: [{
+        id: "r1", intakeSessionId: null, responseEvidenceId: null, submittedByUserId: null,
+        submittedByExternalLabel: "Contributor", status: "RECEIVED", submittedAtUtc: "2026-09-02T00:00:00.000Z",
+        reviewedAtUtc: null, reviewedByUserId: null, reviewerNote: null,
+      }],
+    });
+    render(<EvidenceRequestInspectorPage />);
+    await screen.findByRole("heading", { name: "Bank statements" });
+    expect(screen.getByText("Statement for March")).toBeTruthy();
+    expect(document.querySelector('[data-evidence-request-response="r1"]')).toBeTruthy();
+    expect(document.querySelector("[data-evidence-request-read-only]")).toBeTruthy();
+    expect(document.querySelector("[data-evidence-request-assignee]")).toBeNull();
+    expect(document.querySelector("[data-evidence-request-rerequest]")).toBeNull();
+    expect(document.querySelector('[data-action="waive:d1"]')).toBeNull();
+    expect(document.querySelector("[data-response-actions]")).toBeNull();
+    expect(mocks.fetch.mock.calls.every(([, init]) => (init?.method ?? "GET") === "GET")).toBe(true);
+  });
+
+  it("a member who manages intake still gets every control (positive control)", async () => {
+    server.request = makeRequest({
+      status: "RESPONSE_RECEIVED",
+      responses: [{
+        id: "r1", intakeSessionId: null, responseEvidenceId: null, submittedByUserId: null,
+        submittedByExternalLabel: "Contributor", status: "RECEIVED", submittedAtUtc: "2026-09-02T00:00:00.000Z",
+        reviewedAtUtc: null, reviewedByUserId: null, reviewerNote: null,
+      }],
+    });
+    render(<EvidenceRequestInspectorPage />);
+    await screen.findByRole("heading", { name: "Bank statements" });
+    await waitFor(() => expect(document.querySelector("[data-evidence-request-assignee]")).toBeTruthy());
+    expect(document.querySelector("[data-evidence-request-rerequest]")).toBeTruthy();
+    expect(document.querySelector("[data-response-actions]")).toBeTruthy();
+    expect(document.querySelector("[data-evidence-request-read-only]")).toBeNull();
   });
 });

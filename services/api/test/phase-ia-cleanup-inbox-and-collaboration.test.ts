@@ -394,9 +394,13 @@ describe("Phase IA-enterprise — report/package/OTS failure categories", () => 
     expect(ROUTES).toMatch(
       /reportIncidents\s*=[\s\S]{0,400}category:\s*"REPORT"[\s\S]{0,400}status:\s*\{\s*in:\s*\["OPEN",\s*"ACKNOWLEDGED"\]/,
     );
-    // teamIds-scoped — never a workspace-wide read.
+    // teamIds-scoped — never a workspace-wide read — and, per workspace,
+    // narrowed by restricted-case reach (A2-06).
     expect(ROUTES).toMatch(
-      /reportIncidents\s*=[\s\S]{0,400}teamId:\s*\{\s*in:\s*teamIds/,
+      /reportIncidents\s*=[\s\S]{0,400}\.\.\.\(await incidentsInInboxReach\(\)\)/,
+    );
+    expect(ROUTES).toMatch(
+      /const incidentsInInboxReach = [\s\S]{0,300}OR: teamIds\.map\([\s\S]{0,200}incidentInReach\(/,
     );
   });
 
@@ -405,7 +409,7 @@ describe("Phase IA-enterprise — report/package/OTS failure categories", () => 
       /packageIncidents\s*=[\s\S]{0,400}category:\s*"PACKAGE"[\s\S]{0,400}status:\s*\{\s*in:\s*\["OPEN",\s*"ACKNOWLEDGED"\]/,
     );
     expect(ROUTES).toMatch(
-      /packageIncidents\s*=[\s\S]{0,400}teamId:\s*\{\s*in:\s*teamIds/,
+      /packageIncidents\s*=[\s\S]{0,400}\.\.\.\(await incidentsInInboxReach\(\)\)/,
     );
   });
 

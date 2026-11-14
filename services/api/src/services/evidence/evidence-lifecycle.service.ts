@@ -57,7 +57,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendCustodyEventTx } from "../custody-events.service.js";
-import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
+import { evaluateEffectiveLegalHold, UNSEALED_EVIDENCE_STATUSES } from "@proovra/shared-runtime";
 import { resolveEvidenceDestructiveAccess } from "./evidence-destructive-access.service.js";
 
 /**
@@ -130,6 +130,7 @@ const LIFECYCLE_SELECT = {
   teamId: true,
   organizationId: true,
   ownerUserId: true,
+  status: true,
   lifecycleState: true,
   archivedAt: true,
   deletedAt: true,
@@ -141,6 +142,24 @@ const LIFECYCLE_SELECT = {
   storageObjectLockRetainUntilUtc: true,
   caseLinks: { select: { caseId: true } },
 } as const;
+
+/**
+ * C-01 — an UNSEALED record (a reservation) never leaves the trash. Its only
+ * exit is the reservation authority's release (`deletedAt` on a record that
+ * was never finalized), which reads as TRASHED; restoring it cleared that
+ * stamp, so a released reservation re-occupied an allowance slot without
+ * admission and could be sealed after its custody said "nothing was sealed".
+ */
+const UNSEALED_RESTORE_REFUSAL = {
+  statusCode: 409 as const,
+  code: "EVIDENCE_NOT_SEALED",
+  message:
+    "This capture was never sealed, so it cannot be restored. Capture the material again to create a new record.",
+};
+
+function isUnsealedStatus(status: string): boolean {
+  return (UNSEALED_EVIDENCE_STATUSES as readonly string[]).includes(status);
+}
 
 /** The capability each action needs, against the PERSISTED evidence row. */
 const ACTION_PERMISSION = {
@@ -440,6 +459,9 @@ export async function applyEvidenceLifecycleAction(
       (input.action === "TRASH" && freshCaps.productState === "TRASHED") ||
       (input.action === "RESTORE_FROM_TRASH" && freshCaps.productState === "ACTIVE");
     if (alreadyThere) return { idempotent: true as const, productState: freshCaps.productState };
+    // C-01 — decided under the lock only, AFTER the destruction refusal above
+    // (a partly destroyed record answers DESTRUCTION_IN_PROGRESS, GOV-018).
+    if (input.action === "RESTORE_FROM_TRASH" && isUnsealedStatus(fresh.status)) return UNSEALED_RESTORE_REFUSAL;
     const stillPermitted =
       input.action === "ARCHIVE"
         ? freshCaps.canArchive

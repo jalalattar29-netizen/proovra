@@ -157,7 +157,8 @@ test("every surface that seals a direct capture goes through the rule", () => {
   // not destroyed by one dropped connection, and RELEASES it through the
   // primitive on a terminal refusal — the rule, split by the one classifier.
   const screen = read("../src/screen-capture.ts");
-  assert.match(screen, /if \(classifyCaptureError\(err\) === "RETRYABLE"\) \{\s*\/\/[^\n]*\n\s*throw new ScreenStagingError\(err, true, state\);/);
+  // C-03 (2026-11-14): an ended sign-in or a plan/storage refusal (HELD) keeps it too; only TERMINAL releases.
+  assert.match(screen, /if \(classifyCaptureError\(err\) !== "TERMINAL"\) \{\s*(?:\/\/[^\n]*\n\s*)+throw new ScreenStagingError\(err, true, state\);/);
   assert.match(screen, /if \(state\.session\) await discardDirectCaptureSession\(state\.session\)\.catch\(\(\) => undefined\);\s*await discardScreenCaptureFiles\(state\.result\);\s*throw new ScreenStagingError\(err, false, null\);/);
   // UC-3/UC-5 (UC-STR-001 / UC-STR-004, 2026-09-30): a continuous recording's
   // segments are uploaded and verified WHILE it records, so a staging failure

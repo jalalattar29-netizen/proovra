@@ -297,8 +297,15 @@ describe("members re-audit 2 — case reach: self-grant, listings, lists, batch,
   // Defect 5 — batch analysis
   // ===========================================================================
   describe("Defect 5 — POST /v1/batch-analysis admits records through the canonical record authority", () => {
+    // A1-01 — Batch analysis answers for the request's own workspace (a
+    // PROFESSIONAL surface), so the caller names it as the clients do.
     const batch = (token: string, evidenceIds: string[]) =>
-      post(`/v1/batch-analysis`, token, { evidenceIds, name: `ra2 batch ${tag()}` });
+      h.app.inject({
+        method: "POST",
+        url: `/v1/batch-analysis`,
+        headers: { ...bearer(token), "x-proovra-workspace-id": A().teamId },
+        payload: { evidenceIds, name: `ra2 batch ${tag()}` } as never,
+      });
 
     it("the uploader shut out of a restricted case is refused; a listed non-uploader is refused; the listed uploader is admitted", async () => {
       const caseOwner = await person("MEMBER");
@@ -330,7 +337,9 @@ describe("members re-audit 2 — case reach: self-grant, listings, lists, batch,
       const ev = await newEvidence(uploader.id);
       await prisma.teamMember.update({ where: { id: uploader.memberId! }, data: { status: "SUSPENDED" } });
       const refused = await batch(uploader.token, [ev]);
-      expect(refused.statusCode, refused.body).toBe(404);
+      // A1-01 — a suspended member no longer proves the workspace, so the
+      // surface gate (fail closed) refuses before the record authority would.
+      expect([403, 404], refused.body).toContain(refused.statusCode);
       expect(await prisma.batchAnalysisJobItem.count({ where: { evidenceId: ev } })).toBe(0);
 
       await prisma.teamMember.update({ where: { id: uploader.memberId! }, data: { status: "ACTIVE" } });

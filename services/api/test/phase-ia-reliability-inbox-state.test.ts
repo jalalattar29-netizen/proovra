@@ -369,17 +369,19 @@ describe("Phase IA-reliability — intake action categories sourced from existin
   });
 
   it("all 3 intake sources are workspace-scoped via teamIds", () => {
-    for (const name of [
-      "pendingReviewRequests",
-      "incompleteRequests",
-      "expiringIntakeLinks",
-    ]) {
+    expect(ROUTES).toMatch(
+      /expiringIntakeLinks\s*=[\s\S]{0,400}teamId:\s*\{\s*in:\s*teamIds/,
+    );
+    // A2-06 — the two request sources are scoped per workspace AND narrowed
+    // by restricted-case reach (the record relation and the hidden case ids).
+    for (const name of ["pendingReviewRequests", "incompleteRequests"]) {
       expect(ROUTES).toMatch(
-        new RegExp(
-          `${name}\\s*=[\\s\\S]{0,400}teamId:\\s*\\{\\s*in:\\s*teamIds`,
-        ),
+        new RegExp(`${name}\\s*=[\\s\\S]{0,400}\\.\\.\\.\\(await requestsInInboxReach\\(\\)\\)`),
       );
     }
+    expect(ROUTES).toMatch(
+      /const requestsInInboxReach = [\s\S]{0,400}evidence: inboxRecordVisible[\s\S]{0,200}OR: teamIds\.map\(/,
+    );
   });
 
   it("intake categories map into the right priority + filter buckets", () => {

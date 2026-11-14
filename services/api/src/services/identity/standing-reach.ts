@@ -32,7 +32,14 @@ import {
 
 type ReachTx = Pick<
   PrismaClient,
-  "caseAccess" | "caseAssignment" | "collaborationTeamMember" | "verificationShareToken" | "externalReviewGrant" | "workflowIntakeLink"
+  | "caseAccess"
+  | "caseAssignment"
+  | "collaborationTeamMember"
+  | "verificationShareToken"
+  | "externalReviewGrant"
+  | "workflowIntakeLink"
+  // A2-10 — a departing creator's integration keys end with their grants.
+  | "apiCredential"
 > &
   ReleaseTx;
 

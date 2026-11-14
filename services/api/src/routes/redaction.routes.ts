@@ -61,6 +61,7 @@ import { prisma } from "../db.js";
 // short-lived presign primitive (same one evidence.routes.ts uses). Raw
 // storage keys are NEVER returned to the client.
 import { presignGetObject } from "../storage.js";
+import { noStorePresignedResponse } from "../http/presigned-response.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
@@ -1737,6 +1738,7 @@ export async function redactionRoutes(app: FastifyInstance) {
         actorUserId: ctx.userId,
         payload: { derivativeId: id },
       });
+      noStorePresignedResponse(reply);
       return reply.code(200).send({
         downloadUrl,
         expiresAtUtc: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),

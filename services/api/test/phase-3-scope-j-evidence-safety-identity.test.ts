@@ -435,6 +435,8 @@ function makeFake() {
     verificationShareToken: { updateMany: async () => ({ count: 0 }) },
     externalReviewGrant: { updateMany: async () => ({ count: 0 }) },
     workflowIntakeLink: { updateMany: async () => ({ count: 0 }) },
+    // A2-10 — and the integration keys they created.
+    apiCredential: { updateMany: async () => ({ count: 0 }) },
 
     async $executeRaw() {
       return 0;

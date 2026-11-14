@@ -15,7 +15,8 @@
  *      same provider, and it is consumed in one guarded write: a replay, a
  *      foreign nonce and a second use all fail. A web nonce is also bound to an
  *      HTTP-only cookie in the browser that asked for it, so a token obtained in
- *      another browser cannot be injected into this one.
+ *      another browser cannot be injected into this one: a web request answers
+ *      only a nonce bound to its own cookie, a native one only an unbound nonce.
  *   3. The token's `iat` must be recent (the verifiers enforce the window).
  *
  * Native builds released before this change send no nonce. Their tokens are
@@ -104,7 +105,13 @@ export async function bindIdTokenToAttempt(
 ): Promise<{ ok: true } | { ok: false; reason: IdTokenBindingRefusal }> {
   const { nonce, iat, exp } = input.claims;
   if (nonce) {
-    const cookie = readCookie(req);
+    // B-01 — a web request answers only a nonce bound to this browser's cookie;
+    // a non-web (native) request answers only an unbound nonce. An unbound
+    // nonce minted without the web header must never sign a browser in (login
+    // CSRF), and a browser-bound nonce is never spent outside that browser.
+    const web = isWebClientRequest(req);
+    const cookie = web ? readCookie(req) : null;
+    if (web && !cookie) return { ok: false, reason: "nonce_invalid" };
     const claimed = await client.socialSignInNonce.updateMany({
       where: {
         nonceHash: sha256(`nonce:${nonce}`),
@@ -114,7 +121,7 @@ export async function bindIdTokenToAttempt(
         expiresAtUtc: { gt: now },
         // A token cannot answer an attempt that began after it was issued.
         createdAtUtc: { lte: new Date((iat + 60) * 1000) },
-        OR: [{ bindingHash: null }, ...(cookie ? [{ bindingHash: sha256(`bind:${cookie}`) }] : [])],
+        bindingHash: cookie ? sha256(`bind:${cookie}`) : null,
       },
       data: { consumedAtUtc: now },
     });

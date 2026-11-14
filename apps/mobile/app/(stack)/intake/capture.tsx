@@ -24,6 +24,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { publicFetch } from "../../../src/api";
 import { heldIntakeParts, releaseIntakeSession } from "../../../src/intake/intake-resume";
 import { computeFileIntegrity, uploadWithPut } from "../../../src/upload-utils";
+import { DEFAULT_CAPTURE_RETRY, putTimeoutMsForSize, retryCapture } from "../../../src/capture/capture-retry";
 import { theme } from "../../../src/theme/theme";
 import {
   ProovraScreen,
@@ -221,40 +222,52 @@ export default function IntakeCaptureScreen() {
         // phone rather than being hashed only after it arrives.
         const integrity = await computeFileIntegrity(item.uri);
 
-        const declared = await publicFetch(buildIntakePartsPath(token, sessionId), {
-          method: "POST",
-          body: JSON.stringify(
-            buildIntakePartBody({
-              partIndex: item.partIndex,
+        // F-P1-01 — the native upload retry rule the app's own captures use: a
+        // deadline that scales with the file (a fixed 120 s could never carry
+        // a large video over a phone uplink), and a bounded, jittered retry of
+        // a dropped answer, a timeout, 408/429/5xx (honouring Retry-After) or
+        // an expired upload URL. Each attempt presigns again: the intake door
+        // returns the SAME part for the same index and file, with a fresh URL.
+        const upload = await retryCapture(async () => {
+          const declared = await publicFetch(buildIntakePartsPath(token, sessionId), {
+            method: "POST",
+            body: JSON.stringify(
+              buildIntakePartBody({
+                partIndex: item.partIndex,
+                mimeType: item.mimeType,
+                originalFileName: item.name,
+                checksumSha256Base64: integrity.checksumSha256Base64,
+                contentMd5Base64: integrity.contentMd5Base64,
+                sizeBytes: integrity.sizeBytes,
+                checklistStepId: item.stepId,
+                captureTimezone: context.captureTimezone,
+                captureLocale: context.captureLocale,
+              }),
+            ),
+          });
+
+          const part = parseIntakePartUpload(declared);
+          // No upload URL is a failure, never a silent skip: marking an item
+          // "sent" without its bytes, then submitting, filed an empty submission.
+          if (!part.uploadUrl) {
+            throw Object.assign(new Error("The upload could not be started for this file."), { code: "UPLOAD_URL_MISSING" });
+          }
+          {
+            // Straight to storage, outside the authenticated orchestration —
+            // through the SAME canonical PUT helper the app uses for its own
+            // uploads, so a contributor's bytes travel the one path that has
+            // been proven to stream a large file without loading it into memory.
+            await uploadWithPut({
+              putUrl: part.uploadUrl,
+              uri: item.uri,
               mimeType: item.mimeType,
-              originalFileName: item.name,
               checksumSha256Base64: integrity.checksumSha256Base64,
               contentMd5Base64: integrity.contentMd5Base64,
-              sizeBytes: integrity.sizeBytes,
-              checklistStepId: item.stepId,
-              captureTimezone: context.captureTimezone,
-              captureLocale: context.captureLocale,
-            }),
-          ),
-        });
-
-        const upload = parseIntakePartUpload(declared);
-        // No upload URL is a failure, never a silent skip: marking an item
-        // "sent" without its bytes, then submitting, filed an empty submission.
-        if (!upload.uploadUrl) throw new Error("The upload could not be started for this file.");
-        {
-          // Straight to storage, outside the authenticated orchestration —
-          // through the SAME canonical PUT helper the app uses for its own
-          // uploads, so a contributor's bytes travel the one path that has
-          // been proven to stream a large file without loading it into memory.
-          await uploadWithPut({
-            putUrl: upload.uploadUrl,
-            uri: item.uri,
-            mimeType: item.mimeType,
-            checksumSha256Base64: integrity.checksumSha256Base64,
-            contentMd5Base64: integrity.contentMd5Base64,
-          });
-        }
+              timeoutMs: putTimeoutMsForSize(integrity.sizeBytes),
+            });
+          }
+          return part;
+        }, DEFAULT_CAPTURE_RETRY);
 
         setStaged((prev) => prev.map((s, idx) => (idx === i ? { ...s, sent: true, partId: upload.partId } : s)));
       }

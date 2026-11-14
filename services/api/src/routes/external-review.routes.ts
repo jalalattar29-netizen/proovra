@@ -36,6 +36,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { releaseExternalDisclosurePackage } from "../services/external-review/external-review-package.service.js";
+import { noStorePresignedResponse } from "../http/presigned-response.js";
 
 import { requireAuth } from "../middleware/auth.js";
 // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — THE canonical
@@ -44,6 +45,7 @@ import { requireAuth } from "../middleware/auth.js";
 // here and never the requester's own subscription.
 import { workspaceIncludesExternalReview } from "../services/billing-enforcement.service.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 // Phase 3 blocker closure — issuing an external-reviewer grant exposes
 // sensitive evidence to an OUTSIDE reviewer, so it must require a fresh
 // step-up on top of the permission gate.
@@ -310,6 +312,9 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         caseId: q.caseId ?? null,
         state: q.state ?? null,
         limit: q.limit,
+        // A2-08 — grants on a record or case closed to this reader are not
+        // listed (reviewer emails and subject ids of restricted matters).
+        hidden: await hiddenRecordIdsInWorkspace(q.teamId, actor.actorUserId),
       });
       return reply.code(200).send({ grants });
     },
@@ -532,6 +537,7 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         return reply.code(released.status).send({ error: { code: released.code } });
       }
       await recordExternalReviewAccess({ grantId: lookup.grant.id, teamId: lookup.grant.teamId });
+      noStorePresignedResponse(reply);
       return reply.code(200).send({
         packageId: released.packageId,
         disclosureProfile: "EXTERNAL_DISCLOSURE",
@@ -572,6 +578,7 @@ export async function externalReviewRoutes(app: FastifyInstance) {
       const grants = await listExternalReviewGrants({
         teamId: q.teamId,
         limit: q.limit,
+        hidden: await hiddenRecordIdsInWorkspace(q.teamId, actor.actorUserId),
       });
       return reply.code(200).send({
         // Project each grant minus the reviewer email (operators

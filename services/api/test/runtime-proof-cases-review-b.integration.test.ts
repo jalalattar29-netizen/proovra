@@ -450,6 +450,15 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
   // Reviewer workspace — coding schemas and coding values
   // ===========================================================================
   describe("reviewer workspace coding", () => {
+    /** Put a workspace on TEAM for one step; restore() puts the fixture back. */
+    async function asTeamPlan(teamId: string) {
+      const before = await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { billingPlan: true, billingStatus: true } });
+      await prisma.team.update({ where: { id: teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
+      return {
+        restore: () => prisma.team.update({ where: { id: teamId }, data: { billingPlan: before.billingPlan, billingStatus: before.billingStatus } as never }),
+      };
+    }
+
     const schemaBody = (slug: string) => ({
       slug,
       label: "Claims photo coding",
@@ -630,12 +639,16 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
         payload: { fieldId: estimate.id, value: { number: 10 } },
       });
       expect(foreign.statusCode).toBe(403);
+      // A2-04 — coding is a TEAM-tier write; B acts in its own workspace on a
+      // plan that includes it, so the answer below is the tenant boundary.
+      const bPlan = await asTeamPlan(b.teamId);
       const foreignOwnTeam = await call({
         method: "POST",
         url: `/v1/reviewer/work/${workflowId}/code?teamId=${b.teamId}`,
         token: b.ownerToken,
         payload: { fieldId: estimate.id, value: { number: 10 } },
       });
+      await bPlan.restore();
       expect(foreignOwnTeam.statusCode).toBe(409);
       expect(foreignOwnTeam.json()).toEqual({ denial: "WORKFLOW_NOT_FOUND" });
       expect(await prisma.codingValue.count({ where: { workflowId } })).toBe(0);
@@ -691,7 +704,15 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       expect(member.json()).toEqual({ denial: "NOT_PERMITTED" });
       const foreign = await call({ method: "POST", url: `/v1/reviewer/bulk/code?teamId=${a.teamId}`, token: b.ownerToken, payload: body });
       expect(foreign.statusCode).toBe(403);
+      // A2-04 — bulk coding needs BULK_REVIEW_OPERATIONS: a FREE workspace is
+      // refused by the plan gate before anything else…
+      const freeOwnTeam = await call({ method: "POST", url: `/v1/reviewer/bulk/code?teamId=${b.teamId}`, token: b.ownerToken, payload: body });
+      expect(freeOwnTeam.statusCode).toBe(403);
+      expect(freeOwnTeam.json()).toEqual({ denial: "ENTITLEMENT_REQUIRED", entitlement: "REVIEWER_OPERATIONS" });
+      // …and on a plan that includes it, the tenant boundary answers.
+      const bPlan = await asTeamPlan(b.teamId);
       const ownTeam = await call({ method: "POST", url: `/v1/reviewer/bulk/code?teamId=${b.teamId}`, token: b.ownerToken, payload: body });
+      await bPlan.restore();
       expect(ownTeam.statusCode).toBe(200);
       expect(ownTeam.json().outcomes).toEqual([{ workflowId: w, ok: false, denial: "SCHEMA_NOT_FOUND" }]);
       expect(await prisma.codingValue.count({ where: { workflowId: w } })).toBe(0);

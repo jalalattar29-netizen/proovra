@@ -274,3 +274,23 @@ export async function signPdfAndProjectOutcome(
       "This Report PDF was generated in a non-production environment where PDF artifact signing is not configured. Production deployments require PDF artifact signing or an explicit acknowledged opt-out.",
   };
 }
+/**
+ * AUDIT D-02 (2026-11-14) — the custody event that records a Report PDF's
+ * signing outcome, by what actually happened.
+ *
+ *   SIGNED              → REPORT_PDF_SIGNED
+ *   UNSIGNED_OPT_OUT    → REPORT_PDF_UNSIGNED_OPT_OUT (the platform operator's
+ *                         acknowledged opt-out, PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK)
+ *   SIGNING_UNAVAILABLE → none. Signing is simply not configured (never in
+ *                         production: assertPdfSigningProductionSafetyOrThrow).
+ *                         It is not an opt-out, and no custody event type
+ *                         states it; the outcome stays on the Report row
+ *                         (`pdfSignatureStatus`, `pdfSigningWarning`).
+ */
+export function pdfSigningCustodyEventType(
+  status: PdfSigningOutcome["status"],
+): "REPORT_PDF_SIGNED" | "REPORT_PDF_UNSIGNED_OPT_OUT" | null {
+  if (status === "SIGNED") return "REPORT_PDF_SIGNED";
+  if (status === "UNSIGNED_OPT_OUT") return "REPORT_PDF_UNSIGNED_OPT_OUT";
+  return null;
+}

@@ -141,6 +141,9 @@ describe("OPS-13 security reclassification (live PostgreSQL 16)", () => {
   it("4. webhook auto-disable opens the per-destination condition; re-enable resets and resolves it", async () => {
     const owner = await makeUser(c, "hook-owner", { plan: "PRO" });
     const w = await makeWorkspace(c, owner.id, { name: "hook-ws", billingPlan: "TEAM", billingStatus: "ACTIVE" });
+    // A2-01 — enabling a destination asks FEATURE_WEBHOOKS (operator-written).
+    const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+    await upsertEntitlementGrant({ prisma: c.prisma as never, teamId: w.teamId, key: "FEATURE_WEBHOOKS", value: true, kind: "FEATURE", source: "CUSTOM", grantedByUserId: owner.id });
     const mk = (n: string) =>
       c.prisma.automationWebhookDestination.create({
         data: {

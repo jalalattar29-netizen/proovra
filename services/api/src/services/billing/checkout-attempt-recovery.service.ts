@@ -222,6 +222,16 @@ async function currentStatusOf(attempt: LoadedAttempt): Promise<string> {
   return row?.status ?? attempt.status;
 }
 
+/** AUDIT E-02 — the settlement recorded this plan checkout as superseded. */
+async function attemptSuperseded(attempt: LoadedAttempt): Promise<boolean> {
+  if (attempt.source !== "ATTEMPT" || attempt.product !== "PLAN") return false;
+  const row = await prisma.billingCheckoutAttempt.findUnique({
+    where: { id: attempt.id },
+    select: { checkoutState: true },
+  });
+  return row?.checkoutState === "SUPERSEDED";
+}
+
 function baseResult(attempt: LoadedAttempt): Omit<CheckoutAttemptReconciliation, "currentStatus" | "outcome"> {
   return {
     attemptId: attempt.id,
@@ -286,11 +296,13 @@ async function checkAttempt(
       await noteCheckoutAttemptCheck({ attemptId: attempt.id, outcome }).catch(() => undefined);
     }
     const waitingFor = outcome === "STILL_PENDING" ? waitingForOf(attempt, extra.providerStatus ?? null) : null;
+    const superseded = await attemptSuperseded(attempt);
     return {
       ...base,
       currentStatus: await currentStatusOf(attempt),
       outcome,
       ...(waitingFor ? { waitingFor } : {}),
+      ...(superseded ? { superseded: true as const } : {}),
       ...(extra.resumeUrl ? { resumeUrl: extra.resumeUrl } : {}),
       ...(extra.providerStatus !== undefined ? { providerStatus: extra.providerStatus } : {}),
     };

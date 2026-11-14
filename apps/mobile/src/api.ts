@@ -53,6 +53,8 @@ type MobileApiError = Error & {
    * a challenge had been raised but not how to answer it.
    */
   body?: Record<string, unknown>;
+  /** C-03 — set when this 401 means the sign-in ended (sessionEndReason). */
+  sessionEnded?: SessionEndReason;
   /**
    * The wait a refusal asked for (Retry-After, delta-seconds), in ms. Read by
    * the capture retry rule so a 429/503 is never retried earlier than asked.
@@ -169,10 +171,11 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
 
     // Only the session this request carried, and only if it is still the current
     // one: a late answer to a previous session must not end the next.
-    if (sentToken && sentToken === authToken) {
-      const ended = sessionEndReason({ status: res.status, code, details: err.details });
-      if (ended) sessionEndHandler?.(ended);
-    }
+    // C-03 — the error says so too, so a capture upload keeps its frames for
+    // the retry after sign-in instead of treating the 401 as a final refusal.
+    const ended = sessionEndReason({ status: res.status, code, details: err.details });
+    if (ended) err.sessionEnded = ended;
+    if (ended && sentToken && sentToken === authToken) sessionEndHandler?.(ended);
 
     throw err;
   }
@@ -298,6 +301,10 @@ export async function publicFetch(
     // what the next step needs beside its code — the portal MFA step's masked
     // destination, resend wait and attempts remaining (portal-session.service.ts:261-291).
     if (obj) err.body = obj;
+    // F-P1-01 — the wait a refusal asked for, as apiFetch reads it, so a public
+    // upload retry (intake) is never retried earlier than asked.
+    const publicRetryAfter = res.headers.get("retry-after")?.trim();
+    if (publicRetryAfter && /^\d+$/.test(publicRetryAfter)) err.retryAfterMs = Number(publicRetryAfter) * 1000;
     // A public flow never triggers the app's legal-acceptance gate: the caller
     // has no account for that gate to be about.
     throw err;

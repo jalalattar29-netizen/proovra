@@ -7,6 +7,8 @@
  * still open the closure form; a real blocker still disables it.
  */
 import React from "react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
@@ -74,5 +76,56 @@ describe("account closure — LIFE-13 consequences", () => {
     await screen.findByText("Close account");
     await vi.waitFor(() => expect(container.querySelector("[data-cc-closure-open]")).not.toBeNull());
     expect(container.querySelector("[data-cc-closure-consequences]")).toBeNull();
+  });
+});
+
+/**
+ * B-07 (Free-user audit, 2026-11-14) — the closure copy states what closure
+ * actually clears. The columns are read from the closure service's own
+ * anonymisation write (account-closure.service.ts phase B), so a column added
+ * there without a word here, or a promise here broader than that write, fails.
+ */
+describe("account closure — B-07 the copy names what is cleared", () => {
+  const SERVICE = resolve(__dirname, "../../../../services/api/src/services/identity/account-closure.service.ts");
+  const LABEL: Record<string, string> = {
+    email: "email address",
+    displayName: "display name",
+    firstName: "first and last name",
+    lastName: "first and last name",
+    avatarUrl: "photo",
+    bio: "bio",
+    country: "country",
+  };
+
+  function clearedColumns(): string[] {
+    const src = readFileSync(SERVICE, "utf8");
+    const at = src.indexOf("// Anonymize the account");
+    expect(at).toBeGreaterThan(0);
+    const block = src.slice(at, src.indexOf("});", at));
+    return [...block.matchAll(/(\w+): null,/g)].map((m) => m[1]!);
+  }
+
+  beforeEach(() => {
+    mocks.fetch.mockReset();
+  });
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("every column phase B clears is named, and nothing is called anonymized", async () => {
+    serve({ ...base, blockers: [], consequences: [] });
+    const { container } = render(<PrivacySection />);
+    await screen.findByText("Close account");
+    const copy = container.querySelector("[data-cc-closure-cleared]")?.textContent?.replace(/\s+/g, " ") ?? "";
+    const columns = clearedColumns();
+    expect(columns.length).toBeGreaterThanOrEqual(7);
+    for (const column of columns) {
+      expect(LABEL[column], `no wording for cleared column ${column}`).toBeDefined();
+      expect(copy).toContain(LABEL[column]!);
+    }
+    expect(copy).not.toMatch(/anonymi[sz]/i);
+    expect(copy).toContain("7-day cancellation window");
+    // What stays is said too, rather than implied away.
+    expect(copy).toMatch(/are not cleared/);
   });
 });

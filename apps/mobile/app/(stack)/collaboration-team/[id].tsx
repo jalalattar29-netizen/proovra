@@ -54,6 +54,8 @@ import { CollaborationWorkSection } from "../../../src/ui/collaboration-work";
 import { CollaborationSettingsSection } from "../../../src/ui/collaboration-settings";
 import { canAddTeamMembers } from "../../../src/product/collaboration-permissions";
 import { CollaborationAddMembers } from "../../../src/ui/collaboration-add-members";
+import { purchaseAvailability } from "../../../src/product/billing-purchase";
+import { upgradeActionLabel } from "../../../src/product/billing";
 
 type Phase = "loading" | "ready" | "error" | "notfound" | "unavailable";
 
@@ -129,6 +131,8 @@ export default function CollaborationTeamDetailScreen() {
   const t = team!;
   const canAdd = canAddTeamMembers(t);
   const atCapacity = teamAtCapacity(t.activeMemberCount, memberLimit);
+  const purchase = purchaseAvailability();
+  const canBuy = purchase === "EXTERNAL_CHECKOUT";
   return (
     <ProovraScreen shell>
       <View style={styles.headerRow}>
@@ -163,10 +167,11 @@ export default function CollaborationTeamDetailScreen() {
         ) : null}
         {atCapacity ? (
           <ProovraCard style={styles.addRow}>
+            {/* AUDIT E-05 — keyed on purchaseAvailability(): a build that cannot buy says "See plans", never "Upgrade". */}
             <ProovraText variant="bodySm" color={theme.color.status.pending.fg}>
-              Team is at capacity for your plan. Upgrade to add more.
+              {canBuy ? "Team is at capacity for your plan. Upgrade to add more." : "Team is at capacity for your plan. See plans to compare member limits."}
             </ProovraText>
-            <ProovraButton label="Upgrade" variant="secondary" fullWidth={false} onPress={() => router.push("/(stack)/billing")} />
+            <ProovraButton label={canBuy ? "Upgrade" : upgradeActionLabel(purchase)} variant="secondary" fullWidth={false} onPress={() => router.push("/(stack)/billing")} />
           </ProovraCard>
         ) : null}
         {adding && canAdd && !atCapacity ? (

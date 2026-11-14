@@ -27,7 +27,7 @@
  *   - action-scoped + single-request (proof travels in the mutation body
  *     and is verified inline; nothing reusable is issued)
  *   - no secrets in URLs (proof is read from the JSON body only)
- *   - rate-limited per user+action
+ *   - rate-limited per user, across actions and instances (B-08)
  *   - audited via SecurityEvent on denial and on success
  */
 
@@ -37,28 +37,29 @@ import { getAuthSessionId } from "../../auth.js";
 import { prisma } from "../../db.js";
 import { MFA_ENROLLMENT_SCOPE } from "../auth/extension-scope.js";
 import { verifyPassword } from "../email-password-auth.service.js";
+import { enforceRateLimit } from "../rate-limit.js";
 import { verifyActiveTotp } from "../security/mfa.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
 /** OAuth-only recent-auth window — 10 minutes. */
 export const RECENT_AUTH_WINDOW_MS = 10 * 60 * 1000;
 
-// Bounded in-memory rate limit: 5 proof attempts / 60s per user+action.
-// Mirrors the enrollment-verify limiter in mfa.routes.ts (process-local by
-// design there as well).
-const ATTEMPT_WINDOW_MS = 60_000;
+// B-08 — 5 proof attempts / 60s per USER, on the shared limiter. The budget
+// was an in-memory Map keyed per user AND action, so with a stolen session the
+// password guesses multiplied by the number of actions and of API instances.
+// One key per user, counted in the cross-instance store (`global`: refused,
+// never continued in process memory, when that store cannot answer).
+const ATTEMPT_WINDOW_SEC = 60;
 const MAX_ATTEMPTS = 5;
-const attempts = new Map<string, { count: number; windowStart: number }>();
 
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const entry = attempts.get(key);
-  if (!entry || now - entry.windowStart > ATTEMPT_WINDOW_MS) {
-    attempts.set(key, { count: 1, windowStart: now });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > MAX_ATTEMPTS;
+async function isRateLimited(userId: string): Promise<boolean> {
+  const verdict = await enforceRateLimit({
+    key: `account-stepup:${userId}`,
+    max: MAX_ATTEMPTS,
+    windowSec: ATTEMPT_WINDOW_SEC,
+    bound: "global",
+  });
+  return !verdict.allowed;
 }
 
 export type AccountStepUpProof = {
@@ -192,7 +193,7 @@ export async function verifyAccountStepUp(input: {
   // Proof supplied — verify it. Attempts are rate-limited BEFORE any
   // cryptographic comparison.
   if (proof.method === "password" || proof.method === "mfa") {
-    if (isRateLimited(`account-stepup:${userId}:${action}`)) {
+    if (await isRateLimited(userId)) {
       return deny(
         "rate_limited",
         429,

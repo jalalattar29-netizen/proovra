@@ -22,7 +22,10 @@
  */
 import type { PrismaClient } from "@prisma/client";
 
-type ShareTx = Pick<PrismaClient, "verificationShareToken" | "externalReviewGrant" | "workflowIntakeLink">;
+type ShareTx = Pick<
+  PrismaClient,
+  "verificationShareToken" | "externalReviewGrant" | "workflowIntakeLink" | "apiCredential"
+>;
 
 export type CreatorShareRevocationReason =
   | "CREATOR_REMOVED"
@@ -81,10 +84,10 @@ export async function revokeCreatorShareGrantsTx(
     creators: ReadonlyArray<{ teamId: string; userId: string }>;
     reason: CreatorShareRevocationReason;
     actorUserId?: string | null;
-    kinds?: { ownerShares?: boolean; externalReview?: boolean; intakeLinks?: boolean };
+    kinds?: { ownerShares?: boolean; externalReview?: boolean; intakeLinks?: boolean; apiKeys?: boolean };
   },
-): Promise<{ ownerShares: number; externalReview: number; intakeLinks: number }> {
-  const out = { ownerShares: 0, externalReview: 0, intakeLinks: 0 };
+): Promise<{ ownerShares: number; externalReview: number; intakeLinks: number; apiKeys: number }> {
+  const out = { ownerShares: 0, externalReview: 0, intakeLinks: 0, apiKeys: 0 };
   // INGEST-010 — a secure intake link is an anonymous capability held in its
   // creator's name, like an owner share link: it ends when the creator is
   // removed or suspended, or the workspace closes (rows kept, revoked with the
@@ -95,6 +98,12 @@ export async function revokeCreatorShareGrantsTx(
   const endsIntakeLinks =
     input.kinds?.intakeLinks ??
     (input.reason === "CREATOR_REMOVED" || input.reason === "CREATOR_SUSPENDED" || input.reason === "WORKSPACE_CLOSED");
+  // A2-10 — an integration API key is machine access held in its creator's
+  // name the same way: it ends when the creator is removed or suspended
+  // (revoked, with the reason, never deleted). Workspace closure revokes every
+  // key of the workspace on its own leg.
+  const endsApiKeys =
+    input.kinds?.apiKeys ?? (input.reason === "CREATOR_REMOVED" || input.reason === "CREATOR_SUSPENDED");
   if (input.creators.length === 0) return out;
   const now = new Date();
   const byWorkspace = new Map<string, string[]>();
@@ -130,6 +139,18 @@ export async function revokeCreatorShareGrantsTx(
       });
       out.intakeLinks += r.count;
     }
+    if (endsApiKeys) {
+      const r = await tx.apiCredential.updateMany({
+        where: { teamId, createdByUserId: { in: userIds }, status: "ACTIVE" },
+        data: {
+          status: "REVOKED",
+          revokedAtUtc: now,
+          revokedByUserId: input.actorUserId ?? null,
+          revokedReason: input.reason.toLowerCase(),
+        },
+      });
+      out.apiKeys += r.count;
+    }
   }
   return out;
 }
@@ -142,6 +163,30 @@ export async function revokeWorkspaceOwnerSharesTx(
   if (input.teamIds.length === 0) return 0;
   const r = await tx.verificationShareToken.updateMany({
     where: { teamId: { in: [...input.teamIds] }, purpose: "OWNER_SHARE", revokedAtUtc: null },
+    data: { revokedAtUtc: new Date(), revokedByUserId: input.actorUserId, revocationReason: "WORKSPACE_CLOSED" },
+  });
+  return r.count;
+}
+
+/**
+ * B-06 — end the live owner links on the owner's LEGACY records that carry no
+ * workspace (`team_id` NULL). Closure ends owner links by workspace, and creator
+ * revocation is keyed per workspace, so a link minted on such a record (its
+ * share row inherits the NULL) was reached by neither and kept working after
+ * the account closed. Selected by the record's owner; same reason as the
+ * owner's workspace links ending in the same closure.
+ */
+export async function revokeLegacyUnscopedOwnerSharesTx(
+  tx: Pick<PrismaClient, "verificationShareToken">,
+  input: { ownerUserId: string; actorUserId: string | null },
+): Promise<number> {
+  const r = await tx.verificationShareToken.updateMany({
+    where: {
+      teamId: null,
+      purpose: "OWNER_SHARE",
+      revokedAtUtc: null,
+      evidence: { ownerUserId: input.ownerUserId },
+    },
     data: { revokedAtUtc: new Date(), revokedByUserId: input.actorUserId, revocationReason: "WORKSPACE_CLOSED" },
   });
   return r.count;

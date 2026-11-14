@@ -223,10 +223,19 @@ export function resolveRouteAccess(
           canLoad: false,
           canSeeNav: true,
           accessState: "NEEDS_PERSONAL_OR_ORG",
+          // A1-04 (Free-user audit, 2026-11-14) — the action used to be "Open
+          // workspaces" → `/workspaces`, which a non-Enterprise context is
+          // redirected from to `/collaboration-teams` (tiers.ts), itself a
+          // PERSONAL_OR_ORG route answering with this same panel: a loop with
+          // no way out. Both actions now lead to ACCOUNT routes that load
+          // with no workspace (`requiredActiveSpace: "NONE"`): Account
+          // settings (where the server's own recovery action sends a person
+          // to set up a personal space, and where the account menu signs
+          // out) and the membership-gated Organizations list.
           reason:
-            "This surface needs an active workspace. Set one up to continue.",
-          primaryAction: { label: "Open workspaces", href: "/workspaces" },
-          secondaryAction: null,
+            "You don't have an active workspace right now. Open your account settings to continue with a personal space or to sign out, or check your organizations if an administrator paused your access.",
+          primaryAction: { label: "Open account settings", href: "/settings" },
+          secondaryAction: { label: "Your organizations", href: "/organizations" },
         };
       }
       // else: fall through to capability check — personal/workspace

@@ -550,3 +550,50 @@ test("through the real transport: a genuine fault shows its Support ID; a refusa
   assert.equal(r.byTestId("intake-support-id").length, 1, r.texts().join(" | "));
   assert.ok(r.hasText("Support ID: req-7k2"));
 });
+
+// F-P1-01 — the contributor's upload used one fixed 120 s PUT and no retry:
+// one dropped connection, or an upload URL that expired while the phone was on
+// a slow uplink, failed the whole Send. It now uses the app's native upload
+// retry rule (size-aware PUT deadline, bounded jittered retry, Retry-After).
+const waitFor = async (pred) => {
+  for (let i = 0; i < 40 && !pred(); i += 1) {
+    await act(async () => { await new Promise((x) => setTimeout(x, 100)); });
+  }
+  await settle();
+};
+
+test("F-P1-01: a dropped PUT is retried (presigned again, same part) and the submission completes", async () => {
+  let drops = 1;
+  globalThis.__UPLOAD_ASYNC__ = async (url, fileUri, options) => {
+    puts.push({ url, fileUri, options, afterRequests: requests.length });
+    if (url === PUT(0) && drops > 0) {
+      drops -= 1;
+      throw new TypeError("Network request failed");
+    }
+    return routes.put(url);
+  };
+  const r = await staged();
+  await r.press("Send");
+  await waitFor(() => submitPosts().length > 0);
+  assert.deepEqual(puts.map((p) => p.url), [PUT(0), PUT(0), PUT(1)], "the dropped PUT was not retried");
+  assert.deepEqual(partPosts().map((p) => p.body.partIndex), [0, 0, 1], "the retry presigns the SAME part index");
+  assert.equal(submitPosts().length, 1);
+  assert.ok(r.hasText("Thank you — what you sent has been received and preserved."), r.texts().join(" | "));
+});
+
+test("F-P1-01: an upload URL storage refuses as expired (403) is presigned afresh and the PUT goes to the new URL", async () => {
+  let issued = 0;
+  routes.parts = (body) => {
+    issued += 1;
+    const res = partCreated(body.partIndex, body.mimeType, body.originalFileName);
+    return body.partIndex === 0 && issued === 1
+      ? json(201, { part: { id: "part-0", partIndex: 0 }, upload: { putUrl: "https://storage.example/intake/expired" } })
+      : res;
+  };
+  routes.put = (url) => ({ status: url.endsWith("/expired") ? 403 : 200 });
+  const r = await staged();
+  await r.press("Send");
+  await waitFor(() => submitPosts().length > 0);
+  assert.deepEqual(puts.map((p) => p.url), ["https://storage.example/intake/expired", PUT(0), PUT(1)]);
+  assert.equal(submitPosts().length, 1);
+});

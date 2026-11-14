@@ -12,8 +12,11 @@
  *                        code TIMEOUT (its work is aborted where the transport
  *                        allows), so callers can decide instead of hanging.
  *   classifyCaptureError — RETRYABLE (no response, timeout, 408/429/5xx, the
- *                        server's SESSION_BUSY) vs TERMINAL (any other 4xx: a
- *                        validation or state refusal that a retry cannot fix).
+ *                        server's SESSION_BUSY) vs HELD (401, or a plan or
+ *                        storage refusal: not retried now, but the captured
+ *                        material is still good — nothing is discarded) vs
+ *                        TERMINAL (any other 4xx: a validation or state
+ *                        refusal that a retry cannot fix).
  *   retryCapture       — bounded attempts with exponential backoff, only for
  *                        retryable failures; a terminal one is thrown at once.
  *
@@ -43,9 +46,9 @@ export function putTimeoutMsForSize(sizeBytes: number | null | undefined, floorM
   return Math.max(floorMs, Math.ceil(bytes / CAPTURE_PUT_FLOOR_BYTES_PER_SECOND) * 1000);
 }
 
-export type CaptureErrorClass = "RETRYABLE" | "TERMINAL";
+export type CaptureErrorClass = "RETRYABLE" | "HELD" | "TERMINAL";
 
-type ErrorShape = { statusCode?: unknown; status?: unknown; code?: unknown; name?: unknown };
+type ErrorShape = { statusCode?: unknown; status?: unknown; code?: unknown; name?: unknown; sessionEnded?: unknown };
 
 /** A request that did not settle in time. */
 export class CaptureTimeoutError extends Error {
@@ -64,21 +67,67 @@ export class CaptureTimeoutError extends Error {
 const RETRYABLE_CODES = new Set(["TIMEOUT", "SESSION_BUSY", "NETWORK_ERROR", "STORAGE_URL_REJECTED"]);
 
 /**
- * Local conditions no retry can change (the file to upload is gone), and a
- * storage refusal of the bytes themselves (digest or length mismatch).
+ * Local conditions no retry can change (the file to upload is gone), a
+ * storage refusal of the bytes themselves (digest or length mismatch), and an
+ * accepted presign that carried no upload URL (F-P1-01: asking again returns
+ * the same answer).
  */
-const TERMINAL_CODES = new Set(["LOCAL_FILE_MISSING", "STORAGE_UPLOAD_REFUSED"]);
+const TERMINAL_CODES = new Set(["LOCAL_FILE_MISSING", "STORAGE_UPLOAD_REFUSED", "UPLOAD_URL_MISSING"]);
+
+/**
+ * C-03 — commercial refusals of the capture (the record-cap family, credits,
+ * a lapsed plan, storage). The account cannot take this capture NOW; the
+ * frames are still the only copy of what was captured, so they are kept and
+ * the refusal is shown — the person can add storage, buy a credit or upgrade
+ * and retry. Any 402 is one too (payment or credit required).
+ */
+const HELD_REFUSAL_CODES = new Set([
+  "FREE_LIMIT_REACHED",
+  "EVIDENCE_RECORD_LIMIT_REACHED",
+  "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED",
+  "PLAN_LAPSED_ALLOWANCE_EXHAUSTED",
+  "INSUFFICIENT_EVIDENCE_CREDITS",
+  "CREDIT_REQUIRED_NONE_AVAILABLE",
+  "SUBSCRIPTION_INACTIVE",
+  "STORAGE_LIMIT_REACHED",
+]);
+
+export type CaptureHoldReason = "SIGNED_OUT" | "REFUSED";
+
+/**
+ * PURE — why a failure holds the capture (C-03), or null when it does not.
+ *
+ *   SIGNED_OUT — a 401 that ended the sign-in (api.ts marks it
+ *                `sessionEnded` from sessionEndReason, and the app routes the
+ *                person to sign in again). The frames are valid:
+ *                the person signs in and retries. It used to be TERMINAL, so a
+ *                token that expired mid-staging deleted every frame.
+ *   REFUSED    — a plan or storage refusal (HELD_REFUSAL_CODES, or 402), or
+ *                any other 401 (a fresher sign-in is needed): shown as is.
+ */
+export function captureHoldReason(err: unknown): CaptureHoldReason | null {
+  const e = (err ?? {}) as ErrorShape;
+  const code = typeof e.code === "string" ? e.code : undefined;
+  const raw = typeof e.statusCode === "number" ? e.statusCode : typeof e.status === "number" ? e.status : null;
+  // No import here (this module is loaded on its own by tests): the session-end
+  // decision is api.ts's, carried on the error.
+  if (raw === 401) return typeof e.sessionEnded === "string" ? "SIGNED_OUT" : "REFUSED";
+  if (raw === 402) return "REFUSED";
+  if (code && HELD_REFUSAL_CODES.has(code)) return "REFUSED";
+  return null;
+}
 
 /** The local file to upload no longer exists — terminal for that item. */
 export function localFileMissingError(what: string): Error & { code: string } {
   return Object.assign(new Error(`${what} is no longer on this device.`), { code: "LOCAL_FILE_MISSING" });
 }
 
-/** PURE — retryable vs terminal. Unknown shapes (a dropped connection) are retryable. */
+/** PURE — retryable vs held vs terminal. Unknown shapes (a dropped connection) are retryable. */
 export function classifyCaptureError(err: unknown): CaptureErrorClass {
   const e = (err ?? {}) as ErrorShape;
   const code = typeof e.code === "string" ? e.code : null;
   if (code && TERMINAL_CODES.has(code)) return "TERMINAL";
+  if (captureHoldReason(err)) return "HELD";
   if (code && RETRYABLE_CODES.has(code)) return "RETRYABLE";
   if (e.name === "AbortError") return "RETRYABLE";
   const raw = typeof e.statusCode === "number" ? e.statusCode : typeof e.status === "number" ? e.status : null;
@@ -212,7 +261,7 @@ export function retryDelayMs(
 
 /**
  * Bounded retry with jittered exponential backoff that honours Retry-After; a
- * TERMINAL failure is thrown immediately.
+ * TERMINAL or HELD failure is thrown immediately (a retry now cannot pass it).
  */
 export async function retryCapture<T>(work: (attempt: number) => Promise<T>, policy: RetryPolicy = DEFAULT_CAPTURE_RETRY): Promise<T> {
   const attempts = Math.max(1, Math.floor(policy.attempts));
@@ -223,7 +272,7 @@ export async function retryCapture<T>(work: (attempt: number) => Promise<T>, pol
       return await work(attempt);
     } catch (err) {
       lastErr = err;
-      if (classifyCaptureError(err) === "TERMINAL" || attempt === attempts) throw err;
+      if (classifyCaptureError(err) !== "RETRYABLE" || attempt === attempts) throw err;
       const wait = retryDelayMs(attempt, policy, err);
       if (wait === null || policy.shouldStop?.()) throw err;
       await sleep(wait);

@@ -13,6 +13,7 @@ import {
   isSameBoundFile,
   sha256Base64ToHex,
   storedBytesMatchBoundDigest,
+  withPartBinding,
 } from "../src/services/evidence/evidence-part-binding.service.js";
 
 const b64 = (s: string) => createHash("sha256").update(s).digest("base64");
@@ -72,5 +73,45 @@ describe("part-index file binding (F-03)", () => {
     expect(storedBytesMatchBoundDigest({ clientHintSha256Base64: b64("A") }, hex("A"))).toBe(true);
     expect(storedBytesMatchBoundDigest({ clientHintSha256Base64: b64("A") }, hex("B"))).toBe(false);
     expect(storedBytesMatchBoundDigest(null, hex("B"))).toBe(true);
+  });
+});
+
+// C-06 — a part bound with no staged digest used to be reused for any file of
+// the same name and type, and the new bytes were sealed under the old row.
+describe("part-index binding of digest and size (C-06)", () => {
+  const presigned = (name: string, declared: { sha256Base64: string | null; sizeBytes: number }, clientSignals: unknown = undefined) => ({
+    originalFileName: name,
+    mimeType: "image/jpeg",
+    clientSignals: withPartBinding(clientSignals, { originalFileName: name, mimeType: "image/jpeg", ...declared }),
+  });
+
+  it("a row bound with no digest is not matched by a declaration that states one now", () => {
+    const r0 = presigned("a.jpg", { sha256Base64: null, sizeBytes: 10 });
+    expect(isSameBoundFile(r0, { ...file("a.jpg", "other bytes"), sizeBytes: 10 })).toBe(false);
+    expect(boundPartsMatchManifest([{ partIndex: 0, ...r0 }], [file("a.jpg", "other bytes")])).toBe(false);
+  });
+
+  it("a row bound with no digest is not matched by a different size", () => {
+    const r0 = presigned("a.jpg", { sha256Base64: null, sizeBytes: 10 });
+    expect(isSameBoundFile(r0, { ...file("a.jpg", null), sizeBytes: 11 })).toBe(false);
+    expect(isSameBoundFile(r0, { ...file("a.jpg", null), sizeBytes: 10 }), "the same file again").toBe(true);
+  });
+
+  it("a checksum declared with no staged hint is bound, so the idempotent retry matches and other bytes do not", () => {
+    // Mobile and the extension send the URL checksum, no hint.
+    const r0 = presigned("a.jpg", { sha256Base64: b64("A"), sizeBytes: 10 });
+    expect(boundPartDigestHex(r0.clientSignals)).toBe(hex("A"));
+    expect(isSameBoundFile(r0, { ...file("a.jpg", "A"), sizeBytes: 10 })).toBe(true);
+    expect(isSameBoundFile(r0, { ...file("a.jpg", "B"), sizeBytes: 10 })).toBe(false);
+    // …and the seal checks the stored bytes against it.
+    expect(storedBytesMatchBoundDigest(r0.clientSignals, hex("A"))).toBe(true);
+    expect(storedBytesMatchBoundDigest(r0.clientSignals, hex("B"))).toBe(false);
+  });
+
+  it("the binding keeps the client's own signals and leaves a non-object value as sent", () => {
+    const withHint = withPartBinding({ clientHintSha256Base64: b64("A"), exifPresent: true }, { ...file("a.jpg", "A"), sizeBytes: 3 });
+    expect(withHint).toMatchObject({ clientHintSha256Base64: b64("A"), exifPresent: true, boundSizeBytes: 3 });
+    expect(withPartBinding(["x"], { ...file("a.jpg", "A"), sizeBytes: 3 })).toEqual(["x"]);
+    expect(withPartBinding(undefined, { ...file("a.jpg", null), sizeBytes: undefined })).toBeUndefined();
   });
 });

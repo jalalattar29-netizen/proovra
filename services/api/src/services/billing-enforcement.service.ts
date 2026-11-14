@@ -211,12 +211,18 @@ export async function measurePersonalPlanOccupancy(
  */
 export async function readPersonalAdmissionInputs(
   ownerUserId: string,
-  input: { credits: number; cap: number | null },
+  /**
+   * `since` (AUDIT E-04): a rolling-window plan's gate measures records created
+   * since the window start (`measureAllowance(scope, client, { since })`); the
+   * Billing meter passes the same start so it reads the gate's count.
+   */
+  input: { credits: number; cap: number | null; since?: Date | null },
   client: AllowancePopulationClient = prisma,
 ): Promise<{ planOccupying: number; availableCredits: number }> {
   const measured = await measureAllowance(
     { billingShape: "SINGLE_OCCUPANT", ownerUserId, teamId: null },
     client,
+    { since: input.since ?? null },
   );
   return {
     planOccupying: measured.planOccupying,
@@ -1650,6 +1656,24 @@ export async function workspaceIncludesExternalReview(
     plan: scope.plan,
     contract: scope.contractLimits,
   });
+}
+
+/**
+ * A1-01 (Free-user audit, 2026-11-14) — THE answer to "does this workspace
+ * commercially include the PROFESSIONAL surfaces (Batch analysis, Quotas and
+ * usage)?": `PlanCapabilities.professionalSurfacesIncluded` of the workspace's
+ * effective plan, the same catalog field `platform-context` projects as
+ * `planFeatures.professionalSurfacesIncluded` and the web / native clients
+ * hide those surfaces by. The clients hid them from FREE and PAYG while the
+ * API served every signed-in account; `enterprise.routes.ts` now asks this.
+ * Commercial eligibility only. Fails closed when the workspace cannot be read.
+ */
+export async function workspaceIncludesProfessionalSurfaces(
+  teamId: string,
+): Promise<boolean> {
+  const scope = await resolveWorkspaceCommercialScope(teamId);
+  if (!scope) return false;
+  return getPlanCapabilities(scope.plan).professionalSurfacesIncluded;
 }
 
 /**

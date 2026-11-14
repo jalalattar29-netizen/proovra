@@ -142,6 +142,47 @@ describe("Phase D — closure lifecycle (live PostgreSQL)", () => {
     expect((await prisma.team.findUniqueOrThrow({ where: { id: t.personalTeamId } })).closedAtUtc).toEqual(closedAt);
   });
 
+  it("B-06 — account closure ends the owner links on the owner's legacy records with no workspace", async () => {
+    const t = await seedPersonalTenant(deps, "FREE");
+    const someoneElse = await seedUser(deps, `b06-other-${tag()}`);
+    const legacyRecord = async (ownerUserId: string) =>
+      (
+        await prisma.evidence.create({
+          data: { ownerUserId, teamId: null, type: "PHOTO", status: "CREATED", title: "b06 legacy record" },
+          select: { id: true },
+        })
+      ).id;
+    const share = async (evidenceId: string, createdByUserId: string) =>
+      (
+        await prisma.verificationShareToken.create({
+          data: {
+            evidenceId,
+            teamId: null,
+            tokenHash: createHash("sha256").update(randomUUID()).digest("hex"),
+            purpose: "OWNER_SHARE",
+            audience: "b06 named person",
+            createdByUserId,
+          },
+          select: { id: true },
+        })
+      ).id;
+    const mine = await share(await legacyRecord(t.owner.userId), t.owner.userId);
+    const theirs = await share(await legacyRecord(someoneElse.userId), someoneElse.userId);
+
+    await accountClosure.executeAccountClosure(t.owner.userId);
+
+    const row = (id: string) =>
+      prisma.verificationShareToken.findUniqueOrThrow({
+        where: { id },
+        select: { revokedAtUtc: true, revocationReason: true },
+      });
+    const ended = await row(mine);
+    expect(ended.revokedAtUtc).not.toBeNull();
+    expect(ended.revocationReason).toBe("WORKSPACE_CLOSED");
+    // Control: another owner's legacy link is untouched.
+    expect((await row(theirs)).revokedAtUtc).toBeNull();
+  });
+
   it("LIFE-13 — other members are a consequence shown before confirming, not a blocker; closure then revokes them", async () => {
     const t = await seedPersonalTenant(deps, "TEAM");
     const active = await seedUser(deps, `active-${tag()}`);
@@ -227,6 +268,29 @@ describe("Phase D — closure lifecycle (live PostgreSQL)", () => {
     const org = await seedOrganizationTenant(deps, {});
     await orgClosure.executeOrganizationClosure({ organizationId: org.organizationId, requestedByUserId: org.owner.userId });
     expect((await prisma.team.findUniqueOrThrow({ where: { id: org.workspaceId } })).closedAtUtc).not.toBeNull();
+  });
+
+  it("B-02 — organization closure releases every identity it managed, and no other Organization's", async () => {
+    const org = await seedOrganizationTenant(deps, { memberCount: 1 });
+    const other = await seedOrganizationTenant(deps, {});
+    const managedHere = org.members[0]!.userId;
+    const managedElsewhere = (await seedUser(deps, `b02-else-${tag()}`)).userId;
+    await prisma.user.update({
+      where: { id: managedHere },
+      data: { identityMode: "MANAGED_ENTERPRISE", managingOrganizationId: org.organizationId, managedIdentitySource: "DOMAIN" },
+    });
+    await prisma.user.update({
+      where: { id: managedElsewhere },
+      data: { identityMode: "MANAGED_ENTERPRISE", managingOrganizationId: other.organizationId, managedIdentitySource: "DOMAIN" },
+    });
+    await orgClosure.executeOrganizationClosure({ organizationId: org.organizationId, requestedByUserId: org.owner.userId });
+    const identity = (id: string) =>
+      prisma.user.findUniqueOrThrow({ where: { id }, select: { identityMode: true, managingOrganizationId: true } });
+    expect(await identity(managedHere)).toEqual({ identityMode: "STANDARD", managingOrganizationId: null });
+    expect(await identity(managedElsewhere)).toEqual({
+      identityMode: "MANAGED_ENTERPRISE",
+      managingOrganizationId: other.organizationId,
+    });
   });
 
   it("LIFE-16 — Enterprise termination: ACTIVE → TERMINATING → TERMINATED through the canonical closure", async () => {

@@ -404,6 +404,11 @@ export async function listWorkflowIntakeLinks(
     search?: string | null;
     /** Whether this caller may match on the raw recipient contact. */
     searchRecipientContact?: boolean;
+    /**
+     * A2-08 — the cases a restricted case closes to this reader
+     * (`hiddenRecordIdsInWorkspace`). A link bound to one is not listed.
+     */
+    hiddenCaseIds?: readonly string[];
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<DbWorkflowIntakeLink[]> {
@@ -427,6 +432,10 @@ export async function listWorkflowIntakeLinks(
         ? { workflowTemplateSlug: input.workflowTemplateSlug }
         : {}),
       ...(input.caseId ? { caseId: input.caseId } : {}),
+      // NOT IN drops NULL rows, so a link bound to no case is kept explicitly.
+      ...(input.hiddenCaseIds && input.hiddenCaseIds.length > 0
+        ? { AND: [{ OR: [{ caseId: null }, { caseId: { notIn: [...input.hiddenCaseIds] } }] }] }
+        : {}),
       ...archiveWhere,
       // Inside the tenant scope, never beside it.
       ...(input.search

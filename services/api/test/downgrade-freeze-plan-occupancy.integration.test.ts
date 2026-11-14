@@ -181,4 +181,25 @@ describe("F-07 — downgrade freeze uses the gate's plan-occupying count (live P
     await setPersonalPlan(t.owner.userId, "FREE");
     expect(await overrideOf(t.owner.userId)).toBe(4);
   }, 120_000);
+
+  // AUDIT E-04 (2026-11-14) — the Team rolling-30-day Billing meter reads the
+  // gate's count over the same window: credit-funded records are not plan use.
+  it("E-04: the Team rolling-window meter shows the gate's plan-occupying count, not every slot row", async () => {
+    const t = await seedPersonalTenant(deps, "TEAM");
+    for (let i = 0; i < 2; i++) await seedRecord(t, "SIGNED");
+    await seedRecord(t, "UPLOADING");
+    await seedCreditFunded(t);
+    await seedCreditFunded(t);
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const gate = await enforcement.readPersonalAdmissionInputs(t.owner.userId, { credits: 0, cap: null, since });
+    expect(gate.planOccupying).toBe(3);
+
+    const res = await h.app.inject({
+      method: "GET",
+      url: `/v1/billing/accounts/PERSONAL/${t.owner.userId}`,
+      headers: { authorization: `Bearer ${t.owner.token}` },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().usage.evidence).toMatchObject({ state: "MEASURED", used: 3, window: "ROLLING_30_DAYS" });
+  }, 120_000);
 });

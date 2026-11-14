@@ -1682,7 +1682,13 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     label: "Evidence requests",
     description: "Phase C3 intake-request inspector — checklist fulfillment, response review, re-request.",
     domain: "PERSONAL_WORKSPACE",
-    requiredCapabilities: ["INTAKE_LINKS_MANAGE"],
+    // A1-03 (Free-user audit, 2026-11-14) — reading a request is `evidence.read`
+    // on the API (`GET /v1/evidence-requests/:id`), so the inspector loads for
+    // any member who can view the workspace's evidence, with no plan key:
+    // inbox items send viewers here and retained requests stay readable after
+    // a downgrade. The management actions inside keep the
+    // `workspace.intake_links` decision (INTAKE_LINKS_MANAGE + intakeIncluded).
+    requiredCapabilities: ["EVIDENCE_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
 

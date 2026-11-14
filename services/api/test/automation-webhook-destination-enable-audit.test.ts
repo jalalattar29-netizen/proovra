@@ -20,6 +20,14 @@ const H = vi.hoisted(() => ({
   exists: true,
   stepUpPresented: true,
   stepUpPurposes: [] as string[],
+  entitled: true,
+}));
+
+// A2-01 — enabling also asks FEATURE_WEBHOOKS; the packaging engine is
+// substituted at its module boundary.
+vi.mock("../src/services/packaging/entitlement.service.js", () => ({
+  assertFeatureEntitlement: async () =>
+    H.entitled ? { ok: true } : { ok: false, denial: "ENTITLEMENT_REQUIRED", requiredEntitlement: "FEATURE_WEBHOOKS" },
 }));
 
 // WEBHOOK-STEPUP — enabling resumes signed outbound deliveries, so it asks
@@ -92,6 +100,7 @@ beforeEach(async () => {
   H.exists = true;
   H.stepUpPresented = true;
   H.stepUpPurposes = [];
+  H.entitled = true;
   app = Fastify();
   await app.register(automationWebhooksRoutes);
   await app.ready();
@@ -127,6 +136,23 @@ describe("automation webhook destination enable/disable audit", () => {
     expect(H.stepUpPurposes).toEqual(["INTEGRATION_WEBHOOK_ENABLE"]);
     expect(H.updates).toHaveLength(0);
     expect(H.events).toHaveLength(0);
+  });
+
+  it("A2-01 — enable on a workspace without FEATURE_WEBHOOKS is refused before any step-up and writes nothing", async () => {
+    H.entitled = false;
+    const res = await post("enable");
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toEqual({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
+    expect(H.stepUpPurposes).toEqual([]);
+    expect(H.updates).toHaveLength(0);
+    expect(H.events).toHaveLength(0);
+  });
+
+  it("disable without FEATURE_WEBHOOKS still works: a workspace can always switch a destination off", async () => {
+    H.entitled = false;
+    const res = await post("disable");
+    expect(res.statusCode).toBe(200);
+    expect(H.updates[0]).toMatchObject({ enabled: false });
   });
 
   it("disable keeps its dedicated audit event and needs no step-up", async () => {

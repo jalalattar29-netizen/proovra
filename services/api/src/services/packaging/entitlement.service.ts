@@ -150,7 +150,13 @@ export const DEFAULT_ENTITLEMENTS: Record<
   QUOTA_WEBHOOK_DELIVERIES_PER_DAY: { kind: "QUOTA", value: 0 },
   QUOTA_EXPORT_PACKAGES_PER_MONTH: { kind: "QUOTA", value: 2 },
   RETENTION_MAX_YEARS: { kind: "LIMIT", value: 1 },
-  INTEGRATION_API_KEYS_MAX: { kind: "LIMIT", value: 1 },
+  // A2-11 (Free-user audit, 2026-11-14) — Pricing lists "Integrations & APIs"
+  // as not included off Enterprise, so an unprovisioned workspace mints no key.
+  // The product lines (3 / 10 / 100) and an ACTIVE Enterprise contract (the
+  // ENTERPRISE line's value, through resolveEntitlement) still grant theirs.
+  // Keys already issued keep authenticating: this ceiling is read only when a
+  // NEW key is created.
+  INTEGRATION_API_KEYS_MAX: { kind: "LIMIT", value: 0 },
   INTEGRATION_WEBHOOK_ENDPOINTS_MAX: { kind: "LIMIT", value: 0 },
 };
 

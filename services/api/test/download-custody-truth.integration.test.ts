@@ -104,6 +104,18 @@ describe("download custody truth (live PostgreSQL 16, MinIO)", () => {
     expect(rows[0]!.payload).toMatchObject({ artifact: "report", reportVersion: 1, accessMode: "authenticated_download_url_issued" });
   });
 
+  // AUDIT D-05 (2026-11-14) — the presigned URL in the body is a bearer
+  // capability for 600 s: the authenticated response is never stored by a cache.
+  it("D-05: an authenticated response carrying a presigned report URL says Cache-Control: no-store", async () => {
+    const { id } = await recordWithReport(1024);
+    for (const url of [`/v1/evidence/${id}/report/latest`, `/v1/evidence/${id}/reports/1`]) {
+      const res = await h.app.inject({ method: "GET", url, headers: bearer() });
+      expect(res.statusCode, `${url}: ${res.body}`).toBe(200);
+      expect(res.json().url).toContain("X-Amz-Signature=");
+      expect(res.headers["cache-control"], url).toBe("no-store");
+    }
+  });
+
   it("the status read behind the Library inspector leaves the chain untouched", async () => {
     const { id } = await recordWithReport(2048);
     const before = await prisma.custodyEvent.count({ where: { evidenceId: id } });

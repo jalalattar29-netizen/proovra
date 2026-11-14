@@ -343,7 +343,11 @@ describe("Phase 32.8E — reviewer aggregator contract (canonical console)", () 
   });
 
   it("authorizes through the canonical member-access path, not a local role read", () => {
-    expect(REVIEWER_SVC).toMatch(/evaluateMemberAccess\(/);
+    // A2-03 — the reviewer-ops admission: the canonical chain (which is
+    // evaluateMemberAccess underneath) plus the queues plan gate.
+    expect(REVIEWER_SVC).toMatch(/evaluateAuthorizedWorkspace\(/);
+    expect(REVIEWER_SVC).toMatch(/workspaceIncludesReviewCapability\([^)]*"REVIEW_TASKS_AND_QUEUES"\)/);
+    expect(REVIEWER_SVC).not.toMatch(/status\s*!==\s*"ACTIVE"/);
     expect(REVIEWER_SVC).toMatch(
       /code\(404\)\.send\(\{\s*error:\s*\{\s*code:\s*"not_found"/,
     );

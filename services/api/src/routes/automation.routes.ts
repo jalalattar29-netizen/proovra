@@ -51,6 +51,7 @@ import { runAutomationDispatchSweep } from "../services/automation/automation-di
 import { sweepDueDeliveries } from "../services/automation/automation-delivery-runtime.service.js";
 import { detectTimeBasedAutomationTriggers } from "../services/automation/automation-triggers.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
+import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -237,6 +238,31 @@ async function actionTargetRefusal(
   return null;
 }
 
+/**
+ * A2-01 (Free-user audit, 2026-11-14) — a rule whose action delivers to a
+ * webhook is an outbound webhook, and outbound webhooks are the packaging
+ * engine's FEATURE_WEBHOOKS (default off), as on `/v1/integrations/webhooks`
+ * and `/v1/automation/webhooks`. Asked when such a rule is created, its
+ * action re-pointed, or enabled. Rules with any other action are not webhooks
+ * and are not asked; disabling never is.
+ */
+async function refuseWebhookActionWithoutEntitlement(
+  reply: FastifyReply,
+  teamId: string,
+  actionType: string,
+  actorUserId: string,
+): Promise<boolean> {
+  if (actionType !== "WEBHOOK_DELIVERY_INTERNAL_ONLY") return false;
+  const entitled = await assertFeatureEntitlement({
+    teamId,
+    key: "FEATURE_WEBHOOKS",
+    actorUserId,
+  });
+  if (entitled.ok) return false;
+  reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
+  return true;
+}
+
 export async function automationRoutes(
   app: FastifyInstance,
 ): Promise<void> {
@@ -311,6 +337,7 @@ export async function automationRoutes(
       // schema. The trigger and action types are already enum-validated
       // by Zod above.
       const actionType = body.data.actionType as AutomationActionType;
+      if (await refuseWebhookActionWithoutEntitlement(reply, body.data.teamId, actionType, member.userId)) return;
       const actionResult = validateActionConfig(
         actionType,
         body.data.actionConfigJson,
@@ -411,6 +438,7 @@ export async function automationRoutes(
         }
         const targetRefusal = await actionTargetRefusal(existing.teamId, r.config);
         if (targetRefusal) return reply.code(400).send(targetRefusal);
+        if (await refuseWebhookActionWithoutEntitlement(reply, existing.teamId, existing.actionType, member.userId)) return;
         data.actionConfigJson = r.config as object;
       }
 
@@ -458,6 +486,7 @@ export async function automationRoutes(
         reply.code(400).send(targetRefusal);
         return;
       }
+      if (await refuseWebhookActionWithoutEntitlement(reply, existing.teamId, existing.actionType, member.userId)) return;
     }
     const updated = await prisma.automationRule.update({
       where: { id: existing.id },

@@ -1653,11 +1653,18 @@ export async function buildBillingAccountProjection(input: {
 
     if (monthlyCap !== null && monthlyCap > 0) {
       const since = new Date(Date.now() - THIRTY_DAYS_MS);
+      // AUDIT E-04 (2026-11-14) — the gate's own count over the window:
+      // plan-occupying records (credit-funded sealed records excluded). Every
+      // slot row used to be counted, so a Team payer who had spent credits saw
+      // "limit reached" while the gate still admitted plan-funded records.
+      const windowInputs = await readPersonalAdmissionInputs(account.id, {
+        credits: scope.credits ?? 0,
+        cap: monthlyCap,
+        since,
+      });
       evidence = {
         state: "MEASURED",
-        used: await countPersonalEvidenceRecords(account.id, {
-          createdSince: since,
-        }),
+        used: windowInputs.planOccupying,
         limit: monthlyCap,
         window: "ROLLING_30_DAYS",
       };

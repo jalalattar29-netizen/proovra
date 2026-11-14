@@ -227,7 +227,7 @@ export async function createApiCredential(
   /*
    * F-15 (Free-user audit, 2026-11-13) — THE KEY CEILING THE PACKAGING ENGINE
    * ALREADY STATES. `INTEGRATION_API_KEYS_MAX` is that engine's LIMIT for this
-   * very object (default 1; product lines 3 / 10; an ACTIVE Enterprise contract
+   * very object (default 0 since A2-11; product lines 3 / 10; an ACTIVE Enterprise contract
    * 100) and nothing enforced it, so every account — each owns a Personal
    * workspace whose OWNER holds `integration.api_key.manage` — could mint keys
    * without bound. It is answered the way the engine answers its other LIMIT:

@@ -1,5 +1,5 @@
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { tsaCompletionNotice } from "@proovra/shared";
 import { useRouter } from "next/navigation";
 import { getClientCaptureEnvironment } from "./captureEnvironmentClient";
@@ -258,6 +258,12 @@ type AddFilesOptions = {
 
 type ResetCaptureStateOptions = {
   preserveTimeline?: boolean;
+  /**
+   * C-04 — after a successful Finish, only the items that Finish sealed are
+   * cleared. Material added while it ran (a drop, a recorded clip) was never
+   * uploaded; clearing everything silently lost it.
+   */
+  onlyItemIds?: ReadonlySet<string>;
 };
 
 type UseCaptureSessionOrchestrationParams = {
@@ -321,6 +327,10 @@ export function useCaptureSessionOrchestration({
 
   const sessionItemsRef = useRef<SessionItem[]>([]);
   const reservationRef = useRef<CaptureRecordReservation | null>(null);
+  // C-04 — the record a successful Finish opens, once the sealed items have
+  // been cleared. Decided after that render, from the items actually left:
+  // material added while Finish ran keeps the operator on this page.
+  const [openAfterFinish, setOpenAfterFinish] = useState<string | null>(null);
 
   sessionItemsRef.current = sessionItems;
 
@@ -533,6 +543,20 @@ export function useCaptureSessionOrchestration({
     }
   };
 
+  useEffect(() => {
+    if (!openAfterFinish) return;
+    setOpenAfterFinish(null);
+    const left = sessionItems.length;
+    if (left > 0) {
+      addToast(
+        `Evidence finalized. ${left} item${left === 1 ? " was" : "s were"} added while finishing and ${left === 1 ? "is" : "are"} still staged. Finish again to seal ${left === 1 ? "it" : "them"} as a new record.`,
+        "info"
+      );
+      return;
+    }
+    router.push(`/evidence/${openAfterFinish}`);
+  }, [openAfterFinish, sessionItems, addToast, router]);
+
   const removeSessionItem = (itemId: string) => {
     let removedName: string | null = null;
 
@@ -559,9 +583,20 @@ export function useCaptureSessionOrchestration({
   const resetCaptureState = (options?: ResetCaptureStateOptions) => {
     const hadMaterials = sessionItemsRef.current.length > 0;
 
-    revokeAllPreviews();
     reservationRef.current = null;
-    setSessionItems([]);
+    const only = options?.onlyItemIds;
+    if (only) {
+      // The removeSessionItem pattern: revoke and filter the sealed items only.
+      setSessionItems((prev) => {
+        prev.forEach((item) => {
+          if (only.has(item.id)) revokeItemPreview(item);
+        });
+        return prev.filter((item) => !only.has(item.id));
+      });
+    } else {
+      revokeAllPreviews();
+      setSessionItems([]);
+    }
     setSessionStatus(null);
     setProgress(0);
     setError(null);
@@ -598,6 +633,8 @@ export function useCaptureSessionOrchestration({
   const finalizeSession = async (options?: { acceptLocationFailure?: boolean }) => {
     const acceptLocationFailure = options?.acceptLocationFailure === true;
     const items = sessionItemsRef.current;
+    // C-04 — the items THIS Finish seals (its snapshot).
+    const sealedItemIds: ReadonlySet<string> = new Set(items.map((item) => item.id));
 
     // A STANDING condition (workspace full; plan excludes this) survives the
     // reset in `finally`; a progress status does not. That reset compared
@@ -1035,7 +1072,7 @@ export function useCaptureSessionOrchestration({
           "info"
         );
         onSessionFinalized?.();
-        resetCaptureState({ preserveTimeline: true });
+        resetCaptureState({ preserveTimeline: true, onlyItemIds: sealedItemIds });
         return;
       }
 
@@ -1049,8 +1086,10 @@ export function useCaptureSessionOrchestration({
       // (linked to the new evidence record) inside the create handler.
       onSessionFinalized?.();
 
-      resetCaptureState({ preserveTimeline: true });
-      router.push(`/evidence/${evidenceId}`);
+      resetCaptureState({ preserveTimeline: true, onlyItemIds: sealedItemIds });
+      // C-04 — opened once the clear has rendered (effect below), unless
+      // material added while Finish ran is still staged.
+      setOpenAfterFinish(evidenceId);
     } catch (err) {
       const released = refusedUploadReleasedReservation(err); // PRO-078
       // F-03 / F-09 — see reservationUnusable.

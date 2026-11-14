@@ -68,6 +68,7 @@ import {
   type PlannedItem,
 } from "../../src/product/capture-plan";
 import { useCallback, useEffect, useRef, useState } from "react";
+import * as Crypto from "expo-crypto";
 import { apiFetch, getAuthToken } from "../../src/api";
 import { DEFAULT_CAPTURE_RETRY } from "../../src/capture/capture-retry";
 import * as DocumentPicker from "expo-document-picker";
@@ -451,6 +452,12 @@ export default function CaptureScreen() {
   const cameraRef = useRef<CameraView | null>(null);
   const sessionEvidenceIdRef = useRef<string | null>(null);
   const captureSessionRef = useRef<DirectCaptureSession | null>(null);
+  /**
+   * C-09 — the clientAttemptId of the open that produced captureSessionRef's
+   * session (and the workspace it was for). Reused only to re-open a session
+   * whose reservation answer never arrived, so the server replays it.
+   */
+  const captureAttemptRef = useRef<{ id: string; teamId: string | null } | null>(null);
   const draftIdRef = useRef<string | null>(null);
   /**
    * What acquired the live session, when a screen engine did.
@@ -1724,17 +1731,30 @@ if (!isRecording || busy) return;
         const rootType = deriveBatchEvidenceType(items.map((i) => i.mimeType));
         const primary = primaryItem(items);
         // The confirmed workspace, not always the personal one (2026-09-29, D13).
-        captureSession = await openDirectCaptureSession("PROOVRA_MOBILE_APP", { teamId: target?.teamId ?? null });
+        // C-09 — the same attempt id while the previous open's session got no
+        // confirmed reservation (its answer may have been lost: the server
+        // replays the session and the record it reserved); a fresh one for
+        // a new record or another workspace.
+        const teamKey = target?.teamId ?? null;
+        const attempt =
+          captureSession && !evidenceId && captureAttemptRef.current?.teamId === teamKey
+            ? captureAttemptRef.current
+            : { id: Crypto.randomUUID(), teamId: teamKey };
+        captureAttemptRef.current = attempt;
+        const opened = await openDirectCaptureSession("PROOVRA_MOBILE_APP", { teamId: target?.teamId ?? null, clientAttemptId: attempt.id });
+        captureSession = { captureSessionId: opened.captureSessionId, expiresAtUtc: opened.expiresAtUtc };
         captureSessionRef.current = captureSession;
         bindDestination(target);
-        evidenceId = await reserveDirectCaptureEvidence(captureSession, {
-          type: rootType,
-          mimeType: primary?.mimeType ?? "application/octet-stream",
-          deviceTimeIso: new Date().toISOString(),
-          // AUD-0035 — a picked file keeps its own name on the record.
-          originalFileName: reservedOriginalFileName(primary),
-          ...location.fields,
-        });
+        evidenceId =
+          opened.reservedEvidenceId ??
+          (await reserveDirectCaptureEvidence(captureSession, {
+            type: rootType,
+            mimeType: primary?.mimeType ?? "application/octet-stream",
+            deviceTimeIso: new Date().toISOString(),
+            // AUD-0035 — a picked file keeps its own name on the record.
+            originalFileName: reservedOriginalFileName(primary),
+            ...location.fields,
+          }));
         sessionEvidenceIdRef.current = evidenceId;
         setSessionEvidenceId(evidenceId);
       }

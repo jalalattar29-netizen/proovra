@@ -16,10 +16,10 @@
   ],
   "entries": [
     {
-      "site": "apps/mobile/src/api.ts:92",
+      "site": "apps/mobile/src/api.ts:94",
       "verdict": "PLUMBING",
       "originBinding": "base = process.env.EXPO_PUBLIC_API_BASE",
-      "evidence": "apps/mobile/src/api.ts:23 — the mobile apiFetch wrapper; paths come from its callers. | Re-anchored :34 -> :61 on 2026-09-22 (NATIVE CLOSURE). THIS ONE IS A REAL MOVE, not a line shift: apiFetch was split into a single apiRequest that returns the Response, with apiFetch and apiFetchText as the two body readers, because the batch-analysis export answers text/csv and a hard-wired res.json() turned a correct response into a parse error. The fetch itself is unchanged — `fetch(\\`${base}${path}\\`, { ...init, headers })` — and it is still the ONE transport; paths still come from its callers. | Re-anchored :87 -> :92 on 2026-11-13 (Free-user audit remediation). F-11 added the retryAfterMs reading to the error path above. Verified BY READING: the same single transport fetch(`${base}${path}`), paths still from callers.",
+      "evidence": "apps/mobile/src/api.ts:23 — the mobile apiFetch wrapper; paths come from its callers. | Re-anchored :34 -> :61 on 2026-09-22 (NATIVE CLOSURE). THIS ONE IS A REAL MOVE, not a line shift: apiFetch was split into a single apiRequest that returns the Response, with apiFetch and apiFetchText as the two body readers, because the batch-analysis export answers text/csv and a hard-wired res.json() turned a correct response into a parse error. The fetch itself is unchanged — `fetch(\\`${base}${path}\\`, { ...init, headers })` — and it is still the ONE transport; paths still come from its callers. | Re-anchored :87 -> :92 on 2026-11-13 (Free-user audit remediation). F-11 added the retryAfterMs reading to the error path above. Verified BY READING: the same single transport fetch(`${base}${path}`), paths still from callers. | Re-anchored :92 -> :94 on 2026-11-14 (Free-user audit F-02: the cached access token, its single-flight refresh and 401 invalidation were added above these calls). Verified BY READING: the same fetch(`${base}${path}`) inside apiRequest; the C-03 session-ended field was added above it.",
       "reviewedAtUtc": "2026-09-22"
     },
     {
@@ -100,45 +100,45 @@
       "reviewedAtUtc": "2026-10-05"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:146",
+      "site": "services/api/src/services/paypal.service.ts:202",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/oauth2/token (client-credentials token). Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/oauth2/token (client-credentials token). Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests. | Re-anchored :146 -> :202 on 2026-11-14 (Free-user audit F-02: the cached access token, its single-flight refresh and 401 invalidation were added above these calls). Verified BY READING: the same POST `${apiBase()}/v1/oauth2/token` client-credentials call, now in fetchPayPalAccessToken behind the cache.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:416",
+      "site": "services/api/src/services/paypal.service.ts:472",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:40 — paypalRequest — PayPal REST POST/GET (orders, subscriptions, revise); sends PayPal-Request-Id for idempotent creates. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — paypalRequest — PayPal REST POST/GET (orders, subscriptions, revise); sends PayPal-Request-Id for idempotent creates. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests. | Re-anchored :416 -> :472 on 2026-11-14 (Free-user audit F-02: the cached access token, its single-flight refresh and 401 invalidation were added above these calls). Verified BY READING: the same paypalRequest fetch(`${apiBase()}${path}`) wrapper.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:442",
+      "site": "services/api/src/services/paypal.service.ts:499",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:40 — paypalGet — PayPal REST GET (plans, subscriptions, orders, captures, transactions). Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — paypalGet — PayPal REST GET (plans, subscriptions, orders, captures, transactions). Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests. | Re-anchored :442 -> :499 on 2026-11-14 (Free-user audit F-02: the cached access token, its single-flight refresh and 401 invalidation were added above these calls). Verified BY READING: the same paypalGet fetch(`${apiBase()}${path}`) wrapper.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:875",
+      "site": "services/api/src/services/paypal.service.ts:933",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/billing/subscriptions/:id/cancel. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/billing/subscriptions/:id/cancel. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests. | Re-anchored :875 -> :933 on 2026-11-14 (Free-user audit F-02: the cached access token, its single-flight refresh and 401 invalidation were added above these calls). Verified BY READING: the same POST /v1/billing/subscriptions/:id/cancel call.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:915",
+      "site": "services/api/src/services/paypal.service.ts:974",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/notifications/verify-webhook-signature. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/notifications/verify-webhook-signature. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests. | Re-anchored :915 -> :974 on 2026-11-14 (Free-user audit F-02: the cached access token, its single-flight refresh and 401 invalidation were added above these calls). Verified BY READING: the same POST /v1/notifications/verify-webhook-signature call.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:963",
+      "site": "services/api/src/services/paypal.service.ts:1023",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v2/checkout/orders/:id/capture with PayPal-Request-Id proovra-capture-{orderId}. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
+      "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v2/checkout/orders/:id/capture with PayPal-Request-Id proovra-capture-{orderId}. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests. | Re-anchored :963 -> :1023 on 2026-11-14 (Free-user audit F-02: the cached access token, its single-flight refresh and 401 invalidation were added above these calls). Verified BY READING: the same POST /v2/checkout/orders/:id/capture call.",
       "reviewedAtUtc": "2026-09-28"
     },
     {

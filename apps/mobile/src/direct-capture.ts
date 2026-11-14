@@ -73,21 +73,36 @@ export async function openDirectCaptureSession(
    * mobile capture landed, even one taken in a Team workspace. The server
    * authorizes the caller against it.
    */
-  options: { teamId?: string | null } = {},
-): Promise<DirectCaptureSession> {
+  options: {
+    teamId?: string | null;
+    /**
+     * C-09 — the client's id for ONE capture attempt (AUD-026, the web and the
+     * extension send it). A retried open with the same id returns the same
+     * live session, with the record it already reserved (`reservedEvidenceId`),
+     * so a reservation whose answer was lost is resumed instead of orphaned
+     * (it held an allowance slot until the session expired). A UUID; the caller
+     * keeps it across retries of the same attempt and mints a new one per record.
+     */
+    clientAttemptId?: string | null;
+  } = {},
+): Promise<DirectCaptureSession & { reservedEvidenceId: string | null }> {
   // AUD-005 — every capture request is time-bounded (capture-retry.ts).
   const res = await withTimeout(
     (signal) =>
       apiFetch("/v1/capture/direct-sessions", {
         method: "POST",
-        body: JSON.stringify(options.teamId ? { mode, teamId: options.teamId } : { mode }),
+        body: JSON.stringify({
+          mode,
+          ...(options.teamId ? { teamId: options.teamId } : {}),
+          ...(options.clientAttemptId ? { clientAttemptId: options.clientAttemptId } : {}),
+        }),
         signal,
       }),
     CAPTURE_REQUEST_TIMEOUT_MS,
     "Opening the capture session",
   );
   const session = res?.session as
-    | { captureSessionId?: string; expiresAtUtc?: string }
+    | { captureSessionId?: string; expiresAtUtc?: string; reservedEvidenceId?: string | null }
     | undefined;
   if (!session?.captureSessionId) {
     throw new Error("Could not open a capture session.");
@@ -95,6 +110,7 @@ export async function openDirectCaptureSession(
   return {
     captureSessionId: session.captureSessionId,
     expiresAtUtc: session.expiresAtUtc ?? "",
+    reservedEvidenceId: typeof session.reservedEvidenceId === "string" ? session.reservedEvidenceId : null,
   };
 }
 

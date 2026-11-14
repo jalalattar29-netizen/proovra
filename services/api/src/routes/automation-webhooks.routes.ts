@@ -39,6 +39,7 @@ import {
   validateDestinationUrlStatic,
   WEBHOOK_MAX_DESTINATIONS_PER_TEAM,
 } from "../services/automation/automation-webhook.service.js";
+import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -100,6 +101,31 @@ async function requireTeamCapability(
     antiEnumeration: true,
   });
   return outcome ? { userId: outcome.actorUserId } : null;
+}
+
+/**
+ * A2-01 (Free-user audit, 2026-11-14) — outbound webhooks are the packaging
+ * engine's FEATURE_WEBHOOKS (default off; the INVESTIGATIONS and ENTERPRISE
+ * lines and an ACTIVE Enterprise contract include it), the same entitlement
+ * `/v1/integrations/webhooks` asks (F-15). Asked on every act that starts or
+ * re-points signed deliveries — create, re-point (URL change) and enable —
+ * after the role gate and before any step-up, so a refusal spends no
+ * challenge. Listing, renaming, disabling and rotating stay open: a workspace
+ * that lost the entitlement can still see and switch off what it has.
+ */
+async function refuseWithoutWebhookEntitlement(
+  reply: FastifyReply,
+  teamId: string,
+  actorUserId: string,
+): Promise<boolean> {
+  const entitled = await assertFeatureEntitlement({
+    teamId,
+    key: "FEATURE_WEBHOOKS",
+    actorUserId,
+  });
+  if (entitled.ok) return false;
+  reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
+  return true;
 }
 
 /**
@@ -239,6 +265,7 @@ export async function automationWebhooksRoutes(
         "AUTOMATION_MANAGE",
       );
       if (!member) return;
+      if (await refuseWithoutWebhookEntitlement(reply, body.data.teamId, member.userId)) return;
 
       // URL validation: HTTPS + SSRF blocklist (static checks; DNS
       // rebinding defence happens again at delivery time).
@@ -368,6 +395,7 @@ export async function automationWebhooksRoutes(
             error: { code: "url_rejected", reason: urlCheck.reason },
           });
         }
+        if (await refuseWithoutWebhookEntitlement(reply, existing.teamId, member.userId)) return;
         // WEBHOOK-STEPUP — re-pointing a destination sends every later
         // delivery, signed, to a new address: the same act as registering
         // one, so it asks for the same step-up.
@@ -431,6 +459,7 @@ export async function automationWebhooksRoutes(
     );
     if (!member) return;
     if (enabled) {
+      if (await refuseWithoutWebhookEntitlement(reply, existing.teamId, member.userId)) return;
       // WEBHOOK-STEPUP — destinations are created disabled; enabling is what
       // starts signed outbound deliveries, gated like INTEGRATION_WEBHOOK_ENABLE
       // on integration webhooks. Disabling stays a one-click protective act.

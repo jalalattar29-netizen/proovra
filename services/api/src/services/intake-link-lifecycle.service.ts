@@ -705,9 +705,20 @@ export type IntakeLinkSubmissionsPayload = {
 export async function loadIntakeLinkSubmissions(
   link: DbWorkflowIntakeLink,
   client: PrismaClient = defaultPrisma,
+  /**
+   * A2-08 — records a restricted case closes to this reader
+   * (`hiddenRecordIdsInWorkspace`). A submission that produced one is not
+   * listed; NOT IN drops NULL rows, so a session with no record is kept.
+   */
+  hiddenEvidenceIds: readonly string[] = [],
 ): Promise<IntakeLinkSubmissionsPayload> {
   const rows = await client.workflowIntakeSession.findMany({
-    where: { intakeLinkId: link.id },
+    where: {
+      intakeLinkId: link.id,
+      ...(hiddenEvidenceIds.length > 0
+        ? { OR: [{ evidenceId: null }, { evidenceId: { notIn: [...hiddenEvidenceIds] } }] }
+        : {}),
+    },
     orderBy: { createdAt: "desc" },
     take: 200,
   });

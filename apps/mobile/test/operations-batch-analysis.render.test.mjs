@@ -229,6 +229,19 @@ test("the legal gate (428) routes to acceptance and the list states it could not
   r.unmount();
 });
 
+test("A1-01: a plan without the PROFESSIONAL surfaces is told so, with no retry and no create action", async () => {
+  // enterprise.routes.ts — the API's refusal for such a workspace.
+  handlers.list = () =>
+    reply(403, { error: { code: "ENTITLEMENT_REQUIRED", message: "Batch analysis and Quotas & usage are included on Pro and above.", details: { entitlement: "PROFESSIONAL_SURFACES" } } });
+  const r = await render();
+  assert.ok(r.hasText("Not included in your plan"));
+  assert.ok(r.hasText("Batch analysis and Quotas & usage are included on Pro and above."));
+  assert.ok(!r.hasText("Batch jobs could not be loaded."), "a plan refusal was reported as a load failure");
+  assert.ok(!r.hasText("Try again"), "a retry that cannot succeed was offered");
+  assert.ok(!r.hasText("+ New Batch Job"), "the create action was offered");
+  r.unmount();
+});
+
 /* ---------------------------------------------------------------- create */
 
 test("the picker reads the caller's own active evidence IN the active workspace — the only records the create route accepts", async () => {

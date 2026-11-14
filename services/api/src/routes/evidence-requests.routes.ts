@@ -48,6 +48,7 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { resendNotificationDelivery } from "../services/notifications/index.js";
+import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import {
   createEvidenceRequest,
   assignEvidenceRequestReviewer,
@@ -113,6 +114,29 @@ async function requireRequestMember(
     return null;
   }
   return ok;
+}
+
+/**
+ * A2-07 — every authenticated request projection carries the recipient's
+ * contact only as this caller's disclosure allows (masked unless they hold
+ * `workflow.intake_recipient_contact.reveal`). Resolved once per response.
+ */
+type ProjectableRequest = Parameters<typeof projectRequestForAuthenticatedView>[0];
+
+async function projectRequestsForCaller(
+  req: FastifyRequest,
+  teamId: string,
+  rows: readonly ProjectableRequest[],
+) {
+  const disclosure = await resolveRecipientContactDisclosure(req, { teamId });
+  return rows.map((row) => projectRequestForAuthenticatedView(row, disclosure));
+}
+
+async function projectRequestForCaller(
+  req: FastifyRequest,
+  row: ProjectableRequest,
+) {
+  return (await projectRequestsForCaller(req, row.teamId, [row]))[0]!;
 }
 
 function intakeUrlFromToken(rawToken: string | null): string | null {
@@ -296,7 +320,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
           actorUserId: ok.userId,
         });
         return reply.code(201).send({
-          request: projectRequestForAuthenticatedView(result.request),
+          request: await projectRequestForCaller(req, result.request),
         });
       } catch (err) {
         if (err instanceof EvidenceRequestError) return errorToReply(err, reply);
@@ -338,7 +362,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       });
 
       return reply.code(200).send({
-        requests: rows.map(projectRequestForAuthenticatedView),
+        requests: await projectRequestsForCaller(req, query.teamId, rows),
       });
     },
   );
@@ -355,7 +379,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const ok = await requireRequestMember(req, reply, row, "evidence.read");
       if (!ok) return;
       return reply.code(200).send({
-        request: projectRequestForAuthenticatedView(row),
+        request: await projectRequestForCaller(req, row),
       });
     },
   );
@@ -463,7 +487,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
           actorUserId: ok.userId,
         });
         return reply.code(200).send({
-          request: projectRequestForAuthenticatedView(result.request),
+          request: await projectRequestForCaller(req, result.request),
           rawToken: result.rawToken,
           intakeUrl: intakeUrlFromToken(result.rawToken),
           warning: result.rawToken
@@ -506,7 +530,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         });
         return reply
           .code(200)
-          .send({ request: projectRequestForAuthenticatedView(row) });
+          .send({ request: await projectRequestForCaller(req, row) });
       } catch (err) {
         if (err instanceof EvidenceRequestError) return errorToReply(err, reply);
         throw err;
@@ -540,7 +564,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         });
         return reply
           .code(200)
-          .send({ request: projectRequestForAuthenticatedView(row) });
+          .send({ request: await projectRequestForCaller(req, row) });
       } catch (err) {
         if (err instanceof EvidenceRequestError) return errorToReply(err, reply);
         throw err;
@@ -575,7 +599,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         });
         return reply
           .code(200)
-          .send({ request: projectRequestForAuthenticatedView(row) });
+          .send({ request: await projectRequestForCaller(req, row) });
       } catch (err) {
         if (err instanceof EvidenceRequestError) return errorToReply(err, reply);
         throw err;
@@ -825,7 +849,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         });
         return reply
           .code(200)
-          .send({ request: projectRequestForAuthenticatedView(row) });
+          .send({ request: await projectRequestForCaller(req, row) });
       } catch (err) {
         if (err instanceof EvidenceRequestError) return errorToReply(err, reply);
         throw err;
@@ -897,7 +921,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         });
         return reply
           .code(200)
-          .send({ request: projectRequestForAuthenticatedView(updated) });
+          .send({ request: await projectRequestForCaller(req, updated) });
       } catch (err) {
         if (err instanceof EvidenceRequestError) return errorToReply(err, reply);
         throw err;
@@ -939,7 +963,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         : rows;
 
       return reply.code(200).send({
-        items: filtered.map(projectRequestForAuthenticatedView),
+        items: await projectRequestsForCaller(req, query.teamId, filtered),
       });
     },
   );

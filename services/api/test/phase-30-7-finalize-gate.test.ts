@@ -387,12 +387,14 @@ describe("Phase 30.7 — finalize gate wired correctly into completeEvidence", (
     expect(signedIdx).toBeLessThan(gateIdx);
   });
 
-  it("gate runs BEFORE the operational session moves to VERIFYING", () => {
-    const gateIdx = body.indexOf("evaluateUploadSessionFinalizeGate");
-    const verifyingIdx = body.indexOf('to: "VERIFYING"');
-    expect(gateIdx).toBeGreaterThan(-1);
-    expect(verifyingIdx).toBeGreaterThan(-1);
-    expect(gateIdx).toBeLessThan(verifyingIdx);
+  // C-07 (2026-11-14) — the operational session is no longer moved to VERIFYING
+  // inside the finalize transaction: that write ran on the global client, so a
+  // rolled-back (failed) attempt still touched the session and extended the
+  // abandoned record's slot hold. The post-commit settlement completes it.
+  it("no operational-session write runs inside finalize; settlement completes it after commit", () => {
+    expect(body).not.toContain('to: "VERIFYING"');
+    expect(body).not.toMatch(/safeTransitionUploadSession\(/);
+    expect(body).toMatch(/settleCompletedUploadSession\(final\.result\.id\)/);
   });
 
   it("gate runs BEFORE custody events are appended", () => {

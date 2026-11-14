@@ -75,13 +75,15 @@ import {
   selectBatchCandidateItems,
   sortBatchJobs,
   validateBatchDraft,
+  isProfessionalSurfaceRefusal,
   type BatchJob,
 } from "../../../src/product/operations";
 
 type State =
   | { phase: "loading" }
   | { phase: "loaded"; jobs: BatchJob[] }
-  | { phase: "failed" };
+  | { phase: "failed" }
+  | { phase: "not_included" };
 
 
 
@@ -268,7 +270,13 @@ export default function BatchAnalysisScreen() {
       if (mounted.current && ticket === readSeq.current) {
         setState({ phase: "loaded", jobs: sortBatchJobs(parseBatchJobs(data)) });
       }
-    } catch {
+    } catch (err) {
+      // A1-01 — the plan does not include this surface: say so, whatever the
+      // read was, and offer no retry that cannot succeed.
+      if (isProfessionalSurfaceRefusal(err)) {
+        if (mounted.current && ticket === readSeq.current) setState({ phase: "not_included" });
+        return;
+      }
       // A failed POLL keeps the list the user is reading, as the web's
       // loadJobs does (it only logs). A failed explicit read says so.
       if (!silent && mounted.current && ticket === readSeq.current) {
@@ -457,11 +465,13 @@ export default function BatchAnalysisScreen() {
         eyebrow={t.batchEyebrow}
         subtitle={t.batchSubtitle}
         primaryAction={
-          <ProovraButton
-            label={t.batchNew}
-            fullWidth={false}
-            onPress={openComposer}
-          />
+          state.phase === "not_included" ? undefined : (
+            <ProovraButton
+              label={t.batchNew}
+              fullWidth={false}
+              onPress={openComposer}
+            />
+          )
         }
         secondaryActions={
           <ProovraButton
@@ -483,6 +493,14 @@ export default function BatchAnalysisScreen() {
 
       {state.phase === "failed" ? (
         <ProovraErrorState message={t.batchLoadFailed} onRetry={() => void load()} />
+      ) : null}
+
+      {state.phase === "not_included" ? (
+        <ProovraEmpty
+          presence="page"
+          title={t.professionalNotIncludedTitle}
+          purpose={t.professionalNotIncludedBody}
+        />
       ) : null}
 
       {state.phase === "loaded" ? (

@@ -113,3 +113,26 @@ test("the plan's group capacity is shown, with Upgrade at the limit (PlanLimitBa
     delete process.env.EXPO_PUBLIC_PRIVATE_BILLING;
   }
 });
+
+// AUDIT E-05 — the plan-locked empty state (no Teams at all) names what this
+// build can do at Billing, as the header button beside it does.
+test("a plan without Teams and no Teams: the empty state never says Upgrade in a build that cannot buy", async () => {
+  routes["/v1/collaboration-teams/entitlement"] = () => ({ canCreateCollaborationTeam: false, featureIncluded: false, plan: "FREE", collaborationTeams: { used: 0, limit: 0 } });
+  routes["/v1/collaboration-teams"] = () => ({ teams: [], nextCursor: null, canGovernWorkspace: false, rollup: null });
+  let r = await render();
+  assert.ok(r.hasText("Your FREE plan doesn't include Teams. Teams give you shared assignments, member invites, and collaborative review on cases and evidence. See plans to compare which plans include them."));
+  assert.ok(!r.texts().some((t) => t.includes("Upgrade to create one.")), "a store build promised a purchase it cannot make");
+  assert.equal(r.byLabel("See plans").length, 1);
+  r.unmount();
+  process.env.EXPO_PUBLIC_DISTRIBUTION = "PRIVATE";
+  process.env.EXPO_PUBLIC_PRIVATE_BILLING = "enabled";
+  try {
+    r = await render();
+    assert.ok(r.texts().some((t) => t.includes("Upgrade to create one.")));
+    assert.equal(r.byLabel("Upgrade plan").length, 1);
+    r.unmount();
+  } finally {
+    delete process.env.EXPO_PUBLIC_DISTRIBUTION;
+    delete process.env.EXPO_PUBLIC_PRIVATE_BILLING;
+  }
+});

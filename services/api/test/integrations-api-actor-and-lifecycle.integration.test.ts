@@ -24,6 +24,7 @@ describe("integrations API actor, plan gate and organization lifecycle (live Pos
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let keyA = "";
   let keyB = "";
+  let keyRead = "";
 
   const post = (url: string, key: string, payload: unknown) =>
     h.app.inject({
@@ -66,7 +67,12 @@ describe("integrations API actor, plan gate and organization lifecycle (live Pos
     await upsertEnterpriseContract(prisma as never, { organizationId: orgA, status: "ACTIVE", activationState: "ACTIVATED", seatCount: 25 });
     const { createApiCredential } = await import("../src/services/integrations/api-keys.service.js");
     keyA = (await createApiCredential({ teamId: teamA.teamId, name: "int-10 A", scopes: SCOPES, actorUserId: teamA.ownerUserId })).rawKey;
+    // A2-11 — an unprovisioned workspace mints no key (default 0); B's key is
+    // issued under a written ceiling, as a product line would grant one.
+    const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+    await upsertEntitlementGrant({ teamId: teamB.teamId, key: "INTEGRATION_API_KEYS_MAX", value: 3, kind: "LIMIT", source: "CUSTOM", grantedByUserId: teamB.ownerUserId });
     keyB = (await createApiCredential({ teamId: teamB.teamId, name: "int-10 B", scopes: SCOPES, actorUserId: teamB.ownerUserId })).rawKey;
+    keyRead = (await createApiCredential({ teamId: teamA.teamId, name: "a2-07 read", scopes: [...SCOPES, "integration.evidence_request.read"], actorUserId: teamA.ownerUserId })).rawKey;
   }, 180_000);
   afterAll(async () => {
     await h?.cleanup();
@@ -171,6 +177,29 @@ describe("integrations API actor, plan gate and organization lifecycle (live Pos
     // A foreign id and an unknown id answer identically, and no row was created.
     expect(await prisma.evidenceRequest.count()).toBe(before);
     expect(await prisma.evidenceRequest.count({ where: { teamId: B.teamId, title: "probe" } })).toBe(0);
+  });
+
+  // A2-07 (2026-11-14): the API projected the recipient address raw, on create
+  // and on read. A key holds an integration scope, not the reveal authority.
+  it("A2-07: an evidence request's recipient address reaches an API key masked, on create and on read", async () => {
+    const created = await post("/v1/integrations/api/evidence-requests", keyRead, requestBody("masked contact"));
+    expect(created.statusCode, created.body).toBe(201);
+    expect(created.body).not.toContain("claimant@test.proovra.local");
+    const id = (JSON.parse(created.body) as { evidenceRequest: { id: string } }).evidenceRequest.id;
+    const read = await h.app.inject({
+      method: "GET",
+      url: `/v1/integrations/api/evidence-requests/${id}`,
+      headers: { authorization: `Bearer ${keyRead}` },
+    });
+    expect(read.statusCode, read.body).toBe(200);
+    expect(read.body).not.toContain("claimant@test.proovra.local");
+    for (const body of [created.body, read.body]) {
+      expect((JSON.parse(body) as { evidenceRequest: unknown }).evidenceRequest).toMatchObject({
+        recipientEmail: null,
+        recipientEmailMasked: expect.stringContaining("@"),
+        hasRecipientEmail: true,
+      });
+    }
   });
 
   it("ET-INT-10: neither integration route passes the credential id as a user", () => {

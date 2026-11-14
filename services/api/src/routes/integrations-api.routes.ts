@@ -37,6 +37,7 @@ import {
   runWithApiAudit,
 } from "../middleware/integrations-auth.js";
 import { createEvidenceRequest } from "../services/evidence-request.service.js";
+import { projectRecipientContact } from "../services/privacy/recipient-contact-disclosure.js";
 import { createWorkflowIntakeLink, WorkflowIntakeLinkError } from "../services/workflow-intake-link.service.js";
 import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 import { assertWorkspaceAllowsIntake } from "../services/billing-enforcement.service.js";
@@ -94,6 +95,21 @@ import {
 } from "@proovra/shared-runtime";
 
 const ParamsId = z.object({ id: z.string().uuid() });
+
+/**
+ * A2-07 — an evidence request's recipient address, as an API key may see it:
+ * masked, like the intake-link projection above. A key is no person and holds
+ * an integration scope, not `workflow.intake_recipient_contact.reveal`, so the
+ * raw value is null (present, not omitted) and the mask carries provenance.
+ */
+function integrationRecipientEmail(source: { recipientEmail: string | null }) {
+  const contact = projectRecipientContact({ recipientEmail: source.recipientEmail, recipientPhone: null }, "MASKED");
+  return {
+    recipientEmail: contact.recipientEmail,
+    recipientEmailMasked: contact.recipientEmailMasked,
+    hasRecipientEmail: contact.hasRecipientEmail,
+  };
+}
 
 function projectEvidenceForApi(e: {
   id: string;
@@ -368,7 +384,7 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
                 status: request.status,
                 recipientMode: request.recipientMode,
                 recipientLabel: request.recipientLabel,
-                recipientEmail: request.recipientEmail,
+                ...integrationRecipientEmail(request),
                 dueAtUtc: request.dueAtUtc?.toISOString() ?? null,
                 createdAt: request.createdAt.toISOString(),
                 // Deliberately NOT projected: instructions, assignedReviewer,
@@ -425,9 +441,11 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
         ) {
           return reply.code(404).send({ error: { code: "not_found" } });
         }
+        const { recipientEmail, ...rest } = row;
         return reply.code(200).send({
           evidenceRequest: {
-            ...row,
+            ...rest,
+            ...integrationRecipientEmail({ recipientEmail }),
             dueAtUtc: row.dueAtUtc?.toISOString() ?? null,
             createdAt: row.createdAt.toISOString(),
           },

@@ -114,13 +114,29 @@ test("a MEMBER (no team.member.invite) is offered no add control; an archived te
   assert.equal(r.byLabel("Add workspace members").length, 0);
 });
 
-test("at the plan's per-group limit the control is disabled and Upgrade is offered", async () => {
+test("at the plan's per-group limit the control is disabled and Billing is offered in the words this build can keep", async () => {
   routes["/v1/collaboration-teams/entitlement"] = () => ({ collaborationTeamMembers: { limit: 2, source: "plan" } });
-  const r = await render();
+  let r = await render();
   const btn = r.byLabel("Add workspace members, team is at capacity")[0];
   assert.ok(btn?.props.accessibilityState.disabled, "add offered past the member ceiling");
-  assert.ok(r.hasText("Team is at capacity for your plan. Upgrade to add more."));
-  assert.ok(r.byLabel("Upgrade").length === 1);
+  // AUDIT E-05 — this test build sells nothing (no private-billing flags), as a
+  // store build: the prompt says what Billing can show, never a purchase.
+  assert.ok(r.hasText("Team is at capacity for your plan. See plans to compare member limits."));
+  assert.equal(r.byLabel("Upgrade").length, 0);
+  assert.equal(r.byLabel("See plans").length, 1);
+  r.unmount();
+  // A private build that can buy keeps the purchase verb.
+  process.env.EXPO_PUBLIC_DISTRIBUTION = "PRIVATE";
+  process.env.EXPO_PUBLIC_PRIVATE_BILLING = "enabled";
+  try {
+    r = await render();
+    assert.ok(r.hasText("Team is at capacity for your plan. Upgrade to add more."));
+    assert.equal(r.byLabel("Upgrade").length, 1);
+    r.unmount();
+  } finally {
+    delete process.env.EXPO_PUBLIC_DISTRIBUTION;
+    delete process.env.EXPO_PUBLIC_PRIVATE_BILLING;
+  }
 });
 
 test("an empty directory hands off to workspace invitation instead of dead-ending", async () => {

@@ -29,8 +29,11 @@
  * evidence destruction, not organization lifecycle.
  */
 
+import type { PrismaClient } from "@prisma/client";
+
 import { prisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { releaseManagedIdentity } from "../identity/identity-mode.service.js";
 import { evaluateOrganizationClosurePreflight } from "../identity/account-lifecycle-preflight.service.js";
 import { emitOrgAuditEvent } from "./org-audit.service.js";
 // PHASE 3 (2026-07-22) — canonical membership orchestrator.
@@ -152,6 +155,19 @@ export async function executeOrganizationClosure(input: {
       where: { organizationId, unlinkedAtUtc: null },
       data: { unlinkedAtUtc: identityEndedAt },
     });
+    // B-02 — an ARCHIVED Organization manages nobody: every identity it bound
+    // is released through the one identity authority (scoped to THIS
+    // Organization, so another Organization's management is never touched).
+    const managedUsers = await tx.user.findMany({
+      where: { managingOrganizationId: organizationId },
+      select: { id: true },
+    });
+    for (const managed of managedUsers) {
+      await releaseManagedIdentity(
+        { userId: managed.id, managingOrganizationId: organizationId },
+        tx as unknown as PrismaClient,
+      );
+    }
     await emitOrgAuditEvent(tx, {
       organizationId,
       actorUserId: requestedByUserId,

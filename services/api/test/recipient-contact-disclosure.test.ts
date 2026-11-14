@@ -38,6 +38,7 @@ import {
   revealRecipientContact,
   RECIPIENT_CONTACT_DISCLOSURES,
 } from "../src/services/privacy/recipient-contact-disclosure.js";
+import { projectRequestForAuthenticatedView } from "../src/services/evidence-request.service.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), "utf8");
@@ -558,5 +559,64 @@ describe("the neighbouring data classes", () => {
     expect(submitterBlock.length).toBeGreaterThan(80);
     expect(submitterBlock).not.toContain("disclosure");
     expect(submitterBlock).not.toContain("Reveal");
+  });
+});
+
+// ===========================================================================
+// A2-07 — the evidence-request projection takes the same decision
+// ===========================================================================
+describe("evidence-request authenticated projection (A2-07)", () => {
+  const now = new Date("2026-11-14T00:00:00.000Z");
+  const row = {
+    id: "00000000-0000-4000-8000-000000000001",
+    teamId: "00000000-0000-4000-8000-000000000002",
+    evidenceId: null,
+    caseId: null,
+    workflowTemplateSlug: null,
+    workflowStepId: null,
+    requestType: "ADDITIONAL_EVIDENCE",
+    status: "SENT",
+    priority: "NORMAL",
+    title: "t",
+    instructions: "i",
+    dueAtUtc: null,
+    recipientMode: "EXTERNAL_CONTRIBUTOR",
+    recipientLabel: "Claimant",
+    recipientEmail: CANARY_EMAIL,
+    recipientPhone: CANARY_PHONE,
+    requestedByUserId: "00000000-0000-4000-8000-000000000003",
+    assignedReviewerUserId: null,
+    intakeLinkId: null,
+    reviewerNote: null,
+    reviewerDecisionAt: null,
+    reviewerDecisionByUserId: null,
+    sentAtUtc: null,
+    firstOpenedAtUtc: null,
+    closedAtUtc: null,
+    cancelledAtUtc: null,
+    createdAt: now,
+    updatedAt: now,
+    deliverables: [],
+    responses: [],
+  } as unknown as Parameters<typeof projectRequestForAuthenticatedView>[0];
+
+  it("MASKED (a VIEWER) carries the mask and presence, never the raw address or number", () => {
+    const p = projectRequestForAuthenticatedView(row, "MASKED");
+    const body = JSON.stringify(p);
+    expect(body).not.toContain(CANARY_EMAIL);
+    expect(body).not.toContain("999900011122");
+    expect(p.recipientEmail).toBeNull();
+    expect(p.recipientPhone).toBeNull();
+    expect(p.recipientEmailMasked).toBe(maskEmail(CANARY_EMAIL));
+    expect(p.recipientPhoneMasked).toBe(maskPhonePreview(CANARY_PHONE));
+    expect(p.hasRecipientEmail).toBe(true);
+    expect(p.recipientContactRevealAuthorized).toBe(false);
+  });
+
+  it("REVEALED (a holder of the reveal authority) carries the raw values beside the mask", () => {
+    const p = projectRequestForAuthenticatedView(row, "REVEALED");
+    expect(p.recipientEmail).toBe(CANARY_EMAIL);
+    expect(p.recipientPhone).toBe(CANARY_PHONE);
+    expect(p.recipientContactRevealAuthorized).toBe(true);
   });
 });

@@ -109,7 +109,12 @@ export function parseStripeSubscriptionStatus(status?: string | null): prismaPkg
 }
 
 export type StripeSubscriptionFactOutcome =
-  | { outcome: "APPLIED"; kind: "PLAN" | "STORAGE_ADDON" }
+  /**
+   * `superseded` (AUDIT E-02): the plan fact was recorded, but another base
+   * plan is live, so this subscription grants nothing (syncPlanForSubscription
+   * answered SUPERSEDED).
+   */
+  | { outcome: "APPLIED"; kind: "PLAN" | "STORAGE_ADDON"; superseded?: true }
   | { outcome: "IGNORED"; reason: "UNKNOWN_STATUS" | "UNATTRIBUTED" };
 
 /**
@@ -167,7 +172,7 @@ export async function applyStripeSubscriptionObject(input: {
   const plan = planFromStripePriceId(stripeSubscriptionPriceId(subscription)) ?? parsePlan(meta.plan) ?? stored?.plan ?? null;
   if (!userId || !plan) return { outcome: "IGNORED", reason: "UNATTRIBUTED" };
 
-  await syncPlanForSubscription({
+  const synced = await syncPlanForSubscription({
     userId,
     plan,
     teamId: stored ? stored.teamId : (meta.teamId ?? null),
@@ -183,7 +188,9 @@ export async function applyStripeSubscriptionObject(input: {
     cancelAtPeriodEnd: stripeSubscriptionEnding(subscription),
     providerScheduleId: stripeSubscriptionScheduleId(subscription),
   });
-  return { outcome: "APPLIED", kind: "PLAN" };
+  return synced.outcome === "SUPERSEDED"
+    ? { outcome: "APPLIED", kind: "PLAN", superseded: true }
+    : { outcome: "APPLIED", kind: "PLAN" };
 }
 
 /**
@@ -264,6 +271,8 @@ export type StripeSessionSettlement = {
   product: "EVIDENCE_CREDIT" | "STORAGE_ADDON" | "PLAN" | "UNKNOWN";
   outcome: "GRANTED" | "ALREADY_GRANTED" | "APPLIED" | "PENDING" | "EXPIRED" | "REJECTED" | "IGNORED";
   reason?: string;
+  /** AUDIT E-02 — a paid PLAN session whose subscription was superseded (grants nothing). */
+  superseded?: true;
 };
 
 function attemptIdOf(session: StripeCheckoutSession): string | null {
@@ -479,20 +488,38 @@ export async function settleStripeCheckoutSession(input: {
     // path, the webhook included. The webhook used to mark the attempt SETTLED
     // and rely on `customer.subscription.*` alone, so an ordering loss there
     // left a paying customer on FREE with nothing left to repair it.
+    // AUDIT E-02 (2026-11-14) — a subscription superseded by a base plan
+    // already live grants nothing and is cancelled; the attempt and the answer
+    // say so, as the PayPal confirm does, instead of "your plan is applied".
+    let superseded = false;
     if (session.subscription) {
       const subscriptionId = String(session.subscription);
       const readAtUtc = new Date();
       const sub = (await stripeGet(`/subscriptions/${encodeURIComponent(subscriptionId)}`)) as StripeSubscriptionLike;
       if (sub.id === subscriptionId && (sub.metadata?.userId ?? userId) === userId) {
-        await applyStripeSubscriptionObject({
+        const applied = await applyStripeSubscriptionObject({
           subscription: { ...sub, metadata: { ...sub.metadata, userId, plan: sub.metadata?.plan ?? plan } },
           observedAtUtc: readAtUtc,
           source: "stripe.checkout.session.completed",
         });
+        // The decision is durable on the row: a subscription event may have
+        // made it (and the cancel may have landed) before this session settles.
+        superseded =
+          (applied.outcome === "APPLIED" && applied.superseded === true) ||
+          (await prisma.subscription.findUnique({
+            where: { provider_providerSubId: { provider: STRIPE, providerSubId: subscriptionId } },
+            select: { supersededBySubscriptionId: true },
+          }))?.supersededBySubscriptionId != null;
       }
     }
-    await recordStripeSessionAttemptOutcome({ session, userId, product: attemptProduct, status: A.COMPLETED, checkoutState: "SETTLED" });
-    return { product, outcome: "APPLIED" };
+    await recordStripeSessionAttemptOutcome({
+      session,
+      userId,
+      product: attemptProduct,
+      status: A.COMPLETED,
+      checkoutState: superseded ? "SUPERSEDED" : "SETTLED",
+    });
+    return superseded ? { product, outcome: "APPLIED", superseded: true } : { product, outcome: "APPLIED" };
   }
 
   return { product, outcome: "IGNORED", reason: "UNRECOGNISED_PRODUCT" };

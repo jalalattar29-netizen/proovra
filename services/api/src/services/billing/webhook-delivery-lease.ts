@@ -31,3 +31,18 @@ export function webhookDuplicateDisposition(input: {
 
   return "RECLAIM";
 }
+
+/**
+ * AUDIT F-06 (2026-11-14) — the final status write of a delivery is fenced by
+ * the lease it claimed. `claimedAt` is the `receivedAt` this delivery wrote
+ * when it created or reclaimed the row. A handler that stalled past
+ * WEBHOOK_PROCESSING_LEASE_MS may have been reclaimed by a redelivery, which
+ * rewrote `receivedAt`; the stale handler's PROCESSED/FAILED then matches no
+ * row and leaves the reclaimer's outcome in place.
+ */
+export function webhookLeaseFence(claimedAt: Date): {
+  processingStatus: "RECEIVED";
+  receivedAt: Date;
+} {
+  return { processingStatus: "RECEIVED", receivedAt: claimedAt };
+}

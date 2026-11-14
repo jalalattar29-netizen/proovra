@@ -230,3 +230,17 @@ test("no evidence types analysed: the web omits that card", async () => {
   assert.equal(r.byTestId("active-services").length, 1);
   r.unmount();
 });
+
+test("A1-01: a plan without the PROFESSIONAL surfaces is told so once, with no retries", async () => {
+  // enterprise.routes.ts — both reads answer the same refusal for such a workspace.
+  const refused = () =>
+    reply(403, { error: { code: "ENTITLEMENT_REQUIRED", message: "Batch analysis and Quotas & usage are included on Pro and above.", details: { entitlement: "PROFESSIONAL_SURFACES" } } });
+  routes["/v1/quotas"] = refused;
+  routes["/v1/usage-stats"] = refused;
+  const r = await render();
+  assert.equal(r.texts().filter((t) => t === "Not included in your plan").length, 1);
+  assert.ok(!r.hasText("Usage could not be loaded."));
+  assert.ok(!r.hasText("Allowances could not be loaded."));
+  assert.ok(!r.hasText("Try again"));
+  r.unmount();
+});

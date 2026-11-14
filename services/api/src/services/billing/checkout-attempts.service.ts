@@ -48,7 +48,13 @@ export type CheckoutState =
   /** Never approved within the approval window; closed by PROOVRA, provider-first. */
   | "LOCALLY_EXPIRED"
   /** An unbound attempt (no provider resource ever confirmed) replaced by a new checkout. */
-  | "SUPERSEDED_UNBOUND";
+  | "SUPERSEDED_UNBOUND"
+  /**
+   * AUDIT E-02 (2026-11-14) — a paid plan checkout whose subscription was
+   * superseded by a base plan already live (syncPlanForSubscription): it grants
+   * nothing, is cancelled at the provider and sent to refund review.
+   */
+  | "SUPERSEDED";
 
 /** How long a just-created attempt is treated as a duplicate click. */
 export const CHECKOUT_REUSE_WINDOW_MS = 2 * 60 * 1000;

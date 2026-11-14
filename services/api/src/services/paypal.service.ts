@@ -26,6 +26,8 @@ import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
 type PayPalToken = {
   access_token: string;
+  /** Seconds the token stays valid (PayPal's client-credentials answer). */
+  expires_in?: number;
 };
 
 function must(name: string): string {
@@ -138,9 +140,63 @@ function buildReturnUrl(path: string) {
   return absoluteInternalUrl(getWebBaseUrl(), internalNavPath(path));
 }
 
+/**
+ * F-02 — THE OAUTH TOKEN IS REUSED UNTIL IT EXPIRES.
+ *
+ * Every PayPal call (and every POST to /webhooks/paypal) fetched a fresh
+ * client-credentials token, so N calls cost 2N PayPal requests against one
+ * shared credential. The token is now kept in this process until
+ * `expires_in` minus a margin, keyed by the API base and client id (a config
+ * change never reuses a token minted for other credentials), with one fetch in
+ * flight at a time. A 401 from PayPal on a call that used it clears it, so the
+ * next call mints a new one.
+ */
+const PAYPAL_TOKEN_EXPIRY_MARGIN_MS = 5 * 60 * 1000;
+let cachedPayPalToken: { key: string; token: string; expiresAtMs: number } | null = null;
+let inflightPayPalToken: { key: string; promise: Promise<string> } | null = null;
+
+/** Forget the cached token (a 401 at a call site; tests). */
+export function clearPayPalAccessTokenCache(): void {
+  cachedPayPalToken = null;
+  inflightPayPalToken = null;
+}
+
+/** A 401 means PayPal no longer accepts the token we hold. */
+function forgetTokenOn401(res: Response): void {
+  if (res.status === 401) clearPayPalAccessTokenCache();
+}
+
 export async function getPayPalAccessToken(): Promise<string> {
   const clientId = must("PAYPAL_CLIENT_ID");
   const secret = must("PAYPAL_SECRET");
+  const key = `${apiBase()}|${clientId}`;
+  const now = Date.now();
+  if (cachedPayPalToken && cachedPayPalToken.key === key && cachedPayPalToken.expiresAtMs > now) {
+    return cachedPayPalToken.token;
+  }
+  if (inflightPayPalToken && inflightPayPalToken.key === key) return inflightPayPalToken.promise;
+  const promise = fetchPayPalAccessToken(clientId, secret).then(
+    ({ token, expiresInSec }) => {
+      const lifetimeMs = expiresInSec * 1000 - PAYPAL_TOKEN_EXPIRY_MARGIN_MS;
+      if (inflightPayPalToken?.promise === promise) inflightPayPalToken = null;
+      if (Number.isFinite(lifetimeMs) && lifetimeMs > 0) {
+        cachedPayPalToken = { key, token, expiresAtMs: Date.now() + lifetimeMs };
+      }
+      return token;
+    },
+    (err: unknown) => {
+      if (inflightPayPalToken?.promise === promise) inflightPayPalToken = null;
+      throw err;
+    },
+  );
+  inflightPayPalToken = { key, promise };
+  return promise;
+}
+
+async function fetchPayPalAccessToken(
+  clientId: string,
+  secret: string,
+): Promise<{ token: string; expiresInSec: number }> {
   const creds = Buffer.from(`${clientId}:${secret}`).toString("base64");
 
   const res = await fetch(`${apiBase()}/v1/oauth2/token`, {
@@ -158,7 +214,7 @@ export async function getPayPalAccessToken(): Promise<string> {
   }
 
   const data = (await res.json()) as PayPalToken;
-  return data.access_token;
+  return { token: data.access_token, expiresInSec: Number(data.expires_in ?? 0) };
 }
 
 type PayPalPlanDetails = {
@@ -425,6 +481,7 @@ export async function paypalRequest(
   });
 
   if (!res.ok) {
+    forgetTokenOn401(res);
     await readPayPalError(res, "PayPal error");
   }
 
@@ -449,6 +506,7 @@ export async function paypalGet(path: string, accessToken?: string) {
   });
 
   if (!res.ok) {
+    forgetTokenOn401(res);
     await readPayPalError(res, "PayPal GET error");
   }
 
@@ -891,6 +949,7 @@ export async function cancelPayPalSubscription(
     // BILLING CHECKOUT ATTEMPTS (2026-09-28) — a classified error (status,
     // PayPal error name), so a caller can tell "PayPal refuses to cancel a
     // subscription in this state" (422) from an outage. Still an `Error`.
+    forgetTokenOn401(res);
     await readPayPalError(res, "PayPal cancel subscription error:");
   }
 
@@ -938,6 +997,7 @@ export async function verifyPayPalWebhook(
   }
 
   if (!res.ok) {
+    forgetTokenOn401(res);
     // The body is not read: it can echo the submitted event.
     if (res.status >= 500 || res.status === 401 || res.status === 403 || res.status === 429) {
       throw new WebhookVerifierUnavailableError(`PayPal webhook verification answered ${res.status}`);
@@ -976,6 +1036,7 @@ export async function capturePayPalOrder(orderId: string) {
   );
 
   if (!res.ok) {
+    forgetTokenOn401(res);
     await readPayPalError(res, "PayPal capture error");
   }
 

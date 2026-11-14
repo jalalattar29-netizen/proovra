@@ -292,7 +292,8 @@ export async function uploadContinuousSegment(
       };
     } catch (err) {
       lastErr = err;
-      if (classifyCaptureError(err) === "TERMINAL" || attempt === retries) break;
+      // C-03 — a HELD failure (401, plan/storage refusal) is not retried now either.
+      if (classifyCaptureError(err) !== "RETRYABLE" || attempt === retries) break;
       await new Promise((r) => setTimeout(r, SCREEN_CONTINUOUS_STREAM_BOUNDS.retryBackoffMs * (attempt + 1)));
     }
   }

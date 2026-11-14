@@ -20,6 +20,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import {
+  releaseManagedIdentity,
   setManagedIdentity,
   type ManagedIdentityEvidence,
 } from "./identity-mode.service.js";
@@ -27,6 +28,7 @@ import { organizationIdForPolicy } from "./org-security-policy.service.js";
 // ARCH-004 — the ONE lifecycle authority for governance membership. This
 // module composes it; it does not reimplement any transition.
 import {
+  restoreOrganizationMembership,
   revokeOrganizationMembership,
   type OrgMembershipStatusSource,
 } from "./org-membership-lifecycle.service.js";
@@ -306,12 +308,52 @@ export async function grantOrganizationMembership(
     intent?: MembershipIntent;
     actorUserId?: string | null;
     externalRef?: string | null;
+    /**
+     * B-03 — set by an invitation: when it was issued. Mirrors
+     * `grantWorkspaceMembership`: an invitation never reverses a suspension,
+     * and revives a removal (at the invited role) only when issued after it.
+     */
+    invitationCreatedAt?: Date | null;
   },
-): Promise<{ created: boolean }> {
+): Promise<
+  | { created: boolean; refused?: undefined }
+  | { created: false; refused: "membership_suspended" | "invite_superseded" }
+> {
   const existing = await tx.organizationMembership.findFirst({
     where: { organizationId: input.organizationId, userId: input.userId },
-    select: { id: true },
+    select: { id: true, status: true, revokedAtUtc: true },
   });
+  if (existing && input.invitationCreatedAt) {
+    const barred = invitationCannotReviveMembership(existing, input.invitationCreatedAt);
+    if (barred) return { created: false, refused: barred };
+    if (existing.status === "REVOKED") {
+      // An administrator removed the person and then re-invited them: the
+      // acceptance ends the removal through the canonical (audited, fenced)
+      // restore, and the membership takes the role it was re-invited for.
+      const restored = await restoreOrganizationMembership({
+        prisma: tx as unknown as Parameters<typeof restoreOrganizationMembership>[0]["prisma"],
+        organizationId: input.organizationId,
+        membershipId: existing.id,
+        actorUserId: input.actorUserId ?? null,
+        source: "SELF_SERVICE",
+        reason: "invitation accepted after removal",
+      });
+      if (!restored.ok) throw new Error(`org_membership_restore_failed:${restored.reason}`);
+      await tx.organizationMembership.update({
+        where: { id: existing.id },
+        data: { role: input.role as never },
+      });
+      await recordMembershipGrant(tx, {
+        organizationMembershipId: existing.id,
+        source: input.source ?? "INVITATION",
+        intent: input.intent ?? "ORGANIZATION_GOVERNANCE_ONLY",
+        grantedByUserId: input.actorUserId ?? null,
+        externalRef: input.externalRef ?? null,
+        grantedRole: input.role,
+      });
+      return { created: false };
+    }
+  }
   if (existing) {
     // Existing member: record the additional grant source (source-aware
     // revocation needs it) but never touch the held role here.
@@ -1083,7 +1125,7 @@ export async function removeOrganizationMembership(
   // caller holding an id from another tenant could move it.
   const row = await tx.organizationMembership.findUnique({
     where: { id: input.organizationMembershipId },
-    select: { organizationId: true },
+    select: { organizationId: true, userId: true },
   });
   if (!row) return;
   await revokeOrganizationMembership({
@@ -1094,6 +1136,14 @@ export async function removeOrganizationMembership(
     source: input.source ?? "MANUAL",
     reason: input.reason ?? null,
   });
+  // B-02 — the membership that ended was the managing Organization's: its
+  // management of the identity ends with it, or the person keeps a managed
+  // identity (and no Personal Space) with no Organization left. A no-op when a
+  // different Organization manages the identity. Suspension never comes here.
+  await releaseManagedIdentity(
+    { userId: row.userId, managingOrganizationId: row.organizationId },
+    tx as unknown as PrismaClient,
+  );
 }
 
 // Workspace-membership PHYSICAL removal is retired (members audit MEM-01):

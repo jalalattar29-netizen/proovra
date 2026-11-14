@@ -35,7 +35,7 @@ describe("reservation sweep (live PostgreSQL 16)", () => {
     await harness?.cleanup();
   });
 
-  async function reservation(opts: { ageMs: number; status?: "CREATED" | "UPLOADING" | "SIGNED" }) {
+  async function reservation(opts: { ageMs: number; status?: "CREATED" | "UPLOADING" | "SIGNED"; withPart?: boolean }) {
     const A = harness.fixtures.teamA;
     const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
     const ev = await prisma.evidence.create({
@@ -49,7 +49,7 @@ describe("reservation sweep (live PostgreSQL 16)", () => {
       } as never,
       select: { id: true },
     });
-    await prisma.evidencePart.create({
+    if (opts.withPart !== false) await prisma.evidencePart.create({
       data: {
         evidenceId: ev.id,
         partIndex: 0,
@@ -120,7 +120,9 @@ describe("reservation sweep (live PostgreSQL 16)", () => {
   });
 
   it("ET-DC-05: an ACTIVE direct-capture session past expiry is ended EXPIRED and its reservation released", async () => {
-    const id = await reservation({ ageMs: 2 * 60 * 60 * 1000 }); // young record: released because the SESSION expired
+    // young record: released because the SESSION expired. Nothing staged in it
+    // (C-02: a record holding staged parts keeps its session to the 24 h maximum).
+    const id = await reservation({ ageMs: 2 * 60 * 60 * 1000, withPart: false });
     const A = harness.fixtures.teamA;
     const session = await prisma.captureSession.create({
       data: { ownerUserId: A.ownerUserId, teamId: A.teamId, status: "ACTIVE", finalizedEvidenceId: id, expiresAtUtc: new Date(Date.now() - 60_000) } as never,

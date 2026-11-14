@@ -150,6 +150,27 @@ describe("MFA enrolment during sign-in (live PostgreSQL)", () => {
     expect(again.body.mfaEnrollmentToken).toBeUndefined();
   });
 
+  it("B-05: a closed account never completes the enrolment sign-in", async () => {
+    const { member } = await memberWithPassword();
+    const { body } = await signIn(member.email);
+    const token = body.mfaEnrollmentToken as string;
+    const start = await post("/v1/identity/mfa/enroll/start", token);
+    expect(start.statusCode, start.body).toBe(200);
+    const { factorId, secretBase32 } = JSON.parse(start.body) as { factorId: string; secretBase32: string };
+    const verified = await post("/v1/identity/mfa/enroll/verify", token, { factorId, code: totp(secretBase32) });
+    expect(verified.statusCode, verified.body).toBe(200);
+    const enrolment = (JSON.parse(verified.body) as { mfaEnrollmentToken: string }).mfaEnrollmentToken;
+
+    // The closure's durable marker (IDENT-010) lands while the enrolment token
+    // is in flight: the route itself refuses, whatever the session layer saw.
+    await prisma.user.update({ where: { id: member.userId }, data: { providerUserId: `closed:${member.userId}` } });
+    const sessionsBefore = await prisma.authenticatedSession.count({ where: { userId: member.userId } });
+    const done = await post("/v1/auth/mfa/enrollment/complete", enrolment);
+    expect(done.statusCode, done.body).toBe(401);
+    expect((JSON.parse(done.body) as { token?: string }).token).toBeUndefined();
+    expect(await prisma.authenticatedSession.count({ where: { userId: member.userId } })).toBe(sessionsBefore);
+  });
+
   it("a factor the holder did not verify finishes nothing for them", async () => {
     const { member } = await memberWithPassword();
     const { body } = await signIn(member.email);

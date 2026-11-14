@@ -47,6 +47,7 @@ import {
   resolveCaseRecordAccess,
 } from "../services/cases/case-permission.service.js";
 import { listAccessibleWorkspaces } from "../services/access/accessible-workspaces.js";
+import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { CASE_VISIBILITY_SELECT, caseRowVisibleTo, caseVisibleToWhere } from "../services/cases/case-visibility.js";
 import {
@@ -114,7 +115,7 @@ type CaseAccessManagerDecision =
   | { kind: "not_team_case" }
   | { kind: "forbidden"; reason: string };
 
-type CaseAccessManagerDb = Pick<typeof prisma, "teamMember" | "caseAccess" | "case">;
+type CaseAccessManagerDb = typeof prisma;
 
 async function resolveCaseAccessManager(
   caseRow: { id: string; teamId: string | null; ownerUserId: string | null },
@@ -129,7 +130,21 @@ async function resolveCaseAccessManager(
       })
     : null;
   // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-  const isActiveMember = member?.status === "ACTIVE";
+  // A2-05 — and ACTIVE is decided by the canonical engine, not by the status
+  // column alone: a member whose access has expired, or whose Organization is
+  // not ACTIVE, is no active member (the engine every `authorizeOrFail` route
+  // asks). Read on `db` (the FOR UPDATE transaction when re-checked inside
+  // the write); a refusal's security event goes to the module client.
+  const isActiveMember =
+    member?.status === "ACTIVE" &&
+    caseRow.teamId !== null &&
+    (
+      await evaluateMemberAccess(
+        { teamId: caseRow.teamId, userId, permission: "evidence.read" },
+        db,
+        { eventClient: prisma },
+      )
+    ).allowed;
   if (!isCaseOwner && !isActiveMember) {
     const grant = await db.caseAccess.findUnique({
       where: { caseId_userId: { caseId: caseRow.id, userId } },
@@ -440,7 +455,18 @@ export async function casesRoutes(app: FastifyInstance) {
 
       // P0 remediation (2026-07-21) — only ACTIVE membership may create
       // records into a workspace; suspended/revoked members are denied.
-      if (member?.status !== "ACTIVE") {
+      // A2-05 — through the canonical engine, which also refuses a member
+      // whose access has expired or whose Organization is not ACTIVE.
+      if (
+        member?.status !== "ACTIVE" ||
+        !(
+          await evaluateMemberAccess({
+            teamId: body.teamId,
+            userId: ownerUserId,
+            permission: "evidence.read",
+          })
+        ).allowed
+      ) {
         await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.create",

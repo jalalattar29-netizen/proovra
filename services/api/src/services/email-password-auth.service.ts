@@ -779,19 +779,24 @@ export async function consumeEmailVerificationToken(
   // audit-log queries show the actual moment ownership was proven.
   // D15 — the stamp is written only where none exists; it used to be
   // overwritten unconditionally, contradicting the rule above.
-  const [, , user] = await prisma.$transaction([
-    prisma.emailVerificationToken.update({
-      where: { id: rec.id },
+  // B-11 — the token is CLAIMED with a guarded write (the password-reset
+  // pattern above): the read before it does not lock, so two concurrent uses
+  // of one link both passed it and both minted a session. The loser of the
+  // claim matches no row and writes nothing.
+  const user = await prisma.$transaction(async (tx) => {
+    const claim = await tx.emailVerificationToken.updateMany({
+      where: { id: rec.id, usedAt: null, expiresAt: { gt: now } },
       data: { usedAt: now },
-    }),
-    prisma.user.updateMany({
+    });
+    if (claim.count === 0) return null;
+    await tx.user.updateMany({
       where: { id: rec.userId, emailVerifiedAt: null },
       data: {
         emailVerifiedAt: now,
         ...(firstVerificationOfPassword ? { credentialProvenAtUtc: now } : {}),
       },
-    }),
-    prisma.user.findUniqueOrThrow({
+    });
+    return tx.user.findUniqueOrThrow({
       where: { id: rec.userId },
       select: {
         id: true,
@@ -799,8 +804,9 @@ export async function consumeEmailVerificationToken(
         provider: true,
         emailVerifiedAt: true,
       },
-    }),
-  ]);
+    });
+  });
+  if (!user) return { ok: false, reason: "already_used" };
 
   return {
     ok: true,

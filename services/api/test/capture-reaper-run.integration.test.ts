@@ -122,6 +122,75 @@ describe("capture reaper run — recorded, paged, idempotent, observable (live P
     expect(await prisma.custodyEvent.count({ where: { evidenceId: ev.id, eventType: "EVIDENCE_DELETED" } })).toBe(1);
   });
 
+  // C-02 — the mobile app deletes its device copies once a screen capture's
+  // parts are staged. The session's one-hour idle expiry used to release the
+  // record and delete its objects, destroying the capture on both sides.
+  it("C-02: an idle ACTIVE session whose record holds staged parts is kept to its 24 h maximum, then released", async () => {
+    const A = h.fixtures.teamA;
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
+    const startedAtUtc = new Date(Date.now() - 2 * HOUR);
+    const ev = await prisma.evidence.create({
+      data: {
+        title: "reaper-staged-capture",
+        type: "PHOTO",
+        status: "UPLOADING",
+        teamId: A.teamId,
+        organizationId: team.organizationId,
+        ownerUserId: A.ownerUserId,
+        createdAt: startedAtUtc,
+      } as never,
+      select: { id: true },
+    });
+    await prisma.evidencePart.create({
+      data: {
+        evidenceId: ev.id,
+        partIndex: 0,
+        storageBucket: "reaper-bucket",
+        storageKey: `parts/${ev.id}/0`,
+        mimeType: "image/png",
+      } as never,
+    });
+    const session = await prisma.captureSession.create({
+      data: {
+        ownerUserId: A.ownerUserId,
+        teamId: A.teamId,
+        status: "ACTIVE",
+        acquisitionMode: "PROOVRA_MOBILE_APP",
+        startedAtUtc,
+        finalizedEvidenceId: ev.id,
+        // Idle for over an hour: the sliding expiry has passed.
+        expiresAtUtc: new Date(Date.now() - 60_000),
+      } as never,
+      select: { id: true },
+    });
+    const deleted: string[] = [];
+    const deleteObject = async (o: { key: string }) => {
+      deleted.push(o.key);
+      return { deleted: true, deletedVersions: 1, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
+    };
+
+    await reaper.releaseExpiredReservations({ trigger: "test", deleteObject });
+    const kept = await prisma.captureSession.findUniqueOrThrow({ where: { id: session.id }, select: { status: true, expiresAtUtc: true } });
+    expect(kept.status).toBe("ACTIVE");
+    expect(kept.expiresAtUtc?.getTime()).toBe(startedAtUtc.getTime() + 24 * HOUR);
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: ev.id } })).deletedAt).toBeNull();
+    expect(await prisma.custodyEvent.count({ where: { evidenceId: ev.id, eventType: "EVIDENCE_DELETED" } })).toBe(0);
+    expect(deleted).not.toContain(`parts/${ev.id}/0`);
+
+    // Past the session's maximum lifetime it is ended and its record released.
+    const longAgo = new Date(Date.now() - 25 * HOUR);
+    await prisma.captureSession.update({
+      where: { id: session.id },
+      data: { startedAtUtc: longAgo, expiresAtUtc: new Date(longAgo.getTime() + 24 * HOUR) },
+    });
+    await reaper.releaseExpiredReservations({ trigger: "test", deleteObject });
+    expect((await prisma.captureSession.findUniqueOrThrow({ where: { id: session.id }, select: { status: true } })).status).toBe("EXPIRED");
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: ev.id } })).deletedAt).not.toBeNull();
+    const releases = await prisma.custodyEvent.findMany({ where: { evidenceId: ev.id, eventType: "EVIDENCE_DELETED" }, select: { payload: true } });
+    expect(releases.map((r) => (r.payload as { reason?: string }).reason)).toEqual(["CAPTURE_SESSION_EXPIRED"]);
+    expect(deleted).toContain(`parts/${ev.id}/0`);
+  });
+
   it("rows a page could not process are skipped by the next page (excludeIds), so paging moves on", async () => {
     const ids = await seedExpiredDrafts(6, "reaper-exclude");
     const res = await reaper.reapExpiredCaptureDrafts({ trigger: "test", batchSize: 500, excludeIds: ids.slice(0, 2) });
