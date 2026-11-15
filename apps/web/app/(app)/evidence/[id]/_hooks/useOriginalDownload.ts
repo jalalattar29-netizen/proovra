@@ -14,6 +14,11 @@
 import { apiFetch, isApiResponseError } from "../../../../../lib/api";
 import { captureException } from "../../../../../lib/sentry";
 import { tryDownloadFile } from "../_tabs/_lib";
+import {
+  ARTIFACT_WINDOW_BLOCKED_MESSAGE,
+  openArtifactUrlNow,
+  openPendingArtifactWindow,
+} from "../../../../../lib/evidence/artifact-window";
 
 type Toast = (message: string, tone: "success" | "error" | "info") => void;
 
@@ -51,17 +56,25 @@ export function useOriginalDownload({
     }
     // Sequential: one file at a time, each under its own name (the presigned
     // URL carries an RFC 6266 Content-Disposition).
+    let blocked = 0;
     for (const part of parts) {
       const partUrl = part.url as string;
       const partFileName = part.originalFileName || part.displayName || `part-${part.partIndex + 1}`;
       const ok = await tryDownloadFile(partUrl, partFileName);
-      if (!ok) window.open(partUrl, "_blank", "noopener,noreferrer");
+      // F-P1-04 — the fallback tab may be blocked after the awaits: count it.
+      if (!ok && !openArtifactUrlNow(partUrl)) blocked += 1;
+    }
+    if (blocked > 0) {
+      addToast(`${ARTIFACT_WINDOW_BLOCKED_MESSAGE} (${blocked} of ${parts.length} files did not open)`, "error");
+      return;
     }
     addToast(`Original files downloaded (${parts.length} technical parts)`, "success");
   };
 
   const openOriginal = async () => {
     if (!evidenceId) return;
+    // F-P1-04 — the tab opens IN the click, before the await (artifact-window.ts).
+    const pending = openPendingArtifactWindow();
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/original`)) as {
         url?: string | null;
@@ -69,11 +82,13 @@ export function useOriginalDownload({
       };
       const url = data.publicUrl ?? data.url ?? null;
       if (!url) {
+        pending.close();
         addToast("Original file not available", "info");
         return;
       }
-      window.open(url, "_blank", "noopener,noreferrer");
+      if (pending.assign(url) === "blocked") addToast(ARTIFACT_WINDOW_BLOCKED_MESSAGE, "error");
     } catch (openError) {
+      pending.close();
       if (isMultipartOriginal(openError)) {
         addToast("This record is stored as several original files. Use Download original files.", "info");
         return;
@@ -102,8 +117,12 @@ export function useOriginalDownload({
       // unanalysable and forced a hand-reviewed exemption.
       const originalFileName = data.originalFileName || `evidence-${evidenceId}`;
       const ok = await tryDownloadFile(url, originalFileName);
-      if (!ok) window.open(url, "_blank", "noopener,noreferrer");
-      addToast("Original downloaded", "success");
+      // F-P1-04 — a blocked fallback tab is said, never reported as downloaded.
+      if (!ok && !openArtifactUrlNow(url)) {
+        addToast(ARTIFACT_WINDOW_BLOCKED_MESSAGE, "error");
+        return;
+      }
+      addToast(ok ? "Original downloaded" : "Original opened in a new tab", "success");
     } catch (downloadError) {
       if (isMultipartOriginal(downloadError)) {
         try {

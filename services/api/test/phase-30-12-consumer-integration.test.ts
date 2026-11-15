@@ -319,8 +319,12 @@ describe("Phase 30.12 — capture-page fork", () => {
   });
 
   it("fork runs BEFORE computeIntegrityFromBlob (legacy hash + presign never run for resumable items)", () => {
+    // 2026-11-15 (F-P1-08) — the legacy hash + presign + PUT moved to
+    // legacy-part-upload.ts (uploadLegacyPart); the fork still runs first.
+    const legacy = readSource("../../../apps/web/app/(app)/capture/_hooks/legacy-part-upload.ts");
+    expect(legacy).toMatch(/await computeIntegrityFromBlob\(item\.file\)/);
     const forkIdx = src.indexOf("runResumableItemUpload");
-    const integrityIdx = src.indexOf("await computeIntegrityFromBlob(item.file)");
+    const integrityIdx = src.indexOf("await uploadLegacyPart(");
     expect(forkIdx).toBeGreaterThan(-1);
     expect(integrityIdx).toBeGreaterThan(-1);
     expect(forkIdx).toBeLessThan(integrityIdx);
@@ -383,9 +387,12 @@ describe("Phase 30.12 — capture-page fork", () => {
   });
 
   it("legacy XHR PUT path remains untouched (POST /v1/evidence/:id/parts + new XMLHttpRequest)", () => {
-    expect(src).toMatch(/\/v1\/evidence\/\$\{evidenceId\}\/parts/);
-    expect(src).toMatch(/new XMLHttpRequest\(\)/);
-    expect(src).toMatch(/part\.upload\.putUrl/);
+    // 2026-11-15 (F-P1-08) — the legacy transport lives in legacy-part-upload.ts.
+    expect(src).toMatch(/uploadLegacyPart\(/);
+    const src2 = readSource("../../../apps/web/app/(app)/capture/_hooks/legacy-part-upload.ts");
+    expect(src2).toMatch(/\/v1\/evidence\/\$\{evidenceId\}\/parts/);
+    expect(src2).toMatch(/new XMLHttpRequest\(\)/);
+    expect(src2).toMatch(/part\.upload\.putUrl/);
   });
 
   it("camera / audio / video / folder callbacks remain wired", () => {

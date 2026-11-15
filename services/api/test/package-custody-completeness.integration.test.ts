@@ -97,6 +97,36 @@ describe("package custody is complete and recomputable (live PostgreSQL 16)", ()
     }
   });
 
+  // AUDIT D-06 (round 3) — reports issued BEFORE issuance events were dated at
+  // commit: their REPORT_GENERATED/REVIEW_READY rows carry the prepare-time
+  // instant (= Report.generatedAtUtc) while an event appended during the render
+  // has a LOWER sequence and a LATER time. The legacy time cut-off still yields
+  // the whole contiguous chain through those issuance events, and reading it
+  // rewrites nothing.
+  it("D-06: a legacy report's time cut-off covers an event that landed during its render, without rewriting history", async () => {
+    const id = await record();
+    const preparedAt = new Date(Date.now() - 120_000);
+    await append(id, new Date(preparedAt.getTime() - 5_000), 1);
+    // Landed while the PDF rendered: lower sequence, later own time.
+    await append(id, new Date(preparedAt.getTime() + 20_000), 2);
+    // The legacy issuance events, dated at the prepare instant.
+    for (const eventType of ["REPORT_GENERATED", "REVIEW_READY"]) {
+      await prisma.$transaction((tx) =>
+        runtime.appendCustodyEventTx(tx, { evidenceId: id, eventType: eventType as never, atUtc: preparedAt, payload: { reportVersion: 1 } }),
+      );
+    }
+    // A later fact recorded after issuance.
+    await append(id, new Date(preparedAt.getTime() + 60_000), 5);
+    const snapshot = async () =>
+      prisma.custodyEvent.findMany({ where: { evidenceId: id }, orderBy: { sequence: "asc" }, select: { sequence: true, atUtc: true, eventHash: true } });
+    const before = await snapshot();
+    const { custodyThroughIssuance } = await import("../../worker/src/custody-issuance-cutoff.js");
+    const events = await custodyThroughIssuance(prisma as never, id, preparedAt);
+    expect(events.map((e) => e.sequence)).toEqual([1, 2, 3, 4]);
+    expect(events.at(-1)!.eventType).toBe("REVIEW_READY");
+    expect(await snapshot()).toEqual(before);
+  });
+
   it("ET-CUS-09: the exchange custody chain carries every event with its payload, and every hash recomputes", async () => {
     const id = await record();
     for (let i = 0; i < 520; i++) await append(id, new Date(), i);

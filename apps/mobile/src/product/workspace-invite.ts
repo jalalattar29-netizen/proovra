@@ -8,7 +8,7 @@
  * flow, exactly as the web does (`isWellFormedWorkspaceInviteToken`).
  *
  * READ, then act: `POST /v1/teams/invites/lookup {token}` describes the
- * invitation without consuming it; `POST /v1/teams/invites/:token/accept`
+ * invitation without consuming it; `POST /v1/teams/invites/accept {token}`
  * happens only when the reader presses Accept. The view is resolved by the
  * SAME `resolveInvitationView` the web renders (now in @proovra/shared).
  */
@@ -24,8 +24,13 @@ import {
 } from "@proovra/shared";
 
 export const WORKSPACE_INVITE_LOOKUP_PATH = "/v1/teams/invites/lookup";
-export function buildWorkspaceInviteAcceptPath(token: string): string {
-  return `/v1/teams/invites/${encodeURIComponent(token)}/accept`;
+/**
+ * B-15 — the accept carries the token in the BODY, never in the request path
+ * (the path form is still answered for older builds).
+ */
+export const WORKSPACE_INVITE_ACCEPT_PATH = "/v1/teams/invites/accept";
+export function buildWorkspaceInviteAcceptBody(token: string): string {
+  return JSON.stringify({ token });
 }
 
 function o(v: unknown): Record<string, unknown> {

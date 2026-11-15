@@ -1115,6 +1115,66 @@ export function attemptAbandonConfirmation(result: unknown): { warning: string; 
   return { warning: str(r.warning) ?? ATTEMPT_ABANDON_FALLBACK_WARNING, cancelsAtProvider: r.cancelsAtProvider === true };
 }
 
+/**
+ * AUDIT E-09 / F-P1-06 (2026-11-15) — what the private build does when the
+ * in-app browser closes after a Stripe checkout.
+ *
+ * Stripe returns to the WEB /billing page, which the app cannot intercept, so
+ * the app used to say "may still be pending" and leave a cancelled checkout
+ * open until the server's 24-hour expiry. It now does what the web return does
+ * (usePayPalReturn), through the SAME attempt routes the activity rows use, for
+ * the attempt the checkout response named:
+ *   1. re-check it — the server reads the session live and applies a payment;
+ *   2. only if Stripe still shows the page OPEN and UNPAID (the buyer closed it
+ *      without paying), ask the abandon route with `confirmed: false`, which
+ *      starts nothing and returns the server's own warning. The customer then
+ *      confirms (or not) in the existing abandon dialog; confirming expires the
+ *      session at Stripe. A paid or settling session is never offered Abandon.
+ * Store builds never reach this: they have no checkout to return from.
+ */
+export type StripeCheckoutReturn = {
+  notice: string;
+  confirmAbandon: { attemptId: string; warning: string; cancelsAtProvider: boolean } | null;
+};
+
+export const STRIPE_RETURN_UNCONFIRMED =
+  "We could not confirm this Stripe checkout yet. PROOVRA keeps checking automatically; if you paid, it is applied once Stripe confirms it.";
+
+export async function confirmStripeCheckoutReturn(input: {
+  accountType: string;
+  accountId: string;
+  attemptId: string;
+  request: (path: string, init: { method: "POST"; body: string }) => Promise<unknown>;
+  resumeAllowed: boolean;
+}): Promise<StripeCheckoutReturn> {
+  let check: AttemptCheck;
+  try {
+    const result = await input.request(buildAttemptRecheckPath(input.accountType, input.accountId, input.attemptId), {
+      method: "POST",
+      body: "{}",
+    });
+    check = describeAttemptCheck(result, { resumeAllowed: input.resumeAllowed });
+  } catch {
+    return { notice: STRIPE_RETURN_UNCONFIRMED, confirmAbandon: null };
+  }
+  if (check.state !== "PAYMENT_PAGE") return { notice: check.message, confirmAbandon: null };
+  try {
+    const asked = await input.request(buildAttemptAbandonPath(input.accountType, input.accountId, input.attemptId), {
+      method: "POST",
+      body: JSON.stringify(buildAbandonBody(false)),
+    });
+    if (str(obj(asked).outcome) === "ABANDON_CONFIRMATION_REQUIRED") {
+      return {
+        notice: "Stripe shows this checkout page as still open and unpaid. Close it so it can no longer be paid, or keep it to finish later from Billing activity.",
+        confirmAbandon: { attemptId: input.attemptId, ...attemptAbandonConfirmation(asked) },
+      };
+    }
+    return { notice: describeAttemptAbandon(asked).message, confirmAbandon: null };
+  } catch {
+    return { notice: check.message, confirmAbandon: null };
+  }
+}
+
 /** The line above the activity rows, by what this build may do. */
 export function billingActivityNote(resumeAllowed: boolean): string {
   return resumeAllowed

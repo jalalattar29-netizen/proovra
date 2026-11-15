@@ -121,8 +121,29 @@ export function isAdministrativeCustodyEventType(eventType: string | null | unde
  * change: forensic by classification and not administrative.
  */
 export function isForensicIntegrityCustodyEventType(eventType: string | null | undefined): boolean {
-  return isForensicCustodyEventType(eventType) && !isAdministrativeCustodyEventType(eventType);
+  return (
+    isForensicCustodyEventType(eventType) &&
+    !isAdministrativeCustodyEventType(eventType) &&
+    !ARTIFACT_ISSUANCE_CUSTODY_EVENT_TYPES.has(String(eventType ?? "").trim().toUpperCase())
+  );
 }
+
+/**
+ * D-06 (Free-user audit, round 3) — an artifact's own issuance bookkeeping is
+ * never an integrity change to the evidence. These events are now dated at
+ * their commit, so the package issued with a report lands after the report's
+ * cut-off; a NEWER report or package is already stated by the version-changed
+ * reason (trust-decision-consistency), never as a custody change. They stay
+ * forensic custody rows (shown, sealed, counted in the chain).
+ */
+const ARTIFACT_ISSUANCE_CUSTODY_EVENT_TYPES = new Set<string>([
+  "REPORT_IDENTITY_CONTEXT_RECORDED",
+  "REPORT_GENERATED",
+  "REVIEW_READY",
+  "REPORT_PDF_SIGNED",
+  "REPORT_PDF_UNSIGNED_OPT_OUT",
+  "VERIFICATION_PACKAGE_GENERATED",
+]);
 
 export function classifyCustodyEventType(
   eventType: string | null | undefined

@@ -36,7 +36,7 @@ import {
   requireApiScope,
   runWithApiAudit,
 } from "../middleware/integrations-auth.js";
-import { createEvidenceRequest } from "../services/evidence-request.service.js";
+import { createEvidenceRequest, EvidenceRequestError } from "../services/evidence-request.service.js";
 import { projectRecipientContact } from "../services/privacy/recipient-contact-disclosure.js";
 import { createWorkflowIntakeLink, WorkflowIntakeLinkError } from "../services/workflow-intake-link.service.js";
 import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
@@ -366,6 +366,17 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
           );
           const actor = await integrationActorAndIntakeGate(reply, cred);
           if (!actor) return reply;
+          // A2-17 — record reach, as the user route asks it (AZ-R04: a key is
+          // no person, so only records and cases open to the workspace are in
+          // its reach). A restricted record or case answers EXACTLY like one
+          // outside the workspace (the service's own 404), so a key cannot use
+          // create as an existence oracle. Scope and plan gates stay above.
+          if (body.evidenceId && (await evidenceClosedTo(body.evidenceId, null))) {
+            return sendIntegrationDomainError(reply, new EvidenceRequestError("evidence_not_in_workspace"), "evidence_request_failed");
+          }
+          if (body.caseId && (await caseClosedTo(body.caseId, null))) {
+            return sendIntegrationDomainError(reply, new EvidenceRequestError("case_not_in_workspace"), "evidence_request_failed");
+          }
           try {
             const { request } = await createEvidenceRequest(
               { ...body, teamId: cred.teamId },

@@ -182,13 +182,11 @@ describe("A1 — ApprovalPanel derivative journey states", () => {
   });
 
   it("READY: Download fetches the short-lived signed URL and opens it (never a storage key)", async () => {
+    // F-P1-04 (2026-11-15) — the tab opens blank IN the click and is then
+    // pointed at the signed URL (lib/evidence/artifact-window.ts).
     const opened: string[] = [];
-    const openSpy = vi
-      .spyOn(window, "open")
-      .mockImplementation(((url: string | URL | undefined) => {
-        opened.push(String(url));
-        return null;
-      }) as typeof window.open);
+    const tab = { closed: false, opener: {} as unknown, location: { replace: (u: string) => opened.push(u) }, close: () => {} };
+    const openSpy = vi.spyOn(window, "open").mockImplementation((() => tab) as unknown as typeof window.open);
     renderPanel(makeVersion({ id: "d-1", state: "READY" }));
     fireEvent.click(q("[data-redaction-derivative-download]")!);
     await waitFor(() =>
@@ -197,6 +195,14 @@ describe("A1 — ApprovalPanel derivative journey states", () => {
       ),
     );
     await waitFor(() => expect(opened).toEqual([harness.downloadUrl]));
+    openSpy.mockRestore();
+  });
+
+  it("READY: a blocked download tab is said (F-P1-04), not a silent no-op", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation((() => null) as unknown as typeof window.open);
+    renderPanel(makeVersion({ id: "d-1", state: "READY" }));
+    fireEvent.click(q("[data-redaction-derivative-download]")!);
+    await waitFor(() => expect(q("[data-redaction-derivative-error]")?.textContent ?? "").toContain("Your browser blocked the new tab"));
     openSpy.mockRestore();
   });
 
@@ -213,13 +219,11 @@ describe("A1 — ApprovalPanel derivative journey states", () => {
   });
 
   it("READY (PDF): Preview opens the signed URL in a new tab — no in-app PDF viewer", async () => {
+    // F-P1-04 (2026-11-15) — the tab opens blank IN the click and is then
+    // pointed at the signed URL (lib/evidence/artifact-window.ts).
     const opened: string[] = [];
-    const openSpy = vi
-      .spyOn(window, "open")
-      .mockImplementation(((url: string | URL | undefined) => {
-        opened.push(String(url));
-        return null;
-      }) as typeof window.open);
+    const tab = { closed: false, opener: {} as unknown, location: { replace: (u: string) => opened.push(u) }, close: () => {} };
+    const openSpy = vi.spyOn(window, "open").mockImplementation((() => tab) as unknown as typeof window.open);
     renderPanel(makeVersion({ id: "d-1", state: "READY" }), "PDF");
     fireEvent.click(q("[data-redaction-derivative-preview]")!);
     await waitFor(() => expect(opened).toEqual([harness.downloadUrl]));

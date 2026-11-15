@@ -78,7 +78,7 @@ import {
   startVerification,
 } from "../services/communications/verification.service.js";
 import { getMessagingProvider } from "../services/communications/provider-registry.js";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
 // PHASE 13 §1.4 — the canonical trusted-client-IP binding; see `readClientIp`.
@@ -196,19 +196,68 @@ function logAuthRateLimited(
   );
 }
 
+/**
+ * B-09 — WHEN THE LIMITER ITSELF COULD NOT DECIDE.
+ *
+ * Every public auth bucket is `bound: "global"`: with Redis configured and
+ * unreachable it refuses rather than count in one replica's memory (the stated
+ * fail-closed policy, services/rate-limit.ts). That refusal is still a 429
+ * RATE_LIMITED with Retry-After — clients back off the same way and the answer
+ * is the same for every address — but it no longer tells a person who made one
+ * attempt that they made too many: the message says the service is briefly
+ * unavailable and `details.reason` is `limiter_unavailable`.
+ */
+function rateLimitedBody(store: string | undefined, busyMessage: string) {
+  return store === "unavailable"
+    ? {
+        error: {
+          code: "RATE_LIMITED",
+          message: "This is temporarily unavailable. Try again in a minute.",
+          details: { reason: "limiter_unavailable" },
+          timestamp: new Date().toISOString(),
+        },
+      }
+    : { error: { code: "RATE_LIMITED", message: busyMessage, timestamp: new Date().toISOString() } };
+}
+
 // Shared 429 reply — every public auth route returns this exact
 // shape on rate-limit hits. Single helper keeps the file small.
-function replyRateLimited(reply: FastifyReply, resetAtMs: number) {
+function replyRateLimited(reply: FastifyReply, resetAtMs: number, store?: string) {
   return reply
     .code(429)
     .header("Retry-After", String(Math.max(1, Math.ceil((resetAtMs - Date.now()) / 1000))))
-    .send({
-      error: {
-        code: "RATE_LIMITED",
-        message: "Too many requests. Try again shortly.",
-        timestamp: new Date().toISOString(),
-      },
-    });
+    .send(rateLimitedBody(store, "Too many requests. Try again shortly."));
+}
+
+/**
+ * B-21 — the per-account sign-in budget: attempts per normalised identifier per
+ * window, across every address. Ten in five minutes is far above a person
+ * retyping a password and far below a stuffing run; the window is short so a
+ * deliberate lock-out of someone else's address lasts minutes, and password
+ * reset, Google, Apple and SSO stay open meanwhile.
+ */
+const AUTH_LOGIN_RATE_LIMIT_PER_ACCOUNT = 10;
+const AUTH_LOGIN_ACCOUNT_WINDOW_SEC = 300;
+
+/** The identifier as typed, normalised and hashed — an address never becomes a Redis key. */
+function loginAccountKey(email: string): string {
+  return createHash("sha256").update(`login:${email.trim().toLowerCase()}`, "utf8").digest("hex").slice(0, 32);
+}
+
+/** One 429 for every sign-in refusal (per address or per account, known or unknown account). */
+function replyLoginRateLimited(reply: FastifyReply, rl: { resetAtMs: number; store?: string }) {
+  const retryAfterSec = Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000));
+  return reply
+    .code(429)
+    .header("Retry-After", String(retryAfterSec))
+    .send(
+      rateLimitedBody(
+        rl.store,
+        retryAfterSec <= 60
+          ? "Too many sign-in attempts. Wait a minute and try again."
+          : "Too many sign-in attempts. Wait a few minutes and try again.",
+      ),
+    );
 }
 
 // Phase 2.5 — session inventory recording helpers.
@@ -1085,7 +1134,7 @@ export async function authRoutes(app: FastifyInstance) {
     });
     if (!rl.allowed) {
       logAuthRateLimited(req, "auth.email_register", rl.resetAtMs, { scope: "ip", store: rl.store });
-      return replyRateLimited(reply, rl.resetAtMs);
+      return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
 
     const body = EmailRegisterBody.parse(req.body);
@@ -1205,7 +1254,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
-      return replyRateLimited(reply, rl.resetAtMs);
+      return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
 
     const query = (req.query ?? {}) as Record<string, unknown>;
@@ -1237,20 +1286,29 @@ export async function authRoutes(app: FastifyInstance) {
     });
     if (!rl.allowed) {
       logAuthRateLimited(req, "auth.email_login", rl.resetAtMs, { scope: "ip", store: rl.store });
-      return reply
-        .code(429)
-        .header("Retry-After", String(Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000))))
-        .send({
-          error: {
-            code: "RATE_LIMITED",
-            message:
-              "Too many sign-in attempts. Wait a minute and try again.",
-            timestamp: new Date().toISOString(),
-          },
-        });
+      return replyLoginRateLimited(reply, rl);
     }
 
     const body = EmailLoginBody.parse(req.body);
+
+    // B-21 — a per-ACCOUNT budget beside the per-address one: distributed
+    // credential stuffing against one account spreads over many addresses and
+    // never trips the per-address bucket. Keyed on the normalised identifier
+    // the person typed (hashed — no address in a Redis key), NOT on whether an
+    // account exists, so an unknown address is throttled exactly like a real
+    // one and the 429 is byte-for-byte the same: no enumeration. Checked before
+    // the password work, so a refused attempt costs nothing and says nothing.
+    // Logged, not chained (F-01).
+    const accountRl = await enforceRateLimit({
+      key: `auth:email-login:account:${loginAccountKey(body.email)}`,
+      bound: "global",
+      max: AUTH_LOGIN_RATE_LIMIT_PER_ACCOUNT,
+      windowSec: AUTH_LOGIN_ACCOUNT_WINDOW_SEC,
+    });
+    if (!accountRl.allowed) {
+      logAuthRateLimited(req, "auth.email_login", accountRl.resetAtMs, { scope: "account", store: accountRl.store });
+      return replyLoginRateLimited(reply, accountRl);
+    }
 
     const user = await loginWithEmailPassword({
       email: body.email,
@@ -1368,8 +1426,11 @@ export async function authRoutes(app: FastifyInstance) {
     });
     if (!rl.allowed) {
       logAuthRateLimited(req, "auth.password_reset_requested", rl.resetAtMs, { scope: "ip", store: rl.store });
-      // Return the same 200 shape that the normal handler returns so
-      // we do NOT leak enumeration information via the response shape.
+      // B-09 — this is a 429, not the handler's 200: the per-address limit
+      // is the same for every address, so it discloses nothing about any one
+      // account. The flat { message: "too_many_requests" } body is what the web
+      // and native forms read (ForgotPasswordModal, forgot-password.tsx); a
+      // limiter outage (rl.store "unavailable") answers the same way.
       return reply
         .code(429)
         .header("Retry-After", String(Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000))))
@@ -1500,7 +1561,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
-      return replyRateLimited(reply, rl.resetAtMs);
+      return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
 
     const parsed = EmailVerifyBody.safeParse(req.body);
@@ -1576,7 +1637,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
-      return replyRateLimited(reply, rl.resetAtMs);
+      return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
 
     // F-06 — every branch answers the same body, including the cooldown the

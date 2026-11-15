@@ -25,11 +25,13 @@ import {
 } from "../services/auth/extension-scope.js";
 import { MFA_ENROLLMENT_COOKIE } from "../services/auth/mfa-enrollment-session.js";
 import { prisma } from "../db.js";
+import { isDatabasePoolTimeout, sendServerBusy } from "./overload-gate.js";
 import { gateSecurityAction } from "../services/governance/policy-runtime-gates.service.js";
 import { enforceSessionTimeoutPolicy } from "../services/identity-security/session-timeout-policy.service.js";
 import { bindRequestSession } from "../services/auth/request-session-context.js";
 import { trustedClientIpKey } from "./client-ip.js";
 import { refuseSupportContextWrite } from "./support-context-boundary.js";
+import { refuseStaleLegalAcceptanceOnWrite } from "./legal-acceptance-gate.js";
 
 function readCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
@@ -205,6 +207,10 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
         },
         "auth.revocation_check_failed",
       );
+      // F-08 (2026-11-15) — the pool had no connection to give within its
+      // bound: overload, not a bad session. Still refused (fail closed), but a
+      // 401 here signed every client out during a capacity stall.
+      if (isDatabasePoolTimeout(err)) return sendServerBusy(req, reply);
       return reply
         .code(401)
         .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
@@ -475,6 +481,10 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
     // A READ_ONLY support context writes nothing, on any authenticated route
     // (support-context-boundary.ts says why this is decided here).
     if (await refuseSupportContextWrite(req, reply, payload.sub, routePatternOf(req) ?? req.url)) return reply;
+
+    // A1-06 — an authenticated write needs the current terms, decided here once
+    // for every route (legal-acceptance-gate.ts says which writes are exempt).
+    if (await refuseStaleLegalAcceptanceOnWrite(req, reply, payload.sub, routePatternOf(req))) return reply;
 
     // Phase 26.75 — Sampled heartbeat. Fire-and-forget; the helper is
     // self-throttled via shouldWriteHeartbeat() so it writes at most

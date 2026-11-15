@@ -94,7 +94,10 @@ import {
   completePortalSsoFlow,
   startPortalSsoFlow,
 } from "../services/external-review/portal-sso.service.js";
-import { rotateExternalReviewGrantToken } from "../services/external-review/external-review-grant.service.js";
+import {
+  externalReviewGrantSubjectInReach,
+  rotateExternalReviewGrantToken,
+} from "../services/external-review/external-review-grant.service.js";
 import {
   projectRecipientContact,
   resolveRecipientContactDisclosure,
@@ -306,6 +309,43 @@ function isAdministrativeTier(
     workspaceId: expectedWorkspaceId,
   });
   return proven.workspaceRole === "OWNER" || proven.workspaceRole === "ADMIN";
+}
+
+/**
+ * A2-15 — break-glass reveal, resend and send-email each mint a successor
+ * token and put it in someone's hands, so each re-asks what issuing asked:
+ * the grant's subject is still within this operator's Case reach (else the
+ * route's own missing-grant answer, so a closed subject and a missing grant
+ * are indistinguishable, whatever the plan) and the workspace plan still
+ * includes External Review (403, the issue route's body). Returns true when
+ * it has replied. Existing grants are untouched: a downgrade or a lost reach
+ * stops new disclosure, never what the reviewer already holds (revoke stays
+ * ungated).
+ */
+async function refuseGrantRedisclosure(
+  reply: FastifyReply,
+  candidate: AuthorizedWorkspaceContext,
+  expectedWorkspaceId: string,
+  grantId: string,
+  missing: { status: 404 | 409; denial: string },
+): Promise<boolean> {
+  // The tenant this reads is the context's: prove it was minted for this request.
+  const ctx = assertMintedAuthorizedWorkspaceContext(candidate, { workspaceId: expectedWorkspaceId });
+  if (
+    !(await externalReviewGrantSubjectInReach({
+      grantId,
+      teamId: ctx.workspaceId,
+      actorUserId: ctx.userId,
+    }))
+  ) {
+    reply.code(missing.status).send({ denial: missing.denial });
+    return true;
+  }
+  if (!(await workspaceIncludesExternalReview(ctx.workspaceId))) {
+    reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "EXTERNAL_REVIEW" });
+    return true;
+  }
+  return false;
 }
 
 /** REVIEW_ADMIN tier — workspace OWNER only (break-glass split-of-duty). */
@@ -688,6 +728,9 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       if (!isOwnerTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // A2-15 — before the step-up is consumed; a closed subject is the
+      // rotate's own missing-grant answer.
+      if (await refuseGrantRedisclosure(reply, ctx, ctx.workspaceId, id, { status: 409, denial: "token_unknown" })) return reply;
       // STEP-UP: break-glass reveal ROTATES the grant token and returns a
       // fresh raw bearer token — the most sensitive mutation on this
       // surface. Require a fresh step-up AFTER the RBAC capability gate,
@@ -744,6 +787,8 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // A2-15 — a missing invitation answers 409 INVITE_NOT_FOUND here.
+      if (await refuseGrantRedisclosure(reply, ctx, ctx.workspaceId, id, { status: 409, denial: "INVITE_NOT_FOUND" })) return reply;
       const team = await prisma.team.findUnique({
         where: { id: ctx.workspaceId },
         select: { name: true },
@@ -1354,6 +1399,8 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // A2-15 — same re-check as resend; a missing invitation answers 404 here.
+      if (await refuseGrantRedisclosure(reply, ctx, ctx.workspaceId, id, { status: 404, denial: "INVITE_NOT_FOUND" })) return reply;
       // `rawToken` is GONE from the accepted shape. A client that still
       // sends it is not rejected (extra keys are ignored by this schema) but
       // the value can never reach the transport.

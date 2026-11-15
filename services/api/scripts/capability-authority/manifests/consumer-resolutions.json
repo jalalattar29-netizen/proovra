@@ -399,7 +399,7 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:408",
+      "site": "apps/mobile/app/(stack)/billing.tsx:426",
       "helper": "checkoutRequest(purchase, provider, currency).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
       "callSitesRead": [
         "apps/mobile/app/(stack)/billing.tsx:400",
@@ -415,11 +415,11 @@
         "POST /v1/billing/storage-addons/checkout/stripe",
         "POST /v1/billing/storage-addons/checkout/paypal"
       ],
-      "evidence": "checkoutRequest returns: PLAN → transition ? \"/v1/billing/subscription/plan\" : `/v1/billing/checkout/${provider}`; CREDITS → `/v1/billing/credits/checkout/${provider}`; STORAGE → `/v1/billing/storage-addons/checkout/${provider}`; provider is \"stripe\" | \"paypal\".",
+      "evidence": "checkoutRequest returns: PLAN → transition ? \"/v1/billing/subscription/plan\" : `/v1/billing/checkout/${provider}`; CREDITS → `/v1/billing/credits/checkout/${provider}`; STORAGE → `/v1/billing/storage-addons/checkout/${provider}`; provider is \"stripe\" | \"paypal\". | Re-anchored :408 -> :426 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged.",
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:421",
+      "site": "apps/mobile/app/(stack)/billing.tsx:439",
       "helper": "checkoutRequest({ ...purchase, transition: false }, provider, currency).path — the CHECKOUT_REQUIRED fallback of a plan transition",
       "callSitesRead": [
         "apps/mobile/app/(stack)/billing.tsx:420",
@@ -429,11 +429,11 @@
         "POST /v1/billing/checkout/stripe",
         "POST /v1/billing/checkout/paypal"
       ],
-      "evidence": "Reached only when purchase.kind === \"PLAN\" && purchase.transition, re-issued with transition: false, so the table yields `/v1/billing/checkout/${provider}` only.",
+      "evidence": "Reached only when purchase.kind === \"PLAN\" && purchase.transition, re-issued with transition: false, so the table yields `/v1/billing/checkout/${provider}` only. | Re-anchored :421 -> :439 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged.",
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:352",
+      "site": "apps/mobile/app/(stack)/billing.tsx:358",
       "helper": "payPalReturnConfirmation(response, provider).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
       "callSitesRead": [
         "apps/mobile/app/(stack)/billing.tsx:343",
@@ -445,7 +445,7 @@
         "POST /v1/billing/credits/checkout/paypal/:orderId/capture",
         "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm"
       ],
-      "evidence": "payPalReturnConfirmation returns null for Stripe and for malformed ids; otherwise ORDER_CAPTURE → `/v1/billing/credits/checkout/paypal/${encodeURIComponent(orderId)}/capture` or SUBSCRIPTION_CONFIRM → `/v1/billing/checkout/paypal/subscriptions/${encodeURIComponent(subscriptionId)}/confirm`.",
+      "evidence": "payPalReturnConfirmation returns null for Stripe and for malformed ids; otherwise ORDER_CAPTURE → `/v1/billing/credits/checkout/paypal/${encodeURIComponent(orderId)}/capture` or SUBSCRIPTION_CONFIRM → `/v1/billing/checkout/paypal/subscriptions/${encodeURIComponent(subscriptionId)}/confirm`. | Re-anchored :352 -> :358 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged.",
       "reviewedAtUtc": "2026-09-28"
     }
   ]

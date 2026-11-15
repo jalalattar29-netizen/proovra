@@ -52,7 +52,13 @@ export type BillingReviewReason =
   /** A buyer opened a dispute against a PROOVRA payment. */
   | "PAYMENT_DISPUTED"
   /** A captured amount did not match the price of the purchase attempt. */
-  | "AMOUNT_MISMATCH";
+  | "AMOUNT_MISMATCH"
+  /**
+   * AUDIT E-03 (2026-11-15) — a capture naming a legacy one-time storage order
+   * that no durable local binding confirms (none, more than one, or one naming
+   * another payer, workspace or size). Money may have moved; nothing is granted.
+   */
+  | "LEGACY_STORAGE_CAPTURE_UNMATCHED";
 
 export type BillingReviewProduct = "PLAN" | "STORAGE_ADDON" | "EVIDENCE_CREDIT";
 

@@ -49,6 +49,7 @@ import {
 
 import { apiFetch } from "../../lib/api";
 import { getPasskeyAssertion } from "../../lib/identity/webauthn";
+import { useDialogFocus } from "../../lib/ui/dialogFocus";
 
 export type StepUpRequiredDetails = {
   purpose: string;
@@ -691,6 +692,12 @@ export function StepUpModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [cancel, state.kind]);
 
+  // F-P1-07 — the trap the header promises: focus moves in on open (unless the
+  // code field already took it), Tab stays inside, and focus returns on close.
+  // Escape keeps its own handler above.
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useDialogFocus(dialogRef, state.kind !== "idle");
+
   if (state.kind === "idle") return null;
 
   const purposeLabel =
@@ -700,6 +707,8 @@ export function StepUpModal({
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label="Step-up confirmation"

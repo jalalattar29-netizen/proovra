@@ -156,6 +156,8 @@ export default function RegisterScreen() {
     try {
       const res = await registerAccount({ email: email.trim(), password, displayName: displayName.trim() || undefined });
       resend.reset();
+      // B-13 — the server's cooldown holds Resend (web register/page.tsx holdResendFor).
+      resend.holdFor(res.resendAfterSec);
       setDelivery(res.verificationDelivery);
       setSentTo(res.email);
     } catch (err) {
@@ -207,7 +209,7 @@ export default function RegisterScreen() {
               <ProovraText variant="body" color={theme.color.ink.secondary}>
                 {"We asked for a verification email to be sent to "}
                 <ProovraText variant="body" weight="semibold">{sentTo}</ProovraText>
-                {", but couldn’t confirm it was accepted. Check your inbox in a few minutes; if nothing arrives, resend it."}
+                {", but couldn’t confirm it was accepted. Check your inbox in a few minutes; if nothing arrives, resend it when the button below is available."}
               </ProovraText>
             )}
             <ProovraText variant="bodySm" color={theme.color.ink.muted}>
@@ -216,7 +218,13 @@ export default function RegisterScreen() {
           </View>
           <View style={styles.actions}>
             <ProovraButton
-              label={resend.busy ? RESEND_COPY.pending : "Resend email"}
+              label={
+                resend.busy
+                  ? resend.waitSec > 0 && !resend.status
+                    ? `Resend available in ${resend.waitSec}s`
+                    : RESEND_COPY.pending
+                  : "Resend email"
+              }
               disabled={resend.busy}
               onPress={() => void resend.resend()}
             />

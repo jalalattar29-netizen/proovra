@@ -43,7 +43,9 @@ import {
 import {
   acceptedHeadline,
   grantedWorkspaceName,
-  orgInviteFailureMessage,
+  ORG_INVITE_ACCEPT_PATH,
+  orgInviteRefusal,
+  type OrgInviteRefusal,
   orgInviteGrantLines,
   orgInviteLanding,
   ORG_INVITE_LOOKUP_PATH,
@@ -70,13 +72,13 @@ export default function OrgInviteAcceptScreen() {
 
   const [phase, setPhase] = useState<Phase>("checking");
   const [result, setResult] = useState<OrgInviteAccepted | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<OrgInviteRefusal | null>(null);
   // PRO-072 — what accepting grants, read before Accept is offered.
   const [lookup, setLookup] = useState<OrgInviteLookupView | null>(null);
 
   useEffect(() => {
     if (!token) {
-      setFailure(orgInviteFailureMessage(400));
+      setFailure(orgInviteRefusal(undefined, 400));
       setPhase("error");
       return;
     }
@@ -98,7 +100,7 @@ export default function OrgInviteAcceptScreen() {
         // An unknown link is one opaque 404; anything else claims nothing.
         if (toSafeUserError(err).status === 404) {
           if (!cancelled) {
-            setFailure(orgInviteFailureMessage(404));
+            setFailure(orgInviteRefusal(undefined, 404));
             setPhase("error");
           }
           return;
@@ -117,9 +119,10 @@ export default function OrgInviteAcceptScreen() {
     setPhase("accepting");
     setFailure(null);
     try {
-      const data = await apiFetch(`/v1/org-invites/${encodeURIComponent(token)}/accept`, {
+      // B-15 — the token travels in the body, never in the request path.
+      const data = await apiFetch(ORG_INVITE_ACCEPT_PATH, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify({ token }),
       });
       setResult(parseOrgInviteAccept(data));
       setPhase("accepted");
@@ -133,7 +136,8 @@ export default function OrgInviteAcceptScreen() {
         router.replace("/(stack)/auth");
         return;
       }
-      setFailure(orgInviteFailureMessage(safe.status ?? 0));
+      // B-16 — the server's code says which refusal it was.
+      setFailure(orgInviteRefusal(safe.code, safe.status ?? 0));
       setPhase("error");
     }
   }, [token, router, refresh]);
@@ -235,11 +239,15 @@ export default function OrgInviteAcceptScreen() {
           {phase === "error" ? (
             <View style={[styles.panel, styles.panelError]} accessibilityRole="alert" testID="org-invite-error">
               <ProovraText variant="body" weight="semibold" color={theme.color.status.risk.fg}>
-                {"We couldn't accept this invite"}
+                {failure?.title ?? "We couldn't accept this invite"}
               </ProovraText>
-              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{failure}</ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{failure?.message ?? null}</ProovraText>
               <View style={styles.errorActions}>
-                <ProovraButton label="Go to organizations" onPress={() => router.replace("/organizations")} />
+                {failure?.retry ? (
+                  <ProovraButton label="Try again" onPress={() => void accept()} />
+                ) : (
+                  <ProovraButton label="Go to organizations" onPress={() => router.replace("/organizations")} />
+                )}
                 <ProovraButton label="Return to dashboard" variant="secondary" onPress={() => router.replace("/(tabs)")} />
               </View>
             </View>

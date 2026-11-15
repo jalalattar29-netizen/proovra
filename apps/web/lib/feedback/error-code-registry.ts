@@ -235,6 +235,14 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // Free audit B-03 — an organization re-invite issued before the member's
   // access ended cannot revive it (shared copy in user-facing-errors).
   INVITE_SUPERSEDED: { disposition: "customer", where: "global" },
+  // Free audit B-16 — the organization accept route's refusals now carry the
+  // workspace-invitation codes, so the accept page (web and native) can say
+  // which one it was instead of "ask for a new invitation" for all of them.
+  INVITE_REVOKED: { disposition: "customer", where: "global" },
+  INVITE_EXPIRED: { disposition: "customer", where: "global" },
+  INVITE_ALREADY_USED: { disposition: "customer", where: "global" },
+  INVITE_EMAIL_MISMATCH: { disposition: "customer", where: "global" },
+  ORGANIZATION_NOT_ACCEPTING_MEMBERS: { disposition: "customer", where: "global" },
   ALREADY_WORKSPACE_MEMBER: { disposition: "customer", where: "global" },
   RETENTION_POLICY_GOVERNED: { disposition: "customer", where: "global" },
   // Members audit ACC-01 — Collaboration Team case access.
@@ -307,6 +315,9 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
 
   // -- Rate limiting --------------------------------------------------------
   RATE_LIMITED: { disposition: "customer", where: "global" },
+  // F-08 — the API overload gate (middleware/overload-gate.ts): 503 + Retry-After,
+  // refused before any work; global copy ("try again in a moment").
+  SERVER_BUSY: { disposition: "customer", where: "global" },
   // Report / package generation and recovery (2026-09-26).
   GENERATION_NOT_PERMITTED: { disposition: "customer", where: "global" },
   // ET-SEC-14 — the output policy refuses a regeneration as at first issuance.
@@ -414,6 +425,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // F-03 — a changed-selection Finish that lost the race with the earlier
   // attempt's seal; global copy.
   CAPTURE_ALREADY_FINISHED: { disposition: "customer", where: "global" },
+  // F-04 (audit of 4d9b78963) — the record's stored files changed between the
+  // two short sealing transactions (twice); nothing sealed or charged. Thrown by
+  // the completion service; global copy ("finish again").
+  EVIDENCE_COMPLETION_INPUTS_CHANGED: { disposition: "customer", where: "global" },
   // F-04 — a draft discard that lost three consecutive races with a Finish
   // rebinding the draft. The web discard is fire-and-forget (logged, never
   // shown); the next discard simply retries.
@@ -525,7 +540,13 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // coverage test holds each one to the service that throws it.
   EVIDENCE_RELATIONSHIP_SELF_LINK: { disposition: "customer", where: "global" },
   PAYMENTS_UNAVAILABLE: { disposition: "customer", where: "global" },
+  // F-15 / A2-11 — the plan's API key allowance refused a NEW key. Sent
+  // lowercase (`api_key_limit_reached`, matched case-insensitively); the
+  // Integrations page also words it from `details.limit`.
+  API_KEY_LIMIT_REACHED: { disposition: "customer", where: "global" },
   LEGAL_POLICY_VERSION_NOT_CURRENT: { disposition: "customer", where: "global" },
+  // A1-06 — the server-wide terms gate; apiFetch also re-opens the acceptance step.
+  LEGAL_REACCEPT_REQUIRED: { disposition: "customer", where: "global" },
   LIFECYCLE_DESTRUCTION_REQUIRES_REVIEW: {
     disposition: "internal",
     why: "Answered only by the admin lifecycle override, which no product surface calls; destruction is offered through destruction reviews.",

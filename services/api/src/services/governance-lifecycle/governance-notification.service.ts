@@ -25,6 +25,36 @@ import type {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import type { ViewerReach } from "../access/record-reach.js";
+
+/**
+ * A2-12 — a governance notification that names a record closed to the reader
+ * (or a legal hold on a closed record or case) is that record's row: not
+ * listed, not counted, and acknowledged like a missing one. Every writer
+ * (services/worker/src/governance/*) sets `relatedEvidenceId`; a hold
+ * reference is resolved through the hold row. Null references stay visible.
+ */
+export async function governanceNotificationReachWhere(
+  teamId: string,
+  reach: ViewerReach | null | undefined,
+  client: Pick<PrismaClient, "evidenceLegalHold"> = defaultPrisma,
+): Promise<prismaPkg.Prisma.GovernanceNotificationWhereInput[]> {
+  if (!reach) return [];
+  const { evidenceIds, caseIds } = reach.hidden;
+  if (evidenceIds.length === 0 && caseIds.length === 0) return [];
+  const closedHolds = await client.evidenceLegalHold.findMany({
+    where: { teamId, OR: [{ evidenceId: { in: evidenceIds } }, { caseId: { in: caseIds } }] },
+    select: { id: true },
+  });
+  const out: prismaPkg.Prisma.GovernanceNotificationWhereInput[] = [];
+  if (evidenceIds.length > 0) {
+    out.push({ OR: [{ relatedEvidenceId: null }, { relatedEvidenceId: { notIn: evidenceIds } }] });
+  }
+  if (closedHolds.length > 0) {
+    out.push({ OR: [{ relatedHoldId: null }, { relatedHoldId: { notIn: closedHolds.map((h) => h.id) } }] });
+  }
+  return out;
+}
 
 // -----------------------------------------------------------------------------
 // Error
@@ -109,11 +139,17 @@ export function projectNotification(
 // -----------------------------------------------------------------------------
 
 export async function acknowledgeGovernanceNotification(
-  input: { id: string; teamId: string; actorUserId: string },
+  input: {
+    id: string;
+    teamId: string;
+    actorUserId: string;
+    /** A2-12 — `governanceNotificationReachWhere` for the actor. */
+    reachWhere?: prismaPkg.Prisma.GovernanceNotificationWhereInput[];
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<GovernanceNotificationProjection> {
   const existing = await client.governanceNotification.findFirst({
-    where: { id: input.id, teamId: input.teamId },
+    where: { id: input.id, teamId: input.teamId, AND: input.reachWhere ?? [] },
     select: { id: true, acknowledgedAtUtc: true },
   });
   if (!existing) {
@@ -148,6 +184,8 @@ export type ListGovernanceNotificationsInput = {
   deliveryStatus?: GovernanceNotificationDeliveryStatus;
   unacknowledged?: boolean;
   limit?: number;
+  /** A2-12 — `governanceNotificationReachWhere` for the reader. */
+  reachWhere?: prismaPkg.Prisma.GovernanceNotificationWhereInput[];
 };
 
 export async function listGovernanceNotifications(
@@ -172,6 +210,7 @@ export async function listGovernanceNotifications(
         }
       : {}),
     ...(input.unacknowledged ? { acknowledgedAtUtc: null } : {}),
+    AND: input.reachWhere ?? [],
   };
   const rows = await client.governanceNotification.findMany({
     where,
@@ -188,11 +227,13 @@ export async function listGovernanceNotifications(
 export async function countPendingGovernanceNotifications(
   teamId: string,
   client: PrismaClient = defaultPrisma,
+  reachWhere: prismaPkg.Prisma.GovernanceNotificationWhereInput[] = [],
 ): Promise<number> {
   return client.governanceNotification.count({
     where: {
       teamId,
       deliveryStatus: prismaPkg.GovernanceNotificationDeliveryStatus.PENDING,
+      AND: reachWhere,
     },
   });
 }
@@ -200,11 +241,13 @@ export async function countPendingGovernanceNotifications(
 export async function countFailedGovernanceNotifications(
   teamId: string,
   client: PrismaClient = defaultPrisma,
+  reachWhere: prismaPkg.Prisma.GovernanceNotificationWhereInput[] = [],
 ): Promise<number> {
   return client.governanceNotification.count({
     where: {
       teamId,
       deliveryStatus: prismaPkg.GovernanceNotificationDeliveryStatus.FAILED,
+      AND: reachWhere,
     },
   });
 }

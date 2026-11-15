@@ -46,7 +46,11 @@ vi.mock("../../app/(app)/capture/_lib/hash-utils", () => ({
 import { useCaptureSessionOrchestration } from "../../app/(app)/capture/_hooks/useCaptureSessionOrchestration";
 import type { SessionItem } from "../../app/(app)/capture/_lib/types";
 
-/** XHR stub: PUT to a URL containing "fail" answers 403 (non-transient). */
+/**
+ * XHR stub: PUT to a URL containing "fail" answers 400 (non-transient: storage
+ * refused the bytes). F-P1-08 — a 403 now means "the URL expired" and is
+ * presigned again under the shared storage-PUT rule, so it no longer fails.
+ */
 let failPutFor = new Set<string>();
 class FakeXhr {
   status = 0;
@@ -59,7 +63,7 @@ class FakeXhr {
   }
   setRequestHeader() {}
   send() {
-    this.status = [...failPutFor].some((k) => this.url.includes(k)) ? 403 : 200;
+    this.status = [...failPutFor].some((k) => this.url.includes(k)) ? 400 : 200;
     queueMicrotask(() => this.onload?.());
   }
 }

@@ -43,6 +43,7 @@ import {
 import {
   heartbeat,
   instrumentJobOutcome,
+  readOldestPendingJobAgeMs,
   snapshotQueueHealth,
   type QueueHealthSample,
 } from "../src/observability.js";
@@ -278,6 +279,35 @@ describe("readiness/E — Worker heartbeat + queue health (live)", () => {
     ]);
     expect(out[0]!.oldestPendingAgeSeconds).toBeGreaterThan(290);
     expect(out[0]!.oldestPendingAgeSeconds).toBeLessThan(310);
+  });
+
+  // AUDIT F-05 (round 3) — the age is the OLDEST unfinished job's, under the
+  // ordering BullMQ 5 really has: getJobs(types, start, end) is newest-first
+  // by default (a waiting list is LPUSHed), oldest-first with asc=true. The
+  // fake models exactly that, per state; the earlier read took entry 0 of the
+  // concatenated default order — the NEWEST waiting job.
+  it("F-05: snapshotQueueHealth reports the oldest pending job, not the newest, under continuous arrivals", async () => {
+    const now = Date.now();
+    const states: Record<string, number[]> = {
+      // enqueue timestamps, oldest first
+      waiting: [now - 40_000, now - 20_000, now - 1_000, now - 200],
+      prioritized: [],
+      delayed: [now - 55_000], // a retry waiting out its backoff, enqueued first
+      active: [now - 45_000],
+    };
+    const getJobs = async (types: string | string[], start = 0, end = -1, asc = false) => {
+      const list = (Array.isArray(types) ? types : [types]).flatMap((t) => {
+        const ordered = asc ? [...(states[t] ?? [])] : [...(states[t] ?? [])].reverse();
+        return ordered.slice(start, end < 0 ? undefined : end + 1);
+      });
+      return list.map((timestamp) => ({ timestamp }));
+    };
+    const mockQueue = { getJobCountByTypes: async () => 1, getJobs };
+    const out = await snapshotQueueHealth([{ name: "report", queue: mockQueue as never }]);
+    expect(out[0]!.oldestPendingAgeSeconds).toBeGreaterThanOrEqual(54);
+    expect(out[0]!.oldestPendingAgeSeconds).toBeLessThanOrEqual(56);
+    expect(await readOldestPendingJobAgeMs(mockQueue as never, now)).toBe(55_000);
+    expect(await readOldestPendingJobAgeMs({ getJobs: async () => [] } as never, now)).toBeNull();
   });
 
   it("instrumentJobOutcome accepts every documented outcome without throwing", () => {

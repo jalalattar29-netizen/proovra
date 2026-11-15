@@ -52,9 +52,21 @@ export function denialToMessage(denial: string | null | undefined): string | nul
     case "UPGRADE_REQUIRED":
       return "Recording new evidence isn't included on this workspace's plan. Review plans in PROOVRA or ask an admin.";
 
+    // -- Terms (A1-06) --------------------------------------------------------
+    // The server refuses every write until the current terms are accepted;
+    // the refusal comes before anything is recorded.
+    case "LEGAL_REACCEPT_REQUIRED":
+      return "PROOVRA's terms were updated. Open PROOVRA and accept the current terms, then capture again. This capture was not saved.";
+
     // -- Rate limiting --------------------------------------------------------
     case "RATE_LIMITED":
       return "Too many capture attempts just now. Wait a moment and try again.";
+
+    // -- Seal (F-04) ----------------------------------------------------------
+    // The stored files changed while the seal was being signed; nothing was
+    // sealed or charged (shared copy: EVIDENCE_COMPLETION_INPUTS_CHANGED).
+    case "EVIDENCE_COMPLETION_INPUTS_CHANGED":
+      return "The capture's files changed while it was being sealed, so nothing was sealed and nothing was charged. Capture again.";
 
     default:
       return null;

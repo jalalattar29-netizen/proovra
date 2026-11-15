@@ -36,6 +36,7 @@ import {
 } from "../../[token]/BasicVerificationView";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { Row, VerifyCard, VerifyMain, fmt } from "../../_shared/verify-ui";
+import { sha256Base64OfBlob } from "../../../../lib/uploads/streaming-sha256";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -61,10 +62,21 @@ function recordHref(packageId: string): string {
   return `/verify/package/${encodeURIComponent(packageId)}`;
 }
 
+/**
+ * F-P1-16 — the package ZIP is hashed in 8 MiB slices (the product's streaming
+ * helper, lib/uploads/streaming-sha256.ts), never read whole into memory: a
+ * large package on a phone used to fail as an unreadable file or kill the tab.
+ */
 async function sha256OfFile(file: File): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const b64 = await sha256Base64OfBlob(file);
+  let hex = "";
+  for (const ch of atob(b64)) hex += ch.charCodeAt(0).toString(16).padStart(2, "0");
+  return hex;
 }
+
+/** Said when the chosen file could not be read (moved, unreadable, too large for this browser). */
+const FILE_UNREADABLE_MESSAGE =
+  "This file could not be read in this browser, so nothing was compared. Choose the package ZIP again, or try another browser.";
 
 export default function PackageRecordPage() {
   const params = useParams<{ packageId: string }>();
@@ -75,6 +87,7 @@ export default function PackageRecordPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fileCheck, setFileCheck] = useState<{ name: string; sha256: string } | null>(null);
   const [hashing, setHashing] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!packageId) return;
@@ -226,8 +239,13 @@ export default function PackageRecordPage() {
                   const file = e.target.files?.[0];
                   if (!file) return;
                   setHashing(true);
+                  setFileError(null);
+                  setFileCheck(null);
                   try {
                     setFileCheck({ name: file.name, sha256: await sha256OfFile(file) });
+                  } catch {
+                    // A read failure compares nothing: never a "Does not match".
+                    setFileError(FILE_UNREADABLE_MESSAGE);
                   } finally {
                     setHashing(false);
                   }
@@ -236,6 +254,7 @@ export default function PackageRecordPage() {
             </label>
             <div aria-live="polite" role="status" style={{ marginTop: 10 }}>
               {hashing ? "Computing SHA-256…" : null}
+              {fileError && !hashing ? <p data-testid="package-record-file-error">{fileError}</p> : null}
               {fileCheck && !hashing ? (
                 <div data-testid="package-record-file-result" data-match={match === null ? "unknown" : String(match)}>
                 <Row

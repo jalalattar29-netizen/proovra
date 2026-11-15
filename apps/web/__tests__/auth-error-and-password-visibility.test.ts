@@ -52,8 +52,17 @@ test("the API answers a bad sign-in with the canonical bounded envelope", () => 
   // it guessing from the status.
   assert.match(login, /code: "INVALID_CREDENTIALS"/);
   assert.match(login, /message:\s*\n?\s*"Email or password is incorrect\."/);
-  // The rate limit is bounded the same way.
-  assert.match(login, /code: "RATE_LIMITED"/);
+  // The rate limit is bounded the same way: the handler answers through the
+  // one sign-in limiter reply (per address and, B-21, per account), whose
+  // body carries the RATE_LIMITED code.
+  assert.match(login, /return replyLoginRateLimited\(reply, \w+\)/);
+  const limiter = AUTH_ROUTES.slice(
+    AUTH_ROUTES.indexOf("function rateLimitedBody("),
+    AUTH_ROUTES.indexOf("// Phase 2.5 — session inventory recording helpers."),
+  );
+  assert.match(limiter, /function replyLoginRateLimited\(/);
+  assert.match(limiter, /code: "RATE_LIMITED"/);
+  assert.doesNotMatch(limiter.replace(/code: "RATE_LIMITED"/g, ""), /code: "/);
 });
 
 test("unknown email and wrong password remain indistinguishable", () => {

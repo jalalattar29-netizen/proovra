@@ -13,6 +13,15 @@ export type BrowserCaptureLocation =
 export const BROWSER_LOCATION_TIMEOUT_MS = 10_000;
 
 /**
+ * C-16 (Free-user audit of 4d9b78963) — the longest a capture waits for the
+ * browser at all. The Geolocation timeout only starts once permission is
+ * granted, so a permission prompt left unanswered never settled and Finish
+ * spun forever. Past this the request reads TIMEOUT (the screen offers Retry or
+ * finishing without location; a required plan stops); a late answer is ignored.
+ */
+export const BROWSER_LOCATION_DEADLINE_MS = 30_000;
+
+/**
  * One browser location request for a capture. Coordinates are reduced to
  * ~100 m unless the selected plan requires precise location. A request that
  * yields no coordinates says why — refused (DENIED), not answered in time
@@ -20,16 +29,21 @@ export const BROWSER_LOCATION_TIMEOUT_MS = 10_000;
  * reads "not shared", "timed out" or "unavailable" instead of "not recorded".
  * Never both. `maximumAge: 0`: a cached (stale) fix is never accepted.
  */
-export async function requestBrowserCaptureLocation(precise: boolean): Promise<BrowserCaptureLocation> {
+export async function requestBrowserCaptureLocation(
+  precise: boolean,
+  deadlineMs: number = BROWSER_LOCATION_DEADLINE_MS,
+): Promise<BrowserCaptureLocation> {
   if (typeof navigator === "undefined" || !navigator.geolocation) return { outcome: "UNAVAILABLE" };
+  let deadline: ReturnType<typeof setTimeout> | undefined;
   try {
-    const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+    const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+      deadline = setTimeout(() => reject({ code: 3 }), deadlineMs);
       navigator.geolocation.getCurrentPosition(resolve, reject, {
         enableHighAccuracy: true,
         timeout: BROWSER_LOCATION_TIMEOUT_MS,
         maximumAge: 0,
-      }),
-    );
+      });
+    });
     const round = (v: number) => (precise ? v : roundGpsCoordinate(v, 3));
     return {
       gps: { lat: round(pos.coords.latitude), lng: round(pos.coords.longitude), accuracyMeters: pos.coords.accuracy },
@@ -38,6 +52,8 @@ export async function requestBrowserCaptureLocation(precise: boolean): Promise<B
     // GeolocationPositionError: PERMISSION_DENIED 1, POSITION_UNAVAILABLE 2, TIMEOUT 3.
     const code = (err as { code?: number } | null)?.code;
     return { outcome: code === 1 ? "DENIED" : code === 3 ? "TIMEOUT" : "UNAVAILABLE" };
+  } finally {
+    clearTimeout(deadline);
   }
 }
 

@@ -82,7 +82,7 @@ export async function presenceRoutes(app: FastifyInstance) {
       const userId = authz.actorUserId;
       // PRO-046 — a record a restricted case closes to the caller gives the same
       // 404 here as everywhere else: no heartbeat, no viewer list.
-      if (await presenceResourceClosedTo(body.resourceKind, body.resourceId, userId)) {
+      if (await presenceResourceClosedTo(body.resourceKind, body.resourceId, userId, body.teamId)) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 
@@ -138,7 +138,7 @@ export async function presenceRoutes(app: FastifyInstance) {
       });
       if (!authz) return;
       const userId = authz.actorUserId;
-      if (await presenceResourceClosedTo(query.resourceKind, query.resourceId, userId)) {
+      if (await presenceResourceClosedTo(query.resourceKind, query.resourceId, userId, query.teamId)) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 

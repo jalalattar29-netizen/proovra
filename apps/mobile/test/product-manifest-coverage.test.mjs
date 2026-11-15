@@ -253,7 +253,9 @@ test("the universal-link configuration names every claimed path", () => {
   const prefixes = new Set(
     filters.flatMap((f) => (f.data ?? []).map((d) => d.pathPrefix ?? d.path).filter(Boolean)),
   );
-  for (const required of ["/intake", "/portal", "/portal/accept", "/legal", "/verify"]) {
+  // B-23 — "/intake/" (the token path, as iOS "/intake/*"); a bare "/intake" prefix
+  // also claimed the web-only /intake-links management page on Android.
+  for (const required of ["/intake/", "/portal", "/portal/accept", "/legal", "/verify"]) {
     assert.ok(prefixes.has(required), `${required} is not claimed by App Links`);
   }
 });

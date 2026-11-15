@@ -81,6 +81,14 @@ async function collectFilesFromEntry(
   return [];
 }
 
+/**
+ * C-16 (Free-user audit of 4d9b78963) — every dropped item is taken while the
+ * drop event is still being dispatched. The browser protects the drag data
+ * once the handler yields: after the first `await` (reading the first
+ * folder), `webkitGetAsEntry()` and `getAsFile()` on the remaining items
+ * return null, so a drop of several files or folders staged only the first.
+ * The entries (and plain files) are now collected synchronously, then read.
+ */
 export async function filesFromDataTransfer(
   dataTransfer: DataTransfer
 ): Promise<File[]> {
@@ -90,8 +98,8 @@ export async function filesFromDataTransfer(
     return Array.from(dataTransfer.files ?? []);
   }
 
-  const entryFiles: File[] = [];
-
+  const fallbackFiles = Array.from(dataTransfer.files ?? []);
+  const taken: Array<FileSystemEntryLike | File> = [];
   for (const item of items) {
     const maybeEntry =
       "webkitGetAsEntry" in item
@@ -101,15 +109,52 @@ export async function filesFromDataTransfer(
             }
           ).webkitGetAsEntry?.()
         : null;
-
-    if (maybeEntry) {
-      entryFiles.push(...(await collectFilesFromEntry(maybeEntry)));
-      continue;
-    }
-
-    const file = item.getAsFile();
-    if (file) entryFiles.push(file);
+    const file = maybeEntry ? null : item.getAsFile();
+    if (maybeEntry) taken.push(maybeEntry);
+    else if (file) taken.push(file);
   }
 
-  return entryFiles.length ? entryFiles : Array.from(dataTransfer.files ?? []);
+  const entryFiles: File[] = [];
+  for (const entry of taken) {
+    if (entry instanceof File) entryFiles.push(entry);
+    else entryFiles.push(...(await collectFilesFromEntry(entry)));
+  }
+
+  return entryFiles.length ? entryFiles : fallbackFiles;
+}
+
+/**
+ * F-P1-10 (Free-user audit of 4d9b78963) — whether this browser can pick a
+ * whole folder. "Folder — keeps folder structure" was offered everywhere; the
+ * directory picker (`webkitdirectory`) is a desktop capability: phones and
+ * tablets either lack the property or open the ordinary file picker under it.
+ * Where it is not supported, the existing multi-file picker is the way in.
+ */
+export function folderPickerSupported(env: {
+  /** A fresh <input> (capability probe). */
+  input: object | null | undefined;
+  userAgent?: string | null;
+  /** navigator.userAgentData?.mobile, where the browser exposes it. */
+  uaMobile?: boolean | null;
+  maxTouchPoints?: number | null;
+}): boolean {
+  if (!env.input || !("webkitdirectory" in env.input)) return false;
+  if (env.uaMobile === true) return false;
+  const ua = env.userAgent ?? "";
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return false;
+  // iPadOS reports a desktop Mac user agent; a touch Mac is an iPad.
+  if (/Macintosh/i.test(ua) && (env.maxTouchPoints ?? 0) > 1) return false;
+  return true;
+}
+
+/** The probe, in a browser. */
+export function browserSupportsFolderPicker(): boolean {
+  if (typeof document === "undefined" || typeof navigator === "undefined") return false;
+  const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  return folderPickerSupported({
+    input: document.createElement("input"),
+    userAgent: nav.userAgent,
+    uaMobile: nav.userAgentData?.mobile ?? null,
+    maxTouchPoints: nav.maxTouchPoints,
+  });
 }

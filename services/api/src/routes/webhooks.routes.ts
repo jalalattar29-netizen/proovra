@@ -9,10 +9,7 @@ import { prisma } from "../db.js";
 // and the polled reconciliation share one implementation of what a provider
 // subscription state MEANS. This route now applies that meaning rather than
 // deciding it.
-import {
-  recordPayment,
-  upsertWorkspaceStorageAddon,
-} from "../services/billing.service.js";
+import { recordPayment } from "../services/billing.service.js";
 // Evidence credits are granted through the canonical wallet by the shared
 // Stripe/PayPal settlement services (idempotent on the provider payment id).
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — renewal ownership comes from
@@ -36,16 +33,17 @@ import {
   applyPayPalDispute,
   applyPayPalRefundOrReversal,
   applyPayPalSubscriptionState,
-  assertWebhookStorageAddonAllowed,
   handlePayPalCaptureWebhook,
   isPayPalResourceId,
+  settleLegacyStorageCapture,
   settlePayPalEvidenceCreditOrder,
 } from "../services/billing/paypal-settlement.service.js";
 import { auditWebhookSignatureVerification } from "../services/security/webhook-signature-audit.service.js";
 // PHASE 9 §12 / §9.4 — the ONE subscription-active rule is consumed by the
 // storage add-on guard, which now lives in paypal-settlement.service.ts
-// (assertWebhookStorageAddonAllowed, imported above) and imports it from
-// @proovra/shared-billing directly.
+// (assertWebhookStorageAddonAllowed) and imports it from
+// @proovra/shared-billing directly. AUDIT E-03 (2026-11-15) — the legacy
+// capture branch reaches that guard through settleLegacyStorageCapture.
 import {
   webhookDuplicateDisposition,
   webhookLeaseFence,
@@ -771,69 +769,43 @@ export async function webhooksRoutes(app: FastifyInstance) {
           return reply.code(200).send({ received: true });
         }
 
-        // LEGACY one-time storage add-on orders (JSON custom_id). No new such
-        // order can be created; this keeps a late capture of an old one
-        // attributable.
+        // LEGACY one-time storage add-on orders. No new such order can be
+        // created. AUDIT E-03 (2026-11-15) — the custom_id is only a claim: the
+        // settlement service grants through a durable local binding whose payer,
+        // size, amount and currency the capture must match, and sends anything
+        // else to review. A database failure throws (BILLING-013), so the event
+        // is not marked processed and PayPal redelivers it.
         const unit = event.resource.purchase_units?.[0];
-        const captureAmount = (event.resource as { amount?: { value?: string; currency_code?: string } }).amount;
-        const amount = unit?.amount ?? captureAmount;
         const addonContext = tryParseAddonContextFromCustomId(
           unit?.custom_id ?? event.resource.custom_id
         );
 
-        if (
-          event.event_type === "PAYMENT.CAPTURE.COMPLETED" &&
-          addonContext.userId &&
-          addonContext.storageAddonKey
-        ) {
-          try {
-            await assertWebhookStorageAddonAllowed({
-              userId: addonContext.userId,
-              addonKey: addonContext.storageAddonKey,
-              teamId: addonContext.teamId ?? null,
-            });
-
-            await recordPayment({
-              userId: addonContext.userId,
-              provider: prismaPkg.PaymentProvider.PAYPAL,
-              providerPaymentId: event.resource.id ?? "",
-              amountCents: Math.round(Number(amount?.value ?? 0) * 100),
-              currency: (amount?.currency_code ?? "USD").toUpperCase(),
-              status: prismaPkg.PaymentStatus.SUCCEEDED,
-              teamId: addonContext.teamId ?? null,
-              product: "STORAGE_ADDON_ONE_TIME",
-            });
-
-            await upsertWorkspaceStorageAddon({
-              ownerUserId: addonContext.userId,
-              teamId: addonContext.teamId ?? null,
-              addonKey: addonContext.storageAddonKey,
-              billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
-              status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-              paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
-              externalPaymentId: event.resource.id ?? "",
-              amountCents: Math.round(Number(amount?.value ?? 0) * 100),
-              currency: (amount?.currency_code ?? "USD").toUpperCase(),
-              metadata: {
-                source: event.event_type,
-              },
-            });
-          } catch (err) {
-            // BILLING-013 — only a policy refusal is ignored, and it carries an
-            // HTTP status. Anything else, a database failure among them, must
-            // not mark the event PROCESSED: PayPal would never redeliver it.
-            const refusal = (err as { statusCode?: number })?.statusCode;
-            if (typeof refusal !== "number" || refusal >= 500) throw err;
+        if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
+          const legacy = await settleLegacyStorageCapture({
+            capture: event.resource,
+            claimed: {
+              userId: addonContext.userId ?? null,
+              teamId: addonContext.teamId,
+              storageAddonKey: addonContext.storageAddonKey ?? null,
+            },
+            eventType: event.event_type,
+          });
+          if (legacy.outcome === "UNATTRIBUTABLE") {
             req.log.warn(
+              { provider: "PAYPAL", eventId: paypalEventId, eventType: event.event_type },
+              "paypal.capture_unattributable"
+            );
+          } else {
+            req.log.info(
               {
-                err,
                 provider: "PAYPAL",
+                eventId: paypalEventId,
                 resourceId: event.resource.id ?? "",
-                userId: addonContext.userId,
-                teamId: addonContext.teamId ?? null,
-                storageAddonKey: addonContext.storageAddonKey,
+                outcome: legacy.outcome,
+                reason: legacy.outcome === "REVIEW" ? legacy.reason : null,
+                cause: legacy.outcome === "REVIEW" ? legacy.cause : null,
               },
-              "paypal.storage_addon_checkout_ignored"
+              "paypal.legacy_storage_capture_settled"
             );
           }
         } else {

@@ -57,9 +57,23 @@ export const STEP_UP_RETURN_URL = "proovra://step-up/complete";
 export const STEP_UP_COMPLETE_ROUTE = "/(stack)/step-up/complete";
 
 export function stepUpReturnRoute(url: string): string | null {
-  return url === STEP_UP_RETURN_URL || url.startsWith(STEP_UP_RETURN_URL + "?") || url.startsWith(STEP_UP_RETURN_URL + "#")
-    ? STEP_UP_COMPLETE_ROUTE
-    : null;
+  if (!(url === STEP_UP_RETURN_URL || url.startsWith(STEP_UP_RETURN_URL + "?") || url.startsWith(STEP_UP_RETURN_URL + "#"))) {
+    return null;
+  }
+  // B-23 — the handoff page reports its outcome as `?result=` (web
+  // PasskeyHandoff / IdpDone). It used to be dropped here, so the completion
+  // screen always read "Not confirmed", even after an approval. Only the two
+  // words the screen reads are carried, as bounded tokens; the verdict that
+  // matters is still re-read from the server before the action is retried.
+  const query = url.slice(STEP_UP_RETURN_URL.length).replace(/^\?/, "").split("#")[0] ?? "";
+  const params = new URLSearchParams(query);
+  const carried = new URLSearchParams();
+  for (const key of ["result", "reason"]) {
+    const value = params.get(key);
+    if (value && /^[a-z_]{1,40}$/.test(value)) carried.set(key, value);
+  }
+  const rest = carried.toString();
+  return rest ? `${STEP_UP_COMPLETE_ROUTE}?${rest}` : STEP_UP_COMPLETE_ROUTE;
 }
 
 export function stepUpStatusPath(challengeId: string, teamId: string): string {

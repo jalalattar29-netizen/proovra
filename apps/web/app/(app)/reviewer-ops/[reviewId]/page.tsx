@@ -53,6 +53,7 @@ import { severityTone, statusTone } from "../../../../components/ui/StatusBadge"
 import { identifierLabel } from "@proovra/shared";
 import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
 import { describeArtifactDownloadFailure } from "../../../../lib/evidence/report-download-feedback";
+import { ARTIFACT_WINDOW_BLOCKED_MESSAGE, openPendingArtifactWindow } from "../../../../lib/evidence/artifact-window";
 
 type LifecycleState =
   | "DRAFT"
@@ -884,6 +885,8 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
 
   const open = async (kind: "report" | "package") => {
     if (busy) return;
+    // F-P1-04 — the tab opens IN the click, before the await (artifact-window.ts).
+    const pending = openPendingArtifactWindow();
     setBusy(kind);
     setError(null);
     try {
@@ -897,8 +900,9 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
         message?: string;
       };
       if (resp.url) {
-        window.open(resp.url, "_blank", "noopener,noreferrer");
+        if (pending.assign(resp.url) === "blocked") setError(ARTIFACT_WINDOW_BLOCKED_MESSAGE);
       } else {
+        pending.close();
         // RGA-04 — a 2xx with no URL carries a bounded code (e.g. pending).
         setError(
           describeArtifactDownloadFailure(
@@ -908,6 +912,7 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
         );
       }
     } catch (err) {
+      pending.close();
       // RGA-04 — the ONE shared download-failure vocabulary.
       setError(
         describeArtifactDownloadFailure(kind === "report" ? "report" : "verificationPackage", err).message,

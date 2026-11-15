@@ -25,6 +25,7 @@ import { useAuth, useLocale } from "../providers";
 import { apiBaseUrl, apiFetch, isApiResponseError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { fetchSocialSignInNonce, loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
+import { useSocialNoncePrefetch } from "../../lib/useSocialNoncePrefetch";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { ForgotPasswordModal } from "../../components/marketing/ForgotPasswordModal";
 import { ssoSignInFailureMessage } from "../../lib/identity/ssoSignIn";
@@ -206,6 +207,9 @@ function LoginPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [appleReady, setAppleReady] = useState(false);
+  // F-P1-05 — the Apple nonce is in hand before the click, so the popup opens
+  // inside the click (useSocialNoncePrefetch).
+  const appleNonce = useSocialNoncePrefetch("apple", appleReady);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   /*
@@ -645,14 +649,17 @@ function LoginPageContent() {
 
     try {
       // PRO-034 — a fresh API-issued nonce for this attempt, signed into the
-      // id_token by Apple; the API accepts that token once.
+      // id_token by Apple; the API accepts that token once. F-P1-05 — taken
+      // from the prefetch when one is held, so nothing is awaited before
+      // signIn() and the popup opens within the click.
+      const nonce = appleNonce.take() ?? (await fetchSocialSignInNonce("apple"));
       auth.init({
         clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "",
         scope: "name email",
         redirectURI:
           process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`,
         usePopup: true,
-        nonce: await fetchSocialSignInNonce("apple"),
+        nonce,
       });
       const response = await auth.signIn();
       const idToken = response.authorization?.id_token;

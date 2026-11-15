@@ -288,6 +288,11 @@ export type AdminWorkspaceDetail = {
   };
   usage: {
     storageBytesUsed: string;
+    /**
+     * AUDIT D-03 — bytes actually stored, before the Free first-issuance
+     * exclusion the customer-facing `storageBytesUsed` applies.
+     */
+    actualStorageBytes: string;
     storageBytesLimit: string;
     storageUsagePercent: number;
     evidenceCount: number;
@@ -391,6 +396,7 @@ export async function getAdminWorkspaceDetail(
       const u = await getWorkspaceUsage(ctx.scope);
       usage = {
         storageBytesUsed: u.storageBytesUsed.toString(),
+        actualStorageBytes: u.actualStorageBytes.toString(),
         storageBytesLimit: u.storageBytesLimit.toString(),
         storageUsagePercent: u.storageUsagePercent,
         evidenceCount: u.evidenceCount,

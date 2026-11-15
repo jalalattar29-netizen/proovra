@@ -18,6 +18,7 @@ import { useState, type ReactNode } from "react";
 import { apiFetch } from "../../lib/api";
 import { formatUserDate } from "../../lib/date";
 import { describeArtifactDownloadFailure } from "../../lib/evidence/report-download-feedback";
+import { ARTIFACT_WINDOW_BLOCKED_MESSAGE, openPendingArtifactWindow } from "../../lib/evidence/artifact-window";
 
 import type {
   ActiveMatterRow,
@@ -831,6 +832,8 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
 
   async function trigger(kind: "pdf" | "package", path: string) {
     if (busy) return;
+    // F-P1-04 — the tab opens IN the click, before the await (artifact-window.ts).
+    const pending = openPendingArtifactWindow();
     setBusy(kind);
     setError(null);
     try {
@@ -838,8 +841,9 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
         | { url?: string; code?: string; message?: string }
         | null;
       if (resp?.url) {
-        window.open(resp.url, "_blank", "noopener,noreferrer");
+        if (pending.assign(resp.url) === "blocked") setError(ARTIFACT_WINDOW_BLOCKED_MESSAGE);
       } else {
+        pending.close();
         // RGA-04 — a 2xx with no URL carries a bounded code (e.g. pending).
         setError(
           describeArtifactDownloadFailure(kind === "pdf" ? "report" : "verificationPackage", {
@@ -849,6 +853,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
         );
       }
     } catch (e) {
+      pending.close();
       // RGA-04 — the ONE shared download-failure vocabulary.
       setError(describeArtifactDownloadFailure(kind === "pdf" ? "report" : "verificationPackage", e).message);
     } finally {

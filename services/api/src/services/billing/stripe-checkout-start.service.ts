@@ -318,6 +318,10 @@ export async function startStripeStorageCheckout(input: {
       // does (pending-checkout-attempt.service.ts), so a second tab cannot
       // start a second recurring charge. Abandoned, expired, failed or
       // completed attempts are no longer PENDING and do not block.
+      // AUDIT E-01 recheck (2026-11-15) — a session Stripe reports PAID by a
+      // method still settling (checkoutState CAPTURE_PENDING) is never closed by
+      // the approval window (isExpiredApproval; abandon refuses it), so it blocks
+      // however old: it becomes this size's subscription once Stripe settles it.
       const openCard = await tx.billingCheckoutAttempt.findFirst({
         where: {
           userId: input.userId,
@@ -326,7 +330,10 @@ export async function startStripeStorageCheckout(input: {
           storageAddonKey: input.addonKey,
           status: prismaPkg.BillingCheckoutAttemptStatus.PENDING,
           providerResourceId: { not: null },
-          createdAt: { gte: new Date(Date.now() - APPROVAL_EXPIRY_MS) },
+          OR: [
+            { createdAt: { gte: new Date(Date.now() - APPROVAL_EXPIRY_MS) } },
+            { checkoutState: "CAPTURE_PENDING" },
+          ],
         },
         orderBy: { createdAt: "desc" },
         select: { id: true, createdAt: true },

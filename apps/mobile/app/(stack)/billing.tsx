@@ -26,7 +26,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { apiFetch } from "../../src/api";
-import { checkoutApprovalUrl, checkoutRequest, externalCheckoutEnabled, payPalReturnConfirmation, payPalReturnNotice, verifiedCheckoutUrl, type PurchaseIntent, type PurchaseProvider } from "../../src/product/billing-purchase";
+import { checkoutApprovalUrl, checkoutRequest, externalCheckoutEnabled, payPalReturnConfirmation, payPalReturnNotice, stripeCheckoutAttemptId, verifiedCheckoutUrl, type PurchaseIntent, type PurchaseProvider } from "../../src/product/billing-purchase";
 import { ProovraSheet } from "../../src/ui/patterns";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
@@ -64,6 +64,7 @@ import {
   buildPaymentAbandonPath,
   buildReconcilePath,
   cancellationOutcomeUnknown,
+  confirmStripeCheckoutReturn,
   describeAttemptAbandon,
   describeAttemptCheck,
   formatMoney,
@@ -147,6 +148,8 @@ export default function BillingScreen() {
   const pendingPurchase = useRef<PurchaseIntent | null>(null);
   const pendingBrowserUrl = useRef<string | null>(null);
   const pendingReturn = useRef<ReturnType<typeof payPalReturnConfirmation>>(null);
+  /** AUDIT E-09 / F-P1-06 — the Stripe attempt the checkout response named. */
+  const pendingStripeAttempt = useRef<string | null>(null);
   const checkoutInFlight = useRef(false);
   const privateCheckout = externalCheckoutEnabled();
   const [manageOpen, setManageOpen] = useState(false);
@@ -341,6 +344,9 @@ export default function BillingScreen() {
 
     const confirmation = pendingReturn.current;
     pendingReturn.current = null;
+    const stripeAttempt = pendingStripeAttempt.current;
+    pendingStripeAttempt.current = null;
+    const account = selected;
     void WebBrowser.openBrowserAsync(url)
       .then(async () => {
         // BILLING PAYPAL INTEGRITY (2026-09-28) — the browser closed (returned,
@@ -355,6 +361,18 @@ export default function BillingScreen() {
             const e = err as { code?: unknown; statusCode?: unknown };
             setNotice(payPalReturnNotice(confirmation.kind, null, { code: e.code, statusCode: e.statusCode }));
           }
+        } else if (stripeAttempt && account && privateCheckout) {
+          // AUDIT E-09 / F-P1-06 — Stripe returns to the web page, not here:
+          // re-check the attempt, and offer to close a page left open unpaid.
+          const answer = await confirmStripeCheckoutReturn({
+            accountType: account.type,
+            accountId: account.id,
+            attemptId: stripeAttempt,
+            request: (path, init) => apiFetch(path, init),
+            resumeAllowed: privateCheckout,
+          });
+          setNotice(answer.notice);
+          if (answer.confirmAbandon) setConfirm({ kind: "attempt-abandon", ...answer.confirmAbandon });
         } else {
           setNotice("Payment may still be pending. PROOVRA confirms it with your provider automatically; refresh Billing in a few minutes.");
         }
@@ -367,7 +385,7 @@ export default function BillingScreen() {
         );
         refresh();
       });
-  }, [refresh]);
+  }, [refresh, selected, privateCheckout]);
 
   const choosePlan = useCallback((plan: "PRO" | "TEAM") => {
     if (!projection || !selected || selected.type !== "PERSONAL") return;
@@ -430,6 +448,7 @@ export default function BillingScreen() {
       if (url) {
         pendingBrowserUrl.current = url;
         pendingReturn.current = payPalReturnConfirmation(response, provider);
+        pendingStripeAttempt.current = stripeCheckoutAttemptId(response, provider);
         setPurchase(null);
       } else {
         // A provider may have created a pending attempt; never silently retry it.

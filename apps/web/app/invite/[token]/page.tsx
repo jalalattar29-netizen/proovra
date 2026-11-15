@@ -75,6 +75,7 @@ import type {
   SystemStateTone,
 } from "../../../components/feedback/ProovraSystemState";
 import { apiFetch, isApiResponseError } from "../../../lib/api";
+import { withLegacyRouteFallback } from "../../../lib/api/legacy-route-fallback";
 import { requestWorkspaceSwitch } from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
 import { useAuth } from "../../providers";
@@ -390,9 +391,17 @@ export default function InviteAcceptPage() {
 
     void (async () => {
       try {
-        const result = (await apiFetch(
-          `/v1/teams/invites/${encodeURIComponent(token)}/accept`,
-          { method: "POST", body: JSON.stringify({}) },
+        // B-15 — the token travels in the body, never in the request path.
+        // COMPAT — an API older than this build has only the path form.
+        const result = (await withLegacyRouteFallback(
+          () => apiFetch(
+            "/v1/teams/invites/accept",
+            { method: "POST", body: JSON.stringify({ token }) },
+          ),
+          () => apiFetch(
+            `/v1/teams/invites/${encodeURIComponent(token)}/accept`,
+            { method: "POST", body: JSON.stringify({}) },
+          ),
         )) as { workspaceId?: string; alreadyMember?: boolean };
         acceptedWorkspaceId.current =
           typeof result?.workspaceId === "string" ? result.workspaceId : null;

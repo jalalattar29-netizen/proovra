@@ -375,9 +375,15 @@ export async function executeSearch(
     // A positional cursor on a row that has since gone yields nothing, which read
     // as the end of the results (EVID-015). The token carries the row's position,
     // so the walk resumes from there.
+    //
+    // A2-19 — the cursor row is looked up INSIDE the caller's authorized result
+    // set (workspace, reach, filters), never by bare id: a document id of another
+    // workspace, or of a record a restricted case closes to the caller, is
+    // treated as gone, so Prisma never positions the page on a foreign row and
+    // the walk resumes from the token's own (caller-supplied) position.
     const cursorRowGone =
       cursor !== null &&
-      (await client.evidenceSearchDocument.count({ where: { id: cursor.id } })) === 0;
+      (await client.evidenceSearchDocument.count({ where: { AND: [where, { id: cursor.id }] } })) === 0;
     rows = await client.evidenceSearchDocument.findMany({
       where:
         cursor && cursorRowGone

@@ -304,6 +304,14 @@ test("the registry does not describe codes the API no longer emits", () => {
     // AUD-0065 — a direct-capture session's window closed, raised by the
     // capture service (DirectCaptureError) and answered by the capture routes.
     ["CAPTURE_WINDOW_EXPIRED", "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"],
+    // A1-06 — the server-wide terms gate, sent by requireAuth for every
+    // non-exempt authenticated write (and by requireLegalAcceptance).
+    ["LEGAL_REACCEPT_REQUIRED", "services/api/src/middleware/legal-acceptance-gate.ts"],
+    // F-04 — the completion's inputs changed between its two sealing
+    // transactions; thrown by the completion service, answered by /complete.
+    ["EVIDENCE_COMPLETION_INPUTS_CHANGED", "services/api/src/services/evidence-complete.service.ts"],
+    // F-08 — the API overload gate (503 + Retry-After), sent from middleware.
+    ["SERVER_BUSY", "services/api/src/middleware/overload-gate.ts"],
   ] as const) {
     assert.ok(
       read(authority).includes('"' + c + '"'),
@@ -330,6 +338,21 @@ test("the registry does not describe codes the API no longer emits", () => {
     "TEAM_INVITE_LIMIT_REACHED",
     "TEAM_INVITES_NOT_INCLUDED",
   ]) {
+    known.add(c);
+  }
+  /*
+   * LOWERCASE WIRE CODES. A few service errors put their code on the wire in
+   * lowercase (`{ error: { code: err.code } }`); the clients match codes
+   * case-insensitively, so the registry and the shared copy hold them in the
+   * upper-case form. Held to the file that raises the lowercase literal.
+   */
+  for (const [c, authority] of [
+    ["API_KEY_LIMIT_REACHED", "services/api/src/services/integrations/api-keys.service.ts"],
+  ] as const) {
+    assert.ok(
+      read(authority).includes('"' + c.toLowerCase() + '"'),
+      c + " is classified as emitted (lowercase) by " + authority + ", which no longer emits it.",
+    );
     known.add(c);
   }
   const stale = [...DECLARED.keys()].filter((c) => !known.has(c)).sort();

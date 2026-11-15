@@ -198,7 +198,8 @@ export async function measurePersonalPlanOccupancy(
   client: AllowancePopulationClient & Pick<prismaPkg.Prisma.TransactionClient, "$executeRaw">,
 ): Promise<number> {
   const subject = { billingShape: "SINGLE_OCCUPANT" as const, ownerUserId, teamId: null };
-  await lockEvidenceCapacitySubject(subject, client);
+  // F-03 — the plan write waits as before (never shed as "busy").
+  await lockEvidenceCapacitySubject(subject, client, { waitMs: null });
   return (await measureAllowance(subject, client)).planOccupying;
 }
 
@@ -260,6 +261,14 @@ function uncommittedCredits(
 export async function lockEvidenceCapacitySubject(
   scope: Pick<WorkspaceScope, "billingShape" | "ownerUserId" | "teamId">,
   client: Pick<EvidenceCapacitySettlementClient, "$executeRaw">,
+  /**
+   * F-03 (Free-user audit 4d9b, capacity; 2026-11-15) — how long this caller
+   * may wait for the lock. Omitted: `EVIDENCE_CAPACITY_LOCK_WAIT_MS` (default
+   * 5 s), then 429 RATE_LIMITED + Retry-After with the transaction rolled
+   * back. `null`: wait without bound (the billing plan write, which a provider
+   * event or the reconciliation sweep retries and must not be shed).
+   */
+  options: { waitMs?: number | null } = {},
 ) {
   // UC-COM-002 — keyed on the COMMERCIAL PRINCIPAL, never on scope.teamId.
   // Admission resolves a personal capture with teamId null and completion
@@ -267,9 +276,164 @@ export async function lockEvidenceCapacitySubject(
   // phases took different locks and were not serialized. The principal is the
   // same for both (SINGLE_OCCUPANT -> PERSONAL:<owner>).
   const subject = commercialPrincipalOf(scope);
-  await client.$executeRaw`
-    SELECT pg_advisory_xact_lock(hashtext(${`evidence-capacity:${subject}`}))
+  const key = `evidence-capacity:${subject}`;
+  if (options.waitMs === null) {
+    await client.$executeRaw`
+    SELECT pg_advisory_xact_lock(hashtext(${key}))
   `;
+    return;
+  }
+  // F-03 — a waiter is inside BEGIN and holds a pooled connection for its
+  // whole wait, so one hot workspace could park the entire pool. Uncontended
+  // (and re-entrant, e.g. settlement after the seal took it) the try succeeds
+  // in the same one round trip as before; contended, the wait is bounded with
+  // a transaction-local lock_timeout that is put back once the lock is held,
+  // so the rest of the transaction keeps its own lock behaviour. The lock and
+  // its order (record lock first, then capacity) are unchanged.
+  const taken = await client.$executeRaw`SELECT 1 WHERE pg_try_advisory_xact_lock(hashtext(${key}))`;
+  if (taken === 1) return;
+  const waitMs = Math.max(1, Math.round(options.waitMs ?? evidenceCapacityLockWaitMs()));
+  await client.$executeRaw`SELECT set_config('lock_timeout', ${`${waitMs}ms`}, true)`;
+  try {
+    await client.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+  } catch (err) {
+    if (isLockWaitCancelled(err)) throw evidenceCapacityBusy("lock");
+    throw err;
+  }
+  await client.$executeRaw`SET LOCAL lock_timeout TO DEFAULT`;
+}
+
+/** F-03 — default wait for a workspace's capacity lock (and its in-process admission queue). */
+export const DEFAULT_EVIDENCE_CAPACITY_LOCK_WAIT_MS = 5_000;
+/** F-03 — default in-process cap on one principal's concurrent capacity transactions (create). */
+export const DEFAULT_EVIDENCE_CAPACITY_ADMISSION_CONCURRENCY = 2;
+/** F-03 — what a busy refusal tells the client to wait. */
+export const EVIDENCE_CAPACITY_RETRY_AFTER_SECONDS = 2;
+
+function wholeNumberSetting(raw: string | undefined, fallback: number, min: number, max: number): number {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw.trim());
+  return Number.isInteger(n) && n >= min && n <= max ? n : fallback;
+}
+
+/** `EVIDENCE_CAPACITY_LOCK_WAIT_MS`: 1..120000, default 5000; anything else keeps the default. */
+export function evidenceCapacityLockWaitMs(env: NodeJS.ProcessEnv = process.env): number {
+  return wholeNumberSetting(env.EVIDENCE_CAPACITY_LOCK_WAIT_MS, DEFAULT_EVIDENCE_CAPACITY_LOCK_WAIT_MS, 1, 120_000);
+}
+
+/** `EVIDENCE_CAPACITY_ADMISSION_CONCURRENCY`: 1..100, default 2; anything else keeps the default. */
+export function evidenceCapacityAdmissionConcurrency(env: NodeJS.ProcessEnv = process.env): number {
+  return wholeNumberSetting(
+    env.EVIDENCE_CAPACITY_ADMISSION_CONCURRENCY,
+    DEFAULT_EVIDENCE_CAPACITY_ADMISSION_CONCURRENCY,
+    1,
+    100,
+  );
+}
+
+/** PostgreSQL cancelled a lock wait (lock_timeout 55P03, or statement_timeout 57014). */
+function isLockWaitCancelled(err: unknown): boolean {
+  const text = `${(err as { message?: unknown })?.message ?? ""} ${JSON.stringify((err as { meta?: unknown })?.meta ?? {})}`;
+  return /\b(55P03|57014)\b|lock timeout|statement timeout/i.test(text);
+}
+
+/**
+ * F-03 — the busy refusal: the existing 429 RATE_LIMITED shape every client
+ * already retries on (web/native copy "Too many requests", native and
+ * extension retry 429 honouring Retry-After). Nothing was written: the
+ * caller's transaction rolls back.
+ */
+export function evidenceCapacityBusy(phase: "admission" | "lock"): DomainError {
+  return new DomainError(`evidence capacity subject busy (${phase})`, {
+    httpStatus: 429,
+    publicCode: "RATE_LIMITED",
+    publicMessage: "This workspace is busy with other records right now. Nothing was saved; try again in a moment.",
+    reportability: "OPERATIONAL_WARNING",
+    severity: "warning",
+    metadata: {
+      reason: "evidence_capacity_busy",
+      phase,
+      retryAfterSeconds: EVIDENCE_CAPACITY_RETRY_AFTER_SECONDS,
+    },
+  });
+}
+
+type CapacityAdmissionQueue = { active: number; waiters: Array<() => void> };
+const capacityAdmission = new Map<string, CapacityAdmissionQueue>();
+
+/**
+ * F-03 — in-process admission per commercial principal, BEFORE a capacity
+ * transaction opens. The capacity lock serializes a principal's creates
+ * anyway, so more than a couple of them inside BEGIN only hold pooled
+ * connections while they wait; the rest wait here, in memory and in arrival
+ * order, holding no connection, for at most the lock-wait budget (then the
+ * busy refusal). `run` receives what is left of that budget for its own lock
+ * wait. Another workspace's requests never queue behind this one. Per process:
+ * across replicas the database lock remains the guarantee.
+ */
+export async function withEvidenceCapacityAdmission<T>(
+  scope: Pick<WorkspaceScope, "billingShape" | "ownerUserId" | "teamId">,
+  run: (remainingWaitMs: number) => Promise<T>,
+  options: { waitMs?: number; concurrency?: number } = {},
+): Promise<T> {
+  return withEvidenceCapacityAdmissionKey(commercialPrincipalOf(scope), run, options);
+}
+
+/**
+ * F-03 — the admission key for a caller that opens its OWN transaction around
+ * a create before the scope is resolved (the route's draft binding, the
+ * direct-capture reservation): the workspace named by the request, else the
+ * requester's Personal Space. It partitions by tenant like the principal does
+ * (a member's capture into a Personal workspace and the owner's own may sit in
+ * two queues — each still bounded), so one hot workspace cannot take the pool
+ * through these doors either.
+ */
+export function evidenceAdmissionKeyFor(input: { ownerUserId: string; teamId?: string | null }): string {
+  return input.teamId ? `WORKSPACE:${input.teamId}` : `PERSONAL:${input.ownerUserId}`;
+}
+
+export async function withEvidenceCapacityAdmissionKey<T>(
+  key: string,
+  run: (remainingWaitMs: number) => Promise<T>,
+  options: { waitMs?: number; concurrency?: number } = {},
+): Promise<T> {
+  const waitMs = options.waitMs ?? evidenceCapacityLockWaitMs();
+  const concurrency = options.concurrency ?? evidenceCapacityAdmissionConcurrency();
+  const startedAt = Date.now();
+  let queue = capacityAdmission.get(key);
+  if (!queue) {
+    queue = { active: 0, waiters: [] };
+    capacityAdmission.set(key, queue);
+  }
+  const q = queue;
+  if (q.active >= concurrency) {
+    await new Promise<void>((resolve, reject) => {
+      const admit = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        const at = q.waiters.indexOf(admit);
+        if (at >= 0) q.waiters.splice(at, 1);
+        reject(evidenceCapacityBusy("admission"));
+      }, waitMs);
+      q.waiters.push(admit);
+    });
+    // The releaser handed its slot over: `active` already counts this request.
+  } else {
+    q.active += 1;
+  }
+  try {
+    return await run(Math.max(1, waitMs - (Date.now() - startedAt)));
+  } finally {
+    const next = q.waiters.shift();
+    if (next) {
+      next();
+    } else {
+      q.active -= 1;
+      if (q.active === 0 && capacityAdmission.get(key) === q) capacityAdmission.delete(key);
+    }
+  }
 }
 
 /**

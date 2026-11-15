@@ -19,6 +19,7 @@ import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { usePlatformContext } from "../../src/product/platform-context";
+import { pollDelayMs } from "../../src/product/poll-backoff";
 import { theme } from "../../src/theme/theme";
 import {
   ProovraScreen,
@@ -170,7 +171,10 @@ export default function ReportsScreen() {
         // 404 = not a member of the supplied workspace — the personal-bootstrap gap.
         if (status === 404 && !nextCursor && (await fallback())) return;
         if (status === 403) setPermissionDenied(true);
-        else setError(toSafeUserError(err, { message: "Unable to load artifacts." }));
+        // F-P1-15 — a failed QUIET poll keeps the list on screen (its
+        // "Refreshed …" line stays the truth) and tells the poll to back off.
+        else if (!quiet) setError(toSafeUserError(err, { message: "Unable to load artifacts." }));
+        return false;
       } finally {
         if (mine === generation.current) {
           setLoading(false);
@@ -195,19 +199,31 @@ export default function ReportsScreen() {
     null,
   );
   const pollStartedAt = useRef<number | null>(null);
+  // F-P1-15 — a failed quiet reload leaves `items` unchanged, which used to end
+  // the poll until a manual refresh. Each failure now re-arms it, backing off
+  // (poll-backoff.ts); a good read returns it to the server's pace.
+  const [pollFailures, setPollFailures] = useState(0);
   useEffect(() => {
     if (liveInterval == null) {
       if (pollStartedAt.current !== null) {
         pollStartedAt.current = null;
+        setPollFailures(0);
         setSummaryNonce((n) => n + 1);
       }
       return;
     }
     pollStartedAt.current ??= Date.now();
     if (Date.now() - pollStartedAt.current > 10 * 60_000) return;
-    const t = setTimeout(() => void load(null, [], true), liveInterval);
+    const t = setTimeout(
+      () =>
+        void load(null, [], true).then((ok) => {
+          if (ok === false) setPollFailures((n) => n + 1);
+          else setPollFailures(0);
+        }),
+      pollDelayMs(liveInterval, pollFailures),
+    );
     return () => clearTimeout(t);
-  }, [liveInterval, items, load]);
+  }, [liveInterval, items, pollFailures, load]);
 
   const empty = reportsEmptyCopy(filter, search);
 

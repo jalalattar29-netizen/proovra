@@ -52,6 +52,9 @@ export * from "./notifications/index.js";
 export * from "./billing/seat-occupancy.js";
 // UC-0 (D5) — derived bytes in storage accounting, one query for both hosts.
 export * from "./billing/derived-storage.js";
+// AUDIT D-03 — the first issuance of an entitled Free record is not customer
+// storage; one measure for both hosts' usage figures.
+export * from "./billing/first-issuance-allowance.js";
 // The ONE export-package monthly meter writer. Both the API completion route
 // and the Worker package builder transition packages to READY, so both meter
 // through this one function (the Worker may not import the API).

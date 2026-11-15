@@ -405,6 +405,15 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
      * Verification Page. Coverage is a per-record fact (`FREE_ALLOWANCE`,
      * stored at finalization), never "the plan is FREE" — a FREE record outside
      * the three is not covered; see `resolveOutputIssuanceEntitlement`.
+     *
+     * AUDIT D-03 (product decision 2026-11-15) — the three records fit a
+     * combined 250 MiB of UPLOADED material (`includedStorageBytes` above):
+     * the originals count once; the standard first-issued report and package
+     * variants of a FREE_ALLOWANCE record are excluded from the customer-facing
+     * allowance (`measureFirstIssuanceAllowanceExclusion`, @proovra/shared-
+     * runtime, read by both hosts' usage measures). Later versions and paid
+     * outputs count as before; the actual stored bytes stay observable
+     * internally (`actualStorageBytes`).
      */
     reportsIncluded: true,
     verificationPackageIncluded: true,

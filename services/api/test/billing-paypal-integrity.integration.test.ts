@@ -753,34 +753,197 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
     });
   });
 
-  describe("BILLING-013: only a policy refusal of a legacy capture is ignored", () => {
-    const capture = (userId: string, id: string, teamId?: string) =>
+  // =========================================================================
+  // E-03 / BILLING-013 — legacy one-time storage captures. SIMULATED PROVIDER:
+  // the webhook signature is answered SUCCESS by the in-process PayPal fake at
+  // the existing verify seam; a "legacy order" is a fake order carrying the old
+  // JSON custom_id. This is not PayPal Sandbox proof.
+  // =========================================================================
+  describe("E-03 / BILLING-013: a legacy one-time storage capture grants only through a durable binding", () => {
+    const legacyCustomId = (userId: string, storageAddonKey = "PERSONAL_10_GB", teamId?: string) =>
+      JSON.stringify({ userId, storageAddonKey, ...(teamId ? { teamId } : {}) });
+    const deliver = (
+      eventId: string,
+      resource: {
+        id: string;
+        value?: string;
+        currency?: string;
+        customId?: string | null;
+        orderId?: string | null;
+      },
+    ) =>
       harness.app.inject({
         method: "POST",
         url: "/webhooks/paypal",
         headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id" },
         payload: JSON.stringify({
-          id,
+          id: eventId,
           event_type: "PAYMENT.CAPTURE.COMPLETED",
           resource: {
-            id: `CAP-${randomUUID()}`,
+            id: resource.id,
             status: "COMPLETED",
-            amount: { value: "2.99", currency_code: "EUR" },
-            custom_id: JSON.stringify({
-              userId,
-              storageAddonKey: "PERSONAL_10_GB",
-              ...(teamId ? { teamId } : {}),
-            }),
+            amount: { value: resource.value ?? "2.99", currency_code: resource.currency ?? "EUR" },
+            ...(resource.customId ? { custom_id: resource.customId } : {}),
+            ...(resource.orderId ? { supplementary_data: { related_ids: { order_id: resource.orderId } } } : {}),
           },
         }),
       });
-    const row = (paypalEventId: string) =>
+    const eventRow = (paypalEventId: string) =>
       prisma.paypalWebhookEvent.findUniqueOrThrow({ where: { paypalEventId } });
+    const captureId = () => `CAP-${randomUUID()}`;
+    /** The durable local binding an operator (or a pre-rule write) left for a legacy order. */
+    const seedBinding = (userId: string, externalPaymentId: string, over: Record<string, unknown> = {}) =>
+      prisma.workspaceStorageAddon.create({
+        data: {
+          ownerUserId: userId,
+          teamId: null,
+          addonKey: "PERSONAL_10_GB",
+          extraStorageBytes: 10n * GB,
+          billingCycle: "ONE_TIME",
+          status: "PENDING",
+          paymentProvider: "PAYPAL",
+          externalPaymentId,
+          amountCents: 299,
+          currency: "EUR",
+          ...over,
+        } as never,
+      });
+    /** Storage granted before this rule existed: must never be touched. */
+    const seedEarlierGrant = (userId: string) =>
+      seedBinding(userId, `CAP-OLD-${randomUUID()}`, { status: "ACTIVE", activatedAtUtc: new Date(Date.now() - 86400_000) });
+    /** The legacy order as PayPal holds it (read live by the capture handler). */
+    const registerLegacyOrder = (fake: FakePayPal, userId: string, capId: string, value = "2.99", currency = "EUR") => {
+      const id = fake.id("O");
+      const amount = { value, currency_code: currency };
+      fake.orders.set(id, {
+        id,
+        status: "COMPLETED",
+        custom_id: legacyCustomId(userId),
+        amount,
+        captures: [{ id: capId, status: "COMPLETED", amount, update_time: fake.now() }],
+        update_time: fake.now(),
+      });
+      return id;
+    };
+    const liveOneTime = (userId: string) =>
+      prisma.workspaceStorageAddon.count({ where: { ownerUserId: userId, billingCycle: "ONE_TIME", status: { in: ["ACTIVE", "PAST_DUE"] } } });
+    const reviews = (providerResourceId: string) =>
+      prisma.billingReviewItem.findMany({ where: { providerResourceId }, select: { reason: true, refundReviewRequired: true, userId: true, detail: true } });
 
-    it("a database failure leaves the event unprocessed so it is redelivered and then lands; a refusal is settled", async () => {
+    it("a capture matching its binding grants once; redeliveries change nothing; earlier storage is untouched", async () => {
       const t = await payer("PRO");
       const fake = new FakePayPal();
       await withPayPal(fake, async () => {
+        const earlier = await seedEarlierGrant(t.owner.userId);
+        const capId = captureId();
+        const orderId = registerLegacyOrder(fake, t.owner.userId, capId);
+        const binding = await seedBinding(t.owner.userId, orderId);
+
+        const eventId = `WH-${randomUUID()}`;
+        const res = await deliver(eventId, { id: capId, customId: legacyCustomId(t.owner.userId), orderId });
+        expect(res.statusCode, res.body).toBe(200);
+        expect((await eventRow(eventId)).processingStatus).toBe("PROCESSED");
+        const granted = await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: binding.id } });
+        expect(granted).toMatchObject({ status: "ACTIVE", billingCycle: "ONE_TIME", externalPaymentId: capId, amountCents: 299, currency: "EUR" });
+        expect(await prisma.payment.count({ where: { providerPaymentId: capId, product: "STORAGE_ADDON_ONE_TIME", userId: t.owner.userId } })).toBe(1);
+        expect(await reviews(capId)).toEqual([]);
+        expect(await liveOneTime(t.owner.userId)).toBe(2);
+
+        // The same event again (dedupe), then a NEW event for the same capture.
+        expect((await deliver(eventId, { id: capId, customId: legacyCustomId(t.owner.userId), orderId })).statusCode).toBe(200);
+        const again = await deliver(`WH-${randomUUID()}`, { id: capId, customId: legacyCustomId(t.owner.userId), orderId });
+        expect(again.statusCode, again.body).toBe(200);
+        const after = await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: binding.id } });
+        expect(after.updatedAt.getTime()).toBe(granted.updatedAt.getTime());
+        expect(await prisma.payment.count({ where: { providerPaymentId: capId } })).toBe(1);
+        expect(await liveOneTime(t.owner.userId)).toBe(2);
+        expect(await reviews(capId)).toEqual([]);
+
+        const untouched = await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: earlier.id } });
+        expect(untouched.status).toBe("ACTIVE");
+        expect(untouched.updatedAt.getTime()).toBe(earlier.updatedAt.getTime());
+      });
+    });
+
+    it("unmatched, mismatched or inconsistent captures go to review and grant nothing", async () => {
+      const t = await payer("PRO");
+      const other = await payer("PRO");
+      const fake = new FakePayPal();
+      await withPayPal(fake, async () => {
+        const earlier = await seedEarlierGrant(t.owner.userId);
+        const settle = async (resource: Parameters<typeof deliver>[1]) => {
+          const eventId = `WH-${randomUUID()}`;
+          const res = await deliver(eventId, resource);
+          expect(res.statusCode, res.body).toBe(200);
+          expect((await eventRow(eventId)).processingStatus).toBe("PROCESSED");
+          return eventId;
+        };
+
+        // (a) No binding at all: only the custom_id names a payer.
+        const noBinding = captureId();
+        await settle({ id: noBinding, customId: legacyCustomId(t.owner.userId) });
+        expect(await reviews(noBinding)).toEqual([
+          expect.objectContaining({ reason: "LEGACY_STORAGE_CAPTURE_UNMATCHED", refundReviewRequired: true, userId: t.owner.userId, detail: expect.objectContaining({ cause: "NO_BINDING" }) }),
+        ]);
+        expect(await prisma.payment.count({ where: { providerPaymentId: noBinding } })).toBe(0);
+        expect(await prisma.workspaceStorageAddon.count({ where: { externalPaymentId: noBinding } })).toBe(0);
+        // The same capture delivered again is the same review item.
+        await settle({ id: noBinding, customId: legacyCustomId(t.owner.userId) });
+        expect((await reviews(noBinding)).length).toBe(1);
+
+        // (b) Amount and (c) currency not the binding's: the money is recorded, nothing granted.
+        for (const [value, currency] of [["0.01", "EUR"], ["2.99", "USD"]] as const) {
+          const capId = captureId();
+          const binding = await seedBinding(t.owner.userId, capId);
+          await settle({ id: capId, value, currency, customId: legacyCustomId(t.owner.userId) });
+          expect(await reviews(capId)).toEqual([
+            expect.objectContaining({ reason: "AMOUNT_MISMATCH", refundReviewRequired: true, userId: t.owner.userId }),
+          ]);
+          expect((await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: binding.id } })).status).toBe("PENDING");
+          expect(await prisma.payment.count({ where: { providerPaymentId: capId, product: "STORAGE_ADDON_ONE_TIME" } })).toBe(1);
+        }
+
+        // (d) Another size and (e) another payer than the binding names.
+        for (const customId of [legacyCustomId(t.owner.userId, "PERSONAL_200_GB"), legacyCustomId(other.owner.userId)]) {
+          const capId = captureId();
+          const binding = await seedBinding(t.owner.userId, capId);
+          await settle({ id: capId, customId });
+          expect(await reviews(capId)).toEqual([
+            expect.objectContaining({ reason: "LEGACY_STORAGE_CAPTURE_UNMATCHED", userId: t.owner.userId, detail: expect.objectContaining({ cause: "IDENTITY_MISMATCH" }) }),
+          ]);
+          expect((await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: binding.id } })).status).toBe("PENDING");
+          expect(await prisma.payment.count({ where: { providerPaymentId: capId } })).toBe(0);
+        }
+
+        // (f) Two bindings (one on the order, one on the capture): ambiguous.
+        const ambiguous = captureId();
+        const orderId = registerLegacyOrder(fake, t.owner.userId, ambiguous);
+        await seedBinding(t.owner.userId, orderId);
+        await seedBinding(t.owner.userId, ambiguous);
+        await settle({ id: ambiguous, customId: legacyCustomId(t.owner.userId), orderId });
+        expect(await reviews(ambiguous)).toEqual([
+          expect.objectContaining({ reason: "LEGACY_STORAGE_CAPTURE_UNMATCHED", detail: expect.objectContaining({ cause: "AMBIGUOUS_BINDING" }) }),
+        ]);
+
+        // (g) A custom_id naming no account, and no binding: nothing anywhere.
+        const nobody = captureId();
+        await settle({ id: nobody, customId: legacyCustomId(randomUUID()) });
+        expect(await reviews(nobody)).toEqual([]);
+
+        // Nothing above granted capacity, and the earlier grant is untouched.
+        expect(await liveOneTime(t.owner.userId)).toBe(1);
+        expect(await liveOneTime(other.owner.userId)).toBe(0);
+        const untouched = await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: earlier.id } });
+        expect(untouched.updatedAt.getTime()).toBe(earlier.updatedAt.getTime());
+      });
+    });
+
+    it("BILLING-013: a database failure leaves the event unprocessed and it lands on redelivery; a policy refusal is settled to review", async () => {
+      const t = await payer("PRO");
+      const fake = new FakePayPal();
+      await withPayPal(fake, async () => {
+        const capId = captureId();
+        const binding = await seedBinding(t.owner.userId, capId);
         const eventId = `WH-${randomUUID()}`;
         // Passes through afterwards: Prisma's delegate is a proxy, and restoring a
         // spy on it deletes the method.
@@ -788,22 +951,27 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
         vi.spyOn(prisma.payment, "findUnique")
           .mockImplementationOnce((() => Promise.reject(new Error("connection reset"))) as never)
           .mockImplementation(original as never);
-        const failed = await capture(t.owner.userId, eventId);
+        const failed = await deliver(eventId, { id: capId, customId: legacyCustomId(t.owner.userId) });
         expect(failed.statusCode).toBeGreaterThanOrEqual(500);
-        expect((await row(eventId)).processingStatus).not.toBe("PROCESSED");
-        expect(await prisma.payment.count({ where: { userId: t.owner.userId, product: "STORAGE_ADDON_ONE_TIME" } })).toBe(0);
+        expect((await eventRow(eventId)).processingStatus).not.toBe("PROCESSED");
+        expect((await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: binding.id } })).status).toBe("PENDING");
 
-        const retried = await capture(t.owner.userId, eventId);
+        const retried = await deliver(eventId, { id: capId, customId: legacyCustomId(t.owner.userId) });
         expect(retried.statusCode, retried.body).toBe(200);
-        expect((await row(eventId)).processingStatus).toBe("PROCESSED");
-        expect(await prisma.payment.count({ where: { userId: t.owner.userId, product: "STORAGE_ADDON_ONE_TIME" } })).toBe(1);
+        expect((await eventRow(eventId)).processingStatus).toBe("PROCESSED");
+        expect((await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: binding.id } })).status).toBe("ACTIVE");
+        expect(await prisma.payment.count({ where: { providerPaymentId: capId, product: "STORAGE_ADDON_ONE_TIME" } })).toBe(1);
 
-        // Control: a target that does not exist is a refusal, and retrying cannot help.
+        // Control: a Team size bound to a Personal account is refused by policy,
+        // and retrying cannot help — settled, recorded, sent to review.
+        const refusedCap = captureId();
+        const refusedBinding = await seedBinding(t.owner.userId, refusedCap, { addonKey: "TEAM_100_GB", extraStorageBytes: 100n * GB, amountCents: 999 });
         const refusedId = `WH-${randomUUID()}`;
-        const refused = await capture(t.owner.userId, refusedId, randomUUID());
-        expect(refused.statusCode).toBe(200);
-        expect((await row(refusedId)).processingStatus).toBe("PROCESSED");
-        expect(await prisma.payment.count({ where: { userId: t.owner.userId, product: "STORAGE_ADDON_ONE_TIME" } })).toBe(1);
+        const refused = await deliver(refusedId, { id: refusedCap, value: "9.99" });
+        expect(refused.statusCode, refused.body).toBe(200);
+        expect((await eventRow(refusedId)).processingStatus).toBe("PROCESSED");
+        expect((await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: refusedBinding.id } })).status).toBe("PENDING");
+        expect(await reviews(refusedCap)).toEqual([expect.objectContaining({ reason: "STORAGE_ACTIVATION_REFUSED", refundReviewRequired: true })]);
       });
     });
   });

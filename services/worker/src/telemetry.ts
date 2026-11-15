@@ -28,6 +28,7 @@ import { buildIsolationFacts } from "@proovra/shared-runtime";
 import { getWorkerEnvFileLoad } from "./env-loader.js";
 import { sweepHeartbeatHistory } from "./heartbeat-retention.js";
 import { logger } from "./logger.js";
+import { readOldestPendingJobAgeMs } from "./observability.js";
 import { publishBitcoinVerifierReadiness } from "./ots-bitcoin-telemetry.js";
 import { probeLocalOcrCapabilityReport } from "./tesseract-capability.js";
 import {
@@ -176,6 +177,10 @@ export function startTelemetrySampler(opts?: {
           // The page is bounded, so the count is a floor on a huge backlog.
           const delayedPage = (counts.delayed ?? 0) > 0 ? await q.queue.getDelayed(0, 199) : [];
           const retryCount = delayedPage.filter((j) => Number(j?.attemptsMade ?? 0) > 0).length;
+          // AUDIT F-05 (round 3) — queue AGE, durably: the column existed and
+          // was never written. The oldest unfinished job's age (ms), clamped
+          // to the Int column.
+          const oldestAgeMs = await readOldestPendingJobAgeMs(q.queue);
           await prisma.queueTelemetrySnapshot.create({
             data: {
               teamId: null,
@@ -188,6 +193,7 @@ export function startTelemetrySampler(opts?: {
               completedCount: counts.completed ?? null,
               retryCount,
               stalledCount: 0,
+              oldestJobAgeMs: oldestAgeMs === null ? null : Math.min(oldestAgeMs, 2_147_483_647),
               source: "BULLMQ",
             },
           });

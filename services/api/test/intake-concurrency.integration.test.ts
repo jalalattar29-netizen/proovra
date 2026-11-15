@@ -16,12 +16,15 @@ import { Readable } from "node:stream";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { intakeConsentDisclosureText } from "@proovra/shared";
+import * as recorder from "@proovra/shared-runtime";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
 const objects = vi.hoisted(() => new Map<string, Buffer>());
 // PRO-050 — a one-shot pause in the next HEAD, to open a window during a submit.
 const headPause = vi.hoisted(() => ({ ms: 0 }));
+// A2-21 — every PUT URL the API signs is counted, so a refusal can prove none was.
+const presigns = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("../src/storage.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -29,7 +32,10 @@ vi.mock("../src/storage.js", async (importOriginal) => {
   return {
     ...actual,
     getPublicBaseUrl: () => null,
-    presignPutObject: async (p: { bucket: string; key: string }) => `http://127.0.0.1:59000/${p.bucket}/${p.key}?presigned=${randomUUID()}`,
+    presignPutObject: async (p: { bucket: string; key: string }) => {
+      presigns.count += 1;
+      return `http://127.0.0.1:59000/${p.bucket}/${p.key}?presigned=${randomUUID()}`;
+    },
     headObject: async (p: { bucket: string; key: string }) => {
       if (headPause.ms > 0) {
         const ms = headPause.ms;
@@ -250,5 +256,78 @@ describe("ET-INT-09 — intake races (live PostgreSQL 16)", () => {
     const done = await submit(t, s3);
     expect(done.statusCode, done.body).toBe(200);
     expect((await linkRow()).usedCount).toBe(1);
+  }, 120_000);
+
+  // ---------------------------------------------------------------------------
+  // A2-21 — a link minted while the workspace had intake stages nothing after it
+  // lost it. The discriminating subject is a FREE personal workspace on the
+  // credit path: intake needs at least one evidence credit
+  // (resolveWorkspaceIntakeEntitlement), while plain record creation is still
+  // within the FREE allowance — so before the fix nothing but the submit asked
+  // the entitlement, and the part was staged and signed.
+  // ---------------------------------------------------------------------------
+  it("A2-21: once the workspace no longer includes intake a new part creates no record, no part and no PUT URL; a part staged before is refused at submit and left to the reservation reaper", async () => {
+    freshIp();
+    const P = h.fixtures.personal;
+    const auth = { authorization: `Bearer ${P.token}` };
+    const setCredits = (credits: number) =>
+      prisma.entitlement.updateMany({ where: { userId: P.userId } as never, data: { credits } as never });
+    const intakeRecords = () =>
+      prisma.evidence.count({ where: { ownerUserId: P.userId, acquisitionMode: "SECURE_INTAKE_LINK", deletedAt: null } as never });
+
+    // The credit grant needs the entitlement row, which the first capture creates.
+    if (!(await prisma.entitlement.findFirst({ where: { userId: P.userId } as never }))) {
+      const first = await h.app.inject({ method: "POST", url: "/v1/evidence", headers: auth, payload: { type: "PHOTO", mimeType: "image/png" } });
+      expect(first.statusCode, first.body).toBe(201);
+    }
+    await setCredits(1);
+    const minted = await h.app.inject({
+      method: "POST",
+      url: "/v1/workflow/intake-links",
+      headers: auth,
+      payload: { teamId: P.teamId, workflowTemplateSlug: "general-evidence-record", intakeMode: "EXTERNAL_REUSABLE", maxUses: 5, recipientLabel: "a2-21", expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() },
+    });
+    expect(minted.statusCode, minted.body).toBe(201);
+    const linkId = (minted.json() as { link: { id: string } }).link.id;
+    const t = encodeURIComponent((minted.json() as { rawToken: string }).rawToken);
+    const sid = await openSession(t);
+
+    // (1) The wallet is emptied after the mint: the next part is refused before anything is staged.
+    const recordsBefore = await intakeRecords();
+    const presignsBefore = presigns.count;
+    await setCredits(0);
+    const refused = await postPart(t, sid, 0);
+    expect(refused.statusCode, refused.body).toBe(409);
+    expect((refused.json() as { error: { code: string } }).error.code).toBe("INTAKE_NOT_ACCEPTING_EVIDENCE");
+    expect(refused.body).not.toMatch(/\b(plan|credits?|upgrade|billing|FREE)\b/i);
+    expect(presigns.count).toBe(presignsBefore);
+    expect(await intakeRecords()).toBe(recordsBefore);
+    expect((await prisma.workflowIntakeSession.findUniqueOrThrow({ where: { id: sid }, select: { evidenceId: true } })).evidenceId).toBeNull();
+
+    // Positive control: the entitlement back, the same session stages and signs a URL.
+    await setCredits(1);
+    const admitted = await postPart(t, sid, 0);
+    expect(admitted.statusCode, admitted.body).toBe(201);
+    expect(presigns.count).toBe(presignsBefore + 1);
+
+    // (2) The race: staged while entitled, entitlement gone before submit -> refused at submit (AUD-36).
+    await upload((admitted.json() as { part: { id: string } }).part.id);
+    await setCredits(0);
+    const sub = await submit(t, sid);
+    expect(sub.statusCode, sub.body).toBe(409);
+    expect((sub.json() as { error: { code: string } }).error.code).toBe("INTAKE_NOT_ACCEPTING_EVIDENCE");
+    expect((await prisma.workflowIntakeLink.findUniqueOrThrow({ where: { id: linkId }, select: { usedCount: true } })).usedCount).toBe(0);
+    const evidenceId = (await prisma.workflowIntakeSession.findUniqueOrThrow({ where: { id: sid }, select: { evidenceId: true } })).evidenceId!;
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true, signedAtUtc: true } });
+    expect(["CREATED", "UPLOADING"]).toContain(ev.status);
+    expect(ev.signedAtUtc).toBeNull();
+
+    // The stranded record is exactly what the existing reservation reaper releases
+    // once its session is no longer live and it has been quiet past the window.
+    const quiet = new Date(Date.now() - 25 * 3600 * 1000);
+    await prisma.workflowIntakeSession.update({ where: { id: sid }, data: { expiresAtUtc: new Date(Date.now() - 1000) } as never });
+    await prisma.evidence.update({ where: { id: evidenceId }, data: { createdAt: quiet, updatedAt: quiet } as never });
+    await prisma.uploadSession.updateMany({ where: { evidenceId }, data: { lastActivityAtUtc: quiet } });
+    expect(await prisma.evidence.count({ where: { AND: [{ id: evidenceId }, recorder.expiredEvidenceReservationWhere(new Date())] } })).toBe(1);
   }, 120_000);
 });

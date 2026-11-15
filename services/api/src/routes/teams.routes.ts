@@ -2924,11 +2924,19 @@ export async function teamsRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post(
-    "/v1/teams/invites/:token/accept",
-    { preHandler: requireAuthAndLegal },
-    async (req: FastifyRequest, reply) => {
-      const token = z.string().min(8).parse((req.params as { token: string }).token);
+  /**
+   * B-15 — accept, with the token in the BODY: POST /v1/teams/invites/accept
+   * { token }. The lookup above already keeps the token out of the URL for the
+   * reason it gives; the accept carried the same credential in its path. The
+   * PATH form is kept below for app builds already in people's hands — both
+   * run this one handler.
+   */
+  const acceptWorkspaceInviteHandler = async (
+    req: FastifyRequest,
+    reply: FastifyReply,
+    token: string,
+  ) => {
+    {
       const userId = getAuthUserId(req);
 
       /**
@@ -3004,6 +3012,38 @@ export async function teamsRoutes(app: FastifyInstance) {
         throw err;
       }
     }
+  };
+
+  app.post<{ Body: { token?: unknown } }>(
+    "/v1/teams/invites/accept",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      void reply.header("Cache-Control", "no-store");
+      const parsed = z
+        .object({ token: z.string().min(8).max(512) })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        // Answered like an unknown token (the lookup's rule).
+        return reply.code(404).send({
+          error: { code: "INVITE_NOT_FOUND" },
+          code: "INVITE_NOT_FOUND",
+          message: "This invitation link is not available.",
+        });
+      }
+      return acceptWorkspaceInviteHandler(req, reply, parsed.data.token);
+    },
+  );
+
+  /** LEGACY COMPATIBILITY (B-15) — the path form, for app builds that still send it. */
+  app.post(
+    "/v1/teams/invites/:token/accept",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply) => {
+      void reply.header("Referrer-Policy", "no-referrer");
+      void reply.header("Cache-Control", "no-store");
+      const token = z.string().min(8).parse((req.params as { token: string }).token);
+      return acceptWorkspaceInviteHandler(req, reply, token);
+    },
   );
 
   // ---------------------------------------------------------------------------

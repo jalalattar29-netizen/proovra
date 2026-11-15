@@ -228,6 +228,7 @@ import { EvidenceCopilot } from "../../../src/ui/evidence-copilot";
 import { projectReviewWorkflowRef, type ReviewWorkflowRef } from "../../../src/product/review-actions";
 import { ReviewerWorkflowPanel } from "../../../src/ui/reviewer-workflow-panel";
 import { usePlatformContext } from "../../../src/product/platform-context";
+import { pollDelayMs } from "../../../src/product/poll-backoff";
 import {
   buildLibraryQuery,
   parseEvidencePickerRows,
@@ -573,10 +574,14 @@ export default function EvidenceDetailScreen() {
    */
   const pollInterval = outputs.pollIntervalMs;
   const [pollStartedAt, setPollStartedAt] = useState<number | null>(null);
+  // F-P1-15 — consecutive failed status reads: each one doubles the wait
+  // (capped, poll-backoff.ts); the first good read returns to the server's pace.
+  const [pollFailures, setPollFailures] = useState(0);
   useEffect(() => {
     if (pollInterval == null) {
       if (pollStartedAt !== null) {
         setPollStartedAt(null);
+        setPollFailures(0);
         void load();
       }
       return;
@@ -588,16 +593,17 @@ export default function EvidenceDetailScreen() {
       void (async () => {
         try {
           const st = await apiFetch(`/v1/evidence/${id}/artifacts/status`);
+          setPollFailures(0);
           setOutputs(projectArtifactOutputs(st));
           setMatchedPairs(projectMatchedHistory(st));
         } catch {
-          /* a failed status read never invents a state; the next tick retries */
-          setOutputs((prev) => ({ ...prev }));
+          /* a failed status read never invents a state; the next tick retries, later */
+          setPollFailures((n) => n + 1);
         }
       })();
-    }, pollInterval);
+    }, pollDelayMs(pollInterval, pollFailures));
     return () => clearTimeout(t);
-  }, [pollInterval, outputs, pollStartedAt, id, load]);
+  }, [pollInterval, outputs, pollStartedAt, pollFailures, id, load]);
 
   // Comments load when the tab is opened rather than with the record: a
   // reviewer who never opens the discussion should not pay for it.

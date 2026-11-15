@@ -167,10 +167,12 @@ describe("Phase 9 §12 — commercial-reader classification registry", () => {
     // settlement service, so the Stripe webhook, the PayPal webhook and the
     // authenticated PayPal return route apply one guard. The webhook still
     // consumes it; the guard still consumes the shared rule directly.
+    // AUDIT E-03 (2026-11-15) — the webhook's legacy one-time capture branch
+    // now consumes it through `settleLegacyStorageCapture` in the same service.
     const routes = readFileSync(join(SRC, "routes", "webhooks.routes.ts"), "utf8");
-    expect(routes).toContain("assertWebhookStorageAddonAllowed");
-    expect(routes).toMatch(/assertWebhookStorageAddonAllowed,[\s\S]{0,200}from "\.\.\/services\/billing\/paypal-settlement\.service\.js"/);
+    expect(routes).toMatch(/settleLegacyStorageCapture,[\s\S]{0,200}from "\.\.\/services\/billing\/paypal-settlement\.service\.js"/);
     const guard = readFileSync(join(SRC, "services", "billing", "paypal-settlement.service.ts"), "utf8");
+    expect(guard).toMatch(/export async function settleLegacyStorageCapture[\s\S]{0,6000}await assertWebhookStorageAddonAllowed\(/);
     expect(guard).toMatch(/isWorkspaceSubscriptionActive as isPaidTeamSubscriptionActive[\s\S]{0,40}from "@proovra\/shared-billing"/);
     expect(guard).toContain("isPaidTeamSubscriptionActive({");
     // The migrated capability decision no longer compares raw plan literals.

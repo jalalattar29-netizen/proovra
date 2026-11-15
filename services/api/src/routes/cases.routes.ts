@@ -40,6 +40,7 @@ import {
 // case-permission matrix.
 import {
   type CaseAccessRole,
+  caseOwnerAccessRole,
   resolveCaseDestructiveGate,
   authorizeCaseEvidenceLink,
   evaluateCaseMutationPermission,
@@ -171,7 +172,8 @@ async function resolveCaseAccessManager(
   if (!visibility || !caseRowVisibleTo(visibility, userId)) return { kind: "concealed" };
   const decision = evaluateCaseMutationPermission({
     mutation: "MANAGE_ACCESS",
-    accessRole: isCaseOwner ? "OWNER" : (member.role as CaseAccessRole),
+    // A2-14 — owning the case never outranks a CURRENT Viewer role.
+    accessRole: isCaseOwner ? caseOwnerAccessRole(member.role) : (member.role as CaseAccessRole),
     assignmentRoles: [],
   });
   return decision.allowed
@@ -232,13 +234,15 @@ async function assertCaseAccessManagerTx(
   throw new CaseAccessManagerRefusal(decision);
 }
 
-/** A standing grant may only name an ACTIVE member of the case's workspace. */
+/**
+ * A standing grant may only name a CURRENT member of the case's workspace.
+ * A2-05 follow-up (round 3) — decided by the canonical membership engine, the
+ * one the assignee-eligibility rule asks about its target: ACTIVE status AND
+ * unexpired access AND a live Organization. The status column alone admitted a
+ * member whose access had expired (nothing flips the column when it does).
+ */
 async function isActiveWorkspaceMember(teamId: string, userId: string): Promise<boolean> {
-  const target = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { status: true },
-  });
-  return target?.status === "ACTIVE";
+  return (await evaluateMemberAccess({ teamId, userId, permission: "evidence.read" })).allowed;
 }
 
 /**
@@ -2140,7 +2144,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const accepted = { accepted: true } as const;
 
-      const targets = await prisma.teamMember.findMany({
+      const candidates = await prisma.teamMember.findMany({
         where: {
           teamId: caseItem.teamId,
           status: "ACTIVE",
@@ -2149,6 +2153,12 @@ export async function casesRoutes(app: FastifyInstance) {
         select: { userId: true },
         take: 2,
       });
+      // Round 3 (A2-05 follow-up) — the same canonical membership decision as
+      // POST /access: an expired member is no member to share with.
+      const targets: typeof candidates = [];
+      for (const c of candidates) {
+        if (await isActiveWorkspaceMember(caseItem.teamId, c.userId)) targets.push(c);
+      }
 
       if (targets.length !== 1) {
         await auditCaseAction(req, {

@@ -147,3 +147,16 @@ test("a declined request is read by reason, then OUTCOME, before the 409 fallbac
   // No reason and no outcome: the previous fallback is unchanged.
   assert.equal(k({ ...base, reason: null }), "VERSION_CONFLICT");
 });
+
+// AUDIT D-03 — recovering a proven-missing file of an entitled Free record's
+// first issuance adds nothing to the customer-facing storage figure, so the
+// allowance never withholds it; any other missing-file recovery still does.
+test("D-03: a Free first-issuance file recovery is offered on a full allowance; any other stays STORAGE_LIMIT", () => {
+  const missing = { latestReportVersion: 1, packageAtLatestReport: true, latestPackageVersion: 1, storedOutputMissing: "REPORT", newVersionFitsStorage: false };
+  const other = resolveEvidenceOutputActions(facts(missing));
+  assert.deepEqual([other.report.action, other.report.reason], ["NONE", "STORAGE_LIMIT"]);
+  const free = resolveEvidenceOutputActions(facts({ ...missing, freeFirstIssuanceExcluded: true }));
+  assert.deepEqual([free.report.action, free.report.operation], ["RECOVER", "NEW_VERSION"]);
+  const pkg = resolveEvidenceOutputActions(facts({ ...missing, storedOutputMissing: "PACKAGE", freeFirstIssuanceExcluded: true }));
+  assert.deepEqual([pkg.verificationPackage.action, pkg.verificationPackage.operation], ["RECOVER", "NEW_VERSION"]);
+});

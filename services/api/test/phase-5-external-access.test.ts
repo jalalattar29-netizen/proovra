@@ -141,9 +141,19 @@ describe("Phase 5 §8.4/§8.5 — source contracts", () => {
     // call to `acceptWorkspaceInvitation`, THE workspace invitation lifecycle,
     // so the contract is read where the code actually lives.
     const routes = read("routes/teams.routes.ts");
+    // B-15 (round 3) — the body form (canonical) and the legacy path form both
+    // run ONE handler, which makes that one call.
     expect(routeSource(routes, "POST", "/v1/teams/invites/:token/accept")).toMatch(
-      /acceptWorkspaceInvitation\(/,
+      /acceptWorkspaceInviteHandler\(/,
     );
+    expect(routeSource(routes, "POST", "/v1/teams/invites/accept")).toMatch(
+      /acceptWorkspaceInviteHandler\(/,
+    );
+    const handler = routes.slice(
+      routes.indexOf("const acceptWorkspaceInviteHandler"),
+      routes.indexOf('"/v1/teams/invites/accept"'),
+    );
+    expect(handler).toMatch(/acceptWorkspaceInvitation\(/);
 
     const service = read("services/identity/workspace-invitation.service.ts");
     // The claim is guarded on the un-consumed invite …

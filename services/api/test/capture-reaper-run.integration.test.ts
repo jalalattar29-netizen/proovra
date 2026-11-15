@@ -191,6 +191,60 @@ describe("capture reaper run — recorded, paged, idempotent, observable (live P
     expect(deleted).toContain(`parts/${ev.id}/0`);
   });
 
+  // C-13 — a session whose record was SEALED but never bound was skipped with
+  // its expiry left in the past, so it was selected again at the head of every
+  // page (oldest expiry first). Enough of them filled each page and a
+  // genuinely expired session behind them was never reached.
+  it("C-13: sealed-but-unbound sessions no longer crowd the page; the expired session behind them is reached", async () => {
+    const A = h.fixtures.teamA;
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
+    const startedAtUtc = new Date(Date.now() - 2 * HOUR);
+    const sealedSessions: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const ev = await prisma.evidence.create({
+        data: {
+          title: `reaper-sealed-unbound-${i}`,
+          type: "PHOTO",
+          status: "SIGNED",
+          teamId: A.teamId,
+          organizationId: team.organizationId,
+          ownerUserId: A.ownerUserId,
+        } as never,
+        select: { id: true },
+      });
+      const s = await prisma.captureSession.create({
+        data: {
+          ownerUserId: A.ownerUserId,
+          teamId: A.teamId,
+          status: "ACTIVE",
+          acquisitionMode: "PROOVRA_MOBILE_APP",
+          startedAtUtc,
+          finalizedEvidenceId: ev.id,
+          // The oldest expiries of all: first in line on every pass.
+          expiresAtUtc: new Date(Date.now() - 400 * 24 * HOUR - i * 60_000),
+        } as never,
+        select: { id: true },
+      });
+      sealedSessions.push(s.id);
+    }
+    const behind = await prisma.captureSession.create({
+      data: {
+        ownerUserId: A.ownerUserId,
+        teamId: A.teamId,
+        status: "ACTIVE",
+        acquisitionMode: "PROOVRA_MOBILE_APP",
+        startedAtUtc,
+        expiresAtUtc: new Date(Date.now() - 399 * 24 * HOUR),
+      } as never,
+      select: { id: true },
+    });
+
+    for (let pass = 0; pass < 3; pass++) await reaper.releaseExpiredReservations({ trigger: "test", batchSize: 2 });
+    const status = async (id: string) => (await prisma.captureSession.findUniqueOrThrow({ where: { id }, select: { status: true } })).status;
+    expect(await status(behind.id)).toBe("EXPIRED");
+    for (const id of sealedSessions) expect(await status(id)).toBe("ACTIVE");
+  });
+
   it("rows a page could not process are skipped by the next page (excludeIds), so paging moves on", async () => {
     const ids = await seedExpiredDrafts(6, "reaper-exclude");
     const res = await reaper.reapExpiredCaptureDrafts({ trigger: "test", batchSize: 500, excludeIds: ids.slice(0, 2) });

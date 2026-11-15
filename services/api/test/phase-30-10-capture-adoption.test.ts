@@ -384,11 +384,15 @@ describe("Phase 30.10 — existing capture orchestrator integrity (UPDATED by Ph
   });
 
   it("legacy XHR PUT path still exists (per-part presign → XHR)", () => {
-    expect(orchestratorSrc).toMatch(
+    // 2026-11-15 (F-P1-08) — the orchestrator calls uploadLegacyPart, whose
+    // module holds the per-part presign → XHR transport.
+    const legacySrc = readSource("../../../apps/web/app/(app)/capture/_hooks/legacy-part-upload.ts");
+    expect(orchestratorSrc).toMatch(/uploadLegacyPart\(/);
+    expect(legacySrc).toMatch(
       /\/v1\/evidence\/\$\{evidenceId\}\/parts/,
     );
-    expect(orchestratorSrc).toMatch(/new XMLHttpRequest\(\)/);
-    expect(orchestratorSrc).toMatch(/part\.upload\.putUrl/);
+    expect(legacySrc).toMatch(/new XMLHttpRequest\(\)/);
+    expect(legacySrc).toMatch(/part\.upload\.putUrl/);
   });
 
   it("legacy finalize still calls /v1/evidence/:id/complete", () => {

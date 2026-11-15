@@ -49,6 +49,7 @@ import {
 } from "../../../components/identity-security/StepUpModal";
 import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
+import { ARTIFACT_WINDOW_BLOCKED_MESSAGE, openArtifactUrlNow } from "../../../lib/evidence/artifact-window";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { identifierLabel } from "@proovra/shared";
 import { permissionDenialCopy } from "../../../lib/labels/governanceReviewLabels";
@@ -448,8 +449,10 @@ function Shell() {
       }),
     )) as { signedUrl?: string; expiresAtUtc?: string } | null;
     if (!res?.signedUrl) return null;
-    if (typeof window !== "undefined") {
-      window.open(res.signedUrl, "_blank", "noopener,noreferrer");
+    // F-P1-04 — opened after the step-up (a blank tab opened at the click
+    // would sit over the step-up dialog), so a blocked tab is said instead.
+    if (typeof window !== "undefined" && !openArtifactUrlNow(res.signedUrl)) {
+      setActionError(ARTIFACT_WINDOW_BLOCKED_MESSAGE);
     }
     return res.expiresAtUtc ?? null;
     },

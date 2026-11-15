@@ -38,6 +38,8 @@ import {
   apiFetch,
   type ApiError as ApiErrorImpl,
 } from "../api";
+import { classifyStoragePutStatus, parseRetryAfterMs, storagePutRetryDelayMs } from "@proovra/shared";
+
 import { classifyRetry, planChunks, type ChunkPlan } from "./retry";
 import {
   DEFAULT_CONCURRENCY,
@@ -144,6 +146,14 @@ export class MultipartUploader {
   /** Resolves when the run loop has fully stopped (all in-flight
    *  parts settled). */
   private idleResolvers: Array<() => void> = [];
+  /**
+   * F-P1-02 (Free-user audit of 4d9b78963) — retries scheduled but not yet
+   * due. A worker that finds no PENDING part waits for them instead of
+   * exiting: the pool used to drain while a retry timer was still pending,
+   * report FAILED_RETRYABLE and fail the whole item near the end.
+   */
+  private pendingRetryTimers = 0;
+  private retryWaiters: Array<() => void> = [];
 
   constructor(config: MultipartUploaderConfig) {
     const chunkSize = config.chunkSizeBytes ?? 8 * 1024 * 1024;
@@ -215,6 +225,7 @@ export class MultipartUploader {
     if (this.state === "UPLOADING") {
       this.paused = true;
       this.transitionTo("PAUSED");
+      this.wakeRetryWaiters();
     }
   }
 
@@ -223,9 +234,11 @@ export class MultipartUploader {
       // Reset retry counts on transient failures so the operator
       // can manually retry without leaking through MAX_PART_RETRIES
       // forever.
-      if (this.state === "FAILED_RETRYABLE") {
+      // F-P1-02 — from PAUSED too: a retry that fell due while paused left
+      // its part FAILED; resuming re-queues every non-terminal failure.
+      {
         for (const p of this.parts) {
-          if (p.state === "FAILED") {
+          if (p.state === "FAILED" && !(p.failureReason && isTerminalFailureReason(p.failureReason))) {
             p.state = "PENDING";
             p.failureReason = null;
             // Note: retryCount carries over so we still respect
@@ -259,6 +272,7 @@ export class MultipartUploader {
     this.cancelled = true;
     this.paused = true;
     this.transitionTo("CANCELLED");
+    this.wakeRetryWaiters();
     void this.abortServerSide();
   }
 
@@ -366,7 +380,14 @@ export class MultipartUploader {
   private async worker(): Promise<void> {
     while (!this.paused && !this.cancelled) {
       const part = this.parts.find((p) => p.state === "PENDING");
-      if (!part) return;
+      if (!part) {
+        // F-P1-02 — a retry is still due: wait for it rather than drain.
+        if (this.pendingRetryTimers > 0) {
+          await new Promise<void>((resolve) => this.retryWaiters.push(resolve));
+          continue;
+        }
+        return;
+      }
       part.state = "PRESIGNING";
       this.inFlightCount += 1;
       this.emit();
@@ -416,7 +437,7 @@ export class MultipartUploader {
         body: slice,
       });
       if (!response.ok) {
-        this.handlePartHttpFailure(part, response.status);
+        this.handlePartHttpFailure(part, response.status, response.headers.get("Retry-After"));
         return;
       }
       etag = response.headers.get("ETag") ?? response.headers.get("etag");
@@ -455,36 +476,56 @@ export class MultipartUploader {
     void this.persistSnapshotSafe();
   }
 
-  private handlePartHttpFailure(part: InternalPart, status: number): void {
-    const decision = classifyRetry({
-      status,
-      attempt: part.retryCount,
-      isOnline: this.cfg.isOnline(),
-    });
-    if (decision.kind === "terminal") {
+  /**
+   * F-P1-08 — a storage PUT refusal, read by THE shared storage-PUT rule
+   * (@proovra/shared classifyStoragePutStatus): 408/425/429/5xx retried with
+   * jitter and a bounded Retry-After; 403 (the presigned URL refused — expired)
+   * retried too, since every attempt presigns afresh; anything else final.
+   */
+  private handlePartHttpFailure(part: InternalPart, status: number, retryAfter: string | null = null): void {
+    const kind = classifyStoragePutStatus(status);
+    const reason: ClientFailureReason =
+      status === 429 ? "rate_limited" : status === 503 ? "service_unavailable" : status >= 500 ? "put_5xx" : status === 408 ? "put_timeout" : "put_4xx";
+    const waitMs =
+      kind === "TERMINAL" || part.retryCount >= MAX_PART_RETRIES
+        ? null
+        : storagePutRetryDelayMs(part.retryCount + 1, parseRetryAfterMs(retryAfter));
+    if (waitMs === null) {
       part.state = "FAILED";
-      part.failureReason = decision.reason;
+      // A transient refusal out of retries (or asking to wait longer than we
+      // honour) stays resumable; only a refusal of the bytes is terminal.
+      part.failureReason = kind === "TERMINAL" ? "put_4xx" : reason === "put_4xx" ? "presign_failed" : reason;
       this.emit();
       return;
     }
     part.retryCount += 1;
-    part.failureReason = decision.reason;
-    // Schedule retry: the pool worker picks the part back up after
-    // the wait. We use a setTimeout to avoid pinning the worker
-    // slot during the backoff.
-    setTimeout(() => {
-      if (
-        this.cancelled ||
-        this.paused ||
-        part.retryCount > MAX_PART_RETRIES
-      ) {
-        return;
-      }
-      part.state = "PENDING";
-      this.emit();
-    }, decision.waitMs);
+    part.failureReason = reason === "put_4xx" ? "presign_failed" : reason;
     part.state = "FAILED";
     this.emit();
+    this.scheduleRetry(part, waitMs);
+  }
+
+  /**
+   * F-P1-02 — the ONE retry timer: when due it moves the part FAILED → PENDING
+   * (never a part a manual resume already re-started — in flight or uploaded),
+   * then wakes the workers waiting for it.
+   */
+  private scheduleRetry(part: InternalPart, waitMs: number): void {
+    this.pendingRetryTimers += 1;
+    setTimeout(() => {
+      this.pendingRetryTimers -= 1;
+      if (!this.cancelled && !this.paused && part.state === "FAILED" && part.retryCount <= MAX_PART_RETRIES) {
+        part.state = "PENDING";
+        this.emit();
+      }
+      this.wakeRetryWaiters();
+    }, waitMs);
+  }
+
+  private wakeRetryWaiters(): void {
+    const waiters = this.retryWaiters;
+    this.retryWaiters = [];
+    for (const wake of waiters) wake();
   }
 
   private handlePartFailure(
@@ -505,19 +546,9 @@ export class MultipartUploader {
     }
     part.retryCount += 1;
     part.failureReason = reason;
-    setTimeout(() => {
-      if (
-        this.cancelled ||
-        this.paused ||
-        part.retryCount > MAX_PART_RETRIES
-      ) {
-        return;
-      }
-      part.state = "PENDING";
-      this.emit();
-    }, decision.waitMs);
     part.state = "FAILED";
     this.emit();
+    this.scheduleRetry(part, decision.waitMs);
   }
 
   private async initiateMultipart(): Promise<

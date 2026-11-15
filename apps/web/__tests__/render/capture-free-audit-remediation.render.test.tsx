@@ -76,14 +76,20 @@ function stubFetch() {
   );
 }
 
+/** Storage PUT answers, consumed in order (200 once exhausted). */
+let putStatuses: number[] = [];
+const putUrls: string[] = [];
 class FakeXhr {
   status = 200;
   upload: { onprogress: ((e: ProgressEvent) => void) | null } = { onprogress: null };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
-  open() {}
+  open(_m?: string, url?: string) {
+    if (url) putUrls.push(url);
+  }
   setRequestHeader() {}
   send() {
+    this.status = putStatuses.shift() ?? 200;
     queueMicrotask(() => this.onload?.());
   }
 }
@@ -123,6 +129,8 @@ const creates = () => requests.filter((r) => path(r.url) === "/v1/evidence" && r
 
 beforeEach(() => {
   requests.length = 0;
+  putStatuses = [];
+  putUrls.length = 0;
   route = () => undefined;
   addToast.mockReset();
   push.mockReset();
@@ -356,5 +364,188 @@ describe("F-12: plan limits are said before upload; remedies keep the page", () 
     );
     const link = screen.getByRole("link", { name: "View plans" });
     expect(link.getAttribute("target")).toBe("_blank");
+  });
+});
+
+// --- Audit of 4d9b78963 (round 3): C-05, C-10, F-P1-08, F-04 copy ----------
+
+import { restoreDraftItemMetadata, newDraftRestoreState } from "../../app/(app)/capture/_lib/draft-item-restore";
+
+const isParts = (r: { url: string }) => /\/parts$/.test(path(r.url));
+const isComplete = (r: { url: string }) => /\/complete$/.test(path(r.url));
+
+function standardRoute(completeAnswers: Array<{ status: number; body: unknown }> = []): Route {
+  let parts = 0;
+  return (url, init) => {
+    if (path(url) === "/v1/evidence" && init.method === "POST") return { status: 201, body: { id: `ev-${creates().length}`, teamId: "team-1" } };
+    if (/\/parts$/.test(path(url))) {
+      parts += 1;
+      return { status: 201, body: { part: { id: `p-${parts}` }, upload: { putUrl: `https://s3.test/put-${parts}` } } };
+    }
+    if (/\/complete$/.test(path(url))) return completeAnswers.shift() ?? { status: 200, body: {} };
+    if (/artifacts\/status$/.test(path(url))) return { status: 200, body: { outputs: { report: { state: "READY" }, pollIntervalMs: null } } };
+    return undefined;
+  };
+}
+
+const inputsChanged = {
+  status: 409,
+  body: { code: "EVIDENCE_COMPLETION_INPUTS_CHANGED", message: "EVIDENCE_COMPLETION_INPUTS_CHANGED" },
+};
+
+describe("F-04 copy + C-05: a seal refused because its files changed keeps the record; edits made meanwhile reach the parts", () => {
+  it("EVIDENCE_COMPLETION_INPUTS_CHANGED is explained; the retry resumes, restates the edited note (no PUT) and seals", async () => {
+    route = standardRoute([inputsChanged]);
+    const { result } = orchestration();
+    act(() =>
+      result.current.setSessionItems(() => [{ ...item("1", "a.pdf", HINT_A), privateNote: "first" }, item("2", "b.pdf")]),
+    );
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(result.current.error).toMatch(/changed while it was being sealed/);
+    expect(result.current.error).not.toMatch(/review your input/i);
+    expect(result.current.sessionItems).toHaveLength(2);
+    expect(putUrls).toHaveLength(2);
+
+    act(() =>
+      result.current.setSessionItems((prev) =>
+        prev.map((i) => (i.id === "1" ? { ...i, privateNote: "edited note", role: "Primary" } : i)),
+      ),
+    );
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates(), "the reserved record is resumed").toHaveLength(1);
+    const partPosts = requests.filter(isParts);
+    expect(partPosts).toHaveLength(3);
+    expect(partPosts[2]!.body).toMatchObject({
+      partIndex: 0,
+      originalFileName: "a.pdf",
+      sizeBytes: 10,
+      privateNote: "edited note",
+      privateRole: "Primary",
+      clientSignals: { clientHintSha256Base64: HINT_A },
+    });
+    expect(putUrls, "metadata restate never re-sends bytes").toHaveLength(2);
+    const order = requests.filter((r) => isParts(r) || isComplete(r)).map((r) => (isParts(r) ? "parts" : "complete"));
+    expect(order).toEqual(["parts", "parts", "complete", "parts", "complete"]);
+    expect(push).toHaveBeenCalledWith("/evidence/ev-1");
+  });
+
+  it("a note cleared before the retry is restated as null; an unchanged item is not restated", async () => {
+    route = standardRoute([inputsChanged]);
+    const { result } = orchestration();
+    act(() =>
+      result.current.setSessionItems(() => [{ ...item("1", "a.pdf", HINT_A), privateNote: "first" }, item("2", "b.pdf")]),
+    );
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    act(() => result.current.setSessionItems((prev) => prev.map((i) => (i.id === "1" ? { ...i, privateNote: "" } : i))));
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    const partPosts = requests.filter(isParts);
+    expect(partPosts).toHaveLength(3);
+    expect(partPosts[2]!.body).toMatchObject({ partIndex: 0, privateNote: null });
+    expect(partPosts[2]!.body).not.toHaveProperty("privateRole");
+  });
+});
+
+describe("C-05: a resumed draft gives its saved metadata back to re-attached files", () => {
+  it("each saved entry is claimed once by name, size and type; only saved values apply; an item is looked at once", () => {
+    const saved = [
+      { fileName: "a.pdf", sizeBytes: 10, mimeType: "application/pdf", privateNote: "note A", checklistStepId: "step-1", role: null },
+      { fileName: "a.pdf", sizeBytes: 10, mimeType: "application/pdf", privateNote: "note A2", sourceLabel: "Phone" },
+      { fileName: "b.pdf", sizeBytes: 99, mimeType: "application/pdf", privateNote: "other size" },
+    ];
+    const state = newDraftRestoreState();
+    const first = restoreDraftItemMetadata([item("1", "a.pdf"), item("2", "a.pdf"), item("3", "b.pdf")], saved, state);
+    expect([...first.entries()]).toEqual([
+      ["1", { privateNote: "note A", checklistStepId: "step-1" }],
+      ["2", { privateNote: "note A2", sourceLabel: "Phone" }],
+    ]);
+    expect(restoreDraftItemMetadata([item("1", "a.pdf"), item("4", "a.pdf")], saved, state).size).toBe(0);
+  });
+});
+
+describe("C-10: Finish binds the record it reserves to a draft", () => {
+  function withEnsure(ensure: () => Promise<string | null>) {
+    let draft: string | null = null;
+    return renderHook(() =>
+      useCaptureSessionOrchestration({
+        internalNotes: "",
+        onCloseCaptureDevices: () => {},
+        onResetAudioRecorder: () => {},
+        planMode: "FLEXIBLE",
+        selectedCollectionPlan: undefined,
+        useLocation: false,
+        getCaptureSessionDraftId: () => draft,
+        ensureCaptureSessionDraftId: async () => (draft = await ensure()),
+      }),
+    );
+  }
+
+  it("with no draft id yet, the draft is saved first and the create carries it with the manifest", async () => {
+    route = standardRoute();
+    const ensure = vi.fn(async () => "draft-new");
+    const { result } = withEnsure(ensure);
+    act(() => result.current.setSessionItems(() => [item("1", "a.pdf", HINT_A)]));
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(ensure).toHaveBeenCalledTimes(1);
+    expect(creates()[0]!.body).toMatchObject({
+      captureSessionId: "draft-new",
+      parts: [{ originalFileName: "a.pdf", mimeType: "application/pdf", sha256Base64: HINT_A }],
+    });
+  });
+
+  it("after a failed upload and a removed item, the next create names the same draft (the server releases the stale record)", async () => {
+    route = standardRoute();
+    putStatuses = [200, 400];
+    const { result } = withEnsure(async () => "draft-new");
+    act(() => result.current.setSessionItems(() => [item("1", "a.pdf", HINT_A), item("2", "b.pdf")]));
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    act(() => result.current.removeSessionItem("2"));
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(2);
+    expect(creates().map((c) => (c.body as { captureSessionId?: string }).captureSessionId)).toEqual(["draft-new", "draft-new"]);
+  });
+
+  it("ensureDraft saves at once and never creates a second draft while one is in flight", async () => {
+    route = (url, init) =>
+      path(url) === "/v1/capture/sessions" && init.method === "POST" ? { status: 201, body: { session: { id: "draft-7" } } } : undefined;
+    const { result } = renderHook(() => useCaptureDraftPersistence({ enabled: true }));
+    act(() =>
+      result.current.scheduleSave({ templateId: null, planMode: "FLEXIBLE", internalNotes: "", useLocation: false, items: [item("1", "a.pdf")] }),
+    );
+    let ids: Array<string | null> = [];
+    await act(async () => {
+      ids = await Promise.all([result.current.ensureDraft(), result.current.ensureDraft()]);
+    });
+    expect(ids).toEqual(["draft-7", "draft-7"]);
+    expect(requests.filter((r) => path(r.url) === "/v1/capture/sessions" && r.method === "POST")).toHaveLength(1);
+  });
+});
+
+describe("F-P1-08: the Finish upload follows the shared storage-PUT rule", () => {
+  it("a 403 (expired URL) presigns the part again and the capture seals", async () => {
+    route = standardRoute();
+    putStatuses = [403];
+    const { result } = orchestration();
+    act(() => result.current.setSessionItems(() => [item("1", "a.pdf", HINT_A)]));
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(result.current.error).toBeNull();
+    expect(requests.filter(isParts)).toHaveLength(2);
+    expect(putUrls).toEqual(["https://s3.test/put-1", "https://s3.test/put-2"]);
+    expect(requests.filter(isComplete)).toHaveLength(1);
   });
 });

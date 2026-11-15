@@ -1,4 +1,5 @@
 import {
+  AppState,
   Linking,
   Platform,
   Pressable,
@@ -71,6 +72,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as Crypto from "expo-crypto";
 import { apiFetch, getAuthToken } from "../../src/api";
 import { DEFAULT_CAPTURE_RETRY } from "../../src/capture/capture-retry";
+import {
+  VIDEO_WITHOUT_AUDIO_NOTICE,
+  VIDEO_WITHOUT_AUDIO_TOAST,
+  videoAudioClientSignals,
+  videoAudioModeFor,
+  type VideoAudioMode,
+} from "../../src/capture/video-audio";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import {
@@ -202,6 +210,8 @@ type CapturedItem = {
    */
   sourceNote?: string | null;
   locationIncluded?: boolean;
+  /** F-P1-09 — false for a camera clip recorded muted after a microphone denial. */
+  audioRecorded?: boolean;
 };
 
 /** One item about to be staged (camera, picker, recorder). */
@@ -212,6 +222,7 @@ type StagedItemInput = {
   sizeBytes?: number;
   originalFilename?: string;
   source: DirectCaptureItemSource;
+  audioRecorded?: boolean;
 };
 
 /**
@@ -490,7 +501,14 @@ export default function CaptureScreen() {
   const resuming = resumingKey !== null;
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [micPermission, requestMicPermission] = useMicrophonePermissions();
+  const [micPermission, requestMicPermission, getMicPermission] = useMicrophonePermissions();
+  // F-P1-09 — the microphone answer decides whether the next clip has sound.
+  const [videoAudioMode, setVideoAudioMode] = useState<VideoAudioMode>("WITH_AUDIO");
+  const videoAudioModeRef = useRef<VideoAudioMode>("WITH_AUDIO");
+  videoAudioModeRef.current = videoAudioMode;
+  // The mode the clip being recorded STARTED in (null when not recording): the
+  // camera's mute is locked to it, so nothing can unmute a clip mid-recording.
+  const [clipMuted, setClipMuted] = useState<boolean | null>(null);
 
   const isSessionActive = Boolean(sessionEvidenceId) || sessionItems.length > 0;
 
@@ -579,6 +597,7 @@ hasActiveDraft: isSessionActive || isRecording,
         durationMs: it.durationMs,
         uploaded: it.uploaded,
         itemSourceLabel: it.itemSourceLabel ?? null,
+        ...(it.audioRecorded === false ? { audioRecorded: false } : {}),
       })),
       // The acquisition is part of the record. Persisting without it wiped a
       // staged recording's manifest on the resume re-save, and after a restart
@@ -674,6 +693,7 @@ hasActiveDraft: isSessionActive || isRecording,
             // an older build carries none on its items, so a screen record's
             // origin is restored from its acquisition — never lost on resume.
             itemSourceLabel: it.itemSourceLabel ?? originOf(persisted.acquisition?.mode),
+            ...(it.audioRecorded === false ? { audioRecorded: false } : {}),
           });
         }
         const dropped = persisted.items.length - kept.length;
@@ -1176,6 +1196,7 @@ hasActiveDraft: isSessionActive || isRecording,
           uploaded: false,
           error: null,
           itemSourceLabel: incomingOrigin,
+          ...(input.audioRecorded === false ? { audioRecorded: false } : {}),
           // Guided mode maps an incoming item onto the open required step it fits.
           checklistStepId: assignRequiredStep({
             planMode: planModeRef.current,
@@ -1357,15 +1378,22 @@ hasActiveDraft: isSessionActive || isRecording,
     }
 
     if (kind === "VIDEO") {
-      const micGranted = micPermission?.granted ?? false;
+      /*
+       * F-P1-09 (product decision 2026-11-15) — a microphone denial no longer
+       * refuses the camera. The OS is still asked every time the video camera
+       * opens; a "no" opens it MUTED (expo-camera `mute`: no audio input on
+       * either platform), with the notice on the camera before Record and the
+       * clip's metadata stating that no audio was recorded.
+       */
+      let micGranted = micPermission?.granted ?? false;
       if (!micGranted) {
         const res = await requestMicPermission();
-        if (!res.granted) {
-          setError("Microphone permission denied");
-          setShowSettingsLink(true);
-          addToast("Microphone permission denied", "error");
-          return false;
-        }
+        micGranted = Boolean(res.granted);
+      }
+      setVideoAudioMode(videoAudioModeFor(micGranted));
+      if (!micGranted) {
+        setShowSettingsLink(true);
+        addToast(VIDEO_WITHOUT_AUDIO_TOAST, "warning");
       }
     }
 
@@ -1471,8 +1499,11 @@ hasActiveDraft: isSessionActive || isRecording,
     try {
       setError(null);
       setInfo(null);
+      // F-P1-09 — fixed at Record: the camera is muted for this whole clip.
+      const withoutAudio = videoAudioModeRef.current === "WITHOUT_AUDIO";
+      setClipMuted(withoutAudio);
       setIsRecording(true);
-      addToast("Recording started", "info");
+      addToast(withoutAudio ? "Recording started without sound" : "Recording started", "info");
 
       // AUD-018 — a monotonic mark: a clock change mid-recording moves no duration.
       const startedAt = monotonicNowMs();
@@ -1492,7 +1523,8 @@ hasActiveDraft: isSessionActive || isRecording,
           durationMs,
           sizeBytes: fileInfo.exists ? fileInfo.size : undefined,
           originalFilename: getFilename(recordResult.uri, `video-${Date.now()}.mp4`),
-          source: "CAMERA"
+          source: "CAMERA",
+          ...(withoutAudio ? { audioRecorded: false } : {}),
         });
       }
     } catch (err) {
@@ -1501,6 +1533,7 @@ hasActiveDraft: isSessionActive || isRecording,
       addToast(msg, "error");
     } finally {
       setIsRecording(false);
+      setClipMuted(null);
     }
   }, [
     busy,
@@ -1514,6 +1547,31 @@ hasActiveDraft: isSessionActive || isRecording,
   const handleStopRecording = useCallback(() => {
     cameraRef.current?.stopRecording();
   }, []);
+
+  /*
+   * F-P1-09 — RESTORATION. A person who turns the microphone on in Settings
+   * and comes back finds the open video camera recording with sound again,
+   * without reopening it. Never mid-clip: a clip keeps the mode it started in,
+   * so its metadata stays true.
+   */
+  useEffect(() => {
+    if (!cameraOpen || activeType !== "VIDEO" || videoAudioMode !== "WITHOUT_AUDIO" || isRecording) return;
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next !== "active") return;
+      void (async () => {
+        try {
+          const res = await getMicPermission();
+          if (res?.granted) {
+            setVideoAudioMode("WITH_AUDIO");
+            setShowSettingsLink(false);
+          }
+        } catch {
+          // The camera stays muted; the notice stays true.
+        }
+      })();
+    });
+    return () => sub.remove();
+  }, [cameraOpen, activeType, videoAudioMode, isRecording, getMicPermission]);
 
 
   const handleStartAudioRecording = useCallback(async () => {
@@ -1796,6 +1854,8 @@ if (!isRecording || busy) return;
             privateNote: item.privateNote,
             checklistStepId: item.checklistStepId,
             sourceLabel: item.sourceNote,
+            // F-P1-09 — a clip recorded muted states that no audio was recorded.
+            clientSignals: videoAudioClientSignals(item.audioRecorded),
           },
           {
             freshSession,
@@ -2334,6 +2394,7 @@ if (!isRecording || busy) return;
                   style={styles.cameraPreview}
                   facing={facing}
                   mode={activeType === "VIDEO" ? "video" : "picture"}
+                  mute={activeType === "VIDEO" && (clipMuted ?? videoAudioMode === "WITHOUT_AUDIO")}
                   flash={flashOn ? "on" : "off"}
                 />
                 <View style={styles.overlayTopLeft}>
@@ -2356,6 +2417,16 @@ if (!isRecording || busy) return;
                 <ProovraText variant="label" color={theme.color.ink.secondary} center>
                   {facing === "back" ? "Rear camera" : "Front camera"}
                 </ProovraText>
+                {activeType === "VIDEO" && (clipMuted ?? videoAudioMode === "WITHOUT_AUDIO") ? (
+                  <ProovraText
+                    variant="bodySm"
+                    color={theme.color.status.pending.fg}
+                    center
+                    testID="capture-video-no-audio-notice"
+                  >
+                    {VIDEO_WITHOUT_AUDIO_NOTICE}
+                  </ProovraText>
+                ) : null}
                 {activeType === "PHOTO" ? (
                   <ProovraButton label="Add to Evidence Session" loading={busy || sessionCreatingEvidence} disabled={sessionCompletingEvidence} onPress={handleTakePhoto} />
                 ) : (

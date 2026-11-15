@@ -54,10 +54,12 @@
  *     wires this up it has a single source of truth.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../db.js";
+import { getEmailWebBaseUrl } from "./notifications/templates.js";
+import { lookupHashForIntakeToken } from "./workflow-intake-token.service.js";
 import {
   sendIntakeLinkViaEmail,
   sendIntakeLinkViaSms,
@@ -82,10 +84,11 @@ export type DispatchIntakeDeliveryInput = {
   teamId: string;
   intakeLinkId: string;
   /** Required — the raw token is unrecoverable after creation; the
-   *  caller must hold it. */
+   *  caller must hold it. It must be THIS link's token (A2-16): it is bound
+   *  to the stored link by its hash before anything is sent. */
   rawToken: string;
-  /** Full public link the contributor opens (origin + /intake/<token>). */
-  intakeUrl: string;
+  // No caller-supplied URL (A2-16): the link the contributor opens is built
+  // here, from the configured web origin — see `intakeLinkPublicUrl`.
   channel: IntakeDeliveryChannel;
   actorUserId: string;
   workspaceName: string;
@@ -112,6 +115,7 @@ export type DispatchIntakeDeliveryResult =
       ok: false;
       reason:
         | "link_not_found"
+        | "token_mismatch"
         | "link_revoked"
         | "link_expired"
         | "link_missing_email"
@@ -147,6 +151,31 @@ export function buildIntakeIdempotencyHash(input: {
 }
 
 /**
+ * A2-16 — THE public intake URL an outbound message carries: the configured
+ * web origin (`WEB_BASE_URL`, the same origin the evidence-request intake
+ * email uses) + `/intake/<token>`. Never a caller-supplied origin or URL, so
+ * a workspace insider cannot make the platform mail its recipient another
+ * address under PROOVRA's name.
+ */
+export function intakeLinkPublicUrl(rawToken: string): string {
+  return `${getEmailWebBaseUrl().replace(/\/+$/, "")}/intake/${encodeURIComponent(rawToken)}`;
+}
+
+/**
+ * A2-16 — is `rawToken` the token of this stored link? Its keyed hash
+ * (`lookupHashForIntakeToken`, the redemption lookup) compared in constant
+ * time with the link's `tokenHash`. A malformed token, an unconfigured secret
+ * or another link's token is a mismatch.
+ */
+function presentedTokenMatches(rawToken: string, storedHash: string): boolean {
+  const presented = lookupHashForIntakeToken(rawToken);
+  if (!presented) return false;
+  const a = Buffer.from(presented.tokenHash, "utf8");
+  const b = Buffer.from(storedHash, "utf8");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
  * The single entrypoint route handlers should call instead of
  * sendIntakeLinkViaEmail / sendIntakeLinkViaSms.
  */
@@ -154,6 +183,19 @@ export async function dispatchIntakeLinkDelivery(
   input: DispatchIntakeDeliveryInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<DispatchIntakeDeliveryResult> {
+  // 0) A2-16 — bind the presented token to the stored link BEFORE any lookup
+  //    or send: a token that is not this link's produces no message row and
+  //    no provider call.
+  const stored = await client.workflowIntakeLink.findFirst({
+    where: { id: input.intakeLinkId, teamId: input.teamId },
+    select: { tokenHash: true },
+  });
+  if (!stored) return { ok: false, reason: "link_not_found", deduped: false };
+  if (!presentedTokenMatches(input.rawToken, stored.tokenHash)) {
+    return { ok: false, reason: "token_mismatch", deduped: false };
+  }
+  const intakeUrl = intakeLinkPublicUrl(input.rawToken);
+
   const idemHash = buildIntakeIdempotencyHash({
     intakeLinkId: input.intakeLinkId,
     channel: input.channel,
@@ -231,7 +273,7 @@ export async function dispatchIntakeLinkDelivery(
         teamId: input.teamId,
         intakeLinkId: input.intakeLinkId,
         rawToken: input.rawToken,
-        intakeUrl: input.intakeUrl,
+        intakeUrl,
         actorUserId: input.actorUserId,
         workspaceName: input.workspaceName,
       },
@@ -243,7 +285,7 @@ export async function dispatchIntakeLinkDelivery(
         teamId: input.teamId,
         intakeLinkId: input.intakeLinkId,
         rawToken: input.rawToken,
-        intakeUrl: input.intakeUrl,
+        intakeUrl,
         channel: input.channel,
         actorUserId: input.actorUserId,
         workspaceName: input.workspaceName,

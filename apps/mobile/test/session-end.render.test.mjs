@@ -116,6 +116,19 @@ test("a tightened policy says it was the organization's policy", async () => {
   await expectEnded(r, "security policy no longer accepts this sign-in");
 });
 
+// B-14 — a re-authentication refusal that names no organization rule (legacy or
+// unsupported token provenance, no sid/iat: middleware/auth.ts) is not an
+// organization's doing; a Free user without an organization was told it was.
+test("B-14: re-authentication without a policy does not blame an organization", async () => {
+  const r = await render();
+  routes["/v1/probe"] = () => reply(401, { error: { code: "UNAUTHORIZED", details: { reason: "reauthentication_required" } } });
+  await probe();
+  await expectEnded(r, "For your security, this sign-in has to be renewed. Please sign in again.");
+  assert.equal(r.texts().some((t) => /organization/i.test(t) && /security policy/i.test(t)), false, r.texts().join(" | "));
+  assert.equal(M.sessionEndReason({ status: 401, code: "UNAUTHORIZED", details: { reason: "reauthentication_required" } }), "reauthenticate");
+  assert.equal(M.sessionEndReason({ status: 401, code: "UNAUTHORIZED", details: { reason: "reauthentication_required", policy: "session_max_age_exceeded" } }), "organization_policy");
+});
+
 test("MOBILE-002: mandatory SSO says what to do instead of looping through sign-in", async () => {
   const r = await render();
   routes["/v1/probe"] = () =>

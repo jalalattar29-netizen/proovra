@@ -41,6 +41,7 @@
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 // RGA-04 — the ONE shared download-failure authority (same vocabulary as Evidence Detail).
 import { describeArtifactDownloadFailure } from "../../lib/evidence/report-download-feedback";
+import { ARTIFACT_WINDOW_BLOCKED_MESSAGE, openPendingArtifactWindow } from "../../lib/evidence/artifact-window";
 // RELIABILITY CLOSURE (2026-09-09) — the canonical action label and the one
 // reader of the typed generation outcome, shared with Evidence Detail.
 import {
@@ -435,6 +436,13 @@ export function ReportsIndex() {
             setState({ status: "ready", envelope: recovered });
             return;
           }
+          // A2-23 — no user-scoped list either: the workspace refused this
+          // caller (removed, expired or suspended membership answers the
+          // anti-enumeration 404). That is the access-denied state, not a
+          // generic "Unable to load artifacts" fault.
+          if (!isCurrent()) return;
+          setState({ status: "auth_error", code: "permission_denied" });
+          return;
         }
         if (e.statusCode === 401) {
           setState({ status: "auth_error", code: "auth_required" });
@@ -1288,6 +1296,8 @@ function ArtifactRowActions({
 
   const triggerReport = async () => {
     if (busy) return;
+    // F-P1-04 — the tab opens IN the click, before the await (artifact-window.ts).
+    const pending = openPendingArtifactWindow();
     setBusy("report");
     setError(null);
     try {
@@ -1295,11 +1305,13 @@ function ArtifactRowActions({
         url?: string;
       };
       if (resp.url) {
-        window.open(resp.url, "_blank", "noopener,noreferrer");
+        if (pending.assign(resp.url) === "blocked") setError(ARTIFACT_WINDOW_BLOCKED_MESSAGE);
       } else {
+        pending.close();
         setError("Report URL is unavailable.");
       }
     } catch (err) {
+      pending.close();
       setError(describeArtifactDownloadFailure("report", err).message);
     } finally {
       setBusy(null);
@@ -1308,6 +1320,7 @@ function ArtifactRowActions({
 
   const triggerPackage = async () => {
     if (busy) return;
+    const pending = openPendingArtifactWindow();
     setBusy("package");
     setError(null);
     try {
@@ -1315,8 +1328,9 @@ function ArtifactRowActions({
         method: "GET",
       })) as { url?: string; code?: string; message?: string };
       if (resp.url) {
-        window.open(resp.url, "_blank", "noopener,noreferrer");
+        if (pending.assign(resp.url) === "blocked") setError(ARTIFACT_WINDOW_BLOCKED_MESSAGE);
       } else {
+        pending.close();
         setError(
           describeArtifactDownloadFailure("verificationPackage", {
             code: resp.code,
@@ -1325,6 +1339,7 @@ function ArtifactRowActions({
         );
       }
     } catch (err) {
+      pending.close();
       setError(describeArtifactDownloadFailure("verificationPackage", err).message);
     } finally {
       setBusy(null);

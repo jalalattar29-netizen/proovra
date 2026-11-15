@@ -1559,8 +1559,8 @@
     "phase": "P8",
     "name": "the timestamp authority is called under the workspace capacity lock again",
     "file": "services/api/src/services/evidence-complete.service.ts",
-    "find": "      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n        inputKind: tsaInputKind,\n      });\n\n      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n        // AUD-0017 — measured on this transaction's connection, under its lock.\n        client: tx,\n      });",
-    "replace": "      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n        // AUD-0017 — measured on this transaction's connection, under its lock.\n        client: tx,\n      });\n\n      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n        inputKind: tsaInputKind,\n      });",
+    "find": "      const tsaResult = attestation.tsaResult;",
+    "replace": "      await lockEvidenceCapacitySubject(scope, tx);\n      const tsaResult = await createEvidenceTimestamp({ digestHex: fileSha256, inputKind: tsaInputKind });",
     "tests": [
       {
         "cwd": "services/api",
@@ -1571,6 +1571,72 @@
           "--config",
           "vitest.integration.config.ts",
           "test/forward/finalize-tsa-outside-capacity-lock.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "F04-A",
+    "phase": "R3",
+    "name": "F-04: the sealing transaction obtains the RFC 3161 token inside itself again",
+    "file": "services/api/src/services/evidence-complete.service.ts",
+    "find": "      const tsaResult = attestation.tsaResult;",
+    "replace": "      const tsaResult = await createEvidenceTimestamp({ digestHex: fileSha256, inputKind: tsaInputKind });",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/completion-attestation-outside-transaction.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "F04-B",
+    "phase": "R3",
+    "name": "F-04: the sealing transaction persists an attestation without comparing it with what it derived",
+    "file": "services/api/src/services/evidence-complete.service.ts",
+    "find": "      if (!attestationMatches(attestation, attestationRequest)) throw new CompletionAttestationStale();\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/completion-attestation-outside-transaction.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "F04-C",
+    "phase": "R3",
+    "name": "F-04: the actor's authority is not asked again under the record lock",
+    "file": "services/api/src/services/evidence-complete.service.ts",
+    "find": "      if (params.recheckRecordPermission) {",
+    "replace": "      if (params.recheckRecordPermission && false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/completion-attestation-outside-transaction.integration.test.ts"
         ],
         "integration": true
       }
@@ -2138,8 +2204,8 @@
     "phase": "P10",
     "name": "a downgraded workspace keeps accepting intake",
     "file": "services/api/src/services/external-intake-orchestration.service.ts",
-    "find": "    if (await intakePlanRefusal({ teamId: input.link.teamId, requesterUserId: input.link.createdByUserId })) {",
-    "replace": "    if ((await intakePlanRefusal({ teamId: input.link.teamId, requesterUserId: input.link.createdByUserId })) && Date.now() < 0) {",
+    "find": "  // submissions through it (nothing is reserved, nothing is finalized).\n  {\n    const { intakePlanRefusal } = await import(\"./intake/intake-link-mint-gate.js\");\n    if (await intakePlanRefusal({ teamId: input.link.teamId, requesterUserId: input.link.createdByUserId })) {",
+    "replace": "  // submissions through it (nothing is reserved, nothing is finalized).\n  {\n    const { intakePlanRefusal } = await import(\"./intake/intake-link-mint-gate.js\");\n    if ((await intakePlanRefusal({ teamId: input.link.teamId, requesterUserId: input.link.createdByUserId })) && Date.now() < 0) {",
     "tests": [
       {
         "cwd": "services/api",
@@ -2152,6 +2218,30 @@
           "test/intake-finalization-governance.integration.test.ts",
           "-t",
           "AUD-36"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "P10-K2",
+    "phase": "P10",
+    "name": "A2-21: a downgraded workspace stages intake parts before submit",
+    "file": "services/api/src/services/external-intake-orchestration.service.ts",
+    "find": "  // purge), never finalized.\n  {\n    const { intakePlanRefusal } = await import(\"./intake/intake-link-mint-gate.js\");\n    if (await intakePlanRefusal({ teamId: input.link.teamId, requesterUserId: input.link.createdByUserId })) {",
+    "replace": "  // purge), never finalized.\n  {\n    const { intakePlanRefusal } = await import(\"./intake/intake-link-mint-gate.js\");\n    if ((await intakePlanRefusal({ teamId: input.link.teamId, requesterUserId: input.link.createdByUserId })) && Date.now() < 0) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/intake-concurrency.integration.test.ts",
+          "-t",
+          "A2-21"
         ],
         "integration": true
       }
@@ -4226,8 +4316,8 @@
     "aud": "F-23",
     "name": "reaper: a session whose record is sealed is expired",
     "file": "services/worker/src/capture-reaper.ts",
-    "find": "          if (record?.status === prismaPkg.EvidenceStatus.SIGNED || record?.status === prismaPkg.EvidenceStatus.REPORTED) return;",
-    "replace": "",
+    "find": "          if (record?.status === prismaPkg.EvidenceStatus.SIGNED || record?.status === prismaPkg.EvidenceStatus.REPORTED) {",
+    "replace": "          if (false) {",
     "tests": [
       {
         "cwd": "services/api",

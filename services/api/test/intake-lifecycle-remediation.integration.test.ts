@@ -111,14 +111,19 @@ describe("intake lifecycle remediation (live PostgreSQL 16)", () => {
       expect(r.statusCode, r.body).toBe(201);
     }
     const link = await mintLink();
-    await prisma.entitlement.updateMany({ where: { userId: P().userId } as never, data: { credits: 0 } as never });
     // An anonymous contributor reserves a record and never submits.
     const { t, sessionId } = await openConsent(link.rawToken);
+    // A2-21 (round 3) — staging asks the workspace's CURRENT intake entitlement, and on
+    // FREE that is "at least one evidence credit" (resolveWorkspaceIntakeEntitlement,
+    // COMMERCIAL CLOSURE 2026-09-08; the same rule AUD-36 already asks at submit). So the
+    // part is staged while the wallet still holds the minting credit, and only THEN is the
+    // wallet emptied, which is what makes the owner's own captures depend on the allowance.
     const part = await h.app.inject({
       method: "POST", url: `/v1/external-intake/${t}/sessions/${sessionId}/parts`,
       payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "c.txt", sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null },
     });
     expect(part.statusCode, part.body).toBe(201);
+    await prisma.entitlement.updateMany({ where: { userId: P().userId } as never, data: { credits: 0 } as never });
     // While the reservation is live it holds the slot (3/3): the owner is refused.
     const whileLive = await h.app.inject({ method: "POST", url: "/v1/evidence", headers: auth(), payload: { type: "PHOTO", mimeType: "image/png" } });
     expect(whileLive.statusCode).toBe(409);

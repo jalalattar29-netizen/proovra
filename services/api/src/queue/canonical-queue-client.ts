@@ -35,6 +35,7 @@ import { context, propagation } from "@opentelemetry/api";
 import {
   enqueueCanonicalJob,
   getWorkEntryOrThrow,
+  parseFailedJobRetentionCount,
   type EnqueueOutcome,
   type QueueHandleLike,
   type QueueName,
@@ -65,6 +66,25 @@ function getConnection(): IORedis {
 const _queues = new Map<string, Queue>();
 
 /**
+ * F-10 (Free-user audit 4d9b, capacity; 2026-11-15) — failed jobs the api
+ * enqueued are no longer kept for ever. Redis runs `noeviction` with no
+ * `maxmemory` (infra/docker/docker-compose.prod.yml), so an unbounded failed
+ * set grows until the host runs out of memory, and then every Redis write —
+ * the shared rate limiters included — fails. BullMQ keeps the newest
+ * QUEUE_FAILED_JOB_RETENTION_COUNT failed jobs per queue (default 10000, far
+ * more than any triage window has needed); older ones are trimmed when a new
+ * one fails. The durable authority rows (report requests, anchoring rows) and
+ * their reconcilers are unaffected: a job is only ever a reference to a row.
+ * The operator DLQ sinks are the worker's and are not changed here. The worker
+ * applies the same bound to its own queues (services/worker/src/queue.ts).
+ */
+export { DEFAULT_FAILED_JOB_RETENTION_COUNT } from "@proovra/shared";
+
+export function failedJobRetentionCount(env: NodeJS.ProcessEnv = process.env): number {
+  return parseFailedJobRetentionCount(env.QUEUE_FAILED_JOB_RETENTION_COUNT);
+}
+
+/**
  * The BullMQ handle for a queue, configured from the registry entry that owns
  * it. Two work names that share a queue share the handle.
  */
@@ -81,7 +101,7 @@ function getQueue(queueName: QueueName, workName: WorkName): Queue {
         delay: entry.retry.backoffDelayMs,
       },
       removeOnComplete: 100,
-      removeOnFail: false,
+      removeOnFail: failedJobRetentionCount(),
     },
   });
   _queues.set(queueName, queue);
@@ -208,6 +228,9 @@ export async function enqueueCanonicalWork(
       commandId: input.commandId,
       traceId: input.traceId ?? "",
       delayMs: input.delayMs,
+      // F-10 — the per-job option is what BullMQ applies (the shared enqueue
+      // would otherwise pass `false`, overriding the queue default above).
+      removeOnFail: failedJobRetentionCount(),
       traceparent: currentTraceparent(),
     }),
   );

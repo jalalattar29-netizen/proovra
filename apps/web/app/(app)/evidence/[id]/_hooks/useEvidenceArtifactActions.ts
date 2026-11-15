@@ -56,6 +56,11 @@ import {
   describeReportDownloadFailure,
 } from "../../../../../lib/evidence/report-download-feedback";
 import { tryDownloadFile } from "../_tabs/_lib";
+import {
+  ARTIFACT_WINDOW_BLOCKED_MESSAGE,
+  openArtifactUrlNow,
+  openPendingArtifactWindow,
+} from "../../../../../lib/evidence/artifact-window";
 // RELIABILITY CLOSURE (2026-09-09) — the ONE reader of the typed generation
 // outcome, shared with the Reports page and the AI Copilot.
 import {
@@ -175,16 +180,20 @@ export function useEvidenceArtifactActions(input: {
  */
 const downloadReport = async () => {
   if (!evidenceId) return;
+  // F-P1-04 — the tab opens IN the click, before the await (artifact-window.ts).
+  const pending = openPendingArtifactWindow();
   try {
     const data = (await apiFetch(`/v1/evidence/${evidenceId}/report/latest`)) as {
       url?: string | null;
     };
     if (!data.url) {
+      pending.close();
       addToast("Report not available", "info");
       return;
     }
-    window.open(data.url, "_blank", "noopener,noreferrer");
+    if (pending.assign(data.url) === "blocked") addToast(ARTIFACT_WINDOW_BLOCKED_MESSAGE, "error");
   } catch (downloadError) {
+    pending.close();
     // UC-OUT-004 — each refusal answers in its own words, and an expected,
     // bounded refusal (hold, governance, eligibility, not generated) is an
     // outcome, not a fault: it never files a Sentry issue.
@@ -218,7 +227,8 @@ const downloadVerificationPackage = async () => {
       const packageUrl = data.url;
       const packageFileName = `verification-package-${evidenceId}.zip`;
       const ok = await tryDownloadFile(packageUrl, packageFileName);
-      if (!ok) window.open(data.url, "_blank", "noopener,noreferrer");
+      // F-P1-04 — the fallback tab may be blocked after the awaits: say so.
+      if (!ok && !openArtifactUrlNow(packageUrl)) addToast(ARTIFACT_WINDOW_BLOCKED_MESSAGE, "error");
       return;
     }
     // A 2xx answer with no URL carries a bounded code (e.g. still pending).
@@ -413,16 +423,20 @@ const createNewVersion = async (submission: {
  */
 const downloadReportVersion = async (version: number) => {
   if (!evidenceId) return;
+  // F-P1-04 — opened in the click, pointed at the URL once minted.
+  const pending = openPendingArtifactWindow();
   try {
     const data = (await apiFetch(
       `/v1/evidence/${evidenceId}/reports/${version}`,
     )) as { url?: string | null };
     if (!data.url) {
+      pending.close();
       addToast(`Report v${version} is not available.`, "info");
       return;
     }
-    window.open(data.url, "_blank", "noopener,noreferrer");
+    if (pending.assign(data.url) === "blocked") addToast(ARTIFACT_WINDOW_BLOCKED_MESSAGE, "error");
   } catch (downloadError) {
+    pending.close();
     const feedback = describeArtifactDownloadFailure("report", downloadError, { version });
     addToast(feedback.message, feedback.tone);
     noteMissingObject("report", downloadError, version);
@@ -447,7 +461,7 @@ const downloadVerificationPackageVersion = async (version: number) => {
     const packageUrl = data.url;
     const packageFileName = `verification-package-${evidenceId}-v${version}.zip`;
     const ok = await tryDownloadFile(packageUrl, packageFileName);
-    if (!ok) window.open(packageUrl, "_blank", "noopener,noreferrer");
+    if (!ok && !openArtifactUrlNow(packageUrl)) addToast(ARTIFACT_WINDOW_BLOCKED_MESSAGE, "error");
   } catch (downloadError) {
     const feedback = describeArtifactDownloadFailure("verificationPackage", downloadError, { version });
     addToast(feedback.message, feedback.tone);
@@ -471,7 +485,7 @@ const downloadVerificationPackageVersion = async (version: number) => {
       const externalUrl = data.url;
       const externalFileName = `external-disclosure-package-${evidenceId}-v${version}.zip`;
       const ok = await tryDownloadFile(externalUrl, externalFileName);
-      if (!ok) window.open(externalUrl, "_blank", "noopener,noreferrer");
+      if (!ok && !openArtifactUrlNow(externalUrl)) addToast(ARTIFACT_WINDOW_BLOCKED_MESSAGE, "error");
     } catch (downloadError) {
       const feedback = describeArtifactDownloadFailure("verificationPackage", downloadError, { version });
       addToast(feedback.message, feedback.tone);

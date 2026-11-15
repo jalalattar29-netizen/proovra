@@ -32,6 +32,17 @@ function deviceLanguageCode(): string | undefined {
   }
 }
 
+/**
+ * F-P1-13 — PURE: the stored MANUAL locale, only when this build supports it
+ * (as the web validates `proovra-locale`). A value from an older or newer build,
+ * or a corrupted one, is not a locale to render in: the caller falls back to
+ * the device language.
+ */
+export function storedManualLocale(storedMode: string | null, storedLocale: string | null): Locale | null {
+  if (storedMode !== "manual" || !storedLocale) return null;
+  return supportedLocales.includes(storedLocale as Locale) ? (storedLocale as Locale) : null;
+}
+
 export function getDeviceLocale(): Locale {
   const code = deviceLanguageCode();
   if (code && supportedLocales.includes(code as Locale)) return code as Locale;

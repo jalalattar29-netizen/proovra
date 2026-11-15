@@ -46,7 +46,7 @@ import prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { evaluateAuthorize } from "../middleware/authorize.js";
-import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
+import { caseClosedTo, evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { invalidateOperationsSummary } from "../services/notifications/operations-summary-cache.js";
 import {
@@ -204,6 +204,23 @@ export async function collaborationRoutes(app: FastifyInstance) {
         return reply.code(404).send({
           error: { code: "evidence_not_in_workspace", details: null },
         });
+      }
+      // A2-22 — the optional evidence request a thread is tied to was stored
+      // unvalidated. It must be a request of THIS workspace that the caller can
+      // reach (its case and record by the restricted-case rule); a foreign, missing
+      // or closed id answers the same 404 and nothing is written.
+      if (body.evidenceRequestId) {
+        const request = await prisma.evidenceRequest.findFirst({
+          where: { id: body.evidenceRequestId, teamId: body.teamId },
+          select: { caseId: true, evidenceId: true },
+        });
+        const unreachable =
+          !request ||
+          (request.caseId !== null && (await caseClosedTo(request.caseId, ok.userId))) ||
+          (request.evidenceId !== null && (await evidenceClosedTo(request.evidenceId, ok.userId)));
+        if (unreachable) {
+          return reply.code(404).send({ error: { code: "evidence_request_not_found", details: null } });
+        }
       }
       try {
         const thread = await createDiscussionThread({

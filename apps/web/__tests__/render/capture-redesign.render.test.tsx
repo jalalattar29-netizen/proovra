@@ -283,3 +283,41 @@ describe("Review & Sign shows what will be sealed before it is", () => {
     expect(onCancel).toHaveBeenCalled();
   });
 });
+
+// F-P1-10 (Free-user audit of 4d9b78963) — "Folder — keeps folder structure"
+// was offered on every platform; the directory picker is a desktop capability.
+import { folderPickerSupported } from "../../app/(app)/capture/_lib/folder-utils";
+
+describe("F-P1-10: the Folder action is offered only where a folder can be picked", () => {
+  const noop = () => {};
+  const base = {
+    busy: false,
+    itemCount: 0,
+    onOpenFilePicker: noop,
+    onOpenCamera: noop,
+    onOpenAudioRecorder: noop,
+    onDropFiles: async () => {},
+  };
+
+  it("Folder renders with a folder picker and is absent without one; Add files stays", () => {
+    const pick = vi.fn();
+    const { rerender } = render(<CaptureDropzone {...base} onOpenFolderPicker={pick} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Folder/ }));
+    expect(pick).toHaveBeenCalledTimes(1);
+    rerender(<CaptureDropzone {...base} />);
+    expect(screen.queryByRole("button", { name: /^Folder/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Add files/ })).toBeTruthy();
+  });
+
+  it("capability: desktop browsers with webkitdirectory yes; phones, tablets and browsers without it no", () => {
+    const withDir = { webkitdirectory: false };
+    const desktop = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+    expect(folderPickerSupported({ input: withDir, userAgent: desktop })).toBe(true);
+    expect(folderPickerSupported({ input: {}, userAgent: desktop })).toBe(false);
+    expect(folderPickerSupported({ input: withDir, userAgent: "Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile Safari/537.36" })).toBe(false);
+    expect(folderPickerSupported({ input: withDir, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)" })).toBe(false);
+    expect(folderPickerSupported({ input: withDir, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", maxTouchPoints: 5 })).toBe(false);
+    expect(folderPickerSupported({ input: withDir, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", maxTouchPoints: 0 })).toBe(true);
+    expect(folderPickerSupported({ input: withDir, userAgent: desktop, uaMobile: true })).toBe(false);
+  });
+});

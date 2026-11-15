@@ -1,6 +1,16 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { assertUserHasRequiredLegalAcceptances } from "../services/legal-acceptance.service.js";
+import {
+  legalAcceptanceRequiredFor,
+  refuseWithoutCurrentLegalAcceptance,
+} from "./legal-acceptance-gate.js";
 
+/**
+ * The route-level form of the A1-06 rule, kept for the route files that name it
+ * (`requireAuthAndLegal`). It applies the SAME decision `requireAuth` now makes
+ * for every route: writes need the current terms, reads never do, and the
+ * reviewed exemptions (cancel, export, close, revoke...) stay open. A request
+ * `requireAuth` already proved current is not read twice.
+ */
 export async function requireLegalAcceptance(
   req: FastifyRequest,
   reply: FastifyReply
@@ -17,31 +27,9 @@ export async function requireLegalAcceptance(
     });
   }
 
-  try {
-    await assertUserHasRequiredLegalAcceptances({ userId });
-  } catch (err) {
-    const code =
-      err instanceof Error && "code" in err && typeof err.code === "string"
-        ? err.code
-        : "LEGAL_REACCEPT_REQUIRED";
+  const routePattern =
+    (req as { routeOptions?: { url?: string } }).routeOptions?.url ?? null;
+  if (!legalAcceptanceRequiredFor(req.method, routePattern)) return;
 
-    const statusCode =
-      err instanceof Error &&
-      "statusCode" in err &&
-      typeof err.statusCode === "number"
-        ? err.statusCode
-        : 428;
-
-    const details =
-      err instanceof Error && "details" in err ? err.details : undefined;
-
-    return reply.code(statusCode).send({
-      error: {
-        code,
-        message: "You must accept the latest legal policies before continuing.",
-        requestId: req.id,
-        details,
-      },
-    });
-  }
+  await refuseWithoutCurrentLegalAcceptance(req, reply, userId);
 }

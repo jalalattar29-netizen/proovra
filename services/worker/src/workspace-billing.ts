@@ -15,6 +15,8 @@ import { firstIssuanceExemptFromStorageLimit, normalizeWorkspaceKind } from "@pr
 import {
   countActiveSeatOccupancy,
   evidenceScopeFor,
+  isAllowanceExcludedFirstIssuance,
+  measureFirstIssuanceAllowanceExclusion,
   readActiveInternalPlanGrant,
   sumDerivedAssetStorageBytes,
 } from "@proovra/shared-runtime";
@@ -51,7 +53,12 @@ export type WorkerWorkspaceScope = {
 };
 
 export type WorkerWorkspaceUsage = {
+  /** Customer-facing: stored bytes minus `firstIssuanceExcludedBytes` (AUDIT D-03). */
   storageBytesUsed: bigint;
+  /** AUDIT D-03 — bytes actually stored, before the Free first-issuance exclusion. */
+  actualStorageBytes: bigint;
+  /** AUDIT D-03 — first-issued outputs of entitled Free records (shared-runtime measure). */
+  firstIssuanceExcludedBytes: bigint;
   evidenceStorageBytes: bigint;
   reportStorageBytes: bigint;
   verificationPackageStorageBytes: bigint;
@@ -404,6 +411,7 @@ export async function getWorkspaceUsage(
     evidenceCount,
     teamMemberCount,
     derivedStorageBytes,
+    firstIssuanceExclusion,
   ] = await Promise.all([
     prisma.evidence.aggregate({
       where: evidenceWhere,
@@ -433,6 +441,9 @@ export async function getWorkspaceUsage(
     // UC-0 (D5) — same derived-bytes authority as the API, over the same
     // workspace (F-02: the owner's personal workspace for a NULL-team scope).
     sumDerivedAssetStorageBytes(prisma, { teamId: usageTeamId }),
+    // AUDIT D-03 — the API's measure, over the same population and lifecycle
+    // filter as the report and package sums above.
+    measureFirstIssuanceAllowanceExclusion(prisma, evidenceWhere),
   ]);
 
   const evidenceStorageBytes = toBigIntOrZero(evidenceAggregate._sum.sizeBytes);
@@ -441,11 +452,18 @@ export async function getWorkspaceUsage(
     verificationPackageAggregate._sum.sizeBytes
   );
 
-  const storageBytesUsed =
+  const actualStorageBytes =
     evidenceStorageBytes +
     reportStorageBytes +
     verificationPackageStorageBytes +
     derivedStorageBytes;
+  // AUDIT D-03 — the customer-facing figure the API gates and meters read:
+  // originals once, an entitled Free record's first issuance left out.
+  const firstIssuanceExcludedBytes =
+    firstIssuanceExclusion.totalBytes < actualStorageBytes
+      ? firstIssuanceExclusion.totalBytes
+      : actualStorageBytes;
+  const storageBytesUsed = actualStorageBytes - firstIssuanceExcludedBytes;
 
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted figure is the
   // base capacity; the catalog default applies only when the contract is
@@ -473,6 +491,8 @@ const storageBytesLimit =
 
   return {
     storageBytesUsed,
+    actualStorageBytes,
+    firstIssuanceExcludedBytes,
     evidenceStorageBytes,
     reportStorageBytes,
     verificationPackageStorageBytes,
@@ -514,6 +534,10 @@ export async function assertWorkspaceStorageAvailable(params: {
       ownerUserId: params.scope.ownerUserId,
       plan: params.scope.plan,
       storageBytesUsed: usage.storageBytesUsed.toString(),
+      // AUDIT D-03 — refusal telemetry keeps the real stored bytes beside the
+      // customer-facing figure the decision used.
+      actualStorageBytes: usage.actualStorageBytes.toString(),
+      firstIssuanceExcludedBytes: usage.firstIssuanceExcludedBytes.toString(),
       storageBytesLimit: usage.storageBytesLimit.toString(),
       incomingBytes: incoming.toString(),
       nextStorageBytes: nextValue.toString(),
@@ -673,8 +697,12 @@ async function estimatePairedPackageBytes(evidenceId: string, version: number | 
  * issuance a record earned at finalization (its first report version and that
  * version's package pair) is owed by the product promise and is not refused
  * by the allowance (`firstIssuanceExemptFromStorageLimit`, @proovra/shared —
- * the API's offer reads the same rule). Its bytes still count toward usage.
- * Every other artifact is gated exactly as before.
+ * the API's offer reads the same rule). AUDIT D-03 — for an entitled FREE
+ * record (stored FREE_ALLOWANCE fact) those bytes are also left out of the
+ * customer-facing usage (`measureFirstIssuanceAllowanceExclusion`, applied in
+ * `getWorkspaceUsage`); a credit-funded or paid-plan record's first issuance
+ * still counts. Every other artifact is gated exactly as before, against that
+ * same customer-facing usage.
  */
 async function assertArtifactStorage(params: {
   scope: WorkerWorkspaceScope;
@@ -696,6 +724,15 @@ async function assertArtifactStorage(params: {
         basis: params.outputs.basis,
         isFirstReportVersion: earlierReports === 0,
       })
+    ) {
+      return getWorkspaceUsage(params.scope);
+    }
+    // AUDIT D-03 — the server-verified recovery of a proven-missing first-issued
+    // file of an entitled FREE record (request purpose `missing_output_recovery`)
+    // IS that first issuance: not customer storage, so never refused for it.
+    if (
+      params.outputs.decision === "ENTITLED" &&
+      (await isAllowanceExcludedFirstIssuance(prisma, { evidenceId: params.evidenceId, version }))
     ) {
       return getWorkspaceUsage(params.scope);
     }

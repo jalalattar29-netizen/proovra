@@ -210,11 +210,18 @@ describe("V-018: the help nudge and the page's primary controls", () => {
   // 2026-11-12 (owner decision): the launcher floats at the viewport's
   // bottom-right again, fixed while the page scrolls; the header holds no
   // assistant entry and no empty slot for one.
+  // F-P1-12 (2026-11-15): still fixed at the bottom-right of an LTR page, now
+  // as the logical inline end (bottom-left under dir="rtl") and clear of the
+  // iPhone safe area (`viewport-fit=cover`); no physical left/right remains.
   it("floats fixed at the bottom-right, never in the header", () => {
     const dock = rulesFor(css, ".assistant-dock")[0];
     expect(dock).toContain("position: fixed");
-    expect(dock).toContain("right: 1.5rem");
-    expect(dock).toContain("bottom: 1.5rem");
+    expect(dock).toContain("inset-inline-end: calc(1.5rem + env(safe-area-inset-right, 0px))");
+    expect(dock).toContain("bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px))");
+    expect(dock).not.toMatch(/(^|[^-])(right|left):/);
+    expect(rulesFor(css, '[dir="rtl"] .assistant-dock')[0]).toContain(
+      "inset-inline-end: calc(1.5rem + env(safe-area-inset-left, 0px))",
+    );
     expect(read("components/app-shell-v2/AppAccountToolbar.tsx")).not.toContain("assistant");
     expect(read("components/app-shell-v2/app-shell-v2.css")).not.toContain("app-header-assistant-slot");
     const widget = read("components/ai/ProovraChatWidget.tsx");
@@ -245,8 +252,16 @@ describe("narrow screens keep their data readable", () => {
   it("gives the phone assistant dock the width only while the panel is open", () => {
     const bare = read("components/ai/assistant.css").replace(/\/\*[\s\S]*?\*\//g, "");
     const phone = bare.slice(bare.indexOf("@media (max-width: 640px)"));
-    expect(rulesFor(phone, ".assistant-dock").join("")).not.toContain("left:");
-    expect(rulesFor(phone, ".assistant-dock:has(.assistant-panel)").join("")).toContain("left:");
+    // F-P1-12 (2026-11-15): logical insets plus the safe area, mirrored for RTL.
+    expect(rulesFor(phone, ".assistant-dock").join("")).not.toContain("inset-inline-start:");
+    expect(rulesFor(phone, ".assistant-dock").join("")).not.toMatch(/(^|[^-])(right|left):/);
+    expect(rulesFor(phone, ".assistant-dock").join("")).toContain("env(safe-area-inset-bottom, 0px)");
+    expect(rulesFor(phone, ".assistant-dock:has(.assistant-panel)").join("")).toContain(
+      "inset-inline-start: calc(0.75rem + env(safe-area-inset-left, 0px))",
+    );
+    expect(rulesFor(phone, '[dir="rtl"] .assistant-dock:has(.assistant-panel)').join("")).toContain(
+      "env(safe-area-inset-right, 0px)",
+    );
   });
 
   it("lets a public section be narrower than its widest table", () => {

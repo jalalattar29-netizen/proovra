@@ -2,6 +2,7 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { allowanceSlotEvidenceWhere, evidenceScopeFor } from "@proovra/shared-runtime";
 import { sumDerivedAssetStorageBytes } from "@proovra/shared-runtime";
+import { measureFirstIssuanceAllowanceExclusion } from "@proovra/shared-runtime";
 import type { WorkspaceScope } from "./workspace-billing.service.js";
 import {
   resolveEffectiveBaseStorageBytes,
@@ -248,7 +249,24 @@ function getTeamMemberLimit(scope: WorkspaceScope): number | null {
 }
 
 export type WorkspaceUsage = {
+  /**
+   * The CUSTOMER-FACING storage figure every gate and meter reads: the stored
+   * bytes minus `firstIssuanceExcludedBytes` (AUDIT D-03).
+   */
   storageBytesUsed: bigint;
+  /**
+   * AUDIT D-03 — the bytes actually stored for this population (evidence,
+   * reports, packages, derived materials), before the Free first-issuance
+   * exclusion. Internal accounting: ops and the workspace console read it; no
+   * customer gate does.
+   */
+  actualStorageBytes: bigint;
+  /**
+   * AUDIT D-03 — the first-issued report and packages of entitled Free records
+   * (`measureFirstIssuanceAllowanceExclusion`, @proovra/shared-runtime): stored,
+   * but not part of the customer-facing allowance.
+   */
+  firstIssuanceExcludedBytes: bigint;
   evidenceStorageBytes: bigint;
   reportStorageBytes: bigint;
   verificationPackageStorageBytes: bigint;
@@ -334,7 +352,14 @@ export async function getWorkspaceSeatUsage(
  */
 export type WorkspaceUsageClient = Pick<
   prismaPkg.Prisma.TransactionClient,
-  "team" | "evidence" | "report" | "verificationPackage" | "teamMember" | "evidencePartDerivedAsset"
+  | "team"
+  | "evidence"
+  | "report"
+  | "verificationPackage"
+  | "teamMember"
+  | "evidencePartDerivedAsset"
+  // AUDIT D-03 — the first-issuance measure reads missing-file recovery requests.
+  | "reportGenerationRequest"
 >;
 
 export async function getWorkspaceUsage(
@@ -423,6 +448,7 @@ export async function getWorkspaceUsage(
     retainedEvidenceAggregate,
     retainedReportAggregate,
     retainedPackageAggregate,
+    firstIssuanceExclusion,
   ] = await Promise.all([
     db.evidence.aggregate({
       where: evidenceWhere,
@@ -462,6 +488,9 @@ export async function getWorkspaceUsage(
       where: publishedPackageWhere({ evidence: retainedWhere }),
       _sum: { sizeBytes: true },
     }),
+    // AUDIT D-03 — the first issuance of the entitled Free records, over the
+    // SAME population and lifecycle filter the report and package sums use.
+    measureFirstIssuanceAllowanceExclusion(db, evidenceWhere),
   ]);
   const retainedArchiveStorageBytes =
     toBigIntOrZero(retainedEvidenceAggregate._sum.sizeBytes) +
@@ -474,11 +503,19 @@ export async function getWorkspaceUsage(
     verificationPackageAggregate._sum.sizeBytes
   );
 
-  const storageBytesUsed =
+  const actualStorageBytes =
     evidenceStorageBytes +
     reportStorageBytes +
     verificationPackageStorageBytes +
     derivedStorageBytes;
+  // AUDIT D-03 — the customer-facing figure: originals counted once, the
+  // standard first issuance of an entitled Free record left out. Never below
+  // zero (the exclusion is a subset of the sums above by construction).
+  const firstIssuanceExcludedBytes =
+    firstIssuanceExclusion.totalBytes < actualStorageBytes
+      ? firstIssuanceExclusion.totalBytes
+      : actualStorageBytes;
+  const storageBytesUsed = actualStorageBytes - firstIssuanceExcludedBytes;
 
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted storage figure
   // is the base capacity. It was previously ignored: every Enterprise
@@ -547,6 +584,8 @@ export async function getWorkspaceUsage(
 
   return {
     storageBytesUsed,
+    actualStorageBytes,
+    firstIssuanceExcludedBytes,
     evidenceStorageBytes,
     reportStorageBytes,
     verificationPackageStorageBytes,

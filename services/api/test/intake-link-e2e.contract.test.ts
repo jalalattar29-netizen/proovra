@@ -135,12 +135,18 @@ test("Create handler — emits 'intake.link.sent' OR 'intake.link.delivery_faile
   );
 });
 
-test("Create handler — composes intakeUrl by trimming trailing slash from base and appending /intake/<token>", () => {
+// A2-16 (2026-11-15) — the URL a message carries is no longer composed from the
+// caller's `intakeUrlBase`: the dispatcher builds it from the configured web
+// origin and binds the token to the stored link by its hash. Behaviour is
+// proved by tenant-reach-a2-round3.integration.test.ts (A2-16).
+test("Create handler — passes no caller-composed intakeUrl; the dispatcher builds it from the configured origin", () => {
   const src = read(ROUTES);
-  assert.match(
-    src,
-    /\$\{body\.intakeUrlBase\.replace\(\/\\\/\$\/, ""\)\}\/intake\/\$\{result\.rawToken\}/,
-  );
+  assert.doesNotMatch(src, /\$\{body\.intakeUrlBase\.replace/);
+  assert.doesNotMatch(src, /intakeUrl: body\.intakeUrl/);
+  const dispatcher = read(resolve(REPO_ROOT, "services/api/src/services/intake-link-delivery-dispatcher.service.ts"));
+  assert.match(dispatcher, /export function intakeLinkPublicUrl\(rawToken: string\)/);
+  assert.match(dispatcher, /getEmailWebBaseUrl\(\)/);
+  assert.match(dispatcher, /reason: "token_mismatch"/);
 });
 
 test("Create handler — return envelope includes link, rawToken, warning, delivery", () => {

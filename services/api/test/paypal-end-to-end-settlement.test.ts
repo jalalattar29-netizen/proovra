@@ -110,6 +110,16 @@ vi.mock("../src/db.js", () => {
         }
         return null;
       }),
+      // AUDIT E-03 — the legacy one-time capture branch looks for its durable
+      // binding (PAYPAL, ONE_TIME, external_payment_id = capture or order id).
+      findMany: vi.fn(async ({ where }: { where: { externalPaymentId?: { in?: string[] }; billingCycle?: string; paymentProvider?: string } }) =>
+        [...state.storageRows.values()].filter(
+          (row) =>
+            row.billingCycle === where.billingCycle &&
+            row.paymentProvider === where.paymentProvider &&
+            (where.externalPaymentId?.in ?? []).includes(row.externalPaymentId as string),
+        ),
+      ),
       update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const row = state.storageRows.get(where.id)!;
         Object.assign(row, data);

@@ -223,6 +223,13 @@ export interface ReleaseExpiredReservationsResult {
   failedIds: string[];
   /** UC-STR-002 — seal claims whose lease expired (crashed seals), released. */
   staleSealClaimsReleased: number;
+  /**
+   * C-13 — sessions whose record is SEALED but whose bind never ran, kept
+   * (ACTIVE, expiry moved to their maximum lifetime) for the client bind retry.
+   */
+  sealedUnboundKept: number;
+  /** C-13 — such sessions past their maximum lifetime, closed (record untouched). */
+  sealedUnboundClosed: number;
 }
 
 /**
@@ -282,6 +289,8 @@ export async function releaseExpiredReservations(
     scanned: 0,
     failedIds: [],
     staleSealClaimsReleased: 0,
+    sealedUnboundKept: 0,
+    sealedUnboundClosed: 0,
   };
   const exclude = options.excludeIds?.length ? { id: { notIn: [...options.excludeIds] } } : {};
   const released: string[] = [];
@@ -337,7 +346,47 @@ export async function releaseExpiredReservations(
             where: { id: reserved.finalizedEvidenceId },
             select: { status: true, deletedAt: true },
           });
-          if (record?.status === prismaPkg.EvidenceStatus.SIGNED || record?.status === prismaPkg.EvidenceStatus.REPORTED) return;
+          const maxEnd = new Date((reserved.startedAtUtc ?? reserved.createdAt).getTime() + EVIDENCE_RESERVATION_TTL_MS);
+          if (record?.status === prismaPkg.EvidenceStatus.SIGNED || record?.status === prismaPkg.EvidenceStatus.REPORTED) {
+            // C-13 (Free-user audit of 4d9b78963) — returning here left the
+            // session ACTIVE with its expiry in the past, so EVERY pass selected
+            // it again at the head of the page (oldest expiry first): enough of
+            // them filled every page and genuinely expired sessions behind them
+            // were never reached. Nothing re-drove the bind but a client retry.
+            // Now, within the session's maximum lifetime it stays ACTIVE for that
+            // retry (completeDirectCapture binds a sealed record: no second
+            // seal, no second charge) with its expiry moved to that maximum, so
+            // it is not reselected; past it — or INTERRUPTED, which can never
+            // bind — the session is closed EXPIRED with end reason
+            // SEALED_UNBOUND. The sealed record, its objects and its custody are
+            // never touched: no reservation release, nothing deleted.
+            if (reserved.status === prismaPkg.CaptureSessionStatus.ACTIVE && maxEnd.getTime() > now.getTime()) {
+              const kept = await tx.captureSession.updateMany({
+                where: { id: s.id, status: prismaPkg.CaptureSessionStatus.ACTIVE, expiresAtUtc: { lt: now }, OR: notLiveSealClaim },
+                data: { expiresAtUtc: maxEnd },
+              });
+              if (kept.count === 1) {
+                result.sealedUnboundKept++;
+                logger.info(
+                  { captureSessionId: s.id, evidenceId: reserved.finalizedEvidenceId, keptUntil: maxEnd.toISOString(), trigger },
+                  "capture.reaper.session_kept_sealed_unbound",
+                );
+              }
+              return;
+            }
+            const closed = await tx.captureSession.updateMany({
+              where: { id: s.id, status: { in: LIVE }, expiresAtUtc: { lt: now }, OR: notLiveSealClaim },
+              data: { status: prismaPkg.CaptureSessionStatus.EXPIRED, endedAtUtc: now, endReason: "SEALED_UNBOUND" },
+            });
+            if (closed.count === 1) {
+              result.sealedUnboundClosed++;
+              logger.warn(
+                { captureSessionId: s.id, evidenceId: reserved.finalizedEvidenceId, trigger },
+                "capture.reaper.session_closed_sealed_unbound",
+              );
+            }
+            return;
+          }
           // C-02 — an idle session whose record already holds staged parts is
           // not released at its one-hour idle expiry: the mobile app deletes
           // its device copies once the parts are staged, so releasing the
@@ -347,7 +396,6 @@ export async function releaseExpiredReservations(
           // is expired and released by a later pass once that has passed.
           // Only an ACTIVE session can still be sealed; an INTERRUPTED one has
           // no way back, so it is ended and released as before (AUD-0065).
-          const maxEnd = new Date((reserved.startedAtUtc ?? reserved.createdAt).getTime() + EVIDENCE_RESERVATION_TTL_MS);
           if (
             reserved.status === prismaPkg.CaptureSessionStatus.ACTIVE &&
             maxEnd.getTime() > now.getTime() &&

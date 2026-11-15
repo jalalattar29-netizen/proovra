@@ -133,3 +133,84 @@ test("F-09: only the private build with private billing can check out; store pro
   assert.equal(eas.build.production.env.EXPO_PUBLIC_PRIVATE_BILLING, undefined);
   assert.equal(eas.build.preview.env.EXPO_PUBLIC_PRIVATE_BILLING, "enabled");
 });
+
+/*
+ * AUDIT E-09 / F-P1-06 (2026-11-15) — the private build's card return asks the
+ * server about the attempt the Stripe checkout response named.
+ */
+const ATTEMPT_ID = "6f9619ff-8b86-4d11-b42d-00c04fc964ff";
+
+test("the Stripe checkout response names its attempt; anything else names none", () => {
+  const session = (extra) => ({ provider: "STRIPE", session: { id: "cs_1", url: "https://checkout.stripe.com/c/pay/cs_1", ...extra } });
+  assert.equal(P.stripeCheckoutAttemptId(session({ client_reference_id: ATTEMPT_ID, metadata: { attemptId: ATTEMPT_ID } }), "stripe"), ATTEMPT_ID);
+  assert.equal(P.stripeCheckoutAttemptId(session({ metadata: { attemptId: ATTEMPT_ID } }), "stripe"), ATTEMPT_ID);
+  assert.equal(P.stripeCheckoutAttemptId(session({ client_reference_id: ATTEMPT_ID }), "stripe"), ATTEMPT_ID);
+  // Disagreeing, malformed, PayPal, or a plan change with no session: never a guess.
+  assert.equal(P.stripeCheckoutAttemptId(session({ client_reference_id: ATTEMPT_ID, metadata: { attemptId: "7f9619ff-8b86-4d11-b42d-00c04fc964ff" } }), "stripe"), null);
+  assert.equal(P.stripeCheckoutAttemptId(session({ client_reference_id: "../../admin" }), "stripe"), null);
+  assert.equal(P.stripeCheckoutAttemptId(session({ client_reference_id: ATTEMPT_ID }), "paypal"), null);
+  assert.equal(P.stripeCheckoutAttemptId({ outcome: "PROVIDER_TRANSITION_STARTED", approvalUrl: "https://checkout.stripe.com/x" }, "stripe"), null);
+});
+
+test("closing the browser: re-check first; only an open, unpaid page asks abandon (confirmed: false); a paid or settling one never does", async () => {
+  const run = async (recheck, abandon) => {
+    const calls = [];
+    const answer = await A.confirmStripeCheckoutReturn({
+      accountType: "PERSONAL",
+      accountId: "p-1",
+      attemptId: ATTEMPT_ID,
+      resumeAllowed: true,
+      request: async (path, init) => {
+        calls.push({ path, body: init.body });
+        if (path.endsWith("/recheck")) {
+          if (recheck instanceof Error) throw recheck;
+          return recheck;
+        }
+        return abandon;
+      },
+    });
+    return { answer, calls };
+  };
+  const base = `/v1/billing/accounts/PERSONAL/p-1/checkout-attempts/${ATTEMPT_ID}`;
+
+  const open = await run(
+    { provider: "STRIPE", outcome: "STILL_PENDING", waitingFor: "PAYMENT_PAGE", resumeUrl: "https://checkout.stripe.com/c/pay/cs_1" },
+    { outcome: "ABANDON_CONFIRMATION_REQUIRED", cancelsAtProvider: true, warning: "Abandoning asks Stripe to close it." },
+  );
+  assert.deepEqual(open.calls, [
+    { path: `${base}/recheck`, body: "{}" },
+    { path: `${base}/abandon`, body: JSON.stringify({ confirmed: false }) },
+  ]);
+  assert.deepEqual(open.answer.confirmAbandon, { attemptId: ATTEMPT_ID, warning: "Abandoning asks Stripe to close it.", cancelsAtProvider: true });
+
+  for (const recheck of [
+    { provider: "STRIPE", outcome: "UPDATED", currentStatus: "COMPLETED" },
+    { provider: "STRIPE", outcome: "STILL_PENDING", waitingFor: "PAYMENT_PROCESSING" },
+    { provider: "STRIPE", outcome: "NO_CHANGE", currentStatus: "EXPIRED" },
+  ]) {
+    const r = await run(recheck, null);
+    assert.equal(r.calls.length, 1, JSON.stringify(recheck));
+    assert.equal(r.answer.confirmAbandon, null);
+  }
+  const failed = await run(new Error("offline"), null);
+  assert.equal(failed.calls.length, 1);
+  assert.equal(failed.answer.notice, A.STRIPE_RETURN_UNCONFIRMED);
+});
+
+test("store builds keep no purchase path: the return runs only after a private-build checkout", () => {
+  const saved = { d: process.env.EXPO_PUBLIC_DISTRIBUTION, b: process.env.EXPO_PUBLIC_PRIVATE_BILLING };
+  delete process.env.EXPO_PUBLIC_DISTRIBUTION;
+  delete process.env.EXPO_PUBLIC_PRIVATE_BILLING;
+  try {
+    assert.equal(P.purchaseAvailability(), "NOT_IN_THIS_BUILD");
+  } finally {
+    if (saved.d !== undefined) process.env.EXPO_PUBLIC_DISTRIBUTION = saved.d;
+    if (saved.b !== undefined) process.env.EXPO_PUBLIC_PRIVATE_BILLING = saved.b;
+  }
+  const src = readFileSync(new URL("../app/(stack)/billing.tsx", import.meta.url), "utf8");
+  // The attempt is remembered only where a checkout URL was obtained (executePurchase,
+  // which refuses without privateCheckout), and the return re-checks it only on a private build.
+  assert.match(src, /pendingStripeAttempt\.current = stripeCheckoutAttemptId\(response, provider\)/);
+  assert.match(src, /else if \(stripeAttempt && account && privateCheckout\)/);
+  assert.equal(src.match(/stripeCheckoutAttemptId\(/g)?.length, 1);
+});

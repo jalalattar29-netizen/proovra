@@ -74,6 +74,18 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "The policy versions on this page are no longer current. Reload the page and review the current versions before accepting.",
     severity: "warning",
   },
+  /**
+   * A1-06 — every authenticated write is refused (428) until the current
+   * terms are accepted; reads, export, closure, cancellation and revocation
+   * stay open. The refusal happens before anything is written, so the copy
+   * says so. The web step and the native acceptance screen open on it.
+   */
+  LEGAL_REACCEPT_REQUIRED: {
+    title: "Accept the updated terms",
+    message:
+      "Our terms were updated. Review and accept the current terms to continue — nothing was changed by this request, so you can try again once you have accepted.",
+    severity: "warning",
+  },
   CERTIFICATION_ALREADY_ATTESTED: {
     title: "Already signed",
     message: "This declaration was signed in the meantime. Reload the declarations; request a new one to sign again.",
@@ -404,6 +416,12 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "It is closed or its organization is suspended.",
     severity: "warning",
   },
+  // Free audit B-16 — an organization invitation accepted while the organization is archived or suspended.
+  ORGANIZATION_NOT_ACCEPTING_MEMBERS: {
+    title: "This organization isn't accepting members",
+    message: "It is archived or suspended. Ask an organization administrator if you still need access.",
+    severity: "warning",
+  },
   COLLABORATION_TEAM_NOT_FOUND: {
     title: "Team not found",
     message: "That Collaboration Team could not be found in this workspace.",
@@ -524,6 +542,13 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "Please wait a moment and try again.",
     severity: "warning",
   },
+  // F-08 (Free-user audit of 4d9b78963) — the API overload gate (503 + Retry-After):
+  // the request was refused before any work, so nothing changed.
+  SERVER_BUSY: {
+    title: "PROOVRA is busy",
+    message: "The service is handling a lot of requests right now. Nothing was changed — please try again in a moment.",
+    severity: "warning",
+  },
   EMAIL_NOT_VERIFIED: {
     title: "Verify your email address",
     message: "Please verify your email address before continuing. Check your inbox for the activation link.",
@@ -539,6 +564,21 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
   TEAM_LIMIT_REACHED: {
     title: "Team limit reached",
     message: "Your plan's Collaboration Team limit has been reached. Upgrade to create another Collaboration Team.",
+    severity: "warning",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  /*
+   * F-15 / A2-11 — the packaging ceiling INTEGRATION_API_KEYS_MAX refused a NEW
+   * key (POST /v1/integrations/api-keys answers 429 `api_key_limit_reached`;
+   * clients match codes case-insensitively). It is a plan allowance, not a rate
+   * limit, so the 429 bucket's "try again later" was false. Plans whose Pricing
+   * says API access is "Not included" allow 0; existing keys keep working.
+   */
+  API_KEY_LIMIT_REACHED: {
+    title: "No more API keys on this plan",
+    message:
+      "Your plan does not allow another API key for this workspace. Keys you already have keep working. To add one, upgrade your plan — or, if your plan includes keys, revoke one you no longer use.",
     severity: "warning",
     actionLabel: "View billing",
     actionHref: "/billing",
@@ -804,6 +844,17 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     title: "A file changed after it was staged",
     message:
       "A stored file is not the file that was staged for it, so nothing was sealed. Remove that file, add it again, and choose Finish & Sign again.",
+    severity: "warning",
+  },
+  /**
+   * F-04 (Free-user audit of 4d9b78963) — the seal is signed and timestamped
+   * between two short transactions; when the record's stored files changed in
+   * between (twice), the completion answers 409 with nothing sealed or charged.
+   */
+  EVIDENCE_COMPLETION_INPUTS_CHANGED: {
+    title: "Files changed while sealing",
+    message:
+      "The files of this record changed while it was being sealed, so nothing was sealed and nothing was charged. Your materials are kept — choose Finish again.",
     severity: "warning",
   },
   STORAGE_LIMIT_REACHED: {

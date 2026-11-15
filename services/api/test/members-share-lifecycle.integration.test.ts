@@ -369,8 +369,27 @@ describe("SEC-08 — share-link lifecycle (live PostgreSQL)", () => {
     expect(lifetime).toBeGreaterThan(6.9 * DAY);
     expect(lifetime).toBeLessThanOrEqual(7 * DAY);
 
-    const renew = (days: number) =>
-      h.app.inject({ method: "POST", url: `/v1/external-review/grants/${grant.id}/renew`, headers: bearer(A().ownerToken), payload: { teamId: A().teamId, days } });
+    // A2-15 (2026-11-15) — renewal EXTENDS the disclosure and takes the
+    // step-up whose purpose names grant EXTEND, like issue.
+    const renew = async (days: number) =>
+      h.app.inject({
+        method: "POST",
+        url: `/v1/external-review/grants/${grant.id}/renew`,
+        headers: {
+          ...bearer(A().ownerToken),
+          ...(days <= 30
+            ? await stepUp.approvedHeader({
+                token: A().ownerToken,
+                userId: A().ownerUserId,
+                teamId: A().teamId,
+                purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+                resourceKind: "external_review_grant",
+                resourceId: grant.id,
+              })
+            : {}),
+        },
+        payload: { teamId: A().teamId, days },
+      });
     expect((await renew(31)).statusCode).toBe(400);
     const renewed = await renew(30);
     expect(renewed.statusCode, renewed.body).toBe(200);

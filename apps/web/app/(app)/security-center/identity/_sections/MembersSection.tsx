@@ -360,7 +360,8 @@ export function MembersSection({
         suspend: {
           title: "Suspend this member?",
           description:
-            "Access stops immediately and every active session is revoked. The held role is preserved so the member can be restored.",
+            // A2-10 — what the server ends with a suspension (creator-share-grants.ts, CREATOR_SUSPENDED).
+            "Access stops immediately and every active session is revoked. Share links, external-review invitations, secure intake links and integration API keys this member created are revoked too. The held role is preserved so the member can be restored.",
           confirmLabel: "Suspend member",
           tone: "danger" as const,
           success: "Member suspended.",
@@ -368,7 +369,7 @@ export function MembersSection({
         restore: {
           title: "Restore this member?",
           description:
-            "The member regains the role they held before suspension. Step-up confirmation is required.",
+            "The member regains the role they held before suspension. Links and integration API keys revoked at suspension stay revoked; create new ones if they are still needed. Step-up confirmation is required.",
           confirmLabel: "Restore member",
           tone: "warning" as const,
           success: "Member restored.",
@@ -376,7 +377,7 @@ export function MembersSection({
         revoke: {
           title: "Revoke this member?",
           description:
-            "Access is removed for good and every grant source (invite, SSO, SCIM) is closed. Re-admitting them needs a new invitation.",
+            "Access is removed for good and every grant source (invite, SSO, SCIM) is closed. Share links, external-review invitations, secure intake links and integration API keys this member created are revoked. Re-admitting them needs a new invitation.",
           confirmLabel: "Revoke member",
           tone: "danger" as const,
           success: "Member revoked.",

@@ -6,14 +6,27 @@
  * debug/API-base leakage). The native OAuth *client configuration* remains
  * EXTERNAL-CONFIG-PENDING; this is the repository-side wiring.
  */
-import { useCallback, useEffect, useState } from "react";
-import { Platform } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState, Platform } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Google from "expo-auth-session/providers/google";
 import { fetchOAuthNonce, oauthApple, oauthGoogle, type LoginResult } from "./auth-api";
 import { toSafeUserError, type SafeError } from "../errors/safe-error";
 
 export type OAuthMode = "google" | "apple";
+
+/**
+ * B-23 — how long a held Google nonce is offered. The API keeps a nonce for 10
+ * minutes (social-sign-in-nonce.service.ts SOCIAL_NONCE_TTL_SECONDS); one older
+ * than this is replaced before it is used, leaving the person at least five
+ * minutes to finish Google's sheet.
+ */
+export const OAUTH_NONCE_FRESH_MS = 5 * 60 * 1000;
+
+/** PURE — whether a nonce fetched at `fetchedAtMs` may still start an attempt. */
+export function oauthNonceIsFresh(fetchedAtMs: number | null, nowMs: number): boolean {
+  return fetchedAtMs !== null && nowMs - fetchedAtMs < OAUTH_NONCE_FRESH_MS;
+}
 
 export interface UseOAuth {
   googleReady: boolean;
@@ -43,10 +56,20 @@ export function useOAuth(opts: {
   // it into the id_token and the API accepts that token once; a fresh one is
   // fetched after every attempt. Until one arrives Google is not offered.
   const [googleNonce, setGoogleNonce] = useState<string | null>(null);
+  // B-23 — when the held nonce was fetched. It used to be fetched once on mount
+  // and kept, so the first tap after the API's 10-minute TTL (a screen left
+  // open, an app backgrounded) carried an expired nonce and failed at the
+  // server. It is now replaced on a schedule, on return to the foreground, and
+  // at the tap itself when it has grown old.
+  const nonceFetchedAt = useRef<number | null>(null);
   const refreshGoogleNonce = useCallback(() => {
     setGoogleNonce(null);
+    nonceFetchedAt.current = null;
     void fetchOAuthNonce("google")
-      .then(setGoogleNonce)
+      .then((nonce) => {
+        nonceFetchedAt.current = Date.now();
+        setGoogleNonce(nonce);
+      })
       .catch(() => setGoogleNonce(null));
   }, []);
 
@@ -93,7 +116,17 @@ export function useOAuth(opts: {
   const googleConfigured = typeof platformClientId === "string" && platformClientId.length > 0;
   // Only a build that can offer Google asks the API for a Google nonce.
   useEffect(() => {
-    if (googleConfigured) refreshGoogleNonce();
+    if (!googleConfigured) return;
+    refreshGoogleNonce();
+    const timer = setInterval(refreshGoogleNonce, OAUTH_NONCE_FRESH_MS);
+    // JS timers do not run while the app is suspended: check on the way back.
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active" && !oauthNonceIsFresh(nonceFetchedAt.current, Date.now())) refreshGoogleNonce();
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
   }, [googleConfigured, refreshGoogleNonce]);
 
   // Never sent anywhere: `promptGoogle` returns OAUTH_GOOGLE_UNCONFIGURED
@@ -156,9 +189,15 @@ export function useOAuth(opts: {
       setError(toSafeUserError({ status: 503, code: "OAUTH_GOOGLE_UNCONFIGURED" }));
       return;
     }
+    // B-23 — an old nonce is replaced, not spent: the control reads "not ready"
+    // for the moment the fresh one takes to arrive, and the next tap uses it.
+    if (!oauthNonceIsFresh(nonceFetchedAt.current, Date.now())) {
+      refreshGoogleNonce();
+      return;
+    }
     setError(null);
     void promptAsync();
-  }, [googleConfigured, googleRequest, googleNonce, promptAsync]);
+  }, [googleConfigured, googleRequest, googleNonce, promptAsync, refreshGoogleNonce]);
 
   const signInApple = useCallback(() => {
     void (async () => {

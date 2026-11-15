@@ -20,9 +20,10 @@
  *                             discard could not settle it — the user is told to
  *                             check the Evidence library, never "nothing saved".
  */
+import { classifyStoragePutStatus, storagePutRetryDelayMs } from "@proovra/shared";
 import type { WebCaptureArtifactDescriptor, WebCaptureLimitationCode } from "@proovra/shared";
 
-import { ApiError, NetworkError, isTransientFailure, type ApiClient } from "./api-client.js";
+import { ApiError, NetworkError, StoragePutError, isTransientFailure, type ApiClient } from "./api-client.js";
 import {
   CaptureCancelledError,
   CaptureInterruptedError,
@@ -200,9 +201,18 @@ export async function runPreserveFlow(
         return await fn();
       } catch (err) {
         if (!isTransientFailure(err) || attempt >= RETRY_POLICY.attempts) throw err;
+        // F-P1-08 — the shared backoff: equal jitter, never earlier than a
+        // storage Retry-After, and not at all when it asks for over a minute.
+        const waitMs = storagePutRetryDelayMs(
+          attempt,
+          err instanceof StoragePutError ? err.retryAfterMs : null,
+          Math.random,
+          { ...RETRY_POLICY, maxRetryAfterMs: 60_000 },
+        );
+        if (waitMs === null) throw err;
         deps.progress("retrying", `${step} (attempt ${attempt + 1} of ${RETRY_POLICY.attempts})`);
         await waitForOnline(RETRY_POLICY.offlineWaitMs);
-        await sleep(Math.min(RETRY_POLICY.baseDelayMs * 2 ** (attempt - 1), RETRY_POLICY.maxDelayMs));
+        await sleep(waitMs);
         cancelled();
       }
     }
@@ -275,16 +285,30 @@ export async function runPreserveFlow(
       cancelled();
       const a = capture.artifacts[i]!;
       deps.progress("uploading", `artifact ${i + 1}/${capture.artifacts.length + 1}`);
-      const part = await withRetry("uploading", () =>
+      const presign = () =>
         deps.api.createPart(token, recordId, {
           partIndex: i,
           mimeType: a.mediaType,
           originalFileName: `${a.role}-${i}`,
           // PRO-051 — signed into the upload URL; the API requires it.
           sizeBytes: a.blob.size,
-        }),
-      );
-      await withRetry("uploading", () => deps.api.putBytes(part.upload.putUrl, a.blob, a.mediaType));
+        });
+      let part = await withRetry("uploading", presign);
+      // F-P1-08 — storage refusing the URL itself (403: expired) presigns the
+      // same part again (idempotent server-side) before the next attempt.
+      let presignAgain = false;
+      await withRetry("uploading", async () => {
+        if (presignAgain) {
+          part = await presign();
+          presignAgain = false;
+        }
+        try {
+          await deps.api.putBytes(part.upload.putUrl, a.blob, a.mediaType);
+        } catch (err) {
+          presignAgain = err instanceof StoragePutError && classifyStoragePutStatus(err.status) === "REPRESIGN";
+          throw err;
+        }
+      });
       await withRetry("uploading", () =>
         deps.api.declarePart(token, openSessionId, i, {
           sha256: a.sha256,

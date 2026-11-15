@@ -13,7 +13,8 @@ import {
   outputEarnedFactFromDecision,
   type PlanType,
 } from "@proovra/shared-billing";
-import { getEvidenceSigner } from "../signing/signer.js";
+import { getEvidenceSigner, type EvidenceSigner, type SignFingerprintResult } from "../signing/signer.js";
+import { resolveEvidenceRecordAccess, type EvidenceRecordPermission } from "./evidence/evidence-record-access.service.js";
 import {
   assertWorkspaceAllowsStorageGrowth,
   lockEvidenceCapacitySubject,
@@ -686,16 +687,111 @@ function prehashBinding(
  * reports no version or ETag).
  */
 async function digestOf(
-  prehashed: ReadonlyMap<string, string>,
+  prehashed: Map<string, string>,
   bucket: string,
   key: string,
   meta: { versionId?: string | null; etag?: string | null; sizeBytes?: number | null },
+  sealing = false,
 ): Promise<string> {
   const binding = prehashBinding(bucket, key, meta);
   const known = binding ? prehashed.get(binding) : undefined;
   if (known) return known;
+  // F-04 — the sealing transaction never reads bytes it holds no attestation
+  // for: an object that is not the version attested was replaced mid-flight.
+  if (binding && sealing) throw new CompletionAttestationStale();
   const body = await safeGetStream(bucket, key, meta.versionId ?? null);
-  return sha256HexFromStream(body as unknown as Readable);
+  const digest = await sha256HexFromStream(body as unknown as Readable);
+  if (binding) prehashed.set(binding, digest);
+  return digest;
+}
+
+/**
+ * F-04 — WHAT A SEAL ASKS THE SIGNER AND THE TIMESTAMP AUTHORITY FOR, bound to
+ * the exact inputs it was derived from: the record, the seal instant the
+ * fingerprint commits to, the fingerprint, the digest the token covers and
+ * every object's version/ETag/size. A preparing transaction derives it and
+ * rolls back; the signature and token are obtained with no connection held;
+ * the sealing transaction persists them only when, under the record and
+ * capacity locks, it derives exactly the same request again. A token or
+ * signature obtained for an attempt that then loses is never persisted.
+ */
+type CompletionAttestationRequest = {
+  evidenceId: string;
+  now: Date;
+  fingerprintHash: string;
+  fileSha256: string;
+  tsaInputKind: "FILE_SHA256" | "CANONICAL_PACKAGE_SHA256";
+  objectBindings: string[];
+};
+
+type CompletionAttestation = CompletionAttestationRequest & {
+  signResult: SignFingerprintResult;
+  tsaResult: TimestampResult | null;
+};
+
+class CompletionAttestationRequired extends Error {
+  constructor(readonly request: CompletionAttestationRequest) {
+    super("COMPLETION_ATTESTATION_REQUIRED");
+  }
+}
+
+/** The inputs moved between the preparing and the sealing transaction. */
+class CompletionAttestationStale extends Error {
+  constructor() {
+    super("COMPLETION_ATTESTATION_STALE");
+  }
+}
+
+/** Signatures + tokens one call obtains before refusing inputs that keep moving. */
+const MAX_COMPLETION_ATTESTATIONS = 2;
+
+function attestationMatches(a: CompletionAttestation, r: CompletionAttestationRequest): boolean {
+  return (
+    a.evidenceId === r.evidenceId &&
+    a.now.getTime() === r.now.getTime() &&
+    a.fingerprintHash === r.fingerprintHash &&
+    a.fileSha256 === r.fileSha256 &&
+    a.tsaInputKind === r.tsaInputKind &&
+    a.objectBindings.length === r.objectBindings.length &&
+    a.objectBindings.every((b, i) => b === r.objectBindings[i]) &&
+    (a.tsaResult === null || a.tsaResult.requestDigestHex === r.fileSha256)
+  );
+}
+
+async function obtainCompletionAttestation(
+  signer: EvidenceSigner,
+  request: CompletionAttestationRequest,
+): Promise<CompletionAttestation> {
+  const signResult = await signer.signFingerprintHex(request.fingerprintHash);
+  const tsaResult = await createEvidenceTimestamp({
+    digestHex: request.fileSha256,
+    inputKind: request.tsaInputKind,
+  });
+  return { ...request, signResult, tsaResult };
+}
+
+/**
+ * F-04 — one completion of a record at a time IN THIS PROCESS, waited for in
+ * memory (no connection). A duplicate complete used to wait on the record lock
+ * holding a connection; it now waits here and then finds the record sealed,
+ * without reading the bytes again or spending a second signature and token.
+ * Across processes the record lock and the finalize claim stay the guarantee.
+ */
+const completionsInFlight = new Map<string, Promise<unknown>>();
+
+async function oneCompletionAtATime<T>(evidenceId: string, run: () => Promise<T>): Promise<T> {
+  const previous = completionsInFlight.get(evidenceId) ?? Promise.resolve();
+  const current = previous.then(run, run);
+  const settled = current.then(
+    () => undefined,
+    () => undefined,
+  );
+  completionsInFlight.set(evidenceId, settled);
+  try {
+    return await current;
+  } finally {
+    if (completionsInFlight.get(evidenceId) === settled) completionsInFlight.delete(evidenceId);
+  }
 }
 
 /**
@@ -777,9 +873,17 @@ export async function completeEvidence(params: {
    * event and tenant audit this authority now writes for every channel.
    */
   requestContext?: { ip?: string | null; userAgent?: string | null; correlationId?: string | null };
+  /**
+   * F-04 — the record permission the caller was admitted with (the
+   * authenticated /complete door). It is asked again under the record lock in
+   * the sealing transaction, so authority revoked while the signature and token
+   * were obtained refuses the seal.
+   */
+  recheckRecordPermission?: EvidenceRecordPermission;
 }): Promise<CompleteEvidenceReturn> {
   const signer = getEvidenceSigner();
 
+  const final = await oneCompletionAtATime(params.evidenceId, async (): Promise<CompleteEvidenceTransactionResult> => {
   // ET-ACQ-04 — size and digests are established BEFORE the interactive
   // transaction: an oversize upload is refused from its HEAD sizes before a
   // single byte is read, and the bytes are hashed outside the 120 s window
@@ -803,7 +907,13 @@ export async function completeEvidence(params: {
     ? await resolveEnforcementScopeForRequester({ ownerUserId: preRead.ownerUserId, teamId: preRead.teamId ?? null })
     : null;
 
-  const final = await prisma.$transaction(
+  // F-04 — the seal runs as TWO short transactions with the signature and the
+  // RFC 3161 token obtained between them, holding no connection. Called with
+  // no attestation, this transaction runs every check, derives the digests and
+  // the fingerprint, and rolls back with the attestation request. Called with
+  // one, it runs every check again under the record (and later the capacity)
+  // lock and persists only an attestation for exactly what it derived.
+  const sealTransaction = (attestation: CompletionAttestation | null) => prisma.$transaction(
     async (tx): Promise<CompleteEvidenceTransactionResult> => {
       await tx.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtext(${params.evidenceId}))
@@ -959,6 +1069,21 @@ export async function completeEvidence(params: {
           },
           retentionTargets,
         };
+      }
+
+      // F-04 — the actor's CURRENT authority, under the record lock: the door
+      // admitted the caller before the signature and token were obtained, and a
+      // membership or role revoked since refuses the seal (the door's 404).
+      if (params.recheckRecordPermission) {
+        const access = await resolveEvidenceRecordAccess(
+          { userId: params.ownerUserId, evidenceId: evidence.id, permission: params.recheckRecordPermission },
+          tx as unknown as typeof prisma,
+          { eventClient: prisma },
+        );
+        if (!access.allowed) {
+          const err: HttpError = Object.assign(new Error("NOT_FOUND"), { statusCode: 404 });
+          throw err;
+        }
       }
 
       // UC-COM-001 — an EXPIRED reservation (untouched for the whole window and
@@ -1239,8 +1364,11 @@ export async function completeEvidence(params: {
         "single_file";
       const retentionTargets: RetentionTarget[] = [];
 
-      const now = new Date();
+      // F-04 — the sealing transaction commits to the instant the attested
+      // fingerprint was derived at (it is inside the signed fingerprint).
+      const now = attestation?.now ?? new Date();
       const uploadedAtUtcIso = now.toISOString();
+      const objectBindings: string[] = [];
 
       if (parts.length > 0) {
         const updatedParts: ProcessedPart[] = [];
@@ -1286,7 +1414,8 @@ export async function completeEvidence(params: {
         }
 
         for (const { part, bucket, key, meta, size } of heads) {
-          const sha256 = await digestOf(prehashed, bucket, key, meta);
+          const sha256 = await digestOf(prehashed, bucket, key, meta, attestation !== null);
+          objectBindings.push(prehashBinding(bucket, key, meta) ?? JSON.stringify([bucket, key, null, null, size]));
 
           // F-03 (Free-user audit 2026-11-13) — the part row (its name, note,
           // role, checklist step) was bound to the file whose staged digest the
@@ -1477,7 +1606,8 @@ const fingerprint = buildFingerprint({
         });
 
         primaryVersionId = meta.versionId ?? null;
-        fileSha256 = await digestOf(prehashed, bucket, key, meta);
+        fileSha256 = await digestOf(prehashed, bucket, key, meta, attestation !== null);
+        objectBindings.push(prehashBinding(bucket, key, meta) ?? JSON.stringify([bucket, key, null, null, size]));
 
         const fingerprint = buildFingerprint({
           evidence: {
@@ -1524,16 +1654,32 @@ const fingerprint = buildFingerprint({
       // authority are metered, and a retried complete in a full workspace spent
       // one token per attempt. The locked check below stays the decision.
       await assertWorkspaceAllowsStorageGrowth({ scope, incomingBytes: incomingGrowth, client: tx });
-      // AUD-0017 — the signing boundary's per-signature control reads use this
-      // transaction's connection.
-      const signResult = await signer.signFingerprintHex(fingerprintHash, { client: tx });
 
       const tsaInputKind =
         multipartItemCount > 1 ? "CANONICAL_PACKAGE_SHA256" : "FILE_SHA256";
-      const tsaResult = await createEvidenceTimestamp({
-        digestHex: fileSha256,
-        inputKind: tsaInputKind,
-      });
+      // F-04 (Free-user audit of 4d9b78963) — the signature and the token are
+      // no longer obtained here, inside the transaction (they held its
+      // connection and the record lock across KMS and up to three 20 s
+      // authority subprocesses). The preparing pass stops here and hands out
+      // the request; the sealing pass uses only an attestation of exactly this
+      // request (same instant, fingerprint, digest, kind and object versions).
+      const attestationRequest: CompletionAttestationRequest = {
+        evidenceId: evidence.id,
+        now,
+        fingerprintHash,
+        fileSha256,
+        tsaInputKind,
+        objectBindings,
+      };
+      if (!attestation) throw new CompletionAttestationRequired(attestationRequest);
+      if (!attestationMatches(attestation, attestationRequest)) throw new CompletionAttestationStale();
+      // AUD-0017 / UC-TRUST-003 — the signing boundary's control reads, on this
+      // transaction's connection: a signer retired or a key revoked since the
+      // signature was made refuses the seal.
+      const signResult = signer.reassertSignatureAdmissible
+        ? await signer.reassertSignatureAdmissible(fingerprintHash, attestation.signResult, { client: tx })
+        : attestation.signResult;
+      const tsaResult = attestation.tsaResult;
 
       // ET-SEC-28 — under the workspace capacity lock (see
       // lockEvidenceCapacitySubject): a concurrent finalize in this workspace
@@ -1967,6 +2113,36 @@ const captureMethod =
       timeout: 120_000,
     }
   );
+
+  // F-04 — prepare (short, rolled back) → sign + timestamp (no connection
+  // held) → seal (short). Inputs that moved in between void the attestation:
+  // the moved bytes are hashed again outside any transaction and the seal is
+  // prepared afresh, at most MAX_COMPLETION_ATTESTATIONS times; then refused.
+  let attestation: CompletionAttestation | null = null;
+  let attestations = 0;
+  for (;;) {
+    try {
+      return await sealTransaction(attestation);
+    } catch (err) {
+      if (err instanceof CompletionAttestationRequired && attestations < MAX_COMPLETION_ATTESTATIONS) {
+        attestations += 1;
+        attestation = await obtainCompletionAttestation(signer, err.request);
+        continue;
+      }
+      if (!(err instanceof CompletionAttestationStale)) throw err;
+      if (attestations >= MAX_COMPLETION_ATTESTATIONS) {
+        throw captureCompletionError("EVIDENCE_COMPLETION_INPUTS_CHANGED");
+      }
+      attestation = null;
+      for (const [binding, digest] of await prehashCompletionObjects({
+        evidenceId: params.evidenceId,
+        ownerUserId: params.ownerUserId,
+      })) {
+        prehashed.set(binding, digest);
+      }
+    }
+  }
+  });
 
   /*
    * INGEST-011 — THE SEAL HAS COMMITTED. A retention failure below is reported to

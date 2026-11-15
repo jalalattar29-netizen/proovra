@@ -6,7 +6,8 @@ import { ProovraSystemState } from "../../../../../components/feedback/ProovraSy
  * Phase 2.7X Stage 4 — Organization invite acceptance page.
  *
  * Reachable by invitees who received an invite token. Calls
- * `POST /v1/org-invites/:token/accept` and shows the result.
+ * `POST /v1/org-invites/accept` with the token in the BODY (B-15 — never in
+ * the request path) and shows the result.
  *
  * Hard rules:
  *   - The token is in the URL; we never log it client-side beyond
@@ -28,6 +29,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 import { apiFetch, isApiResponseError } from "../../../../../lib/api";
+import { withLegacyRouteFallback } from "../../../../../lib/api/legacy-route-fallback";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { usePlatformContext } from "../../../../../lib/platform-context";
 import type { OrganizationInvitationLookup } from "@proovra/shared";
@@ -142,9 +144,16 @@ function OrgInviteAcceptPageInner() {
     setState({ kind: "accepting" });
     try {
       // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
-      const data = (await apiFetch(`/v1/org-invites/${token}/accept`, {
-        method: "POST",
-      })) as {
+      // COMPAT — an API older than this build has only the path form (it
+      // answers ROUTE_NOT_FOUND for the body form); that one call is sent then.
+      const data = (await withLegacyRouteFallback(
+        () =>
+          apiFetch("/v1/org-invites/accept", {
+            method: "POST",
+            body: JSON.stringify({ token }),
+          }),
+        () => apiFetch(`/v1/org-invites/${encodeURIComponent(token)}/accept`, { method: "POST" }),
+      )) as {
         organizationId: string;
         role: string;
         // PHASE 5 §8.2 — explicit workspace grants (empty/absent =
@@ -379,30 +388,117 @@ function OrgInviteAcceptPageInner() {
 
       {state.kind === "error" &&
         state.code !== "ACCOUNT_PASSWORD_PROOF_REQUIRED" &&
-        state.code !== "EMAIL_NOT_VERIFIED" && (
-        <div data-state="error">
-          <ProovraSystemState
-            context="authenticated"
-            presentation="contained"
-            kind={state.status === 410 ? "invitation-expired" : "invitation-invalid"}
-            testId="org-invite-error"
-            title="We couldn't accept this invite"
-            message={
-              state.status === 410
-                ? "This invite is expired, revoked, or already accepted. Ask an organization administrator to send a new one."
-                : state.status === 404
-                  ? "Invite not found — the link may be incorrect. Ask an organization administrator for a new invitation."
-                  : "The invite couldn't be accepted. Ask an organization administrator for a new invitation."
-            }
-            actions={[
-              { label: "Go to organizations", href: "/organizations", variant: "primary" },
-              { label: "Return to dashboard", href: "/home", variant: "secondary" },
-            ]}
-          />
-        </div>
-      )}
+        state.code !== "EMAIL_NOT_VERIFIED" && (() => {
+          const refusal = orgInviteRefusal(state.code, state.status);
+          return (
+            <div data-state="error" data-refusal={state.code ?? "unknown"}>
+              <ProovraSystemState
+                context="authenticated"
+                presentation="contained"
+                kind={refusal.kind}
+                testId="org-invite-error"
+                title={refusal.title}
+                message={refusal.message}
+                actions={[
+                  ...(refusal.retry
+                    ? [{ label: "Try again", onClick: () => void accept(), variant: "primary" as const }]
+                    : [{ label: "Go to organizations", href: "/organizations", variant: "primary" as const }]),
+                  { label: "Return to dashboard", href: "/home", variant: "secondary" as const },
+                ]}
+              />
+            </div>
+          );
+        })()}
     </div>
   );
+}
+
+/**
+ * B-16 — what the accept route's refusal says, by its code
+ * (organizations.routes.ts acceptOrgInviteHandler). The page used to answer
+ * every refusal with "ask for a new invitation", which is wrong for most of
+ * them: a different signed-in address needs a different sign-in, a busy
+ * workspace needs a retry, a suspended membership needs an administrator. A
+ * response without a code (an older API) falls back to the status wording.
+ */
+function orgInviteRefusal(
+  code: string | undefined,
+  status: number,
+): {
+  title: string;
+  message: string;
+  kind: "invitation-expired" | "invitation-revoked" | "invitation-invalid";
+  retry?: boolean;
+} {
+  switch (code) {
+    case "INVITE_EXPIRED":
+      return {
+        kind: "invitation-expired",
+        title: "This invitation has expired",
+        message: "Ask an organization administrator to send a new invitation if you still need access.",
+      };
+    case "INVITE_REVOKED":
+      return {
+        kind: "invitation-revoked",
+        title: "This invitation was withdrawn",
+        message: "Ask an organization administrator if you still need access.",
+      };
+    case "INVITE_ALREADY_USED":
+      return {
+        kind: "invitation-invalid",
+        title: "This invitation has already been used",
+        message: "If you accepted it, open the organization from Organizations. Otherwise ask for a new invitation.",
+      };
+    case "INVITE_EMAIL_MISMATCH":
+      return {
+        kind: "invitation-invalid",
+        title: "This invitation was sent to a different address",
+        message:
+          "You are signed in with another account. Sign out, sign in (or create an account) with the address the invitation was sent to, then open the link again. The invitation stays valid.",
+      };
+    case "ORGANIZATION_NOT_ACCEPTING_MEMBERS":
+      return {
+        kind: "invitation-invalid",
+        title: "This organization isn't accepting members",
+        message: "It is archived or suspended. Ask an organization administrator if you still need access.",
+      };
+    case "MEMBERSHIP_SUSPENDED":
+      return {
+        kind: "invitation-invalid",
+        title: "Your membership in this organization is suspended",
+        message: "Ask an organization administrator to reinstate it. A new invitation does not lift a suspension.",
+      };
+    case "INVITE_SUPERSEDED":
+      return {
+        kind: "invitation-invalid",
+        title: "This invitation is no longer valid",
+        message: "It was issued before your access to this organization ended. Ask for a new invitation.",
+      };
+    case "WORKSPACE_SEAT_CONTENTION":
+      return {
+        kind: "invitation-invalid",
+        title: "Too many people are joining at once",
+        message: "Your invitation is still valid. Try again in a moment.",
+        retry: true,
+      };
+    case "INVITE_NOT_FOUND":
+      return {
+        kind: "invitation-invalid",
+        title: "This invitation link isn't available",
+        message: "The link may be incorrect. Ask an organization administrator for a new invitation.",
+      };
+    default:
+      return {
+        kind: status === 410 ? "invitation-expired" : "invitation-invalid",
+        title: "We couldn't accept this invite",
+        message:
+          status === 410
+            ? "This invite is expired, revoked, or already accepted. Ask an organization administrator to send a new one."
+            : status === 404
+              ? "Invite not found — the link may be incorrect. Ask an organization administrator for a new invitation."
+              : "The invite couldn't be accepted. Ask an organization administrator for a new invitation.",
+      };
+  }
 }
 
 /** Offered for acceptance while PENDING, or when the details could not be read (the accept says why it refuses). */

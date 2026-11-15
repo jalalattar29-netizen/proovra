@@ -1012,6 +1012,80 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
       });
       expect(open.statusCode, open.body).toBe(201);
     });
+
+    it("A2-18: a group LEAD cannot edit or delete a comment on a target the restricted case closes to them", async () => {
+      // offAdmin moderates the group (LEAD) but is off the restricted case's list.
+      await prisma.collaborationTeamMember.updateMany({
+        where: { teamId: groupId, userId: offAdmin.id },
+        data: { role: "LEAD" } as never,
+      });
+      const SECRET = `${SENTINEL}-a218-${tag()}`;
+      const closedIds: string[] = [];
+      for (const [targetType, targetId] of [["CASE", restrictedCaseId], ["EVIDENCE", hiddenId]] as const) {
+        const made = await post(`/v1/collaboration-teams/${groupId}/comments`, listed, { targetType, targetId, body: SECRET });
+        expect(made.statusCode, made.body).toBe(201);
+        closedIds.push((JSON.parse(made.body) as { comment: { id: string } }).comment.id);
+      }
+      const send = (method: "PATCH" | "DELETE", commentId: string, who: Person) =>
+        h.app.inject({
+          method,
+          url: `/v1/collaboration-teams/${groupId}/comments/${commentId}`,
+          headers: bearer(who.token),
+          ...(method === "PATCH" ? { payload: { body: "moderated" } } : {}),
+        });
+      const shape = (body: string) => {
+        const j = JSON.parse(body) as { error?: { code?: string; message?: string } };
+        return { code: j.error?.code, message: j.error?.message };
+      };
+      const unknownEdit = await send("PATCH", randomUUID(), offAdmin);
+      const unknownDelete = await send("DELETE", randomUUID(), offAdmin);
+      expect(unknownEdit.statusCode).toBe(404);
+
+      const activityBefore = await prisma.collaborationTeamActivity.count({
+        where: { teamId: groupId, targetId: { in: closedIds } },
+      });
+      for (const id of closedIds) {
+        const edit = await send("PATCH", id, offAdmin);
+        expect(edit.statusCode, edit.body).toBe(404);
+        expect(shape(edit.body)).toEqual(shape(unknownEdit.body));
+        const del = await send("DELETE", id, offAdmin);
+        expect(del.statusCode, del.body).toBe(404);
+        expect(shape(del.body)).toEqual(shape(unknownDelete.body));
+        // A plain off-list member (not the author, not a moderator) gets the same answer, not 403.
+        const plain = await send("DELETE", id, off);
+        expect(plain.statusCode, plain.body).toBe(404);
+      }
+      // Durable: both comments unchanged, no moderation activity or audit row written.
+      const rows = await prisma.collaborationTeamComment.findMany({
+        where: { id: { in: closedIds } },
+        select: { body: true, status: true, deletedAtUtc: true },
+      });
+      expect(rows).toHaveLength(2);
+      for (const r of rows) expect(r).toMatchObject({ body: SECRET, status: "ACTIVE", deletedAtUtc: null });
+      expect(
+        await prisma.collaborationTeamActivity.count({ where: { teamId: groupId, targetId: { in: closedIds } } }),
+      ).toBe(activityBefore);
+      expect(
+        await prisma.adminAuditLog.count({ where: { resourceId: { in: closedIds }, userId: { in: [offAdmin.id, off.id] } } }),
+      ).toBe(0);
+
+      // Positive controls: the LEAD still moderates another member's comment on an open case;
+      // the listed author still edits their own comment on the restricted case.
+      const openNote = await post(`/v1/collaboration-teams/${groupId}/comments`, off, {
+        targetType: "CASE",
+        targetId: openCaseId,
+        body: "open note to moderate",
+      });
+      expect(openNote.statusCode, openNote.body).toBe(201);
+      const openId = (JSON.parse(openNote.body) as { comment: { id: string } }).comment.id;
+      expect((await send("PATCH", openId, offAdmin)).statusCode).toBe(200);
+      expect((await send("DELETE", openId, offAdmin)).statusCode).toBe(200);
+      expect(
+        (await prisma.collaborationTeamComment.findUniqueOrThrow({ where: { id: openId }, select: { status: true } })).status,
+      ).toBe("DELETED");
+      const authorEdit = await send("PATCH", closedIds[0]!, listed);
+      expect(authorEdit.statusCode, authorEdit.body).toBe(200);
+    });
   });
 
   describe("PRO-047: an intake link cannot be attached to a case its creator cannot see", () => {

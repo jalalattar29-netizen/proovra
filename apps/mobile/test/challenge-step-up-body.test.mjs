@@ -25,7 +25,12 @@ test("an absent resource is omitted, never sent as null", () => {
 
 test("the handoff's return link lands on the completion screen, and nothing else does", () => {
   assert.equal(P.stepUpReturnRoute("proovra://step-up/complete"), "/(stack)/step-up/complete");
-  assert.equal(P.stepUpReturnRoute("proovra://step-up/complete?result=approved"), "/(stack)/step-up/complete");
+  // B-23 — the outcome the handoff page reports is carried to the screen (bounded tokens only).
+  assert.equal(P.stepUpReturnRoute("proovra://step-up/complete?result=approved"), "/(stack)/step-up/complete?result=approved");
+  assert.equal(P.stepUpReturnRoute("proovra://step-up/complete?result=denied&reason=expired"), "/(stack)/step-up/complete?result=denied&reason=expired");
+  assert.equal(P.stepUpReturnRoute("proovra://step-up/complete?result=%3Cscript%3E&x=1"), "/(stack)/step-up/complete");
+  assert.equal(P.stepUpReturnRoute("proovra://step-up/complete#result=approved"), "/(stack)/step-up/complete");
+  assert.equal(P.describeStepUpReturn("approved").title, "Confirmed");
   assert.equal(P.stepUpReturnRoute("proovra://step-up/completed"), null);
   assert.equal(P.stepUpReturnRoute("https://evil.example/step-up/complete"), null);
   assert.equal(P.stepUpReturnRoute("proovra://cases/abc"), null);

@@ -68,6 +68,11 @@ export async function resolveEvidenceRecordAccess(
     permission: EvidenceRecordPermission;
   },
   client: PrismaClient = defaultPrisma,
+  /**
+   * F-04 — where a refusal's permission-denied event is written when `client`
+   * is a transaction the refusal rolls back (the AUD-0017 eventClient rule).
+   */
+  options: { eventClient?: PrismaClient } = {},
 ): Promise<EvidenceRecordAccessResult> {
   // Minimum metadata only — enough to determine the owning Workspace.
   const row = await client.evidence.findUnique({
@@ -97,6 +102,7 @@ export async function resolveEvidenceRecordAccess(
         resourceId: row.id,
       },
       client,
+      options,
     );
     if (!decision.allowed) {
       return { allowed: false, internalReason: decision.reason };

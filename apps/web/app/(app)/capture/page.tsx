@@ -12,11 +12,13 @@ import { CaptureTrustStrip } from "./_lib/CaptureTrustStrip";
 import { CaptureHeader, CaptureSetupPanel } from "./_lib/CaptureHeader";
 import { CaptureMaterialsList, materialRowDomId } from "./_lib/CaptureMaterialsList";
 import { CaptureReviewDialog } from "./_lib/CaptureReviewDialog";
+import { CaptureClearConfirmDialog } from "./_lib/CaptureClearConfirmDialog";
 import { EMPTY_SESSION_ISSUE_CODE } from "./_lib/readiness-issue-codes";
 import type { ReadinessIssue } from "./_lib/session-readiness";
 import { useActiveSpace } from "../../../lib/platform-context/useTenantModel";
 import { CaptureDirectWebCaptureCard, CaptureDirectWebCaptureNote } from "./_lib/CaptureDirectWebCaptureCard";
 import { CaptureDraftReattachNotice } from "./_lib/CaptureDraftReattachNotice";
+import { newDraftRestoreState, restoreDraftItemMetadata } from "./_lib/draft-item-restore";
 import { CaptureAllowanceNotice } from "./_lib/CaptureAllowanceNotice";
 import { captureAllowanceNotices } from "./_lib/capture-allowance";
 import { useCaptureAllowance } from "./_hooks/useCaptureAllowance";
@@ -56,7 +58,7 @@ import {
   formatFileSize,
 } from "./_lib/file-utils";
 
-import { filesFromDataTransfer } from "./_lib/folder-utils";
+import { browserSupportsFolderPicker, filesFromDataTransfer } from "./_lib/folder-utils";
 import { CaptureStagingLimitError, describeDropFailure, logCaptureClientError } from "./_lib/capture-errors";
 import { buildSessionReadiness } from "./_lib/session-readiness";
 import { buildSessionWorkflowSnapshot } from "./_lib/session-workflow";
@@ -133,6 +135,11 @@ function CapturePageInner() {
     folderInput.setAttribute("webkitdirectory", "");
     folderInput.setAttribute("directory", "");
   }, []);
+
+  // F-P1-10 — the Folder action is offered only where the browser can pick a
+  // folder (decided after mount: the server render cannot know).
+  const [folderPickerAvailable, setFolderPickerAvailable] = useState(false);
+  useEffect(() => setFolderPickerAvailable(browserSupportsFolderPicker()), []);
 
   const { templates: serverTemplates } = useWorkflowTemplates();
 
@@ -241,6 +248,8 @@ function CapturePageInner() {
     selectedCollectionPlan,
     useLocation,
     getCaptureSessionDraftId: () => draftIdRef.current,
+    // C-10 — Finish binds its record to a draft (saved now if need be).
+    ensureCaptureSessionDraftId: () => draftPersistence.ensureDraft(),
     onSessionFinalized: () => {
       draftPersistence.acknowledgeFinalized();
     },
@@ -398,6 +407,20 @@ function CapturePageInner() {
       "success",
     );
   }, [resumeDraftDetail, resumeMetadataApplied, addToast]);
+
+  // C-05 — a re-attached file takes back the role, note, step and label the
+  // resumed draft saved for it (draft-item-restore.ts), while that draft is
+  // still the one being edited.
+  const draftRestoreRef = useRef(newDraftRestoreState());
+  useEffect(() => {
+    draftRestoreRef.current = newDraftRestoreState();
+  }, [resumeDraftDetail]);
+  useEffect(() => {
+    if (!resumeDraftDetail || !resumeDraftId || draftPersistence.draftId !== resumeDraftId) return;
+    const patches = restoreDraftItemMetadata(sessionItems, resumeDraftDetail.items ?? [], draftRestoreRef.current);
+    if (patches.size === 0) return;
+    setSessionItems((prev) => prev.map((item) => (patches.has(item.id) ? { ...item, ...patches.get(item.id) } : item)));
+  }, [sessionItems, resumeDraftDetail, resumeDraftId, draftPersistence.draftId, setSessionItems]);
 
   const openFilePicker = () => {
     if (busy) return;
@@ -844,7 +867,7 @@ function CapturePageInner() {
               busy={busy}
               itemCount={sessionItems.length}
               onOpenFilePicker={openFilePicker}
-              onOpenFolderPicker={openFolderPicker}
+              onOpenFolderPicker={folderPickerAvailable ? openFolderPicker : undefined}
               onOpenCamera={openCamera}
               onOpenAudioRecorder={openAudioRecorder}
               onStartScreenRecording={
@@ -1116,45 +1139,15 @@ function CapturePageInner() {
         }}
       />
 
-      {clearConfirmOpen ? (
-        <div className="capture-confirm-backdrop">
-          <div className="capture-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="capture-clear-title">
-            <div className="capture-confirm-icon">!</div>
-
-            <div>
-              <div className="capture-confirm-title" id="capture-clear-title">
-                Clear this evidence session?
-              </div>
-              <p className="capture-confirm-text">
-                This will remove all staged materials, mapping, private notes,
-                and local review progress. No evidence record has been created
-                yet.
-              </p>
-            </div>
-
-            <div className="capture-confirm-actions">
-              <button
-                type="button"
-                className="capture-confirm-cancel"
-                onClick={() => setClearConfirmOpen(false)}
-              >
-                Keep Session
-              </button>
-
-              <button
-                type="button"
-                className="capture-confirm-danger"
-                onClick={() => {
-                  setClearConfirmOpen(false);
-                  resetCaptureState();
-                }}
-              >
-                Clear Session
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {/* F-P1-07 — the discard confirmation keeps keyboard focus (CaptureClearConfirmDialog). */}
+      <CaptureClearConfirmDialog
+        open={clearConfirmOpen}
+        onKeep={() => setClearConfirmOpen(false)}
+        onClear={() => {
+          setClearConfirmOpen(false);
+          resetCaptureState();
+        }}
+      />
 
       <CaptureCameraOverlay
         cameraOpen={cameraOpen}

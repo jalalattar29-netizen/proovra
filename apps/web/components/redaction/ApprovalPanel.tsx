@@ -32,6 +32,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+import { ARTIFACT_WINDOW_BLOCKED_MESSAGE, openPendingArtifactWindow } from "../../lib/evidence/artifact-window";
 import { formatUserDateTime } from "../../lib/date";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { Button } from "../ui/Button";
@@ -136,20 +137,32 @@ export function ApprovalPanel({
     await onTransition(version.id, "derivative");
   }, [onTransition, version.id]);
 
+  // F-P1-04 — a new tab opens IN the click, before the await, and is pointed
+  // at the signed URL once minted; a blocked tab is said (artifact-window.ts).
   const onClickDownload = useCallback(async () => {
+    const pending = openPendingArtifactWindow();
     const url = await fetchDownloadUrl();
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    if (!url) {
+      pending.close();
+      return;
+    }
+    if (pending.assign(url) === "blocked") setDerivativeError(ARTIFACT_WINDOW_BLOCKED_MESSAGE);
   }, [fetchDownloadUrl]);
 
   const onClickPreview = useCallback(async () => {
+    // PDF preview = the signed URL in a new tab (no in-app viewer); an IMAGE
+    // previews inline, so no tab is opened for it.
+    const pending = artifactKind === "IMAGE" ? null : openPendingArtifactWindow();
     const url = await fetchDownloadUrl();
-    if (!url) return;
+    if (!url) {
+      pending?.close();
+      return;
+    }
     if (artifactKind === "IMAGE") {
       // Inline bounded image preview from the same short-lived URL.
       setPreviewUrl(url);
-    } else {
-      // PDF preview = open the signed URL in a new tab (no in-app viewer).
-      window.open(url, "_blank", "noopener,noreferrer");
+    } else if (pending?.assign(url) === "blocked") {
+      setDerivativeError(ARTIFACT_WINDOW_BLOCKED_MESSAGE);
     }
   }, [artifactKind, fetchDownloadUrl]);
 

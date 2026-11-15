@@ -706,9 +706,22 @@ export async function editComment(
   assertMayComment(role);
   const comment = await client.collaborationTeamComment.findUnique({
     where: { id: input.commentId },
-    select: { id: true, teamId: true, authorUserId: true, status: true },
+    select: {
+      id: true,
+      teamId: true,
+      authorUserId: true,
+      status: true,
+      targetType: true,
+      targetId: true,
+    },
   });
   if (!comment || comment.teamId !== input.teamId)
+    throw new CollaborationTeamError("team_not_found", "Comment not found.", 404);
+  // A2-18 — a comment on a case, record or review is that record's data
+  // (PRO-046): a target the restricted case closes to the caller answers
+  // exactly like a missing comment, before the author/moderator rule, so a
+  // LEAD/ADMIN cannot moderate (or probe) comments on records they cannot read.
+  if (await commentTargetClosedTo(client, comment.targetType, comment.targetId, input.actorUserId))
     throw new CollaborationTeamError("team_not_found", "Comment not found.", 404);
   if (comment.status === "DELETED")
     throw new CollaborationTeamError(
@@ -758,9 +771,22 @@ export async function deleteComment(
   assertMayComment(role);
   const comment = await client.collaborationTeamComment.findUnique({
     where: { id: input.commentId },
-    select: { id: true, teamId: true, authorUserId: true, status: true },
+    select: {
+      id: true,
+      teamId: true,
+      authorUserId: true,
+      status: true,
+      targetType: true,
+      targetId: true,
+    },
   });
   if (!comment || comment.teamId !== input.teamId)
+    throw new CollaborationTeamError("team_not_found", "Comment not found.", 404);
+  // A2-18 — a comment on a case, record or review is that record's data
+  // (PRO-046): a target the restricted case closes to the caller answers
+  // exactly like a missing comment, before the author/moderator rule, so a
+  // LEAD/ADMIN cannot moderate (or probe) comments on records they cannot read.
+  if (await commentTargetClosedTo(client, comment.targetType, comment.targetId, input.actorUserId))
     throw new CollaborationTeamError("team_not_found", "Comment not found.", 404);
   if (comment.status === "DELETED") {
     // Idempotent: nothing changes, and the request is still recorded.

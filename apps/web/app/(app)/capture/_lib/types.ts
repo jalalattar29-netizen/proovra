@@ -56,6 +56,19 @@ export type SessionItemClientSignals = {
   screenshotLike?: boolean;
   genericMime?: boolean;
   oldLastModified?: boolean;
+  /**
+   * F-P1-09 parity — a video recorded WITHOUT audio because the microphone
+   * permission was denied (the native contract: `audioTracks: []` +
+   * `audioNotCapturedReason`). Absent for every other item.
+   */
+  audioTracks?: string[];
+  audioNotCapturedReason?: "MICROPHONE_PERMISSION_DENIED";
+};
+
+/** F-P1-09 — the part signals of a video recorded after the microphone was refused (as native). */
+export const VIDEO_WITHOUT_MICROPHONE_SIGNALS = {
+  audioTracks: [] as string[],
+  audioNotCapturedReason: "MICROPHONE_PERMISSION_DENIED" as const,
 };
 
 export type SessionTimelineEvent = {

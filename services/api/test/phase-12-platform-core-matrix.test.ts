@@ -123,15 +123,26 @@ vi.mock("../src/middleware/auth.js", () => ({
   },
 }));
 
-vi.mock("../src/middleware/require-legal-acceptance.js", () => ({
-  requireLegalAcceptance: async (
-    _req: unknown,
-    reply: { code: (n: number) => { send: (b: unknown) => void } },
-  ) => {
-    if (H.legalOk) return;
-    reply.code(428).send({ error: { code: "LEGAL_REACCEPT_REQUIRED" } });
-  },
-}));
+// A1-06 (2026-11-15) — the stub keeps the REAL route classification (the pure
+// policy module): reads are never refused for terms and the reviewed exemptions
+// (e.g. reconcile) stay open; only the acceptance read itself is stubbed.
+vi.mock("../src/middleware/require-legal-acceptance.js", async () => {
+  const { legalAcceptanceExemptionFor } = await vi.importActual<
+    typeof import("../src/middleware/legal-acceptance-route-policy.js")
+  >("../src/middleware/legal-acceptance-route-policy.js");
+  return {
+    requireLegalAcceptance: async (
+      req: { method: string; routeOptions?: { url?: string } },
+      reply: { code: (n: number) => { send: (b: unknown) => void } },
+    ) => {
+      if (H.legalOk) return;
+      const pattern = req.routeOptions?.url ?? null;
+      if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return;
+      if (pattern && legalAcceptanceExemptionFor(req.method, pattern)) return;
+      reply.code(428).send({ error: { code: "LEGAL_REACCEPT_REQUIRED" } });
+    },
+  };
+});
 
 vi.mock("../src/services/platform-admin.service.js", () => ({
   isPlatformAdmin: async () => H.platformAdmin,
@@ -759,12 +770,14 @@ describe("PLATFORM_CORE §1 — billing entitlement + payment ledger", () => {
     expect(H.reads).not.toContain("payment.findMany");
   });
 
-  it("legal gate — 428 short-circuits the ledger; ZERO reads, ZERO audit", async () => {
+  // A1-06 (2026-11-15) — reads are never refused for outdated terms: a stale
+  // user still sees their own payment ledger (it used to 428 here).
+  it("legal gate — a stale-terms user still reads the ledger (reads are never refused)", async () => {
     H.legalOk = false;
+    H.payments = [PAYMENT_ROW];
     const res = await app.inject({ method: "GET", url: LEDGER_URL });
-    expect(res.statusCode).toBe(428);
-    expect(H.reads).toEqual([]);
-    expect(H.audits).toEqual([]);
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).items).toHaveLength(1);
   });
 
   it("happy path — the reconcile route returns the SERVER's bounded verdict and no provider data", async () => {
@@ -847,20 +860,22 @@ describe("PLATFORM_CORE §1 — billing entitlement + payment ledger", () => {
     expect(res.body).not.toMatch(/sub_attacker|cs_attacker/);
   });
 
-  it("no-mutation-on-denial — a legal-gated reconcile never reaches a provider or a write", async () => {
+  // A1-06 (2026-11-15) — reconcile is a reviewed exemption (it settles what the
+  // customer already bought; legal-acceptance-route-policy.ts), so a stale-terms
+  // user is not refused: the route answers its ordinary bounded verdict.
+  it("legal gate — a stale-terms user can still reconcile (A1-06 exemption)", async () => {
     H.legalOk = false;
+    H.plan = "PRO";
+    H.credits = 12;
+    H.ownedTeamIds = [TEAM_A];
     const res = await app.inject({
       method: "POST",
       url: `/v1/billing/accounts/PERSONAL/${H.actorUserId}/reconcile`,
       headers: JSON_HEADERS,
       payload: {},
     });
-    expect(res.statusCode).toBe(428);
-    expect(H.writes).toEqual([]);
-    // Not even the capability check ran: the legal gate is a preHandler, so a
-    // denial happens before the route body — and therefore before any provider
-    // could be contacted.
-    expect(H.reads).toEqual([]);
+    expect(res.statusCode).toBe(200);
+    expect(H.reads).toContain("reconcileBillingAccount:PERSONAL");
   });
 });
 

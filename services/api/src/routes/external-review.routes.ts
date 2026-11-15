@@ -54,6 +54,7 @@ import { bump } from "../services/ops/metrics.service.js";
 import {
   EXTERNAL_REVIEW_SCOPE_KINDS,
   externalReviewGrantRequiresPortalMfa,
+  externalReviewGrantSubjectInReach,
   issueExternalReviewGrant,
   listExternalReviewGrants,
   lookupExternalReviewGrantByToken,
@@ -395,6 +396,43 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+      // A2-15 — renewing EXTENDS the disclosure, so it re-asks what issuing
+      // asked: the grant's subject is still within this operator's reach
+      // (else exactly like a missing grant), the plan still includes External
+      // Review (same refusal body as issue), and a fresh step-up under the
+      // purpose that names grant EXTEND. A downgrade leaves existing grants as
+      // they are (revoke stays ungated); it only stops new extensions.
+      if (
+        !(await externalReviewGrantSubjectInReach({
+          grantId: id,
+          teamId: body.teamId,
+          actorUserId: actor.actorUserId,
+        }))
+      ) {
+        return reply.code(404).send({ error: { code: "EXTERNAL_REVIEW_GRANT_NOT_FOUND" } });
+      }
+      if (!(await workspaceIncludesExternalReview(actor.teamId))) {
+        return reply.code(403).send({
+          error: {
+            code: "ENTITLEMENT_REQUIRED",
+            message: "External Review is not included on this workspace's plan.",
+            requestId: req.id ?? null,
+            details: { denial: "ENTITLEMENT_REQUIRED", entitlement: "EXTERNAL_REVIEW" },
+          },
+          denial: "ENTITLEMENT_REQUIRED",
+          entitlement: "EXTERNAL_REVIEW",
+        });
+      }
+      const renewGate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: actor.teamId,
+        userId: actor.actorUserId,
+        purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+        resourceKind: "external_review_grant",
+        resourceId: id,
+      });
+      if (renewGate.sent) return;
       const result = await renewExternalReviewGrant({
         grantId: id,
         teamId: body.teamId,

@@ -38,6 +38,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { apiFetch } from "../../../lib/api";
+import { withLegacyRouteFallback } from "../../../lib/api/legacy-route-fallback";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { formatUserDate } from "../../../lib/date";
@@ -152,9 +153,11 @@ function OrganizationsListPageInner() {
     setJoinError(null);
     try {
       // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
-      const data = (await apiFetch(
-        `/v1/org-invites/${encodeURIComponent(token)}/accept`,
-        { method: "POST" },
+      // B-15 — the token travels in the body, never in the request path.
+      // COMPAT — an API older than this build has only the path form.
+      const data = (await withLegacyRouteFallback(
+        () => apiFetch("/v1/org-invites/accept", { method: "POST", body: JSON.stringify({ token }) }),
+        () => apiFetch(`/v1/org-invites/${encodeURIComponent(token)}/accept`, { method: "POST" }),
       )) as { organizationId: string };
       setJoinOpen(false);
       setJoinToken("");

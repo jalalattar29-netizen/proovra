@@ -102,6 +102,9 @@ export function useCaptureDraftPersistence({
   const draftIdRef = useRef<string | null>(null);
   const inFlightRef = useRef(false);
   const pendingPayloadRef = useRef<CaptureDraftStateInput | null>(null);
+  // C-10 — the latest meaningful state, and the save in flight (ensureDraft waits on it).
+  const lastPayloadRef = useRef<CaptureDraftStateInput | null>(null);
+  const inFlightDoneRef = useRef<Promise<void> | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Phase IA-capture-409 — once we observe a 409 / CAPTURE_SESSION_NOT_EDITABLE
   // for the current draftId, we MUST stop the autosave loop for this
@@ -131,6 +134,8 @@ export function useCaptureDraftPersistence({
     pendingPayloadRef.current = null;
 
     inFlightRef.current = true;
+    let settle: () => void = () => {};
+    inFlightDoneRef.current = new Promise<void>((resolve) => (settle = resolve));
     setSavingState("saving");
 
     try {
@@ -202,6 +207,7 @@ export function useCaptureDraftPersistence({
       }
     } finally {
       inFlightRef.current = false;
+      settle();
       // If a newer payload arrived while we were saving — AND the
       // draft isn't locked — save again. The `lockedRef` check
       // prevents the very bug we just fixed: the prior code would
@@ -234,6 +240,7 @@ const isMeaningful =
       }
 
       pendingPayloadRef.current = next;
+      lastPayloadRef.current = next;
 
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -245,6 +252,33 @@ const isMeaningful =
     },
     [enabled, flush]
   );
+
+  /**
+   * C-10 (Free-user audit of 4d9b78963) — Finish needs the draft id NOW. With
+   * none yet (the 750 ms debounce still pending, or a save that failed), the
+   * record Finish reserved was bound to no draft: a later changed selection, a
+   * removed file or a discard could not release it, and it held a slot ~24 h.
+   * This saves the latest state immediately (or waits for the save in flight)
+   * and returns the draft id, or null when no draft can be had.
+   */
+  const ensureDraft = useCallback(async (): Promise<string | null> => {
+    if (!enabled) return null;
+    for (let attempt = 0; attempt < 3 && !draftIdRef.current && !lockedRef.current; attempt += 1) {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      if (inFlightRef.current) {
+        await inFlightDoneRef.current;
+        continue;
+      }
+      pendingPayloadRef.current = pendingPayloadRef.current ?? lastPayloadRef.current;
+      if (!pendingPayloadRef.current) break;
+      await flush();
+      break; // one immediate save; a failure leaves Finish without a draft, as before
+    }
+    return draftIdRef.current;
+  }, [enabled, flush]);
 
   const discardDraft = useCallback(async () => {
     const id = draftIdRef.current;
@@ -337,5 +371,6 @@ const isMeaningful =
     discardDraft,
     acknowledgeFinalized,
     adoptDraft,
+    ensureDraft,
   };
 }

@@ -185,6 +185,114 @@ export function withTimeout<T>(
   });
 }
 
+/**
+ * PURE — F-P1-17: what the deadline of a BACKGROUND-session upload does when
+ * its timer fires.
+ *
+ * An iOS background URL session keeps sending while PROOVRA is suspended, but a
+ * JS timer does not run then: it fires late, on resume, before the progress the
+ * session made meanwhile has been delivered. An absolute deadline therefore
+ * cancelled uploads that were still moving. The background deadline is a STALL
+ * rule instead:
+ *   - never cancel while the app is not in the foreground (the OS owns the
+ *     transfer; JS cannot observe it);
+ *   - in the foreground, cancel only after `windowMs` with no evidence of life
+ *     (upload progress, or the app becoming active — which restarts the window,
+ *     so progress queued during suspension can arrive first).
+ * Foreground uploads keep the absolute `withTimeout` deadline.
+ */
+export function backgroundDeadlineVerdict(input: {
+  nowMs: number;
+  lastEvidenceMs: number;
+  windowMs: number;
+  appActive: boolean;
+}): { cancel: true } | { cancel: false; recheckInMs: number } {
+  if (!input.appActive) return { cancel: false, recheckInMs: input.windowMs };
+  const quiet = input.nowMs - input.lastEvidenceMs;
+  if (quiet < input.windowMs) return { cancel: false, recheckInMs: Math.max(1, input.windowMs - quiet) };
+  return { cancel: true };
+}
+
+/** The app-lifecycle facts the background deadline reads (AppState in the app; injected in tests). */
+export type BackgroundDeadlineEnv = {
+  now?: () => number;
+  appActive: () => boolean;
+  /** Calls `fn` whenever the app becomes active; returns the unsubscribe. */
+  onAppActive: (fn: () => void) => () => void;
+};
+
+/**
+ * F-P1-17 — run a BACKGROUND-session upload under the stall rule above.
+ * `work` receives `noteProgress`, to be called on every progress event of the
+ * transfer. On a stall `onTimeout` runs (cancel the task) and the call rejects
+ * with CaptureTimeoutError, exactly like `withTimeout`.
+ */
+export function withBackgroundStallDeadline<T>(
+  work: (noteProgress: () => void) => Promise<T>,
+  windowMs: number,
+  label: string,
+  env: BackgroundDeadlineEnv,
+  onTimeout?: () => void,
+): Promise<T> {
+  const now = env.now ?? (() => Date.now());
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    let lastEvidenceMs = now();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = env.onAppActive(() => {
+      lastEvidenceMs = now();
+    });
+    const finish = () => {
+      settled = true;
+      if (timer) clearTimeout(timer);
+      unsubscribe();
+    };
+    const arm = (ms: number) => {
+      timer = setTimeout(() => {
+        if (settled) return;
+        const verdict = backgroundDeadlineVerdict({
+          nowMs: now(),
+          lastEvidenceMs,
+          windowMs,
+          appActive: env.appActive(),
+        });
+        if (!verdict.cancel) {
+          arm(verdict.recheckInMs);
+          return;
+        }
+        finish();
+        try {
+          onTimeout?.();
+        } catch {
+          // Cancelling is best-effort; the timeout still stands.
+        }
+        reject(new CaptureTimeoutError(label, windowMs));
+      }, ms);
+    };
+    arm(windowMs);
+    let pending: Promise<T>;
+    try {
+      pending = work(() => {
+        lastEvidenceMs = now();
+      });
+    } catch (err) {
+      pending = Promise.reject(err);
+    }
+    pending.then(
+      (v) => {
+        if (settled) return;
+        finish();
+        resolve(v);
+      },
+      (err) => {
+        if (settled) return;
+        finish();
+        reject(err);
+      },
+    );
+  });
+}
+
 export type RetryPolicy = {
   /** Total attempts (>= 1). */
   attempts: number;

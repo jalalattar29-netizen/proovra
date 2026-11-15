@@ -27,6 +27,11 @@ const evidenceAggregate = vi.fn();
 const packageAggregate = vi.fn();
 const previousPackage = vi.fn();
 const originalEvidence = vi.fn();
+// AUDIT D-03 — the shared first-issuance exclusion measure's reads.
+const freeAllowanceRecords = vi.fn();
+const firstReports = vi.fn();
+const packageRows = vi.fn();
+const recoveryRequests = vi.fn();
 
 vi.mock("../src/db.js", () => ({
   prisma: {
@@ -42,16 +47,20 @@ vi.mock("../src/db.js", () => ({
       aggregate: (...args: unknown[]) => evidenceAggregate(...args),
       count: vi.fn(async () => 2),
       findUnique: (...args: unknown[]) => originalEvidence(...args),
+      findMany: (...args: unknown[]) => freeAllowanceRecords(...args),
     },
     report: {
       aggregate: vi.fn(async () => ({ _sum: { sizeBytes: 2n * MIB } })),
       count: (...args: unknown[]) => reportCount(...args),
+      findMany: (...args: unknown[]) => firstReports(...args),
     },
     verificationPackage: {
       aggregate: (...args: unknown[]) => packageAggregate(...args),
       findFirst: (...args: unknown[]) => previousPackage(...args),
+      findMany: (...args: unknown[]) => packageRows(...args),
     },
     evidencePartDerivedAsset: { aggregate: vi.fn(async () => ({ _sum: { sizeBytes: 0 } })) },
+    reportGenerationRequest: { findMany: (...args: unknown[]) => recoveryRequests(...args) },
   },
 }));
 vi.mock("../src/output-issuance.js", () => ({
@@ -77,6 +86,11 @@ beforeEach(() => {
   // 140 MiB of evidence + 2 MiB of reports + 100 MiB of packages = 242 MiB of 250.
   evidenceAggregate.mockReset().mockResolvedValue({ _sum: { sizeBytes: 140n * MIB } });
   packageAggregate.mockReset().mockResolvedValue({ _sum: { sizeBytes: 100n * MIB } });
+  // No entitled FREE record in the population unless a case says so.
+  freeAllowanceRecords.mockReset().mockResolvedValue([]);
+  firstReports.mockReset().mockResolvedValue([]);
+  packageRows.mockReset().mockResolvedValue([]);
+  recoveryRequests.mockReset().mockResolvedValue([]);
   previousPackage.mockReset().mockResolvedValue(null);
   originalEvidence.mockReset().mockResolvedValue(null);
 });
@@ -237,5 +251,138 @@ describe("the report run states that its package follows (processor.ts)", () => 
     expect(call.slice(0, call.indexOf("});"))).toMatch(
       /packagePairFollows: prepared\.verificationPackageIncluded === true,/,
     );
+  });
+});
+
+// AUDIT D-03 (product decision 2026-11-15) — the first issuance of an entitled
+// FREE record is not customer storage. The worker's usage subtracts it through
+// the SAME shared-runtime measure the API uses; later versions still count.
+describe("D-03: an entitled Free record's first issuance is left out of the customer-facing usage", () => {
+  // Stored: 140 MiB evidence + 2 MiB reports + 100 MiB packages = 242 MiB.
+  // Of it, the FREE record's v1 report (2 MiB) and v1 packages (98 + 2 MiB).
+  const freeFirstIssuance = () => {
+    freeAllowanceRecords.mockResolvedValue([{ id: "ev-free" }]);
+    firstReports.mockResolvedValue([{ evidenceId: "ev-free", version: 1, sizeBytes: 2n * MIB }]);
+    packageRows.mockResolvedValue([
+      { evidenceId: "ev-free", version: 1, sizeBytes: 98n * MIB },
+      { evidenceId: "ev-free", version: 1, sizeBytes: 2n * MIB },
+    ]);
+  };
+
+  it("a later version of another record fits once the Free first issuance is not counted; actual bytes stay visible", async () => {
+    freeFirstIssuance();
+    issuance.mockResolvedValue({ ...EARNED, basis: "PAID_SUBSCRIPTION" });
+    reportCount.mockResolvedValue(1);
+    // 50 MiB would not fit beside 242 MiB, and fits beside 140 MiB.
+    const res = await assertWorkspaceAllowsReportArtifact({
+      ownerUserId: OWNER,
+      teamId: null,
+      evidenceId: "ev-other",
+      incomingBytes: 50n * MIB,
+      issuanceVersion: 2,
+    });
+    expect(res.usage.storageBytesUsed).toBe(140n * MIB);
+    expect(res.usage.actualStorageBytes).toBe(242n * MIB);
+    expect(res.usage.firstIssuanceExcludedBytes).toBe(102n * MIB);
+    // The measure reads the entitled Free records of the SAME population.
+    const where = (freeAllowanceRecords.mock.calls[0]?.[0] as { where: { AND: unknown[] } }).where;
+    expect(where.AND[1]).toEqual({ outputEarnedPlan: "FREE", outputEarnedBasis: "FREE_ALLOWANCE" });
+    expect((where.AND[0] as { AND: unknown[] }).AND[1]).toEqual({
+      lifecycleState: { notIn: ["DESTROYED", "RETENTION_ARCHIVED"] },
+    });
+  });
+
+  it("only the FIRST version's packages are excluded: a later version of the Free record still counts", async () => {
+    freeFirstIssuance();
+    packageRows.mockResolvedValue([
+      { evidenceId: "ev-free", version: 1, sizeBytes: 98n * MIB },
+      { evidenceId: "ev-free", version: 2, sizeBytes: 60n * MIB },
+    ]);
+    issuance.mockResolvedValue({ ...EARNED, basis: "PAID_SUBSCRIPTION" });
+    reportCount.mockResolvedValue(1);
+    const res = await assertWorkspaceAllowsVerificationPackageArtifact({
+      ownerUserId: OWNER,
+      teamId: null,
+      evidenceId: "ev-other",
+      incomingBytes: 1n,
+      issuanceVersion: 2,
+    });
+    expect(res.usage.firstIssuanceExcludedBytes).toBe(100n * MIB);
+    expect(res.usage.storageBytesUsed).toBe(142n * MIB);
+  });
+
+  it("a refusal still happens beyond the allowance, and its telemetry carries the actual stored bytes", async () => {
+    freeFirstIssuance();
+    issuance.mockResolvedValue({ ...EARNED, basis: "PAID_SUBSCRIPTION" });
+    reportCount.mockResolvedValue(1);
+    const err = (await assertWorkspaceAllowsReportArtifact({
+      ownerUserId: OWNER,
+      teamId: null,
+      evidenceId: "ev-other",
+      incomingBytes: 111n * MIB,
+      issuanceVersion: 2,
+    }).catch((e: unknown) => e)) as { code?: string; details?: Record<string, string> };
+    expect(err.code).toBe("STORAGE_LIMIT_REACHED");
+    expect(err.details).toMatchObject({
+      storageBytesUsed: String(140n * MIB),
+      actualStorageBytes: String(242n * MIB),
+      firstIssuanceExcludedBytes: String(102n * MIB),
+    });
+  });
+
+  it("no entitled Free record in the population: nothing is excluded (credit-funded and paid records count)", async () => {
+    issuance.mockResolvedValue({ ...EARNED, basis: "PAID_SUBSCRIPTION" });
+    reportCount.mockResolvedValue(1);
+    await expect(
+      assertWorkspaceAllowsReportArtifact({
+        ownerUserId: OWNER,
+        teamId: null,
+        evidenceId: "ev-other",
+        incomingBytes: 50n * MIB,
+        issuanceVersion: 2,
+      }),
+    ).rejects.toMatchObject({ code: "STORAGE_LIMIT_REACHED" });
+    expect(firstReports).not.toHaveBeenCalled();
+  });
+});
+
+// AUDIT D-03 — the server-verified recovery of a proven-missing first-issued
+// file (request purpose `missing_output_recovery`) of an entitled FREE record
+// IS that first issuance: the allowance never refuses it. A customer's
+// updated report, and any non-Free record, are gated as before.
+describe("D-03: a Free first-issuance file recovery is admitted on a full allowance", () => {
+  const FREE_FACT = { outputEarnedPlan: "FREE", outputEarnedBasis: "FREE_ALLOWANCE" };
+  const recoveryV2 = (fact: unknown, requests: unknown[]) => {
+    issuance.mockResolvedValue(EARNED);
+    reportCount.mockResolvedValue(1);
+    originalEvidence.mockResolvedValue(fact);
+    firstReports.mockResolvedValue([{ version: 1, previousReportVersion: null }]);
+    recoveryRequests.mockResolvedValue(requests);
+    return assertWorkspaceAllowsReportArtifact({
+      ownerUserId: OWNER,
+      teamId: null,
+      evidenceId: "ev-free",
+      incomingBytes: 141n * MIB,
+      issuanceVersion: 2,
+      packagePairFollows: true,
+    });
+  };
+
+  it("the live recovery request reserving v2 of a FREE_ALLOWANCE record: admitted, no pair estimate", async () => {
+    await expect(recoveryV2(FREE_FACT, [{ reportVersion: 2 }])).resolves.toBeTruthy();
+    expect(previousPackage).not.toHaveBeenCalled();
+    const where = (recoveryRequests.mock.calls[0]?.[0] as { where: Record<string, unknown> }).where;
+    expect(where).toMatchObject({ evidenceId: "ev-free", purpose: "missing_output_recovery" });
+  });
+
+  it("no recovery request (a customer's updated report): refused as before", async () => {
+    await expect(recoveryV2(FREE_FACT, [])).rejects.toMatchObject({ code: "STORAGE_LIMIT_REACHED" });
+  });
+
+  it("a recovery of a record that is not a Free allowance slot (paid or credit-funded): refused as before", async () => {
+    await expect(recoveryV2({ outputEarnedPlan: "PRO", outputEarnedBasis: "PAID_SUBSCRIPTION" }, [{ reportVersion: 2 }])).rejects.toMatchObject({
+      code: "STORAGE_LIMIT_REACHED",
+    });
+    expect(recoveryRequests).not.toHaveBeenCalled();
   });
 });

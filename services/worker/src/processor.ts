@@ -4556,6 +4556,14 @@ async function runReportGeneration(
         // of this run state THAT snapshot — a mixed read can no longer fail a
         // valid report (production: "record PENDING, payload UNAVAILABLE").
         const renderSnapshot = await loadRecordSnapshot(prepared.evidenceId);
+        // AUDIT D-10 (round 3) — the QR/link the PDF prints and the package's
+        // publication fact follow the canonical access state of THIS snapshot,
+        // not the prepare-time read: a withdrawal committed between prepare and
+        // render prints no QR. The commit re-checks it under the record lock.
+        const renderedPublicVerificationPublished = verificationPageOpensAtIssuance(
+          renderSnapshot.verificationAccessState,
+        );
+        prepared.publicVerifyPublishedAtIssuance = renderedPublicVerificationPublished;
         prepared.reportEvidencePayload = {
           ...prepared.reportEvidencePayload,
           ...reportLifecycleFields(renderSnapshot.lifecycle, renderSnapshot.custody),
@@ -4757,6 +4765,7 @@ async function runReportGeneration(
         // below (Report row, custody event, package) is these bytes' own.
         const finalizedPdfSigningOutcome: PdfSigningOutcome = await buildReportPdfV2WithSignatureOutcome({
           ...prepared.issuanceRenderFacts,
+          publicVerificationPublished: renderedPublicVerificationPublished,
           supersession,
           evidence: effectiveReportEvidencePayload,
           custodyEvents: finalizedCustodyForReport,
@@ -4870,6 +4879,14 @@ async function runReportGeneration(
             await tx.$executeRaw`
               SELECT pg_advisory_xact_lock(hashtext(${prepared.evidenceId}))
             `;
+            // AUDIT D-06 (round 3) — THE ISSUANCE EVENT TIME. A custody event's
+            // atUtc is when its fact happened; the issuance happens HERE, under
+            // the record lock, when the report becomes durable. The time the
+            // report STATES (prepared.now: printed in the PDF, payload
+            // generatedAtUtc, Report.generatedAtUtc) is unchanged. Chronology
+            // stays by sequence (custodyThroughSequence /
+            // issuanceCustodyThroughSequence); history is never rewritten.
+            const issuanceCommittedAtUtc = new Date();
             const stillReserved = await tx.reportGenerationRequest.findUnique({
               where: { id: command.requestId },
               select: { reportVersion: true, stage: true },
@@ -4902,8 +4919,17 @@ async function runReportGeneration(
             // reportable. The published object stays an unreferenced orphan.
             const live = await tx.evidence.findUnique({
               where: { id: prepared.evidenceId },
-              select: { id: true, teamId: true, ownerUserId: true, status: true, deletedAt: true, lifecycleState: true },
+              select: { id: true, teamId: true, ownerUserId: true, status: true, deletedAt: true, lifecycleState: true, verificationAccessState: true },
             });
+            // AUDIT D-10 (round 3) — the canonical disclosure decision at the
+            // issuance boundary. The withdraw/reinstate route takes this same
+            // advisory lock, so this read is fenced: if the page's access state
+            // moved after the render snapshot, the printed QR/link no longer
+            // states it — nothing commits (the published object stays an
+            // unreferenced orphan) and the retry renders from the new state.
+            if (live && verificationPageOpensAtIssuance(live.verificationAccessState) !== renderedPublicVerificationPublished) {
+              throw createWorkerError("REPORT_PUBLICATION_STATE_CHANGED_RETRY", true);
+            }
             const atCommit = live
               ? reportableAtCommit(live)
               : { ok: false as const, refusal: "NOT_APPLICABLE_DELETED" as const };
@@ -4924,7 +4950,7 @@ async function runReportGeneration(
               evidenceId: prepared.evidenceId,
               eventType:
                 prismaPkg.CustodyEventType.REPORT_IDENTITY_CONTEXT_RECORDED,
-              atUtc: prepared.now,
+              atUtc: issuanceCommittedAtUtc,
               payload: {
                 phase: "report_identity_context",
                 // Which identity snapshot this report rendered, and its basis.
@@ -4946,7 +4972,7 @@ async function runReportGeneration(
             await appendCustodyEventTx(tx, {
               evidenceId: prepared.evidenceId,
               eventType: prismaPkg.CustodyEventType.REPORT_GENERATED,
-              atUtc: prepared.now,
+              atUtc: issuanceCommittedAtUtc,
               payload: {
                 phase: "report_generated",
                 reportVersion: prepared.version,
@@ -5024,7 +5050,7 @@ async function runReportGeneration(
             await appendCustodyEventTx(tx, {
               evidenceId: prepared.evidenceId,
               eventType: prismaPkg.CustodyEventType.REVIEW_READY,
-              atUtc: prepared.now,
+              atUtc: issuanceCommittedAtUtc,
               payload: {
                 reviewerSummaryVersion:
                   effectiveIdentitySnapshot.reviewerSummaryVersion,
@@ -5047,7 +5073,7 @@ async function runReportGeneration(
               await appendCustodyEventTx(tx, {
                 evidenceId: prepared.evidenceId,
                 eventType: prismaPkg.CustodyEventType[pdfCustodyEventName],
-                atUtc: prepared.now,
+                atUtc: issuanceCommittedAtUtc,
                 payload: {
                   reportVersion: prepared.version,
                   pdfSignatureStatus: finalizedPdfSigningOutcome.status,
@@ -6003,6 +6029,8 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           trustDecisionSnapshot: finalized.finalizedTrustDecision as unknown as Prisma.InputJsonValue,
           reportCreated: finalized.reportCreated,
           published: publishedProfiles,
+          // AUDIT D-10 — what the built packages state about the canonical page.
+          publicVerificationPublishedAtIssuance: prepared.publicVerifyPublishedAtIssuance,
           primaryArtifactPresence: finalizedVerificationArtifactPresence
             ? {
                 manifestPresent: finalizedVerificationArtifactPresence.manifestPresent === true,

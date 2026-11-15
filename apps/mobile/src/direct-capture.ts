@@ -195,6 +195,12 @@ export async function uploadDirectCaptureItem(
      * refuse a manifest that later states fewer recorded segments.
      */
     recordedThrough?: number;
+    /**
+     * F-P1-09 — the part's client metadata (`CreatePartBody.clientSignals`): a
+     * camera clip recorded muted after a microphone denial says so here
+     * (`audioTracks: []`, src/capture/video-audio.ts).
+     */
+    clientSignals?: Record<string, unknown>;
   },
   /**
    * AUD-004 / AUD-005 — per-request deadlines. A stalled declare, presign or
@@ -259,6 +265,7 @@ export async function uploadDirectCaptureItem(
           privateNote: item.privateNote?.trim() || undefined,
           checklistStepId: item.checklistStepId?.trim() || undefined,
           sourceLabel: item.sourceLabel?.trim() || undefined,
+          ...(item.clientSignals ? { clientSignals: item.clientSignals } : {}),
         }),
       }),
     requestMs,

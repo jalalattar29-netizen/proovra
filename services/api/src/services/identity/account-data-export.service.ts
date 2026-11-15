@@ -9,7 +9,7 @@
  *
  * DATA BOUNDARY — the package contains ONLY the caller's own account
  * data:
- *   - profile identity (name/email/locale/timezone/created)
+ *   - profile identity (name/email/locale/timezone/country/bio/avatar URL/created)
  *   - login-method metadata (provider, linked/last-used — NEVER subject
  *     ids, tokens, or secrets)
  *   - notification preferences (type/channel/enabled/frequency)
@@ -65,6 +65,11 @@ export async function buildAccountExportPackage(userId: string): Promise<{
           locale: true,
           timezone: true,
           country: true,
+          // B-22 — the two profile fields the person writes themselves (PATCH
+          // /v1/users/me) and reads back in pickMe; their own data, so theirs
+          // to export.
+          bio: true,
+          avatarUrl: true,
           createdAt: true,
           emailVerifiedAt: true,
           provider: true,

@@ -32,7 +32,7 @@ import {
   useStepUpAction,
 } from "../../../components/identity-security/StepUpModal";
 import { Button } from "../../../components/ui/Button";
-import { identifierLabel } from "@proovra/shared";
+import { apiKeyRevocationNote, identifierLabel } from "@proovra/shared";
 // PHASE 12 VERTICAL C — durable evidence delivery history, read from the
 // server projection rather than from what this browser session happened to
 // record.
@@ -388,7 +388,7 @@ useEffect(() => {
     } catch (err) {
       if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
-      alert(toSafeUserError(e, { message: "Could not create API key." }).message);
+      alert(apiKeyLimitMessage(err) ?? toSafeUserError(e, { message: "Could not create API key." }).message);
     }
   }
 
@@ -2030,6 +2030,26 @@ function Field({
 // operators can see WHY the key was revoked without opening anything.
 // -----------------------------------------------------------------------------
 
+/**
+ * F-15 / A2-11 — the plan's API key allowance (INTEGRATION_API_KEYS_MAX)
+ * refused a NEW key: 429 `api_key_limit_reached` with `details.limit`.
+ * It is an allowance, not a rate limit, so the 429 "try again later" bucket
+ * was false. Plans whose Pricing says API access is "Not included" allow 0;
+ * keys already issued keep working either way. Null for any other error.
+ */
+function apiKeyLimitMessage(err: unknown): string | null {
+  const e = (err && typeof err === "object" ? err : {}) as { code?: unknown; details?: { limit?: unknown } };
+  if (typeof e.code !== "string" || e.code.toLowerCase() !== "api_key_limit_reached") return null;
+  const limit = typeof e.details?.limit === "number" ? e.details.limit : null;
+  if (limit === 0) {
+    return "API keys are not included in this workspace's plan, so a new key cannot be created. Keys you already have keep working. Upgrade the plan on the Billing page to create new keys.";
+  }
+  if (limit !== null) {
+    return `This workspace already has the ${limit} active API key${limit === 1 ? "" : "s"} its plan includes. Revoke a key you no longer use, or upgrade the plan on the Billing page for more. Keys you already have keep working.`;
+  }
+  return toSafeUserError(err).message;
+}
+
 function ApiKeysTable({
   rows,
   teamId,
@@ -2118,7 +2138,10 @@ function ApiKeysTable({
               ) : null}
               {k.status === "REVOKED" && k.revokedReason ? (
                 <div style={mutedStyle} data-testid="api-key-revoked-reason">
-                  Revoked reason: {k.revokedReason}
+                  {/* A2-10 — a key the SYSTEM ended (its creator was suspended or
+                      left, the workspace or account closed) says so in words;
+                      a reason a person typed is shown as written. */}
+                  {apiKeyRevocationNote(k.revokedReason) ?? `Revoked reason: ${k.revokedReason}`}
                 </div>
               ) : null}
             </div>

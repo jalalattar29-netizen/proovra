@@ -1444,6 +1444,7 @@ export {
   WEBHOOK_HEADER_TIMESTAMP,
   WEBHOOK_RETRY_MAX_ATTEMPTS,
   WebhookEventTypeSchema,
+  apiKeyRevocationNote,
   buildWebhookSignatureBase,
   classifyWebhookHttpError,
   deriveApiKeyDisplayPrefix,
@@ -2883,3 +2884,6 @@ export * from "./evidence-artifact-projection.js";
 // PRO-061 / PRO-064 / PRO-067 — the one outbound URL policy (pure part).
 export * from "./outbound-url-policy.js";
 export * from "./public-verification-page.js";
+
+// F-P1-08 — the one storage-PUT retry rule (web legacy, web multipart, extension).
+export * from "./storage-put-retry.js";

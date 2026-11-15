@@ -145,6 +145,8 @@ vi.mock("../../lib/api", () => ({
     if (path.endsWith("/reports/regenerate")) {
       return new Promise((resolve, reject) => regenerateResolvers.push({ resolve, reject }));
     }
+    // F-P1-04 — the minted download URL.
+    if (path.endsWith("/report/latest")) return { url: "https://files.test/report.pdf" };
     if (path.endsWith("/artifacts/status")) {
       // The record's own status carries the full offer: versions and estimate.
       return {
@@ -362,5 +364,32 @@ describe("Reports row — generation actions", () => {
     expect(navigations).toEqual([]);
     fireEvent.click(container.querySelector("[data-reports-open-evidence='ev-ready']")!);
     expect(navigations).toEqual(["/evidence/ev-ready"]);
+  });
+
+  // F-P1-04 (2026-11-15) — the tab opens in the click and a blocked one is said.
+  it("Download report opens its tab in the click and sends it to the minted URL", async () => {
+    const tab = { closed: false, opener: {} as unknown, location: { replace: vi.fn() }, close: vi.fn() };
+    const open = vi.spyOn(window, "open").mockImplementation(() => tab as unknown as Window);
+    try {
+      const { container } = await mount();
+      fireEvent.click(container.querySelector("[data-reports-download-report='ev-ready']")!);
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.mock.calls[0]?.slice(0, 2)).toEqual(["", "_blank"]);
+      await waitFor(() => expect(tab.location.replace).toHaveBeenCalledWith("https://files.test/report.pdf"));
+      expect(tab.opener).toBeNull();
+    } finally {
+      open.mockRestore();
+    }
+  });
+
+  it("a blocked download tab is said on the row, not a silent no-op", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    try {
+      const view = await mount();
+      fireEvent.click(view.container.querySelector("[data-reports-download-report='ev-ready']")!);
+      await waitFor(() => expect(view.container.textContent).toContain("Your browser blocked the new tab"));
+    } finally {
+      open.mockRestore();
+    }
   });
 });

@@ -28,7 +28,7 @@ import type {
 } from "fastify";
 import { z } from "zod";
 
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { evaluateAuthorize, sendDenyResponse } from "../middleware/authorize.js";
 import type { Permission } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -94,13 +94,23 @@ async function requireTeamCapability(
   reply: FastifyReply,
   teamId: string,
   capability: Capability,
+  /**
+   * A2-19 — for a row looked up by a path id, the body that row's "missing"
+   * answer uses. A row of a workspace the caller cannot enter then answers
+   * byte-identically to an id that names nothing (not the workspace-level
+   * `not_found` body). 403/401/503 keep their canonical bodies.
+   */
+  rowNotFoundBody?: Record<string, unknown>,
 ): Promise<{ userId: string } | null> {
-  const outcome = await authorizeOrFail(req, reply, {
+  const outcome = await evaluateAuthorize(req, {
     teamId,
     permission: CAPABILITY_TO_PERMISSION[capability],
     antiEnumeration: true,
   });
-  return outcome ? { userId: outcome.actorUserId } : null;
+  if (outcome.allowed) return { userId: outcome.actorUserId };
+  if (rowNotFoundBody && outcome.httpStatus === 404) reply.code(404).send(rowNotFoundBody);
+  else sendDenyResponse(reply, outcome);
+  return null;
 }
 
 /**
@@ -380,6 +390,7 @@ export async function automationWebhooksRoutes(
         reply,
         existing.teamId,
         "AUTOMATION_MANAGE",
+        { message: "Not found" },
       );
       if (!member) return;
 
@@ -456,6 +467,7 @@ export async function automationWebhooksRoutes(
       reply,
       existing.teamId,
       "AUTOMATION_MANAGE",
+      { message: "Not found" },
     );
     if (!member) return;
     if (enabled) {
@@ -577,6 +589,7 @@ export async function automationWebhooksRoutes(
         reply,
         existing.teamId,
         "AUTOMATION_MANAGE",
+        { message: "Not found" },
       );
       if (!member) return;
 

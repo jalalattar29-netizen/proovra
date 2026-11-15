@@ -9,12 +9,13 @@
  * pins; each was written to FAIL on origin/main 99c87eea1 before its fix.
  */
 import { otsProofForDigest } from "../helpers/ots-proof-bytes.js";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "../integration-harness.js";
 import { tamperSealedEvidence } from "../helpers/sealed-identity-tamper.js";
+import { seedPersonalTenant, type FixtureDeps, type PersonalTenant } from "../point7/product-fixtures.js";
 
 /** Failure seams, all off by default. Test doubles, not production switches. */
 const seam = vi.hoisted(() => ({
@@ -1677,5 +1678,137 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       const after = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true } });
       expect(after.state).not.toBe("SUCCEEDED");
     }, 300_000);
+  });
+
+  // -------------------------------------------------------------------------
+  // AUDIT D-03 (product decision 2026-11-15) — the first issuance of an
+  // entitled Free record is not customer storage; later versions are.
+  // -------------------------------------------------------------------------
+  describe("D-03 — Free first issuance through the real processor", () => {
+    const MIB = 1024 * 1024;
+    let deps: FixtureDeps;
+    let apiUsage: (typeof import("../../src/services/workspace-usage.service.js"))["getWorkspaceUsage"];
+    let apiScope: (typeof import("../../src/services/billing-enforcement.service.js"))["resolveEnforcementScopeForRequester"];
+    let workerBilling: typeof import("../../../worker/src/workspace-billing.js");
+    let putOriginal: (typeof import("../../../worker/src/storage.js"))["putObjectBuffer"];
+
+    beforeAll(async () => {
+      const { signJwt } = await import("../../src/services/jwt.js");
+      ({ getWorkspaceUsage: apiUsage } = await import("../../src/services/workspace-usage.service.js"));
+      ({ resolveEnforcementScopeForRequester: apiScope } = await import("../../src/services/billing-enforcement.service.js"));
+      workerBilling = await import("../../../worker/src/workspace-billing.js");
+      ({ putObjectBuffer: putOriginal } = await import("../../../worker/src/storage.js"));
+      deps = {
+        prisma: prisma as never,
+        tag: `d03-fwd-${Date.now().toString(36)}`,
+        mintToken: (userId, email) =>
+          signJwt({ sub: userId, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) }, process.env.AUTH_JWT_SECRET!, 3600),
+      };
+    }, 120_000);
+
+    /** A SIGNED record settled into a Free slot (its stored FREE_ALLOWANCE fact), `mib` MiB of original. */
+    async function freeRecord(t: PersonalTenant, mib: number, opts: { stored: boolean }) {
+      const body = opts.stored ? randomBytes(mib * MIB) : null;
+      const ev = await prisma.evidence.create({
+        data: { title: "D-03 fixture", type: "DOCUMENT", status: "CREATED", teamId: t.personalTeamId, organizationId: t.personalOrganizationId, ownerUserId: t.owner.userId },
+        select: { id: true },
+      });
+      createdEvidence.push(ev.id);
+      const storageKey = `evidence/${ev.id}/original.bin`;
+      if (body) await putOriginal({ bucket: process.env.S3_BUCKET!, key: storageKey, body, contentType: "application/octet-stream" });
+      const originalSha = body ? sha256Hex(body) : "0".repeat(64);
+      await prisma.evidence.update({
+        where: { id: ev.id },
+        data: {
+          status: "SIGNED",
+          signedAtUtc: new Date(),
+          signatureBase64: "ZmFrZS1zaWduYXR1cmUtZm9yLWQwMw==",
+          signingKeyId: FIXTURE_SIGNING_KEY_ID,
+          signingKeyVersion: 1,
+          fingerprintHash: createHash("sha256").update(JSON.stringify({ d03: ev.id })).digest("hex"),
+          fingerprintCanonicalJson: JSON.stringify({ d03: ev.id }),
+          storageBucket: process.env.S3_BUCKET!,
+          storageKey,
+          mimeType: "application/octet-stream",
+          sizeBytes: BigInt(mib * MIB),
+          fileSha256: originalSha,
+          outputEarnedPlan: "FREE",
+          outputEarnedBasis: "FREE_ALLOWANCE",
+          outputEarnedAtUtc: new Date(),
+        } as never,
+      });
+      return { evidenceId: ev.id, teamId: t.personalTeamId, originalSha };
+    }
+
+    const bothHosts = async (t: PersonalTenant) => {
+      const api = await apiUsage(await apiScope({ ownerUserId: t.owner.userId, teamId: t.personalTeamId }));
+      const wk = await workerBilling.getWorkspaceUsage(
+        await workerBilling.resolveWorkspaceScopeForEvidence({ ownerUserId: t.owner.userId, teamId: t.personalTeamId }),
+      );
+      expect(wk.storageBytesUsed, "worker = API").toBe(api.storageBytesUsed);
+      expect(wk.actualStorageBytes, "worker actual = API actual").toBe(api.actualStorageBytes);
+      return api;
+    };
+    const storedPairBytes = async (evidenceId: string, version: number) => {
+      const r = await prisma.report.aggregate({ where: { evidenceId, version }, _sum: { sizeBytes: true } });
+      const p = await prisma.verificationPackage.aggregate({ where: { evidenceId, version, state: "PUBLISHED" }, _sum: { sizeBytes: true } });
+      return BigInt(r._sum.sizeBytes ?? 0n) + BigInt(p._sum.sizeBytes ?? 0n);
+    };
+
+    it("a large original's first report + both packages issue on a nearly full Free allowance and do not count; a later version counts and is refused before commit when its pair does not fit", async () => {
+      const t = await seedPersonalTenant(deps, "FREE");
+      // 210 MiB already uploaded (another sealed Free record) + a 24 MiB original.
+      const padding = await freeRecord(t, 210, { stored: false });
+      const rec = await freeRecord(t, 24, { stored: true });
+      await signFingerprintRaw(rec);
+      expect((await bothHosts(t)).storageBytesUsed).toBe(BigInt(234 * MIB));
+
+      // v1 through the real processor: report, then both package profiles.
+      const id = await request(rec);
+      expect(await run(id, 0)).toBeNull();
+      const s = await state(rec.evidenceId, id);
+      expect(s.req).toMatchObject({ state: "SUCCEEDED" });
+      expect(s.reports.map((r) => r.version)).toEqual([1]);
+      expect(s.packageRows.filter((p) => p.state === "PUBLISHED").map((p) => p.disclosureProfile).sort()).toEqual([
+        "EXTERNAL_DISCLOSURE",
+        "FULL_FORENSIC",
+      ]);
+      const v1 = await storedPairBytes(rec.evidenceId, 1);
+      // The FULL_FORENSIC package embeds the 24 MiB original.
+      expect(v1 > BigInt(24 * MIB)).toBe(true);
+
+      let u = await bothHosts(t);
+      expect(u.storageBytesUsed, "originals once").toBe(BigInt(234 * MIB));
+      expect(u.firstIssuanceExcludedBytes, "exactly the stored v1 rows").toBe(v1);
+      expect(u.actualStorageBytes).toBe(BigInt(234 * MIB) + v1);
+      // The last 16 MiB of the allowance stay usable for the third record —
+      // counted the old way (with v1) it was already full.
+      expect(u.actualStorageBytes + BigInt(15 * MIB) > BigInt(250 * MIB)).toBe(true);
+      await expect(
+        workerBilling.assertWorkspaceStorageAvailable({
+          scope: await workerBilling.resolveWorkspaceScopeForEvidence({ ownerUserId: t.owner.userId, teamId: t.personalTeamId }),
+          incomingBytes: BigInt(15 * MIB),
+        }),
+      ).resolves.toBeTruthy();
+
+      // A later version is NOT the first issuance: admitted against its pair
+      // (AUDIT D-01, estimate = the v1 packages) on the customer figure, and
+      // refused before anything commits when that pair does not fit.
+      const v2 = await request({ ...rec, forceRegenerate: true });
+      expect(await run(v2, 0)).toBeNull();
+      const refused = await state(rec.evidenceId, v2);
+      expect(refused.req).toMatchObject({ state: "NOT_APPLICABLE", terminalReasonCode: "NOT_APPLICABLE_STORAGE_LIMIT" });
+      expect(refused.reports.map((r) => r.version), "no report v2 without its package").toEqual([1]);
+
+      // Room made (the padding record destroyed): v2 issues and COUNTS.
+      await prisma.evidence.update({ where: { id: padding.evidenceId }, data: { lifecycleState: "DESTROYED" } as never });
+      const v2b = await request({ ...rec, forceRegenerate: true });
+      expect(await run(v2b, 0)).toBeNull();
+      expect((await state(rec.evidenceId, v2b)).reports.map((r) => r.version)).toEqual([1, 2]);
+      u = await bothHosts(t);
+      expect(u.firstIssuanceExcludedBytes, "v1 only").toBe(v1);
+      expect(u.storageBytesUsed).toBe(BigInt(24 * MIB) + (await storedPairBytes(rec.evidenceId, 2)));
+      expect(seam.sentryCaptures).toEqual([]);
+    }, 600_000);
   });
 });

@@ -54,8 +54,48 @@ export function databasePoolMax(raw: string | undefined): number {
   return n;
 }
 
-const pool = new Pool({ connectionString, max: databasePoolMax(process.env.DATABASE_POOL_MAX) });
+/**
+ * F-08 (Free-user audit 4d9b, capacity; 2026-11-15) — how long a query may
+ * wait for a pooled connection (or for a new one to be opened). `pg` defaults
+ * to 0 = wait for ever, so under overload every request queued without bound
+ * behind the pool. Unset = 10 s (the `maxWait` the hot interactive transactions
+ * already state); `0` keeps the old unbounded wait as an explicit choice; a
+ * value must be a whole number from 0 to 600000, anything else stops the
+ * process. A request refused by it is answered 503 + Retry-After
+ * (`isDatabasePoolTimeout` in middleware/overload-gate.ts), never left hanging.
+ */
+export const DEFAULT_DATABASE_POOL_CONNECTION_TIMEOUT_MS = 10_000;
+
+export function databasePoolConnectionTimeoutMs(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return DEFAULT_DATABASE_POOL_CONNECTION_TIMEOUT_MS;
+  const n = Number(raw.trim());
+  if (!Number.isInteger(n) || n < 0 || n > 600_000) {
+    throw new Error("DATABASE_POOL_CONNECTION_TIMEOUT_MS must be a whole number from 0 to 600000");
+  }
+  return n;
+}
+
+const poolMax = databasePoolMax(process.env.DATABASE_POOL_MAX);
+const pool = new Pool({
+  connectionString,
+  max: poolMax,
+  connectionTimeoutMillis: databasePoolConnectionTimeoutMs(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MS),
+});
 const adapter = new PrismaPg(pool);
+
+/**
+ * F-03/F-08 — the pool's live counters (no identifiers), for operational
+ * reads and the capacity tests: how many connections are out and how many
+ * callers wait for one.
+ */
+export function databasePoolStats(): { max: number; totalCount: number; idleCount: number; waitingCount: number } {
+  return {
+    max: poolMax,
+    totalCount: pool.totalCount,
+    idleCount: pool.idleCount,
+    waitingCount: pool.waitingCount,
+  };
+}
 
 export const prisma = new PrismaClient({ adapter });
 

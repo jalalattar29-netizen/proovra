@@ -1,6 +1,6 @@
 import { MutableRefObject, useEffect, useRef, useState } from "react";
 
-import type { CameraMode, FacingMode } from "../_lib/types";
+import { VIDEO_WITHOUT_MICROPHONE_SIGNALS, type CameraMode, type FacingMode } from "../_lib/types";
 import { normalizeClientMimeType } from "../_lib/file-utils";
 import {
   describeMediaError,
@@ -37,6 +37,8 @@ export function useCaptureCamera({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  // F-P1-09 parity — the open stream is video-only because the microphone permission was refused.
+  const microphoneDeniedRef = useRef(false);
 
   const stopMediaStream = () => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -160,6 +162,7 @@ export function useCaptureCamera({
 
       let stream: MediaStream;
       let usedVideoOnlyFallback = false;
+      microphoneDeniedRef.current = false;
 
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -175,6 +178,8 @@ export function useCaptureCamera({
         });
 
         usedVideoOnlyFallback = true;
+        const denial = (primaryError as { name?: unknown } | null)?.name;
+        microphoneDeniedRef.current = denial === "NotAllowedError" || denial === "SecurityError";
       }
 
       mediaStreamRef.current = stream;
@@ -366,6 +371,7 @@ export function useCaptureCamera({
         try {
           await addFilesToSessionRef.current?.([recordedFile], {
             sessionEvidenceType: "VIDEO",
+            ...(microphoneDeniedRef.current ? { audioSignals: VIDEO_WITHOUT_MICROPHONE_SIGNALS } : {}),
           });
         } catch (err) {
           // F-24 — the recording was refused, never silently dropped: the

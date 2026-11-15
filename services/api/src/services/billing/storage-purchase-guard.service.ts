@@ -104,10 +104,12 @@ export async function findStorageDuplicate(input: {
       storageAddonKey: input.addonKey,
       status: prismaPkg.BillingCheckoutAttemptStatus.PENDING,
       provider: { not: input.provider },
-      createdAt: { gte: since },
       OR: [
-        { providerResourceId: { not: null } },
+        { createdAt: { gte: since }, providerResourceId: { not: null } },
         { createdAt: { gte: inFlightSince } },
+        // AUDIT E-01 recheck (2026-11-15) — paid by a method still settling:
+        // never closed by the approval window, so open however old.
+        { providerResourceId: { not: null }, checkoutState: "CAPTURE_PENDING" },
       ],
     },
     orderBy: { createdAt: "desc" },

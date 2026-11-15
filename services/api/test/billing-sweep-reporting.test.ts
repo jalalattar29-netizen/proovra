@@ -81,7 +81,8 @@ describe("billing reconciliation sweep", () => {
       .mockResolvedValueOnce({ outcome: "ACTION_REQUIRED", discrepancies: 1, unavailable: 0 })
       .mockResolvedValueOnce({ outcome: "UPDATED", discrepancies: 0, unavailable: 2 });
     const r = await reconJob.runBillingReconciliationSweep({ providers: {} });
-    expect(r).toEqual({ attempted: 2, updated: 1, failed: 0, discrepancies: 1, unavailable: 2 });
+    // F-07 — the round met an unavailable provider, so the tick stops after it.
+    expect(r).toEqual({ attempted: 2, updated: 1, failed: 0, discrepancies: 1, unavailable: 2, rounds: 1, stopReason: "provider_unavailable" });
     expect(h.warn).toHaveBeenCalledWith("billing.reconciliation.discrepancies_found", {
       discrepancies: 1,
     });

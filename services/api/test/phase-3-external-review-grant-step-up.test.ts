@@ -212,12 +212,24 @@ describe("Phase 3 — reviewer-side + revoke NOT gated", () => {
   });
 
   it("operator grant revoke stays allowed (no step-up gate on revoke)", () => {
+    // A2-15 (2026-11-15) — renew (the next route) now requires the step-up
+    // whose purpose names grant EXTEND; the revoke block ends where it begins.
     const revokeBlock = ROUTES_REVIEW.slice(
       ROUTES_REVIEW.indexOf('"/v1/external-review/grants/:id/revoke"'),
-      ROUTES_REVIEW.indexOf('"/v1/external-review/access/:token"'),
+      ROUTES_REVIEW.indexOf('"/v1/external-review/grants/:id/renew"'),
     );
     expect(revokeBlock).toMatch(/transitionExternalReviewGrant\(/);
     expect(revokeBlock).not.toMatch(/requireStepUpForSensitiveAction\(/);
+  });
+
+  it("A2-15: grant renew re-checks the plan and reach and takes the EXTERNAL_REVIEW_GRANT_ISSUE step-up", () => {
+    const renewBlock = ROUTES_REVIEW.slice(
+      ROUTES_REVIEW.indexOf('"/v1/external-review/grants/:id/renew"'),
+      ROUTES_REVIEW.indexOf('"/v1/external-review/access/:token"'),
+    );
+    expect(renewBlock).toMatch(/workspaceIncludesExternalReview\(/);
+    expect(renewBlock).toMatch(/externalReviewGrantSubjectInReach\(/);
+    expect(renewBlock).toMatch(/requireStepUpForSensitiveAction\(\{[\s\S]*?purpose: "EXTERNAL_REVIEW_GRANT_ISSUE"/);
   });
 
   it("portal reviewer auth route does NOT require operator step-up", () => {

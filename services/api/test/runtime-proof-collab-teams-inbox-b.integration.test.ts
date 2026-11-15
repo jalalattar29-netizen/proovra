@@ -807,7 +807,11 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
 
       const wrong = await call({ method: "POST", url, token: other.token });
       expect(wrong.statusCode).toBe(403);
-      expect(wrong.json()).toEqual({ message: "Invite email does not match your account." });
+      // B-16 (round 3): the refusal carries its code, so clients branch on it.
+      expect(wrong.json()).toEqual({
+        message: "Invite email does not match your account.",
+        error: { code: "INVITE_EMAIL_MISMATCH" },
+      });
       expect(
         (await prisma.organizationInvite.findUniqueOrThrow({ where: { id: invite.inviteId } })).acceptedAt,
       ).toBeNull();

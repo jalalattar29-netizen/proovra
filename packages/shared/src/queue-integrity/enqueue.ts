@@ -92,6 +92,24 @@ export type EnqueueEntry = {
  * Never throws into the calling flow: a Redis outage must not fail an
  * authorized API mutation whose durable row is already committed.
  */
+/**
+ * F-10 (Free-user audit of 4d9b78963) — how many FAILED jobs BullMQ keeps per
+ * queue. Redis runs `noeviction` with no `maxmemory`, so an unbounded failed set
+ * grows until every Redis write (the shared rate limiters included) fails. The
+ * api and the worker both pass this explicitly (QUEUE_FAILED_JOB_RETENTION_COUNT,
+ * default 10000, whole number 1..1000000; anything else falls back to the
+ * default). Durable rows and their reconcilers are the authority, a job is only a
+ * reference to a row, so trimming old failed jobs loses no work. The operator
+ * DLQ sinks are not governed by this (their entries wait for triage by design).
+ */
+export const DEFAULT_FAILED_JOB_RETENTION_COUNT = 10_000;
+
+export function parseFailedJobRetentionCount(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return DEFAULT_FAILED_JOB_RETENTION_COUNT;
+  const n = Number(raw.trim());
+  return Number.isInteger(n) && n >= 1 && n <= 1_000_000 ? n : DEFAULT_FAILED_JOB_RETENTION_COUNT;
+}
+
 export async function enqueueCanonicalJob(input: {
   queue: QueueHandleLike;
   entry: EnqueueEntry;

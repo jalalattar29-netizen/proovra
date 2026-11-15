@@ -199,12 +199,40 @@ export const RESEND_COPY = {
 export function useVerificationResend(send: () => Promise<void>, holdMs = 60_000) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  // B-13 — seconds left on a hold the SERVER named (register's resendAfterSec).
+  const [waitSec, setWaitSec] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tick = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
+    if (tick.current) clearInterval(tick.current);
   }, []);
+  /**
+   * B-13 — hold Resend for the server's own cooldown, as the web register page
+   * does (holdResendFor): the button is unavailable, says how long, and frees
+   * itself when the cooldown ends. 0 (a failed send) frees it at once.
+   */
+  const holdFor = (seconds: unknown) => {
+    if (timer.current) clearTimeout(timer.current);
+    if (tick.current) clearInterval(tick.current);
+    const s = typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 0;
+    setWaitSec(s);
+    setBusy(s > 0);
+    if (s === 0) return;
+    const until = Date.now() + s * 1000;
+    tick.current = setInterval(() => {
+      const left = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+      setWaitSec(left);
+      if (left === 0) {
+        if (tick.current) clearInterval(tick.current);
+        setBusy(false);
+      }
+    }, 1000);
+  };
   const resend = async () => {
     if (busy) return;
+    if (tick.current) clearInterval(tick.current);
+    setWaitSec(0);
     setBusy(true);
     setStatus(RESEND_COPY.sending);
     try {
@@ -218,10 +246,12 @@ export function useVerificationResend(send: () => Promise<void>, holdMs = 60_000
   };
   const reset = () => {
     if (timer.current) clearTimeout(timer.current);
+    if (tick.current) clearInterval(tick.current);
     setBusy(false);
     setStatus(null);
+    setWaitSec(0);
   };
-  return { busy, status, resend, reset };
+  return { busy, status, waitSec, resend, reset, holdFor };
 }
 
 const styles = StyleSheet.create({

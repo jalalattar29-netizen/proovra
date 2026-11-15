@@ -37,6 +37,43 @@ function base64UrlDecode(input: string) {
   }
 }
 
+const CALLBACK_SECRET_PARAMS = ["code", "id_token", "state"] as const;
+
+/** A1-08 — removes the credential parameters from the URL (query and fragment) in place. */
+function stripCallbackSecretsFromUrl() {
+  try {
+    const url = new URL(window.location.href);
+    let changed = false;
+    for (const key of CALLBACK_SECRET_PARAMS) {
+      if (url.searchParams.has(key)) {
+        url.searchParams.delete(key);
+        changed = true;
+      }
+    }
+    if (url.hash) {
+      const hash = parseHashParams(url.hash);
+      if (CALLBACK_SECRET_PARAMS.some((key) => hash.has(key))) {
+        for (const key of CALLBACK_SECRET_PARAMS) hash.delete(key);
+        const rest = hash.toString();
+        url.hash = rest ? `#${rest}` : "";
+        changed = true;
+      }
+    }
+    if (changed) window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  } catch {
+    // The exchange does not depend on this.
+  }
+}
+
+/** Where the sign-in continues afterwards, by the same open-redirect rule as /login (F-26g). */
+function continuationPath(pendingReturnUrl: string | null | undefined): string {
+  try {
+    return safeReturnPath(pendingReturnUrl ?? sessionStorage.getItem("proovra-return-url"));
+  } catch {
+    return "/home";
+  }
+}
+
 function inferProviderFromIdToken(idToken: string | null): Provider | null {
   if (!idToken) return null;
   const parts = idToken.split(".");
@@ -76,6 +113,13 @@ export default function AppleCallbackPage() {
     const state = searchParams.get("state") ?? hashParams.get("state");
     const storedState = sessionStorage.getItem("proovra-apple-state");
     const pendingLegal = readPendingOAuthLegalAcceptance();
+
+    // A1-08 — the provider's `code` / `id_token` (and `state`) have been read;
+    // they leave the address bar and the history entry now, so they are not
+    // kept in history, copied with the URL or sent onward. Replay was already
+    // impossible (the nonce is single-use and browser-bound); this removes the
+    // residue. `provider` and an OAuth `error` carry no secret and stay.
+    stripCallbackSecretsFromUrl();
 
     authLogger.log("AUTH_CALLBACK_RECEIVED", `provider=${providerRaw ?? "unknown"}`, {
       hasCode: !!code,
@@ -190,10 +234,22 @@ export default function AppleCallbackPage() {
           let errMsg = "Sign-in failed";
           try {
             const errJson = JSON.parse(text) as {
+              code?: string;
               message?: string;
               hint?: string;
-              error?: { message?: string };
+              error?: { code?: string; message?: string };
             };
+            // B-12 — the sign-in succeeded and the organization requires a
+            // factor this account does not have yet: the API set the enrolment
+            // cookie, so the next step is the guided setup (login/page.tsx).
+            if (res.status === 403 && (errJson.code ?? errJson.error?.code) === "MFA_ENROLLMENT_REQUIRED") {
+              authLogger.log("AUTH_MFA_REQUIRED", "enrollment_required", { provider }, provider);
+              if (!isMountedRef.current) return;
+              window.location.replace(
+                `/auth/mfa-challenge?enroll=1&next=${encodeURIComponent(continuationPath(pendingLegal?.returnUrl))}`,
+              );
+              return;
+            }
             errMsg =
               [errJson.message, errJson.hint].filter(Boolean).join(" — ") ||
               errJson.error?.message ||
@@ -206,7 +262,20 @@ export default function AppleCallbackPage() {
           throw new Error(errMsg);
         }
 
-        const data = (await res.json()) as { token?: string };
+        const data = (await res.json()) as { token?: string; mfaRequired?: boolean };
+        // B-12 — an account with a second factor gets `mfaRequired` and the
+        // short-lived pending cookie, not a session. Continue on the canonical
+        // challenge page exactly as /login does (login/page.tsx), carrying the
+        // validated return path; the pending token in the body is ignored so the
+        // secret never enters page memory outside the cookie.
+        if (data.mfaRequired === true) {
+          authLogger.log("AUTH_MFA_REQUIRED", "challenge_issued", { provider }, provider);
+          if (!isMountedRef.current) return;
+          window.location.replace(
+            `/auth/mfa-challenge?next=${encodeURIComponent(continuationPath(pendingLegal?.returnUrl))}`,
+          );
+          return;
+        }
         if (!data.token) {
           authLogger.logError("callback_no_token_in_response", "Response missing token");
           throw new Error("Missing access token");

@@ -36,6 +36,7 @@ import {
 } from "@proovra/shared-runtime/reports";
 
 import { appendCustodyEventTx } from "./custody-events.js";
+import { verificationPageOpensAtIssuance } from "./report-v2/issuance-render-facts.js";
 import { prisma } from "./db.js";
 import { publishThroughIntent } from "./publication-intent.js";
 import { artifactLockFor } from "./object-retention.js";
@@ -208,6 +209,12 @@ export type IssuanceCommitInput = {
   published: readonly PublishedProfile[];
   /** The primary package's presence flags, recorded on the record. */
   primaryArtifactPresence: Record<string, boolean> | null;
+  /**
+   * AUDIT D-10 (round 3) — whether the built packages state the canonical
+   * page as open (publicVerification.publishedAtIssuance). Re-checked under
+   * the record lock at commit; omitted = not checked (legacy callers).
+   */
+  publicVerificationPublishedAtIssuance?: boolean;
 };
 
 /**
@@ -220,14 +227,30 @@ export type IssuanceCommitInput = {
 export async function commitIssuance(input: IssuanceCommitInput): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.evidenceId}))`;
+    // AUDIT D-06 (round 3) — the package issuance event is dated when it
+    // happens: this commit, under the record lock (input.now stays the time
+    // the packages STATE as generated).
+    const issuanceCommittedAtUtc = new Date();
     // THE OUTPUT-PRODUCER GUARD, AT PACKAGE COMMIT (AUD-35). The record may
     // have been archived, trashed or destroyed while the package built: no
     // package is published for it. Re-read under the record's lock.
     const live = await tx.evidence.findUnique({
       where: { id: input.evidenceId },
-      select: { id: true, teamId: true, ownerUserId: true, status: true, deletedAt: true, lifecycleState: true },
+      select: { id: true, teamId: true, ownerUserId: true, status: true, deletedAt: true, lifecycleState: true, verificationAccessState: true },
     });
     if (!live) throw new OutputProductionRefusedError("NOT_APPLICABLE_DELETED");
+    // AUDIT D-10 (round 3) — the packages' publication fact must still be the
+    // canonical access state at this boundary (the withdraw route takes the
+    // same lock); otherwise nothing commits and the retry rebuilds from it.
+    if (
+      input.publicVerificationPublishedAtIssuance !== undefined &&
+      verificationPageOpensAtIssuance(live.verificationAccessState) !== input.publicVerificationPublishedAtIssuance
+    ) {
+      throw Object.assign(new Error("PACKAGE_PUBLICATION_STATE_CHANGED_RETRY"), {
+        code: "PACKAGE_PUBLICATION_STATE_CHANGED_RETRY",
+        retriable: true,
+      });
+    }
     // F-07 (independent forward audit) — THE run admission, again, under this
     // lock: lifecycle (archived, trashed, destroyed), entitlement, workspace,
     // organization and (for a regeneration) legal hold, as they are NOW. It is
@@ -323,7 +346,7 @@ export async function commitIssuance(input: IssuanceCommitInput): Promise<void> 
       await appendCustodyEventTx(tx, {
         evidenceId: input.evidenceId,
         eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_GENERATED,
-        atUtc: input.now,
+        atUtc: issuanceCommittedAtUtc,
         payload: {
           version: input.version,
           packageId: p.packageId,

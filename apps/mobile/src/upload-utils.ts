@@ -44,8 +44,15 @@
  */
 import * as FileSystem from "expo-file-system";
 import * as Crypto from "expo-crypto";
+import { AppState } from "react-native";
 
-import { CAPTURE_PUT_TIMEOUT_MS, CaptureTimeoutError, withTimeout } from "./capture/capture-retry";
+import {
+  CAPTURE_PUT_TIMEOUT_MS,
+  CaptureTimeoutError,
+  withBackgroundStallDeadline,
+  withTimeout,
+  type BackgroundDeadlineEnv,
+} from "./capture/capture-retry";
 import { hashFileNative, isNativeFileHashAvailable } from "../modules/proovra-screen-capture";
 
 /** Bytes read per chunk when assembling the file for hashing (3 MiB, base64-aligned). */
@@ -270,7 +277,8 @@ export const computeFileIntegrityBase64 = computeFileIntegrity;
  *   403          the presigned URL itself was refused (expired / no longer
  *                valid): STORAGE_URL_REJECTED, retryable — the next attempt
  *                presigns a fresh URL for the same part.
- *   408/429/5xx  storage is busy or failing: retryable (status kept).
+ *   408/425/429/5xx  storage is busy, too early or failing: retryable (status
+ *                kept) — the shared classifyStoragePutStatus rule (F-P1-08).
  *   other 4xx    the bytes were refused (digest, length): STORAGE_UPLOAD_REFUSED,
  *                terminal — sending the same bytes again cannot succeed.
  * `storageStatus`, not `statusCode`: this is not an API answer, and the session
@@ -282,9 +290,22 @@ export function storageRefusal(status: number): Error & { code?: string; storage
     storageStatus: number;
   };
   if (status === 403) err.code = "STORAGE_URL_REJECTED";
-  else if (status === 408 || status === 429 || status >= 500) err.code = "NETWORK_ERROR";
+  else if (status === 408 || status === 425 || status === 429 || status >= 500) err.code = "NETWORK_ERROR";
   else if (status >= 400) err.code = "STORAGE_UPLOAD_REFUSED";
   return err;
+}
+
+/** F-P1-17 — the app-lifecycle facts a background upload's deadline reads. */
+function appStateDeadlineEnv(): BackgroundDeadlineEnv {
+  return {
+    appActive: () => AppState.currentState === "active",
+    onAppActive: (fn) => {
+      const sub = AppState.addEventListener("change", (next) => {
+        if (next === "active") fn();
+      });
+      return () => sub.remove();
+    },
+  };
 }
 
 export async function uploadWithPut(params: {
@@ -311,6 +332,7 @@ export async function uploadWithPut(params: {
         }
       : await computeFileIntegrity(params.uri);
 
+  const background = Boolean(params.background && FileSystem.FileSystemSessionType);
   const options: FileSystem.FileSystemUploadOptions = {
     httpMethod: "PUT",
     headers: {
@@ -319,25 +341,47 @@ export async function uploadWithPut(params: {
       "Content-MD5": prepared.contentMd5Base64,
     },
     uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    ...(params.background && FileSystem.FileSystemSessionType
-      ? { sessionType: FileSystem.FileSystemSessionType.BACKGROUND }
-      : {}),
+    ...(background ? { sessionType: FileSystem.FileSystemSessionType.BACKGROUND } : {}),
+  };
+  // F-P1-17 — a background session reports its progress, so its deadline can
+  // tell a stalled transfer from one that kept moving while PROOVRA was away.
+  let noteProgress: () => void = () => undefined;
+  let lastBytesSent = -1;
+  const onProgress = (p: { totalBytesSent?: number }) => {
+    const sent = typeof p?.totalBytesSent === "number" ? p.totalBytesSent : 0;
+    if (sent > lastBytesSent) {
+      lastBytesSent = sent;
+      noteProgress();
+    }
   };
   // A cancellable task where the platform offers one, so a timed-out PUT stops
   // sending instead of finishing in the background.
   const task =
     typeof FileSystem.createUploadTask === "function"
-      ? FileSystem.createUploadTask(params.putUrl, prepared.fileUri, options)
+      ? background
+        ? FileSystem.createUploadTask(params.putUrl, prepared.fileUri, options, onProgress)
+        : FileSystem.createUploadTask(params.putUrl, prepared.fileUri, options)
       : null;
   const timeoutMs = params.timeoutMs ?? CAPTURE_PUT_TIMEOUT_MS;
-  const result = await withTimeout(
-    () => (task ? task.uploadAsync() : FileSystem.uploadAsync(params.putUrl, prepared.fileUri, options)),
-    timeoutMs,
-    "The upload",
-    () => {
-      void task?.cancelAsync().catch(() => undefined);
-    },
-  );
+  const send = () => (task ? task.uploadAsync() : FileSystem.uploadAsync(params.putUrl, prepared.fileUri, options));
+  const cancel = () => {
+    void task?.cancelAsync().catch(() => undefined);
+  };
+  // Foreground: an absolute deadline. Background (iOS): the stall rule — the
+  // deadline never cancels a session that is still progressing, nor one the
+  // app cannot observe because it is suspended.
+  const result = background
+    ? await withBackgroundStallDeadline(
+        (note) => {
+          noteProgress = note;
+          return send();
+        },
+        timeoutMs,
+        "The upload",
+        appStateDeadlineEnv(),
+        cancel,
+      )
+    : await withTimeout(() => send(), timeoutMs, "The upload", cancel);
   // A cancelled task resolves with nothing: that is the timeout, not a success.
   if (!result) throw new CaptureTimeoutError("The upload", timeoutMs);
 

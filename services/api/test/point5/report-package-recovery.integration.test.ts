@@ -346,13 +346,14 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
   let prisma: (typeof import("../../src/db.js"))["prisma"];
   let processor: typeof import("../../../worker/src/processor.js");
   let authority: typeof import("../../../worker/src/report-generation-authority.js");
+  let sharedRuntime: typeof import("@proovra/shared-runtime");
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("../integration-harness.js");
     harness = await bootIntegrationHarness();
     ({ prisma } = await import("../../src/db.js"));
-    const { registerPrisma } = await import("@proovra/shared-runtime");
-    registerPrisma(prisma as never);
+    sharedRuntime = await import("@proovra/shared-runtime");
+    sharedRuntime.registerPrisma(prisma as never);
     processor = await import("../../../worker/src/processor.js");
     authority = await import("../../../worker/src/report-generation-authority.js");
 
@@ -2639,4 +2640,135 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(v3.version).toBe(v2.version + 1);
     expectSurfaces(v3, false);
   }, 600_000);
+
+  // ===========================================================================
+  // AUDIT D-10 (round 3) — a withdrawal racing the issuance. The QR/link the
+  // PDF prints and the package's publication fact are bound to the canonical
+  // access state at the issuance boundary (render snapshot, re-checked under
+  // the record lock at commit). Already-issued artifacts are never touched;
+  // the live page enforces withdrawal on its own (D-07 suite).
+  // ===========================================================================
+  const withdraw = (evidenceId: string) =>
+    prisma.evidence.update({
+      where: { id: evidenceId },
+      data: { verificationAccessState: "WITHDRAWN", verificationAccessReason: "PRIVACY_REQUEST", verificationAccessChangedAtUtc: new Date() } as never,
+    });
+  const lastRenderPublished = () =>
+    (seam.reportInputs.at(-1) as { publicVerificationPublished?: boolean } | undefined)?.publicVerificationPublished;
+  const lastPackagePublished = () =>
+    (seam.packageBuildInputs.at(-1) as { publicVerification?: { publishedAtIssuance?: boolean } } | undefined)?.publicVerification
+      ?.publishedAtIssuance;
+
+  it("D-10: a page withdrawn AFTER prepare, BEFORE render — the issued PDF prints no QR and the package states it unpublished", async () => {
+    const ev = await signedEvidence();
+    seam.beforeRenderSnapshot = async () => {
+      await withdraw(ev.evidenceId);
+    };
+    seam.reportInputs.length = 0;
+    seam.packageBuildInputs.length = 0;
+    const id = await request(ev);
+    expect(await run(id, 0)).toBeNull();
+    expect(seam.beforeRenderSnapshot, "the withdrawal landed in the window").toBeNull();
+    expect(lastRenderPublished(), "the PDF's QR/link follows the access state at render").toBe(false);
+    expect(lastPackagePublished(), "the package states the same decision").toBe(false);
+    const s = await state(ev.evidenceId, id);
+    expect(s.req!.state).toBe("SUCCEEDED");
+    expect(s.reports.map((r) => r.version)).toEqual([1]);
+  });
+
+  it("D-10: a page withdrawn AFTER render, BEFORE commit — nothing commits with the stale QR; the retry issues v1 without it", async () => {
+    const ev = await signedEvidence();
+    seam.reportInputs.length = 0;
+    seam.packageBuildInputs.length = 0;
+    seam.reportPublishedHook = async () => {
+      await withdraw(ev.evidenceId);
+    };
+    const id = await request(ev);
+    const first = (await run(id, 0)) as { code?: string } | null;
+    expect(first?.code, "the commit refuses the stale publication fact").toBe("REPORT_PUBLICATION_STATE_CHANGED_RETRY");
+    expect(lastRenderPublished(), "the first render printed the QR").toBe(true);
+    let s = await state(ev.evidenceId, id);
+    expect(s.reports, "no report row commits with a QR for a withdrawn page").toEqual([]);
+    expect(s.req!.state).not.toMatch(/TERMINAL|SUCCEEDED/);
+    expect(await run(id, 1)).toBeNull();
+    s = await state(ev.evidenceId, id);
+    expect(s.req!.state).toBe("SUCCEEDED");
+    expect(s.reports.map((r) => r.version)).toEqual([1]);
+    expect(lastRenderPublished(), "the committed render prints no QR").toBe(false);
+    expect(lastPackagePublished()).toBe(false);
+    const v1 = s.reports[0]!;
+    expect(v1.pdfSha256).toBe(sha256Hex(stored(v1.storageBucket, v1.storageKey)!));
+  });
+
+  it("D-10: an already-issued report is untouched by a later withdrawal (bytes, row and custody unchanged)", async () => {
+    const ev = await signedEvidence();
+    const id = await request(ev);
+    expect(await run(id, 0)).toBeNull();
+    const before = await state(ev.evidenceId, id);
+    const v1 = before.reports[0]!;
+    const bytes = sha256Hex(stored(v1.storageBucket, v1.storageKey)!);
+    const custodyBefore = await prisma.custodyEvent.findMany({ where: { evidenceId: ev.evidenceId }, orderBy: { sequence: "asc" }, select: { eventHash: true } });
+    await withdraw(ev.evidenceId);
+    const after = await state(ev.evidenceId, id);
+    expect(after.reports).toEqual(before.reports);
+    expect(sha256Hex(stored(v1.storageBucket, v1.storageKey)!)).toBe(bytes);
+    const custodyAfter = await prisma.custodyEvent.findMany({ where: { evidenceId: ev.evidenceId }, orderBy: { sequence: "asc" }, select: { eventHash: true } });
+    expect(custodyAfter).toEqual(custodyBefore);
+  });
+
+  // ===========================================================================
+  // AUDIT D-06 (round 3) — issuance custody events are dated when the issuance
+  // commits, not when preparation began; the time the report STATES is
+  // unchanged; chronology is by sequence.
+  // ===========================================================================
+  it("D-06: an event appended while the report renders keeps a lower sequence AND an earlier time than the issuance events", async () => {
+    const ev = await signedEvidence();
+    let interleaved: { sequence: number; atUtc: Date } | null = null;
+    seam.beforeRenderSnapshot = async () => {
+      await new Promise((r) => setTimeout(r, 25));
+      const row = await prisma.$transaction((tx) =>
+        sharedRuntime.appendCustodyEventTx(tx as never, {
+          evidenceId: ev.evidenceId,
+          eventType: "EVIDENCE_VIEWED" as never,
+          atUtc: new Date(),
+          payload: { d06: "landed while rendering" },
+        }),
+      );
+      interleaved = { sequence: (row as { sequence: number }).sequence, atUtc: (row as { atUtc: Date }).atUtc };
+    };
+    const id = await request(ev);
+    expect(await run(id, 0)).toBeNull();
+    expect(interleaved, "the event landed in the window").not.toBeNull();
+    const mid = interleaved as unknown as { sequence: number; atUtc: Date };
+    const report = await prisma.report.findFirstOrThrow({
+      where: { evidenceId: ev.evidenceId, version: 1 },
+      select: { generatedAtUtc: true, issuanceCustodyThroughSequence: true, custodyThroughSequence: true },
+    });
+    const issuance = await prisma.custodyEvent.findMany({
+      where: {
+        evidenceId: ev.evidenceId,
+        eventType: { in: ["REPORT_IDENTITY_CONTEXT_RECORDED", "REPORT_GENERATED", "REVIEW_READY", "REPORT_PDF_UNSIGNED_OPT_OUT", "VERIFICATION_PACKAGE_GENERATED"] as never },
+      },
+      orderBy: { sequence: "asc" },
+      select: { sequence: true, atUtc: true, eventType: true, payload: true },
+    });
+    const generated = issuance.find((e) => e.eventType === "REPORT_GENERATED")!;
+    expect(generated).toBeTruthy();
+    // Sequence chronology (unchanged) …
+    expect(generated.sequence).toBeGreaterThan(mid.sequence);
+    expect(report.custodyThroughSequence, "the report's render snapshot included the interleaved event").toBeGreaterThanOrEqual(mid.sequence);
+    // … and now the persisted times agree with it.
+    for (const e of issuance) {
+      expect(e.atUtc.getTime(), `${e.eventType} is dated at/after the event recorded before it`).toBeGreaterThanOrEqual(mid.atUtc.getTime());
+    }
+    for (let i = 1; i < issuance.length; i += 1) {
+      expect(issuance[i]!.atUtc.getTime()).toBeGreaterThanOrEqual(issuance[i - 1]!.atUtc.getTime());
+    }
+    // The time the report STATES is the generation time it printed, unchanged.
+    expect((generated.payload as { generatedAtUtc?: string }).generatedAtUtc).toBe(report.generatedAtUtc.toISOString());
+    expect(report.generatedAtUtc.getTime()).toBeLessThan(mid.atUtc.getTime());
+    // Sequence cut-off recorded through the issuance's own events.
+    const lastReportEvent = issuance.filter((e) => e.eventType !== "VERIFICATION_PACKAGE_GENERATED").at(-1)!;
+    expect(report.issuanceCustodyThroughSequence).toBe(lastReportEvent.sequence);
+  });
 });

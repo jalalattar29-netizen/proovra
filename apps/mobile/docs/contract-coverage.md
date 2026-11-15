@@ -197,10 +197,10 @@ top level of it.
 | OK | `parseTotpEnrollment` | `POST /v1/identity/mfa/enroll/start` | factorId, otpauthUri, secretBase32 | factorId, otpauthUri, secretBase32 |
 | OK | `parseRecoveryCodes` | `POST /v1/identity/mfa/enroll/verify` | <SPREAD>, error, factorId, recoveryCodes, retryAfterMs | recoveryCodes |
 | OK | `parseRecoveryCodes` | `POST /v1/identity/mfa/recovery-codes/regenerate` | recoveryCodes | recoveryCodes |
-| OK | `parseOrgInviteAccept` | `POST /v1/org-invites/:token/accept` | <SPREAD>, assignedWorkspaceIds, invitationAccepted, organizationId, role, workspaceOpened | assignedWorkspaceIds, enterpriseWorkspaceId, organizationId, role, setupRedirect |
+| OK | `parseOrgInviteAccept` | `POST /v1/org-invites/accept` | <SPREAD>, assignedWorkspaceIds, invitationAccepted, organizationId, role, workspaceOpened | assignedWorkspaceIds, enterpriseWorkspaceId, organizationId, role, setupRedirect |
 | OK | `parseOrgInviteLookup` | `POST /v1/org-invites/lookup` | context, state | context, state |
 | OK | `parsePortalAuth` | `POST /v1/portal/auth` | expiresAtUtc, newLogin, reviewerEmail, role, sessionId | expiresAtUtc, newLogin, reviewerEmail, role, sessionId |
-| OK | `parseWorkspaceInviteAccept` | `POST /v1/teams/invites/:token/accept` | alreadyMember, role, workspaceId | alreadyMember, workspaceId |
+| OK | `parseWorkspaceInviteAccept` | `POST /v1/teams/invites/accept` | alreadyMember, role, workspaceId | alreadyMember, workspaceId |
 | OK | `parseWorkspaceInviteLookup` | `POST /v1/teams/invites/lookup` | context, state | context, state |
 | OK | `parseCreatedIntakeLink` | `POST /v1/workflow/intake-links` | delivery, link, rawToken, warning | delivery, link, rawToken |
 | OK | `parseRevealedContact` | `POST /v1/workflow/intake-links/:id/recipient-contact` | recipientContact | recipientContact, recipientEmail, recipientPhone |

@@ -322,7 +322,9 @@ describe("R8.1.2 Part 7 — login flow integration LIVE (was deferred in R8.1.1)
     // factor the person enrolled — the methods listing, a phone code, a passkey on
     // the web and through the mobile handoff — instead of locking passkey- and
     // phone-only accounts out or letting a password alone in.
-    const expected = 87547;
+    // 2026-11-15 (Free-user audit round 3) rebaselined 87547→94351: a per-account
+    // sign-in budget beside the per-address one (B-21) and coded refusals (B-16).
+    const expected = 94351;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

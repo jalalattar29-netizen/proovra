@@ -1,5 +1,5 @@
 import { observeContractHeader } from "./contract-skew";
-import { SESSION_EXPIRED_EVENT } from "./session-events";
+import { LEGAL_REACCEPT_REQUIRED_EVENT, SESSION_EXPIRED_EVENT } from "./session-events";
 
 const DEFAULT_API_BASE = "https://api.proovra.com";
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_API_BASE;
@@ -124,6 +124,15 @@ type ApiFetchOpts = {
  * out and nothing here redirects or retries.
  */
 const SESSION_ENDED_CODES = new Set(["", "UNAUTHORIZED", "TOKEN_EXPIRED", "unauthenticated"]);
+
+function announceLegalReacceptRequired(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new Event(LEGAL_REACCEPT_REQUIRED_EVENT));
+  } catch {
+    // No shell to tell.
+  }
+}
 
 function announceSessionEnded(): void {
   if (typeof window === "undefined") return;
@@ -492,6 +501,22 @@ async function runApiFetch(
             ? (obj["code"] as string)
             : "";
       if (SESSION_ENDED_CODES.has(serverCode)) announceSessionEnded();
+    }
+
+    // A1-06 — a write the server refused for outstanding terms: tell the
+    // acceptance step, which re-reads the status and shows the prompt.
+    // COMPAT — writes only: an API older than this build also refuses some
+    // READS with this 428 (billing, teams), and a page that polls one of them
+    // must not re-open the step every few seconds after "Not now".
+    const method = (init.method ?? "GET").toUpperCase();
+    if (
+      res.status === 428 &&
+      method !== "GET" &&
+      method !== "HEAD" &&
+      errObj &&
+      errObj["code"] === "LEGAL_REACCEPT_REQUIRED"
+    ) {
+      announceLegalReacceptRequired();
     }
 
     /**

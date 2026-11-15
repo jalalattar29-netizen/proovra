@@ -75,6 +75,16 @@ export type SignerControlClient = Parameters<typeof assertSignatureVerifiesWithR
 
 export interface EvidenceSigner {
   signFingerprintHex(messageHex: string, options?: { client?: SignerControlClient }): Promise<SignFingerprintResult>;
+  /**
+   * F-04 — the signing boundary's control reads, again, for a signature made
+   * earlier (outside the caller's transaction): the signer is still usable and
+   * the signature still verifies against its REGISTERED key. Nothing is signed.
+   */
+  reassertSignatureAdmissible?(
+    messageHex: string,
+    signed: SignFingerprintResult,
+    options?: { client?: SignerControlClient },
+  ): Promise<SignFingerprintResult>;
   /** The signer's own public key, when it can derive it (local PEM). */
   ownPublicKeyPem?(): string | null;
 }
@@ -161,6 +171,24 @@ class ControlledEvidenceSigner implements EvidenceSigner {
     const client = options?.client ?? prisma;
     await assertSignerUsable(currentSignerIdForPurpose(this.purpose), client);
     const result = await this.inner.signFingerprintHex(messageHex);
+    return this.verifiedAgainstRegisteredKey(messageHex, result, client);
+  }
+
+  async reassertSignatureAdmissible(
+    messageHex: string,
+    signed: SignFingerprintResult,
+    options?: { client?: SignerControlClient },
+  ): Promise<SignFingerprintResult> {
+    const client = options?.client ?? prisma;
+    await assertSignerUsable(currentSignerIdForPurpose(this.purpose), client);
+    return this.verifiedAgainstRegisteredKey(messageHex, signed, client);
+  }
+
+  private async verifiedAgainstRegisteredKey(
+    messageHex: string,
+    result: SignFingerprintResult,
+    client: SignerControlClient,
+  ): Promise<SignFingerprintResult> {
     // UC-TRUST-003 — SELF-VERIFY against the REGISTERED key before anything
     // commits. A private key that does not match its registered public key
     // (rotation without a version bump, a wrong mounted PEM) or a revoked key

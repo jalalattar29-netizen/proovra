@@ -5,6 +5,7 @@ import { resolveRetentionOnCreate } from "./governance.service.js";
 import {
   assertWorkspaceAllowsEvidenceCreation,
   lockEvidenceCapacitySubject,
+  withEvidenceCapacityAdmission,
   resolveEnforcementScopeForRequester,
   assertWorkspaceAllowsStorageGrowth,
 } from "./billing-enforcement.service.js";
@@ -409,12 +410,21 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   // evidence. Rows are never created with team_id NULL again.
   let effectiveTeamId = params.teamId ?? null;
   let isPersonalWorkspaceCapture = false;
+  // C-12 (Free-user audit of 4d9b78963) — the KIND of the workspace the record
+  // is created in, for the identity snapshot's `workspaceKind` ("the workspace
+  // the record was created in"). A member's capture in another person's
+  // Personal workspace was labelled SHARED because the label keyed on
+  // `isPersonalWorkspaceCapture` (= the caller owns it), which stays the rule
+  // for billing scope, identity level and name snapshots. New events only;
+  // recorded events are never rewritten.
+  let targetWorkspaceIsPersonal = false;
 
   if (effectiveTeamId) {
     const targetTeam = await db.team.findUnique({
       where: { id: effectiveTeamId },
       select: { isPersonal: true, ownerUserId: true },
     });
+    targetWorkspaceIsPersonal = targetTeam?.isPersonal === true;
     isPersonalWorkspaceCapture =
       targetTeam?.isPersonal === true &&
       targetTeam.ownerUserId === params.ownerUserId;
@@ -456,6 +466,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     );
     effectiveTeamId = personal.teamId;
     isPersonalWorkspaceCapture = true;
+    targetWorkspaceIsPersonal = true;
   }
 
   // PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL end-to-end enforcement.
@@ -593,6 +604,9 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     workspaceTeam?.name?.trim() ||
     null;
 
+  // F-03 — what is left of the capacity wait budget after in-process admission
+  // (undefined on a caller's transaction: the configured budget).
+  let capacityLockWaitMs: number | undefined;
   const writeRecord = async (tx: prismaPkg.Prisma.TransactionClient) => {
     // ET-ACQ-06 — record-cap ADMISSION is serialized per capacity subject
     // (workspace, or the Personal owner). The check above read the count
@@ -600,7 +614,8 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     // SHARED workspace was never settled again at completion. Under the
     // subject's lock (the one completion settlement takes) the decision is
     // re-made and the row inserted before the next creator can count.
-    await lockEvidenceCapacitySubject(scope, tx);
+    // F-03 — the wait for it is bounded (busy = 429 + Retry-After, rolled back).
+    await lockEvidenceCapacitySubject(scope, tx, { waitMs: capacityLockWaitMs });
     await assertWorkspaceAllowsEvidenceCreation(scope, tx);
     const evidence = await tx.evidence.create({
 data: {
@@ -743,7 +758,7 @@ const key = `evidence/${evidence.id}/original-${objectKeyFileNameFragment(resolv
         // reads these two as observed at creation; older events lack them and
         // read as "not recorded", never as inferred.
         emailVerified: owner.emailVerifiedAt != null,
-        workspaceKind: isPersonalWorkspaceCapture ? "PERSONAL" : "SHARED",
+        workspaceKind: targetWorkspaceIsPersonal ? "PERSONAL" : "SHARED",
         // WHO acted (2026-10-07). For an intake link the account fields below
         // describe the account that ISSUED the link, never the contributor.
         actorKind:
@@ -848,9 +863,16 @@ const key = `evidence/${evidence.id}/original-${objectKeyFileNameFragment(resolv
       key,
     };
   };
+  // F-03 — on its own transaction a create first passes the principal's
+  // in-process admission (no connection held while queued), and the
+  // transaction states its budget instead of Prisma's 5 s default (the same
+  // options as the route's draft-binding transaction).
   const created = params.transaction
     ? await writeRecord(params.transaction)
-    : await prisma.$transaction(writeRecord);
+    : await withEvidenceCapacityAdmission(scope, (remainingWaitMs) => {
+        capacityLockWaitMs = remainingWaitMs;
+        return prisma.$transaction(writeRecord, { timeout: 30_000, maxWait: 10_000 });
+      });
 
   // Post-commit steps: they describe a record that exists, so they run only
   // once the record's writes have committed (ET-DC-07: the caller's commit,

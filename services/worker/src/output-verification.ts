@@ -113,6 +113,10 @@ const FACTS_SELECT = {
   workspaceNameSnapshot: true,
   organizationNameSnapshot: true,
   organizationVerifiedSnapshot: true,
+  // AUDIT D-10 (round 3) — the canonical page's access state, read in the SAME
+  // snapshot the report renders from: the printed QR/link and the package's
+  // publication fact follow it (and the commit re-checks it under the lock).
+  verificationAccessState: true,
 } as const;
 
 type LifecycleRow = {
@@ -168,6 +172,8 @@ export type RecordSnapshot = {
   lifecycle: LifecycleRow;
   custody: RecordCustodyEvent[];
   facts: CanonicalArtifactFacts;
+  /** AUDIT D-10 — the canonical page's access state in this snapshot. */
+  verificationAccessState: string | null;
 };
 
 export async function loadRecordSnapshot(evidenceId: string): Promise<RecordSnapshot> {
@@ -195,9 +201,10 @@ export async function loadRecordSnapshot(evidenceId: string): Promise<RecordSnap
     },
     sha256TextHex,
   );
+  const { verificationAccessState, ...factsRow } = row;
   const facts = deriveCanonicalArtifactFacts(
     {
-      ...row,
+      ...factsRow,
       fileSha256: digest.canonical,
       tsaTokenPresent: Boolean(row.tsaTokenBase64),
       identityLevelSnapshot: row.identityLevelSnapshot as string | null,
@@ -206,7 +213,7 @@ export async function loadRecordSnapshot(evidenceId: string): Promise<RecordSnap
     },
     custody,
   );
-  return { lifecycle: row as unknown as LifecycleRow, custody, facts };
+  return { lifecycle: row as unknown as LifecycleRow, custody, facts, verificationAccessState: verificationAccessState ?? null };
 }
 
 /** THE record's facts, read fresh from the database (one consistent read). */

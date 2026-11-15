@@ -481,7 +481,8 @@ export async function applyStorageSubscriptionObservation(
       // provider until an operator enables it. Nothing is granted and nothing is
       // cancelled; the review item says what was held and that a refund review is
       // owed. A provider webhook or the customer's own return still applies the
-      // refusal in full.
+      // refusal in full (PayPal confirm: `checkout_return`; Stripe success
+      // return / Check status: `checkout_attempt_recheck` — AUDIT E-06).
       await recordBillingReviewItem({
         userId: row.ownerUserId,
         provider: obs.provider,

@@ -28,7 +28,8 @@
  *
  * BOUNDED IN EVERY DIRECTION
  * ---------------------------------------------------------------------------
- *   * `ACCOUNT_BATCH` accounts per tick — never a full-table sweep.
+ *   * `ACCOUNT_BATCH` accounts per round, rounds bounded by a time budget and
+ *     an account ceiling per tick (F-07) — never a full-table sweep.
  *   * keyset ordering by the account's own last-touched time, so a restarted
  *     process resumes from what the DATA says rather than an in-memory offset.
  *   * one try/catch per account: a single broken account cannot abort the tick.
@@ -54,8 +55,58 @@ import { closeDueInternalGrants } from "../services/billing/internal-plan-grant.
 import { sweepExcludedReferences } from "../services/billing/provider-binding-check.service.js";
 import { ABANDONED_RECHECK_WINDOW_MS } from "../services/billing/checkout-attempt-recovery.service.js";
 
-/** Accounts offered to the authority per tick. */
+/** Accounts offered to the authority per round (a tick drains several rounds, F-07). */
 export const ACCOUNT_BATCH = 20;
+
+/**
+ * F-07 (Free-user audit 4d9b, capacity; 2026-11-15) — a tick DRAINS.
+ *
+ * One tick used to offer one batch of 20 accounts and stop, so after a webhook
+ * outage N stranded accounts needed at least N/20 hours. A tick now keeps
+ * offering rounds of ACCOUNT_BATCH under the SAME lease until one of:
+ *
+ *   * no candidate is left that this cycle has not offered ("drained");
+ *   * the time budget is spent ("budget") — checked before every account, so
+ *     a tick overruns it by at most one account's reconciliation;
+ *   * the per-tick account ceiling is reached ("max_accounts") — the bound on
+ *     provider calls one tick can make;
+ *   * a round met a provider it could not ask ("provider_unavailable") — the
+ *     existing rule that an outage degrades to "no more repairs this tick",
+ *     never to a retry storm (the first round behaves exactly as before).
+ *
+ *   BILLING_RECONCILER_TICK_BUDGET_MS        300000 (5 min; the lease is 30 min)
+ *   BILLING_RECONCILER_MAX_ACCOUNTS_PER_TICK 500
+ *
+ * FAIR PROGRESS. The candidate queries stay keyset-ordered by what the data
+ * says (oldest-touched first, five categories round-robin). On top of that the
+ * process remembers which accounts this CYCLE has already offered and asks for
+ * the others first, so a backlog larger than one tick is covered in rotation
+ * instead of re-offering the same oldest rows every tick (an account the
+ * provider reports in sync writes nothing and would otherwise stay oldest for
+ * ever). When every candidate has been offered the cycle starts again. The
+ * memory is per process and bounded (CYCLE_MEMORY_CAP); a restart simply
+ * begins a new cycle from the oldest rows. Settlement stays the existing
+ * idempotent, compare-and-set authority (reconcileBillingAccount).
+ */
+export const DEFAULT_TICK_BUDGET_MS = 300_000;
+export const DEFAULT_MAX_ACCOUNTS_PER_TICK = 500;
+const CYCLE_MEMORY_CAP = 5_000;
+
+function wholeNumberSetting(raw: string | undefined, fallback: number, min: number, max: number): number {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw.trim());
+  return Number.isInteger(n) && n >= min && n <= max ? n : fallback;
+}
+
+/** Accounts offered since the current fair-rotation cycle began (this process). */
+const reconciliationCycle = { offered: new Set<string>() };
+
+/** Test seam: forget the rotation (a fresh process). */
+export function resetReconciliationCycle(): void {
+  reconciliationCycle.offered.clear();
+}
+
+export type ReconciliationTickStop = "drained" | "budget" | "max_accounts" | "provider_unavailable";
 
 /**
  * How long an open checkout attempt is left to its return route and webhooks
@@ -89,8 +140,13 @@ const SWEEP_LEASE_MS = 30 * 60 * 1000;
 export async function selectReconciliationCandidates(
   limit: number = ACCOUNT_BATCH,
   now: Date = new Date(),
+  /** F-07 — accounts this tick/cycle already offered; asked for the others. */
+  options: { excludeUserIds?: ReadonlyArray<string> } = {},
 ): Promise<BillingAccountRef[]> {
   const creditProduct = { OR: [{ product: "EVIDENCE_CREDIT" }, { product: null }] };
+  const skip = options.excludeUserIds && options.excludeUserIds.length > 0 ? [...options.excludeUserIds] : null;
+  const notOffered = skip ? { userId: { notIn: skip } } : {};
+  const ownerNotOffered = skip ? { ownerUserId: { notIn: skip } } : {};
   // BILLING REMEDIATION (2026-10-30, AUD-14) — a reference the provider just
   // answered 404 for, not due again yet. A failed read writes nothing, so such a
   // row stayed oldest-touched and took a batch slot on every tick.
@@ -101,6 +157,7 @@ export async function selectReconciliationCandidates(
       where: {
         status: prismaPkg.BillingCheckoutAttemptStatus.PENDING,
         createdAt: { lt: new Date(now.getTime() - ATTEMPT_SWEEP_GRACE_MS) },
+        ...notOffered,
       },
       // Each check writes the attempt's metadata, which bumps updatedAt, so
       // the oldest-checked attempt is always next.
@@ -109,13 +166,13 @@ export async function selectReconciliationCandidates(
       select: { userId: true },
     }),
     prisma.payment.findMany({
-      where: { teamId: null, status: prismaPkg.PaymentStatus.PENDING, ...creditProduct },
+      where: { teamId: null, status: prismaPkg.PaymentStatus.PENDING, ...creditProduct, ...notOffered },
       orderBy: { createdAt: "asc" },
       take: limit,
       select: { userId: true },
     }),
     prisma.payment.findMany({
-      where: { teamId: null, status: prismaPkg.PaymentStatus.SUCCEEDED, ...creditProduct },
+      where: { teamId: null, status: prismaPkg.PaymentStatus.SUCCEEDED, ...creditProduct, ...notOffered },
       orderBy: { createdAt: "desc" },
       take: limit * 4,
       select: { userId: true, provider: true, providerPaymentId: true },
@@ -131,6 +188,7 @@ export async function selectReconciliationCandidates(
             prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
           ],
         },
+        ...ownerNotOffered,
       },
       orderBy: { updatedAt: "asc" },
       take: limit,
@@ -146,6 +204,7 @@ export async function selectReconciliationCandidates(
             prismaPkg.SubscriptionStatus.PAST_DUE,
           ],
         },
+        ...notOffered,
       },
       orderBy: { updatedAt: "asc" },
       take: limit,
@@ -159,6 +218,7 @@ export async function selectReconciliationCandidates(
         status: prismaPkg.BillingCheckoutAttemptStatus.ABANDONED,
         providerResourceId: { not: null },
         createdAt: { gte: abandonedSince },
+        ...notOffered,
       },
       orderBy: { updatedAt: "asc" },
       take: limit,
@@ -170,6 +230,7 @@ export async function selectReconciliationCandidates(
         externalSubscriptionId: { not: null, notIn: excluded },
         status: prismaPkg.WorkspaceStorageAddonStatus.ABANDONED,
         createdAt: { gte: abandonedSince },
+        ...ownerNotOffered,
       },
       orderBy: { updatedAt: "asc" },
       take: limit,
@@ -202,7 +263,8 @@ export async function selectReconciliationCandidates(
     [...abandonedAttempts.map((a) => a.userId), ...abandonedAddons.map((a) => a.ownerUserId)],
   ];
 
-  const seen = new Set<string>();
+  // F-07 — the SQL already left them out; a guard, not a second rule.
+  const seen = new Set<string>(skip ?? []);
   const out: BillingAccountRef[] = [];
   const cursors = queues.map(() => 0);
   let progressed = true;
@@ -241,6 +303,10 @@ export async function selectReconciliationCandidates(
 export async function runBillingReconciliationSweep(input?: {
   limit?: number;
   providers?: ReconciliationProviders;
+  /** F-07 — overrides BILLING_RECONCILER_TICK_BUDGET_MS (tests). */
+  budgetMs?: number;
+  /** F-07 — overrides BILLING_RECONCILER_MAX_ACCOUNTS_PER_TICK (tests). */
+  maxAccounts?: number;
 }): Promise<{
   attempted: number;
   updated: number;
@@ -249,6 +315,9 @@ export async function runBillingReconciliationSweep(input?: {
   discrepancies: number;
   /** Bindings the provider could not be asked about this tick. */
   unavailable: number;
+  /** F-07 — rounds of ACCOUNT_BATCH this tick offered, and why it stopped. */
+  rounds?: number;
+  stopReason?: ReconciliationTickStop;
   /** Another process holds the sweep; this tick did nothing. */
   skipped?: boolean;
 }> {
@@ -269,12 +338,16 @@ export async function runBillingReconciliationSweep(input?: {
 async function runSweep(input?: {
   limit?: number;
   providers?: ReconciliationProviders;
+  budgetMs?: number;
+  maxAccounts?: number;
 }): Promise<{
   attempted: number;
   updated: number;
   failed: number;
   discrepancies: number;
   unavailable: number;
+  rounds: number;
+  stopReason: ReconciliationTickStop;
 }> {
   // Maintenance no single account's pass would reach. Each step is isolated: a
   // failure is logged and the account sweep below still runs.
@@ -294,40 +367,90 @@ async function runSweep(input?: {
     });
   });
 
-  const candidates = await selectReconciliationCandidates(
-    input?.limit ?? ACCOUNT_BATCH,
-  );
+  const batch = input?.limit ?? ACCOUNT_BATCH;
+  const budgetMs =
+    input?.budgetMs ??
+    wholeNumberSetting(process.env.BILLING_RECONCILER_TICK_BUDGET_MS, DEFAULT_TICK_BUDGET_MS, 1_000, 25 * 60 * 1000);
+  const maxAccounts =
+    input?.maxAccounts ??
+    wholeNumberSetting(process.env.BILLING_RECONCILER_MAX_ACCOUNTS_PER_TICK, DEFAULT_MAX_ACCOUNTS_PER_TICK, 1, 5_000);
+  const startedAt = Date.now();
+  const deadline = startedAt + budgetMs;
+  const cycle = reconciliationCycle.offered;
+  const offeredThisTick = new Set<string>();
 
   let updated = 0;
   let failed = 0;
   let discrepancies = 0;
   let unavailable = 0;
+  let rounds = 0;
+  let cycleRestarted = false;
+  let stopReason: ReconciliationTickStop = "drained";
 
-  for (const account of candidates) {
-    try {
-      const summary = await reconcileBillingAccount({
-        account,
-        providers: input?.providers,
-      });
-      if (summary.outcome === "UPDATED") updated += 1;
-      discrepancies += summary.discrepancies;
-      unavailable += summary.unavailable;
-    } catch (err) {
-      // Per-account isolation: one broken account must not end the tick.
-      failed += 1;
-      logWarn("billing.reconciliation.account_failed", {
-        accountType: account.type,
-        err: err instanceof Error ? err.message : "unknown",
-      });
+  // F-07 — rounds until drained, out of budget, at the ceiling, or a provider
+  // could not be asked.
+  for (;;) {
+    if (Date.now() >= deadline) {
+      stopReason = "budget";
+      break;
+    }
+    if (offeredThisTick.size >= maxAccounts) {
+      stopReason = "max_accounts";
+      break;
+    }
+    const candidates = await selectReconciliationCandidates(
+      Math.min(batch, maxAccounts - offeredThisTick.size),
+      new Date(),
+      { excludeUserIds: [...cycle, ...offeredThisTick] },
+    );
+    if (candidates.length === 0) {
+      // Every candidate has been offered since this cycle began: begin the
+      // next cycle (once per tick — nothing is offered twice in one tick).
+      if (cycle.size === 0 || cycleRestarted) break;
+      cycle.clear();
+      cycleRestarted = true;
+      continue;
+    }
+    rounds += 1;
+    let roundUnavailable = 0;
+    for (const account of candidates) {
+      if (Date.now() >= deadline) break;
+      offeredThisTick.add(account.id);
+      cycle.add(account.id);
+      try {
+        const summary = await reconcileBillingAccount({
+          account,
+          providers: input?.providers,
+        });
+        if (summary.outcome === "UPDATED") updated += 1;
+        discrepancies += summary.discrepancies;
+        unavailable += summary.unavailable;
+        roundUnavailable += summary.unavailable;
+      } catch (err) {
+        // Per-account isolation: one broken account must not end the tick.
+        failed += 1;
+        logWarn("billing.reconciliation.account_failed", {
+          accountType: account.type,
+          err: err instanceof Error ? err.message : "unknown",
+        });
+      }
+    }
+    if (roundUnavailable > 0) {
+      stopReason = "provider_unavailable";
+      break;
     }
   }
+  if (cycle.size > CYCLE_MEMORY_CAP) cycle.clear();
 
   logInfo("billing.reconciliation.sweep_completed", {
-    attempted: candidates.length,
+    attempted: offeredThisTick.size,
     updated,
     failed,
     discrepancies,
     unavailable,
+    rounds,
+    stopReason,
+    elapsedMs: Date.now() - startedAt,
   });
   // A discrepancy is a customer who paid and was not credited. Each one is
   // now a durable review item; the warning makes the tick that found it
@@ -336,5 +459,5 @@ async function runSweep(input?: {
     logWarn("billing.reconciliation.discrepancies_found", { discrepancies });
   }
 
-  return { attempted: candidates.length, updated, failed, discrepancies, unavailable };
+  return { attempted: offeredThisTick.size, updated, failed, discrepancies, unavailable, rounds, stopReason };
 }

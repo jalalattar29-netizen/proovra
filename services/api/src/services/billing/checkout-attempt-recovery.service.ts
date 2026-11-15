@@ -286,6 +286,18 @@ async function checkAttempt(
   account: BillingAccountRef,
   deps: CheckoutRecoveryDeps,
   mode: AttemptCheckMode = "SETTLE",
+  /**
+   * AUDIT E-06 (2026-11-15) — who is asking, for a Stripe read-back. The
+   * account sweep, the account-wide reconcile and Abandon are read-backs
+   * PROOVRA starts on its own: `billing_reconciliation`, so a storage refusal
+   * they find honours the sweep hold (automatic-effects.ts: the hold "covers
+   * the SWEEP only"). The customer's own "Check status" / Stripe success
+   * return on ONE attempt is not the sweep: it passes
+   * `checkout_attempt_recheck` — the source the PayPal plan re-check already
+   * uses (below) — so it applies the refusal in full, as a provider webhook
+   * and the PayPal return (`checkout_return`) do.
+   */
+  stripeSource: "billing_reconciliation" | "checkout_attempt_recheck" = "billing_reconciliation",
 ): Promise<CheckoutAttemptCheck> {
   const base = baseResult(attempt);
   const finish = async (
@@ -332,10 +344,10 @@ async function checkAttempt(
       settled = await (deps.settleStripeSession ?? settleStripeCheckoutSession)({
         session,
         expectedUserId: account.id,
-        // A read-back, not the provider's own event: a storage refusal it finds
-        // honours the sweep hold (BILLING_AUTO_ADDON_CANCELLATION); the webhook
-        // for the same session still applies it in full.
-        source: "billing_reconciliation",
+        // See `stripeSource`: the sweep's read-back honours the hold
+        // (BILLING_AUTO_ADDON_CANCELLATION); the customer's own re-check and
+        // the webhook for the same session apply it in full.
+        source: stripeSource,
       });
     } catch {
       return finish("PROVIDER_UNAVAILABLE");
@@ -441,7 +453,7 @@ export async function recheckCheckoutAttempt(input: {
 }): Promise<CheckoutAttemptCheck> {
   const attempt = await loadOwnedCheckoutAttempt(input.account, input.attemptId);
   if (!attempt) throw notFound();
-  return checkAttempt(attempt, input.account, input.deps);
+  return checkAttempt(attempt, input.account, input.deps, "SETTLE", "checkout_attempt_recheck");
 }
 
 export type CheckoutAttemptAbandonResult =

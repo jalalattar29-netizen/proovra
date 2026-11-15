@@ -979,7 +979,10 @@ test("PROOF: Download PDF / Download Package route through apiFetch, not raw <a 
   assert.match(SECTIONS_SRC, /reportPdfApiPath/);
   assert.match(SECTIONS_SRC, /packageZipApiPath/);
   assert.match(SECTIONS_SRC, /apiFetch\(path/);
-  assert.match(SECTIONS_SRC, /window\.open\(resp\.url/);
+  // F-P1-04 (2026-11-15) — the tab is opened IN the click and pointed at the
+  // presigned URL once minted (lib/evidence/artifact-window.ts).
+  assert.match(SECTIONS_SRC, /openPendingArtifactWindow\(\)/);
+  assert.match(SECTIONS_SRC, /pending\.assign\(resp\.url\)/);
   // No remaining anti-pattern: a plain <a href={...reportPdf...}>.
   assert.ok(
     !/<a[^>]+href=\{[^}]*reportPdf[^}]*\}/.test(SECTIONS_SRC),

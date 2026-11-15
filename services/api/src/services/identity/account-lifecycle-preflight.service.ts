@@ -120,8 +120,8 @@ export async function publicVerificationKeptConsequence(
     code: "PUBLIC_VERIFICATION_REMAINS",
     message:
       count === 1
-        ? "Leaves 1 record\u2019s public verification page online: anyone with its verification reference, QR code or an issued report or package can still check it after your account closes. To take it down first, open the record and use \u201cWithdraw page\u201d in its verification page settings."
-        : `Leaves ${count} records\u2019 public verification pages online: anyone with a verification reference, QR code or an issued report or package can still check them after your account closes. To take one down first, open the record and use \u201cWithdraw page\u201d in its verification page settings.`,
+        ? "Leaves 1 record\u2019s public verification page online: anyone with its verification reference, QR code or an issued report or package can still check it after your account closes. The page shows only the verification result, never your files or private details. To take it down first, open the record and use \u201cWithdraw page\u201d in its verification page settings."
+        : `Leaves ${count} records\u2019 public verification pages online: anyone with a verification reference, QR code or an issued report or package can still check them after your account closes. The pages show only the verification result, never your files or private details. To take one down first, open the record and use \u201cWithdraw page\u201d in its verification page settings.`,
     count,
   };
 }

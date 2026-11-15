@@ -98,7 +98,13 @@ describe("Phase 7 §10.E — upload binding is immutable to the active workspace
     });
     // Drive the real request flow (fails gracefully on the mocked apiFetch);
     // what matters is that the requests it DID emit carry teamId "ws-A".
-    await uploader.start().catch(() => undefined);
+    // F-P1-02 — a failed part now waits for its scheduled retry instead of
+    // draining the pool, so the run is cancelled once it has spoken (the
+    // cancel's own abort calls must carry ws-A too).
+    const running = uploader.start().catch(() => undefined);
+    await vi.waitFor(() => expect(apiCalls.bodies.length).toBeGreaterThan(0));
+    uploader.cancel();
+    await running;
     expect(apiCalls.bodies.length).toBeGreaterThan(0);
     // Every request the uploader emitted is scoped to its construction
     // tenant — there is no setter and nothing reads an "active workspace",

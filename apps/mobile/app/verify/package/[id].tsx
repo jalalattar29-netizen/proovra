@@ -11,6 +11,14 @@ import { verificationPackageUrl } from "../../../src/deep-link";
 import { webOrigin } from "../../../src/product/intake-create";
 import { ProovraButton, ProovraCard, ProovraScreen, ProovraText } from "../../../src/ui";
 
+/**
+ * F-P1-16 — what this app can and cannot do with a package ZIP you hold.
+ * The web package page hashes a chosen ZIP in the browser (never uploaded)
+ * and compares it with the digest PROOVRA recorded; the app does not.
+ */
+const PACKAGE_LOCAL_CHECK_COPY =
+  "To check a package ZIP you hold, choose it on the package page in the browser: it is hashed there, never uploaded, and compared with the digest PROOVRA recorded. This app does not compare files on your device.";
+
 export default function VerifyPackageLinkRoute() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
@@ -37,6 +45,11 @@ export default function VerifyPackageLinkRoute() {
           {url
             ? "Verification packages open in a browser."
             : "This is a verification package link. Open it in a web browser to review the package."}
+        </ProovraText>
+        {/* F-P1-16 — the accurate capability state: this app has no local-file
+            comparison; the web package page does it, in the browser. */}
+        <ProovraText variant="bodySm" testID="verify-package-local-check">
+          {PACKAGE_LOCAL_CHECK_COPY}
         </ProovraText>
         {url ? <ProovraButton label="Open the package" onPress={open} /> : null}
         <ProovraButton label="Verify a record" variant="ghost" onPress={() => router.replace("/verify")} />

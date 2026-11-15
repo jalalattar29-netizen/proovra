@@ -143,3 +143,45 @@ test("F-06: a refused verification email is not reported as sent", async () => {
   assert.equal(r.hasText("We’ve sent a verification email to new@example.com. Please open the email and click the verification link to activate your PROOVRA account."), false);
   assert.ok(r.hasText("Your account was created, but we couldn’t send the verification email to new@example.com just now. Use “Resend email” to try again."));
 });
+
+// B-13 — the server's cooldown holds Resend, as on the web (register/page.tsx
+// holdResendFor): the button says how long, does not send, and the "cooldown"
+// delivery is not described as an email on its way.
+test("B-13: a cooldown answer holds Resend for resendAfterSec and says so", async () => {
+  answer = ((prev) => (path) =>
+    path === "/v1/auth/email/register"
+      ? { status: 201, body: { verificationSent: false, verificationDelivery: "cooldown", resendAfterSec: 45, email: "new@example.com" } }
+      : prev(path))(answer);
+  const r = await render();
+  await r.type("Email address", "new@example.com");
+  await r.type("Password", PW);
+  await r.type("Confirm password", PW);
+  await r.press(CONSENT);
+  await submit(r);
+  await settle();
+  assert.equal(r.byTestId("register-verify").length, 1);
+  assert.ok(r.hasText("We asked for a verification email to be sent to new@example.com, but couldn’t confirm it was accepted. Check your inbox in a few minutes; if nothing arrives, resend it when the button below is available."), r.texts().join(" | "));
+  const held = r.byLabel("Resend available in 45s")[0];
+  assert.ok(held, r.texts().join(" | "));
+  assert.equal(held.props.accessibilityState?.disabled, true);
+  const before = posts.length;
+  await r.press("Resend available in 45s");
+  await settle();
+  assert.equal(posts.length, before, "a resend was sent during the server's cooldown");
+  assert.equal(r.hasText("If this address still needs verification, a new link is on its way."), false);
+});
+
+test("B-13: a sent email with a 60 s cooldown is held too; a failed one (0) is not", async () => {
+  answer = ((prev) => (path) =>
+    path === "/v1/auth/email/register"
+      ? { status: 201, body: { verificationSent: true, verificationDelivery: "sent", resendAfterSec: 60, email: "new@example.com" } }
+      : prev(path))(answer);
+  const r = await render();
+  await r.type("Email address", "new@example.com");
+  await r.type("Password", PW);
+  await r.type("Confirm password", PW);
+  await r.press(CONSENT);
+  await submit(r);
+  await settle();
+  assert.ok(r.byLabel("Resend available in 60s")[0]?.props.accessibilityState?.disabled);
+});

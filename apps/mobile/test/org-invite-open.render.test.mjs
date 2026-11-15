@@ -30,7 +30,7 @@ beforeEach(async () => {
     const send = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "content-type": "application/json" } });
     if (init.method === "POST") {
       posts.push({ path, body: init.body ? JSON.parse(init.body) : null });
-      if (path === "/v1/org-invites/oinv_1/accept") return send({ organizationId: "o1", role: "ORG_MEMBER", assignedWorkspaceIds: ["ws-a", "ws-b"] });
+      if (path === "/v1/org-invites/accept") return send({ organizationId: "o1", role: "ORG_MEMBER", assignedWorkspaceIds: ["ws-a", "ws-b"] });
       if (path === "/v1/platform/context/switch-workspace") return send({}, switchStatus);
     }
     const key = Object.keys(routes).find((p) => path.startsWith(p));

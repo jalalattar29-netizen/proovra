@@ -92,24 +92,40 @@ async function safeCount(
   }
 }
 
-async function safeOldestPendingAge(queue: Queue): Promise<number | null> {
-  try {
-    const [job] = await queue.getJobs(
-      ["waiting", "delayed", "active", "prioritized"],
-      0,
-      0,
-    );
-    if (!job) return null;
-    const ts =
-      typeof job.timestamp === "number"
-        ? job.timestamp
-        : Number(job.timestamp);
-    if (!Number.isFinite(ts)) return null;
-    const ageSeconds = Math.floor((Date.now() - ts) / 1000);
-    return ageSeconds >= 0 ? ageSeconds : null;
-  } catch {
-    return null;
+/**
+ * AUDIT F-05 (round 3) — THE OLDEST UNFINISHED JOB'S AGE, in milliseconds.
+ *
+ * The heartbeat used `getJobs([waiting, delayed, active, prioritized], 0, 0)`,
+ * which answers the first entry of the first non-empty state in BullMQ's
+ * default newest-first order: under continuous arrivals that is the NEWEST
+ * waiting job, so the "oldest pending age" read ~0 s while the oldest job had
+ * waited tens of seconds (local synthetic measurement: 70-94 % of samples
+ * under-reported). Each state's oldest entry is read in ascending order and
+ * the earliest enqueue time wins. NULL when nothing is pending or nothing
+ * could be read — never an estimate.
+ */
+export async function readOldestPendingJobAgeMs(
+  queue: Pick<Queue, "getJobs">,
+  now: number = Date.now(),
+): Promise<number | null> {
+  let oldest: number | null = null;
+  for (const state of ["waiting", "prioritized", "delayed", "active"] as const) {
+    try {
+      const [job] = await queue.getJobs([state], 0, 0, true);
+      const ts = job ? Number(job.timestamp) : Number.NaN;
+      if (Number.isFinite(ts) && (oldest === null || ts < oldest)) oldest = ts;
+    } catch {
+      // One state's read failing never hides the others.
+    }
   }
+  if (oldest === null) return null;
+  const age = now - oldest;
+  return age >= 0 ? age : null;
+}
+
+async function safeOldestPendingAge(queue: Queue): Promise<number | null> {
+  const ageMs = await readOldestPendingJobAgeMs(queue);
+  return ageMs === null ? null : Math.floor(ageMs / 1000);
 }
 
 /**

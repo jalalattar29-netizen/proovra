@@ -46,7 +46,7 @@ import {
 
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateAuthorize, sendDenyResponse } from "../middleware/authorize.js";
 import { resendNotificationDelivery } from "../services/notifications/index.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import {
@@ -104,8 +104,22 @@ async function requireRequestMember(
   row: { teamId: string; evidenceId: string | null; caseId: string | null },
   permission: Permission,
 ): Promise<{ userId: string } | null> {
-  const ok = await requireMember(req, reply, row.teamId, permission);
-  if (!ok) return null;
+  // A2-19 — the id came from the path, so a request of a workspace the caller
+  // cannot enter answers byte-identically to an id that names nothing
+  // (`request_not_found`), not with the workspace-level `not_found` body.
+  // Other denials (403 capability, 401, 503) keep their canonical bodies: they
+  // only describe what the caller may do in a workspace they are in.
+  const outcome = await evaluateAuthorize(req, {
+    teamId: row.teamId,
+    permission,
+    antiEnumeration: true,
+  });
+  if (!outcome.allowed) {
+    if (outcome.httpStatus === 404) reply.code(404).send({ error: { code: "request_not_found" } });
+    else sendDenyResponse(reply, outcome);
+    return null;
+  }
+  const ok = { userId: outcome.actorUserId };
   const closed =
     (row.evidenceId !== null && (await evidenceClosedTo(row.evidenceId, ok.userId))) ||
     (row.caseId !== null && (await caseClosedTo(row.caseId, ok.userId)));
@@ -282,14 +296,6 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const body = EvidenceRequestInputSchema.parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "evidence_request.create");
       if (!ok) return;
-      const bodyRef = body as { evidenceId?: string | null; caseId?: string | null };
-      if (
-        (bodyRef.evidenceId && (await evidenceClosedTo(bodyRef.evidenceId, ok.userId))) ||
-        (bodyRef.caseId && (await caseClosedTo(bodyRef.caseId, ok.userId)))
-      ) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-
       // Secure-intake plan gate (2026-07-15) — submission requests are
       // excluded from FREE per the Pricing contract. Enforced before any
       // DB write; a known plan restriction, never a generic failure.
@@ -313,6 +319,26 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
 
       if (!(await assigneeBelongsToWorkspace(body.teamId, body.assignedReviewerUserId))) {
         return sendAssigneeNotMember(reply);
+      }
+
+      const bodyRef = body as { evidenceId?: string | null; caseId?: string | null };
+      // A2-19 — a closed record or case answers with the byte-identical 404 a
+      // foreign or missing id gets from the service (ET-SEC-33), so the body
+      // reveals neither the restricted flag nor which workspace holds the id
+      // (the same answer the key-authenticated route gives, A2-17).
+      // Judged here, right where the service judges foreign/missing ids (after
+      // the plan gate and the assignee check), and in the service's order (case
+      // first), so no earlier refusal can tell a closed id from a missing one.
+      if (bodyRef.caseId && (await caseClosedTo(bodyRef.caseId, ok.userId))) {
+        return reply.code(404).send({ error: { code: "case_not_in_workspace" } });
+      }
+      if (bodyRef.evidenceId && (await evidenceClosedTo(bodyRef.evidenceId, ok.userId))) {
+        const caseMissing =
+          !!bodyRef.caseId &&
+          (await prisma.case.count({ where: { id: bodyRef.caseId, teamId: body.teamId } })) === 0;
+        return reply
+          .code(404)
+          .send({ error: { code: caseMissing ? "case_not_in_workspace" : "evidence_not_in_workspace" } });
       }
 
       try {

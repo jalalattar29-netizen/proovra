@@ -489,7 +489,9 @@ describe("Phase R16 — service module", () => {
         svc,
         `${fn} must gate through isCollaborationTeamModerator`,
       ).toMatch(
-        new RegExp(`export async function ${fn}\\b[\\s\\S]{0,1500}isCollaborationTeamModerator\\(role\\)`),
+        // 2026-11-15 (A2-18, round 3): window 1500 -> 2500 — the record-reach check now
+        // precedes the moderator rule in both functions; the predicate is unchanged.
+        new RegExp(`export async function ${fn}\\b[\\s\\S]{0,2500}isCollaborationTeamModerator\\(role\\)`),
       );
     }
     expect(svc).not.toMatch(/role !== "LEAD" && role !== "ADMIN"/);

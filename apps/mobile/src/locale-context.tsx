@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { type Locale, type LocaleMode, translations, resolveInitialLocale } from "./i18n";
+import { type Locale, type LocaleMode, translations, resolveInitialLocale, storedManualLocale } from "./i18n";
 import { familyFor, type FontWeightToken } from "./theme/fonts";
 
 declare global {
@@ -70,11 +70,14 @@ export function LocaleProvider({
         let initialLocale: Locale = "en";
         let initialMode: LocaleMode = "auto";
         
-        if (storedMode === "manual" && storedLocale) {
+        // F-P1-13 — a stored manual choice counts only when this build
+        // supports that locale; anything else resolves the device language.
+        const manual = storedManualLocale(storedMode, storedLocale);
+        if (manual) {
           // User set manual mode with a specific locale
-          initialLocale = storedLocale as Locale;
+          initialLocale = manual;
           initialMode = "manual";
-        } else if (storedMode === "auto" || !storedMode) {
+        } else if (storedMode === "auto" || !storedMode || storedMode === "manual") {
           // Auto mode or first launch - resolve device language
           const { locale: deviceLocale } = resolveInitialLocale();
           initialLocale = deviceLocale;

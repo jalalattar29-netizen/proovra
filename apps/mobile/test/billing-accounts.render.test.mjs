@@ -420,3 +420,86 @@ test("private build: buying a held size asks once more, then sends the decision"
     assert.equal(sent.at(-1).confirmAdditional, true);
   });
 });
+
+/*
+ * AUDIT E-09 / F-P1-06 (2026-11-15) — the private build's card (Stripe) return.
+ * Stripe's success and cancel pages are the WEB /billing page, which the app
+ * cannot intercept; closing the in-app browser said "may still be pending" and
+ * left a cancelled checkout open. Now the app re-checks the attempt the checkout
+ * response named and, for a page left open and unpaid, asks the abandon route
+ * (confirmed: false) and shows the server's own confirmation.
+ */
+const STRIPE_ATTEMPT = "6f9619ff-8b86-4d11-b42d-00c04fc964ff";
+const STRIPE_BASE = `/v1/billing/accounts/PERSONAL/p-1/checkout-attempts/${STRIPE_ATTEMPT}`;
+
+async function payByCardAndCloseBrowser(r) {
+  await r.press("Add storage");
+  await drain();
+  await r.press("Buy +50 GB · 9.00 EUR/month");
+  await drain();
+  await dismissSheets(r);
+  await r.press("Pay with Stripe");
+  await drain();
+  // The payment sheet goes away, the browser opens, the buyer closes it.
+  await dismissSheets(r);
+  await drain();
+}
+
+function cardCheckout() {
+  storageOffer();
+  routes["/v1/billing/accounts/PERSONAL/p-1/history"] = () => ({ body: { items: [], activity: [] } });
+  routes["/v1/billing/storage-addons/checkout/stripe"] = () => ({
+    body: {
+      provider: "STRIPE",
+      mode: "subscription",
+      session: {
+        id: "cs_test_e09",
+        url: "https://checkout.stripe.com/c/pay/cs_test_e09",
+        client_reference_id: STRIPE_ATTEMPT,
+        metadata: { attemptId: STRIPE_ATTEMPT },
+      },
+    },
+  });
+}
+
+test("private build: closing the browser after an unpaid card checkout re-checks that attempt and offers to close it, with the server's words", async () => {
+  await privateBuild(async () => {
+    cardCheckout();
+    const bodies = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      if (String(url).endsWith(`${STRIPE_ATTEMPT}/abandon`)) bodies.push(init?.body);
+      return realFetch(url, init);
+    };
+    routes[`${STRIPE_BASE}/recheck`] = () => ({
+      body: { attemptId: STRIPE_ATTEMPT, provider: "STRIPE", outcome: "STILL_PENDING", waitingFor: "PAYMENT_PAGE", currentStatus: "PENDING", resumeUrl: "https://checkout.stripe.com/c/pay/cs_test_e09" },
+    });
+    routes[`${STRIPE_BASE}/abandon`] = () =>
+      bodies.at(-1) === JSON.stringify({ confirmed: true })
+        ? { body: { attemptId: STRIPE_ATTEMPT, outcome: "ABANDONED", cancelsAtProvider: true } }
+        : { body: { attemptId: STRIPE_ATTEMPT, outcome: "ABANDON_CONFIRMATION_REQUIRED", cancelsAtProvider: true, warning: "Stripe still shows this checkout page as open and unpaid. Abandoning asks Stripe to close it." } };
+    const r = await render();
+    await payByCardAndCloseBrowser(r);
+    assert.equal(requests.filter((p) => p === `${STRIPE_BASE}/recheck`).length, 1, "the named attempt is re-checked once");
+    assert.deepEqual(bodies, [JSON.stringify({ confirmed: false })], "asking starts nothing");
+    assert.ok(r.hasText("Stripe shows this checkout page as still open and unpaid. Close it so it can no longer be paid, or keep it to finish later from Billing activity."));
+    assert.ok(r.hasText("Stripe still shows this checkout page as open and unpaid. Abandoning asks Stripe to close it."));
+    await r.press("Close checkout");
+    await drain();
+    assert.deepEqual(bodies, [JSON.stringify({ confirmed: false }), JSON.stringify({ confirmed: true })]);
+    assert.ok(r.hasText("Closed at the payment provider, so this checkout can no longer be paid."));
+  });
+});
+
+test("private build: a paid card checkout is confirmed on return and never offered Abandon", async () => {
+  await privateBuild(async () => {
+    cardCheckout();
+    routes[`${STRIPE_BASE}/recheck`] = () => ({ body: { attemptId: STRIPE_ATTEMPT, provider: "STRIPE", outcome: "UPDATED", currentStatus: "COMPLETED" } });
+    const r = await render();
+    await payByCardAndCloseBrowser(r);
+    assert.equal(requests.filter((p) => p === `${STRIPE_BASE}/recheck`).length, 1);
+    assert.equal(requests.filter((p) => p === `${STRIPE_BASE}/abandon`).length, 0);
+    assert.ok(r.hasText("Stripe confirmed this purchase. Billing is updated."));
+    assert.ok(!r.hasText("Payment may still be pending"));
+  });
+});

@@ -57,6 +57,15 @@ vi.mock("../src/middleware/authorize.js", () => ({
     }
     return { actorUserId: "actor-1" };
   },
+  // A2-19 (round 3) — the id routes decide through evaluateAuthorize so a row of a
+  // workspace the caller cannot enter answers with the row's own 404 body.
+  evaluateAuthorize: async () =>
+    H.authorized
+      ? { allowed: true, actorUserId: "actor-1", teamId: "team-1" }
+      : { allowed: false, reasonCode: "no_actor", httpStatus: 404 },
+  sendDenyResponse: (reply: { code: (n: number) => { send: (b: unknown) => void } }) => {
+    reply.code(404).send({ error: { code: "not_found" } });
+  },
 }));
 
 vi.mock("../src/services/security/security-event.service.js", () => ({

@@ -378,6 +378,40 @@ describe("acquisition identity snapshot — every channel, real creation path (l
     await assertNeverStrengthened(id, { ownerUserId: A.ownerUserId, teamId: A.teamId }, before);
   });
 
+  // C-12 (Free-user audit of 4d9b78963) — a member's capture in ANOTHER
+  // person's Personal workspace is created in a personal workspace; the snapshot
+  // said SHARED (the label keyed on "the caller owns it"). New events only.
+  it("C-12: a member's capture in another person's Personal workspace records workspaceKind PERSONAL", async () => {
+    const P = h.fixtures.personal;
+    const B = h.fixtures.teamB;
+    const roleRow = await prisma.teamMember.findUniqueOrThrow({
+      where: { teamId_userId: { teamId: B.teamId, userId: B.memberUserId } },
+      select: { role: true },
+    });
+    await prisma.teamMember.create({
+      data: { teamId: P.teamId, userId: B.memberUserId, role: roleRow.role, status: "ACTIVE" } as never,
+    });
+    let id: string | null = null;
+    try {
+      id = await webUpload(B.memberToken, P.teamId);
+      const { payload, resolved, row } = await readBack(id);
+      expect(payload).toMatchObject({ workspaceKind: "PERSONAL", submittedByUserId: B.memberUserId });
+      expect(resolved).toMatchObject({ basis: "OBSERVED_AT_CAPTURE", workspaceKind: "PERSONAL" });
+      expect(row.acquisitionMode).toBe("PROOVRA_WEB_UPLOAD");
+    } finally {
+      await prisma.teamMember.deleteMany({ where: { teamId: P.teamId, userId: B.memberUserId } });
+      // The owner's Free allowance pays for a member's capture here: give the
+      // slot back (the reservation authority) so later cases keep theirs.
+      if (id) {
+        const { releaseEvidenceReservationTx } = await import("@proovra/shared-runtime");
+        const evidenceId = id;
+        await prisma.$transaction((tx) =>
+          releaseEvidenceReservationTx(tx as never, { evidenceId, reason: "CAPTURE_SESSION_DISCARDED", now: new Date() }),
+        );
+      }
+    }
+  });
+
   it("CONTROL: the strengthened current state IS what the writer reads for a NEW record", async () => {
     const A = h.fixtures.teamA;
     const user = await prisma.user.findUniqueOrThrow({ where: { id: A.ownerUserId }, select: { emailVerifiedAt: true } });

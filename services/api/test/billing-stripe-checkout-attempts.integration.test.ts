@@ -139,6 +139,12 @@ class FakeStripe {
     if (sm) {
       const sub = this.subs.get(decodeURIComponent(sm[1]!));
       if (!sub) return { status: 404, body: { error: { code: "resource_missing" } } };
+      // E-06 — an immediate cancel (DELETE) ends the subscription.
+      if (method === "DELETE") {
+        sub.status = "canceled";
+        sub.canceled_at = ++this.clock;
+        return { status: 200, body: sub };
+      }
       if (method === "POST") {
         if (this.fail.get(String(sub.id))) return { status: this.fail.get(String(sub.id))!, body: { error: { type: "api_error" } } };
         const form = new URLSearchParams(body ?? "");
@@ -165,6 +171,8 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
   let settleStripeCheckoutSession: typeof import("../src/services/billing/stripe-settlement.service.js")["settleStripeCheckoutSession"];
   let startStripeStorageCheckout: typeof import("../src/services/billing/stripe-checkout-start.service.js")["startStripeStorageCheckout"];
   let withPendingStorageAddonCheckoutGate: typeof import("../src/services/billing/pending-checkout-attempt.service.js")["withPendingStorageAddonCheckoutGate"];
+  let reconcileCheckoutAttempts: typeof import("../src/services/billing/checkout-attempt-recovery.service.js")["reconcileCheckoutAttempts"];
+  let emptySummary: typeof import("../src/services/billing/reconciliation/types.js")["emptySummary"];
   let deps: FixtureDeps;
   const tag = `bsa-${Date.now().toString(36)}-${randomUUID().slice(0, 6)}`;
 
@@ -228,6 +236,8 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
     ({ settleStripeCheckoutSession } = await import("../src/services/billing/stripe-settlement.service.js"));
     ({ startStripeStorageCheckout } = await import("../src/services/billing/stripe-checkout-start.service.js"));
     ({ withPendingStorageAddonCheckoutGate } = await import("../src/services/billing/pending-checkout-attempt.service.js"));
+    ({ reconcileCheckoutAttempts } = await import("../src/services/billing/checkout-attempt-recovery.service.js"));
+    ({ emptySummary } = await import("../src/services/billing/reconciliation/types.js"));
     const offers = await import("../src/services/billing/commercial-offer.service.js");
     for (const currency of ["USD", "EUR"] as const) {
       for (const o of offers.allSelfServiceOffers(currency)) {
@@ -977,4 +987,244 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
       expect((await start("PERSONAL_10_GB")).kind).toBe("CREATED");
     });
   });
+
+  // AUDIT E-01 recheck (2026-11-15, slice COM) — SIMULATED PROVIDER (the
+  // in-process Stripe fake above; not Stripe test mode).
+  describe("E-01 recheck: repeat storage purchases", () => {
+    const startFor = (t: PersonalTenant) => (confirmation?: { heldCount: number | null }) =>
+      startStripeStorageCheckout({
+        userId: t.owner.userId,
+        addonKey: "PERSONAL_10_GB",
+        currency: "EUR",
+        teamId: null,
+        workspacePlan: "FREE",
+        confirmation: confirmation ?? null,
+      });
+    const created = (r: Awaited<ReturnType<typeof startStripeStorageCheckout>>) => {
+      expect(r.kind, JSON.stringify(r)).toBe("CREATED");
+      const c = r as unknown as { attemptId: string; session: { id: string } };
+      return { attemptId: c.attemptId, sessionId: c.session.id };
+    };
+    const blockedCode = (r: Awaited<ReturnType<typeof startStripeStorageCheckout>>) =>
+      r.kind === "BLOCKED" ? (r.httpBody as { code?: string; details?: Record<string, unknown> }) : null;
+    const live10 = (userId: string) =>
+      prisma.workspaceStorageAddon.count({ where: { ownerUserId: userId, addonKey: "PERSONAL_10_GB", status: { in: ["ACTIVE", "PAST_DUE"] } } });
+    const reviewItems = (userId: string) => prisma.billingReviewItem.count({ where: { userId } });
+
+    it("a completed purchase does not block a confirmed second one; the first's late settlement changes nothing; the second's open page blocks a third", async () => {
+      const t = await payer();
+      const start = startFor(t);
+      const fake = new FakeStripe();
+      await withStripe(fake, async () => {
+        const first = created(await start());
+        fake.pay(first.sessionId, { subscription: `sub_e01a_${randomUUID().slice(0, 8)}` });
+        const settled = await call("POST", `${attemptBase(t, first.attemptId)}/recheck`, t.owner.token, {});
+        expect(json(settled), settled.body).toMatchObject({ currentStatus: "COMPLETED" });
+        expect(await live10(t.owner.userId)).toBe(1);
+
+        // A repeat with no statement is told what is already held ...
+        expect(blockedCode(await start())).toMatchObject({ code: "STORAGE_ADDON_ALREADY_HELD", details: { activeCount: 1 } });
+        // ... and a stated second purchase is a legitimate new purchase.
+        const second = created(await start({ heldCount: 1 }));
+
+        // The first session's webhook arrives late (and twice): nothing new.
+        for (let i = 0; i < 2; i++) {
+          const late = await settleStripeCheckoutSession({ session: fake.sessions.get(first.sessionId) as never });
+          expect(late.outcome).toBe("APPLIED");
+        }
+        expect(await live10(t.owner.userId)).toBe(1);
+        expect((await prisma.billingCheckoutAttempt.findUniqueOrThrow({ where: { id: second.attemptId } })).status).toBe("PENDING");
+
+        // While the second page is open, a third is the SAME purchase: a repeat
+        // click inside the reuse window is sent back to that page ...
+        const again = await start({ heldCount: 1 });
+        expect(again.kind).toBe("REUSED");
+        expect((again as { attemptId: string }).attemptId).toBe(second.attemptId);
+        // ... and later it is refused, even with a statement. (Time moves for
+        // both: the first went live four hours ago, the second opened three.)
+        await prisma.workspaceStorageAddon.updateMany({
+          where: { ownerUserId: t.owner.userId, addonKey: "PERSONAL_10_GB", status: "ACTIVE" },
+          data: { activatedAtUtc: new Date(Date.now() - 4 * 60 * 60 * 1000) },
+        });
+        await prisma.billingCheckoutAttempt.update({
+          where: { id: second.attemptId },
+          data: { createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000) },
+        });
+        expect(blockedCode(await start({ heldCount: 1 }))).toMatchObject({
+          code: "STORAGE_PURCHASE_PENDING",
+          details: { pendingProvider: "STRIPE", attemptId: second.attemptId },
+        });
+
+        // The second is paid: granted (bought after the first went live), never a duplicate.
+        fake.pay(second.sessionId, { subscription: `sub_e01b_${randomUUID().slice(0, 8)}` });
+        expect((await settleStripeCheckoutSession({ session: fake.sessions.get(second.sessionId) as never })).outcome).toBe("APPLIED");
+        expect(await live10(t.owner.userId)).toBe(2);
+        // Every redelivery afterwards changes nothing and opens no refund review.
+        await settleStripeCheckoutSession({ session: fake.sessions.get(first.sessionId) as never });
+        await settleStripeCheckoutSession({ session: fake.sessions.get(second.sessionId) as never });
+        expect(await live10(t.owner.userId)).toBe(2);
+        expect(await reviewItems(t.owner.userId)).toBe(0);
+        expect(await prisma.billingCheckoutAttempt.count({ where: { userId: t.owner.userId, status: "COMPLETED" } })).toBe(2);
+      });
+    });
+
+    it("a card purchase whose payment is still settling blocks a second one on either provider however old; once it settles a stated repeat is allowed", async () => {
+      const t = await payer();
+      const start = startFor(t);
+      const fake = new FakeStripe();
+      await withStripe(fake, async () => {
+        const first = created(await start());
+        // Paid by a method still settling: complete at Stripe, not yet paid.
+        fake.pay(first.sessionId, { paid: false });
+        await call("POST", `${attemptBase(t, first.attemptId)}/recheck`, t.owner.token, {});
+        const row = await prisma.billingCheckoutAttempt.findUniqueOrThrow({ where: { id: first.attemptId } });
+        expect(row).toMatchObject({ status: "PENDING", checkoutState: "CAPTURE_PENDING" });
+        // Past the 24 h approval window: settling payments are never expired.
+        await prisma.billingCheckoutAttempt.update({
+          where: { id: first.attemptId },
+          data: { createdAt: new Date(Date.now() - 30 * 60 * 60 * 1000) },
+        });
+
+        const sessions = () => fake.calls.filter((c) => c.method === "POST" && c.path === "/checkout/sessions").length;
+        const before = sessions();
+        expect(blockedCode(await start())).toMatchObject({
+          code: "STORAGE_PURCHASE_PENDING",
+          details: { pendingProvider: "STRIPE", attemptId: first.attemptId },
+        });
+        expect(sessions()).toBe(before);
+        // The same purchase retried with PayPal is refused before any PayPal row
+        // (the PayPal request id) exists, so PayPal is never asked.
+        const viaPayPal = await call("POST", "/v1/billing/storage-addons/checkout/paypal", t.owner.token, {
+          addonKey: "PERSONAL_10_GB",
+          billingCycle: "MONTHLY",
+          currency: "EUR",
+        });
+        expect(viaPayPal.statusCode, viaPayPal.body).toBe(409);
+        expect(json(viaPayPal)).toMatchObject({ code: "STORAGE_PURCHASE_PENDING", details: { pendingProvider: "STRIPE", attemptId: first.attemptId } });
+        expect(await prisma.workspaceStorageAddon.count({ where: { ownerUserId: t.owner.userId, paymentProvider: "PAYPAL" } })).toBe(0);
+
+        // Stripe settles it: one add-on, and a stated repeat is a new purchase.
+        fake.pay(first.sessionId, { paid: true, subscription: `sub_e01c_${randomUUID().slice(0, 8)}` });
+        const settled = await call("POST", `${attemptBase(t, first.attemptId)}/recheck`, t.owner.token, {});
+        expect(json(settled), settled.body).toMatchObject({ currentStatus: "COMPLETED" });
+        expect(await live10(t.owner.userId)).toBe(1);
+        created(await start({ heldCount: 1 }));
+      });
+    });
+
+    it("cross-provider retry: an open PayPal approval blocks the card checkout of that size, and an open card page blocks PayPal; a closed one blocks neither", async () => {
+      const t = await payer();
+      const start = startFor(t);
+      const fake = new FakeStripe();
+      await withStripe(fake, async () => {
+        const paypalCreate = vi.fn(async () => ({
+          result: {},
+          providerSubId: `I-${randomUUID().slice(0, 12).toUpperCase()}`,
+          providerHttpStatus: 201,
+          providerDebugId: null,
+          providerEnvironment: "sandbox",
+          providerClientIdFingerprint: "fp",
+          providerPlanId: "P-FAKE",
+          providerCurrency: "EUR",
+          approvalLinkIdentity: null,
+        }));
+        const paypal = await withPendingStorageAddonCheckoutGate({
+          ownerUserId: t.owner.userId,
+          teamId: null,
+          addonKey: "PERSONAL_10_GB",
+          extraStorageBytes: 1n,
+          currency: "EUR",
+          amountCents: 299,
+          create: paypalCreate,
+        });
+        expect(paypal.kind).toBe("CREATED");
+        const paypalRowId = (paypal as { attemptId: string }).attemptId;
+        // The buyer comes back three hours later and pays by card instead.
+        await prisma.workspaceStorageAddon.update({ where: { id: paypalRowId }, data: { createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000) } });
+        expect(blockedCode(await start({ heldCount: 0 }))).toMatchObject({
+          code: "STORAGE_PURCHASE_PENDING",
+          details: { pendingProvider: "PAYPAL", attemptId: paypalRowId },
+        });
+
+        // Abandoned: no longer open, so the card checkout starts ...
+        await prisma.workspaceStorageAddon.update({ where: { id: paypalRowId }, data: { status: "ABANDONED" } });
+        const card = created(await start());
+        await prisma.billingCheckoutAttempt.update({ where: { id: card.attemptId }, data: { createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000) } });
+        // ... and its open page now blocks the PayPal retry of that size.
+        const viaPayPal = await call("POST", "/v1/billing/storage-addons/checkout/paypal", t.owner.token, {
+          addonKey: "PERSONAL_10_GB",
+          billingCycle: "MONTHLY",
+          currency: "EUR",
+        });
+        expect(viaPayPal.statusCode, viaPayPal.body).toBe(409);
+        expect(json(viaPayPal)).toMatchObject({ code: "STORAGE_PURCHASE_PENDING", details: { pendingProvider: "STRIPE", attemptId: card.attemptId } });
+        expect(paypalCreate.mock.calls.length).toBe(1);
+      });
+    });
+  });
+
+
+  // AUDIT E-06 (2026-11-15, slice COM) — SIMULATED PROVIDER. The hold on
+  // automatic add-on cancellation covers the SWEEP only (automatic-effects.ts);
+  // the customer's own re-check of ONE attempt applies a duplicate refusal in full.
+  it("E-06: a duplicate card storage purchase found by the customer's own re-check is stopped at Stripe; the sweep only holds it", async () => {
+    const previous = process.env.BILLING_AUTO_ADDON_CANCELLATION;
+    delete process.env.BILLING_AUTO_ADDON_CANCELLATION;
+    try {
+      for (const arm of ["recheck", "sweep"] as const) {
+        const t = await payer();
+        const fake = new FakeStripe();
+        await withStripe(fake, async () => {
+          const start = () =>
+            startStripeStorageCheckout({ userId: t.owner.userId, addonKey: "PERSONAL_10_GB", currency: "EUR", teamId: null, workspacePlan: "FREE" });
+          const first = (await start()) as unknown as { kind: string; attemptId: string; session: { id: string } };
+          expect(first.kind).toBe("CREATED");
+          // An old page left open past the approval window, then a second purchase.
+          await prisma.billingCheckoutAttempt.update({ where: { id: first.attemptId }, data: { createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) } });
+          const second = (await start()) as unknown as { kind: string; attemptId: string; session: { id: string } };
+          expect(second.kind).toBe("CREATED");
+          fake.pay(second.session.id, { subscription: `sub_e06b_${randomUUID().slice(0, 8)}` });
+          expect((await settleStripeCheckoutSession({ session: fake.sessions.get(second.session.id) as never })).outcome).toBe("APPLIED");
+
+          // The OLD page is paid afterwards: a purchase started before the other went live.
+          const dupSub = `sub_e06a_${randomUUID().slice(0, 8)}`;
+          fake.subs.set(dupSub, { id: dupSub, object: "subscription", status: "active", metadata: {} });
+          fake.pay(first.session.id, { subscription: dupSub });
+          if (arm === "recheck") {
+            const res = await call("POST", `${attemptBase(t, first.attemptId)}/recheck`, t.owner.token, {});
+            expect(res.statusCode, res.body).toBe(200);
+          } else {
+            await reconcileCheckoutAttempts({
+              account: { type: "PERSONAL", id: t.owner.userId, displayName: "", capabilities: ["BILLING_MANAGE"], billingOwnerMissing: false } as never,
+              summary: emptySummary(),
+              deps: { providers: { STRIPE: {} as never } },
+            });
+          }
+          const deletes = fake.calls.filter((c) => c.method === "DELETE" && c.path === `/subscriptions/${dupSub}`).length;
+          const review = await prisma.billingReviewItem.findFirstOrThrow({
+            where: { userId: t.owner.userId, providerResourceId: dupSub, reason: "DUPLICATE_STORAGE_PURCHASE" },
+          });
+          expect(review.refundReviewRequired).toBe(true);
+          if (arm === "recheck") {
+            expect(deletes).toBe(1);
+            expect(review.providerAction).toBe("CANCELED_AT_PROVIDER");
+          } else {
+            expect(deletes).toBe(0);
+            expect(review.providerAction).toBe("NONE");
+            expect(review.detail).toMatchObject({ held: "AUTOMATIC_ADDON_CANCELLATION" });
+          }
+          // Either way nothing extra is granted: one live add-on, the second purchase's.
+          expect(
+            await prisma.workspaceStorageAddon.count({
+              where: { ownerUserId: t.owner.userId, addonKey: "PERSONAL_10_GB", status: { in: ["ACTIVE", "PAST_DUE"] } },
+            }),
+          ).toBe(1);
+        });
+      }
+    } finally {
+      if (previous === undefined) delete process.env.BILLING_AUTO_ADDON_CANCELLATION;
+      else process.env.BILLING_AUTO_ADDON_CANCELLATION = previous;
+    }
+  });
+
 });

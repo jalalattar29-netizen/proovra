@@ -192,6 +192,25 @@ export function custodyCutoffSequence(
   return max ?? 0;
 }
 
+/**
+ * D-06 (Free-user audit, round 3) — the cut-off of an ISSUED REPORT, as the
+ * worker reads it (processor.ts: custodyThroughRecordedSequence before
+ * custodyThroughIssuance). A report written since the F-05 wave records
+ * `issuanceCustodyThroughSequence`: the chain through its own issuance events,
+ * which are now dated at their commit — later than the time the report states.
+ * A time cut-off at that stated time would read the report's own issuance as a
+ * change after issue. A legacy report (no recorded sequence) keeps the time
+ * cut-off above; its rows are never rewritten.
+ */
+export function issuedReportCustodyCutoff(
+  events: ReadonlyArray<{ sequence: number; atUtc: Date }>,
+  report: { issuanceCustodyThroughSequence?: number | null } | null | undefined,
+  issuedAtUtc: Date | null | undefined,
+): number | null {
+  if (report?.issuanceCustodyThroughSequence != null) return report.issuanceCustodyThroughSequence;
+  return custodyCutoffSequence(events, issuedAtUtc);
+}
+
 /** Events at issue (sequence <= cut-off) and after it; no cut-off: every event is "at issue". */
 export function splitCustodyAtCutoff<T extends { sequence: number }>(
   events: ReadonlyArray<T>,

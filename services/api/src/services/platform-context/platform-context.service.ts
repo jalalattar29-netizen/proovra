@@ -101,6 +101,19 @@ import { buildSupportAccessEnvelopeSection } from "../identity/support-runtime.s
 // enforcement). Read-only call — never a fork of the identity-mode authority.
 import { personalSpaceAllowed as resolvePersonalSpaceAllowed } from "../identity/identity-mode.service.js";
 
+/**
+ * A1-09 / B-18 — the canonical access decision's MEMBERSHIP-level refusals
+ * (authorize.ts resolveDenyHttpStatus treats the same set as "a context you
+ * cannot enter"). Any of them ends the selected workspace context.
+ */
+const SELECTED_CONTEXT_MEMBERSHIP_DENIALS: ReadonlySet<string> = new Set([
+  "no_actor",
+  "member_not_active",
+  "member_access_expired",
+  "organization_not_active",
+  "workspace_kind_unresolved",
+]);
+
 // Locked product model: only the ENTERPRISE plan (ORGANIZATION workspace)
 // is an enterprise workspace. TEAM is a subscription plan inside a PERSONAL
 // workspace — it is NOT enterprise and must NOT unlock ENTERPRISE-tier
@@ -346,7 +359,25 @@ export async function buildPlatformContext(
           })
         : null;
 
-      const memberOk = membership && membership.status === "ACTIVE";
+      let memberOk = Boolean(membership && membership.status === "ACTIVE");
+      // A1-09 / B-18 — the selected context follows the SAME member-lifecycle
+      // authority every API route applies (evaluateMemberAccess, re-read on
+      // each request): a lapsed `accessExpiresAtUtc` or a parent organization
+      // that is not ACTIVE ends the selection exactly like an inactive status
+      // row, instead of leaving an "active" context whose every call the API
+      // refuses. Read-time, so no sweep is needed: nothing flips the status
+      // column when a window lapses, and nothing has to. Only membership-level
+      // denials count here; a permission answer says nothing about the context.
+      if (memberOk && team) {
+        const access = await evaluateMemberAccess({
+          teamId: team.id,
+          userId: userRow.id,
+          permission: "evidence.read",
+        });
+        if (!access.allowed && SELECTED_CONTEXT_MEMBERSHIP_DENIALS.has(String(access.reason))) {
+          memberOk = false;
+        }
+      }
 
       if (!team || !memberOk) {
         // `currentWorkspaceId` points to a deleted team OR the user
@@ -1001,6 +1032,9 @@ export async function buildPlatformContext(
         id: true,
         role: true,
         status: true,
+        // A1-09 / B-18 — a lapsed time-boxed membership is no switch target (the
+        // switch route already refuses it, F-11).
+        accessExpiresAtUtc: true,
         team: {
           select: {
             id: true,
@@ -1030,6 +1064,7 @@ export async function buildPlatformContext(
 
     for (const m of memberRows) {
       if (!m.team) continue;
+      if (m.accessExpiresAtUtc !== null && m.accessExpiresAtUtc.getTime() <= Date.now()) continue;
       workspaceMembershipIdByWorkspace.set(m.team.id, m.id);
       // P0 remediation (2026-07-21) — an ACTIVE membership in a workspace
       // whose parent organization is not ACTIVE is not a valid operating

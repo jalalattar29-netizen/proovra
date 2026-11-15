@@ -24,7 +24,8 @@ beforeEach(async () => {
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url).replace(/^https?:\/\/[^/]+/, "");
     const send = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "content-type": "application/json" } });
-    if (init.method === "POST" && path === "/v1/org-invites/oinv_1/accept") {
+    if (init.method === "POST" && path === "/v1/org-invites/accept") {
+      assert.deepEqual(JSON.parse(init.body), { token: "oinv_1" }, "B-15: the token travels in the body");
       const a = accept();
       return send(a.body, a.status);
     }
@@ -116,4 +117,40 @@ test("MOBILE-012: a new Enterprise owner is told the setup waits in the web app,
   await r.press("Continue setup in the web app");
   assert.equal(M.calls.openURL.at(-1), "https://www.proovra.com/organizations/o1/setup");
   assert.equal(M.orgSetupWebUrl({ setupRedirect: "https://evil.example/x" }, "https://www.proovra.com"), null, "only the server's setup route is opened");
+});
+
+// B-16 — the accept route now names each refusal (nested error.code); the
+// screen says what to do, in the web page's words, instead of "ask for a new
+// invitation" for all of them.
+for (const [status, code, title, words] of [
+  [403, "INVITE_EMAIL_MISMATCH", "This invitation was sent to a different address", "You are signed in with another account. Sign out, sign in (or create an account) with the address the invitation was sent to, then open the link again. The invitation stays valid."],
+  [410, "INVITE_EXPIRED", "This invitation has expired", "Ask an organization administrator to send a new invitation if you still need access."],
+  [410, "ORGANIZATION_NOT_ACCEPTING_MEMBERS", "This organization isn't accepting members", "It is archived or suspended. Ask an organization administrator if you still need access."],
+  [409, "MEMBERSHIP_SUSPENDED", "Your membership in this organization is suspended", "Ask an organization administrator to reinstate it. A new invitation does not lift a suspension."],
+  [409, "INVITE_SUPERSEDED", "This invitation is no longer valid", "It was issued before your access to this organization ended. Ask for a new invitation."],
+]) {
+  test(`B-16: ${code} says "${title}"`, async () => {
+    accept = () => ({ status, body: { error: { code }, message: "server sentence" } });
+    const r = await render();
+    await r.press("Accept invite");
+    await settle();
+    assert.ok(r.hasText(title), r.texts().join(" | "));
+    assert.ok(r.hasText(words));
+    assert.ok(!r.hasText("We couldn't accept this invite"));
+  });
+}
+
+test("B-16: a busy workspace offers Try again, which accepts and succeeds", async () => {
+  let n = 0;
+  accept = () =>
+    n++ === 0
+      ? { status: 409, body: { error: { code: "WORKSPACE_SEAT_CONTENTION" }, message: "busy" } }
+      : { status: 200, body: { organizationId: "o1", role: "ORG_MEMBER", assignedWorkspaceIds: [] } };
+  const r = await render();
+  await r.press("Accept invite");
+  await settle();
+  assert.ok(r.hasText("Too many people are joining at once"));
+  await r.press("Try again");
+  await settle();
+  assert.ok(r.hasText("You are now an org member of the organization. Redirecting…"));
 });

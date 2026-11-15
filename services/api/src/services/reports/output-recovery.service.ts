@@ -38,6 +38,14 @@ import {
 } from "@proovra/shared";
 
 import { resolveEvidenceWorkspaceIds } from "@proovra/shared-runtime";
+// AUDIT D-03 — the first issuance of an entitled Free record (and its
+// server-verified missing-file recovery) is not customer storage.
+import {
+  firstIssuanceVersionsByRecord,
+  isFreeAllowanceEarnedFact,
+  MISSING_OUTPUT_RECOVERY_KEY_PREFIX,
+  MISSING_OUTPUT_RECOVERY_PURPOSE,
+} from "@proovra/shared-runtime";
 
 import { prisma } from "../../db.js";
 import { probeStoredObject, type StoredObjectProbe } from "../../storage.js";
@@ -325,6 +333,8 @@ export async function loadEvidenceOutputFacts(input: {
       ownerUserId: true,
       sizeBytes: true,
       verificationPackageMetadata: true,
+      outputEarnedPlan: true,
+      outputEarnedBasis: true,
     },
   });
   if (evidenceRows.length === 0) return out;
@@ -394,6 +404,14 @@ export async function loadEvidenceOutputFacts(input: {
       })
     : [];
   const firstReportVersionBy = new Map(firstReports.map((r) => [r.evidenceId, r.version]));
+  // AUDIT D-03 — the first-issuance versions of entitled FREE records (their
+  // first report and any server-verified recovery of it), as the worker gate
+  // and the storage measure read them.
+  const reportedIds = new Set(reports.map((r) => r.evidenceId));
+  const freeFirstIssuanceBy = await firstIssuanceVersionsByRecord(
+    prisma,
+    evidenceRows.filter((e) => reportedIds.has(e.id) && isFreeAllowanceEarnedFact(e)).map((e) => e.id),
+  );
 
   const orgIds = [...new Set(teams.map((t) => t.organizationId).filter((o): o is string => !!o))];
   const orgs = orgIds.length
@@ -493,6 +511,14 @@ export async function loadEvidenceOutputFacts(input: {
         });
       }
 
+      // AUDIT D-03 — the latest pair is the first issuance of an entitled FREE
+      // record (or its server-verified missing-file recovery): not customer
+      // storage, so the allowance never withholds its recovery.
+      const freeFirstIssuanceExcluded =
+        latestReport != null &&
+        eligibility?.issuance.decision === "ENTITLED" &&
+        freeFirstIssuanceBy.get(ev.id)?.has(latestReport.version) === true;
+
       const facts: EvidenceOutputFacts = {
         record: resolveOutputRecordApplicability(ev.status),
         // An unresolvable commercial answer is not an entitlement: offer
@@ -524,11 +550,13 @@ export async function loadEvidenceOutputFacts(input: {
         newVersionFitsStorage: newVersionEstimate?.fitsStorage ?? null,
         firstIssuanceStorageExempt:
           latestReport != null &&
-          firstIssuanceExemptFromStorageLimit({
+          (firstIssuanceExemptFromStorageLimit({
             decision: eligibility?.issuance.decision ?? null,
             basis: eligibility?.issuance.basis ?? null,
             isFirstReportVersion: firstReportVersionBy.get(ev.id) === latestReport.version,
-          }),
+          }) ||
+            freeFirstIssuanceExcluded),
+        freeFirstIssuanceExcluded,
         storedOutputMissing:
           reportObject === "NOT_FOUND" ? "REPORT" : packageObject === "NOT_FOUND" ? "PACKAGE" : null,
       };
@@ -1098,10 +1126,15 @@ export async function requestOutputRecovery(input: {
       await requestNewReportVersion(
         {
           ...base,
-          purpose: "updated_report",
+          // AUDIT D-03 — the SERVER-ONLY purpose: reached only through
+          // `recoverMissing`, i.e. after a live HEAD of the recorded version
+          // answered NOT_FOUND (probeStoredObjects above). The allowance
+          // treats a recovery of a Free record's first issuance as that first
+          // issuance; a customer's updated report can never carry it.
+          purpose: MISSING_OUTPUT_RECOVERY_PURPOSE,
           regenerateReason: `recover_missing_${chosen.output === "report" ? "report" : "package"}_v${latestVersion}`,
         },
-        `recover-missing:${input.evidenceId}:v${latestVersion}`,
+        `${MISSING_OUTPUT_RECOVERY_KEY_PREFIX}${input.evidenceId}:v${latestVersion}`,
       ),
     );
   }

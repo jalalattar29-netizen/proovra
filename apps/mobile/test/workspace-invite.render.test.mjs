@@ -30,7 +30,7 @@ beforeEach(async () => {
   routes = {
     ...authenticatedRoutes(),
     "/v1/teams/invites/lookup": () => ({ status: 200, body: PENDING }),
-    [`/v1/teams/invites/${TOKEN}/accept`]: () => ({ status: 200, body: { workspaceId: "ws-1", alreadyMember: false } }),
+    ["/v1/teams/invites/accept"]: () => ({ status: 200, body: { workspaceId: "ws-1", alreadyMember: false } }),
   };
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url).replace(/^https?:\/\/[^/]+/, "");
@@ -70,13 +70,16 @@ test("Accept posts to the workspace route and shows the web's accepted state", a
   const r = await render();
   await r.press("Accept invitation");
   await settle();
-  assert.ok(requests.some((q) => q.method === "POST" && q.path === `/v1/teams/invites/${TOKEN}/accept`));
+  // B-15 — the token is in the body, never in the path.
+  const post = requests.find((q) => q.method === "POST" && q.path === "/v1/teams/invites/accept");
+  assert.deepEqual(post?.body, { token: TOKEN });
+  assert.ok(!requests.some((q) => q.path.includes(TOKEN)), "the token travelled in a request path");
   assert.ok(r.hasText("Invitation accepted"));
   assert.equal(r.byLabel("Open workspace").length, 1);
 });
 
 test("a server refusal renders as itself — wrong account offers switching", async () => {
-  routes[`/v1/teams/invites/${TOKEN}/accept`] = () => ({ status: 403, body: { error: { code: "INVITE_EMAIL_MISMATCH" } } });
+  routes["/v1/teams/invites/accept"] = () => ({ status: 403, body: { error: { code: "INVITE_EMAIL_MISMATCH" } } });
   const r = await render();
   await r.press("Accept invitation");
   await settle();
@@ -149,7 +152,7 @@ test("a switch refused by the organization's SSO rule is shown, and the screen s
 
 // F-26e — a settled refusal is not "we couldn't check this invitation".
 test("EMAIL_NOT_VERIFIED renders its own state with a verification action", async () => {
-  routes[`/v1/teams/invites/${TOKEN}/accept`] = () => ({ status: 403, body: { error: { code: "EMAIL_NOT_VERIFIED" } } });
+  routes["/v1/teams/invites/accept"] = () => ({ status: 403, body: { error: { code: "EMAIL_NOT_VERIFIED" } } });
   const r = await render();
   await r.press("Accept invitation");
   await settle();

@@ -16,6 +16,7 @@ import {
 } from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
 import { describeReportDownloadFailure } from "../../../lib/evidence/report-download-feedback";
+import { ARTIFACT_WINDOW_BLOCKED_MESSAGE, openPendingArtifactWindow } from "../../../lib/evidence/artifact-window";
 import { EvidenceLibraryHeader } from "./components/EvidenceLibraryHeader";
 import { EvidenceMetrics } from "./components/EvidenceMetrics";
 import {
@@ -1057,15 +1058,20 @@ function EvidenceLibraryPageInner() {
   };
 
   const downloadReport = async (evidenceId: string) => {
+    // F-P1-04 — the tab opens IN the click, before the await; a blocked tab
+    // is said, never reported as "downloaded".
+    const pending = openPendingArtifactWindow();
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/report/latest`)) as ReportResponse;
       if (!data?.url) {
+        pending.close();
         addToast("Report not available", "info");
         return;
       }
-      window.open(data.url, "_blank", "noopener,noreferrer");
-      addToast("Report downloaded", "success");
+      if (pending.assign(data.url) === "blocked") addToast(ARTIFACT_WINDOW_BLOCKED_MESSAGE, "error");
+      else addToast("Report opened in a new tab", "success");
     } catch (downloadError) {
+      pending.close();
       // UC-OUT-004 — the same refusal vocabulary as Evidence Detail; bounded
       // refusals are outcomes and file no Sentry issue.
       const feedback = describeReportDownloadFailure(downloadError);
@@ -1080,17 +1086,20 @@ function EvidenceLibraryPageInner() {
   };
 
   const downloadVerificationPackage = async (evidenceId: string) => {
+    const pending = openPendingArtifactWindow();
     try {
       const data = (await apiFetch(
         `/v1/evidence/${evidenceId}/verification-package`
       )) as VerificationPackageResponse;
       if (!data?.url) {
+        pending.close();
         addToast("Verification package not available", "info");
         return;
       }
-      window.open(data.url, "_blank", "noopener,noreferrer");
-      addToast("Verification package downloaded", "success");
+      if (pending.assign(data.url) === "blocked") addToast(ARTIFACT_WINDOW_BLOCKED_MESSAGE, "error");
+      else addToast("Verification package opened in a new tab", "success");
     } catch (downloadError) {
+      pending.close();
       captureException(downloadError, {
         feature: "web_evidence_library_download_package_second_pass",
         evidenceId,

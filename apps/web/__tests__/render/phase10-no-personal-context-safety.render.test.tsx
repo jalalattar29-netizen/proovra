@@ -420,7 +420,13 @@ describe("PHASE 10 FIX 3 — active upload is not rebound and a stale finalize c
       file,
       isOnline: () => true,
     });
-    await uploader.start().catch(() => undefined);
+    // The mocked API answers nothing usable, so the uploader retries on its
+    // bounded backoff (F-P1-02: a scheduled retry is awaited, never dropped).
+    // Only the requests it makes matter here: stop it once they are out.
+    const run = uploader.start().catch(() => undefined);
+    await waitFor(() => expect(apiState.calls.some((c) => c.startsWith("BODY:") && c.includes("teamId"))).toBe(true));
+    uploader.cancel();
+    await run;
     const bodies = apiState.calls.filter((c) => c.startsWith("BODY:"));
     const withTeam = bodies.filter((b) => b.includes("teamId"));
     expect(withTeam.length).toBeGreaterThan(0);

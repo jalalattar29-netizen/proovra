@@ -167,4 +167,18 @@ describe("F-25 / F-17 — account closure card", () => {
     expect(note).toContain("does not take down public verification");
     expect(note).toContain("Withdraw");
   });
+
+  // D-07 (round 3, product decision 2026-11-15) — the closure flow states the
+  // decided behaviour: minimal disclosure, historic QR kept, withdrawn and
+  // never-public records stay closed, the withdrawal control where authorized.
+  it("D-07: explains minimal disclosure, kept QR codes, withdrawn pages staying withdrawn and who can withdraw", async () => {
+    const { container } = render(<PrivacySection />);
+    await settle();
+    const note = container.querySelector("[data-cc-closure-public-verification]")?.textContent ?? "";
+    expect(note).toContain("QR codes");
+    expect(note).toContain("only the verification result, never your files");
+    expect(note).toContain("Pages you have withdrawn stay withdrawn");
+    expect(note).toContain("records without a public page do not get one");
+    expect(note).toContain("someone allowed to manage the page");
+  });
 });

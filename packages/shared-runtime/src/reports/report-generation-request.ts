@@ -103,6 +103,16 @@ export const REPORT_GENERATION_PURPOSES = [
   "package_recovery",
   /** An explicit, authorized updated report documenting later facts. */
   "updated_report",
+  /**
+   * AUDIT D-03 (2026-11-15) — AUD-011 recovery of a PROVEN-MISSING stored
+   * report/package file as one new pair. SERVER-ONLY: minted solely by
+   * `requestOutputRecovery` (output-recovery.service.ts) after a live HEAD of
+   * the recorded version answered NOT_FOUND; no route accepts a purpose from a
+   * caller. The allowance reads it (`first-issuance-allowance.ts`): a
+   * recovery of an entitled Free record's first issuance is that first
+   * issuance. Stored in a VARCHAR column — no enum, no migration.
+   */
+  "missing_output_recovery",
 ] as const;
 export type ReportGenerationPurpose =
   (typeof REPORT_GENERATION_PURPOSES)[number];

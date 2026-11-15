@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { ApiError, NetworkError } from "./dist/api-client.js";
+import { ApiError, NetworkError, StoragePutError, apiClient, isTransientFailure } from "./dist/api-client.js";
 import { runPreserveFlow } from "./dist/preserve-flow.js";
 
 const HEX = "a".repeat(64);
@@ -367,7 +367,8 @@ test("AUD-026: a definite 4xx refusal is never retried", async () => {
   const h = harness({
     putBytes: async () => {
       puts += 1;
-      throw new ApiError(403, null, "PUT object -> 403");
+      // F-P1-08 — storage refusing the BYTES (400) is final; a 403 is the URL (re-presigned, below).
+      throw new StoragePutError(400, null);
     },
   });
   const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
@@ -510,5 +511,78 @@ test("AUD-52: a discard of a session already DISCARDED or EXPIRED is NOTHING_SAV
     });
     const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
     assert.equal(r.outcome, "NOTHING_SAVED", status);
+  }
+});
+
+// F-P1-08 (Free-user audit of 4d9b78963) — storage PUT refusals follow THE
+// shared storage-PUT rule (@proovra/shared storage-put-retry), as web and native.
+test("F-P1-08: a storage 403 (expired URL) presigns the same part again and the capture seals", async () => {
+  let puts = 0;
+  const urls = [];
+  let presigns = 0;
+  const h = harness({
+    createPart: async (_t, _e, input) => {
+      presigns += 1;
+      return { upload: { bucket: "b", key: "k", putUrl: `http://s3.local/put?n=${presigns}&i=${input.partIndex}` } };
+    },
+    putBytes: async (url) => {
+      puts += 1;
+      urls.push(url);
+      if (puts === 1) throw new StoragePutError(403, null);
+    },
+  });
+  const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
+  assert.equal(r.status, "SUCCEEDED");
+  assert.equal(urls[0], "http://s3.local/put?n=1&i=0");
+  assert.equal(urls[1], "http://s3.local/put?n=2&i=0", "the retry uses a fresh URL for the same part");
+});
+
+test("F-P1-08: 408/425/429/5xx are retried on the same URL; a Retry-After over a minute is not waited for", async () => {
+  for (const status of [408, 425, 429, 503]) {
+    let puts = 0;
+    const h = harness({
+      putBytes: async () => {
+        puts += 1;
+        if (puts === 1) throw new StoragePutError(status, null);
+      },
+    });
+    const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
+    assert.equal(r.status, "SUCCEEDED", String(status));
+    assert.equal(h.calls.filter((c) => c[0] === "part" && c[1] === 0).length, 1, "no re-presign for a busy store");
+  }
+  const waits = [];
+  let puts = 0;
+  const h = harness({
+    putBytes: async () => {
+      puts += 1;
+      throw new StoragePutError(429, 120_000);
+    },
+  });
+  h.deps.sleep = async (ms) => void waits.push(ms);
+  const r = await runPreserveFlow(h.deps, REQ, new AbortController().signal);
+  assert.equal(r.status, "FAILED");
+  assert.equal(puts, 1);
+  assert.deepEqual(waits, []);
+});
+
+test("F-P1-08: the real putBytes carries the storage status and Retry-After; the classifier is the shared one", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response(null, { status: 403 });
+    const expired = await apiClient.putBytes("https://s3.local/put", new Blob(["x"]), "image/png").catch((e) => e);
+    assert.ok(expired instanceof StoragePutError);
+    assert.equal(expired.status, 403);
+    assert.equal(isTransientFailure(expired), true);
+
+    globalThis.fetch = async () => new Response(null, { status: 503, headers: { "Retry-After": "7" } });
+    const busy = await apiClient.putBytes("https://s3.local/put", new Blob(["x"]), "image/png").catch((e) => e);
+    assert.equal(busy.retryAfterMs, 7000);
+    assert.equal(isTransientFailure(busy), true);
+
+    globalThis.fetch = async () => new Response(null, { status: 400 });
+    const refused = await apiClient.putBytes("https://s3.local/put", new Blob(["x"]), "image/png").catch((e) => e);
+    assert.equal(isTransientFailure(refused), false);
+  } finally {
+    globalThis.fetch = realFetch;
   }
 });

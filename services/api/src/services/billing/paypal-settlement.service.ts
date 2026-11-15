@@ -39,7 +39,7 @@ import {
 } from "@proovra/shared-billing";
 
 import { prisma } from "../../db.js";
-import { ensureEntitlement, recordPayment } from "../billing.service.js";
+import { ensureEntitlement, recordPayment, upsertWorkspaceStorageAddon } from "../billing.service.js";
 import {
   getEvidenceCreditPriceCents,
   normalizeBillingCurrency,
@@ -199,6 +199,227 @@ export async function assertWebhookStorageAddonAllowed(params: {
     err.statusCode = 400;
     throw err;
   }
+}
+
+// ===========================================================================
+// LEGACY one-time storage captures
+// ===========================================================================
+
+export type LegacyStorageCaptureSettlement =
+  | { outcome: "GRANTED"; addonId: string }
+  /** The binding is no longer waiting (a redelivery, or decided earlier). Nothing is written. */
+  | { outcome: "ALREADY_SETTLED"; addonId: string }
+  | {
+      outcome: "REVIEW";
+      reason: "LEGACY_STORAGE_CAPTURE_UNMATCHED" | "AMOUNT_MISMATCH" | "STORAGE_ACTIVATION_REFUSED";
+      cause: string;
+    }
+  /** Nothing names a payer PROOVRA knows; nothing can be recorded against anyone. */
+  | { outcome: "UNATTRIBUTABLE" };
+
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * AUDIT E-03 (2026-11-15) — a PAYMENT.CAPTURE.COMPLETED for a LEGACY one-time
+ * storage order (the pre-2026-08 `ONE_TIME` cycle; no checkout path creates
+ * one any more: `upsertWorkspaceStorageAddon`, billing.routes.ts
+ * StorageAddonCheckoutBody).
+ *
+ * The webhook used to grant perpetual ONE_TIME capacity from the capture's
+ * `custom_id` alone, at whatever amount the capture carried. Those orders never
+ * had a local attempt (the old checkout created the order at PayPal only), so
+ * the custom_id was the only thing tying money to a payer — and a custom_id is
+ * whatever the order's creator wrote. Capacity is now granted only through a
+ * DURABLE LOCAL BINDING: one `workspace_storage_addons` row (PAYPAL, ONE_TIME)
+ * whose `external_payment_id` is this capture or its order. That row is the
+ * trusted statement of payer, workspace, size, amount and currency; the capture
+ * must match all of them. Everything else goes to the review queue
+ * (`billing_review_items`) and grants nothing:
+ *
+ *   * no binding, or more than one     LEGACY_STORAGE_CAPTURE_UNMATCHED
+ *   * a binding naming another payer, workspace or size   (same reason)
+ *   * amount or currency not the binding's               AMOUNT_MISMATCH
+ *   * the payer's workspace cannot hold it now           STORAGE_ACTIVATION_REFUSED
+ *
+ * Only a PENDING binding is settled. A live (or ended) one — this capture's
+ * earlier delivery, or a grant made before this rule — is a redelivery or an
+ * old decision: nothing is written, so storage granted earlier stays exactly as
+ * it is. Database failures
+ * throw (BILLING-013: the caller must not mark the event processed).
+ * The caller has verified the event signature.
+ */
+export async function settleLegacyStorageCapture(input: {
+  capture: unknown;
+  /** What the capture's custom_id claims (legacy JSON / key=value / sa1). */
+  claimed: {
+    userId?: string | null;
+    teamId?: string | null;
+    storageAddonKey?: prismaPkg.StorageAddonKey | null;
+  };
+  eventType: string;
+}): Promise<LegacyStorageCaptureSettlement> {
+  const capture = rec(input.capture);
+  const captureId = str(capture?.id);
+  if (!capture || !isPayPalResourceId(captureId)) return { outcome: "UNATTRIBUTABLE" };
+  const orderIdRaw = str(rec(rec(capture.supplementary_data)?.related_ids)?.order_id);
+  const orderId = isPayPalResourceId(orderIdRaw) ? orderIdRaw : null;
+  const amount = rec(capture.amount);
+  const capturedCents = centsFromValue(amount?.value);
+  const capturedCurrency = str(amount?.currency_code)?.toUpperCase() ?? null;
+  const claimedUserId =
+    input.claimed.userId && UUID_SHAPE.test(input.claimed.userId) ? input.claimed.userId : null;
+  const facts = {
+    eventType: input.eventType,
+    orderId,
+    capturedCents,
+    capturedCurrency,
+    claimedAddonKey: input.claimed.storageAddonKey ?? null,
+  };
+
+  const bindings = await prisma.workspaceStorageAddon.findMany({
+    where: {
+      paymentProvider: PROVIDER,
+      billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+      externalPaymentId: { in: orderId ? [captureId, orderId] : [captureId] },
+    },
+    select: {
+      id: true,
+      ownerUserId: true,
+      teamId: true,
+      addonKey: true,
+      status: true,
+      externalPaymentId: true,
+      amountCents: true,
+      currency: true,
+    },
+    take: 3,
+  });
+
+  const review = async (
+    userId: string,
+    reason: "LEGACY_STORAGE_CAPTURE_UNMATCHED" | "AMOUNT_MISMATCH" | "STORAGE_ACTIVATION_REFUSED",
+    cause: string,
+    detail: Record<string, string | number | boolean | null> = {},
+  ): Promise<LegacyStorageCaptureSettlement> => {
+    await recordBillingReviewItem({
+      userId,
+      provider: PROVIDER,
+      providerResourceId: captureId,
+      product: "STORAGE_ADDON",
+      reason,
+      refundReviewRequired: true,
+      detail: { ...facts, cause, ...detail },
+    });
+    return { outcome: "REVIEW", reason, cause };
+  };
+
+  if (bindings.length !== 1) {
+    // Recorded against the binding's owner when one exists, else the payer the
+    // custom_id names — only if that account exists (the review row needs one).
+    let subject: string | null = bindings[0]?.ownerUserId ?? null;
+    if (!subject && claimedUserId) {
+      const named = await prisma.user.findUnique({ where: { id: claimedUserId }, select: { id: true } });
+      subject = named?.id ?? null;
+    }
+    if (!subject) return { outcome: "UNATTRIBUTABLE" };
+    return review(subject, "LEGACY_STORAGE_CAPTURE_UNMATCHED", bindings.length === 0 ? "NO_BINDING" : "AMBIGUOUS_BINDING", {
+      bindings: bindings.length,
+    });
+  }
+
+  const binding = bindings[0]!;
+  // Only a binding still WAITING (PENDING) can be settled. One that is live,
+  // cancelled or expired was decided already — by this capture's earlier
+  // delivery or another way — and is never rewritten.
+  if (binding.status !== prismaPkg.WorkspaceStorageAddonStatus.PENDING) {
+    return { outcome: "ALREADY_SETTLED", addonId: binding.id };
+  }
+
+  const identityMatches =
+    (!input.claimed.userId || input.claimed.userId === binding.ownerUserId) &&
+    (input.claimed.teamId === undefined || (input.claimed.teamId ?? null) === (binding.teamId ?? null)) &&
+    (!input.claimed.storageAddonKey || input.claimed.storageAddonKey === binding.addonKey);
+  if (!identityMatches) {
+    return review(binding.ownerUserId, "LEGACY_STORAGE_CAPTURE_UNMATCHED", "IDENTITY_MISMATCH", {
+      bindingId: binding.id,
+    });
+  }
+
+  const status = str(capture.status)?.toUpperCase() ?? "COMPLETED";
+  if (status !== "COMPLETED") {
+    return review(binding.ownerUserId, "LEGACY_STORAGE_CAPTURE_UNMATCHED", "CAPTURE_NOT_COMPLETED", {
+      bindingId: binding.id,
+      captureStatus: status,
+    });
+  }
+
+  // The binding is the price this purchase was sold at. A binding without one
+  // cannot vouch for any amount.
+  const expectedCents = binding.amountCents ?? null;
+  const expectedCurrency = binding.currency?.toUpperCase() ?? null;
+
+  // The binding names its payer, so the money is recorded in their history
+  // whatever is decided below (a refund review needs the payment it refunds).
+  const recordCapture = () =>
+    recordPayment({
+      userId: binding.ownerUserId,
+      provider: PROVIDER,
+      providerPaymentId: captureId,
+      amountCents: capturedCents ?? 0,
+      currency: capturedCurrency ?? expectedCurrency ?? "USD",
+      status: prismaPkg.PaymentStatus.SUCCEEDED,
+      teamId: binding.teamId ?? null,
+      product: "STORAGE_ADDON_ONE_TIME",
+      providerResourceId: orderId,
+    });
+
+  if (
+    expectedCents === null ||
+    expectedCurrency === null ||
+    capturedCents !== expectedCents ||
+    capturedCurrency !== expectedCurrency
+  ) {
+    await recordCapture();
+    return review(binding.ownerUserId, "AMOUNT_MISMATCH", "AMOUNT_OR_CURRENCY", {
+      bindingId: binding.id,
+      expectedCents,
+      expectedCurrency,
+    });
+  }
+
+  try {
+    await assertWebhookStorageAddonAllowed({
+      userId: binding.ownerUserId,
+      addonKey: binding.addonKey,
+      teamId: binding.teamId ?? null,
+    });
+  } catch (err) {
+    // BILLING-013 — only a policy refusal (an HTTP status below 500) is a
+    // decision; anything else is a failure the provider must redeliver.
+    const refusal = (err as { statusCode?: number })?.statusCode;
+    if (typeof refusal !== "number" || refusal >= 500) throw err;
+    await recordCapture();
+    return review(binding.ownerUserId, "STORAGE_ACTIVATION_REFUSED", "POLICY_REFUSED", {
+      bindingId: binding.id,
+      refusalStatus: refusal,
+    });
+  }
+
+  await recordCapture();
+  const granted = await upsertWorkspaceStorageAddon({
+    attemptId: binding.id,
+    ownerUserId: binding.ownerUserId,
+    teamId: binding.teamId ?? null,
+    addonKey: binding.addonKey,
+    billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+    status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+    paymentProvider: PROVIDER,
+    externalPaymentId: captureId,
+    amountCents: expectedCents,
+    currency: expectedCurrency,
+    metadata: { source: input.eventType },
+  });
+  return { outcome: "GRANTED", addonId: granted.id };
 }
 
 // ===========================================================================

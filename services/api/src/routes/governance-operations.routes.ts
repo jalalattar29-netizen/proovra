@@ -46,6 +46,7 @@ import {
   countFailedGovernanceNotifications,
   countPendingGovernanceNotifications,
   GovernanceNotificationError,
+  governanceNotificationReachWhere,
   listGovernanceNotifications,
 } from "../services/governance-lifecycle/governance-notification.service.js";
 import {
@@ -53,8 +54,9 @@ import {
   getExportSnapshot,
   GovernanceExportSnapshotError,
   listExportSnapshotsPage,
-  verifyExportSnapshotHash,
+  verifyStoredExportSnapshot,
 } from "../services/governance-lifecycle/export-lineage.service.js";
+import { evidenceIdInReach, viewerReachInWorkspace } from "../services/access/record-reach.js";
 import {
   ANALYTICS_WINDOWS,
   GOVERNANCE_EXPORT_SNAPSHOT_KINDS,
@@ -138,6 +140,12 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
+      // A2-12 — notifications naming a record closed to this reader are that
+      // record's rows: neither listed nor counted.
+      const reachWhere = await governanceNotificationReachWhere(
+        query.teamId,
+        await viewerReachInWorkspace(query.teamId, ok.actorUserId),
+      );
 
       const [notifications, pendingCount, failedCount] = await Promise.all([
         listGovernanceNotifications({
@@ -147,9 +155,10 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           deliveryStatus: query.deliveryStatus,
           unacknowledged: query.unacknowledged,
           limit: query.limit,
+          reachWhere,
         }),
-        countPendingGovernanceNotifications(query.teamId),
-        countFailedGovernanceNotifications(query.teamId),
+        countPendingGovernanceNotifications(query.teamId, prisma, reachWhere),
+        countFailedGovernanceNotifications(query.teamId, prisma, reachWhere),
       ]);
       return reply.code(200).send({
         notifications,
@@ -173,6 +182,11 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           id,
           teamId: body.teamId,
           actorUserId: ok.actorUserId,
+          // A2-12 — a notification on a closed record is acknowledged like a missing one.
+          reachWhere: await governanceNotificationReachWhere(
+            body.teamId,
+            await viewerReachInWorkspace(body.teamId, ok.actorUserId),
+          ),
         });
         return reply.code(200).send({ notification });
       } catch (err) {
@@ -212,6 +226,10 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           evidenceId: body.evidenceId ?? null,
           snapshotKind: body.snapshotKind,
           createdByUserId: ok.actorUserId,
+          // A2-12 — a record closed to the creator answers like a missing one
+          // (no row, no hash, no hold state); a workspace snapshot captures
+          // only the holds and incidents the creator can reach.
+          reach: await viewerReachInWorkspace(body.teamId, ok.actorUserId),
         });
         return reply.code(201).send({ snapshot });
       } catch (err) {
@@ -253,7 +271,13 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
         if (!cursor.success) return reply.code(400).send({ error: { code: "EXPORT_SNAPSHOT_CURSOR_INVALID" } });
         before = cursor.data;
       }
-      const page = await listExportSnapshotsPage({ ...query, before });
+      const page = await listExportSnapshotsPage({
+        ...query,
+        before,
+        // A2-12 — snapshots of closed records are not listed; closed hold and
+        // incident references inside workspace snapshots are withheld.
+        reach: await viewerReachInWorkspace(query.teamId, ok.actorUserId),
+      });
       const permission = await evaluateAuthorize(req, {
         teamId: query.teamId,
         permission: "evidence.generate_package",
@@ -276,7 +300,11 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
       const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const snapshot = await getExportSnapshot({ teamId: query.teamId, id });
+      const snapshot = await getExportSnapshot({
+        teamId: query.teamId,
+        id,
+        reach: await viewerReachInWorkspace(query.teamId, ok.actorUserId),
+      });
       if (!snapshot) {
         return reply.code(404).send({
           error: { code: "EXPORT_SNAPSHOT_NOT_FOUND" },
@@ -294,16 +322,19 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
       const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
-      const snapshot = await getExportSnapshot({ teamId: query.teamId, id });
-      if (!snapshot) {
+      // A2-12 — the same reach as the detail read; the verdict re-hashes the
+      // STORED payload, never a reader-redacted projection.
+      const verified = await verifyStoredExportSnapshot({
+        teamId: query.teamId,
+        id,
+        reach: await viewerReachInWorkspace(query.teamId, ok.actorUserId),
+      });
+      if (!verified) {
         return reply.code(404).send({
           error: { code: "EXPORT_SNAPSHOT_NOT_FOUND" },
         });
       }
-      const valid = verifyExportSnapshotHash(snapshot);
-      return reply
-        .code(200)
-        .send({ snapshotId: snapshot.id, valid, snapshotHash: snapshot.snapshotHash });
+      return reply.code(200).send(verified);
     },
   );
 
@@ -371,10 +402,14 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
+      // A2-12 — an execution names its record and certificate hash: closed
+      // records are not listed.
+      const reach = await viewerReachInWorkspace(query.teamId, ok.actorUserId);
       const rows = await prisma.destructionExecution.findMany({
         where: {
           teamId: query.teamId,
           ...(query.reviewId ? { destructionReviewId: query.reviewId } : {}),
+          AND: [evidenceIdInReach(reach)],
         },
         orderBy: { plannedAtUtc: "desc" },
         take: Math.min(query.limit ?? 50, 200),
@@ -418,8 +453,13 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
+      // A2-12 — a check names its record and its retention / legal-hold state:
+      // checks on records closed to this reader are not listed (a filter on a
+      // closed record's id answers an empty list, like an unknown id).
+      const reach = await viewerReachInWorkspace(query.teamId, ok.actorUserId);
       const rows = await prisma.immutableStorageCheck.findMany({
         where: {
+          AND: [evidenceIdInReach(reach)],
           teamId: query.teamId,
           ...(query.evidenceId ? { evidenceId: query.evidenceId } : {}),
           ...(query.driftOnly

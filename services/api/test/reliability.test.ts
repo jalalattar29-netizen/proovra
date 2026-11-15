@@ -323,9 +323,16 @@ describe("capture upload retry — source-level check", () => {
       ),
       "utf8",
     );
-    expect(src).toMatch(/MAX_PUT_ATTEMPTS/);
-    expect(src).toMatch(/transient/);
-    // 4xx is NOT retried.
-    expect(src).toMatch(/NOT retryable/);
+    // 2026-11-15 (F-P1-08) — the PUT retry moved to legacy-part-upload.ts and
+    // follows THE shared storage-PUT rule (@proovra/shared storage-put-retry):
+    // bounded attempts, transient answers retried, a refusal of the bytes not.
+    expect(src).toMatch(/uploadLegacyPart\(/);
+    const legacy = await readFile(
+      fileURLToPath(new URL("../../../apps/web/app/(app)/capture/_hooks/legacy-part-upload.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(legacy).toMatch(/STORAGE_PUT_RETRY\.attempts/);
+    expect(legacy).toMatch(/classifyStoragePutStatus/);
+    expect(legacy).toMatch(/kind === "TERMINAL"/);
   });
 });

@@ -641,6 +641,34 @@ export async function lookupExternalReviewGrantByToken(
 }
 
 /**
+ * A2-15 — may this operator still extend or re-deliver this grant? Renewal,
+ * break-glass reveal and resend each re-disclose the grant's subject, so each
+ * re-asks the rule the grant was issued under (`scopeTargetBelongsToTeam`):
+ * the subject still belongs to the workspace, is not deleted, and is within
+ * the OPERATOR's current Case reach. A grant whose subject the operator can no
+ * longer reach answers exactly like a missing grant. Nothing about the grant
+ * itself changes: what the reviewer already holds stays governed by the
+ * grant's own state, expiry and the portal checks.
+ */
+export async function externalReviewGrantSubjectInReach(
+  input: { grantId: string; teamId: string; actorUserId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  const grant = await client.externalReviewGrant.findFirst({
+    where: { id: input.grantId, teamId: input.teamId },
+    select: { scopeKind: true, evidenceId: true, caseId: true, packageId: true },
+  });
+  if (!grant) return false;
+  return scopeTargetBelongsToTeam(
+    client,
+    input.teamId,
+    grant.scopeKind as IssueGrantInput["scopeKind"],
+    { evidenceId: grant.evidenceId, caseId: grant.caseId, packageId: grant.packageId },
+    input.actorUserId,
+  );
+}
+
+/**
  * D33 (2026-09-17) — true when the grant is a portal invitation that requires
  * the emailed one-time code (`external_reviewer_role_assignments.mfa_required`).
  * Callers that cannot run that step refuse the grant. A read failure answers

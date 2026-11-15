@@ -53,6 +53,31 @@ export type WebhookEndpointStatus = (typeof WEBHOOK_ENDPOINT_STATUSES)[number];
 export const API_CREDENTIAL_STATUSES = ["ACTIVE", "REVOKED"] as const;
 export type ApiCredentialStatus = (typeof API_CREDENTIAL_STATUSES)[number];
 
+/**
+ * Why the SYSTEM revoked an API key, in words; null for a reason a person
+ * typed (shown as written). The API writes these lowercase reasons:
+ *   creator_suspended / creator_removed  A2-10 — a key is machine access held
+ *       in its creator's name and ends with their membership
+ *       (services/sharing/creator-share-grants.ts). Restoring the member does
+ *       NOT revive it: recovery is an ordinary new key, under the plan's key
+ *       allowance (INTEGRATION_API_KEYS_MAX), never a second lifecycle.
+ *   workspace_closed / account_closed    closure ends every key.
+ */
+export function apiKeyRevocationNote(reason: string | null | undefined): string | null {
+  switch ((reason ?? "").trim().toLowerCase()) {
+    case "creator_suspended":
+      return "Revoked automatically because the member who created this key was suspended. Restoring the member does not bring the key back; a workspace admin can create a new key.";
+    case "creator_removed":
+      return "Revoked automatically because the member who created this key left the workspace. A workspace admin can create a new key.";
+    case "workspace_closed":
+      return "Revoked automatically because the workspace was closed.";
+    case "account_closed":
+      return "Revoked automatically because the account that created this key was closed.";
+    default:
+      return null;
+  }
+}
+
 // -----------------------------------------------------------------------------
 // API key format
 //

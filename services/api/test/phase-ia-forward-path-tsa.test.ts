@@ -62,8 +62,13 @@ describe("Phase IA-forward-path-TSA — finalize callsite contract", () => {
 
   it("calls createEvidenceTimestamp with the file SHA-256 digest (NOT a placeholder)", () => {
     // 2026-10-29: the input kind rides along for the request log only.
+    // F-04 (2026-11-15): obtained outside the transaction from the
+    // attestation request built from the seal's own fileSha256.
     expect(EVIDENCE_COMPLETE).toMatch(
-      /createEvidenceTimestamp\(\{\s*digestHex:\s*fileSha256\s*,?\s*(?:inputKind:\s*tsaInputKind\s*,?\s*)?\}\)/,
+      /createEvidenceTimestamp\(\{\s*digestHex:\s*request\.fileSha256\s*,\s*inputKind:\s*request\.tsaInputKind\s*,?\s*\}\)/,
+    );
+    expect(EVIDENCE_COMPLETE).toMatch(
+      /const attestationRequest: CompletionAttestationRequest = \{[\s\S]{0,200}\bfileSha256,/,
     );
   });
 

@@ -104,6 +104,27 @@ export function payPalReturnConfirmation(
   return null;
 }
 
+/**
+ * AUDIT E-09 / F-P1-06 (2026-11-15) — the durable checkout attempt a Stripe
+ * checkout response names, so the private build can ask the server about it
+ * when the in-app browser closes (Stripe's success/cancel pages are the WEB
+ * /billing page, which the app cannot intercept). The server stamps the attempt
+ * id on the session as `client_reference_id` and `metadata.attemptId`
+ * (billing-checkout.service.ts); both, when present, must agree. Null for
+ * PayPal, a plan change, or anything malformed — never a guess.
+ */
+export function stripeCheckoutAttemptId(payload: unknown, provider: PurchaseProvider): string | null {
+  if (provider !== "stripe") return null;
+  const o = (v: unknown): Record<string, unknown> => v && typeof v === "object" ? v as Record<string, unknown> : {};
+  const session = o(o(payload).session);
+  const uuid = (v: unknown) =>
+    typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v : null;
+  const reference = uuid(session.client_reference_id);
+  const metadata = uuid(o(session.metadata).attemptId);
+  if (reference && metadata && reference !== metadata) return null;
+  return reference ?? metadata;
+}
+
 /** What the server's PayPal confirmation means, in the customer's words. */
 export function payPalReturnNotice(
   kind: "ORDER_CAPTURE" | "SUBSCRIPTION_CONFIRM",

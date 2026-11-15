@@ -39,6 +39,7 @@ import {
   buildCanonicalJobId,
   enqueueCanonicalJob,
   getWorkEntryOrThrow,
+  parseFailedJobRetentionCount,
   isLiveQueueJobState,
   selfFollowUpJobId,
   type QueueHandleLike,
@@ -176,6 +177,11 @@ redisConnection.on("close", () => {
 // otherwise, which meant a reconciler re-enqueue ran under a different budget
 // than the request path for the same work.
 
+/** F-10 — the failed-job bound for the worker's own enqueues (same env + rule as the api). */
+export function workerFailedJobRetentionCount(): number {
+  return parseFailedJobRetentionCount(process.env.QUEUE_FAILED_JOB_RETENTION_COUNT);
+}
+
 /** BullMQ queue options derived from a registered unit of work. */
 function queueOptions(
   workName: WorkName,
@@ -194,7 +200,9 @@ function queueOptions(
         delay: entry.retry.backoffDelayMs,
       },
       removeOnComplete: retention.removeOnComplete ?? 100,
-      removeOnFail: retention.removeOnFail ?? false,
+      // F-10 parity with the api (canonical-queue-client.ts): failed jobs are
+      // kept to a bound, not for ever. DLQ sinks below keep their own options.
+      removeOnFail: retention.removeOnFail ?? workerFailedJobRetentionCount(),
     },
   };
 }
@@ -235,7 +243,7 @@ async function enqueueWork(
     traceId: options.traceId ?? "",
     delayMs: options.delayMs,
     removeOnComplete: options.removeOnComplete,
-    removeOnFail: options.removeOnFail,
+    removeOnFail: options.removeOnFail ?? workerFailedJobRetentionCount(),
     traceparent: currentTraceparent(),
     selfJobId: options.selfJobId,
   });

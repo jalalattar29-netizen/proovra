@@ -1180,6 +1180,15 @@ export type EvidenceOutputFacts = {
    */
   firstIssuanceStorageExempt?: boolean;
   /**
+   * AUDIT D-03 — the latest pair is the first issuance of an entitled FREE
+   * record (its first report, or the server-verified recovery of a proven-
+   * missing first-issued file): not customer storage
+   * (`measureFirstIssuanceAllowanceExclusion`, @proovra/shared-runtime), so
+   * recovering its missing file is never withheld for storage — the worker
+   * gate admits it on the same rule. Absent = not.
+   */
+  freeFirstIssuanceExcluded?: boolean;
+  /**
    * AUD-011 — which output of the latest pair a HEAD of its RECORDED version
    * proved gone (single-record views probe it; lists never do). Absent/null =
    * not proven missing (present, not checked, or the store did not answer).
@@ -1397,10 +1406,14 @@ function isStorageLimitRefusal(request: OutputRequestFact): boolean {
  * So the first report version of a record and the package pair of that
  * version are not refused by the storage allowance when the record earned its
  * outputs at finalization (the stored earned fact, or a consumed credit).
- * They still COUNT toward usage like every stored byte; the allowance itself
- * (250 MiB on FREE) and every later version — an updated report, an automatic
- * anchored version, a recovery of a lost file as a new version — are gated
- * exactly as before. No new file cap is imposed.
+ * They still COUNT toward usage like every stored byte — except (AUDIT D-03,
+ * product decision 2026-11-15) the first issuance of an entitled FREE record
+ * (stored FREE_ALLOWANCE fact), which is left out of the customer-facing
+ * figure by `measureFirstIssuanceAllowanceExclusion` (@proovra/shared-runtime)
+ * on both hosts; a credit-funded or paid-plan record's first issuance counts.
+ * The allowance itself (250 MiB on FREE) and every later version — an updated
+ * report, an automatic anchored version, a recovery of a lost file as a new
+ * version — are gated exactly as before. No new file cap is imposed.
  */
 export const STORAGE_EXEMPT_FIRST_ISSUANCE_BASES: ReadonlyArray<string> = ["EARNED_AT_FINALIZATION", "EVIDENCE_CREDIT"];
 
@@ -1523,7 +1536,9 @@ export function resolveEvidenceOutputActions(
     if (f.reportEligibility === "UNRESOLVED") return none("ENTITLEMENT_UNAVAILABLE");
     if (f.reportEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
     if (f.restrictions.legalHold) return none("LEGAL_HOLD_ACTIVE");
-    if (f.newVersionFitsStorage === false) return none("STORAGE_LIMIT");
+    // AUDIT D-03 — recovering an entitled Free record's first issuance adds
+    // nothing to the customer-facing storage figure.
+    if (f.newVersionFitsStorage === false && f.freeFirstIssuanceExcluded !== true) return none("STORAGE_LIMIT");
     return { action: "RECOVER", reason: null, operation: "NEW_VERSION" };
   };
 

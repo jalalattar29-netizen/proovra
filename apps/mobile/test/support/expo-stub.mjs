@@ -81,9 +81,29 @@ export const setAudioModeAsync = async () => {};
 export const requestRecordingPermissionsAsync = async () => ({ granted: true });
 
 /* --------------------------------------------------------------- expo-camera */
-export const CameraView = ({ children }) => children ?? null;
-export const useCameraPermissions = () => [{ granted: true }, async () => ({ granted: true })];
-export const useMicrophonePermissions = () => [{ granted: true }, async () => ({ granted: true })];
+/*
+ * F-P1-09 — OPT-IN device facts. Defaults are unchanged (both permissions
+ * granted, an inert camera). A test may set:
+ *   globalThis.__CAMERA_GRANTED__ / __MIC_GRANTED__  false → that permission is denied
+ *   globalThis.__CAMERA_RECORD__  async (props) → { uri, duration } (recordAsync)
+ * and read globalThis.__CAMERA_PROPS__ (the CameraView's last props: mode, mute…).
+ */
+export const CameraView = React.forwardRef(function CameraView(props, ref) {
+  globalThis.__CAMERA_PROPS__ = props;
+  React.useImperativeHandle(ref, () => ({
+    takePictureAsync: async () => ({ uri: "file:///cache/photo.jpg" }),
+    recordAsync: async () =>
+      typeof globalThis.__CAMERA_RECORD__ === "function" ? globalThis.__CAMERA_RECORD__(globalThis.__CAMERA_PROPS__) : undefined,
+    stopRecording: () => {},
+  }));
+  return props.children ?? null;
+});
+const permissionHook = (key) => () => {
+  const status = () => ({ granted: globalThis[key] !== false, canAskAgain: true, status: globalThis[key] !== false ? "granted" : "denied" });
+  return [status(), async () => status(), async () => status()];
+};
+export const useCameraPermissions = permissionHook("__CAMERA_GRANTED__");
+export const useMicrophonePermissions = permissionHook("__MIC_GRANTED__");
 
 /* ---------------------------------------------------------- expo-file-system */
 export const cacheDirectory = "file:///cache/";
@@ -125,6 +145,23 @@ export const deleteAsync = async (uri) => {
 };
 // A test observes the storage PUT by setting globalThis.__UPLOAD_ASYNC__.
 export const uploadAsync = async (...a) => (typeof globalThis.__UPLOAD_ASYNC__ === "function" ? globalThis.__UPLOAD_ASYNC__(...a) : { status: 200 });
+/*
+ * OPT-IN upload tasks and session types (F-P1-17). Absent by default, so every
+ * existing test keeps the plain `uploadAsync` path; a test that needs the
+ * cancellable task + progress callback + BACKGROUND session calls
+ * `__enableUploadTasks(factory)` (factory(url, uri, options, onProgress) →
+ * { uploadAsync, cancelAsync }) and `__disableUploadTasks()` afterwards.
+ */
+export let createUploadTask;
+export let FileSystemSessionType;
+export function __enableUploadTasks(factory) {
+  createUploadTask = factory;
+  FileSystemSessionType = { BACKGROUND: 0, FOREGROUND: 1 };
+}
+export function __disableUploadTasks() {
+  createUploadTask = undefined;
+  FileSystemSessionType = undefined;
+}
 
 /* -------------------------------------------------------------- expo-crypto */
 export const CryptoDigestAlgorithm = { SHA256: "SHA-256" };
@@ -174,7 +211,17 @@ export const signInAsync = async () => ({ identityToken: "stub-token" });
 
 /* ------------------------------------------------------- expo-auth-session */
 export const ResponseType = { IdToken: "id_token" };
-export const useAuthRequest = () => [null, null, async () => {}];
+// A test can stand up a live request with globalThis.__GOOGLE_AUTH__ = { configs: [], prompts: [] }:
+// every render's config is recorded, and promptAsync records the config it would send.
+export const useAuthRequest = (config) => {
+  const g = globalThis.__GOOGLE_AUTH__;
+  if (!g) return [null, null, async () => {}];
+  g.configs.push(config);
+  return [{ url: "stub://google" }, null, async () => {
+    g.prompts.push(config);
+    return { type: "dismiss" };
+  }];
+};
 export const makeRedirectUri = () => "stub://redirect";
 
 /* ------------------------------------------------------------ AsyncStorage */

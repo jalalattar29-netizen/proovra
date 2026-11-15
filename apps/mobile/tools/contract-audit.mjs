@@ -156,6 +156,15 @@ function returnedKeysOf(name, ctx) {
   const fn = local ?? findFunction(target, name);
   if (!fn || !fn.body) return null;
 
+  // A DELEGATED ROUTE HANDLER — it takes `reply` and answers through it, as
+  // the body-form and legacy path-form invite accept routes share one handler
+  // (B-15). Its envelope is what it SENDS, read exactly as a route handler's;
+  // its returns are reply chains, which carry no keys of their own.
+  if (fn.parameters?.some((p) => ts.isIdentifier(p.name) && p.name.text === "reply")) {
+    const env = handlerEnvelopes(fn.body, { src: target, depth: ctx.depth + 1 });
+    return env.keys.length > 0 ? env.keys : null;
+  }
+
   const scope = new Map();
   walk(fn.body, (n) => {
     if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer) {

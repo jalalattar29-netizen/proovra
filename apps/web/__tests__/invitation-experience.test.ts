@@ -368,7 +368,8 @@ test("the page does not accept on mount", () => {
       "the accept endpoint is referenced before/outside onAccept — arriving must not mutate",
     );
   }
-  assert.match(PAGE, /\/accept`,\s*\n?\s*\{ method: "POST"/);
+  // B-15 — the canonical accept carries the token in the BODY, not the path.
+  assert.match(PAGE, /"\/v1\/teams\/invites\/accept",\s*\n?\s*\{ method: "POST", body: JSON\.stringify\(\{ token \}\) \}/);
 });
 
 test("the lookup is a read, and it is the only thing an effect calls", () => {

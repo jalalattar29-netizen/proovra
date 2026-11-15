@@ -49,13 +49,15 @@ describe("Operations truth closure — P1 security (live PostgreSQL 16 + Redis)"
       },
       { connection: { host: url.hostname, port: Number(url.port) } },
     );
-    await q.add("GenerateReport", { evidenceId: b.evidenceId }, { jobId: `ops-truth-b-${Date.now()}`, attempts: 1 });
+    // Wait for THIS job to fail: a Redis reused across runs may already hold an
+    // older failed job, so "failed > 0" alone would end the wait early.
+    const added = await q.add("GenerateReport", { evidenceId: b.evidenceId }, { jobId: `ops-truth-b-${Date.now()}`, attempts: 1 });
     const until = Date.now() + 15_000;
-    while (Date.now() < until && (await q.getJobCounts("failed")).failed === 0) {
+    while (Date.now() < until && !(await added.isFailed())) {
       await new Promise((r) => setTimeout(r, 100));
     }
     await w.close();
-    expect((await q.getJobCounts("failed")).failed).toBeGreaterThan(0);
+    expect(await added.isFailed()).toBe(true);
 
     for (const token of [a.viewerToken, a.ownerToken]) {
       const r = await c.inj("GET", `/v1/investigation/diagnostics?teamId=${a.teamId}`, token);
@@ -218,6 +220,52 @@ describe("Operations truth closure — P1 security (live PostgreSQL 16 + Redis)"
     const suspended = await c.inj("GET", "/v1/platform/context", eo.token);
     expect(suspended.json().capabilities?.OPERATIONS_VIEW ?? false).toBe(false);
     expect((await c.inj("GET", `/v1/ops/incidents?teamId=${ews.teamId}`, eo.token)).statusCode).toBe(403);
+  });
+
+  it("A1-09 / B-18: an expired time-boxed membership or a suspended organization ends the selected context and leaves the switcher", async () => {
+    type Env = {
+      workspace?: { status?: string; id?: string | null };
+      availableWorkspaces?: Array<{ id: string }>;
+      diagnostics?: { workspaceSource?: string };
+    };
+    const ctx = async (token: string) => (await c.inj("GET", "/v1/platform/context", token)).json() as Env;
+
+    // Expiry: the status column stays ACTIVE (no sweep), the window lapses.
+    const o = await makeUser(c, "b18-owner");
+    const ws = await makeWorkspace(c, o.id, { name: "b18-expiry", kind: "OWNED", billingPlan: "TEAM", billingStatus: "ACTIVE" });
+    const m = await makeUser(c, "b18-member");
+    await personalSpace(c, m.id);
+    await addMember(c, ws.teamId, m.id, "MEMBER");
+    await envelopeFor(c, m.token, ws.teamId);
+    const live = await ctx(m.token);
+    expect(live.workspace?.id).toBe(ws.teamId); // positive control
+    expect(live.availableWorkspaces?.map((w) => w.id)).toContain(ws.teamId);
+    await c.prisma.teamMember.updateMany({
+      where: { teamId: ws.teamId, userId: m.id },
+      data: { accessExpiresAtUtc: new Date(Date.now() - 1000) },
+    });
+    const lapsed = await ctx(m.token);
+    expect(lapsed.workspace?.id).not.toBe(ws.teamId);
+    expect(lapsed.diagnostics?.workspaceSource).toBe("personal_bootstrap_after_stale");
+    expect(lapsed.availableWorkspaces?.map((w) => w.id) ?? []).not.toContain(ws.teamId);
+    // The API refuses the same member on the same workspace (the rule the envelope now follows).
+    expect((await c.inj("GET", `/v1/evidence?teamId=${ws.teamId}`, m.token)).statusCode).not.toBe(200);
+    expect((await c.prisma.teamMember.findFirstOrThrow({ where: { teamId: ws.teamId, userId: m.id } })).status).toBe("ACTIVE");
+
+    // Suspended organization: the owner's selection ends while the org is suspended.
+    const eo = await makeUser(c, "b18-org-owner");
+    await personalSpace(c, eo.id);
+    const ews = await makeWorkspace(c, eo.id, { name: "b18-suspended", billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" });
+    await envelopeFor(c, eo.token, ews.teamId);
+    expect((await ctx(eo.token)).workspace?.id).toBe(ews.teamId); // positive control
+    await c.prisma.organization.update({ where: { id: ews.orgId }, data: { status: "SUSPENDED" } });
+    try {
+      const suspended = await ctx(eo.token);
+      expect(suspended.workspace?.id).not.toBe(ews.teamId);
+      expect(suspended.availableWorkspaces?.map((w) => w.id) ?? []).not.toContain(ews.teamId);
+    } finally {
+      await c.prisma.organization.update({ where: { id: ews.orgId }, data: { status: "ACTIVE" } });
+    }
   });
 
   it("cross-tenant: another tenant's incident is indistinguishable from a missing one and cannot be mutated", async () => {

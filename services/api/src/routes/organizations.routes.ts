@@ -1300,7 +1300,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
   });
 
   // -------------------------------------------------------------------------
-  // POST /v1/org-invites/:token/accept
+  // POST /v1/org-invites/accept  { token }   (canonical, B-15)
+  // POST /v1/org-invites/:token/accept       (legacy path form)
   //
   // Accept an invite. The caller (authed) becomes a member of the
   // org at the invited role.
@@ -1315,15 +1316,22 @@ export async function organizationsRoutes(app: FastifyInstance) {
   //     also emit ORG_INVITE_ACCEPT_REJECTED so the org audit timeline
   //     surfaces token-enumeration / hijack pressure.
   // -------------------------------------------------------------------------
-  app.post(
-    "/v1/org-invites/:token/accept",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const token = z
-        .string()
-        .min(16)
-        .max(128)
-        .parse((req.params as { token: string }).token);
+  //
+  // B-15 — THE TOKEN TRAVELS IN THE BODY. The canonical form is
+  // POST /v1/org-invites/accept { token } (the rule WCR-20 set for the
+  // collaboration accept and teams.routes applies to the lookup: a live
+  // credential in a request path reaches access logs, proxy logs, APM traces
+  // and Referer headers). The PATH form below stays for app builds already in
+  // people's hands; both run this one handler.
+  // B-16 — every refusal carries a nested error.code (the workspace-invitation
+  // codes) next to the old top-level message, so a client can say what to do.
+  // -------------------------------------------------------------------------
+  const acceptOrgInviteHandler = async (
+    req: FastifyRequest,
+    reply: FastifyReply,
+    token: string,
+  ) => {
+    {
       const userId = getAuthUserId(req);
 
       // PHASE 5 §8 (2026-07-22) — acceptance moved into the canonical
@@ -1337,21 +1345,30 @@ export async function organizationsRoutes(app: FastifyInstance) {
       });
 
       if (result.kind === "not_found") {
-        return reply.code(404).send({ message: "Invite not found." });
+        return reply
+          .code(404)
+          .send({ error: { code: "INVITE_NOT_FOUND" }, message: "Invite not found." });
       }
       if (result.kind === "revoked") {
-        return reply.code(410).send({ message: "Invite has been revoked." });
+        return reply
+          .code(410)
+          .send({ error: { code: "INVITE_REVOKED" }, message: "Invite has been revoked." });
       }
       if (result.kind === "already_accepted") {
-        return reply.code(410).send({ message: "Invite already accepted." });
+        return reply
+          .code(410)
+          .send({ error: { code: "INVITE_ALREADY_USED" }, message: "Invite already accepted." });
       }
       if (result.kind === "expired") {
-        return reply.code(410).send({ message: "Invite has expired." });
+        return reply
+          .code(410)
+          .send({ error: { code: "INVITE_EXPIRED" }, message: "Invite has expired." });
       }
       if (result.kind === "email_mismatch") {
-        return reply
-          .code(403)
-          .send({ message: "Invite email does not match your account." });
+        return reply.code(403).send({
+          error: { code: "INVITE_EMAIL_MISMATCH" },
+          message: "Invite email does not match your account.",
+        });
       }
       if (result.kind === "email_unverified") {
         return reply.code(403).send({
@@ -1374,9 +1391,10 @@ export async function organizationsRoutes(app: FastifyInstance) {
       if (result.kind === "org_unavailable") {
         // §8.1 — archived/suspended target; same class as revoked/expired
         // (410, no org-existence detail).
-        return reply
-          .code(410)
-          .send({ message: "This organization is not accepting members." });
+        return reply.code(410).send({
+          error: { code: "ORGANIZATION_NOT_ACCEPTING_MEMBERS" },
+          message: "This organization is not accepting members.",
+        });
       }
       /**
        * SEAT CONTENTION IS RETRYABLE, AND SAYS SO.
@@ -1458,6 +1476,44 @@ export async function organizationsRoutes(app: FastifyInstance) {
           : {}),
         ...(result.setupRedirect ? { setupRedirect: result.setupRedirect } : {}),
       });
+    }
+  };
+
+  app.post<{ Body: { token?: unknown } }>(
+    "/v1/org-invites/accept",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      void reply.header("Cache-Control", "no-store");
+      const parsed = z
+        .object({ token: z.string().min(16).max(128) })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        // Answered like an unknown token: the request's shape says nothing.
+        return reply
+          .code(404)
+          .send({ error: { code: "INVITE_NOT_FOUND" }, message: "Invite not found." });
+      }
+      return acceptOrgInviteHandler(req, reply, parsed.data.token);
+    },
+  );
+
+  /**
+   * LEGACY COMPATIBILITY (B-15) — the token in the path, for app builds that
+   * still send it. Same handler; the response tells a browser not to pass the
+   * URL on.
+   */
+  app.post(
+    "/v1/org-invites/:token/accept",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      void reply.header("Referrer-Policy", "no-referrer");
+      void reply.header("Cache-Control", "no-store");
+      const token = z
+        .string()
+        .min(16)
+        .max(128)
+        .parse((req.params as { token: string }).token);
+      return acceptOrgInviteHandler(req, reply, token);
     },
   );
 
@@ -2440,9 +2496,14 @@ export async function organizationsRoutes(app: FastifyInstance) {
       const result = await prisma.$transaction(async (tx) => {
         const membership = await tx.organizationMembership.findFirst({
           where: { organizationId: orgId, userId },
-          select: { id: true, role: true },
+          select: { id: true, role: true, status: true },
         });
-        if (!membership) {
+        // B-17 — a membership that already ended (REVOKED: removed, or left
+        // before) has nothing to leave. It used to run the exit again and write
+        // a second ORG_MEMBER_LEFT for a departure that never happened; it now
+        // answers what the header promises for a repeat call. A SUSPENDED member
+        // may still leave (that ends the membership for good).
+        if (!membership || membership.status === "REVOKED") {
           return { kind: "not_found" as const };
         }
         if (

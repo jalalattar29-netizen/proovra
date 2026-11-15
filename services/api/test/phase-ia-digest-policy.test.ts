@@ -219,9 +219,17 @@ describe("Phase IA-digest-policy — TSA digest thread is single-sourced", () =>
 
   it("finalize callsite passes fileSha256 as the TSA digest", () => {
     // 2026-10-29: the input kind rides along for the request log only.
+    // F-04 (2026-11-15): the token is obtained outside the transaction from
+    // the attestation request, whose digest IS the seal's fileSha256 and which
+    // the sealing transaction re-derives and compares before persisting.
     expect(EVIDENCE_COMPLETE).toMatch(
-      /createEvidenceTimestamp\(\{\s*digestHex:\s*fileSha256\s*,?\s*(?:inputKind:\s*tsaInputKind\s*,?\s*)?\}\)/,
+      /createEvidenceTimestamp\(\{\s*digestHex:\s*request\.fileSha256\s*,\s*inputKind:\s*request\.tsaInputKind\s*,?\s*\}\)/,
     );
+    expect(EVIDENCE_COMPLETE).toMatch(
+      /const attestationRequest: CompletionAttestationRequest = \{[\s\S]{0,200}\bfileSha256,[\s\S]{0,40}\btsaInputKind,/,
+    );
+    expect(EVIDENCE_COMPLETE).toMatch(/a\.fileSha256 === r\.fileSha256/);
+    expect(EVIDENCE_COMPLETE).toMatch(/a\.tsaResult\.requestDigestHex === r\.fileSha256/);
   });
 
   it("finalize tsaInputKind label is derived from multipart count (kept in sync with the digest)", () => {

@@ -163,6 +163,50 @@ export type EvidencePartWriteResult = {
   evidence: { id: string; teamId: string | null; ownerUserId: string };
 };
 
+/**
+ * C-05 (Free-user audit of 4d9b78963) — the per-file metadata a person may
+ * still edit on a part before the seal: its private role, private note,
+ * checklist step and source label. Nothing else on a part row is editable here
+ * (never its storage location, name, type, digest/size binding or signals).
+ * A key that is absent (undefined) is left as stored; null clears it.
+ */
+export type EvidencePartMetadataEdits = {
+  privateRole?: string | null;
+  privateNote?: string | null;
+  checklistStepId?: string | null;
+  sourceLabel?: string | null;
+};
+
+const PART_METADATA_KEYS = ["privateRole", "privateNote", "checklistStepId", "sourceLabel"] as const;
+
+/**
+ * C-05 — apply metadata edits to a part ALREADY issued for the same bound file
+ * (the caller has proven the binding, evidence-part-binding.service.ts). Takes
+ * the same record lock and writable-state proof as a byte write, so an edit
+ * either commits before the seal reads the parts or waits and is refused once
+ * the record is sealed (409 EVIDENCE_NOT_WRITABLE): finalized content is never
+ * edited. Returns the row as stored afterwards (unchanged when nothing differs).
+ */
+export async function updateEvidencePartMetadata(
+  input: { evidenceId: string; principal: EvidencePartWritePrincipal; partId: string; edits: EvidencePartMetadataEdits },
+  client: AnyClient = defaultPrisma,
+): Promise<prismaPkg.EvidencePart> {
+  return inTx(client, async (tx) => {
+    await lockEvidenceForByteWrite(tx, input.evidenceId, input.principal);
+    const part = await tx.evidencePart.findFirst({ where: { id: input.partId, evidenceId: input.evidenceId } });
+    if (!part) throw new EvidencePartWriteRefused("EVIDENCE_NOT_FOUND");
+    const data: Partial<Record<(typeof PART_METADATA_KEYS)[number], string | null>> = {};
+    for (const key of PART_METADATA_KEYS) {
+      const edit = input.edits[key];
+      if (edit === undefined) continue;
+      const next = typeof edit === "string" ? edit.trim() || null : null;
+      if ((part[key] ?? null) !== next) data[key] = next;
+    }
+    if (Object.keys(data).length === 0) return part;
+    return tx.evidencePart.update({ where: { id: part.id }, data });
+  });
+}
+
 /** THE only EvidencePart insert in production code. */
 export async function writeEvidencePart(
   input: EvidencePartWriteInput,

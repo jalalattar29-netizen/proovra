@@ -1,7 +1,8 @@
 /**
  * ORGANIZATION INVITE ACCEPTANCE — pure projection.
  *
- * Ports the accept response of `POST /v1/org-invites/:token/accept`, read by
+ * Ports the accept response of `POST /v1/org-invites/accept` (token in the
+ * BODY — B-15; the old path form is still answered for older builds), read by
  * `apps/web/app/(app)/org-invites/[token]/accept/page.tsx`.
  *
  * A DIFFERENT family from the collaboration-group invite: different token
@@ -118,6 +119,57 @@ export const ORG_SETUP_ON_WEB_COPY =
  * closed, 404 unknown token, anything else (403 email mismatch, 409) generic.
  */
 export function orgInviteFailureMessage(status: number): string {
+  return orgInviteRefusal(undefined, status).message;
+}
+
+/** B-15 — the canonical accept: the token travels in the body, never in the path. */
+export const ORG_INVITE_ACCEPT_PATH = "/v1/org-invites/accept";
+
+export interface OrgInviteRefusal {
+  title: string;
+  message: string;
+  /** The invitation is still valid and a second press can succeed (a busy workspace). */
+  retry: boolean;
+}
+
+/**
+ * B-16 — the accept route's refusal, by its code (organizations.routes.ts
+ * acceptOrgInviteHandler), in the web page's words
+ * (org-invites/[token]/accept/page.tsx orgInviteRefusal). Every refusal used to
+ * read "ask for a new invitation", which is the wrong advice for a different
+ * signed-in address, a busy workspace or a suspended membership. A body
+ * without a code (an older API) keeps the status wording.
+ */
+export function orgInviteRefusal(code: string | undefined, status: number): OrgInviteRefusal {
+  const r = (title: string, message: string, retry = false): OrgInviteRefusal => ({ title, message, retry });
+  switch (code) {
+    case "INVITE_EXPIRED":
+      return r("This invitation has expired", "Ask an organization administrator to send a new invitation if you still need access.");
+    case "INVITE_REVOKED":
+      return r("This invitation was withdrawn", "Ask an organization administrator if you still need access.");
+    case "INVITE_ALREADY_USED":
+      return r("This invitation has already been used", "If you accepted it, open the organization from Organizations. Otherwise ask for a new invitation.");
+    case "INVITE_EMAIL_MISMATCH":
+      return r(
+        "This invitation was sent to a different address",
+        "You are signed in with another account. Sign out, sign in (or create an account) with the address the invitation was sent to, then open the link again. The invitation stays valid.",
+      );
+    case "ORGANIZATION_NOT_ACCEPTING_MEMBERS":
+      return r("This organization isn't accepting members", "It is archived or suspended. Ask an organization administrator if you still need access.");
+    case "MEMBERSHIP_SUSPENDED":
+      return r("Your membership in this organization is suspended", "Ask an organization administrator to reinstate it. A new invitation does not lift a suspension.");
+    case "INVITE_SUPERSEDED":
+      return r("This invitation is no longer valid", "It was issued before your access to this organization ended. Ask for a new invitation.");
+    case "WORKSPACE_SEAT_CONTENTION":
+      return r("Too many people are joining at once", "Your invitation is still valid. Try again in a moment.", true);
+    case "INVITE_NOT_FOUND":
+      return r("This invitation link isn't available", "The link may be incorrect. Ask an organization administrator for a new invitation.");
+    default:
+      return r("We couldn't accept this invite", orgInviteStatusMessage(status));
+  }
+}
+
+function orgInviteStatusMessage(status: number): string {
   if (status === 410) return "This invite is expired, revoked, or already accepted. Ask an organization administrator to send a new one.";
   if (status === 404) return "Invite not found — the link may be incorrect. Ask an organization administrator for a new invitation.";
   return "The invite couldn't be accepted. Ask an organization administrator for a new invitation.";

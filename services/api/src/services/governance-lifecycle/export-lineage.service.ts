@@ -47,6 +47,11 @@ import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { checkExportEligibility } from "./export-governance.service.js";
+import {
+  holdInReach,
+  incidentInReach,
+  type ViewerReach,
+} from "../access/record-reach.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -115,6 +120,13 @@ export type GovernanceExportSnapshotProjection = {
   exportEligibilityReason: string;
   snapshotHash: string;
   snapshotPayload: GovernanceExportSnapshotPayload;
+  /**
+   * A2-12 — true when hold or incident references to records closed to this
+   * reader were withheld from `activeHoldIds`, `governanceIncidentIds` and the
+   * payload. The stored row is untouched; `snapshotHash` covers the stored
+   * payload, which the verify route re-hashes server-side.
+   */
+  payloadRedacted: boolean;
 };
 
 function projectSnapshot(row: DbSnapshot): GovernanceExportSnapshotProjection {
@@ -133,6 +145,7 @@ function projectSnapshot(row: DbSnapshot): GovernanceExportSnapshotProjection {
     exportEligibilityReason: row.exportEligibilityReason,
     snapshotHash: row.snapshotHash,
     snapshotPayload: row.snapshotPayload as unknown as GovernanceExportSnapshotPayload,
+    payloadRedacted: false,
   };
 }
 
@@ -147,13 +160,25 @@ export type CaptureExportSnapshotInput = {
   evidenceId: string | null;
   snapshotKind: GovernanceExportSnapshotKind;
   createdByUserId: string | null;
+  /**
+   * A2-12 — the creator's record reach (`viewerReachInWorkspace`). When given,
+   * a record closed to the creator is refused exactly like a missing one, and
+   * holds and incidents naming closed records or cases are not captured.
+   */
+  reach?: ViewerReach | null;
 };
 
 export async function captureExportSnapshot(
   input: CaptureExportSnapshotInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<GovernanceExportSnapshotProjection> {
-  const parsed = GovernanceExportSnapshotInputSchema.safeParse(input);
+  // `reach` is the caller's authority, not part of the snapshot input contract.
+  const parsed = GovernanceExportSnapshotInputSchema.safeParse({
+    teamId: input.teamId,
+    evidenceId: input.evidenceId,
+    snapshotKind: input.snapshotKind,
+    createdByUserId: input.createdByUserId,
+  });
   if (!parsed.success || !VALID_KINDS.has(input.snapshotKind)) {
     throw new GovernanceExportSnapshotError("EXPORT_SNAPSHOT_INVALID", {
       detail: parsed.success ? null : parsed.error.flatten(),
@@ -179,7 +204,7 @@ export async function captureExportSnapshot(
 
   if (input.evidenceId) {
     const ev = await client.evidence.findFirst({
-      where: { id: input.evidenceId, teamId: input.teamId },
+      where: { AND: [{ id: input.evidenceId, teamId: input.teamId }, input.reach?.evidence ?? {}] },
       select: {
         id: true,
         caseLinks: { select: { caseId: true }, take: 100 },
@@ -264,7 +289,11 @@ export async function captureExportSnapshot(
   } else {
     // Workspace-level — capture every ACTIVE direct hold.
     const directHolds = await client.evidenceLegalHold.findMany({
-      where: { teamId: input.teamId, status: prismaPkg.LegalHoldStatus.ACTIVE },
+      where: {
+        teamId: input.teamId,
+        status: prismaPkg.LegalHoldStatus.ACTIVE,
+        AND: input.reach ? holdInReach(input.reach) : [],
+      },
       select: { id: true, placedAtUtc: true, caseId: true },
       take: 500,
     });
@@ -283,6 +312,7 @@ export async function captureExportSnapshot(
       category: prismaPkg.IncidentCategory.GOVERNANCE,
       status: { in: [prismaPkg.IncidentStatus.OPEN, prismaPkg.IncidentStatus.ACKNOWLEDGED] },
       ...(input.evidenceId ? { relatedEvidenceId: input.evidenceId } : {}),
+      AND: input.reach ? [incidentInReach(input.reach)] : [],
     },
     select: { id: true, severity: true, status: true },
     take: 50,
@@ -365,14 +395,124 @@ export async function captureExportSnapshot(
 // Read
 // -----------------------------------------------------------------------------
 
+/**
+ * A2-12 — a snapshot of a record closed to the reader is that record's row:
+ * not listed, and answered like a missing snapshot. A workspace snapshot stays
+ * readable; references inside it to closed records are withheld on projection.
+ */
+function snapshotInReachWhere(
+  reach: ViewerReach | null | undefined,
+): prismaPkg.Prisma.GovernanceExportSnapshotWhereInput[] {
+  const hidden = reach?.hidden.evidenceIds ?? [];
+  return hidden.length === 0
+    ? []
+    : [{ OR: [{ evidenceId: null }, { evidenceId: { notIn: hidden } }] }];
+}
+
+async function findSnapshotRowInReach(
+  input: { teamId: string; id: string; reach?: ViewerReach | null },
+  client: PrismaClient,
+): Promise<DbSnapshot | null> {
+  return client.governanceExportSnapshot.findFirst({
+    where: { id: input.id, teamId: input.teamId, AND: snapshotInReachWhere(input.reach) },
+  });
+}
+
+/**
+ * Withhold, per reader, the hold and incident ids a snapshot names whose
+ * record or case is closed to them — `holdInReach` / `incidentInReach` asked
+ * from the other end (which of the NAMED rows are closed). The stored row is
+ * never changed.
+ */
+async function projectSnapshotsForReader(
+  rows: ReadonlyArray<DbSnapshot>,
+  reach: ViewerReach | null | undefined,
+  client: PrismaClient,
+): Promise<GovernanceExportSnapshotProjection[]> {
+  const projected = rows.map(projectSnapshot);
+  if (!reach || (reach.hidden.evidenceIds.length === 0 && reach.hidden.caseIds.length === 0)) {
+    return projected;
+  }
+  const holdIds = [...new Set(rows.flatMap((r) => r.activeHoldIds))];
+  const incidentIds = [...new Set(rows.flatMap((r) => r.governanceIncidentIds))];
+  const [closedHolds, closedIncidents] = await Promise.all([
+    holdIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string }>)
+      : client.evidenceLegalHold.findMany({
+          where: {
+            id: { in: holdIds },
+            OR: [
+              { evidenceId: { in: reach.hidden.evidenceIds } },
+              { caseId: { in: reach.hidden.caseIds } },
+            ],
+          },
+          select: { id: true },
+        }),
+    incidentIds.length === 0 || reach.hidden.evidenceIds.length === 0
+      ? Promise.resolve([] as Array<{ id: string }>)
+      : client.operationalIncident.findMany({
+          where: { id: { in: incidentIds }, relatedEvidenceId: { in: reach.hidden.evidenceIds } },
+          select: { id: true },
+        }),
+  ]);
+  const closedHoldIds = new Set(closedHolds.map((h) => h.id));
+  const closedIncidentIds = new Set(closedIncidents.map((i) => i.id));
+  const closedCaseIds = new Set(reach.hidden.caseIds);
+  return projected.map((p) => {
+    const payload = p.snapshotPayload;
+    const storedHolds = payload.activeHolds ?? [];
+    const storedIncidents = payload.governanceIncidents ?? [];
+    // A hold is closed when its row names a closed record or case, or when the
+    // payload names a closed case for it (the row may since have moved).
+    const closedHere = new Set([
+      ...closedHoldIds,
+      ...storedHolds.filter((h) => h.caseId !== null && closedCaseIds.has(h.caseId)).map((h) => h.id),
+    ]);
+    const holds = storedHolds.filter((h) => !closedHere.has(h.id));
+    const incidents = storedIncidents.filter((i) => !closedIncidentIds.has(i.id));
+    const activeHoldIds = p.activeHoldIds.filter((id) => !closedHere.has(id));
+    const governanceIncidentIds = p.governanceIncidentIds.filter((id) => !closedIncidentIds.has(id));
+    const redacted =
+      activeHoldIds.length !== p.activeHoldIds.length ||
+      governanceIncidentIds.length !== p.governanceIncidentIds.length ||
+      holds.length !== storedHolds.length ||
+      incidents.length !== storedIncidents.length;
+    if (!redacted) return p;
+    return {
+      ...p,
+      activeHoldIds,
+      governanceIncidentIds,
+      snapshotPayload: { ...payload, activeHolds: holds, governanceIncidents: incidents },
+      payloadRedacted: true,
+    };
+  });
+}
+
 export async function getExportSnapshot(
-  input: { teamId: string; id: string },
+  input: { teamId: string; id: string; reach?: ViewerReach | null },
   client: PrismaClient = defaultPrisma,
 ): Promise<GovernanceExportSnapshotProjection | null> {
-  const row = await client.governanceExportSnapshot.findFirst({
-    where: { id: input.id, teamId: input.teamId },
-  });
-  return row ? projectSnapshot(row) : null;
+  const row = await findSnapshotRowInReach(input, client);
+  if (!row) return null;
+  return (await projectSnapshotsForReader([row], input.reach, client))[0] ?? null;
+}
+
+/**
+ * Re-hash the STORED payload of a snapshot the reader may open. A redacted
+ * projection would not re-hash to `snapshotHash`, so verification reads the
+ * row itself and answers only the verdict and the hash.
+ */
+export async function verifyStoredExportSnapshot(
+  input: { teamId: string; id: string; reach?: ViewerReach | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ snapshotId: string; valid: boolean; snapshotHash: string } | null> {
+  const row = await findSnapshotRowInReach(input, client);
+  if (!row) return null;
+  return {
+    snapshotId: row.id,
+    valid: verifyExportSnapshotHash(projectSnapshot(row)),
+    snapshotHash: row.snapshotHash,
+  };
 }
 
 type SnapshotListInput = {
@@ -381,6 +521,8 @@ type SnapshotListInput = {
   evidenceId?: string | null;
   limit?: number;
   before?: { createdAt: string; id: string };
+  /** A2-12 — the reader's record reach; see `snapshotInReachWhere`. */
+  reach?: ViewerReach | null;
 };
 
 async function queryExportSnapshots(
@@ -396,13 +538,14 @@ async function queryExportSnapshots(
       { createdAt: { lt: new Date(input.before.createdAt) } },
       { createdAt: new Date(input.before.createdAt), id: { lt: input.before.id } },
     ] } : {}),
+    AND: snapshotInReachWhere(input.reach),
   };
   const rows = await client.governanceExportSnapshot.findMany({
     where,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take,
   });
-  return rows.map(projectSnapshot);
+  return projectSnapshotsForReader(rows, input.reach, client);
 }
 
 export async function listExportSnapshots(

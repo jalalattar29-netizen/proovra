@@ -248,6 +248,20 @@ const ParamsId = z.object({ id: z.string().uuid() });
 // Helpers
 // -----------------------------------------------------------------------------
 
+/**
+ * A2-08 / round 3 — THE per-link reach rule: a link bound to a Case closed to
+ * this caller (`caseClosedTo`, case-visibility.ts) answers exactly like a link
+ * that does not exist, on every per-link read and mutation (detail,
+ * submissions, recipient-contact reveal, revoke, archive, unarchive, send).
+ * Asked after the workspace gate, before anything is read out or written.
+ * Revoke is no exception for a caller who cannot reach the link; anyone who
+ * CAN reach it (the case owner, the access list, every member for a link with
+ * no case or an open case) keeps it.
+ */
+async function intakeLinkClosedTo(link: { caseId: string | null }, userId: string): Promise<boolean> {
+  return link.caseId !== null && (await caseClosedTo(link.caseId, userId));
+}
+
 function sendFeatureDisabled(reply: FastifyReply): void {
   const reason = workflowIntakeFeatureDisabledReason() ?? "unknown";
   reply.code(503).send({
@@ -456,11 +470,10 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
             };
         let delivery: DeliveryResult = { method: "MANUAL", status: "skipped" };
         if (body.deliveryMethod !== "MANUAL" && body.intakeUrlBase) {
-          // Compose the public intake URL the contributor opens.
-          // `intakeUrlBase` is the operator's origin (e.g.
-          // "https://app.proovra.com") + the page expects the token
-          // appended as a path segment under /intake/<token>.
-          const intakeUrl = `${body.intakeUrlBase.replace(/\/$/, "")}/intake/${result.rawToken}`;
+          // A2-16 — the public intake URL the contributor opens is built by
+          // the dispatcher from the configured web origin
+          // (`intakeLinkPublicUrl`); `intakeUrlBase` is still accepted from
+          // older clients but no longer reaches any message.
           const team = await prisma.team.findUnique({
             where: { id: body.teamId },
             select: { name: true, evidenceWorkspaceLabel: true },
@@ -481,7 +494,6 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
               teamId: body.teamId,
               intakeLinkId: result.link.id,
               rawToken: result.rawToken,
-              intakeUrl,
               channel: body.deliveryMethod as "EMAIL" | "SMS",
               actorUserId: ok.userId,
               workspaceName,
@@ -646,7 +658,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       if (!ok) return;
       // A2-08 — a link bound to a case closed to this reader answers exactly
       // like a link that does not exist.
-      if (link.caseId !== null && (await caseClosedTo(link.caseId, ok.userId))) {
+      if (await intakeLinkClosedTo(link, ok.userId)) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
 
@@ -711,6 +723,10 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
        */
       const member = await requireMember(req, reply, link.teamId);
       if (!member) return;
+      // Round 3 — a link on a Case closed to this caller is a missing link.
+      if (await intakeLinkClosedTo(link, member.userId)) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
 
       const disclosure = await resolveRecipientContactDisclosure(req, {
         teamId: link.teamId,
@@ -857,7 +873,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       // A2-08 — as the single link: a closed case's link is not found, and a
       // submission whose record a restricted case closes to the reader is
       // not listed.
-      if (link.caseId !== null && (await caseClosedTo(link.caseId, ok.userId))) {
+      if (await intakeLinkClosedTo(link, ok.userId)) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
       const hidden = await hiddenRecordIdsInWorkspace(link.teamId, ok.userId);
@@ -889,6 +905,10 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
 
       const ok = await requireIntakeWorkflowActor(req, reply, existing.teamId, "workflow.intake_link.revoke");
       if (!ok) return;
+      // Round 3 — reach first; anyone who can reach the link may still revoke it.
+      if (await intakeLinkClosedTo(existing, ok.userId)) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
 
       const updated = await revokeWorkflowIntakeLink({
         id,
@@ -957,6 +977,9 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       }
       const ok = await requireIntakeWorkflowActor(req, reply, existing.teamId, "workflow.intake_link.revoke");
       if (!ok) return;
+      if (await intakeLinkClosedTo(existing, ok.userId)) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
 
       const updated = await archiveWorkflowIntakeLink({
         id,
@@ -1009,6 +1032,9 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       }
       const ok = await requireIntakeWorkflowActor(req, reply, existing.teamId, "workflow.intake_link.create");
       if (!ok) return;
+      if (await intakeLinkClosedTo(existing, ok.userId)) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
 
       const updated = await unarchiveWorkflowIntakeLink({
         id,
@@ -1047,9 +1073,12 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
   // -- Phase 18: send via SMS / WhatsApp -------------------------------
   //
   // Operator-initiated delivery. Requires the rawToken from the initial
-  // create call (we never persist it) and the public intakeUrl. The
-  // service refuses to send for revoked/expired links and surfaces the
-  // CommunicationMessage id on success.
+  // create call (we never persist it). A2-16 — the token must be this link's
+  // (bound by its hash in the dispatcher, refused before anything is sent)
+  // and the URL in the message is built server-side from the configured web
+  // origin; a caller-supplied `intakeUrl` is accepted from older clients and
+  // ignored. The service refuses to send for revoked/expired links and
+  // surfaces the CommunicationMessage id on success.
   app.post(
     "/v1/workflow/intake-links/:id/send",
     { preHandler: requireAuth },
@@ -1065,7 +1094,8 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         .object({
           channel: z.enum(["SMS", "EMAIL"]).default("SMS"),
           rawToken: z.string().min(8).max(512),
-          intakeUrl: z.string().url().max(1000),
+          // A2-16 — accepted, never used (see above).
+          intakeUrl: z.string().url().max(1000).optional(),
           // Phase 5 idempotency nonce — same role as create. A
           // user clicking Resend twice with the same nonce won't
           // produce two real provider calls.
@@ -1078,6 +1108,11 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       }
       const ok = await requireIntakeWorkflowActor(req, reply, existing.teamId, "workflow.intake_link.create");
       if (!ok) return;
+      // A2-08 follow-up — a link bound to a case closed to this operator
+      // answers exactly like a link that does not exist (as GET /:id does).
+      if (await intakeLinkClosedTo(existing, ok.userId)) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
 
       // Phase 7 — per-link resend rate limit. 10/min per
       // (link, user) protects against a UI bug or impatient
@@ -1107,7 +1142,6 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         teamId: existing.teamId,
         intakeLinkId: id,
         rawToken: body.rawToken,
-        intakeUrl: body.intakeUrl,
         channel: body.channel,
         actorUserId: ok.userId,
         workspaceName,
@@ -1146,7 +1180,9 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         const status =
           sendResult.reason === "link_not_found"
             ? 404
-            : sendResult.reason === "link_revoked" ||
+            : sendResult.reason === "token_mismatch"
+              ? 400
+              : sendResult.reason === "link_revoked" ||
                 sendResult.reason === "link_expired"
               ? 409
               : sendResult.reason === "link_missing_phone" ||

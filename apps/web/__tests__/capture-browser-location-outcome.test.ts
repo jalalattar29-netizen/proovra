@@ -54,3 +54,12 @@ test("position unavailable (2) is UNAVAILABLE and timeout (3) is TIMEOUT — nev
 test("a browser without geolocation is UNAVAILABLE", async () => {
   assert.deepEqual(await withGeolocation(undefined, () => requestBrowserCaptureLocation(false)), { outcome: "UNAVAILABLE" });
 });
+
+// C-16 (Free-user audit of 4d9b78963) — the Geolocation timeout starts only
+// after permission is granted, so an unanswered prompt never settled and
+// Finish spun. The capture's own deadline answers TIMEOUT.
+test("C-16: a permission prompt nobody answers ends as TIMEOUT at the capture deadline", async () => {
+  const unanswered: Geo = { getCurrentPosition: () => undefined };
+  const r = await withGeolocation(unanswered, () => requestBrowserCaptureLocation(false, 20));
+  assert.deepEqual(r, { outcome: "TIMEOUT" });
+});

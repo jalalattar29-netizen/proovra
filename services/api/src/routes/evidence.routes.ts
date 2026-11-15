@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { objectKeyFileNameFragment } from "../services/storage/object-key-file-name.js";
 import { releaseRefusedUploadReservation } from "../services/evidence-upload-refusal.service.js";
 import { bumpCaptureFailure, objectLockPolicyFromEnv } from "@proovra/shared-runtime";
+import { MISSING_OUTPUT_RECOVERY_KEY_PREFIX } from "@proovra/shared-runtime";
 import {
   accessibleWorkspaceIdsFor,
   evidenceReachWhere,
@@ -13,6 +14,7 @@ import { loadRecordSigningKeyFacts, resolveRecordSignatureValidity } from "../si
 import {
   lockEvidenceForByteWrite,
   MAX_EVIDENCE_PARTS,
+  updateEvidencePartMetadata,
   writeEvidencePart,
 } from "../services/evidence/evidence-part-writer.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
@@ -164,7 +166,7 @@ import {
   overallIntegrityOf,
   digestColumnsMatchSignedFingerprint as digestColumnsMatchSignedFingerprintOf,
   buildCustodyDisplayCounts,
-  custodyCutoffSequence,
+  issuedReportCustodyCutoff,
   splitCustodyAtCutoff,
   annotateArtifactHistory,
   evidenceRecordStatusLabel,
@@ -311,8 +313,10 @@ import { CANONICAL_STATE_BODIES, CANONICAL_STATE_HTTP } from "./_canonical-verif
 import { assertInteractiveEvidenceCreateAllowed, createEvidence } from "../services/evidence.service.js";
 import {
   assertWorkspaceAllowsStorageGrowth,
+  evidenceAdmissionKeyFor,
   resolveEnforcementScopeForRequester,
   scopeIncludesAiOperations,
+  withEvidenceCapacityAdmissionKey,
   ownerIncludesReviewCapability,
   workspaceIncludesReviewCapability,
 } from "../services/billing-enforcement.service.js";
@@ -672,10 +676,11 @@ const CreatePartBody = z.object({
    * answered with its own code rather than a generic validation error.
    */
   sizeBytes: z.number().int().min(0).optional(),
-  privateRole: z.string().trim().min(1).max(120).optional(),
-  privateNote: z.string().trim().max(1000).optional(),
-  checklistStepId: z.string().trim().min(1).max(120).optional(),
-  sourceLabel: z.string().trim().min(1).max(120).optional(),
+  // C-05 — null clears the value on a part already issued for the same file.
+  privateRole: z.string().trim().min(1).max(120).nullable().optional(),
+  privateNote: z.string().trim().max(1000).nullable().optional(),
+  checklistStepId: z.string().trim().min(1).max(120).nullable().optional(),
+  sourceLabel: z.string().trim().min(1).max(120).nullable().optional(),
   clientSignals: JsonValueSchema.optional(),
 });
 
@@ -6656,7 +6661,10 @@ intakePlanJson:
 };
 const result = body.captureSessionId
   ? await (async () => {
-      const created = await prisma.$transaction((tx) => createWithDraftBinding(tx), { timeout: 30_000, maxWait: 10_000 });
+      // F-03 — the workspace's in-process admission before the transaction opens.
+      const created = await withEvidenceCapacityAdmissionKey(evidenceAdmissionKeyFor({ ownerUserId, teamId: body.teamId }), () =>
+        prisma.$transaction((tx) => createWithDraftBinding(tx), { timeout: 30_000, maxWait: 10_000 }),
+      );
       const { afterCommit, ...record } = created;
       await afterCommit?.();
       return record;
@@ -7292,6 +7300,16 @@ message:
           statusCode: 409,
           code: "PART_INDEX_TAKEN",
         });
+      // C-05 — an idempotent re-presign of the SAME bound file (before the
+      // seal) carries the person's latest note/role/step/label for it; only
+      // those columns change, through the part owner, under the record lock.
+      const metadataEdits = {
+        privateRole: body.privateRole,
+        privateNote: body.privateNote,
+        checklistStepId: body.checklistStepId,
+        sourceLabel: body.sourceLabel,
+      };
+      const principal = { kind: "OWNER" as const, userId: ownerUserId };
 
       try {
         const result = await prisma.$transaction(async (tx) => {
@@ -7318,7 +7336,8 @@ message:
 
           if (existing) {
             if (!isSameBoundFile(existing, declaredFile)) throw refuseOtherFile();
-            return { part: existing, created: false as const };
+            const part = await updateEvidencePartMetadata({ evidenceId: id, principal, partId: existing.id, edits: metadataEdits }, tx);
+            return { part, created: false as const };
           }
 
           // Phase 11 — pre-presign file validation (authenticated path).
@@ -7401,7 +7420,8 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${o
           if (!inserted) {
             // A concurrent presign took the index first: the same rule applies.
             if (!isSameBoundFile(part, declaredFile)) throw refuseOtherFile();
-            return { part, created: false as const };
+            const restated = await updateEvidencePartMetadata({ evidenceId: id, principal, partId: part.id, edits: metadataEdits }, tx);
+            return { part: restated, created: false as const };
           }
           return { part, created: true as const };
         });
@@ -9791,6 +9811,19 @@ return {
             antiEnumeration: true,
           });
           if (!assigner) return reply;
+          // A2-13 — and it is the REVIEW_ASSIGNMENTS capability of the plan,
+          // as on the reviewer-ops assignment routes (same refusal body).
+          // Self-review and re-stating the assignee stay BASIC_RECORD_REVIEW.
+          if (!(await workspaceIncludesReviewCapability(evidence.teamId, "REVIEW_ASSIGNMENTS"))) {
+            return reply.code(403).send({
+              error: {
+                code: "ENTITLEMENT_REQUIRED",
+                reason: "reviewer_operations_not_included",
+                entitlement: "REVIEW_ASSIGNMENTS",
+                requestId: req.id,
+              },
+            });
+          }
         }
       } else if (!(await ownerIncludesReviewCapability(evidence.ownerUserId, "BASIC_RECORD_REVIEW"))) {
         // A legacy teamless record has no workspace to resolve, so its OWNER's
@@ -10567,6 +10600,8 @@ return {
             select: {
               version: true,
               generatedAtUtc: true,
+              // D-06 — the custody cut-off of this report (issuedReportCustodyCutoff).
+              issuanceCustodyThroughSequence: true,
               embeddedPreviewsSnapshot: true,
               trustDecisionSnapshot: true,
               verificationStatusSnapshot: true,
@@ -11087,8 +11122,9 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
 
         const reportGeneratedAtUtc =
           latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null;
-        // AUD-51 (2026-10-20) — the cut-off is a SEQUENCE (shared), never a time.
-        const custodyCutoff = custodyCutoffSequence(allCustodyEvents, reportGeneratedAtUtc);
+        // AUD-51 (2026-10-20) — the cut-off is a SEQUENCE (shared), never a time;
+        // D-06: a report that recorded its issuance sequence is cut there.
+        const custodyCutoff = issuedReportCustodyCutoff(allCustodyEvents, latestReport, reportGeneratedAtUtc);
         const forensicEventsAtReportGeneration = splitCustodyAtCutoff(forensicCustodyEvents, custodyCutoff).atIssue;
         const accessEventsAfterReportGeneration = splitCustodyAtCutoff(accessCustodyEvents, custodyCutoff).afterIssue;
 
@@ -12094,6 +12130,8 @@ try {
             userAgent: readUserAgent(req),
             correlationId: req.id ?? null,
           },
+          // F-04 — asked again under the record lock when the seal commits.
+          recheckRecordPermission: "evidence.update_metadata",
         });
 
         // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE DUPLICATE STORAGE
@@ -12628,6 +12666,14 @@ if (
         return reply.code(400).send({
           code: "IDEMPOTENCY_KEY_INVALID",
           message: "The idempotency key must be 8-80 letters, digits or . _ : -",
+        });
+      }
+      // AUDIT D-03 — the missing-file recovery's key space is the server's: a
+      // caller key may not occupy a recovery's identity.
+      if (clientRequestKey && clientRequestKey.toLowerCase().startsWith(MISSING_OUTPUT_RECOVERY_KEY_PREFIX)) {
+        return reply.code(400).send({
+          code: "IDEMPOTENCY_KEY_INVALID",
+          message: "This idempotency key prefix is reserved.",
         });
       }
 
@@ -15134,6 +15180,8 @@ const latestReport = await prisma.report.findFirst({
   select: {
     version: true,
     generatedAtUtc: true,
+    // D-06 — the custody cut-off of this report (issuedReportCustodyCutoff).
+    issuanceCustodyThroughSequence: true,
     pdfSha256: true,
     embeddedPreviewsSnapshot: true,
     trustDecisionSnapshot: true,
@@ -15846,7 +15894,7 @@ const reportGeneratedAtUtc =
   latestReport?.generatedAtUtc ?? evidence.reportGeneratedAtUtc ?? null;
 
 // AUD-51 (2026-10-20) — the cut-off is a SEQUENCE (shared), never a time.
-const custodyCutoff = custodyCutoffSequence(allCustodyEvents, reportGeneratedAtUtc);
+const custodyCutoff = issuedReportCustodyCutoff(allCustodyEvents, latestReport, reportGeneratedAtUtc);
 const forensicEventsAtReportGeneration = splitCustodyAtCutoff(forensicCustodyEvents, custodyCutoff).atIssue;
 // (2026-10-18) What counts as a forensic change after issue: forensic events
 // that are not administrative (a verification reference issued, the page's

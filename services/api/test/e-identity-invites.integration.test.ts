@@ -498,6 +498,179 @@ describe("slice E — identity & invitations (live PostgreSQL)", () => {
   });
 
   // ===========================================================================
+  // B-15 / B-16 / B-17 (round 3)
+  // ===========================================================================
+  describe("B-15 / B-16 / B-17 — accept transport, refusal codes, leave by a removed member", () => {
+    async function orgInvite(email: string, over: { expiresAt?: Date; revokedAt?: Date } = {}) {
+      const raw = randomBytes(32).toString("hex");
+      const row = await prisma.organizationInvite.create({
+        data: {
+          organizationId: orgAId,
+          email,
+          role: "ORG_MEMBER",
+          tokenHash: createHash("sha256").update(raw, "utf8").digest("hex"),
+          invitedByUserId: A().ownerUserId,
+          expiresAt: over.expiresAt ?? new Date(Date.now() + 7 * 86_400_000),
+          revokedAt: over.revokedAt ?? null,
+        },
+      });
+      return { raw, id: row.id };
+    }
+    const acceptBody = (raw: string, person: { token: string }) =>
+      h.app.inject({
+        method: "POST",
+        url: "/v1/org-invites/accept",
+        headers: { ...bearer(person.token), "content-type": "application/json" },
+        payload: { token: raw },
+      });
+    const orgRows = (userId: string) =>
+      prisma.organizationMembership.findMany({ where: { organizationId: orgAId, userId }, select: { status: true, role: true } });
+    const accepted = async (id: string) => (await prisma.organizationInvite.findUniqueOrThrow({ where: { id } })).acceptedAt;
+
+    it("B-15: the organization accept takes the token in the body; the path form still accepts (compatibility)", async () => {
+      const a = await user(`b15-org-${tag()}@invitee.test`);
+      const invA = await orgInvite(a.email);
+      const res = await acceptBody(invA.raw, a);
+      expect(res.statusCode, res.body).toBe(200);
+      expect((res.json() as { organizationId: string }).organizationId).toBe(orgAId);
+      expect(await orgRows(a.id)).toEqual([{ status: "ACTIVE", role: "ORG_MEMBER" }]);
+      expect(await accepted(invA.id)).not.toBeNull();
+
+      // A link already sent to an app build that still uses the path.
+      const b = await user(`b15-org-legacy-${tag()}@invitee.test`);
+      const invB = await orgInvite(b.email);
+      const legacy = await h.app.inject({ method: "POST", url: `/v1/org-invites/${invB.raw}/accept`, headers: bearer(b.token) });
+      expect(legacy.statusCode, legacy.body).toBe(200);
+      expect(legacy.headers["referrer-policy"]).toBe("no-referrer");
+      expect(await orgRows(b.id)).toEqual([{ status: "ACTIVE", role: "ORG_MEMBER" }]);
+
+      // A body without a token is answered like an unknown token; nothing is written.
+      const c = await user(`b15-org-empty-${tag()}@invitee.test`);
+      const empty = await h.app.inject({
+        method: "POST",
+        url: "/v1/org-invites/accept",
+        headers: { ...bearer(c.token), "content-type": "application/json" },
+        payload: {},
+      });
+      expect(empty.statusCode).toBe(404);
+      expect(code(empty)).toBe("INVITE_NOT_FOUND");
+      expect(await orgRows(c.id)).toEqual([]);
+    });
+
+    it("B-15: the workspace accept takes the token in the body; the path form still accepts", async () => {
+      const a = await user(`b15-ws-${tag()}@invitee.test`);
+      const created = await invitations.createWorkspaceInvitation({
+        workspaceId: A().teamId,
+        email: a.email,
+        role: "MEMBER",
+        invitedByUserId: A().ownerUserId,
+      });
+      const res = await h.app.inject({
+        method: "POST",
+        url: "/v1/teams/invites/accept",
+        headers: { ...bearer(a.token), "content-type": "application/json" },
+        payload: { token: created.rawToken },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      expect((res.json() as { workspaceId: string }).workspaceId).toBe(A().teamId);
+      expect(
+        (await prisma.teamMember.findUniqueOrThrow({ where: { teamId_userId: { teamId: A().teamId, userId: a.id } } })).status,
+      ).toBe("ACTIVE");
+
+      const b = await user(`b15-ws-legacy-${tag()}@invitee.test`);
+      const createdB = await invitations.createWorkspaceInvitation({
+        workspaceId: A().teamId,
+        email: b.email,
+        role: "VIEWER",
+        invitedByUserId: A().ownerUserId,
+      });
+      const legacy = await h.app.inject({
+        method: "POST",
+        url: `/v1/teams/invites/${createdB.rawToken}/accept`,
+        headers: bearer(b.token),
+      });
+      expect(legacy.statusCode, legacy.body).toBe(200);
+      expect(legacy.headers["referrer-policy"]).toBe("no-referrer");
+
+      const garbage = await h.app.inject({
+        method: "POST",
+        url: "/v1/teams/invites/accept",
+        headers: { ...bearer(b.token), "content-type": "application/json" },
+        payload: { token: 42 },
+      });
+      expect(garbage.statusCode).toBe(404);
+      expect(code(garbage)).toBe("INVITE_NOT_FOUND");
+    });
+
+    it("B-16: each organization refusal names its code, and none of them writes a membership or consumes the invite", async () => {
+      const other = await user(`b16-other-${tag()}@invitee.test`);
+      const mismatch = await orgInvite(`b16-invited-${tag()}@invitee.test`);
+      const r1 = await acceptBody(mismatch.raw, other);
+      expect(r1.statusCode).toBe(403);
+      expect(code(r1)).toBe("INVITE_EMAIL_MISMATCH");
+      expect((r1.json() as { message?: string }).message).toBe("Invite email does not match your account.");
+      expect(await accepted(mismatch.id)).toBeNull();
+
+      const exp = await user(`b16-exp-${tag()}@invitee.test`);
+      const expired = await orgInvite(exp.email, { expiresAt: new Date(Date.now() - 60_000) });
+      const r2 = await acceptBody(expired.raw, exp);
+      expect(r2.statusCode).toBe(410);
+      expect(code(r2)).toBe("INVITE_EXPIRED");
+      expect(await accepted(expired.id)).toBeNull();
+
+      const rev = await user(`b16-rev-${tag()}@invitee.test`);
+      const revoked = await orgInvite(rev.email, { revokedAt: new Date() });
+      const r3 = await acceptBody(revoked.raw, rev);
+      expect(r3.statusCode).toBe(410);
+      expect(code(r3)).toBe("INVITE_REVOKED");
+
+      const r4 = await acceptBody(randomBytes(32).toString("hex"), rev);
+      expect(r4.statusCode).toBe(404);
+      expect(code(r4)).toBe("INVITE_NOT_FOUND");
+
+      for (const p of [other, exp, rev]) expect(await orgRows(p.id)).toEqual([]);
+    });
+
+    it("B-17: /leave by a member already removed is 404 and writes no ORG_MEMBER_LEFT; an ACTIVE member's leave writes exactly one", async () => {
+      const removedPerson = await user(`b17-${tag()}@invitee.test`);
+      const row = await prisma.organizationMembership.create({
+        data: { organizationId: orgAId, userId: removedPerson.id, role: "ORG_MEMBER" },
+      });
+      const moved = await orgLifecycle.revokeOrganizationMembership({
+        prisma: prisma as never,
+        organizationId: orgAId,
+        membershipId: row.id,
+        actorUserId: A().ownerUserId,
+        source: "MANUAL",
+        reason: "b17",
+      });
+      expect(moved.ok).toBe(true);
+      const leftEvents = (membershipId: string) =>
+        prisma.organizationAuditEvent.count({
+          where: { organizationId: orgAId, eventType: "ORG_MEMBER_LEFT", targetId: membershipId },
+        });
+
+      const res = await h.app.inject({ method: "POST", url: `/v1/orgs/${orgAId}/leave`, headers: bearer(removedPerson.token) });
+      expect(res.statusCode, res.body).toBe(404);
+      expect(code(res)).toBe("membership_not_found");
+      expect(await leftEvents(row.id)).toBe(0);
+      expect((await prisma.organizationMembership.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("REVOKED");
+
+      // Control: an ACTIVE member leaves once; a second call is the same 404 and adds nothing.
+      const active = await user(`b17-active-${tag()}@invitee.test`);
+      const activeRow = await prisma.organizationMembership.create({
+        data: { organizationId: orgAId, userId: active.id, role: "ORG_MEMBER" },
+      });
+      const left = await h.app.inject({ method: "POST", url: `/v1/orgs/${orgAId}/leave`, headers: bearer(active.token) });
+      expect(left.statusCode, left.body).toBe(200);
+      expect(await leftEvents(activeRow.id)).toBe(1);
+      const again = await h.app.inject({ method: "POST", url: `/v1/orgs/${orgAId}/leave`, headers: bearer(active.token) });
+      expect(again.statusCode).toBe(404);
+      expect(await leftEvents(activeRow.id)).toBe(1);
+    });
+  });
+
+  // ===========================================================================
   // F-16
   // ===========================================================================
   describe("F-16 — removal ends the sessions; a new session is still refused the workspace", () => {

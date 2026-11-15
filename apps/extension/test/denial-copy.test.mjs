@@ -64,3 +64,46 @@ test("null / undefined / empty denial returns null", () => {
   assert.equal(denialToMessage(undefined), null);
   assert.equal(denialToMessage(""), null);
 });
+
+// A1-06 — the server-wide terms gate (428 LEGAL_REACCEPT_REQUIRED, nested error
+// shape) reaches the popup as an actionable sentence, through the real client.
+import { ApiError, apiFetch } from "./dist/api-client.js";
+
+test("the terms gate says what to do: accept the current terms in PROOVRA", () => {
+  const msg = denialToMessage("LEGAL_REACCEPT_REQUIRED");
+  assert.ok(msg);
+  assert.match(msg, /accept the current terms/i);
+  assert.doesNotMatch(msg, /plan|credits/i);
+});
+
+test("the client lifts the nested LEGAL_REACCEPT_REQUIRED code into the denial — and no other nested code", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    const answer = (status, body) => async () => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    globalThis.fetch = answer(428, { error: { code: "LEGAL_REACCEPT_REQUIRED", message: "x", details: { missingPolicies: ["terms"] } } });
+    const legal = await apiFetch("t", "POST", "/v1/capture/direct-sessions", {}).catch((e) => e);
+    assert.ok(legal instanceof ApiError);
+    assert.equal(legal.status, 428);
+    assert.equal(legal.denial, "LEGAL_REACCEPT_REQUIRED");
+
+    globalThis.fetch = answer(403, { error: { code: "FORBIDDEN" } });
+    const other = await apiFetch("t", "POST", "/v1/capture/direct-sessions", {}).catch((e) => e);
+    assert.equal(other.denial, null);
+
+    globalThis.fetch = answer(402, { denial: "FREE_LIMIT_REACHED" });
+    const capture = await apiFetch("t", "POST", "/v1/capture/direct-sessions", {}).catch((e) => e);
+    assert.equal(capture.denial, "FREE_LIMIT_REACHED");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+// F-04 — the seal answers 409 EVIDENCE_COMPLETION_INPUTS_CHANGED when the stored
+// files changed between its two sealing transactions; nothing was sealed.
+test("EVIDENCE_COMPLETION_INPUTS_CHANGED says nothing was sealed and to capture again", () => {
+  const msg = denialToMessage("EVIDENCE_COMPLETION_INPUTS_CHANGED");
+  assert.ok(msg);
+  assert.match(msg, /nothing was sealed/i);
+  assert.match(msg, /capture again/i);
+  assert.doesNotMatch(msg, /plan|credits/i);
+});

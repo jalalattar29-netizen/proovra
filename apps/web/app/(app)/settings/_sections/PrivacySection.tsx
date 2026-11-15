@@ -595,14 +595,24 @@ function AccountClosureCard() {
         never deleted by account closure — it stays governed by retention
         and legal-hold rules.
       </p>
+      {/*
+        D-07 (round 3, product decision 2026-11-15) — an already-public page
+        keeps its URL and QR with the minimal verification result; withdrawn
+        and never-published records stay that way; the withdrawal control is
+        the record's own, where the person is allowed to use it.
+      */}
       <p className="set-card__sub" data-cc-closure-public-verification>
         Closing your account does not take down public verification. Each
-        record&rsquo;s verification page, and the links in reports and
-        packages you have issued, keep working for anyone who has them. Links
-        you shared with named people stop working. To take a record&rsquo;s
+        record&rsquo;s verification page, and the links and QR codes in
+        reports and packages you have issued, keep working for anyone who has
+        them. The page shows only the verification result, never your files,
+        reports, packages or private details. Pages you have withdrawn stay
+        withdrawn, and records without a public page do not get one. Links you
+        shared with named people stop working. To take a record&rsquo;s
         verification page down, open the record and use &ldquo;Withdraw
         page&rdquo; in its verification page settings before you close your
-        account.
+        account (in a shared workspace, someone allowed to manage the page can
+        do this).
       </p>
 
       {loadFailed ? (

@@ -552,6 +552,22 @@ export async function addExternalEvidencePart(
 ): Promise<AddedExternalPartResult> {
   assertSessionUploadEligible(input.session);
 
+  // A2-21 — the plan is asked BEFORE anything is staged: no record is created,
+  // no part row is reserved and no PUT URL is signed for a workspace whose plan
+  // no longer includes secure intake (a link minted before a downgrade). The
+  // link itself (revoked / expired / exhausted / organization not operating)
+  // was re-validated by the route on this request (validateIntakeToken). The
+  // same refusal is asked again at submit (AUD-36, below) for a downgrade that
+  // lands between this presign and the submit; whatever was staged before it
+  // is left to the existing reservation reaper (RESERVATION_EXPIRED release ->
+  // purge), never finalized.
+  {
+    const { intakePlanRefusal } = await import("./intake/intake-link-mint-gate.js");
+    if (await intakePlanRefusal({ teamId: input.link.teamId, requesterUserId: input.link.createdByUserId })) {
+      throw new ExternalIntakeOrchestrationError("intake_not_included_at_redemption");
+    }
+  }
+
   // Load or create the backing Evidence once.
   const evidence = await createOrLoadExternalEvidence(
     { link: input.link, session: input.session },

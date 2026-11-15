@@ -20,6 +20,7 @@ type Json = Record<string, unknown>;
 describe("F-01 — limiter refusals are logged, not chained (live PostgreSQL)", () => {
   let h: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
+  let hashPassword: (typeof import("../src/services/email-password-auth.service.js"))["hashPassword"];
   const savedVerifyMax = process.env.VERIFY_RATE_LIMIT_MAX;
   const startedAt = new Date();
 
@@ -28,6 +29,7 @@ describe("F-01 — limiter refusals are logged, not chained (live PostgreSQL)", 
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    ({ hashPassword } = await import("../src/services/email-password-auth.service.js"));
   }, 900_000);
 
   afterAll(async () => {
@@ -98,5 +100,62 @@ describe("F-01 — limiter refusals are logged, not chained (live PostgreSQL)", 
     await new Promise((r) => setTimeout(r, 500));
     const rows = await rowsFor("verification.page_opened", requestIds);
     expect(rows.filter(refusalRow)).toHaveLength(0);
+  });
+
+  // ===========================================================================
+  // B-21 — a per-account sign-in budget across addresses (round 3)
+  // ===========================================================================
+  describe("B-21 — per-account sign-in budget", () => {
+    let octet = 1;
+    /** Every attempt from a fresh address, so the per-address bucket never decides. */
+    const attempt = (email: string, password: string) =>
+      h.app.inject({
+        method: "POST",
+        url: "/v1/auth/email/login",
+        remoteAddress: `198.51.${Math.floor(Math.random() * 200) + 20}.${(octet++ % 250) + 1}`,
+        headers: { "content-type": "application/json" },
+        payload: { email, password } as never,
+      });
+    const shape = (r: { statusCode: number; body: string; headers: Record<string, unknown> }) => {
+      const b = JSON.parse(r.body) as { error?: { code?: string; message?: string; details?: unknown } };
+      return { status: r.statusCode, code: b.error?.code, message: b.error?.message, details: b.error?.details ?? null, keys: Object.keys(b.error ?? {}).sort() };
+    };
+
+    it("10 attempts on one account from 10 addresses are answered; the 11th — even with the right password — is refused, known or unknown alike", async () => {
+      const PASSWORD = "Account-Budget-Pass-1";
+      const email = `b21-${randomUUID().slice(0, 8)}@test.proovra.local`;
+      const u = await prisma.user.create({
+        data: { email, provider: "EMAIL", providerUserId: email, passwordHash: await hashPassword(PASSWORD), emailVerifiedAt: new Date() },
+      });
+
+      const statuses: number[] = [];
+      for (let i = 0; i < 10; i += 1) statuses.push((await attempt(email, "WrongPassword123")).statusCode);
+      expect(statuses).toEqual(Array(10).fill(401));
+
+      // The 11th, from yet another address, with the identifier re-cased.
+      const refused = await attempt(email.toUpperCase(), "WrongPassword123");
+      expect(refused.statusCode).toBe(429);
+      expect(Number(refused.headers["retry-after"])).toBeGreaterThan(0);
+      const sessionsBefore = await prisma.authenticatedSession.count({ where: { userId: u.id } });
+      const rightPassword = await attempt(email, PASSWORD);
+      expect(rightPassword.statusCode).toBe(429);
+      expect(await prisma.authenticatedSession.count({ where: { userId: u.id } })).toBe(sessionsBefore);
+
+      // An address with no account is throttled identically: same status, code, message and keys.
+      const ghost = `b21-ghost-${randomUUID().slice(0, 8)}@test.proovra.local`;
+      for (let i = 0; i < 10; i += 1) expect((await attempt(ghost, "WrongPassword123")).statusCode).toBe(401);
+      const ghostRefused = await attempt(ghost, "WrongPassword123");
+      expect(shape(ghostRefused)).toEqual(shape(refused));
+
+      // Another account is untouched by this account's budget.
+      const other = `b21-other-${randomUUID().slice(0, 8)}@test.proovra.local`;
+      expect((await attempt(other, "WrongPassword123")).statusCode).toBe(401);
+
+      // F-01 — the refusals are logged, not chained.
+      const ids = [refused, rightPassword, ghostRefused].map((r) => String(r.headers["x-request-id"]));
+      await new Promise((r) => setTimeout(r, 500));
+      const rows = await rowsFor("auth.email_login", ids);
+      expect(rows).toHaveLength(0);
+    });
   });
 });

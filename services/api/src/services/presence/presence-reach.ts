@@ -24,43 +24,74 @@ export type PresenceResourceKind =
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * A2-19 — every lookup is bound to the workspace the route authorized. A row of
+ * another workspace is, for this workspace's presence key, exactly a row that
+ * does not exist: it is never judged (its restricted flag is not probed) and the
+ * answer is the one an unknown id gets. Legacy teamless records/cases are still
+ * judged by the canonical rule, as before.
+ */
+const IN_WORKSPACE = (teamId: string) => ({ OR: [{ teamId }, { teamId: null }] });
+
+async function evidenceClosedHere(
+  evidenceId: string,
+  callerUserId: string,
+  teamId: string,
+  client: PrismaClient,
+): Promise<boolean> {
+  const here = await client.evidence.count({ where: { id: evidenceId, ...IN_WORKSPACE(teamId) } });
+  return here > 0 && evidenceClosedTo(evidenceId, callerUserId, client);
+}
+
+async function caseClosedHere(
+  caseId: string,
+  callerUserId: string,
+  teamId: string,
+  client: PrismaClient,
+): Promise<boolean> {
+  const here = await client.case.count({ where: { id: caseId, ...IN_WORKSPACE(teamId) } });
+  return here > 0 && caseClosedTo(caseId, callerUserId, client);
+}
+
 export async function presenceResourceClosedTo(
   kind: PresenceResourceKind,
   resourceId: string,
   callerUserId: string,
+  teamId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
   // Every row a presence key can name has a uuid id; anything else names no row.
   if (!UUID.test(resourceId)) return false;
   switch (kind) {
     case "evidence":
-      return evidenceClosedTo(resourceId, callerUserId, client);
+      return evidenceClosedHere(resourceId, callerUserId, teamId, client);
     case "matter":
-      return caseClosedTo(resourceId, callerUserId, client);
+      return caseClosedHere(resourceId, callerUserId, teamId, client);
     case "discussion_thread": {
-      const thread = await client.discussionThread.findUnique({
-        where: { id: resourceId },
+      const thread = await client.discussionThread.findFirst({
+        where: { id: resourceId, teamId },
         select: { evidenceId: true },
       });
+      if (thread && !thread.evidenceId) return false;
       // The mobile discussion panel keys presence on the record itself until a
       // thread is selected, so an id that is not a thread is read as a record id.
-      return evidenceClosedTo(thread?.evidenceId ?? resourceId, callerUserId, client);
+      return evidenceClosedHere(thread?.evidenceId ?? resourceId, callerUserId, teamId, client);
     }
     case "reviewer_workflow": {
-      const workflow = await client.evidenceReviewWorkflow.findUnique({
-        where: { id: resourceId },
+      const workflow = await client.evidenceReviewWorkflow.findFirst({
+        where: { id: resourceId, ...IN_WORKSPACE(teamId) },
         select: { evidenceId: true },
       });
-      return workflow ? evidenceClosedTo(workflow.evidenceId, callerUserId, client) : false;
+      return workflow ? evidenceClosedHere(workflow.evidenceId, callerUserId, teamId, client) : false;
     }
     case "evidence_request": {
-      const request = await client.evidenceRequest.findUnique({
-        where: { id: resourceId },
+      const request = await client.evidenceRequest.findFirst({
+        where: { id: resourceId, teamId },
         select: { caseId: true, evidenceId: true },
       });
       if (!request) return false;
-      if (request.caseId && (await caseClosedTo(request.caseId, callerUserId, client))) return true;
-      return request.evidenceId ? evidenceClosedTo(request.evidenceId, callerUserId, client) : false;
+      if (request.caseId && (await caseClosedHere(request.caseId, callerUserId, teamId, client))) return true;
+      return request.evidenceId ? evidenceClosedHere(request.evidenceId, callerUserId, teamId, client) : false;
     }
   }
 }

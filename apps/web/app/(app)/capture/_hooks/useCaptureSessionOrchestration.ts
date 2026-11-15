@@ -22,6 +22,7 @@ import type {
   CollectionPlanTemplate,
   EvidenceType,
   SessionItem,
+  SessionItemClientSignals,
   SessionTimelineEvent,
 } from "../_lib/types";
 import {
@@ -31,7 +32,9 @@ import {
   validateIncomingFiles,
 } from "../_lib/file-utils";
 import { useCaptureLocation, type FinishLocation } from "./useCaptureLocation";
-import { computeIntegrityFromBlob } from "../_lib/hash-utils";
+// F-P1-03 / F-P1-08 / C-05 — the legacy part upload (computeIntegrityFromBlob,
+// presign, PUT under the shared storage-PUT retry rule, metadata restate).
+import { partMetadataChanged, partMetadataOf, restatePartMetadata, uploadLegacyPart, type PartMetadata } from "./legacy-part-upload";
 import { sha256Base64OfBlob } from "../../../../lib/uploads/streaming-sha256";
 import {
   buildStorageLimitMessage,
@@ -74,6 +77,8 @@ export type CaptureRecordReservation = {
   /** Item ids in part-index order at the time parts were issued. */
   itemIds: string[];
   uploadedItemIds: Set<string>;
+  /** C-05 — the metadata last sent for each legacy-uploaded item. */
+  sentMetadata?: Map<string, PartMetadata>;
 };
 
 export function reservationFitsItems(
@@ -91,6 +96,8 @@ export type CaptureSessionAddFiles = (
     sessionEvidenceType?: EvidenceType;
     /** Stored on the part as its source label (server bound: 120 chars). */
     sourceLabel?: string;
+    /** F-P1-09 — audio facts of a recording (a video without microphone). */
+    audioSignals?: Pick<SessionItemClientSignals, "audioTracks" | "audioNotCapturedReason">;
   }
 ) => Promise<void>;
 
@@ -251,10 +258,7 @@ async function runResumableItemUpload(input: {
   );
 }
 
-type AddFilesOptions = {
-  sessionEvidenceType?: EvidenceType;
-  sourceLabel?: string;
-};
+type AddFilesOptions = NonNullable<Parameters<CaptureSessionAddFiles>[1]>;
 
 type ResetCaptureStateOptions = {
   preserveTimeline?: boolean;
@@ -278,6 +282,12 @@ type UseCaptureSessionOrchestrationParams = {
   // The hook calls onSessionFinalized() after a successful finalize so the
   // draft owner can drop its local state.
   getCaptureSessionDraftId?: () => string | null;
+  /**
+   * C-10 — saves the draft NOW when none exists yet (debounce pending or a
+   * failed save), so the record Finish reserves is bound to a draft and every
+   * later release (a changed selection, a discard) reaches it.
+   */
+  ensureCaptureSessionDraftId?: () => Promise<string | null>;
   onSessionFinalized?: () => void;
   onSessionDiscarded?: () => void | Promise<void>;
   // Phase 30.12 — optional resumable upload adoption. When supplied
@@ -298,6 +308,7 @@ export function useCaptureSessionOrchestration({
   selectedCollectionPlan,
   useLocation,
   getCaptureSessionDraftId,
+  ensureCaptureSessionDraftId,
   onSessionFinalized,
   onSessionDiscarded,
   resumable,
@@ -474,7 +485,7 @@ export function useCaptureSessionOrchestration({
                   .webkitRelativePath ?? null
               : null;
 
-          const signals = buildSessionItemSignals(nextFile, relativePath, existingItems);
+          const signals = { ...buildSessionItemSignals(nextFile, relativePath, existingItems), ...options?.audioSignals };
 
           try {
             const staged = await sha256Base64OfBlob(nextFile);
@@ -778,7 +789,8 @@ export function useCaptureSessionOrchestration({
           }
         : undefined;
 
-      const captureSessionId = getCaptureSessionDraftId?.() ?? null;
+      const captureSessionId =
+        getCaptureSessionDraftId?.() ?? (resuming ? null : await ensureCaptureSessionDraftId?.().catch(() => null)) ?? null;
 
       if (resuming) {
         recordTimelineEvent({
@@ -837,8 +849,14 @@ export function useCaptureSessionOrchestration({
       for (let index = 0; index < items.length; index += 1) {
         const item = items[index];
 
-        // UC-WEB-001 — already uploaded into this record: never re-sent.
+        // UC-WEB-001 — already uploaded into this record: never re-sent. C-05 —
+        // a note/role/step/label edited since is restated before the seal.
         if (reservation.uploadedItemIds.has(item.id)) {
+          const sent = reservation.sentMetadata?.get(item.id);
+          if (sent && partMetadataChanged(item, sent)) {
+            await restatePartMetadata({ evidenceId, index, item, locationIncluded: Boolean(gps), previous: sent });
+            reservation.sentMetadata?.set(item.id, partMetadataOf(item));
+          }
           continue;
         }
         currentItemId = item.id;
@@ -905,130 +923,26 @@ export function useCaptureSessionOrchestration({
           }
         }
 
-        const integrity = await computeIntegrityFromBlob(item.file);
-
-        const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
-          method: "POST",
-          body: JSON.stringify({
-            partIndex: index,
-            mimeType: normalizeClientMimeType(item.mimeType),
-            originalFileName: item.relativePath || item.file.name,
-            checksumSha256Base64: integrity.checksumSha256Base64,
-            contentMd5Base64: integrity.contentMd5Base64,
-            sizeBytes: item.file.size,
-            privateRole: item.role?.trim() || undefined,
-            privateNote: item.privateNote?.trim() || undefined,
-            checklistStepId: item.checklistStepId || undefined,
-            sourceLabel: item.sourceLabel?.trim() || undefined,
-            clientSignals: item.clientSignals
-              ? {
-                  captureTimeUtc: item.clientSignals.captureTimeUtc,
-                  browserMediaCaptureAvailable:
-                    item.clientSignals.browserMediaCaptureAvailable,
-                  folderPathPresent: item.clientSignals.folderPathPresent,
-                  locationIncluded: Boolean(gps),
-                  duplicateStatus: item.clientSignals.duplicateStatus,
-                  screenshotLike: item.clientSignals.screenshotLike,
-                  genericMime: item.clientSignals.genericMime,
-                  oldLastModified: item.clientSignals.oldLastModified,
-                  clientHintSha256Base64:
-                    item.clientSignals.clientHintSha256Base64,
-                }
-              : undefined,
-          }),
+        // F-P1-08 — presign + PUT under THE shared storage-PUT retry rule
+        // (legacy-part-upload.ts): transient answers retried with jitter and a
+        // bounded Retry-After, an expired URL presigned again, status 0 never
+        // success, every other refusal final.
+        await uploadLegacyPart({
+          evidenceId,
+          index,
+          item,
+          locationIncluded: Boolean(gps),
+          onProgress: (fraction) => {
+            const itemPct = Math.max(1, Math.min(100, Math.round(fraction * 100)));
+            setSessionItems((prev) =>
+              prev.map((current) =>
+                current.id === item.id ? { ...current, uploading: true, uploadProgress: itemPct, error: null } : current
+              )
+            );
+            setProgress(Math.max(1, Math.min(90, Math.round(((index + fraction) / items.length) * 90))));
+          },
         });
-
-        // Phase 12 — bounded retry around the PUT. Network errors and
-        // 5xx responses are transient and worth retrying with backoff;
-        // 4xx responses are NOT retried (presigned URL is expired or
-        // the request shape is wrong — re-presign would be needed).
-        // This is additive: success path is unchanged and any user-
-        // visible state update flows through the same callbacks.
-        const MAX_PUT_ATTEMPTS = 3;
-        let attempt = 0;
-        let lastError: Error | null = null;
-        while (attempt < MAX_PUT_ATTEMPTS) {
-          attempt += 1;
-          try {
-            await new Promise<void>((resolve, reject) => {
-              const xhr = new XMLHttpRequest();
-
-              xhr.upload.onprogress = (event) => {
-                if (!event.lengthComputable) return;
-
-                const itemPct = Math.max(
-                  1,
-                  Math.min(100, Math.round((event.loaded / event.total) * 100))
-                );
-
-                setSessionItems((prev) =>
-                  prev.map((current) =>
-                    current.id === item.id
-                      ? {
-                          ...current,
-                          uploading: true,
-                          uploadProgress: itemPct,
-                          error: null,
-                        }
-                      : current
-                  )
-                );
-
-                const overall = Math.round(
-                  ((index + event.loaded / event.total) / items.length) * 90
-                );
-
-                setProgress(Math.max(1, Math.min(90, overall)));
-              };
-
-              xhr.onerror = () =>
-                reject(
-                  Object.assign(new Error("Upload failed"), {
-                    transient: true,
-                  })
-                );
-              xhr.onload = () => {
-                if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
-                  resolve();
-                } else if (xhr.status >= 500) {
-                  reject(
-                    Object.assign(new Error(`Upload failed (${xhr.status})`), {
-                      transient: true,
-                    })
-                  );
-                } else {
-                  // 4xx — presigned URL likely expired or rejected.
-                  // NOT retryable from here.
-                  reject(new Error(`Upload failed (${xhr.status})`));
-                }
-              };
-
-              xhr.open("PUT", part.upload.putUrl);
-              xhr.setRequestHeader(
-                "content-type",
-                normalizeClientMimeType(item.mimeType)
-              );
-              xhr.setRequestHeader(
-                "x-amz-checksum-sha256",
-                integrity.checksumSha256Base64
-              );
-              xhr.setRequestHeader("Content-MD5", integrity.contentMd5Base64);
-              xhr.send(item.file);
-            });
-            lastError = null;
-            break;
-          } catch (err) {
-            lastError = err instanceof Error ? err : new Error(String(err));
-            const isTransient =
-              !!(lastError as Error & { transient?: boolean }).transient;
-            if (!isTransient || attempt >= MAX_PUT_ATTEMPTS) {
-              throw lastError;
-            }
-            // Backoff: 500ms → 1500ms → ...
-            await new Promise((r) => setTimeout(r, attempt * 500));
-          }
-        }
-        if (lastError) throw lastError;
+        (reservation.sentMetadata ??= new Map()).set(item.id, partMetadataOf(item));
 
         reservation.uploadedItemIds.add(item.id);
         setSessionItems((prev) =>

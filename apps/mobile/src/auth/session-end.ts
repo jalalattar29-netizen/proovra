@@ -13,7 +13,7 @@
 /** What `requireAuth` and `authorize` send when the token no longer stands. */
 const SESSION_ENDED_CODES: ReadonlySet<string> = new Set(["UNAUTHORIZED", "TOKEN_EXPIRED", "unauthenticated"]);
 
-export type SessionEndReason = "expired" | "ended" | "organization_policy" | "organization_sso";
+export type SessionEndReason = "expired" | "ended" | "reauthenticate" | "organization_policy" | "organization_sso";
 
 export function sessionEndReason(input: {
   status: number;
@@ -24,7 +24,14 @@ export function sessionEndReason(input: {
   const reason = input.details?.["reason"];
   if (input.code === "TOKEN_EXPIRED" || reason === "session_expired") return "expired";
   if (reason === "reauthentication_required") {
-    return requiresOrganizationSso(input.details?.["policy"]) ? "organization_sso" : "organization_policy";
+    const policy = input.details?.["policy"];
+    if (requiresOrganizationSso(policy)) return "organization_sso";
+    // B-14 — only a refusal that NAMES an organization's rule (`policy`, sent by
+    // requireAuth's org gate) is the organization's doing. Without it the token
+    // itself is the reason (legacy or unsupported provenance, no sid/iat —
+    // middleware/auth.ts), which happens to a Free user with no organization
+    // at all; telling them about "your organization's security policy" was false.
+    return typeof policy === "string" && policy.length > 0 ? "organization_policy" : "reauthenticate";
   }
   return "ended";
 }
@@ -75,6 +82,7 @@ export const SESSION_END_NOTICE: Readonly<Record<SessionEndReason, string>> = {
   // and the 401 carries no reason, so the sentence names that cause too.
   ended:
     "You were signed out. This session was ended from another device, by your organization, or because your access to a workspace changed.",
+  reauthenticate: "For your security, this sign-in has to be renewed. Please sign in again.",
   organization_policy: "Your organization's security policy no longer accepts this sign-in. Please sign in again.",
   organization_sso: ORGANIZATION_SSO_NOTICE,
 };

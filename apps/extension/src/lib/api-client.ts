@@ -7,6 +7,8 @@
  * leave a capture "running" forever; a timeout surfaces as a `NetworkError`,
  * which the orchestrator treats as an UNKNOWN outcome when it hits the seal.
  */
+import { classifyStoragePutStatus, parseRetryAfterMs } from "@proovra/shared";
+
 import { CONFIG } from "./config.js";
 
 export class ApiError extends Error {
@@ -28,6 +30,21 @@ export class NetworkError extends Error {
   }
 }
 
+/**
+ * F-P1-08 — storage refused the presigned PUT (an object-store answer, not an
+ * API one). Read by THE shared storage-PUT rule: 408/425/429/5xx retried, 403
+ * (the URL itself refused — expired) presigned again, anything else final.
+ */
+export class StoragePutError extends Error {
+  constructor(
+    readonly status: number,
+    readonly retryAfterMs: number | null,
+  ) {
+    super(`PUT object -> ${status}`);
+    this.name = "StoragePutError";
+  }
+}
+
 export const API_TIMEOUT_MS = 30_000;
 export const UPLOAD_TIMEOUT_MS = 120_000;
 
@@ -37,6 +54,20 @@ async function boundedFetch(url: string, init: RequestInit, timeoutMs: number): 
   } catch (err) {
     throw new NetworkError(`${init.method ?? "GET"} ${new URL(url).pathname} failed: ${err instanceof Error ? err.name : "error"}`);
   }
+}
+
+/**
+ * A1-06 — the server's terms gate answers every authenticated write with the
+ * shared nested shape (428 `{ error: { code: "LEGAL_REACCEPT_REQUIRED" } }`),
+ * not a capture `denial`. It is carried as the denial so the popup can say what
+ * to do (accept the current terms in PROOVRA) instead of a generic failure.
+ * Only this code is lifted: every other nested code keeps its existing path.
+ */
+function legalGateCodeOf(json: unknown): string | null {
+  if (!json || typeof json !== "object") return null;
+  const error = (json as { error?: unknown }).error;
+  if (!error || typeof error !== "object") return null;
+  return (error as { code?: unknown }).code === "LEGAL_REACCEPT_REQUIRED" ? "LEGAL_REACCEPT_REQUIRED" : null;
 }
 
 export async function apiFetch<T>(
@@ -69,7 +100,7 @@ export async function apiFetch<T>(
     const denial =
       json && typeof json === "object" && "denial" in json
         ? String((json as Record<string, unknown>).denial)
-        : null;
+        : legalGateCodeOf(json);
     throw new ApiError(res.status, denial, `${method} ${path} -> ${res.status}`);
   }
   return json as T;
@@ -93,6 +124,8 @@ export type OpenSessionResult = {
  */
 export function isTransientFailure(err: unknown): boolean {
   if (err instanceof NetworkError) return true;
+  // F-P1-08 — a storage PUT refusal is transient unless it refused the bytes.
+  if (err instanceof StoragePutError) return classifyStoragePutStatus(err.status) !== "TERMINAL";
   if (err instanceof ApiError) return err.status === 408 || err.status === 425 || err.status === 429 || err.status >= 500;
   return false;
 }
@@ -146,7 +179,7 @@ export const apiClient = {
       { method: "PUT", body: bytes, headers: { "content-type": contentType }, credentials: "omit" },
       UPLOAD_TIMEOUT_MS,
     );
-    if (!res.ok) throw new ApiError(res.status, null, `PUT object -> ${res.status}`);
+    if (!res.ok) throw new StoragePutError(res.status, parseRetryAfterMs(res.headers.get("Retry-After")));
   },
 
   async declarePart(

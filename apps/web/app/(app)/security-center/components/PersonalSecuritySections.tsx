@@ -38,6 +38,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 import { apiFetch } from "../../../../lib/api";
+import { fetchSocialSignInNonce, loadAppleIdentity } from "../../../../lib/oauth";
+import { useSocialNoncePrefetch } from "../../../../lib/useSocialNoncePrefetch";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { formatUtcAuditDateTime } from "../../../../lib/date";
 import { Card } from "../../../../components/ui/Card";
@@ -787,35 +789,48 @@ function LoginMethodsCard({
     }
   }, [submitLink]);
 
+  // F-P1-05 — while "Connect Apple" is offered, Apple's script and a nonce are
+  // loaded ahead of the click, so the popup opens within it (no await before
+  // signIn()). Without them the click falls back to loading in place.
+  const appleConnectOffered =
+    Boolean(process.env.NEXT_PUBLIC_APPLE_CLIENT_ID) &&
+    Boolean(state && presentLoginMethods(state).some((r) => r.key === "apple" && r.action === "connect"));
+  useEffect(() => {
+    if (appleConnectOffered) void loadAppleIdentity().catch(() => undefined);
+  }, [appleConnectOffered]);
+  const appleNonce = useSocialNoncePrefetch("apple", appleConnectOffered);
+
   const connectApple = useCallback(async () => {
     setError(null);
     try {
-      const { fetchSocialSignInNonce, loadAppleIdentity } = await import("../../../../lib/oauth");
-      await loadAppleIdentity();
       const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
-      const AppleID = (
-        window as unknown as {
-          AppleID?: {
-            auth?: {
-              init: (o: object) => void;
-              signIn: () => Promise<{
-                authorization?: { id_token?: string };
-              }>;
-            };
+      type AppleWindow = {
+        AppleID?: {
+          auth?: {
+            init: (o: object) => void;
+            signIn: () => Promise<{
+              authorization?: { id_token?: string };
+            }>;
           };
-        }
-      ).AppleID;
+        };
+      };
+      let AppleID = (window as unknown as AppleWindow).AppleID;
+      if (!AppleID?.auth?.init) {
+        await loadAppleIdentity();
+        AppleID = (window as unknown as AppleWindow).AppleID;
+      }
       if (!appleClientId || !AppleID?.auth?.init) {
         setError("Apple sign-in is not available right now.");
         return;
       }
+      // PRO-034 — the link answers one attempt the API started.
+      const nonce = appleNonce.take() ?? (await fetchSocialSignInNonce("apple"));
       AppleID.auth.init({
         clientId: appleClientId,
         scope: "email",
         redirectURI: window.location.origin,
         usePopup: true,
-        // PRO-034 — the link answers one attempt the API started.
-        nonce: await fetchSocialSignInNonce("apple"),
+        nonce,
       });
       const res = await AppleID.auth.signIn();
       const idToken = res.authorization?.id_token;
@@ -827,7 +842,7 @@ function LoginMethodsCard({
     } catch {
       setError("Apple sign-in was cancelled or is unavailable.");
     }
-  }, [submitLink]);
+  }, [submitLink, appleNonce]);
 
   const submitAddPassword = useCallback(
     async (proof?: StepUpProof) => {

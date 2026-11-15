@@ -165,7 +165,10 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
     // sessions are scored (IDENT-019).
     // Rebaselined 2026-11-07: 72066 -> 87547. Sign-in accepts the factor the person
     // enrolled: methods, phone code, passkey (web and mobile handoff) — AUTH-LOCKOUT-NONTOTP.
-    { rel: "src/routes/auth.routes.ts", expected: 87547, tolerance: 0.05 },
+    // Rebaselined 2026-11-15: 87547 -> 94351. A per-account sign-in budget beside
+    // the per-address one (B-21) and coded refusals (B-16) — Free-user audit
+    // round 3.
+    { rel: "src/routes/auth.routes.ts", expected: 94351, tolerance: 0.05 },
   ];
   for (const { rel, expected, tolerance } of POST_E10_1_PINS) {
     it(`${rel} unchanged at the post-E10.1 baseline`, () => {

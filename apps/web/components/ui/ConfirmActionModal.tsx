@@ -46,6 +46,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { DIALOG_FOCUSABLE_SELECTOR, trapTabWithin } from "../../lib/ui/dialogFocus";
 
 // -----------------------------------------------------------------------------
 // Types
@@ -134,14 +135,9 @@ interface ConfirmActionContextValue {
 // Focus trap helpers (kept inline so the modal has no runtime dependency)
 // -----------------------------------------------------------------------------
 
-const FOCUSABLE_SELECTOR = [
-  "a[href]",
-  "button:not([disabled])",
-  "textarea:not([disabled])",
-  "input:not([disabled]):not([type='hidden'])",
-  "select:not([disabled])",
-  '[tabindex]:not([tabindex="-1"])',
-].join(",");
+// F-P1-07 — the selector and the Tab trap now live in lib/ui/dialogFocus.ts,
+// shared with every other modal dialog.
+const FOCUSABLE_SELECTOR = DIALOG_FOCUSABLE_SELECTOR;
 
 function focusFirstIn(dialog: HTMLElement | null) {
   if (!dialog) return;
@@ -282,26 +278,7 @@ function ConfirmActionModal({
       if (e.key === "Tab") {
         const dialog = dialogRef.current;
         if (!dialog) return;
-        const focusables = Array.from(
-          dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-        );
-        if (focusables.length === 0) {
-          e.preventDefault();
-          dialog.focus();
-          return;
-        }
-        const first = focusables[0]!;
-        const last = focusables[focusables.length - 1]!;
-        const active = document.activeElement as HTMLElement | null;
-        if (e.shiftKey) {
-          if (active === first || !dialog.contains(active)) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else if (active === last) {
-          e.preventDefault();
-          first.focus();
-        }
+        trapTabWithin(dialog, e);
       }
     };
     document.addEventListener("keydown", onKey, true);

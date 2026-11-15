@@ -39,6 +39,7 @@ import {
 } from "../middleware/authorize.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
+import { accessibleWorkspaceIdsFor } from "../services/access/record-reach.js";
 
 // ---------------------------------------------------------------------------
 // Schemas (verbatim port from evidence.routes.ts pre-G4.5).
@@ -223,18 +224,22 @@ export async function evidenceSavedViewsRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       // PHASE 1 (2026-07-21) — this personal aggregation of the caller's own
       // saved views is NOT a per-workspace authorization gate; it scopes the
-      // list to teams the caller belongs to. Restrict to ACTIVE memberships so
-      // a suspended member no longer sees that team's shared views.
-      const memberTeams = await prisma.teamMember.findMany({
-        where: { userId, status: "ACTIVE" },
-        select: { teamId: true },
-      });
-      const memberTeamIds = memberTeams.map((item) => item.teamId);
+      // list to the workspaces the caller may operate in right now.
+      //
+      // A2-20 — that set is the canonical enumeration (`accessibleWorkspaceIdsFor`
+      // -> listAccessibleWorkspaces: ACTIVE status, unexpired
+      // `accessExpiresAtUtc`, ACTIVE parent organization, the org security
+      // policy for this session, provable workspace kind), not raw
+      // `status: "ACTIVE"` rows. A team view — the caller's own included — is
+      // listed only while its workspace is in that set, exactly the rule the
+      // view's own PATCH/DELETE apply (`assertSavedViewAccess` ->
+      // evaluateAuthorizedWorkspace). Personal (teamless) views stay the owner's.
+      const memberTeamIds = await accessibleWorkspaceIdsFor(userId);
 
       const items = await prisma.evidenceSavedView.findMany({
         where: {
           OR: [
-            { ownerUserId: userId },
+            { ownerUserId: userId, teamId: null },
             ...(memberTeamIds.length > 0
               ? [{ teamId: { in: memberTeamIds } }]
               : []),

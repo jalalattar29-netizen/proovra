@@ -450,6 +450,70 @@ describe("F-03/F-04: a web reservation fits its files; discard releases it (Post
     expect(r.parts).toEqual([{ partIndex: 0, originalFileName: "a.jpg", sha256: null, privateNote: "note for A" }]);
   }, 240_000);
 
+  // C-05 — the per-file note, role, checklist step and source label were frozen
+  // at the first presign: an idempotent re-presign returned the original row, so
+  // an edit made before a retry (or after a reload-resume) was silently lost.
+  it("C-05: a re-presign of the same bound file before the seal persists its metadata edits; bytes, binding and sealed content never change", async () => {
+    const t = await seedPersonalTenant(deps, "FREE");
+    const draft = await newDraft(t);
+    const a = file("a.jpg", `A-${randomBytes(6).toString("hex")}`, "first note");
+    const first = await finish(t, draft.id, [a]);
+    expect(first.statusCode, first.body).toBe(201);
+    const id = first.json().id as string;
+    await upload(t, id, 0, a);
+    const rowSelect = {
+      id: true, storageBucket: true, storageKey: true, originalFileName: true, mimeType: true, clientSignals: true,
+      privateNote: true, privateRole: true, checklistStepId: true, sourceLabel: true, sha256: true,
+    } as const;
+    const row = () => prisma.evidencePart.findFirstOrThrow({ where: { evidenceId: id, partIndex: 0 }, select: rowSelect });
+    const before = await row();
+    const restate = (f: StagedFile, meta: Record<string, unknown>) =>
+      call("POST", `/v1/evidence/${id}/parts`, t.owner.token, {
+        partIndex: 0,
+        mimeType: "image/jpeg",
+        originalFileName: f.name,
+        sizeBytes: f.bytes.length,
+        checksumSha256Base64: b64(f.bytes),
+        clientSignals: { clientHintSha256Base64: b64(f.bytes), duplicateStatus: "unique" },
+        ...meta,
+      });
+
+    // A retry after reload: the draft's record is resumed, then the same file is
+    // re-presigned with the edits the person made meanwhile.
+    const resumed = await finish(t, draft.id, [a]);
+    expect(resumed.statusCode, resumed.body).toBe(200);
+    expect(resumed.json()).toMatchObject({ id, resumed: true });
+    const edited = await restate(a, { privateNote: "edited note", privateRole: "Primary", checklistStepId: "step-1", sourceLabel: "Phone" });
+    expect(edited.statusCode, edited.body).toBe(200);
+    expect(edited.json().part).toMatchObject({ privateNote: "edited note", privateRole: "Primary", checklistStepId: "step-1" });
+    const afterEdit = await row();
+    expect(afterEdit).toEqual({ ...before, privateNote: "edited note", privateRole: "Primary", checklistStepId: "step-1", sourceLabel: "Phone" });
+
+    // Absent keys are kept (an older client restates nothing); null clears one.
+    expect((await restate(a, {})).statusCode).toBe(200);
+    expect(await row()).toEqual(afterEdit);
+    expect((await restate(a, { sourceLabel: null })).statusCode).toBe(200);
+    expect((await row()).sourceLabel).toBeNull();
+
+    // Other bytes at the same index cannot carry an edit (nor a byte swap).
+    const other = file("a.jpg", `Z-${randomBytes(6).toString("hex")}`);
+    const hijack = await restate(other, { privateNote: "hijack" });
+    expect(hijack.statusCode, hijack.body).toBe(409);
+    expect(hijack.json().code).toBe("PART_INDEX_TAKEN");
+    expect((await row()).privateNote).toBe("edited note");
+
+    // The seal carries the edited metadata and the original bound bytes.
+    const done = await complete(t, id);
+    expect(done.statusCode, done.body).toBe(200);
+    const sealed = await row();
+    expect(sealed).toMatchObject({ privateNote: "edited note", storageKey: before.storageKey, clientSignals: before.clientSignals, sha256: hex(a.bytes) });
+
+    // Finalized content is never edited.
+    const late = await restate(a, { privateNote: "after the seal" });
+    expect(late.statusCode, late.body).toBe(409);
+    expect(await row()).toEqual(sealed);
+  }, 240_000);
+
   it("at the seal, stored bytes that are not the bound file are refused before anything is signed", async () => {
     const t = await seedPersonalTenant(deps, "FREE");
     const a = file("a.jpg", `A-${randomBytes(6).toString("hex")}`);

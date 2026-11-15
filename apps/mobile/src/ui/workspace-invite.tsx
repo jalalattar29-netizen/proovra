@@ -32,7 +32,8 @@ import {
   WORKSPACE_INVITE_COPY,
   WORKSPACE_INVITE_ENTRY_BLOCK_MESSAGE,
   WORKSPACE_INVITE_LOOKUP_PATH,
-  buildWorkspaceInviteAcceptPath,
+  WORKSPACE_INVITE_ACCEPT_PATH,
+  buildWorkspaceInviteAcceptBody,
   formatInviteRole,
   inviteRefusalCode,
   isInviteNotFound,
@@ -87,7 +88,7 @@ export function WorkspaceInvite({ token }: { token: string }) {
     void (async () => {
       try {
         const res = parseWorkspaceInviteAccept(
-          await apiFetch(buildWorkspaceInviteAcceptPath(token), { method: "POST", body: JSON.stringify({}) }),
+          await apiFetch(WORKSPACE_INVITE_ACCEPT_PATH, { method: "POST", body: buildWorkspaceInviteAcceptBody(token) }),
         );
         acceptedWorkspaceId.current = res.workspaceId;
         setAccept({ kind: "accepted", alreadyMember: res.alreadyMember, destination: "/" });

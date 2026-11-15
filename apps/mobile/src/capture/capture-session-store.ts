@@ -72,6 +72,11 @@ export interface PersistedCapturedItem {
    * item still blocks a camera photo from joining its record.
    */
   itemSourceLabel?: string | null;
+  /**
+   * F-P1-09 — false for a camera clip recorded MUTED after a microphone denial
+   * (absent otherwise). Persisted so a resumed upload still states it.
+   */
+  audioRecorded?: boolean;
 }
 
 /**
@@ -175,6 +180,7 @@ export function serializeSession(input: CaptureSessionInput): PersistedCaptureSe
       durationMs: it.durationMs,
       uploaded: !!it.uploaded,
       ...(it.itemSourceLabel ? { itemSourceLabel: it.itemSourceLabel } : {}),
+      ...(it.audioRecorded === false ? { audioRecorded: false } : {}),
     })),
     acquisition: input.acquisition ?? null,
     draftId: input.draftId ?? null,
@@ -240,6 +246,7 @@ export function validatePersisted(raw: unknown): PersistedCaptureSession | null 
       durationMs: typeof it.durationMs === "number" ? it.durationMs : undefined,
       uploaded: !!it.uploaded,
       ...(typeof it.itemSourceLabel === "string" && it.itemSourceLabel ? { itemSourceLabel: it.itemSourceLabel } : {}),
+      ...(it.audioRecorded === false ? { audioRecorded: false } : {}),
     });
   }
   // An acquisition that does not name a mode this build knows is dropped

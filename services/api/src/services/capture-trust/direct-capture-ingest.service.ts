@@ -54,6 +54,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { createEvidence } from "../evidence.service.js";
+import { evidenceAdmissionKeyFor, withEvidenceCapacityAdmissionKey } from "../billing-enforcement.service.js";
 import { completeEvidence } from "../evidence-complete.service.js";
 import { emitCaptureTrustEvent } from "./trust-event.service.js";
 import { headObject } from "../../storage.js";
@@ -716,7 +717,21 @@ export async function reserveDirectCaptureEvidence(
   // the global client, so a reserve that failed after it (the binding, the
   // session extension) left an unbound committed record and the retry minted a
   // second one. Its post-commit steps run after this transaction commits.
-  const reserved = await db.$transaction(
+  //
+  // F-03 — the workspace's in-process admission comes first, so a burst into
+  // one hot workspace waits here without a connection instead of parking the
+  // pool on its capacity lock. Keyed on the session's workspace (re-read and
+  // checked under the session lock below; an unreadable one keys on the owner).
+  let admissionTeamId: string | null = null;
+  try {
+    admissionTeamId =
+      (await db.captureSession.findUnique({ where: { id: input.sessionId }, select: { teamId: true } }))?.teamId ?? null;
+  } catch {
+    admissionTeamId = null;
+  }
+  const reserved = await withEvidenceCapacityAdmissionKey(
+    evidenceAdmissionKeyFor({ ownerUserId: input.ownerUserId, teamId: admissionTeamId }),
+    () => db.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${input.sessionId}`}))`;
       const session = await loadOwnedDirectCaptureSession(
@@ -762,7 +777,7 @@ export async function reserveDirectCaptureEvidence(
       };
     },
     { timeout: 30_000, maxWait: 10_000 },
-  ).catch(async (err: unknown) => {
+  )).catch(async (err: unknown) => {
     // AUD-0017 — an expiry refused inside the transaction is written now.
     await settleDeferredExpiry(db, err, now);
     throw err;

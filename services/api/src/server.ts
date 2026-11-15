@@ -284,6 +284,12 @@ import { evaluateCookieMutation, isCorsOriginAllowed } from "./http/cors-origin-
 import { bearerTokenOf, enrollmentCookieOf, sessionCookieOf } from "./middleware/auth.js";
 import { redactRequestUrl } from "./http/redact-request-url.js";
 import { buildTestStackIsolationReport } from "./ops/test-stack-isolation-report.js";
+import {
+  installOverloadGate,
+  isDatabasePoolTimeout,
+  readServerTimeouts,
+  sendServerBusy,
+} from "./middleware/overload-gate.js";
 
 // UC-SEC-002 / UC-SEC-005 — the CORS origin decision lives in ONE module.
 
@@ -615,6 +621,10 @@ export async function buildServer(options: BuildServerOptions = {}) {
     },
     genReqId: () => randomUUID(),
     disableRequestLogging: true,
+    // F-08 (2026-11-15) — a stalled sender is cut (408) instead of holding a
+    // socket for ever; handlers and streamed responses are not bounded by it.
+    // API_REQUEST_TIMEOUT_MS / API_KEEP_ALIVE_TIMEOUT_MS, middleware/overload-gate.ts.
+    ...readServerTimeouts(),
   });
 
   if (options.onHandlerPromise) {
@@ -689,6 +699,10 @@ allowedHeaders: [
     reply.header(PRESENTATION_CONTRACT_HEADER, String(PRESENTATION_CONTRACT_VERSION));
     return payload;
   });
+
+  // F-08 (2026-11-15) — overload is refused fast (503 + Retry-After) before
+  // any authentication read, after CORS so a browser can read the refusal.
+  installOverloadGate(app);
 
   await app.register(cookie);
 
@@ -981,6 +995,13 @@ allowedHeaders: [
       }
     }
 
+    // F-08 (2026-11-15) — the pool could not hand out a connection within
+    // DATABASE_POOL_CONNECTION_TIMEOUT_MS: overload, answered like the gate.
+    if (!isAppError(err) && isDatabasePoolTimeout(err)) {
+      req.log.warn({ ...requestContext, errorCode: "SERVER_BUSY", statusCode: 503 }, "request.failed.database_pool_timeout");
+      return sendServerBusy(req, reply);
+    }
+
     if (!isAppError(err) && isPrismaKnownRequestError(err)) {
       const diag = readPrismaDiagnostic(err);
 
@@ -1115,6 +1136,11 @@ allowedHeaders: [
         req.log.error(logPayload, "request.failed.domain");
       } else {
         req.log.warn(logPayload, "request.failed.domain");
+      }
+      // F-03/F-08 (2026-11-15) — a refusal that states when to come back
+      // (busy, overload) says so the way every client already reads it.
+      if (typeof err.metadata.retryAfterSeconds === "number" && err.metadata.retryAfterSeconds > 0) {
+        reply.header("Retry-After", String(Math.ceil(err.metadata.retryAfterSeconds)));
       }
       return reply.code(err.httpStatus).send({
         error: {

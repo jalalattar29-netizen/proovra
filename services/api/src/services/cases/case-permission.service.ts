@@ -283,6 +283,20 @@ export type CaseViewerCapabilities = {
 };
 
 /**
+ * A2-14 (product decision: a Viewer is read-only) — the case-access role of a
+ * workspace case's OWNER (its creator). Owning a case lifts a current MEMBER
+ * (or above) to the synthetic case OWNER, which may manage the case's access
+ * and settings; it never lifts a member whose CURRENT workspace role is VIEWER.
+ * Historical creator status is not authority: a creator later demoted to
+ * VIEWER keeps reading the case and mutates nothing ("VIEWER never mutates").
+ * `currentRole` is the live `TeamMember.role`; no row reads as VIEWER, the
+ * same floor `resolveCaseRecordAccess` uses for every other caller.
+ */
+export function caseOwnerAccessRole(currentRole: string | null): CaseAccessRole {
+  return currentRole === null || currentRole === "VIEWER" ? "VIEWER" : "OWNER";
+}
+
+/**
  * Phase O-blockers / A-1 + A-2 — single helper that resolves the
  * caller's CaseAccessRole for a `Case` row AND runs the destructive
  * mutation gate in one shot. Used by `DELETE /v1/cases/:id` and
@@ -530,7 +544,14 @@ export async function resolveCaseRecordAccess(
     return { allowed: false, internalReason: "authorization_unavailable" };
   }
   if (!decision.allowed) return { allowed: false, internalReason: decision.reason };
-  if (c.ownerUserId === input.userId) return { allowed: true, role: "OWNER" };
+  if (c.ownerUserId === input.userId) {
+    // A2-14 — the creator's synthetic OWNER never outranks the CURRENT role.
+    const own = await client.teamMember.findUnique({
+      where: { teamId_userId: { teamId: c.teamId, userId: input.userId } },
+      select: { role: true },
+    });
+    return { allowed: true, role: caseOwnerAccessRole(own?.role ?? null) };
+  }
   // The ONE narrowing rule (case-visibility.ts): a restricted case admits its
   // owner, its CaseAccess list and the active members of an ACTIVE
   // Collaboration Team granted it — never the workspace role alone.

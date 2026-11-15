@@ -21,12 +21,13 @@
  *     resolve; after closure the owner link is dead (410) and the pvr_ page
  *     still resolves — the approved publication policy, now stated up front
  */
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomBytes, randomUUID, sign } from "node:crypto";
 
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
-import { seedPersonalTenant, seedUser, type FixtureDeps } from "./point7/product-fixtures.js";
+import { seedOrganizationTenant, seedPersonalTenant, seedUser, type FixtureDeps } from "./point7/product-fixtures.js";
 
 type Json = Record<string, unknown>;
 
@@ -38,7 +39,12 @@ describe("F-25 / F-17 — export lifecycle recovery and closure visibility (live
   let accountClosure: typeof import("../src/services/identity/account-closure.service.js");
   let hashPassword: (typeof import("../src/services/email-password-auth.service.js"))["hashPassword"];
   let runtime: typeof import("@proovra/shared-runtime");
+  let s3: (typeof import("../src/storage.js"))["s3"];
+  let orgClosure: typeof import("../src/services/organization/org-closure.service.js");
   const PASSWORD = "Export-Owner-Pass-1";
+  // D-07 — genuinely sealed fixture records (the public page answers 409 NOT_SEALED otherwise).
+  const sealKeyId = `d07-seal-${randomUUID().slice(0, 8)}`;
+  const sealKeys = generateKeyPairSync("ed25519");
   let ipCounter = 1;
 
   const call = (method: "GET" | "POST", url: string, token: string, payload?: unknown) =>
@@ -69,6 +75,15 @@ describe("F-25 / F-17 — export lifecycle recovery and closure visibility (live
     accountClosure = await import("../src/services/identity/account-closure.service.js");
     ({ hashPassword } = await import("../src/services/email-password-auth.service.js"));
     runtime = await import("@proovra/shared-runtime");
+    ({ s3 } = await import("../src/storage.js"));
+    orgClosure = await import("../src/services/organization/org-closure.service.js");
+    await prisma.signingKey.create({
+      data: {
+        keyId: sealKeyId,
+        version: 1,
+        publicKeyPem: sealKeys.publicKey.export({ type: "spki", format: "pem" }).toString().trim(),
+      },
+    });
     const { signJwt } = await import("../src/services/jwt.js");
     const secret = process.env.AUTH_JWT_SECRET!;
     deps = {
@@ -202,6 +217,8 @@ describe("F-25 / F-17 — export lifecycle recovery and closure visibility (live
     const kept = (await preview()).find((c) => c.code === "PUBLIC_VERIFICATION_REMAINS");
     expect(kept?.count).toBe(1);
     expect(kept?.message).toMatch(/Withdraw page/);
+    // D-07 — the server consequence (shown by web and native) states the minimal disclosure.
+    expect(kept?.message).toMatch(/only the verification result, never your files/);
 
     // A withdrawn page is not "online" — the preview stops naming it.
     await prisma.evidence.update({ where: { id: ev.id }, data: { verificationAccessState: "WITHDRAWN" } });
@@ -221,4 +238,230 @@ describe("F-25 / F-17 — export lifecycle recovery and closure visibility (live
     expect((await verify(ownerToken)).statusCode).toBe(410);
     expect(await resolves(ref)).toBe(true);
   });
+
+  // ===========================================================================
+  // D-07 (round 3, product decision 2026-11-15) — public Verify after closure.
+  // An already-public page keeps its canonical URL and QR with the minimal
+  // projection; private and withdrawn records never become public; the closed
+  // account's credentials read nothing and act on nothing; issued bytes and the
+  // historic QR link are unchanged. Personal closure AND the organization
+  // ownership controls.
+  // ===========================================================================
+
+  /** An issued record: report bytes in MinIO, pvr_, the QR link a report printed, an owner share. */
+  async function issuedRecord(input: { teamId: string; ownerUserId: string; withdrawn?: boolean; withRef?: boolean }) {
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: input.teamId }, select: { organizationId: true } });
+    const ev = await prisma.evidence.create({
+      data: {
+        title: `D07 ${randomUUID().slice(0, 8)}`,
+        type: "PHOTO",
+        status: "REPORTED",
+        teamId: input.teamId,
+        organizationId: team.organizationId,
+        ownerUserId: input.ownerUserId,
+        signedAtUtc: new Date(),
+        lat: 51.5007,
+        lng: -0.1246,
+        showRecordedLocation: false,
+        ...(input.withdrawn ? { verificationAccessState: "WITHDRAWN", verificationAccessReason: "PRIVACY_REQUEST" } : {}),
+      } as never,
+      select: { id: true },
+    });
+    const fileSha256 = createHash("sha256").update(randomUUID()).digest("hex");
+    const canonicalJson = JSON.stringify({ v: 1, evidenceId: ev.id, sha256: fileSha256 });
+    const fingerprintHash = createHash("sha256").update(canonicalJson).digest("hex");
+    await prisma.evidence.update({
+      where: { id: ev.id },
+      data: {
+        fileSha256,
+        fingerprintCanonicalJson: canonicalJson,
+        fingerprintHash,
+        signatureBase64: sign(null, Buffer.from(fingerprintHash, "hex"), sealKeys.privateKey).toString("base64"),
+        signingKeyId: sealKeyId,
+        signingKeyVersion: 1,
+        mimeType: "image/png",
+        storageBucket: process.env.S3_BUCKET as string,
+        storageKey: `evidence/${ev.id}/original.png`,
+        sizeBytes: 10n,
+      } as never,
+    });
+    const bytes = randomBytes(2048);
+    const key = `reports/${ev.id}/v1-d07.pdf`;
+    const bucket = process.env.S3_BUCKET as string;
+    const put = await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: bytes }));
+    const pdfSha256 = createHash("sha256").update(bytes).digest("hex");
+    await prisma.report.create({
+      data: {
+        evidenceId: ev.id,
+        version: 1,
+        storageBucket: bucket,
+        storageKey: key,
+        s3VersionId: put.VersionId ?? null,
+        pdfSha256,
+        generatedAtUtc: new Date(),
+        sizeBytes: BigInt(bytes.length),
+      } as never,
+    });
+    const links = await prisma.$transaction(async (tx) => {
+      const ref = input.withRef === false ? null : (await runtime.ensureVerificationRefTx(tx as never, ev.id)).ref!;
+      if (!ref) return { ref: null, qrToken: null, ownerToken: null };
+      const qr = await runtime.mintVerificationShareTokenTx(tx as never, {
+        evidenceId: ev.id,
+        teamId: input.teamId,
+        purpose: "REPORT",
+        reportVersion: 1,
+      } as never);
+      const owner = await runtime.mintVerificationShareTokenTx(tx as never, {
+        evidenceId: ev.id,
+        teamId: input.teamId,
+        purpose: "OWNER_SHARE",
+        createdByUserId: input.ownerUserId,
+        expiresAtUtc: new Date(Date.now() + 7 * 86_400_000),
+      } as never);
+      return { ref, qrToken: qr.token as string, ownerToken: owner.token as string };
+    });
+    return { id: ev.id, key, bucket, pdfSha256, ...links };
+  }
+
+  const publicVerify = (identifier: string) =>
+    harness.app.inject({ method: "GET", url: `/public/verify/${identifier}`, remoteAddress: `198.51.100.${(ipCounter++ % 250) + 1}` });
+
+  /** The minimal projection: no files, no storage, no private metadata, no owner contact. */
+  function expectMinimalProjection(body: string, ctx: { id: string; key: string; email: string }) {
+    expect(body).not.toContain("X-Amz-Signature");
+    expect(body).not.toContain(ctx.key);
+    expect(body).not.toContain("storageKey");
+    expect(body).not.toContain(ctx.email);
+    expect(body).not.toContain("51.5007");
+    expect(body).not.toContain("-0.1246");
+  }
+
+  async function storedReportFacts(evidenceId: string) {
+    const r = await prisma.report.findFirstOrThrow({
+      where: { evidenceId, version: 1 },
+      select: { id: true, storageKey: true, s3VersionId: true, pdfSha256: true, sizeBytes: true },
+    });
+    const obj = await s3.send(new GetObjectCommand({ Bucket: process.env.S3_BUCKET as string, Key: r.storageKey! }));
+    const bytes = Buffer.from(await obj.Body!.transformToByteArray());
+    return { ...r, sizeBytes: String(r.sizeBytes), objectSha256: createHash("sha256").update(bytes).digest("hex") };
+  }
+
+  it("D-07 personal closure: public page and historic QR stay with minimal disclosure; withdrawn/private stay closed; closed credentials read and do nothing; bytes unchanged", async () => {
+    const t = await seedPersonalTenant(deps, "FREE");
+    const pub = await issuedRecord({ teamId: t.personalTeamId, ownerUserId: t.owner.userId });
+    const withdrawn = await issuedRecord({ teamId: t.personalTeamId, ownerUserId: t.owner.userId, withdrawn: true });
+    const priv = await issuedRecord({ teamId: t.personalTeamId, ownerUserId: t.owner.userId, withRef: false });
+
+    // Before closure: the owner reads the issued report; every public answer is as published.
+    const before = await call("GET", `/v1/evidence/${pub.id}/report/latest`, t.owner.token);
+    expect(before.statusCode, before.body).toBe(200);
+    const pubBefore = await publicVerify(pub.ref!);
+    expect(pubBefore.statusCode, pubBefore.body).toBe(200);
+    const factsBefore = await storedReportFacts(pub.id);
+
+    await accountClosure.executeAccountClosure(t.owner.userId);
+    const closedUser = await prisma.user.findUniqueOrThrow({ where: { id: t.owner.userId }, select: { providerUserId: true } });
+    expect(closedUser.providerUserId).toBe(`closed:${t.owner.userId}`);
+
+    // 1. The canonical pvr_ URL and the QR link the issued report printed still verify, minimally.
+    for (const identifier of [pub.ref!, pub.qrToken!]) {
+      const res = await publicVerify(identifier);
+      expect(res.statusCode, `${identifier}: ${res.body}`).toBe(200);
+      expect(res.headers["cache-control"]).toBe("no-store");
+      expectMinimalProjection(res.body, { id: pub.id, key: pub.key, email: t.owner.email });
+      // Same canonical identity (what the printed QR resolves to), verification-only disclosure.
+      expect(res.json().recordFacts?.verificationReference).toBe(pub.ref);
+      expect(res.json().link).toMatchObject({ kind: "CANONICAL" });
+      expect(res.body).toContain("Disclosure: Verification only");
+    }
+    // The owner's recipient link is a grant closure revokes.
+    expect((await publicVerify(pub.ownerToken!)).statusCode).toBe(410);
+
+    // 2. Withdrawn stays withdrawn (every identifier); private never becomes public.
+    for (const identifier of [withdrawn.ref!, withdrawn.qrToken!]) {
+      const res = await publicVerify(identifier);
+      expect(res.statusCode, res.body).toBe(410);
+      expect(res.json().canonicalVerification?.status).toBe("WITHDRAWN");
+      expectMinimalProjection(res.body, { id: withdrawn.id, key: withdrawn.key, email: t.owner.email });
+    }
+    expect((await publicVerify(priv.id)).statusCode).toBe(404);
+    const states = await prisma.evidence.findMany({
+      where: { id: { in: [pub.id, withdrawn.id, priv.id] } },
+      select: { id: true, verificationAccessState: true, verificationRef: true },
+    });
+    const byId = new Map(states.map((s) => [s.id, s]));
+    expect(byId.get(withdrawn.id)!.verificationAccessState).toBe("WITHDRAWN");
+    expect(byId.get(priv.id)!.verificationRef).toBeNull();
+    expect(byId.get(pub.id)!.verificationRef).toBe(pub.ref);
+
+    // 3. The closed account's credentials read no file and perform no action.
+    for (const [method, url, payload] of [
+      ["GET", `/v1/evidence/${pub.id}/report/latest`, undefined],
+      ["GET", `/v1/evidence/${pub.id}/reports/1`, undefined],
+      ["GET", `/v1/evidence/${pub.id}/original`, undefined],
+      ["GET", `/v1/evidence/${pub.id}/verification-package`, undefined],
+      ["POST", `/v1/evidence/${pub.id}/verification-access/withdraw`, { reason: "PRIVACY_REQUEST", ...proof }],
+      ["POST", `/v1/evidence/${withdrawn.id}/verification-access/reinstate`, proof],
+      ["POST", `/v1/evidence/${pub.id}/reports/regenerate`, {}],
+    ] as const) {
+      const res = await call(method, url, t.owner.token, payload);
+      expect(res.statusCode, `${method} ${url}: ${res.body}`).toBe(401);
+    }
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: pub.id }, select: { verificationAccessState: true } })).verificationAccessState).toBe("AVAILABLE");
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: withdrawn.id }, select: { verificationAccessState: true } })).verificationAccessState).toBe("WITHDRAWN");
+    expect(await prisma.reportGenerationRequest.count({ where: { evidenceId: pub.id } })).toBe(0);
+
+    // 4. Issued bytes, their digest and the stored object are unchanged.
+    expect(await storedReportFacts(pub.id)).toEqual(factsBefore);
+    expect(factsBefore.objectSha256).toBe(pub.pdfSha256);
+  }, 60_000);
+
+  it("D-07 organization ownership: an org owner with members cannot close; org closure keeps public pages and the QR, revokes grants and member access", async () => {
+    const org = await seedOrganizationTenant(deps, { memberCount: 1 });
+    const pub = await issuedRecord({ teamId: org.workspaceId, ownerUserId: org.owner.userId });
+    const withdrawn = await issuedRecord({ teamId: org.workspaceId, ownerUserId: org.owner.userId, withdrawn: true });
+    await prisma.user.update({ where: { id: org.owner.userId }, data: { passwordHash: await hashPassword(PASSWORD) } });
+
+    // Ownership control: the owner of an organization with other members is refused.
+    const preview = await call("GET", "/v1/identity/account-closure", org.owner.token);
+    expect(preview.statusCode, preview.body).toBe(200);
+    const codes = ((json(preview).blockers as Array<{ code: string }>) ?? []).map((b) => b.code);
+    expect(codes).toEqual(expect.arrayContaining(["ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED", "ORGANIZATION_OFFBOARDING_REQUIRED"]));
+    const refused = await call("POST", "/v1/identity/account-closure", org.owner.token, {
+      confirmation: "close my account",
+      ...proof,
+    });
+    expect(refused.statusCode, refused.body).toBeGreaterThanOrEqual(400);
+    expect(JSON.stringify(json(refused))).toContain("closure_blocked");
+    expect(
+      await prisma.accountClosureRequest.count({
+        where: { userId: org.owner.userId, status: { in: ["COOLING_OFF", "SCHEDULED", "PROCESSING", "COMPLETED"] } },
+      }),
+    ).toBe(0);
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: org.organizationId }, select: { status: true } })).status).toBe("ACTIVE");
+
+    const member = org.members[0]!;
+    const memberRead = await call("GET", `/v1/evidence/${pub.id}/report/latest`, member.token);
+    expect(memberRead.statusCode, memberRead.body).toBe(200);
+    const factsBefore = await storedReportFacts(pub.id);
+
+    // Organization closure — the org's own ownership control.
+    const { executeOrganizationClosure } = orgClosure;
+    await executeOrganizationClosure({ organizationId: org.organizationId, requestedByUserId: org.owner.userId });
+
+    for (const identifier of [pub.ref!, pub.qrToken!]) {
+      const res = await publicVerify(identifier);
+      expect(res.statusCode, res.body).toBe(200);
+      expectMinimalProjection(res.body, { id: pub.id, key: pub.key, email: org.owner.email });
+    }
+    expect((await publicVerify(pub.ownerToken!)).statusCode).toBe(410);
+    for (const identifier of [withdrawn.ref!, withdrawn.qrToken!]) {
+      expect((await publicVerify(identifier)).statusCode).toBe(410);
+    }
+
+    // A member who read the report before reads nothing once the org is closed.
+    const memberAfter = await call("GET", `/v1/evidence/${pub.id}/report/latest`, member.token);
+    expect([401, 403, 404], memberAfter.body).toContain(memberAfter.statusCode);
+    expect(await storedReportFacts(pub.id)).toEqual(factsBefore);
+  }, 60_000);
 });

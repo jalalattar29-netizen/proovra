@@ -1483,8 +1483,11 @@ export async function billingRoutes(app: FastifyInstance) {
       );
       return null;
     }
-    // One action per attempt at a time is enforced by the service's advisory
-    // lock (BILLING_ATTEMPT_BUSY, 409), held only while the action runs.
+    // One action per attempt at a time is enforced by the service's lease
+    // (BILLING_ATTEMPT_BUSY, 409), held only while the action runs. It is a
+    // Redis lease that falls back to this process's memory when Redis cannot
+    // answer (services/rate-limit.ts acquireLease) — not a database advisory
+    // lock; the writers behind it are compare-and-set (AUDIT E-07).
     return { userId, account, attemptId: params.data.attemptId };
   }
 

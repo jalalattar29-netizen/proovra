@@ -7,3 +7,12 @@
  * load the context provider unchanged.
  */
 export const SESSION_EXPIRED_EVENT = "proovra:session-expired";
+
+/**
+ * A1-06 — the browser event `apiFetch` dispatches when the server refuses a
+ * write because the current terms are not accepted (428
+ * `LEGAL_REACCEPT_REQUIRED`). The acceptance step listens for it, so a refusal
+ * that arrives after the page loaded (terms updated mid-session) puts the
+ * actionable prompt in front of the person instead of a dead-end error.
+ */
+export const LEGAL_REACCEPT_REQUIRED_EVENT = "proovra:legal-reaccept-required";

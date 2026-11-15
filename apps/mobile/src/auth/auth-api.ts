@@ -91,6 +91,11 @@ export interface RegisterResult {
   verificationSent: boolean;
   /** F-06 — the provider's real answer (email-verification.service). */
   verificationDelivery: "sent" | "unconfirmed" | "failed" | "cooldown";
+  /**
+   * B-13 — seconds until a resend would really be attempted (the server's
+   * per-address cooldown; 0 when the send failed and a resend may go at once).
+   */
+  resendAfterSec: number;
   email: string;
 }
 
@@ -110,9 +115,11 @@ export async function registerAccount(input: {
       : data["verificationSent"] === false
         ? "failed"
         : "sent";
+  const wait = data["resendAfterSec"];
   return {
     verificationSent: data["verificationSent"] === true,
     verificationDelivery,
+    resendAfterSec: typeof wait === "number" && Number.isFinite(wait) && wait > 0 ? Math.ceil(wait) : 0,
     email: String(data["email"] ?? input.email),
   };
 }

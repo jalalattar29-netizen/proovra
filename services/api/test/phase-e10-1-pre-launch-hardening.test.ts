@@ -152,14 +152,36 @@ describe("E10.1 Test 1 — DEF-037: auth route rate limits", () => {
         AUTH_ROUTES.indexOf('app.post("/v1/auth/password-reset/confirm"'),
       ),
     ];
+    // B-21 / B-09 (round 3) — the sign-in refusals (per address AND per
+    // account) share one 429 helper, so an unknown account's refusal is the
+    // same bytes as a real one's.
+    const loginHelper = AUTH_ROUTES.slice(
+      AUTH_ROUTES.indexOf("function replyLoginRateLimited("),
+      AUTH_ROUTES.indexOf("function replyLoginRateLimited(") + 900,
+    );
+    expect(loginHelper).toMatch(/\.code\(429\)/);
+    expect(loginHelper).toMatch(/Retry-After/);
     for (const block of blocks) {
-      expect(block).toMatch(/reply[\s\S]*\.code\(429\)/);
-      expect(block).toMatch(/Retry-After/);
+      const delegated = /return replyLoginRateLimited\(reply, rl\)/.test(block);
+      if (!delegated) {
+        expect(block).toMatch(/reply[\s\S]*\.code\(429\)/);
+        expect(block).toMatch(/Retry-After/);
+      }
       expect(block).toMatch(/logAuthRateLimited\(req,/);
       // The refusal branch (up to its 429) never reaches the audit chain.
-      const refusal = block.slice(block.indexOf("if (!rl.allowed)"), block.indexOf(".code(429)"));
+      const end = delegated ? block.indexOf("return replyLoginRateLimited(reply, rl)") : block.indexOf(".code(429)");
+      const refusal = block.slice(block.indexOf("if (!rl.allowed)"), end);
+      expect(refusal.length).toBeGreaterThan(0);
       expect(refusal).not.toMatch(/auditAuthEvent|auditPublicAuthEvent|appendAuditLog/);
     }
+    // The per-account refusal is logged, not chained, too.
+    const login = blocks[0]!;
+    const accountRefusal = login.slice(
+      login.indexOf("if (!accountRl.allowed)"),
+      login.indexOf("return replyLoginRateLimited(reply, accountRl)"),
+    );
+    expect(accountRefusal).toMatch(/logAuthRateLimited\(req,/);
+    expect(accountRefusal).not.toMatch(/auditAuthEvent|auditPublicAuthEvent|appendAuditLog/);
     expect(AUTH_ROUTES).toMatch(/req\.log\.warn\([\s\S]{0,200}"auth\.rate_limited"/);
   });
 

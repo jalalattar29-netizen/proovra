@@ -26,7 +26,11 @@ type CaptureDropzoneProps = {
   /** Number of staged items; 0 renders the empty-state density. */
   itemCount: number;
   onOpenFilePicker: () => void;
-  onOpenFolderPicker: () => void;
+  /**
+   * F-P1-10 — the Folder action renders only when supplied (browsers that can
+   * pick a folder); elsewhere "Add files" (multi-select) is the way in.
+   */
+  onOpenFolderPicker?: () => void;
   onOpenCamera: (mode: "PHOTO" | "VIDEO") => void;
   onOpenAudioRecorder: () => void;
   /** Browser screen recording; the action renders only when supplied (supported browsers). */
@@ -67,7 +71,7 @@ export function CaptureDropzone({
   const empty = itemCount === 0;
 
   const run = (key: MethodKey) => {
-    if (key === "folder") return onOpenFolderPicker();
+    if (key === "folder") return onOpenFolderPicker?.();
     if (key === "photo") return onOpenCamera("PHOTO");
     if (key === "video") return onOpenCamera("VIDEO");
     if (key === "audio") return onOpenAudioRecorder();
@@ -75,7 +79,9 @@ export function CaptureDropzone({
     return onStartScreenRecording?.();
   };
 
-  const methods = METHODS.filter((m) => m.key !== "screen" || onStartScreenRecording);
+  const methods = METHODS.filter(
+    (m) => (m.key !== "screen" || onStartScreenRecording) && (m.key !== "folder" || onOpenFolderPicker),
+  );
 
   return (
     <section

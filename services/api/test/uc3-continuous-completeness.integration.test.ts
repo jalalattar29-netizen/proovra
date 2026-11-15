@@ -703,6 +703,73 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     expect(bound.status).toBe("BOUND");
   });
 
+  // C-13 (Free-user audit of 4d9b78963) — the sealed-but-unbound session the
+  // reaper left ACTIVE with its expiry in the past was reselected on every pass
+  // (and crowded the page) while nothing but a client retry ever bound it. It is
+  // now kept to its maximum lifetime (expiry moved, not reselected) for that
+  // retry — which binds it without a second seal or charge — and closed
+  // (EXPIRED, SEALED_UNBOUND) past it, never touching the sealed record.
+  it("C-13: a sealed-but-unbound session is kept for the bind retry (one seal, one charge), then closed without touching the record", async () => {
+    const reaper = await import("../../worker/src/capture-reaper.js");
+    const { token, sessionId, evidenceId, segs } = await stageSegments(2, [0, 1]);
+    const manifest = continuousManifest(sessionId, segs, { recorded: 2, completeness: "COMPLETE_SESSION" });
+    await stageManifest(token, sessionId, evidenceId, manifest, 2);
+    expect((await seal(token, sessionId, manifest)).statusCode).toBe(200);
+    const unbind = () =>
+      prisma.captureSession.update({
+        where: { id: sessionId },
+        data: { status: "ACTIVE", endReason: null, finalizedAtUtc: null, endedAtUtc: null, expiresAtUtc: new Date(Date.now() - 60_000) },
+      });
+    await unbind();
+    const ownerId = (await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { ownerUserId: true } })).ownerUserId;
+    const facts = async () => ({
+      records: await prisma.evidence.count({ where: { ownerUserId: ownerId } }),
+      completed: await prisma.custodyEvent.count({ where: { evidenceId, eventType: "EVIDENCE_COMPLETED" } }),
+      deleted: await prisma.custodyEvent.count({ where: { evidenceId, eventType: "EVIDENCE_DELETED" } }),
+      record: await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true, deletedAt: true, signatureBase64: true } }),
+    });
+    const before = await facts();
+    expect(before.record.status).toBe("SIGNED");
+
+    // Within its lifetime: kept, its expiry moved — the next pass does not select it again.
+    const first = await reaper.releaseExpiredReservations({ trigger: "c-13-test" });
+    expect(first.sealedUnboundKept).toBeGreaterThanOrEqual(1);
+    const kept = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { status: true, expiresAtUtc: true, startedAtUtc: true, createdAt: true } });
+    expect(kept.status).toBe("ACTIVE");
+    expect(kept.expiresAtUtc!.getTime()).toBeGreaterThan(Date.now());
+    const reselected = await prisma.captureSession.count({ where: { id: sessionId, expiresAtUtc: { lt: new Date() } } });
+    expect(reselected).toBe(0);
+
+    // The client retry binds it: no second seal, no second record, nothing released.
+    const retried = await seal(token, sessionId, manifest);
+    expect(retried.statusCode, retried.body).toBe(200);
+    expect((await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { status: true } })).status).toBe("BOUND");
+    expect(await facts()).toEqual(before);
+
+    // Past its maximum lifetime with no retry: closed, the sealed record untouched.
+    await unbind();
+    const longAgo = new Date(Date.now() - 25 * 3600_000);
+    await prisma.captureSession.update({ where: { id: sessionId }, data: { startedAtUtc: longAgo } });
+    const deletedKeys: string[] = [];
+    const closedRun = await reaper.releaseExpiredReservations({
+      trigger: "c-13-test",
+      deleteObject: async (o: { key: string }) => {
+        deletedKeys.push(o.key);
+        return { deleted: true, deletedVersions: 1, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
+      },
+    });
+    expect(closedRun.sealedUnboundClosed).toBeGreaterThanOrEqual(1);
+    expect(await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId }, select: { status: true, endReason: true } })).toEqual({
+      status: "EXPIRED",
+      endReason: "SEALED_UNBOUND",
+    });
+    expect(deletedKeys.filter((k) => k.includes(evidenceId))).toEqual([]);
+    // A late retry is refused; it neither seals again nor removes anything.
+    const late = await seal(token, sessionId, manifest);
+    expect(late.statusCode).toBeGreaterThanOrEqual(400);
+    expect(await facts()).toEqual(before);
+  });
+
   // ---------------------------------------------------------------- UC-STR-006
 
   it("UC-STR-006 the completeness is written by the bind itself: a failure after the bind cannot leave it reading as complete", async () => {
