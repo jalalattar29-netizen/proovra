@@ -3983,9 +3983,9 @@
     "id": "P13-52A",
     "phase": "P13",
     "name": "a declaration skips the legal check again",
-    "file": "services/api/src/routes/capture-trust.routes.ts",
-    "find": "    \"/v1/capture/direct-sessions/:id/parts/:partIndex/declaration\",\n    { preHandler: requireAuthAndLegal },",
-    "replace": "    \"/v1/capture/direct-sessions/:id/parts/:partIndex/declaration\",\n    { preHandler: requireAuth },",
+    "file": "services/api/src/middleware/legal-acceptance-route-policy.ts",
+    "find": "    // AUD-52: withdrawing one's own unsealed draft adds nothing.\n    `POST /v1/capture/direct-sessions/${P}/discard`,",
+    "replace": "    // AUD-52: withdrawing one's own unsealed draft adds nothing.\n    `POST /v1/capture/direct-sessions/${P}/discard`,\n    `POST /v1/capture/direct-sessions/${P}/parts/${P}/declaration`,",
     "tests": [
       {
         "cwd": "services/api",
@@ -3999,15 +3999,16 @@
         ],
         "integration": true
       }
-    ]
+    ],
+    "note": "A1-06 (2026-11-15): requireAuth enforces the current terms on every write and requireAuthAndLegal applies the same decision; both read this exemption classification, so a route skipping the check means the route classified exempt."
   },
   {
     "id": "P13-52B",
     "phase": "P13",
     "name": "a continuous seal skips the legal check again",
-    "file": "services/api/src/routes/capture-trust.routes.ts",
-    "find": "    \"/v1/capture/direct-sessions/:id/continuous-complete\",\n    { preHandler: requireAuthAndLegal },",
-    "replace": "    \"/v1/capture/direct-sessions/:id/continuous-complete\",\n    { preHandler: requireAuth },",
+    "file": "services/api/src/middleware/legal-acceptance-route-policy.ts",
+    "find": "    // AUD-52: withdrawing one's own unsealed draft adds nothing.\n    `POST /v1/capture/direct-sessions/${P}/discard`,",
+    "replace": "    // AUD-52: withdrawing one's own unsealed draft adds nothing.\n    `POST /v1/capture/direct-sessions/${P}/discard`,\n    `POST /v1/capture/direct-sessions/${P}/continuous-complete`,",
     "tests": [
       {
         "cwd": "services/api",
@@ -4021,7 +4022,8 @@
         ],
         "integration": true
       }
-    ]
+    ],
+    "note": "A1-06 (2026-11-15): requireAuth enforces the current terms on every write and requireAuthAndLegal applies the same decision; both read this exemption classification, so a route skipping the check means the route classified exempt."
   },
   {
     "id": "P13-52C",
