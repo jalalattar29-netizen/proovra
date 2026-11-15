@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "9f8be09076ab15fdc1b0d83f45ea96c2c6fbfa6ffded61027585ed650bf7fc07",
+  "capabilityRouteInventoryHash": "3cacd3a615d30c06549322e0b1c8a1d8705241f8c6e2b0c46196ad2303f7a655",
   "totals": {
-    "routes": 1243,
+    "routes": 1245,
     "routesWithAnyTestCaller": 56,
     "testOnlyRoutes": 9,
-    "testCallSites": 128,
+    "testCallSites": 133,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -840,9 +840,10 @@
     },
     {
       "routeId": "GET /v1/billing/overview",
-      "testCallerCount": 4,
+      "testCallerCount": 5,
       "testOnly": false,
       "testCallerFiles": [
+        "apps/web/__tests__/render/compat-invite-accept-fallback.render.test.tsx",
         "services/api/test/web-apifetch-single-flight.test.ts"
       ]
     },
@@ -6541,6 +6542,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/org-invites/accept",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/org-invites/lookup",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7285,6 +7292,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/teams/invites/accept",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/teams/invites/lookup",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7597,5 +7610,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "783bbd8393a328d4d366660dffcee1a8b83c32ca5a5584bafd8844d8e0df2487"
+  "contentHash": "1cba7cc06bdc352b2643f9526482dc5e70b1763d6035a0078fbafdeb2e4b6bdf"
 }
