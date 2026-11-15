@@ -141,12 +141,18 @@ export async function selectReconciliationCandidates(
   limit: number = ACCOUNT_BATCH,
   now: Date = new Date(),
   /** F-07 — accounts this tick/cycle already offered; asked for the others. */
-  options: { excludeUserIds?: ReadonlyArray<string> } = {},
+  options: { excludeUserIds?: ReadonlyArray<string>; onlyUserIds?: ReadonlyArray<string> } = {},
 ): Promise<BillingAccountRef[]> {
   const creditProduct = { OR: [{ product: "EVIDENCE_CREDIT" }, { product: null }] };
   const skip = options.excludeUserIds && options.excludeUserIds.length > 0 ? [...options.excludeUserIds] : null;
-  const notOffered = skip ? { userId: { notIn: skip } } : {};
-  const ownerNotOffered = skip ? { ownerUserId: { notIn: skip } } : {};
+  // F-07 test seam — confine the selection to these accounts (a suite sharing
+  // its database with others measures only its own). No production caller
+  // passes it.
+  const only = options.onlyUserIds ? [...options.onlyUserIds] : null;
+  const userScope = { ...(skip ? { notIn: skip } : {}), ...(only ? { in: only } : {}) };
+  const scoped = skip !== null || only !== null;
+  const notOffered = scoped ? { userId: userScope } : {};
+  const ownerNotOffered = scoped ? { ownerUserId: userScope } : {};
   // BILLING REMEDIATION (2026-10-30, AUD-14) — a reference the provider just
   // answered 404 for, not due again yet. A failed read writes nothing, so such a
   // row stayed oldest-touched and took a batch slot on every tick.
@@ -307,6 +313,8 @@ export async function runBillingReconciliationSweep(input?: {
   budgetMs?: number;
   /** F-07 — overrides BILLING_RECONCILER_MAX_ACCOUNTS_PER_TICK (tests). */
   maxAccounts?: number;
+  /** F-07 test seam — only these accounts are offered (a shared test database). */
+  onlyUserIds?: ReadonlyArray<string>;
 }): Promise<{
   attempted: number;
   updated: number;
@@ -340,6 +348,7 @@ async function runSweep(input?: {
   providers?: ReconciliationProviders;
   budgetMs?: number;
   maxAccounts?: number;
+  onlyUserIds?: ReadonlyArray<string>;
 }): Promise<{
   attempted: number;
   updated: number;
@@ -401,7 +410,7 @@ async function runSweep(input?: {
     const candidates = await selectReconciliationCandidates(
       Math.min(batch, maxAccounts - offeredThisTick.size),
       new Date(),
-      { excludeUserIds: [...cycle, ...offeredThisTick] },
+      { excludeUserIds: [...cycle, ...offeredThisTick], onlyUserIds: input?.onlyUserIds },
     );
     if (candidates.length === 0) {
       // Every candidate has been offered since this cycle began: begin the

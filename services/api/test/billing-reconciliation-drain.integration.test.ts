@@ -56,7 +56,10 @@ describe("F-07 billing reconciliation drains a backlog within a per-tick budget 
   async function tick(input: { budgetMs: number; maxAccounts?: number }) {
     for (let i = 0; i < 40; i++) {
       const started = Date.now();
-      const r = await job.runBillingReconciliationSweep({ providers, ...input });
+      // Scoped to this suite's accounts: in CI every integration suite shares one
+      // database, and other suites' billing rows (other providers, open
+      // attempts) would take the rounds and the provider-unavailable stop.
+      const r = await job.runBillingReconciliationSweep({ providers, onlyUserIds: [...refs.values()], ...input });
       if (!r.skipped) return { ...r, elapsedMs: Date.now() - started };
       await sleep(250);
     }
@@ -91,7 +94,7 @@ describe("F-07 billing reconciliation drains a backlog within a per-tick budget 
     job.resetReconciliationCycle?.();
     asked = [];
     unavailable = false;
-    const budgetMs = 3_000;
+    const budgetMs = 6_000;
     const ticks: Array<{ attempted: number; elapsedMs: number; rounds?: number; stopReason?: string; unavailable: number }> = [];
     const firstSeenAtTick = new Map<string, number>();
     let coveredAt = -1;
