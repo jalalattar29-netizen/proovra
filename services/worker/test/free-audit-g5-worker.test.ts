@@ -31,6 +31,7 @@ import { adaptiveIntegrityRecheckBatch, INTEGRITY_RECHECK_SWEEP_MAX_BATCH } from
 import {
   injectReportRenderCsp,
   isAllowedReportRequestUrl,
+  stripHttpEquivMeta,
   renderPdfFromHtml,
   resolveBrowserExecutablePath,
 } from "../src/report-v2/render-pdf.js";
@@ -91,6 +92,23 @@ describe("B8-F-006 — renderer defence in depth", () => {
     expect(html).toContain("script-src 'none'");
   });
 
+  it("removes every <meta http-equiv> before the page loads, in every spelling, and keeps other meta tags", () => {
+    const keep = '<meta charset="utf-8"><meta name="viewport" content="width=device-width">';
+    const hostile = [
+      '<meta http-equiv="refresh" content="0;url=http://169.254.169.254/">',
+      "<META HTTP-EQUIV=Refresh CONTENT='0;url=http://x/'>",
+      '<meta/http-equiv="refresh" content="0;url=http://x/">',
+      '<meta content="a>b" http-equiv="refresh">',
+      '<meta\n  http-equiv = "set-cookie" content="a=b">',
+    ];
+    for (const tag of hostile) {
+      const out = stripHttpEquivMeta(`<head>${keep}${tag}</head><p>t</p>`);
+      expect(out, tag).toBe(`<head>${keep}</head><p>t</p>`);
+    }
+    // A record title that merely MENTIONS the attribute is text, not a tag.
+    expect(stripHttpEquivMeta("<p>http-equiv=refresh</p>")).toBe("<p>http-equiv=refresh</p>");
+  });
+
   const chrome = resolveBrowserExecutablePath();
   it.skipIf(!chrome)("a record field carrying raw markup cannot fetch or run script; the PDF still renders", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -107,14 +125,17 @@ describe("B8-F-006 — renderer defence in depth", () => {
       );
       expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
       expect(blockedLog()).toBeNull();
-      // 1b. A navigation (meta refresh) is not governed by CSP: interception
-      //     aborts it and the render is REFUSED instead of printing an error page.
-      await expect(
-        renderPdfFromHtml(
-          page(`<p>Title</p><meta http-equiv="refresh" content="0;url=http://169.254.169.254/latest/meta-data/">`),
-          { launchTimeoutMs: 90_000 },
-        ),
-      ).rejects.toThrow(/renderer_blocked_navigation/);
+      // 1b. A navigation (meta refresh) is not governed by CSP, and its timing
+      //     is the browser's (it raced the check on Linux CI, 2026-11-16). The
+      //     tag is removed before the page loads: the report renders, nothing
+      //     navigates, nothing is requested. (Interception still refuses any
+      //     navigation that gets through, before or after printing.)
+      const refreshed = await renderPdfFromHtml(
+        page(`<p>Title</p><meta http-equiv="refresh" content="0;url=http://169.254.169.254/latest/meta-data/">`),
+        { launchTimeoutMs: 90_000 },
+      );
+      expect(refreshed.subarray(0, 4).toString()).toBe("%PDF");
+      expect(blockedLog()).toBeNull();
       warn.mockClear();
       // 2. Injected script: had it run, it would navigate away and the render
       //    would be refused (1b). It does not run, so the PDF renders.

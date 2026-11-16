@@ -172,11 +172,23 @@ test.describe("three product decisions — the real stack", () => {
   });
 
   /** Home's "unlinked records" chip — the canonical ACTIVE population in no active matter. */
+  //
+  // Free-user audit 0ea0, B2A-F-04 (2026-11-16): a plan without Cases (FREE)
+  // no longer shows the Active-matters card, so the chip is NOT rendered for
+  // this user. The count is read from the server projection Home's
+  // command-center slice consumes (the same `unlinkedEvidenceCount` the chip
+  // printed), after Home has loaded, and the card's absence is asserted.
   async function homeUnlinked(page: Page): Promise<string | null> {
     await page.goto("/home");
-    const chip = page.locator("[data-case-unlinked]");
-    await chip.first().waitFor({ timeout: 30_000 });
-    return chip.first().getAttribute("data-case-unlinked");
+    await page.locator("[data-home-tabpanel]").first().waitFor({ timeout: 30_000 });
+    await expect(page.locator('[data-self-serve-section="active-matters"], [data-case-unlinked]')).toHaveCount(0);
+    const res = await A.api.get(`/v1/dashboard/command-center?teamId=${encodeURIComponent(teamId)}`);
+    expect(res.ok(), await res.text()).toBe(true);
+    const cc = (await res.json()) as {
+      sections?: { caseOperations?: { data?: { unlinkedEvidenceCount?: number } } };
+    };
+    const count = cc.sections?.caseOperations?.data?.unlinkedEvidenceCount;
+    return typeof count === "number" ? String(count) : null;
   }
 
   test("Home 3 → Trash → Home 2 → (day 91, legal hold) → Retention Archive → restore in the browser → the SAME record → Home 3", async ({ page }) => {

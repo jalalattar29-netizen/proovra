@@ -156,6 +156,44 @@ describe("integrations API actor, plan gate and organization lifecycle (live Pos
     expect(await prisma.workflowIntakeLink.count({ where: { teamId: A.teamId } })).toBe(before);
   });
 
+  // Free-user audit 0ea0 follow-up (2026-11-16) — since B3A-F-002 the viewer
+  // key above is refused at AUTHENTICATION, so the mint gate's policy branch
+  // was no longer reached by any test (forward mutant P10-O survived). This
+  // key's creator is the OWNER — it authenticates — and the workspace policy
+  // switches external intake off: the creator may not mint this link, so the
+  // API refuses with the policy code and writes nothing.
+  it("AUD-36: an owner's key may not mint a link the workspace policy refuses", async () => {
+    const A = h.fixtures.teamA;
+    const existing = await prisma.workspaceGovernancePolicy.findUnique({ where: { teamId: A.teamId } });
+    await prisma.workspaceGovernancePolicy.upsert({
+      where: { teamId: A.teamId },
+      create: { teamId: A.teamId, allowExternalIntake: false },
+      update: { allowExternalIntake: false },
+    });
+    try {
+      const before = await prisma.workflowIntakeLink.count({ where: { teamId: A.teamId } });
+      const res = await post("/v1/integrations/api/intake-links", keyA, linkBody(7));
+      expect(res.statusCode, res.body).toBe(403);
+      expect(JSON.parse(res.body).error).toMatchObject({
+        code: "INTAKE_LINK_BLOCKED_BY_POLICY",
+        reason: "external_intake_disabled_by_policy",
+      });
+      expect(await prisma.workflowIntakeLink.count({ where: { teamId: A.teamId } })).toBe(before);
+    } finally {
+      if (existing) {
+        await prisma.workspaceGovernancePolicy.update({
+          where: { teamId: A.teamId },
+          data: { allowExternalIntake: existing.allowExternalIntake },
+        });
+      } else {
+        await prisma.workspaceGovernancePolicy.delete({ where: { teamId: A.teamId } });
+      }
+    }
+    // The owner's key still mints once the policy allows it again.
+    const ok = await post("/v1/integrations/api/intake-links", keyA, linkBody(7));
+    expect(ok.statusCode, ok.body).toBe(201);
+  });
+
   // PRO-045 (AUTHZ-09): a foreign or unknown case / record id reached the
   // central handler as a 500 with a critical alert, and a foreign id (500) told
   // apart from a malformed one (400).

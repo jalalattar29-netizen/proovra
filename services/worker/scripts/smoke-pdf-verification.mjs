@@ -292,8 +292,17 @@ async function main() {
   await verification.assertRenderedReport(stressedPdf, stressedFacts, 2, { supersedesVersion: 1 });
   const stressedText = (await verification.extractPdfText(stressedPdf)).replace(/\s+/g, "");
   const stressedHtmlRows = stressCustody.filter((e) => stressedText.includes(e.eventHash)).length;
-  step("pages", { bytes: stressedPdf.length, custodyRowsPrinted: stressedHtmlRows, longUrlPrinted: stressedText.includes(LONG_URL) });
-  required.longUrl = stressedText.includes(LONG_URL);
+  // B4-F-102 (Free-user audit 0ea0, 2026-11-16) — the report prints the
+  // captured page address as redactCapturedPageAddress states it: no fragment,
+  // credential/session parameter values REDACTED. The printed form is still
+  // ~200 characters, so the long-URL layout stress is unchanged; the raw
+  // session value and fragment must NOT be printed.
+  const printedUrl = shared.redactCapturedPageAddress(LONG_URL);
+  const longUrlPrinted = stressedText.includes(printedUrl);
+  const rawSecretPrinted = stressedText.includes("a1b2c3d4e5f60718293a4b5c6d7e8f90") || stressedText.includes("annex-B");
+  step("pages", { bytes: stressedPdf.length, custodyRowsPrinted: stressedHtmlRows, longUrlPrinted, printedUrlChars: printedUrl.length, rawSecretPrinted });
+  required.longUrl = longUrlPrinted && printedUrl.length > 150;
+  required.longUrlRedacted = !rawSecretPrinted;
 
   // 5. The other order: the metadata path still works after verification.
   const metaAfter = await metadata.parsePdfMetadata(await samplePdf("after"), "application/pdf");

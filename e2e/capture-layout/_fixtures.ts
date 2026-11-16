@@ -52,6 +52,10 @@ export const DRAFT_ID = "draft-11111111-1111-4111-8111-111111111111";
 export function captureDraftFixture() {
   return {
     id: DRAFT_ID,
+    // B4-F-307 (Free-user audit 0ea0, 2026-11-16) — a draft is listed only in
+    // the workspace it was started in; the API returns that workspace as
+    // `teamId`. This draft belongs to the fixture's active (shared) workspace.
+    teamId: (captureEnvelope().workspace as { id: string }).id,
     status: "DRAFT",
     templateId: "general-evidence-record",
     templateVersion: 1,

@@ -121,6 +121,15 @@ function settingsEnvelope(actor: SettingsActor): Record<string, unknown> {
   // is about the resolver's answer and not about a missing key.
   for (const key of ORG_CAPABILITIES) caps[key] = false;
   caps.ACCOUNT_SETTINGS_VIEW = true;
+  // Free-user audit 0ea0, B6-F-27 (2026-11-16) — the server grants
+  // SETTINGS_MANAGE to the OWNER of a personal space (capability-registry,
+  // MEMBERS AUDIT ENT-01: personal grants follow the viewer's role, and this
+  // actor owns the space). The AI & assistance pane now keys editability on it
+  // (a member of somebody else's personal space gets the read-only status
+  // view), so the owner's envelope must state it as the server does. It
+  // grants no administration here: the org-admin entries require an
+  // ORGANIZATION workspace.
+  caps.SETTINGS_MANAGE = true;
   return {
     ...base,
     capabilities: caps,

@@ -138,7 +138,9 @@ test.describe("Phase A0 — integrity banner + disabled CTAs (source contract)",
     // integrity failure is layered on with ||. It lives with the other hero
     // actions now, and the page keeps the operator-facing REASON.
     expect(HERO_ACTIONS).toMatch(/data-evidence-action="lock-record"/);
-    expect(HERO_ACTIONS).toMatch(/disabled=\{deleted \|\| isIntegrityFailed\}/);
+    // Free-user audit 0ea0 (2026-11-16) — the lock is ALSO unavailable outside
+    // a lockable product state (`!lockState`); the integrity term is unchanged.
+    expect(HERO_ACTIONS).toMatch(/disabled=\{deleted \|\| isIntegrityFailed \|\| !lockState\}/);
     expect(DETAIL_PAGE).toContain(
       "Locking is unavailable while integrity is failed.",
     );

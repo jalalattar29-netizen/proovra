@@ -40,7 +40,7 @@
 import { expect, test, type BrowserContext, type Page, type Request } from "@playwright/test";
 
 import { CONSENT_VERSION } from "../../lib/consent";
-import { settleFixtureSignIn } from "./_fixture-login";
+import { signInAsFixtureUser } from "./_fixture-login";
 
 const WEB = process.env.PROOVRA_FIXTURE_WEB_BASE ?? "http://localhost:3311";
 const PASSWORD = "fixture-local-only-password";
@@ -81,25 +81,16 @@ async function seedConsent(context: BrowserContext) {
   });
 }
 
+/**
+ * Free-user audit 0ea0 follow-up (2026-11-16) — this spec carried its own copy
+ * of the weak sign-in (_fixture-login.ts, "WHY THIS FILE EXISTS": submit by
+ * click, wait only for a URL change), which failed on Linux CI as a 60 s
+ * `waitForURL` with no reason. It now uses THE fixture sign-in: the real form,
+ * the authentication response awaited (a refusal names its status and code),
+ * the MFA challenge answered, and the session proven.
+ */
 async function signIn(page: Page) {
-  await page.goto(`${WEB}/login`, { waitUntil: "networkidle", timeout: 90_000 });
-  const email = page.locator('input[type="email"]:visible').first();
-  const pass = page.locator('input[type="password"]:visible').first();
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    await email.fill(ADMIN);
-    await pass.fill(PASSWORD);
-    const boxes = page.locator('input[type="checkbox"]:visible');
-    for (let i = 0; i < (await boxes.count()); i += 1) {
-      await boxes.nth(i).check().catch(() => {});
-    }
-    if ((await email.inputValue()) === ADMIN) break;
-    if (attempt === 3) throw new Error("the login form kept clearing itself");
-    await page.waitForTimeout(1_000);
-  }
-  await page.locator('button[type="submit"]:visible').first().click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
-  // AUD-0021 — a platform administrator answers the second-factor challenge.
-  await settleFixtureSignIn(page, ADMIN, WEB);
+  await signInAsFixtureUser(page, ADMIN, { web: WEB, password: PASSWORD });
 }
 
 /** The record's current status, reset through the REAL PATCH endpoint. */

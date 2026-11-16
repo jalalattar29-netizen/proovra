@@ -203,6 +203,22 @@ export type RenderPdfOptions = {
 export const REPORT_RENDER_CSP =
   "default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; img-src data: file:; font-src data: file:; style-src 'unsafe-inline' data: file:";
 
+/**
+ * B8-F-006 — a `<meta http-equiv=…>` (refresh, set-cookie, a competing CSP)
+ * is not governed by the page CSP, and a refresh's timing is the browser's:
+ * on one platform it fired before the navigation check, on another after it
+ * (Linux CI, 2026-11-16), so interception alone could not refuse it
+ * deterministically. No report template uses one (the renderer adds its own
+ * CSP after this runs), so every such tag is removed before the page loads.
+ * The tag is matched with quoted attribute values (a `>` inside quotes does
+ * not end it) and by the attribute NAME, which HTML does not entity-decode.
+ */
+export function stripHttpEquivMeta(html: string): string {
+  return html.replace(/<meta\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, (tag) =>
+    /[\s/]http-equiv\s*=/i.test(tag) ? "" : tag,
+  );
+}
+
 export function injectReportRenderCsp(html: string): string {
   const meta = `<meta http-equiv="Content-Security-Policy" content="${REPORT_RENDER_CSP}" />`;
   const head = html.match(/<head[^>]*>/i);
@@ -293,7 +309,7 @@ export async function renderPdfFromHtml(html: string, options: RenderPdfOptions 
       void request.abort("blockedbyclient").catch(() => undefined);
     });
 
-await page.setContent(injectReportRenderCsp(html), {
+await page.setContent(injectReportRenderCsp(stripHttpEquivMeta(html)), {
   waitUntil: "domcontentloaded",
   timeout: 30_000,
 });
@@ -440,6 +456,14 @@ reportId: fullReportId(footerData.evidenceReference),
         left: "0mm",
       },
     });
+
+    // B8-F-006 — a navigation blocked WHILE printing (it raced the check
+    // above) refuses the render too: the printed document is not trusted.
+    if (blockedNavigation) {
+      throw new OutputVerificationError("REPORT_RENDER_INPUT_INCONSISTENT", [
+        { check: "renderer_blocked_navigation", detail: blockedRequests.join(",").slice(0, 200) },
+      ]);
+    }
 
     if (blockedRequests.length > 0) {
       // B8-F-006 — a template should never ask for anything outside its own
