@@ -50,7 +50,8 @@ const envelope = () =>
   platformContextEnvelope({
     activeSpace: { id: "team-1", type: "PERSONAL", displayName: "Personal", status: "active" },
     capabilities: CAPS,
-    planFeatures: { intakeIncluded: true, teamCollaborationIncluded: false },
+    // B2A-F-04 — Cases is nav-gated on casesIncluded (a plan that includes them).
+    planFeatures: { intakeIncluded: true, teamCollaborationIncluded: false, casesIncluded: true },
     workspace: { id: "team-1", status: "active" },
     personalSpace: { id: "team-1", status: "active" },
   });
@@ -207,7 +208,7 @@ test("T-09g: storageViewFromOverview mirrors the web's toView arithmetic", () =>
   });
   assert.deepEqual(f(wrap({ usedBytes: "536870912", limitBytes: "1073741824" })), {
     percent: 50,
-    usedLabel: "0.50 GB",
+    usedLabel: "512 MB", // B2A-F-02 — the server unit rule, not "0.50 GB"
     limitLabel: "1 GB",
   });
   assert.equal(f(wrap({ usedBytes: "10", limitBytes: "0" })), null, "a zero limit has no percentage");

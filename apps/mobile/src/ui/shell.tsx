@@ -8,6 +8,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ShellBackdrop } from "./shell-surface";
 import {
+  AppState,
   Image,
   ImageBackground,
   KeyboardAvoidingView,
@@ -39,6 +40,7 @@ import { usePlatformContext } from "../product/platform-context";
 import { apiFetch } from "../api";
 import { BILLING_OVERVIEW_PATH } from "../product/billing";
 import { storageViewFromOverview, type StorageView } from "../product/storage-widget";
+import { isOwnPersonalActiveSpace } from "../product/active-space-billing";
 import { resolveShellGate } from "../product/shell-gates";
 import { ShellGatePanel } from "./shell-gate-panel";
 import { ProovraHeader } from "./header";
@@ -254,22 +256,45 @@ function BottomNavButton({ item, active }: { item: NavItem; active: boolean }) {
  * Renders nothing until a usable view exists, and nothing if the read fails:
  * a 0% bar for an unknown value would claim the workspace is empty.
  */
+/**
+ * B2A-F-01 — WHOSE meter the rail may show, read ONCE by the shell (outside the
+ * drawer's Modal) and handed down, so the footer adds no second context reader.
+ */
+const StorageScope = React.createContext<{ ownPersonal: boolean; activeTeamId: string | null }>({
+  ownPersonal: false,
+  activeTeamId: null,
+});
+
 function SidebarStorage() {
   const { familyForWeight } = useLocale();
+  // B2A-F-01 (Free-user audit 0ea0) — the overview is the viewer's OWN personal
+  // account: shown only in their own Personal Space, never as another
+  // workspace's meter. B2A-F-02 — re-read on a workspace switch and when the
+  // app returns to the foreground (after a capture elsewhere).
+  const { ownPersonal, activeTeamId } = React.useContext(StorageScope);
   const [view, setView] = useState<StorageView | null>(null);
   useEffect(() => {
+    setView(null);
+    if (!ownPersonal) return undefined;
     let live = true;
-    apiFetch(BILLING_OVERVIEW_PATH)
-      .then((d) => {
-        if (live) setView(storageViewFromOverview(d));
-      })
-      .catch(() => {
-        if (live) setView(null);
-      });
+    const read = () => {
+      apiFetch(BILLING_OVERVIEW_PATH)
+        .then((d) => {
+          if (live) setView(storageViewFromOverview(d));
+        })
+        .catch(() => {
+          if (live) setView(null);
+        });
+    };
+    read();
+    const sub = AppState.addEventListener?.("change", (state) => {
+      if (state === "active") read();
+    });
     return () => {
       live = false;
+      sub?.remove?.();
     };
-  }, []);
+  }, [ownPersonal, activeTeamId]);
   if (!view) return null;
   return (
     <View style={styles.storage} testID="nav-storage">
@@ -559,6 +584,10 @@ export function ProovraShell({
   // same value, so the rail can never offer a destination the gate is hiding.
   const platform = usePlatformContext();
   const groups = useNavigationGroupsFor(platform.envelope);
+  const storageScope = useMemo(
+    () => ({ ownPersonal: isOwnPersonalActiveSpace(platform.envelope), activeTeamId: platform.context?.activeTeamId ?? null }),
+    [platform.envelope, platform.context?.activeTeamId],
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [railExpanded, setRailExpanded] = useState(true);
 
@@ -598,6 +627,7 @@ export function ProovraShell({
 
   if (navMode === "rail") {
     return (
+      <StorageScope.Provider value={storageScope}>
       <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
         <OfflineBanner />
         {/*
@@ -639,10 +669,12 @@ export function ProovraShell({
           />
         </View>
       </SafeAreaView>
+      </StorageScope.Provider>
     );
   }
 
   return (
+    <StorageScope.Provider value={storageScope}>
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <OfflineBanner />
       {/* T-09a / RC-10 — on phones the header spans the full width above the
@@ -656,6 +688,7 @@ export function ProovraShell({
       <ProovraBottomNav groups={groups} onOpenMenu={() => setMenuOpen(true)} />
       <ProovraNavDrawer visible={menuOpen} onClose={() => setMenuOpen(false)} groups={groups} />
     </SafeAreaView>
+    </StorageScope.Provider>
   );
 }
 

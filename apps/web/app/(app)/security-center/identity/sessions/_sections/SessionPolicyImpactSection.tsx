@@ -31,7 +31,6 @@ import { EmptyState } from "../../../../../../components/ui/EmptyState";
 import { PageSection } from "../../../../../../components/ui/PageShell";
 import {
   NoWorkspaceSelected,
-  SectionDenied,
   SectionPlanGated,
   SectionError,
   SectionLoading,
@@ -125,11 +124,10 @@ export function SessionPolicyImpactSection() {
     );
   }
   if (state.kind === "denied") {
-    return (
-      <PageSection title="Session policy impact" description={description}>
-        <SectionDenied message={state.message} />
-      </PageSection>
-    );
+    // B1-F-003 — every member's role and live-session count is an identity
+    // administrator's read; a read-only role is answered 403. That is not a
+    // fault to show them, so the administrator card is simply not rendered.
+    return null;
   }
   if (state.kind === "plan_gated") {
     return (

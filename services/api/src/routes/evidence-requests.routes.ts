@@ -308,9 +308,12 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
           await assertWorkspaceAllowsIntake(scope);
         } catch (err) {
           const e = err as { statusCode?: number; code?: string; message?: string };
-          if (e?.code === "INTAKE_NOT_INCLUDED") {
+          // B3B-F-108 — a lapsed workspace's lifecycle refusal is a known plan
+          // answer too (402, as the intake-link mint gate maps it), never a
+          // rethrow to the generic error handler.
+          if (e?.code === "INTAKE_NOT_INCLUDED" || e?.code === "COMMERCIAL_LIFECYCLE_RESTRICTED") {
             return reply
-              .code(e.statusCode ?? 409)
+              .code(e.statusCode ?? (e.code === "INTAKE_NOT_INCLUDED" ? 409 : 402))
               .send({ error: { code: e.code, message: e.message } });
           }
           throw err;

@@ -602,8 +602,20 @@ describe("defects — teams, collaboration, saved views (live PostgreSQL 16)", (
       expect(adminDelete.statusCode, adminDelete.body).toBe(204);
       expect(await prisma.savedSearchView.findUnique({ where: { id: shared.id } })).toBeNull();
 
-      // Publishing a shared search view is a member feature (the route admits
-      // every ACTIVE member; nothing in the product reserves it to admins).
+      // Publishing a shared search view is a member feature — but not a
+      // VIEWER's: B2A-F-09 (free-audit 0ea0) / A2-14, the Viewer is read-only.
+      const memberShared = await call({
+        method: "POST",
+        url: "/v1/search/saved-views",
+        token: a.memberToken,
+        payload: {
+          teamId: a.teamId,
+          name: `d22 member shared ${tag()}`,
+          visibility: "TEAM",
+          query: { teamId: a.teamId },
+        },
+      });
+      expect(memberShared.statusCode, memberShared.body).toBe(201);
       const viewerShared = await call({
         method: "POST",
         url: "/v1/search/saved-views",
@@ -615,7 +627,7 @@ describe("defects — teams, collaboration, saved views (live PostgreSQL 16)", (
           query: { teamId: a.teamId },
         },
       });
-      expect(viewerShared.statusCode, viewerShared.body).toBe(201);
+      expect(viewerShared.statusCode, viewerShared.body).toBe(403);
     });
 
     it("D22 reviewer-ops: a non-admin cannot delete a colleague's shared view; an admin can; a viewer cannot publish one", async () => {
@@ -739,20 +751,27 @@ describe("defects — teams, collaboration, saved views (live PostgreSQL 16)", (
       });
       expect(creatorDelete.statusCode, creatorDelete.body).toBe(200);
 
-      // Publishing a shared SIU view is a member feature: the worklist panel
-      // creates every view as `team`, for any member who can use it.
-      const viewerCreate = await call({
-        method: "POST",
-        url: "/v1/siu/saved-views",
-        token: a.viewerToken,
-        payload: {
-          teamId: a.teamId,
-          name: `d22 siu viewer ${tag()}`,
-          filter: {},
-          sort: { key: "updatedAtUtc", direction: "desc" },
-          visibility: "team",
-        },
-      });
+      // Publishing a shared SIU view is a member feature — not a VIEWER's:
+      // B5B-F-303 (free-audit 0ea0) / A2-14, the Viewer is read-only. A Viewer
+      // keeps PRIVATE views (seen by them alone) and manages those.
+      const siuView = (token: string, visibility: "team" | "private") =>
+        call({
+          method: "POST",
+          url: "/v1/siu/saved-views",
+          token,
+          payload: {
+            teamId: a.teamId,
+            name: `d22 siu ${visibility} ${tag()}`,
+            filter: {},
+            sort: { key: "updatedAtUtc", direction: "desc" },
+            visibility,
+          },
+        });
+      const memberCreate = await siuView(a.memberToken, "team");
+      expect(memberCreate.statusCode, memberCreate.body).toBe(201);
+      const viewerTeam = await siuView(a.viewerToken, "team");
+      expect(viewerTeam.statusCode, viewerTeam.body).toBe(403);
+      const viewerCreate = await siuView(a.viewerToken, "private");
       expect(viewerCreate.statusCode, viewerCreate.body).toBe(201);
       const created = (viewerCreate.json() as { view: { id: string } }).view.id;
       // ...and its creator may still manage it, whatever their role.
@@ -760,7 +779,7 @@ describe("defects — teams, collaboration, saved views (live PostgreSQL 16)", (
         method: "PATCH",
         url: `/v1/siu/saved-views/${created}?teamId=${a.teamId}`,
         token: a.viewerToken,
-        payload: { visibility: "private" },
+        payload: { name: "viewer own rename" },
       });
       expect(viewerOwnPatch.statusCode, viewerOwnPatch.body).toBe(200);
     });

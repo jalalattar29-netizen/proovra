@@ -59,7 +59,7 @@ import { markBoundedOutcome } from "../http/bounded-outcome.js";
 // corresponding new canonical purpose via the alias map in
 // @proovra/shared (legacyAliasesForStoredPurpose / purposeSatisfies).
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
-import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
+import { assertFeatureEntitlement, resolveEntitlement } from "../services/packaging/entitlement.service.js";
 import {
   listApiCredentialUsage,
   projectApiCredentialUsage,
@@ -306,6 +306,23 @@ export async function integrationsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "integration.api_key.manage");
       if (!ok) return;
+      // B7B-F07 — a workspace already at its key ceiling (every Free workspace:
+      // INTEGRATION_API_KEYS_MAX is 0) is told so BEFORE a step-up challenge is
+      // spent, as the webhook create asks its entitlement first. Advisory: the
+      // locked, in-transaction count in createApiCredential stays the authority.
+      {
+        const resolved = await resolveEntitlement({ teamId: body.teamId, key: "INTEGRATION_API_KEYS_MAX" });
+        const limit = typeof resolved.value === "number" ? resolved.value : 0;
+        const current = await prisma.apiCredential.count({ where: { teamId: body.teamId, status: "ACTIVE" } });
+        if (current + 1 > limit) {
+          return reply.code(429).send({
+            error: {
+              code: "api_key_limit_reached",
+              details: { key: "INTEGRATION_API_KEYS_MAX", limit, current },
+            },
+          });
+        }
+      }
       // Phase 4 closure — dedicated integration step-up purpose.
       // Previously this route reused SERVICE_ACCOUNT_CREATE (an
       // identity-surface purpose); a row carrying the legacy purpose
@@ -800,6 +817,26 @@ export async function integrationsRoutes(app: FastifyInstance) {
       // change) do NOT require step-up; that posture matches the
       // existing PUT route's surface area.
       if (body.status === "ACTIVE") {
+        // B7B-F05 — RE-ENABLING a disabled endpoint resumes outbound delivery,
+        // which is FEATURE_WEBHOOKS (the create asks it; automation enable
+        // asks it). A workspace that lost the entitlement keeps its endpoints
+        // working (F-15) and can still edit and disable them, but cannot turn
+        // a disabled one back on. An already-ACTIVE endpoint re-sent as
+        // ACTIVE is not a re-enable. Asked before step-up.
+        const current = await prisma.webhookEndpoint.findFirst({
+          where: { id, teamId: body.teamId },
+          select: { status: true },
+        });
+        if (current && current.status !== "ACTIVE") {
+          const entitled = await assertFeatureEntitlement({
+            teamId: body.teamId,
+            key: "FEATURE_WEBHOOKS",
+            actorUserId: ok.actorUserId,
+          });
+          if (!entitled.ok) {
+            return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
+          }
+        }
         const gate = await requireStepUpForSensitiveAction({
           req,
           reply,
@@ -1044,6 +1081,20 @@ export async function integrationsRoutes(app: FastifyInstance) {
       // but a new test-send requires a fresh challenge with the
       // dedicated purpose. This is intentional: silently aliasing
       // hardening->TEST would weaken the gate.
+      //
+      // B7B-F05 — a test send is new outbound traffic, so it needs
+      // FEATURE_WEBHOOKS like the create (asked before step-up). Endpoints of a
+      // workspace that lost the entitlement keep delivering real events (F-15).
+      {
+        const entitled = await assertFeatureEntitlement({
+          teamId: body.teamId,
+          key: "FEATURE_WEBHOOKS",
+          actorUserId: ok.actorUserId,
+        });
+        if (!entitled.ok) {
+          return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
+        }
+      }
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,

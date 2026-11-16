@@ -20,6 +20,15 @@
  * cancelling, exporting, closing the account and revoking must stay reachable
  * without agreeing. Accepting reloads; the status then reads current, so the
  * step cannot come back on its own — only another refused write re-opens it.
+ *
+ * B1-F-010 (Free-user audit 0ea0) — EXCEPT mid-action. When the step was
+ * re-opened by a write refused AFTER the page loaded, a reload threw away the
+ * open form, the multi-step dialog, the staged upload: the refused write was
+ * never persisted (428 before the handler) and was not retried. There the step
+ * now just closes, re-reads the status, and announces LEGAL_ACCEPTED_EVENT; the
+ * page keeps everything typed, and the person (or a listener) retries the write,
+ * which now succeeds. Only the step shown on first load still reloads — then
+ * every read behind it was refused while it stood.
  */
 
 import Link from "next/link";
@@ -27,7 +36,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { useDialogFocus } from "../../lib/ui/dialogFocus";
-import { LEGAL_REACCEPT_REQUIRED_EVENT } from "../../lib/session-events";
+import { LEGAL_ACCEPTED_EVENT, LEGAL_REACCEPT_REQUIRED_EVENT } from "../../lib/session-events";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { Button } from "../ui/Button";
 
@@ -94,13 +103,28 @@ export function LegalAcceptanceStep({ active }: { active: boolean }) {
           })),
         }),
       });
-      // Everything behind this step was refused while it stood.
-      window.location.reload();
+      if (recheck === 0) {
+        // Shown on first load: everything behind this step was refused while
+        // it stood.
+        window.location.reload();
+        return;
+      }
+      // B1-F-010 — mid-action: keep the page. Close, re-read the status (it
+      // now reads current), and tell the page the refused write may be retried.
+      setAgreed(false);
+      setBusy(false);
+      setStatus((prev) => (prev ? { ...prev, requiresReacceptance: false, missingPolicies: [] } : prev));
+      setRecheck((n) => n + 1);
+      try {
+        window.dispatchEvent(new Event(LEGAL_ACCEPTED_EVENT));
+      } catch {
+        /* presentation signal only */
+      }
     } catch (err) {
       setError(toSafeUserError(err, { message: "Your acceptance could not be saved. Try again." }).message);
       setBusy(false);
     }
-  }, [status]);
+  }, [status, recheck]);
 
   const open = active && !dismissed && status?.requiresReacceptance === true;
   // F-P1-07 — a modal step keeps focus: it moves to the agreement box on open,

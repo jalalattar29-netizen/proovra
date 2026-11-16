@@ -20,8 +20,10 @@
  * does NOT bring back.
  *
  *   200  { reopened: { teamId } }
- *   403  owner_required | NOT_WORKSPACE_OWNER
- *   404  TEAM_NOT_FOUND
+ *   401/403 STEP_UP_REQUIRED | STEP_UP_INVALID (B3A-F-008 — answered with the
+ *        same account step-up sheet the closure request uses, then resent)
+ *   404  team_not_found — also a NON-OWNER since B3A-F-008 (concealed like an
+ *        unknown id; the old 403 not_workspace_owner is gone)
  *   409  CLOSURE_IN_PROGRESS | WORKSPACE_NOT_CLOSED
  */
 
@@ -93,6 +95,11 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
   const [reopenBusy, setReopenBusy] = useState(false);
   const [reopenNotice, setReopenNotice] = useState<string | null>(null);
   const [reopenError, setReopenError] = useState<string | null>(null);
+  // B3A-F-008 — reopen carries the same account step-up proof closure does.
+  const [reopenStepUp, setReopenStepUp] = useState<{
+    methods: StepUpMethods;
+    message: string;
+  } | null>(null);
 
   // Stale-response protection: a response is applied only when it belongs to
   // the newest request AND this card is still mounted.
@@ -191,7 +198,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
     [teamId, reload],
   );
 
-  const reopenWorkspace = useCallback(async () => {
+  const reopenWorkspace = useCallback(async (proof?: StepUpProof) => {
     setReopenBusy(true);
     setReopenError(null);
     setReopenNotice(null);
@@ -200,22 +207,32 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
       await apiFetch(`/v1/teams/${teamId}/reopen`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: "{}",
+        body: JSON.stringify(proof ? { stepUp: proof } : {}),
       });
       if (!mountedRef.current || seq !== reopenSeqRef.current) return;
+      setReopenStepUp(null);
       setReopenNotice(
         "Workspace reopened. Your owner access is back; other members, API credentials and webhooks stay revoked until you restore them explicitly.",
       );
       await reload();
     } catch (err) {
       if (!mountedRef.current || seq !== reopenSeqRef.current) return;
+      const su = extractStepUp(err);
+      if (su) {
+        setReopenStepUp(su);
+        return;
+      }
+      setReopenStepUp(null);
       const status = (err as { statusCode?: number }).statusCode ?? 0;
       if (status === 403) {
         setReopenError(
           "You don't have permission to reopen this workspace. Only its owner can.",
         );
       } else if (status === 404) {
-        setReopenError("This workspace no longer exists.");
+        // B3A-F-008 — a non-owner is answered exactly like an unknown id.
+        setReopenError(
+          "This workspace could not be found, or you are not its owner. Only the workspace owner can reopen it.",
+        );
       } else if (status === 409) {
         setReopenError(
           "There is nothing to reopen: either a closure request is still open — cancel that instead — or this workspace was never closed.",
@@ -455,6 +472,17 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
                   : ""}
           </div>
         </div>
+      ) : null}
+
+      {reopenStepUp ? (
+        <StepUpVerify
+          title="Confirm reopening this workspace."
+          methods={reopenStepUp.methods}
+          initialError={reopenStepUp.message}
+          busy={reopenBusy}
+          onSubmit={(proof) => void reopenWorkspace(proof)}
+          onCancel={() => setReopenStepUp(null)}
+        />
       ) : null}
 
       {stepUpOpen ? (

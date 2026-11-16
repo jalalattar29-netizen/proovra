@@ -449,6 +449,6 @@ export async function verificationShareRoutes(app: FastifyInstance) {
       antiEnumeration: true,
     });
     if (!authz) return reply;
-    return reply.code(200).send(await legacyVerifyLinkInventory({ teamId: authz.teamId }));
+    return reply.code(200).send(await legacyVerifyLinkInventory({ teamId: authz.teamId, actorUserId: authz.actorUserId }));
   });
 }

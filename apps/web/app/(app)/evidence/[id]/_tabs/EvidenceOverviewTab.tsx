@@ -58,6 +58,7 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     canSeeIntakeLinks,
     intelligence,
     intelligenceLoaded,
+    intelligenceUnavailable,
     overviewMetadataItems,
     openOriginal,
     downloadOriginal,
@@ -98,7 +99,9 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
       {canSeeIntakeLinks ? (
         <EvidenceRequestPanel
           evidenceId={evidenceId}
-          teamId={workspace.reviewWorkflow?.teamId ?? null}
+          // R1-F-02 — the record's OWN workspace; reviewWorkflow.teamId exists
+          // only when a reviewer workflow does (EvidenceArtifactsTab pattern).
+          teamId={workspace.evidence.teamId ?? workspace.reviewWorkflow?.teamId ?? null}
         />
       ) : null}
       <CaptureTemplateCard
@@ -164,6 +167,13 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           {!intelligenceLoaded ? (
             <p className="evidence-detail-muted">
               Loading extracted entity summary…
+            </p>
+          ) : intelligenceUnavailable ? (
+            // B6-F-47 — never assert an absence the page could not read.
+            <p className="evidence-detail-muted" data-evidence-intelligence-unavailable={intelligenceUnavailable}>
+              {intelligenceUnavailable === "denied"
+                ? "Extracted entities and text summaries are not available to your role in this workspace."
+                : "Extracted entities and text summaries could not be loaded just now."}
             </p>
           ) : (
             <>

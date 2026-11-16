@@ -208,6 +208,25 @@ export type PlanCapabilities = {
   aiAdvisoryMonthlyOperations: number | null;
 
   /**
+   * B6-F-22 / B6-F-46 (Free-user audit 0ea0) — WHICH AI capabilities the plan
+   * makes eligible, apart from how many operations it may spend
+   * (`aiAdvisoryMonthlyOperations`). ALLOWANCE IS NOT ENTITLEMENT: the FREE
+   * comment below has always said that raising the allowance "opens none" of
+   * the copilots, content intelligence or semantic search, but nothing
+   * enforced it — the workspace's own AI-policy switches were the only gate,
+   * and an OWNER holds the permission to flip them.
+   *
+   * The workspace AI-policy evaluator asks this list at EVALUATION time
+   * (`planIncludesAiCapability`), so a switch saved on a paid plan stops
+   * granting the capability the moment the workspace resolves to a plan that
+   * does not list it, and the policy write refuses to switch it on.
+   * `CONTENT_INTELLIGENCE` covers every vendor provider operation (OCR,
+   * transcription, entity extraction, summarisation) and the raw-content /
+   * OCR / transcription switches that only matter beneath it.
+   */
+  aiCapabilitiesIncluded: readonly AiPlanCapability[];
+
+  /**
    * PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): renamed from
    * `allowsPersonalWorkspace`, which was one boolean serving two questions.
    *
@@ -386,6 +405,46 @@ const ALL_ENTERPRISE_FEATURES: EnterpriseFeatureFlags = {
  * receives at least 100 × 10^9 bytes. Stated here because it is the one place
  * every storage number is minted; changing it would change every allowance.
  */
+/**
+ * B6-F-22 / B6-F-46 — the AI capabilities a plan can make eligible. Spelled
+ * like the API's `WorkspaceAiFeature` (the evaluator's vocabulary), so the
+ * evaluator passes its feature straight through.
+ */
+export type AiPlanCapability =
+  | "SUPPORT_CHAT"
+  | "CAPTURE_ASSISTANCE"
+  | "EVIDENCE_CATEGORIZATION"
+  | "SEMANTIC_SEARCH"
+  | "CONTENT_INTELLIGENCE"
+  | "REVIEWER_COPILOT"
+  | "CASE_COPILOT";
+
+/**
+ * The limited AI TRIAL a FREE account carries (the FREE row's comment): the
+ * support assistant, capture assistance and evidence categorisation that a
+ * personal workspace already has. Nothing that sends evidence content to a
+ * vendor, and neither copilot.
+ */
+export const AI_TRIAL_CAPABILITIES: readonly AiPlanCapability[] = Object.freeze([
+  "SUPPORT_CHAT",
+  "CAPTURE_ASSISTANCE",
+  "EVIDENCE_CATEGORIZATION",
+]);
+
+/** Every AI capability: the paid plans (the workspace still switches each on). */
+export const ALL_AI_CAPABILITIES: readonly AiPlanCapability[] = Object.freeze([
+  ...AI_TRIAL_CAPABILITIES,
+  "SEMANTIC_SEARCH",
+  "CONTENT_INTELLIGENCE",
+  "REVIEWER_COPILOT",
+  "CASE_COPILOT",
+]);
+
+/** Does this plan make the AI capability eligible? Unknown plan = FREE. */
+export function planIncludesAiCapability(plan: PlanType, capability: AiPlanCapability): boolean {
+  return getPlanCapabilities(plan).aiCapabilitiesIncluded.includes(capability);
+}
+
 const MB = 1024n * 1024n;
 const GB = 1024n * 1024n * 1024n;
 const TB = 1024n * 1024n * 1024n * 1024n;
@@ -453,6 +512,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
      * inference, not on answers compiled into the build.
      */
     aiAdvisoryMonthlyOperations: 10,
+    aiCapabilitiesIncluded: AI_TRIAL_CAPABILITIES,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: false,
     maxCollaborationTeamsPerWorkspace: 0,
@@ -502,6 +562,8 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 1,
     aiAdvisoryMonthlyOperations: 50,
+    // A credit buyer stays a FREE account: the trial capabilities only.
+    aiCapabilitiesIncluded: AI_TRIAL_CAPABILITIES,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: false,
     maxCollaborationTeamsPerWorkspace: 0,
@@ -539,6 +601,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: 100,
+    aiCapabilitiesIncluded: ALL_AI_CAPABILITIES,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: true,
     maxCollaborationTeamsPerWorkspace: 2,
@@ -575,6 +638,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     maxEvidenceRecordsPerMonth: 500,
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: 500,
+    aiCapabilitiesIncluded: ALL_AI_CAPABILITIES,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: true,
     maxCollaborationTeamsPerWorkspace: 5,
@@ -610,6 +674,7 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
     aiAdvisoryMonthlyOperations: null,
+    aiCapabilitiesIncluded: ALL_AI_CAPABILITIES,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: true,
     maxCollaborationTeamsPerWorkspace: 1000,

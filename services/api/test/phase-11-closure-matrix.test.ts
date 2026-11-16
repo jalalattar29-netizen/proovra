@@ -283,7 +283,9 @@ describe("PHASE 11 — 40-row closure matrix", () => {
   // ── D. DEEP-LINK RESOLVER DECISIONS ──────────────────────────────────────
   // resolveDeepLink reads exactly one delegate for the "evidence" family.
   const dbWith = (teamId: string | null): PrismaClient =>
-    asPrismaDouble<PrismaClient>({ evidence: { findUnique: async () => (teamId ? { teamId } : null) } });
+    // B2A-F-07 — the resolver also asks the record-reach rule (count of a
+    // restricted-case closure): nothing is closed in this double.
+    asPrismaDouble<PrismaClient>({ evidence: { findUnique: async () => (teamId ? { teamId } : null), count: async () => 0 } });
   it("D01 success derives the workspace from the PERSISTED resource", async () => {
     H.authz.allowed = true;
     const d = await resolveDeepLink(evReq, { resourceType: "evidence", resourceId: "ev-1" }, dbWith("team-P"));
@@ -325,13 +327,13 @@ describe("PHASE 11 — 40-row closure matrix", () => {
     expect(evReq).toEqual(before);
     H.authz.allowed = true;
   });
-  it("D08 a resource family with no read capability is concealed (fails closed)", async () => {
+  it("D08 a resource family with no id-bearing page never resolves (fails closed, B2A-F-07: explicit type-only answer)", async () => {
     const d = await resolveDeepLink(
       evReq,
       { resourceType: "audit-transparency", resourceId: "x" },
       asPrismaDouble<PrismaClient>({ case: { findUnique: async () => null } }),
     );
-    expect(d).toMatchObject({ ok: false, httpStatus: 404 });
+    expect(d).toMatchObject({ ok: false, reason: "unsupported_type", httpStatus: 422 });
   });
 
   // ── E. TENANT AUDIT QUERY / EXPORT ───────────────────────────────────────

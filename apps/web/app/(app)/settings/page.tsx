@@ -146,9 +146,17 @@ function SettingsWorkspace() {
           type: envelope.activeSpace.type,
           id: envelope.activeSpace.id,
           displayName: envelope.activeSpace.displayName,
+          shared: envelope.activeSpace.type === "PERSONAL" && envelope.activeSpace.shared === true,
         }
       : null,
-    workspacePlan: envelope?.personalSpace?.plan ?? null,
+    // R2-F-001 — the ACTIVE space's plan as the server resolved it. It was the
+    // viewer's own personal-space plan, so a Free member of a paid
+    // organization saw "FREE" as the organization's plan.
+    workspacePlan:
+      envelope?.activeSpace?.plan ??
+      (envelope?.activeSpace?.type === "PERSONAL" && envelope.activeSpace.shared !== true
+        ? (envelope.personalSpace?.plan ?? null)
+        : null),
     accountPlan: envelope?.account?.accountPlan ?? null,
     canManageBilling:
       typeof envelope?.capabilities?.BILLING_MANAGE === "boolean"

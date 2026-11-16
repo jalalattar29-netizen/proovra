@@ -271,7 +271,7 @@ test("bulk: Run Bulk Action confirms in words, and a partial result keeps the re
     items: [],
   });
   const r = await mount();
-  await r.press("Select all loaded pages");
+  await r.press("Select all on this page");
   assert.ok(r.hasText("2 selected"));
   await r.press("Run Bulk Action");
   assert.ok(r.hasText("Confirm Bulk Action"));
@@ -296,7 +296,7 @@ test("bulk: Move to Trash names the records the lifecycle projection protects be
     pageInfo: { limit: 50, nextCursor: null, hasMore: false },
   });
   const r = await mount();
-  await r.press("Select all loaded pages");
+  await r.press("Select all on this page");
   await r.press("Bulk action: Move to Trash");
   assert.ok(r.hasText("1 of 2 selected records cannot be moved to trash"));
   assert.ok(r.hasText("1 eligible record will be moved to trash; 1 protected record will be skipped."));
@@ -398,4 +398,52 @@ test("a deep link lands pre-filtered, and the chip clears it", async () => {
   await r.press("Clear Trust timestamp: Failed");
   await settle();
   assert.equal(r.hasText("Trust timestamp: Failed"), false);
+});
+
+test("B5A-F-02 — a page change drops the bulk selection, whose eligibility covered only the page it was made on", async () => {
+  routes["GET /v1/evidence"] = ({ path }) =>
+    path.includes("cursor=")
+      ? { scope: "active", items: [row(E2)], pageInfo: { limit: 50, nextCursor: null, hasMore: false } }
+      : { scope: "active", items: [row(E1)], pageInfo: { limit: 50, nextCursor: "CUR2", hasMore: true } };
+  const r = await mount();
+  await r.press("Select all on this page");
+  assert.ok(r.hasText("1 selected"));
+  await r.press("Next");
+  await settle();
+  assert.ok(r.hasText("Record c2"));
+  assert.equal(r.hasText("1 selected"), false);
+});
+
+test("B5A-F-08 — Review is a server filter: the request carries it and the returned page is not narrowed again", async () => {
+  // The server answers the filtered query with a row the old page-local rule would have dropped.
+  routes["GET /v1/evidence"] = ({ path }) => ({
+    scope: "active",
+    items: path.includes("review=review-ready") ? [row(E2, { reviewReadyAtUtc: null })] : [row(E1), row(E2)],
+    pageInfo: { limit: 50, nextCursor: null, hasMore: false },
+  });
+  const r = await mount();
+  await r.press("More filters");
+  await r.press("Review: Review-ready marker recorded");
+  await settle();
+  await act(async () => { await new Promise((x) => setTimeout(x, 320)); });
+  await settle();
+  assert.ok(requests.some((q) => q.path.startsWith("/v1/evidence?") && q.path.includes("review=review-ready")));
+  assert.ok(requests.some((q) => q.path.startsWith("/v1/evidence/library-summary?") && q.path.includes("review=review-ready")));
+  assert.ok(r.hasText("Record c2"));
+});
+
+test("B5A-F-08 / EVID-014 — a default saved view from another workspace is not applied here", async () => {
+  routes["GET /v1/evidence/saved-views"] = () => ({
+    items: [
+      {
+        id: "v-other", ownerUserId: "user-1", teamId: "team-elsewhere", name: "Elsewhere", description: null, sortKey: "oldest", scope: "active", isDefault: true,
+        filters: { search: "", scope: "active", status: "all", type: "all", review: "all", exportReadiness: "all", caseAssignment: "unassigned", retention: "all", sort: "oldest" },
+        createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z",
+      },
+    ],
+  });
+  await mount();
+  const lists = requests.filter((q) => q.method === "GET" && q.path.startsWith("/v1/evidence?"));
+  assert.ok(lists.length > 0);
+  assert.equal(lists.some((q) => q.path.includes("caseAssignment=unassigned")), false);
 });

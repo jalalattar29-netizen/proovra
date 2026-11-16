@@ -69,6 +69,13 @@ export function usePayPalReturn(input: {
    * self-service purchase belongs to it; a Stripe return waits for it.
    */
   personalAccount?: BillingAccountRef | null;
+  /**
+   * B6-F-70 — the in-page abandon confirmation. A Stripe cancel return asks the
+   * server with `confirmed: false`; when it answers ABANDON_CONFIRMATION_REQUIRED
+   * the customer is asked here, and only their click sends `confirmed: true`.
+   * Without it (or on "Keep it") nothing is closed.
+   */
+  confirmAbandon?: (answer: StripeAttemptAnswer) => Promise<boolean>;
 }): { confirming: boolean; returnNotice: CheckoutReturnNotice | null; dismissReturnNotice: () => void } {
   const handled = useRef(false);
   const latest = useRef(input);
@@ -173,9 +180,22 @@ export function usePayPalReturn(input: {
     (async () => {
       try {
         if (ret.kind !== "RETURNED") {
-          // Leaving Stripe is the customer's own act of abandoning THIS checkout.
-          // Provider-first on the server: an open session is expired at Stripe; a
-          // paid, processing or already-ended one is reported, never overwritten.
+          // B6-F-70 — a URL can be crafted, so the return alone never closes
+          // a checkout: ask with confirmed:false (the server answers
+          // ABANDON_CONFIRMATION_REQUIRED and changes nothing, or reports a
+          // paid / processing / ended attempt), then close it only on the
+          // customer's click in the in-page abandon dialog.
+          const first = (await abandonCheckoutAttempt(account, attemptId, false)) as StripeAttemptAnswer;
+          if (first.outcome !== "ABANDON_CONFIRMATION_REQUIRED") {
+            setReturnNotice(stripeCancelNotice(ret, first));
+            return;
+          }
+          const ask = latest.current.confirmAbandon;
+          const ok = ask ? await ask(first) : false;
+          if (!ok) {
+            setReturnNotice(stripeCancelNotice(ret, first));
+            return;
+          }
           const answer = (await abandonCheckoutAttempt(account, attemptId, true)) as StripeAttemptAnswer;
           setReturnNotice(stripeCancelNotice(ret, answer));
           return;

@@ -96,7 +96,9 @@ import {
   listArchiveTransitions,
   projectArchiveCostsByTier,
   transitionEvidenceTier,
+  ArchiveTierError,
 } from "../services/lifecycle/archive-tier.service.js";
+import { assertTeamAllowsRetentionPolicies } from "../services/billing-enforcement.service.js";
 import {
   assertDestructionRequestActionable,
   createDestructionRequest,
@@ -187,6 +189,28 @@ async function denyWithoutDestructionGovernance(reply: FastifyReply, teamId: str
   if (featureOk.ok) return false;
   reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_DESTRUCTION_GOVERNANCE" });
   return true;
+}
+
+/**
+ * B5B-F-301 (Free-user audit 0ea0) — the Enterprise retention gate, in the
+ * response shape the sibling writer (`denyIfTeamNotEnterprise`) sends.
+ */
+async function refuseUnlessEnterpriseRetention(reply: FastifyReply, teamId: string): Promise<boolean> {
+  try {
+    await assertTeamAllowsRetentionPolicies(teamId);
+    return false;
+  } catch (err) {
+    const status = (err as { statusCode?: number }).statusCode ?? 402;
+    const code = (err as { code?: string }).code ?? "ENTERPRISE_FEATURE_REQUIRED";
+    reply.code(status).send({
+      error: {
+        code,
+        message: (err as Error).message ?? "Retention policies are included only on Enterprise plans",
+        upgradeCta: "/contact-sales",
+      },
+    });
+    return true;
+  }
 }
 
 export async function productAndLifecycleRoutes(app: FastifyInstance) {
@@ -1363,6 +1387,11 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           exceptions: z.array(z.string().uuid()).optional(),
         })
         .parse(req.body);
+      // B5B-F-301 (Free-user audit 0ea0) — the same Enterprise gate as the
+      // other writer to this store (governance-lifecycle.routes.ts
+      // denyIfTeamNotEnterprise): FREE.enterpriseFeatures.retentionPolicy is
+      // false. A binding retention policy is not created by a Free account.
+      if (await refuseUnlessEnterpriseRetention(reply, ctx.teamId)) return;
       // IDENT-019 — a quarantined session keeps reads; this is refused.
       if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "RETENTION_POLICY_UPDATE" })).refused) return;
       const res = await createRetentionPolicy({
@@ -1394,6 +1423,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // B5B-F-301 — as the sibling writer gates its policy changes.
+      if (await refuseUnlessEnterpriseRetention(reply, ctx.teamId)) return;
       // IDENT-019 — a quarantined session keeps reads; this is refused.
       if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "RETENTION_POLICY_UPDATE" })).refused) return;
       const res = await releaseRetentionPolicy({
@@ -1422,8 +1453,11 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       ) {
         return reply;
       }
+      // B5B-F-305 (free-audit 0ea0): the sample names records; a record a
+      // restricted case closes to the reader is neither named nor counted.
       const expirations = await computeUpcomingExpirations({
         teamId: ctx.teamId,
+        closedEvidenceIds: (await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId)).evidenceIds,
       });
       return reply.code(200).send({ expirations });
     },
@@ -1821,7 +1855,11 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       if (!featureOk.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_ARCHIVE_TIERS" });
       }
-      const transitions = await listArchiveTransitions({ teamId: ctx.teamId });
+      // B5B-F-305: a transition names its record and reason.
+      const transitions = await listArchiveTransitions({
+        teamId: ctx.teamId,
+        closedEvidenceIds: (await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId)).evidenceIds,
+      });
       return reply.code(200).send({ transitions });
     },
   );
@@ -1839,6 +1877,23 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           reason: z.string().min(1).max(600).optional(),
         })
         .parse(req.body);
+      // B5B-F-300 (Free-user audit 0ea0) — the write asks the same commercial
+      // question as its sibling list route: archive tiers are an entitlement
+      // (FEATURE_ARCHIVE_TIERS, not granted to an unprovisioned workspace),
+      // not a role permission every personal OWNER holds. Refused before any
+      // row or storage call.
+      const featureOk = await assertFeatureEntitlement({
+        teamId: ctx.teamId,
+        key: "FEATURE_ARCHIVE_TIERS",
+      });
+      if (!featureOk.ok) {
+        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_ARCHIVE_TIERS" });
+      }
+      // GOV-017 — a record a restricted case closes to the caller is, to
+      // them, not a target in this workspace (as on legal holds).
+      if (await evidenceClosedTo(body.evidenceId, ctx.userId)) {
+        return reply.code(409).send({ denial: "TARGET_NOT_IN_WORKSPACE" });
+      }
       try {
         const res = await transitionEvidenceTier({
           teamId: ctx.teamId,
@@ -1849,8 +1904,13 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         });
         return reply.code(200).send({ transitionId: res.transitionId, costEstimateUsdMicros: res.costEstimateUsdMicros });
       } catch (err) {
-        const code = err instanceof Error ? err.message : "TRANSITION_ERROR";
-        return reply.code(409).send({ denial: code });
+        // Bounded denials only: an ArchiveTierError carries its own code; any
+        // other failure (a storage call) never returns its raw message.
+        if (err instanceof ArchiveTierError) {
+          return reply.code(409).send({ denial: err.code });
+        }
+        req.log?.warn?.({ errName: err instanceof Error ? err.name : "unknown" }, "lifecycle.archive_transition_failed");
+        return reply.code(409).send({ denial: "TRANSITION_FAILED" });
       }
     },
   );
@@ -2337,11 +2397,13 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         })
         .parse(req.query ?? {});
 
+      // B5B-F-305: a violation names a record and a case.
       const violations = await listPolicyViolations({
         teamId: ctx.teamId,
         kind: q.kind as PolicyViolationCode | undefined,
         since: q.since ? new Date(q.since) : undefined,
         limit: q.limit,
+        hidden: await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId),
       });
 
       return reply.code(200).send({ violations });

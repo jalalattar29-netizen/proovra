@@ -45,12 +45,14 @@
  *     (as capture-trust already required). Revoking it is REVOCATION.
  *   - Support context: the support actor writes as themselves, so THEIR
  *     acceptance is required; leaving / revoking the context is REVOCATION.
- *   - API keys (`/v1/integrations/api/*`): a key acts FOR A WORKSPACE, not a
- *     person, and survives its creator's departure (api-key creator-departure
- *     rule). The creator's acceptance is required when the key is MINTED or
- *     rotated (session writes, gated); each machine call is not re-checked
- *     against the creator, or a terms update would silently break every
- *     integration. Classified NON_SESSION (API_KEY).
+ *   - API keys (`/v1/integrations/api/*`): a key acts in its creator's name
+ *     and ends with their authority: removal and suspension revoke it (A2-10),
+ *     and a demotion that takes the key permission away revokes it at the role
+ *     change or at its next use (B3A-F-002); expiry of the creator's access
+ *     window does not (A2-26). The creator's TERMS acceptance is required when
+ *     the key is MINTED or rotated (session writes, gated); each machine call
+ *     is not re-checked against the creator's terms, or a terms update would
+ *     silently break every integration. Classified NON_SESSION (API_KEY).
  *   - Anonymous intake contributors and external portal reviewers hold a link
  *     or portal token, not a PROOVRA account: there is no user whose terms
  *     could be owed. The link/grant was created by a gated session write.
@@ -102,6 +104,10 @@ export const SESSION_WRITE_EXEMPTIONS: Readonly<Record<LegalExemptionCategory, r
     "POST /v1/identity/mfa/enroll/verify",
     `DELETE /v1/identity/mfa/factors/${P}`,
     "POST /v1/identity/mfa/recovery-codes/regenerate",
+    // B1-F-014 (free-audit 0ea0): FILING a recovery request is the essential
+    // path its cancel and resend already were — a person locked out of their
+    // second factor must not first be asked to accept new terms (A1-06).
+    "POST /v1/identity/mfa-admin/recovery-requests",
     `POST /v1/identity/mfa/recovery-requests/${P}/cancel`,
     `POST /v1/identity/mfa/recovery-requests/${P}/resend-email`,
     "POST /v1/identity-security/passkeys/registration/options",
@@ -144,6 +150,14 @@ export const SESSION_WRITE_EXEMPTIONS: Readonly<Record<LegalExemptionCategory, r
     `POST /v1/uploads/sessions/${P}/multipart/abort`,
     // Deletion through the record's existing (retention / legal-hold governed) flow.
     `DELETE /v1/evidence/${P}`,
+    // R1-F-08 (free-audit 0ea0): cancelling or closing an evidence request
+    // ends it and revokes its live intake links, the same reduction the
+    // direct link revoke (REVOCATION) already makes. Adds nothing.
+    `POST /v1/evidence-requests/${P}/cancel`,
+    `POST /v1/evidence-requests/${P}/close`,
+    // B6-F-50 (free-audit 0ea0): stopping one's own running batch job ends
+    // work already started; it adds nothing.
+    `POST /v1/batch-analysis/${P}/cancel`,
   ],
   IN_FLIGHT: [
     `POST /v1/billing/accounts/${P}/${P}/reconcile`,
@@ -207,11 +221,39 @@ export const SESSION_WRITE_EXEMPTIONS: Readonly<Record<LegalExemptionCategory, r
   BACKGROUND: [
     "POST /v1/me/presence/heartbeat",
     `POST /v1/collaboration/threads/${P}/mark-mentions-read`,
+    // B2B-F-13 (free-audit 0ea0): the inbox read markers are the same kind of
+    // write as the mention read marker above (a client marks an item read when
+    // it is opened from the bell). Archive / snooze stay gated: a person acts.
+    `POST /v1/me/inbox/items/${P}/read`,
+    `POST /v1/me/inbox/items/${P}/unread`,
+    "POST /v1/me/inbox/mark-all-read",
     "POST /v1/ops/upload-telemetry",
     "POST /v1/deep-link/resolve",
   ],
   // `app.all` 410 notices (enterprise.routes.ts), every write method.
   RETIRED: ["POST", "PUT", "PATCH", "DELETE"].flatMap((m) => [`${m} /v1/api-keys`, `${m} /v1/api-keys/*`]),
+};
+
+/**
+ * B5A-F-12 (free-audit 0ea0) — routes whose exemption depends on WHAT the
+ * request does. The bulk evidence route carries substantive actions (add to
+ * case, archive, restore...) and two A1-06 keeps open: moving records to the
+ * trash (single-record DELETE is already CANCELLATION) and exporting their
+ * metadata ("deletion/export ... accessible through their existing flows").
+ * Only those two actions pass; every other body, and an unparsable one, is
+ * gated. The route key also stays gated in the enumeration (its default body
+ * is refused).
+ */
+export const BODY_CONDITIONAL_EXEMPTIONS: Readonly<
+  Record<string, { category: LegalExemptionCategory; admits: (body: unknown) => boolean }>
+> = {
+  "POST /v1/evidence/bulk": {
+    category: "PRIVACY",
+    admits: (body) => {
+      const action = (body as { action?: unknown } | null | undefined)?.action;
+      return action === "TRASH" || action === "EXPORT_METADATA_CSV";
+    },
+  },
 };
 
 /**
@@ -266,9 +308,18 @@ const EXEMPT_BY_KEY: ReadonlyMap<string, LegalExemptionCategory> = new Map(
   ),
 );
 
-export function legalAcceptanceExemptionFor(method: string, routePattern: string): LegalExemption | null {
-  const category = EXEMPT_BY_KEY.get(normalizeLegalRouteKey(method, routePattern));
-  return category ? { category } : null;
+export function legalAcceptanceExemptionFor(
+  method: string,
+  routePattern: string,
+  /** The parsed request body, for the few routes whose exemption depends on the action (B5A-F-12). */
+  body?: unknown,
+): LegalExemption | null {
+  const key = normalizeLegalRouteKey(method, routePattern);
+  const category = EXEMPT_BY_KEY.get(key);
+  if (category) return { category };
+  const conditional = BODY_CONDITIONAL_EXEMPTIONS[key];
+  if (conditional && body !== undefined && conditional.admits(body)) return { category: conditional.category };
+  return null;
 }
 
 export function nonSessionWriteCategoryFor(method: string, routePattern: string): NonSessionCategory | null {

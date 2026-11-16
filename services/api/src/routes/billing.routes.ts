@@ -38,6 +38,7 @@ import {
   startStripeStorageCheckout,
 } from "../services/billing/stripe-checkout-start.service.js";
 import { prisma } from "../db.js";
+import { DomainError } from "../errors.js";
 // PAYPAL END-TO-END (2026-09-25) — the return routes settle through the SAME
 // service the verified webhook uses; neither trusts the browser's success flag.
 import {
@@ -1152,14 +1153,28 @@ export async function billingRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const body = CancelStorageAddonBody.parse(req.body ?? {});
 
-      const addon = await prisma.workspaceStorageAddon.findUnique({
-        where: { id: body.addonId },
+      // B6-F-83 (free audit 0ea0) — the add-on is looked up in the caller's own
+      // payer scope. A PERSONAL billing account is only ever its owner's, so
+      // another payer's add-on is exactly as absent as an unknown id: one body,
+      // one status, whichever it is. (It used to fall through to the account
+      // check and answer BILLING_ACCOUNT_NOT_FOUND, telling the two apart.)
+      const notFound = () =>
+        reply.code(404).send({
+          error: {
+            code: "STORAGE_ADDON_NOT_FOUND",
+            message: "That storage add-on is not available to your account.",
+          },
+        });
+      const addon = await prisma.workspaceStorageAddon.findFirst({
+        where: { id: body.addonId, ownerUserId: userId },
         select: {
           id: true,
           ownerUserId: true,
           teamId: true,
           addonKey: true,
           billingCycle: true,
+          status: true,
+          canceledAtUtc: true,
           paymentProvider: true,
           externalSubscriptionId: true,
         },
@@ -1167,25 +1182,43 @@ export async function billingRoutes(app: FastifyInstance) {
 
       // Fail closed and indistinguishably: a caller must not be able to probe
       // for other tenants' add-on ids.
-      if (!addon) {
-        return reply.code(404).send({
-          error: {
-            code: "STORAGE_ADDON_NOT_FOUND",
-            message: "That storage add-on is not available to your account.",
-          },
-        });
-      }
+      if (!addon) return notFound();
 
       // The add-on belongs to a billing ACCOUNT, and cancelling it is an
       // add-on purchase-authority decision on that account.
-      await assertBillingCapability({
-        viewerUserId: userId,
-        // The payer is the add-on's owner. A stored `teamId` is tenancy.
-        type: "PERSONAL",
-        id: addon.ownerUserId,
-        // AUD-08 — stopping a charge needs no right to buy another.
-        capability: "BILLING_CANCEL",
-      });
+      try {
+        await assertBillingCapability({
+          viewerUserId: userId,
+          // The payer is the add-on's owner. A stored `teamId` is tenancy.
+          type: "PERSONAL",
+          id: addon.ownerUserId,
+          // AUD-08 — stopping a charge needs no right to buy another.
+          capability: "BILLING_CANCEL",
+        });
+      } catch (err) {
+        if (err instanceof DomainError && err.publicCode === "BILLING_ACCOUNT_NOT_FOUND") return notFound();
+        throw err;
+      }
+
+      // B6-F-61 — a repeat cancel is a no-op. The provider already agreed (a
+      // period-end schedule, a PayPal stop with the paid month kept, or a
+      // terminal end), so a second call must not reach the provider again or
+      // overwrite the recorded cancellation time.
+      if (
+        addon.canceledAtUtc !== null ||
+        addon.status === prismaPkg.WorkspaceStorageAddonStatus.CANCELED ||
+        addon.status === prismaPkg.WorkspaceStorageAddonStatus.EXPIRED
+      ) {
+        return reply.code(200).send({
+          addon: {
+            id: addon.id,
+            addonKey: addon.addonKey,
+            status: addon.status,
+            canceledAtUtc: addon.canceledAtUtc?.toISOString() ?? null,
+          },
+          alreadyCanceled: true,
+        });
+      }
 
       if (
         addon.billingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME

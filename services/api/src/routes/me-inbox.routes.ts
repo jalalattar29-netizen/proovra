@@ -1403,10 +1403,10 @@ function itemClassification(
  */
 function historyItemFromSnapshot(
   s: SnapshotRow,
-  accessibleTeamIds: ReadonlySet<string>,
+  access: HistoryAccess,
   now: Date,
 ): InboxItem {
-  const accessible = s.teamId == null || accessibleTeamIds.has(s.teamId);
+  const accessible = historyRowAccessible(s, access);
   const category = s.category as InboxCategory;
   const resolvedAt = s.resolvedAtUtc ? s.resolvedAtUtc.toISOString() : null;
   const live = s.resolvedAtUtc == null;
@@ -1466,18 +1466,86 @@ function historyItemFromSnapshot(
   };
 }
 
-/** The workspaces whose history rows the caller may still read in full. */
+/**
+ * What the caller may still read of their notification history.
+ *
+ * B2B-F-05 (free-audit 0ea0): redaction tested workspace access only, so a
+ * snapshot captured while a record was reachable kept its title, body and
+ * link after the record's case was restricted away from the reader, and an
+ * organization item kept its content after the reader left the organization.
+ * The record rule (case-visibility.ts) and ACTIVE organization membership are
+ * now re-evaluated for the ids a snapshot names (N1 / A2-06, AUTH-002).
+ */
+type HistoryAccess = {
+  teamIds: ReadonlySet<string>;
+  closedEvidenceIds: ReadonlySet<string>;
+  closedCaseIds: ReadonlySet<string>;
+  activeOrgIds: ReadonlySet<string>;
+};
+
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function snapshotContextId(s: SnapshotRow, key: "evidenceId" | "caseId"): string | null {
+  const raw = s.metadataJson && typeof s.metadataJson === "object" ? (s.metadataJson as Record<string, unknown>)[key] : null;
+  return typeof raw === "string" && UUID_SHAPE.test(raw) ? raw : null;
+}
+
+function isOrgAdminSnapshot(s: SnapshotRow): boolean {
+  return s.teamId == null && s.orgId != null && s.category === "org_admin";
+}
+
+function historyRowAccessible(s: SnapshotRow, access: HistoryAccess): boolean {
+  if (s.teamId != null && !access.teamIds.has(s.teamId)) return false;
+  // An organization ADMIN item is about running the organization; it is read
+  // only while the caller is still an ACTIVE member of it.
+  if (isOrgAdminSnapshot(s) && !access.activeOrgIds.has(s.orgId as string)) return false;
+  const evidenceId = snapshotContextId(s, "evidenceId");
+  if (evidenceId && access.closedEvidenceIds.has(evidenceId)) return false;
+  const caseId = snapshotContextId(s, "caseId");
+  if (caseId && access.closedCaseIds.has(caseId)) return false;
+  return true;
+}
+
+/** The workspaces, records, cases and organizations the caller may still read. */
 async function accessibleTeamIdsFor(
   userId: string,
   rows: readonly SnapshotRow[],
-): Promise<ReadonlySet<string>> {
+): Promise<HistoryAccess> {
   // AUTH-002 — derived from the canonical accessible-workspace resolver, so
   // losing access (revocation, suspension, access expiry, a suspended parent
   // Organization) redacts. Skipped when no row is workspace-bound.
-  if (!rows.some((r) => r.teamId != null)) return new Set();
-  return new Set(
-    (await listAccessibleWorkspaces({ userId })).map((w) => w.workspaceId),
-  );
+  const evidenceIds = [...new Set(rows.map((r) => snapshotContextId(r, "evidenceId")).filter((v): v is string => !!v))];
+  const caseIds = [...new Set(rows.map((r) => snapshotContextId(r, "caseId")).filter((v): v is string => !!v))];
+  const orgIds = [...new Set(rows.filter(isOrgAdminSnapshot).map((r) => r.orgId as string))];
+  const [teamIds, closedEvidence, closedCases, activeOrgs] = await Promise.all([
+    rows.some((r) => r.teamId != null)
+      ? listAccessibleWorkspaces({ userId }).then((ws) => ws.map((w) => w.workspaceId))
+      : Promise.resolve([] as string[]),
+    evidenceIds.length > 0
+      ? prisma.evidence.findMany({
+          where: { id: { in: evidenceIds }, NOT: evidenceVisibleThroughCasesWhere(userId) },
+          select: { id: true },
+        })
+      : Promise.resolve([] as Array<{ id: string }>),
+    caseIds.length > 0
+      ? prisma.case.findMany({
+          where: { id: { in: caseIds }, NOT: caseVisibleToWhere(userId) },
+          select: { id: true },
+        })
+      : Promise.resolve([] as Array<{ id: string }>),
+    orgIds.length > 0
+      ? prisma.organizationMembership.findMany({
+          where: { userId, organizationId: { in: orgIds }, status: "ACTIVE" },
+          select: { organizationId: true },
+        })
+      : Promise.resolve([] as Array<{ organizationId: string }>),
+  ]);
+  return {
+    teamIds: new Set(teamIds),
+    closedEvidenceIds: new Set(closedEvidence.map((r) => r.id)),
+    closedCaseIds: new Set(closedCases.map((r) => r.id)),
+    activeOrgIds: new Set(activeOrgs.map((r) => r.organizationId)),
+  };
 }
 
 /**
@@ -1867,8 +1935,14 @@ export async function buildInboxAggregation(
       // -----------------------------------------------------------------
       // ARCH-004 — the caller's own inbox reflects Organizations they may
       // actually act in. A suspended or revoked membership contributes nothing.
+      // B2B-F-10 — CUSTOMER organizations only, the filter /v1/me/orgs and
+      // every other product surface apply. The personal bootstrap grants
+      // ORG_OWNER on a SYSTEM container; counting it hid the "no organization
+      // yet" guidance from every bootstrapped (fresh) account while legacy
+      // accounts without the container still saw it, and fed SYSTEM ids into
+      // the admin pending-invite rollup.
       const orgMemberships = await prisma.organizationMembership.findMany({
-        where: { userId, status: "ACTIVE" },
+        where: { userId, status: "ACTIVE", organization: { kind: "CUSTOMER" } },
         select: {
           role: true,
           organization: {
@@ -4694,7 +4768,7 @@ export async function meInboxRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------
   // Operations-Center completion — BULK mark-read.
   //
-  // POST /v1/me/inbox/mark-all-read   body: { filter?: <InboxFilter> }
+  // POST /v1/me/inbox/mark-all-read   body: { filter?: <InboxFilter>, workspaceId?: <uuid> }
   //
   // The FRONTEND never supplies item keys for mass updates: the server
   // re-runs the canonical aggregation for the caller and marks exactly
@@ -4714,10 +4788,53 @@ export async function meInboxRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
+      /**
+       * B2B-F-01 — SCOPE. `workspaceId` (optional) narrows the bulk read to the
+       * population the bell / native tab is showing: items of that workspace
+       * plus account- and organization-tier items (no workspace binding), the
+       * SAME `isInWorkspaceScope` predicate the summary badge counts with. It
+       * is validated against ACTIVE membership by the resolver the summary and
+       * list use, with the same anti-enumerating 403.
+       *
+       * NO SCOPE (no body, `{}`, or only `filter`) KEEPS THE ACCOUNT-WIDE
+       * behaviour on purpose. Older native builds send `{}` and the web bell
+       * that is live today sends `{}`; web also ships ahead of the API
+       * (B8-F-401), so both directions of version skew have to keep a working
+       * button. Narrowing `{}` to the personal workspace would silently turn an
+       * old client's "Mark all read" into a partial read that leaves the badge
+       * it is labelled against non-zero — a broken journey — while the
+       * account-wide read only changes the caller's OWN attention state (no
+       * data reach, reversible per item with "Mark unread"). New clients send
+       * their scope; an old API ignores the unknown field (non-strict schema)
+       * and answers with the old account-wide read, so the new contract is
+       * safe against an older API too. The response echoes `workspaceId` (null
+       * = account-wide) so a client can tell which read it got.
+       */
       const body = z
-        .object({ filter: z.string().min(1).max(32).optional() })
+        .object({
+          filter: z.string().min(1).max(32).optional(),
+          workspaceId: z.string().uuid().nullable().optional(),
+        })
         .safeParse(req.body ?? {});
+      if (
+        !body.success &&
+        body.error.issues.some((i) => i.path[0] === "workspaceId")
+      ) {
+        return reply.code(400).send({ message: "INBOX_SCOPE_INVALID" });
+      }
       const rawFilter = body.success ? body.data.filter : undefined;
+      const scopeWorkspaceId = body.success
+        ? (body.data.workspaceId ?? null)
+        : null;
+      if (scopeWorkspaceId) {
+        const accessible = await resolveAccessibleWorkspace({
+          userId,
+          workspaceId: scopeWorkspaceId,
+        });
+        if (!accessible) {
+          return reply.code(403).send({ error: { code: "not_a_member" } });
+        }
+      }
       // Archived and snoozed are state views, not attention queues —
       // bulk-reading them is rejected explicitly. Both spellings of the
       // archive are named because the guard runs on the RAW body value,
@@ -4748,12 +4865,17 @@ export async function meInboxRoutes(app: FastifyInstance) {
       const targets = agg.allItems.filter((it) => {
         if (!isUnreadForRecipient(it, nowMs)) return false;
         if (bulkFilter && !matchesFilter(it, bulkFilter, nowMs)) return false;
+        if (!isInWorkspaceScope(it, scopeWorkspaceId)) return false;
         return true;
       });
       if (targets.length === 0) {
         return reply
           .code(200)
-          .send({ markedRead: 0, filter: bulkFilter ?? null });
+          .send({
+            markedRead: 0,
+            filter: bulkFilter ?? null,
+            workspaceId: scopeWorkspaceId,
+          });
       }
       const keys = targets.map((t) => t.itemKey);
       const collabIds = targets
@@ -4818,11 +4940,19 @@ export async function meInboxRoutes(app: FastifyInstance) {
         resourceType: "user",
         resourceId: userId,
         correlationId: req.id ?? null,
-        metadata: { markedRead: keys.length, appliedFilter: bulkFilter ?? null },
+        metadata: {
+          markedRead: keys.length,
+          appliedFilter: bulkFilter ?? null,
+          workspaceId: scopeWorkspaceId,
+        },
       }).catch(() => undefined);
       return reply
         .code(200)
-        .send({ markedRead: keys.length, filter: bulkFilter ?? null });
+        .send({
+          markedRead: keys.length,
+          filter: bulkFilter ?? null,
+          workspaceId: scopeWorkspaceId,
+        });
     },
   );
 

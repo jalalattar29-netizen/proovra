@@ -9,12 +9,11 @@
  *
  * RATE LIMITING:
  *   - Enrollment-verify and challenge-verify endpoints carry a
- *     bounded in-memory cooldown per user (5 attempts / 60 s). The
- *     in-memory limiter is sufficient for single-process and small
- *     cluster deployments; multi-region deployments should layer a
- *     Redis-backed limiter at the gateway level. The cooldown
- *     emits `mfa_verification_failed` with `reason: "rate_limited"`
- *     so operators see the brute-force surface.
+ *     per-user cooldown (5 attempts / 60 s) on the SHARED canonical
+ *     limiter with a global bound (B1-F-011, free-audit 0ea0): one
+ *     bucket across every API instance. The cooldown emits
+ *     `mfa_verification_failed` with `reason: "rate_limited"` so
+ *     operators see the brute-force surface.
  *
  * SECURITY:
  *   - Every mutation requires `requireAuth`.
@@ -41,16 +40,17 @@ import { AppError, ErrorCode, inputRefusal } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
 import { MFA_ENROLLMENT_SCOPE } from "../services/auth/extension-scope.js";
 import { issueEnrolledToken } from "../services/auth/mfa-enrollment-session.js";
-import { trustedClientIp } from "../middleware/client-ip.js";
 import {
   verifyAccountStepUp,
   verifyFactorEnrollmentStepUp,
   type AccountStepUpProof,
 } from "../services/identity-security/account-step-up.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import {
   beginTotpEnrollment,
-  consumeRecoveryCode,
+  checkRecoveryCode,
   readMfaStatus,
   regenerateRecoveryBatch,
   revokeFactor,
@@ -59,29 +59,28 @@ import {
 } from "../services/security/mfa.service.js";
 
 // =============================================================================
-// Bounded in-memory rate limiter (per-process)
+// Attempt throttle — the SHARED limiter
 // =============================================================================
+//
+// B1-F-011 (free-audit 0ea0): this was an in-memory Map per process, so the
+// 5-per-minute budget on enrolment-verify and challenge-verify multiplied by
+// the number of API instances, while the login MFA verify already used the
+// shared limiter. It is now the same canonical limiter with a GLOBAL bound: one
+// bucket across every instance, and with Redis configured but unreachable the
+// attempt is refused rather than counted in this process (a per-process count
+// is exactly the multiplied budget this limit exists to prevent).
 
 const ATTEMPT_WINDOW_MS = 60_000;
 const ATTEMPT_MAX = 5;
-const attempts = new Map<string, number[]>();
 
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const arr = attempts.get(key) ?? [];
-  const recent = arr.filter((t) => now - t < ATTEMPT_WINDOW_MS);
-  recent.push(now);
-  attempts.set(key, recent);
-  return recent.length > ATTEMPT_MAX;
-}
-
-function requestIp(req: FastifyRequest): string | null {
-  // PHASE 13 §1 (NEW-022) — SECURITY_BOUND: this keys the MFA attempt throttle
-  // (brute-force protection). It used to take the LEFTMOST X-Forwarded-For
-  // entry unconditionally — the caller's own value — so the throttle was
-  // bypassable by rotating one header. Delegated to the canonical authority,
-  // whose selection is Fastify's policy-driven @fastify/proxy-addr.
-  return trustedClientIp(req);
+async function isRateLimited(key: string): Promise<boolean> {
+  const result = await enforceRateLimit({
+    key,
+    max: ATTEMPT_MAX,
+    windowSec: Math.round(ATTEMPT_WINDOW_MS / 1000),
+    bound: "global",
+  });
+  return !result.allowed;
 }
 
 async function readAccountName(userId: string): Promise<string> {
@@ -219,7 +218,7 @@ export async function mfaRoutes(app: FastifyInstance) {
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const body = EnrollVerifyBody.parse(req.body ?? {});
       const key = `mfa:enroll-verify:${userId}`;
-      if (isRateLimited(key)) {
+      if (await isRateLimited(key)) {
         safeEmitSecurityEvent({
           teamId: null,
           eventType: "mfa_verification_failed",
@@ -331,6 +330,19 @@ export async function mfaRoutes(app: FastifyInstance) {
         return stepUp.denial.body;
       }
       const result = await regenerateRecoveryBatch({ userId });
+      // B1-F-002 — a new batch (which ends every earlier code) is an entry on
+      // the person's own "Account & security activity" timeline, which reads
+      // `identity.*` audit rows for the caller. No code, count or hash is
+      // recorded. The product has no security-alert email or push channel.
+      void emitPlatformAudit({
+        action: "identity.mfa_recovery_codes_regenerated",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: userId,
+        resourceType: "user",
+        resourceId: userId,
+        metadata: { batchSize: result.recoveryCodes.length },
+      }).catch(() => null);
       // Recovery codes returned ONCE here.
       return { recoveryCodes: result.recoveryCodes };
     },
@@ -349,7 +361,7 @@ export async function mfaRoutes(app: FastifyInstance) {
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const body = ChallengeVerifyBody.parse(req.body ?? {});
       const key = `mfa:challenge-verify:${userId}`;
-      if (isRateLimited(key)) {
+      if (await isRateLimited(key)) {
         safeEmitSecurityEvent({
           teamId: null,
           eventType: "mfa_verification_failed",
@@ -364,16 +376,21 @@ export async function mfaRoutes(app: FastifyInstance) {
         return { error: "rate_limited", retryAfterMs: ATTEMPT_WINDOW_MS };
       }
       if (body.recoveryCode) {
-        const result = await consumeRecoveryCode({
+        // B1-F-020 (free-audit 0ea0) — A CHECK DOES NOT SPEND THE CREDENTIAL.
+        // This route changes no other state (it is the posture self-check), so
+        // consuming the code here only burned one of the person's scarce
+        // recovery codes to prove nothing. The code is verified exactly as a
+        // sign-in would verify it — same lookup, owner, batch and verifier
+        // checks, same failure events — and stays unused.
+        const result = await checkRecoveryCode({
           userId,
           code: body.recoveryCode,
-          ipAddress: requestIp(req),
         });
         if (!result.ok) {
           reply.code(400);
           return { error: result.reason };
         }
-        return { ok: true, used: "recovery_code" };
+        return { ok: true, used: "recovery_code", consumed: false };
       }
       const result = await verifyActiveTotp({
         userId,

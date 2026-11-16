@@ -4,7 +4,8 @@
  * Managed identity + membership + grant are ONE atomic orchestrated outcome
  * (one $transaction). The SCIM source is the AUTHENTICATED SCIM token credential
  * (ctx.tokenId), persistence-verified inside setManagedIdentity — never
- * findFirst/caller-declared. SCIM deactivate is NOT releaseManagedIdentity.
+ * findFirst/caller-declared. B5B-F-302 — SCIM deactivate now releases ONLY the
+ * deprovisioning Organization's managed binding (releaseManagedIdentity).
  * These are caller/writer-authority + composition invariants → source contracts
  * (the mandate permits structural proof for authority/dependency/bypass).
  */
@@ -46,12 +47,19 @@ describe("§3 — SCIM create binds managed identity ATOMICALLY with membership/
   });
 });
 
-describe("§3 — SCIM deactivate PRESERVES managed ownership (not releaseManagedIdentity)", () => {
-  it("scimDeactivateUser never calls releaseManagedIdentity", () => {
+describe("§3 — SCIM deactivate releases ONLY this Organization's managed binding (B5B-F-302)", () => {
+  it("scimDeactivateUser is the one SCIM caller of releaseManagedIdentity, keyed by the token's Organization", () => {
     const deIdx = SCIM.indexOf("export async function scimDeactivateUser");
+    const reIdx = SCIM.indexOf("export async function scimReactivateUser");
     expect(deIdx).toBeGreaterThan(-1);
-    // releaseManagedIdentity is the explicit unmanage op — never routine SCIM deactivate.
-    expect(SCIM).not.toMatch(/releaseManagedIdentity\(/);
+    const calls = [...SCIM.matchAll(/releaseManagedIdentity\(/g)].map((m) => m.index!);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toBeGreaterThan(deIdx);
+    expect(calls[0]).toBeLessThan(reIdx);
+    // releaseManagedIdentity itself refuses a binding another Organization owns.
+    expect(SCIM.slice(calls[0])).toMatch(
+      /^releaseManagedIdentity\(\s*\{ userId, managingOrganizationId: ctx\.organizationId \}/,
+    );
   });
 });
 

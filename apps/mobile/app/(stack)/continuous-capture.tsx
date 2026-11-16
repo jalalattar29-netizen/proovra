@@ -26,7 +26,8 @@
  * seals it; a staging failure keeps the session for a retry. Every other exit
  * from an opened session (Discard, Try Again, a start failure) releases it.
  */
-import { isSessionGone } from "../../src/capture/capture-retry";
+import * as Crypto from "expo-crypto";
+import { classifyCaptureError, isSessionGone } from "../../src/capture/capture-retry";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AppState, Platform, Switch, View, StyleSheet } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -268,6 +269,18 @@ export default function ContinuousCaptureScreen() {
           }
         })
         .catch((err) => {
+          // B4-F-205 — a HELD refusal (storage full, plan, sign-in) refuses
+          // every later segment too: stop the recording ONCE instead of
+          // recording on and toasting per segment. What was recorded is kept
+          // (the segments stay on the device for the retry at staging).
+          if (classifyCaptureError(err) === "HELD") {
+            if (stopRequestedRef.current) return;
+            requestControlledStop(
+              null,
+              `${toSafeUserError(err, { message: "PROOVRA cannot accept more of this recording right now." }).message} The recording stopped; tap Stop & Review to keep what was recorded.`,
+            );
+            return;
+          }
           // A lost segment is retried from disk at finalize and, if still
           // missing, stated as SEGMENT_UPLOAD_LOST — never sealed over.
           toast.addToast(
@@ -363,6 +376,9 @@ export default function ContinuousCaptureScreen() {
       // into the reservation as it was then.
       const opened = await beginContinuousSession({
         teamId: destinationRef.current?.teamId ?? null,
+        // B4-F-205 — one attempt id per recording (C-09): a lost reservation
+        // answer is replayed, never left holding a Free slot.
+        clientAttemptId: Crypto.randomUUID(),
         location: locationRef.current ?? reservationLocationFields({ useLocation: false, result: null }),
       });
       // Held at once, so a failure below releases it on the server.

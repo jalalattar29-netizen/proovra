@@ -40,6 +40,9 @@ import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { isMembershipDenial } from "../services/access/membership-denial.js";
+import { platformSessionVerifiedMfa } from "../middleware/require-platform-admin.js";
+import { resolvePlatformAdmin } from "../services/platform-admin.service.js";
 import { resolveGraphReach } from "../services/graph/graph-reach.js";
 import {
   buildCaseSubgraph,
@@ -1442,7 +1445,13 @@ export async function graphRoutes(app: FastifyInstance) {
       const q = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
       const actor = await requireGraphAdminActor(req, reply, q.teamId);
       if (!actor) return;
-      const diagnostics = await buildGraphDiagnostics(q.teamId, actor.userId);
+      // B3C-F-010 (free-audit 0ea0): the graph-reconcile queue is shared by
+      // every tenant; its depth is a platform fact, shown only to an
+      // MFA-verified platform admin (the AUD-0021 investigation-diagnostics rule).
+      const platformVisible =
+        (await resolvePlatformAdmin(actor.userId).catch(() => ({ allowed: false }))).allowed &&
+        platformSessionVerifiedMfa(req);
+      const diagnostics = await buildGraphDiagnostics(q.teamId, actor.userId, { platformVisible });
       // Wave 1: counter for diagnostics reads is reserved for the
       // next metrics-catalog update wave.
       return reply.code(200).send(diagnostics);
@@ -1501,6 +1510,17 @@ async function requireGraphAdminActor(
     }),
   ]);
   const opsAllowed = mode === "read" && opsDecision.allowed;
+  // B3C-F-011: a refusal about the caller's membership (suspended, expired,
+  // organization inactive) answers like the non-member above, not a 403.
+  if (
+    !opsAllowed &&
+    !reviewerDecision.allowed &&
+    isMembershipDenial(reviewerDecision.reason) &&
+    (opsDecision.allowed || isMembershipDenial(opsDecision.reason))
+  ) {
+    reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  }
   if (!opsAllowed && !reviewerDecision.allowed) {
     reply.code(403).send({
       error: {
@@ -1541,6 +1561,7 @@ type GraphDiagnostics = {
 async function buildGraphDiagnostics(
   teamId: string,
   actorUserId: string,
+  options: { platformVisible: boolean },
 ): Promise<GraphDiagnostics> {
   // Counts are reach-scoped too: a count that moves discloses activity on a
   // record the caller cannot open, and VIEWER holds this route's read arm.
@@ -1599,19 +1620,22 @@ async function buildGraphDiagnostics(
   }
   // Queue depth — dynamic import keeps the route module decoupled
   // from BullMQ at load time. The helper itself is best-effort and
-  // returns null on Redis unavailability.
+  // returns null on Redis unavailability. The queue is shared by every
+  // tenant, so its depth is null for anyone but a verified platform admin.
   let queueDepth: number | null = null;
   try {
-    const { getQueueInventory } = await import(
-      "../services/operations/queue-inventory.service.js"
-    );
-    const inv = await getQueueInventory();
-    const row = inv.find((q) => q.queueName === "graph-reconcile");
-    if (row) {
-      queueDepth =
-        (row.counts.waiting ?? 0) +
-        (row.counts.active ?? 0) +
-        (row.counts.delayed ?? 0);
+    if (options.platformVisible) {
+      const { getQueueInventory } = await import(
+        "../services/operations/queue-inventory.service.js"
+      );
+      const inv = await getQueueInventory();
+      const row = inv.find((q) => q.queueName === "graph-reconcile");
+      if (row) {
+        queueDepth =
+          (row.counts.waiting ?? 0) +
+          (row.counts.active ?? 0) +
+          (row.counts.delayed ?? 0);
+      }
     }
   } catch {
     /* best-effort */

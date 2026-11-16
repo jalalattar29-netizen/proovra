@@ -262,7 +262,8 @@ export function MfaRecoveryRequestPanel({ teamId }: { teamId: string | null }) {
       </ProovraText>
       <ProovraText variant="label" color={theme.color.ink.muted}>
         File a recovery request for an administrator in your organization to review. It does not
-        sign you in or reset your second factor by itself.
+        sign you in or reset your second factor by itself. A personal workspace has no
+        administrator, and PROOVRA support cannot remove a second factor.
       </ProovraText>
 
       {eligibility === "no_session" ? (

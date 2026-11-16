@@ -57,8 +57,19 @@ export async function listPolicyViolations(input: {
   kind?: PolicyViolationCode;
   since?: Date;
   limit?: number;
+  /** B5B-F-305: records and cases closed to the reader (`hiddenRecordIdsInWorkspace`). */
+  hidden?: { evidenceIds: readonly string[]; caseIds: readonly string[] };
 }): Promise<ReadonlyArray<PolicyViolationProjection>> {
   const db = input.prisma ?? defaultPrisma;
+  // NULL ids are kept explicitly: `NOT IN` drops NULL rows.
+  const reach = [
+    ...(input.hidden && input.hidden.evidenceIds.length > 0
+      ? [{ OR: [{ evidenceId: null }, { evidenceId: { notIn: [...input.hidden.evidenceIds] } }] }]
+      : []),
+    ...(input.hidden && input.hidden.caseIds.length > 0
+      ? [{ OR: [{ caseId: null }, { caseId: { notIn: [...input.hidden.caseIds] } }] }]
+      : []),
+  ];
   const cap = Math.min(input.limit ?? 200, 200);
   const since = input.since ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -72,6 +83,7 @@ export async function listPolicyViolations(input: {
       teamId: input.teamId,
       code: { in: codes as string[] },
       occurredAtUtc: { gte: since },
+      ...(reach.length > 0 ? { AND: reach } : {}),
     },
     orderBy: { occurredAtUtc: "desc" },
     take: cap,

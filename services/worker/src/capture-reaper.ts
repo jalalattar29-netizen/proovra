@@ -230,6 +230,56 @@ export interface ReleaseExpiredReservationsResult {
   sealedUnboundKept: number;
   /** C-13 — such sessions past their maximum lifetime, closed (record untouched). */
   sealedUnboundClosed: number;
+  /**
+   * B4-F-004 (free audit 0ea0) — objects of released reservations whose delete
+   * failed in this pass (a retried one included). The run records them and the
+   * next run retries them, until a delete reports them gone or retained.
+   */
+  pendingObjectDeletes: Array<{ bucket: string; key: string }>;
+}
+
+/** B4-F-004 — the run metadata key that carries pending object deletes forward. */
+export const PENDING_OBJECT_DELETES_METADATA_KEY = "pendingObjectDeletes";
+/** B4-F-004 — at most this many pending deletes are carried from run to run. */
+export const MAX_PENDING_OBJECT_DELETES = 1000;
+
+function parsePendingObjectDeletes(value: unknown): Array<{ bucket: string; key: string }> {
+  if (!Array.isArray(value)) return [];
+  const out: Array<{ bucket: string; key: string }> = [];
+  for (const v of value) {
+    const o = v as { bucket?: unknown; key?: unknown } | null;
+    if (o && typeof o.bucket === "string" && typeof o.key === "string" && o.bucket && o.key) {
+      out.push({ bucket: o.bucket, key: o.key });
+    }
+    if (out.length >= MAX_PENDING_OBJECT_DELETES) break;
+  }
+  return out;
+}
+
+/**
+ * B4-F-004 — of the carried keys, only those still owned by released,
+ * never-sealed records (or by no record) may be deleted. A key a live or
+ * sealed record references is never touched, whatever the carried list says.
+ */
+async function releasedObjectKeysOnly(
+  objects: Array<{ bucket: string; key: string }>,
+): Promise<Array<{ bucket: string; key: string }>> {
+  if (objects.length === 0) return [];
+  const keys = [...new Set(objects.map((o) => o.key))];
+  const UNSEALED = [prismaPkg.EvidenceStatus.CREATED, prismaPkg.EvidenceStatus.UPLOADING];
+  const releasedRecord = { deletedAt: { not: null }, status: { in: UNSEALED } };
+  const [liveParts, liveRecords] = await Promise.all([
+    prisma.evidencePart.findMany({
+      where: { storageKey: { in: keys }, NOT: { evidence: releasedRecord } },
+      select: { storageBucket: true, storageKey: true },
+    }),
+    prisma.evidence.findMany({
+      where: { storageKey: { in: keys }, NOT: releasedRecord },
+      select: { storageBucket: true, storageKey: true },
+    }),
+  ]);
+  const protectedKeys = new Set([...liveParts, ...liveRecords].map((o) => `${o.storageBucket}/${o.storageKey}`));
+  return objects.filter((o) => !protectedKeys.has(`${o.bucket}/${o.key}`));
 }
 
 /**
@@ -273,6 +323,8 @@ export async function releaseExpiredReservations(
     now?: Date;
     /** Rows a previous page of THIS run could not process; skipped so paging moves on. */
     excludeIds?: readonly string[];
+    /** B4-F-004 — objects whose delete failed in an earlier run, retried first. */
+    retryObjectDeletes?: ReadonlyArray<{ bucket: string; key: string }>;
   } = {},
 ): Promise<ReleaseExpiredReservationsResult> {
   const trigger = options.trigger ?? "manual";
@@ -291,6 +343,7 @@ export async function releaseExpiredReservations(
     staleSealClaimsReleased: 0,
     sealedUnboundKept: 0,
     sealedUnboundClosed: 0,
+    pendingObjectDeletes: [],
   };
   const exclude = options.excludeIds?.length ? { id: { notIn: [...options.excludeIds] } } : {};
   const released: string[] = [];
@@ -472,6 +525,17 @@ export async function releaseExpiredReservations(
     }
   }
 
+  // B4-F-004 (free audit 0ea0) — object deletion is no longer coupled to the
+  // run that released the record. A delete that failed in an earlier run is
+  // retried here (the run carries it forward in its metadata) until it
+  // reports the object gone or retained; a key still owned by a live or sealed
+  // record is never touched.
+  const keys = new Map<string, { bucket: string; key: string }>();
+  if (options.deleteObject && options.retryObjectDeletes?.length) {
+    for (const o of await releasedObjectKeysOnly([...options.retryObjectDeletes])) {
+      keys.set(`${o.bucket}/${o.key}`, o);
+    }
+  }
   if (options.deleteObject && released.length > 0) {
     const [parts, records] = await Promise.all([
       prisma.evidencePart.findMany({
@@ -483,19 +547,24 @@ export async function releaseExpiredReservations(
         select: { storageBucket: true, storageKey: true },
       }),
     ]);
-    const keys = new Map<string, { bucket: string; key: string }>();
     for (const o of [...parts, ...records]) {
       if (o.storageBucket && o.storageKey) keys.set(`${o.storageBucket}/${o.storageKey}`, { bucket: o.storageBucket, key: o.storageKey });
     }
+  }
+  if (options.deleteObject) {
     for (const o of keys.values()) {
       result.objectDeletesRequested++;
       try {
         const removal = await options.deleteObject(o);
         result.objectVersionsDeleted += removal.deletedVersions;
         if (removal.retainedVersions > 0) result.objectsRetained++;
-        if (removal.failed > 0) result.objectDeletesFailed++;
+        if (removal.failed > 0) {
+          result.objectDeletesFailed++;
+          result.pendingObjectDeletes.push(o);
+        }
       } catch {
         result.objectDeletesFailed++;
+        result.pendingObjectDeletes.push(o);
       }
     }
   }
@@ -547,6 +616,22 @@ export interface CaptureReaperSweepResult {
  * A failure of the run itself is NOT swallowed here: it fails the run row and
  * is rethrown to the scheduler, which logs and reports it.
  */
+/** B4-F-004 — the pending deletes the latest earlier CAPTURE_REAPER run recorded. */
+async function readPendingObjectDeletes(currentRunId: string): Promise<Array<{ bucket: string; key: string }>> {
+  const previous = await prisma.governanceReconciliationRun.findFirst({
+    where: {
+      kind: prismaPkg.GovernanceReconciliationKind.CAPTURE_REAPER,
+      id: { not: currentRunId },
+      finishedAtUtc: { not: null },
+    },
+    orderBy: { startedAtUtc: "desc" },
+    select: { metadata: true },
+  });
+  const metadata = previous?.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return [];
+  return parsePendingObjectDeletes((metadata as Record<string, unknown>)[PENDING_OBJECT_DELETES_METADATA_KEY]);
+}
+
 export async function runCaptureReaperSweep(
   options: { trigger?: string; batchSize?: number; deleteObject?: ReservationObjectDeleter; now?: Date } = {},
 ): Promise<CaptureReaperSweepResult> {
@@ -569,6 +654,14 @@ export async function runCaptureReaperSweep(
         if (res.scanned < batchSize) break;
       }
 
+      // B4-F-004 — the deletes the previous run could not complete. Recorded
+      // on THIS run at once too, so a run that fails midway still carries
+      // them forward.
+      // A run without a deleter (a manual check) passes the list on unchanged.
+      const carried = await readPendingObjectDeletes(ctx.runId);
+      ctx.setMetadata(PENDING_OBJECT_DELETES_METADATA_KEY, carried);
+      const pending: Array<{ bucket: string; key: string }> = [];
+
       const failedReservations: string[] = [];
       for (let page = 0; page < CAPTURE_REAPER_MAX_PAGES; page++) {
         const res = await releaseExpiredReservations({
@@ -577,7 +670,12 @@ export async function runCaptureReaperSweep(
           deleteObject: options.deleteObject,
           now: options.now,
           excludeIds: failedReservations,
+          ...(page === 0 ? { retryObjectDeletes: carried } : {}),
         });
+        pending.push(...res.pendingObjectDeletes);
+        if (options.deleteObject) {
+          ctx.setMetadata(PENDING_OBJECT_DELETES_METADATA_KEY, pending.slice(0, MAX_PENDING_OBJECT_DELETES));
+        }
         tally.pages++;
         tally.sessionsExpired += res.sessionsExpired;
         tally.reservationsReleased += res.reservationsReleased;

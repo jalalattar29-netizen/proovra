@@ -163,6 +163,18 @@ export async function pruneOperationsSnapshots(now: Date): Promise<number> {
   }
 }
 
+type DigestGroup = {
+  userId: string;
+  teamId: string;
+  cadence: DigestCadence;
+  types: NotificationPreferenceType[];
+};
+
+/** B2B-F-07 — preference paging bounds (200k rows per run at most). */
+const DIGEST_PREF_PAGE_SIZE = 10_000;
+const DIGEST_PREF_MAX_PAGES = 20;
+const DIGEST_SCHEDULE_CHUNK = 1_000;
+
 export async function runDigestScheduler(
   opts: {
     now?: Date;
@@ -209,31 +221,44 @@ export async function runDigestScheduler(
 
 
   // 1. Every enabled EMAIL preference on a digest cadence.
-  const prefRows = await prisma.workspaceNotificationPreference.findMany({
-    where: {
-      channel: "EMAIL",
-      enabled: true,
-      frequency: { in: [...CADENCES] },
-    },
-    select: {
-      userId: true,
-      teamId: true,
-      preferenceType: true,
-      frequency: true,
-    },
-    take: 10_000,
-  });
+  //
+  // B2B-F-07 — paged in a STABLE order (id cursor) instead of one unordered
+  // 10,000-row read, so no preference row is invisible to the scheduler and
+  // the population does not reshuffle between runs.
+  const prefRows: Array<{
+    id: string;
+    userId: string;
+    teamId: string;
+    preferenceType: string;
+    frequency: string;
+  }> = [];
+  let prefCursor: string | null = null;
+  for (let page = 0; page < DIGEST_PREF_MAX_PAGES; page++) {
+    const rows: typeof prefRows =
+      await prisma.workspaceNotificationPreference.findMany({
+        where: {
+          channel: "EMAIL",
+          enabled: true,
+          frequency: { in: [...CADENCES] },
+        },
+        select: {
+          id: true,
+          userId: true,
+          teamId: true,
+          preferenceType: true,
+          frequency: true,
+        },
+        orderBy: { id: "asc" },
+        take: DIGEST_PREF_PAGE_SIZE,
+        ...(prefCursor ? { cursor: { id: prefCursor }, skip: 1 } : {}),
+      });
+    prefRows.push(...rows);
+    if (rows.length < DIGEST_PREF_PAGE_SIZE) break;
+    prefCursor = rows[rows.length - 1]!.id;
+  }
 
   // 2. Group by (user, team, cadence) → the preference types it covers.
-  const groups = new Map<
-    string,
-    {
-      userId: string;
-      teamId: string;
-      cadence: DigestCadence;
-      types: NotificationPreferenceType[];
-    }
-  >();
+  const groups = new Map<string, DigestGroup>();
   for (const row of prefRows) {
     const cadence = row.frequency as DigestCadence;
     const key = `${row.userId}|${row.teamId}|${cadence}`;
@@ -266,22 +291,47 @@ export async function runDigestScheduler(
     return agg.allItems;
   }
 
-  for (const group of [...groups.values()].slice(0, maxGroups)) {
-    summary.groupsConsidered += 1;
-    const lastField = LAST_FIELD[group.cadence];
-    const periodMs = CADENCE_MS[group.cadence];
-
-    // Schedule row (defaults when absent).
-    const sched = await prisma.notificationScheduleSetting.findUnique({
-      where: {
-        userId_teamId: { userId: group.userId, teamId: group.teamId },
-      },
+  // B2B-F-07 — DUE FIRST, THEN CAP. The run cap used to be applied to the
+  // unordered group list before the due check, so not-due groups consumed the
+  // budget and recipients beyond the first maxGroups could starve for ever.
+  // Schedule rows are read in bulk, not-due groups are set aside (they cost
+  // nothing), and the due groups are served OLDEST WATERMARK FIRST (never-sent
+  // first), so a backlog larger than one run drains across consecutive runs.
+  type ScheduleRow = NonNullable<
+    Awaited<ReturnType<typeof prisma.notificationScheduleSetting.findUnique>>
+  >;
+  const scheduleByKey = new Map<string, ScheduleRow>();
+  const groupUserIds = [...new Set([...groups.values()].map((g) => g.userId))];
+  for (let i = 0; i < groupUserIds.length; i += DIGEST_SCHEDULE_CHUNK) {
+    const chunk = groupUserIds.slice(i, i + DIGEST_SCHEDULE_CHUNK);
+    const rows = await prisma.notificationScheduleSetting.findMany({
+      where: { userId: { in: chunk } },
     });
-    const lastAt = sched?.[lastField] ?? null;
-    if (lastAt && now.getTime() - lastAt.getTime() < periodMs) {
+    for (const row of rows) scheduleByKey.set(`${row.userId}|${row.teamId}`, row);
+  }
+  const dueGroups: Array<{
+    group: DigestGroup;
+    sched: ScheduleRow | null;
+    lastAt: Date | null;
+  }> = [];
+  for (const group of groups.values()) {
+    const sched = scheduleByKey.get(`${group.userId}|${group.teamId}`) ?? null;
+    const lastAt = sched?.[LAST_FIELD[group.cadence]] ?? null;
+    if (lastAt && now.getTime() - lastAt.getTime() < CADENCE_MS[group.cadence]) {
       summary.skippedNotDue += 1;
       continue;
     }
+    dueGroups.push({ group, sched, lastAt });
+  }
+  dueGroups.sort(
+    (a, b) =>
+      (a.lastAt ? a.lastAt.getTime() : 0) - (b.lastAt ? b.lastAt.getTime() : 0),
+  );
+
+  for (const { group, sched, lastAt } of dueGroups.slice(0, maxGroups)) {
+    summary.groupsConsidered += 1;
+    const lastField = LAST_FIELD[group.cadence];
+    const periodMs = CADENCE_MS[group.cadence];
 
     // 3. CANONICAL aggregation for the recipient — authorization,
     //    membership, and per-user state are evaluated NOW, not at some

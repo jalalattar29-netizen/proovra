@@ -971,6 +971,12 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           rule: z.record(z.string(), z.unknown()),
         })
         .parse(req.body);
+      // B7B-F06 (Free-user audit 0ea0) — governance controls are an
+      // Enterprise entitlement (Pricing "Governance controls"), asked of the
+      // packaging engine as cross-org review already does; the role permission
+      // every personal OWNER holds was the only gate. (Deprecating stays open: it withdraws.)
+      const govOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_GOVERNANCE_PLATFORM", actorUserId: ctx.userId });
+      if (!govOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_GOVERNANCE_PLATFORM" });
       const res = await createPolicy({
         teamId: ctx.teamId,
         kind: body.kind,
@@ -995,6 +1001,12 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // B7B-F06 (Free-user audit 0ea0) — governance controls are an
+      // Enterprise entitlement (Pricing "Governance controls"), asked of the
+      // packaging engine as cross-org review already does; the role permission
+      // every personal OWNER holds was the only gate. 
+      const govOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_GOVERNANCE_PLATFORM", actorUserId: ctx.userId });
+      if (!govOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_GOVERNANCE_PLATFORM" });
       const r = await activatePolicy({
         teamId: ctx.teamId,
         policyId: id,
@@ -1037,6 +1049,12 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           isOverride: z.boolean().optional(),
         })
         .parse(req.body);
+      // B7B-F06 (Free-user audit 0ea0) — governance controls are an
+      // Enterprise entitlement (Pricing "Governance controls"), asked of the
+      // packaging engine as cross-org review already does; the role permission
+      // every personal OWNER holds was the only gate. 
+      const govOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_GOVERNANCE_PLATFORM", actorUserId: ctx.userId });
+      if (!govOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_GOVERNANCE_PLATFORM" });
       // TENANT BINDING. `assignPolicy` upserts on (policyId, scope,
       // scopeTargetId) and never checked that the policy — or the target —
       // belongs to the caller's workspace, so an ORG_ADMIN could attach a

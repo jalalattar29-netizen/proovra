@@ -13,12 +13,13 @@
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { loadModule, renderComponent, React, act } from "./support/render.mjs";
-import { authenticatedRoutes, platformContextEnvelope, signIn } from "./support/authenticated.mjs";
+import { authenticatedRoutes, platformContextEnvelope, signIn, TEST_TEAM_ID } from "./support/authenticated.mjs";
 
 const h = React.createElement;
 let M;
 let requests = [];
 let inbox;
+let resolveAnswer;
 let platform;
 
 const item = (o) => ({
@@ -53,8 +54,12 @@ beforeEach(async () => {
   M.calls.reset();
   inbox = () => env([A, B, C]);
   platform = () => platformContextEnvelope();
+  resolveAnswer = () => ({ ok: true, workspaceId: TEST_TEAM_ID, resourceType: "evidence", resourceId: "e1" });
   const routes = {
     ...authenticatedRoutes({ "/v1/platform/context": () => platform() }),
+    // B2B-F-04 — record destinations are resolved by the server first.
+    "/v1/deep-link/resolve": () => resolveAnswer(),
+    "/v1/platform/context/switch-workspace": () => ({ ok: true }),
     "/v1/me/inbox/items/": () => ({ itemKey: "x", isRead: true, readAt: null, dismissedAt: null, snoozedUntil: null }),
     "/v1/me/inbox/mark-all-read": () => ({ updated: 3 }),
     "/v1/me/inbox": (path) => inbox(path),
@@ -247,6 +252,9 @@ test("Open goes to the native destination and marks the item read; a row with no
   assert.deepEqual(M.calls.push, ["/organizations/org-1"]);
   await r.press("Open: Report generation failed");
   await settle();
+  // B2B-F-04 — a record destination is resolved by the server, then opened.
+  assert.ok(requests.some((q) => q.method === "POST" && q.path === "/v1/deep-link/resolve"));
+  assert.deepEqual(M.calls.push, ["/organizations/org-1", "/(stack)/evidence/e1"]);
   assert.ok(requests.some((q) => q.method === "POST" && q.path === "/v1/me/inbox/items/report_failure%3Aa/read"));
   assert.equal(r.byLabel("Open: New sign-in").length, 0, "a security-center href has no native screen");
   r.unmount();
@@ -287,4 +295,27 @@ test("inbox hrefs the route emits map onto the native screens that exist", async
   assert.equal(resolveInboxRoute("/intake-links?linkId=l1"), "/intake-links");
   assert.equal(resolveInboxRoute("/reviewer-ops/w1"), null);
   assert.equal(resolveInboxRoute("/security-center/mfa-recovery?requestId=1"), null);
+});
+
+// B2B-F-04 (Free-user audit 0ea0) — Open goes through the deep-link chokepoint.
+test("B2B-F-04: a record in another workspace switches to it first, then opens", async () => {
+  resolveAnswer = () => ({ ok: true, workspaceId: "team-OTHER", resourceType: "evidence", resourceId: "e1" });
+  const r = await render();
+  await r.press("Open: Report generation failed");
+  await settle();
+  const sw = requests.findIndex((q) => q.method === "POST" && q.path === "/v1/platform/context/switch-workspace");
+  assert.ok(sw >= 0, "the owning workspace was not switched to");
+  assert.deepEqual(M.calls.push, ["/(stack)/evidence/e1"]);
+  assert.ok(requests.some((q) => q.method === "POST" && q.path === "/v1/me/inbox/items/report_failure%3Aa/read"));
+  r.unmount();
+});
+
+test("B2B-F-04: a denied destination opens nothing and the item stays unread", async () => {
+  resolveAnswer = () => undefined; // the stub answers 500: an HTTP refusal
+  const r = await render();
+  await r.press("Open: Report generation failed");
+  await settle();
+  assert.deepEqual(M.calls.push, []);
+  assert.equal(requests.some((q) => q.method === "POST" && q.path === "/v1/me/inbox/items/report_failure%3Aa/read"), false);
+  r.unmount();
 });

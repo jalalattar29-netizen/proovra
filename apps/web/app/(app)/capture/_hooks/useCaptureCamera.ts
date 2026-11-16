@@ -1,6 +1,6 @@
 import { MutableRefObject, useEffect, useRef, useState } from "react";
 
-import { VIDEO_WITHOUT_MICROPHONE_SIGNALS, type CameraMode, type FacingMode } from "../_lib/types";
+import { videoWithoutAudioSignals, type CameraMode, type FacingMode, type VideoAudioNotCapturedReason } from "../_lib/types";
 import { normalizeClientMimeType } from "../_lib/file-utils";
 import {
   describeMediaError,
@@ -39,6 +39,8 @@ export function useCaptureCamera({
   const recordedChunksRef = useRef<Blob[]>([]);
   // F-P1-09 parity — the open stream is video-only because the microphone permission was refused.
   const microphoneDeniedRef = useRef(false);
+  // B4-F-303 — set by Close while recording: the stopped recorder stages nothing.
+  const discardRecordingRef = useRef(false);
 
   const stopMediaStream = () => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -75,6 +77,10 @@ export function useCaptureCamera({
   const closeCamera = () => {
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
+      // B4-F-303 — Close while recording DISCARDS the clip (the screen
+      // recorder's rule): it used to stop the recorder, whose onstop staged
+      // a half-recorded clip the person had walked away from.
+      discardRecordingRef.current = true;
       recorder.stop();
     }
 
@@ -340,7 +346,24 @@ export function useCaptureCamera({
         }
       };
 
+      // B4-F-303 — the marker comes from the stream actually recorded, not
+      // from the name of a permission error: any recording without an audio
+      // track says so, and why (refused, or no microphone could be used).
+      const audioReason: VideoAudioNotCapturedReason | null =
+        stream.getAudioTracks().length === 0
+          ? microphoneDeniedRef.current
+            ? "MICROPHONE_PERMISSION_DENIED"
+            : "MICROPHONE_UNAVAILABLE"
+          : null;
+      discardRecordingRef.current = false;
+
       recorder.onstop = async () => {
+        if (discardRecordingRef.current) {
+          discardRecordingRef.current = false;
+          recordedChunksRef.current = [];
+          setIsRecording(false);
+          return;
+        }
         const finalMimeType = normalizeClientMimeType(
           recorder.mimeType || "video/webm",
           "video/webm"
@@ -371,7 +394,7 @@ export function useCaptureCamera({
         try {
           await addFilesToSessionRef.current?.([recordedFile], {
             sessionEvidenceType: "VIDEO",
-            ...(microphoneDeniedRef.current ? { audioSignals: VIDEO_WITHOUT_MICROPHONE_SIGNALS } : {}),
+            ...(audioReason ? { audioSignals: videoWithoutAudioSignals(audioReason) } : {}),
           });
         } catch (err) {
           // F-24 — the recording was refused, never silently dropped: the

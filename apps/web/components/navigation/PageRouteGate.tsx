@@ -58,6 +58,7 @@ import { hasNoContextYet, isContextLoadFailure } from "../../lib/platform-contex
 import { ProovraDenialState } from "../feedback/ProovraDenialState";
 import { ProovraSystemState, type SystemStateAction } from "../feedback/ProovraSystemState";
 import { SignedOutAppState } from "./SignedOutAppState";
+import { useActiveSpaceBillingAuthority } from "../../lib/billing/active-space-billing";
 
 export function PageRouteGate({
   routeId,
@@ -73,6 +74,9 @@ export function PageRouteGate({
   // phase-g4-tenancy-cleanup.test.ts).
   const workspaceFragment = useWorkspaceFragment();
   const personalSpaceFragment = usePersonalSpaceFragment();
+  // B2A-F-23 / B3A-F-004 — "View plans" opens the VIEWER's own billing; it is
+  // only offered to the payer of the active workspace.
+  const billingAuthority = useActiveSpaceBillingAuthority();
   const route = getRouteDefinition(routeId);
   /*
    * ADM-P3-011 — AN UNKNOWN ROUTE ID FAILS CLOSED.
@@ -314,7 +318,10 @@ export function PageRouteGate({
   // Route-specific guidance > resolver-provided reason > canonical fallback.
   // The route-specific copy is the only place the registry can tell a Viewer
   // "ask your workspace owner" instead of the generic "request access".
-  const subtitle =
+  const billingElsewhere =
+    billingAuthority.canManage !== true &&
+    (access.primaryAction?.href === "/billing" || access.secondaryAction?.href === "/billing");
+  const baseSubtitle =
     route.denialGuidance && route.denialGuidance.length > 0
       ? route.denialGuidance
       : access.reason && access.reason.length > 0
@@ -322,22 +329,30 @@ export function PageRouteGate({
         : canonicalReason
           ? denialReasonGuidance(canonicalReason)
           : "";
+  const subtitle =
+    billingElsewhere && billingAuthority.canManage === false
+      ? `${baseSubtitle} ${billingAuthority.askCopy}`.trim()
+      : baseSubtitle;
+  const primaryAction =
+    billingElsewhere && access.primaryAction?.href === "/billing" ? null : access.primaryAction;
+  const secondaryAction =
+    billingElsewhere && access.secondaryAction?.href === "/billing" ? null : access.secondaryAction;
   const deniedActions: SystemStateAction[] = [
-    ...(access.primaryAction
+    ...(primaryAction
       ? [
           {
-            label: access.primaryAction.label,
-            href: access.primaryAction.href,
+            label: primaryAction.label,
+            href: primaryAction.href,
             variant: "primary" as const,
             testId: "page-route-gate-primary-action",
           },
         ]
       : []),
-    ...(access.secondaryAction
+    ...(secondaryAction
       ? [
           {
-            label: access.secondaryAction.label,
-            href: access.secondaryAction.href,
+            label: secondaryAction.label,
+            href: secondaryAction.href,
             variant: "secondary" as const,
             testId: "page-route-gate-secondary-action",
           },

@@ -248,9 +248,13 @@ describe("§1 — 9-path managed-identity matrix", () => {
     return source.slice(start, end + 2);
   };
 
-  it("4. SCIM deactivate → PRESERVES managed ownership (never releaseManagedIdentity) + revokes sessions", () => {
-    expect(SCIM).not.toMatch(/releaseManagedIdentity\(/);
+  // B5B-F-302 — INTENTIONAL CHANGE: deactivation now ENDS the Organization's
+  // managed binding with its access (releaseManagedIdentity, in the same
+  // transaction, once no access in the Organization remains), so a
+  // deprovisioned person regains their Personal Space and personal export.
+  it("4. SCIM deactivate → releases THIS Organization's managed binding + revokes sessions", () => {
     const block = functionBody(SCIM, "scimDeactivateUser");
+    expect(block).toMatch(/releaseManagedIdentity\(\s*\{ userId, managingOrganizationId: ctx\.organizationId \}/);
     expect(block).toMatch(/revokeAllSessionsForUser\(/);
     expect(block).toMatch(/suspendWorkspaceMembership\(/); // seat released via suspension
     // ARCH-004 — and the GOVERNANCE membership is suspended in the same

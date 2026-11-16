@@ -56,6 +56,9 @@ export interface PlanOffer {
   monthlyPriceCents: number | null;
   pricingModel: "PUBLISHED" | "CUSTOM";
   storageLabel: string | null;
+  /** B6-F-65 — the served record allowance: a lifetime total, or a rolling 30-day one. */
+  maxEvidenceRecords: number | null;
+  maxEvidenceRecordsPerMonth: number | null;
   seats: number | null;
   reportsIncluded: boolean | null;
   publicVerifyIncluded: boolean | null;
@@ -77,6 +80,8 @@ function projectPublished(key: string, raw: unknown): PlanOffer | null {
     monthlyPriceCents: num(p.monthlyPriceCents),
     pricingModel: "PUBLISHED",
     storageLabel: str(p.storageLabel),
+    maxEvidenceRecords: num(p.maxEvidenceRecords),
+    maxEvidenceRecordsPerMonth: num(p.maxEvidenceRecordsPerMonth),
     seats: num(p.seats) ?? num(p.includedSeats),
     reportsIncluded: bool(p.reportsIncluded),
     publicVerifyIncluded: bool(p.publicVerifyIncluded),
@@ -111,6 +116,8 @@ export function parsePricingCatalogue(payload: unknown): PricingCatalogue {
       monthlyPriceCents: null,
       pricingModel: "CUSTOM",
       storageLabel: null,
+      maxEvidenceRecords: null,
+      maxEvidenceRecordsPerMonth: null,
       seats: null,
       reportsIncluded: null,
       publicVerifyIncluded: null,
@@ -151,12 +158,32 @@ export function formatMonthlyPrice(
   }
 }
 
-/** The line a plan card shows under its price, from the server's figures. */
+/**
+ * The line a plan card shows under its price, from the server's figures.
+ *
+ * B6-F-65 — it dropped the record allowance (Free read as unlimited), said
+ * "0 seats" for a plan with none to share, and "reports included" without the
+ * 3-record bound the web Pricing page states ("Included for 3 records"). Every
+ * number is still the served catalog's.
+ */
 export function planSummaryLine(offer: PlanOffer): string {
   const parts: string[] = [];
+  if (offer.maxEvidenceRecordsPerMonth !== null) {
+    parts.push(`${offer.maxEvidenceRecordsPerMonth} evidence records in any 30 days`);
+  } else if (offer.maxEvidenceRecords !== null) {
+    parts.push(`${offer.maxEvidenceRecords} complete evidence record${offer.maxEvidenceRecords === 1 ? "" : "s"} in total`);
+  }
   if (offer.storageLabel) parts.push(`${offer.storageLabel} storage`);
-  if (offer.seats !== null) parts.push(`${offer.seats} seat${offer.seats === 1 ? "" : "s"}`);
-  if (offer.reportsIncluded === true) parts.push("reports included");
+  if (offer.seats !== null && offer.seats > 0) parts.push(`${offer.seats} seat${offer.seats === 1 ? "" : "s"}`);
+  if (offer.reportsIncluded === true) {
+    // Free's outputs are bounded by its record allowance (pricing/page.tsx
+    // `freeRecordsIncluded`); a paid plan's are simply included.
+    parts.push(
+      offer.plan.toUpperCase() === "FREE" && offer.maxEvidenceRecords !== null
+        ? `reports and verification packages included for ${offer.maxEvidenceRecords} records`
+        : "reports included",
+    );
+  }
   if (offer.publicVerifyIncluded === true) parts.push("public verification");
   return parts.join(" · ");
 }
@@ -239,10 +266,18 @@ export function parseEvidenceCreditOffer(payload: unknown): EvidenceCreditOffer 
   };
 }
 
-/** Bytes as the label a person reads, or null when the server sent none. */
+/**
+ * Bytes as the label a person reads, or null when the server sent none.
+ *
+ * B6-F-65 — the server's sizes are BINARY (`formatBytesHuman`: 10 GiB is
+ * "10 GB" on every other surface); dividing by 10^9 showed a 10 GB add-on as
+ * "11 GB" and 200 GB as "215 GB".
+ */
 export function formatAddonSize(bytes: number | null): string | null {
   if (bytes === null || bytes <= 0) return null;
-  const gb = bytes / 1_000_000_000;
-  if (gb >= 1000) return `${Math.round(gb / 1000)} TB`;
-  return `${Math.round(gb)} GB`;
+  const GIB = 1024 ** 3;
+  const gb = bytes / GIB;
+  const fmt = (n: number) => String(Math.round(n * 100) / 100);
+  if (gb >= 1024) return `${fmt(gb / 1024)} TB`;
+  return `${fmt(gb)} GB`;
 }

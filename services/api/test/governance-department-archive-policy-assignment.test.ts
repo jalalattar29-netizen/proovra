@@ -104,6 +104,14 @@ vi.mock("../src/services/governance/governance-policy.service.js", async (orig) 
   };
 });
 
+// B7B-F06 (free-audit 0ea0) — governance policy assignment now asks
+// FEATURE_GOVERNANCE_PLATFORM; this workspace holds it. The refusal for an
+// unentitled (Free) workspace is proven in free-audit-g4a-plan-ai.integration.
+vi.mock("../src/services/packaging/entitlement.service.js", async (orig) => ({
+  ...((await orig()) as Record<string, unknown>),
+  assertFeatureEntitlement: async () => ({ ok: true }),
+}));
+
 import { trustAndGovernanceRoutes } from "../src/routes/trust-and-governance.routes.js";
 
 let app: FastifyInstance;

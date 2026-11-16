@@ -50,7 +50,7 @@ export type RedactionPublicVerifyLimitation =
   (typeof REDACTION_PUBLIC_VERIFY_LIMITATIONS)[number];
 
 export type VerifyRedactionProjection = {
-  /** True when a PUBLISHED redaction version exists for this evidence. */
+  /** True when a PUBLISHED redaction version with a READY (not quarantined) copy exists for this evidence. */
   hasPublishedDerivative: boolean;
   /** Ordinal of the most recently published version. */
   publishedVersionOrdinal: number | null;
@@ -86,7 +86,11 @@ export async function projectVerifyRedaction(
       select: {
         id: true,
         versions: {
-          where: { state: "PUBLISHED" },
+          // B5B-F-201 — a published version counts only while its copy can
+          // still be had: a QUARANTINED (or otherwise not READY) derivative is
+          // withdrawn, and the page must not say "Redacted copy published"
+          // for bytes every download refuses (409 DERIVATIVE_NOT_READY).
+          where: { state: "PUBLISHED", derivative: { is: { state: "READY" } } },
           select: {
             versionOrdinal: true,
             publishedAtUtc: true,

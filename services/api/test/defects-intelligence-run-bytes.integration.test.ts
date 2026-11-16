@@ -85,6 +85,12 @@ describe("D62 intelligence run/bytes provenance (live PostgreSQL)", () => {
       },
       update: { aiEnabled: true, contentIntelligenceEnabled: true, rawContentProcessingAllowed: true, ocrAllowed: true },
     });
+    // B6-F-22 / B6-F-46 (Free-user audit 0ea0, 2026-11-16) — content
+    // intelligence is a PAID AI capability (PlanCapabilities.aiCapabilitiesIncluded;
+    // FREE carries only the AI trial). This file proves byte provenance, not
+    // plan, so the workspace is on a plan that includes it. The Free refusal
+    // is proven in free-audit-g4a-plan-ai.integration.
+    await prisma.team.update({ where: { id: teamA.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
 
     // The recording adapter replaces the real one in the SAME registry the
     // route's orchestrator reads.

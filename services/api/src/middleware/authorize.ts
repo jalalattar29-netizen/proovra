@@ -49,6 +49,7 @@ import type { CanonicalRole } from "@proovra/shared";
 import { listRolePermissions, mapTeamRoleToCanonical } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
+import { isMembershipDenial } from "../services/access/membership-denial.js";
 import { bump } from "../services/ops/metrics.service.js";
 import {
   rememberProvenRequestWorkspace,
@@ -349,15 +350,11 @@ function resolveDenyHttpStatus(
   reasonCode: AuthorizationDenialCode,
   options: { antiEnumeration?: boolean },
 ): 403 | 404 {
-  const isMembershipFailure =
-    reasonCode === "no_actor" ||
-    reasonCode === "member_not_active" ||
-    reasonCode === "member_access_expired" ||
-    // PHASE 1 (2026-07-21) — an unavailable org, or a workspace whose kind
-    // cannot be proven, is a "context you cannot enter" failure; under
-    // anti-enumeration both conceal as 404 too.
-    reasonCode === "organization_not_active" ||
-    reasonCode === "workspace_kind_unresolved";
+  // PHASE 1 (2026-07-21) — an unavailable org, or a workspace whose kind
+  // cannot be proven, is a "context you cannot enter" failure; under
+  // anti-enumeration both conceal as 404 too. The list is shared with the
+  // routes that still evaluate membership themselves (membership-denial.ts).
+  const isMembershipFailure = isMembershipDenial(reasonCode);
   return options.antiEnumeration && isMembershipFailure ? 404 : 403;
 }
 

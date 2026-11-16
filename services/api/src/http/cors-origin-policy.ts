@@ -23,7 +23,10 @@
  * session; previews and CI name their web origin in CORS_ORIGINS instead.
  */
 import { isAllowedExtensionOrigin } from "../services/auth/extension-oauth.service.js";
-import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
+import {
+  developmentSurfacesAllowed,
+  resolveDeploymentEnvironment,
+} from "@proovra/shared-runtime";
 
 export type CorsEnv = Readonly<Record<string, string | undefined>>;
 
@@ -151,7 +154,23 @@ export function evaluateCookieMutation(
  * host/origin parsing, never a substring test: `https://proovra.com.evil.example`
  * contains "proovra.com" but is not Proovra.
  */
-export function isProovraProductionRequest(host: string | undefined, origin: string | undefined): boolean {
+export function isProovraProductionRequest(
+  host: string | undefined,
+  origin: string | undefined,
+  env: CorsEnv = process.env,
+): boolean {
+  // B8-F-007 — a hostname under proovra.com is not enough. Every caller uses
+  // this answer to write cookies on Domain=.proovra.com (the session, MFA,
+  // SSO and device cookies), so a STAGING deployment served under
+  // *.proovra.com (api.staging.proovra.com) used to set and clear the same
+  // cookie names as production — overwriting a production session in a
+  // browser used for both, and receiving the production session on every
+  // request. A process whose deployment environment is classified staging
+  // (PROOVRA_ENV / APP_ENV / DEPLOY_ENV) is never the production domain;
+  // production and undeclared processes keep the previous behaviour, so the
+  // production cookie scope does not change and nobody is signed out.
+  const deployment = resolveDeploymentEnvironment(env);
+  if (deployment.kind === "staging") return false;
   const hostname = (host ?? "").trim().toLowerCase().replace(/:\d+$/, "");
   if (hostname === "proovra.com" || /^[a-z0-9-]+(\.[a-z0-9-]+)*\.proovra\.com$/.test(hostname)) return true;
   return typeof origin === "string" && origin.length > 0 && isProovraOrigin(normalizeOrigin(origin));

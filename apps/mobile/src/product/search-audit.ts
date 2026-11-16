@@ -68,7 +68,8 @@ export const SEARCH_AUDIT_COPY = {
     "Who ran a search in this workspace, what the platform returned, and how many results governance or visibility rules withheld. Search wording itself is never stored — only a short non-reversible fingerprint.",
   withheldOnly: "Withheld results only",
   loading: "Loading search activity…",
-  denied403: "You do not have permission to read this workspace's search activity. An owner, admin, or reviewer can open it.",
+  // B2A-F-11 — a MEMBER (canonical REVIEWER) is refused; owner or admin only.
+  denied403: "You do not have permission to read this workspace's search activity. A workspace owner or admin can open it.",
   denied404: "Search activity is not available for this workspace.",
   failed: "We couldn't load search activity.",
   retry: "Try again",

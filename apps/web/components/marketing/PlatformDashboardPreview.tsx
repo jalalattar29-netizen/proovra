@@ -179,14 +179,14 @@ export function PlatformDashboardPreview({
                   3
                 </span>
               </div>
-              <button
-                type="button"
+              {/* R1-F-06 — illustration, not a control: a span takes no focus. */}
+              <span
                 className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#0F172A] px-3 text-[11.5px] font-semibold text-white"
               >
                 <Plus size={13} strokeWidth={2.2} />
                 New Case
                 <ChevronDown size={11} strokeWidth={2} />
-              </button>
+              </span>
               <div className="flex items-center gap-2 rounded-[10px] border border-[#E5E7EB] bg-white px-2 py-1">
                 <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#FED7AA] text-[10px] font-bold text-[#9A3412]">
                   SA
@@ -219,9 +219,9 @@ export function PlatformDashboardPreview({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button type="button" className="rounded-md text-[11px] font-semibold text-[#EF4444]">
+              {/* R1-F-06 — illustration, not a control: a span takes no focus. */}<span className="rounded-md text-[11px] font-semibold text-[#EF4444]">
                 Open affected records
-              </button>
+              </span>
               <span className="text-[#94A3B8]"><X size={13} strokeWidth={1.85} /></span>
               <div className="ml-2 rounded-[10px] border border-[#E5E7EB] bg-white px-2 py-1 text-[9px]">
                 <div className="uppercase tracking-[0.12em] text-[#64748B]">Workspace</div>

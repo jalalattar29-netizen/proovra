@@ -15,8 +15,13 @@
  *     SESSION_NOT_ACTIVE to every write.
  *
  * Failures are injected per path: `failNext(regex, kind, times)` where kind is
- * "network" (fetch rejects, no response), "hang" (never answers), or an HTTP
- * status with a code.
+ * "network" (fetch rejects, no response), "hang" (never answers), "lost" (the
+ * server ACTS, then the answer is lost: fetch rejects), or an HTTP status with
+ * a code.
+ *
+ * C-09 — an open that repeats a `clientAttemptId` replays the live session
+ * it opened, with the record that session already reserved
+ * (`reservedEvidenceId`), as the server does.
  */
 
 export function installFakeCaptureServer() {
@@ -29,6 +34,8 @@ export function installFakeCaptureServer() {
     storage: new Map(),
     requests: [],
     faults: [],
+    /** C-09: clientAttemptId -> the session it opened. */
+    attempts: new Map(),
   };
 
   const json = (status, body) =>
@@ -49,7 +56,15 @@ export function installFakeCaptureServer() {
     return null;
   }
 
+  let lostNow = false;
   globalThis.fetch = async (url, init = {}) => {
+    lostNow = false;
+    const response = await route(url, init);
+    if (lostNow) throw new TypeError("Network request failed");
+    return response;
+  };
+
+  const route = async (url, init = {}) => {
     const path = String(url).replace(/^https?:\/\/[^/]+/, "");
     const method = init.method ?? "GET";
     const body = init.body ? JSON.parse(init.body) : null;
@@ -58,12 +73,21 @@ export function installFakeCaptureServer() {
     if (fault?.kind === "network") throw new TypeError("Network request failed");
     if (fault?.kind === "hang") return new Promise(() => {});
     if (fault && typeof fault.kind === "object") return refuse(fault.kind.status, fault.kind.code);
+    if (fault?.kind === "lost") lostNow = true;
 
     if (method === "POST" && path === "/v1/capture/direct-sessions") {
+      const replayId = body?.clientAttemptId ? state.attempts.get(body.clientAttemptId) : null;
+      const replay = replayId ? state.sessions.get(replayId) : null;
+      if (replay && replay.status === "ACTIVE") {
+        return json(200, {
+          session: { captureSessionId: replay.id, expiresAtUtc: "2099-01-01T00:00:00.000Z", reservedEvidenceId: replay.evidenceId },
+        });
+      }
       state.seq += 1;
       const id = `cs-${state.seq}`;
       state.sessions.set(id, { id, status: "ACTIVE", evidenceId: null, declarations: new Map(), mode: body?.mode });
       state.custody.push({ type: "SESSION_OPENED", sessionId: id });
+      if (body?.clientAttemptId) state.attempts.set(body.clientAttemptId, id);
       return json(200, { session: { captureSessionId: id, expiresAtUtc: "2099-01-01T00:00:00.000Z" } });
     }
     let m = path.match(/^\/v1\/capture\/direct-sessions\/([^/]+)\/evidence$/);

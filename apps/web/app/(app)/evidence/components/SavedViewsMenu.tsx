@@ -4,10 +4,12 @@ import type { EvidenceSavedView } from "../lib/evidence-library-types";
 import { useState } from "react";
 import { Bookmark as BookmarkIcon, Plus } from "lucide-react";
 import { AppListbox } from "../../../../components/app-primitives";
+import { ownsSavedView } from "../../../../lib/evidence/saved-view-sharing";
 
 export function SavedViewsMenu({
   views,
   teamOptions,
+  currentUserId = null,
   onApplyView,
   onCreateView,
   onUpdateView,
@@ -16,6 +18,11 @@ export function SavedViewsMenu({
 }: {
   views: EvidenceSavedView[];
   teamOptions: Array<{ id: string; name: string }>;
+  /**
+   * B5B-F-303 — the signed-in user. Making a view the default is owner-only on
+   * the server (403 otherwise), so it is offered only on the caller's views.
+   */
+  currentUserId?: string | null;
   onApplyView: (view: EvidenceSavedView) => void;
   onCreateView: (input: {
     name: string;
@@ -38,6 +45,8 @@ export function SavedViewsMenu({
   const [isDefault, setIsDefault] = useState(false);
   const [teamId, setTeamId] = useState("");
   const [saving, setSaving] = useState(false);
+  /** B5A-F-07 — Delete asks first: the id awaiting confirmation. */
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const saveCurrentView = async () => {
     setSaving(true);
@@ -53,12 +62,15 @@ export function SavedViewsMenu({
       setDescription("");
       setIsDefault(false);
       setTeamId("");
+    } catch {
+      // The page has stated the refusal; the dialog stays open with the input.
     } finally {
       setSaving(false);
     }
   };
 
   const editView = views.find((view) => view.id === editViewId) ?? null;
+  const editViewOwned = editView ? ownsSavedView(editView, currentUserId) : true;
 
   return (
     <>
@@ -128,10 +140,49 @@ export function SavedViewsMenu({
                   >
                     Rename
                   </button>
-                  <button type="button" className="app-secondary-action" onClick={() => void onSetDefault(view.id)} disabled={view.isDefault}>
-                    {view.isDefault ? "Default View" : "Make Default"}
-                  </button>
-                  <button type="button" className="app-danger-action" onClick={() => void onDeleteView(view.id)}>Delete</button>
+                  {ownsSavedView(view, currentUserId) ? (
+                    <button
+                      type="button"
+                      className="app-secondary-action"
+                      onClick={() => void onSetDefault(view.id).catch(() => undefined)}
+                      disabled={view.isDefault}
+                      data-evidence-saved-view-make-default
+                    >
+                      {view.isDefault ? "Default View" : "Make Default"}
+                    </button>
+                  ) : null}
+                  {confirmDeleteId === view.id ? (
+                    <>
+                      <span className="evidence-library-muted" role="status">
+                        Delete this saved view? This cannot be undone.
+                      </span>
+                      <button
+                        type="button"
+                        className="app-danger-action"
+                        onClick={() => {
+                          setConfirmDeleteId(null);
+                          void onDeleteView(view.id).catch(() => undefined);
+                        }}
+                      >
+                        Confirm delete
+                      </button>
+                      <button
+                        type="button"
+                        className="app-secondary-action"
+                        onClick={() => setConfirmDeleteId(null)}
+                      >
+                        Keep view
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="app-danger-action"
+                      onClick={() => setConfirmDeleteId(view.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -175,7 +226,8 @@ export function SavedViewsMenu({
                   ? onUpdateView(editViewId, {
                       name,
                       description,
-                      isDefault,
+                      // A colleague's view: never send isDefault (owner-only, 403).
+                      ...(editViewOwned ? { isDefault } : {}),
                     }).then(() => {
                       setSaveOpen(false);
                       setEditViewId(null);
@@ -183,7 +235,7 @@ export function SavedViewsMenu({
                       setDescription("");
                       setIsDefault(false);
                       setTeamId("");
-                    })
+                    }, () => undefined)
                   : saveCurrentView())
               }
               disabled={!name.trim() || saving}
@@ -226,10 +278,12 @@ export function SavedViewsMenu({
             />
           </div>
         ) : null}
-        <label className="evidence-library-checkbox">
-          <input className="app-checkbox" type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />
-          <span>Make this my default view</span>
-        </label>
+        {editViewOwned ? (
+          <label className="evidence-library-checkbox">
+            <input className="app-checkbox" type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />
+            <span>Make this my default view</span>
+          </label>
+        ) : null}
         <p className="evidence-library-muted">
           This view will restore search, scope, status, type, review, export, case, retention, and sort.
         </p>

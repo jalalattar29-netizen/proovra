@@ -48,7 +48,7 @@ import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // PHASE 10 §3 — atomic managed-identity binding (persistence-verified SCIM token).
-import { resolveManagedIdentity } from "../identity/identity-mode.service.js";
+import { releaseManagedIdentity, resolveManagedIdentity } from "../identity/identity-mode.service.js";
 import {
   organizationIdForPolicy,
   resolveOrganizationPolicy,
@@ -72,7 +72,19 @@ export const SCIM_DEACTIVATION_MEMBERSHIP_MARKER =
   "scim_deactivated:governance_membership_paused";
 // P0 remediation (2026-07-21) — canonical guard for linking a directory-
 // asserted email to a PRE-EXISTING User (cross-tenant takeover fix).
-import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
+import {
+  evaluateExistingAccountLink,
+  isSelfServeAccountForOrganization,
+  resolveAccountOriginForOrganization,
+} from "../security/enterprise-account-linking.service.js";
+
+/**
+ * B5B-F-302 — the SCIM error detail for a push that names a PRE-EXISTING
+ * SELF-SERVE account (409 `uniqueness` on create). The account is the owner's:
+ * the directory neither links nor converts it, and the owner links it, signed
+ * in, through the organization-link consent flow.
+ */
+export const EXISTING_ACCOUNT_CONSENT_DETAIL = "existing_account_requires_user_consent";
 import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
 import { isAccountClosed } from "../identity/account-closed.js";
 import { ipInRanges } from "./ip-ranges.js";
@@ -956,6 +968,7 @@ export async function scimCreateUser(
   // ---------------------------------------------------------------------------
   const UNSAFE_LINK = "__SCIM_UNSAFE_ACCOUNT_LINK__";
   const UNPROVEN_DOMAIN = "__SCIM_UNPROVEN_DOMAIN__";
+  const EXISTING_SELF_SERVE = "__SCIM_EXISTING_SELF_SERVE_ACCOUNT__";
   let user: { id: string; createdAt: Date; updatedAt: Date };
   try {
     user = await withSeatClaimRetry(() => client.$transaction(async (tx) => {
@@ -977,6 +990,21 @@ export async function scimCreateUser(
         );
         if (!link.ok) {
           throw new Error(`${UNSAFE_LINK}:${link.reason}`);
+        }
+        // B5B-F-302 — the domain proves the Organization controls the ADDRESS,
+        // not that it may take over an account somebody opened for themselves
+        // there. A pre-existing SELF-SERVE account is never linked or converted
+        // by a directory push: RFC 7644 409 `uniqueness`, nothing written (this
+        // read is the transaction's first statement). Only an account this
+        // Organization's own directory or IdP created is linked here. The owner
+        // links a self-serve account themselves, signed in, through the
+        // organization-link consent flow — which never converts it.
+        const origin = await resolveAccountOriginForOrganization(
+          { userId: resolved.id, organizationId: ctx.organizationId },
+          txc,
+        );
+        if (origin?.kind !== "ORGANIZATION_ORIGINATED") {
+          throw new Error(EXISTING_SELF_SERVE);
         }
       } else {
         // IDENT-013 / PRO-025 — a directory creates an account only for an
@@ -1091,6 +1119,16 @@ export async function scimCreateUser(
       return { ok: false as const, status: 409, detail: "unsafe_account_link" };
     }
     const code = (err as { code?: string }).code;
+    if (message === EXISTING_SELF_SERVE || code === "MANAGED_IDENTITY_SELF_SERVE_ACCOUNT") {
+      bump("scim_account_link_denied_total");
+      safeEmitSecurityEvent({
+        teamId: ctx.teamId,
+        eventType: "scim_account_link_denied",
+        severity: "WARNING",
+        details: { reason: "existing_self_serve_account", externalId, tokenId: ctx.tokenId },
+      });
+      return { ok: false as const, status: 409, detail: EXISTING_ACCOUNT_CONSENT_DETAIL };
+    }
     if (
       code === "SCIM_MANAGED_CROSS_ORG_CONFLICT" ||
       code === "MANAGED_IDENTITY_CROSS_ORG_CONFLICT"
@@ -1339,9 +1377,17 @@ export async function scimDeactivateUser(
   // an unlinked mapping on an ACTIVE member) — the exact drift the
   // reconciliation surface then had to clean up.
   //
-  // NOTE: managed identity is deliberately NOT cleared. Deactivation is a
-  // SOFT release of *access*; a managed identity is never silently converted
-  // back to unmanaged by a directory push.
+  // B5B-F-302 — the Organization's MANAGED BINDING ends with its access. It used
+  // to be kept "deliberately", which left a deprovisioned person a managed
+  // identity with no Organization access: no Personal Space, no personal
+  // export, no switch — contradicting the outcome below ("the user can log
+  // back into their untouched Personal Space"). The release runs in the same
+  // transaction, only for the binding THIS Organization owns
+  // (`releaseManagedIdentity` refuses anyone else's), and touches no data:
+  // Organization records stay in the Organization (the suspended memberships
+  // give no access to them), and the Personal Space and personal data were
+  // never the Organization's. A later directory reactivation re-binds an
+  // account the Organization created through the normal provisioning intent.
   await client.$transaction(async (tx) => {
     const txc = tx as unknown as PrismaClient;
     // Re-audit 3, B-N1 — ORDER MATTERS. The governance-membership transition
@@ -1406,6 +1452,20 @@ export async function scimDeactivateUser(
       where: { organizationId: ctx.organizationId, userId, unlinkedAtUtc: null },
       data: { unlinkedAtUtc: new Date() },
     });
+    // B5B-F-302 — end THIS Organization's managed binding (no-op otherwise),
+    // once the directory has left the person no access in the Organization.
+    // A workspace OWNER is never suspended by a directory push (above), so an
+    // owner who still holds access keeps the binding that governs it.
+    const stillActive = await txc.teamMember.findFirst({
+      where: { userId, status: "ACTIVE", team: { organizationId: ctx.organizationId } },
+      select: { id: true },
+    });
+    if (!stillActive) {
+      await releaseManagedIdentity(
+        { userId, managingOrganizationId: ctx.organizationId },
+        txc,
+      );
+    }
   });
 
   // -------------------------------------------------------------------------
@@ -1480,6 +1540,8 @@ export type ScimReactivateResult = {
   /** PRO-013 — an administrator suspended or revoked the membership. */
   heldByAdministrator?: boolean;
   seatRefused?: "seat_limit_reached" | "seat_contention";
+  /** B5B-F-302 — a pre-existing self-serve account: the directory may not manage it. */
+  consentRequired?: boolean;
 };
 
 export async function scimReactivateUser(
@@ -1499,6 +1561,20 @@ export async function scimReactivateUser(
     select: { id: true },
   });
   if (!managed) return { ok: false, notFound: true };
+  /*
+   * B5B-F-302 — a directory re-grants only an identity it may manage: one this
+   * Organization's directory or IdP created, or one it still manages. A
+   * pre-existing SELF-SERVE account (its owner linked it, or a domain-only link
+   * was released) is refused with nothing changed — reactivation would re-bind
+   * it as a managed identity and re-link the directory's reach.
+   */
+  const reactivationIdentity = await resolveManagedIdentity(userId, client);
+  if (
+    reactivationIdentity.managingOrganizationId !== ctx.organizationId &&
+    (await isSelfServeAccountForOrganization({ userId, organizationId: ctx.organizationId }, client))
+  ) {
+    return { ok: false, consentRequired: true };
+  }
   /*
    * PRO-013 (AUTH-07) — A DIRECTORY UNDOES ITS OWN SUSPENSION, NOTHING ELSE.
    *
@@ -1588,6 +1664,7 @@ export async function scimReactivateUser(
     const code = (err as { code?: string }).code;
     if (code === "MANAGED_SEAT_LIMIT_REACHED") return { ok: false, seatRefused: "seat_limit_reached" };
     if (code === "WORKSPACE_SEAT_CONTENTION") return { ok: false, seatRefused: "seat_contention" };
+    if (code === "MANAGED_IDENTITY_SELF_SERVE_ACCOUNT") return { ok: false, consentRequired: true };
     throw err;
   }
 

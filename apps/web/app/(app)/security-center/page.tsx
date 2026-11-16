@@ -39,6 +39,11 @@ import {
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { sessionRevocationScopeLabel } from "../../../lib/labels/identityOrgLabels";
+import {
+  readTelemetryScope,
+  telemetryOffersRevoke,
+  type TelemetryScope,
+} from "../../../lib/identity/telemetry-scope";
 // Phase IA-collapse — `PersonalSecuritySections` (password, my sessions,
 // security events) moved to the new Account Security home at
 // `/settings/security` (route id `account.security`). This page is now
@@ -123,6 +128,10 @@ function SecurityCenterPageInner() {
   );
   const [devices, setDevices] = useState<TrustedDevice[] | null>(null);
   const [revocations, setRevocations] = useState<RevokedSession[] | null>(null);
+  // B1-F-003 — a read-only role gets only its own rows (`scope: "self"`) and
+  // is never offered the administrator's Revoke buttons.
+  const [devicesScope, setDevicesScope] = useState<TelemetryScope>("legacy");
+  const [revocationsScope, setRevocationsScope] = useState<TelemetryScope>("legacy");
   const [myRisk, setMyRisk] = useState<RiskSnapshot | null>(null);
   // R8.1.3 — per-user MFA enrollment status. Sourced from the
   // canonical orchestrator's read-only `/v1/identity/mfa/factors`.
@@ -182,8 +191,8 @@ function SecurityCenterPageInner() {
       .then(
         ([p, d, s, r, mfa, rec]: [
           { policy: Policy; currentUserRequirement: CurrentUserRequirement },
-          { devices: TrustedDevice[] },
-          { revoked: RevokedSession[] },
+          { devices: TrustedDevice[]; scope?: unknown },
+          { revoked: RevokedSession[]; scope?: unknown },
           RiskSnapshot | null,
           {
             hasMfa: boolean;
@@ -206,7 +215,9 @@ function SecurityCenterPageInner() {
           setPolicy(p.policy);
           setRequirement(p.currentUserRequirement);
           setDevices(d.devices ?? []);
+          setDevicesScope(readTelemetryScope(d));
           setRevocations(s.revoked ?? []);
+          setRevocationsScope(readTelemetryScope(s));
           setMyRisk(r);
           if (mfa) {
             setMyMfa({
@@ -249,11 +260,12 @@ function SecurityCenterPageInner() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ teamId, reason }),
       });
-      const fresh: { devices: TrustedDevice[] } = await apiFetch(
+      const fresh: { devices: TrustedDevice[]; scope?: unknown } = await apiFetch(
         `/v1/identity-security/devices?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
       );
       setDevices(fresh.devices ?? []);
+      setDevicesScope(readTelemetryScope(fresh));
     } catch (err) {
       alert(toSafeUserError(err, { message: "Revoke failed." }).message);
     } finally {
@@ -281,11 +293,12 @@ function SecurityCenterPageInner() {
           body: JSON.stringify({ teamId, userId, reason: "OPERATOR_REVOKED" }),
         }),
       );
-      const fresh: { revoked: RevokedSession[] } = await apiFetch(
+      const fresh: { revoked: RevokedSession[]; scope?: unknown } = await apiFetch(
         `/v1/identity-security/sessions?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
       );
       setRevocations(fresh.revoked ?? []);
+      setRevocationsScope(readTelemetryScope(fresh));
     } catch (err) {
       if (isStepUpCancelled(err)) return;
       alert(toSafeUserError(err, { message: "Revoke-all failed." }).message);
@@ -555,15 +568,23 @@ function SecurityCenterPageInner() {
             </Card>
           </PageSection>
 
-          <PageSection title="Trusted devices">
+          <PageSection
+            title={devicesScope === "self" ? "Your trusted devices" : "Trusted devices"}
+          >
+            {devicesScope === "self" ? (
+              <p style={{ ...mutedStyle, marginTop: 0 }} data-cc-devices-self-note>
+                These are your own trusted devices. Workspace owners and
+                admins manage every member&apos;s devices.
+              </p>
+            ) : null}
             <DataTable<TrustedDevice>
-              ariaLabel="Trusted devices"
+              ariaLabel={devicesScope === "self" ? "Your trusted devices" : "Trusted devices"}
               columns={deviceColumns}
               rows={devices ?? []}
               getRowId={(d) => d.id}
               loading={devices === null}
               rowActions={(d) =>
-                d.status === "ACTIVE" ? (
+                d.status === "ACTIVE" && telemetryOffersRevoke(devicesScope) ? (
                   <Button
                     variant="destructive"
                     size="sm"
@@ -591,23 +612,37 @@ function SecurityCenterPageInner() {
               POST /v1/capture/devices/:id/revoke. */}
           <CaptureDevicesSection teamId={teamId} />
 
-          <PageSection title="Recent session revocations">
+          <PageSection
+            title={
+              revocationsScope === "self"
+                ? "Your recent session revocations"
+                : "Recent session revocations"
+            }
+          >
             <DataTable<RevokedSession>
-              ariaLabel="Recent session revocations"
+              ariaLabel={
+                revocationsScope === "self"
+                  ? "Your recent session revocations"
+                  : "Recent session revocations"
+              }
               columns={revocationColumns}
               rows={revocations ?? []}
               getRowId={(r) => r.id}
               loading={revocations === null}
-              rowActions={(r) => (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => void revokeAllForUser(r.userId)}
-                >
-                  Revoke all for user
-                </Button>
-              )}
+              rowActions={
+                telemetryOffersRevoke(revocationsScope)
+                  ? (r) => (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => void revokeAllForUser(r.userId)}
+                      >
+                        Revoke all for user
+                      </Button>
+                    )
+                  : undefined
+              }
               emptyState={
                 <EmptyState
                   compact

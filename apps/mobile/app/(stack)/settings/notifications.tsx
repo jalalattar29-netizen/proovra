@@ -29,6 +29,7 @@ import { usePlatformContext } from "../../../src/product/platform-context";
 import { MessagingContactSection } from "../../../src/ui/messaging-contact-section";
 import { TimezonePickerSheet } from "../../../src/ui/timezone-picker-sheet";
 import { accountTimezoneFrom } from "../../../src/product/settings-overview";
+import { deriveInboxFilterContext, preferenceGroupVisible } from "../../../src/product/inbox-view";
 import { useToast } from "../../../src/toast-context";
 import { theme } from "../../../src/theme/theme";
 import {
@@ -85,7 +86,9 @@ const shift = (minute: number, by: number) => (((minute + by) % 1440) + 1440) % 
 export default function NotificationPreferencesScreen() {
   const router = useRouter();
   const { addToast } = useToast();
-  const { context, loading: contextLoading } = usePlatformContext();
+  const { context, envelope: platformEnvelope, loading: contextLoading } = usePlatformContext();
+  // B2B-F-12 — the same group visibility the web applies for this actor.
+  const filterCtx = deriveInboxFilterContext(platformEnvelope);
   const teamId = context?.activeTeamId ?? null;
 
   const [state, setState] = useState<State>({ phase: "loading" });
@@ -246,7 +249,7 @@ export default function NotificationPreferencesScreen() {
             </ProovraCard>
           </ProovraPageSection>
 
-          {groupPreferenceRows(view.rows).map((group) => (
+          {groupPreferenceRows(view.rows, (domain) => preferenceGroupVisible(domain, filterCtx)).map((group) => (
             <ProovraPageSection key={group.title} title={group.title}>
               {group.rows.map((row) => (
                 <ProovraCard key={row.type} testID={`notification-type-${row.type}`}>

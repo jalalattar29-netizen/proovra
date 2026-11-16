@@ -178,8 +178,10 @@ const ACTION_PERMISSION = {
  */
 const BLOCK_MESSAGE: Record<EvidenceLifecycleBlockReason, string> = {
   ALREADY_IN_STATE: "This record is already in that state.",
+  // B5A-F-11 (Free-user audit 0ea0) — a lock is not permanent: the controlled
+  // unlock route can lift it, so "permanently" promised something untrue.
   EVIDENCE_LOCKED:
-    "This record is permanently locked and its lifecycle cannot be changed.",
+    "This record is locked and its lifecycle cannot be changed while it stays locked.",
   TERMINAL_DESTROYED:
     "This record has been destroyed. Only its tombstone remains.",
   NOT_TRASHED: "This record is not in the trash.",

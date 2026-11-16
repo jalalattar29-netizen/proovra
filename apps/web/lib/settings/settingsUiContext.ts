@@ -67,6 +67,12 @@ export type SettingsUiContextInput = {
     type: "PERSONAL" | "ORGANIZATION" | null;
     id: string | null;
     displayName?: string | null;
+    /**
+     * R2-F-001 — true inside a personal workspace the viewer JOINED
+     * (`activeSpace.shared`). Its plan is the owner's, and the viewer is not
+     * its payer.
+     */
+    shared?: boolean;
   } | null;
   /** Plan of the ACTIVE workspace (org plan when ORGANIZATION). */
   workspacePlan: string | null;
@@ -155,8 +161,21 @@ export function deriveSettingsUiContext(
   // (`isEnterpriseWorkspace`) are SERVER projections. The plan STRINGS below
   // are used for the display label only — never for a decision.
   // -------------------------------------------------------------------------
+  const sharedPersonal = !isOrg && input.activeSpace?.shared === true;
   let billing: SettingsBillingContext;
-  if (!isOrg) {
+  if (sharedPersonal) {
+    // R2-F-001 — somebody else's personal workspace: ITS plan (the server's
+    // active-space plan, never the viewer's own account plan), and no billing
+    // action — the owner pays.
+    billing = {
+      contextType: "personal",
+      displayPlan: planLabel(input.workspacePlan),
+      scopeLabel: "Workspace plan",
+      canManageBilling: false,
+      billingHref: null,
+      managedByOrgName: null,
+    };
+  } else if (!isOrg) {
     billing = {
       contextType: "personal",
       displayPlan: planLabel(input.accountPlan ?? input.workspacePlan),
@@ -188,7 +207,12 @@ export function deriveSettingsUiContext(
     // Notification preferences are workspace-scoped and exist for every
     // workspace kind; the child page itself handles workspace selection.
     showNotifications: true,
-    activeWorkspaceName: isOrg ? orgName : "Personal Space",
+    // R2-F-001 — a joined personal workspace is named as the server names it.
+    activeWorkspaceName: isOrg
+      ? orgName
+      : sharedPersonal
+        ? (input.activeSpace?.displayName ?? "Shared workspace")
+        : "Personal Space",
     isPersonalWorkspace: !isOrg,
     // AI assistance/governance is a real per-workspace surface for
     // personal AND org workspaces (route workspace.ai_settings; API

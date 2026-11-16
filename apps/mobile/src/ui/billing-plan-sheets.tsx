@@ -119,9 +119,12 @@ export function ManagePlanSheet({
               <>
                 <ProovraText variant="label" color={theme.color.ink.secondary}>
                   {`${
-                    periodEnd
-                      ? `Your plan will move to Free at the end of the period you have paid for, on ${periodEnd}.`
-                      : "Your plan will move to Free once your payment provider confirms; we will tell you the exact date then."
+                    // B6-F-67 — the confirmation's own provider statement.
+                    plan.paymentProviderLabel === "PayPal"
+                      ? "PayPal ends a subscription immediately: your plan moves to Free when PayPal confirms the cancellation."
+                      : periodEnd
+                        ? `Your plan will move to Free at the end of the period you have paid for, on ${periodEnd}.`
+                        : "Your plan will move to Free once your payment provider confirms; we will tell you the exact date then."
                   } ${COPY.cancelEvidenceNote}`}
                 </ProovraText>
                 <ProovraButton label="Cancel subscription" variant="secondary" fullWidth={false} loading={cancelBusy} onPress={onCancelSubscription} />
@@ -153,6 +156,9 @@ export function ManagePlanSheet({
 }
 
 /* ------------------------------------------------------------ Pricing */
+
+/** B6-F-66 — apps/web/app/pricing/page.tsx Free card line, verbatim. */
+export const FREE_PRICING_FIRST_ISSUANCE_NOTE = "Each record's first report and verification package don't count toward storage";
 
 export const PRICING_COPY = {
   kicker: "Pricing & Plans",
@@ -205,6 +211,10 @@ export function PricingSheet({
               <ProovraText variant="body">{formatMonthlyPrice(offer.monthlyPriceCents, catalogue.currency)}</ProovraText>
               {planSummaryLine(offer) ? (
                 <ProovraText variant="label" color={theme.color.ink.muted}>{planSummaryLine(offer)}</ProovraText>
+              ) : null}
+              {/* B6-F-66 — D-03 (2026-11-15), as the web Free card says it. */}
+              {offer.plan.toUpperCase() === "FREE" ? (
+                <ProovraText variant="label" color={theme.color.ink.muted}>{FREE_PRICING_FIRST_ISSUANCE_NOTE}</ProovraText>
               ) : null}
               {onChoosePlan && (offer.plan === "PRO" || offer.plan === "TEAM") && !isCurrentPlan(offer, currentPlan) ? (
                 <ProovraButton label={`Choose ${offer.displayName}`} variant="secondary" fullWidth={false} onPress={() => onChoosePlan(offer.plan as "PRO" | "TEAM")} />

@@ -131,10 +131,21 @@ export function ApprovalPanel({
     }
   }, [derivative]);
 
+  // B5B-F-203 — one request per click (the first copy races on a unique key).
+  const requestInFlight = useRef(false);
+  const [requesting, setRequesting] = useState(false);
   const onClickRequestDerivative = useCallback(async () => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    setRequesting(true);
     setDerivativeError(null);
     setPreviewUrl(null);
-    await onTransition(version.id, "derivative");
+    try {
+      await onTransition(version.id, "derivative");
+    } finally {
+      requestInFlight.current = false;
+      setRequesting(false);
+    }
   }, [onTransition, version.id]);
 
   // F-P1-04 — a new tab opens IN the click, before the await, and is pointed
@@ -358,7 +369,7 @@ export function ApprovalPanel({
                 type="button"
                 data-redaction-derivative-request
                 onClick={onClickRequestDerivative}
-                disabled={!canRequestDerivative}
+                disabled={!canRequestDerivative || requesting}
                 style={{
                   ...subtleButton,
                   cursor: canRequestDerivative ? "pointer" : "not-allowed",

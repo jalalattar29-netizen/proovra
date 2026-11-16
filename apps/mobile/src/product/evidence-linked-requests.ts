@@ -75,8 +75,15 @@ function s(v: unknown): string | null {
 }
 
 /** The request's workspace, as the web reads it: `review-workspace.reviewWorkflow.teamId`. */
+/**
+ * R1-F-02 — the record's OWN workspace (`evidence.teamId`) first, as the web's
+ * Artifacts tab and the discussion capability read it. `reviewWorkflow.teamId`
+ * exists only when a reviewer workflow does, so a record without one showed no
+ * requests and no discussion threads.
+ */
 export function projectRequestTeamId(reviewWorkspace: unknown): string | null {
-  return s(o(o(reviewWorkspace)["reviewWorkflow"])["teamId"]);
+  const ws = o(reviewWorkspace);
+  return s(o(ws["evidence"])["teamId"]) ?? s(o(ws["reviewWorkflow"])["teamId"]);
 }
 
 export interface LinkedRequest {
@@ -119,9 +126,14 @@ export function linkedRequestSubtitle(r: LinkedRequest): string {
 }
 
 /** A 503 or FEATURE_DISABLED hides the whole panel; anything else is an error to say. */
+/**
+ * R1-F-07 — only the server's FEATURE_DISABLED code hides the panel. A 503
+ * from the overload gate (SERVER_BUSY) or maintenance is a retryable failure,
+ * not a switched-off feature.
+ */
 export function isRequestsFeatureDisabled(err: unknown): boolean {
   const e = (err ?? {}) as { statusCode?: number; code?: string };
-  return e.statusCode === 503 || e.code === "FEATURE_DISABLED";
+  return e.code === "FEATURE_DISABLED";
 }
 
 export interface DeliverableDraft {

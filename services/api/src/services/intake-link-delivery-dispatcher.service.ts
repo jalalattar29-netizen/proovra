@@ -58,6 +58,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../db.js";
+import { withLease } from "./rate-limit.js";
 import { getEmailWebBaseUrl } from "./notifications/templates.js";
 import { lookupHashForIntakeToken } from "./workflow-intake-token.service.js";
 import {
@@ -123,7 +124,9 @@ export type DispatchIntakeDeliveryResult =
         | "provider_unconfigured"
         | "delivery_failed"
         | "delivery_failed_or_skipped"
-        | "max_attempts_exceeded";
+        | "max_attempts_exceeded"
+        /** B3B-F-102 — another send with the same nonce is in flight. */
+        | "delivery_in_progress";
       deduped: boolean;
       communicationMessageId?: string;
     };
@@ -202,6 +205,29 @@ export async function dispatchIntakeLinkDelivery(
     idempotencyKey: input.idempotencyKey,
   });
 
+  // B3B-F-102 — the lookup, the provider call and the marker patch run under
+  // ONE lease per (link, channel, nonce): two concurrent sends with the same
+  // nonce (a double-click, a retried request) read "no prior row" together and
+  // both reached the provider. The second now waits for nothing and answers
+  // the first one's outcome, or "in progress" while it is still in flight.
+  return withLease(
+    `intake-link:delivery:${idemHash}`,
+    120_000,
+    () => dispatchUnderLease(input, client, idemHash, intakeUrl),
+    async () =>
+      (await priorDeliveryOutcome(input, client, idemHash)) ?? {
+        ok: false,
+        reason: "delivery_in_progress",
+        deduped: true,
+      },
+  );
+}
+
+async function priorDeliveryOutcome(
+  input: DispatchIntakeDeliveryInput,
+  client: PrismaClient,
+  idemHash: string,
+): Promise<DispatchIntakeDeliveryResult | null> {
   // 1) Idempotency lookup. If a prior call with the same nonce
   //    already created a CommunicationMessage row, short-circuit. We
   //    intentionally don't gate on status — even a FAILED prior
@@ -219,31 +245,40 @@ export async function dispatchIntakeLinkDelivery(
       providerMessageId: true,
     },
   });
-  if (prior) {
-    if (
-      prior.status === "SENT" ||
-      prior.status === "DELIVERED" ||
-      prior.status === "QUEUED" ||
-      prior.status === "RETRY_SCHEDULED"
-    ) {
-      return {
-        ok: true,
-        deduped: true,
-        communicationMessageId: prior.id,
-        channel: input.channel,
-        // Echo the REAL provider SID if the prior send produced one.
-        // We never echo our internal idempotency hash.
-        providerMessageId: prior.providerMessageId ?? null,
-      };
-    }
-    // Prior attempt failed. Return the same failure (don't auto-retry).
+  if (!prior) return null;
+  if (
+    prior.status === "SENT" ||
+    prior.status === "DELIVERED" ||
+    prior.status === "QUEUED" ||
+    prior.status === "RETRY_SCHEDULED"
+  ) {
     return {
-      ok: false,
-      reason: "delivery_failed",
+      ok: true,
       deduped: true,
       communicationMessageId: prior.id,
+      channel: input.channel,
+      // Echo the REAL provider SID if the prior send produced one.
+      // We never echo our internal idempotency hash.
+      providerMessageId: prior.providerMessageId ?? null,
     };
   }
+  // Prior attempt failed. Return the same failure (don't auto-retry).
+  return {
+    ok: false,
+    reason: "delivery_failed",
+    deduped: true,
+    communicationMessageId: prior.id,
+  };
+}
+
+async function dispatchUnderLease(
+  input: DispatchIntakeDeliveryInput,
+  client: PrismaClient,
+  idemHash: string,
+  intakeUrl: string,
+): Promise<DispatchIntakeDeliveryResult> {
+  const prior = await priorDeliveryOutcome(input, client, idemHash);
+  if (prior) return prior;
 
   // 2) Attempt cap. Count CommunicationMessage rows for this
   //    (linkId, channel) tuple regardless of idempotency. The cap

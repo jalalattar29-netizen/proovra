@@ -26,7 +26,10 @@
 
 import type { Prisma } from "@prisma/client";
 
+import { workspaceCaseWhere } from "@proovra/shared-runtime";
+
 import { prisma } from "../../db.js";
+import { caseVisibleToWhere } from "../cases/case-visibility.js";
 import {
   SIU_SAVED_VIEW_PRESETS,
   type SiuSavedViewPreset,
@@ -258,13 +261,23 @@ const MAX_WORKLIST_ROWS = 100;
  */
 export async function runSiuWorklist(input: {
   teamId: string;
+  /**
+   * B5B-F-304 (free-audit 0ea0): the reader. A restricted case closed to them
+   * is neither listed nor counted — the same `caseVisibleToWhere` every
+   * case-level SIU route applies (requireCaseActor).
+   */
+  userId: string;
   view: ResolvedSiuView | null;
   limit?: number;
 }): Promise<SiuWorklistResult> {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), MAX_WORKLIST_ROWS);
   const filter = input.view?.filter ?? {};
   const sort = input.view?.sort ?? DEFAULT_SIU_VIEW_SORT;
-  const where = buildSiuProfileWhere(input.teamId, filter);
+  const closedCaseIds = await siuCasesClosedTo(input.teamId, input.userId);
+  const where: Prisma.CaseSiuProfileWhereInput = {
+    ...buildSiuProfileWhere(input.teamId, filter),
+    ...(closedCaseIds.length > 0 ? { caseId: { notIn: closedCaseIds } } : {}),
+  };
 
   const [total, rows] = await Promise.all([
     prisma.caseSiuProfile.count({ where }),
@@ -329,4 +342,21 @@ export async function runSiuWorklist(input: {
       updatedAtUtc: r.updatedAt.toISOString(),
     })),
   };
+}
+
+/**
+ * B5B-F-304: the workspace's cases a restricted-case rule closes to this
+ * reader. A profile holds its case id with no relation, so the closed cases
+ * are resolved by the canonical predicate (caseVisibleToWhere) and
+ * excluded by id.
+ */
+async function siuCasesClosedTo(teamId: string, userId: string): Promise<string[]> {
+  // The workspace's case population comes from the canonical scope authority
+  // (workspaceCaseWhere), not a raw teamId predicate (repository scope gate).
+  const workspaceCases = await workspaceCaseWhere(teamId, prisma);
+  const rows = await prisma.case.findMany({
+    where: { AND: [workspaceCases, { NOT: caseVisibleToWhere(userId) }] },
+    select: { id: true },
+  });
+  return rows.map((c) => c.id);
 }

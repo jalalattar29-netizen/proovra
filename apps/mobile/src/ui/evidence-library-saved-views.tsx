@@ -13,7 +13,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { theme } from "../theme/theme";
 import { ProovraButton, ProovraFormField, ProovraInput, ProovraText } from "./index";
 import { ProovraFilterChips, ProovraSheet } from "./patterns";
-import { savedViewMetaLine, type SavedViewItem } from "../product/evidence-library";
+import { savedViewMetaLine, savedViewOwnedBy, type SavedViewItem } from "../product/evidence-library";
 
 export interface SavedViewDraft {
   name: string;
@@ -31,6 +31,7 @@ export function EvidenceLibrarySavedViews({
   onUpdate,
   onDelete,
   onSetDefault,
+  currentUserId = null,
 }: {
   views: SavedViewItem[];
   teamOptions: ReadonlyArray<{ id: string; name: string }>;
@@ -42,6 +43,11 @@ export function EvidenceLibrarySavedViews({
   onUpdate: (id: string, draft: Omit<SavedViewDraft, "teamId">) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
   onSetDefault: (id: string) => Promise<boolean>;
+  /**
+   * B5B-F-303 — the signed-in user. "Make Default" and the default checkbox are
+   * offered only on views this user made (the server refuses anyone else, 403).
+   */
+  currentUserId?: string | null;
 }) {
   const [listOpen, setListOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -124,6 +130,7 @@ export function EvidenceLibrarySavedViews({
                       setEditOpen(true);
                     }}
                   />
+                  {savedViewOwnedBy(view, currentUserId) ? (
                   <ProovraButton
                     label={view.isDefault ? "Default View" : "Make Default"}
                     accessibilityLabel={view.isDefault ? `Default View ${view.name}` : `Make Default ${view.name}`}
@@ -132,6 +139,7 @@ export function EvidenceLibrarySavedViews({
                     disabled={view.isDefault}
                     onPress={() => void onSetDefault(view.id)}
                   />
+                  ) : null}
                   <ProovraButton
                     label="Delete"
                     accessibilityLabel={`Delete ${view.name}`}
@@ -161,6 +169,7 @@ export function EvidenceLibrarySavedViews({
             onChange={setTeamId}
           />
         ) : null}
+        {editing && !savedViewOwnedBy(editing, currentUserId) ? null : (
         <Pressable
           onPress={() => setIsDefault((v) => !v)}
           accessibilityRole="checkbox"
@@ -177,6 +186,7 @@ export function EvidenceLibrarySavedViews({
           </View>
           <ProovraText variant="bodySm">Make this my default view</ProovraText>
         </Pressable>
+        )}
         <ProovraText variant="label" color={theme.color.ink.muted}>
           This view will restore search, scope, status, type, review, export, case, retention, and sort.
         </ProovraText>

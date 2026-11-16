@@ -41,7 +41,6 @@ import { z } from "zod";
 
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { getAuthUserId } from "../auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { workspaceIncidentWhere } from "../services/observability/incident-scope.js";
 import {
@@ -64,31 +63,27 @@ const WorkspaceParam = z.object({ workspaceId: z.string().uuid() });
  * A non-member gets 404, never 403: a 403 confirms the workspace exists, which
  * turns this route into a workspace-id oracle. This mirrors `requireOpsActor`,
  * which already had this right.
+ *
+ * B3A-F-005 (free-audit 0ea0) — the canonical primitive decides alone. A raw
+ * row read ran first and answered a removed, suspended or revoked member 403
+ * `member_inactive` (and an expired one fell through to a 403 too), which
+ * confirmed the workspace exists to someone no longer in it. Under
+ * anti-enumeration every membership refusal (no row, not active, expired,
+ * organization not active) is now the same 404 as a missing workspace; only
+ * a live member lacking the permission is told 403.
  */
 async function requireWorkspaceMember(
   req: FastifyRequest,
   reply: FastifyReply,
   workspaceId: string,
 ): Promise<{ actorUserId: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId: workspaceId, userId } },
-    select: { status: true },
-  });
-  if (!membership) {
-    await reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  if (membership.status !== "ACTIVE") {
-    await reply.code(403).send({ error: { code: "member_inactive" } });
-    return null;
-  }
   const auth = await authorizeOrFail(req, reply, {
     teamId: workspaceId,
     permission: "identity.member.read",
+    antiEnumeration: true,
   });
   if (!auth) return null;
-  return { actorUserId: userId };
+  return { actorUserId: auth.actorUserId };
 }
 
 export async function workspaceOperationsRoutes(

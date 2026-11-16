@@ -19,7 +19,7 @@
  */
 
 import { prisma } from "../../db.js";
-import { caseVisibleToWhere } from "./case-visibility.js";
+import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "./case-visibility.js";
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 
@@ -318,9 +318,11 @@ export async function buildCasesSummary(input: {
       const caseIds = rawCases.map((c) => c.id);
       const [evidenceCounts, holdsByCase, recentReviewByCase] =
         await Promise.all([
+          // B3C-F-003 (free-audit 0ea0): a record a restricted case closes to
+          // the reader is not counted on any case it is also linked to (EVID-004).
           prisma.caseEvidenceLink.groupBy({
             by: ["caseId"],
-            where: { caseId: { in: caseIds } },
+            where: { caseId: { in: caseIds }, evidence: evidenceVisibleThroughCasesWhere(input.userId) },
             _count: { _all: true },
           }),
           // P12.3 canonical-only: case holds are scope='CASE' canonical rows.

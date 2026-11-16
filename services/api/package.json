@@ -70,6 +70,7 @@
     "ops:verification-disclosure-fleet": "tsx src/scripts/verification-disclosure-fleet.ts",
     "ops:deployment-safety-check": "tsx src/scripts/deployment-safety-check.ts",
     "ops:retire-user-evidence": "tsx src/scripts/retire-user-evidence.ts",
+    "ops:remediate-domain-only-managed-links": "tsx src/scripts/remediate-domain-only-managed-links.ts",
     "ops:output-reconciliation-dry-run": "tsx src/scripts/output-reconciliation-dry-run.ts",
     "ops:destruction-certificate-audit": "tsx src/scripts/destruction-certificate-audit.ts",
     "ops:organization-export-manifest": "tsx src/scripts/organization-export-manifest.ts",

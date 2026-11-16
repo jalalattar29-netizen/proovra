@@ -39,9 +39,9 @@ export const LEGAL_REACCEPT_REQUIRED_CODE = "LEGAL_REACCEPT_REQUIRED";
 const verified = new WeakSet<FastifyRequest>();
 
 /** Does this request need the current acceptance? Pure: method + route pattern. */
-export function legalAcceptanceRequiredFor(method: string, routePattern: string | null): boolean {
+export function legalAcceptanceRequiredFor(method: string, routePattern: string | null, body?: unknown): boolean {
   if (SAFE_METHODS.has(method.toUpperCase())) return false;
-  if (routePattern && legalAcceptanceExemptionFor(method, routePattern)) return false;
+  if (routePattern && legalAcceptanceExemptionFor(method, routePattern, body)) return false;
   return true;
 }
 
@@ -100,6 +100,6 @@ export async function refuseStaleLegalAcceptanceOnWrite(
   userId: string,
   routePattern: string | null,
 ): Promise<boolean> {
-  if (!legalAcceptanceRequiredFor(req.method, routePattern)) return false;
+  if (!legalAcceptanceRequiredFor(req.method, routePattern, req.body)) return false;
   return refuseWithoutCurrentLegalAcceptance(req, reply, userId);
 }

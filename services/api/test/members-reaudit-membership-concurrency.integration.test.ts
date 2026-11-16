@@ -354,8 +354,10 @@ describe("Members re-audit D1a — membership concurrency and governed refusals 
       expect(errorCode(res)).toBe("owner_required");
     }
     const adminReopen = await reopen(admin);
-    expect(adminReopen.statusCode, adminReopen.body).toBe(403);
-    expect(errorCode(adminReopen)).toBe("not_workspace_owner");
+    // B3A-F-008 (free-audit 0ea0): reopen is not an existence oracle — a
+    // non-owner is told what an unknown workspace id is told.
+    expect(adminReopen.statusCode, adminReopen.body).toBe(404);
+    expect(errorCode(adminReopen)).toBe("team_not_found");
 
     // The owner of record whose OWNER membership is not live (suspended) is
     // refused too: ownership is the record AND a current OWNER membership.

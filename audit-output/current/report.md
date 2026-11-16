@@ -21,22 +21,22 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 9a0d85c10d45c3601dabeb53ff6f74a88ff8fea2aa12ea9704b90d2eae7983d1 |
+| engineHash    | 0a9fe6e9c4c565b546273b83fe6d93d706b9092d7bf06b90780ab12241b432f7 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1245  |
+| registeredRoutes              | 1247  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 1018  |
+| productConsumerRoutes         | 1021  |
 | machineOnlyConsumerRoutes     | 7     |
-| noConsumerRoutes              | 220   |
-| dispositionedNonProductRoutes | 202   |
+| noConsumerRoutes              | 219   |
+| dispositionedNonProductRoutes | 201   |
 | undisposedRoutes              | 24    |
 | authorizationUnresolved       | 0     |
-| publicUnguardedRoutes         | 44    |
+| publicUnguardedRoutes         | 42    |
 
 ## Instrument integrity
 
@@ -73,7 +73,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 456   |
+| AuditFilesInventoried                      | 483   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -122,7 +122,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 363   |
+| ProductBehaviorTestsInventoried            | 390   |
 
 ### Report roles
 

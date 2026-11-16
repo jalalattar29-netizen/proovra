@@ -112,7 +112,13 @@ describe("the worker sweeps are deployed and started", () => {
   it("each scheduler calls the RECORDED run, and a failed run pages an operator", () => {
     expect(INDEX).toMatch(/await runCaptureReaperSweep\(\{ trigger, deleteObject: deleteObjectVersions \}\)/);
     expect(INDEX).toMatch(/reason: "capture_reaper_run_failed"/);
-    expect(INDEX).toMatch(/await runIntegrityRecheckSweep\(\{ trigger, limit: integrityRecheckBatch \}\)/);
+    // B8-F-301 (free-audit 0ea0, pin updated 2026-11-16): the batch now follows
+    // the due population — `limit` starts at integrityRecheckBatch and is
+    // raised by adaptiveIntegrityRecheckBatch (a failed count keeps the base).
+    // Still the RECORDED run, called once per tick.
+    expect(INDEX).toMatch(/let limit = integrityRecheckBatch;/);
+    expect(INDEX).toMatch(/limit = plan\.limit;/);
+    expect(INDEX).toMatch(/await runIntegrityRecheckSweep\(\{ trigger, limit \}\)/);
     expect(INDEX).toMatch(/reason: "integrity_recheck_run_failed"/);
     // The scheduler does not reach around the recorded run to the raw passes.
     expect(INDEX).not.toMatch(/\breapExpiredCaptureDrafts\(/);

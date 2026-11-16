@@ -406,7 +406,6 @@ describe("A1-01 — Batch analysis and Quotas & usage are refused to a plan with
       ["GET", `/v1/batch-analysis/${job.id}`],
       ["POST", `/v1/batch-analysis/${job.id}/process`],
       ["GET", `/v1/batch-analysis/${job.id}/results`],
-      ["POST", `/v1/batch-analysis/${job.id}/cancel`],
       ["GET", `/v1/batch-analysis/${job.id}/export`],
     ];
     for (const [method, url, body] of attempts) {
@@ -418,6 +417,11 @@ describe("A1-01 — Batch analysis and Quotas & usage are refused to a plan with
     const seen = await otherSees(job.id);
     expect(seen.job?.status).toBe("PENDING");
     expect(seen.job?.claimed_at_utc).toBeNull();
+    // B6-F-50 (free-audit 0ea0) — the one exception: stopping one's OWN job is
+    // an essential path (A1-06), so it is not plan gated. It adds nothing.
+    const cancel = await call("POST", `/v1/batch-analysis/${job.id}/cancel`, p.token);
+    expect(cancel.statusCode, cancel.body).toBe(200);
+    expect((await otherSees(job.id)).job?.status).toBe("CANCELLED");
   });
 
   it("control: the same reads answer for a workspace whose plan includes them", async () => {

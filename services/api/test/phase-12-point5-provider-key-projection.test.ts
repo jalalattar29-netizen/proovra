@@ -106,6 +106,10 @@ const DISPOSITIONS: Record<string, "writer" | "projector" | "counter" | "schedul
   "services/api/src/routes/evidence-requests.routes.ts": "projector",
   "services/api/src/routes/ops.routes.ts": "counter",
   "services/api/src/services/demo-follow-up.service.ts": "writer",
+  // B8-F-302 (free-audit 0ea0) — the verification-email outbox: writes and
+  // re-dispatches its own INTERNAL rows (recipient + user id only, no token,
+  // no idempotency key); returns no row to a client.
+  "services/api/src/services/email-verification.service.ts": "writer",
   "services/api/src/services/notifications/index.ts": "projector",
   "services/api/src/services/notifications/reminder-scheduler.ts": "scheduler",
   "services/api/src/services/organization/org-invite-delivery.service.ts": "projector",

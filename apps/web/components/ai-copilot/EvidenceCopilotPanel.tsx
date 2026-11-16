@@ -17,6 +17,22 @@ import {
   type GenerationResponse,
 } from "../../lib/evidence/generation-outcome";
 import { CopilotCitationList, type CopilotCitationData } from "./CopilotCitation";
+import { useOptionalPlatformContext } from "../../lib/platform-context/PlatformContextProvider";
+
+/**
+ * B6-F-30 (free-user audit 0ea0) — the reviewer-assignment link leads to the
+ * reviewer console (/review), which exists only where the plan includes
+ * reviewer operations AND the actor holds REVIEWER_OPS_VIEW (the route's own
+ * gate, routeRegistry `/review`). The server offered it on record state alone,
+ * so a Free owner was sent into the paid surface. Until the API checks the
+ * destination (CROSS-LANE), the panel offers it only where the envelope says
+ * the destination opens; no envelope, no link.
+ */
+export function reviewerAssignmentReachable(
+  envelope: { capabilities?: Partial<Record<string, boolean>> | null; planFeatures?: { reviewerOperationsIncluded?: boolean } | null } | null | undefined,
+): boolean {
+  return envelope?.capabilities?.REVIEWER_OPS_VIEW === true && envelope?.planFeatures?.reviewerOperationsIncluded === true;
+}
 
 type EvidenceCopilotData = {
   operationalSummary: string;
@@ -113,6 +129,7 @@ function ConfirmedActionBar({
   const [confirming, setConfirming] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const canOpenReview = reviewerAssignmentReachable(useOptionalPlatformContext()?.envelope);
   /*
    * The action exists only when the SERVER offered one. It derives the offer
    * from the canonical output projection now — plan, funding and lifecycle —
@@ -184,7 +201,7 @@ function ConfirmedActionBar({
           {a.displayLabel}
         </a>
       ))}
-      {serverActions.filter((a) => a.actionType === "OPEN_REVIEWER_ASSIGNMENT").map((a) => (
+      {!canOpenReview ? null : serverActions.filter((a) => a.actionType === "OPEN_REVIEWER_ASSIGNMENT").map((a) => (
         <a key={a.suggestionId} className="app-secondary-action" href="/review" title={a.reason}>
           {a.displayLabel}
         </a>

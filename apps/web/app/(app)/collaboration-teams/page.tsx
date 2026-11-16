@@ -59,6 +59,8 @@ import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { AppStatusBadge } from "../../../components/app-primitives/AppStatusBadge";
 import { AppStatusText } from "../../../components/app-primitives/AppStatusText";
 import { PlanLimitBadge } from "../../../components/billing/PlanLimitBadge";
+// B3A-F-004 — "Upgrade" only for the payer of the ACTIVE workspace.
+import { WorkspaceUpgradeLink } from "../../../components/billing/WorkspaceUpgradeLink";
 import { isApiResponseError } from "../../../lib/api";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import {
@@ -436,15 +438,14 @@ function TeamsOverview() {
           // Plan-locked landing: NO Create button at all — a fillable /
           // clickable create affordance that is known to 402 would be
           // dishonest. Only the honest state + upgrade CTA render.
-          <Link
-            href="/billing"
+          <WorkspaceUpgradeLink
             className="app-primary-action"
-            data-testid="teams-plan-locked-upgrade-cta"
-            aria-label={`Upgrade plan — ${PLAN_LOCKED_COPY}`}
+            testId="teams-plan-locked-upgrade-cta"
+            ariaLabel={`Upgrade plan — ${PLAN_LOCKED_COPY}`}
             title={PLAN_LOCKED_COPY}
           >
             Upgrade plan
-          </Link>
+          </WorkspaceUpgradeLink>
         ) : (
           <>
             {planForCapacity !== null && !loading && !error ? (
@@ -1239,14 +1240,13 @@ function UpgradeCTA({
   plan: WorkspacePlan;
 }) {
   return (
-    <Link
-      href="/billing"
+    <WorkspaceUpgradeLink
       className="app-secondary-action"
-      data-testid="collaboration-teams-upgrade-cta"
-      aria-label={`Upgrade — your ${plan} plan allows up to ${maxTeams} Teams (currently using ${ownedTeamCount})`}
+      testId="collaboration-teams-upgrade-cta"
+      ariaLabel={`Upgrade — this workspace's ${plan} plan allows up to ${maxTeams} Teams (currently using ${ownedTeamCount})`}
     >
       Upgrade plan
-    </Link>
+    </WorkspaceUpgradeLink>
   );
 }
 
@@ -1280,9 +1280,9 @@ function PlanRestrictedNotice() {
       <span style={{ color: "#667085", fontSize: 13 }}>
         {PLAN_LOCKED_COPY} Existing Teams and their data remain accessible.
       </span>
-      <Link href="/billing" className="app-secondary-action">
+      <WorkspaceUpgradeLink className="app-secondary-action" testId="teams-plan-restricted-upgrade-cta">
         Upgrade plan
-      </Link>
+      </WorkspaceUpgradeLink>
     </div>
   );
 }
@@ -1314,7 +1314,7 @@ function TeamsEmptyState({
         </span>
         <strong>{PLAN_LOCKED_COPY}</strong>
         <p>
-          {plan ? `Your ${plan} plan doesn't include Teams. ` : ""}
+          {plan ? `This workspace's ${plan} plan doesn't include Teams. ` : ""}
           Teams give you shared assignments, member invites, and
           collaborative review on cases and evidence. Upgrade to create one.
         </p>
@@ -1327,14 +1327,13 @@ function TeamsEmptyState({
             marginTop: 4,
           }}
         >
-          <Link
-            href="/billing"
+          <WorkspaceUpgradeLink
             className="app-primary-action"
-            data-testid="teams-empty-upgrade-cta"
-            aria-label={`Upgrade plan — ${PLAN_LOCKED_COPY}`}
+            testId="teams-empty-upgrade-cta"
+            ariaLabel={`Upgrade plan — ${PLAN_LOCKED_COPY}`}
           >
             Upgrade plan
-          </Link>
+          </WorkspaceUpgradeLink>
         </div>
       </div>
     );

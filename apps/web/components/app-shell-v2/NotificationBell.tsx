@@ -470,10 +470,14 @@ export function NotificationBell() {
     setBusyKey("__all__");
     setActionNotice(null);
     try {
+      // B2B-F-01 — the SAME scope the badge counts: the active workspace (plus
+      // account/organization items with no workspace binding). Without a
+      // workspace the body stays `{}` — the account-wide read. An older API
+      // ignores `workspaceId` and reads account-wide, as before.
       const res = (await apiFetch("/v1/me/inbox/mark-all-read", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(activeWorkspaceId ? { workspaceId: activeWorkspaceId } : {}),
       })) as { markedRead?: number } | null;
       bumpEpoch();
       await Promise.all([loadItems(), loadSummary()]);
@@ -507,7 +511,11 @@ export function NotificationBell() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
-        title="Unread operational items across all your workspaces"
+        title={
+          activeWorkspaceId
+            ? "Unread operational items in this workspace"
+            : "Unread operational items across all your workspaces"
+        }
         aria-expanded={open}
         aria-label={
           has

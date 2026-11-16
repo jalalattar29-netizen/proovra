@@ -22,8 +22,10 @@
  * Steps 9 (durable budget) and 10 (rate limit) are intentionally left as
  * downstream concerns wired in A7/A8; this evaluator owns steps 1–8.
  */
+import { AI_TRIAL_CAPABILITIES } from "@proovra/shared-billing";
 import { prisma } from "../../db.js";
 import { getSecret } from "../../config/runtime-secrets.js";
+import { workspaceIncludesAiCapability } from "../billing-enforcement.service.js";
 
 export type WorkspaceAiFeature =
   | "SUPPORT_CHAT"
@@ -422,6 +424,14 @@ export async function upsertWorkspaceAiPolicy(input: {
   });
 
   if (existing) {
+    // R2-F-002 (Free-user audit 0ea0) — `expectedVersion: null` is the client
+    // saying "I read the DEFAULT; there was no row". A row now exists, so that
+    // read is stale: the second of two first saves is refused with zero
+    // mutation, instead of re-writing every switch from the default it read.
+    // (`undefined` — no expectation declared — keeps the pin-to-read below.)
+    if (input.expectedVersion === null) {
+      throw new WorkspaceAiPolicyVersionConflictError(existing.policyVersion);
+    }
     // The version the write is allowed to transition FROM. When the caller did
     // not declare one we still pin the predicate to the version we just read,
     // so an interleaved writer cannot be clobbered by a caller that simply
@@ -536,6 +546,16 @@ function resolveFeatureGlobalProvider(feature: WorkspaceAiFeature): {
   }
 }
 
+/**
+ * B6-F-22 / B6-F-46 (Free-user audit 0ea0) — is this feature one the plan
+ * catalog must make eligible before the workspace's own switch counts? The
+ * trial capabilities (support chat, capture assistance, categorisation) are
+ * governed by the allowance alone; everything else is a paid capability.
+ */
+export function isPlanGatedAiFeature(feature: WorkspaceAiFeature): boolean {
+  return !(AI_TRIAL_CAPABILITIES as readonly string[]).includes(feature);
+}
+
 export async function evaluateWorkspaceAiPolicy(
   input: EvaluateWorkspaceAiPolicyInput,
 ): Promise<AiPolicyDecision> {
@@ -543,6 +563,21 @@ export async function evaluateWorkspaceAiPolicy(
   const { globalAiEnabled, providerConfigured } = resolveFeatureGlobalProvider(
     input.feature,
   );
+  // B6-F-22 / B6-F-46 — per-capability plan eligibility, asked HERE so every
+  // caller of the evaluator gets it, at evaluation time (a downgraded
+  // workspace's saved switch stops granting at once). Asked only when the
+  // workspace has the paid feature switched on: otherwise step 4 already
+  // denies and no commercial read is spent.
+  let planAllowed = input.planAllowed;
+  if (
+    planAllowed !== false &&
+    input.teamId &&
+    isPlanGatedAiFeature(input.feature) &&
+    policy.aiEnabled &&
+    policy[FEATURE_SWITCH[input.feature]] === true
+  ) {
+    planAllowed = await workspaceIncludesAiCapability(input.teamId, input.feature);
+  }
   return decideAiPolicy({
     policy,
     feature: input.feature,
@@ -550,6 +585,6 @@ export async function evaluateWorkspaceAiPolicy(
     userRole: input.userRole,
     globalAiEnabled,
     providerConfigured,
-    planAllowed: input.planAllowed,
+    planAllowed,
   });
 }

@@ -100,3 +100,37 @@ export function classifyCasesResponse(status: number | null, body: unknown, team
   if (status === null || status < 200 || status >= 300) return { kind: "error", status };
   return { kind: "ok", cases: parseEligibleCases(body, teamId) };
 }
+
+/** B4-F-104 — the most case pages the popup reads (CASE_LIST_PAGE_MAX each). */
+export const CASE_PAGES_MAX = 10;
+
+/**
+ * B4-F-104 — read EVERY page of GET /v1/cases (keyset cursor, F-21), then keep
+ * the chosen workspace's fileable cases. The first page alone holds only the
+ * newest cases across ALL workspaces, so an older case of the chosen
+ * workspace was never offered. Bounded; a later page that fails keeps what
+ * was read (the capture can still be filed later).
+ */
+export async function loadAllEligibleCases(
+  fetchPage: (cursor: string | null) => Promise<{ status: number | null; body: unknown }>,
+  teamId: string,
+  maxPages = CASE_PAGES_MAX,
+): Promise<CaseLoad> {
+  const items: unknown[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < maxPages; page += 1) {
+    const r = await fetchPage(cursor);
+    if (page === 0 || r.status === 401) {
+      const first = classifyCasesResponse(r.status, r.body, teamId);
+      if (first.kind !== "ok") return first;
+    } else if (r.status === null || r.status < 200 || r.status >= 300) {
+      break;
+    }
+    const body = (r.body ?? {}) as { items?: unknown; nextCursor?: unknown; hasMore?: unknown };
+    if (Array.isArray(body.items)) items.push(...body.items);
+    const next = typeof body.nextCursor === "string" && body.nextCursor ? body.nextCursor : null;
+    if (!next || body.hasMore === false) break;
+    cursor = next;
+  }
+  return { kind: "ok", cases: parseEligibleCases({ items }, teamId) };
+}

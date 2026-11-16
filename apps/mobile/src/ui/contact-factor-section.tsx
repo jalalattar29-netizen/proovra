@@ -4,7 +4,7 @@
  * second countdown ticks only while a resend cooldown is running (and the
  * timer is unref'd so it never pins a Node test process).
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 
 import { apiFetch } from "../api";
@@ -59,6 +59,12 @@ export function ContactFactorSection({ teamId }: { teamId: string | null }) {
   const [now, setNow] = useState(() => Date.now());
   const [stepUpBusy, setStepUpBusy] = useState(false);
   const stepUp = useStepUp();
+  /**
+   * R2-F-004 (free-user audit 0ea0) — which action opened the step-up sheet.
+   * Its retry reported every failure as the enrolment send's ("The
+   * verification code could not be sent"), including a failed Revoke.
+   */
+  const stepUpAction = useRef<"enrol" | "revoke">("enrol");
 
   const loadFactors = useCallback(async () => {
     try {
@@ -98,6 +104,7 @@ export function ContactFactorSection({ teamId }: { teamId: string | null }) {
     // PRO-015 — adding a device to an account that already holds a factor is
     // an account step-up action; the sheet collects the proof and the SAME
     // request is retried with it.
+    stepUpAction.current = "enrol";
     await stepUp.start(
       async (proof) => {
         let attempt: ReturnType<typeof parseEnrolmentStart>;
@@ -176,6 +183,7 @@ export function ContactFactorSection({ teamId }: { teamId: string | null }) {
     setNotice(null);
     // PRO-021 — removing an ACTIVE device is an account step-up action, as on
     // the canonical factor-removal route.
+    stepUpAction.current = "revoke";
     await stepUp.start(
       async (proof) => {
         try {
@@ -311,7 +319,9 @@ export function ContactFactorSection({ teamId }: { teamId: string | null }) {
         onSubmit={(proof) => {
           setStepUpBusy(true);
           void stepUp
-            .retry(proof, (err) => setNotice(contactFactorFailure(err, COPY.startFailed, safe)))
+            .retry(proof, (err) =>
+              setNotice(contactFactorFailure(err, stepUpAction.current === "revoke" ? COPY.revokeFailed : COPY.startFailed, safe)),
+            )
             .finally(() => {
               setStepUpBusy(false);
               void loadFactors();

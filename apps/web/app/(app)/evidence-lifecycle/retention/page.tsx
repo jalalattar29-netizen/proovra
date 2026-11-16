@@ -39,8 +39,17 @@ import { apiFetch } from "../../../../lib/api";
 // PHASE 7 §10 — canonical context-safety primitives.
 import {
   WorkspaceContextBanner,
+  useTeamId,
   useWorkspaceContextSafety,
 } from "../../../../lib/platform-context";
+// B5B-F-301 — retention writes carry account step-up like the governance
+// retention writer (purpose RETENTION_POLICY_UPDATE, named by the server's
+// STEP_UP_REQUIRED answer). An API that does not ask yet is unaffected.
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 import {
   DenialBanner,
   LifecycleSectionBoundary,
@@ -197,6 +206,8 @@ export default function RetentionPage() {
 function Shell() {
   const { data, loading, busy, denial, refresh } =
     useLifecycleFetch<RetentionPayload>(loadRetention, []);
+  const teamId = useTeamId();
+  const stepUp = useStepUpAction({ teamId: teamId ?? null });
 
   // Create form state (kept inline — modal/dialog would be over-engineering).
   const [name, setName] = useState("");
@@ -225,8 +236,10 @@ function Shell() {
     try {
       await runGuarded(
         () =>
+          stepUp.runStepUpAction((stepUpHeaders) =>
           apiFetch("/v1/lifecycle/retention/policies", {
             method: "POST",
+            ...(stepUpHeaders ? { headers: stepUpHeaders } : {}),
             body: JSON.stringify({
               name,
               template,
@@ -239,7 +252,7 @@ function Shell() {
               // `null` is a 400, so a blank target is omitted, not nulled.
               ...(scopeTargetId.trim() ? { scopeTargetId: scopeTargetId.trim() } : {}),
             }),
-          }),
+          })),
         () => {
           setName("");
           setYears("");
@@ -248,6 +261,7 @@ function Shell() {
         },
       );
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       // Render the create error inline — don't conflate with the load denial.
       const message =
         err && typeof err === "object" && "message" in err
@@ -257,7 +271,7 @@ function Shell() {
     } finally {
       setCreating(false);
     }
-  }, [name, template, years, scopeKind, scopeTargetId, refresh, runGuarded]);
+  }, [name, template, years, scopeKind, scopeTargetId, refresh, runGuarded, stepUp]);
 
   const { confirm: confirmAction } = useConfirmAction();
   const [releasingId, setReleasingId] = useState<string | null>(null);
@@ -293,10 +307,13 @@ function Shell() {
       setReleasingId(policy.id);
       let written = false;
       try {
-        await apiFetch(`${POLICIES_PATH}/${encodeURIComponent(policy.id)}/release`, {
-          method: "POST",
-          body: JSON.stringify({}),
-        });
+        await stepUp.runStepUpAction((stepUpHeaders) =>
+          apiFetch(`${POLICIES_PATH}/${encodeURIComponent(policy.id)}/release`, {
+            method: "POST",
+            ...(stepUpHeaders ? { headers: stepUpHeaders } : {}),
+            body: JSON.stringify({}),
+          }),
+        );
         written = true;
         const reread = policiesFrom(await apiFetch(POLICIES_PATH, { method: "GET" }));
         if (!alive.current) return;
@@ -316,6 +333,7 @@ function Shell() {
         void refresh();
       } catch (err) {
         if (!alive.current) return;
+        if (!written && isStepUpCancelled(err)) return;
         if (written) {
           setReleaseError(
             "The release was sent, but the policy list could not be reloaded to confirm it. Refresh before relying on it.",
@@ -328,7 +346,7 @@ function Shell() {
         if (alive.current) setReleasingId(null);
       }
     },
-    [confirmAction, refresh, releasingId],
+    [confirmAction, refresh, releasingId, stepUp],
   );
 
   const policies = data?.policies ?? null;
@@ -601,6 +619,7 @@ function Shell() {
           </div>
         )}
       </PageSection>
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

@@ -11,7 +11,7 @@
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { loadModule, renderComponent, React, act } from "./support/render.mjs";
-import { authenticatedRoutes, signIn } from "./support/authenticated.mjs";
+import { authenticatedRoutes, platformContextEnvelope, signIn } from "./support/authenticated.mjs";
 
 const h = React.createElement;
 let M;
@@ -177,6 +177,7 @@ test("read-only discussion: history shown, no composer, no lifecycle; no caps �
 });
 
 test("a failed comments read is said, not shown as 'No comments'", async () => {
+  routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { reviewerOperationsIncluded: true } });
   routes["/v1/evidence/ev-1/comments"] = () => ({ __status: 500 });
   const r = await openThread();
   assert.ok(!r.hasText("No comments on this record yet."), "a failed read was presented as an empty record");
@@ -211,4 +212,17 @@ test("a reviewer's message is named from the workspace roster (the server sends 
   assert.ok(r.texts().some((t) => t.startsWith("Dana")), "the author was not named from the roster");
   assert.ok(r.texts().some((t) => t.startsWith("A workspace member")), "an unknown author was not stated honestly");
   assert.ok(!r.texts().some((t) => t.includes("u-gone")), "a raw user id was printed");
+});
+
+test("B5A-F-08 — without reviewer operations the Reviewer comments panel is absent and never read", async () => {
+  const r = await openThread();
+  assert.equal(r.hasText("Reviewer comments"), false);
+  assert.ok(!requests.some((q) => q.path === "/v1/evidence/ev-1/comments"), "comments read without reviewer operations");
+});
+
+test("B5A-F-08 — with reviewer operations the Reviewer comments panel is shown", async () => {
+  routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { reviewerOperationsIncluded: true } });
+  const r = await openThread();
+  assert.ok(r.hasText("Reviewer comments"));
+  assert.ok(requests.some((q) => q.path === "/v1/evidence/ev-1/comments"));
 });

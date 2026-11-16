@@ -74,7 +74,7 @@ export function EvidenceList({
             onChange={(event) => onToggleSelectAllCurrentPage(event.target.checked)}
             disabled={items.length === 0}
           />
-          <label htmlFor="evidence-select-all-loaded">Select all loaded pages</label>
+          <label htmlFor="evidence-select-all-loaded">Select all on this page</label>
         </span>
         {toolbar}
       </div>

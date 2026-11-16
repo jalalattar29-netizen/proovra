@@ -14,6 +14,8 @@ import {
   // COMMERCIAL CLOSURE (2026-09-08) — the ONE intake rule (plan OR wallet).
   resolveWorkspaceIntakeEntitlement,
   type EvidenceFundingSource,
+  planIncludesAiCapability,
+  type AiPlanCapability,
 } from "@proovra/shared-billing";
 import {
   consumeEvidenceCreditForCompletion,
@@ -1570,7 +1572,12 @@ const AI_DENIAL_RESPONSES: Record<
   },
   AI_MONTHLY_LIMIT_REACHED: {
     statusCode: 429,
-    message: "Monthly AI advisory limit reached for current plan",
+    // B6-F-29 (Free-user audit 0ea0) — the allowance is counted per UTC
+    // calendar month (`startOfCurrentMonthUtc`), not per billing period: a
+    // Free account has no billing period, and a paid one need not start on
+    // the 1st. The message says when it actually resets.
+    message:
+      "This workspace's monthly AI allowance is used up. It resets at the start of the next calendar month (UTC).",
   },
 };
 
@@ -1607,6 +1614,34 @@ export async function scopeIncludesAiOperations(scope: WorkspaceScope): Promise<
 export async function workspaceIncludesAiOperations(teamId: string): Promise<boolean> {
   const { denial } = await evaluateWorkspaceAiOperation({ teamId });
   return denial !== "AI_NOT_INCLUDED" && denial !== "COMMERCIAL_LIFECYCLE_RESTRICTED";
+}
+
+/**
+ * B6-F-22 / B6-F-46 (Free-user audit 0ea0) — the PER-CAPABILITY half of the
+ * AI policy's plan input. `workspaceIncludesAiOperations` answers "may this
+ * plan spend AI at all"; this also asks whether the workspace's effective
+ * plan (resolved through the canonical envelope, `resolveCommercialContext`)
+ * makes THIS capability eligible (`PlanCapabilities.aiCapabilitiesIncluded`).
+ * A FREE allowance of ten operations opens the trial capabilities only, so a
+ * Free owner who switches on content intelligence or a copilot gets
+ * PLAN_NOT_ENTITLED, and a paid-era switch stops granting after a downgrade.
+ * No workspace is not included (fail closed).
+ */
+export async function scopeIncludesAiCapability(
+  scope: WorkspaceScope,
+  capability: AiPlanCapability,
+): Promise<boolean> {
+  if (!planIncludesAiCapability(scope.plan as PlanType, capability)) return false;
+  return scopeIncludesAiOperations(scope);
+}
+
+export async function workspaceIncludesAiCapability(
+  teamId: string,
+  capability: AiPlanCapability,
+): Promise<boolean> {
+  const scope = await resolveWorkspaceCommercialScope(teamId);
+  if (!scope) return false;
+  return scopeIncludesAiCapability(scope, capability);
 }
 
 export async function evaluateWorkspaceAiOperation(input: {
@@ -1752,6 +1787,16 @@ export async function assertTeamAllowsEnterpriseFeature(
     err.code = "ENTERPRISE_FEATURE_REQUIRED";
     throw err;
   }
+}
+
+/**
+ * B5B-F-301 (Free-user audit 0ea0) — the Enterprise retention-policy gate,
+ * named for its one question so the lifecycle routes (which also host the
+ * Legal Hold surface, deliberately free of plan-axis gates) ask exactly this
+ * and nothing broader. Same decision as the governance retention writer.
+ */
+export async function assertTeamAllowsRetentionPolicies(teamId: string): Promise<void> {
+  await assertTeamAllowsEnterpriseFeature(teamId, "retentionPolicy");
 }
 
 // ────────────────────────────────────────────────────────────────────

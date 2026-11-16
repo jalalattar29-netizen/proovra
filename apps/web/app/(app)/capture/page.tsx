@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button, PageShell, useToast } from "../../../components/ui";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // P3 domain remediation (2026-07-21) — tenant-boundary dirty-work guard.
 // PHASE 7 §10.5 — canonical owning-context banner.
@@ -22,6 +23,7 @@ import { newDraftRestoreState, restoreDraftItemMetadata } from "./_lib/draft-ite
 import { CaptureAllowanceNotice } from "./_lib/CaptureAllowanceNotice";
 import { captureAllowanceNotices } from "./_lib/capture-allowance";
 import { useCaptureAllowance } from "./_hooks/useCaptureAllowance";
+import { notifyUsageChanged } from "../../../lib/billing/personal-allowance";
 import { CaptureFinalReadiness } from "./_lib/CaptureFinalReadiness";
 import { CaptureActivityDisclosure } from "./_lib/CaptureActivityDisclosure";
 import { computeCaptureReadiness } from "./_lib/captureReadiness";
@@ -50,7 +52,7 @@ import {
 // /v1/workflow/templates and falls back to useIntakeTemplates on any error.
 import { useWorkflowTemplates } from "./_hooks/useWorkflowTemplates";
 import { useCaptureDraftPersistence } from "./_hooks/useCaptureDraftPersistence";
-import { useCaptureDraftList } from "./_hooks/useCaptureDraftList";
+import { draftBelongsToSpace, useCaptureDraftList } from "./_hooks/useCaptureDraftList";
 
 import {
   deriveBatchEvidenceType,
@@ -110,12 +112,18 @@ function CapturePageInner() {
   const setupPanelId = useId();
   // Review & Sign opens the review dialog; its confirm calls finalizeSession.
   const [reviewOpen, setReviewOpen] = useState(false);
+  // B4-F-304 — the review was opened from "Finish without location": its
+  // confirm finishes accepting the failed location request.
+  const [reviewAcceptsLocationFailure, setReviewAcceptsLocationFailure] = useState(false);
   const activeSpace = useActiveSpace();
   const workspaceName = activeSpace?.displayName ?? null;
   // F-12 — the caller's OWN Personal Space only (a joined personal workspace
   // is funded by its owner's account, not the viewer's).
+  // B4-F-302 — re-read after a seal or a discard on this page.
+  const [allowanceRefresh, setAllowanceRefresh] = useState(0);
   const allowanceFacts = useCaptureAllowance(
     activeSpace?.type === "PERSONAL" && !activeSpace.shared ? activeSpace.id : null,
+    allowanceRefresh,
   );
   const [openMaterialDropdownId, setOpenMaterialDropdownId] = useState<
     string | null
@@ -160,6 +168,11 @@ function CapturePageInner() {
   );
 
   const draftList = useCaptureDraftList();
+  // B4-F-307 — only the drafts of the workspace Capture is in.
+  const visibleDrafts = useMemo(
+    () => draftList.drafts.filter((draft) => draftBelongsToSpace(draft, activeSpace)),
+    [draftList.drafts, activeSpace],
+  );
   const [resumeOpen, setResumeOpen] = useState(false);
   const [resumeDraftId, setResumeDraftId] = useState<string | null>(null);
   const [resumeDraftDetail, setResumeDraftDetail] = useState<
@@ -168,7 +181,8 @@ function CapturePageInner() {
   const [resumeMetadataApplied, setResumeMetadataApplied] = useState(false);
   const [reattachDismissed, setReattachDismissed] = useState(false);
 
-  const draftPersistence = useCaptureDraftPersistence({ enabled: true });
+  // B4-F-307 — a draft is started in (and listed for) the active workspace.
+  const draftPersistence = useCaptureDraftPersistence({ enabled: true, teamId: activeSpace?.id || null });
   const draftIdRef = useRef<string | null>(null);
   draftIdRef.current = draftPersistence.draftId;
 
@@ -232,6 +246,7 @@ function CapturePageInner() {
     locationPermissionDenied,
     progress,
     removeSessionItem,
+    reservedEvidenceId,
     resetCaptureState,
     revokeAllPreviews,
     sessionItems,
@@ -252,8 +267,20 @@ function CapturePageInner() {
     ensureCaptureSessionDraftId: () => draftPersistence.ensureDraft(),
     onSessionFinalized: () => {
       draftPersistence.acknowledgeFinalized();
+      setAllowanceRefresh((n) => n + 1);
+      // B2A-F-02 — the shell meter re-reads after a seal.
+      notifyUsageChanged();
+      // B4-F-307 — the finalized draft leaves the list without a reload.
+      void draftList.refresh();
     },
-    onSessionDiscarded: () => draftPersistence.discardDraft(),
+    onSessionDiscarded: async () => {
+      try {
+        await draftPersistence.discardDraft();
+      } finally {
+        setAllowanceRefresh((n) => n + 1);
+        notifyUsageChanged();
+      }
+    },
     // Phase 30.12 — pass the resumable adoption hook so the
     // orchestrator can fork large files through the multipart path.
     // With NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED unset (default),
@@ -483,14 +510,18 @@ function CapturePageInner() {
         // precise reason when a large-file upload isn't yet
         // server-verified. Empty array (the default when the env
         // flag is off) makes this a no-op.
-        resumableBlockers: resumable.blockingReasons,
+        // B4-F-301 — live uploads, and recovery entries of the record this
+        // capture reserves only (an earlier page's upload of another record
+        // cannot keep Review & Sign disabled until a reload).
+        resumableBlockers: resumable.blockingReasonsFor(reservedEvidenceId),
       }),
     [
       sessionItems,
       selectedCollectionPlan,
       planMode,
       useLocation,
-      resumable.blockingReasons,
+      resumable.blockingReasonsFor,
+      reservedEvidenceId,
     ]
   );
 
@@ -549,6 +580,20 @@ function CapturePageInner() {
       (target ?? el).focus({ preventScroll: true });
     });
   }, []);
+
+  // B4-F-309 — a suggestion's action pill leads to its control. The template
+  // selector lives in the setup panel, which opens first.
+  const onSuggestionAction = useCallback(
+    (targetId: string) => {
+      if (targetId === "template-selector") {
+        setSetupOpen(true);
+        focusById(setupPanelId, "[data-capture-template-select]");
+        return;
+      }
+      focusById(targetId);
+    },
+    [focusById, setupPanelId],
+  );
 
   const openAssignmentFor = useCallback(
     (itemId: string) => {
@@ -636,6 +681,9 @@ function CapturePageInner() {
           onClearRecovery={(id) => {
             void resumable.clearRecovery(id);
           }}
+          // B4-F-301 — an earlier page's upload has no file in memory, so its
+          // Resume could do nothing: offered only when an uploader exists.
+          canResumeRecovery={resumable.hasUploader}
         />
       ) : null}
 
@@ -722,13 +770,19 @@ function CapturePageInner() {
                 useLocation={useLocation}
                 location={location}
                 busy={busy}
-                onFinishWithoutLocation={() => void finalizeWithoutLocation()}
+                finishDisabled={finishDisabled}
+                onFinishWithoutLocation={() => {
+                  // B4-F-304 — through Review & Sign, never straight to the seal.
+                  if (finishDisabled) return;
+                  setReviewAcceptsLocationFailure(true);
+                  setReviewOpen(true);
+                }}
               />
             }
           />
         ) : null}
 
-        {draftList.drafts.length > 0 && !sessionItems.length ? (
+        {visibleDrafts.length > 0 && !sessionItems.length ? (
           <div
             className="capture-resume-banner"
             role="region"
@@ -736,8 +790,8 @@ function CapturePageInner() {
           >
             <div className="capture-resume-banner-text">
               <strong>
-                You have {draftList.drafts.length} unfinished capture session
-                {draftList.drafts.length === 1 ? "" : "s"}.
+                You have {visibleDrafts.length} unfinished capture session
+                {visibleDrafts.length === 1 ? "" : "s"}.
               </strong>
               <p>
                 Resume restores the template, assignments, notes and file details.
@@ -752,7 +806,7 @@ function CapturePageInner() {
                 className="capture-drafts-trigger"
                 onClick={() => setResumeOpen(true)}
               >
-                Drafts ({draftList.drafts.length})
+                Drafts ({visibleDrafts.length})
               </button>
             </div>
 
@@ -780,7 +834,7 @@ function CapturePageInner() {
                   </div>
 
                   <div className="capture-drafts-modal-list">
-                    {draftList.drafts.map((draft) => (
+                    {visibleDrafts.map((draft) => (
                       <div key={draft.id} className="capture-drafts-modal-item">
                         <div className="capture-drafts-modal-meta">
                           <strong>{draft.templateName ?? "Untitled draft"}</strong>
@@ -808,6 +862,7 @@ function CapturePageInner() {
                               // F-04 — continue THIS draft (and the record it
                               // reserved), not a new one.
                               draftPersistence.adoptDraft(draft.id);
+                              void draftList.refresh();
                               setResumeDraftId(draft.id);
                               setResumeDraftDetail(detail);
                               setResumeMetadataApplied(false);
@@ -824,7 +879,21 @@ function CapturePageInner() {
                             type="button"
                             className="capture-bulk-button capture-draft-delete-button"
                             onClick={async () => {
-                              await draftList.discard(draft.id);
+                              // B4-F-307 — deleting the adopted draft resets this page to a
+                              // new draft (the next save creates one) instead of PATCHing a
+                              // deleted draft into "Session finalized"; a failure is said.
+                              try {
+                                if (draft.id === draftPersistence.draftId) {
+                                  await draftPersistence.discardDraft();
+                                  setResumeDraftId(null);
+                                  setResumeDraftDetail(null);
+                                  await draftList.refresh();
+                                } else {
+                                  await draftList.discard(draft.id);
+                                }
+                              } catch (err) {
+                                addToast(toSafeUserError(err, { message: "The draft could not be deleted. Try again." }).message, "error");
+                              }
                             }}
                           >
                             Delete
@@ -1052,7 +1121,10 @@ function CapturePageInner() {
                 finishDisabled={finishDisabled}
                 canClearSession={sessionItems.length > 0}
                 onReset={() => setClearConfirmOpen(true)}
-                onFinalize={() => setReviewOpen(true)}
+                onFinalize={() => {
+                  setReviewAcceptsLocationFailure(false);
+                  setReviewOpen(true);
+                }}
               />
             </div>
 
@@ -1086,6 +1158,7 @@ function CapturePageInner() {
                     readiness={computeCaptureReadiness({
                       items: sessionItems,
                     })}
+                    onActionClick={onSuggestionAction}
                   />
                 ) : null}
                 <CaptureDirectWebCaptureCard />
@@ -1132,16 +1205,23 @@ function CapturePageInner() {
         hasPrivateNote={internalNotes.trim().length > 0}
         warnings={sessionReadiness.warnings}
         totalBytes={totalStagedBytes}
-        onCancel={() => setReviewOpen(false)}
+        onCancel={() => {
+          setReviewOpen(false);
+          setReviewAcceptsLocationFailure(false);
+        }}
         onConfirm={() => {
           setReviewOpen(false);
-          void finalizeSession();
+          const acceptLocationFailure = reviewAcceptsLocationFailure;
+          setReviewAcceptsLocationFailure(false);
+          if (finishDisabled) return;
+          void (acceptLocationFailure ? finalizeWithoutLocation() : finalizeSession());
         }}
       />
 
       {/* F-P1-07 — the discard confirmation keeps keyboard focus (CaptureClearConfirmDialog). */}
       <CaptureClearConfirmDialog
         open={clearConfirmOpen}
+        reservedRecord={reservedEvidenceId ? (draftPersistence.draftId ? "released" : "expires") : null}
         onKeep={() => setClearConfirmOpen(false)}
         onClear={() => {
           setClearConfirmOpen(false);

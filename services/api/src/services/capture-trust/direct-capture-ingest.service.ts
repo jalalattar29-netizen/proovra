@@ -193,6 +193,8 @@ export const DIRECT_CAPTURE_DENIALS = {
   // UC-1 web capture.
   WEB_MANIFEST_REQUIRED: 400,
   WEB_MANIFEST_INVALID: 422,
+  // B4-F-103 — the manifest's capture window cannot be true on the server's clock.
+  CAPTURE_WINDOW_INVALID: 422,
   WEB_MANIFEST_DIGEST_UNDECLARED: 422,
   WEB_MANIFEST_ARTIFACT_MISMATCH: 422,
   // UC-2 screen capture.
@@ -240,6 +242,8 @@ export type DirectCaptureDenial = keyof typeof DIRECT_CAPTURE_DENIALS;
  * machine-readable contract; the message says what to do next.
  */
 export const DIRECT_CAPTURE_DENIAL_MESSAGES: Readonly<Partial<Record<DirectCaptureDenial, string>>> = {
+  CAPTURE_WINDOW_INVALID:
+    "The capture's start and end times cannot be right on PROOVRA's clock (a start after the end, an end in the future, or a start long before the session opened), so nothing was saved. Check the device's date, time and time zone, then capture again.",
   PART_ALREADY_DECLARED:
     "This part number is already declared in this capture session with a different file. Fetch the session's declared parts (GET /v1/capture/direct-sessions/:id/parts) and declare this file at the next free part number.",
   PART_LOST:

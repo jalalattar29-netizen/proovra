@@ -78,6 +78,8 @@ type Outcome =
   | { kind: "already_pending" }
   | { kind: "denied" }
   | { kind: "throttled" }
+  // B1-F-002 — nobody in that workspace could approve it; nothing was filed.
+  | { kind: "no_approver" }
   | { kind: "failed"; message: string };
 
 type WorkspaceOption = { id: string; name: string };
@@ -86,7 +88,27 @@ type ErrorLike = {
   statusCode?: number;
   code?: string;
   details?: Record<string, unknown>;
+  /** apiFetch: the route's flat `{ error: "<reason>" }`. */
+  flatReason?: string;
 };
+
+/**
+ * B1-F-002 — the API refuses (409 `no_eligible_approver`) a request nobody in
+ * the workspace could approve: a personal workspace has no other administrator,
+ * and a workspace owner's reset needs another organization owner. The person is
+ * told what they can still use, and what nobody can do for them.
+ */
+export const NO_ELIGIBLE_APPROVER_COPY =
+  "No one can approve a reset for your account in this workspace — a personal workspace has no other administrator — so no request was filed. To sign in, use another method you set up (an authenticator app, a passkey or your phone) or one of your saved single-use recovery codes. PROOVRA support cannot remove a second factor or sign you in for you. If you are still signed in somewhere, generate new recovery codes or add another second factor in Security settings now.";
+
+function isNoEligibleApprover(err: unknown): boolean {
+  const e = err as ErrorLike | null;
+  return (
+    e?.flatReason === "no_eligible_approver" ||
+    e?.code === "no_eligible_approver" ||
+    e?.details?.reason === "no_eligible_approver"
+  );
+}
 
 /** Bounded projection of GET .../recovery-requests/detail/:requestId. */
 type RequestDetail = {
@@ -430,7 +452,9 @@ export function MfaRecoveryRequestPanel({
       } catch (err) {
         if (!mountedRef.current || seq !== submitSeqRef.current) return;
         const status = statusOf(err);
-        if (status === 409) {
+        if (status === 409 && isNoEligibleApprover(err)) {
+          setOutcome({ kind: "no_approver" });
+        } else if (status === 409) {
           setOutcome({ kind: "already_pending" });
           const pendingId = detailsOf(err).requestId;
           setRequestNotice(null);
@@ -465,7 +489,7 @@ export function MfaRecoveryRequestPanel({
     eligibility.kind === "resolving"
       ? "Checking whether this browser can file a request…"
       : eligibility.kind === "no_session"
-        ? "Filing a recovery request needs an active session. Sign in on a device that still works, or ask a workspace administrator to start the reset for you."
+        ? "Filing a recovery request needs an active session. Sign in on a device that still works, or ask an administrator of your organization workspace to start the reset for you. PROOVRA support cannot remove a second factor."
         : eligibility.kind === "no_workspace"
           ? "No workspace membership was found for this account, so there is no administrator who could approve a reset."
           : null;
@@ -484,7 +508,9 @@ export function MfaRecoveryRequestPanel({
         If your authenticator and your recovery codes are both gone, file a
         request here. A workspace administrator reviews it. Approval only
         clears your second factor so you can enroll a new one — it never signs
-        you in and never grants access on its own.
+        you in and never grants access on its own. It needs an administrator of
+        an organization workspace you belong to: a personal workspace has none,
+        and PROOVRA support cannot remove a second factor.
       </p>
 
       <form onSubmit={onSubmit} aria-busy={busy} noValidate>
@@ -596,6 +622,7 @@ export function MfaRecoveryRequestPanel({
         {!busy && outcome.kind === "denied"
           ? "This account is not an active member of that workspace, so a reset cannot be requested there."
           : null}
+        {!busy && outcome.kind === "no_approver" ? NO_ELIGIBLE_APPROVER_COPY : null}
         {!busy && outcome.kind === "throttled"
           ? "Too many recovery requests from this account recently. Wait a while before filing another."
           : null}

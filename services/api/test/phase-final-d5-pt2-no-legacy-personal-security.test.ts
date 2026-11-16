@@ -307,7 +307,9 @@ describe("Phase Final-Vocab-Alignment — middleware APP_PREFIXES coverage", () 
       "/evidence-requests",
       "/workspaces",
       "/tools",
-      "/persona",
+      // B2A-F-15 (free-audit 0ea0, pin updated 2026-11-16): "/persona" left
+      // this list — no (app)-tree route exists there (it 308'd to a 404 on the
+      // app host). Pinned as absent below.
       "/dashboard",
     ];
     for (const p of required) {
@@ -315,6 +317,7 @@ describe("Phase Final-Vocab-Alignment — middleware APP_PREFIXES coverage", () 
         new RegExp(`["']${p.replace(/\//g, "\\/")}["']`),
       );
     }
+    expect(m).not.toMatch(/["']\/persona["']/);
   });
 
   it("middleware.ts APP_PREFIXES does NOT include the retired /identity prefix", () => {

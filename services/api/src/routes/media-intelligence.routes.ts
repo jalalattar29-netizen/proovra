@@ -46,6 +46,7 @@ import {
 import { listRecentRunsForEvidence } from "../services/media-intelligence/run-tracker.service.js";
 import { bump } from "../services/ops/metrics.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { workspaceIncludesAiCapability } from "../services/billing-enforcement.service.js";
 // Wave 3 Phase 7B — bounded custody emit on workspace MI refresh.
 import * as prismaPkg from "@prisma/client";
 import { appendInvestigationCustody } from "../services/investigation-custody.service.js";
@@ -246,6 +247,24 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      // B5A-F-10 (Free-user audit 0ea0) — the record is bound to the
+      // authorised workspace BEFORE anything is written or enqueued (the async
+      // path created a run row and a job for any id, and only the worker later
+      // refused team_mismatch), and the run is asked of the plan: media
+      // intelligence is content intelligence, which the catalog makes
+      // eligible on paid plans only (aiCapabilitiesIncluded). UI hiding was
+      // the only gate.
+      if (!(await bindDerivedRecord(reply, { evidenceId, teamId: body.teamId }))) return;
+      if (!(await workspaceIncludesAiCapability(body.teamId, "CONTENT_INTELLIGENCE"))) {
+        return reply.code(403).send({
+          error: {
+            code: "ENTITLEMENT_REQUIRED",
+            message: "Media intelligence is not included in this workspace's plan.",
+            details: { entitlement: "AI_CAPABILITY", capabilities: ["CONTENT_INTELLIGENCE"] },
+          },
+        });
+      }
+
       // Phase 31.6 — async path. When the client opts in, enqueue
       // the job onto the media-intelligence BullMQ queue and
       // return 202 Accepted with the run id. The worker picks it
@@ -415,10 +434,14 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
           `SELECT "id"
              FROM "evidence"
              WHERE "team_id" = $1 AND "deleted_at" IS NULL
+               AND NOT ("id" = ANY($3::uuid[]))
              ORDER BY "created_at" DESC
              LIMIT $2`,
           body.teamId,
           REFRESH_CAP,
+          // B3C-F-003 (free-audit 0ea0): a record a restricted case closes to
+          // the caller is neither analysed nor counted on their request.
+          (await hiddenRecordIdsInWorkspace(body.teamId, actor.actorUserId)).evidenceIds,
         )) as EvidenceRow[];
       } catch {
         return reply.code(503).send({

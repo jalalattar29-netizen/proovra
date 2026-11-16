@@ -21,11 +21,25 @@ export function describeReportDownloadFailure(error: unknown): {
 }
 
 /** The same resolver for either artifact kind; RGA-04 consumers should use this. */
+/**
+ * B5B-F-102 — a VIEWER (A2-14) holds download_package but not
+ * download_original, so the gate refuses the FULL_FORENSIC package with
+ * FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS. The shared vocabulary has no case for
+ * it yet (requested cross-lane) and fell to the 403 "blocked by workspace
+ * governance, a hold, or export eligibility" sentence — a false reason. Said
+ * here first, with the alternative the gate itself names.
+ */
+export const FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS_MESSAGE =
+  "The full forensic package contains the original files, which your role cannot download in this workspace. Download the external disclosure package from the record's Artifacts instead.";
+
 export function describeArtifactDownloadFailure(
   kind: ArtifactKind,
   error: unknown,
   context?: { version?: number | null },
 ): { message: string; tone: "info" | "error"; report: boolean } {
+  if ((error as { code?: unknown } | null)?.code === "FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS") {
+    return { message: FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS_MESSAGE, tone: "info", report: false };
+  }
   const resolved = resolveArtifactDownloadFailure(kind, error, context);
   if (resolved) {
     return {

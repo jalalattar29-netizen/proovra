@@ -910,6 +910,12 @@ async function activeAddonsFor(params: {
   teamId: string | null;
   showAmounts: boolean;
   canPurchaseAddons: boolean;
+  /**
+   * B6-F-62 (free audit 0ea0) — the cancel route asks BILLING_CANCEL only
+   * (AUD-08: stopping a charge needs no right to buy another), so the offer
+   * follows the same capability; a managed payer is offered what it may do.
+   */
+  canCancelAddons: boolean;
 }): Promise<ActiveStorageAddon[]> {
   // AUD-29 — an add-on bills its owner whichever workspace it was bought for, a
   // workspace since handed to someone else included, and this is the only surface
@@ -1001,9 +1007,13 @@ async function activeAddonsFor(params: {
       paymentDue: r.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
       endsAtUtc: ending ? iso(r.expiresAtUtc ?? r.currentPeriodEnd) : null,
       endingReason,
+      // B6-F-61 — an add-on already ending (cancelled, expiring, or held by a
+      // dependent cancellation) is not offered Cancel again: the route answers
+      // a repeat as a no-op.
       canCancel:
-        params.canPurchaseAddons &&
+        params.canCancelAddons &&
         !legacyOneTime &&
+        !ending &&
         (r.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
           r.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE),
       canRecheck:
@@ -1923,6 +1933,7 @@ export async function buildBillingAccountProjection(input: {
         teamId: scope.teamId,
         showAmounts,
         canPurchaseAddons: canAddon,
+        canCancelAddons: canCancel,
       })
     : [];
 

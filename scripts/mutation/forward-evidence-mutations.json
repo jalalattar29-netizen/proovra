@@ -1801,8 +1801,8 @@
     "phase": "P9",
     "name": "the web manifest validator skips the window check",
     "file": "packages/shared/src/web-capture-manifest.ts",
-    "find": "  if (windowProblem) return { ok: false, error: windowProblem };",
-    "replace": "  if (windowProblem && Date.now() < 0) return { ok: false, error: windowProblem };",
+    "find": "  if (windowProblem) return { ok: false, error: windowProblem, captureWindow: true };",
+    "replace": "  if (windowProblem && Date.now() < 0) return { ok: false, error: windowProblem, captureWindow: true };",
     "build": [
       "shared"
     ],

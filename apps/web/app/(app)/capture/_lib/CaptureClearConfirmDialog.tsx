@@ -14,14 +14,35 @@ import { useRef } from "react";
 
 import { useDialogFocus } from "../../../../lib/ui/dialogFocus";
 
+/**
+ * B4-F-207 — what Clear does to a record a failed Finish already reserved:
+ * "released" when the draft that holds it is discarded with the session (the
+ * server releases its reservation), "expires" when no draft holds it (the
+ * server's reservation sweep releases it), null when nothing was reserved.
+ */
+export type ClearReservedRecord = "released" | "expires" | null;
+
+export function clearSessionConsequence(reserved: ClearReservedRecord): string {
+  const base = "This will remove all staged materials, mapping, private notes, and local review progress.";
+  if (reserved === "released") {
+    return `${base} An unfinished evidence record was already reserved for this session; clearing releases it, and nothing is sealed.`;
+  }
+  if (reserved === "expires") {
+    return `${base} An unfinished evidence record was already reserved for this session; nothing is sealed, and it is released automatically within 24 hours.`;
+  }
+  return `${base} No evidence record has been created yet.`;
+}
+
 export function CaptureClearConfirmDialog({
   open,
   onKeep,
   onClear,
+  reservedRecord = null,
 }: {
   open: boolean;
   onKeep: () => void;
   onClear: () => void;
+  reservedRecord?: ClearReservedRecord;
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const keepRef = useRef<HTMLButtonElement | null>(null);
@@ -46,9 +67,7 @@ export function CaptureClearConfirmDialog({
             Clear this evidence session?
           </div>
           <p className="capture-confirm-text" id="capture-clear-text">
-            This will remove all staged materials, mapping, private notes,
-            and local review progress. No evidence record has been created
-            yet.
+            {clearSessionConsequence(reservedRecord)}
           </p>
         </div>
 

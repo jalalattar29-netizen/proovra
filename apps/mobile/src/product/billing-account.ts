@@ -79,6 +79,10 @@ export interface ActiveAddonModel {
   /** Cancelling the base plan also cancels this add-on (its SKU needs a paid plan). */
   endsWithPlan: boolean;
   canCancel: boolean;
+  /** B6-F-61 — the provider will not renew it; it keeps its capacity until `endsAtUtc`. */
+  ending: boolean;
+  /** The last day it is paid for, when it is ending. */
+  endsAtUtc: string | null;
   currentPeriodEndUtc: string | null;
   priceCents: number | null;
   currency: string | null;
@@ -86,6 +90,9 @@ export interface ActiveAddonModel {
 
 export interface BillingProjection {
   accountDisplayName: string;
+  /** B6-F-62 — the account's own type and the viewer's capabilities on it (projection `account`). */
+  accountType: string | null;
+  capabilities: string[];
   plan: {
     planKey: string;
     displayName: string;
@@ -121,7 +128,8 @@ export interface BillingProjection {
     derivedFromLegacyFallback: boolean;
   } | null;
   hasPlanOffers: boolean;
-  planOffers: Array<{ planKey: string }>;
+  /** B6-F-71 — each offer as the server composed it: its action and its own effect sentence. */
+  planOffers: Array<{ planKey: string; displayName: string; action: string | null; actionLabel: string | null; effectSummary: string | null }>;
   actionRequired: { severity: string; title: string; messages: string[]; reassurance: string | null } | null;
   dependentStorageCancellation: { actionAvailable: boolean; supportRequired: boolean } | null;
   storageAddons: {
@@ -206,6 +214,8 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
   const planKey = str(plan.planKey) ?? "";
   return {
     accountDisplayName: str(obj(p.account).displayName) ?? "",
+    accountType: str(obj(p.account).type),
+    capabilities: rows(obj(p.account).capabilities).filter((c): c is string => typeof c === "string"),
     plan: {
       planKey,
       displayName: str(plan.displayName) ?? planKey,
@@ -265,9 +275,14 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
       : null,
     hasPlanOffers: rows(p.planOffers).length > 0,
     planOffers: rows(p.planOffers)
-      .map((item) => str(obj(item).planKey))
-      .filter((key): key is string => key !== null)
-      .map((planKey) => ({ planKey })),
+      .map((item) => {
+        const o = obj(item);
+        const planKey = str(o.planKey);
+        return planKey
+          ? { planKey, displayName: str(o.displayName) ?? planKey, action: str(o.action), actionLabel: str(o.actionLabel), effectSummary: str(o.effectSummary) }
+          : null;
+      })
+      .filter((offer): offer is BillingProjection["planOffers"][number] => offer !== null),
     actionRequired: ar
       ? {
           severity: str(ar.severity) ?? "WARNING",
@@ -314,6 +329,8 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
                 // An older API omits it: then every recurring add-on was cascaded.
                 endsWithPlan: a.endsWithPlan !== false,
                 canCancel: a.canCancel === true,
+                ending: a.ending === true,
+                endsAtUtc: str(a.endsAtUtc),
                 currentPeriodEndUtc: str(a.currentPeriodEndUtc),
                 priceCents: num(a.priceCents),
                 currency: str(a.currency),
@@ -450,9 +467,73 @@ function parsePlanLapse(v: unknown): EvidenceAdmissionModel["planLapse"] {
 }
 
 /** format.ts `describeEvidenceAdmission`. */
+/** B6-F-68 — format.ts STORAGE_FULL_NEXT_RECORD, verbatim. */
+export const STORAGE_FULL_NEXT_RECORD = "Your storage is also full, so you need storage space for the next record too.";
+
+/** B6-F-66 — format.ts FREE_FIRST_ISSUANCE_STORAGE_NOTE, verbatim (product decision D-03). */
+export const FREE_FIRST_ISSUANCE_STORAGE_NOTE =
+  "The first report and verification package issued for each record included with Free do not count toward this storage.";
+
+/**
+ * B6-F-61 — format.ts `addonTermLine`: an ENDING add-on says when it ends and
+ * that it will not renew (D1), never "Renews <date>".
+ */
+export function addonTermLine(
+  addon: Pick<ActiveAddonModel, "legacyOneTime" | "ending" | "endsAtUtc" | "currentPeriodEndUtc">,
+  fmt: (iso: string | null) => string | null,
+): string {
+  if (addon.legacyOneTime) return "One-time purchase from before add-ons became monthly — kept, and never charged again.";
+  if (addon.ending) {
+    const ends = fmt(addon.endsAtUtc ?? addon.currentPeriodEndUtc);
+    return ends ? `Ends ${ends} — not renewing` : "Ends at the end of its paid period — not renewing";
+  }
+  const renews = fmt(addon.currentPeriodEndUtc);
+  return renews ? `Renews ${renews}` : "Recurring monthly";
+}
+
+/**
+ * B6-F-61 / B6-F-62 — format.ts `addonCancelOffered`: never on an ending row
+ * (already cancelled), and offered on BILLING_CANCEL — the capability the
+ * cancel route checks on the PERSONAL payer — even while the projection's
+ * `canCancel` still follows the purchase capability (CROSS-LANE).
+ */
+export function addonCancelOffered(
+  addon: Pick<ActiveAddonModel, "canCancel" | "ending" | "legacyOneTime" | "status">,
+  p: Pick<BillingProjection, "accountType" | "capabilities">,
+): boolean {
+  if (addon.ending || addon.legacyOneTime) return false;
+  if (addon.canCancel) return true;
+  const live = addon.status.toUpperCase() === "ACTIVE" || addon.status.toUpperCase() === "PAST_DUE";
+  return live && p.accountType === "PERSONAL" && p.capabilities.includes("BILLING_CANCEL");
+}
+
+/** B6-F-62 — BillingOverview.tsx: a viewer who may only cancel still needs the way in. */
+export function planManagementReachable(p: Pick<BillingProjection, "actions">): boolean {
+  return p.actions.planManagement.enabled || p.actions.canRequestCancellation;
+}
+
+/**
+ * B6-F-71 — billingMessages.ts `downgradeAddonNote`: what a move down leaves
+ * behind, said before the customer commits. The confirmation sends
+ * `confirmStorageEnding` exactly when this is shown.
+ */
+export function downgradeAddonNote(
+  p: Pick<BillingProjection, "storageAddons">,
+  offer: { action: string | null; displayName: string },
+): string | null {
+  if (offer.action !== "DOWNGRADE") return null;
+  const addons = (p.storageAddons?.active ?? []).filter(
+    (a) => a.endsWithPlan && !a.legacyOneTime && ["ACTIVE", "PAST_DUE"].includes(a.status.toUpperCase()),
+  );
+  if (addons.length === 0) return null;
+  const sizes = addons.map((a) => a.storageLabel).join(", ");
+  const one = addons.length === 1;
+  return `${offer.displayName} does not include your Team-size storage add-on${one ? "" : "s"} (${sizes}). If you continue, ${one ? "it stays until its" : "they stay until their"} paid date and then ${one ? "stops" : "stop"} renewing. Nothing replaces ${one ? "it" : "them"} and your evidence is kept, but you cannot add more while you are over your storage limit.`;
+}
+
 export function describeEvidenceAdmission(
   a: EvidenceAdmissionModel,
-  options: { canBuyCredits: boolean; hasPlanOffer: boolean },
+  options: { canBuyCredits: boolean; hasPlanOffer: boolean; storageFull?: boolean },
 ): { headline: string; breakdown: string | null; next: string; action: "BUY_CREDITS" | "SEE_PLANS" | null } {
   const held = a.recordsHeld.toLocaleString();
   const cap = a.effectiveLifetimeCap;
@@ -498,6 +579,9 @@ export function describeEvidenceAdmission(
     parts.push(lapse.outputs);
     next = lapse.nextRecord;
   }
+  // B6-F-68 — storage is enforced separately at upload: a credit sold "for the
+  // next record" while storage is full would be refused there. Say both.
+  if (options.storageFull) next = `${next} ${STORAGE_FULL_NEXT_RECORD}`;
   const needsAction = !a.next.allowed || a.next.funding === "EVIDENCE_CREDIT";
   const action = !needsAction ? null : options.canBuyCredits ? "BUY_CREDITS" : options.hasPlanOffer ? "SEE_PLANS" : null;
   return { headline, breakdown: parts.length > 0 ? parts.join(" ") : null, next, action };
@@ -862,7 +946,7 @@ export const BILLING_PAGE_COPY = {
     "Enterprise terms are set by your agreement. Your account manager is the person who can change them — this page cannot, and offering a checkout that replaced a signed agreement with a card payment would be worse than offering none.",
   cancelEvidenceNote: "Your existing evidence and custody records remain available under the applicable retention and access rules.",
   noSubscriptionBound:
-    "We cannot find a live subscription for this plan with your payment provider, so there is nothing here for us to stop. Please contact support and we will look at it with you — nothing will be charged again in the meantime without one.",
+    "We cannot find a live subscription for this plan with your payment provider, so there is nothing here for us to stop. Please contact support and we will look at it with you.",
   notAuthorized: "Ending this subscription is done by the account's billing owner.",
   taxNote: "Displayed prices exclude any taxes that may be handled by the payment provider where applicable.",
 } as const;
@@ -1006,12 +1090,12 @@ function pendingWords(provider: string, stripe: boolean, waitingFor: string | nu
     if (!hasResume) return "Stripe shows this payment as still settling. Nothing more is needed from you right now.";
     return resumeOffered
       ? "The Stripe payment page is still open and unpaid. You can continue checkout, or abandon it."
-      : "The Stripe payment page is still open and unpaid. To finish it, use Billing on the web, or abandon it here.";
+      : "The Stripe payment page is still open and unpaid. It cannot be finished in this app; you can abandon it here.";
   }
   if (waitingFor === "ACTIVATION") return `You approved this at ${provider} and ${provider} is activating it. PROOVRA keeps checking automatically; nothing more is needed from you.`;
   if (waitingFor === "PAYMENT_PROCESSING") return `${provider} is still processing this payment. PROOVRA keeps checking automatically; nothing more is needed from you.`;
   if (hasResume && resumeOffered) return `${provider} still shows this waiting for your approval. You can continue at ${provider}, or abandon it.`;
-  if (hasResume) return `${provider} still shows this waiting for your approval. To finish it, use Billing on the web, or abandon it here.`;
+  if (hasResume) return `${provider} still shows this waiting for your approval. It cannot be finished in this app; you can abandon it here.`;
   return `${provider} still shows this waiting for your approval. Nothing is charged unless you approve it; you can abandon it. Approvals not completed within 24 hours are closed automatically.`;
 }
 
@@ -1179,7 +1263,7 @@ export async function confirmStripeCheckoutReturn(input: {
 export function billingActivityNote(resumeAllowed: boolean): string {
   return resumeAllowed
     ? "Purchases that have not produced a completed payment. Check where each one stands, continue one that is still open, or abandon it."
-    : "Purchases that have not produced a completed payment. Check where each one stands or abandon it here. To finish an open purchase, use Billing on the web.";
+    : "Purchases that have not produced a completed payment. Check where each one stands or abandon it here.";
 }
 
 /** States only a person can move on from: the row offers Support, not a dead end. */
@@ -1222,11 +1306,13 @@ const REFUSAL_COPY: Readonly<Record<string, string>> = {
   PAYPAL_DIFFERENT_PLAN_PENDING: "A PayPal checkout for a different plan is already open. Check it under Billing activity before choosing another plan.",
   PLAN_CHECKOUT_ALREADY_OPEN: "A checkout for a plan is already open. Finish it, or resolve it under Billing activity before starting another.",
   CHECKOUT_IN_PROGRESS: "This checkout is already starting. Wait a moment, then look at Billing activity before trying again.",
+  // B6-F-02 — the previous credit purchase is paid/approved but not yet confirmed.
+  PREVIOUS_PURCHASE_CONFIRMING: "Your previous purchase is being confirmed — it will appear under Billing activity in a moment.",
   PLAN_ALREADY_ACTIVE: "We found your active subscription and updated this account. Nothing was started, and you have not been charged for a new plan.",
   STORAGE_ADDON_ALREADY_HELD: "You already pay for this storage size. Buying it again adds another recurring charge and more storage.",
   STORAGE_PURCHASE_PENDING: "This storage size already has a purchase open with your other payment method. Check that purchase before starting another, so you are not billed twice.",
   PAYPAL_STORAGE_APPROVAL_PENDING: "A PayPal storage purchase is already open on this account. Check its status under Billing activity before starting another.",
-  PLAN_CHANGE_ENDS_STORAGE: "This plan does not include some of your storage. It stays until its paid date and then stops renewing. Nothing was changed. Review and confirm this change under Billing on the web.",
+  PLAN_CHANGE_ENDS_STORAGE: "This plan does not include some of your storage. It stays until its paid date and then stops renewing. Nothing was changed. Choose the plan again to review that storage and confirm the change.",
   PLAN_CHANGE_STORAGE_MUST_END_FIRST: "This plan does not include your Team storage, and we cannot stop that add-on from here. Nothing was changed. Contact support to end the add-on, then change your plan.",
   STORAGE_ADDON_PREREQUISITE_ENDING: "Your plan is set to end, so this storage add-on cannot be added. Restart your plan first, then add storage.",
   STORAGE_ADDON_NOT_INCLUDED: "Extra storage is not available for this account.",

@@ -255,13 +255,13 @@ function CapturePreview() {
             <div className="flex-1 truncate rounded border border-[#E5E7EB] bg-[#F8FAFC] px-2 py-1 font-mono text-[9px] text-[#475569]">
               proovra.com/intake/abc123
             </div>
-            <button
-              type="button"
+            {/* R1-F-06 — illustration, not a control: a span takes no focus. */}
+            <span
               className="rounded px-2 py-1 text-[9px] font-bold text-white"
               style={{ background: "#F97316" }}
             >
               Copy Link
-            </button>
+            </span>
           </div>
         </div>
 
@@ -383,13 +383,13 @@ function AIPreview() {
             <AlertCircle size={10} strokeWidth={2.2} className="text-[#7C3AED]" />
             Add location data
           </span>
-          <button
-            type="button"
+          {/* R1-F-06 — illustration, not a control: a span takes no focus. */}
+          <span
             className="rounded-full px-2 py-0.5 text-[8.5px] font-bold text-white"
             style={{ background: "#7C3AED" }}
           >
             Resolve
-          </button>
+          </span>
         </div>
       </div>
     </div>

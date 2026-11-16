@@ -17,7 +17,15 @@
  *     config plugin on every prebuild);
  *   - App Group parity across app.json, the EAS appExtensions declaration, the
  *     extension entitlements and both Swift sides;
- *   - both privacy manifests are present and wired.
+ *   - both privacy manifests are present and wired;
+ *   - (B6-F-64) the ENVIRONMENT the release runs in does not carry the
+ *     private-distribution flags either. `externalCheckoutEnabled()` reads
+ *     them at bundle time from whatever env the build sees — eas.json is one
+ *     source, the build machine's own environment is another (`eas build
+ *     --local`, or a CI step that exports them). The EAS-dashboard
+ *     "production" environment variables are a third, readable only with an
+ *     Expo token; that check stays a runtime one (`eas env:list --environment
+ *     production` must list neither flag).
  *
  * Nothing here reads credentials; the workflow gates those separately.
  */
@@ -44,7 +52,20 @@ export function readReleaseInputs(mobileRoot = MOBILE) {
     pluginSource: read("plugins/withProovraIosScreenBroadcast.cjs"),
     sampleHandler: read("plugins/broadcast-extension/SampleHandler.swift"),
     iosModule: read("modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift"),
+    buildEnv: pickPrivateFlags(process.env),
   };
+}
+
+/** The two flags that turn on in-app checkout, as an environment sets them. */
+export const PRIVATE_DISTRIBUTION_FLAGS = ["EXPO_PUBLIC_DISTRIBUTION", "EXPO_PUBLIC_PRIVATE_BILLING"];
+
+export function pickPrivateFlags(env) {
+  const out = {};
+  for (const flag of PRIVATE_DISTRIBUTION_FLAGS) {
+    const value = env?.[flag];
+    if (typeof value === "string" && value.trim() !== "") out[flag] = value;
+  }
+  return out;
 }
 
 /** PURE — the problems that block a store release; [] means releasable. */
@@ -76,9 +97,13 @@ export function validateMobileRelease(inputs) {
       fail(`build.production.android.buildType is "${prod.android.buildType}", not app-bundle`);
     }
     if (prod.android?.gradleCommand && /Debug/i.test(prod.android.gradleCommand)) fail("build.production.android.gradleCommand builds Debug");
-    for (const flag of ["EXPO_PUBLIC_DISTRIBUTION", "EXPO_PUBLIC_PRIVATE_BILLING"]) {
+    for (const flag of PRIVATE_DISTRIBUTION_FLAGS) {
       if (prod.env && flag in prod.env) fail(`build.production.env sets the private-distribution flag ${flag}`);
     }
+  }
+  // B6-F-64 — the resolved build environment, not only eas.json.
+  for (const flag of Object.keys(inputs.buildEnv ?? {})) {
+    fail(`the release environment sets the private-distribution flag ${flag}; a store build must be produced without it`);
   }
   if (!eas?.submit?.production) fail("eas.json has no submit.production profile");
 

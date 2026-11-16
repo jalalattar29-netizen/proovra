@@ -124,16 +124,19 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/app/api/_marketing-leads.ts:326",
+      "site": "apps/web/app/api/_marketing-leads.ts:343",
       "helper": "handleLeadSubmission -> fetch(`${apiBase}${config.upstreamPath}`)",
       "callSitesRead": [
-        "apps/web/app/api/_marketing-leads.ts:25-28"
+        "apps/web/app/api/_marketing-leads.ts:25-28",
+        "apps/web/app/api/_marketing-leads.ts:343",
+        "apps/web/app/api/contact-sales/route.ts:12",
+        "apps/web/app/api/request-demo/route.ts:12"
       ],
       "routes": [
         "POST /v1/contact-sales",
         "POST /v1/demo-requests"
       ],
-      "evidence": "The LeadConfig table in the same file pins upstreamPath to exactly these two API routes, one per sourcePage (\"contact-sales\" and \"request-demo\"). This is the SERVER half of the two public marketing forms: the browser posts to the Next.js route handler, which forwards to the API, so the API routes are product-reachable even though no browser code names their paths.",
+      "evidence": "The LeadConfig table in the same file pins upstreamPath to exactly these two API routes, one per sourcePage (\"contact-sales\" and \"request-demo\"). This is the SERVER half of the two public marketing forms: the browser posts to the Next.js route handler, which forwards to the API, so the API routes are product-reachable even though no browser code names their paths. | Re-anchored :326 -> :343 on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up): seventeen lines, from the field-error helper added at :61 above it. Verified BY READING: :343 is `const upstream = await fetch(`${apiBase}${config.upstreamPath}`, {`; upstreamPath is still set only by the two route handlers, \"/v1/contact-sales\" (contact-sales/route.ts:12) and \"/v1/demo-requests\" (request-demo/route.ts:12).",
       "reviewedAtUtc": "2026-08-16"
     },
     {
@@ -237,14 +240,14 @@
       "reviewedAtUtc": "2026-09-22"
     },
     {
-      "site": "apps/mobile/app/(tabs)/notifications.tsx:180",
-      "helper": "inboxItemActionPath(itemKey, action) — action is the InboxItemAction union; re-anchored to :180 (2026-10-17: the KPI grid left the screen); earlier from :184, :176 (the localised notification text imports moved the lines; earlier from :156); replaces the :103 (remind) and :127 entries, whose calls 9266916 merged into act()",
+      "site": "apps/mobile/app/(tabs)/notifications.tsx:184",
+      "helper": "inboxItemActionPath(itemKey, action) — action is the InboxItemAction union; re-anchored to :184 on 2026-11-16 (four import lines added above it; earlier to :180 on 2026-10-17: the KPI grid left the screen); earlier from :184, :176 (the localised notification text imports moved the lines; earlier from :156); replaces the :103 (remind) and :127 entries, whose calls 9266916 merged into act()",
       "callSitesRead": [
-        "apps/mobile/app/(tabs)/notifications.tsx:180",
-        "apps/mobile/app/(tabs)/notifications.tsx:201",
-        "apps/mobile/app/(tabs)/notifications.tsx:449",
-        "apps/mobile/app/(tabs)/notifications.tsx:460",
-        "apps/mobile/app/(tabs)/notifications.tsx:469"
+        "apps/mobile/app/(tabs)/notifications.tsx:184",
+        "apps/mobile/app/(tabs)/notifications.tsx:214",
+        "apps/mobile/app/(tabs)/notifications.tsx:503",
+        "apps/mobile/app/(tabs)/notifications.tsx:514",
+        "apps/mobile/app/(tabs)/notifications.tsx:523"
       ],
       "routes": [
         "POST /v1/me/inbox/items/:itemKey/read",
@@ -252,7 +255,7 @@
         "POST /v1/me/inbox/items/:itemKey/archive",
         "POST /v1/me/inbox/items/:itemKey/unarchive"
       ],
-      "evidence": "act(item, action) is called with \"read\" (:205, :475), \"unread\" (:475), \"unarchive\" (:486) and \"archive\" (:495). \"remind\" is no longer called anywhere in apps/mobile, so POST …/remind is NOT credited to mobile any more.",
+      "evidence": "act(item, action) is called with \"read\" (:205, :475), \"unread\" (:475), \"unarchive\" (:486) and \"archive\" (:495). \"remind\" is no longer called anywhere in apps/mobile, so POST …/remind is NOT credited to mobile any more. | Re-anchored :180 -> :184 on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up): four import lines added above it. Verified BY READING: :184 is `await apiFetch(inboxItemActionPath(item.itemKey, action), { method: \"POST\" });` inside act(); act is called with \"read\" (:214, :503), \"unread\" (:503), \"unarchive\" (:514) and \"archive\" (:523). Still no \"remind\" caller.",
       "reviewedAtUtc": "2026-09-25"
     },
     {
@@ -272,18 +275,18 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/settings/security.tsx:257",
+      "site": "apps/mobile/app/(stack)/settings/security.tsx:258",
       "helper": "buildIdentityLinkPath(mode) — mode is \"google\" | \"apple\"",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/settings/security.tsx:254",
-        "apps/mobile/app/(stack)/settings/security.tsx:257",
+        "apps/mobile/app/(stack)/settings/security.tsx:255",
+        "apps/mobile/app/(stack)/settings/security.tsx:258",
         "apps/mobile/src/product/account-security.ts"
       ],
       "routes": [
         "POST /v1/identity/links/google",
         "POST /v1/identity/links/apple"
       ],
-      "evidence": "The enclosing handler is typed (mode: \"google\" | \"apple\", idToken) and buildIdentityLinkPath returns `/v1/identity/links/${provider}`.",
+      "evidence": "The enclosing handler is typed (mode: \"google\" | \"apple\", idToken) and buildIdentityLinkPath returns `/v1/identity/links/${provider}`. | Re-anchored :257 -> :258 on 2026-11-16 (Free-user audit 0ea0 High remediation): B1-F-002 added recovery-codes guidance state above the identity-link handler. Verified BY READING: the same call at the new line.",
       "reviewedAtUtc": "2026-09-25"
     },
     {
@@ -399,15 +402,15 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:426",
+      "site": "apps/mobile/app/(stack)/billing.tsx:528",
       "helper": "checkoutRequest(purchase, provider, currency).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/billing.tsx:400",
-        "apps/mobile/app/(stack)/billing.tsx:408",
+        "apps/mobile/app/(stack)/billing.tsx:428",
+        "apps/mobile/app/(stack)/billing.tsx:519",
+        "apps/mobile/app/(stack)/billing.tsx:528",
         "apps/mobile/src/product/billing-purchase.ts"
       ],
       "routes": [
-        "POST /v1/billing/subscription/plan",
         "POST /v1/billing/checkout/stripe",
         "POST /v1/billing/checkout/paypal",
         "POST /v1/billing/credits/checkout/stripe",
@@ -415,37 +418,36 @@
         "POST /v1/billing/storage-addons/checkout/stripe",
         "POST /v1/billing/storage-addons/checkout/paypal"
       ],
-      "evidence": "checkoutRequest returns: PLAN → transition ? \"/v1/billing/subscription/plan\" : `/v1/billing/checkout/${provider}`; CREDITS → `/v1/billing/credits/checkout/${provider}`; STORAGE → `/v1/billing/storage-addons/checkout/${provider}`; provider is \"stripe\" | \"paypal\". | Re-anchored :408 -> :426 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged.",
+      "evidence": "checkoutRequest returns: PLAN → transition ? \"/v1/billing/subscription/plan\" : `/v1/billing/checkout/${provider}`; CREDITS → `/v1/billing/credits/checkout/${provider}`; STORAGE → `/v1/billing/storage-addons/checkout/${provider}`; provider is \"stripe\" | \"paypal\". | Re-anchored :408 -> :426 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged. | Re-anchored :426 -> :528 on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up), and NARROWED: B6-F-71 moved the plan change out to confirmPlanChange (:459, its own entry). The only PLAN intent this purchase path now builds is offerPurchase({ kind: \"PLAN\", plan, transition: false }) at :428, so checkoutRequest can only yield /v1/billing/checkout/${provider} for a plan here; POST /v1/billing/subscription/plan is credited at :459 instead of being declared reachable from this site.",
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:439",
-      "helper": "checkoutRequest({ ...purchase, transition: false }, provider, currency).path — the CHECKOUT_REQUIRED fallback of a plan transition",
+      "site": "apps/mobile/app/(stack)/billing.tsx:459",
+      "helper": "planChangeRequest(plan, confirmStorageEnding).path — a one-route table (apps/mobile/src/product/billing-purchase.ts:69)",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/billing.tsx:420",
-        "apps/mobile/app/(stack)/billing.tsx:421"
+        "apps/mobile/app/(stack)/billing.tsx:458",
+        "apps/mobile/app/(stack)/billing.tsx:459",
+        "apps/mobile/src/product/billing-purchase.ts"
       ],
       "routes": [
-        "POST /v1/billing/checkout/stripe",
-        "POST /v1/billing/checkout/paypal"
+        "POST /v1/billing/subscription/plan"
       ],
-      "evidence": "Reached only when purchase.kind === \"PLAN\" && purchase.transition, re-issued with transition: false, so the table yields `/v1/billing/checkout/${provider}` only. | Re-anchored :421 -> :439 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged.",
-      "reviewedAtUtc": "2026-09-25"
+      "evidence": "planChangeRequest always returns path \"/v1/billing/subscription/plan\" (B6-F-71, Free-user audit 0ea0). Replaces the removed :439 entry (the CHECKOUT_REQUIRED fallback to POST /v1/billing/checkout/{stripe,paypal}), which no longer exists: those two routes stay credited at :528. Reviewed BY READING on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up).",
+      "reviewedAtUtc": "2026-11-16"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:358",
+      "site": "apps/mobile/app/(stack)/billing.tsx:392",
       "helper": "payPalReturnConfirmation(response, provider).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/billing.tsx:343",
-        "apps/mobile/app/(stack)/billing.tsx:352",
-        "apps/mobile/app/(stack)/billing.tsx:408",
+        "apps/mobile/app/(stack)/billing.tsx:392",
+        "apps/mobile/app/(stack)/billing.tsx:549",
         "apps/mobile/src/product/billing-purchase.ts"
       ],
       "routes": [
         "POST /v1/billing/credits/checkout/paypal/:orderId/capture",
         "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm"
       ],
-      "evidence": "payPalReturnConfirmation returns null for Stripe and for malformed ids; otherwise ORDER_CAPTURE → `/v1/billing/credits/checkout/paypal/${encodeURIComponent(orderId)}/capture` or SUBSCRIPTION_CONFIRM → `/v1/billing/checkout/paypal/subscriptions/${encodeURIComponent(subscriptionId)}/confirm`. | Re-anchored :352 -> :358 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged.",
+      "evidence": "payPalReturnConfirmation returns null for Stripe and for malformed ids; otherwise ORDER_CAPTURE → `/v1/billing/credits/checkout/paypal/${encodeURIComponent(orderId)}/capture` or SUBSCRIPTION_CONFIRM → `/v1/billing/checkout/paypal/subscriptions/${encodeURIComponent(subscriptionId)}/confirm`. | Re-anchored :352 -> :358 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged. | Re-anchored :358 -> :392 on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up). Verified BY READING: the same call; confirmation is now set at :549. Routes unchanged.",
       "reviewedAtUtc": "2026-09-28"
     }
   ]

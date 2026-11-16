@@ -36,6 +36,7 @@
 import { useState } from "react";
 
 import { ProovraAlert } from "../feedback/ProovraAlert";
+import { handleTablistKeyDown, panelId, tabId } from "../../lib/a11y/tablist-keyboard";
 import { PageShell, PageSection } from "../ui";
 
 import "./home.css";
@@ -84,7 +85,6 @@ export function SelfServeHomeDashboard() {
 
   const vm = state.viewModel;
   // Server-projected entitlements (fail-closed booleans), not plan names.
-  const reportsIncluded = vm.features.reportsIncluded;
   const intakeIncluded = vm.features.intakeIncluded;
 
   return (
@@ -134,13 +134,20 @@ export function SelfServeHomeDashboard() {
         role="tablist"
         aria-label="Workspace views"
         data-home-tabs
+        // B2A-F-18 — the WAI-ARIA tabs contract: arrows/Home/End move and
+        // select, only the selected tab is in the Tab order, and each tab
+        // names the panel it controls.
+        onKeyDown={(e) => handleTablistKeyDown(e, "home", HOME_TAB_IDS, tab, setTab)}
       >
         {HOME_TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             role="tab"
+            id={tabId("home", t.id)}
+            aria-controls={panelId("home", t.id)}
             aria-selected={tab === t.id}
+            tabIndex={tab === t.id ? 0 : -1}
             className="home-tab"
             data-home-tab={t.id}
             onClick={() => setTab(t.id)}
@@ -151,7 +158,13 @@ export function SelfServeHomeDashboard() {
       </div>
 
       {tab === "overview" ? (
-        <div className="home-tabpanel" role="tabpanel" data-home-tabpanel="overview">
+        <div
+          className="home-tabpanel"
+          role="tabpanel"
+          id={panelId("home", "overview")}
+          aria-labelledby={tabId("home", "overview")}
+          data-home-tabpanel="overview"
+        >
           {/* Operational summary band — one state, one sentence, one action. */}
           <ExecutiveSummaryBand summary={vm.executiveSummary} />
 
@@ -210,14 +223,23 @@ export function SelfServeHomeDashboard() {
             )}
             <div className="home-overview-col">
               <RecentEvidenceCard rows={vm.richRecentEvidence} />
-              <ActiveMatters rows={vm.activeMatters} summary={vm.caseHealthSummary} />
+              {/* B2A-F-04 — no matters card where the plan has no cases. */}
+              {vm.features.casesIncluded ? (
+                <ActiveMatters rows={vm.activeMatters} summary={vm.caseHealthSummary} />
+              ) : null}
             </div>
           </div>
         </div>
       ) : null}
 
       {tab === "operations" ? (
-        <div className="home-tabpanel" role="tabpanel" data-home-tabpanel="operations">
+        <div
+          className="home-tabpanel"
+          role="tabpanel"
+          id={panelId("home", "operations")}
+          aria-labelledby={tabId("home", "operations")}
+          data-home-tabpanel="operations"
+        >
           {/* Operational production modules — trust posture, verification
               health, report production, and the intake pipeline. */}
           <PageSection
@@ -233,7 +255,13 @@ export function SelfServeHomeDashboard() {
               <TrustStateCard trust={vm.trustState} />
             </div>
             <div className="home-ops-row-2" style={{ marginTop: 16 }}>
-              <ReportProductionCard production={vm.reportProduction} isFreePlan={!reportsIncluded} />
+              {/* B2A-F-17 — the Free-allowance copy follows the server's record
+                  allowance (a plan with a lifetime record cap), not
+                  `!reportsIncluded`, which FREE never satisfies. */}
+              <ReportProductionCard
+                production={vm.reportProduction}
+                isFreePlan={vm.recordAllowance !== null && vm.recordAllowance.cap !== null}
+              />
               <IntakePipelineCard
                 pipeline={vm.intakePipeline}
                 workspaceId={vm.workspaceId}
@@ -246,7 +274,13 @@ export function SelfServeHomeDashboard() {
       ) : null}
 
       {tab === "analytics" ? (
-        <div className="home-tabpanel" role="tabpanel" data-home-tabpanel="analytics">
+        <div
+          className="home-tabpanel"
+          role="tabpanel"
+          id={panelId("home", "analytics")}
+          aria-labelledby={tabId("home", "analytics")}
+          data-home-tabpanel="analytics"
+        >
           {/* Row 1 — Records by Type + Evidence Activity (balanced two-col;
               Workspace Health moved to Overview). Row 2 — the full-width
               Recent Activity module. Storage lives in the sidebar. */}
@@ -282,6 +316,7 @@ const HOME_TABS: ReadonlyArray<{ id: HomeTabId; label: string }> = [
   { id: "operations", label: "Operations" },
   { id: "analytics", label: "Analytics" },
 ];
+const HOME_TAB_IDS: ReadonlyArray<HomeTabId> = HOME_TABS.map((t) => t.id);
 
 // Phase 7C — PageShell owns the page frame (max-width, `--page-pad-x`,
 // `--page-pad-y`, section gap), matching every other authenticated page.

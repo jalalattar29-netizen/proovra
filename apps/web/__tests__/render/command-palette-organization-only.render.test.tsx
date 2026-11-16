@@ -117,7 +117,9 @@ describe("resolver CTAs lead somewhere reachable", () => {
       capabilities: {} as never,
       accountPlan: "FREE",
       isEnterpriseWorkspace: false,
-      planFeatures: ENVELOPE.planFeatures as never,
+      // B2A-F-04 — Cases is nav-gated on casesIncluded; a plan that includes
+      // cases reaches the capability check this test is about.
+      planFeatures: { ...ENVELOPE.planFeatures, casesIncluded: true } as never,
       workspace: WORKSPACE as never,
       personalSpace: WORKSPACE as never,
     });

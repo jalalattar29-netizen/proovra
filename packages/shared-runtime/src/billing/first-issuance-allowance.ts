@@ -60,6 +60,34 @@
  * packages stay exactly where they are, and records that already have
  * first-issued outputs are excluded by the same rule the moment this is read.
  *
+ * FREE-AUDIT 0ea0 REMEDIATION (API-G4B, 2026-11-16) — two populations join
+ * the same rule, both server-decided, neither chosen by a customer:
+ *
+ *   B5B-F-400  the AUTOMATIC chain-verified version. When the worker verifies
+ *              a record's OpenTimestamps proof against Bitcoin it issues a new
+ *              report version on its own (request purpose
+ *              `ots_upgrade_completed`, a machine principal, no route takes
+ *              a purpose from a caller). That re-issue of the first issuance
+ *              with its anchoring completed IS first issuance: a version it
+ *              commits whose `previousReportVersion` is first issuance is
+ *              first issuance too, exactly like a missing-file recovery. It
+ *              used to be metered as if the customer had chosen a new version,
+ *              silently spending the room records 2 and 3 were promised.
+ *   B5B-F-403  a CREDIT-FUNDED record (its fact is the CONSUMPTION ledger
+ *              row). Its first issuance is already exempt from storage refusal
+ *              (`STORAGE_EXEMPT_FIRST_ISSUANCE_BASES` includes
+ *              EVIDENCE_CREDIT); it is now also left out of the
+ *              customer-facing figure, so a paid record no longer pushes a
+ *              Free account over its limit with a second copy of its own
+ *              original.
+ *   B4-F-002   the DERIVED review materials of an entitled Free record
+ *              (thumbnails, frames, waveforms, proxies — EvidencePartDerivedAsset
+ *              objects the system generates from the originals). D-03 meters
+ *              Free on UPLOADED material, originals counted once, and Pricing
+ *              says the same; derived bytes counted against the 250 MiB were
+ *              neither uploaded nor gated. Paid plans keep counting them (UC-0
+ *              D5); `actualStorageBytes` still includes them everywhere.
+ *
  * Shared by the API and worker calculators so the two cannot disagree.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -92,6 +120,26 @@ export const MISSING_OUTPUT_RECOVERY_PURPOSE = "missing_output_recovery" as cons
  */
 export const MISSING_OUTPUT_RECOVERY_KEY_PREFIX = "recover-missing:" as const;
 
+/**
+ * B5B-F-400 — the server-only purpose of the worker's automatic version after
+ * an OpenTimestamps proof is chain-verified (`ots-anchored-version.ts`). Equal
+ * to the `REPORT_GENERATION_PURPOSES` member of the same name; only a machine
+ * principal (`requestedByMachineId` set) qualifies.
+ */
+export const OTS_CHAIN_VERIFIED_REISSUE_PURPOSE = "ots_upgrade_completed" as const;
+
+/**
+ * The request shapes whose committed version re-issues first issuance: the
+ * AUD-011 missing-file recovery, and the automatic chain-verified version
+ * requested by a machine principal.
+ */
+const SYSTEM_REISSUE_REQUEST_WHERE = {
+  OR: [
+    { purpose: MISSING_OUTPUT_RECOVERY_PURPOSE },
+    { purpose: OTS_CHAIN_VERIFIED_REISSUE_PURPOSE, requestedByMachineId: { not: null } },
+  ],
+} as const satisfies Prisma.ReportGenerationRequestWhereInput;
+
 /** Request stages at which the request's report version is COMMITTED. */
 const REPORT_COMMITTED_STAGES = ["REPORT_COMMITTED", "PACKAGE_PUBLISHED"];
 /** States of a request still running (its reserved version not yet committed). */
@@ -99,8 +147,10 @@ const LIVE_REQUEST_STATES = ["QUEUED", "PROCESSING", "FAILED_RETRYABLE"];
 
 /**
  * THE RULE (pure). Which of a record's report versions are its first issuance:
- * the lowest version, and every version issued by a missing-file recovery
- * (`recoveryVersions`) whose `previousReportVersion` is already first issuance.
+ * the lowest version, and every version issued by a system re-issue — a
+ * missing-file recovery or the automatic chain-verified version
+ * (`recoveryVersions`) — whose `previousReportVersion` is already first
+ * issuance.
  */
 export function firstIssuanceReportVersions(
   reports: ReadonlyArray<{ version: number; previousReportVersion: number | null }>,
@@ -124,7 +174,7 @@ export function firstIssuanceReportVersions(
 
 type ReportReader = Pick<PrismaClient, "report" | "reportGenerationRequest">;
 
-/** Committed missing-file recovery versions per record. */
+/** Committed system re-issue versions (recovery, chain-verified) per record. */
 async function committedRecoveryVersions(
   client: Pick<PrismaClient, "reportGenerationRequest">,
   evidenceIds: string[],
@@ -134,7 +184,7 @@ async function committedRecoveryVersions(
   const rows = await client.reportGenerationRequest.findMany({
     where: {
       evidenceId: { in: evidenceIds },
-      purpose: MISSING_OUTPUT_RECOVERY_PURPOSE,
+      ...SYSTEM_REISSUE_REQUEST_WHERE,
       stage: { in: REPORT_COMMITTED_STAGES },
       reportVersion: { not: null },
     },
@@ -198,14 +248,25 @@ export async function firstIssuanceVersionsByRecord(
  * Such an artifact is not customer storage, so the allowance never refuses it.
  */
 export async function isAllowanceExcludedFirstIssuance(
-  client: Pick<PrismaClient, "evidence" | "report" | "reportGenerationRequest">,
+  client: Pick<PrismaClient, "evidence" | "report" | "reportGenerationRequest" | "evidenceCreditLedgerEntry">,
   input: { evidenceId: string; version: number },
 ): Promise<boolean> {
   const earned = await client.evidence.findUnique({
     where: { id: input.evidenceId },
     select: { outputEarnedPlan: true, outputEarnedBasis: true },
   });
-  if (!isFreeAllowanceEarnedFact(earned)) return false;
+  // B5B-F-403 — or credit-funded: no plan-based fact, a CONSUMPTION ledger row.
+  const covered =
+    isFreeAllowanceEarnedFact(earned) ||
+    (earned != null &&
+      earned.outputEarnedBasis == null &&
+      (
+        await client.evidenceCreditLedgerEntry.findUnique({
+          where: { evidenceId: input.evidenceId },
+          select: { entryType: true },
+        })
+      )?.entryType === "CONSUMPTION");
+  if (!covered) return false;
   const reports = await client.report.findMany({
     where: { evidenceId: input.evidenceId },
     select: { version: true, previousReportVersion: true },
@@ -222,11 +283,15 @@ export async function isAllowanceExcludedFirstIssuance(
   const requests = await client.reportGenerationRequest.findMany({
     where: {
       evidenceId: input.evidenceId,
-      purpose: MISSING_OUTPUT_RECOVERY_PURPOSE,
       reportVersion: { not: null },
-      OR: [
-        { stage: { in: REPORT_COMMITTED_STAGES } },
-        { reportVersion: input.version, state: { in: LIVE_REQUEST_STATES } },
+      AND: [
+        SYSTEM_REISSUE_REQUEST_WHERE,
+        {
+          OR: [
+            { stage: { in: REPORT_COMMITTED_STAGES } },
+            { reportVersion: input.version, state: { in: LIVE_REQUEST_STATES } },
+          ],
+        },
       ],
     },
     select: { reportVersion: true },
@@ -242,7 +307,9 @@ export type FirstIssuanceAllowanceExclusion = {
   reportBytes: bigint;
   /** Bytes of every published package row of those versions. */
   packageBytes: bigint;
-  /** reportBytes + packageBytes: what the customer-facing figure leaves out. */
+  /** B4-F-002 — stored derived review materials of the entitled Free records. */
+  derivedBytes: bigint;
+  /** reportBytes + packageBytes + derivedBytes: what the customer-facing figure leaves out. */
   totalBytes: bigint;
 };
 
@@ -250,6 +317,7 @@ const NOTHING_EXCLUDED: FirstIssuanceAllowanceExclusion = {
   records: 0,
   reportBytes: 0n,
   packageBytes: 0n,
+  derivedBytes: 0n,
   totalBytes: 0n,
 };
 
@@ -267,17 +335,52 @@ function toBytes(value: unknown): bigint {
  */
 export async function measureFirstIssuanceAllowanceExclusion(
   // AUD-0017 — any client with the delegates, so a transaction passes its own.
-  client: Pick<PrismaClient, "evidence" | "report" | "verificationPackage" | "reportGenerationRequest">,
+  client: Pick<
+    PrismaClient,
+    | "evidence"
+    | "report"
+    | "verificationPackage"
+    | "reportGenerationRequest"
+    | "evidenceCreditLedgerEntry"
+    | "evidencePartDerivedAsset"
+  >,
   evidenceWhere: Prisma.EvidenceWhereInput,
 ): Promise<FirstIssuanceAllowanceExclusion> {
-  const records = await client.evidence.findMany({
+  const free = await client.evidence.findMany({
     where: { AND: [evidenceWhere, FREE_ALLOWANCE_EARNED_EVIDENCE_WHERE] },
     select: { id: true },
   });
+  // B5B-F-403 — credit-funded records of the same population: no plan-based
+  // earned fact (a credit's fact is its ledger row) and at least one committed
+  // report (a record with none has nothing to exclude).
+  const creditCandidates = await client.evidence.findMany({
+    where: { AND: [evidenceWhere, { outputEarnedBasis: null }, { reports: { some: {} } }] },
+    select: { id: true },
+  });
+  const credit = await creditFundedEvidenceIds(client, creditCandidates.map((r) => r.id));
+  const freeIds = new Set(free.map((r) => r.id));
+  const records = [...free, ...creditCandidates.filter((r) => credit.has(r.id) && !freeIds.has(r.id))];
   if (records.length === 0) return NOTHING_EXCLUDED;
 
+  // B4-F-002 — the entitled Free records' derived review materials, counted by
+  // the derived sum exactly as `sumDerivedAssetStorageBytes` counts them (a
+  // stored pointer, whatever the status).
+  const derivedBytes =
+    free.length === 0
+      ? 0n
+      : toBytes(
+          (
+            await client.evidencePartDerivedAsset.aggregate({
+              where: { evidenceId: { in: free.map((r) => r.id) }, storageKey: { not: null } },
+              _sum: { sizeBytes: true },
+            })
+          )?._sum?.sizeBytes ?? 0,
+        );
+
   const first = await readFirstIssuance(client, records.map((r) => r.id));
-  if (first.size === 0) return { ...NOTHING_EXCLUDED, records: records.length };
+  if (first.size === 0) {
+    return { ...NOTHING_EXCLUDED, records: records.length, derivedBytes, totalBytes: derivedBytes };
+  }
   let reportBytes = 0n;
   for (const { versions, reports } of first.values()) {
     for (const r of reports) if (versions.has(r.version)) reportBytes += toBytes(r.sizeBytes);
@@ -296,6 +399,44 @@ export async function measureFirstIssuanceAllowanceExclusion(
     records: records.length,
     reportBytes,
     packageBytes,
-    totalBytes: reportBytes + packageBytes,
+    derivedBytes,
+    totalBytes: reportBytes + packageBytes + derivedBytes,
   };
+}
+
+/**
+ * B5B-F-403 — which of these records were funded by a consumed evidence credit
+ * (the CONSUMPTION ledger row is a credit-funded record's stored fact).
+ */
+async function creditFundedEvidenceIds(
+  client: Pick<PrismaClient, "evidenceCreditLedgerEntry">,
+  evidenceIds: string[],
+): Promise<Set<string>> {
+  if (evidenceIds.length === 0) return new Set();
+  const rows = await client.evidenceCreditLedgerEntry.findMany({
+    where: { evidenceId: { in: evidenceIds }, entryType: "CONSUMPTION" },
+    select: { evidenceId: true },
+  });
+  return new Set(rows.map((r) => r.evidenceId).filter((id): id is string => typeof id === "string"));
+}
+
+/**
+ * The records (of those given) whose first issuance is left out of the
+ * customer-facing allowance: an entitled Free record (stored FREE_ALLOWANCE
+ * fact) or a credit-funded one (B5B-F-403). The worker's artifact gate and the
+ * API's output offer ask this, so they agree with the storage measure.
+ */
+export async function allowanceExcludedFirstIssuanceRecordIds(
+  client: Pick<PrismaClient, "evidence" | "evidenceCreditLedgerEntry">,
+  evidenceIds: string[],
+): Promise<Set<string>> {
+  if (evidenceIds.length === 0) return new Set();
+  const rows = await client.evidence.findMany({
+    where: { id: { in: evidenceIds } },
+    select: { id: true, outputEarnedPlan: true, outputEarnedBasis: true },
+  });
+  const out = new Set(rows.filter((r) => isFreeAllowanceEarnedFact(r)).map((r) => r.id));
+  const rest = rows.filter((r) => !out.has(r.id) && r.outputEarnedBasis == null).map((r) => r.id);
+  for (const id of await creditFundedEvidenceIds(client, rest)) out.add(id);
+  return out;
 }

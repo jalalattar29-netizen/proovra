@@ -28,6 +28,12 @@
 export type AiSettingsMode =
   | "personal-assistance"
   | "personal-not-included"
+  /**
+   * B6-F-27 (free-user audit 0ea0) — a personal workspace somebody else owns,
+   * seen by a member who cannot manage its AI policy: the member-safe status
+   * view, never the owner's switches (a save would be refused).
+   */
+  | "personal-readonly"
   | "org-governance"
   | "org-readonly";
 
@@ -63,6 +69,11 @@ export function deriveAiSettingsMode(input: AiAssistanceViewInput): AiSettingsMo
       ? "org-governance"
       : "org-readonly";
   }
+  // B6-F-27 — editability follows the management capability, not the space
+  // type: a member of a shared personal workspace reads the owner's policy
+  // (intelligence.read) but may not change it. Unknown (null) keeps the
+  // server-gated editor, as before.
+  if (input.canManageWorkspaceAiPolicy === false) return "personal-readonly";
   if (input.monthlyAllowance === 0) return "personal-not-included";
   return "personal-assistance";
 }
@@ -126,4 +137,62 @@ export function enabledPersonalFeatureCount(
   if (!policy.aiEnabled) return 0;
   return LAUNCHED_PERSONAL_AI_FEATURES.filter((f) => Boolean(policy[f.key]))
     .length;
+}
+
+/**
+ * Free audit B6-F-22 / B6-F-46 — the policy switches that turn on a PAID AI
+ * capability (mirrors the API's PAID_AI_SWITCHES in
+ * workspace-ai-policy.routes.ts). `PUT /v1/workspaces/ai-policy` refuses to
+ * switch any of them ON where the workspace plan does not include the
+ * capability (403 ENTITLEMENT_REQUIRED, `details.fields`); turning one off,
+ * or re-sending a value the row already holds, still succeeds.
+ */
+export const PAID_AI_POLICY_SWITCHES = [
+  "semanticSearchEnabled",
+  "embeddingsAllowed",
+  "contentIntelligenceEnabled",
+  "rawContentProcessingAllowed",
+  "ocrAllowed",
+  "transcriptionAllowed",
+  "reviewerCopilotEnabled",
+  "caseCopilotEnabled",
+] as const;
+export type PaidAiPolicySwitch = (typeof PAID_AI_POLICY_SWITCHES)[number];
+
+/** Plans whose catalog entry includes only the advisory trial capabilities. */
+const TRIAL_AI_PLANS = new Set(["FREE", "PAYG"]);
+
+export const AI_SWITCH_NOT_INCLUDED_COPY = "Not included in your plan";
+
+/**
+ * Which paid switches are plan-locked for this workspace. Two server answers
+ * feed it: the plan the usage read resolved for the workspace (FREE / PAYG
+ * carry no paid AI capability), and the `details.fields` of a refused save.
+ * An unknown plan locks nothing (the server still refuses).
+ */
+export function planLockedAiSwitches(input: {
+  workspacePlan?: string | null;
+  refusedFields?: ReadonlyArray<string> | null;
+}): ReadonlySet<string> {
+  const locked = new Set<string>();
+  const plan = typeof input.workspacePlan === "string" ? input.workspacePlan.toUpperCase() : null;
+  if (plan && TRIAL_AI_PLANS.has(plan)) {
+    for (const key of PAID_AI_POLICY_SWITCHES) locked.add(key);
+  }
+  for (const field of input.refusedFields ?? []) {
+    if ((PAID_AI_POLICY_SWITCHES as ReadonlyArray<string>).includes(field)) locked.add(field);
+  }
+  return locked;
+}
+
+/** The refused paid switches of a 403 ENTITLEMENT_REQUIRED save, else null. */
+export function aiPolicyEntitlementRefusal(err: unknown): string[] | null {
+  if (!err || typeof err !== "object") return null;
+  const e = err as { statusCode?: unknown; code?: unknown; details?: unknown };
+  if (e.statusCode !== 403 || e.code !== "ENTITLEMENT_REQUIRED") return null;
+  const details = e.details && typeof e.details === "object" ? (e.details as Record<string, unknown>) : {};
+  const fields = Array.isArray(details.fields)
+    ? details.fields.filter((f): f is string => typeof f === "string")
+    : [];
+  return fields.length > 0 ? fields : [...PAID_AI_POLICY_SWITCHES];
 }

@@ -60,6 +60,8 @@ import {
   usePersonalSpace,
 } from "../../../lib/platform-context";
 import { useOperationsUiContext } from "../../../lib/notifications/useOperationsUiContext";
+import { useOptionalPlatformContext } from "../../../lib/platform-context/PlatformContextProvider";
+import { useDeepLinkNavigation } from "../../../lib/navigation/useDeepLinkNavigation";
 import {
   buildActualItemSignal,
   visibleAdvancedFilterGroups,
@@ -543,6 +545,13 @@ function InboxPageInner() {
   const filtersPanelRef = useRef<HTMLDivElement | null>(null);
   const personalSpace = usePersonalSpace();
   const organizations = useOrganizations();
+  // B2B-F-09 — the server-authorized context options also list personal
+  // workspaces the viewer JOINED ("Shared with you"), which `organizations`
+  // (non-personal teams only) leaves out.
+  const sharedWorkspaces = useOptionalPlatformContext()?.envelope?.contextOptions?.sharedWorkspaces ?? null;
+  // B2B-F-04 — Open goes through the ONE deep-link chokepoint, as the bell does.
+  const { open: openDestination } = useDeepLinkNavigation();
+  const [deniedItemKey, setDeniedItemKey] = useState<string | null>(null);
   // Canonical UI-context — relevance only; the backend enforces data.
   const uiCtx = useOperationsUiContext();
   // Actual-item override signal — the aggregation's filter-independent,
@@ -610,8 +619,11 @@ function InboxPageInner() {
           value: o.id,
           label: o.displayName ?? o.name ?? "Organization",
         })),
+      ...(sharedWorkspaces ?? [])
+        .filter((w) => w.workspaceId !== personalSpace?.id && !organizations.some((o) => o.id === w.workspaceId))
+        .map((w) => ({ value: w.workspaceId, label: w.name })),
     ],
-    [personalSpace?.id, organizations],
+    [personalSpace?.id, organizations, sharedWorkspaces],
   );
 
   /**
@@ -1854,13 +1866,20 @@ function InboxPageInner() {
                             href={safeNotificationHref(item.href)}
                             data-action="open-inbox-item"
                             data-inbox-item-href={safeNotificationHref(item.href)}
-                            onClick={() => {
-                              // Opening an item implicitly marks it
-                              // read. Fire-and-forget; we don't wait
-                              // for the round-trip before navigating.
-                              if (!item.isRead && item.canMarkRead) {
-                                void markRead(item);
-                              }
+                            onClick={(e) => {
+                              // B2B-F-04 — through the canonical chokepoint:
+                              // the server resolves the record (and its
+                              // workspace) first, and the item is marked read
+                              // only once the destination actually opened.
+                              e.preventDefault();
+                              setDeniedItemKey(null);
+                              void openDestination(safeNotificationHref(item.href)).then((result) => {
+                                if (result.status === "navigated") {
+                                  if (!item.isRead && item.canMarkRead) void markRead(item);
+                                } else if (result.status === "denied") {
+                                  setDeniedItemKey(item.itemKey);
+                                }
+                              });
                             }}
                             /* The CANONICAL row action, the same class the
                                Intake Links row uses for "View submissions" and
@@ -1874,6 +1893,11 @@ function InboxPageInner() {
                           >
                             Open
                           </Link>
+                          {deniedItemKey === item.itemKey ? (
+                            <span role="status" data-inbox-item-destination-denied>
+                              This item is not available.
+                            </span>
+                          ) : null}
                           {item.canMarkRead &&
                             (item.isRead ? (
                               <button

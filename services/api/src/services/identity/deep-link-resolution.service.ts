@@ -26,6 +26,7 @@ import type { InternalResourceType, Permission } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { evaluateAuthorize } from "../../middleware/authorize.js";
+import { caseClosedTo, evidenceClosedTo } from "../access/record-reach.js";
 
 /**
  * Canonical read capability per resource family (server-derived, never client).
@@ -37,8 +38,27 @@ import { evaluateAuthorize } from "../../middleware/authorize.js";
 const RESOURCE_READ_PERMISSION: Partial<Record<InternalResourceType, Permission>> = {
   evidence: "evidence.read" as Permission,
   reports: "evidence.read" as Permission,
-  review: "evidence.read" as Permission,
+  // B2A-F-07 (free audit 0ea0) — every case and evidence-request link was
+  // concealed as 404 because these families had no entry. Their read routes
+  // authorize `evidence.read` in the persisted workspace (GET /v1/cases/:id via
+  // resolveCaseRecordAccess, GET /v1/evidence-requests/:id via
+  // requireRequestMember; no evidence_request.read capability exists) and then
+  // narrow by the restricted-case rule — the same reach check below.
+  cases: "evidence.read" as Permission,
+  investigation: "evidence.read" as Permission,
+  "evidence-requests": "evidence.read" as Permission,
 };
+
+/**
+ * B2A-F-07 — families no id-bearing page exists for: `review` and
+ * `audit-transparency` are plain section paths, so an id names nothing the
+ * resolver can bind to a workspace. Answered as an explicit unsupported type
+ * (the answer depends on the TYPE alone, so it reveals nothing about the id).
+ */
+export const DEEP_LINK_UNSUPPORTED_TYPES: ReadonlySet<InternalResourceType> = new Set<InternalResourceType>([
+  "review",
+  "audit-transparency",
+]);
 
 /**
  * Resolve the AUTHORITATIVE Workspace (teamId) from the PERSISTED resource — the
@@ -58,19 +78,64 @@ async function resolveResourceTeamId(
       return (await client.case.findUnique({ where: { id }, select: { teamId: true } }))?.teamId ?? null;
     case "evidence-requests":
       return (await client.evidenceRequest.findUnique({ where: { id }, select: { teamId: true } }))?.teamId ?? null;
-    case "reports":
+    case "reports": {
+      // B2A-F-07 — a report id binds to its parent Evidence's workspace.
+      const report = await client.report.findUnique({
+        where: { id },
+        select: { evidence: { select: { teamId: true } } },
+      });
+      return report?.evidence?.teamId ?? null;
+    }
     case "review":
     case "audit-transparency":
-      // Reports/review derive their workspace from the parent Evidence; a bare
-      // report/review id resolves through Evidence when the caller supplies the
-      // evidence workspace. Not directly workspace-bound here → concealed.
+      // No id-bearing page (DEEP_LINK_UNSUPPORTED_TYPES): nothing to bind.
       return null;
+  }
+}
+
+/**
+ * B2A-F-07 — the restricted-case narrowing each family's read route applies
+ * after the workspace decision (record-reach.ts): a record, case, request or
+ * report closed to the caller answers like one that does not exist.
+ */
+async function resourceClosedTo(
+  client: PrismaClient,
+  type: InternalResourceType,
+  id: string,
+  userId: string,
+): Promise<boolean> {
+  switch (type) {
+    case "evidence":
+      return evidenceClosedTo(id, userId, client);
+    case "cases":
+    case "investigation":
+      return caseClosedTo(id, userId, client);
+    case "evidence-requests": {
+      const row = await client.evidenceRequest.findUnique({
+        where: { id },
+        select: { evidenceId: true, caseId: true },
+      });
+      if (!row) return true;
+      return (
+        (row.evidenceId !== null && (await evidenceClosedTo(row.evidenceId, userId, client))) ||
+        (row.caseId !== null && (await caseClosedTo(row.caseId, userId, client)))
+      );
+    }
+    case "reports": {
+      const report = await client.report.findUnique({ where: { id }, select: { evidenceId: true } });
+      if (!report) return true;
+      return evidenceClosedTo(report.evidenceId, userId, client);
+    }
+    default:
+      return true;
   }
 }
 
 export type DeepLinkDecision =
   | { ok: true; actorUserId: string; teamId: string; resourceType: InternalResourceType; resourceId: string }
-  | { ok: false; reason: "not_found" | "context_mismatch" | "unauthorized"; httpStatus: 404 };
+  | { ok: false; reason: "not_found" | "context_mismatch" | "unauthorized"; httpStatus: 404 }
+  /** B2A-F-07 — a family with no id-bearing page (by TYPE; reveals nothing about the id). */
+  | { ok: false; reason: "unsupported_type"; httpStatus: 422 };
 
 /**
  * The canonical deep-link decision. `declaredWorkspaceId` (if a URL/query
@@ -89,6 +154,9 @@ export async function resolveDeepLink(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<DeepLinkDecision> {
+  if (DEEP_LINK_UNSUPPORTED_TYPES.has(input.resourceType)) {
+    return { ok: false, reason: "unsupported_type", httpStatus: 422 };
+  }
   const teamId = await resolveResourceTeamId(client, input.resourceType, input.resourceId);
   if (!teamId) return { ok: false, reason: "not_found", httpStatus: 404 };
 
@@ -106,6 +174,12 @@ export async function resolveDeepLink(
     // conceals as 404 — never leak existence or the specific reason to the client.
     return { ok: false, reason: "unauthorized", httpStatus: 404 };
   }
+  // B2A-F-07 — workspace access is necessary, never sufficient: the family's
+  // restricted-case reach decides too (fail closed on an unreadable answer).
+  const closed = await resourceClosedTo(client, input.resourceType, input.resourceId, outcome.actorUserId).catch(
+    () => true,
+  );
+  if (closed) return { ok: false, reason: "unauthorized", httpStatus: 404 };
   return {
     ok: true,
     actorUserId: outcome.actorUserId,

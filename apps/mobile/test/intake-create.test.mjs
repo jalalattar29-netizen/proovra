@@ -205,3 +205,9 @@ test("PRO-117: on the created link, a send whose reply was lost is retried with 
   assert.equal(keys[1], keys[0], "the retry after a lost reply carried a new key, so the server sends the e-mail twice");
   assert.notEqual(keys[2], keys[1], "after a confirmed send, a deliberate resend is a new message");
 });
+test("B3B-F-105 — INTAKE_NOT_INCLUDED says the server's remedy (plan or one evidence credit)", () => {
+  const server = "Secure intake (intake links and submission requests) needs a plan that includes it, or at least one evidence credit";
+  assert.equal(C.friendlyCreateError("INTAKE_NOT_INCLUDED", server), server);
+  assert.match(C.friendlyCreateError("INTAKE_NOT_INCLUDED", null), /evidence credit/);
+  assert.match(C.friendlyCreateError("INTAKE_NOT_INCLUDED", "HTTP 409: API error"), /evidence credit/);
+});

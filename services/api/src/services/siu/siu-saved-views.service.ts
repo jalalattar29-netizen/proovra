@@ -247,7 +247,14 @@ export async function updateSavedView(input: {
    * a colleague's team/org view.
    */
   canManageShared?: boolean;
-}): Promise<SiuSavedViewRow | null> {
+  /**
+   * B5B-F-303 (free-audit 0ea0) — false when the caller may not PUBLISH a
+   * shared view (a read-only role, A2-14). Asked only after the caller is
+   * proven able to manage this row, so a view they cannot reach still
+   * answers "not found".
+   */
+  mayPublishShared?: boolean;
+}): Promise<SiuSavedViewRow | null | "publish_refused"> {
   // Only the creator can edit a private view; the creator or a workspace
   // administrator can edit a team/org view.
   const existing = await prisma.caseSiuSavedView.findFirst({
@@ -256,6 +263,13 @@ export async function updateSavedView(input: {
   if (!existing) return null;
   if (!mayManageSavedView(existing, input.userId, input.canManageShared)) {
     return null;
+  }
+  if (
+    input.mayPublishShared === false &&
+    input.payload.visibility !== undefined &&
+    input.payload.visibility !== "private"
+  ) {
+    return "publish_refused";
   }
   const patch: Prisma.CaseSiuSavedViewUpdateInput = {
     name: input.payload.name ?? undefined,

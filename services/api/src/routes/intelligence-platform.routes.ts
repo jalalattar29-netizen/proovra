@@ -17,7 +17,12 @@
  * so the adapter registry has entries when the routes resolve.
  */
 
-import { evidenceClosedTo } from "../services/access/record-reach.js";
+import {
+  evidenceClosedTo,
+  hiddenRecordIdsInWorkspace,
+  viewerReachInWorkspace,
+  type HiddenRecordIds,
+} from "../services/access/record-reach.js";
 import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import { createHash } from "node:crypto";
 
@@ -44,6 +49,7 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
+import { workspaceIncludesAiCapability } from "../services/billing-enforcement.service.js";
 import {
   extractPrismaDiagnostic,
   isPrismaTableOrColumnMissing,
@@ -107,7 +113,9 @@ const RunProviderByteSchema = z.object({
 const RunProviderTextSchema = z.object({
   provider: z.enum(MEDIA_INTELLIGENCE_PROVIDERS),
   operation: z.enum(PROVIDER_ADAPTER_OPERATIONS),
-  text: z.string().min(1).max(200_000),
+  // B6-F-45: optional. Omitted, the server uses the text it extracted from
+  // this evidence; supplied, it must BE one of those texts (D62 for text).
+  text: z.string().min(1).max(200_000).optional(),
   caseId: z.string().uuid().optional(),
   projectId: z.string().uuid().optional(),
 });
@@ -362,6 +370,31 @@ async function proveSuppliedEvidenceBytes(input: {
   return recorded.has(supplied) ? "OK" : "MISMATCH";
 }
 
+/**
+ * B6-F-45 (free-audit 0ea0) — D62 FOR TEXT. run/text records its results
+ * AGAINST THE EVIDENCE, so the text must be text this platform extracted from
+ * that evidence, never arbitrary caller text. Supplied text must equal one of
+ * the evidence's stored extracted texts; omitted, the newest one is used.
+ */
+async function resolveEvidenceText(input: {
+  teamId: string;
+  evidenceId: string;
+  supplied: string | undefined;
+}): Promise<{ ok: true; text: string } | { ok: false; code: "EVIDENCE_TEXT_UNVERIFIED" | "EVIDENCE_TEXT_MISMATCH" }> {
+  const rows = await prisma.evidenceExtractedText.findMany({
+    where: { evidenceId: input.evidenceId, teamId: input.teamId, status: "COMPLETED", text: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: { text: true },
+    take: 20,
+  });
+  const texts = rows.map((r) => r.text).filter((t): t is string => typeof t === "string" && t.length > 0);
+  if (texts.length === 0) return { ok: false, code: "EVIDENCE_TEXT_UNVERIFIED" };
+  if (input.supplied === undefined) return { ok: true, text: texts[0] };
+  return texts.includes(input.supplied)
+    ? { ok: true, text: input.supplied }
+    : { ok: false, code: "EVIDENCE_TEXT_MISMATCH" };
+}
+
 function decodeBase64(payload: string): Uint8Array {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const B = (globalThis as any).Buffer;
@@ -400,6 +433,67 @@ async function intelligenceRecordClosed(
     select: { evidenceId: true },
   });
   return row ? evidenceClosedTo(row.evidenceId, ctx.userId) : false;
+}
+
+/**
+ * B6-F-43 (free-audit 0ea0): accept and revert are addressed by correction id,
+ * which the record-reach guard cannot see. A correction on a record a
+ * restricted case closes to the caller answers exactly like a missing one.
+ */
+async function correctionRecordClosed(
+  ctx: { teamId: string; userId: string },
+  correctionId: string,
+): Promise<boolean> {
+  const row = await prisma.reviewerCorrection.findFirst({
+    where: { id: correctionId, teamId: ctx.teamId },
+    select: { recordId: true },
+  });
+  return row ? intelligenceRecordClosed(ctx, row.recordId) : false;
+}
+
+/** A budget scoped to a case closed to the reader keeps its numbers, not the case id. */
+function maskClosedCaseTarget<T extends { scope: string }>(
+  row: T,
+  key: keyof T,
+  hidden: HiddenRecordIds,
+): T {
+  const target = row[key] as unknown;
+  return row.scope === "CASE" && typeof target === "string" && hidden.caseIds.includes(target)
+    ? { ...row, [key]: null }
+    : row;
+}
+
+/**
+ * B2A-F-08: the transparency timeline names records, cases and intelligence
+ * records in its payloads; an entry naming one closed to the reader is that
+ * record's row and is dropped (record-reach.ts).
+ */
+async function auditEntryInReach(
+  teamId: string,
+  hidden: HiddenRecordIds,
+): Promise<(entry: { payload?: unknown }) => boolean> {
+  if (hidden.evidenceIds.length === 0 && hidden.caseIds.length === 0) return () => true;
+  const closedRecordIds = new Set(
+    hidden.evidenceIds.length === 0
+      ? []
+      : (
+          await prisma.mediaIntelligenceRecord.findMany({
+            where: { teamId, evidenceId: { in: hidden.evidenceIds } },
+            select: { id: true },
+          })
+        ).map((r) => r.id),
+  );
+  const closedEvidence = new Set(hidden.evidenceIds);
+  const closedCases = new Set(hidden.caseIds);
+  return (entry) => {
+    const p = (entry.payload ?? {}) as Record<string, unknown>;
+    const named = (v: unknown, set: Set<string>) => typeof v === "string" && set.has(v);
+    return !(
+      named(p.evidenceId, closedEvidence) ||
+      named(p.caseId, closedCases) ||
+      named(p.recordId, closedRecordIds)
+    );
+  };
 }
 
 export async function intelligencePlatformRoutes(app: FastifyInstance) {
@@ -543,6 +637,15 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       if (await evidenceRunRefused(ctx, evidenceId)) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      const source = await resolveEvidenceText({ teamId: ctx.teamId, evidenceId, supplied: body.text });
+      if (!source.ok) {
+        return reply.code(409).send({
+          error: {
+            code: source.code,
+            message: "The text must be text extracted from this evidence.",
+          },
+        });
+      }
       const res = await runProviderOperation({
         teamId: ctx.teamId,
         evidenceId,
@@ -551,7 +654,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
         initiatedByUserId: ctx.userId,
         caseId: body.caseId ?? null,
         projectId: body.projectId ?? null,
-        text: body.text,
+        text: source.text,
       });
       if (!res.ok) {
         return reply
@@ -611,6 +714,9 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       );
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await correctionRecordClosed(ctx, id)) {
+        return reply.code(409).send({ denial: "RECORD_NOT_FOUND" });
+      }
       const res = await acceptCorrection({
         teamId: ctx.teamId,
         correctionId: id,
@@ -633,6 +739,9 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       );
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await correctionRecordClosed(ctx, id)) {
+        return reply.code(409).send({ denial: "RECORD_NOT_FOUND" });
+      }
       const res = await revertCorrection({
         teamId: ctx.teamId,
         correctionId: id,
@@ -688,7 +797,13 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const summary = await summariseProviderUsage({ teamId: ctx.teamId });
-      const recent = await listRecentUsage({ teamId: ctx.teamId, limit: 50 });
+      // B6-F-43: a usage row names its record and case; rows naming one closed
+      // to the reader are not listed (RC-CASE-REACH).
+      const recent = await listRecentUsage({
+        teamId: ctx.teamId,
+        limit: 50,
+        hidden: await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId),
+      });
       return reply.code(200).send({
         summary,
         recent: recent.map((r: (typeof recent)[number]) => ({
@@ -724,7 +839,10 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       // swallowed.
       try {
         const budgets = await listBudgets({ teamId: ctx.teamId });
-        return reply.code(200).send({ budgets });
+        const hidden = await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId);
+        return reply
+          .code(200)
+          .send({ budgets: budgets.map((b) => maskClosedCaseTarget(b, "scopeTargetId", hidden)) });
       } catch (err) {
         if (isPrismaTableOrColumnMissing(err)) {
           const diag = extractPrismaDiagnostic(err);
@@ -767,6 +885,18 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
         "intelligence.policy.manage",
       );
       if (!ctx) return reply;
+      // B6-F-46 (Free-user audit 0ea0) — provider budgets govern vendor
+      // content intelligence, a capability the plan catalog makes eligible on
+      // paid plans only; RBAC alone let a Free personal owner manage them.
+      if (!(await workspaceIncludesAiCapability(ctx.teamId, "CONTENT_INTELLIGENCE"))) {
+        return reply.code(403).send({
+          error: {
+            code: "ENTITLEMENT_REQUIRED",
+            message: "Provider intelligence is not included in this workspace's plan.",
+            details: { entitlement: "AI_CAPABILITY", capabilities: ["CONTENT_INTELLIGENCE"] },
+          },
+        });
+      }
       const body = BudgetCreateBody.parse(req.body);
       const res = await createBudget({
         teamId: ctx.teamId,
@@ -803,7 +933,11 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
-      const metrics = await projectExecutiveMetrics({ teamId: ctx.teamId });
+      // B7B-F03: counts follow the reader's record reach.
+      const metrics = await projectExecutiveMetrics({
+        teamId: ctx.teamId,
+        evidenceReach: (await viewerReachInWorkspace(ctx.teamId, ctx.userId)).evidence,
+      });
       return reply.code(200).send({ metrics });
     },
   );
@@ -821,6 +955,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       const trends = await projectExecutiveTrends({
         teamId: ctx.teamId,
         range: q.range ?? "7d",
+        evidenceReach: (await viewerReachInWorkspace(ctx.teamId, ctx.userId)).evidence,
       });
       return reply.code(200).send({ trends });
     },
@@ -918,7 +1053,17 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
         teamId: ctx.teamId,
         range: q.range ?? "30d",
       });
-      return reply.code(200).send({ projection });
+      const hidden = await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId);
+      return reply.code(200).send({
+        projection: {
+          ...projection,
+          rows: projection.rows.map((r) =>
+            r.budgetScope === "CASE" && r.budgetScopeTargetId && hidden.caseIds.includes(r.budgetScopeTargetId)
+              ? { ...r, budgetScopeTargetId: null }
+              : r,
+          ),
+        },
+      });
     },
   );
 
@@ -929,7 +1074,13 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const projection = await listBudgetSpend({ teamId: ctx.teamId });
-      return reply.code(200).send({ projection });
+      const hidden = await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId);
+      return reply.code(200).send({
+        projection: {
+          ...projection,
+          rows: projection.rows.map((r) => maskClosedCaseTarget(r, "scopeTargetId", hidden)),
+        },
+      });
     },
   );
 
@@ -951,7 +1102,11 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
         category: q.category,
         limit: q.limit,
       });
-      return reply.code(200).send({ entries });
+      const inReach = await auditEntryInReach(
+        ctx.teamId,
+        await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId),
+      );
+      return reply.code(200).send({ entries: entries.filter(inReach) });
     },
   );
 }

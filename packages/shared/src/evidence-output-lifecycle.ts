@@ -772,6 +772,12 @@ export const OUTPUT_ACTION_UNAVAILABLE_REASONS = [
   "PAIR_INCOMPLETE",
   /** A new version would exceed the workspace storage allowance. */
   "STORAGE_LIMIT",
+  /**
+   * B5B-F-101 (free audit 0ea0) — a Free record's report is already current:
+   * the request authority issues an updated version only once a new
+   * verification fact is recorded (NEW_VERSION_NO_MATERIAL_CHANGE).
+   */
+  "NO_MATERIAL_CHANGE",
   /** The last attempt failed and can be retried; retry it first. */
   "RETRY_AVAILABLE",
   /**
@@ -1188,6 +1194,14 @@ export type EvidenceOutputFacts = {
    * gate admits it on the same rule. Absent = not.
    */
   freeFirstIssuanceExcluded?: boolean;
+  /**
+   * B5B-F-101 (free audit 0ea0) — THE Free three-record re-render rule, in the
+   * decision every surface renders: the record is plan-funded on FREE (not
+   * credit-funded) and no verification fact is newer than its latest report
+   * (`deriveReportFreshness`), so the request authority refuses an updated
+   * version (409 NEW_VERSION_NO_MATERIAL_CHANGE). Absent = not refused for it.
+   */
+  newVersionNeedsNewerFacts?: boolean;
   /**
    * AUD-011 — which output of the latest pair a HEAD of its RECORDED version
    * proved gone (single-record views probe it; lists never do). Absent/null =
@@ -1664,6 +1678,7 @@ export function resolveEvidenceOutputActions(
     if (f.reportEligibility === "UNRESOLVED") return no("ENTITLEMENT_UNAVAILABLE");
     if (f.reportEligibility !== "ELIGIBLE") return no("NOT_INCLUDED");
     if (f.restrictions.legalHold) return no("LEGAL_HOLD_ACTIVE");
+    if (f.newVersionNeedsNewerFacts === true) return no("NO_MATERIAL_CHANGE");
     if (f.newVersionFitsStorage === false) return no("STORAGE_LIMIT");
     return { action: NEW_VERSION_ACTION, reason: null, ...base };
   })();

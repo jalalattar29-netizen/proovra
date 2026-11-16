@@ -10,6 +10,7 @@ import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { formatUserDateTime } from "../../src/lib/date";
 import { theme } from "../../src/theme/theme";
 import { useToast } from "../../src/toast-context";
+import { useAuth } from "../../src/auth-context";
 import { usePlatformContext, useWorkspaceChangeCount } from "../../src/product/platform-context";
 import { casesPlanLocked } from "../../src/product/matter-queue";
 import { artifactDownloadMessage, packageDownloadMessage } from "../../src/product/artifact-history";
@@ -69,6 +70,7 @@ import {
   recordStatusLabel,
   rowActivityLine,
   safeCsvFilename,
+  savedViewOwnedBy,
   savedViewTeamOptions,
   savedViewToFilters,
   shortId,
@@ -165,6 +167,8 @@ export default function EvidenceLibraryScreen() {
   const params = useLocalSearchParams();
   const { addToast } = useToast();
   const platform = usePlatformContext();
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? null;
 
   const [filters, setFilters] = useState<LibraryFilters>(DEFAULT_LIBRARY_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -230,7 +234,8 @@ export default function EvidenceLibraryScreen() {
   // The list names no team: it follows the server pointer, so a change of
   // workspace is a server input too.
   const workspaceChanges = useWorkspaceChangeCount();
-  const serverKey = JSON.stringify({ ...serverFilters, review: "", retention: "", cursor: currentCursor, workspaceChanges });
+  // B5A-F-08 — review and retention are server filters (EVID-017), as on the web.
+  const serverKey = JSON.stringify({ ...serverFilters, cursor: currentCursor, workspaceChanges });
 
   const loadPage = useCallback(async (f: LibraryFilters, cursor: string | null) => {
     const id = ++listRequest.current;
@@ -263,7 +268,7 @@ export default function EvidenceLibraryScreen() {
     return () => {
       cancelled = true;
     };
-    // serverKey captures every server-side input; review/retention are applied locally.
+    // serverKey captures every server-side input, review and retention included.
   }, [serverKey, loadPage]);
 
   const loadSupport = useCallback(async () => {
@@ -300,7 +305,9 @@ export default function EvidenceLibraryScreen() {
   useEffect(() => {
     if (defaultViewApplied.current || !viewsLoaded) return;
     defaultViewApplied.current = true;
-    const view = savedViews.find((v) => v.isDefault);
+    // B5A-F-08 / EVID-014 — a default applies only where it was saved.
+    const activeTeamId = platform.context?.activeTeamId ?? null;
+    const view = savedViews.find((v) => v.isDefault && (v.teamId === null || v.teamId === activeTeamId));
     if (view && filtersAreDefault(filters)) applyView(view, false);
     // Runs on the first views that arrive, reading the filters as they are then.
   }, [viewsLoaded]);
@@ -551,7 +558,10 @@ export default function EvidenceLibraryScreen() {
   const updateView = useCallback(
     async (id: string, draft: { name: string; description: string; isDefault: boolean }) => {
       try {
-        const res = await apiFetch(buildSavedViewPath(id), { method: "PATCH", body: JSON.stringify(buildSavedViewUpdateBody(draft)) });
+        // B5B-F-303 — a colleague's view is renamed without touching their default (403 otherwise).
+        const target = savedViews.find((v) => v.id === id);
+        const ownsView = target ? savedViewOwnedBy(target, currentUserId) : true;
+        const res = await apiFetch(buildSavedViewPath(id), { method: "PATCH", body: JSON.stringify(buildSavedViewUpdateBody({ ...draft, ownsView })) });
         const updated = parseSavedViews({ items: [res?.savedView] })[0];
         if (updated) {
           setSavedViews((prev) =>
@@ -568,7 +578,7 @@ export default function EvidenceLibraryScreen() {
         return false;
       }
     },
-    [addToast],
+    [addToast, savedViews, currentUserId],
   );
 
   const deleteView = useCallback(
@@ -617,6 +627,8 @@ export default function EvidenceLibraryScreen() {
     setCursorHistory((h) => h.slice(0, -1));
     setCurrentCursor(prev);
     setPageNumber((p) => Math.max(1, p - 1));
+    // B5A-F-02 — eligibility is computed over the visible page; the selection may not outlive it.
+    setSelected(new Set());
   };
   const goNext = () => {
     const next = pageInfo?.nextCursor;
@@ -624,6 +636,7 @@ export default function EvidenceLibraryScreen() {
     setCursorHistory((h) => [...h, currentCursor]);
     setCurrentCursor(next);
     setPageNumber((p) => p + 1);
+    setSelected(new Set());
   };
   const hasNext = Boolean(pageInfo?.hasMore && pageInfo?.nextCursor);
   const canRestore = filters.scope === "archived" || filters.scope === "trash";
@@ -742,6 +755,7 @@ export default function EvidenceLibraryScreen() {
             onUpdate={updateView}
             onDelete={deleteView}
             onSetDefault={setDefaultView}
+            currentUserId={currentUserId}
           />
           <ProovraFilterChips<LibraryScope>
             label="Workspace scope"
@@ -814,11 +828,11 @@ export default function EvidenceLibraryScreen() {
         <View style={styles.selectAll}>
           <Check
             checked={allLoadedSelected}
-            label="Select all loaded pages"
+            label="Select all on this page"
             disabled={visibleItems.length === 0}
             onPress={toggleAllLoaded}
           />
-          <ProovraText variant="bodySm">Select all loaded pages</ProovraText>
+          <ProovraText variant="bodySm">Select all on this page</ProovraText>
         </View>
 
         {selected.size > 0 ? (

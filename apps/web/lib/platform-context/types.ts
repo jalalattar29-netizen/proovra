@@ -25,6 +25,12 @@ export type PlatformContextPlanFeatures = {
   casesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
   /**
+   * Free audit B5B-F-205 — redaction entitlement (FEATURE_REDACTION), once the
+   * API projects it. Optional: older envelopes omit it and the /redaction
+   * surface rule then falls back to its tier.
+   */
+  redactionIncluded?: boolean;
+  /**
    * External Review, projected from the server's canonical commercial
    * authority (`PlanCapabilities.externalReviewIncluded`: PRO and above).
    * The browser consumes the projection and never re-derives it from a plan

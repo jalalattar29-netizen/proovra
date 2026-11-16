@@ -289,8 +289,9 @@ function authUaPreview(req: FastifyRequest): string | null {
  * Pre-Phase-2.5 the email-password login path called `signJwt()`
  * directly and skipped the session-inventory write. This meant
  * `GET /v1/users/me/sessions` returned `[]` for those users
- * (Phase 2.4 finding). The recording is best-effort: an inventory
- * write failure must NEVER break login.
+ * (Phase 2.4 finding). B1-F-008 (free-audit 0ea0): the recording is no
+ * longer best-effort — a sign-in whose row cannot be written issues no
+ * session (`recordSessionOrRefuse`).
  *
  * `signJwt()` already mints a random `sid` internally; we extract it
  * by base64-decoding the resulting token payload. This avoids any
@@ -369,9 +370,45 @@ async function recordSessionFromSignedToken(
     }
     return { sessionId: session.id, sid: payload.sid };
   } catch {
-    // Best-effort. A failed inventory write must not break login.
+    // The caller decides: every interactive sign-in refuses (B1-F-008,
+    // `recordSessionOrRefuse`); the SSO-through-MFA completion refuses too.
     return null;
   }
+}
+
+/**
+ * B1-F-008 (free-audit 0ea0) — NO SESSION WITHOUT ITS INVENTORY ROW.
+ *
+ * The inventory is the revocation index for self-service: "Sign out other
+ * devices", a password change and the session list all act on its rows. A
+ * token whose row failed to write was accepted by `requireAuth` (a missing
+ * row is not refused) yet invisible to every one of those controls — a
+ * session the person could neither see nor end, surviving until a password
+ * reset or closure. Writing the row is therefore part of signing in: when it
+ * fails, nothing is issued (no token, no cookie) and the person is told to
+ * try again — the 503 SECURITY_CONTEXT_UNAVAILABLE the MFA gate gives for an
+ * unknown security context, and the shape the extension token route already
+ * uses for the same failure.
+ *
+ * Returns false after sending the refusal.
+ */
+async function recordSessionOrRefuse(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  user: { id: string; currentWorkspaceId?: string | null },
+  token: string,
+): Promise<boolean> {
+  const session = await recordSessionFromSignedToken(req, user, token);
+  if (session) return true;
+  req.log.error({ requestId: req.id, userId: user.id }, "auth.session_inventory_unavailable");
+  await reply.code(503).send({
+    error: {
+      code: "SECURITY_CONTEXT_UNAVAILABLE",
+      message: "We could not finish signing you in. Nothing was signed in. Try again in a moment.",
+      requestId: req.id,
+    },
+  });
+  return false;
 }
 
 /**
@@ -751,10 +788,16 @@ export async function authRoutes(app: FastifyInstance) {
     //                          they must — surface a clear next-step
     //                          response, NOT a silent lockout
     //
-    // Fail-OPEN on resolver error only — surfacing a 500 in the
-    // middle of login would lock every operator out on a transient
-    // Prisma blip. The resolver itself emits `auth_login_failed` when
-    // that happens so SecOps still sees the event.
+    // B1-F-006 — FAIL CLOSED. This branch used to answer `{ mfaIssued:
+    // false }`, and every caller then signed a full session: a password (or
+    // social) sign-in with no second factor, for an account that may well
+    // have one enrolled — exactly when the system could not tell. The
+    // resolver contains its own classified circuit breaker and is not meant
+    // to throw; if it does, the security context is unknown, so no session
+    // is issued. The answer is the one the legal-acceptance gate gives for
+    // the same situation (503 SECURITY_CONTEXT_UNAVAILABLE): retryable,
+    // carries no token, sets no cookie. `mfaIssued: true` tells the caller
+    // the response has been sent, as the ENROLLMENT_REQUIRED branch does.
     let decision: Awaited<ReturnType<typeof resolveLoginMfaEnforcement>>;
     try {
       decision = await resolveLoginMfaEnforcement({
@@ -777,7 +820,14 @@ export async function authRoutes(app: FastifyInstance) {
         outcome: "failure",
         metadata: { loginMethod },
       });
-      return { mfaIssued: false };
+      reply.code(503).send({
+        error: {
+          code: "SECURITY_CONTEXT_UNAVAILABLE",
+          message: "We could not confirm your account's sign-in security. Nothing was signed in. Try again in a moment.",
+          requestId: req.id,
+        },
+      });
+      return { mfaIssued: true };
     }
 
     if (decision.outcome === "NOT_REQUIRED") {
@@ -976,7 +1026,7 @@ export async function authRoutes(app: FastifyInstance) {
       // above, so an incomplete login never creates a session row) and
       // uses the SAME canonical helper as the email-password path —
       // one session model for every provider.
-      await recordSessionFromSignedToken(req, user, token);
+      if (!(await recordSessionOrRefuse(req, reply, user, token))) return reply;
       maybeSetWebCookie(req, reply, token);
       return reply.code(200).send({ token, user: toAuthUserProjection(user) });
     } catch (err) {
@@ -990,17 +1040,17 @@ export async function authRoutes(app: FastifyInstance) {
         metadata: { reason: message },
       });
 
+      // B1-F-016 (free-audit 0ea0): the code alone; operator configuration
+      // (redirect URI names and values) belongs in the audit row above.
       if (message === "invalid_code") {
         return reply.code(400).send({
           message: "invalid_code",
-          hint: "Code may be expired or already used. Ensure GOOGLE_REDIRECT_URI matches exactly.",
         });
       }
 
       if (message === "redirect_uri_mismatch") {
         return reply.code(400).send({
           message: "redirect_uri_mismatch",
-          hint: "GOOGLE_REDIRECT_URI in API .env must match exactly: https://www.proovra.com/auth/callback",
         });
       }
 
@@ -1083,7 +1133,7 @@ export async function authRoutes(app: FastifyInstance) {
       // Session-inventory parity (2026-07-16) — same rationale as the
       // Google path above: record via the canonical helper after the MFA
       // gate so Apple sessions appear in the user's session inventory.
-      await recordSessionFromSignedToken(req, user, token);
+      if (!(await recordSessionOrRefuse(req, reply, user, token))) return reply;
       maybeSetWebCookie(req, reply, token);
       return reply.code(200).send({ token, user: toAuthUserProjection(user) });
     } catch (err) {
@@ -1097,17 +1147,17 @@ export async function authRoutes(app: FastifyInstance) {
         metadata: { reason: message },
       });
 
+      // B1-F-016 (free-audit 0ea0): the code alone; operator configuration
+      // (redirect URI names and values) belongs in the audit row above.
       if (message === "invalid_code") {
         return reply.code(400).send({
           message: "invalid_code",
-          hint: "Code may be expired or already used. Ensure APPLE_REDIRECT_URI matches exactly.",
         });
       }
 
       if (message === "redirect_uri_mismatch") {
         return reply.code(400).send({
           message: "redirect_uri_mismatch",
-          hint: "APPLE_REDIRECT_URI in API .env must match exactly: https://www.proovra.com/auth/callback",
         });
       }
 
@@ -1390,8 +1440,8 @@ export async function authRoutes(app: FastifyInstance) {
 
     const token = signJwt(jwtPayloadFromUser(user, "PASSWORD"), jwtSecret, 60 * 60 * 24 * 30);
     // Phase 2.5 — record AuthenticatedSession for the user-facing
-    // sessions inventory. Best-effort; never blocks login.
-    await recordSessionFromSignedToken(req, user, token);
+    // sessions inventory. B1-F-008: mandatory — no row, no session.
+    if (!(await recordSessionOrRefuse(req, reply, user, token))) return reply;
 
     fireLoginCompletedAnalytics(user.id, req, {
       provider: user.provider,
@@ -1613,7 +1663,7 @@ export async function authRoutes(app: FastifyInstance) {
     // for SSO-required Organizations; independently-allowed Personal use
     // unchanged).
     const token = signJwt(jwtPayloadFromUser(fullUser, "MAGIC_LINK"), jwtSecret, 60 * 60 * 24 * 30);
-    await recordSessionFromSignedToken(req, fullUser, token);
+    if (!(await recordSessionOrRefuse(req, reply, fullUser, token))) return reply;
     maybeSetWebCookie(req, reply, token);
 
     auditAuthEvent(req, {
@@ -2034,12 +2084,17 @@ export async function authRoutes(app: FastifyInstance) {
       verifyOk = r.ok;
     } else if (body.recoveryCode) {
       verifyMethod = "recovery_code";
-      const r = await consumeRecoveryCode({
-        userId,
-        code: body.recoveryCode,
-        ipAddress: req.ip ?? null,
-      });
-      verifyOk = r.ok;
+      // B1-F-002 — checking a recovery code spends it, so it is checked only
+      // for a sign-in that can still complete. A spent or expired pending
+      // token (a replay) must not burn one of the person's codes.
+      if (await loadOpenLoginChallenge({ jti: challengeJti, userId })) {
+        const r = await consumeRecoveryCode({
+          userId,
+          code: body.recoveryCode,
+          ipAddress: req.ip ?? null,
+        });
+        verifyOk = r.ok;
+      }
     }
 
     if (!verifyOk) {
@@ -2184,6 +2239,25 @@ export async function authRoutes(app: FastifyInstance) {
       resourceId: user.id,
       metadata: { method: verifyMethod },
     });
+    if (verifyMethod === "recovery_code") {
+      // B1-F-002 — a spent recovery code is its own entry on the person's
+      // "Account & security activity" timeline (GET
+      // /v1/identity-security/security-events reads `auth.*` audit rows for
+      // the caller), with how many remain: a code they did not use is the
+      // sign of a leaked batch, and a low count is the cue to generate more.
+      // There is no security-alert email or push channel in the product.
+      const remaining = await prisma.mfaRecoveryCode
+        .count({ where: { userId: user.id, usedAt: null, batchInvalidatedAt: null } })
+        .catch(() => null);
+      auditAuthEvent(req, {
+        userId: user.id,
+        action: "auth.mfa_recovery_code_used",
+        outcome: "success",
+        severity: "warning",
+        resourceId: user.id,
+        metadata: { recoveryCodesRemaining: remaining },
+      });
+    }
 
     // Clear the pending cookie + set the canonical session cookie
     // in a single response. After this point the pending token is
@@ -2203,8 +2277,8 @@ export async function authRoutes(app: FastifyInstance) {
         clearMfaPendingCookie(req, reply);
         return reply.code(403).send({ message: completion.reason });
       }
-    } else {
-      await recordSessionFromSignedToken(req, user, token);
+    } else if (!(await recordSessionOrRefuse(req, reply, user, token))) {
+      return reply;
     }
     clearMfaPendingCookie(req, reply);
     maybeSetWebCookie(req, reply, token);
@@ -2280,8 +2354,8 @@ export async function authRoutes(app: FastifyInstance) {
         clearMfaEnrollmentCookie(req, reply);
         return reply.code(403).send({ message: completion.reason });
       }
-    } else {
-      await recordSessionFromSignedToken(req, user, token);
+    } else if (!(await recordSessionOrRefuse(req, reply, user, token))) {
+      return reply;
     }
     clearMfaEnrollmentCookie(req, reply);
     maybeSetWebCookie(req, reply, token);
@@ -2301,8 +2375,7 @@ export async function authRoutes(app: FastifyInstance) {
   // other devices; "sign out all devices" remains its own explicit action.
   //
   // FAIL CLOSED: when the revocation cannot be recorded the response is 503
-  // `logout_incomplete`, never a 200 that claims the token is dead. The cookie
-  // is still cleared, because forgetting it locally is never wrong.
+  // `logout_incomplete`, never a false 200; the cookie is KEPT (B8-F-001).
   app.post("/v1/auth/logout", async (req, reply) => {
     clearMfaEnrollmentCookie(req, reply);
     let userId: string | null = null;
@@ -2318,18 +2391,21 @@ export async function authRoutes(app: FastifyInstance) {
       }
     }
 
-    if (req.headers["x-web-client"] === "1" || credential?.source === "cookie") {
-      // AUD-021 — exact host/origin parsing, never a substring test.
-      const isProductionDomain = isProovraProductionRequest(
-        req.headers.host,
-        typeof req.headers.origin === "string" ? req.headers.origin : undefined,
-      );
+    // B8-F-001 — cleared only after the session ended (or none was live).
+    const clearSessionCookie = () => {
+      if (req.headers["x-web-client"] === "1" || credential?.source === "cookie") {
+        // AUD-021 — exact host/origin parsing, never a substring test.
+        const isProductionDomain = isProovraProductionRequest(
+          req.headers.host,
+          typeof req.headers.origin === "string" ? req.headers.origin : undefined,
+        );
 
-      reply.clearCookie("proovra_session", {
-        path: "/",
-        domain: isProductionDomain ? ".proovra.com" : undefined,
-      });
-    }
+        reply.clearCookie("proovra_session", {
+          path: "/",
+          domain: isProductionDomain ? ".proovra.com" : undefined,
+        });
+      }
+    };
 
     let sessionEnded = false;
     if (
@@ -2367,6 +2443,7 @@ export async function authRoutes(app: FastifyInstance) {
       }
     }
 
+    clearSessionCookie();
     auditAuthEvent(req, {
       userId,
       action: "auth.logout",
@@ -2446,18 +2523,34 @@ export async function authRoutes(app: FastifyInstance) {
       // Confirm the session is not on the revocation deny list.
       // We don't fail open on a registry read error — the boolean
       // collapses to false.
-      const sid = typeof payload.sid === "string" ? payload.sid : null;
+      //
+      // B1-F-013 (free-audit 0ea0) — ONE READING OF "SIGNED IN". This probe
+      // checked signature, pending and the deny list only, so it answered
+      // true for a token the auth middleware refuses: an unsupported provenance, a
+      // token with no `sid`/`iat` (unrevocable), or a session whose inventory
+      // row records it as ended. The same three refusals apply here, in the
+      // same order, so the probe is false whenever every route would 401.
+      if (resolveSupportedProvenance(payload.authMethod) === null) {
+        return { authenticated: false };
+      }
+      const sid = typeof payload.sid === "string" && payload.sid.length > 0 ? payload.sid : null;
       const iat = typeof payload.iat === "number" ? payload.iat : null;
+      if (sid === null || iat === null) return { authenticated: false };
       try {
         const { isSessionRevoked, hashSessionId } = await import(
           "../services/identity-security/session-revocation.service.js"
         );
         const revoked = await isSessionRevoked({
           userId: payload.sub,
-          sessionIdHash: sid ? hashSessionId(sid) : null,
+          sessionIdHash: hashSessionId(sid),
           iat,
         });
         if (revoked) return { authenticated: false };
+        const sessionRow = await prisma.authenticatedSession.findFirst({
+          where: { userId: payload.sub, sessionIdHash: hashSessionId(sid) },
+          select: { revokedAtUtc: true },
+        });
+        if (sessionRow?.revokedAtUtc) return { authenticated: false };
       } catch {
         return { authenticated: false };
       }

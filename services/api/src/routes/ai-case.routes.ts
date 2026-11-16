@@ -58,7 +58,8 @@ import { runCaseCopilot } from "../services/ai/case-copilot.service.js";
 import { buildCaseCopilotProvider, CaseCopilotProviderUnavailable } from "../services/ai/case-copilot-provider.js";
 import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPrisma } from "../services/ai/ai-citation-db-resolver.service.js";
 import { persistCopilotRun } from "../services/ai/ai-copilot-run-store.service.js";
-import { workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
+import { evaluateWorkspaceAiOperation, workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
+import { AiPlanAllowanceRefused, meterAiPlanOperation } from "../services/ai/ai-plan-operation-meter.js";
 import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
 import { cleanupExpiredCopilotRuns } from "../services/ai/ai-retention.service.js";
 
@@ -323,6 +324,9 @@ export async function aiCaseRoutes(app: FastifyInstance) {
         .send({ error: { code: "stale_evidence_revision", evidenceId: drifted } });
     }
 
+    // B6-F-20 — one plan AI operation, taken at the first provider call.
+    const planMeter = meterAiPlanOperation(async () => (await evaluateWorkspaceAiOperation({ teamId })).scope);
+    const caseProvider = buildCaseCopilotProvider();
     let result;
     try {
       result = await runCaseCopilot({
@@ -331,9 +335,19 @@ export async function aiCaseRoutes(app: FastifyInstance) {
         // above, so the defensibility record pins the state the conclusion
         // was actually drawn from.
         selectionRevisions: serverRevisions,
-        provider: buildCaseCopilotProvider(), resolveCitation,
+        provider: async (input) => {
+          await planMeter.take();
+          return caseProvider(input);
+        },
+        resolveCitation,
       });
     } catch (err) {
+      if (err instanceof AiPlanAllowanceRefused) {
+        if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+        await auditCase(req, userId, "blocked", caseId, teamId, { status: err.denial, selectedCount: ids.length });
+        return reply.code(err.statusCode).send({ code: err.denial, message: err.message });
+      }
+      await planMeter.refund();
       if (err instanceof CaseCopilotProviderUnavailable) {
         if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
         await auditCase(req, userId, "failure", caseId, teamId, { status: "provider_unavailable", selectedCount: ids.length });
@@ -342,7 +356,14 @@ export async function aiCaseRoutes(app: FastifyInstance) {
       if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
       throw err;
     }
-    if (ledger.reservationId) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+    // B6-F-26 (Free-user audit 0ea0) — the ledger records SPEND: it is
+    // reconciled only when the provider was actually reached (the plan meter
+    // took its operation). A policy-denied or no-selection run released the
+    // reservation, and with it the rollups it had incremented.
+    if (ledger.reservationId) {
+      if (planMeter.taken) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+      else await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+    }
 
     await auditCase(req, userId, result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", caseId, teamId, {
       status: result.status, selectedCount: ids.length, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision,

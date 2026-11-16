@@ -97,14 +97,19 @@ test("settlement, failure and a closed attempt stop blocking, each said as itsel
   assert.match(local.message, /PayPal did not confirm this and nothing was cancelled there/);
 });
 
-test("Continue is a private-build hand-over; any other build is told where to finish", () => {
+// B6-F-63 (free-user audit 0ea0) — a store build no longer signposts an external
+// purchase path: it says the purchase cannot be finished in the app, and that it
+// can be abandoned here.
+test("Continue is a private-build hand-over; any other build is told it cannot finish it in the app", () => {
   const open = { outcome: "STILL_PENDING", provider: "STRIPE", waitingFor: "PAYMENT_PAGE", resumeUrl: "https://checkout.stripe.com/c/pay/cs_1" };
   assert.equal(check(open, true).resumeUrl, open.resumeUrl);
   assert.match(check(open, true).message, /continue checkout/);
   const store = check(open, false);
   assert.equal(store.resumeUrl, null);
-  assert.match(store.message, /use Billing on the web, or abandon it here/);
-  assert.match(A.billingActivityNote(false), /use Billing on the web/);
+  assert.match(store.message, /cannot be finished in this app; you can abandon it here/);
+  assert.doesNotMatch(store.message, /on the web/);
+  assert.doesNotMatch(A.billingActivityNote(false), /on the web/);
+  assert.match(A.billingActivityNote(false), /abandon it here/);
   assert.doesNotMatch(A.billingActivityNote(true), /on the web/);
 });
 

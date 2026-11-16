@@ -318,6 +318,9 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // F-08 — the API overload gate (middleware/overload-gate.ts): 503 + Retry-After,
   // refused before any work; global copy ("try again in a moment").
   SERVER_BUSY: { disposition: "customer", where: "global" },
+  // B1-F-006 (Free-user audit 0ea0) — sign-in could not confirm the account's
+  // second-factor requirement, so it signed nobody in (fail closed; retryable).
+  SECURITY_CONTEXT_UNAVAILABLE: { disposition: "customer", where: "global" },
   // Report / package generation and recovery (2026-09-26).
   GENERATION_NOT_PERMITTED: { disposition: "customer", where: "global" },
   // ET-SEC-14 — the output policy refuses a regeneration as at first issuance.
@@ -390,6 +393,21 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   SIGNING_KEY_MISSING: { disposition: "customer", where: "global" },
   INSUFFICIENT_CREDITS: { disposition: "customer", where: "global" },
   STORAGE_LIMIT_REACHED: { disposition: "customer", where: "global" },
+  // Free-user audit 0ea0 (integration fix-up 2026-11-16) — codes added by the
+  // remediation batch.
+  // B5A-F-11 — Lock on a trashed/destroyed record (409, flat body).
+  EVIDENCE_NOT_LOCKABLE: { disposition: "customer", where: "apps/web/lib/evidence/lock-refusal.ts" },
+  // B6-F-45 / B6-F-48 — the AI quick run analyses only text extracted from the record.
+  EVIDENCE_TEXT_UNVERIFIED: { disposition: "customer", where: "apps/web/components/intelligence/ProviderBudgetPanel.tsx" },
+  EVIDENCE_TEXT_MISMATCH: { disposition: "customer", where: "apps/web/components/intelligence/ProviderBudgetPanel.tsx" },
+  DEEP_LINK_TYPE_UNSUPPORTED: {
+    disposition: "internal",
+    why:
+      "B2A-F-07 — POST /v1/deep-link/resolve answers 422 for a resource family with no id-bearing page. " +
+      "The web chokepoint (useDeepLinkNavigation) only asks the resolver for the record routes " +
+      "parseDeepLinkTarget recognises and opens every other path as a plain in-app navigation, so " +
+      "a person never sees this refusal.",
+  },
   CAPTURE_SESSION_NOT_EDITABLE: { disposition: "customer", where: "global" },
   DERIVATIVE_DOWNLOADED: {
     disposition: "internal",

@@ -412,12 +412,16 @@ export async function listIntelligenceJobs(
     status?: import("@prisma/client").EvidenceIntelligenceJobStatus;
     kind?: EvidenceIntelligenceJobKind;
     limit?: number;
+    /** Records closed to the reader (`hiddenRecordIdsInWorkspace`). */
+    closedEvidenceIds?: readonly string[];
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<DbJob[]> {
+  const closed = input.closedEvidenceIds ?? [];
   return client.evidenceIntelligenceJob.findMany({
     where: {
       teamId: input.teamId,
+      ...(closed.length > 0 ? { evidenceId: { notIn: [...closed] } } : {}),
       ...(input.status ? { status: input.status } : {}),
       ...(input.kind ? { kind: input.kind } : {}),
     },

@@ -259,6 +259,9 @@ export async function intelligenceRoutes(app: FastifyInstance) {
         status: query.status,
         kind: query.kind,
         limit: query.limit,
+        // B6-F-43 (free-audit 0ea0): a job names its record; a record a
+        // restricted case closes to the reader is not listed (RC-CASE-REACH).
+        closedEvidenceIds: (await hiddenRecordIdsInWorkspace(query.teamId, ok.userId)).evidenceIds,
       });
       return reply.code(200).send({
         jobs: rows.map(projectIntelligenceJob),

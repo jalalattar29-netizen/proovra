@@ -62,7 +62,20 @@ vi.mock("../src/db.js", () => {
     },
     organizationMembership: {
       findMany: async () => [],
-      findFirst: async () => (H.orgAdminRole ? { id: "m-1" } : null),
+      // B3A-F-005 (free-audit 0ea0): the notification-policy routes now ask the
+      // canonical org authority (`checkOrgAccess`), which reads the caller's
+      // membership role, status and contract window. The caller here is an
+      // ACTIVE member of the organization; `H.orgAdminRole` is their role
+      // (null = a plain ORG_MEMBER, refused 403 as before).
+      findFirst: async (args?: { select?: Record<string, unknown> }) =>
+        args?.select && "validUntilUtc" in args.select
+          ? { role: H.orgAdminRole ?? "ORG_MEMBER", status: "ACTIVE", validUntilUtc: null }
+          : H.orgAdminRole
+            ? { id: "m-1" }
+            : null,
+    },
+    organization: {
+      findUnique: async () => ({ id: "55555555-5555-4555-8555-555555555555", status: "ACTIVE", kind: "CUSTOMER" }),
     },
     organizationNotificationPolicy: {
       findMany: async () => H.orgPolicyRows,
@@ -226,6 +239,15 @@ vi.mock("../src/db.js", () => {
         if (H.scheduleSchemaMissing) throw { code: "P2021" };
         if (H.scheduleGenericError) throw new Error("db exploded");
         return H.scheduleRow;
+      },
+      // B2B-F-07 — the digest scheduler reads schedule rows in bulk before
+      // applying its run cap (due first, oldest watermark first).
+      findMany: async () => {
+        if (H.scheduleSchemaMissing) throw { code: "P2021" };
+        if (H.scheduleGenericError) throw new Error("db exploded");
+        return H.scheduleRow
+          ? [{ userId: H.userId, teamId: H.teamId, ...H.scheduleRow }]
+          : [];
       },
       // Conditional-claim semantics mirroring Postgres.
       updateMany: async (args: {
@@ -437,9 +459,23 @@ describe("Preference routes — organization policy locks", () => {
     expect(H.prefUpserts.length).toBe(0); // nothing persisted
   });
 
-  it("ORG workspace: frequency OFF on the mandatory category is also locked", async () => {
+  it("ORG workspace: frequency OFF on the mandatory category is also locked (IN_APP); EMAIL stays the member's choice (B2B-F-02)", async () => {
     const app = await buildApp(notificationPreferencesRoutes);
     const res = await app.inject({
+      method: "PUT",
+      url: "/v1/me/notification-preferences",
+      payload: {
+        teamId: H.teamId,
+        preferenceType: "GOVERNANCE_UPDATE",
+        channel: "IN_APP",
+        enabled: true,
+        frequency: "OFF",
+      },
+    });
+    // Free-audit 0ea0 B2B-F-02: the platform floor is an IN-APP floor (the
+    // GET projects it in lockedTypes, not emailLockedTypes), so the EMAIL
+    // channel without an org mandatoryEmail policy row can be switched off.
+    const email = await app.inject({
       method: "PUT",
       url: "/v1/me/notification-preferences",
       payload: {
@@ -452,6 +488,7 @@ describe("Preference routes — organization policy locks", () => {
     });
     await app.close();
     expect(res.statusCode).toBe(403);
+    expect(email.statusCode).toBe(200);
   });
 
   it("PERSONAL workspace: platform in-app floor now applies (remediation 2026-07-14) — GOVERNANCE_UPDATE IN_APP cannot be disabled, but an OPTIONAL type saves", async () => {

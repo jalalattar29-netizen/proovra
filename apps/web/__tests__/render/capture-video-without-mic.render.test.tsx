@@ -46,11 +46,14 @@ class FakeRecorder {
 }
 
 const fakeStream = { getTracks: () => [], getAudioTracks: () => [], getVideoTracks: () => [] } as unknown as MediaStream;
+// B4-F-303 — the marker is read from the recorded stream's audio tracks, so a
+// granted microphone yields a stream that HAS one (as a browser's does).
+const fakeStreamWithAudio = { getTracks: () => [], getAudioTracks: () => [{ kind: "audio" }], getVideoTracks: () => [] } as unknown as MediaStream;
 
 function stubDevices(microphone: "denied" | "granted") {
   const getUserMedia = vi.fn(async (c: MediaStreamConstraints) => {
     if (c.audio && microphone === "denied") throw Object.assign(new Error("Permission denied"), { name: "NotAllowedError" });
-    return fakeStream;
+    return c.audio ? fakeStreamWithAudio : fakeStream;
   });
   Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia }, configurable: true });
   vi.stubGlobal("MediaRecorder", FakeRecorder);

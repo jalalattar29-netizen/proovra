@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "3cacd3a615d30c06549322e0b1c8a1d8705241f8c6e2b0c46196ad2303f7a655",
+  "capabilityRouteInventoryHash": "83a8cc06a0118eacedc1377e60c62f0a24605578d417644e801c7b9cbc6d8b3f",
   "totals": {
-    "routes": 1245,
-    "routesWithAnyTestCaller": 56,
+    "routes": 1247,
+    "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 9,
-    "testCallSites": 133,
+    "testCallSites": 142,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -1936,6 +1936,12 @@
     },
     {
       "routeId": "GET /v1/identity/links",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/identity/links/organization",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -4415,9 +4421,11 @@
     },
     {
       "routeId": "POST /v1/billing/credits/checkout/stripe",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "apps/web/__tests__/render/free-audit-clientx-web.render.test.tsx"
+      ]
     },
     {
       "routeId": "POST /v1/billing/plan",
@@ -4815,9 +4823,11 @@
     },
     {
       "routeId": "POST /v1/collaboration/threads/:id/assign",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "apps/web/__tests__/render/free-audit-clientx-identity.render.test.tsx"
+      ]
     },
     {
       "routeId": "POST /v1/collaboration/threads/:id/contributors",
@@ -5091,9 +5101,11 @@
     },
     {
       "routeId": "POST /v1/evidence/:id/lock",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "apps/web/__tests__/render/free-audit-clientx-web.render.test.tsx"
+      ]
     },
     {
       "routeId": "POST /v1/evidence/:id/parts",
@@ -5753,6 +5765,12 @@
     },
     {
       "routeId": "POST /v1/identity/links/google",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/identity/links/organization",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7610,5 +7628,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "1cba7cc06bdc352b2643f9526482dc5e70b1763d6035a0078fbafdeb2e4b6bdf"
+  "contentHash": "c930db3ce852e5f36aebfbe792f17c62e14589c2d99b61c29684550b46767fa1"
 }

@@ -70,10 +70,15 @@ function isActive(status: LifecycleStatus): boolean {
   return status === "OPEN" || status === "IN_PROGRESS";
 }
 
-function safeMessage(error: unknown, fallback: string): string {
+export function safeMessage(error: unknown, fallback: string): string {
   const code = (error as { code?: unknown } | null)?.code;
   if (code === "invalid_status_transition" || code === "thread_terminal") {
     return "This thread changed since it was loaded. Refresh the thread and try again.";
+  }
+  // R1-F-05 — 422: the chosen person's role cannot review (a Viewer) or they
+  // cannot reach the record.
+  if (code === "assignee_not_eligible") {
+    return "That member can't be assigned this thread: their role can't review discussions on this record. Choose a reviewer.";
   }
   return toSafeUserError(error, { message: fallback }).message;
 }
@@ -394,6 +399,7 @@ export function DiscussionThreadLifecycle({
               value={assignee?.userId ?? null}
               onChange={setAssignee}
               disabled={busy}
+              requiredPermission="evidence_request.review"
             />
           ) : (
             <div className="evidence-lifecycle__field">

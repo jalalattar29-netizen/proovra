@@ -12,6 +12,7 @@
  * record's disclosure policy withholds), and every status is an icon AND a
  * word — never colour alone.
  */
+import { copyWithFeedback } from "../../../lib/clipboard/copy-with-feedback";
 import { useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import {
   isAdministrativeCustodyEventType,
@@ -160,10 +161,7 @@ export function HashValue({
         type="button"
         aria-label={`Copy ${label}`}
         data-print-hide
-        onClick={() => {
-          void navigator.clipboard?.writeText(value);
-          addToast(`${label} copied`, "success");
-        }}
+        onClick={() => void copyWithFeedback(value, addToast, `${label} copied`)}
         style={{
           border: `1px solid ${VERIFY_BRAND.line}`,
           background: "rgba(255,255,255,0.62)",

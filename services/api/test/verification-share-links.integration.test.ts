@@ -689,7 +689,7 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
         select: { id: true, teamId: true, ownerUserId: true },
       });
       expect(await resolveShareWorkspaceId(row)).toBe(P.teamId);
-      const inventory = await legacyVerifyLinkInventory({ teamId: P.teamId });
+      const inventory = await legacyVerifyLinkInventory({ teamId: P.teamId, actorUserId: P.userId });
       expect(inventory.records.map((r) => r.evidenceId)).toContain(row.id);
     });
   });

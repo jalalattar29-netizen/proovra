@@ -43,8 +43,11 @@ import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
 import { AiCapabilityStatusTable } from "../../../../components/ai-copilot/AiCapabilityStatusTable";
 import {
+  AI_SWITCH_NOT_INCLUDED_COPY,
   LAUNCHED_PERSONAL_AI_FEATURES,
+  aiPolicyEntitlementRefusal,
   deriveAiSettingsMode,
+  planLockedAiSwitches,
 } from "../../../../lib/ai/aiAssistanceView";
 import type { AiAssistanceStatus } from "../../../../lib/ai/assistanceStatus";
 import { AiStatusRow } from "./AiStatusRow";
@@ -171,10 +174,33 @@ export function AiSection() {
     "idle" | "loading" | "saving" | "saved" | "conflict" | "denied" | "error"
   >("loading");
   const [message, setMessage] = useState<string | null>(null);
+  /*
+   * Free audit B6-F-22 / B6-F-46 — the paid switches a refused save named
+   * (403 ENTITLEMENT_REQUIRED `details.fields`), kept so they render as
+   * plan-locked even when the usage read did not resolve the plan.
+   */
+  const [refusedFields, setRefusedFields] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     if (!teamId) return;
     setStatus("loading");
+    setRefusedFields([]);
+    // B6-F-27 — a member who cannot manage this personal workspace's AI policy
+    // reads the member-safe status only; the editable envelope is never shown.
+    if (mode === "personal-readonly") {
+      try {
+        const safe = (await apiFetch(
+          `/v1/workspaces/ai-assistance-status?teamId=${teamId}`,
+        )) as AiAssistanceSettings;
+        setReadOnly(safe);
+        setStatus("idle");
+        setMessage(null);
+      } catch {
+        setStatus("error");
+        setMessage("Could not load the AI settings for this workspace.");
+      }
+      return;
+    }
     try {
       const res = (await apiFetch(
         `/v1/workspaces/ai-policy?teamId=${teamId}`,
@@ -215,7 +241,7 @@ export function AiSection() {
     } catch {
       /* usage is optional */
     }
-  }, [teamId]);
+  }, [teamId, mode]);
 
   useEffect(() => {
     /*
@@ -230,6 +256,11 @@ export function AiSection() {
     setUsage(null);
     if (mode !== "personal-not-included") void load();
   }, [load, mode]);
+
+  const planLocked = useMemo(
+    () => planLockedAiSwitches({ workspacePlan: usage?.allowance?.plan ?? null, refusedFields }),
+    [usage, refusedFields],
+  );
 
   const dirty = useMemo(() => {
     if (!draft || !envelopeState) return false;
@@ -273,6 +304,26 @@ export function AiSection() {
         },
       );
     } catch (err) {
+      const refused = aiPolicyEntitlementRefusal(err);
+      if (refused) {
+        // B6-F-22 / B6-F-46 — the plan does not include these capabilities.
+        // Put the refused switches back to what the row holds and say why;
+        // this is a plan answer, not a missing-role answer.
+        setRefusedFields(refused);
+        setDraft({
+          ...draft,
+          ...Object.fromEntries(
+            refused
+              .filter((f) => f in envelopeState.policy)
+              .map((f) => [f, envelopeState.policy[f as keyof Policy]]),
+          ),
+        } as Policy);
+        setStatus("denied");
+        setMessage(
+          `${AI_SWITCH_NOT_INCLUDED_COPY}: some AI capabilities you turned on are not part of this workspace's plan. Nothing was changed.`,
+        );
+        return;
+      }
       if (isApiResponseError(err) && err.statusCode === 409) {
         setStatus("conflict");
         setMessage(
@@ -344,6 +395,7 @@ export function AiSection() {
         setDraft={setDraft}
         envelopeState={envelopeState}
         usage={usage}
+        planLocked={planLocked}
         status={status}
         message={message}
         dirty={dirty}
@@ -351,6 +403,12 @@ export function AiSection() {
         onReload={load}
       />
     );
+  }
+
+  // B6-F-27 — the member-safe view is the only one this member gets; until it
+  // has loaded (or if it failed) there are no switches to show.
+  if (mode === "personal-readonly") {
+    return <p style={muted}>{message ?? "Loading AI settings…"}</p>;
   }
 
   // ---------------------------------------------------------------------
@@ -646,6 +704,7 @@ function OrgAiView({
   setDraft,
   envelopeState,
   usage,
+  planLocked,
   status,
   message,
   dirty,
@@ -657,6 +716,8 @@ function OrgAiView({
   setDraft: (p: Policy) => void;
   envelopeState: PolicyEnvelope | null;
   usage: Usage | null;
+  /** B6-F-22 / B6-F-46 — paid switches the workspace plan does not include. */
+  planLocked: ReadonlySet<string>;
   status: string;
   message: string | null;
   dirty: boolean;
@@ -764,10 +825,18 @@ function OrgAiView({
             <section className="set-card" data-cc-ai-org-capabilities>
               <h3>Capabilities &amp; data classes</h3>
               <div style={{ display: "grid", gap: 8, opacity: draft.aiEnabled ? 1 : 0.55 }}>
-                {GOVERNANCE_TOGGLES.map(({ key, label, hint }) =>
-                  canEdit ? (
+                {GOVERNANCE_TOGGLES.map(({ key, label, hint }) => {
+                  /*
+                   * B6-F-22 / B6-F-46 — a paid switch the plan does not include
+                   * cannot be switched ON (the server refuses with
+                   * ENTITLEMENT_REQUIRED). One the row already holds stays
+                   * operable so it can be turned off.
+                   */
+                  const locked = planLocked.has(key) && envelopeState?.policy[key] !== true;
+                  return canEdit ? (
                     <label
                       key={key}
+                      data-cc-ai-plan-locked={locked ? key : undefined}
                       style={{
                         display: "flex",
                         gap: 10,
@@ -778,16 +847,24 @@ function OrgAiView({
                     >
                       <input
                         type="checkbox"
-                        disabled={!draft.aiEnabled || status === "saving"}
-                        title={!draft.aiEnabled ? "Turn on AI assistance above to choose this." : undefined}
-                        checked={Boolean(draft[key])}
+                        disabled={locked || !draft.aiEnabled || status === "saving"}
+                        title={
+                          locked
+                            ? AI_SWITCH_NOT_INCLUDED_COPY
+                            : !draft.aiEnabled
+                              ? "Turn on AI assistance above to choose this."
+                              : undefined
+                        }
+                        checked={locked ? false : Boolean(draft[key])}
                         onChange={(e) =>
                           setDraft({ ...draft, [key]: e.target.checked })
                         }
                       />
                       <span>
                         <span style={{ fontWeight: 600 }}>{label}</span>
-                        <span style={{ ...muted, display: "block" }}>{hint}</span>
+                        <span style={{ ...muted, display: "block" }}>
+                          {locked ? AI_SWITCH_NOT_INCLUDED_COPY : hint}
+                        </span>
                       </span>
                     </label>
                   ) : (
@@ -802,12 +879,12 @@ function OrgAiView({
                       }}
                     >
                       <span>{label}</span>
-                      <Badge tone={draft[key] ? "verified" : "neutral"} subtle>
-                        {draft[key] ? "Enabled" : "Disabled"}
+                      <Badge tone={draft[key] && !locked ? "verified" : "neutral"} subtle>
+                        {locked ? AI_SWITCH_NOT_INCLUDED_COPY : draft[key] ? "Enabled" : "Disabled"}
                       </Badge>
                     </div>
-                  ),
-                )}
+                  );
+                })}
               </div>
             </section>
 

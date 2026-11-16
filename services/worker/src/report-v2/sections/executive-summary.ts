@@ -4,6 +4,7 @@ import {
   CAPTURE_LOCATION_REPORT_MAP_UNAVAILABLE_LABEL,
   captureCompletenessNote,
   captureCompletenessRows,
+  redactCapturedPageAddress,
 } from "@proovra/shared";
 import {
   getCaptureContextTimestampLabel,
@@ -63,7 +64,8 @@ function renderCaptureManifestFacts(vm: ReportViewModel): string {
     return s.charAt(0).toUpperCase() + s.slice(1);
   };
   const rows: Array<[string, string]> = [];
-  if (f.web?.sourceUrlPrivate) rows.push(["Captured page URL", f.web.sourceUrlPrivate]);
+  // B4-F-102 (free audit 0ea0) — never a credential/signature value or a fragment.
+  if (f.web?.sourceUrlPrivate) rows.push(["Captured page URL", redactCapturedPageAddress(f.web.sourceUrlPrivate)]);
   if (f.web?.titlePrivate) rows.push(["Page title", f.web.titlePrivate]);
   const browser = [f.client.browserName, f.client.browserVersion].filter(Boolean).join(" ");
   rows.push([

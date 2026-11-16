@@ -111,6 +111,7 @@ import { enforceRateLimit } from "../services/rate-limit.js";
 import {
   auditIdentitySecurityEvent,
   requestIp,
+  administersWorkspaceIdentity,
   requestUa,
   requireSecurityActor,
 } from "./identity-security-shared.js";
@@ -542,10 +543,17 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       const actor = await requireSecurityActor(req, reply, q.teamId, "identity.member.read");
       if (!actor) return;
       if (await denyIfTeamNotEnterprise(reply, q.teamId, "sessionGovernance")) return;
-      const rows = await listRevocationsForTeam({ teamId: q.teamId, limit: 100 });
+      // B1-F-003 (free-audit 0ea0) — every member's revocations are an
+      // identity administrator's read; a read-only role sees its own.
+      const teamWide = await administersWorkspaceIdentity(q.teamId, actor.userId);
+      const rows = await listRevocationsForTeam({
+        teamId: q.teamId,
+        limit: 100,
+        ...(teamWide ? {} : { userId: actor.userId }),
+      });
       return reply
         .code(200)
-        .send({ revoked: rows.map(projectRevokedSession) });
+        .send({ revoked: rows.map(projectRevokedSession), scope: teamWide ? "team" : "self" });
     },
   );
 
@@ -560,10 +568,18 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       const q = TeamIdQuery.parse(req.query ?? {});
       const actor = await requireSecurityActor(req, reply, q.teamId, "identity.member.read");
       if (!actor) return;
-      const rows = await listTrustedDevicesForTeam({ teamId: q.teamId });
+      // B1-F-003 (free-audit 0ea0) — every member's trusted devices (user,
+      // device and IP prefix) are an identity administrator's read; VIEWER and
+      // MEMBER held `identity.member.read` and listed them all. A read-only
+      // role now sees only its own devices. `scope` says which list this is.
+      const teamWide = await administersWorkspaceIdentity(q.teamId, actor.userId);
+      const rows = await listTrustedDevicesForTeam({
+        teamId: q.teamId,
+        ...(teamWide ? {} : { userId: actor.userId }),
+      });
       return reply
         .code(200)
-        .send({ devices: rows.map(projectTrustedDevice) });
+        .send({ devices: rows.map(projectTrustedDevice), scope: teamWide ? "team" : "self" });
     },
   );
 
@@ -889,9 +905,12 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const q = TeamIdQuery.parse(req.query ?? {});
+      // B1-F-003 (free-audit 0ea0) — every member's role and live session
+      // count is an identity administrator's read, not the policy read every
+      // role holds (`identity.org_policy.read`). Read-only roles get 403.
       const authorized = await authorizeOrFail(req, reply, {
         teamId: q.teamId,
-        permission: "identity.org_policy.read",
+        permission: "identity.access_review.action",
         antiEnumeration: true,
       });
       if (!authorized) return;

@@ -16,6 +16,8 @@ const A = vi.hoisted(() => ({
   },
   managedThrows: null as null | Error,
   provisionCalls: 0,
+  /** B5B-F-302 — is the account a pre-existing self-serve account for the org? */
+  selfServe: false,
 }));
 
 vi.mock("../src/services/identity/org-security-policy.service.js", () => ({
@@ -30,6 +32,9 @@ vi.mock("../src/services/identity/identity-mode.service.js", () => ({
     if (A.managedThrows) throw A.managedThrows;
     return { state: A.managed.state, managed: A.managed.state === "MANAGED", managingOrganizationId: A.managed.managingOrganizationId };
   },
+}));
+vi.mock("../src/services/security/enterprise-account-linking.service.js", () => ({
+  isSelfServeAccountForOrganization: async () => A.selfServe,
 }));
 vi.mock("../src/services/identity/membership-provisioning.service.js", () => ({
   provisionManagedMembership: async () => {
@@ -52,6 +57,7 @@ beforeEach(() => {
   A.managed = { state: "STANDARD", managingOrganizationId: null };
   A.managedThrows = null;
   A.provisionCalls = 0;
+  A.selfServe = false;
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -95,6 +101,19 @@ describe("Fix 2 — enforceScimManagedOwnership dispositions", () => {
     A.managedRequired = true;
     expect(await enforceScimManagedOwnership(CTX, { userId: "u1", workspaceRole: "MEMBER" }, client)).toBe("RECONCILED");
     expect(A.provisionCalls).toBe(1); // bind + seat + membership ran
+  });
+
+  // B5B-F-302 — a pre-existing SELF-SERVE account (its owner linked it) is a
+  // member, never converted: the Organization's managed requirement binds
+  // nothing, and the caller's role/attribute change still applies.
+  it("STANDARD self-serve account + policy REQUIRES managed → SELF_SERVE_NOT_BOUND, zero provisioning", async () => {
+    A.managed = { state: "STANDARD", managingOrganizationId: null };
+    A.managedRequired = true;
+    A.selfServe = true;
+    expect(await enforceScimManagedOwnership(CTX, { userId: "u1", workspaceRole: "MEMBER" }, client)).toBe(
+      "SELF_SERVE_NOT_BOUND",
+    );
+    expect(A.provisionCalls).toBe(0);
   });
 
   it("schema-unavailable (resolveManagedIdentity throws) → propagates (fail closed)", async () => {

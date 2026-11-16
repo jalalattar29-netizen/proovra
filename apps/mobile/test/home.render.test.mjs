@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { loadModule, renderComponent, React } from "./support/render.mjs";
 import {
   authenticatedRoutes,
+  platformContextEnvelope,
   signIn,
   assertScopedRequests,
   TEST_TEAM_ID,
@@ -47,6 +48,16 @@ function installFetch() {
  */
 const OK = () => ({
   ...authenticatedRoutes(),
+  // B2A-F-01 / B2A-F-04 (Free-user audit 0ea0) — the viewer's OWN Personal
+  // Space (the only space the personal billing overview describes) on a plan
+  // that includes cases. Other spaces are pinned in their own tests below.
+  "/v1/platform/context": () =>
+    platformContextEnvelope({
+      activeSpace: { id: TEST_TEAM_ID, type: "PERSONAL", plan: "PRO", displayName: "Personal Space", status: "active" },
+      planFeatures: { casesIncluded: true },
+    }),
+  // B2A-F-03 — the record allowance reads the PERSONAL account projection.
+  "/v1/billing/accounts": () => ({ accounts: [] }),
   "/v1/evidence": () => ({
     items: [
       {
@@ -382,4 +393,17 @@ test("Home does not carry its own search card — the shell header owns it", asy
     "Home re-grew its own search card. Search belongs to the shell header so " +
       "it is reachable from every destination, not just this one.",
   );
+});
+
+// B2A-F-01 (Free-user audit 0ea0) — in a workspace somebody else pays for, the
+// viewer's personal storage is not that workspace's meter.
+test("B2A-F-01: an organization workspace shows no personal storage meter or storage priority", async () => {
+  routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { casesIncluded: true } });
+  routes["/v1/billing/overview"] = () => ({
+    workspaces: { personal: { storage: { usedLabel: "250 MB", limitLabel: "250 MB", usagePercent: 100, nearLimit: true, limitReached: true } } },
+  });
+  const r = await render();
+  assert.equal(r.hasText("Storage limit reached"), false, "the personal limit was raised as this workspace's priority");
+  await r.press("Workspace views: Analytics");
+  assert.equal(r.texts().some((t) => t.includes("250 MB of 250 MB")), false, "the personal meter was shown as the workspace's");
 });

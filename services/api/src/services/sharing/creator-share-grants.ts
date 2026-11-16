@@ -8,6 +8,11 @@
  *   - an external-review grant (`external_review_grants`), issued by a member
  *     to an outside reviewer.
  *
+ * (The same transitions also end the intake links, API keys and webhooks a
+ * person created: INGEST-010, A2-10, B7B-F09. A role change ends those through
+ * standing-credential-authority.ts, which also re-asks at use time. Expiry of
+ * the creator's access window ends none of them: policy A2-26.)
+ *
  * Neither may outlive its creator's authority. When the creator is removed,
  * suspended, or loses the permission that let them create it, their live
  * grants in that workspace end — unless an OWNER/ADMIN transferred them to the
@@ -24,7 +29,14 @@ import type { PrismaClient } from "@prisma/client";
 
 type ShareTx = Pick<
   PrismaClient,
-  "verificationShareToken" | "externalReviewGrant" | "workflowIntakeLink" | "apiCredential"
+  | "verificationShareToken"
+  | "externalReviewGrant"
+  | "workflowIntakeLink"
+  | "apiCredential"
+  // B7B-F09 — the three webhook systems, each row held in its creator's name.
+  | "webhookEndpoint"
+  | "automationWebhookDestination"
+  | "lifecycleWebhookEndpoint"
 >;
 
 export type CreatorShareRevocationReason =
@@ -84,26 +96,50 @@ export async function revokeCreatorShareGrantsTx(
     creators: ReadonlyArray<{ teamId: string; userId: string }>;
     reason: CreatorShareRevocationReason;
     actorUserId?: string | null;
-    kinds?: { ownerShares?: boolean; externalReview?: boolean; intakeLinks?: boolean; apiKeys?: boolean };
+    kinds?: {
+      ownerShares?: boolean;
+      externalReview?: boolean;
+      intakeLinks?: boolean;
+      apiKeys?: boolean;
+      /** Integration webhook endpoints and automation webhook destinations. */
+      webhooks?: boolean;
+      /** Lifecycle (packaging) webhook endpoints; defaults to `webhooks`. */
+      lifecycleWebhooks?: boolean;
+    };
   },
-): Promise<{ ownerShares: number; externalReview: number; intakeLinks: number; apiKeys: number }> {
-  const out = { ownerShares: 0, externalReview: 0, intakeLinks: 0, apiKeys: 0 };
+): Promise<{ ownerShares: number; externalReview: number; intakeLinks: number; apiKeys: number; webhooks: number }> {
+  const out = { ownerShares: 0, externalReview: 0, intakeLinks: 0, apiKeys: 0, webhooks: 0 };
   // INGEST-010 — a secure intake link is an anonymous capability held in its
   // creator's name, like an owner share link: it ends when the creator is
   // removed or suspended, or the workspace closes (rows kept, revoked with the
   // reason). It used to stay ACTIVE in the operator's list while every new
   // contributor's first file was refused, because the record is created in the
-  // creator's name. A change of role does not end it: its authority is the
-  // intake permission, not the share permissions the role check above names.
+  // creator's name. A change of role ends it only when the role no longer holds
+  // the permission that minted it (B3B-F-106: standing-credential-authority.ts
+  // asks the canonical decision, separately for direct and request-bound
+  // links), never because a share permission went.
   const endsIntakeLinks =
     input.kinds?.intakeLinks ??
     (input.reason === "CREATOR_REMOVED" || input.reason === "CREATOR_SUSPENDED" || input.reason === "WORKSPACE_CLOSED");
   // A2-10 — an integration API key is machine access held in its creator's
   // name the same way: it ends when the creator is removed or suspended
-  // (revoked, with the reason, never deleted). Workspace closure revokes every
-  // key of the workspace on its own leg.
+  // (revoked, with the reason, never deleted), or when a role change takes the
+  // key permission away (B3A-F-002, passed explicitly by the role-change leg).
+  // Workspace closure revokes every key of the workspace on its own leg.
   const endsApiKeys =
     input.kinds?.apiKeys ?? (input.reason === "CREATOR_REMOVED" || input.reason === "CREATOR_SUSPENDED");
+  // B7B-F09 — a webhook is standing OUTBOUND access configured in its
+  // creator's name (record ids, fingerprints, sizes and timestamps keep
+  // flowing to a URL they chose). It ends on the same transitions as their API
+  // keys (A2-10): removal and suspension, or the loss of the permission that
+  // created it (the role-change leg passes it explicitly). Endpoints are
+  // DISABLED / destinations disabled / lifecycle endpoints DEACTIVATED — kept,
+  // never deleted, and re-enabled only deliberately. EXPIRY of the creator's
+  // access window is not one of these transitions (A2-26). Workspace closure
+  // and workspace suspension have their own legs.
+  const endsWebhooks =
+    input.kinds?.webhooks ?? (input.reason === "CREATOR_REMOVED" || input.reason === "CREATOR_SUSPENDED");
+  const endsLifecycleWebhooks = input.kinds?.lifecycleWebhooks ?? endsWebhooks;
   if (input.creators.length === 0) return out;
   const now = new Date();
   const byWorkspace = new Map<string, string[]>();
@@ -150,6 +186,24 @@ export async function revokeCreatorShareGrantsTx(
         },
       });
       out.apiKeys += r.count;
+    }
+    if (endsWebhooks) {
+      const endpoints = await tx.webhookEndpoint.updateMany({
+        where: { teamId, createdByUserId: { in: userIds }, status: "ACTIVE" },
+        data: { status: "DISABLED" },
+      });
+      const destinations = await tx.automationWebhookDestination.updateMany({
+        where: { teamId, createdByUserId: { in: userIds }, enabled: true },
+        data: { enabled: false, disabledAt: now, disabledReason: input.reason.toLowerCase() },
+      });
+      out.webhooks += endpoints.count + destinations.count;
+    }
+    if (endsLifecycleWebhooks) {
+      const lifecycle = await tx.lifecycleWebhookEndpoint.updateMany({
+        where: { teamId, createdByUserId: { in: userIds }, state: "ACTIVE" },
+        data: { state: "DEACTIVATED", deactivatedAtUtc: now },
+      });
+      out.webhooks += lifecycle.count;
     }
   }
   return out;

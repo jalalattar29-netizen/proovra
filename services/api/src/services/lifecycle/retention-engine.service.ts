@@ -264,7 +264,10 @@ export async function createRetentionPolicy(
       return { ok: false, denial: "RETENTION_LIMIT_EXCEEDED", limit: maxYears };
     }
   } catch {
-    /* entitlement engine error — do not block policy creation */
+    // B5B-F-301 (Free-user audit 0ea0) — FAIL CLOSED. An entitlement engine
+    // that cannot answer is not a limit of "unlimited": a binding retention
+    // policy is extend-only, so it is not created on an unknown limit.
+    return { ok: false, denial: "POLICY_REJECTED", reason: "retention_limit_unavailable" };
   }
 
   if (input.scopeKind === "CASE") {
@@ -466,6 +469,8 @@ export async function computeUpcomingExpirations(input: {
   prisma?: PrismaClient;
   teamId: string;
   withinDays?: number;
+  /** B5B-F-305: records closed to the reader (`hiddenRecordIdsInWorkspace`). */
+  closedEvidenceIds?: readonly string[];
 }): Promise<{ count: number; sampleEvidenceIds: ReadonlyArray<string> }> {
   const prisma = input.prisma ?? defaultPrisma;
   // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
@@ -484,6 +489,9 @@ export async function computeUpcomingExpirations(input: {
     .findMany({
       where: {
         AND: [scope],
+        ...(input.closedEvidenceIds && input.closedEvidenceIds.length > 0
+          ? { id: { notIn: [...input.closedEvidenceIds] } }
+          : {}),
         deletedAt: null,
         archivedAt: null,
         retentionUntilUtc: {

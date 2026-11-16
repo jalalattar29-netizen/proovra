@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { CaptureStagingLimitError, describeStagingFailure, logCaptureClientError } from "../_lib/capture-errors";
+import { videoWithoutAudioSignals } from "../_lib/types";
 import type { CaptureSessionAddFiles } from "./useCaptureSessionOrchestration";
 
 /**
@@ -343,7 +344,14 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
     setError(null);
     const label = screenRecordingSourceLabel(factsRef.current);
     try {
-      await addFilesToSession([recording], { sessionEvidenceType: "VIDEO", sourceLabel: label });
+      // B4-F-303 — a screen recording without the shared surface's audio
+      // carries the same no-audio marker as a muted camera clip (F-P1-09),
+      // not only the editable source label.
+      await addFilesToSession([recording], {
+        sessionEvidenceType: "VIDEO",
+        sourceLabel: label,
+        ...(factsRef.current.audioIncluded === false ? { audioSignals: videoWithoutAudioSignals("AUDIO_NOT_SHARED") } : {}),
+      });
       onRecorded?.(factsRef.current, label);
       setRecording(null);
       sessionActiveRef.current = false;

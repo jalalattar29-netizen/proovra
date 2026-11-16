@@ -983,8 +983,18 @@ export const NATIVE_DESTINATIONS = {
 };
 
 /** Counts by status — used by the ledger report and the coverage guard. */
+/**
+ * B2A-F-21 (Free-user audit 0ea0) — keyed by the DestinationStatus union. The
+ * keys still said BLOCKED_BY_DECISION / PARITY after the rename, so every
+ * CODE_PARITY row added to `undefined` (NaN) and the report showed nonsense.
+ */
+export const DESTINATION_STATUSES = /** @type {const} */ (["NOT_STARTED", "SHELL", "PARTIAL", "CODE_PARITY", "BLOCKED_BY_USER_DECISION"]);
 export function destinationCounts() {
-  const counts = { NOT_STARTED: 0, BLOCKED_BY_DECISION: 0, SHELL: 0, PARTIAL: 0, PARITY: 0 };
-  for (const d of Object.values(NATIVE_DESTINATIONS)) counts[d.status] += 1;
+  /** @type {Record<DestinationStatus, number>} */
+  const counts = Object.fromEntries(DESTINATION_STATUSES.map((k) => [k, 0]));
+  for (const d of Object.values(NATIVE_DESTINATIONS)) {
+    if (!(d.status in counts)) throw new Error(`native-destinations: unknown status ${d.status}`);
+    counts[d.status] += 1;
+  }
   return counts;
 }

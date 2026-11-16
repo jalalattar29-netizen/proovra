@@ -24,6 +24,10 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
+  checkOrgAccess,
+  orgAccessDenial,
+} from "../services/organization/org-access.js";
+import {
   NOTIFICATION_FREQUENCIES,
   NOTIFICATION_PREFERENCE_TYPES,
 } from "../services/notifications/notification-preferences.service.js";
@@ -43,21 +47,28 @@ const PutBody = z.object({
   quietHoursCriticalOverride: z.boolean(),
 });
 
+/**
+ * B3A-F-005 (free-audit 0ea0) — THE CANONICAL ORG AUTHORITY, NOT A ROW READ.
+ *
+ * This asked only whether an ACTIVE ORG_OWNER / ORG_ADMIN membership ROW
+ * existed, so an administrator whose contract-bounded membership had lapsed
+ * (`validUntilUtc`), or whose Organization was SUSPENDED or ARCHIVED, kept
+ * reading and rewriting the policy. `checkOrgAccess` is the one org
+ * authority (status, expiry, organization lifecycle, explicit role set), and
+ * `orgAccessDenial` its one rendering (PV-ORG-001): a non-member or a member
+ * whose access has ended gets the 404 a missing organization gets; a live
+ * member without the role, or a member of a closed organization, gets 403.
+ */
 async function requireOrgAdmin(
   userId: string,
   orgId: string,
-): Promise<boolean> {
-  // ARCH-004 — an AUTHORIZATION check; ACTIVE only.
-  const membership = await prisma.organizationMembership.findFirst({
-    where: {
-      userId,
-      organizationId: orgId,
-      status: "ACTIVE",
-      role: { in: ["ORG_OWNER", "ORG_ADMIN"] },
-    },
-    select: { id: true },
+): Promise<{ status: 403 | 404; body: { error: { code: "not_found" | "forbidden" } } } | null> {
+  const access = await checkOrgAccess(prisma, {
+    orgId,
+    userId,
+    roles: ["ORG_OWNER", "ORG_ADMIN"],
   });
-  return membership !== null;
+  return access.kind === "ok" ? null : orgAccessDenial(access);
 }
 
 export async function orgNotificationPolicyRoutes(app: FastifyInstance) {
@@ -70,9 +81,8 @@ export async function orgNotificationPolicyRoutes(app: FastifyInstance) {
         .string()
         .uuid()
         .parse((req.params as { orgId: string }).orgId);
-      if (!(await requireOrgAdmin(userId, orgId))) {
-        return reply.code(403).send({ error: { code: "org_admin_required" } });
-      }
+      const denial = await requireOrgAdmin(userId, orgId);
+      if (denial) return reply.code(denial.status).send(denial.body);
       const policies = await prisma.organizationNotificationPolicy.findMany({
         where: { organizationId: orgId },
         orderBy: { category: "asc" },
@@ -105,9 +115,8 @@ export async function orgNotificationPolicyRoutes(app: FastifyInstance) {
         .string()
         .uuid()
         .parse((req.params as { orgId: string }).orgId);
-      if (!(await requireOrgAdmin(userId, orgId))) {
-        return reply.code(403).send({ error: { code: "org_admin_required" } });
-      }
+      const denial = await requireOrgAdmin(userId, orgId);
+      if (denial) return reply.code(denial.status).send(denial.body);
       const body = PutBody.parse(req.body ?? {});
       const row = await prisma.organizationNotificationPolicy.upsert({
         where: {

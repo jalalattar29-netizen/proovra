@@ -80,6 +80,18 @@ export const INTEGRITY_FAILED_COPY = {
     "The uploaded file’s SHA-256 does not match the recomputed server-side fingerprint. This evidence record cannot be used. Re-upload or recapture the source material as a new evidence record. The original record is preserved for forensic inspection.",
 } as const;
 
+/**
+ * B4-F-001 — an integrity-rejected record with no report no longer occupies a
+ * Free included-record slot (the meter shows it beside the count). Said only
+ * where it is true: a Free workspace and no ready report.
+ */
+export const INTEGRITY_FAILED_FREE_SLOT_NOTE =
+  "This record failed its integrity check and does not use one of your included records. Capture it again as a new record; move this one to Trash to free its storage.";
+
+export function integrityFailedFreesSlot(input: { integrityFailed: boolean; plan: string | null | undefined; reportState: string | null | undefined }): boolean {
+  return input.integrityFailed && (input.plan ?? "").toUpperCase() === "FREE" && input.reportState !== "READY";
+}
+
 /* ------------------------------------------------------------- record facts */
 
 export interface RecordView {

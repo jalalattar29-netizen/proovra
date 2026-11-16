@@ -31,7 +31,7 @@
  * wiring registry so this file cannot silently drift out of coverage.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -168,6 +168,15 @@ vi.mock("../src/services/identity/access-policy.service.js", () => ({
       ? { allowed: true, reason: null, detail: null }
       : { allowed: false, reason: "permission_not_granted", detail: null };
   },
+  // B5B-F-303 (free-audit 0ea0) — the SIU shared-view permission is a secondary
+  // decision on the canonical snapshot (pure evaluator); same switch.
+  loadMemberAccessSnapshot: async () => ({}),
+  evaluateAccess: (_actor: unknown, ctx: { permission: string }) => {
+    H.memberAccessSeen.push({ teamId: "snapshot", permission: ctx.permission });
+    return H.memberAccessAllowed
+      ? { allowed: true }
+      : { allowed: false, reason: "permission_not_granted" };
+  },
 }));
 
 // OPS-005 — the workbench gate also consults the canonical capability
@@ -253,6 +262,14 @@ vi.mock("../src/db.js", () => {
     $transaction: async (fn: (tx: unknown) => unknown) => fn(prisma),
     // Record reach is proved on real rows in case-reach-matrix.integration.test.ts.
     mediaIntelligenceRecord: { findFirst: async () => null },
+    // B6-F-43: accept/revert resolve the correction's record for the reach
+    // check; an unknown correction has no record to close (the service answers).
+    reviewerCorrection: { findFirst: async () => null },
+    // B7B-F03: executive metrics resolve the reader's reach (viewerReachInWorkspace);
+    // nothing is restricted in this seam.
+    team: { findUnique: async () => null },
+    case: { findMany: async () => [] },
+    caseEvidenceLink: { findMany: async () => [] },
     // Graph provenance + diagnostics read through raw SQL. The seam answers
     // by TABLE so each read stays independently controllable.
     $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
@@ -1139,7 +1156,9 @@ describe("Operations Intelligence — SIU saved views", () => {
         sort: { key: "updatedAtUtc", direction: "desc" },
       },
     });
-    expect(res.statusCode).toBe(403);
+    // B5B-F-303 (free-audit 0ea0): the canonical SIU workspace gate — a
+    // non-member gets the anti-enumeration 404 the worklist gives, not 403.
+    expect(res.statusCode).toBe(404);
     expect(H.writes).toEqual([]);
   });
 
@@ -1609,6 +1628,10 @@ describe("Operations Intelligence — SIU saved view drives the real worklist qu
   const issued: Array<{ op: string; where: Record<string, unknown>; orderBy?: unknown; take?: number }> = [];
   /** Durable saved-view rows the persistence layer holds. */
   let savedViewRows: Array<Record<string, unknown>> = [];
+  /** Cases the canonical predicate closes to the reader (B5B-F-304). */
+  let closedCases: string[] = [];
+  const caseQueries: unknown[] = [];
+  let originalCase: unknown;
 
   async function realService() {
     // Re-import the ACTUAL module (systems 1–8 mock it file-wide).
@@ -1621,6 +1644,8 @@ describe("Operations Intelligence — SIU saved view drives the real worklist qu
   beforeEach(async () => {
     issued.length = 0;
     savedViewRows = [];
+    closedCases = [];
+    caseQueries.length = 0;
     const { prisma } = (await import("../src/db.js")) as unknown as {
       prisma: Record<string, unknown>;
     };
@@ -1630,6 +1655,14 @@ describe("Operations Intelligence — SIU saved view drives the real worklist qu
       findMany: async () => savedViewRows,
       findFirst: async ({ where }: { where: { id: string; teamId: string } }) =>
         savedViewRows.find((r) => r.id === where.id && r.teamId === where.teamId) ?? null,
+    };
+    originalCase = (prisma as Record<string, unknown>).case;
+    (prisma as Record<string, unknown>).case = {
+      ...((originalCase as object | undefined) ?? {}),
+      findMany: async (args: unknown) => {
+        caseQueries.push(args);
+        return closedCases.map((id) => ({ id }));
+      },
     };
     (prisma as Record<string, unknown>).caseSiuProfile = {
       count: async ({ where }: { where: Record<string, unknown> }) => {
@@ -1641,6 +1674,11 @@ describe("Operations Intelligence — SIU saved view drives the real worklist qu
         return [];
       },
     };
+  });
+
+  afterEach(async () => {
+    const { prisma } = (await import("../src/db.js")) as unknown as { prisma: Record<string, unknown> };
+    prisma.case = originalCase;
   });
 
   const VIEW_ROW = {
@@ -1656,9 +1694,25 @@ describe("Operations Intelligence — SIU saved view drives the real worklist qu
 
   it("with NO view the worklist is the honest unfiltered workspace query", async () => {
     const { runSiuWorklist } = await realService();
-    await runSiuWorklist({ teamId: TEAM, view: null });
+    await runSiuWorklist({ teamId: TEAM, userId: ACTOR, view: null });
     // Team-anchored and nothing else — not an empty result, not a global read.
     expect(issued[0].where).toEqual({ teamId: TEAM });
+  });
+
+  it("B5B-F-304: a restricted case closed to the reader is excluded from the worklist and its total", async () => {
+    const { runSiuWorklist } = await realService();
+    closedCases = ["99999999-9999-4999-8999-999999999999"];
+    await runSiuWorklist({ teamId: TEAM, userId: ACTOR, view: null });
+    for (const q of issued) {
+      expect(q.where).toEqual({ teamId: TEAM, caseId: { notIn: closedCases } });
+    }
+    // The closed set is the canonical case-visibility predicate, for this reader.
+    // Integration fix-up 2026-11-16 (repository scope gate): the workspace's
+    // case population is bounded by the canonical scope authority
+    // (workspaceCaseWhere — `{ teamId }` for this shared workspace), conjoined
+    // with NOT caseVisibleToWhere(reader), instead of a raw teamId predicate.
+    expect(caseQueries[0]).toMatchObject({ where: { AND: [{ teamId: TEAM }, { NOT: expect.anything() }] } });
+    expect(JSON.stringify(caseQueries[0])).toContain(ACTOR);
   });
 
   it("applying a saved view NARROWS the real query with that view's predicate", async () => {
@@ -1667,7 +1721,7 @@ describe("Operations Intelligence — SIU saved view drives the real worklist qu
     const resolved = await resolveSiuView({ teamId: TEAM, userId: ACTOR, viewId: VIEW });
     expect(resolved.ok).toBe(true);
     if (!resolved.ok) return;
-    await runSiuWorklist({ teamId: TEAM, view: resolved.view });
+    await runSiuWorklist({ teamId: TEAM, userId: ACTOR, view: resolved.view });
     const where = issued[0].where as Record<string, unknown>;
     expect(where.teamId).toBe(TEAM);
     // The saved view's bounded flag became a REAL relational predicate.
@@ -1679,7 +1733,7 @@ describe("Operations Intelligence — SIU saved view drives the real worklist qu
     savedViewRows = [VIEW_ROW];
     const first = await resolveSiuView({ teamId: TEAM, userId: ACTOR, viewId: VIEW });
     if (!first.ok) throw new Error("expected the view to resolve");
-    await runSiuWorklist({ teamId: TEAM, view: first.view });
+    await runSiuWorklist({ teamId: TEAM, userId: ACTOR, view: first.view });
     expect(issued[0].where).toHaveProperty("checklistItems");
 
     // Edit the persisted definition, then resolve again.
@@ -1689,7 +1743,7 @@ describe("Operations Intelligence — SIU saved view drives the real worklist qu
     issued.length = 0;
     const second = await resolveSiuView({ teamId: TEAM, userId: ACTOR, viewId: VIEW });
     if (!second.ok) throw new Error("expected the edited view to resolve");
-    await runSiuWorklist({ teamId: TEAM, view: second.view });
+    await runSiuWorklist({ teamId: TEAM, userId: ACTOR, view: second.view });
     const where = issued[0].where as Record<string, unknown>;
     expect(where).not.toHaveProperty("checklistItems");
     expect(where.followUps).toBeTruthy();
@@ -1753,7 +1807,7 @@ describe("Operations Intelligence — SIU saved view drives the real worklist qu
 
   it("the worklist projection never selects claimant PII", async () => {
     const { runSiuWorklist } = await realService();
-    await runSiuWorklist({ teamId: TEAM, view: null });
+    await runSiuWorklist({ teamId: TEAM, userId: ACTOR, view: null });
     const src = readFileSync(
       join(resolve(__dirname, "../../.."), "services/api/src/services/siu/siu-view-query.service.ts"),
       "utf8",

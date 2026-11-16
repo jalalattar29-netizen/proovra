@@ -237,19 +237,26 @@ describe("Phase 26 — authorize helper source contract", () => {
     // Permission-not-granted means "you ARE a member but lack the
     // permission" — that's a 403, not a 404, regardless of
     // anti-enumeration.
+    //
+    // B3C-F-011 (free-audit 0ea0, pin updated 2026-11-16): the list moved,
+    // unchanged, into services/access/membership-denial.ts so the routes that
+    // still evaluate membership themselves decide from the SAME list.
+    // authorize.ts now reads it through isMembershipDenial(reasonCode); the
+    // five codes are pinned in that module, and permission_not_granted stays
+    // out of it.
     expect(src).toMatch(
-      /isMembershipFailure\s*=[\s\S]*?"no_actor"[\s\S]*?"member_not_active"[\s\S]*?"member_access_expired"/,
+      /isMembershipFailure\s*=\s*isMembershipDenial\(reasonCode\)/,
     );
+    const list = readSource("../../../services/api/src/services/access/membership-denial.ts");
+    const set = /MEMBERSHIP_DENIAL_REASONS[^=]*=\s*new Set\(\[([\s\S]*?)\]\)/.exec(list)?.[1] ?? "";
+    expect(set).toMatch(/"no_actor"[\s\S]*?"member_not_active"[\s\S]*?"member_access_expired"/);
     // PHASE 1 (2026-07-21) — an unavailable parent organization is a
     // "context you cannot enter" failure and must conceal as 404 too.
-    expect(src).toMatch(
-      /isMembershipFailure\s*=[\s\S]*?"organization_not_active"/,
-    );
+    expect(set).toMatch(/"organization_not_active"/);
     // A workspace whose kind cannot be proven is also a membership-class
     // (context-you-cannot-enter) failure and conceals as 404.
-    expect(src).toMatch(
-      /isMembershipFailure\s*=[\s\S]*?"workspace_kind_unresolved"/,
-    );
+    expect(set).toMatch(/"workspace_kind_unresolved"/);
+    expect(set).not.toMatch(/permission_not_granted/);
     expect(src).toMatch(
       /options\.antiEnumeration && isMembershipFailure\s*\?\s*404\s*:\s*403/,
     );

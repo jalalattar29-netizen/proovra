@@ -256,7 +256,15 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
         className={`app-shell-v2-mobile-overlay ${
           mobileSidebarOpen ? "is-open" : ""
         }`}
-        onClick={() => setMobileSidebarOpen(false)}
+        onClick={() => {
+          // B2A-F-18 (Free-user audit 0ea0) — closing by the overlay returns
+          // focus to the menu button, as Escape does (same order: un-inert
+          // the background first, or the focus call is silently ignored).
+          document.querySelector(".app-shell-v2-content-slot")?.removeAttribute("inert");
+          document.querySelector(".app-shell-v2-header-slot")?.removeAttribute("inert");
+          setMobileSidebarOpen(false);
+          (document.querySelector(".app-account-toolbar-mobile-menu") as HTMLElement | null)?.focus();
+        }}
       />
 
       <div

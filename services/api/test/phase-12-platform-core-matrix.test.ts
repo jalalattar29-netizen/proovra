@@ -85,6 +85,9 @@ const H = vi.hoisted(() => ({
   /** Rate-limit verdict for the audit export. */
   rateLimitAllowed: true,
 
+  /** B3C-F-001 — the workspace's secure-intake plan verdict (null = included). */
+  intakePlanRefusal: null as null | { kind: "plan"; code: "INTAKE_NOT_INCLUDED"; message: string },
+
   /** Admin audit rows. */
   auditRows: [] as Array<Record<string, unknown>>,
 
@@ -583,6 +586,10 @@ vi.mock("../src/services/presence/presence-selector.js", () => ({
 // Admin-audit seams
 // ---------------------------------------------------------------------------
 
+vi.mock("../src/services/intake/intake-link-mint-gate.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/services/intake/intake-link-mint-gate.js")>()),
+  intakePlanRefusal: async () => H.intakePlanRefusal,
+}));
 vi.mock("../src/services/rate-limit.js", () => ({
   enforceRateLimit: async () => ({ allowed: H.rateLimitAllowed }),
   // BILLING PAYPAL INTEGRITY (2026-09-28) — the reconcile route holds a real
@@ -640,6 +647,7 @@ function resetState() {
   H.payments = [];
   H.paymentWhere = null;
   H.rateLimitAllowed = true;
+  H.intakePlanRefusal = null;
   H.auditRows = [];
   H.writes.length = 0;
   H.reads.length = 0;
@@ -1102,6 +1110,32 @@ describe("PLATFORM_CORE §3 — workspace communications", () => {
     // The raw phone / OTP never round-trips.
     expect(res.body).not.toContain("+447700900000");
     expect(H.writes).toEqual([`startVerification:${TEAM_A}`]);
+  });
+
+  it("B3C-F-001 — a workspace whose plan excludes secure intake cannot text a number: 409, ZERO write", async () => {
+    H.intakePlanRefusal = { kind: "plan", code: "INTAKE_NOT_INCLUDED", message: "Secure intake needs a plan that includes it" };
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/communications/verify/start",
+      headers: JSON_HEADERS,
+      payload: { teamId: TEAM_A, channel: "SMS", phone: "+447700900000" },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error.code).toBe("INTAKE_NOT_INCLUDED");
+    expect(H.writes).toEqual([]);
+  });
+
+  it("B3C-F-001 — the per-actor/per-workspace send bound refuses with 429, ZERO write", async () => {
+    H.rateLimitAllowed = false;
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/communications/verify/start",
+      headers: JSON_HEADERS,
+      payload: { teamId: TEAM_A, channel: "SMS", phone: "+447700900000" },
+    });
+    expect(res.statusCode).toBe(429);
+    expect(JSON.parse(res.body).error.code).toBe("rate_limited");
+    expect(H.writes).toEqual([]);
   });
 
   it("cross-workspace denial — a workspace the caller is not in returns 404, ZERO write", async () => {

@@ -251,6 +251,14 @@ vi.mock("../src/services/ai/ai-copilot-run-store.service.js", () => ({
   },
 }));
 
+// B3B-F-501 (free-audit 0ea0) — criteria authoring now asks the review
+// capability ladder; this workspace includes record review. The Free refusal
+// is proven in free-audit-g4a-plan-ai.integration.
+vi.mock("../src/services/billing-enforcement.service.js", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  workspaceIncludesReviewCapability: async () => true,
+}));
+
 import { aiReviewerRoutes } from "../src/routes/ai-reviewer.routes.js";
 import { reviewerCriteriaRoutes, loadPublishedCriteria } from "../src/routes/reviewer-criteria.routes.js";
 

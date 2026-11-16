@@ -25,6 +25,11 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitRedactionActivity } from "./redaction-activity.service.js";
 
+/** Prisma's unique-constraint violation (P2002), by its stable code. */
+export function isUniqueViolation(err: unknown): boolean {
+  return (err as { code?: unknown } | null)?.code === "P2002";
+}
+
 // ---------------------------------------------------------------------------
 // Project lifecycle
 // ---------------------------------------------------------------------------
@@ -77,16 +82,29 @@ export async function openRedactionProject(
     return { ok: true, projectId: existing.id, opened: false };
   }
 
-  const created = await prisma.redactionProject.create({
-    data: {
-      teamId: input.teamId,
-      evidenceId: input.evidenceId,
-      artifactKind: input.artifactKind,
-      title: input.title?.slice(0, 200) ?? null,
-      createdByUserId: input.createdByUserId,
-    },
-    select: { id: true },
-  });
+  let created: { id: string };
+  try {
+    created = await prisma.redactionProject.create({
+      data: {
+        teamId: input.teamId,
+        evidenceId: input.evidenceId,
+        artifactKind: input.artifactKind,
+        title: input.title?.slice(0, 200) ?? null,
+        createdByUserId: input.createdByUserId,
+      },
+      select: { id: true },
+    });
+  } catch (err) {
+    // B5B-F-203 (free audit 0ea0) — a concurrent open (double submit) won the
+    // UNIQUE(teamId, evidenceId) race: answer with ITS project, never a 500.
+    if (!isUniqueViolation(err)) throw err;
+    const winner = await prisma.redactionProject.findFirst({
+      where: { teamId: input.teamId, evidenceId: input.evidenceId },
+      select: { id: true },
+    });
+    if (!winner) throw err;
+    return { ok: true, projectId: winner.id, opened: false };
+  }
   await emitRedactionActivity({
     prisma,
     teamId: input.teamId,
@@ -136,17 +154,31 @@ export async function createRedactionVersion(
     select: { versionOrdinal: true },
   });
   const nextOrdinal = (previous?.versionOrdinal ?? 0) + 1;
-  const created = await prisma.redactionVersion.create({
-    data: {
-      projectId: input.projectId,
-      teamId: input.teamId,
-      versionOrdinal: nextOrdinal,
-      state: "DRAFT",
-      authoredByUserId: input.authoredByUserId,
-      rationale: input.rationale?.slice(0, 600) ?? null,
-    },
-    select: { id: true, versionOrdinal: true },
-  });
+  let created: { id: string; versionOrdinal: number };
+  try {
+    created = await prisma.redactionVersion.create({
+      data: {
+        projectId: input.projectId,
+        teamId: input.teamId,
+        versionOrdinal: nextOrdinal,
+        state: "DRAFT",
+        authoredByUserId: input.authoredByUserId,
+        rationale: input.rationale?.slice(0, 600) ?? null,
+      },
+      select: { id: true, versionOrdinal: true },
+    });
+  } catch (err) {
+    // B5B-F-203 (free audit 0ea0) — a concurrent "New version" (double submit)
+    // took the same ordinal (UNIQUE(projectId, versionOrdinal)): answer with
+    // the version that won, never a 500 and never a second draft.
+    if (!isUniqueViolation(err)) throw err;
+    const winner = await prisma.redactionVersion.findFirst({
+      where: { projectId: input.projectId, teamId: input.teamId, versionOrdinal: nextOrdinal },
+      select: { id: true, versionOrdinal: true },
+    });
+    if (!winner) throw err;
+    return { ok: true, versionId: winner.id, versionOrdinal: winner.versionOrdinal };
+  }
   await emitRedactionActivity({
     prisma,
     teamId: input.teamId,

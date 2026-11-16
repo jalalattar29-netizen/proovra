@@ -78,7 +78,8 @@ import {
   SearchUnavailableAlert,
   SearchUnavailableState,
 } from "../../src/ui/search-states";
-import { searchReadinessHasUsableResults, type SearchReadinessProjection } from "@proovra/shared";
+import { mapTeamRoleToCanonical, roleHasPermission, searchReadinessHasUsableResults, type SearchReadinessProjection } from "@proovra/shared";
+import { roleInWorkspace } from "../../src/product/record-actor-capabilities";
 import {
   SEARCH_REBUILD_FAILED,
   SEARCH_RECONCILE_PATH,
@@ -108,8 +109,25 @@ const DATE_HINT = "Use YYYY-MM-DD HH:MM, in your local time.";
 export default function SearchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ q?: string }>();
-  const { loading: ctxLoading, context } = usePlatformContext();
+  const { loading: ctxLoading, context, envelope } = usePlatformContext();
   const teamId = context?.activeTeamId ?? null;
+  /*
+   * B2A-F-11 (Free-user audit 0ea0) — GET /v1/search/audit admits only an actor
+   * holding identity.access_review.action (OWNER / ADMIN; a MEMBER, the
+   * canonical REVIEWER, is refused). "Search activity" is offered on that rule,
+   * from the role the envelope states for this workspace.
+   */
+  const searchActivityRole = (() => {
+    if (!teamId) return null;
+    const stated = roleInWorkspace(envelope, teamId);
+    if (stated) return stated;
+    const active = (envelope as { activeSpace?: { id?: string; roleLabel?: string | null } } | null)?.activeSpace;
+    const label = active?.id === teamId ? String(active.roleLabel ?? "").toUpperCase() : "";
+    return ["OWNER", "ADMIN", "MEMBER", "VIEWER"].includes(label) ? (label as "OWNER" | "ADMIN" | "MEMBER" | "VIEWER") : null;
+  })();
+  const canReadSearchActivity =
+    searchActivityRole !== null &&
+    roleHasPermission(mapTeamRoleToCanonical(searchActivityRole), "identity.access_review.action" as never);
   const userId = useAuth().user?.id ?? null;
 
   // The committed search — what the last submit asked for. The web honours
@@ -388,7 +406,8 @@ export default function SearchScreen() {
 
   // Records = the content projection (GET /v1/search); Search activity = the
   // workspace search log (GET /v1/search/audit). Two data domains, one console.
-  const [scope, setScope] = useState<"records" | "activity">("records");
+  const [scopeChoice, setScope] = useState<"records" | "activity">("records");
+  const scope: "records" | "activity" = canReadSearchActivity ? scopeChoice : "records";
 
   const workspaceReady = !ctxLoading && !!teamId;
   const rows = results?.rows ?? [];
@@ -494,10 +513,14 @@ export default function SearchScreen() {
 
       <ProovraFilterChips<"records" | "activity">
         label="Search console scope"
-        options={[
-          { value: "records", label: "Records" },
-          { value: "activity", label: "Search activity" },
-        ]}
+        options={
+          canReadSearchActivity
+            ? [
+                { value: "records", label: "Records" },
+                { value: "activity", label: "Search activity" },
+              ]
+            : [{ value: "records", label: "Records" }]
+        }
         value={scope}
         onChange={setScope}
       />

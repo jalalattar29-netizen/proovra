@@ -17,12 +17,14 @@ vi.mock("../src/middleware/authorize.js", () => ({
 
 import { resolveDeepLink } from "../src/services/identity/deep-link-resolution.service.js";
 
-function client(teamId: string | null) {
+function client(teamId: string | null, closed = 0) {
   const row = teamId === null ? null : { teamId };
+  // B2A-F-07 — `count` answers the record-reach rule (restricted-case closure).
   return {
-    evidence: { findUnique: async () => row },
-    case: { findUnique: async () => row },
-    evidenceRequest: { findUnique: async () => row },
+    evidence: { findUnique: async () => row, count: async () => closed },
+    case: { findUnique: async () => row, count: async () => closed },
+    evidenceRequest: { findUnique: async () => (row ? { ...row, evidenceId: null, caseId: "c-1" } : null) },
+    report: { findUnique: async () => (row ? { evidenceId: "ev-1", evidence: { teamId: row.teamId } } : null) },
   } as never;
 }
 const req = {} as never;
@@ -64,9 +66,30 @@ describe("Phase 11 — resolveDeepLink", () => {
     expect(d).toMatchObject({ ok: false, reason: "unauthorized", httpStatus: 404 });
   });
 
-  it("a matrix-governed family with no explicit permission fails CLOSED (concealed 404)", async () => {
-    const d = await resolveDeepLink(req, { resourceType: "cases", resourceId: "c-1" }, client("team-A"));
-    expect(d).toMatchObject({ ok: false, reason: "not_found", httpStatus: 404 });
+  it("B2A-F-07 — cases, investigations and evidence requests resolve with their read authority (evidence.read + reach)", async () => {
+    for (const resourceType of ["cases", "investigation", "evidence-requests"] as const) {
+      const d = await resolveDeepLink(req, { resourceType, resourceId: "c-1" }, client("team-A"));
+      expect(d, resourceType).toMatchObject({ ok: true, teamId: "team-A" });
+    }
+  });
+
+  it("B2A-F-07 — a case or request closed to the caller by a restricted case is concealed (404)", async () => {
+    for (const resourceType of ["cases", "evidence-requests", "evidence"] as const) {
+      const d = await resolveDeepLink(req, { resourceType, resourceId: "c-1" }, client("team-A", 1));
+      expect(d, resourceType).toMatchObject({ ok: false, reason: "unauthorized", httpStatus: 404 });
+    }
+  });
+
+  it("B2A-F-07 — a report id binds to its parent record's workspace", async () => {
+    const d = await resolveDeepLink(req, { resourceType: "reports", resourceId: "r-1" }, client("team-R"));
+    expect(d).toMatchObject({ ok: true, teamId: "team-R" });
+  });
+
+  it("B2A-F-07 — review / audit-transparency carry no id-bearing page: explicit unsupported type (no lookup)", async () => {
+    for (const resourceType of ["review", "audit-transparency"] as const) {
+      const d = await resolveDeepLink(req, { resourceType, resourceId: "x" }, client("team-A"));
+      expect(d, resourceType).toMatchObject({ ok: false, reason: "unsupported_type", httpStatus: 422 });
+    }
   });
 
   it("that same family WITH an explicit capability resolves + authorizes", async () => {

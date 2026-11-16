@@ -15,7 +15,12 @@
  */
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { identifierLabel } from "@proovra/shared";
+import {
+  identifierLabel,
+  mapTeamRoleToCanonical,
+  roleHasPermission,
+  type Permission,
+} from "@proovra/shared";
 
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
@@ -44,6 +49,21 @@ function membersUrl(teamId: string, search: string, cursor: string | null): stri
   if (search) qs.set("q", search);
   if (cursor) qs.set("cursor", cursor);
   return `/v1/teams/${encodeURIComponent(teamId)}/members?${qs.toString()}`;
+}
+
+/**
+ * R1-F-05 — a picker for a duty the server only lets some roles hold (thread
+ * assignment needs `evidence_request.review`; a Viewer is refused 422
+ * `assignee_not_eligible`) offers only members whose canonical role holds
+ * that permission. A role the matrix does not know is kept: the server stays
+ * the authority and its refusal is named.
+ */
+const WORKSPACE_ROLES = ["OWNER", "ADMIN", "MEMBER", "VIEWER"] as const;
+type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
+
+export function memberHoldsPermission(role: string, permission: Permission): boolean {
+  if (!(WORKSPACE_ROLES as readonly string[]).includes(role)) return true;
+  return roleHasPermission(mapTeamRoleToCanonical(role as WorkspaceRole), permission);
 }
 
 function project(page: MembersPage): WorkspaceMember[] {
@@ -123,6 +143,7 @@ export function WorkspaceMemberSelect({
   label,
   id,
   disabled = false,
+  requiredPermission,
 }: {
   teamId: string | null;
   value: string | null;
@@ -131,13 +152,18 @@ export function WorkspaceMemberSelect({
   /** id given to the listbox trigger so a parent can move focus to it. */
   id: string;
   disabled?: boolean;
+  /** R1-F-05 — offer only members whose role holds this permission. */
+  requiredPermission?: Permission;
 }) {
   const labelId = useId();
   const searchId = useId();
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
   const { state, loadMore, loadingMore } = useWorkspaceMembers(teamId, search);
-  const members = state.status === "ready" ? state.members : [];
+  const listed = state.status === "ready" ? state.members : [];
+  const members = requiredPermission
+    ? listed.filter((m) => memberHoldsPermission(m.role, requiredPermission))
+    : listed;
 
   return (
     <div className="evidence-lifecycle__field" data-workspace-member-select>
@@ -181,9 +207,11 @@ export function WorkspaceMemberSelect({
         </p>
       ) : members.length === 0 ? (
         <p className="app-hint" data-workspace-member-select-empty>
-          {search
-            ? "No active workspace member matches this search."
-            : "This workspace has no active members to choose from."}
+          {listed.length > 0
+            ? "No listed member's role can take this assignment."
+            : search
+              ? "No active workspace member matches this search."
+              : "This workspace has no active members to choose from."}
         </p>
       ) : (
         <AppListbox

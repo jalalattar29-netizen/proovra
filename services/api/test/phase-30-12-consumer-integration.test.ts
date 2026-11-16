@@ -142,7 +142,8 @@ describe("Phase 30.12 — createUploadSession bridge fields", () => {
   });
 
   it("originalFileName is sliced to 255 chars (DB constraint defense)", () => {
-    expect(src).toMatch(/input\.originalFileName\?\.slice\(0,\s*255\)/);
+    // B4-F-300 (free audit 0ea0) — basename first (the ordinary door's rule), then the 255 bound.
+    expect(src).toMatch(/sanitizeFileName\(input\.originalFileName\)\?\.slice\(0,\s*255\)/);
   });
 
   it("expectedMimeType is sliced to 128 chars (DB constraint defense)", () => {
@@ -358,7 +359,17 @@ describe("Phase 30.12 — capture-page fork", () => {
 
   it("runResumableItemUpload passes targetPartIndex + originalFileName + expectedMimeType", () => {
     expect(src).toMatch(/targetPartIndex:\s*index/);
-    expect(src).toMatch(/originalFileName:\s*item\.relativePath\s*\|\|\s*item\.file\.name/);
+    // B4-F-300 / B4-F-305 (free-audit 0ea0, pin updated 2026-11-16): the
+    // resumable door now sends the BASENAME of the same name the ordinary door
+    // uses (relativePath, else the file name) — a folder path is not a file
+    // name. The derivation is pinned in legacy-part-upload.ts.
+    expect(src).toMatch(/originalFileName:\s*capturedFileBasename\(item\)/);
+    const legacy = readSource(
+      "../../../apps/web/app/(app)/capture/_hooks/legacy-part-upload.ts",
+    );
+    expect(legacy).toMatch(
+      /function capturedFileBasename[\s\S]*?item\.relativePath\s*\|\|\s*item\.file\.name/,
+    );
     expect(src).toMatch(
       /expectedMimeType:\s*normalizeClientMimeType\(item\.mimeType\)/,
     );

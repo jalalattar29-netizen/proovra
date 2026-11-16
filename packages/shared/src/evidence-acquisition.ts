@@ -603,6 +603,56 @@ export function continuousRecordingAudioStatement(audioTracks: ReadonlyArray<str
   return CONTINUOUS_RECORDING_NO_AUDIO_STATEMENT;
 }
 
+/**
+ * B4-F-206 (free audit 0ea0) — F-P1-09: a video recorded WITHOUT audio says
+ * so. The capture clients (native video-audio.ts, the web camera and screen
+ * recorders) store `clientSignals.audioNotCapturedReason` on the part; the
+ * record page reads it, and the report part listing and public Verify state it
+ * too. Client-reported, and labelled so.
+ *
+ * `detail: "reason"` (the report, the owner's surfaces) names why; the
+ * default `"generic"` (public Verify — minimal disclosure: nothing about the
+ * capturing device's permissions) states only that no audio was recorded.
+ */
+export const PART_AUDIO_NOT_CAPTURED_REASONS = [
+  "MICROPHONE_PERMISSION_DENIED",
+  "MICROPHONE_UNAVAILABLE",
+  "AUDIO_NOT_SHARED",
+] as const;
+export type PartAudioNotCapturedReason = (typeof PART_AUDIO_NOT_CAPTURED_REASONS)[number];
+
+const PART_AUDIO_NOT_RECORDED_REASON_STATEMENTS: Record<PartAudioNotCapturedReason, string> = {
+  MICROPHONE_PERMISSION_DENIED:
+    "No audio was recorded: the microphone permission was denied when this video was captured (stated by the capture client).",
+  MICROPHONE_UNAVAILABLE:
+    "No audio was recorded: no microphone could be used when this video was captured (stated by the capture client).",
+  AUDIO_NOT_SHARED:
+    "No audio was recorded: the shared screen's audio was not included in this recording (stated by the capture client).",
+};
+
+export const PART_AUDIO_NOT_RECORDED_STATEMENT =
+  "No audio was recorded with this video (stated by the capture client)." as const;
+
+/** The part's stated reason, or null when the part states none. */
+export function partAudioNotCapturedReason(clientSignals: unknown): string | null {
+  if (!clientSignals || typeof clientSignals !== "object" || Array.isArray(clientSignals)) return null;
+  const reason = (clientSignals as { audioNotCapturedReason?: unknown }).audioNotCapturedReason;
+  return typeof reason === "string" && reason.trim() ? reason.trim().toUpperCase() : null;
+}
+
+export function partAudioNotRecordedStatement(
+  clientSignals: unknown,
+  options: { detail?: "reason" | "generic" } = {},
+): string | null {
+  const reason = partAudioNotCapturedReason(clientSignals);
+  if (!reason) return null;
+  if (options.detail !== "reason") return PART_AUDIO_NOT_RECORDED_STATEMENT;
+  return (
+    PART_AUDIO_NOT_RECORDED_REASON_STATEMENTS[reason as PartAudioNotCapturedReason] ??
+    PART_AUDIO_NOT_RECORDED_STATEMENT
+  );
+}
+
 export type ContinuousRecordingAcquisitionText = {
   layout: "SEGMENTED" | "SINGLE_FILE";
   statement: string;

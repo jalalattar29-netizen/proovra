@@ -36,6 +36,35 @@ export function csvEscape(value: string | null | undefined): string {
   return safe;
 }
 
+/**
+ * B3A-F-006 (free-audit 0ea0) — SPREADSHEET FORMULA NEUTRALISATION.
+ *
+ * RFC-4180 quoting makes a cell parse; it does not stop a spreadsheet from
+ * EVALUATING it. A cell whose text begins with `=`, `+`, `-`, `@`, a tab
+ * or a carriage return is read as a formula by Excel, LibreOffice and Sheets,
+ * so a display name like `=HYPERLINK(...)` typed by any invited account ran
+ * in the administrator's spreadsheet when they opened members.csv. Such a cell
+ * is prefixed with a single quote (the OWASP-recommended neutraliser: the
+ * spreadsheet shows the text, not a result) and always written quoted.
+ *
+ * Applied to every STRING cell — the user-controlled ones (names, addresses,
+ * titles, reasons, free text). Numbers, booleans and dates are coerced by this
+ * module, never begin with a formula trigger except a negative number, and are
+ * left exactly as they were, so a count of -1 is still a number.
+ */
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+
+export function neutralizeSpreadsheetFormula(value: string): string {
+  return FORMULA_TRIGGER.test(value) ? `'${value}` : value;
+}
+
+/** A string cell: neutralised, then RFC-4180 escaped (always quoted when neutralised). */
+function escapeTextCell(value: string): string {
+  const neutral = neutralizeSpreadsheetFormula(value);
+  if (neutral !== value) return `"${neutral.replace(/"/g, '""')}"`;
+  return csvEscape(value);
+}
+
 /** Deterministic scalar → string coercion for a CSV cell. */
 function stringifyCell(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -74,7 +103,16 @@ export interface CsvColumn<Row> {
 export function toCsv<Row>(rows: readonly Row[], columns: readonly CsvColumn<Row>[]): string {
   const headerLine = columns.map((c) => csvEscape(c.header)).join(",");
   const dataLines = rows.map((row) =>
-    columns.map((c) => csvEscape(stringifyCell(c.value(row)))).join(","),
+    columns
+      .map((c) => {
+        const raw = c.value(row);
+        // B3A-F-006 — text (and a defensively JSON-rendered object) is
+        // neutralised; typed scalars keep their byte shape.
+        return typeof raw === "string" || (raw !== null && typeof raw === "object" && !(raw instanceof Date))
+          ? escapeTextCell(stringifyCell(raw))
+          : csvEscape(stringifyCell(raw));
+      })
+      .join(","),
   );
   return [headerLine, ...dataLines].join("\r\n");
 }

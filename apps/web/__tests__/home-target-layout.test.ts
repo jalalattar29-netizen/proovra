@@ -53,7 +53,10 @@ test("the view switcher is in normal flow, on every stylesheet that touches it",
 
 test("the switcher keeps its tab semantics and keyboard affordance", () => {
   assert.match(DASH, /role="tablist"/);
-  assert.match(DASH, /role="tab"\n?\s*aria-selected=\{tab === t\.id\}/);
+  // B2A-F-18 — the tab now also names its panel and holds the roving tabIndex.
+  assert.match(DASH, /role="tab"[\s\S]{0,160}aria-selected=\{tab === t\.id\}/);
+  assert.match(DASH, /aria-controls=\{panelId\("home", t\.id\)\}/);
+  assert.match(DASH, /onKeyDown=\{\(e\) => handleTablistKeyDown\(/);
   assert.match(DASH, /role="tabpanel"/);
   assert.match(
     live(HOME_CSS),

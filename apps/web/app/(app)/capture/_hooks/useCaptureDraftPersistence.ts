@@ -44,6 +44,12 @@ type CaptureDraftStateInput = {
 
 type UseCaptureDraftPersistenceOpts = {
   enabled: boolean;
+  /**
+   * B4-F-307 — the workspace the draft is started in (the active space's id;
+   * omitted for a Personal space the server has not resolved, the same rule
+   * as the record create). The draft list is scoped by it.
+   */
+  teamId?: string | null;
 };
 
 const DEBOUNCE_MS = 750;
@@ -92,7 +98,10 @@ function isSessionLockedError(err: unknown): boolean {
 
 export function useCaptureDraftPersistence({
   enabled,
+  teamId = null,
 }: UseCaptureDraftPersistenceOpts) {
+  const teamIdRef = useRef<string | null>(teamId);
+  teamIdRef.current = teamId;
   const [draftId, setDraftId] = useState<string | null>(null);
   const [savingState, setSavingState] = useState<
     "idle" | "saving" | "error" | "locked"
@@ -147,6 +156,7 @@ export function useCaptureDraftPersistence({
         const created = await apiFetch("/v1/capture/sessions", {
           method: "POST",
           body: JSON.stringify({
+            ...(teamIdRef.current ? { teamId: teamIdRef.current } : {}),
             templateId: payload.templateId ?? undefined,
             planMode: payload.planMode,
             internalNotes: payload.internalNotes || undefined,

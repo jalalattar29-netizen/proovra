@@ -31,6 +31,7 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z } from "zod";
+import { queryBoolean } from "../http/query-boolean.js";
 
 import type { Permission } from "@proovra/shared";
 
@@ -113,6 +114,8 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
       const result: GovernanceAnalyticsResult = await computeGovernanceAnalytics({
         teamId: query.teamId,
         window: query.window,
+        // B7B-F03: counts follow the reader's record reach.
+        reach: await viewerReachInWorkspace(query.teamId, ok.actorUserId),
       });
       return reply.code(200).send(result);
     },
@@ -134,7 +137,7 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
           deliveryStatus: z
             .enum(GOVERNANCE_NOTIFICATION_DELIVERY_STATUSES)
             .optional(),
-          unacknowledged: z.coerce.boolean().optional(),
+          unacknowledged: queryBoolean.optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
@@ -447,7 +450,7 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           evidenceId: z.string().uuid().optional(),
-          driftOnly: z.coerce.boolean().optional(),
+          driftOnly: queryBoolean.optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});

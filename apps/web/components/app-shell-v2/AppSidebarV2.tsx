@@ -158,7 +158,7 @@ function BadgeView({ badge }: { badge: SidebarBadge }) {
           height: 8,
           borderRadius: 8,
           background: palette.dot,
-          marginLeft: "auto",
+          marginInlineStart: "auto",
         }}
       />
     );
@@ -168,7 +168,7 @@ function BadgeView({ badge }: { badge: SidebarBadge }) {
       data-sidebar-badge={badge.kind}
       data-tone={badge.tone}
       style={{
-        marginLeft: "auto",
+        marginInlineStart: "auto",
         minWidth: 22,
         padding: "0 7px",
         borderRadius: 999,
@@ -292,7 +292,9 @@ function SidebarLink({
       data-sidebar-degraded={degraded ? "true" : undefined}
       data-sidebar-access-state={access.accessState}
       data-disclosure-tier={disclosureTier}
-      aria-disabled={degraded ? "false" : undefined}
+      // B2A-F-18 — the degraded link is ENABLED (it opens the page, which
+      // explains its state); aria-disabled="false" said nothing and some
+      // readers announced it. The degraded state is in the badge/data attr.
     >
       <span className="app-sidebar-v2-link-icon" aria-hidden="true">
         <Icon size={20} strokeWidth={1.75} />
@@ -768,7 +770,7 @@ export function AppSidebarV2() {
                 style={{
                   width: 12,
                   height: 12,
-                  marginLeft: 4,
+                  marginInlineStart: 4,
                   display: "inline",
                   verticalAlign: "-1px",
                   flex: "none",

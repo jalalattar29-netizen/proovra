@@ -6,7 +6,7 @@
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { loadModule, renderComponent, React, act } from "./support/render.mjs";
-import { authenticatedRoutes, signIn, TEST_TEAM_ID } from "./support/authenticated.mjs";
+import { authenticatedRoutes, platformContextEnvelope, signIn, TEST_TEAM_ID } from "./support/authenticated.mjs";
 
 const h = React.createElement;
 let M;
@@ -25,6 +25,8 @@ beforeEach(async () => {
   requests = [];
   routes = {
     ...authenticatedRoutes(),
+    // B2A-F-11 — Search activity is offered to an owner/admin (the API's rule).
+    "/v1/platform/context": () => platformContextEnvelope({ workspace: { id: TEST_TEAM_ID, membership: { role: "ADMIN" } } }),
     "/v1/search/diagnostics": () => ({ readiness: { state: "READY", resultsAreComplete: true, canRecover: false } }),
     "/v1/search/audit": () => ({ rows: [ROW({}), ROW({ id: "a2", teamId: "another-team" })], nextBeforeUtc: "2026-09-23T00:00:00.000Z" }),
   };
@@ -73,6 +75,16 @@ test("'Withheld results only' is the server's filter", async () => {
 test("403 is the server's refusal, with no retry", async () => {
   routes["/v1/search/audit"] = () => ({ __status: 403 });
   const r = await openActivity();
-  assert.ok(r.hasText("You do not have permission to read this workspace's search activity. An owner, admin, or reviewer can open it."));
+  assert.ok(r.hasText("You do not have permission to read this workspace's search activity. A workspace owner or admin can open it."));
   assert.equal(r.byLabel("Try again").length, 0);
+});
+
+// B2A-F-11 (Free-user audit 0ea0) — a MEMBER is not offered a tab the API refuses.
+test("B2A-F-11: a MEMBER sees no Search activity scope", async () => {
+  routes["/v1/platform/context"] = () => platformContextEnvelope({ workspace: { id: TEST_TEAM_ID, membership: { role: "MEMBER" } } });
+  const r = await renderComponent(h(M.TestProviders, null, h(M.default, {})));
+  for (let i = 0; i < 6; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
+  assert.equal(r.byLabel("Search console scope: Search activity").length, 0);
+  assert.equal(r.texts().includes("Search activity"), false);
+  r.unmount();
 });

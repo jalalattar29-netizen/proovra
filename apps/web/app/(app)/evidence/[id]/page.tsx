@@ -58,7 +58,7 @@ import type { CaseOption } from "../lib/evidence-library-types";
 import { isRoutingReviewerStatus } from "../lib/reviewer-status";
 import type { ReviewWorkspaceResponse } from "./review-workspace-types";
 import {
-  fetchEvidenceIntelligence,
+  readEvidenceIntelligence,
   type IntelligenceEvidenceResponse,
 } from "../../../../lib/api/intelligence";
 import { ExportPackageEligibilityBadge } from "../../../../components/operational";
@@ -81,6 +81,7 @@ import {
   type EvidenceDetailCtx,
   type EvidenceDetailTab,
   EvidenceHeroIconActions,
+  EvidenceTrashBanner,
 } from "./_tabs/_lib";
 import { getRecordStatusBadgeTone } from "../lib/evidence-library-status";
 import { useArtifactReadinessPoll } from "./_hooks/useArtifactReadinessPoll";
@@ -101,6 +102,8 @@ import { EvidenceTechnicalAppendixTab } from "./_tabs/EvidenceTechnicalAppendixT
 import { WhatNeedsAttentionStrip } from "./_tabs/WhatNeedsAttentionStrip";
 import { UpdatedReportDialogHost } from "./_tabs/UpdatedReportDialogHost";
 import { useArtifactsNavigation } from "./_hooks/useArtifactsNavigation";
+import { lockRefusalMessage } from "../../../../lib/evidence/lock-refusal";
+import { integrityRejectedSlotNote } from "../../../../lib/evidence/integrity-rejected-slot";
 import { deriveEvidenceOutputAttention } from "../../../../components/evidence-outputs/output-attention";
 import { EvidenceOutputAttentionBanner, OutputAttentionTabIndicator, outputAttentionTabName } from "../../../../components/evidence-outputs/EvidenceOutputAttention";
 
@@ -230,6 +233,8 @@ function EvidenceDetailPageInner() {
   const [initialUpdatedAtUtc, setInitialUpdatedAtUtc] = useState<string | null>(null);
   const [intelligence, setIntelligence] = useState<IntelligenceEvidenceResponse | null>(null);
   const [intelligenceLoaded, setIntelligenceLoaded] = useState(false);
+  // B6-F-47 — a refused or failed read is not "nothing extracted".
+  const [intelligenceUnavailable, setIntelligenceUnavailable] = useState<"denied" | "failed" | null>(null);
   const [pollStartedAt, setPollStartedAt] = useState<number | null>(null);
   const [stalePending, setStalePending] = useState(false);
 
@@ -394,9 +399,10 @@ function EvidenceDetailPageInner() {
     if (!evidenceId || !teamId) return;
     let cancelled = false;
     void (async () => {
-      const res = await fetchEvidenceIntelligence(evidenceId, teamId);
+      const res = await readEvidenceIntelligence(evidenceId, teamId);
       if (cancelled) return;
-      setIntelligence(res);
+      setIntelligence(res.kind === "ok" ? res.data : null);
+      setIntelligenceUnavailable(res.kind === "unavailable" ? "denied" : res.kind === "failed" ? "failed" : null);
       setIntelligenceLoaded(true);
     })();
     return () => {
@@ -703,6 +709,8 @@ function EvidenceDetailPageInner() {
     options?: {
       onSuccess?: () => void;
       body?: Record<string, unknown>;
+      /** A specific sentence for a refusal the shared catalog does not name yet. */
+      refusalMessage?: (error: unknown) => string | null;
     },
   ) => {
     if (!evidenceId) return;
@@ -716,7 +724,11 @@ function EvidenceDetailPageInner() {
       await loadWorkspace();
       options?.onSuccess?.();
     } catch (runError) {
-      addToast(toSafeUserError(runError, { message: "Action failed" }).message, "error");
+      addToast(
+        options?.refusalMessage?.(runError) ??
+          toSafeUserError(runError, { message: "Action failed" }).message,
+        "error",
+      );
       captureException(runError, {
         feature: "web_evidence_record_action",
         evidenceId,
@@ -1002,6 +1014,7 @@ function EvidenceDetailPageInner() {
     canSeeInvestigation,
     intelligence,
     intelligenceLoaded,
+    intelligenceUnavailable,
     workflowEvents,
     workflowEventsLoading,
     actionBusy,
@@ -1042,10 +1055,10 @@ function EvidenceDetailPageInner() {
       <div className="evidence-detail-shell">
         {/* No platform status panel: service impact is said beside the
             affected action (Artifacts) and in the header indicator. */}
-        {workspace.reviewWorkflow?.teamId ? (
+        {(evidence.teamId ?? workspace.reviewWorkflow?.teamId) ? (
           <div className="evidence-detail-presence-row">
             <PresenceIndicator
-              teamId={workspace.reviewWorkflow.teamId}
+              teamId={(evidence.teamId ?? workspace.reviewWorkflow?.teamId)!}
               resourceKind="evidence"
               resourceId={evidenceId}
             />
@@ -1077,51 +1090,32 @@ function EvidenceDetailPageInner() {
               recapture the source material as a new evidence record. The original
               record is preserved for forensic inspection.
             </span>
+            {(() => {
+              // B4-F-001 — it no longer holds one of the plan’s included records.
+              const slotNote = integrityRejectedSlotNote({
+                status: evidence.status,
+                recordFunding: workspace.artifactStatus.recordFunding,
+                reportAvailable: reportArtifactAvailable,
+              });
+              return slotNote ? (
+                <span
+                  className="evidence-detail-record-banner__body"
+                  data-evidence-integrity-slot-note
+                >
+                  {slotNote}
+                </span>
+              ) : null;
+            })()}
           </aside>
         ) : null}
 
-        {/* Search-page-final-cleanup (B) — trash banner. When the
-            evidence is soft-deleted (deletedAt set), surface a
-            prominent read-only banner with a Restore action. The
-            page already disables mutation buttons in the hero +
-            tabs when deletedAt is set (see disabled={...deletedAt}
-            guards below), so the banner is the user-facing
-            communicator that the record is in trash; the action
-            buttons themselves enforce the restriction.
-            Permanent-delete is intentionally NOT exposed here —
-            that lives behind the lifecycle DESTROYED state machine
-            (out of scope; see retention runbook).
-            data-evidence-trash-banner is the e2e probe. */}
-        {evidence.deletedAt ? (
-          <aside
-            className="evidence-detail-record-banner evidence-detail-record-banner--split"
-            data-banner-tone="warn"
-            role="status"
-            aria-live="polite"
-            data-evidence-trash-banner="true"
-          >
-            <div className="evidence-detail-record-banner__copy">
-              <strong className="evidence-detail-record-banner__title">
-                This record is in trash
-              </strong>
-              <span className="evidence-detail-record-banner__body">
-                Mutating actions (download, lock, archive, assign to
-                case, generate report/package) are disabled while
-                the record is in trash. Restore it to bring it back
-                to the active library.
-              </span>
-            </div>
-            <button
-              type="button"
-              className="app-secondary-action app-secondary-action--filled"
-              onClick={() => void restoreTrash()}
-              disabled={actionBusy}
-              data-evidence-trash-restore="true"
-            >
-              {actionBusy ? "Restoring…" : "Restore from trash"}
-            </button>
-          </aside>
-        ) : null}
+        {/* Trash banner (data-evidence-trash-banner) — from the canonical
+            projection; see EvidenceTrashBanner in _tabs/_lib. */}
+        <EvidenceTrashBanner
+          record={evidence}
+          busy={actionBusy}
+          onRestore={() => void restoreTrash()}
+        />
 
         {/* LAYER 1 — Hero. Title, status, the record's actions, and the
             legal boundary rendered verbatim from the backend. */}
@@ -1248,6 +1242,7 @@ function EvidenceDetailPageInner() {
                 : headerTrashEligibility.message
             }
             onEditLabel={() => setEditingLabel(true)}
+            record={evidence}
           />
 
           {workspace.reviewWorkflow?.teamId ? (
@@ -1722,7 +1717,8 @@ function EvidenceDetailPageInner() {
                 void runRecordAction(
                   `/v1/evidence/${evidenceId}/lock`,
                   "Evidence record locked.",
-                  { onSuccess: () => setLockOpen(false) },
+                  // B5A-F-11 — a trashed record answers 409 EVIDENCE_NOT_LOCKABLE (flat body).
+                  { onSuccess: () => setLockOpen(false), refusalMessage: lockRefusalMessage },
                 )
               }
               disabled={actionBusy}

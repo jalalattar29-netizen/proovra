@@ -52,6 +52,7 @@ import {
   identityLinkRefusal,
   IDENTITY_LINK_COPY,
   parseMfaStatus,
+  recoveryCodesGuidance,
   parseRecoveryCodes,
   parseSessions,
   parseSecurityEvents,
@@ -295,6 +296,8 @@ export default function SecuritySettingsScreen() {
   const risk = methods && mfa ? signInRisk(methods, mfa) : null;
   const signInRows = linksRaw ? presentSignInRows(linksRaw) : null;
   const activeFactors = (mfa?.factors ?? []).filter((f) => f.status === "ACTIVE");
+  // B1-F-002 — worded for what the action does, and warns with no codes.
+  const codes = mfa ? recoveryCodesGuidance(mfa) : null;
 
   const sessionRow = (s: AccountSession) => (
     <View
@@ -616,9 +619,18 @@ export default function SecuritySettingsScreen() {
                 <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
                   {`Two-factor authentication is enabled. Recovery codes remaining: ${mfa.recoveryCodesRemaining}.`}
                 </ProovraText>
-                {mfa.recoveryCodesLow ? (
+                {codes?.warning ? (
+                  <ProovraText variant="label" color={theme.color.status.risk.fg}>
+                    {codes.warning}
+                  </ProovraText>
+                ) : mfa.recoveryCodesLow ? (
                   <ProovraText variant="label" color={theme.color.status.risk.fg}>
                     Regenerate before you run out.
+                  </ProovraText>
+                ) : null}
+                {codes?.singleFactorHint ? (
+                  <ProovraText variant="label" color={theme.color.ink.secondary}>
+                    {codes.singleFactorHint}
                   </ProovraText>
                 ) : null}
                 {activeFactors.map((f) => (
@@ -639,7 +651,7 @@ export default function SecuritySettingsScreen() {
                   </View>
                 ))}
                 <ProovraButton
-                  label="Regenerate recovery codes"
+                  label={codes?.actionLabel ?? "Regenerate recovery codes"}
                   variant="secondary"
                   fullWidth={false}
                   disabled={acting}
@@ -781,7 +793,7 @@ export default function SecuritySettingsScreen() {
               : pending?.kind === "revoke-session"
                 ? `Sign out ${pending.label}?`
                 : pending?.kind === "regenerate"
-                  ? "Regenerate recovery codes?"
+                  ? (codes?.confirmTitle ?? "Regenerate recovery codes?")
                   : "Remove two-factor authentication?"
         }
         consequence={
@@ -790,7 +802,7 @@ export default function SecuritySettingsScreen() {
             : pending?.kind === "remove-factor"
               ? "Your account will no longer require a second factor at sign-in. If your organization requires MFA, you will be asked to re-enroll on your next sign-in."
               : pending?.kind === "regenerate"
-                ? "Your existing recovery codes stop working immediately. New codes are shown once — store them in a safe place."
+                ? (codes?.confirmConsequence ?? "Your existing recovery codes stop working immediately. New codes are shown once — store them in a safe place.")
                 : pending?.kind === "revoke-others"
                   ? `Every active session except this one will be terminated (${pending.count} session(s)). You will not be signed out from this device.`
                   : "That session ends immediately. You stay signed in on this device."
@@ -805,7 +817,7 @@ export default function SecuritySettingsScreen() {
             : pending?.kind === "remove-factor"
               ? "Remove factor"
               : pending?.kind === "regenerate"
-                ? "Regenerate"
+                ? (codes?.confirmLabel ?? "Regenerate")
                 : pending?.kind === "revoke-others"
                   ? "Sign out others"
                   : "Sign out session"

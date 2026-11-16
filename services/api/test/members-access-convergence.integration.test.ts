@@ -191,12 +191,37 @@ describe("Phase B — one access decision for Cases and Evidence", () => {
     expect(res.body).not.toContain(foreign);
     expect((await prisma.case.findUniqueOrThrow({ where: { id: foreign } })).teamId).toBeNull();
 
-    // Control: an unlinked case owned by an ACTIVE member of A is linkable.
+    // B3A-F-003 (free-audit 0ea0): membership of the owner is not consent. An
+    // ADMIN cannot annex an ACTIVE member's unlinked case either; the refusal
+    // is the same 404 as a missing case.
     const own = await newCase(A().memberUserId, null);
-    const ok = await h.app.inject({
+    const annex = await h.app.inject({
       method: "POST",
       url: `/v1/teams/${A().teamId}/cases/link`,
       headers: bearer(A().adminToken),
+      payload: { caseId: own },
+    });
+    expect(annex.statusCode, annex.body).toBe(404);
+    expect(annex.json()).toEqual(res.json());
+    expect((await prisma.case.findUniqueOrThrow({ where: { id: own } })).teamId).toBeNull();
+
+    // A member's case in another workspace (their Personal one, say) answers
+    // exactly like a missing case, not "already in a workspace".
+    const elsewhere = await newCase(A().memberUserId, B.teamId);
+    const hidden = await h.app.inject({
+      method: "POST",
+      url: `/v1/teams/${A().teamId}/cases/link`,
+      headers: bearer(A().adminToken),
+      payload: { caseId: elsewhere },
+    });
+    expect(hidden.statusCode, hidden.body).toBe(404);
+    expect(hidden.json()).toEqual(res.json());
+
+    // Control: the owner links their own unlinked case.
+    const ok = await h.app.inject({
+      method: "POST",
+      url: `/v1/teams/${A().teamId}/cases/link`,
+      headers: bearer(A().memberToken),
       payload: { caseId: own },
     });
     expect(ok.statusCode, ok.body).toBe(200);

@@ -64,6 +64,7 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z } from "zod";
+import { queryBoolean } from "../http/query-boolean.js";
 import { WORKFLOW_INSTANCE_STATUSES, type Permission } from "@proovra/shared";
 
 import { prisma } from "../db.js";
@@ -566,7 +567,7 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           sector: z.string().min(1).max(64).optional(),
-          includeArchived: z.coerce.boolean().optional(),
+          includeArchived: queryBoolean.optional(),
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});

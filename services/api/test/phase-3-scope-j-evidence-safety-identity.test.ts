@@ -437,6 +437,12 @@ function makeFake() {
     workflowIntakeLink: { updateMany: async () => ({ count: 0 }) },
     // A2-10 — and the integration keys they created.
     apiCredential: { updateMany: async () => ({ count: 0 }) },
+    // B7B-F09 (free-audit 0ea0, fixture extended 2026-11-16) — and the
+    // webhooks they configured (endpoints, automation destinations, lifecycle
+    // endpoints); this fixture holds none.
+    webhookEndpoint: { updateMany: async () => ({ count: 0 }) },
+    automationWebhookDestination: { updateMany: async () => ({ count: 0 }) },
+    lifecycleWebhookEndpoint: { updateMany: async () => ({ count: 0 }) },
 
     async $executeRaw() {
       return 0;

@@ -21,6 +21,9 @@ import {
 } from "./index";
 import {
   BILLING_PAGE_COPY as COPY,
+  FREE_FIRST_ISSUANCE_STORAGE_NOTE,
+  addonCancelOffered,
+  addonTermLine,
   billingStatusLabel,
   billingStatusTone,
   buildBillingMetrics,
@@ -33,6 +36,7 @@ import {
   formatMoney,
   planCadence,
   planHeading,
+  planManagementReachable,
   presentLifecycle,
   type ActiveAddonModel,
   type BillingProjection,
@@ -176,7 +180,9 @@ export function BillingOverviewCard({
       <ProovraButton
         label={projection.actions.planManagement.label}
         fullWidth={false}
-        disabled={!projection.actions.planManagement.enabled}
+        // B6-F-62 — as on the web (BillingOverview.tsx): a viewer who may only
+        // cancel (a managed payer) still needs the way into Manage plan.
+        disabled={!planManagementReachable(projection)}
         onPress={onManagePlan}
       />
       {notes.map((n) => (
@@ -226,18 +232,23 @@ export function BillingEvidenceCard({
   onChoosePlan,
   onOpenReports,
   onBuyCredits,
+  onAddStorage,
 }: {
   projection: BillingProjection;
   onChoosePlan: () => void;
   onOpenReports: () => void;
   onBuyCredits?: () => void;
+  /** B6-F-68 — offered beside the credit purchase while storage is full. */
+  onAddStorage?: () => void;
 }) {
   const a = projection.evidenceAdmission;
   const meter = projection.usage.evidence;
   const hasMeter = meter.state === "MEASURED";
   if (!a && !hasMeter && projection.walletCredits === null) return null;
   const described = hasMeter ? describeMeter(meter) : null;
-  const offered = a ? describeEvidenceAdmission(a, { canBuyCredits: projection.actions.canBuyEvidenceCredits, hasPlanOffer: projection.hasPlanOffers }) : null;
+  const storage = projection.usage.storage;
+  const storageFull = storage.state === "MEASURED" && storage.limitReached;
+  const offered = a ? describeEvidenceAdmission(a, { canBuyCredits: projection.actions.canBuyEvidenceCredits, hasPlanOffer: projection.hasPlanOffers, storageFull }) : null;
   const headline = offered?.headline ?? described?.headline ?? null;
   const windowNote =
     meter.state === "MEASURED" ? (meter.window === "ROLLING_30_DAYS" ? "Rolling 30-day window" : meter.window === "CALENDAR_MONTH" ? "Resets each month" : null) : null;
@@ -283,6 +294,9 @@ export function BillingEvidenceCard({
       {projection.actions.canBuyEvidenceCredits && onBuyCredits ? (
         <ProovraButton label="Buy evidence credits" variant="secondary" fullWidth={false} onPress={onBuyCredits} />
       ) : null}
+      {projection.actions.canBuyEvidenceCredits && onBuyCredits && storageFull && onAddStorage ? (
+        <ProovraButton label="Add storage" variant="secondary" fullWidth={false} onPress={onAddStorage} />
+      ) : null}
       {offered?.action === "SEE_PLANS" ? (
         <ProovraButton label="Choose a plan" variant="secondary" fullWidth={false} onPress={onChoosePlan} />
       ) : null}
@@ -292,9 +306,8 @@ export function BillingEvidenceCard({
 
 /* -------------------------------------------------------------- Storage */
 
-function AddonRow({ addon, busy, onCancel }: { addon: ActiveAddonModel; busy: boolean; onCancel: () => void }) {
+function AddonRow({ addon, busy, onCancel, cancelOffered }: { addon: ActiveAddonModel; busy: boolean; onCancel: () => void; cancelOffered: boolean }) {
   const price = formatMoney(addon.priceCents, addon.currency);
-  const renews = billingDate(addon.currentPeriodEndUtc);
   return (
     <View style={{ gap: 4, paddingVertical: theme.space.s1 }} testID={`billing-addon-${addon.id}`}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.space.s2 }}>
@@ -304,14 +317,12 @@ function AddonRow({ addon, busy, onCancel }: { addon: ActiveAddonModel; busy: bo
         <ProovraBadge label={billingStatusLabel(addon.status)} tone={billingStatusTone(addon.status)} />
       </View>
       <ProovraText variant="label" color={theme.color.ink.muted}>
-        {addon.legacyOneTime
-          ? "One-time purchase from before add-ons became monthly — kept, and never charged again."
-          : renews
-            ? `Renews ${renews}`
-            : "Recurring monthly"}
+        {/* B6-F-61 — an ending add-on says when it ends, never "Renews". */}
+        {addonTermLine(addon, billingDate)}
       </ProovraText>
-      {/* The SERVER decides whether this add-on can be cancelled. */}
-      {addon.canCancel ? (
+      {/* The SERVER decides whether this add-on can be cancelled; never an
+          ending row, and on BILLING_CANCEL (B6-F-61/62). */}
+      {cancelOffered ? (
         <ProovraButton
           label="Cancel"
           accessibilityLabel={`Cancel storage add-on ${addon.storageLabel}`}
@@ -364,10 +375,14 @@ export function BillingStorageCard({
           <FactRow label="Included with your plan" value={meter.baseLabel || "—"} />
           {meter.recurringAddonBytes !== "0" ? <FactRow label="Add-ons" value={meter.recurringAddonLabel} /> : null}
           {meter.legacyAddonBytes !== "0" ? <FactRow label="Kept from earlier purchases" value={meter.legacyAddonLabel} /> : null}
+          {/* B6-F-66 — D-03: a Free record's first issued outputs are left out. */}
+          {projection.plan.accessKind === "FREE" ? (
+            <ProovraText variant="label" color={theme.color.ink.muted}>{FREE_FIRST_ISSUANCE_STORAGE_NOTE}</ProovraText>
+          ) : null}
         </>
       ) : null}
       {addons.active.map((a) => (
-        <AddonRow key={a.id} addon={a} busy={cancelBusyId === a.id} onCancel={() => onCancelAddon(a)} />
+        <AddonRow key={a.id} addon={a} busy={cancelBusyId === a.id} onCancel={() => onCancelAddon(a)} cancelOffered={addonCancelOffered(a, projection)} />
       ))}
       {addons.legacyWorkspaces.length > 0 ? (
         <ProovraText variant="label" color={theme.color.ink.secondary}>

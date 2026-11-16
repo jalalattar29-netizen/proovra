@@ -54,6 +54,12 @@ export type PlatformContextPlanFeatures = {
   reviewerOperationsIncluded: boolean;
   /** External Review inclusion (PlanCapabilities), projected per workspace. */
   externalReviewIncluded: boolean;
+  /**
+   * B5B-F-205 (free audit 0ea0) — Redaction inclusion: FEATURE_REDACTION from
+   * the packaging engine (`resolveEntitlement`), the authority every
+   * redaction write enforces. Rendering input only.
+   */
+  redactionIncluded: boolean;
   /** PHASE 12B Track 1A — PROFESSIONAL surface tier included (catalog-derived). */
   professionalSurfacesIncluded: boolean;
   reviewQueuesIncluded: boolean;

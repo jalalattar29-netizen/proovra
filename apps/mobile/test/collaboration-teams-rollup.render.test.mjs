@@ -8,7 +8,7 @@
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { loadModule, renderComponent, React, act } from "./support/render.mjs";
-import { authenticatedRoutes, signIn } from "./support/authenticated.mjs";
+import { authenticatedRoutes, platformContextEnvelope, signIn, TEST_TEAM_ID } from "./support/authenticated.mjs";
 
 const h = React.createElement;
 let M;
@@ -27,6 +27,10 @@ beforeEach(async () => {
   requests = [];
   routes = {
     ...authenticatedRoutes(),
+    // B3A-F-004 — Upgrade is offered to the PAYER of the active workspace: the
+    // viewer's own Personal Space here (a joined workspace is pinned below).
+    "/v1/platform/context": () =>
+      platformContextEnvelope({ activeSpace: { id: TEST_TEAM_ID, type: "PERSONAL", plan: "TEAM", displayName: "Personal Space", status: "active" } }),
     "/v1/collaboration-teams/entitlement": () => ({ canCreateCollaborationTeam: true, featureIncluded: true, plan: "TEAM", collaborationTeams: { used: 1, limit: 5 } }),
     "/v1/collaboration-teams": (method) =>
       method === "POST"
@@ -135,4 +139,18 @@ test("a plan without Teams and no Teams: the empty state never says Upgrade in a
     delete process.env.EXPO_PUBLIC_DISTRIBUTION;
     delete process.env.EXPO_PUBLIC_PRIVATE_BILLING;
   }
+});
+
+// B3A-F-004 (Free-user audit 0ea0) — a member of a workspace somebody else pays
+// for is told who manages billing; Billing (their own accounts) is not offered.
+test("B3A-F-004: in a joined workspace at its limit, no Upgrade — the owner manages billing", async () => {
+  routes["/v1/platform/context"] = () =>
+    platformContextEnvelope({ activeSpace: { id: TEST_TEAM_ID, type: "PERSONAL", shared: true, plan: "TEAM", displayName: "Ada's workspace", roleLabel: "MEMBER", status: "active" } });
+  routes["/v1/collaboration-teams/entitlement"] = () => ({ canCreateCollaborationTeam: false, featureIncluded: true, plan: "TEAM", collaborationTeams: { used: 5, limit: 5 }, exceededDimensions: ["COLLABORATION_TEAMS"] });
+  const r = await render();
+  assert.ok(r.hasText("TEAM plan · 5 of 5 teams used"));
+  assert.equal(r.byLabel("See plans").length, 0, "a member was offered their own Billing for the owner's limit");
+  assert.equal(r.byLabel("Upgrade").length, 0);
+  assert.ok(r.hasText("Billing for this workspace is managed by its owner. Ask them to change the plan."));
+  r.unmount();
 });

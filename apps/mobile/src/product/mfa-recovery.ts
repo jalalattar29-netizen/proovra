@@ -210,11 +210,23 @@ export type RecoveryCreateFailure =
   | "invalid_reason"
   | "not_a_member"
   | "throttled"
+  // B1-F-002 — 409 no_eligible_approver: nobody in that workspace could approve it.
+  | "no_eligible_approver"
   | "unknown";
+
+/**
+ * B1-F-002 — the web panel's words (MfaRecoveryRequestPanel NO_ELIGIBLE_APPROVER_COPY):
+ * nothing was filed, what the person can still use, and what nobody can do.
+ */
+export const NO_ELIGIBLE_APPROVER_COPY =
+  "No one can approve a reset for your account in this workspace — a personal workspace has no other administrator — so no request was filed. To sign in, use another method you set up (an authenticator app, a passkey or your phone) or one of your saved single-use recovery codes. PROOVRA support cannot remove a second factor or sign you in for you. If you are still signed in somewhere, generate new recovery codes or add another second factor in Security settings now.";
 
 export function classifyCreateFailure(err: unknown): RecoveryCreateFailure {
   const e = obj(err);
   const status = typeof e.statusCode === "number" ? e.statusCode : null;
+  if (e.code === "no_eligible_approver" || obj(e.details).reason === "no_eligible_approver") {
+    return "no_eligible_approver";
+  }
   if (status === 400) return "invalid_reason";
   if (status === 401) return "not_eligible";
   if (status === 403) return "not_a_member";
@@ -232,6 +244,8 @@ export function createFailureMessage(reason: RecoveryCreateFailure): string {
       return "You are not an active member of that workspace.";
     case "throttled":
       return "A recovery request was filed recently. Wait before filing another.";
+    case "no_eligible_approver":
+      return NO_ELIGIBLE_APPROVER_COPY;
     case "unknown":
       return "The recovery request could not be filed. Try again shortly.";
   }

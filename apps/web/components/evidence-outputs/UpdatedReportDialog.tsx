@@ -42,6 +42,11 @@ import {
   type ReportFreshness,
 } from "@proovra/shared";
 
+import {
+  NO_MATERIAL_CHANGE_COPY,
+  NO_MATERIAL_CHANGE_TITLE,
+  isNoMaterialChange,
+} from "../../lib/evidence/new-version-reason";
 import type {
   ArtifactOutputsExtras,
   NewVersionDecision,
@@ -228,7 +233,10 @@ function DialogBody({ onClose, initial, loadStatus, submit, onAccepted }: Update
 
   const withdrawn = !loading && !loadFailed && nv != null && !offered;
   const withdrawnCopy = withdrawn
-    ? (outputOperationErrorForReason(nv?.reason) ?? outputOperationError("OFFER_STALE"))
+    ? isNoMaterialChange(nv)
+      ? // B5B-F-101 — nothing new to document: say so, not "the offer changed".
+        { title: NO_MATERIAL_CHANGE_TITLE, description: NO_MATERIAL_CHANGE_COPY }
+      : (outputOperationErrorForReason(nv?.reason) ?? outputOperationError("OFFER_STALE"))
     : null;
   const used = formatEstimatedBytes(snap.offer?.storageEffect.storageBytesUsed ?? nv?.estimate?.storageBytesUsed ?? null);
   const limit = formatEstimatedBytes(snap.offer?.storageEffect.storageBytesLimit ?? nv?.estimate?.storageBytesLimit ?? null);

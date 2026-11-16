@@ -46,7 +46,7 @@ import {
   type ProviderAdapter,
   getAdapter,
 } from "./providers/provider-adapter.js";
-import { decideBudgetGate } from "./provider-budget.service.js";
+import { releaseBudgetReservation, reserveBudgetGate } from "./provider-budget.service.js";
 import { recordProviderUsage } from "./provider-usage.service.js";
 import { emitLifecycleEvent } from "./intelligence-activity.service.js";
 import { evaluateIntelligencePolicy } from "../governance/policy-evaluation.service.js";
@@ -59,6 +59,7 @@ import {
   evaluateWorkspaceAiOperation,
   releaseWorkspaceAiOperation,
   reserveWorkspaceAiOperation,
+  scopeIncludesAiCapability,
 } from "../billing-enforcement.service.js";
 
 // ---------------------------------------------------------------------------
@@ -349,20 +350,60 @@ export async function runProviderOperation(
     }).catch(() => {});
     return { ok: false, decision: "BLOCK" as const, reason };
   }
+  /*
+   * B6-F-22 / B6-F-46 (Free-user audit 0ea0) — the allowance says how MANY
+   * operations the plan may spend, not WHICH capabilities it includes. Every
+   * operation here is vendor content intelligence (OCR, transcription,
+   * entities, summary), which the catalog makes eligible on paid plans only
+   * (`aiCapabilitiesIncluded`). A Free owner who switched the workspace
+   * policy on — or a downgraded workspace whose paid-era switch is still
+   * saved — is refused before any provider dispatch, with no operation taken.
+   */
+  if (
+    aiAllowance.scope &&
+    !(await scopeIncludesAiCapability(aiAllowance.scope, "CONTENT_INTELLIGENCE"))
+  ) {
+    const reason = "entitlement_required:AI_CAPABILITY_NOT_INCLUDED";
+    await recordProviderUsage({
+      prisma,
+      teamId: input.teamId,
+      provider: input.provider,
+      operation: input.operation,
+      unit: "CALL",
+      units: 0,
+      estimatedCostUsdMicros: 0,
+      decision: "BLOCK",
+      evidenceId: input.evidenceId,
+      caseId: input.caseId ?? null,
+      projectId: input.projectId ?? null,
+      initiatedByUserId: input.initiatedByUserId ?? null,
+      failureReason: reason,
+    }).catch(() => {});
+    return { ok: false, decision: "BLOCK" as const, reason };
+  }
 
   // Best-effort cost estimate before the call — based on the adapter's
   // known unit pricing. The adapter returns the real cost on success;
   // the gate prevents runaway spend even when the heuristic is loose.
-  const gate = await decideBudgetGate(
+  // B6-F-44 (Free-user audit 0ea0) — the budget gate RESERVES the estimate
+  // (a provisional usage row) before deciding, so concurrent runs cannot all
+  // pass a hard limit they would together exceed. The reservation is
+  // released when this operation settles, whichever way it ends (finally
+  // below); a BLOCK released it already.
+  const gate = await reserveBudgetGate(
     {
       teamId: input.teamId,
       provider: input.provider,
+      operation: input.operation,
       estimatedCostUsdMicros: estimatePreCallCostUsdMicros(input.provider),
       caseId: input.caseId ?? null,
       projectId: input.projectId ?? null,
+      evidenceId: input.evidenceId,
+      initiatedByUserId: input.initiatedByUserId ?? null,
     },
     prisma,
   );
+  try {
   await emitLifecycleEvent({
     prisma,
     teamId: input.teamId,
@@ -593,6 +634,9 @@ export async function runProviderOperation(
     insertedEntities: ingest.insertedEntities,
     extractedText: result.extractedText,
   };
+  } finally {
+    await releaseBudgetReservation(gate.reservationId, prisma);
+  }
 }
 
 // ---------------------------------------------------------------------------

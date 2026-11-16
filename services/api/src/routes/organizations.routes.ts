@@ -621,16 +621,29 @@ export async function organizationsRoutes(app: FastifyInstance) {
         }
       }
       const search = (pageQuery.data.q ?? "").trim();
+      // B3A-F-001 (free-audit 0ea0) — THE MEMBER DIRECTORY'S CONTACT DETAILS
+      // FOLLOW THE DIRECTORY'S OWN ROLE RULE. Every org role reached this
+      // roster, and it carried every member's address (suspended and revoked
+      // ones included) and matched `q` against addresses — while the same
+      // data as members.csv is refused to ORG_MEMBER (MEMBERS_EXPORT_ROLES)
+      // and the workspace roster shows contact to administrators only. A role
+      // that holds the `members` admin surface (the same set as the export)
+      // reads addresses and searches by them; any other role sees names only,
+      // and its search matches names only.
+      const readsLifecycleReasons = listOrgAdminSurfaces(access.role).includes("members");
+      const readsContact = readsLifecycleReasons;
       const pageWhere: Prisma.OrganizationMembershipWhereInput = {
         organizationId: orgId,
         ...(search
           ? {
-              user: {
-                OR: [
-                  { displayName: { contains: search, mode: "insensitive" } },
-                  { email: { contains: search, mode: "insensitive" } },
-                ],
-              },
+              user: readsContact
+                ? {
+                    OR: [
+                      { displayName: { contains: search, mode: "insensitive" } },
+                      { email: { contains: search, mode: "insensitive" } },
+                    ],
+                  }
+                : { displayName: { contains: search, mode: "insensitive" } },
             }
           : {}),
       };
@@ -676,7 +689,6 @@ export async function organizationsRoutes(app: FastifyInstance) {
       const memberships = rows.slice(0, limit);
       const nextCursor = rows.length > limit ? memberships[memberships.length - 1]!.id : null;
       const totalMembers = byRole.reduce((n, r) => n + r._count._all, 0);
-      const readsLifecycleReasons = listOrgAdminSurfaces(access.role).includes("members");
 
       return reply.code(200).send({
         organizationId: orgId,
@@ -707,7 +719,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
         members: memberships.map((m) => ({
           membershipId: m.id,
           userId: m.userId,
-          email: m.user.email,
+          email: readsContact ? m.user.email : null,
           displayName: m.user.displayName,
           role: m.role,
           memberSince: m.createdAt.toISOString(),

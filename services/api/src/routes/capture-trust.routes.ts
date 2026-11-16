@@ -92,6 +92,7 @@ import {
 } from "../services/capture-trust/direct-capture-ingest.service.js";
 import { projectProvenanceChain } from "../services/capture-trust/provenance-projection.service.js";
 import { readCaptureTrustTimeline } from "../services/capture-trust/trust-event.service.js";
+import { evidenceClosedTo } from "../services/access/record-reach.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { isDomainError } from "../errors.js";
@@ -283,7 +284,10 @@ export async function captureTrustRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
-      const teamId = await resolveTeamIdOrDeny(req, reply);
+      // B4-F-204 (free-audit 0ea0): registering a signing device WRITES to the
+      // workspace device registry. A Viewer is read-only (A2-14), so the write
+      // needs evidence.create (capture), not the registry's read permission.
+      const teamId = await resolveTeamIdOrDeny(req, reply, "evidence.create");
       if (!teamId) return reply;
       const body = RegisterDeviceBody.parse(req.body);
       const result = await registerDevice({
@@ -651,7 +655,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
       const { id } = SessionParams.parse(req.params);
-      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      if (!(await authorizeOwnedSessionRelease(req, reply, id, userId))) return reply;
       try {
         const result = await discardDirectCaptureSession({ sessionId: id, ownerUserId: userId });
         return reply.code(200).send({ result });
@@ -763,12 +767,27 @@ export async function captureTrustRoutes(app: FastifyInstance) {
     "/v1/capture/sessions/:id/trust-timeline",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
       const teamId = await resolveTeamIdOrDeny(req, reply);
       if (!teamId) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const limit = z
         .object({ limit: z.coerce.number().int().min(1).max(500).optional() })
         .parse(req.query ?? {}).limit ?? 200;
+      // B4-F-203 (free-audit 0ea0): a session is visible to its owner only (the
+      // hard rule above), and the record it sealed answers to the record rule
+      // (RC-CASE-REACH). Unknown, foreign and closed answer the same 404 the
+      // record-reach guard sends.
+      const session = await prisma.captureSession.findFirst({
+        where: { id, teamId, ownerUserId: userId },
+        select: { finalizedEvidenceId: true },
+      });
+      if (
+        !session ||
+        (session.finalizedEvidenceId && (await evidenceClosedTo(session.finalizedEvidenceId, userId)))
+      ) {
+        return reply.code(404).send(RECORD_NOT_FOUND);
+      }
       const events = await readCaptureTrustTimeline({
         teamId,
         captureSessionId: id,
@@ -801,7 +820,9 @@ export async function captureTrustRoutes(app: FastifyInstance) {
         select: { id: true },
       });
       if (!ev) {
-        return reply.code(404).send({ message: "Evidence not found" });
+        // B7B-F04 / B2A-F-05: the record-reach guard answers a closed record
+        // with this body; a missing or foreign one must be byte-identical.
+        return reply.code(404).send(RECORD_NOT_FOUND);
       }
 
       const chain = await projectProvenanceChain({ evidenceId });
@@ -889,6 +910,59 @@ async function authorizeOwnedSession(
 }
 
 /**
+ * B4-F-101 (free audit 0ea0) — THE OWNER MAY ALWAYS RELEASE THEIR OWN SLOT.
+ *
+ * Discard only. A session whose owner was removed from, demoted in, or timed
+ * out of the workspace stayed reserved (and its empty record held a slot) for
+ * up to 24 h, because releasing it demanded the same evidence.create a NEW
+ * capture needs. Ownership of the session is proven first (another user gets
+ * the same 404 as an unknown id); a membership/role refusal then still lets
+ * the owner release it. Releasing grants nothing: the answer is the session's
+ * own id and status, and a sealed (BOUND) session is refused by the service.
+ * Every other refusal (organization sign-in policy, support context, an
+ * unavailable decision) stands, through the canonical path.
+ */
+const OWNER_RELEASE_DENIALS: ReadonlySet<string> = new Set([
+  "no_actor",
+  "member_not_active",
+  "member_access_expired",
+  "permission_not_granted",
+]);
+
+async function authorizeOwnedSessionRelease(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  sessionId: string,
+  userId: string,
+): Promise<boolean> {
+  let teamId: string;
+  try {
+    const session = await loadOwnedDirectCaptureSession(prisma, sessionId, userId);
+    teamId = session.teamId!;
+  } catch (err) {
+    sendDirectCaptureError(reply, err);
+    return false;
+  }
+  const auth = await evaluateAuthorize(req, {
+    teamId,
+    permission: "evidence.create",
+    resourceKind: "capture_session",
+    antiEnumeration: true,
+  });
+  if (!auth.allowed) {
+    if (OWNER_RELEASE_DENIALS.has(auth.reasonCode)) return true;
+    if (auth.reasonCode === "organization_session_policy") {
+      reply.code(401).send({ denial: "REAUTHENTICATION_REQUIRED" });
+    } else {
+      sendDenyResponse(reply, auth);
+    }
+    return false;
+  }
+  // An authorized owner: the ordinary direct-capture guard, unchanged.
+  return (await authorizeDirectCapture(req, reply, teamId, userId)) !== null;
+}
+
+/**
  * UC-LCH-002 — count a FAILED seal against its acquisition channel. Only integrity and
  * server failures count (isCaptureFailure); a caller-fixable refusal or a busy session does
  * not. Never throws: a metrics read must not change the answer the caller gets.
@@ -970,6 +1044,9 @@ function sendPersonalSpaceDenial(reply: FastifyReply, err: unknown): FastifyRepl
  * Resolve the workspace id for the authenticated request. Personal-space
  * callers are denied — device + ingest are organization concepts.
  */
+/** The record-reach guard's concealment body (middleware/record-reach-guard.ts). */
+const RECORD_NOT_FOUND = { error: { code: "not_found" } } as const;
+
 async function resolveTeamIdOrDeny(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -987,7 +1064,7 @@ async function resolveTeamIdOrDeny(
    * destructive leg names what it actually needs. This RAISES the bar on one
    * route and lowers it on none.
    */
-  permission: "evidence.read" | "evidence.archive" = "evidence.read",
+  permission: "evidence.read" | "evidence.archive" | "evidence.create" = "evidence.read",
 ): Promise<string | null> {
   // PHASE 12 CORRECTIVE PASS §1.3 (2026-08-06) — ONE AUTHORITY, NOT A
   // PARALLEL ONE.

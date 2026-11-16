@@ -91,6 +91,11 @@ vi.mock("../../lib/api/intelligence", async (importOriginal) => ({
     extractedText: [],
     similarities: [],
   }),
+  // B6-F-47 — the page reads through the typed reader now.
+  readEvidenceIntelligence: async () => ({
+    kind: "ok",
+    data: { entities: [], extractedTexts: [], similarities: [], disclaimer: "" },
+  }),
 }));
 
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));

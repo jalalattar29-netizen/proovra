@@ -116,6 +116,12 @@ export function resolveArtifactDownloadFailure(
     // Never "missing", never the customer's to fix; the team is alerted.
     case "STORAGE_ACCESS_FAILED":
       return { message: `The ${n} could not be read because of a storage access problem. Our team has been alerted; nothing has been changed.`, severity: "error", retryable: false, action: "NONE", report: false };
+    // B5B-F-102 (free audit 0ea0) — the FULL_FORENSIC package embeds the
+    // original files the caller may not download (role or workspace policy).
+    // Not a hold or eligibility block: the external disclosure package is the
+    // way forward, and the generic 403 sentence said otherwise.
+    case "FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS":
+      return { message: "The full forensic package contains the original files, which you cannot download in this workspace. The external disclosure package is available instead.", severity: "info", retryable: false, action: "NONE", report: false };
     default:
       break;
   }

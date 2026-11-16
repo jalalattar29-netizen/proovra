@@ -328,6 +328,9 @@ export async function captureRoutes(app: FastifyInstance) {
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Bad request";
         return reply.code(statusCode).send({ message });
       }
@@ -422,6 +425,9 @@ export async function captureRoutes(app: FastifyInstance) {
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -494,6 +500,9 @@ export async function captureRoutes(app: FastifyInstance) {
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Bad request";
         return reply.code(statusCode).send({ message });
       }
@@ -597,6 +606,9 @@ export async function captureRoutes(app: FastifyInstance) {
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -685,6 +697,9 @@ export async function captureRoutes(app: FastifyInstance) {
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }

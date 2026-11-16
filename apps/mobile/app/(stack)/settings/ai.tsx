@@ -176,7 +176,7 @@ export default function AiSettingsScreen() {
         </ProovraCard>
       ) : (
         <>
-          {teamId ? <AiPolicyEditor teamId={teamId} mode={aiMode} onVisibility={setEditorShown} /> : null}
+          {teamId ? <AiPolicyEditor teamId={teamId} mode={aiMode} onVisibility={setEditorShown} plan={context?.activeSpacePlan ?? null} /> : null}
 
           {/* The member-safe read-only view (AiReadOnlyView) — rendered when the
               editor is not, never beside it. */}

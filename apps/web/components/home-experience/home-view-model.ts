@@ -75,6 +75,23 @@ export type HomePlanFeatures = {
   intakeIncluded: boolean;
   teamCollaborationIncluded: boolean;
   reportsIncluded: boolean;
+  /**
+   * B2A-F-04 (Free-user audit 0ea0) — `planFeatures.casesIncluded`, the same
+   * projection the header "New Case" gate reads. FREE excludes cases, so the
+   * Getting Started case step, the matters KPI and the matters priority are not
+   * offered. Fail-closed like the others.
+   */
+  casesIncluded: boolean;
+};
+
+/**
+ * B2A-F-03 — the viewer's own record allowance (PERSONAL billing account
+ * projection, `evidenceAdmission`). Only supplied in their own Personal Space.
+ */
+export type HomeRecordAllowanceInput = {
+  held: number;
+  cap: number | null;
+  nextAllowed: boolean;
 };
 
 // ============================================================================
@@ -435,6 +452,8 @@ export type WorkspacePriority = {
     | "ots_pending"
     | "reports_ready"
     | "storage_pressure"
+    /** B2A-F-03 — the plan record allowance (own Personal Space). */
+    | "record_allowance"
     | "create_intake_link"
     /*
      * Operational conditions, one key per registry source id.
@@ -788,7 +807,7 @@ export type WorkspaceHealthMetric = {
 // ============================================================================
 
 export type HomeKpi = {
-  key: "evidence" | "matters" | "trust" | "deliverables" | "intake";
+  key: "evidence" | "matters" | "allowance" | "trust" | "deliverables" | "intake";
   label: string;
   /** Pre-formatted display value ("334", "92%", "12 / 3"). */
   value: string;
@@ -884,6 +903,8 @@ export type HomeViewModel = {
   features: HomePlanFeatures;
   /** True when the server projection actually carried reportsIncluded. */
   reportsIncludedKnown: boolean;
+  /** B2A-F-03 — the viewer's record allowance (own Personal Space only). */
+  recordAllowance: HomeRecordAllowanceInput | null;
   /** Active workspace id — needed for workspace-scoped mutations (retry). */
   workspaceId: string | null;
   /** Workspace display name for the greeting line. */
@@ -1951,6 +1972,8 @@ function buildTeamWork(args: {
  * exists.
  */
 function buildChecklist(args: {
+  /** B2A-F-04 — `planFeatures.casesIncluded`. */
+  casesIncluded: boolean;
   evidenceCount: number;
   caseCount: number;
   reportCount: number;
@@ -1969,7 +1992,7 @@ function buildChecklist(args: {
       key: "create_first_case",
       label: "Create a case",
       done: args.caseCount > 0,
-      visible: true,
+      visible: args.casesIncluded,
       href: "/cases",
     },
     {
@@ -2116,11 +2139,34 @@ function buildWorkspacePriorities(args: {
   mattersNeedingWork: number;
   reportsReady: number;
   storage: StorageUsage | null;
+  /** B2A-F-04 — the matters row is not offered where the plan has no cases. */
+  casesIncluded?: boolean;
+  /** B2A-F-03 — own Personal Space only; null elsewhere. */
+  recordAllowance?: HomeRecordAllowanceInput | null;
 }): WorkspacePriority[] {
   const p = args.pipeline ?? null;
   const out: WorkspacePriority[] = [];
+  const allowance = args.recordAllowance ?? null;
+  const allowanceRemaining =
+    allowance && allowance.cap !== null ? Math.max(0, allowance.cap - allowance.held) : null;
 
   // ---- critical -----------------------------------------------------------
+  // B2A-F-03 — the record allowance is a capture gate like storage: say it
+  // here, before the capture path refuses the next record.
+  if (allowance && allowance.cap !== null && !allowance.nextAllowed) {
+    out.push({
+      key: "record_allowance",
+      severity: "critical",
+      domains: ["evidence"],
+      count: 1,
+      label: "Record limit reached",
+      whyItMatters: `All ${allowance.cap} record${allowance.cap === 1 ? "" : "s"} your plan includes are in use, so a new capture cannot be sealed.`,
+      recommendedAction: "Add an evidence credit or upgrade before capturing more evidence.",
+      actionLabel: "View plan",
+      href: "/billing",
+      derivedFrom: ["billing/accounts/PERSONAL.evidenceAdmission.next"],
+    });
+  }
   if (args.storage?.limitReached) {
     out.push({
       key: "storage_pressure",
@@ -2235,7 +2281,7 @@ function buildWorkspacePriorities(args: {
       derivedFrom: ["dashboard/command-center.pipelineDetail.packages.queued"],
     });
   }
-  if (args.mattersNeedingWork > 0) {
+  if (args.casesIncluded !== false && args.mattersNeedingWork > 0) {
     out.push({
       key: "matters_need_reports",
       severity: "warning",
@@ -2250,6 +2296,27 @@ function buildWorkspacePriorities(args: {
         "dashboard/command-center.caseOperations.topCases",
         "reports.items.caseId",
       ],
+    });
+  }
+  if (
+    allowance &&
+    allowance.cap !== null &&
+    allowance.nextAllowed &&
+    allowanceRemaining !== null &&
+    allowance.cap > 1 &&
+    allowanceRemaining <= Math.max(1, Math.floor(allowance.cap / 10))
+  ) {
+    out.push({
+      key: "record_allowance",
+      severity: "warning",
+      domains: ["evidence"],
+      count: allowanceRemaining,
+      label: `${allowance.held} of ${allowance.cap} records used`,
+      whyItMatters: `${allowanceRemaining} record${allowanceRemaining === 1 ? "" : "s"} left on your plan; captures beyond that are refused.`,
+      recommendedAction: "Plan your next capture, or add an evidence credit or upgrade.",
+      actionLabel: "View plan",
+      href: "/billing",
+      derivedFrom: ["billing/accounts/PERSONAL.evidenceAdmission"],
     });
   }
   if (args.storage?.nearLimit && !args.storage.limitReached) {
@@ -2869,6 +2936,10 @@ function buildWorkspaceHealth(args: {
   packagesPending: number;
   packagesFailed: number;
   storage: StorageUsage | null;
+  /** B2A-F-04 — no matters metric where the plan has no cases. */
+  casesIncluded?: boolean;
+  /** B2A-F-01 — no storage metric where the viewer's figures do not apply. */
+  storageApplies?: boolean;
 }): WorkspaceHealthMetric[] {
   // Phase HOME-TRUTH-FIX —
   //   * "Records complete" → "Records reported" (label honesty: the
@@ -2934,7 +3005,7 @@ function buildWorkspaceHealth(args: {
   //     prior wording read as a forensic finding; PROOVRA does NOT
   //     determine integrity as fact, only surfaces records that
   //     warrant human review.
-  return [
+  const metrics: WorkspaceHealthMetric[] = [
     { key: "complete", label: "Records with a report", value: reported, tone: reported > 0 ? "ok" : "neutral" },
     { key: "need_report", label: "Need a report", value: needReport, tone: needReport > 0 ? "warn" : "ok" },
     { key: "active_cases", label: "Active matters", value: args.activeCasesCount, tone: "neutral" },
@@ -2944,6 +3015,11 @@ function buildWorkspaceHealth(args: {
     { key: "integrity", label: "Records flagged for review", value: integrityIssues, tone: integrityIssues > 0 ? "danger" : "ok" },
     { key: "storage", label: "Storage used", value: storageValue, tone: storageTone },
   ];
+  return metrics.filter(
+    (m) =>
+      !(m.key === "active_cases" && args.casesIncluded === false) &&
+      !(m.key === "storage" && args.storageApplies === false),
+  );
 }
 
 // ============================================================================
@@ -3332,6 +3408,10 @@ function formatKpiNumber(n: number): string {
 function buildKpis(args: {
   /** SERVER-projected `planFeatures.intakeIncluded` (fail-closed). */
   intakeIncluded: boolean;
+  /** B2A-F-04 — `planFeatures.casesIncluded` (fail-closed). */
+  casesIncluded?: boolean;
+  /** B2A-F-03 — own Personal Space record allowance, or null. */
+  recordAllowance?: HomeRecordAllowanceInput | null;
   trust: TrustState;
   scoped: WorkspaceEvidenceItem[];
   listHasMore: boolean;
@@ -3405,18 +3485,26 @@ function buildKpis(args: {
   // Track 1A — the intake KPI lock follows the SERVER-projected
   // commercial entitlement, not the plan name.
   const pro = args.intakeIncluded;
+  const allowance = args.recordAllowance ?? null;
 
-  return [
+  const cards: Array<HomeKpi | null> = [
     {
       key: "evidence",
       label: "Total evidence",
       value: formatKpiNumber(totalEvidence),
-      subtitle: evidenceSubtitle,
+      // B2A-F-03 — where cases are offered the allowance has no card of its
+      // own, so the evidence card states it.
+      subtitle:
+        args.casesIncluded !== false && allowance && allowance.cap !== null
+          ? `${allowance.held} of ${allowance.cap} records on your plan`
+          : evidenceSubtitle,
       tone: totalEvidence > 0 ? "ok" : "neutral",
       spark: last7 > 0 ? spark : null,
       href: "/evidence",
     },
-    {
+    args.casesIncluded === false
+      ? allowanceKpi(args.recordAllowance ?? null)
+      : {
       key: "matters",
       label: "Active matters",
       value: formatKpiNumber(args.caseCount),
@@ -3502,6 +3590,29 @@ function buildKpis(args: {
       locked: !pro,
     },
   ];
+  return cards.filter((card): card is HomeKpi => card !== null);
+}
+
+/**
+ * B2A-F-03 / B2A-F-04 — the KPI that stands where "Active matters" stood on a
+ * plan without cases: the record allowance, when the plan caps records. Null
+ * (no card) when no allowance is known — never a fabricated figure.
+ */
+function allowanceKpi(allowance: HomeRecordAllowanceInput | null): HomeKpi | null {
+  if (!allowance || allowance.cap === null) return null;
+  const remaining = Math.max(0, allowance.cap - allowance.held);
+  const exhausted = !allowance.nextAllowed;
+  return {
+    key: "allowance",
+    label: "Records on your plan",
+    value: `${formatKpiNumber(allowance.held)} of ${formatKpiNumber(allowance.cap)}`,
+    subtitle: exhausted
+      ? "Limit reached — add a credit or upgrade"
+      : `${remaining} record${remaining === 1 ? "" : "s"} left`,
+    tone: exhausted ? "danger" : remaining <= 1 ? "warn" : "ok",
+    spark: null,
+    href: "/billing",
+  };
 }
 
 /**
@@ -3567,6 +3678,15 @@ export type NormalizeInputs = {
   /** Active workspace display name (greeting line). */
   workspaceName?: string | null;
   activeSpaceType: ActiveSpaceType;
+  /** AUD-0047 — true inside a personal workspace the viewer joined. */
+  activeSpaceShared?: boolean | null;
+  /**
+   * B2A-F-01 — whether `billing` (the viewer's own account) describes the
+   * active space. Absent: only an unshared Personal Space qualifies.
+   */
+  billingDescribesActiveSpace?: boolean;
+  /** B2A-F-03 — own record allowance; ignored where billing does not apply. */
+  recordAllowance?: HomeRecordAllowanceInput | null;
   commandCenter: HomeCommandCenterInput | null;
   trustSummary: HomeTrustSummaryInput | null;
   billing: HomeBillingInput | null;
@@ -3636,7 +3756,8 @@ export type HomeSliceKey =
   | "communications"
   | "evidenceList"
   | "recordsByType"
-  | "operationsSummary";
+  | "operationsSummary"
+  | "recordAllowance";
 
 export function normalizeHomeViewModel(
   inputs: NormalizeInputs,
@@ -3650,7 +3771,20 @@ export function normalizeHomeViewModel(
     teamCollaborationIncluded:
       inputs.planFeatures?.teamCollaborationIncluded === true,
     reportsIncluded: inputs.planFeatures?.reportsIncluded === true,
+    casesIncluded: inputs.planFeatures?.casesIncluded === true,
   };
+  /*
+   * B2A-F-01 — WHOSE BILLING FIGURES THESE ARE. `billing` is
+   * `/v1/billing/overview`, which describes the viewer's OWN personal
+   * account. Inside a workspace somebody else pays for, its storage meter and
+   * "Storage limit reached" priority would describe the wrong subject, so they
+   * are not built there. The caller says whether the figures apply; absent,
+   * only an unshared Personal Space qualifies.
+   */
+  const billingDescribesActiveSpace =
+    inputs.billingDescribesActiveSpace ??
+    (inputs.activeSpaceType === "PERSONAL" && inputs.activeSpaceShared !== true);
+  const recordAllowance = billingDescribesActiveSpace ? inputs.recordAllowance ?? null : null;
   // While the envelope is loading the reports entitlement is UNKNOWN —
   // expose that tri-state so upsell copy is not shown prematurely.
   const reportsIncludedKnown =
@@ -3717,7 +3851,7 @@ export function normalizeHomeViewModel(
   const reportCount = inputs.reports?.items?.length ?? 0;
 
   // Storage forecast needs the real record count, so build it here.
-  const storage = buildStorage(inputs.billing, evidenceCount);
+  const storage = billingDescribesActiveSpace ? buildStorage(inputs.billing, evidenceCount) : null;
 
   // Reports generated today (real generatedAtUtc).
   const startOfToday = Math.floor(nowMs / 86_400_000) * 86_400_000;
@@ -3736,6 +3870,7 @@ export function normalizeHomeViewModel(
   });
 
   const checklist = buildChecklist({
+    casesIncluded: features.casesIncluded,
     evidenceCount,
     caseCount,
     reportCount,
@@ -3870,6 +4005,8 @@ export function normalizeHomeViewModel(
     packagesPending: reportProduction.packagesPending,
     packagesFailed: reportProduction.packagesFailed,
     storage,
+    casesIncluded: features.casesIncluded,
+    storageApplies: billingDescribesActiveSpace,
   });
 
   // Phase HOME-KPI — premium dashboard surfaces (all real data).
@@ -3881,6 +4018,8 @@ export function normalizeHomeViewModel(
   const listHasMore = inputs.evidenceList?.pageInfo?.hasMore === true;
   const kpis = buildKpis({
     intakeIncluded: features.intakeIncluded,
+    casesIncluded: features.casesIncluded,
+    recordAllowance,
     trust: trustState,
     scoped: scopedEvidence,
     listHasMore,
@@ -3935,6 +4074,8 @@ export function normalizeHomeViewModel(
     mattersNeedingWork: activeMatters.filter((m) => m.verdict !== "healthy").length,
     reportsReady: reportProduction.reportsReady,
     storage,
+    casesIncluded: features.casesIncluded,
+    recordAllowance,
   });
   /*
    * OPERATIONAL CONDITIONS BECOME PRIORITIES TOO.
@@ -3975,6 +4116,7 @@ export function normalizeHomeViewModel(
     plan: inputs.plan,
     features,
     reportsIncludedKnown,
+    recordAllowance,
     workspaceId: inputs.workspaceId,
     workspaceName: inputs.workspaceName ?? null,
     kpis,

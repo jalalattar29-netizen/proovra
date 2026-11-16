@@ -125,14 +125,14 @@ export function PlatformDashboardShowcase() {
                   3
                 </span>
               </div>
-              <button
-                type="button"
+              {/* R1-F-06 — illustration, not a control: a span takes no focus. */}
+              <span
                 className="inline-flex h-8 items-center gap-1 rounded-lg bg-[#0F172A] px-2.5 text-[10.5px] font-semibold text-white"
               >
                 <Plus size={11} strokeWidth={2.2} />
                 New Case
                 <ChevronDown size={9} strokeWidth={2} />
-              </button>
+              </span>
               <div className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-1.5 py-1">
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#FED7AA] text-[8.5px] font-bold text-[#9A3412]">
                   SA
@@ -165,12 +165,12 @@ export function PlatformDashboardShowcase() {
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <button
-                type="button"
+              {/* R1-F-06 — illustration, not a control: a span takes no focus. */}
+              <span
                 className="rounded text-[10px] font-semibold text-[#EF4444]"
               >
                 Open affected records
-              </button>
+              </span>
               <X size={11} className="text-[#94A3B8]" strokeWidth={1.85} />
             </div>
           </div>

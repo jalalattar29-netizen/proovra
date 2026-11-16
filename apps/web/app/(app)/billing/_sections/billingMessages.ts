@@ -70,6 +70,13 @@ const REFUSAL_COPY: Record<string, Omit<BillingErrorNotice, "supportReference">>
     message: "This checkout is already starting. Wait a moment, then look at Billing activity before trying again.",
     tone: "info",
   },
+  // Free audit B6-F-02 — the previous credit purchase is paid at the provider
+  // and not yet confirmed here: name it, never "already starting".
+  PREVIOUS_PURCHASE_CONFIRMING: {
+    title: "Your previous purchase is being confirmed",
+    message: "Your previous purchase is being confirmed — it will appear under Billing activity in a moment. You can buy another once it is confirmed.",
+    tone: "info",
+  },
   PLAN_ALREADY_ACTIVE: {
     title: "Your plan is already active",
     message: "We found your active subscription and updated this account. Nothing was started, and you have not been charged for a new plan.",

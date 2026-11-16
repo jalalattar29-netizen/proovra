@@ -62,8 +62,20 @@ export type SessionItemClientSignals = {
    * `audioNotCapturedReason`). Absent for every other item.
    */
   audioTracks?: string[];
-  audioNotCapturedReason?: "MICROPHONE_PERMISSION_DENIED";
+  /**
+   * B4-F-303 — why the recording has no audio track: the microphone was
+   * refused, no microphone could be used, or (screen) the shared surface's
+   * audio was not included.
+   */
+  audioNotCapturedReason?: VideoAudioNotCapturedReason;
 };
+
+export type VideoAudioNotCapturedReason = "MICROPHONE_PERMISSION_DENIED" | "MICROPHONE_UNAVAILABLE" | "AUDIO_NOT_SHARED";
+
+/** B4-F-303 — the part signals of a recording that holds no audio track, for its reason. */
+export function videoWithoutAudioSignals(reason: VideoAudioNotCapturedReason) {
+  return { audioTracks: [] as string[], audioNotCapturedReason: reason };
+}
 
 /** F-P1-09 — the part signals of a video recorded after the microphone was refused (as native). */
 export const VIDEO_WITHOUT_MICROPHONE_SIGNALS = {

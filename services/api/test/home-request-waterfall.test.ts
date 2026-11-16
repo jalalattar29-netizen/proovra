@@ -206,9 +206,21 @@ describe("Home's own reads are one wave", () => {
      * mount together and the page issued the request twice — measured in
      * Chrome on every Home load.
      */
+    /*
+     * B2A-F-01/02/03 (free-audit 0ea0, pin updated 2026-11-16): the sidebar
+     * meter no longer reads `/v1/billing/overview` at all — it reads the
+     * viewer's PERSONAL account projection through `readPersonalAllowance`
+     * (the same read Capture makes). So the overview now has ONE reader on
+     * Home, and the widget's own read is coalesced the same way: concurrent
+     * callers share one `personal-allowance` / `/v1/billing/accounts` request.
+     */
     const widget = read("components/app-shell-v2/SidebarStorageWidget.tsx");
     const home = read("components/home-experience/useHomeData.ts");
-    expect(widget).toMatch(/inFlightGet<BillingOverview>\("\/v1\/billing\/overview"/);
+    const allowance = read("lib/billing/personal-allowance.ts");
+    expect(widget).not.toMatch(/\/v1\/billing\/overview"/);
+    expect(widget).toMatch(/readPersonalAllowance\(\)/);
+    expect(allowance).toMatch(/inFlightGet\("personal-allowance"/);
+    expect(allowance).toMatch(/inFlightGet\("\/v1\/billing\/accounts"/);
     expect(home).toMatch(/inFlightGet<\s*HomeBillingInput\s*>\("\/v1\/billing\/overview"/);
   });
 

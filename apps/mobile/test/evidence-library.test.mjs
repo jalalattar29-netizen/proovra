@@ -144,6 +144,8 @@ test("saved views parse the real { items } envelope and map deleted to trash", (
     retention: "all",
     sort: "priority",
     isDefault: true,
+    // CLIENT-X B5B-F-303: the owner is read when sent; absent here, so null.
+    ownerUserId: null,
   });
 });
 

@@ -122,7 +122,9 @@ export function projectSettingsOverview(envelope: unknown): SettingsOverview {
     canManageMembers:
       caps.SETTINGS_MANAGE === true && (isOrg || planFeatures.teamCollaborationIncluded === true),
     showAiSettings: !(!isOrg && allowance === 0),
-    showReviewerCriteria: isPlatformAdmin || planFeatures.reviewerOperationsIncluded === true,
+    // B2B-F-12 (Free-user audit 0ea0) — the web's gate: REVIEWER_OPS_VIEW (the API
+    // gates every reviewer-criteria endpoint on review.queue.read), not a plan flag.
+    showReviewerCriteria: isPlatformAdmin || caps.REVIEWER_OPS_VIEW === true,
     matrixRole: isOrg ? str(active.roleLabel) : "OWNER",
   };
 }

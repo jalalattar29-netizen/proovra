@@ -23,11 +23,20 @@ interface Quotas {
 
 interface UsageStats {
   dailyAnalyses: { today: number; thisWeek: number; thisMonth: number };
-  costBreakdown: {
+  /**
+   * Free audit B6-F-49 — a legacy analytics figure multiplied by a fixed list
+   * rate. Nothing is billed per analysis: the API now says so with
+   * `costBasis: "ILLUSTRATIVE_LIST_RATE_ESTIMATE"` and `costIsCharged: false`
+   * (an older API sends neither; the figure meant the same then). Optional so
+   * a response without it renders no currency at all.
+   */
+  costBreakdown?: {
     totalCost: number;
     thisMonth: number;
     averagePerAnalysis: number;
   };
+  costBasis?: string;
+  costIsCharged?: boolean;
   topEvidenceTypes: Record<string, number>;
   activeApiKeys: number;
   activeBatches: number;
@@ -155,12 +164,16 @@ function QuotasPageInner() {
         sub: "Analyses processed this month",
         color: "var(--app-ink-heading)",
       },
-      {
-        label: "Estimated Per Analysis",
-        value: `$${stats.costBreakdown.averagePerAnalysis.toFixed(4)}`,
-        sub: "A fixed list rate, not a measured cost",
-        color: "var(--app-ink-heading)",
-      },
+      ...(stats.costBreakdown
+        ? [
+            {
+              label: "Illustrative list rate",
+              value: `${stats.costBreakdown.averagePerAnalysis.toFixed(4)}`,
+              sub: "Per analysis, an estimate. Not a charge",
+              color: "var(--app-ink-heading)",
+            },
+          ]
+        : []),
     ];
   }, [stats]);
 
@@ -220,7 +233,7 @@ function QuotasPageInner() {
       highlight="current limits."
       description={
         <>
-          Review analysis activity, cost metrics, quota consumption, and active
+          Review analysis activity, illustrative cost estimates, quota consumption, and active
           service usage from one dashboard.
         </>
       }
@@ -461,11 +474,16 @@ function QuotasPageInner() {
 
             {stats && (
               <div className="dashboard-quotas-grid-wide">
+                {stats.costBreakdown ? (
                 <Card
                   padding="none"
                 >
-                  <div className="p-6 md:p-7">
-                    <div className="dashboard-quotas-card-title">Cost Overview</div>
+                  <div className="p-6 md:p-7" data-quotas-cost-estimate={stats.costBasis ?? "ILLUSTRATIVE_LIST_RATE_ESTIMATE"}>
+                    <div className="dashboard-quotas-card-title">Illustrative cost estimate</div>
+                    <p style={{ fontSize: 12, color: "var(--app-ink-secondary)", margin: "0 0 12px" }}>
+                      An illustrative estimate at a fixed list rate. It is not a
+                      charge: nothing is billed per analysis.
+                    </p>
 
                     <div className="dashboard-quotas-soft-grid">
                       <div
@@ -478,7 +496,7 @@ function QuotasPageInner() {
                         <div
                           style={{ fontSize: 12, color: "var(--app-ink-secondary)" }}
                         >
-                          Total Cost
+                          Estimated total (list rate)
                         </div>
                         <div
                           className="dashboard-quotas-metric-value-lg"
@@ -498,7 +516,7 @@ function QuotasPageInner() {
                         <div
                           style={{ fontSize: 12, color: "var(--app-ink-secondary)" }}
                         >
-                          This Month
+                          Estimated this month (list rate)
                         </div>
                         <div
                           className="dashboard-quotas-metric-value-lg"
@@ -510,6 +528,7 @@ function QuotasPageInner() {
                     </div>
                   </div>
                 </Card>
+                ) : null}
 
                 <Card
                   padding="none"

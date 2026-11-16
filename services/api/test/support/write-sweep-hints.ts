@@ -411,8 +411,13 @@ export const WRITE_SWEEP_HINTS: Record<string, RouteHint> = {
   "POST /v1/intelligence/evidence/:p/run/text": {
     make: {
       Policy: { model: "WorkspaceAiPolicy", data: { contentIntelligenceEnabled: true, rawContentProcessingAllowed: true } },
+      // B6-F-45 (D62 for text): the run analyses text extracted from the record.
+      Text: {
+        model: "EvidenceExtractedText",
+        data: { evidenceId: "$Evidence", kind: "PDF_TEXT", status: "COMPLETED", provider: "x", text: "x" },
+      },
     },
-    ensure: ["Policy"],
+    ensure: ["Policy", "Text"],
     body: { provider: "LOCAL_ENTITY_EXTRACTION", operation: "EXTRACT_ENTITIES", text: "x" },
   },
   "POST /v1/ai/qc/samples/:p/decision": {

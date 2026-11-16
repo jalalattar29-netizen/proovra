@@ -24,11 +24,13 @@ export const DEMO_RECORD = {
   createdAt: "May 17, 2026 09:14:22 UTC",
   verifiedAt: "May 18, 2026 14:36:45 UTC",
   hash: "d2f0e7a3b6c4ec9b7102fa8d63c5...",
-  signer: "Jane Doe",
+  // B5B-F-504 — the demo shows only what the real public page discloses:
+  // identity is withheld by default and access is aggregated (count + latest),
+  // never reviewer emails or per-action events (public-verify-projection.ts).
+  signer: "Withheld by the record's disclosure policy",
   tsaTime: "May 17, 2026 09:15:22 UTC",
-  reviewer: "alex@company.com",
-  reviewerAction: "Viewed Overview",
-  reviewerTime: "May 18, 2026 11:02 UTC",
+  accessEventCount: 4,
+  latestAccessAt: "May 18, 2026 13:21 UTC",
   custodyEvents: 17,
 };
 

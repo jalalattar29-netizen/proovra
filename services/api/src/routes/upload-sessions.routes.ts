@@ -48,6 +48,13 @@ import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { bump } from "../services/ops/metrics.service.js";
 import { prisma } from "../db.js";
+import {
+  assertWorkspaceAllowsStorageGrowth,
+  resolveEnforcementScopeForRequester,
+} from "../services/billing-enforcement.service.js";
+import { boundPartSizeBytes } from "../services/evidence/evidence-part-binding.service.js";
+import { buildStorageLimitPayload } from "../services/uploads/upload-door-facts.service.js";
+import { getUploadSizeLimits } from "../services/reliability/upload-limits.service.js";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
 import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
 import {
@@ -73,6 +80,29 @@ import {
 // Bounded validators
 // =============================================================================
 
+/**
+ * B4-F-300 (free audit 0ea0) — the ordinary door's per-file part contract
+ * (evidence.routes.ts CreatePartBody: privateRole, privateNote,
+ * checklistStepId, sourceLabel, clientSignals), with its bounds.
+ */
+const BridgeJsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
+  z.union([
+    z.string().max(4096),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(BridgeJsonValueSchema).max(256),
+    z.record(z.string().max(128), BridgeJsonValueSchema),
+  ]),
+);
+const BRIDGE_PART_CONTRACT_FIELDS = {
+  privateRole: z.string().trim().min(1).max(120).nullable().optional(),
+  privateNote: z.string().trim().max(1000).nullable().optional(),
+  checklistStepId: z.string().trim().min(1).max(120).nullable().optional(),
+  sourceLabel: z.string().trim().min(1).max(120).nullable().optional(),
+  clientSignals: BridgeJsonValueSchema.optional(),
+};
+
 const CreateSessionBodySchema = z
   .object({
     teamId: z.string().uuid(),
@@ -94,6 +124,11 @@ const CreateSessionBodySchema = z
     targetPartIndex: z.number().int().min(0).max(MAX_EVIDENCE_PARTS - 1).optional(),
     originalFileName: z.string().min(1).max(255).optional(),
     expectedMimeType: z.string().min(1).max(128).optional(),
+    // B4-F-300 (free audit 0ea0) — the per-file contract CreatePartBody takes
+    // (same bounds), accepted so a current client's create is not refused.
+    // The session has no column for it (no schema change in this pass): the
+    // bridge stores what the multipart/complete call states.
+    ...BRIDGE_PART_CONTRACT_FIELDS,
   })
   .strict();
 
@@ -151,6 +186,9 @@ const MultipartCompleteBodySchema = z
     /** When true, the server streams the final object through SHA-256
      *  and compares to the session's expected_sha256. */
     verifyHash: z.boolean().optional(),
+    // B4-F-300 — the bridged part's per-file contract (additive; an older
+    // client sends none and the bridge stores the C-06 binding alone).
+    ...BRIDGE_PART_CONTRACT_FIELDS,
   })
   .strict();
 
@@ -221,6 +259,63 @@ function statusForDenial(
     default:
       return 400;
   }
+}
+
+/**
+ * B4-F-300 — the declared session size (plus the record's OTHER parts'
+ * declared sizes, the B4-F-003 rule) against the workspace's remaining
+ * storage. Null when it fits, when nothing is declared, when the record is not
+ * in this workspace (the service answers that), or when it cannot be measured.
+ */
+async function earlyStorageRefusal(input: {
+  teamId: string;
+  evidenceId: string;
+  actorUserId: string;
+  expectedTotalBytes: number | null;
+  targetPartIndex: number | null;
+}): Promise<Record<string, unknown> | null> {
+  if (input.expectedTotalBytes == null || input.expectedTotalBytes <= 0) return null;
+  // A file over the per-file ceiling keeps its own typed refusal (413
+  // evidence_too_large, from the service): size is checked before storage.
+  if (input.expectedTotalBytes > getUploadSizeLimits().maxUploadFileSizeBytes) return null;
+  let refused = false;
+  try {
+    const evidence = await prisma.evidence.findFirst({
+      where: { id: input.evidenceId, teamId: input.teamId },
+      select: { ownerUserId: true, teamId: true },
+    });
+    if (!evidence) return null;
+    const scope = await resolveEnforcementScopeForRequester({
+      ownerUserId: evidence.ownerUserId,
+      teamId: evidence.teamId ?? null,
+    });
+    const otherParts = await prisma.evidencePart.findMany({
+      where: {
+        evidenceId: input.evidenceId,
+        ...(input.targetPartIndex != null ? { partIndex: { not: input.targetPartIndex } } : {}),
+      },
+      select: { clientSignals: true, sizeBytes: true },
+    });
+    const otherDeclaredBytes = otherParts.reduce((sum, part) => {
+      const declared = boundPartSizeBytes(part.clientSignals);
+      if (declared !== null) return sum + BigInt(declared);
+      return part.sizeBytes != null && part.sizeBytes > 0n ? sum + part.sizeBytes : sum;
+    }, 0n);
+    await assertWorkspaceAllowsStorageGrowth({
+      scope,
+      incomingBytes: BigInt(input.expectedTotalBytes) + otherDeclaredBytes,
+    });
+  } catch (err) {
+    refused = (err as { code?: unknown } | null)?.code === "STORAGE_LIMIT_REACHED";
+  }
+  if (!refused) return null;
+  return buildStorageLimitPayload({
+    ownerUserId: input.actorUserId,
+    evidenceId: input.evidenceId,
+    teamId: input.teamId,
+    reason: "upload_session_blocked",
+    incomingBytes: String(input.expectedTotalBytes),
+  });
 }
 
 function sendDenial(
@@ -350,6 +445,20 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         actor.actorUserId,
       );
       if (personalDenial) return sendPersonalDenial(reply, personalDenial);
+
+      // B4-F-300 (free audit 0ea0) — the F-12 early refusal the ordinary door
+      // gives, before a byte moves: a file that would take the workspace past
+      // its storage limit can never be sealed. Advisory, as there: the seal
+      // measures the actual bytes and decides; a failure to measure never
+      // blocks. Same 409 body (buildStorageLimitPayload) as EP-0427.
+      const storageRefusal = await earlyStorageRefusal({
+        teamId: body.teamId,
+        evidenceId: body.evidenceId,
+        actorUserId: actor.actorUserId,
+        expectedTotalBytes: body.expectedTotalBytes ?? null,
+        targetPartIndex: body.targetPartIndex ?? null,
+      });
+      if (storageRefusal) return reply.code(409).send(storageRefusal);
 
       const result = await createUploadSession({
         teamId: body.teamId,
@@ -773,6 +882,13 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         teamId: body.teamId,
         sessionId,
         verifyHash: body.verifyHash ?? false,
+        partContract: {
+          privateRole: body.privateRole ?? null,
+          privateNote: body.privateNote ?? null,
+          checklistStepId: body.checklistStepId ?? null,
+          sourceLabel: body.sourceLabel ?? null,
+          clientSignals: body.clientSignals,
+        },
       });
       if (!result.ok) {
         return sendDenial(

@@ -112,6 +112,38 @@ describe("privileged identity — factor removal authority (live PostgreSQL)", (
     return id;
   }
 
+  /**
+   * B1-F-002 — a request NOBODY in the workspace may decide is no longer filed:
+   * the route answers 409 `no_eligible_approver` and writes no row. The
+   * approval still refuses such a request on its own (defence in depth), and
+   * such rows do exist — filed before the rule, or left behind when the only
+   * eligible approver lost that standing after filing. So the row is seeded
+   * directly, verified, and the approval-layer refusal is still exercised.
+   */
+  async function unapprovableRequest(o: OrganizationTenant, m: SeededUser): Promise<string> {
+    const before = await prisma.mfaRecoveryRequest.count({ where: { userId: m.userId } });
+    const c = await call("POST", "/v1/identity/mfa-admin/recovery-requests", m.token, {
+      teamId: o.workspaceId,
+      reason: "Authenticator lost with a phone (privileged identity)",
+    });
+    expect(c.statusCode, c.body).toBe(409);
+    expect(c.json().error).toBe("no_eligible_approver");
+    expect(await prisma.mfaRecoveryRequest.count({ where: { userId: m.userId } })).toBe(before);
+    const row = await prisma.mfaRecoveryRequest.create({
+      data: {
+        userId: m.userId,
+        teamId: o.workspaceId,
+        reason: "Authenticator lost with a phone (privileged identity)",
+        requiredApprovals: 1,
+        status: "PENDING_ADMIN_REVIEW",
+        emailVerifiedAt: new Date(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+      select: { id: true },
+    });
+    return row.id;
+  }
+
   /** A platform administrator with an operator workspace of their own (step-up challenges are team-bound). */
   async function platformOperator() {
     const o = await org(0);
@@ -207,7 +239,7 @@ describe("privileged identity — factor removal authority (live PostgreSQL)", (
       const admin = o.members[0]!;
       await setRole(o, admin, "ADMIN");
       await ceremony.enroll(o.owner.userId);
-      const id = await verifiedRequest(o, o.owner);
+      const id = await unapprovableRequest(o, o.owner);
       const res = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${id}/approve`, admin.token, {});
       expect(res.statusCode, res.body).toBe(403);
       expect(res.json().error).toBe("approver_rank_insufficient");
@@ -240,7 +272,9 @@ describe("privileged identity — factor removal authority (live PostgreSQL)", (
       await ceremony.enroll(o.owner.userId);
       await ceremony.enroll(peer.userId);
       for (const target of [o.owner, peer]) {
-        const id = await verifiedRequest(o, target);
+        // Nobody may decide the OWNER's request here (no peer ORG_OWNER); the
+        // OWNER may decide the peer ADMIN's.
+        const id = target === o.owner ? await unapprovableRequest(o, target) : await verifiedRequest(o, target);
         const res = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${id}/reject`, admin.token, { reason: "not mine to decide" });
         expect(res.statusCode, res.body).toBe(403);
         expect(res.json().error).toBe("approver_rank_insufficient");
@@ -370,7 +404,9 @@ describe("privileged identity — factor removal authority (live PostgreSQL)", (
       const staff = o.members[0]!;
       await prisma.user.update({ where: { id: staff.userId }, data: { platformRole: "admin" } });
       await ceremony.enroll(staff.userId);
-      const id = await verifiedRequest(o, staff);
+      // B1-F-002 — no tenant administrator may decide a platform account's
+      // recovery, so the route refuses to file one at all.
+      const id = await unapprovableRequest(o, staff);
 
       const approve = await call("POST", `/v1/identity/mfa-admin/recovery-requests/${id}/approve`, o.owner.token, {});
       expect(approve.statusCode, approve.body).toBe(403);

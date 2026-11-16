@@ -91,6 +91,8 @@ export type DispatchVerificationOutcome = {
   /** Populated when delivery is `failed` or `unconfirmed`. Audit only; never
    *  sent to the client. */
   error?: string;
+  /** B8-F-302 — the refusal was "not now"; an automatic retry is scheduled. */
+  retryable?: boolean;
 };
 
 const COOLDOWN_SEC = Math.ceil(EMAIL_VERIFICATION_RESEND_COOLDOWN_MS / 1000);
@@ -111,6 +113,8 @@ export async function dispatchVerificationEmail(params: {
   toEmail: string;
   /** F-26f — validated with {@link verificationReturnPath}; null = none. */
   returnPath?: string | null;
+  /** B8-F-302 — set by the retry sweep, which owns its outbox row. */
+  fromOutbox?: boolean;
 }): Promise<DispatchVerificationOutcome> {
   const { userId, toEmail } = params;
 
@@ -151,10 +155,18 @@ export async function dispatchVerificationEmail(params: {
     };
   }
   await settleEmailVerificationTokenDelivery(settle, "refused");
+  // B8-F-302 — a "not now" refusal (429 / 408 / 5xx) is put on the outbox so
+  // the notification-retries sweep delivers it without the person pressing
+  // resend. Not for a retry run itself (it reschedules its own row), and never
+  // for a permanent refusal or a missing configuration.
+  if (outcome.kind === "retryable" && !params.fromOutbox) {
+    await scheduleVerificationEmailRetry({ userId, toEmail, returnPath: params.returnPath ?? null });
+  }
   return {
     delivered: false,
     delivery: "failed",
     retryAfterSec: 0,
+    retryable: outcome.kind === "retryable",
     error:
       outcome.kind === "threw"
         ? outcome.message
@@ -270,4 +282,156 @@ export async function loadFullUserForSession(
     select: { id: true, email: true, provider: true, currentWorkspaceId: true },
   });
   return u;
+}
+
+
+// ===========================================================================
+// B8-F-302 (free-audit 0ea0) — THE VERIFICATION-EMAIL OUTBOX.
+//
+// The sign-up verification email was sent inside the request with nothing
+// behind it: a provider rate limit during a sign-up burst left the person on
+// "we couldn't send it" until they pressed resend after the cooldown. A
+// retryable refusal now writes a NotificationDelivery row (eventType
+// EMAIL_VERIFICATION, provider INTERNAL so the generic RESEND retry sweep
+// never tries to render it) carrying ONLY the recipient and user id — never a
+// token or link: each retry mints a fresh link through dispatchVerificationEmail,
+// with the same per-address cooldown and the same honest settlement. The
+// notification-retries cron (POST /v1/notifications/process-retries) drains it.
+// ===========================================================================
+
+export const VERIFICATION_EMAIL_EVENT = "EMAIL_VERIFICATION";
+export const VERIFICATION_EMAIL_MAX_ATTEMPTS = 5;
+
+function verificationRetryDelayMs(attempt: number): number {
+  // 60 s (the per-address cooldown), doubling, at most 30 min.
+  return Math.min(30 * 60 * 1000, EMAIL_VERIFICATION_RESEND_COOLDOWN_MS * 2 ** Math.max(0, attempt - 1));
+}
+
+export async function scheduleVerificationEmailRetry(input: {
+  userId: string;
+  toEmail: string;
+  returnPath: string | null;
+}): Promise<void> {
+  try {
+    // One open retry per person: a second refusal while one is scheduled does
+    // not stack a second row.
+    const open = await prisma.notificationDelivery.findFirst({
+      where: {
+        eventType: VERIFICATION_EMAIL_EVENT,
+        recipientUserId: input.userId,
+        status: { in: ["RETRY_SCHEDULED", "PENDING"] },
+      },
+      select: { id: true },
+    });
+    if (open) return;
+    await prisma.notificationDelivery.create({
+      data: {
+        eventType: VERIFICATION_EMAIL_EVENT,
+        channel: "EMAIL",
+        provider: "INTERNAL",
+        recipient: input.toEmail,
+        recipientUserId: input.userId,
+        status: "RETRY_SCHEDULED",
+        templateKey: VERIFICATION_EMAIL_EVENT,
+        retryCount: 0,
+        nextAttemptAtUtc: new Date(Date.now() + verificationRetryDelayMs(1)),
+        errorCode: "provider_retryable",
+        // The validated return path only (a same-site path), never a token.
+        metadata: input.returnPath ? { returnPath: verificationReturnPath(input.returnPath) } : {},
+      },
+    });
+  } catch {
+    // The outbox is best effort: the person can still press resend.
+  }
+}
+
+export type VerificationRetrySummary = {
+  pickedUp: number;
+  sent: number;
+  rescheduled: number;
+  cancelled: number;
+  failed: number;
+};
+
+export async function processDueVerificationEmailRetries(
+  input: { batchSize?: number; now?: Date } = {},
+): Promise<VerificationRetrySummary> {
+  const summary: VerificationRetrySummary = { pickedUp: 0, sent: 0, rescheduled: 0, cancelled: 0, failed: 0 };
+  const now = input.now ?? new Date();
+  const rows = await prisma.notificationDelivery.findMany({
+    where: {
+      eventType: VERIFICATION_EMAIL_EVENT,
+      provider: "INTERNAL",
+      status: "RETRY_SCHEDULED",
+      nextAttemptAtUtc: { lte: now },
+    },
+    orderBy: { nextAttemptAtUtc: "asc" },
+    take: Math.min(Math.max(input.batchSize ?? 50, 1), 500),
+  });
+  for (const row of rows) {
+    // Claim: exactly one sweeper takes the row.
+    const claim = await prisma.notificationDelivery.updateMany({
+      where: { id: row.id, status: "RETRY_SCHEDULED" },
+      data: { status: "PENDING" },
+    });
+    if (claim.count !== 1) continue;
+    summary.pickedUp += 1;
+    const finish = (data: Record<string, unknown>) =>
+      prisma.notificationDelivery.update({ where: { id: row.id }, data: data as never });
+
+    // Still owed? A verified, deleted, or re-addressed account is not.
+    const user = row.recipientUserId
+      ? await prisma.user.findUnique({
+          where: { id: row.recipientUserId },
+          select: { email: true, emailVerifiedAt: true },
+        })
+      : null;
+    if (!user || user.emailVerifiedAt || (user.email ?? "").toLowerCase() !== row.recipient.toLowerCase()) {
+      await finish({ status: "CANCELLED", errorCode: "no_longer_owed", nextAttemptAtUtc: null });
+      summary.cancelled += 1;
+      continue;
+    }
+    const returnPath =
+      row.metadata && typeof row.metadata === "object" && typeof (row.metadata as { returnPath?: unknown }).returnPath === "string"
+        ? ((row.metadata as { returnPath: string }).returnPath)
+        : null;
+    const outcome = await dispatchVerificationEmail({
+      userId: row.recipientUserId!,
+      toEmail: row.recipient,
+      returnPath,
+      fromOutbox: true,
+    });
+    if (outcome.delivered) {
+      await finish({ status: "SENT", sentAtUtc: new Date(), errorCode: null, nextAttemptAtUtc: null });
+      summary.sent += 1;
+      continue;
+    }
+    if (outcome.delivery === "cooldown" || outcome.delivery === "unconfirmed") {
+      // A link that may already be in the inbox exists (the person pressed
+      // resend, or the provider may have accepted it): nothing more is owed.
+      await finish({ status: "CANCELLED", errorCode: `superseded_${outcome.delivery}`, nextAttemptAtUtc: null });
+      summary.cancelled += 1;
+      continue;
+    }
+    const attempt = row.retryCount + 1;
+    if (outcome.retryable && attempt < VERIFICATION_EMAIL_MAX_ATTEMPTS) {
+      await finish({
+        status: "RETRY_SCHEDULED",
+        retryCount: attempt,
+        nextAttemptAtUtc: new Date(Date.now() + verificationRetryDelayMs(attempt + 1)),
+        errorCode: "provider_retryable",
+      });
+      summary.rescheduled += 1;
+      continue;
+    }
+    await finish({
+      status: "FAILED",
+      retryCount: attempt,
+      failedAtUtc: new Date(),
+      errorCode: outcome.retryable ? "retry_budget_exhausted" : "provider_refused",
+      nextAttemptAtUtc: null,
+    });
+    summary.failed += 1;
+  }
+  return summary;
 }

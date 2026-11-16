@@ -13,14 +13,17 @@ import { loadModule, renderComponent, React, act } from "./support/render.mjs";
 const h = React.createElement;
 let M;
 let answer = () => ({ status: 200, body: {} });
+let verifyRequests = [];
 
 before(async () => {
   M = await loadModule("app/verify.tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs", "src/product/public-verify.ts"]);
 });
 beforeEach(() => {
   globalThis.__EXPO_PARAMS__ = { id: "tok-1" };
-  globalThis.fetch = async (url) => {
+  verifyRequests = [];
+  globalThis.fetch = async (url, init = {}) => {
     const path = String(url).replace(/^https?:\/\/[^/]+/, "");
+    if (path.startsWith("/public/verify/")) verifyRequests.push({ path, session: new Headers(init.headers || {}).get("x-proovra-verify-session") });
     const res = path.startsWith("/public/verify/") ? answer() : { status: 200, body: {} };
     return new Response(JSON.stringify(res.body), { status: res.status, headers: { "content-type": "application/json" } });
   };
@@ -41,10 +44,52 @@ test("a 200 with no verification materials is 'Evidence Not Found', never 'Verif
 });
 
 test("a failed read is 'Verification Failed' with Try Again", async () => {
-  answer = () => ({ status: 404, body: { message: "Evidence not found" } });
+  // B5B-F-501 — a real failure (a 5xx), not the API's expected 404/410 answers.
+  answer = () => ({ status: 500, body: { message: "boom" } });
   const r = await render();
   assert.ok(r.hasText("Verification Failed"));
   assert.ok(r.byLabel("Try Again").length > 0);
+});
+
+test("B5B-F-501 — every read of this screen carries ONE verify-view session, so a refresh does not spend another use", async () => {
+  answer = () => ({ status: 200, body: { technicalMaterials: { fileSha256: "ab".repeat(32) }, overview: { verificationStatus: "Signature valid" } } });
+  const r = await render();
+  await r.press("Check Latest Anchoring Status");
+  for (let i = 0; i < 3; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
+  assert.equal(verifyRequests.length, 2);
+  assert.match(verifyRequests[0].session ?? "", /^[A-Za-z0-9_-]{16,128}$/);
+  assert.equal(verifyRequests[1].session, verifyRequests[0].session, "the refresh opened a new viewing session");
+});
+
+test("B5B-F-501 — an unknown link (404) and an ended link (410) are neutral notices without a retry", async () => {
+  answer = () => ({ status: 404, body: { message: "Evidence not found" } });
+  let r = await render();
+  assert.ok(r.hasText("No verification record found for this link"));
+  assert.ok(!r.hasText("Verification Failed"));
+  assert.equal(r.byLabel("Try Again").length, 0);
+  r.unmount();
+  answer = () => ({ status: 410, body: { error: { code: "SHARE_LINK_EXHAUSTED", message: "gone" } } });
+  r = await render();
+  assert.ok(r.hasText("This verification link is no longer active"));
+  assert.equal(r.byLabel("Try Again").length, 0);
+});
+
+test("B5B-F-501 — withdrawn and purged records are said as the web says them", async () => {
+  answer = () => ({ status: 410, body: { error: { code: "VERIFICATION_RECORD_WITHDRAWN", message: "x" } } });
+  let r = await render();
+  assert.ok(r.hasText("Verification page withdrawn"));
+  assert.ok(!r.hasText("Verification Failed"));
+  r.unmount();
+  answer = () => ({ status: 410, body: { error: { code: "VERIFICATION_RECORD_PURGED", message: "x" } } });
+  r = await render();
+  assert.ok(r.hasText("Record permanently deleted"));
+});
+
+test("B5B-F-501 — a RETAINED record (HTTP 200) is 'Record retained', never 'Evidence Not Found'", async () => {
+  answer = () => ({ status: 200, body: { canonicalVerification: { status: "RETAINED", reference: "pvr_x" }, code: "VERIFICATION_RECORD_RETAINED" } });
+  const r = await render();
+  assert.ok(r.hasText("Record retained"));
+  assert.ok(!r.hasText("Evidence Not Found"));
 });
 
 test("materials under technicalMaterials are recognised and shown", async () => {

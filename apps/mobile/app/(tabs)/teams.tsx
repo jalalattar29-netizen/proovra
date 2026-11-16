@@ -59,6 +59,7 @@ import {
 import { theme } from "../../src/theme/theme";
 import { purchaseAvailability } from "../../src/product/billing-purchase";
 import { upgradeActionLabel } from "../../src/product/billing";
+import { useActiveSpaceBillingAuthority } from "../../src/product/use-active-space-billing";
 import {
   ProovraShell,
   ProovraCard,
@@ -225,7 +226,14 @@ export default function CollaborationScreen() {
 
   // F-09 — the label names what this build can do at Billing: buy, or see plans.
   const upgradeLabel = upgradeActionLabel(purchaseAvailability());
-  const upgradeButton = (
+  // B3A-F-004 (Free-user audit 0ea0) — Billing opens the VIEWER's own accounts.
+  // In a workspace somebody else pays for, say who manages billing instead.
+  const billingAuthority = useActiveSpaceBillingAuthority();
+  const upgradeButton = billingAuthority.canManage === null ? null : billingAuthority.canManage === false ? (
+    <ProovraText variant="label" color={theme.color.ink.secondary} testID="teams-billing-ask-owner">
+      {billingAuthority.askCopy}
+    </ProovraText>
+  ) : (
     <ProovraButton
       label={upgradeLabel}
       accessibilityLabel={planLocked ? upgradeLabel : `${upgradeLabel} — ${disabledReason ?? "plan limit reached"}`}
@@ -273,7 +281,7 @@ export default function CollaborationScreen() {
               >
                 {`${entitlement.plan ? `${entitlement.plan} plan · ` : ""}${entitlement.teamsUsed} of ${entitlement.teamsLimit} teams used`}
               </ProovraText>
-              {entitlement.teamsUsed >= entitlement.teamsLimit ? (
+              {entitlement.teamsUsed >= entitlement.teamsLimit && billingAuthority.canManage === true ? (
                 <ProovraButton label={upgradeLabel === "Upgrade plan" ? "Upgrade" : upgradeLabel} variant="ghost" fullWidth={false} onPress={() => router.push("/billing" as never)} />
               ) : null}
               {atCapacity ? upgradeButton : null}

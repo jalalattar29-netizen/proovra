@@ -177,8 +177,34 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
 
       // PRO-081 (PLATFORM-04) / ADM-022 — resolving ONE named record (title,
       // owner, workspace, customer) is a targeted cross-tenant read, so it is
-      // audited like the user, workspace and customer detail reads. A signal or
-      // cohort roster has no single subject and stays unaudited.
+      // audited like the user, workspace and customer detail reads.
+      //
+      // B7A-F-005 (free-audit 0ea0) — a signal or cohort roster is audited too.
+      // Unlike the metadata rosters ADM-022 left unaudited, each row of this
+      // one carries customer subject data — a record's TITLE and its owner's
+      // EMAIL — read with no support grant, so "who listed whose records" must
+      // leave a trace. The audit row carries the filter, never the rows.
+      if (!parsed.data.evidenceId) {
+        await emitPlatformAudit({
+          action: "admin.evidence_records_listed",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: req.user?.sub ?? null,
+          actorAuthority: "PLATFORM_ADMIN",
+          resourceType: "evidence",
+          resourceId: null,
+          correlationId: req.id,
+          metadata: {
+            signal: parsed.data.signal ?? null,
+            cohort: parsed.data.cohort ?? null,
+            teamId: parsed.data.teamId ?? null,
+            organizationId: parsed.data.organizationId ?? null,
+            page: parsed.data.page ?? null,
+            limit: parsed.data.limit ?? null,
+            total: result.total,
+          },
+        }).catch(() => null);
+      }
       if (parsed.data.evidenceId) {
         await emitPlatformAudit({
           action: "admin.evidence_record_viewed",

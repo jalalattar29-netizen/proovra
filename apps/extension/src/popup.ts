@@ -8,7 +8,7 @@
 import { clearToken, getStoredToken } from "./lib/auth.js";
 import { CONFIG } from "./lib/config.js";
 import {
-  classifyCasesResponse,
+  loadAllEligibleCases,
   classifyContextResponse,
   type CaptureWorkspace,
   type CaseLoad,
@@ -16,6 +16,14 @@ import {
 } from "./lib/popup-context.js";
 import { RESTRICTED_PAGE_COPY, pageRestriction } from "./lib/page-eligibility.js";
 import { CAPTURE_ALREADY_RUNNING, SESSION_ENDED, statusLine } from "./lib/status-copy.js";
+import {
+  CLIENT_UPDATE_COPY,
+  CLIENT_UPDATE_STORAGE_KEY,
+  clientUpdateVerdict,
+  escalateClientUpdate,
+  parseStoredClientUpdate,
+  type ClientUpdateNotice,
+} from "./lib/client-contract.js";
 import { followUpLink, retryOffered } from "./lib/popup-links.js";
 import type { CaptureStatus } from "./lib/capture-registry.js";
 
@@ -31,6 +39,29 @@ const NO_ELIGIBLE_WORKSPACE =
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+/**
+ * B8-F-402 — "update required / please update" when the API has moved past
+ * this build: from the popup's own reads and from what the background's
+ * capture calls recorded. Never blocks; absent headers show nothing.
+ */
+let updateNotice: ClientUpdateNotice | null = null;
+function showUpdateNotice(next: ClientUpdateNotice | null) {
+  updateNotice = escalateClientUpdate(updateNotice, next);
+  const el = document.getElementById("update-notice");
+  if (!el) return;
+  el.hidden = updateNotice === null;
+  el.textContent = updateNotice ? CLIENT_UPDATE_COPY[updateNotice] : "";
+  if (updateNotice) el.dataset.notice = updateNotice;
+}
+async function loadStoredUpdateNotice() {
+  try {
+    const out = await chrome.storage.local.get(CLIENT_UPDATE_STORAGE_KEY);
+    showUpdateNotice(parseStoredClientUpdate(out?.[CLIENT_UPDATE_STORAGE_KEY]));
+  } catch {
+    /* storage unavailable: the popup's own reads still decide */
+  }
+}
+
 const params = new URLSearchParams(location.search);
 
 let workspaces: CaptureWorkspace[] = [];
@@ -45,6 +76,7 @@ async function apiGet(token: string, path: string): Promise<{ status: number | n
       credentials: "omit",
       signal: AbortSignal.timeout(20_000),
     });
+    showUpdateNotice(clientUpdateVerdict(res.headers));
     let body: unknown = null;
     try {
       body = await res.json();
@@ -63,8 +95,11 @@ async function loadWorkspaces(token: string): Promise<WorkspaceLoad> {
 }
 
 async function loadCases(token: string, teamId: string): Promise<CaseLoad> {
-  const r = await apiGet(token, "/v1/cases");
-  return classifyCasesResponse(r.status, r.body, teamId);
+  // B4-F-104 — every page, not only the newest cases across all workspaces.
+  return loadAllEligibleCases(
+    (cursor) => apiGet(token, cursor ? `/v1/cases?cursor=${encodeURIComponent(cursor)}` : "/v1/cases"),
+    teamId,
+  );
 }
 
 function setStatus(text: string, tone: "" | "ok" | "error" = "") {
@@ -347,5 +382,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (tabId !== null && m.status!.tabId === tabId) applyStatus(m.status!);
     });
   });
+  void loadStoredUpdateNotice();
   void render();
 });

@@ -20,6 +20,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { acquireLease } from "../rate-limit.js";
 import {
   isNotificationsFeatureEnabled,
   safeSendEmailNotification,
@@ -56,7 +57,61 @@ export type ReminderSchedulerSummary = {
   skippedRecent: number;
   skippedNoEmail: number;
   skippedFeatureDisabled: number;
+  /** B2B-F-14 — another run holds this request's reminder claim. */
+  skippedClaimed: number;
+  /** B2B-F-14 — no live upload link can be given, so no reminder is sent. */
+  skippedNoLink: number;
 };
+
+/** B2B-F-14 — per-request reminder claim TTL (bounds a crashed holder). */
+export const REMINDER_CLAIM_TTL_MS = 2 * 60 * 1000;
+
+/**
+ * B2B-F-14 — the actionable link a reminder can carry. The scheduler cannot
+ * rebuild the intake URL (only the token HASH is stored), but the original
+ * EVIDENCE_REQUEST_SENT delivery persisted the exact URL it sent to this
+ * recipient. It is reused ONLY while the request is still bound to the same
+ * intake link and that link is ACTIVE, unexpired and has uses left; otherwise
+ * null, and the reminder is not sent (a reminder the recipient cannot act on
+ * is noise, and pointing at a dead link is worse).
+ */
+async function liveReminderIntakeUrl(
+  req: {
+    id: string;
+    recipientEmail: string | null;
+    intakeLinkId: string | null;
+    intakeLink: {
+      status: string;
+      expiresAtUtc: Date;
+      maxUses: number;
+      usedCount: number;
+    } | null;
+  },
+  now: Date,
+  client: PrismaClient,
+): Promise<string | null> {
+  const link = req.intakeLink;
+  if (!req.intakeLinkId || !link) return null;
+  if (link.status !== "ACTIVE") return null;
+  if (link.expiresAtUtc.getTime() <= now.getTime()) return null;
+  if (link.usedCount >= link.maxUses) return null;
+  const original = await client.notificationDelivery.findFirst({
+    where: {
+      evidenceRequestId: req.id,
+      intakeLinkId: req.intakeLinkId,
+      eventType: "EVIDENCE_REQUEST_SENT",
+      recipient: req.recipientEmail ?? undefined,
+    },
+    orderBy: { createdAt: "desc" },
+    select: { templateContextJson: true },
+  });
+  const ctx = original?.templateContextJson as
+    | { kind?: string; data?: { intakeUrl?: unknown } }
+    | null
+    | undefined;
+  const url = ctx?.kind === "EvidenceRequest" ? ctx.data?.intakeUrl : null;
+  return typeof url === "string" && /^https?:\/\//.test(url) ? url : null;
+}
 
 export async function runReminderScheduler(
   input: { now?: Date; batchSize?: number } = {},
@@ -68,6 +123,8 @@ export async function runReminderScheduler(
     skippedRecent: 0,
     skippedNoEmail: 0,
     skippedFeatureDisabled: 0,
+    skippedClaimed: 0,
+    skippedNoLink: 0,
   };
 
   if (!isReminderSchedulerEnabled()) {
@@ -109,57 +166,78 @@ export async function runReminderScheduler(
       continue;
     }
 
-    // Cooldown — has a reminder been sent recently for this request?
-    const lastReminder = await client.notificationDelivery.findFirst({
-      where: {
-        evidenceRequestId: req.id,
-        eventType: "EVIDENCE_REQUEST_REMINDER",
-        createdAt: { gte: cooldownThreshold },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    if (lastReminder) {
-      summary.skippedRecent += 1;
+    // B2B-F-14 — CLAIM, then check, then send. The cooldown used to be a
+    // read (findFirst) followed by a send, so two overlapping runs could both
+    // read "no recent reminder" and both send. The per-request lease makes the
+    // check-and-send exclusive across processes (Redis); the delivery row the
+    // send writes is what the next holder's cooldown read then sees. The lease
+    // REFUSES when the configured store errors (AUD-50, B8-F-004): a skipped
+    // reminder is retried by the next run, a duplicate cannot be recalled.
+    const lease = await acquireLease(
+      `evidence_request_reminder:${req.id}`,
+      REMINDER_CLAIM_TTL_MS,
+      { onStoreError: "refuse" },
+    );
+    if (!lease.acquired) {
+      summary.skippedClaimed += 1;
       continue;
     }
+    try {
+      const lastReminder = await client.notificationDelivery.findFirst({
+        where: {
+          evidenceRequestId: req.id,
+          eventType: "EVIDENCE_REQUEST_REMINDER",
+          createdAt: { gte: cooldownThreshold },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (lastReminder) {
+        summary.skippedRecent += 1;
+        continue;
+      }
 
-    const team = await client.team.findUnique({
-      where: { id: req.teamId },
-      select: { name: true, evidenceWorkspaceLabel: true },
-    });
+      const intakeUrl = await liveReminderIntakeUrl(req, now, client);
+      if (!intakeUrl) {
+        summary.skippedNoLink += 1;
+        continue;
+      }
 
-    // We deliberately do NOT include the raw intake URL because we don't
-    // have the raw token (only the hash). The reminder uses the template
-    // without a URL; the contributor can search their inbox for the
-    // original link or contact the workspace.
-    await safeSendEmailNotification(
-      {
-        eventType: "EVIDENCE_REQUEST_REMINDER",
-        teamId: req.teamId,
-        recipientEmail: req.recipientEmail,
-        recipientName: req.recipientLabel ?? null,
-        evidenceRequestId: req.id,
-        evidenceId: req.evidenceId ?? null,
-        intakeLinkId: req.intakeLinkId ?? null,
-        template: {
-          kind: "EvidenceRequest",
-          data: {
-            workspaceName:
-              team?.evidenceWorkspaceLabel ?? team?.name ?? "Your workspace",
-            requestTitle: req.title,
-            requestInstructions: req.instructions || null,
-            dueAtUtcIso: req.dueAtUtc?.toISOString() ?? null,
-            intakeUrl: null,
-            deliverableSummaries: (req.deliverables ?? []).map((d) => ({
-              title: d.title,
-              required: d.required,
-            })),
+      const team = await client.team.findUnique({
+        where: { id: req.teamId },
+        select: { name: true, evidenceWorkspaceLabel: true },
+      });
+
+      await safeSendEmailNotification(
+        {
+          eventType: "EVIDENCE_REQUEST_REMINDER",
+          teamId: req.teamId,
+          recipientEmail: req.recipientEmail,
+          recipientName: req.recipientLabel ?? null,
+          evidenceRequestId: req.id,
+          evidenceId: req.evidenceId ?? null,
+          intakeLinkId: req.intakeLinkId ?? null,
+          template: {
+            kind: "EvidenceRequest",
+            data: {
+              workspaceName:
+                team?.evidenceWorkspaceLabel ?? team?.name ?? "Your workspace",
+              requestTitle: req.title,
+              requestInstructions: req.instructions || null,
+              dueAtUtcIso: req.dueAtUtc?.toISOString() ?? null,
+              intakeUrl,
+              deliverableSummaries: (req.deliverables ?? []).map((d) => ({
+                title: d.title,
+                required: d.required,
+              })),
+            },
           },
         },
-      },
-      client,
-    );
-    summary.reminded += 1;
+        client,
+      );
+      summary.reminded += 1;
+    } finally {
+      await lease.release();
+    }
   }
 
   return summary;

@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { AppError, ErrorCode } from "../errors.js";
+import { prisma } from "../db.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { createAiProvider } from "../services/ai/ai-provider.js";
@@ -302,16 +303,46 @@ async function resolveAiCommercialScope(req: FastifyRequest, userId: string) {
   // lifecycle). Every workspace role holds evidence.read. (D61)
   const current = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
   if (current.allowed) {
-    return (
+    const scope = (
       await resolveCommercialContext({
         type: "WORKSPACE",
         teamId: current.context.workspaceId,
         requesterUserId: userId,
       })
     ).scope;
+    return {
+      scope,
+      // B6-F-25 — the workspace whose AI policy and budget ledger govern.
+      policyTeamId: current.context.workspaceId as string | null,
+      // B6-F-24 (Free-user audit 0ea0) — the caller's role in that workspace,
+      // so a policy `allowedRoles` list is evaluated against it. It was
+      // discarded here, so the evaluator's role gate saw null and refused
+      // every member, owners included. The policy list speaks the stored
+      // role names (the copilots pass `TeamMember.role`), so the canonical
+      // REVIEWER maps back to MEMBER.
+      userRole: dbRoleOfCanonical(current.context.workspaceRole),
+    };
   }
-  return (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId }))
+  const scope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId }))
     .scope;
+  // B6-F-25 (Free-user audit 0ea0) — the fallback is the PERSONAL account, so
+  // the policy (and ledger) evaluated is the personal workspace's own — the
+  // team the allowance is counted on (`resolveAiUsageTenantId`). It used to be
+  // `null`, which resolves the DEFAULT policy and ignored a personal opt-out.
+  const personal = await prisma.team.findFirst({
+    where: { ownerUserId: userId, isPersonal: true },
+    select: { id: true },
+  });
+  return {
+    scope,
+    policyTeamId: scope.teamId ?? personal?.id ?? null,
+    userRole: personal ? "OWNER" : null,
+  };
+}
+
+function dbRoleOfCanonical(role: string | null | undefined): string | null {
+  if (!role) return null;
+  return role === "REVIEWER" ? "MEMBER" : role;
 }
 
 export async function aiRoutes(app: FastifyInstance) {
@@ -338,9 +369,10 @@ export async function aiRoutes(app: FastifyInstance) {
     { preHandler: [requireAuthAndLegal] },
     async (req) => {
       const userId = getAuthUserId(req);
-      const aiScope = await resolveAiCommercialScope(req, userId);
+      const { policyTeamId, userRole } = await resolveAiCommercialScope(req, userId);
       const policy = await evaluateWorkspaceAiPolicy({
-        teamId: aiScope.teamId,
+        teamId: policyTeamId,
+        userRole,
         feature: "SUPPORT_CHAT",
         dataClass: "METADATA",
       });
@@ -440,26 +472,18 @@ export async function aiRoutes(app: FastifyInstance) {
       // Pricing-hardening: plan-aware monthly AI cap. Throws
       // AI_MONTHLY_LIMIT_REACHED (429) when over cap. ENTERPRISE skips.
       // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
-      const aiScope = await resolveAiCommercialScope(req, userId);
-      try {
-        await assertWorkspaceAllowsAiOperation(aiScope);
-      } catch (err) {
-        const code =
-          (err as { code?: string }).code ?? "AI_MONTHLY_LIMIT_REACHED";
-        const status = (err as { statusCode?: number }).statusCode ?? 429;
-        return reply.code(status).send({
-          code,
-          message:
-            (err as Error).message ??
-            "Monthly AI advisory limit reached for current plan",
-        });
-      }
+      const { scope: aiScope, policyTeamId, userRole } = await resolveAiCommercialScope(req, userId);
+      // B6-F-28 (Free-user audit 0ea0) — the plan-cap check is no longer made
+      // here, ahead of the preflight: a spent allowance refused the product
+      // answers the assistant gives from built-in documentation at no cost.
+      // It now runs on the provider branch below, next to the reservation.
 
       // Phase A2 — canonical workspace AI policy gate (fail-closed).
       // A workspace master/feature disable prevents the provider call here,
       // in the backend, before any AI runs. UI-only disabling is not relied on.
       const chatPolicy = await evaluateWorkspaceAiPolicy({
-        teamId: aiScope.teamId,
+        teamId: policyTeamId,
+        userRole,
         feature: "SUPPORT_CHAT",
         dataClass: "METADATA",
       });
@@ -537,6 +561,20 @@ export async function aiRoutes(app: FastifyInstance) {
       if (preflight) {
         result = preflight;
       } else {
+        // Plan cap (402 not included / lifecycle, 429 spent) — provider path only.
+        try {
+          await assertWorkspaceAllowsAiOperation(aiScope);
+        } catch (err) {
+          const code =
+            (err as { code?: string }).code ?? "AI_MONTHLY_LIMIT_REACHED";
+          const status = (err as { statusCode?: number }).statusCode ?? 429;
+          return reply.code(status).send({
+            code,
+            message:
+              (err as Error).message ??
+              "This workspace's monthly AI allowance is used up. It resets at the start of the next calendar month (UTC).",
+          });
+        }
         planReservation = await reserveWorkspaceAiOperation(aiScope);
         if (!planReservation.allowed) {
           return reply.code(planReservation.statusCode).send({
@@ -545,7 +583,7 @@ export async function aiRoutes(app: FastifyInstance) {
           });
         }
         const ledger = await tryReserveAiBudget({
-          teamId: aiScope.teamId,
+          teamId: policyTeamId,
           userId,
           feature: "SUPPORT_CHAT",
           model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
@@ -586,8 +624,14 @@ export async function aiRoutes(app: FastifyInstance) {
           }
           throw err;
         }
+        // B6-F-26 — only an answered provider call is spend; any other
+        // result releases the reservation and the rollups it incremented.
         if (ledger.reservationId) {
-          await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+          if (result.status === "ok") {
+            await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+          } else {
+            await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+          }
         }
       }
 
@@ -671,7 +715,7 @@ export async function aiRoutes(app: FastifyInstance) {
 
       // Pricing-hardening: plan-aware monthly AI cap.
       // §9.7 — explicit PERSONAL_ACCOUNT subject via the canonical envelope.
-      const aiScope = await resolveAiCommercialScope(req, userId);
+      const { scope: aiScope, policyTeamId, userRole } = await resolveAiCommercialScope(req, userId);
       try {
         await assertWorkspaceAllowsAiOperation(aiScope);
       } catch (err) {
@@ -682,13 +726,14 @@ export async function aiRoutes(app: FastifyInstance) {
           code,
           message:
             (err as Error).message ??
-            "Monthly AI advisory limit reached for current plan",
+            "This workspace's monthly AI allowance is used up. It resets at the start of the next calendar month (UTC).",
         });
       }
 
       // Phase A2 — canonical workspace AI policy gate (fail-closed).
       const sessionPolicy = await evaluateWorkspaceAiPolicy({
-        teamId: aiScope.teamId,
+        teamId: policyTeamId,
+        userRole,
         feature: "CAPTURE_ASSISTANCE",
         dataClass: "METADATA",
       });
@@ -713,7 +758,7 @@ export async function aiRoutes(app: FastifyInstance) {
       // Phase F-1 — canonical durable ledger around the provider call
       // (reserve → provider → reconcile; release on failure/blocked).
       const ledger = await tryReserveAiBudget({
-        teamId: aiScope.teamId,
+        teamId: policyTeamId,
         userId,
         feature: "CAPTURE_ASSISTANCE",
         model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
@@ -739,8 +784,10 @@ export async function aiRoutes(app: FastifyInstance) {
       }
       if (ledger.reservationId) {
         // A "blocked" result short-circuited before the provider — release
-        // the reservation instead of charging it.
-        if (result.status === "blocked") {
+        // the reservation instead of charging it. B6-F-21 / B6-F-26 — a
+        // provider failure (the deterministic fallback now carries the
+        // provider's non-ok status) is not spend either.
+        if (result.status !== "ok") {
           await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
         } else {
           await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);

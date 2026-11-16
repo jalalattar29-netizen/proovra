@@ -276,12 +276,13 @@ test("sidebar matrix — Operations Center for every plan; only intake varies by
     "account.billing",
     "account.notifications",
     "workspace.capture",
-    "workspace.cases",
     "workspace.evidence",
     "workspace.home",
     "workspace.reports",
     "workspace.search",
   ].sort();
+  // B2A-F-04 (Free-user audit 0ea0) — Cases is a nav-only plan gate on
+  // casesIncluded: FREE and PAYG exclude cases, so they no longer see it.
   const WITH_INTAKE = [...BASE, "workspace.intake_links"].sort();
   // WORKSPACE AND COLLABORATION RECONCILIATION — Teams left the base set.
   // FREE and PAYG include ZERO collaboration groups, and a primary nav entry
@@ -297,6 +298,7 @@ test("sidebar matrix — Operations Center for every plan; only intake varies by
   // seat exactly one person, so the surface's main action would refuse.
   const WITH_COLLABORATION = [
     ...WITH_INTAKE,
+    "workspace.cases",
     "workspace.collaboration_teams",
     "workspace.people",
   ].sort();

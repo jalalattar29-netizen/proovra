@@ -68,6 +68,8 @@ export type ReportEvidenceAsset = {
   artifactRoleSource?: ReviewerArtifactRoleSource;
   checklistStepId?: string | null;
   checklistStepLabel?: string | null;
+  /** B4-F-206 — "No audio was recorded…" for a video whose client stated it. */
+  audioNotRecordedStatement?: string | null;
   originalPreservationNote?: string | null;
   reviewerRepresentationLabel?: string | null;
   reviewerRepresentationNote?: string | null;

@@ -118,6 +118,10 @@ import {
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { completeSsoSession } from "../services/identity/sso-session-completion.service.js";
+import {
+  setOrganizationLinkCookie,
+  type PendingOrganizationLink,
+} from "../services/identity/organization-link-consent.service.js";
 import { enforceSsoLoginPolicy } from "../services/access-control/sso-login-policy.service.js";
 import {
   evaluateOrganizationIdentityAuthority,
@@ -1097,6 +1101,23 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           { connectionId: conn.id, reason },
           prisma,
         );
+
+        // B5B-F-302 — the asserted address belongs to a pre-existing
+        // self-serve account: no session; the browser carries the signed
+        // pending link to the owner's own signed-in approval. A native attempt
+        // reports the coded refusal; the approval is made on the web.
+        if (
+          err instanceof SamlMappingError &&
+          err.code === "SAML_ACCOUNT_LINK_REQUIRES_CONSENT" &&
+          !native &&
+          err.details?.["pendingLink"]
+        ) {
+          setOrganizationLinkCookie(
+            req,
+            reply,
+            err.details["pendingLink"] as PendingOrganizationLink,
+          );
+        }
 
         bump("saml_login_failure_total");
         safeEmitSecurityEvent({

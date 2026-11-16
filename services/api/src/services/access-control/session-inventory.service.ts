@@ -240,9 +240,18 @@ export async function sessionsOfWorkspaceWhere(
   teamId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<Prisma.AuthenticatedSessionWhereInput> {
-  // Every status: a suspended member's session is still theirs to end.
+  // A suspended member's session is still the workspace's to end: the person
+  // is still its member, and may be restored.
+  //
+  // B7A-F-001 (free-audit 0ea0) — a REMOVED or DEPARTED member (REVOKED row)
+  // is not. Their row is kept as history, and it used to keep them in this
+  // predicate, so a former colleague with admin rights here kept listing,
+  // signing out and quarantining the person's GLOBAL sessions — including
+  // sessions started later, in their own Personal Space — with no time bound.
+  // Removal ends the workspace's authority over the person: what remains is
+  // only the sessions that STARTED in this workspace (the `teamId` leg).
   const members = await client.teamMember.findMany({
-    where: { teamId, status: { in: ["ACTIVE", "SUSPENDED", "REVOKED"] } },
+    where: { teamId, status: { in: ["ACTIVE", "SUSPENDED"] } },
     select: { userId: true },
   });
   return { OR: [{ teamId }, { userId: { in: members.map((m) => m.userId) } }] };

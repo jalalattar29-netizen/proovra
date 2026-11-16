@@ -41,7 +41,9 @@ import {
 } from "../services/ai/structured-copilot-provider.js";
 import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPrisma } from "../services/ai/ai-citation-db-resolver.service.js";
 import { persistCopilotRun } from "../services/ai/ai-copilot-run-store.service.js";
-import { workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
+import { evaluateWorkspaceAiOperation, workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
+import { copilotMayOfferReviewerAssignment } from "../services/ai/copilot-reviewer-assignment.service.js";
+import { AiPlanAllowanceRefused, meterAiPlanOperation } from "../services/ai/ai-plan-operation-meter.js";
 import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
 import { sanitizeUntrustedField } from "../services/ai/prompt-context-sanitizer.service.js";
 import {
@@ -291,6 +293,10 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       return reply.code(409).send({ error: { code: "stale_evidence_revision" } });
     }
 
+    // B6-F-20 — one operation of the plan's monthly AI allowance, taken at the
+    // first provider call (a policy/selection stop costs nothing; a schema
+    // repair inside this request does not cost twice).
+    const planMeter = meterAiPlanOperation(async () => (await evaluateWorkspaceAiOperation({ teamId })).scope);
     let result;
     try {
       result = await runGroundedCopilot({
@@ -298,22 +304,37 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
         selectionRevisions: [{ id: ev.id, revision: snapshot.revision }],
         requireSelection: true,
         policyDecision,
-        callProvider: () => callProvider({
-          evidence: evidenceContext,
-          question: body.question ? sanitizeUntrustedField(body.question, 400) : null,
-        }),
+        callProvider: async () => {
+          await planMeter.take();
+          return callProvider({
+            evidence: evidenceContext,
+            question: body.question ? sanitizeUntrustedField(body.question, 400) : null,
+          });
+        },
         resolveCitation,
         summaryField: "operationalSummary",
       });
     } catch (err) {
       if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+      if (err instanceof AiPlanAllowanceRefused) {
+        await audit("blocked", { status: err.denial });
+        return reply.code(err.statusCode).send({ code: err.denial, message: err.message });
+      }
+      await planMeter.refund();
       if (err instanceof CopilotProviderUnavailable) {
         await audit("failure", { status: "provider_unavailable" });
         return reply.code(200).send({ status: "provider_unavailable", advisoryBoundary: "AI assistance is advisory only." });
       }
       throw err;
     }
-    if (ledger.reservationId) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+    // B6-F-26 (Free-user audit 0ea0) — the ledger records SPEND: it is
+    // reconciled only when the provider was actually reached (the plan meter
+    // took its operation). A policy-denied or no-selection run released the
+    // reservation, and with it the rollups it had incremented.
+    if (ledger.reservationId) {
+      if (planMeter.taken) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+      else await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+    }
 
     await audit(result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", {
       status: result.status, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision,
@@ -482,7 +503,11 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       // Phase F-3 — a SIGNED record with no review workflow yet can be
       // routed to reviewer assignment (navigation only; assignment itself
       // happens through the normal governed review surface).
-      if (ev.status === "SIGNED") {
+      // B6-F-30 (free audit 0ea0) — only where the destination exists for this
+      // caller: the workspace plan includes reviewer operations (the
+      // REVIEW_ASSIGNMENTS capability reviewer-ops enforces) AND the caller
+      // holds review.assign (a pure evaluation; nothing was refused).
+      if (ev.status === "SIGNED" && (await copilotMayOfferReviewerAssignment(teamId, userId))) {
         const existingReview = await prisma.evidenceReviewWorkflow
           .findFirst({ where: { evidenceId: ev.id, teamId }, select: { id: true } })
           .catch(() => null);

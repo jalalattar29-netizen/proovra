@@ -287,6 +287,40 @@ test("Clear Session asks first, in the web's words, and Keep Session keeps it", 
   assert.equal(r.byTestId("capture-materials").length, 0);
 });
 
+// B4-F-207 — after a Finish that failed once the record was reserved, the
+// consequence no longer claims that no record exists: it says Clear releases it.
+test("B4-F-207: Clear Session after a failed Finish states that the reserved record is released", async () => {
+  routes["/v1/capture/direct-sessions"] = (p) => {
+    if (p === "/v1/capture/direct-sessions") return { session: { captureSessionId: "cs-1", expiresAtUtc: "2099-01-01T00:00:00.000Z" } };
+    if (p.endsWith("/evidence")) return { evidence: { evidenceId: "ev-1" } };
+    if (p.endsWith("/declaration")) return { declaration: { partIndex: 0 } };
+    if (p.endsWith("/discard")) return { result: { discarded: true, releasedEvidenceId: "ev-1" } };
+    return undefined;
+  };
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const path = String(url).replace(/^https?:\/\/[^/]+/, "");
+    if (path === "/v1/evidence/ev-1/parts") {
+      requests.push({ path, method: init.method ?? "GET", body: null });
+      return new Response(JSON.stringify({ error: { code: "UPLOAD_REFUSED", message: "Refused." } }), { status: 422, headers: { "content-type": "application/json" } });
+    }
+    return inner(url, init);
+  };
+  const r = await render();
+  await r.press("Files");
+  await settle();
+  await r.press("Clear Session");
+  assert.ok(r.hasText("No evidence record has been created yet."), "before any reservation");
+  await r.press("Keep Session");
+  await r.press("Finish & Sign (1)");
+  await r.press("Sign and finalize");
+  await settle();
+  assert.ok(requests.some((q) => q.path === "/v1/capture/direct-sessions/cs-1/evidence"), "the record was reserved");
+  await r.press("Clear Session");
+  assert.equal(r.hasText("No evidence record has been created yet."), false);
+  assert.ok(r.hasText("This will remove all staged materials, mapping, private notes, and local review progress. An unfinished evidence record was already reserved for this session; clearing releases it, and nothing is sealed."));
+});
+
 /* ------------------------------------------------------------ server drafts -- */
 
 test("unfinished server drafts are offered, and Resume restores their metadata and lists what to re-attach", async () => {

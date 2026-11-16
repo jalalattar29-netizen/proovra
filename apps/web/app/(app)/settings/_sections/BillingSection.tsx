@@ -34,6 +34,12 @@ import {
   useActiveWorkspaceId,
   WorkspaceContextBanner,
 } from "../../../../lib/platform-context";
+import { useOptionalPlatformContext } from "../../../../lib/platform-context/PlatformContextProvider";
+import {
+  isOwnPersonalActiveSpace,
+  notPayerCopy,
+  resolveActiveSpacePayer,
+} from "../../../../lib/billing/active-space-billing";
 
 /** Only the fields this summary renders. Nothing else is read. */
 type AccountSlice = {
@@ -61,6 +67,23 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export function BillingSection({ ui }: { ui: SettingsUiContext }) {
   const activeWorkspaceId = useActiveWorkspaceId();
   const [account, setAccount] = useState<AccountSlice | null>(null);
+  /*
+   * R2-F-001 (free-user audit 0ea0) — WHOSE figures these are. The lookup
+   * searched for an account of type "WORKSPACE", which /v1/billing/accounts
+   * never returns (it lists PERSONAL and ORGANIZATION), so every team,
+   * organization and joined personal workspace fell back to the viewer's OWN
+   * personal account: a Free member read their 250 MB and renewal as the
+   * workspace's. The payer is now resolved from the envelope (the shared
+   * active-space billing rule), and financial rows come only from:
+   *   - the PERSONAL account, in the viewer's own Personal Space;
+   *   - the ORGANIZATION account of the active organization, when the server
+   *     lists it for this viewer (they administer its billing).
+   * Anywhere else: the plan rows and nothing financial.
+   */
+  const envelope = useOptionalPlatformContext()?.envelope ?? null;
+  const ownPersonal = isOwnPersonalActiveSpace(envelope);
+  const payer = resolveActiveSpacePayer(envelope);
+  const payerOrgId = payer.kind === "ORGANIZATION" ? payer.organizationId : null;
 
   useEffect(() => {
     // PHASE 7 §10.G — re-resolve on workspace switch so the shown
@@ -72,13 +95,13 @@ export function BillingSection({ ui }: { ui: SettingsUiContext }) {
     (async () => {
       const { accounts } = await apiFetch("/v1/billing/accounts");
       const list = (accounts ?? []) as Array<{ type: string; id: string }>;
-      // The account behind the ACTIVE workspace, falling back to the viewer's
-      // personal account. A viewer with no visible account simply renders the
-      // resolver-derived plan rows and nothing financial.
-      const target =
-        (!ui.isPersonalWorkspace && activeWorkspaceId
-          ? list.find((a) => a.type === "WORKSPACE" && a.id === activeWorkspaceId)
-          : undefined) ?? list.find((a) => a.type === "PERSONAL");
+      // The ONE account behind the active workspace, never a fallback to the
+      // viewer's own. No such account: plan rows only.
+      const target = ownPersonal
+        ? list.find((a) => a.type === "PERSONAL")
+        : payerOrgId
+          ? list.find((a) => a.type === "ORGANIZATION" && a.id === payerOrgId)
+          : undefined;
       if (!target) return;
 
       const projection = (await apiFetch(
@@ -95,7 +118,7 @@ export function BillingSection({ ui }: { ui: SettingsUiContext }) {
     // `activeWorkspaceId` stays LAST: `phase-7-tenant-isolation` pins this
     // effect as re-running on workspace switch by matching `activeWorkspaceId]`,
     // and that property is exactly what the ordering preserves.
-  }, [ui.isPersonalWorkspace, activeWorkspaceId]);
+  }, [ownPersonal, payerOrgId, activeWorkspaceId]);
 
   const renewsAtUtc = account?.plan?.currentPeriodEndUtc ?? null;
   const storage =
@@ -126,6 +149,16 @@ export function BillingSection({ ui }: { ui: SettingsUiContext }) {
       ) : null}
       {storage?.usedLabel && storage?.limitLabel ? (
         <Row label="Storage" value={`${storage.usedLabel} of ${storage.limitLabel}`} />
+      ) : null}
+
+      {payer.kind === "OTHER" ? (
+        <p
+          className="m-0 mt-3 text-[13px]"
+          style={{ color: "var(--ink-secondary, #475569)" }}
+          data-cc-billing-not-payer
+        >
+          {notPayerCopy(payer)}
+        </p>
       ) : null}
 
       {ui.billing.managedByOrgName ? (

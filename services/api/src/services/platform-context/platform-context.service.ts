@@ -27,6 +27,7 @@
  *      "ad-hoc check" branches live here.
  */
 
+import { resolveEntitlement } from "../packaging/entitlement.service.js";
 import { prisma } from "../../db.js";
 import { isPlatformAdmin as resolveIsPlatformAdmin } from "../platform-admin.service.js";
 import { resolveCapabilities, resolvePersona } from "./capability-registry.js";
@@ -825,6 +826,24 @@ export async function buildPlatformContext(
   }
 
   /**
+   * B5B-F-205 (free audit 0ea0) — REDACTION, FROM THE AUTHORITY ITS ROUTES
+   * ENFORCE. Every redaction write asserts FEATURE_REDACTION through the
+   * packaging engine (redaction.routes.ts `gate`, PRO-089), while the web
+   * decided the /redaction surface from a plan-name tier: two authorities over
+   * one question. Read with `resolveEntitlement` (a read writes no
+   * policy-violation row). Rendering input only; fails closed.
+   */
+  let redactionIncluded = false;
+  if (workspace.id) {
+    try {
+      redactionIncluded =
+        (await resolveEntitlement({ prisma, teamId: workspace.id, key: "FEATURE_REDACTION" })).value === true;
+    } catch {
+      redactionIncluded = false;
+    }
+  }
+
+  /**
    * COMMERCIAL CLOSURE (2026-09-08) — intake follows the ONE intake rule.
    *
    * `planCaps.intakeIncluded` alone hid the Intake surface from every real
@@ -881,6 +900,8 @@ export async function buildPlatformContext(
      * — there is no plan-name branch anywhere in this projection.
      */
     externalReviewIncluded: externalReviewEntitled,
+    // B5B-F-205 — FEATURE_REDACTION (resolveEntitlement), the routes' authority.
+    redactionIncluded,
     aiAssistanceMonthlyOperations: planCaps.aiAdvisoryMonthlyOperations,
     /*
      * WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) —

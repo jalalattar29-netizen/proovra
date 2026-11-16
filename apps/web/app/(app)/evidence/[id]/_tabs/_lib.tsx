@@ -51,6 +51,13 @@ import { EvidenceRecordingMount } from "./EvidenceRecordingMount";
 import { useOptionalLocale } from "../../../../providers";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { formatUserDateTime } from "../../../../../lib/date";
+import {
+  useRecordActorCapabilities,
+  type ServerActorCapabilities,
+} from "../../../../../lib/evidence/record-actor-capabilities";
+import { getEvidenceLifecycle } from "../../lib/evidence-delete-eligibility";
+import type { EvidenceLifecycleProjection } from "../../lib/evidence-library-types";
+import { partAudioStatement } from "../../../../../lib/evidence/part-audio-statement";
 import type {
   ReviewWorkspaceResponse,
   TimelineEvent,
@@ -116,6 +123,8 @@ export type EvidenceDetailCtx = {
         "entities" | "extractedTexts" | "disclaimer"
       > | null);
   intelligenceLoaded: boolean;
+  /** B6-F-47 — the read was refused ("denied") or failed; null when it answered. */
+  intelligenceUnavailable?: "denied" | "failed" | null;
 
   // Workflow drilldown state (for ReviewerWorkflowCard)
   workflowEvents: Array<{
@@ -894,7 +903,10 @@ export function PreviewWorkspace({
           const itemWithMeta = item as typeof item & {
             privateRole?: string | null;
             sourceLabel?: string | null;
+            clientSignals?: unknown;
           };
+          // B4-F-206 — F-P1-09: a video recorded without audio says so.
+          const audioStatement = partAudioStatement(itemWithMeta.clientSignals);
           const isSelected = item.id === selectedItem?.id;
           // P0 fix — cards are now interactive: clicking (or
           // pressing Enter/Space when focused) updates the
@@ -968,6 +980,15 @@ export function PreviewWorkspace({
                 >
                   <span>Source</span>
                   <strong>{itemWithMeta.sourceLabel}</strong>
+                </div>
+              ) : null}
+              {audioStatement ? (
+                <div
+                  className="evidence-detail-definition-inline"
+                  data-content-item-audio-statement
+                >
+                  <span>Audio</span>
+                  <strong>{audioStatement}</strong>
                 </div>
               ) : null}
               {privateItemNote ? (
@@ -1258,6 +1279,7 @@ export function EvidenceHeroIconActions({
   trashDisabled,
   trashReason,
   onEditLabel,
+  record,
 }: {
   lockedAt: string | null | undefined;
   archivedAt: string | null | undefined;
@@ -1275,7 +1297,27 @@ export function EvidenceHeroIconActions({
   /** The server's own refusal, shown on hover when the control is disabled. */
   trashReason: string | null;
   onEditLabel: () => void;
+  /**
+   * B5A-F-03 / B5A-F-04 — the loaded record: its canonical lifecycle
+   * projection decides what the RECORD allows, its persisted workspace (and
+   * the server's actorCapabilities, when sent) what the CALLER may do.
+   */
+  record?: {
+    teamId?: string | null;
+    lifecycle?: EvidenceLifecycleProjection | null;
+    actorCapabilities?: ServerActorCapabilities | null;
+  } | null;
 }) {
+  const actor = useRecordActorCapabilities(record);
+  const lifecycle = getEvidenceLifecycle(record ?? null);
+  const productState = lifecycle?.productState ?? null;
+  // Archive vs Restore follows the projection's state; archivedAt only when
+  // a response carries no projection.
+  const showRestore = productState ? productState === "ARCHIVED" : Boolean(archivedAt);
+  // Lock applies to a live record only (ACTIVE / ARCHIVED).
+  const lockState = productState === null || productState === "ACTIVE" || productState === "ARCHIVED";
+  const archiveBlocked = lifecycle ? !lifecycle.canArchive : false;
+  const restoreBlocked = lifecycle ? !lifecycle.canUnarchive : false;
   return (
       <div className="evidence-detail-hero-icon-actions">
         {/* THE record's canonical verification page (`pvr_`), opened — the same
@@ -1311,6 +1353,7 @@ export function EvidenceHeroIconActions({
         )}
 
         {lockedAt ? (
+          actor.canArchive ? (
           <button
             type="button"
             className="app-secondary-action evidence-detail-hero-action"
@@ -1322,26 +1365,27 @@ export function EvidenceHeroIconActions({
             <LockOpen size={15} strokeWidth={1.9} aria-hidden="true" />
             <span>Unlock</span>
           </button>
-        ) : (
+          ) : null
+        ) : actor.canEditMetadata ? (
           <button
             type="button"
             className="app-secondary-action evidence-detail-hero-action"
             onClick={onLock}
-            disabled={deleted || isIntegrityFailed}
+            disabled={deleted || isIntegrityFailed || !lockState}
             title={titles.lock}
             data-evidence-action="lock-record"
           >
             <Lock size={15} strokeWidth={1.9} aria-hidden="true" />
             <span>Lock</span>
           </button>
-        )}
+        ) : null}
 
-        {archivedAt ? (
+        {!actor.canArchive ? null : showRestore ? (
           <button
             type="button"
             className="app-secondary-action evidence-detail-hero-action"
             onClick={onRestoreArchived}
-            disabled={deleted}
+            disabled={deleted || restoreBlocked}
             title={titles.restore}
             data-evidence-action="restore-archived"
           >
@@ -1353,8 +1397,8 @@ export function EvidenceHeroIconActions({
             type="button"
             className="app-secondary-action evidence-detail-hero-action"
             onClick={onArchive}
-            disabled={deleted}
-            title={titles.archive}
+            disabled={deleted || archiveBlocked}
+            title={archiveBlocked ? lifecycleBlockTitle(lifecycle?.archiveBlockReason) : titles.archive}
             data-evidence-action="archive-evidence"
           >
             <Archive size={15} strokeWidth={1.9} aria-hidden="true" />
@@ -1365,7 +1409,9 @@ export function EvidenceHeroIconActions({
         {/* MOVE TO TRASH — recoverable, and gated by the SAME projection the
             Review tab's control reads. Disabled with the server's reason
             rather than hidden: a control that vanishes teaches nothing, and
-            one that opens a modal only to 409 is worse. */}
+            one that opens a modal only to 409 is worse. Absent for a caller
+            who may not trash (A2-14: VIEWER, MEMBER). */}
+        {actor.canTrash ? (
         <button
           type="button"
           className="app-secondary-action evidence-detail-hero-action evidence-detail-danger-action"
@@ -1382,7 +1428,9 @@ export function EvidenceHeroIconActions({
           <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />
           <span>Move to trash</span>
         </button>
+        ) : null}
 
+        {actor.canEditMetadata ? (
         <button
           type="button"
           className="app-secondary-action evidence-detail-hero-action"
@@ -1393,7 +1441,80 @@ export function EvidenceHeroIconActions({
           <Pencil size={15} strokeWidth={1.9} aria-hidden="true" />
           <span>Edit name</span>
         </button>
+        ) : null}
       </div>
+  );
+}
+
+function lifecycleBlockTitle(reason: string | null | undefined): string {
+  switch (reason) {
+    case "LEGAL_HOLD_ACTIVE":
+      return "This record is under an active legal hold and cannot be archived.";
+    case "EVIDENCE_LOCKED":
+      return "A locked record cannot be archived.";
+    case "TERMINAL_DESTROYED":
+      return "This record has been destroyed. Only its tombstone remains.";
+    default:
+      return "This record cannot be archived in its current state.";
+  }
+}
+
+/**
+ * B5A-F-04 — THE TRASH BANNER, from the canonical projection.
+ *
+ * It read `deletedAt`, which a destroyed tombstone keeps, so a tombstone said
+ * "This record is in trash" and offered a Restore the server refuses with 409
+ * TERMINAL_DESTROYED. It now shows only for productState TRASHED (deletedAt
+ * only when a response carries no projection), and Restore only when the
+ * projection allows it and the caller may restore (B5A-F-03).
+ */
+export function EvidenceTrashBanner({
+  record,
+  busy,
+  onRestore,
+}: {
+  record: {
+    deletedAt?: string | null;
+    teamId?: string | null;
+    lifecycle?: EvidenceLifecycleProjection | null;
+    actorCapabilities?: ServerActorCapabilities | null;
+  };
+  busy: boolean;
+  onRestore: () => void;
+}) {
+  const actor = useRecordActorCapabilities(record);
+  const lifecycle = getEvidenceLifecycle(record);
+  const inTrash = lifecycle ? lifecycle.productState === "TRASHED" : record.deletedAt != null;
+  if (!inTrash) return null;
+  const canRestore = actor.canRestoreFromTrash && (lifecycle ? lifecycle.canRestoreFromTrash : true);
+  return (
+    <aside
+      className="evidence-detail-record-banner evidence-detail-record-banner--split"
+      data-banner-tone="warn"
+      role="status"
+      aria-live="polite"
+      data-evidence-trash-banner="true"
+    >
+      <div className="evidence-detail-record-banner__copy">
+        <strong className="evidence-detail-record-banner__title">This record is in trash</strong>
+        <span className="evidence-detail-record-banner__body">
+          Mutating actions (download, lock, archive, assign to case, generate report/package) are
+          disabled while the record is in trash.
+          {canRestore ? " Restore it to bring it back to the active library." : null}
+        </span>
+      </div>
+      {canRestore ? (
+        <button
+          type="button"
+          className="app-secondary-action app-secondary-action--filled"
+          onClick={onRestore}
+          disabled={busy}
+          data-evidence-trash-restore="true"
+        >
+          {busy ? "Restoring…" : "Restore from trash"}
+        </button>
+      ) : null}
+    </aside>
   );
 }
 

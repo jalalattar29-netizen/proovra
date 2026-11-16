@@ -10,6 +10,7 @@ void initTelemetryIfConsented();
 
 import { DeepLinkGate } from "../src/DeepLinkGate";
 import { SessionEndGate, SignedOutRouteGate } from "../src/auth/session-end-gate";
+import { ClientUpdateNotice } from "../src/ui/client-update-notice";
 import { ErrorBoundary } from "../src/error-boundary";
 import { AuthProvider } from "../src/auth-context";
 import { LocaleProvider } from "../src/locale-context";
@@ -66,6 +67,8 @@ export default function RootLayout() {
                 contentStyle: { backgroundColor: theme.color.surface.app },
               }}
             />
+            {/* B8-F-402 — "update required / please update" when the API has moved past this build. */}
+            <ClientUpdateNotice />
           </ToastProvider>
         </AuthProvider>
         </NetworkProvider>

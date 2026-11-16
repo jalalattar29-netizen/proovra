@@ -16,7 +16,6 @@ import { useRouter } from "expo-router";
 
 import { apiFetch, getAuthToken } from "./api";
 import { useAuth } from "./auth-context";
-import { isCaptureActive } from "./capture/active-capture";
 import {
   parseCanonicalMobileDeepLink,
   parseCredentialDeepLink,
@@ -29,24 +28,25 @@ import { stepUpReturnRoute } from "./product/challenge-step-up";
 import { isSignInPasskeyReturn } from "./auth/auth-api";
 import { ssoReturnRoute } from "./auth/sso-native";
 import { setPendingRoute, hydratePendingRoute } from "./deep-link/pending-intent";
+import { refreshPlatformContext, usePlatformContext } from "./product/platform-context";
+import { SWITCH_WORKSPACE_PATH, buildSwitchWorkspaceBody } from "./product/spaces";
+import { workspaceSwitchBlocked } from "./product/workspace-switch-guard";
 
 function hasActiveWork(): boolean {
-  try {
-    // Canonical: a live direct-capture / screen-capture session in progress.
-    // (The legacy SQLite upload-queue is dead — nothing enqueues it — so it is
-    // no longer consulted here; see src/capture/active-capture.ts.)
-    return isCaptureActive();
-  } catch {
-    // Fail SAFE: treat as busy so a link can never force a context change past
-    // an unknown capture state.
-    return true;
-  }
+  // Canonical: a live direct-capture / screen-capture session in progress
+  // (src/capture/active-capture.ts), fail-SAFE — the same guard the Spaces
+  // switch passes (B2A-F-22).
+  return workspaceSwitchBlocked();
 }
 
 export function DeepLinkGate() {
   const url = Linking.useURL();
   const router = useRouter();
   const { authReady } = useAuth();
+  // B2A-F-07 — the active workspace, read at resolution time through a ref.
+  const activeTeamId = usePlatformContext().context?.activeTeamId ?? null;
+  const activeTeamRef = useRef(activeTeamId);
+  activeTeamRef.current = activeTeamId;
   // The effect runs again when the session has been restored. A link is acted on once.
   const handled = useRef<string | null>(null);
 
@@ -159,6 +159,24 @@ export function DeepLinkGate() {
       if (disposed) return;
       if (outcome.status === "navigate") {
         // The workspace came from the SERVER; the URL never carried tenant truth.
+        // B2A-F-07 — open the record IN that workspace: switch first (the
+        // canonical POST), then navigate. A refused switch opens nothing.
+        const target = outcome.workspaceId;
+        if (target && target !== activeTeamRef.current) {
+          void apiFetch(SWITCH_WORKSPACE_PATH, {
+            method: "POST",
+            body: JSON.stringify(buildSwitchWorkspaceBody(target)),
+          })
+            .then(() => {
+              if (disposed) return;
+              refreshPlatformContext();
+              router.push(outcome.route as never);
+            })
+            .catch(() => {
+              if (!disposed) Alert.alert("Not available", "This item is not available.");
+            });
+          return;
+        }
         router.push(outcome.route as never);
       } else if (outcome.status === "denied") {
         // Anti-enumeration: one generic message for every denial cause.

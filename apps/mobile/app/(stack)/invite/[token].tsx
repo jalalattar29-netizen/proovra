@@ -133,12 +133,8 @@ function CollaborationInviteScreen() {
           message={refused.body}
           action={
             <View style={styles.actions}>
-              <ProovraButton
-                label="View billing"
-                accessibilityLabel="View billing and upgrade options"
-                fullWidth={false}
-                onPress={() => router.push("/billing")}
-              />
+              {/* B3A-F-004 — the refusal is the inviting workspace's capacity; its
+                  owner must upgrade. The invitee's own Billing cannot lift it. */}
               <ProovraButton label="Back to Collaboration Teams" variant="ghost" fullWidth={false} onPress={() => router.replace("/teams")} />
             </View>
           }

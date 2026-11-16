@@ -22,6 +22,7 @@
  *     while the artifact list still renders.
  */
 
+import { projectPackageAccessForRecords } from "../evidence/evidence-record-access.service.js";
 import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import type { Prisma } from "@prisma/client";
 
@@ -140,6 +141,12 @@ export type ArtifactRow = {
     version: number | null;
     generatedAtUtc: string | null;
   };
+  /**
+   * B5B-F-102 (free audit 0ea0) — what the caller may download as a package
+   * (the full forensic package also needs the original-file capability).
+   * Null when the caller is not known.
+   */
+  packageAccess: { fullForensic: boolean; externalDisclosure: boolean } | null;
   /** Verification package lifecycle. */
   package: {
     state: PackageLifecycle;
@@ -919,6 +926,10 @@ export async function listWorkspaceArtifacts(input: {
       const requestByEvidence = new Map(
         requestRows.map((q) => [q.evidenceId, q]),
       );
+      // B5B-F-102 — the caller's package capabilities per row (EP-0404's shape).
+      const packageAccessByEvidence = input.callerUserId
+        ? await projectPackageAccessForRecords({ userId: input.callerUserId, evidenceIds })
+        : null;
 
       const items: ArtifactRow[] = pageRows.map((r) => {
         const report = reportByEvidence.get(r.id) ?? null;
@@ -1105,6 +1116,7 @@ export async function listWorkspaceArtifacts(input: {
             verificationPackage: packageCanonicalState,
             reportUpdateFailed,
           }),
+          packageAccess: packageAccessByEvidence?.get(r.id) ?? null,
           // Phase 6 — surface template-identity trio in the envelope.
           // Identity propagation only; legacy rows surface NULL.
           provenance: {

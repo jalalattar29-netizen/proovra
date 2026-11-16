@@ -29,7 +29,8 @@ beforeEach(async () => {
     ...authenticatedRoutes({
       "/v1/platform/context": () =>
         platformContextEnvelope({
-          planFeatures: { teamCollaborationIncluded: true },
+          // B2A-F-04 — matters are offered on a plan that includes cases.
+          planFeatures: { teamCollaborationIncluded: true, casesIncluded: true },
           organizations: [
             { id: TEST_TEAM_ID, membershipStatus: "ACTIVE", memberCount: 7 },
             { id: "other", membershipStatus: "ACTIVE", memberCount: 50 },
@@ -124,7 +125,7 @@ test("team work: org workspace with collaboration only; this workspace's members
   assert.ok(r.hasText("Reports today"));
   assert.ok(r.hasText("Pending invites"));
   r.unmount();
-  routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { teamCollaborationIncluded: false } });
+  routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { teamCollaborationIncluded: false, casesIncluded: true } });
   r = await render("Analytics");
   assert.equal(r.hasText("Team work"), false, "shown without the plan feature");
 });

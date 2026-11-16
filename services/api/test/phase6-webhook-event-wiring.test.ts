@@ -380,10 +380,18 @@ function buildStubPrisma(endpoints: EndpointRow[]): {
       },
       update: async () => null,
     },
+    // B7B-F01 (free-audit 0ea0): the dispatcher asks the record-reach rule
+    // whether a named record/case is closed to a machine caller. Nothing is
+    // closed in this stub unless a test says so.
+    evidence: { count: async (args: { where: { id: string } }) => (closedIds.has(args.where.id) ? 1 : 0) },
+    case: { count: async (args: { where: { id: string } }) => (closedIds.has(args.where.id) ? 1 : 0) },
   } as unknown as PrismaClient;
 
   return { client, deliveries };
 }
+
+/** Ids the stub reports as closed by a restricted case (B7B-F01). */
+const closedIds = new Set<string>();
 
 describe("PHASE 6 — emitWebhookEvent produces a PENDING row for every subscribed endpoint", () => {
   const TEAM = "team-phase6";
@@ -487,6 +495,40 @@ describe("PHASE 6 — emitWebhookEvent produces a PENDING row for every subscrib
         "ep-all",
         "ep-submitted",
       ]);
+    });
+  });
+
+  it("B7B-F01: an event naming a record or case closed by a restricted case writes no delivery row", async () => {
+    await withFlag(async () => {
+      const { client, deliveries } = buildStubPrisma([endpoint("ep-all", { eventTypes: [] })]);
+      closedIds.add("ev-restricted");
+      closedIds.add("case-restricted");
+      try {
+        const viaRecord = await emitWebhookEvent(
+          { teamId: TEAM, eventType: "evidence.completed", payload: { evidenceId: "ev-restricted" }, attemptInline: false },
+          client,
+        );
+        const viaCase = await emitWebhookEvent(
+          {
+            teamId: TEAM,
+            eventType: "evidence_request.created",
+            payload: { evidenceId: "ev-open", caseId: "case-restricted", title: "x" },
+            attemptInline: false,
+          },
+          client,
+        );
+        expect(viaRecord.enqueued).toBe(0);
+        expect(viaCase.enqueued).toBe(0);
+        expect(deliveries).toEqual([]);
+        // Control: an unrestricted record still emits.
+        const open = await emitWebhookEvent(
+          { teamId: TEAM, eventType: "evidence.completed", payload: { evidenceId: "ev-open" }, attemptInline: false },
+          client,
+        );
+        expect(open.enqueued).toBe(1);
+      } finally {
+        closedIds.clear();
+      }
     });
   });
 

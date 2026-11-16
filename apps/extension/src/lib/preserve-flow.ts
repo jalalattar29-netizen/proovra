@@ -113,7 +113,31 @@ export type PreserveDeps = {
    * (pending-release.ts).
    */
   rememberUnreleased?: (captureSessionId: string) => Promise<void>;
+  /**
+   * B4-F-101 — the server session, as soon as the open answers, so an
+   * attempt the service worker never finishes can still be released.
+   */
+  noteSession?: (captureSessionId: string) => Promise<void>;
 };
+
+/**
+ * B4-F-103 — the smallest device-clock difference (from the server's Date
+ * header, one-second precision) for which the capture window is restated on
+ * the server's clock. The server refuses an end more than 5 min in its future
+ * or a start more than 15 min before the session opened (capture-window.ts).
+ */
+export const CLOCK_CORRECTION_MIN_MS = 60_000;
+
+/** PURE — an ISO instant moved by `offsetMs`. */
+function shiftIso(iso: string, offsetMs: number): string {
+  return new Date(Date.parse(iso) + offsetMs).toISOString();
+}
+
+/** PURE — the manifest note that discloses a clock correction (B4-F-103). */
+export function clockCorrectionNote(offsetMs: number): string {
+  const seconds = Math.round(Math.abs(offsetMs) / 1000);
+  return `Capture times restated on the PROOVRA server clock: this computer's clock was ${seconds} s ${offsetMs < 0 ? "fast" : "slow"}.`;
+}
 
 const SOURCE_BY_ROLE: Record<CapturedArtifact["role"], string> = {
   viewport_screenshot: "WEB_VIEWPORT",
@@ -252,6 +276,16 @@ export async function runPreserveFlow(
     const opened = await open();
     const openSessionId = opened.session.captureSessionId;
     sessionId = openSessionId;
+    await deps.noteSession?.(openSessionId).catch(() => undefined);
+    // B4-F-103 — the server checks the capture window against ITS clock; a
+    // computer clock minutes off made every capture unsealable. The window is
+    // restated on the server's clock (measured at the open) and the manifest
+    // says so.
+    const clockOffsetMs =
+      typeof opened.serverDateMs === "number" && Number.isFinite(opened.serverDateMs)
+        ? opened.serverDateMs - now().getTime()
+        : 0;
+    const correctClock = Math.abs(clockOffsetMs) >= CLOCK_CORRECTION_MIN_MS;
     cancelled();
 
     deps.progress("reserving");
@@ -330,8 +364,8 @@ export async function runPreserveFlow(
     const { manifest, manifestJson } = buildWebCaptureManifest({
       captureMode: req.mode,
       captureSessionId: sessionId,
-      captureStartedAtUtc: startedAtUtc,
-      captureEndedAtUtc: endedAtUtc,
+      captureStartedAtUtc: correctClock ? shiftIso(startedAtUtc, clockOffsetMs) : startedAtUtc,
+      captureEndedAtUtc: correctClock ? shiftIso(endedAtUtc, clockOffsetMs) : endedAtUtc,
       sourceUrl: capture.pageInfo.url,
       title: capture.pageInfo.title,
       browser: {
@@ -345,7 +379,7 @@ export async function runPreserveFlow(
       pageMutatedDuringCapture: capture.pageMutatedDuringCapture,
       limitations: capture.limitations,
       domSnapshotMissing: capture.domSnapshotMissing,
-      notes: capture.notes,
+      notes: correctClock ? [...capture.notes, clockCorrectionNote(clockOffsetMs)] : capture.notes,
     });
 
     cancelled();
@@ -426,6 +460,9 @@ export async function runPreserveFlow(
         if (r?.discarded === true || r?.status === "DISCARDED" || r?.status === "EXPIRED") {
           return { status: "FAILED", outcome: "NOTHING_SAVED", reason, denial, evidenceId, detail };
         }
+        // B4-F-101 — not released now: released later (the discard refuses a
+        // sealed session, so sending it again is safe whatever happened).
+        await deps.rememberUnreleased?.(sessionId).catch(() => undefined);
         return {
           status: "FAILED",
           outcome: "UNKNOWN",
@@ -440,6 +477,11 @@ export async function runPreserveFlow(
           return { status: "SUCCEEDED", evidenceId, limitations: [], completeness: "UNREPORTED" };
         }
         const discardBusy = discardErr instanceof ApiError && discardErr.denial === BUSY_DENIAL;
+        // B4-F-101 — the discard did not settle the session (offline, timeout,
+        // busy, refused): its reservation still holds a slot. It is remembered
+        // and released by the next discard that gets an answer (worker start,
+        // popup open, sign-in) instead of waiting up to 24 h for the sweep.
+        await deps.rememberUnreleased?.(sessionId).catch(() => undefined);
         if (!sealMayHaveHappened && !discardBusy) {
           return { status: "FAILED", outcome: "NOTHING_SAVED", reason, denial, evidenceId, detail };
         }

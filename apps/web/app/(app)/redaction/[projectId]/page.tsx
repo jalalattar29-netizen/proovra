@@ -209,7 +209,15 @@ function RedactionProjectShell({
     [project, selectedVersionId],
   );
 
+  // B5B-F-203 — one create per click: a double click raced two inserts for
+  // the same ordinal (the second a 500). A ref, so two clicks in one frame
+  // cannot both pass.
+  const newVersionInFlight = useRef(false);
+  const [creatingVersion, setCreatingVersion] = useState(false);
   const onNewVersion = useCallback(async () => {
+    if (newVersionInFlight.current) return;
+    newVersionInFlight.current = true;
+    setCreatingVersion(true);
     try {
       const res = await apiFetch(
         `/v1/redaction/projects/${projectId}/versions`,
@@ -223,6 +231,9 @@ function RedactionProjectShell({
       setActivityRevision((v) => v + 1);
     } catch (err) {
       setBanner(refusalBanner(err, "We couldn't create a new version."));
+    } finally {
+      newVersionInFlight.current = false;
+      setCreatingVersion(false);
     }
   }, [projectId, refresh]);
 
@@ -402,9 +413,11 @@ function RedactionProjectShell({
           type="button"
           data-redaction-new-version
           onClick={onNewVersion}
+          disabled={creatingVersion}
+          aria-busy={creatingVersion}
           style={primaryButton}
         >
-          + New version
+          {creatingVersion ? "Creating…" : "+ New version"}
         </button>
       </header>
 

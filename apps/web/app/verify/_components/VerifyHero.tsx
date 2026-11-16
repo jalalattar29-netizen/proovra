@@ -15,6 +15,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
+import { resolveVerifyEntryTarget } from "../../../lib/verify/verify-entry";
 import { SECTION_BORDER } from "./shared";
 
 const TRUST_CHIPS = [
@@ -140,6 +141,7 @@ function VerifyTokenCard() {
   const router = useRouter();
   const [token, setToken] = useState("");
   const [touched, setTouched] = useState(false);
+  const [invalid, setInvalid] = useState(false);
 
   const trimmed = useMemo(() => token.trim(), [token]);
   const canSubmit = trimmed.length > 0;
@@ -150,7 +152,15 @@ function VerifyTokenCard() {
       if (e) e.preventDefault();
       setTouched(true);
       if (!canSubmit) return;
-      router.push(`/verify/${encodeURIComponent(trimmed)}`);
+      // B5B-F-502 — a pasted full link or package link opens its own page;
+      // the raw text is no longer encoded into the path.
+      const target = resolveVerifyEntryTarget(trimmed);
+      if (!target) {
+        setInvalid(true);
+        return;
+      }
+      setInvalid(false);
+      router.push(target);
     },
     [canSubmit, router, trimmed],
   );
@@ -212,6 +222,7 @@ function VerifyTokenCard() {
           onChange={(e) => {
             setToken(e.target.value);
             if (touched) setTouched(false);
+            if (invalid) setInvalid(false);
           }}
           onBlur={() => setTouched(true)}
           onKeyDown={onKeyDown}
@@ -237,6 +248,14 @@ function VerifyTokenCard() {
           >
             <AlertTriangle size={13} strokeWidth={2.4} />
             Enter a verification token to continue.
+          </p>
+        ) : invalid ? (
+          <p
+            role="alert"
+            className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#B91C1C]"
+          >
+            <AlertTriangle size={13} strokeWidth={2.4} />
+            Paste a PROOVRA verification link or reference (pvr_…).
           </p>
         ) : (
           <p

@@ -20,6 +20,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 
 import { toSnapshot } from "../src/services/ai/evidence-analysis-snapshot.service.js";
+import { copilotMayOfferReviewerAssignment } from "../src/services/ai/copilot-reviewer-assignment.service.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,10 @@ const H = vi.hoisted(() => ({
   // deny-has-no-side-effects proofs.
   billingReserved: 0,
   providerCalls: 0,
+  // B6-F-30 (free audit 0ea0) — whether the workspace plan includes reviewer
+  // operations, and the caller's role there (ADMIN holds review.assign).
+  reviewerOps: false,
+  memberRole: "ADMIN",
 }));
 
 vi.mock("../src/db.js", () => ({
@@ -56,7 +61,7 @@ vi.mock("../src/db.js", () => ({
               id: `tm-${where.teamId_userId.teamId}`,
               teamId: where.teamId_userId.teamId,
               userId: where.teamId_userId.userId,
-              role: "ADMIN",
+              role: H.memberRole,
               status: "ACTIVE",
               accessExpiresAtUtc: null,
               team: {
@@ -95,7 +100,7 @@ vi.mock("../src/db.js", () => ({
       },
       count: async () => H.evidenceRows.length,
     },
-    evidenceReviewWorkflow: { findMany: async () => [], count: async () => 0 },
+    evidenceReviewWorkflow: { findMany: async () => [], count: async () => 0, findFirst: async () => null },
     /*
      * RELIABILITY CLOSURE (2026-09-09) — the copilot's suggested actions come
      * from the CANONICAL output projection now, not from `_count.reports`.
@@ -231,7 +236,22 @@ vi.mock("../src/services/search/evidence-search.service.js", () => ({
  */
 vi.mock("../src/services/billing-enforcement.service.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
-  return { ...actual, workspaceIncludesAiOperations: async () => true };
+  return {
+    ...actual,
+    workspaceIncludesAiOperations: async () => true,
+    // B6-F-30 — the reviewer-operations plan answer, controlled per test.
+    workspaceIncludesReviewerOperations: async () => H.reviewerOps,
+  };
+});
+// B6-F-20 — the plan-allowance meter is a separate seam (proven against the
+// real entitlement_usage row in case-copilot-selection-version.integration);
+// this contract test pins the route's result shape, so the plan always admits.
+vi.mock("../src/services/ai/ai-plan-operation-meter.js", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    meterAiPlanOperation: () => ({ taken: false, take: async () => {}, refund: async () => {} }),
+  };
 });
 vi.mock("../src/services/ai/workspace-ai-policy.service.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -365,6 +385,8 @@ beforeEach(() => {
   H.searchCalls.length = 0;
   H.evidenceRow = signedEvidenceRow();
   H.evidenceRows = [];
+  H.reviewerOps = false;
+  H.memberRole = "ADMIN";
 });
 
 // ===========================================================================
@@ -435,6 +457,22 @@ describe("Phase 5 — Evidence Copilot route: canonical result contract (inject)
     const types = (body.serverActions as Array<{ actionType: string }>).map((a) => a.actionType);
     expect(types).not.toContain("GENERATE_REPORT");
     expect(types).not.toContain("RETRY_ELIGIBLE_REPORT");
+  });
+
+  it("B6-F-30 — OPEN_REVIEWER_ASSIGNMENT only when the plan includes reviewer operations AND the caller holds review.assign", async () => {
+    const actionTypes = async () =>
+      ((await run()).body.serverActions as Array<{ actionType: string }>).map((a) => a.actionType);
+    // A plan without reviewer operations (Free): never offered, even to an admin.
+    H.reviewerOps = false;
+    expect(await actionTypes()).not.toContain("OPEN_REVIEWER_ASSIGNMENT");
+    // Included, and the caller holds review.assign: offered.
+    H.reviewerOps = true;
+    expect(await actionTypes()).toContain("OPEN_REVIEWER_ASSIGNMENT");
+    // Included, but the caller's role lacks review.assign (VIEWER — who cannot
+    // run the copilot at all, so asked of the gate directly): not offered.
+    expect(await copilotMayOfferReviewerAssignment(TEAM_1, H.userId)).toBe(true);
+    H.memberRole = "VIEWER";
+    expect(await copilotMayOfferReviewerAssignment(TEAM_1, H.userId)).toBe(false);
   });
 
   it("malformed provider response → schema_error (safe fallback, never raw)", async () => {

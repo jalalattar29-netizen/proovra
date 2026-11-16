@@ -31,6 +31,12 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
+  evidenceIdInReach,
+  holdInReach,
+  incidentInReach,
+  type ViewerReach,
+} from "../access/record-reach.js";
+import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
 
@@ -74,14 +80,27 @@ function normalizeWindow(w: string | undefined | null): AnalyticsWindow {
 }
 
 export async function computeGovernanceAnalytics(
-  input: { teamId: string; window?: AnalyticsWindow },
+  input: {
+    teamId: string;
+    window?: AnalyticsWindow;
+    /**
+     * B7B-F03 (free-audit 0ea0): the reader's record reach. Record, hold,
+     * destruction-review and incident counts must not reveal records a
+     * restricted case closes to them (the control plane already applies it).
+     */
+    reach?: ViewerReach;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<GovernanceAnalyticsResult> {
   // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
   // resolved once for every query below. A strict `teamId` equality here
   // omitted a personal workspace's legacy NULL-team rows, and reported the
   // smaller number as if it were the whole population.
-  const scope = await workspaceEvidenceWhere(input.teamId, client);
+  const baseScope = await workspaceEvidenceWhere(input.teamId, client);
+  const scope = input.reach ? { AND: [baseScope, input.reach.evidence] } : baseScope;
+  const reviewReach = input.reach ? evidenceIdInReach(input.reach) : {};
+  const holdReach = input.reach ? { AND: holdInReach(input.reach) } : {};
+  const incidentReach = input.reach ? incidentInReach(input.reach) : {};
   const window = normalizeWindow(input.window);
   const windowMs = analyticsWindowToMilliseconds(window);
   const since = new Date(Date.now() - windowMs);
@@ -110,12 +129,14 @@ export async function computeGovernanceAnalytics(
     client.destructionReview.count({
       where: {
         teamId: input.teamId,
+        ...reviewReach,
         status: { in: ["PENDING", "UNDER_REVIEW", "DEFERRED", "APPROVED"] },
       },
     }),
     client.destructionReview.count({
       where: {
         teamId: input.teamId,
+        ...reviewReach,
         status: "DENIED",
         updatedAt: { gte: since },
       },
@@ -123,6 +144,7 @@ export async function computeGovernanceAnalytics(
     client.destructionReview.count({
       where: {
         teamId: input.teamId,
+        ...reviewReach,
         status: "EXECUTED",
         executedAtUtc: { gte: since },
       },
@@ -141,6 +163,7 @@ export async function computeGovernanceAnalytics(
     client.evidenceLegalHold.count({
       where: {
         teamId: input.teamId,
+        ...holdReach,
         status: prismaPkg.LegalHoldStatus.ACTIVE,
       },
     }),
@@ -165,6 +188,7 @@ export async function computeGovernanceAnalytics(
     client.operationalIncident.count({
       where: {
         teamId: input.teamId,
+        ...incidentReach,
         category: prismaPkg.IncidentCategory.GOVERNANCE,
         status: { in: [prismaPkg.IncidentStatus.OPEN, prismaPkg.IncidentStatus.ACKNOWLEDGED] },
       },
@@ -209,6 +233,7 @@ export async function computeGovernanceAnalytics(
       by: ["severity"],
       where: {
         teamId: input.teamId,
+        ...incidentReach,
         category: prismaPkg.IncidentCategory.GOVERNANCE,
         createdAt: { gte: since },
       },
@@ -226,7 +251,7 @@ export async function computeGovernanceAnalytics(
     }),
     client.destructionReview.groupBy({
       by: ["status"],
-      where: { teamId: input.teamId, createdAt: { gte: since } },
+      where: { teamId: input.teamId, ...reviewReach, createdAt: { gte: since } },
       _count: { _all: true },
     }),
     client.immutableStorageCheck.groupBy({

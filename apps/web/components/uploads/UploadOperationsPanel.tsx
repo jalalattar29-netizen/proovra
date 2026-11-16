@@ -59,6 +59,11 @@ export type UploadOperationsPanelProps = {
   /** Called when the operator wants to retry a recovery entry that
    *  is classified `failed`. */
   onRetryRecovery?: (sessionId: string) => void;
+  /**
+   * B4-F-301 — whether a recovery entry's Resume can act (an uploader for it
+   * is in memory). Absent, every resumable entry offers Resume.
+   */
+  canResumeRecovery?: (sessionId: string) => boolean;
 };
 
 // =============================================================================
@@ -87,6 +92,7 @@ export function UploadOperationsPanel(
         <RecoverySection
           report={recovery}
           onResume={props.onResume}
+          canResume={props.canResumeRecovery}
           onClear={props.onClearRecovery}
           onRetry={props.onRetryRecovery}
         />
@@ -219,6 +225,7 @@ function UploadRow(props: {
 
 function RecoverySection(props: {
   report: RecoveryReport;
+  canResume?: (sessionId: string) => boolean;
   onResume?: (sessionId: string) => void;
   onClear?: (sessionId: string) => void;
   onRetry?: (sessionId: string) => void;
@@ -234,7 +241,7 @@ function RecoverySection(props: {
           <RecoveryRow
             key={entry.sessionId}
             entry={entry}
-            onResume={props.onResume}
+            onResume={!props.canResume || props.canResume(entry.sessionId) ? props.onResume : undefined}
             onClear={props.onClear}
             onRetry={props.onRetry}
           />

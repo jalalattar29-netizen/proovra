@@ -94,7 +94,7 @@ export type SurfaceTierRule = {
    * unknown (loading / degraded envelope). This keeps the tier table free
    * of plan-literal duplication of the pricing catalog.
    */
-  entitlementOverride?: "intakeIncluded" | "reviewerOperationsIncluded";
+  entitlementOverride?: "intakeIncluded" | "reviewerOperationsIncluded" | "redactionIncluded";
   /**
    * Match the path EXACTLY rather than as a prefix. Used where one console
    * (`/review`) shares its prefix with surfaces that keep a different rule.
@@ -106,6 +106,11 @@ export type SurfaceTierRule = {
    * landing instead of a hard 404 — they might upgrade.
    */
   redirectTo?: string;
+  /**
+   * For `forbidden` policy: the user-facing sentence SurfaceGate shows, when
+   * the generic "may require permissions or a plan" is not specific enough.
+   */
+  forbiddenMessage?: string;
   /**
    * One-liner used by smoke tooling + dashboards. Not user-facing.
    */
@@ -190,7 +195,10 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // the move changes their URL and gate (tenant, not platform), not their
   // package. First match wins, so these precede the CORE /operations prefix.
   { pathPrefix: "/operations/batch-analysis", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "batch analysis (PRO upsell; moved from /dashboard/batch-analysis)" },
-  { pathPrefix: "/operations/quotas", tier: "PROFESSIONAL", directAccessPolicy: "redirect", reason: "quota dashboard (PRO upsell; moved from /dashboard/quotas)" },
+  // B7A-F-007 (Free-user audit 0ea0) — a Free visit is TOLD the quota dashboard
+  // is not on its plan (SurfaceGate's forbidden state, as native says "not
+  // included") instead of being bounced to Home without a word.
+  { pathPrefix: "/operations/quotas", tier: "PROFESSIONAL", directAccessPolicy: "forbidden", forbiddenMessage: "The quota dashboard is part of the Pro plan and isn't included in this workspace's current plan.", reason: "quota dashboard (PRO upsell; moved from /dashboard/quotas)" },
   { pathPrefix: "/operations/analytics", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "workspace operational analytics (moved from /admin/platform/analytics)" },
   { pathPrefix: "/operations/automation", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "workspace automation rules (moved from /admin/platform/automation)" },
   { pathPrefix: "/operations/reliability", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "workspace upload reliability (moved from /admin/platform/reliability)" },
@@ -320,7 +328,11 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   { pathPrefix: "/reviewer-ops", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "reviewer ops console (per reviewerOperationsIncluded)" },
   { pathPrefix: "/reviewer-workspace", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "reviewer workspace" },
   { pathPrefix: "/review", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "review surfaces" },
-  { pathPrefix: "/redaction", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "redaction platform" },
+  // Free audit B5B-F-205 — one authority for redaction: the server's
+  // `planFeatures.redactionIncluded` (resolveEntitlement(FEATURE_REDACTION))
+  // decides wherever the envelope carries it; an older API that does not
+  // project it leaves the ENTERPRISE tier as the fail-closed fallback.
+  { pathPrefix: "/redaction", tier: "ENTERPRISE", entitlementOverride: "redactionIncluded", directAccessPolicy: "notFound", reason: "redaction platform (per redactionIncluded)" },
 
   // Governance / Compliance
   { pathPrefix: "/governance-platform", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "governance platform (org admin)" },
@@ -359,7 +371,10 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // ---------------------------------------------------------------------
   { pathPrefix: "/tools", tier: "INTERNAL", directAccessPolicy: "notFound", reason: "All Tools — internal/debug catalog" },
   { pathPrefix: "/ops", tier: "INTERNAL", directAccessPolicy: "notFound", reason: "platform ops console" },
-  { pathPrefix: "/platform", tier: "INTERNAL", directAccessPolicy: "notFound", reason: "platform internal" },
+  // B2A-F-15 (Free-user audit 0ea0) — the INTERNAL "/platform" rule was
+  // removed: no internal console lives there any more, and `app/platform` is
+  // the PUBLIC marketing overview, which this rule 404'd for signed-out
+  // visitors on the app host. Internal consoles are /ops and /admin/platform/*.
 ];
 
 // =============================================================================

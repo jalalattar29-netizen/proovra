@@ -502,10 +502,13 @@ export function EvidenceDetailCard({
   projection,
   onBuyCredits,
   onChoosePlan,
+  onAddStorage,
 }: {
   projection: BillingAccountProjection;
   onBuyCredits?: () => void;
   onChoosePlan?: () => void;
+  /** B6-F-68 — offered beside the credit purchase while storage is full. */
+  onAddStorage?: () => void;
 }) {
   const admission = projection.evidenceAdmission;
   const meter = projection.usage.evidence;
@@ -524,11 +527,15 @@ export function EvidenceDetailCard({
   const hasMeter = meter.state === "MEASURED";
   if (!admission && !hasMeter && !wallet) return null;
 
+  const storageMeter = projection.usage.storage;
+  const storageFull = storageMeter.state === "MEASURED" && storageMeter.limitReached === true;
+
   const described = hasMeter ? describeMeter(meter) : null;
   const offered = admission
     ? describeEvidenceAdmission(admission, {
         canBuyCredits,
         hasPlanOffer: (projection.planOffers ?? []).length > 0,
+        storageFull,
       })
     : null;
 
@@ -715,6 +722,17 @@ export function EvidenceDetailCard({
           >
             Buy credits
           </button>
+          {/* B6-F-68 — a credit does not make room; storage does. */}
+          {storageFull && onAddStorage ? (
+            <button
+              type="button"
+              className="app-secondary-action app-secondary-action--lg"
+              onClick={onAddStorage}
+              data-billing-evidence-add-storage
+            >
+              Add storage
+            </button>
+          ) : null}
         </div>
       ) : action === "SEE_PLANS" && onChoosePlan ? (
         <div className="bill-panel__actions">

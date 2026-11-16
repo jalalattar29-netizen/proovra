@@ -64,6 +64,7 @@ import {
   provisionMembership,
 } from "../identity/membership-provisioning.service.js";
 import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
+import { isSelfServeAccountForOrganization } from "../security/enterprise-account-linking.service.js";
 import {
   enforceScimManagedOwnership,
   ScimManagedOwnershipError,
@@ -855,7 +856,13 @@ async function provisionIntoProjection(
 ): Promise<void> {
   const role = pr.mappedRole as "ADMIN" | "MEMBER" | "VIEWER";
   const customerOrg = await organizationIdForPolicy(pr.workspaceId, client);
-  if (customerOrg) {
+  // B5B-F-302 — a pre-existing SELF-SERVE account its owner linked to the
+  // Organization is projected as a member only: a directory group never
+  // converts it to a managed identity (provisionManagedMembership would refuse).
+  const selfServe =
+    customerOrg !== null &&
+    (await isSelfServeAccountForOrganization({ userId, organizationId: customerOrg }, client));
+  if (customerOrg && !selfServe) {
     await provisionManagedMembership(client as never, {
       userId,
       managingTeamId: ctx.teamId,

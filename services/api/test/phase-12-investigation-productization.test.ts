@@ -141,8 +141,12 @@ describe("Phase 12 UI_SURFACE_EXISTING_DATA — evidence detail intelligence sec
     .map((rel) => readSrc(resolve(EVIDENCE_DETAIL_DIR, rel)))
     .join("\n\n");
 
-  it("imports the new typed intelligence client (fetchEvidenceIntelligence)", () => {
-    expect(src).toMatch(/fetchEvidenceIntelligence/);
+  // B6-F-47 (free-audit 0ea0, pin updated 2026-11-16): the page now reads
+  // through `readEvidenceIntelligence` — the same typed client module, which
+  // keeps a refused read (403/404, e.g. a VIEWER) apart from an empty answer
+  // instead of collapsing both to null ("No entities have been extracted").
+  it("imports the typed intelligence client (readEvidenceIntelligence, B6-F-47)", () => {
+    expect(src).toMatch(/readEvidenceIntelligence/);
     expect(src).toMatch(
       /from\s+["'][^"']*lib\/api\/intelligence["']/,
     );
@@ -163,8 +167,10 @@ describe("Phase 12 UI_SURFACE_EXISTING_DATA — evidence detail intelligence sec
     expect(src).toMatch(/<EntityChipGroup[\s\S]{0,200}entities=/);
   });
 
-  it("calls fetchEvidenceIntelligence(evidenceId, teamId) to hydrate the projection", () => {
-    expect(src).toMatch(/fetchEvidenceIntelligence\s*\(/);
+  it("calls readEvidenceIntelligence(evidenceId, teamId) to hydrate the projection (B6-F-47)", () => {
+    expect(src).toMatch(/readEvidenceIntelligence\s*\(\s*evidenceId\s*,\s*teamId\s*\)/);
+    // A refusal is said as unavailable, never as "nothing extracted".
+    expect(src).toMatch(/res\.kind === "unavailable"/);
   });
 });
 

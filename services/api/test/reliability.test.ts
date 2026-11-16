@@ -279,7 +279,10 @@ describe("anti-enumeration — reliability routes", () => {
     // member without the capability (was: 404 for both). The ONLY 403 this
     // file sends is that canonical body.
     expect(src).toMatch(/reply\.code\(404\)/);
-    expect(src.match(/reply\.code\(403\)/g) ?? []).toHaveLength(1);
+    // B7A-F-004 (free-audit 0ea0) — plus the Operations-capability refusal
+    // (requireOpsCapability's shape): exactly two 403s.
+    expect(src.match(/reply\.code\(403\)/g) ?? []).toHaveLength(2);
+    expect(src).toMatch(/"operations_not_included"/);
     expect(src).toMatch(
       /reply\.code\(403\)\.send\(\{\s*error: \{ code: "permission_denied", reason: "permission_not_granted" \},\s*\}\)/,
     );

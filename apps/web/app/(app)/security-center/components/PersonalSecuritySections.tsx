@@ -64,6 +64,11 @@ import { useAuth } from "../../../providers";
 import { useTeamId } from "../../../../lib/platform-context";
 import { ContactFactorEnrollmentPanel } from "../../../../components/identity-security/ContactFactorEnrollmentPanel";
 import { PasskeysCard } from "../../../../components/identity-security/PasskeysCard";
+import { OrganizationLinkConsentPanel } from "../../../../components/identity-security/OrganizationLinkConsentPanel";
+import {
+  RecoveryCodesNotice,
+  recoveryCodesActionLabel,
+} from "../../../../components/identity-security/RecoveryCodesNotice";
 
 // -----------------------------------------------------------------------------
 // Shared styles — canonical LIGHT tokens (no dark-theme constants).
@@ -1263,14 +1268,27 @@ function MfaCard({
   const regenerateCodes = useCallback(
     async (proof?: StepUpProof) => {
       if (!proof) {
-        const ok = await confirm({
-          title: "Regenerate recovery codes?",
-          description:
-            "Your existing recovery codes stop working immediately. New codes are shown once — store them in a safe place.",
-          confirmLabel: "Regenerate",
-          tone: "warning",
-          testId: "mfa-regenerate-recovery-codes",
-        });
+        // B1-F-002 — with no live codes nothing is replaced; say what happens.
+        const replacing = (mfa?.recoveryCodesRemaining ?? 0) > 0;
+        const ok = await confirm(
+          replacing
+            ? {
+                title: "Regenerate recovery codes?",
+                description:
+                  "Your existing recovery codes stop working immediately. New codes are shown once — store them in a safe place.",
+                confirmLabel: "Regenerate",
+                tone: "warning",
+                testId: "mfa-regenerate-recovery-codes",
+              }
+            : {
+                title: "Generate recovery codes?",
+                description:
+                  "Each code signs you in once if you lose your second factor. They are shown once — store them in a safe place.",
+                confirmLabel: "Generate",
+                tone: "warning",
+                testId: "mfa-regenerate-recovery-codes",
+              },
+        );
         if (!ok) return;
       }
       setError(null);
@@ -1309,7 +1327,7 @@ function MfaCard({
         setBusy(false);
       }
     },
-    [confirm, reloadMfa],
+    [confirm, reloadMfa, mfa],
   );
 
   const removeFactor = useCallback(
@@ -1434,6 +1452,10 @@ function MfaCard({
                 </li>
               ))}
             </ul>
+            <RecoveryCodesNotice
+              activeFactorCount={activeFactors.length}
+              recoveryCodesRemaining={mfa.recoveryCodesRemaining}
+            />
             <div style={{ marginTop: 10 }}>
               <Button
                 variant="secondary"
@@ -1442,7 +1464,7 @@ function MfaCard({
                 disabled={busy}
                 data-cc-mfa-regenerate-codes
               >
-                Regenerate recovery codes
+                {recoveryCodesActionLabel(mfa.recoveryCodesRemaining)}
               </Button>
             </div>
           </>
@@ -2164,6 +2186,9 @@ export function PersonalSecuritySections() {
 
   return (
     <>
+      {/* B5B-F-302 — a refused organization sign-in's pending link, approved
+          by the owner here (renders nothing when there is none). */}
+      <OrganizationLinkConsentPanel StepUpPrompt={StepUpVerify} />
       <SummaryStrip mfa={mfa} sessions={sessions} loginMethods={loginMethods} />
       <LoginMethodsCard
         state={loginMethods}

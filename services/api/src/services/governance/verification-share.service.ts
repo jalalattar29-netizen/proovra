@@ -32,6 +32,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { SHARE_GRANT_DEFAULT_LIFETIME_DAYS, SHARE_GRANT_MAX_LIFETIME_DAYS } from "@proovra/shared";
 
 /** Members audit SEC-08 — an owner link lives at most 30 days per issue or renewal. */
@@ -437,7 +438,16 @@ export async function revokeLegacyVerifyLink(
  * are still reachable by their id, and until when. Read-only.
  */
 export async function legacyVerifyLinkInventory(
-  input: { teamId: string; limit?: number },
+  input: {
+    teamId: string;
+    /**
+     * B5B-F-100 (free-audit 0ea0): the reader. A record a restricted case
+     * closes to them is not listed, counted or bounded here, by title or id
+     * (ACC-01), exactly as in the Reports population.
+     */
+    actorUserId: string;
+    limit?: number;
+  },
   client: PrismaClient = defaultPrisma,
   now: Date = new Date(),
 ): Promise<{
@@ -458,11 +468,13 @@ export async function legacyVerifyLinkInventory(
       ? { OR: [{ teamId: input.teamId }, { teamId: null, ownerUserId: team.ownerUserId }] }
       : { teamId: input.teamId };
   const where = {
-    ...scope,
+    AND: [scope, evidenceVisibleThroughCasesWhere(input.actorUserId)],
     legacyVerifyUuidUntilUtc: { gt: now },
     // A record-id link opens the canonical page, so only a record holding its
     // reference is reachable by its id (GET /public/verify/:id).
     verificationRef: { not: null },
+    // The population the public route still opens (PENDING_DESTRUCTION is
+    // still reachable by id there), narrowed only by the reader's reach.
     lifecycleState: { notIn: ["TRASHED" as const, "DESTROYED" as const] },
   };
   const [activeCount, bounds, records] = await Promise.all([

@@ -111,7 +111,12 @@ describe("Phase 11 — final adoption metrics (machine-enforced)", () => {
 
   it("WEB deep-link consumers > 0: the chokepoint exists and a real product surface uses it", () => {
     const hook = read("lib/navigation/useDeepLinkNavigation.ts", WEB);
-    expect(hook).toContain("resolveDeepLinkPath"); // composes the ONE web helper
+    // B2A-F-07 (free-audit 0ea0, pin updated 2026-11-16): the hook now calls
+    // `resolveDeepLink` (the same ONE helper module, returning the record's
+    // owning workspace so the switch runs first) instead of the path-only
+    // `resolveDeepLinkPath` wrapper.
+    expect(hook).toMatch(/import \{ resolveDeepLink \} from "\.\.\/api\/deep-link"/);
+    expect(stripComments(hook)).toMatch(/await resolveDeepLink\(\{/);
     const bell = stripComments(read("components/app-shell-v2/NotificationBell.tsx", WEB));
     expect(bell).toContain("useDeepLinkNavigation"); // real consumer
     // The helper itself drives the ONE server authority.

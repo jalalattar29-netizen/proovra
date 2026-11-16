@@ -58,6 +58,12 @@ export function useSurfaceUserContext(): SurfaceUserContext {
         typeof envelope.planFeatures?.reviewerOperationsIncluded === "boolean"
           ? envelope.planFeatures.reviewerOperationsIncluded
           : null,
+      // Free audit B5B-F-205 — the redaction entitlement, when the API
+      // projects it. Absent (older API) -> null -> the /redaction tier decides.
+      redactionIncluded:
+        typeof envelope.planFeatures?.redactionIncluded === "boolean"
+          ? envelope.planFeatures.redactionIncluded
+          : null,
     },
   };
 }

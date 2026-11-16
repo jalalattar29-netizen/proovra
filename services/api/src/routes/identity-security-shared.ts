@@ -18,7 +18,11 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { getAuthUserId } from "../auth.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { prisma } from "../db.js";
-import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import {
+  evaluateAccess,
+  evaluateMemberAccess,
+  loadMemberAccessSnapshot,
+} from "../services/identity/access-policy.service.js";
 
 /**
  * PHASE 11 §3 Batch B — D-5 personal Security Center surfaces carry NO
@@ -104,4 +108,30 @@ export async function requireSecurityActor(
     return null;
   }
   return { userId };
+}
+
+/**
+ * B1-F-003 (free-audit 0ea0) — WHOSE SECURITY TELEMETRY A CALLER MAY READ.
+ *
+ * A SECONDARY decision inside a route whose primary gate (`requireSecurityActor`)
+ * already admitted the caller: does this member administer identity in the
+ * workspace (`identity.access_review.action`, the permission every revoke route
+ * here asks for — OWNER / ADMIN, or a grant of it)? Read-only roles (VIEWER,
+ * MEMBER) read only their OWN devices and sessions; team-wide telemetry is the
+ * administrator's.
+ *
+ * The pure canonical evaluator on the canonical snapshot — not
+ * `evaluateMemberAccess` — because "no" here is a narrowing, not a refusal, and
+ * must not write a `permission_denied` security event on every page view.
+ */
+export async function administersWorkspaceIdentity(
+  teamId: string,
+  userId: string,
+): Promise<boolean> {
+  const snapshot = await loadMemberAccessSnapshot({ teamId, userId });
+  if (!snapshot) return false;
+  return evaluateAccess(
+    { kind: "MEMBER", member: snapshot },
+    { permission: "identity.access_review.action" },
+  ).allowed;
 }

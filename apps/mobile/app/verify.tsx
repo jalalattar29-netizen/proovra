@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import * as Crypto from "expo-crypto";
 import { CopyButton } from "../src/ui/copy-button";
 import { Image, Linking, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams } from "expo-router";
@@ -93,7 +94,17 @@ import { VERIFICATION_STATUS_LABELS, evidenceLocationCopy, otsAnchoringCopy, typ
 import { useOptionalLocale } from "../src/locale-context";
 import { otsCard, otsStatusLine } from "../src/product/ots-anchoring";
 import { CaptureLocationMap } from "../src/ui/capture-location-map";
-import { parseVerifyCaptureContext, parseVerifyLocationState } from "../src/product/public-verify";
+import {
+  classifyVerifyError,
+  createVerifyViewSessionId,
+  parseVerifyCaptureContext,
+  parseVerifyLocationState,
+  VERIFY_CANONICAL_STATE_COPY,
+  VERIFY_VIEW_SESSION_HEADER,
+  verifyCanonicalStateOfBody,
+  type VerifyCanonicalState,
+  type VerifyLinkNotice,
+} from "../src/product/public-verify";
 
 /** What a person is told about a package link this build cannot open on the web. */
 const VERIFY_PACKAGE_LINK_COPY = "This is a verification package link. Open it in a web browser to review the package.";
@@ -122,22 +133,54 @@ export default function VerifyScreen() {
   const [techTab, setTechTab] = useState<TechTab>("record");
   const [forensicMode, setForensicMode] = useState(false);
   const [showOtsTechnical, setShowOtsTechnical] = useState(false);
+  // B5B-F-501 — truthful states and link notices, not failures.
+  const [canonicalState, setCanonicalState] = useState<VerifyCanonicalState | null>(null);
+  const [linkNotice, setLinkNotice] = useState<VerifyLinkNotice | null>(null);
+  // REPORT-013 — ONE viewing session for this screen: reloads, Try Again and
+  // "Check Latest Anchoring Status" do not spend another use of a limited link.
+  const viewSession = useRef<string | null | undefined>(undefined);
 
   const verify = useCallback(async (verificationId: string) => {
     setState("loading");
     setError(null);
+    setCanonicalState(null);
+    setLinkNotice(null);
+    if (viewSession.current === undefined) viewSession.current = createVerifyViewSessionId(Crypto.getRandomBytes);
+    const init: RequestInit = viewSession.current ? { headers: { [VERIFY_VIEW_SESSION_HEADER]: viewSession.current } } : {};
     try {
-      const res = (await apiFetch(`/public/verify/${encodeURIComponent(verificationId)}`)) as VerifyData;
+      const res = (await apiFetch(`/public/verify/${encodeURIComponent(verificationId)}`, init)) as VerifyData;
+      const bodyState = verifyCanonicalStateOfBody(res);
+      if (bodyState) {
+        setCanonicalState(bodyState);
+        setData(null);
+        setState("ready");
+        return;
+      }
       setData(res);
       setState("ready");
     } catch (err) {
+      const meaning = classifyVerifyError(err, verificationId);
+      if (meaning && "state" in meaning) {
+        setCanonicalState(meaning.state);
+        setState("ready");
+        return;
+      }
+      if (meaning && "notice" in meaning) {
+        setLinkNotice(meaning.notice);
+        setState("ready");
+        return;
+      }
       setError(toSafeUserError(err));
       setState("error");
     }
   }, []);
 
   useEffect(() => {
-    if (paramId) void verify(paramId);
+    // A new link opened into this screen is the reference Try Again re-reads.
+    if (paramId) {
+      setId(paramId);
+      void verify(paramId);
+    }
   }, [paramId, verify]);
 
   const submitManual = useCallback(() => {
@@ -252,6 +295,31 @@ export default function VerifyScreen() {
           <ProovraText variant="bodySm" weight="semibold">{VERIFY_FINAL_CTA.title}</ProovraText>
           <ProovraText variant="label" color={theme.color.ink.secondary}>{VERIFY_FINAL_CTA.body}</ProovraText>
         </View>
+      </ProovraScreen>
+    );
+  }
+  // B5B-F-501 — a canonical state is said in the web's words, with no retry.
+  if (state === "ready" && canonicalState) {
+    const copy = VERIFY_CANONICAL_STATE_COPY[canonicalState];
+    return (
+      <ProovraScreen scroll={false}>
+        <ProovraEmptyState title={copy.title} message={copy.body} />
+      </ProovraScreen>
+    );
+  }
+  // AUD-28 — an ended or unknown link is neutral and final; a rate limit may be retried.
+  if (state === "ready" && linkNotice) {
+    return (
+      <ProovraScreen scroll={false}>
+        <ProovraEmptyState
+          title={linkNotice.title}
+          message={linkNotice.detail}
+          action={
+            linkNotice.kind === "RATE_LIMITED" ? (
+              <ProovraButton label={VERIFY_COPY.tryAgain} onPress={() => void verify(id)} />
+            ) : undefined
+          }
+        />
       </ProovraScreen>
     );
   }

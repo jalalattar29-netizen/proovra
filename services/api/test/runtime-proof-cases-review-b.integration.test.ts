@@ -845,12 +845,15 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       ]);
     });
 
-    it("POST /v1/siu/saved-views — another tenant is refused member_inactive; nothing written", async () => {
+    it("POST /v1/siu/saved-views — another tenant is refused as not found; nothing written", async () => {
       const a = h.fixtures.teamA;
       const name = `SIU refused ${tag()}`;
       const foreign = await call({ method: "POST", url: "/v1/siu/saved-views", token: h.fixtures.teamB.ownerToken, payload: viewBody(a.teamId, name) });
-      expect(foreign.statusCode).toBe(403);
-      expect(foreign.json()).toEqual({ error: { code: "member_inactive" } });
+      // B5B-F-303 (free-audit 0ea0): SIU saved views use the canonical SIU
+      // workspace gate — a non-member gets the anti-enumeration 404 the worklist
+      // gives (was a raw-row 403 member_inactive).
+      expect(foreign.statusCode).toBe(404);
+      expect(foreign.json()).toEqual({ error: { code: "not_found" } });
       const badFilter = await call({
         method: "POST",
         url: "/v1/siu/saved-views",
@@ -866,7 +869,10 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       const id = await createView(a.memberToken, `SIU rename ${tag()}`);
       const url = `/v1/siu/saved-views/${id}?teamId=${a.teamId}`;
       const foreign = await call({ method: "PATCH", url, token: h.fixtures.teamB.ownerToken, payload: { name: "Hijacked" } });
-      expect(foreign.statusCode).toBe(403);
+      // B5B-F-303 (free-audit 0ea0): SIU saved views use the canonical SIU
+      // workspace gate — a non-member gets the anti-enumeration 404 the worklist
+      // gives (was a raw-row 403 member_inactive).
+      expect(foreign.statusCode).toBe(404);
       const crossTeam = await call({
         method: "PATCH",
         url: `/v1/siu/saved-views/${id}?teamId=${h.fixtures.teamB.teamId}`,
@@ -893,8 +899,11 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       const id = await createView(a.memberToken, `SIU delete ${tag()}`);
       const url = `/v1/siu/saved-views/${id}?teamId=${a.teamId}`;
       const foreign = await call({ method: "DELETE", url, token: h.fixtures.teamB.ownerToken });
-      expect(foreign.statusCode).toBe(403);
-      expect(foreign.json()).toEqual({ error: { code: "member_inactive" } });
+      // B5B-F-303 (free-audit 0ea0): SIU saved views use the canonical SIU
+      // workspace gate — a non-member gets the anti-enumeration 404 the worklist
+      // gives (was a raw-row 403 member_inactive).
+      expect(foreign.statusCode).toBe(404);
+      expect(foreign.json()).toEqual({ error: { code: "not_found" } });
       const viewer = await call({ method: "DELETE", url, token: a.viewerToken });
       expect(viewer.statusCode).toBe(404);
       expect(await prisma.caseSiuSavedView.count({ where: { id } })).toBe(1);

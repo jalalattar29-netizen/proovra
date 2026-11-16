@@ -421,15 +421,20 @@ test("8b. an ordinary capture completes through /complete, not a screen route", 
  * 9. Revoked permissions and inactive membership
  * ======================================================================== */
 
-test("9. a refusal at reserve surfaces the refusal and leaves nothing behind", async () => {
+test("9. a refusal at reserve surfaces the refusal and seals nothing", async () => {
   // An inactive membership or a revoked workspace is refused by the canonical
   // primitive at reserve, before a single byte moves.
   failures.set("/evidence", { status: 403, code: "FORBIDDEN" });
 
-  await assert.rejects(() => screenCapture.stageScreenCapture(result(2)), /FORBIDDEN/);
+  const err = await screenCapture.stageScreenCapture(result(2)).then(() => null, (e) => e);
+  assert.match(String(err?.message), /FORBIDDEN/);
   assert.deepEqual(sealCalls(), []);
-  // The session was opened, so it is released.
-  assert.equal(discards().length, 1);
+  // B4-F-202 — an access refusal is HELD, not terminal: the frames (the only
+  // copy) and the session are kept for Retry once access is restored, and the
+  // person's explicit Discard releases them. It used to discard and delete.
+  assert.equal(err.held, "ACCESS");
+  assert.equal(err.retryable, true);
+  assert.equal(discards().length, 0);
 });
 
 test("9b. a refusal at session open never reaches a reservation", async () => {

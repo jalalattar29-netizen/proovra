@@ -22,6 +22,13 @@ export function samlLoginUrl(apiBase: string, connectionId: string): string {
 }
 
 const SIGN_IN_FAILURES: ReadonlyArray<[RegExp, string]> = [
+  // B5B-F-302 — the IdP verified an address that belongs to an existing
+  // self-serve account. The API linked nothing, minted no session, and left a
+  // 15-minute pending link that only the owner, signed in, can approve.
+  [
+    /account_link_requires_consent/,
+    "An account with this email already exists. Nothing was linked and no one was signed in. To connect it to your organization, sign in to your existing account the usual way and approve the link in Settings → Security within 15 minutes.",
+  ],
   [/browser_mismatch/, "This sign-in was started in a different browser. Start it again here."],
   [/(state_expired|_expired$)/, "That sign-in took too long. Start it again."],
   [/(state_replayed|_replayed$)/, "That sign-in link has already been used. Start it again."],

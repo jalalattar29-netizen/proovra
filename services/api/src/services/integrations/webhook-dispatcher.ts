@@ -42,6 +42,7 @@ import {
 } from "@proovra/shared-runtime/outbound";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { caseClosedTo, evidenceClosedTo } from "../access/record-reach.js";
 // Phase O1.4 — bounded webhook-dispatch span. Attributes are
 // bounded: eventType + endpointId hash prefix + status. NEVER the
 // payload, signature, or destination URL.
@@ -171,6 +172,32 @@ export type EmitWebhookEventResult = {
   failedTransient: number;
   failedPermanent: number;
 };
+
+/**
+ * B7B-F01 (free-audit 0ea0) — A MACHINE CHANNEL IS ON NO ACCESS LIST (AZ-R04).
+ *
+ * An API key reads unrestricted records only (integrations-api.routes.ts); a
+ * webhook is the same machine egress, pushed instead of pulled. An event that
+ * names a record or case a restricted case closes to "nobody" (the machine
+ * caller, `null`) does not leave the platform through it. Fails closed: a
+ * reach that cannot be read withholds the event.
+ */
+async function webhookPayloadRestricted(
+  payload: Record<string, unknown>,
+  client: PrismaClient,
+): Promise<boolean> {
+  const evidenceId = typeof payload.evidenceId === "string" ? payload.evidenceId : null;
+  const caseId = typeof payload.caseId === "string" ? payload.caseId : null;
+  if (!evidenceId && !caseId) return false;
+  try {
+    return (
+      (evidenceId !== null && (await evidenceClosedTo(evidenceId, null, client))) ||
+      (caseId !== null && (await caseClosedTo(caseId, null, client)))
+    );
+  } catch {
+    return true;
+  }
+}
 
 const EMPTY_RESULT: EmitWebhookEventResult = Object.freeze({
   enqueued: 0,
@@ -338,6 +365,7 @@ export async function emitWebhookEvent(
       e.eventTypes.length === 0 || e.eventTypes.includes(input.eventType),
   );
   if (matching.length === 0) return { ...EMPTY_RESULT };
+  if (await webhookPayloadRestricted(input.payload, client)) return { ...EMPTY_RESULT };
 
   const eventId = randomUUID();
   const payloadJson = {

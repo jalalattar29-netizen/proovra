@@ -29,7 +29,8 @@
 //   (gated by `requirePlatformAdmin`).
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { trustedClientIp, trustedClientIpKey } from "../middleware/client-ip.js";
+import { leadForwardedClientIpKey, trustedClientIp } from "../middleware/client-ip.js";
+import { cronSecretMatches, readCronSecretFromEnvs } from "../middleware/cron-secret.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { createContactSalesRequest } from "../services/contact-sales.service.js";
 
@@ -78,7 +79,10 @@ const CONTACT_SALES_RATE_LIMIT_PER_IP_PER_MIN = 5;
 export async function contactSalesRoutes(app: FastifyInstance) {
   app.post("/v1/contact-sales", async (req, reply) => {
     const rl = await enforceRateLimit({
-      key: `contact-sales:ip:${trustedClientIpKey(req)}`,
+      // B2A-F-16 — the proxy-forwarded visitor only with the proxy's key.
+      key: `contact-sales:ip:${leadForwardedClientIpKey(req, (provided) =>
+        cronSecretMatches(readCronSecretFromEnvs(["CONTACT_SALES_FORWARDING_KEY"]), provided),
+      )}`,
       bound: "global",
       max: CONTACT_SALES_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: 60,

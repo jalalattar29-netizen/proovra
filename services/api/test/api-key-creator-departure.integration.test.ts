@@ -105,11 +105,30 @@ describe("A2-10 — integration API keys and their creator (live PostgreSQL)", (
     expect((await row(id)).status).toBe("REVOKED");
   });
 
-  it("a role change alone leaves the key live", async () => {
+  // B3A-F-002 (free-audit 0ea0) superseded "a role change alone leaves the key
+  // live": a role change leaves it live only while the creator still holds the
+  // key permission (here through a capability grant); a demotion that takes it
+  // away revokes it, with the reason.
+  it("a role change leaves the key live while the creator keeps the key permission", async () => {
+    const creator = await person("ADMIN");
+    const id = await mint(creator.id);
+    await prisma.memberCapabilityGrant.create({
+      data: {
+        teamMemberId: creator.memberId,
+        teamId: A().teamId,
+        permission: "integration.api_key.manage",
+        grantedByUserId: A().ownerUserId,
+      },
+    });
+    await rbac.changeMemberRole({ teamId: A().teamId, teamMemberId: creator.memberId, actorUserId: A().ownerUserId, newRole: "MEMBER" });
+    expect((await row(id)).status).toBe("ACTIVE");
+  });
+
+  it("a demotion that takes the key permission away revokes the key", async () => {
     const creator = await person("ADMIN");
     const id = await mint(creator.id);
     await rbac.changeMemberRole({ teamId: A().teamId, teamMemberId: creator.memberId, actorUserId: A().ownerUserId, newRole: "MEMBER" });
-    expect((await row(id)).status).toBe("ACTIVE");
+    expect(await row(id)).toMatchObject({ status: "REVOKED", revokedReason: "creator_lost_authority" });
   });
 
   /*

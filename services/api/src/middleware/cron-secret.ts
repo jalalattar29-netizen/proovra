@@ -13,7 +13,16 @@
  *
  *  2. Secret NOT configured:
  *       - In production → 503 CONFIGURATION_ERROR (fail closed).
- *       - In non-production → allow authenticated OWNER/ADMIN only.
+ *       - In non-production → the OWNER/ADMIN fallback below, which reads the
+ *         signed-in user from `req.user`. B7A-F-008 (free-audit 0ea0): the
+ *         cron/internal routes guarded here register NO `requireAuth` and no
+ *         global hook sets `req.user`, so for them the fallback answers 401 to
+ *         everyone — the development surface fails CLOSED, and a developer
+ *         sets the secret. That is the intended behaviour: do not add
+ *         `requireAuth` in front of these routes to "make the fallback work",
+ *         because the fallback admits an ACTIVE OWNER/ADMIN of ANY workspace,
+ *         and every account owns a personal workspace (any Free user would
+ *         pass).
  *
  * Never log the secret. Constant-time compare on the hex/bytes.
  */
@@ -213,8 +222,9 @@ export function requireIntegrationCronSecret(
  *   - Fails closed in production when SEARCH_REINDEX_SECRET is unset
  *     (503 CONFIGURATION_ERROR), so a misconfigured prod deploy can
  *     never silently expose the surface.
- *   - In non-production, falls back to an OWNER/ADMIN-on-any-team
- *     check so local dev doesn't require setting up the secret.
+ *   - In non-production, the OWNER/ADMIN-on-any-team fallback applies;
+ *     the route has no `requireAuth`, so it answers 401 and local dev sets
+ *     the secret (B7A-F-008, see the module header).
  *   - Header is `x-internal-secret`. Env var is
  *     `SEARCH_REINDEX_SECRET`.
  *

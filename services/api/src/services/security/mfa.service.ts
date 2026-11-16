@@ -464,6 +464,58 @@ export async function revokeFactor(input: {
 }
 
 /** Consume a recovery code. */
+/**
+ * B1-F-020 (free-audit 0ea0) — verify a recovery code WITHOUT spending it.
+ *
+ * For a check that changes no state (the posture self-check). The same reads,
+ * ownership, batch and verifier checks and the same failure security events as
+ * `consumeRecoveryCode`; the success leaves `usedAt` untouched. Never a way to
+ * complete a sign-in or a step-up: those call `consumeRecoveryCode`.
+ */
+export async function checkRecoveryCode(input: {
+  userId: string;
+  code: string;
+}): Promise<{
+  ok: boolean;
+  reason?:
+    | "not_found"
+    | "already_used"
+    | "wrong_user"
+    | "invalidated"
+    | "code_invalid";
+}> {
+  const lookupHash = computeLookupHash(input.code);
+  const row = await prisma.mfaRecoveryCode.findUnique({
+    where: { codeLookupHash: lookupHash },
+    select: {
+      userId: true,
+      codeVerifier: true,
+      codeVerifierSalt: true,
+      usedAt: true,
+      batchInvalidatedAt: true,
+    },
+  });
+  const fail = (reason: "not_found" | "wrong_user" | "code_invalid") => {
+    safeEmitSecurityEvent({
+      teamId: null,
+      eventType: "mfa_verification_failed",
+      severity: "WARNING",
+      details: { actorUserId: input.userId, context: "recovery_code_check", reason },
+    });
+    return { ok: false, reason };
+  };
+  if (!row) return fail("not_found");
+  if (row.userId !== input.userId) return fail("wrong_user");
+  if (row.usedAt) return { ok: false, reason: "already_used" };
+  if (row.batchInvalidatedAt) return { ok: false, reason: "invalidated" };
+  const verifierOk = verifyRecoveryVerifier(input.code, {
+    salt: Buffer.from(row.codeVerifierSalt),
+    verifier: Buffer.from(row.codeVerifier),
+  });
+  if (!verifierOk) return fail("code_invalid");
+  return { ok: true };
+}
+
 export async function consumeRecoveryCode(input: {
   userId: string;
   code: string;
@@ -522,10 +574,16 @@ export async function consumeRecoveryCode(input: {
     });
     return { ok: false, reason: "code_invalid" };
   }
-  await prisma.mfaRecoveryCode.update({
-    where: { id: row.id },
+  // B1-F-002 — SINGLE USE, CLAIMED ATOMICALLY. The checks above read the row;
+  // the write was `where: { id }`, so two concurrent submissions of one code
+  // (two sign-ins racing, each with its own pending challenge) both passed the
+  // read and both succeeded. The claim is now conditional on the code still
+  // being unused and its batch still live, and the affected count decides.
+  const claimed = await prisma.mfaRecoveryCode.updateMany({
+    where: { id: row.id, usedAt: null, batchInvalidatedAt: null },
     data: { usedAt: new Date(), usedFromIp: input.ipAddress ?? null },
   });
+  if (claimed.count !== 1) return { ok: false, reason: "already_used" };
   safeEmitSecurityEvent({
     teamId: null,
     eventType: "mfa_verification_succeeded",

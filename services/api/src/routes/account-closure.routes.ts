@@ -36,6 +36,7 @@ import {
 import {
   evaluateAccountClosurePreflight,
   publicVerificationKeptConsequence,
+  recordsNotInAccountExportConsequence,
 } from "../services/identity/account-lifecycle-preflight.service.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 
@@ -75,7 +76,7 @@ export async function accountClosureRoutes(app: FastifyInstance) {
     async (req: FastifyRequest) => {
       const userId = getAuthUserId(req);
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
-      const [latest, preflight, publicVerification] = await Promise.all([
+      const [latest, preflight, publicVerification, recordsNotExported] = await Promise.all([
         prisma.accountClosureRequest.findFirst({
           where: { userId },
           select: REQUEST_SELECT,
@@ -85,13 +86,17 @@ export async function accountClosureRoutes(app: FastifyInstance) {
         // F-17 — closure leaves public verification pages live (policy);
         // say so, with the per-record control, before the person confirms.
         publicVerificationKeptConsequence(userId),
+        // B1-F-015 — the account export carries no records; say so first.
+        recordsNotInAccountExportConsequence(userId),
       ]);
       return {
         request: latest,
         blockers: preflight.blockers,
-        consequences: publicVerification
-          ? [...preflight.consequences, publicVerification]
-          : preflight.consequences,
+        consequences: [
+          ...preflight.consequences,
+          ...(publicVerification ? [publicVerification] : []),
+          ...(recordsNotExported ? [recordsNotExported] : []),
+        ],
         confirmationPhrase: CLOSURE_CONFIRMATION_PHRASE,
         coolingOffDays: Math.round(COOLING_OFF_MS / 86_400_000),
       };

@@ -156,7 +156,10 @@ describe("AI subject — Workspace A's AI entitlement cannot come from Personal 
     // Both migrated sites keep using aiScope.teamId (null for personal) as
     // the evidence-context key — a personal AI call cannot read workspace
     // evidence because the scope carries no workspace id.
-    expect((ai.match(/teamId:\s*aiScope\.teamId/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    // B6-F-25 (free-audit 0ea0) — the policy/ledger key is now `policyTeamId`:
+    // the PROVEN workspace, or on the fallback the caller's OWN personal team
+    // (resolved server-side, never from the request). Still no request field.
+    expect((ai.match(/teamId:\s*policyTeamId/g) ?? []).length).toBeGreaterThanOrEqual(2);
     expect(ai).not.toMatch(/teamId:\s*(req|body|query)\./);
   });
 });

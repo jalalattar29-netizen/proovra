@@ -73,6 +73,7 @@ import { humaniseCode } from "../../lib/ots-presentation";
 import {
   CapabilityDegradedPanel,
   useActiveWorkspaceId,
+  useCan,
   useEnterpriseSurfaceAccess,
   usePersonalSpace,
   usePlanFeature,
@@ -192,6 +193,10 @@ export function CasesIndex() {
   // unknown value keeps the affordance and the server stays the authority.
   // Viewing cases is not gated.
   const createLocked = usePlanFeature("casesIncluded") === false;
+  // B3C-F-005 / A2-14 — a VIEWER is read-only. Decided by the server-projected
+  // CASES_MANAGE capability of the active workspace (granted to every writer
+  // role, never to VIEWER), not by comparing role strings in the page.
+  const canManageCases = useCan("CASES_MANAGE");
   const router = useRouter();
 
   // Phase CASES-PERSONAL-UX — debounce the search input (300ms). The
@@ -486,6 +491,8 @@ export function CasesIndex() {
           totalBeforeFilter={envelope.total}
           anyFilterActive={anyFilterActive}
           canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
+          // B3C-F-005 / A2-14 — without CASES_MANAGE (a VIEWER) rows offer Open only.
+          viewerReadOnly={!canManageCases}
           workspaceGeneration={workspaceId ?? "none"}
           onClearFilters={() => setFilters(DEFAULT_FILTERS)}
           onCreateCase={createLocked ? null : () => setCreateOpen(true)}
@@ -754,7 +761,10 @@ function MatterQueueTable({
   onClearFilters,
   onCreateCase,
   onReload,
+  viewerReadOnly = false,
 }: {
+  /** B3C-F-005 — the caller lacks CASES_MANAGE (a VIEWER): no row writes are offered. */
+  viewerReadOnly?: boolean;
   items: ReadonlyArray<MatterQueueItem>;
   /**
    * Workspace identity. Any change clears the selection and discards an
@@ -973,7 +983,8 @@ function MatterQueueTable({
                 key={row.id}
                 row={row}
                 canSeeAdvancedCaseOps={canSeeAdvancedCaseOps}
-                selectable={canSeeAdvancedCaseOps}
+                readOnly={viewerReadOnly}
+                selectable={canSeeAdvancedCaseOps && !viewerReadOnly}
                 selected={selectedIds.includes(row.id)}
                 outcome={bulkOutcomes.find((o) => o.id === row.id) ?? null}
                 onToggleSelect={toggleOne}
@@ -1100,8 +1111,10 @@ function MatterQueueRow({
   outcome = null,
   onToggleSelect,
   onReload,
+  readOnly = false,
 }: {
   row: MatterQueueItem;
+  readOnly?: boolean;
   canSeeAdvancedCaseOps: boolean;
   selectable?: boolean;
   selected?: boolean;
@@ -1329,6 +1342,7 @@ function MatterQueueRow({
             caseName={row.name}
             status={row.status}
             onReload={onReload}
+            readOnly={readOnly}
           />
         </span>
       </div>
@@ -1435,11 +1449,13 @@ function RowActions({
   caseName,
   status,
   onReload,
+  readOnly = false,
 }: {
   caseId: string;
   caseName: string;
   status: string;
   onReload: () => Promise<void> | void;
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const { addToast } = useToast();
@@ -1562,6 +1578,8 @@ function RowActions({
           <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}`)}>
             Open
           </button>
+          {readOnly ? null : (
+          <>
           <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
             Rename
           </button>
@@ -1586,6 +1604,8 @@ function RowActions({
           >
             Delete
           </button>
+          </>
+          )}
         </div>
       ) : null}
     </div>

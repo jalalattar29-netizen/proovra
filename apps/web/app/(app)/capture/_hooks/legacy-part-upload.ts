@@ -65,6 +65,47 @@ function metadataFields(item: SessionItem, previous?: PartMetadata): Partial<Par
   return out;
 }
 
+/**
+ * B4-F-300 — the file name a part records: the basename only. The server's
+ * sanitizeFileName strips a folder upload's relative path on the ordinary
+ * door; the resumable door stored what it was sent, so the client never sends
+ * the path there (same rule: last segment of `/` or `\`, trimmed).
+ */
+export function capturedFileBasename(item: Pick<SessionItem, "relativePath" | "file">): string {
+  const raw = (item.relativePath || item.file.name || "").trim();
+  const last = raw.replace(/\\/g, "/").split("/").pop()?.trim() ?? "";
+  return last && last !== "." && last !== ".." ? last : item.file.name;
+}
+
+/**
+ * C-05 / F-P1-09 — the per-file client signals a part carries (both doors:
+ * the ordinary presign and, B4-F-300, the resumable session), incl. the
+ * silent-video marker.
+ */
+export function partClientSignals(item: SessionItem, locationIncluded: boolean) {
+  const s = item.clientSignals;
+  return s
+    ? {
+        captureTimeUtc: s.captureTimeUtc,
+        browserMediaCaptureAvailable: s.browserMediaCaptureAvailable,
+        folderPathPresent: s.folderPathPresent,
+        locationIncluded,
+        duplicateStatus: s.duplicateStatus,
+        screenshotLike: s.screenshotLike,
+        genericMime: s.genericMime,
+        oldLastModified: s.oldLastModified,
+        clientHintSha256Base64: s.clientHintSha256Base64,
+        // F-P1-09 parity — a video recorded without microphone says so, as native does.
+        ...(s.audioNotCapturedReason ? { audioTracks: s.audioTracks ?? [], audioNotCapturedReason: s.audioNotCapturedReason } : {}),
+      }
+    : undefined;
+}
+
+/** B4-F-300 — the metadata fields a NEW part carries (empty ones omitted). */
+export function newPartMetadataFields(item: SessionItem): Partial<PartMetadata> {
+  return metadataFields(item);
+}
+
 function partBody(
   item: SessionItem,
   index: number,
@@ -72,7 +113,6 @@ function partBody(
   locationIncluded: boolean,
   previous?: PartMetadata,
 ) {
-  const s = item.clientSignals;
   return {
     partIndex: index,
     mimeType: normalizeClientMimeType(item.mimeType),
@@ -81,21 +121,7 @@ function partBody(
     ...(integrity.contentMd5Base64 ? { contentMd5Base64: integrity.contentMd5Base64 } : {}),
     sizeBytes: item.file.size,
     ...metadataFields(item, previous),
-    clientSignals: s
-      ? {
-          captureTimeUtc: s.captureTimeUtc,
-          browserMediaCaptureAvailable: s.browserMediaCaptureAvailable,
-          folderPathPresent: s.folderPathPresent,
-          locationIncluded,
-          duplicateStatus: s.duplicateStatus,
-          screenshotLike: s.screenshotLike,
-          genericMime: s.genericMime,
-          oldLastModified: s.oldLastModified,
-          clientHintSha256Base64: s.clientHintSha256Base64,
-          // F-P1-09 parity — a video recorded without microphone says so, as native does.
-          ...(s.audioNotCapturedReason ? { audioTracks: s.audioTracks ?? [], audioNotCapturedReason: s.audioNotCapturedReason } : {}),
-        }
-      : undefined,
+    clientSignals: partClientSignals(item, locationIncluded),
   };
 }
 
@@ -185,9 +211,12 @@ export async function restatePartMetadata(input: {
   item: SessionItem;
   locationIncluded: boolean;
   previous: PartMetadata;
+  /** The file's digest when the caller already computed it (resumable path). */
+  checksumSha256Base64?: string;
 }): Promise<void> {
   const { evidenceId, index, item, locationIncluded, previous } = input;
-  const checksumSha256Base64 = item.clientSignals?.clientHintSha256Base64 ?? (await sha256Base64OfBlob(item.file));
+  const checksumSha256Base64 =
+    input.checksumSha256Base64 ?? item.clientSignals?.clientHintSha256Base64 ?? (await sha256Base64OfBlob(item.file));
   const body = partBody(item, index, { checksumSha256Base64 }, locationIncluded, previous);
   try {
     await postPart(evidenceId, body);

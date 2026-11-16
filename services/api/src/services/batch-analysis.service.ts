@@ -166,6 +166,23 @@ function toMetadata(row: JobRow): BatchJobMetadata {
 const WITH_ITEMS = { items: true } as const;
 
 /**
+ * B6-F-40 (Free-user audit 0ea0) — the workspace a read or write is bound to.
+ *
+ * The routes check plan and role on the REQUEST workspace; every job read and
+ * write used to filter on the owner alone, so a job (and the evidence it
+ * names) in another workspace — a Free personal one, or one the caller has
+ * left — was served and acted on under the entitlement of whichever paid
+ * workspace was current. A route passes the proven workspace and the
+ * predicate carries it; omitted (service-level callers and tests), the
+ * owner predicate alone applies as before.
+ */
+export type BatchWorkspaceScope = { teamId?: string | null };
+
+function teamPredicate(scope?: BatchWorkspaceScope): { teamId?: string } {
+  return scope?.teamId ? { teamId: scope.teamId } : {};
+}
+
+/**
  * Create a batch job.
  *
  * `teamId` is the workspace every item belongs to. The caller establishes
@@ -205,10 +222,11 @@ export async function createJob(input: {
 export async function getJob(
 userId: string,
 jobId: string,
+scope?: BatchWorkspaceScope,
 ): Promise<BatchJobMetadata | null> {
   if (!isUuid(jobId)) return null;
   const row = await prisma.batchAnalysisJob.findFirst({
-    where: { id: jobId, ownerUserId: userId },
+    where: { id: jobId, ownerUserId: userId, ...teamPredicate(scope) },
     include: WITH_ITEMS,
   });
   return row ? toMetadata(row) : null;
@@ -239,9 +257,10 @@ export const BATCH_JOB_LIST_LIMIT = 100;
 export async function listJobSummaries(
   userId: string,
   limit: number = BATCH_JOB_LIST_LIMIT,
+  scope?: BatchWorkspaceScope,
 ): Promise<{ jobs: BatchJobSummary[]; truncated: boolean }> {
   const rows = await prisma.batchAnalysisJob.findMany({
-    where: { ownerUserId: userId },
+    where: { ownerUserId: userId, ...teamPredicate(scope) },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
   });
@@ -267,9 +286,14 @@ export async function listJobSummaries(
 export async function countJobs(
   userId: string,
   statuses?: ReadonlyArray<prismaPkg.BatchAnalysisJobStatus>,
+  scope?: BatchWorkspaceScope,
 ): Promise<number> {
   return prisma.batchAnalysisJob.count({
-    where: { ownerUserId: userId, ...(statuses ? { status: { in: [...statuses] } } : {}) },
+    where: {
+      ownerUserId: userId,
+      ...teamPredicate(scope),
+      ...(statuses ? { status: { in: [...statuses] } } : {}),
+    },
   });
 }
 
@@ -286,13 +310,14 @@ export async function processBatch(
   ownerUserId: string,
   jobId: string,
   evidenceGetter?: (id: string) => Promise<unknown>,
+  scope?: BatchWorkspaceScope,
 ): Promise<void> {
   if (!isUuid(jobId)) throw new Error("Job not found");
 
   // Owner-scoped, like every other read here. A job belonging to someone else
   // is not found — the same answer they get for one that does not exist.
   const job = await prisma.batchAnalysisJob.findFirst({
-    where: { id: jobId, ownerUserId },
+    where: { id: jobId, ownerUserId, ...teamPredicate(scope) },
     include: WITH_ITEMS,
   });
   if (!job) throw new Error("Job not found");
@@ -327,10 +352,15 @@ export async function processBatch(
       });
       if (current?.status === "CANCELLED") return;
 
-      await prisma.batchAnalysisJobItem.update({
-        where: { id: item.id },
+      // B6-F-41 — every item write is conditional on the state the runner
+      // expects, so a cancellation that lands between the check above and
+      // this write (cancelJob moves PENDING/PROCESSING items to FAILED) is
+      // never overwritten.
+      const started = await prisma.batchAnalysisJobItem.updateMany({
+        where: { id: item.id, status: "PENDING", job: { status: "PROCESSING" } },
         data: { status: "PROCESSING", startedAtUtc: new Date() },
       });
+      if (started.count === 0) return;
 
       try {
         // Privacy-safe legacy batch result.
@@ -360,8 +390,8 @@ export async function processBatch(
           };
         }
 
-        await prisma.batchAnalysisJobItem.update({
-          where: { id: item.id },
+        await prisma.batchAnalysisJobItem.updateMany({
+          where: { id: item.id, status: "PROCESSING" },
           data: {
             status: "COMPLETED",
             resultJson: evidenceMetadata as prismaPkg.Prisma.InputJsonValue,
@@ -370,8 +400,8 @@ export async function processBatch(
         });
         processedItems += 1;
       } catch (itemError) {
-        await prisma.batchAnalysisJobItem.update({
-          where: { id: item.id },
+        await prisma.batchAnalysisJobItem.updateMany({
+          where: { id: item.id, status: "PROCESSING" },
           data: {
             status: "FAILED",
             error: boundedError(itemError),
@@ -382,7 +412,7 @@ export async function processBatch(
       }
 
       await prisma.batchAnalysisJob.updateMany({
-        where: { id: jobId, ownerUserId },
+        where: { id: jobId, ownerUserId, status: "PROCESSING" },
         data: { processedItems, failedItems },
       });
     }
@@ -458,9 +488,21 @@ export async function cancelJob(
       },
       data: { status: "FAILED", error: "Job cancelled by user", completedAtUtc: stoppedAt },
     });
+    // B6-F-41 — the counters say what the items say: a cancelled job reports
+    // the items it completed and the ones it failed or stopped, not the
+    // runner's last snapshot.
+    const [completedCount, failedCount] = await Promise.all([
+      tx.batchAnalysisJobItem.count({ where: { jobId, status: "COMPLETED" } }),
+      tx.batchAnalysisJobItem.count({ where: { jobId, status: "FAILED" } }),
+    ]);
     await tx.batchAnalysisJob.updateMany({
       where: { id: jobId, ownerUserId: userId },
-      data: { status: "CANCELLED", completedAtUtc: stoppedAt },
+      data: {
+        status: "CANCELLED",
+        completedAtUtc: stoppedAt,
+        processedItems: completedCount,
+        failedItems: failedCount,
+      },
     });
     return "CANCELLED" as const;
   });
@@ -470,14 +512,28 @@ export async function cancelJob(
 export async function getAggregateResults(
   ownerUserId: string,
   jobId: string,
+  scope?: BatchWorkspaceScope,
 ): Promise<{
   classifications: Record<string, number>;
   averageConfidence: number;
   safetyBreakdown: Record<string, number>;
   mostCommonTags: Array<{ tag: string; count: number }>;
   successRate: number;
+  /** B6-F-41 — what the analyser actually produced: record metadata only. */
+  mode: "METADATA_ONLY";
+  typeBreakdown: Record<string, number>;
+  verificationBreakdown: Record<string, number>;
 }> {
-  const job = await requireJob(ownerUserId, jobId);
+  const job = await requireJob(ownerUserId, jobId, scope);
+  const typeBreakdown: Record<string, number> = {};
+  const verificationBreakdown: Record<string, number> = {};
+  for (const item of job.items) {
+    const meta = item.result as { type?: unknown; verificationStatus?: unknown } | undefined;
+    if (meta && typeof meta.type === "string") typeBreakdown[meta.type] = (typeBreakdown[meta.type] ?? 0) + 1;
+    if (meta && typeof meta.verificationStatus === "string") {
+      verificationBreakdown[meta.verificationStatus] = (verificationBreakdown[meta.verificationStatus] ?? 0) + 1;
+    }
+  }
 
   const classifications: Record<string, number> = {};
   const safetyBreakdown: Record<string, number> = {};
@@ -519,31 +575,55 @@ export async function getAggregateResults(
     safetyBreakdown,
     mostCommonTags,
     successRate: job.totalItems > 0 ? (job.processedItems / job.totalItems) * 100 : 0,
+    mode: "METADATA_ONLY",
+    typeBreakdown,
+    verificationBreakdown,
   };
 }
 
-/** Export batch results as CSV. */
-export async function exportAsCSV(ownerUserId: string, jobId: string): Promise<string> {
-  const job = await requireJob(ownerUserId, jobId);
-
-  const rows = ["Evidence ID,Status,Classification,Confidence,Risk Level,Tags,Error"];
-
-  job.items.forEach((item) => {
-    if (item.result) {
-      const result = item.result as BatchItemAnalysis;
-      const tags = result.tags?.tags?.join(";") || "";
-      const classification = result.classification?.category || "N/A";
-      const confidence = result.classification?.confidence?.toFixed(2) || "N/A";
-      const riskLevel = result.moderation?.risk_level || "N/A";
-
-      rows.push(
-        `${item.evidenceId},${item.status},${classification},${confidence},${riskLevel},"${tags}",${item.error || ""}`,
-      );
-    } else {
-      rows.push(`${item.evidenceId},${item.status},N/A,N/A,N/A,,${item.error || ""}`);
-    }
-  });
-
+/**
+ * Export batch results as CSV.
+ *
+ * B6-F-41 (Free-user audit 0ea0) — the columns are the ones the analyser
+ * produces. This is a METADATA-ONLY analyser (header): it never wrote the
+ * legacy classification / confidence / risk / tag fields, so every row of the
+ * old export read N/A. The export now carries the per-record metadata the run
+ * recorded, each value CSV-quoted.
+ */
+export async function exportAsCSV(
+  ownerUserId: string,
+  jobId: string,
+  scope?: BatchWorkspaceScope,
+): Promise<string> {
+  const job = await requireJob(ownerUserId, jobId, scope);
+  const cell = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    let text = String(value);
+    // Formula neutralisation, as the platform's other CSV exports do.
+    if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
+  const rows = [
+    "Evidence ID,Status,Type,MIME type,Record status,Verification status,Size (bytes),Stored object,Error",
+  ];
+  for (const item of job.items) {
+    const meta = (item.result ?? {}) as Record<string, unknown>;
+    rows.push(
+      [
+        item.evidenceId,
+        item.status,
+        meta.type,
+        meta.mimeType,
+        meta.status,
+        meta.verificationStatus,
+        meta.sizeBytes,
+        meta.hasStorageObject === undefined ? "" : meta.hasStorageObject ? "yes" : "no",
+        item.error,
+      ]
+        .map(cell)
+        .join(","),
+    );
+  }
   return rows.join("\n");
 }
 
@@ -561,13 +641,17 @@ export async function estimateCompletion(
   return new Date(Date.now() + remainingItems * avgTimePerItem);
 }
 
-async function requireJob(ownerUserId: string, jobId: string): Promise<BatchJobMetadata> {
+async function requireJob(
+  ownerUserId: string,
+  jobId: string,
+  scope?: BatchWorkspaceScope,
+): Promise<BatchJobMetadata> {
   if (!isUuid(jobId)) throw new Error("Job not found");
   // Owner-scoped. These read paths are reached from routes that check first,
   // but a function that answers about ANY job by id alone is one refactor away
   // from being called somewhere that does not.
   const row = await prisma.batchAnalysisJob.findFirst({
-    where: { id: jobId, ownerUserId },
+    where: { id: jobId, ownerUserId, ...teamPredicate(scope) },
     include: WITH_ITEMS,
   });
   if (!row) throw new Error("Job not found");

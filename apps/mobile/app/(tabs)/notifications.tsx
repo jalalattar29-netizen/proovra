@@ -20,6 +20,7 @@ import {
   TONE_STATUS,
   activeInboxFilterCount,
   buildInboxQueryPath,
+  buildMarkAllReadBody,
   deriveInboxFilterContext,
   inboxItemMeta,
   inboxEmptyReason,
@@ -36,7 +37,10 @@ import {
   type InboxViewItem,
   type PrimaryView,
 } from "../../src/product/inbox-view";
-import { usePlatformContext } from "../../src/product/platform-context";
+import { refreshPlatformContext, usePlatformContext } from "../../src/product/platform-context";
+import { parseCanonicalMobileDeepLink, resolveMobileDeepLink } from "../../src/deep-link";
+import { SWITCH_WORKSPACE_PATH, buildSwitchWorkspaceBody } from "../../src/product/spaces";
+import { WORKSPACE_SWITCH_BLOCKED_BODY, workspaceSwitchBlocked } from "../../src/product/workspace-switch-guard";
 import { useOptionalLocale } from "../../src/locale-context";
 
 const isReadStateView = (v: string): v is "all" | "unread" | "read" => v === "all" || v === "unread" || v === "read";
@@ -195,13 +199,59 @@ export default function NotificationsScreen() {
     [items, pendingKey, addToast, primaryView, refreshCounts],
   );
 
+  /*
+   * B2B-F-04 (Free-user audit 0ea0) — a RECORD destination goes through the
+   * same server resolution as a universal link (POST /v1/deep-link/resolve):
+   * the record's workspace is switched to first when it is not the active one,
+   * and the item is marked read only once the destination actually opens. A
+   * denial says so and leaves the item unread. Non-record destinations
+   * (organizations, settings, intake links) open as before.
+   */
+  const activeTeamId = platform.context?.activeTeamId ?? null;
   const open = useCallback(
-    (item: InboxViewItem, route: string) => {
-      // Opening marks read, fire-and-forget (web Open link onClick).
-      if (!item.isRead && item.canMarkRead) void act(item, "read");
-      router.push(route as never);
+    async (item: InboxViewItem, route: string) => {
+      const markRead = () => {
+        if (!item.isRead && item.canMarkRead) void act(item, "read");
+      };
+      const href = item.href ?? "";
+      const url = href.startsWith("/") ? `https://app.proovra.com${href}` : "";
+      if (!url || !parseCanonicalMobileDeepLink(url)) {
+        markRead();
+        router.push(route as never);
+        return;
+      }
+      const outcome = await resolveMobileDeepLink(url, {
+        resolve: (input) =>
+          apiFetch("/v1/deep-link/resolve", { method: "POST", body: JSON.stringify(input) }) as Promise<{
+            ok?: boolean;
+            workspaceId?: string;
+          } | null>,
+        hasActiveWork: workspaceSwitchBlocked,
+      });
+      if (outcome.status === "navigate") {
+        try {
+          if (outcome.workspaceId && outcome.workspaceId !== activeTeamId) {
+            await apiFetch(SWITCH_WORKSPACE_PATH, {
+              method: "POST",
+              body: JSON.stringify(buildSwitchWorkspaceBody(outcome.workspaceId)),
+            });
+            refreshPlatformContext();
+          }
+        } catch {
+          addToast("This item is not available.", "error");
+          return;
+        }
+        markRead();
+        router.push(outcome.route as never);
+      } else if (outcome.status === "denied") {
+        addToast("This item is not available.", "error");
+      } else if (outcome.status === "offline") {
+        addToast("You appear to be offline. Connect to the internet, then try again.", "error");
+      } else if (outcome.status === "blocked_busy") {
+        addToast(WORKSPACE_SWITCH_BLOCKED_BODY, "error");
+      }
     },
-    [act, router],
+    [act, router, activeTeamId, addToast],
   );
 
   /**
@@ -212,14 +262,18 @@ export default function NotificationsScreen() {
   const markAllRead = useCallback(async () => {
     setMarkingAll(true);
     try {
-      await apiFetch("/v1/me/inbox/mark-all-read", { method: "POST" });
+      // B2B-F-01 — scoped to what is on screen (workspace + category chip).
+      await apiFetch("/v1/me/inbox/mark-all-read", {
+        method: "POST",
+        body: JSON.stringify(buildMarkAllReadBody({ category, workspaceId })),
+      });
       await load();
     } catch (err) {
       addToast(toSafeUserError(err).message, "error");
     } finally {
       setMarkingAll(false);
     }
-  }, [load, addToast]);
+  }, [load, addToast, category, workspaceId]);
 
   const selectView = useCallback((v: PrimaryView) => setPrimaryView(v), []);
   /** Archived composes with the view — except Unread, which it cannot contain. */
@@ -436,7 +490,7 @@ export default function NotificationsScreen() {
                       accessibilityLabel={`Open: ${text.title}`}
                       variant="primary"
                       fullWidth={false}
-                      onPress={() => open(item, route)}
+                      onPress={() => void open(item, route)}
                     />
                   ) : null}
                   {item.canMarkRead ? (

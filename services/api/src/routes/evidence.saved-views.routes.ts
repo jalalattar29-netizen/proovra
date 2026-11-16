@@ -174,14 +174,37 @@ async function assertSavedViewAccess(
     throw savedViewError(404);
   }
   const role = outcome.context.workspaceRole;
+  if (role === "OWNER" || role === "ADMIN") return savedView;
+  // B5A-F-14 (free-audit 0ea0) — a team view is shared workspace content: its
+  // creator changes it only while they still hold the write the view's
+  // creation needs (a creator demoted to VIEWER is read-only, A2-14).
   if (
-    savedView.ownerUserId === outcome.context.userId ||
-    role === "OWNER" ||
-    role === "ADMIN"
+    savedView.ownerUserId === outcome.context.userId &&
+    outcome.context.capabilities.has(TEAM_VIEW_WRITE_PERMISSION)
   ) {
     return savedView;
   }
   throw savedViewError(403);
+}
+
+/**
+ * B5A-F-14 (free-audit 0ea0) — A TEAM VIEW IS A WRITE INTO SHARED SPACE.
+ *
+ * A view with a `teamId` is listed to every member of the workspace, so making
+ * one is not a personal bookmark. It was gated on `evidence.read`, which a
+ * VIEWER holds (A2-14: Viewer is read-only). It now needs the evidence write
+ * every role but VIEWER holds; a VIEWER keeps personal views (no team).
+ */
+const TEAM_VIEW_WRITE_PERMISSION = "evidence.update_metadata" as const;
+
+/**
+ * B5A-F-14 — `isDefault` is a preference of the view's OWNER (the list shows it
+ * only to them). An administrator who may edit a colleague's team view must
+ * not be able to set or clear that colleague's default: the reset ran over the
+ * colleague's own views. Only the owner moves their default.
+ */
+function defaultChangeRefused(savedView: { ownerUserId: string }, userId: string): boolean {
+  return savedView.ownerUserId !== userId;
 }
 
 function mapEvidenceSavedView(savedView: {
@@ -271,9 +294,11 @@ export async function evidenceSavedViewsRoutes(app: FastifyInstance) {
         // PHASE 1 (2026-07-21) — creating a team-scoped saved view is gated by
         // the canonical primitive (ACTIVE membership + org lifecycle +
         // evidence.read + fail-closed + anti-enumeration 404).
+        // B5A-F-14 (free-audit 0ea0) — a team view is shown to every member:
+        // the write permission, not the read (a VIEWER holds evidence.read).
         const authz = await authorizeOrFail(req, reply, {
           teamId: body.teamId,
-          permission: "evidence.read",
+          permission: TEAM_VIEW_WRITE_PERMISSION,
           antiEnumeration: true,
         });
         if (!authz) return;
@@ -317,6 +342,9 @@ export async function evidenceSavedViewsRoutes(app: FastifyInstance) {
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const body = UpdateSavedViewBody.parse(req.body);
       const savedView = await assertSavedViewAccess(req, userId, id);
+      if (body.isDefault !== undefined && defaultChangeRefused(savedView, userId)) {
+        throw savedViewError(403);
+      }
 
       if (body.isDefault === true) {
         await prisma.evidenceSavedView.updateMany({
@@ -374,6 +402,7 @@ export async function evidenceSavedViewsRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const savedView = await assertSavedViewAccess(req, userId, id);
+      if (defaultChangeRefused(savedView, userId)) throw savedViewError(403);
 
       await prisma.$transaction([
         prisma.evidenceSavedView.updateMany({

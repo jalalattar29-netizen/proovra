@@ -58,7 +58,11 @@ describe("Phase 6 §9.3/§9.6 — bulk ADD_TO_CASE cross-team gate", () => {
     expect(src).toContain("authorizeCaseEvidenceLink({ userId, caseId: caseItem.id })");
     expect(src).toContain("authorizeCaseEvidenceLink({ userId, caseId: link.caseId })");
     expect(cases).toContain("authorizeCaseEvidenceLink({ userId, caseId: id, evidenceId: body.evidenceId })");
-    expect(cases).toContain("authorizeCaseEvidenceLink({ userId, caseId: id })");
+    // B3C-F-004 (free-audit 0ea0, pin updated 2026-11-16): the detach route
+    // names a record, so it now passes it too (the record must be open to the
+    // caller, as POST requires) — the case-only form became the record form.
+    expect(cases).toContain("authorizeCaseEvidenceLink({ userId, caseId: id, evidenceId })");
+    expect(cases).toContain("authorizeCaseEvidenceLink({ userId: ownerUserId, caseId: id })");
   });
 });
 

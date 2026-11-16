@@ -266,16 +266,24 @@ export function HomePrioritiesCard({
 
 /* --------------------------------------------------------- getting started */
 
-export function HomeGettingStartedCard() {
+/**
+ * B2A-F-04 (Free-user audit 0ea0) — "Create a case" only where the plan
+ * includes cases (`planFeatures.casesIncluded`, fail-closed).
+ */
+export function HomeGettingStartedCard({ casesIncluded = false }: { casesIncluded?: boolean } = {}) {
   const router = useRouter();
   return (
     <HomeCard title="Start your first evidence workflow" testID="home-getting-started">
       <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-        Capture your first record or create a case to get started.
+        {casesIncluded
+          ? "Capture your first record or create a case to get started."
+          : "Capture your first record to get started."}
       </ProovraText>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
         <ProovraButton label="Capture evidence" fullWidth={false} onPress={() => router.push("/capture")} />
-        <ProovraButton label="Create a case" variant="secondary" fullWidth={false} onPress={() => router.push("/cases" as never)} />
+        {casesIncluded ? (
+          <ProovraButton label="Create a case" variant="secondary" fullWidth={false} onPress={() => router.push("/cases" as never)} />
+        ) : null}
       </View>
     </HomeCard>
   );

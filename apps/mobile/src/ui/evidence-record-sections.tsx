@@ -19,6 +19,7 @@ import {
   CUSTODY_TIMELINE_COPY,
   DESTROYED_COPY,
   INTEGRITY_FAILED_COPY,
+  INTEGRITY_FAILED_FREE_SLOT_NOTE,
   INTEGRITY_STATE_PRESENTATION,
   PREVIEW_COPY,
   REVIEWER_STATUS_DISCLAIMER,
@@ -110,8 +111,16 @@ function Alert({ title, body, tone, children, testID }: { title: string; body: s
 
 /* ----------------------------------------------------------- integrity banner */
 
-export function IntegrityFailedBanner() {
-  return <Alert testID="evidence-integrity-failed" tone="danger" title={INTEGRITY_FAILED_COPY.title} body={INTEGRITY_FAILED_COPY.body} />;
+export function IntegrityFailedBanner({ freeSlotNote = false }: { freeSlotNote?: boolean } = {}) {
+  return (
+    <Alert testID="evidence-integrity-failed" tone="danger" title={INTEGRITY_FAILED_COPY.title} body={INTEGRITY_FAILED_COPY.body}>
+      {freeSlotNote ? (
+        <ProovraText variant="label" color={theme.color.ink.secondary} testID="evidence-integrity-failed-slot">
+          {INTEGRITY_FAILED_FREE_SLOT_NOTE}
+        </ProovraText>
+      ) : null}
+    </Alert>
+  );
 }
 
 /* ------------------------------------------------------------------- rail */
@@ -688,6 +697,7 @@ export function PrivateNotesHead({ record, canSeeReviewerOps }: { record: Record
  */
 export function LifecycleManagementCard({
   lifecycle,
+  actor,
   facts,
   busy,
   onRestoreArchive,
@@ -696,6 +706,8 @@ export function LifecycleManagementCard({
   onTrash,
 }: {
   lifecycle: LifecycleProjection | null;
+  /** B5A-F-03 / A2-14 — what the caller may do; absent = everything (server decides). */
+  actor?: { canArchive: boolean; canTrash: boolean; canRestoreFromTrash: boolean };
   facts: Array<{ label: string; value: string }>;
   busy: boolean;
   onRestoreArchive: () => void;
@@ -706,6 +718,7 @@ export function LifecycleManagementCard({
   const productState = lifecycle?.productState ?? "ACTIVE";
   const retention = retentionPosture(lifecycle);
   const trashDisabled = !lifecycle?.canTrash;
+  const may = actor ?? { canArchive: true, canTrash: true, canRestoreFromTrash: true };
   return (
     <ProovraCard testID="lifecycle-management">
       <ProovraText variant="h3" weight="semibold">Lifecycle management</ProovraText>
@@ -723,15 +736,15 @@ export function LifecycleManagementCard({
       ) : (
         <>
           <View style={styles.actionsRow}>
-            {lifecycle?.canUnarchive ? <ProovraButton label="Restore to active" variant="secondary" fullWidth={false} disabled={busy} onPress={onRestoreArchive} /> : null}
-            {lifecycle?.canArchive ? <ProovraButton label="Archive evidence" accessibilityLabel="Archive evidence (lifecycle)" variant="secondary" fullWidth={false} disabled={busy} onPress={onArchive} /> : null}
-            {lifecycle?.canRestoreFromTrash ? (
+            {lifecycle?.canUnarchive && may.canArchive ? <ProovraButton label="Restore to active" variant="secondary" fullWidth={false} disabled={busy} onPress={onRestoreArchive} /> : null}
+            {lifecycle?.canArchive && may.canArchive ? <ProovraButton label="Archive evidence" accessibilityLabel="Archive evidence (lifecycle)" variant="secondary" fullWidth={false} disabled={busy} onPress={onArchive} /> : null}
+            {lifecycle?.canRestoreFromTrash && may.canRestoreFromTrash ? (
               <ProovraButton label="Restore from trash" accessibilityLabel="Restore from trash (lifecycle)" variant="secondary" fullWidth={false} disabled={busy} onPress={onRestoreTrash} />
-            ) : productState !== "TRASHED" ? (
+            ) : productState !== "TRASHED" && may.canTrash ? (
               <ProovraButton label="Move to trash" accessibilityLabel="Move to trash (lifecycle)" variant="danger" fullWidth={false} disabled={trashDisabled || busy} onPress={onTrash} />
             ) : null}
           </View>
-          {trashDisabled && productState !== "TRASHED" ? (
+          {trashDisabled && productState !== "TRASHED" && may.canTrash ? (
             <Alert
               testID="lifecycle-trash-helper"
               tone="warn"

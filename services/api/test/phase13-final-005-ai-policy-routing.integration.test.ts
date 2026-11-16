@@ -76,6 +76,15 @@ describe("FINAL-005 — the AI policy surface is reachable through both spelling
     foreignOwnerToken = h.fixtures.teamB.ownerToken;
     personalWorkspaceId = h.fixtures.personal.teamId;
     personalToken = h.fixtures.personal.token;
+    // B6-F-22 / B6-F-46 (Free-user audit 0ea0, 2026-11-16) — switching semantic
+    // search ON is now plan-gated (PlanCapabilities.aiCapabilitiesIncluded;
+    // FREE carries only the AI trial). This file proves ROUTING, not plan, so
+    // the workspace whose policy it writes is on a plan that includes it. The
+    // Free refusal is proven in free-audit-g4a-plan-ai.integration.
+    await prisma.team.update({
+      where: { id: workspaceId },
+      data: { billingPlan: "TEAM", billingStatus: "ACTIVE" },
+    });
   }, 900_000);
 
   afterAll(async () => {

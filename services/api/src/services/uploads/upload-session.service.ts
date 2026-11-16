@@ -29,7 +29,7 @@
  * addition can come in a follow-up regeneration.
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { MULTIPART_PART_SIZE_MAX_BYTES } from "@proovra/shared";
 
@@ -42,6 +42,8 @@ import {
   writeEvidencePart,
 } from "../evidence/evidence-part-writer.service.js";
 import { bump } from "../ops/metrics.service.js";
+import { withPartBinding, type DeclaredPartFile } from "../evidence/evidence-part-binding.service.js";
+import { sanitizeFileName } from "./upload-door-facts.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { error as logError } from "../../utils/logger.js";
 import {
@@ -333,6 +335,21 @@ export type CreateSessionInput = {
   expectedMimeType?: string | null;
 };
 
+/**
+ * B4-F-300 (free audit 0ea0) — the per-file contract the ordinary door's part
+ * presign takes (CreatePartBody), for the part the resumable bridge creates:
+ * note / role / checklist step / source and the client signals (the F-P1-09
+ * silent-video marker included). Stored on the bridged EvidencePart; the
+ * client signals carry the C-06 server binding (declared digest and size).
+ */
+export type BridgePartContract = {
+  privateRole?: string | null;
+  privateNote?: string | null;
+  checklistStepId?: string | null;
+  sourceLabel?: string | null;
+  clientSignals?: unknown;
+};
+
 export type CreateSessionResult =
   | { ok: true; session: UploadSessionRow; reused: boolean }
   | { ok: false; reason: UploadSessionDenialCode };
@@ -493,7 +510,9 @@ export async function createUploadSession(
       input.idempotencyKey?.slice(0, 120) ?? null,
       expiresAt,
       input.targetPartIndex ?? null,
-      input.originalFileName?.slice(0, 255) ?? null,
+      // B4-F-300 — the ordinary door's file-name rule: a folder upload's
+      // relative path never enters the record, only its basename.
+      sanitizeFileName(input.originalFileName)?.slice(0, 255) ?? null,
       input.expectedMimeType?.slice(0, 128) ?? null,
     )) as RawSession[];
     const session = rows[0];
@@ -1841,6 +1860,8 @@ export type CompleteStorageMultipartInput = {
    *  `expected_sha256`. Hash mismatch refuses the storage-complete
    *  AND flips the session to FAILED. */
   verifyHash: boolean;
+  /** B4-F-300 — the bridged part's per-file contract, when the client states it. */
+  partContract?: BridgePartContract | null;
 };
 
 export type CompleteStorageMultipartResult =
@@ -2117,10 +2138,16 @@ export async function completeStorageMultipart(
           data: {
           storageBucket: session.storage_bucket,
           storageKey: session.storage_key,
-          originalFileName: session.original_file_name,
+          originalFileName: sanitizeFileName(session.original_file_name),
           sizeBytes: BigInt(head.contentLength),
           mimeType: session.expected_mime_type,
           sha256: serverSha256,
+          ...bridgePartContractData(input.partContract ?? null, {
+            originalFileName: sanitizeFileName(session.original_file_name),
+            mimeType: session.expected_mime_type ?? null,
+            sha256Base64: Buffer.from(session.expected_sha256 ?? serverSha256, "hex").toString("base64"),
+            sizeBytes: session.expected_total_bytes != null ? Number(session.expected_total_bytes) : head.contentLength,
+          }),
           // uploadedAtUtc: intentionally NULL — completeEvidence's
           // transaction sets this atomically alongside the legacy
           // parts. Custody invariant: no part is marked uploaded
@@ -2170,6 +2197,24 @@ export async function completeStorageMultipart(
     etag: completedEtag,
     contentLength: head.contentLength,
     serverSha256,
+  };
+}
+
+/**
+ * B4-F-300 — the bridged part's contract columns, exactly as the ordinary
+ * door's presign writes them (trimmed, empty → null), with the client signals
+ * bound to the declared file (`withPartBinding`: the session's declared
+ * digest and size). Without a stated contract the binding alone is stored.
+ */
+function bridgePartContractData(contract: BridgePartContract | null, declared: DeclaredPartFile) {
+  const bound = withPartBinding(contract?.clientSignals, declared);
+  return {
+    privateRole: contract?.privateRole?.trim() || null,
+    privateNote: contract?.privateNote?.trim() || null,
+    checklistStepId: contract?.checklistStepId?.trim() || null,
+    sourceLabel: contract?.sourceLabel?.trim() || null,
+    clientSignals:
+      bound === undefined || bound === null ? undefined : (bound as Prisma.InputJsonValue),
   };
 }
 

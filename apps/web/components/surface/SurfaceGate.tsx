@@ -35,6 +35,7 @@ import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 import { usePlatformContext } from "../../lib/platform-context/PlatformContextProvider";
 import { isContextResolving } from "../../lib/platform-context/types";
 import { ProovraSystemState } from "../feedback/ProovraSystemState";
+import { useActiveSpaceBillingAuthority } from "../../lib/billing/active-space-billing";
 
 export type SurfaceGateProps = {
   children: ReactNode;
@@ -61,6 +62,7 @@ export function SurfaceGate({
   const router = useRouter();
   const userCtx = useSurfaceUserContext();
   const { state } = usePlatformContext();
+  const billingAuthority = useActiveSpaceBillingAuthority();
   const effectivePath = pathnameOverride ?? pathname ?? "/";
 
   /**
@@ -212,10 +214,18 @@ export function SurfaceGate({
         presentation="full-page"
         minHeight="60vh"
         testId="surface-gate-forbidden"
-        message="This workspace or feature may require additional permissions, or isn't included on your current plan. Ask a workspace admin for access, or head back to the dashboard."
+        message={
+          // B7A-F-007 — a rule may name what is missing; B3A-F-004 — and who
+          // can change the plan when the viewer does not pay for it.
+          `${decision.message ?? "This workspace or feature may require additional permissions, or isn't included on your current plan. Ask a workspace admin for access, or head back to the dashboard."}${
+            billingAuthority.canManage === false ? ` ${billingAuthority.askCopy}` : ""
+          }`
+        }
         actions={[
           { label: "Back to dashboard", href: "/home", variant: "primary" },
-          { label: "View plans", href: "/billing", variant: "secondary" },
+          ...(billingAuthority.canManage === true
+            ? [{ label: "View plans", href: "/billing", variant: "secondary" as const }]
+            : []),
           // /support is a public page; this forbidden state renders inside
           // the authenticated App Shell, so open it in a new tab (external
           // cue) rather than replacing the app in the current tab.

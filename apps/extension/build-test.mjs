@@ -25,6 +25,7 @@ await build({
     "page-eligibility": join(HERE, "src/lib/page-eligibility.ts"),
     "popup-links": join(HERE, "src/lib/popup-links.ts"),
     "pending-release": join(HERE, "src/lib/pending-release.ts"),
+    "client-contract": join(HERE, "src/lib/client-contract.ts"),
   },
   outdir: join(HERE, "test/dist"),
   bundle: true,

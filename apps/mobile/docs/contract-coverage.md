@@ -52,7 +52,7 @@ top level of it.
 | OK | `parseCaseViewer` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | disabledReasons, userId, viewer |
 | OK | `parseCaseDeliverableRows` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
 | OK | `parseCaseCopilotEvidence` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
-| OK | `parseMatterQueue` | `GET /v1/cases/matter-queue` | generatedAt, items, total, workspace | generatedAt, items, total |
+| OK | `parseMatterQueue` | `GET /v1/cases/matter-queue` | generatedAt, items, total, workspace | generatedAt, items, total, workspace |
 | OK | `parseCollaborationTeams` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | teams |
 | OK | `parseCanGovernWorkspace` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | canGovernWorkspace |
 | OK | `parseGrantedScope` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | scope |
@@ -169,7 +169,7 @@ top level of it.
 | OK | `parseSubprocessorRegistry` | `GET /v1/trust/subprocessors` | degraded, reason, subprocessors | degraded, reason, subprocessors |
 | OK | `parseSubprocessorVersions` | `GET /v1/trust/subprocessors/:id/versions` | versions | versions |
 | OK | `parseUsageStats` | `GET /v1/usage-stats` | data | costBreakdown, dailyAnalyses, data |
-| OK | `parseUsageExtras` | `GET /v1/usage-stats` | data | activeApiKeys, activeBatches, costBreakdown, data, topEvidenceTypes |
+| OK | `parseUsageExtras` | `GET /v1/usage-stats` | data | activeApiKeys, activeBatches, costBreakdown, costIsCharged, data, topEvidenceTypes |
 | OK | `parseCookieConsent` | `GET /v1/users/cookie-consent/latest` | record | analytics, consentVersion, createdAt, length, marketing, necessary, preferences, record |
 | OK | `parseLegalAcceptances` | `GET /v1/users/legal-acceptance` | items | items |
 | OK | `parseLegalStatusView` | `GET /v1/users/legal-status` | acceptedVersions, missingPolicies, ok, requiredVersions, requiresReacceptance | acceptedVersions, missingPolicies, requiredVersions, requiresReacceptance |

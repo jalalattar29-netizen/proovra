@@ -57,6 +57,7 @@ import type { RecipientContactDisclosure } from "../privacy/recipient-contact-di
 import { maskEmail, maskPhonePreview } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { resolveAccessibleWorkspace } from "../access/accessible-workspaces.js";
 import { emitWebhookEvent } from "../integrations/webhook-dispatcher.js";
 import { renderTransactionalTemplate, TemplateContext } from "./templates.js";
 import { sendViaResend } from "./resend-provider.js";
@@ -483,6 +484,36 @@ export async function safeSendEmailNotification(
 // updates the row. Pure of any business workflow side-effects.
 // -----------------------------------------------------------------------------
 
+/**
+ * B2B-F-06 — null when the recipient of a stored delivery may still receive it;
+ * otherwise the bounded reason code the row is cancelled with.
+ */
+async function currentRecipientIneligibility(
+  delivery: Pick<DbNotificationDelivery, "eventType" | "recipientUserId" | "teamId">,
+  client: PrismaClient,
+): Promise<"recipient_preference_off" | "recipient_preference_digest" | "recipient_access_lost" | null> {
+  const preferenceType =
+    EMAIL_EVENT_PREFERENCE[delivery.eventType as NotificationEventType];
+  if (!preferenceType || !delivery.recipientUserId || !delivery.teamId) {
+    return null;
+  }
+  const reach = await resolveAccessibleWorkspace(
+    { userId: delivery.recipientUserId, workspaceId: delivery.teamId },
+    client,
+  );
+  if (!reach) return "recipient_access_lost";
+  const choice = await resolveEmailDeliveryChoice(
+    {
+      userId: delivery.recipientUserId,
+      teamId: delivery.teamId,
+      preferenceType,
+    },
+    client,
+  );
+  if (choice === "IMMEDIATE") return null;
+  return choice === "OFF" ? "recipient_preference_off" : "recipient_preference_digest";
+}
+
 async function dispatchDelivery(
   delivery: DbNotificationDelivery,
   client: PrismaClient,
@@ -499,6 +530,27 @@ async function dispatchDelivery(
   }
   if (!delivery.recipient || delivery.recipient === "(missing)") {
     return { delivery, status: "skipped_no_recipient" };
+  }
+
+  // B2B-F-06 — eligibility is a property of NOW, not of the first attempt.
+  // A retry or resend of a member-addressed, preference-governed email
+  // (review / escalation / SLA / mention) re-asks the member's current email
+  // choice and whether they still reach the workspace; either no longer
+  // holding CANCELS the row (terminal, no send, no failure webhook). Only the
+  // preference-governed event types are re-checked: lifecycle notices such as
+  // WORKSPACE_ACCESS_REMOVED are addressed to someone who has just lost access
+  // and must stay exempt from the access check.
+  const ineligibility = await currentRecipientIneligibility(delivery, client);
+  if (ineligibility) {
+    const cancelled = await client.notificationDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        status: "CANCELLED",
+        errorCode: ineligibility,
+        nextAttemptAtUtc: null,
+      },
+    });
+    return { delivery: cancelled, status: "skipped_recipient_preference" };
   }
 
   // Re-render from the stored context if available; otherwise we cannot
@@ -633,7 +685,8 @@ async function dispatchDelivery(
 // Allowed status transitions:
 //   FAILED          → re-dispatch
 //   RETRY_SCHEDULED → re-dispatch immediately (bypasses nextAttemptAtUtc)
-//   SKIPPED         → re-dispatch (e.g., feature was disabled before; now on)
+//   SKIPPED         → re-dispatch only when a template was stored (B2B-F-06);
+//                     a SKIPPED row without one is terminal (skipped_terminal)
 //   SENT/DELIVERED  → blocked unless `force: true`
 //
 // Always safe — failure does not throw to the caller's workflow.
@@ -662,6 +715,17 @@ export async function resendNotificationDelivery(
     return { delivery: null, outcome: "not_found" };
   }
   if (delivery.status === "CANCELLED") {
+    return { delivery, outcome: "skipped_terminal" };
+  }
+  // B2B-F-06 — a SKIPPED row recorded without a template (no recipient,
+  // feature off, member preference) never stored the message, so re-dispatch
+  // can only fail as missing_template_context and fire a failure webhook for
+  // an email that was never meant to exist. It is terminal for resend.
+  if (
+    delivery.status === "SKIPPED" &&
+    (!delivery.templateContextJson ||
+      typeof delivery.templateContextJson !== "object")
+  ) {
     return { delivery, outcome: "skipped_terminal" };
   }
   if (
@@ -719,6 +783,8 @@ export type ProcessRetriesSummary = {
   failed: number;
   /** Claims a crash lost, returned to the schedule by this sweep. */
   reclaimed: number;
+  /** B2B-F-06 — rows cancelled because the recipient is no longer eligible. */
+  cancelled: number;
 };
 
 /**
@@ -740,6 +806,7 @@ export async function processDueNotificationRetries(
     rescheduled: 0,
     failed: 0,
     reclaimed: 0,
+    cancelled: 0,
   };
   if (!isNotificationsFeatureEnabled()) return summary;
 
@@ -764,6 +831,7 @@ export async function processDueNotificationRetries(
     summary.pickedUp += 1;
     if (result === "sent") summary.resent += 1;
     else if (result === "retry_scheduled") summary.rescheduled += 1;
+    else if (result === "skipped_recipient_preference") summary.cancelled += 1;
     else summary.failed += 1;
   }
 

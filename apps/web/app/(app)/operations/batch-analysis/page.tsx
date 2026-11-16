@@ -2,7 +2,7 @@
 import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -18,6 +18,11 @@ import {
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { SurfaceGate } from "../../../../components/surface/SurfaceGate";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import {
+  BATCH_ANALYSIS_MODE_NOTE,
+  summarizeBatchResults,
+  type BatchResultsSummary,
+} from "../../../../lib/operations/batch-analysis-results";
 
 interface BatchJob {
   id: string;
@@ -55,10 +60,32 @@ function BatchAnalysisPageInner() {
   const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
+  /**
+   * B6-F-42 — a failed list read is said, never shown as "No Batch Jobs". A
+   * plan without this surface (ENTITLEMENT_REQUIRED) is NOT_INCLUDED, which no
+   * retry can change; anything else is FAILED, with a retry.
+   */
+  const [listState, setListState] = useState<"ok" | "failed" | "not_included">("ok");
+  const [submitting, setSubmitting] = useState(false);
+  /**
+   * B6-F-42 (native D11 parity) — create and process are two calls. When the
+   * second fails the job EXISTS (pending); it is remembered against the draft
+   * it was made from so a retry starts THAT job instead of creating another.
+   * `creating` holds across a double click before React re-renders.
+   */
+  const creating = useRef(false);
+  const createdNotStarted = useRef<{ signature: string; id: string } | null>(null);
   const [showNewJobForm, setShowNewJobForm] = useState(false);
   const [evidenceIds, setEvidenceIds] = useState("");
   const [jobName, setJobName] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  /**
+   * B6-F-41 — per-job metadata summary (type / verification breakdowns) read
+   * from GET /results on request. "failed" is said, never drawn as empty data.
+   */
+  const [summaries, setSummaries] = useState<
+    Record<string, BatchResultsSummary | "loading" | "failed">
+  >({});
 
   /*
    * F-21 — POLL ONLY WHILE SOMETHING CAN CHANGE, AND ONLY WHILE VISIBLE.
@@ -97,8 +124,13 @@ function BatchAnalysisPageInner() {
       const data = await apiFetch("/v1/batch-analysis");
       setJobs(Array.isArray(data?.data) ? data.data : []);
       setTruncated(data?.truncated === true);
+      setListState("ok");
     } catch (err) {
-      console.debug("Failed to load jobs", err);
+      const e = (err ?? {}) as { code?: unknown; details?: Record<string, unknown> };
+      if (e.code === "ENTITLEMENT_REQUIRED") setListState("not_included");
+      // A failed POLL keeps the list on screen; with nothing on screen the
+      // failure is the state.
+      else setListState("failed");
     } finally {
       setLoading(false);
     }
@@ -122,33 +154,63 @@ function BatchAnalysisPageInner() {
       return;
     }
 
+    if (creating.current) return;
+    creating.current = true;
+    setSubmitting(true);
+    const signature = JSON.stringify([jobName.trim(), jobDescription.trim(), [...ids].sort()]);
+    let id: string | null =
+      createdNotStarted.current?.signature === signature ? createdNotStarted.current.id : null;
     try {
-      const data = await apiFetch("/v1/batch-analysis", {
-        method: "POST",
-        body: JSON.stringify({
-          evidenceIds: ids,
-          name: jobName.trim(),
-          description: jobDescription.trim() || undefined,
-        }),
-      });
+      if (!id) {
+        const data = await apiFetch("/v1/batch-analysis", {
+          method: "POST",
+          body: JSON.stringify({
+            evidenceIds: ids,
+            name: jobName.trim(),
+            description: jobDescription.trim() || undefined,
+          }),
+        });
+        id = typeof data?.data?.id === "string" ? data.data.id : null;
+        if (!id) {
+          addToast("The batch job could not be confirmed. Check the list before trying again.", "error");
+          await loadJobs();
+          return;
+        }
+        createdNotStarted.current = { signature, id };
+      }
 
-      if (data?.data?.id) {
-        await apiFetch(`/v1/batch-analysis/${data.data.id}/process`, {
+      try {
+        await apiFetch(`/v1/batch-analysis/${id}/process`, {
           method: "POST",
         });
-
-        setJobName("");
-        setEvidenceIds("");
-        setJobDescription("");
-        setShowNewJobForm(false);
-
+      } catch (err) {
+        // The job exists and is NOT running. Keep the draft so a retry starts
+        // this same job.
+        addToast(
+          `The batch job was created but did not start. Press Create & Start again to start it — no second job is created. ${
+            toSafeUserError(err, { message: "" }).message
+          }`.trim(),
+          "error",
+        );
         await loadJobs();
-        addToast("Batch job created and processing started", "success");
+        return;
       }
+
+      createdNotStarted.current = null;
+      setJobName("");
+      setEvidenceIds("");
+      setJobDescription("");
+      setShowNewJobForm(false);
+
+      await loadJobs();
+      addToast("Batch job created and processing started", "success");
     } catch (err) {
       const message =
         toSafeUserError(err, { message: "Failed to create batch job" }).message;
       addToast(message, "error");
+    } finally {
+      creating.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -178,32 +240,26 @@ function BatchAnalysisPageInner() {
     }
   };
 
+  const handleViewSummary = async (jobId: string) => {
+    setSummaries((prev) => ({ ...prev, [jobId]: "loading" }));
+    try {
+      const body = await apiFetch(`/v1/batch-analysis/${jobId}/results`);
+      setSummaries((prev) => ({ ...prev, [jobId]: summarizeBatchResults(body) }));
+    } catch {
+      setSummaries((prev) => ({ ...prev, [jobId]: "failed" }));
+    }
+  };
+
   const handleExportResults = async (jobId: string) => {
     try {
-      // AUDIT-003 (2026-08-15): this re-derived the API origin inline, which
-      // duplicated the production default and meant changing it required
-      // finding every copy. It now reads the ONE authority in lib/api.
-      const { apiBaseUrl } = await import("../../../../lib/api");
-      const apiBase = apiBaseUrl();
-
-      // Authentication carried by the HttpOnly `proovra_session` cookie.
-      // The in-memory token (if present, e.g. immediately after OAuth) is
-      // attached as a defensive fallback for callers without cookies.
-      const { readApiToken } = await import("../../../../lib/api");
-      const memToken = readApiToken();
-      const headers: Record<string, string> = { "x-web-client": "1" };
-      if (memToken) headers["Authorization"] = `Bearer ${memToken}`;
-
-      const response = await fetch(`${apiBase}/v1/batch-analysis/${jobId}/export`, {
-        headers,
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Export failed");
-      }
-
-      const csv = await response.text();
+      // B6-F-42 / AUTHZ-006 — through apiFetch, which names the workspace on
+      // screen (x-proovra-workspace-id), carries the session and the auth
+      // retry, and raises a typed refusal. The raw fetch sent none of that,
+      // so the API read the account's stored workspace pointer instead — one
+      // another tab may have moved.
+      const csv = String(
+        (await apiFetch(`/v1/batch-analysis/${jobId}/export`, {}, { rawText: true })) ?? "",
+      );
       const blob = new Blob([csv], { type: "text/csv" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -414,6 +470,13 @@ function BatchAnalysisPageInner() {
       `}</style>
 
       <div className="dashboard-batch-page">
+        {/* B6-F-41 — say what a batch run is: a metadata pass, not content analysis. */}
+        <p
+          data-batch-mode-note="METADATA_ONLY"
+          style={{ margin: 0, fontSize: 13, color: "var(--app-ink-secondary)" }}
+        >
+          {BATCH_ANALYSIS_MODE_NOTE}
+        </p>
         {showNewJobForm && (
           <Card
             padding="none"
@@ -481,7 +544,13 @@ function BatchAnalysisPageInner() {
                 </div>
 
                 <div className="dashboard-batch-form-actions">
-                  <Button type="submit" variant="primary">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={submitting}
+                    loading={submitting}
+                    data-batch-create-submit
+                  >
                     Create & Start Batch
                   </Button>
 
@@ -533,7 +602,28 @@ function BatchAnalysisPageInner() {
           ))}
         </div>
 
-        {loading && jobs.length === 0 ? (
+        {listState !== "ok" && jobs.length === 0 && !loading ? (
+          <Card padding="none">
+            <div className="p-6" data-batch-list-state={listState}>
+              {listState === "not_included" ? (
+                <EmptyState
+                  title="Batch analysis is not included"
+                  purpose="Batch analysis is not part of this workspace's plan."
+                />
+              ) : (
+                <EmptyState
+                  title="Batch jobs could not be loaded"
+                  purpose="This is not an empty list — the jobs could not be read just now."
+                  action={
+                    <Button variant="secondary" onClick={() => void loadJobs()}>
+                      Try again
+                    </Button>
+                  }
+                />
+              )}
+            </div>
+          </Card>
+        ) : loading && jobs.length === 0 ? (
           <div style={{ display: "grid", gap: 16 }}>
             <Card
               padding="none"
@@ -687,7 +777,61 @@ function BatchAnalysisPageInner() {
                       </div>
                     </div>
 
+                    {(() => {
+                      const summary = summaries[job.id];
+                      if (!summary) return null;
+                      if (summary === "loading") {
+                        return <p style={{ margin: 0, fontSize: 13 }}>Loading summary…</p>;
+                      }
+                      if (summary === "failed") {
+                        return (
+                          <p data-batch-summary-state="failed" style={{ margin: 0, fontSize: 13 }}>
+                            The summary could not be loaded. Try again.
+                          </p>
+                        );
+                      }
+                      const empty =
+                        summary.typeBreakdown.length === 0 &&
+                        summary.verificationBreakdown.length === 0;
+                      return (
+                        <div data-batch-summary={job.id} style={{ display: "grid", gap: 8, fontSize: 13 }}>
+                          {empty ? (
+                            <p style={{ margin: 0 }}>This run recorded no metadata breakdown.</p>
+                          ) : (
+                            <>
+                              {[
+                                { title: "Record types", rows: summary.typeBreakdown, key: "type" },
+                                { title: "Verification status", rows: summary.verificationBreakdown, key: "verification" },
+                              ].map((group) =>
+                                group.rows.length > 0 ? (
+                                  <div key={group.key} data-batch-breakdown={group.key}>
+                                    <strong>{group.title}</strong>
+                                    <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                                      {group.rows.map((row) => (
+                                        <li key={row.label}>
+                                          {identifierLabel(row.label)}: {row.count}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ) : null,
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     <div className="dashboard-batch-actions-row">
+                      {(job.status === "completed" || job.status === "cancelled") && (
+                        <Button
+                          onClick={() => void handleViewSummary(job.id)}
+                          variant="secondary"
+                          data-batch-view-summary={job.id}
+                        >
+                          View summary
+                        </Button>
+                      )}
                       {job.status === "completed" && (
                         <Button
                           onClick={() => handleExportResults(job.id)}

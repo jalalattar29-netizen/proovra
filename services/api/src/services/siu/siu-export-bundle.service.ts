@@ -41,6 +41,7 @@ import {
   type SiuProfile,
 } from "@proovra/shared";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 
 export type BuildSiuExportInput = {
   caseId: string;
@@ -134,7 +135,10 @@ async function buildSiuExportBundleInner(
   const evidence = await prisma.evidence.findMany({
     where: {
       caseLinks: { some: { caseId: input.caseId } },
-      AND: [scope],
+      // B3C-F-003 (free-audit 0ea0): a record of this case that ANOTHER
+      // restricted case closes to the actor is not theirs to export — the
+      // same population countSiuRecordsWithheld gates on.
+      AND: [scope, evidenceVisibleThroughCasesWhere(input.actorUserId)],
       // (2026-09-29, audit H1) Never a trashed, destruction-bound or
       // destroyed record's report and package in an export bundle.
       deletedAt: null,

@@ -345,7 +345,7 @@ describe("identity residual defects (live PostgreSQL 16)", () => {
       });
     }
 
-    it("the creator and a workspace admin may change a team view; another member and a viewer are refused 403", async () => {
+    it("the creator and a workspace admin may change a team view (only the owner moves its default); another member and a viewer are refused 403", async () => {
       const { teamId, adminToken, viewerToken } = harness.fixtures.teamA;
       const creator = await extraMember("d57-creator", "MEMBER");
       const other = await extraMember("d57-other", "MEMBER");
@@ -366,6 +366,15 @@ describe("identity residual defects (live PostgreSQL 16)", () => {
         ] as const) {
           const id = await makeView(creator.token, teamId);
           const res = await mutate(m, id, token);
+          // B5A-F-14 (free-audit 0ea0): `isDefault` is the view OWNER's
+          // preference; an admin may rename or delete a colleague's team view
+          // but not set (and so reset) that colleague's default.
+          if (m === "default" && label === "admin") {
+            const snap = await prisma.evidenceSavedView.findUniqueOrThrow({ where: { id } });
+            expect(res.statusCode, `${m} by ${label}: ${res.body}`).toBe(403);
+            await unchanged(id, snap);
+            continue;
+          }
           expect(res.statusCode, `${m} by ${label}: ${res.body}`).toBe(200);
           await applied(m, id);
         }

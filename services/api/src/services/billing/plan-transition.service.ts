@@ -367,7 +367,9 @@ export async function withdrawDowngradeStorageAgreement(subscriptionId: string):
  * never runs.
  */
 export async function scheduleDowngradeStorageEnd(userId: string): Promise<{ scheduled: number; retrying: number }> {
-  await recordDependentCancellationObligations({ ownerUserId: userId, teamId: null }, prisma);
+  // B6-F-82 (free audit 0ea0) — only the add-ons the agreed downgrade ends;
+  // an orphan owed by an older base stays with the switch-gated sweep.
+  await recordDependentCancellationObligations({ ownerUserId: userId, teamId: null, customerAction: true }, prisma);
   const result = await cancelDependentRecurringAddons({ ownerUserId: userId, teamId: null });
   return { scheduled: result.scheduled, retrying: result.failed };
 }

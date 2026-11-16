@@ -41,6 +41,7 @@ import {
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { runReminderScheduler } from "../services/notifications/reminder-scheduler.js";
+import { processDueVerificationEmailRetries } from "../services/email-verification.service.js";
 import { runDigestScheduler } from "../services/notifications/digest-scheduler.js";
 
 const ParamsId = z.object({ id: z.string().uuid() });
@@ -295,7 +296,12 @@ export async function notificationsRoutes(app: FastifyInstance) {
       const summary = await processDueNotificationRetries({
         batchSize: body.batchSize,
       });
-      return reply.code(200).send({ summary });
+      // B8-F-302 — the sign-up verification-email outbox drains on the same
+      // cron. A failure here never hides the notification summary.
+      const verificationEmails = await processDueVerificationEmailRetries({
+        batchSize: body.batchSize,
+      }).catch(() => null);
+      return reply.code(200).send({ summary, verificationEmails });
     },
   );
 

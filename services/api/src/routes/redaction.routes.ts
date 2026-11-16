@@ -73,7 +73,7 @@ import { requestWorkspaceCandidate } from "../services/access/request-workspace.
 // system, and it NEVER gates viewing / authoring / detection / submit /
 // approve / derivative-request.
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
-import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
+import { assertFeatureEntitlement, resolveEntitlement } from "../services/packaging/entitlement.service.js";
 import {
   extractPrismaDiagnostic,
   isPrismaTableOrColumnMissing,
@@ -905,6 +905,18 @@ export async function redactionRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       if (!(await gate(reply, ctx, "redaction.view"))) return reply;
+      // B5B-F-204 (Free-user audit 0ea0) — the platform's detection-provider
+      // readiness is not workspace material a downgrade must keep readable
+      // (PRO-089 keeps a workspace's OWN redaction work readable); it is
+      // projected only to a workspace that holds FEATURE_REDACTION. Read with
+      // resolveEntitlement (not assertFeatureEntitlement), so a read refusal
+      // writes no policy-violation row.
+      const redactionEntitled = await resolveEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_REDACTION" })
+        .then((e) => e.value === true)
+        .catch(() => false);
+      if (!redactionEntitled) {
+        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_REDACTION" });
+      }
       // Phase O Stream B — schema-drift safety net for NODE-1N
       // (redaction_policy_assignments.version_id missing on production
       // until the repair migration is applied). On Prisma P2021/P2022

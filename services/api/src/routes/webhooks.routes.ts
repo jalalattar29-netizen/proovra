@@ -182,6 +182,12 @@ export async function webhooksRoutes(app: FastifyInstance) {
         verifyStripeSignature(rawBody, sig as string);
       },
     });
+    if (!sigCheck.ok && (sigCheck.reason === "verifier_unavailable" || sigCheck.reason === "secret_misconfigured")) {
+      // B6-F-80 (free audit 0ea0) — the same branch the PayPal route has: this
+      // deployment cannot verify (e.g. STRIPE_WEBHOOK_SECRET unset), so nothing
+      // is known about the delivery and Stripe redelivers on a 5xx.
+      return reply.code(503).send({ ok: false, retryable: true });
+    }
     if (!sigCheck.ok) {
       return reply.code(400).send({
         message:

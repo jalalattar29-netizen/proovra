@@ -87,20 +87,27 @@ function simulateDropdownMapPrimary(item: SessionItem, stepId: string): SessionI
 // 1-6: Per-template primary-readiness — the bug-report matrix
 // ---------------------------------------------------------------------------
 
+// B4-F-308 — the fallback catalog now carries the SERVER's step ids (bare
+// slugs for most primary steps); primary readiness is by role, so the matrix
+// holds for every template's real primary steps.
 const TEMPLATE_PRIMARY_STEPS: Array<{ template: string; stepId: string }> = [
   { template: "general-evidence-record", stepId: "primary_evidence" },
-  { template: "insurance-claim", stepId: "primary_overview_media" },
-  { template: "insurance-claim", stepId: "primary_damage_close_up" },
-  { template: "legal-matter", stepId: "primary_document_media" },
-  { template: "incident-investigation", stepId: "primary_scene_overview" },
-  { template: "incident-investigation", stepId: "primary_close_up_detail" },
-  { template: "compliance-audit", stepId: "primary_policy_document" },
-  { template: "compliance-audit", stepId: "primary_export_supporting_evidence" },
+  { template: "insurance-claim", stepId: "overview_media" },
+  { template: "insurance-claim", stepId: "damage_close_up" },
+  { template: "legal-matter", stepId: "primary_media" },
+  { template: "incident-investigation", stepId: "scene_overview" },
+  { template: "incident-investigation", stepId: "close_up_detail" },
+  { template: "compliance-audit", stepId: "policy_document" },
+  { template: "compliance-audit", stepId: "screenshot_export" },
   { template: "journalism-field-capture", stepId: "primary_media" },
 ];
 
 for (const { template, stepId } of TEMPLATE_PRIMARY_STEPS) {
   test(`primary readiness — ${template} (${stepId}): dropdown-mapped primary item satisfies has_primary`, () => {
+    assert.ok(
+      COLLECTION_PLAN_TEMPLATES.find((t) => t.id === template)?.steps.some((step) => step.id === stepId),
+      `${template} has the step ${stepId}`,
+    );
     const item = simulateDropdownMapPrimary(makeItem({ id: "i1" }), stepId);
     assert.equal(hasPrimaryEvidence([item]), true);
     const readiness = computeCaptureReadiness({ items: [item] });

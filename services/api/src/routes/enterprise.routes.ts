@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { evaluateCurrentWorkspace } from "../middleware/authorize.js";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { resolveWorkspaceSeatState } from "../services/billing/workspace-seats.service.js";
 import {
@@ -71,15 +72,41 @@ export function batchCompletionEmailLink(appUrl: string | undefined): string {
   return `${base}/operations/batch-analysis`;
 }
 
-async function requireAuthLegalAndProfessional(req: FastifyRequest, reply: FastifyReply) {
-  await requireAuthAndLegal(req, reply);
-  if (reply.sent) return;
-  const current = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
-  if (current.allowed && (await workspaceIncludesProfessionalSurfaces(current.context.workspaceId))) {
-    return;
-  }
-  return reply.code(403).send(PROFESSIONAL_SURFACES_REFUSAL);
+/**
+ * B6-F-40 (Free-user audit 0ea0) — the workspace this request PROVED (plan and
+ * role were checked on it). Every batch read and write is bound to it, so a
+ * job or record in another workspace is never served or acted on under this
+ * workspace's entitlement.
+ */
+const provenBatchWorkspace = new WeakMap<FastifyRequest, string>();
+
+function batchWorkspaceOf(req: FastifyRequest): { teamId: string } {
+  const teamId = provenBatchWorkspace.get(req);
+  // Unreachable behind the guard; fail closed rather than widen to the owner.
+  if (!teamId) throw new AppError(ErrorCode.FORBIDDEN, "No workspace was proven for this request");
+  return { teamId };
 }
+
+function professionalGuard(permission: "evidence.read" | "evidence.update_metadata") {
+  return async function requireAuthLegalAndProfessional(req: FastifyRequest, reply: FastifyReply) {
+    await requireAuthAndLegal(req, reply);
+    if (reply.sent) return;
+    const current = await evaluateCurrentWorkspace(req, { permission });
+    if (current.allowed && (await workspaceIncludesProfessionalSurfaces(current.context.workspaceId))) {
+      provenBatchWorkspace.set(req, current.context.workspaceId);
+      return;
+    }
+    return reply.code(403).send(PROFESSIONAL_SURFACES_REFUSAL);
+  };
+}
+
+/** Reads of the professional surfaces (any role). */
+const requireAuthLegalAndProfessional = professionalGuard("evidence.read");
+/**
+ * B6-F-40 — starting work (create, process) is a write: A2-14, a VIEWER is
+ * read-only, and `evidence.read` (which VIEWER holds) gated it.
+ */
+const requireAuthLegalProfessionalWriter = professionalGuard("evidence.update_metadata");
 
 function getRequestPath(req: FastifyRequest): string {
   const url = req.url || "";
@@ -144,21 +171,6 @@ function fireEnterpriseAnalyticsEvent(params: {
   }).catch(() => null);
 }
 
-function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function startOfWeek(): Date {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
 function startOfMonth(): Date {
   const d = new Date();
   d.setDate(1);
@@ -180,87 +192,78 @@ function readFloatEnv(name: string, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
-async function getRealUsageStats(userId: string) {
-  const today = startOfToday();
-  const week = startOfWeek();
-  const month = startOfMonth();
+/**
+ * B6-F-49 (Free-user audit 0ea0) — usage statistics for the workspace this
+ * request PROVED, from the meters that are enforced.
+ *
+ * This counted the USER's analytics events and records across every workspace
+ * and multiplied by an env unit price, so a page gated on one workspace showed
+ * user-wide figures and an unexplained "Total Cost". `/v1/quotas` was moved to
+ * the enforced meter (BILLING-010); this now follows it:
+ *   - this month = the plan allowance meter the AI gate charges
+ *     (`getWorkspaceAiUsageThisMonth`), today / this week = the workspace's
+ *     durable AI ledger rollups;
+ *   - record types, active API keys and active batches = this workspace's.
+ * The cost figures remain for client compatibility, now an explicitly
+ * labelled ILLUSTRATIVE list-rate estimate over those operations
+ * (`costBasis`, `costIsCharged: false`): nothing is billed per analysis.
+ */
+async function getRealUsageStats(req: FastifyRequest, userId: string) {
+  const { teamId } = batchWorkspaceOf(req);
+  const now = new Date();
+  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+  const todayKey = dayKey(now);
+  const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
 
-  const billableEventTypes = [
-    "ai_analysis_completed",
-    "ai_tags_suggested",
-    "ai_safety_checked",
-  ];
+  const allowance = await evaluateWorkspaceAiOperation({ teamId });
+  const meter = allowance.scope ? await getWorkspaceAiUsageThisMonth(allowance.scope) : { consumed: 0, cap: null };
+  // The workspace's record population through the canonical scope authority
+  // (a raw teamId predicate misses a personal workspace's legacy NULL-team rows).
+  const evidenceScope = await workspaceEvidenceWhere(teamId, prisma);
 
-  const [todayCount, weekCount, monthCount, totalCount, evidenceTypes] =
-    await Promise.all([
-      prisma.analyticsEvent.count({
-        where: {
-          userId,
-          eventType: { in: billableEventTypes },
-          createdAt: { gte: today },
-        },
-      }),
-      prisma.analyticsEvent.count({
-        where: {
-          userId,
-          eventType: { in: billableEventTypes },
-          createdAt: { gte: week },
-        },
-      }),
-      prisma.analyticsEvent.count({
-        where: {
-          userId,
-          eventType: { in: billableEventTypes },
-          createdAt: { gte: month },
-        },
-      }),
-      prisma.analyticsEvent.count({
-        where: {
-          userId,
-          eventType: { in: billableEventTypes },
-        },
-      }),
-      prisma.evidence.groupBy({
-        by: ["type"],
-        where: {
-          ownerUserId: userId,
-          deletedAt: null,
-        },
-        _count: { type: true },
-      }),
-    ]);
+  const [todayRow, weekRows, allMonths, evidenceTypes, activeApiKeys, activeBatches] = await Promise.all([
+    prisma.aiUsageDaily
+      .findUnique({ where: { workspaceId_dayUtc: { workspaceId: teamId, dayUtc: todayKey } } })
+      .catch(() => null),
+    prisma.aiUsageDaily
+      .findMany({ where: { workspaceId: teamId, dayUtc: { gte: dayKey(weekStart) } }, select: { operations: true } })
+      .catch(() => [] as Array<{ operations: number }>),
+    prisma.aiUsageMonthly
+      .aggregate({ where: { workspaceId: teamId }, _sum: { operations: true } })
+      .catch(() => ({ _sum: { operations: 0 } })),
+    prisma.evidence.groupBy({
+      by: ["type"],
+      where: { AND: [evidenceScope, { deletedAt: null }] },
+      _count: { type: true },
+    }),
+    prisma.apiCredential.count({ where: { status: "ACTIVE", teamId } }),
+    batchAnalysisService.countJobs(userId, ["PENDING", "PROCESSING"], { teamId }),
+  ]);
 
   const unitCost = readFloatEnv("AI_ANALYSIS_UNIT_PRICE_USD", 0.1);
+  const thisMonth = meter.consumed;
+  const total = Math.max(allMonths._sum.operations ?? 0, thisMonth);
 
   const topEvidenceTypes: Record<string, number> = {};
   for (const row of evidenceTypes) {
     topEvidenceTypes[String(row.type).toLowerCase()] = row._count.type;
   }
 
-  // A-3 closure — count durable, team-scoped `ApiCredential`s
-  // (status = ACTIVE) for teams owned by this user. The legacy
-  // in-memory user-scoped key store has been retired.
-  const activeApiKeys = await prisma.apiCredential.count({
-    where: {
-      status: "ACTIVE",
-      team: { ownerUserId: userId },
-    },
-  });
-
-  // F-21 — counted in the database, not by loading every job and its items.
-  const activeBatches = await batchAnalysisService.countJobs(userId, ["PENDING", "PROCESSING"]);
-
   return {
+    workspaceId: teamId,
     dailyAnalyses: {
-      today: todayCount,
-      thisWeek: weekCount,
-      thisMonth: monthCount,
+      today: todayRow?.operations ?? 0,
+      thisWeek: weekRows.reduce((sum, row) => sum + row.operations, 0),
+      thisMonth,
     },
     costBreakdown: {
-      totalCost: totalCount * unitCost,
-      thisMonth: monthCount * unitCost,
-      averagePerAnalysis: totalCount > 0 ? (totalCount * unitCost) / totalCount : 0,
+      totalCost: total * unitCost,
+      thisMonth: thisMonth * unitCost,
+      averagePerAnalysis: total > 0 ? unitCost : 0,
     },
+    costBasis: "ILLUSTRATIVE_LIST_RATE_ESTIMATE" as const,
+    costIsCharged: false,
     topEvidenceTypes,
     activeApiKeys,
     activeBatches,
@@ -280,7 +283,8 @@ async function getRealQuotas(req: FastifyRequest, userId: string) {
     },
   });
 
-  const batchJobsUsed = await batchAnalysisService.countJobs(userId);
+  // B6-F-40 — this workspace's jobs only.
+  const batchJobsUsed = await batchAnalysisService.countJobs(userId, undefined, batchWorkspaceOf(req));
   // A-3 closure — quota counter sources from canonical `ApiCredential`
   // (Phase 17). Legacy in-memory key-store enumeration is retired.
   const apiKeysUsed = await prisma.apiCredential.count({
@@ -406,9 +410,10 @@ export async function enterpriseRoutes(app: FastifyInstance) {
     Body: { evidenceIds: string[]; name: string; description?: string };
   }>(
     "/v1/batch-analysis",
-    { preHandler: [requireAuthLegalAndProfessional] },
+    { preHandler: [requireAuthLegalProfessionalWriter] },
     async (req) => {
       const userId = getAuthUserId(req);
+      const workspace = batchWorkspaceOf(req);
       const { evidenceIds, name, description } = req.body;
 
       if (!evidenceIds || !Array.isArray(evidenceIds) || evidenceIds.length === 0) {
@@ -480,9 +485,27 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           );
         }
 
+        // B6-F-40 — and that workspace is the one this request proved. Plan
+        // and role were checked on it; a record from another workspace (the
+        // caller's Free personal one, say) is not analysed under its plan.
+        if (teamIds[0] !== workspace.teamId) {
+          auditEnterpriseAction(req, {
+            userId,
+            action: "enterprise.batch_create",
+            outcome: "blocked",
+            severity: "warning",
+            resourceType: "batch_job",
+            metadata: { reason: "evidence_outside_request_workspace" },
+          });
+          throw new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "A batch job analyses evidence from the workspace you are working in. These items belong to another workspace.",
+          );
+        }
+
         const job = await batchAnalysisService.createJob({
           ownerUserId: userId,
-          teamId: teamIds[0],
+          teamId: workspace.teamId,
           evidenceIds,
           name,
           description,
@@ -547,7 +570,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const { id } = req.params;
 
       try {
-        const job = await batchAnalysisService.getJob(userId, id);
+        const job = await batchAnalysisService.getJob(userId, id, batchWorkspaceOf(req));
 
         if (!job) {
           auditEnterpriseAction(req, {
@@ -618,7 +641,11 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
       try {
         // F-21 — bounded and item-free (see listJobSummaries).
-        const { jobs, truncated } = await batchAnalysisService.listJobSummaries(userId);
+        const { jobs, truncated } = await batchAnalysisService.listJobSummaries(
+          userId,
+          undefined,
+          batchWorkspaceOf(req),
+        );
 
         auditEnterpriseAction(req, {
           userId,
@@ -662,13 +689,13 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/process",
-    { preHandler: [requireAuthLegalAndProfessional] },
+    { preHandler: [requireAuthLegalProfessionalWriter] },
     async (req) => {
       const userId = getAuthUserId(req);
       const { id } = req.params;
 
       try {
-        const job = await batchAnalysisService.getJob(userId, id);
+        const job = await batchAnalysisService.getJob(userId, id, batchWorkspaceOf(req));
 
         if (!job) {
           auditEnterpriseAction(req, {
@@ -707,7 +734,29 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           );
         }
 
-        const processingPromise = batchAnalysisService.processBatch(userId, id);
+        // B6-F-41 — the analyser is metadata-only, and was handed no evidence
+        // getter, so every item completed with an empty result. The getter
+        // reads each record inside the job's (proven) workspace only.
+        const workspace = batchWorkspaceOf(req);
+        const processingPromise = batchAnalysisService.processBatch(
+          userId,
+          id,
+          (evidenceId) =>
+            prisma.evidence.findFirst({
+              where: { id: evidenceId, teamId: workspace.teamId, deletedAt: null },
+              select: {
+                type: true,
+                mimeType: true,
+                status: true,
+                verificationStatus: true,
+                createdAt: true,
+                sizeBytes: true,
+                storageBucket: true,
+                storageKey: true,
+              },
+            }),
+          workspace,
+        );
 
         processingPromise
           .then(async () => {
@@ -721,13 +770,19 @@ export async function enterpriseRoutes(app: FastifyInstance) {
             try {
               const emailService = getEmailService();
               if (emailService.isConfigured()) {
-                const completedJob = await batchAnalysisService.getJob(userId, id);
+                const completedJob = await batchAnalysisService.getJob(userId, id, workspace);
                 if (completedJob) {
                   const userEmail = req.user?.email || "";
                   if (userEmail) {
+                    // B6-F-41 — the email names the workspace the job ran in,
+                    // not the placeholder "Organization".
+                    const team = await prisma.team.findUnique({
+                      where: { id: workspace.teamId },
+                      select: { name: true },
+                    });
                     void emailService.sendBatchComplete(
                       userEmail,
-                      "Organization",
+                      team?.name?.trim() || "your workspace",
                       completedJob.name,
                       completedJob.totalItems,
                       completedJob.failedItems,
@@ -792,7 +847,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const { id } = req.params;
 
       try {
-        const job = await batchAnalysisService.getJob(userId, id);
+        const job = await batchAnalysisService.getJob(userId, id, batchWorkspaceOf(req));
 
         if (!job) {
           auditEnterpriseAction(req, {
@@ -820,7 +875,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           throw new AppError(ErrorCode.VALIDATION_ERROR, "Batch job is still processing");
         }
 
-        const aggregatedResults = await batchAnalysisService.getAggregateResults(userId, id);
+        const aggregatedResults = await batchAnalysisService.getAggregateResults(userId, id, batchWorkspaceOf(req));
 
         auditEnterpriseAction(req, {
           userId,
@@ -852,7 +907,12 @@ export async function enterpriseRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>(
     "/v1/batch-analysis/:id/cancel",
-    { preHandler: [requireAuthLegalAndProfessional] },
+    // B6-F-50 (Free-user audit 0ea0) — stopping one's OWN job is an essential
+    // path (A1-06): it adds nothing, so it is legal-gate exempt (CANCELLATION
+    // in legal-acceptance-route-policy) and it does not ask the plan or the
+    // workspace — a downgrade, a demotion or leaving the workspace must not
+    // keep a job running. Ownership is the predicate of `cancelJob` itself.
+    { preHandler: [requireAuthAndLegal] },
     async (req) => {
       const userId = getAuthUserId(req);
       const { id } = req.params;
@@ -936,7 +996,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const { id } = req.params;
 
       try {
-        const job = await batchAnalysisService.getJob(userId, id);
+        const job = await batchAnalysisService.getJob(userId, id, batchWorkspaceOf(req));
 
         if (!job) {
           auditEnterpriseAction(req, {
@@ -951,7 +1011,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           throw new AppError(ErrorCode.NOT_FOUND, "Batch job not found");
         }
 
-        const csv = await batchAnalysisService.exportAsCSV(userId, id);
+        const csv = await batchAnalysisService.exportAsCSV(userId, id, batchWorkspaceOf(req));
 
         auditEnterpriseAction(req, {
           userId,
@@ -1026,7 +1086,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
 
       try {
-        const data = await getRealUsageStats(userId);
+        const data = await getRealUsageStats(req, userId);
 
         auditEnterpriseAction(req, {
           userId,

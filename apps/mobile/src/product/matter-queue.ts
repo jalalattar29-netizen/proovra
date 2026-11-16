@@ -70,6 +70,8 @@ export interface MatterQueue {
   total: number;
   /** When the server built the queue — the web header reads "Refreshed <relative>". */
   generatedAt: string | null;
+  /** B3C-F-005 — the caller's role in the queue's workspace (envelope `workspace.role`). */
+  role: string | null;
 }
 
 function o(v: unknown): Record<string, unknown> {
@@ -119,7 +121,7 @@ export function parseMatterQueue(payload: unknown): MatterQueue {
     });
   }
   const total = typeof d["total"] === "number" ? (d["total"] as number) : items.length;
-  return { items, total, generatedAt: s(d["generatedAt"]) };
+  return { items, total, generatedAt: s(d["generatedAt"]), role: s(o(d["workspace"])["role"]) };
 }
 
 /** The web's useEnterpriseSurfaceAccess — server-projected, fail-closed. */

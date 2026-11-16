@@ -73,7 +73,8 @@ test("UC-PROV-003: web facts carry URL, title, browser, extension version, windo
   const f = webCaptureManifestFacts(v.manifest, { manifestSha256: SHA, manifestPartIndex: 1 });
   assert.equal(f.schema, CAPTURE_MANIFEST_FACTS_SCHEMA);
   assert.equal(f.reportedBy, "CAPTURE_CLIENT");
-  assert.equal(f.web.sourceUrlPrivate, "https://example.com/a?token=secret");
+  // B4-F-102 (free audit 0ea0) — the credential parameter's VALUE is redacted.
+  assert.equal(f.web.sourceUrlPrivate, "https://example.com/a?token=REDACTED");
   assert.equal(f.web.titlePrivate, "Private title");
   assert.equal(f.web.domain, "example.com");
   assert.equal(f.web.pageMutatedDuringCapture, true);

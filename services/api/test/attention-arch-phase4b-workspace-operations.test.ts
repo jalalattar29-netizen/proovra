@@ -432,9 +432,11 @@ describe("Phase 4B.4 — platform isolation survives the unlock", () => {
     expect(TIERS).toMatch(
       /\{ pathPrefix: "\/ops", tier: "INTERNAL", directAccessPolicy: "notFound"/,
     );
-    // /platform is the public marketing route; it stays INTERNAL as an app
-    // prefix and the accepted Phase-4A decision keeps the consoles under
-    // /admin/platform/*.
-    expect(TIERS).toMatch(/\{ pathPrefix: "\/platform", tier: "INTERNAL"/);
+    // /platform is the public marketing route. B2A-F-15 (free-audit 0ea0,
+    // pin updated 2026-11-16): its INTERNAL app-prefix rule was REMOVED because
+    // it 404'd the public overview for signed-out visitors on the app host; no
+    // console lives there. The accepted Phase-4A decision still keeps the
+    // consoles under /admin/platform/*; /ops (above) stays INTERNAL.
+    expect(TIERS).not.toMatch(/\{ pathPrefix: "\/platform", tier: "INTERNAL"/);
   });
 });

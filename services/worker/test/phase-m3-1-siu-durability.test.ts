@@ -263,11 +263,22 @@ describe("M3.1 — SIU routes", () => {
     expect(handlers.length).toBe(5);
     // Each one resolves membership and refuses a non-ACTIVE member. The tenancy
     // key is always a caller-supplied teamId that is CHECKED, never trusted.
-    const memberChecks = family.match(/teamId_userId: \{ teamId: [^,]+, userId \}/g) ?? [];
-    expect(memberChecks.length).toBe(5);
-    const inactiveDenials = family.match(/member\.status !== "ACTIVE"/g) ?? [];
-    expect(inactiveDenials.length).toBe(5);
-    expect((family.match(/code: "member_inactive"/g) ?? []).length).toBe(5);
+    //
+    // B5B-F-303 (free-audit 0ea0, pin updated 2026-11-16): the five legs no
+    // longer read the membership row themselves (an ACTIVE row is not enough:
+    // an expired member or a member of a suspended organization holds one).
+    // Each now goes through the SAME canonical gate GET /v1/siu/worklist uses,
+    // requireSiuWorkspaceActor, which reads the row, refuses a non-ACTIVE
+    // member with member_inactive, and then asks the canonical evaluator.
+    const gated = family.match(/await requireSiuWorkspaceActor\(req, reply, (?:q|body)\.teamId\)/g) ?? [];
+    expect(gated.length).toBe(5);
+    expect(family).not.toMatch(/prisma\.teamMember\.findUnique/);
+    const gateStart = src.indexOf("async function requireSiuWorkspaceActor(");
+    const gate = src.slice(gateStart, src.indexOf("\n}\n", gateStart));
+    expect(gate).toMatch(/teamId_userId: \{ teamId, userId \}/);
+    expect(gate).toMatch(/member\.status !== "ACTIVE"/);
+    expect(gate).toMatch(/code: "member_inactive"/);
+    expect(gate).toMatch(/evaluateMemberAccess\(/);
   });
 
   it("saved-views item operations answer a foreign/unknown id with a bounded 404", () => {
@@ -281,7 +292,8 @@ describe("M3.1 — SIU routes", () => {
       expect(items).toContain(svc);
     }
     expect((items.match(/code: "not_found"/g) ?? []).length).toBe(3);
-    expect((items.match(/teamId: [qb]\.teamId/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    // (B5B-F-303 renamed the use-leg's parsed body from `b` to `body`.)
+    expect((items.match(/teamId: (?:q|b|body)\.teamId/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
 
   it("reveal-pii endpoint is step-up gated + audited", () => {

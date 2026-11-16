@@ -8,6 +8,11 @@
  *                                             account (step-up; NOT recovery)
  *   DELETE /v1/identity/links/:id           — unlink a method (step-up +
  *                                             last-usable-method protection)
+ *   GET    /v1/identity/links/organization  — B5B-F-302: the pending
+ *                                             organization sign-in link
+ *   POST   /v1/identity/links/organization  — B5B-F-302: the owner approves
+ *                                             it (step-up; membership + link,
+ *                                             never a managed conversion)
  *   POST   /v1/auth/oauth/nonce             — PRO-034: the nonce a Google or
  *                                             Apple ceremony signs into its
  *                                             id_token, for ONE sign-in or link
@@ -75,6 +80,11 @@ import {
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
+import {
+  approveOrganizationLink,
+  clearOrganizationLinkCookie,
+  readOrganizationLinkCookie,
+} from "../services/identity/organization-link-consent.service.js";
 
 const LinkBody = z.object({
   idToken: z.string().min(16),
@@ -395,6 +405,107 @@ export async function identityLinksRoutes(app: FastifyInstance) {
         prismaPkg.AuthProvider.APPLE,
         verifyAppleIdToken,
       ),
+  );
+
+  // ---------------------------------------------------------------------
+  // B5B-F-302 — the OWNER links their own account to an Organization.
+  //
+  // An enterprise sign-in whose verified address belongs to this pre-existing
+  // self-serve account was refused (SSO_ACCOUNT_LINK_REQUIRES_CONSENT) and left
+  // a signed, httpOnly pending-link ticket. Signed in to their own account,
+  // the owner reviews it (GET) and approves it (POST, account step-up). The
+  // approval links the IdP subject to this account and grants an ordinary
+  // membership; it NEVER converts the account to a managed identity, so the
+  // Personal Space and personal data export stay the owner's. The link is the
+  // Organization's federation record (ExternalIdentityMapping), not a personal
+  // login-method row: the owner consents to it here, the Organization's
+  // directory may later end it.
+  // ---------------------------------------------------------------------
+  app.get(
+    "/v1/identity/links/organization",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
+      const pending = readOrganizationLinkCookie(req);
+      if (!pending || pending.userId !== userId) {
+        // A ticket for another account says nothing about it.
+        return reply.code(200).send({ pending: null });
+      }
+      // The display facts were captured by the IdP flow and signed into the
+      // ticket: this read touches no Organization row on a cookie's say-so.
+      return reply.code(200).send({
+        pending: {
+          organizationId: pending.organizationId,
+          organizationName: pending.organizationName ?? null,
+          protocol: pending.protocol,
+          email: pending.email,
+          // What approval does and does not do, stated by the server.
+          grantsMembership: true,
+          convertsToManagedIdentity: false,
+          // The account stays STANDARD, but an Organization policy that
+          // withholds a Personal Space from its members applies while the
+          // membership is active (and ends with it) — said before approval.
+          organizationRestrictsPersonalSpace: pending.organizationRestrictsPersonalSpace === true,
+        },
+      });
+    },
+  );
+
+  app.post(
+    "/v1/identity/links/organization",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
+      const body = z.object({ stepUp: LinkBody.shape.stepUp }).parse(req.body ?? {});
+      const pending = readOrganizationLinkCookie(req);
+      if (!pending) {
+        return reply.code(404).send({
+          error: {
+            code: "organization_link_not_found",
+            message: "There is no pending organization link. Sign in with your organization again.",
+          },
+        });
+      }
+      if (pending.userId !== userId) {
+        return reply.code(403).send({
+          error: {
+            code: "organization_link_account_mismatch",
+            message: "This organization sign-in belongs to a different PROOVRA account.",
+          },
+        });
+      }
+      if (!(await requireStepUp(req, reply, userId, "login_method_link", body.stepUp))) {
+        return reply;
+      }
+      const outcome = await approveOrganizationLink({ userId, pending });
+      if (outcome.kind !== "ok") {
+        const status =
+          outcome.kind === "identity_linked_elsewhere" || outcome.kind === "seat_limit_reached"
+            ? 409
+            : outcome.kind === "seat_contention"
+              ? 503
+              : outcome.kind === "connection_unavailable"
+                ? 410
+                : 403;
+        return reply.code(status).send({ error: { code: `organization_link_${outcome.kind}` } });
+      }
+      clearOrganizationLinkCookie(req, reply);
+      auditIdentityEvent(req, userId, "identity.organization_link_approved", {
+        organizationId: outcome.organizationId,
+        workspaceId: outcome.teamId,
+        protocol: pending.protocol,
+        connectionId: pending.connectionId,
+        alreadyLinked: outcome.alreadyLinked,
+      });
+      return reply.code(200).send({
+        linked: true,
+        organizationId: outcome.organizationId,
+        workspaceId: outcome.teamId,
+        managedIdentity: false,
+      });
+    },
   );
 
   // ---------------------------------------------------------------------

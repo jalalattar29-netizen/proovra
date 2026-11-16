@@ -38,7 +38,11 @@ import { safeEmitSecurityEvent } from "./security-event.service.js";
 import type { SamlAssertion } from "./saml-assertion.service.js";
 // P0 remediation (2026-07-21) — canonical guard for linking an IdP-asserted
 // email to a PRE-EXISTING User (cross-tenant account-takeover fix).
-import { evaluateExistingAccountLink } from "./enterprise-account-linking.service.js";
+import {
+  evaluateExistingAccountLink,
+  isSelfServeAccountForOrganization,
+} from "./enterprise-account-linking.service.js";
+import { organizationDisplayForLink, type PendingOrganizationLink } from "../identity/organization-link-consent.service.js";
 import { isAccountClosed } from "../identity/account-closed.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import { provisionMembership } from "../identity/membership-provisioning.service.js";
@@ -56,6 +60,9 @@ export type SamlMappingErrorCode =
   | "SAML_CONNECTION_INACTIVE"
   // P0 remediation (2026-07-21) — unsafe existing-account link denial.
   | "SAML_ACCOUNT_LINK_DENIED"
+  // B5B-F-302 — the address belongs to a pre-existing self-serve account:
+  // only its owner, signed in, may link it.
+  | "SAML_ACCOUNT_LINK_REQUIRES_CONSENT"
   // IDENT-005 — the workspace has no free contracted seat for a new subject.
   | "SAML_SEAT_LIMIT_REACHED"
   | "SAML_SEAT_CONTENTION";
@@ -533,6 +540,47 @@ export async function handleSamlAssertion(
         throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
           connectionId,
           reason: "account_closed",
+        });
+      }
+      // B5B-F-302 — a verified domain is not the owner's consent: a
+      // pre-existing SELF-SERVE account is never linked (nor a session minted
+      // as it) by a SAML assertion. Refused with nothing written; the verified
+      // facts travel to the owner's own signed-in approval. See the OIDC JIT
+      // path in sso.service.ts and organization-link-consent.service.ts.
+      if (
+        await isSelfServeAccountForOrganization(
+          { userId: existingUser.id, organizationId },
+          client,
+        )
+      ) {
+        bump("saml_login_failure_total");
+        safeEmitSecurityEvent({
+          teamId,
+          eventType: "saml_login_failed",
+          severity: "WARNING",
+          details: {
+            connectionId,
+            reason: "existing_self_serve_account_requires_consent",
+            nameIdHash: assertion.nameIdHash,
+          },
+        });
+        const pendingLink: PendingOrganizationLink = {
+          connectionId,
+          organizationId,
+          teamId,
+          provider: String(provider),
+          protocol: "SAML",
+          subject: externalSubjectId,
+          email,
+          displayName: displayName ?? null,
+          userId: existingUser.id,
+          role: role === "VIEWER" ? "VIEWER" : "MEMBER",
+          ...(await organizationDisplayForLink(organizationId, client)),
+        };
+        throw new SamlMappingError("SAML_ACCOUNT_LINK_REQUIRES_CONSENT", {
+          connectionId,
+          reason: "existing_self_serve_account",
+          pendingLink,
         });
       }
     } else {

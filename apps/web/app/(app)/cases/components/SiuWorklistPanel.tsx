@@ -37,6 +37,8 @@ import Link from "next/link";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTenantGuard } from "../../../../lib/platform-context";
+import { useOptionalPlatformContext } from "../../../../lib/platform-context/PlatformContextProvider";
+import { siuSavedViewVisibility } from "../../../../lib/evidence/saved-view-sharing";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 
 // ---------------------------------------------------------------------------
@@ -174,6 +176,10 @@ function isDenial(err: unknown): string | null {
 
 export function SiuWorklistPanel({ teamId }: { teamId: string | null }) {
   const guard = useTenantGuard();
+  // B5B-F-303 (A2-14) — a Viewer may not publish a team view (403
+  // shared_view_requires_write_role); their "Save view" makes a private one.
+  const platform = useOptionalPlatformContext();
+  const newViewVisibility = siuSavedViewVisibility(platform?.envelope ?? null, teamId);
   const { confirm, askReason } = useConfirmAction();
 
   const [state, setState] = useState<PanelState>({ kind: "loading" });
@@ -364,7 +370,7 @@ export function SiuWorklistPanel({ teamId }: { teamId: string | null }) {
           name,
           filter,
           sort: { key: "updatedAtUtc", direction: "desc" },
-          visibility: "team",
+          visibility: newViewVisibility,
         }),
       })) as { view: { id: string } };
       if (guard.isStale(stamp)) return;
@@ -390,6 +396,7 @@ export function SiuWorklistPanel({ teamId }: { teamId: string | null }) {
     draftWarnings,
     guard,
     loadCatalog,
+    newViewVisibility,
     runView,
     teamId,
   ]);

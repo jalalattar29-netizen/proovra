@@ -101,20 +101,17 @@ const CARDS: { icon: PhosphorIcon; title: string; preview: ReactNode; body: stri
         <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">
           Access Activity
         </div>
-        <div className="text-[12px] text-[#475569]">Reviewer</div>
+        <div className="text-[12px] text-[#475569]">Access events</div>
         <div className="text-[13px] font-medium text-[#0F172A]">
-          {DEMO_RECORD.reviewer}
+          {DEMO_RECORD.accessEventCount}
         </div>
-        <div className="pt-1 text-[12px] text-[#475569]">Action</div>
-        <div className="text-[13px] font-medium text-[#0F172A]">
-          {DEMO_RECORD.reviewerAction}
-        </div>
+        <div className="pt-1 text-[12px] text-[#475569]">Latest access</div>
         <div className="text-[11.5px] text-[#94A3B8]">
-          {DEMO_RECORD.reviewerTime}
+          {DEMO_RECORD.latestAccessAt}
         </div>
       </div>
     ),
-    body: "Review who accessed the evidence and what they did.",
+    body: "See how often the verification page was opened, and when it was last opened.",
   },
   {
     icon: PFileText,

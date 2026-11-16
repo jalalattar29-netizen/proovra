@@ -48,7 +48,8 @@ const METHODS: ReadonlyArray<{
   helper: string;
   icon: typeof Upload;
 }> = [
-  { key: "folder", label: "Folder", helper: "Keeps folder structure", icon: FolderUp },
+  // B4-F-305 — the record keeps each file's name, not its folder path (Phase D).
+  { key: "folder", label: "Folder", helper: "Adds every file in a folder", icon: FolderUp },
   { key: "photo", label: "Photo", helper: "Use camera", icon: Camera },
   { key: "video", label: "Video", helper: "Record a clip", icon: Video },
   { key: "audio", label: "Audio", helper: "Record a voice note", icon: Mic },

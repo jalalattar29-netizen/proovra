@@ -429,6 +429,17 @@ export function ReportsIndex() {
         const e = err as { message?: string; statusCode?: number };
         // 404 = not a member of this workspace: the personal-workspace
         // bootstrap gap. Fall back to the user-scoped list.
+        // B5B-F-104 — the same bootstrap rule as the empty-result path: the
+        // user-scoped list takes no filter, so for a filtered query it would put
+        // unfiltered rows under the filter chips. A filtered 404 says so instead.
+        if (e.statusCode === 404 && !unfiltered) {
+          setState({
+            status: "unavailable",
+            message:
+              "Filters and search are not available for this list right now. Clear them to see your reports.",
+          });
+          return;
+        }
         if (e.statusCode === 404) {
           const recovered = await tryUserScopedReports(workspaceId);
           if (recovered && isCurrent()) {

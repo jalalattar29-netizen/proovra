@@ -327,3 +327,25 @@ describe("A1 — useDerivativePolling lifecycle", () => {
     vi.useRealTimers();
   });
 });
+
+describe("B5B-F-203 — Request redacted copy sends one request per click", () => {
+  it("a double click while the first request is in flight transitions once", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const onTransition = vi.fn(async () => {
+      await gate;
+    });
+    renderPanel(makeVersion(null, "APPROVED"), "IMAGE", onTransition);
+    const button = document.querySelector<HTMLButtonElement>("[data-redaction-derivative-request]")!;
+    await act(async () => {
+      button.click();
+      button.click();
+    });
+    expect(onTransition).toHaveBeenCalledTimes(1);
+    expect(button.disabled).toBe(true);
+    await act(async () => {
+      release();
+      await gate;
+    });
+  });
+});

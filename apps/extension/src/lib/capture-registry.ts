@@ -36,6 +36,13 @@ export type CaptureStatus = {
   reason: string | null;
   denial: string | null;
   evidenceId: string | null;
+  /**
+   * B4-F-101 — the server session this attempt opened, persisted as soon as
+   * the open answers. An attempt the service worker never finished
+   * (INTERRUPTED) can then still be released through the discard route.
+   * Optional: a status persisted by an older build has none.
+   */
+  captureSessionId?: string | null;
   cancelRequested: boolean;
   startedAtMs: number;
   updatedAtMs: number;
@@ -55,6 +62,14 @@ export type CaptureRegistry = {
   status(tabId: number): Promise<CaptureStatus | null>;
   cancel(tabId: number): Promise<boolean>;
   progress(tabId: number, attemptId: string, step: string, detail?: string): Promise<void>;
+  /** B4-F-101 — record the server session the attempt opened. */
+  noteSession(tabId: number, attemptId: string, captureSessionId: string): Promise<void>;
+  /**
+   * B4-F-101 — every persisted RUNNING status with no live attempt (the
+   * service worker was stopped mid-capture) becomes FAILED / UNKNOWN /
+   * INTERRUPTED; returns those statuses (onInterrupted runs for each).
+   */
+  reconcileInterrupted(): Promise<CaptureStatus[]>;
 };
 
 export const STATUS_RETENTION_MS = 60 * 60 * 1000;
@@ -66,6 +81,11 @@ export function createCaptureRegistry(deps: {
   newId: () => string;
   now?: () => number;
   onChange?: (status: CaptureStatus) => void;
+  /**
+   * B4-F-101 — an attempt found INTERRUPTED. Its session (when it opened one)
+   * may still hold a reserved record; the caller hands it to the release.
+   */
+  onInterrupted?: (status: CaptureStatus) => void;
 }): CaptureRegistry {
   const now = deps.now ?? (() => Date.now());
   const live = new Map<number, { attemptId: string; controller: AbortController }>();
@@ -88,6 +108,20 @@ export function createCaptureRegistry(deps: {
     });
     queue = next.catch(() => undefined);
     return next;
+  }
+
+  function interrupted(cur: CaptureStatus): CaptureStatus {
+    return { ...cur, state: "FAILED", step: null, outcome: "UNKNOWN", reason: "INTERRUPTED", updatedAtMs: now() };
+  }
+
+  function notifyInterrupted(s: CaptureStatus | null | undefined): void {
+    if (s && s.reason === "INTERRUPTED" && deps.onInterrupted) {
+      try {
+        deps.onInterrupted(s);
+      } catch {
+        /* a listener fault never breaks the status read */
+      }
+    }
   }
 
   function emit(s: CaptureStatus | null | undefined): void {
@@ -191,20 +225,15 @@ export function createCaptureRegistry(deps: {
       if (s && s.state === "RUNNING" && live.get(tabId)?.attemptId !== s.attemptId) {
         // Persisted as running but no live attempt: the service worker was
         // stopped mid-capture. We do not know whether the record sealed.
-        return mutate((a) => {
+        const u = await mutate((a) => {
           const cur = a[String(tabId)];
           if (!cur || cur.attemptId !== s.attemptId || cur.state !== "RUNNING") return cur ?? null;
-          const u: CaptureStatus = {
-            ...cur,
-            state: "FAILED",
-            step: null,
-            outcome: "UNKNOWN",
-            reason: "INTERRUPTED",
-            updatedAtMs: now(),
-          };
-          a[String(tabId)] = u;
-          return u;
+          const next = interrupted(cur);
+          a[String(tabId)] = next;
+          return next;
         });
+        if (u && u.attemptId === s.attemptId) notifyInterrupted(u);
+        return u;
       }
       return s;
     },
@@ -222,6 +251,29 @@ export function createCaptureRegistry(deps: {
       });
       emit(u);
       return true;
+    },
+
+    async noteSession(tabId, attemptId, captureSessionId) {
+      await mutate((all) => {
+        const cur = all[String(tabId)];
+        if (!cur || cur.attemptId !== attemptId) return;
+        all[String(tabId)] = { ...cur, captureSessionId, updatedAtMs: now() };
+      });
+    },
+
+    async reconcileInterrupted() {
+      const found = await mutate((all) => {
+        const out: CaptureStatus[] = [];
+        for (const [key, cur] of Object.entries(all)) {
+          if (cur.state !== "RUNNING" || live.get(cur.tabId)?.attemptId === cur.attemptId) continue;
+          const next = interrupted(cur);
+          all[key] = next;
+          out.push(next);
+        }
+        return out;
+      });
+      for (const s of found) notifyInterrupted(s);
+      return found;
     },
 
     async progress(tabId, attemptId, step, detail) {

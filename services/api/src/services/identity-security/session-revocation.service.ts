@@ -361,11 +361,12 @@ export function projectRevokedSession(r: prismaPkg.RevokedSession): {
 }
 
 export async function listRevocationsForTeam(
-  input: { teamId: string; limit?: number },
+  /** B1-F-003 — `userId` narrows to one member's own rows. */
+  input: { teamId: string; limit?: number; userId?: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.RevokedSession[]> {
   return client.revokedSession.findMany({
-    where: { teamId: input.teamId },
+    where: { teamId: input.teamId, ...(input.userId ? { userId: input.userId } : {}) },
     orderBy: { revokedAtUtc: "desc" },
     take: Math.min(Math.max(input.limit ?? 100, 1), 500),
   });

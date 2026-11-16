@@ -565,18 +565,23 @@ function OrganizationSetupInner() {
     setBusy(true);
     setStepError(null);
     try {
-      await apiFetch("/v1/lifecycle/retention/policies", {
-        method: "POST",
-        body: JSON.stringify({
-          name: `${RETENTION_LABELS[retentionTemplate]} (default)`,
-          template: retentionTemplate,
-          ...(retentionTemplate === "CUSTOM" && retentionYears
-            ? { years: Number.parseInt(retentionYears, 10) }
-            : {}),
-          scopeKind: "WORKSPACE",
-          scopeTargetId: primaryWorkspaceId ?? null,
+      // B5B-F-301 — a retention write carries account step-up
+      // (RETENTION_POLICY_UPDATE) like the governance retention writer.
+      await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/lifecycle/retention/policies", {
+          method: "POST",
+          ...(headers ? { headers } : {}),
+          body: JSON.stringify({
+            name: `${RETENTION_LABELS[retentionTemplate]} (default)`,
+            template: retentionTemplate,
+            ...(retentionTemplate === "CUSTOM" && retentionYears
+              ? { years: Number.parseInt(retentionYears, 10) }
+              : {}),
+            scopeKind: "WORKSPACE",
+            scopeTargetId: primaryWorkspaceId ?? null,
+          }),
         }),
-      });
+      );
       markSaved("retention");
       await loadWorkspaceScoped();
     } catch (err) {
@@ -584,7 +589,7 @@ function OrganizationSetupInner() {
     } finally {
       setBusy(false);
     }
-  }, [retentionTemplate, retentionYears, primaryWorkspaceId, loadWorkspaceScoped, markSaved]);
+  }, [retentionTemplate, retentionYears, primaryWorkspaceId, loadWorkspaceScoped, markSaved, stepUp]);
 
   const createLegalHold = useCallback(async () => {
     const name = holdName.trim();

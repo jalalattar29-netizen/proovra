@@ -286,7 +286,15 @@ describe("Phase IA-surface-tier — hidden surfaces for personal/small-office us
    * live in `attention-arch-phase4b-workspace-operations.test.ts` and in
    * `apps/web/__tests__/platform-admin-route-access.test.ts`.
    */
-  const INTERNAL_PATHS = ["/tools", "/ops", "/platform"];
+  // B2A-F-15 (free-audit 0ea0, pin updated 2026-11-16): "/platform" left this
+  // list — it is the PUBLIC marketing overview (app/platform), and its INTERNAL
+  // rule 404'd it for signed-out visitors. The internal consoles are /ops and
+  // /admin/platform/*.
+  const INTERNAL_PATHS = ["/tools", "/ops"];
+
+  it("B2A-F-15: /platform (public marketing) is not an INTERNAL app surface", () => {
+    expect(getSurfaceTier("/platform")).not.toBe("INTERNAL");
+  });
 
   for (const path of INTERNAL_PATHS) {
     it(`INTERNAL hidden: ${path} → notFound for non-platform-admin`, () => {

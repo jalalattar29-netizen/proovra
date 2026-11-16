@@ -173,6 +173,10 @@ export async function enqueueAutomationTrigger(
         teamId: input.teamId,
         triggerType: input.triggerType,
         enabled: true,
+        // B7B-F02 — a closed workspace runs no automation: its retained
+        // records still reach retention dates and fire time-based triggers.
+        // (Closure also disables the rules; this holds for any left enabled.)
+        team: { closedAtUtc: null },
       },
       select: { id: true, teamId: true, actionType: true, conditionJson: true },
       orderBy: { createdAt: "asc" },

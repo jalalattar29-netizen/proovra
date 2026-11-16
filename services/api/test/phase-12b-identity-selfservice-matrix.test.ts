@@ -334,6 +334,19 @@ vi.mock("../src/services/identity/access-policy.service.js", async (orig) => ({
       ? { allowed: true }
       : { allowed: false, reason: "permission_denied_capability", detail: null };
   },
+  // B1-F-003 (free-audit 0ea0) — the secondary "does this member administer
+  // identity here?" narrowing reads the canonical snapshot with the pure
+  // evaluator; it follows the same switch as the primary gate.
+  loadMemberAccessSnapshot: async (i: Record<string, unknown>) => {
+    H.rec("loadMemberAccessSnapshot", i);
+    return {};
+  },
+  evaluateAccess: (_actor: unknown, ctx: Record<string, unknown>) => {
+    H.rec("evaluateAccess", ctx);
+    return H.accessAllowed
+      ? { allowed: true }
+      : { allowed: false, reason: "permission_not_granted" };
+  },
 }));
 
 vi.mock("../src/services/enterprise-gate-resolvers.service.js", async (orig) => ({
@@ -570,6 +583,10 @@ vi.mock("../src/services/security/mfa.service.js", async (orig) => ({
   },
   consumeRecoveryCode: async (i: Record<string, unknown>) => {
     H.rec("consumeRecoveryCode", i);
+    return H.recoveryOk ? { ok: true } : { ok: false, reason: "recovery_code_invalid" };
+  },
+  checkRecoveryCode: async (i: Record<string, unknown>) => {
+    H.rec("checkRecoveryCode", i);
     return H.recoveryOk ? { ok: true } : { ok: false, reason: "recovery_code_invalid" };
   },
 }));
@@ -1896,18 +1913,29 @@ describe("MFA enrolment and factor lifecycle", () => {
     expect(JSON.parse(res.body)).toEqual({ error: "code_invalid" });
   });
 
-  it("enroll/verify is brute-force bounded per account (429 after the window budget)", async () => {
-    H.actorUserId = "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1"; // fresh limiter bucket
+  it("enroll/verify is brute-force bounded per account (429 when the shared limiter refuses)", async () => {
+    // B1-F-011 (free-audit 0ea0): the budget is the canonical limiter's, one
+    // GLOBAL bucket per account across every instance (no per-process Map).
+    H.actorUserId = "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1";
     H.enrollVerifyOk = false;
-    let last = 0;
-    for (let i = 0; i < 7; i += 1) {
-      const res = await app.inject({
-        method: "POST", url: "/v1/identity/mfa/enroll/verify",
-        payload: { factorId: FACTOR_ENROLLING, code: "000000" },
-      });
-      last = res.statusCode;
-    }
-    expect(last).toBe(429);
+    const allowed = await app.inject({
+      method: "POST", url: "/v1/identity/mfa/enroll/verify",
+      payload: { factorId: FACTOR_ENROLLING, code: "000000" },
+    });
+    expect(allowed.statusCode).toBe(400);
+    expect(callInput("enforceRateLimit")).toMatchObject({
+      key: "mfa:enroll-verify:d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1",
+      max: 5,
+      windowSec: 60,
+      bound: "global",
+    });
+    H.rateLimitAllowed = false;
+    const res = await app.inject({
+      method: "POST", url: "/v1/identity/mfa/enroll/verify",
+      payload: { factorId: FACTOR_ENROLLING, code: "000000" },
+    });
+    expect(res.statusCode).toBe(429);
+    expect(called("verifyAndActivateEnrollment")).toHaveLength(1);
   });
 
   it("cancelling my own ENROLLING factor needs no step-up and revokes it", async () => {
@@ -1976,9 +2004,12 @@ describe("MFA enrolment and factor lifecycle", () => {
       payload: { recoveryCode: "AAAA-1111-BBBB" },
     });
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body)).toEqual({ ok: true, used: "recovery_code" });
+    // B1-F-020 (free-audit 0ea0): a check that changes no state does not spend
+    // the code — it is verified, not consumed.
+    expect(JSON.parse(res.body)).toEqual({ ok: true, used: "recovery_code", consumed: false });
     expect(res.body).not.toContain("AAAA-1111-BBBB");
-    expect(callInput("consumeRecoveryCode").userId).toBe(ACTOR);
+    expect(callInput("checkRecoveryCode").userId).toBe(ACTOR);
+    expect(called("consumeRecoveryCode")).toEqual([]);
   });
 
   it("challenge/verify failures are bounded and reveal no factor detail", async () => {

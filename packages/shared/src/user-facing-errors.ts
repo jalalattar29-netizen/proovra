@@ -62,6 +62,30 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "A record can't be linked to itself. Enter a different evidence record ID.",
     severity: "warning",
   },
+  /**
+   * R1-F-01 (free audit 0ea0) — Evidence Request refusals the clients showed
+   * as a generic failure (codes from evidence-requests.routes.ts errorToReply).
+   */
+  TRANSITION_NOT_ALLOWED: {
+    title: "That step isn't available",
+    message: "This request can't move to that state from where it is now. Reload it to see the steps that are available.",
+    severity: "warning",
+  },
+  INTERNAL_RECIPIENT_REQUIRES_ASSIGNEE: {
+    title: "Choose who should respond",
+    message: "A request sent to someone in this workspace needs an assignee. Pick a workspace member, then send it again.",
+    severity: "warning",
+  },
+  RESPONSE_ALREADY_REVIEWED: {
+    title: "Already reviewed",
+    message: "This response already has a decision. Reload the request to see it; a new submission is needed for another review.",
+    severity: "info",
+  },
+  REQUEST_TERMINAL: {
+    title: "This request is closed",
+    message: "This request has been closed or cancelled, so nothing more can be changed on it.",
+    severity: "info",
+  },
   STEP_UP_WORKSPACE_REQUIRED: {
     title: "Join a workspace first",
     message:
@@ -549,6 +573,13 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "The service is handling a lot of requests right now. Nothing was changed — please try again in a moment.",
     severity: "warning",
   },
+  // B1-F-006 (Free-user audit 0ea0) — sign-in could not confirm the account's
+  // second-factor requirement, so it signed nobody in (fail closed).
+  SECURITY_CONTEXT_UNAVAILABLE: {
+    title: "We couldn't confirm your sign-in security",
+    message: "Nothing was signed in. Please try again in a moment.",
+    severity: "warning",
+  },
   EMAIL_NOT_VERIFIED: {
     title: "Verify your email address",
     message: "Please verify your email address before continuing. Check your inbox for the activation link.",
@@ -1018,7 +1049,11 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
   NEW_VERSION_NO_MATERIAL_CHANGE: {
     title: "The report is already current",
     message:
-      "A new version is issued automatically when a new verification fact is recorded for this record.",
+      // B5B-F-401 (free audit 0ea0) — only the independent Bitcoin verification
+      // of the timestamp issues a version on its own; other facts (a timestamp
+      // token validated later, custody, an integrity re-check) make an updated
+      // version AVAILABLE, they do not issue one.
+      "An updated version becomes available when a new verification fact is recorded for this record. Only an independent Bitcoin verification of its timestamp issues one automatically.",
     severity: "info",
   },
   EVIDENCE_NOT_IN_RETENTION_ARCHIVE: {

@@ -13,6 +13,11 @@
  * redaction workspace at `/redaction/[projectId]`.
  */
 
+import {
+  isRedactionReadDenied,
+  REDACTION_READ_DENIED_MESSAGE,
+  redactionRefusalMessage,
+} from "../../../lib/redaction/refusal";
 import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -73,16 +78,21 @@ function RedactionProjectsShell() {
   const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
   const [providers, setProviders] = useState<ProviderHealthRow[] | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  // B5B-F-200 — a refused read is a permission state, never endless loading or "no projects".
+  const [readDenied, setReadDenied] = useState(false);
+  const [summaryFailed, setSummaryFailed] = useState<string | null>(null);
   // PHASE 7 §10.7 — redaction projects are workspace-anchored; re-scope
   // the whole page on a workspace switch (never show the prior tenant's
   // projects/summary/provider health).
   const { activeWorkspaceId } = usePlatformContext();
 
   const refresh = useCallback(async () => {
+    let denied = false;
     try {
       const r = await apiFetch("/v1/redaction/projects", { method: "GET" });
       setRows((r?.projects ?? []) as ProjectRow[]);
-    } catch {
+    } catch (err) {
+      if (isRedactionReadDenied(err)) denied = true;
       setRows([]);
     }
     try {
@@ -90,9 +100,13 @@ function RedactionProjectsShell() {
         method: "GET",
       });
       setSummary((s?.summary ?? null) as WorkspaceSummary | null);
-    } catch {
+      setSummaryFailed(null);
+    } catch (err) {
+      if (isRedactionReadDenied(err)) denied = true;
       setSummary(null);
+      setSummaryFailed(redactionRefusalMessage(err, "The workspace summary could not be loaded."));
     }
+    setReadDenied(denied);
     try {
       const h = await apiFetch("/v1/redaction/providers/health", {
         method: "GET",
@@ -107,6 +121,8 @@ function RedactionProjectsShell() {
     // §10.G — drop the prior tenant's data on switch before re-fetch.
     setRows(null);
     setSummary(null);
+    setSummaryFailed(null);
+    setReadDenied(false);
     setProviders(null);
     void refresh();
   }, [refresh, activeWorkspaceId]);
@@ -122,7 +138,14 @@ function RedactionProjectsShell() {
         />
       }
     >
-      <SummaryTiles summary={summary} />
+      {readDenied ? (
+        <div className="app-alert app-alert--warn" role="status" data-redaction-access-denied>
+          <strong>Redaction is not available to your role</strong>
+          <p>{REDACTION_READ_DENIED_MESSAGE}</p>
+        </div>
+      ) : (
+        <SummaryTiles summary={summary} failed={summaryFailed} />
+      )}
 
       <ProviderHealthRibbon providers={providers} />
 
@@ -147,15 +170,22 @@ function RedactionProjectsShell() {
           setBanner(msg);
           void refresh();
         }}
-        onRefuse={(msg) => setBanner(`Refused: ${msg}`)}
+        onRefuse={(msg) => setBanner(msg)}
       />
 
-      <ProjectsTable rows={rows ?? []} />
+      {readDenied ? null : <ProjectsTable rows={rows ?? []} />}
     </PageShell>
   );
 }
 
-function SummaryTiles({ summary }: { summary: WorkspaceSummary | null }) {
+function SummaryTiles({ summary, failed = null }: { summary: WorkspaceSummary | null; failed?: string | null }) {
+  if (!summary && failed) {
+    return (
+      <div className="app-alert app-alert--danger" role="alert" data-redaction-summary-failed>
+        <p>{failed}</p>
+      </div>
+    );
+  }
   if (!summary) {
     return (
       <div
@@ -306,8 +336,7 @@ function RedactionOpenForm({
         },
       );
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onRefuse(((err as any)?.denial ?? "POLICY_REJECTED") as string);
+      onRefuse(redactionRefusalMessage(err, "The redaction project could not be opened."));
     } finally {
       setBusy(false);
     }

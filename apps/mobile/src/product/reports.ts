@@ -503,7 +503,15 @@ export function reportDownloadError(status: number | null, safeMessage: string |
   return r ? r.message : safeMessage ?? "Could not start download.";
 }
 
-export function packageDownloadError(status: number | null, safeMessage: string | null): string {
+/** B5B-F-102 — see packageDownloadError. */
+export const FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS_MESSAGE =
+  "The full forensic package contains the original files, which your role cannot download in this workspace. Download the external disclosure package from the record's Artifacts instead.";
+
+export function packageDownloadError(status: number | null, safeMessage: string | null, code: string | null = null): string {
+  // B5B-F-102 — a VIEWER may take the external disclosure package but not the
+  // full forensic one (it embeds originals). The shared vocabulary has no case
+  // for the gate's code yet and read it as a governance/hold block.
+  if (code === "FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS") return FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS_MESSAGE;
   const r = resolveArtifactDownloadFailure("verificationPackage", { statusCode: status ?? undefined });
   return r ? r.message : safeMessage ?? "Could not start download.";
 }

@@ -166,3 +166,25 @@ test("a rate-limited resend names when another is allowed", async () => {
   await settle();
   assert.ok(r.hasText("A verification email was sent recently."));
 });
+
+/* ------------------------------------------ B1-F-002: nobody could approve it */
+
+test("a request nobody could approve (409 no_eligible_approver) states the limits, not 'already in flight'", async () => {
+  routes["/v1/identity/mfa-admin/recovery-requests"] = () => ({
+    __status: 409,
+    error: "no_eligible_approver",
+    details: { reason: "no_eligible_approver" },
+  });
+  const r = await render("t-personal");
+  await fileOne(r);
+  assert.ok(r.hasText("so no request was filed"), "the refusal was not explained");
+  assert.ok(r.hasText("saved single-use recovery codes"));
+  assert.ok(r.hasText("PROOVRA support cannot remove a second factor or sign you in for you."));
+  assert.equal(r.hasText("You already have a recovery request in flight."), false);
+  assert.equal(r.hasText("Your recovery request"), false);
+});
+
+test("the panel says up front that a personal workspace has no administrator", async () => {
+  const r = await render("t-active");
+  assert.ok(r.hasText("A personal workspace has no"));
+});

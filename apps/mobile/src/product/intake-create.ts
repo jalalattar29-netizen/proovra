@@ -386,7 +386,11 @@ export function friendlyCreateError(code: string | null, message: string | null)
     case "feature_disabled":
       return "External intake isn't enabled on this deployment.";
     case "INTAKE_NOT_INCLUDED":
-      return "Your current plan doesn't include external intake links.";
+      // B3B-F-105 — the server names the remedy (a plan, or one evidence
+      // credit on Free); its sentence is used when it sent one.
+      return message && !/^HTTP \d+/.test(message)
+        ? message
+        : "Intake links need a plan that includes them, or at least one evidence credit.";
     case "rate_limited":
       return "Too many intake links — wait a minute and try again.";
     case "external_intake_disabled_by_policy":
@@ -429,6 +433,10 @@ export function friendlySendError(code: string | null): string | null {
     provider_unconfigured: "Messaging isn't configured on this deployment. Copy the link instead.",
     rate_limited: "Too many resend attempts — wait a minute.",
     max_attempts_exceeded: "Too many resend attempts — wait a minute.",
+    // B3B-F-101 — the send route now refuses a workspace without secure intake (409).
+    INTAKE_NOT_INCLUDED: "Secure intake is not included in this workspace's plan.",
+    // B3B-F-102 — a second send with the same key while the first is in flight (409).
+    delivery_in_progress: "Already sending — check again in a moment.",
   };
   return code ? (map[code] ?? null) : null;
 }

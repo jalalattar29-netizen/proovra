@@ -44,6 +44,7 @@ import {
   upsertNotificationPreference,
   upsertNotificationSchedule,
 } from "../services/notifications/notification-preferences.service.js";
+import { invalidateOperationsSummary } from "../services/notifications/operations-summary-cache.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 
 /**
@@ -311,7 +312,14 @@ export async function notificationPreferencesRoutes(app: FastifyInstance) {
           body.channel === "IN_APP" && (platformFloor || policy?.mandatoryInApp);
         const emailLocked = body.channel === "EMAIL" && policy?.mandatoryEmail;
         const disabling = body.enabled === false || body.frequency === "OFF";
-        if (disabling && (inAppLocked || emailLocked || platformFloor)) {
+        // B2B-F-02 — the platform governance floor is an IN-APP floor (see the
+        // GET projection: lockedTypes carries it, emailLockedTypes does not).
+        // `inAppLocked` already includes it for the IN_APP channel; applying
+        // `platformFloor` to EMAIL made a governance email, once switched on,
+        // impossible to switch off although the GET showed it as unlocked. The
+        // only EMAIL lock is an org policy row with mandatoryEmail, which the GET
+        // projects as emailLockedTypes — GET and PUT now agree.
+        if (disabling && (inAppLocked || emailLocked)) {
           return reply.code(403).send({
             error: {
               code: "policy_locked",
@@ -344,6 +352,11 @@ export async function notificationPreferencesRoutes(app: FastifyInstance) {
         enabled: body.enabled,
         frequency: body.frequency,
       });
+
+      // B2B-F-11 — an in-app preference changes what the bell counts, so the
+      // cached summary (every scope) is dropped now instead of serving the
+      // pre-change count for up to its TTL.
+      await invalidateOperationsSummary(ok.userId);
 
       // Audit emission — bounded, no PII. Governance admins can
       // notice unusual disable patterns (e.g. a reviewer disabling

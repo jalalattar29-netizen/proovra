@@ -87,3 +87,38 @@ export function releaseManifestProblems(manifest, { apiOrigin, storageOrigins = 
   if (/E2E test build/.test(manifest.name ?? "")) problems.push("release manifest is named as the E2E test build");
   return problems;
 }
+
+/**
+ * B4-F-105 — the OAuth authorize / token URL overrides a release may ship.
+ * The release checked only the API, web and storage origins; an override
+ * pointing the sign-in at http:// or at another host (outside the declared
+ * host permissions) was packaged as is. Each override, when set, must be an
+ * https:// URL on the API origin. Unset, build.mjs derives both from the API
+ * origin. Returns the problems (empty = acceptable).
+ */
+export function releaseAuthUrlProblems({ apiOrigin, authorizeUrl, tokenUrl }) {
+  const problems = [];
+  let api = null;
+  try {
+    api = new URL(apiOrigin).origin;
+  } catch {
+    /* the API origin is checked on its own */
+  }
+  for (const [name, value] of [
+    ["PROOVRA_AUTH_AUTHORIZE_URL", authorizeUrl],
+    ["PROOVRA_AUTH_TOKEN_URL", tokenUrl],
+  ]) {
+    if (value === undefined || value === null || value === "") continue;
+    let u;
+    try {
+      u = new URL(value);
+    } catch {
+      problems.push(`${name} is not a valid URL: ${value}`);
+      continue;
+    }
+    if (u.protocol !== "https:") problems.push(`${name} must be https:// for a release (got ${u.protocol}).`);
+    if (/localhost|127\.0\.0\.1|0\.0\.0\.0/.test(u.hostname)) problems.push(`${name} must not be local (got ${u.hostname}).`);
+    if (api && u.origin !== api) problems.push(`${name} must be on the API origin ${api} (got ${u.origin}).`);
+  }
+  return problems;
+}

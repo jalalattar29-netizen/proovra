@@ -25,6 +25,7 @@
  *     goes through an explicit confirm step rather than a bare button.
  */
 
+import { redactionDenialOf } from "../../lib/redaction/refusal";
 import { useCallback, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -77,7 +78,8 @@ export function RegionListPanel({
         if (isStale(captured)) return;
         // Bounded server denial (VERSION_LOCKED / REGION_INVALID /
         // NOT_PERMITTED) — render the server's decision, never our own.
-        const denial = (err as { denial?: string })?.denial;
+        // B5B-F-200 — apiFetch carries the flat { denial } on error.details.
+        const denial = redactionDenialOf(err);
         if (denial === "VERSION_LOCKED") {
           setNotice(
             "This version is no longer a draft, so its regions can't be changed. Create a new version to make further edits.",

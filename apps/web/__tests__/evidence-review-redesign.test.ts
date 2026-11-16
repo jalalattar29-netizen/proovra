@@ -275,8 +275,9 @@ test("archive is offered only when the canonical projection allows it", () => {
 test("restore controls appear only in the state they apply to", () => {
   // Same source, different capability — and a DESTROYED record gets neither,
   // only a tombstone.
-  assert.match(REVIEW, /\{lifecycle\?\.canUnarchive \? \(/);
-  assert.match(REVIEW, /\{lifecycle\?\.canRestoreFromTrash \? \(/);
+  // B5A-F-03 — each is also gated on the caller's capability (A2-14).
+  assert.match(REVIEW, /\{lifecycle\?\.canUnarchive && actor\.canArchive \? \(/);
+  assert.match(REVIEW, /\{lifecycle\?\.canRestoreFromTrash && actor\.canRestoreFromTrash \? \(/);
   assert.match(REVIEW, /data-evidence-action="restore-archive"/);
   assert.match(REVIEW, /data-evidence-action="restore-trash"/);
   assert.match(REVIEW, /productState === "DESTROYED"/);

@@ -34,7 +34,16 @@ import {
 import { useCaptureLocation, type FinishLocation } from "./useCaptureLocation";
 // F-P1-03 / F-P1-08 / C-05 — the legacy part upload (computeIntegrityFromBlob,
 // presign, PUT under the shared storage-PUT retry rule, metadata restate).
-import { partMetadataChanged, partMetadataOf, restatePartMetadata, uploadLegacyPart, type PartMetadata } from "./legacy-part-upload";
+import {
+  capturedFileBasename,
+  newPartMetadataFields,
+  partClientSignals,
+  partMetadataChanged,
+  partMetadataOf,
+  restatePartMetadata,
+  uploadLegacyPart,
+  type PartMetadata,
+} from "./legacy-part-upload";
 import { sha256Base64OfBlob } from "../../../../lib/uploads/streaming-sha256";
 import {
   buildStorageLimitMessage,
@@ -128,6 +137,19 @@ export type CaptureSessionAddFiles = (
  *     completeEvidence transaction.
  *   * Failure throws — caller surfaces to UI; no silent fallback
  *     to legacy.
+ *
+ * B4-F-300 — the resumable door carries the SAME per-file contract as the
+ * ordinary one (legacy-part-upload.ts): the session is created with the
+ * part's note / role / checklist step / source and its client signals (the
+ * F-P1-09 silent-video marker included), and a basename-only file name. An
+ * API whose session schema does not take those fields yet (strict: 400) is
+ * sent the old body. Once the part is bridged into the record, its metadata is
+ * restated through the ordinary door's idempotent re-presign (C-05), which
+ * every API version accepts, so the seal's checklist gate sees the step.
+ *
+ * B4-F-301 — a failure (or a success) is reconciled with the upload hook: the
+ * settled uploader is forgotten (a failed one is aborted server-side), so its
+ * snapshot no longer blocks Review & Sign and the retry starts afresh.
  */
 async function runResumableItemUpload(input: {
   evidenceId: string;
@@ -138,8 +160,9 @@ async function runResumableItemUpload(input: {
   setSessionItems: (
     updater: (prev: SessionItem[]) => SessionItem[],
   ) => void;
+  locationIncluded: boolean;
 }): Promise<void> {
-  const { evidenceId, evidenceTeamId, item, index, resumable, setSessionItems } =
+  const { evidenceId, evidenceTeamId, item, index, resumable, setSessionItems, locationIncluded } =
     input;
   const expectedPartCount = planChunks(item.file.size).length;
   // The server compares the stored object with this. A digest staging did not
@@ -147,20 +170,89 @@ async function runResumableItemUpload(input: {
   const sha256Base64 =
     item.clientSignals?.clientHintSha256Base64 ?? (await sha256Base64OfBlob(item.file));
   // 1. Create the upload session.
-  const sessionRes = (await apiFetch("/v1/uploads/sessions", {
-    method: "POST",
-    body: JSON.stringify({
-      teamId: evidenceTeamId,
-      evidenceId,
-      expectedPartCount,
-      ...declaredObject(item.file.size, sha256Base64),
-      idempotencyKey: `capture:${evidenceId}:${index}`,
-      targetPartIndex: index,
-      originalFileName: item.relativePath || item.file.name,
-      expectedMimeType: normalizeClientMimeType(item.mimeType),
-    }),
-  })) as { session: { id: string } };
+  const baseBody = {
+    teamId: evidenceTeamId,
+    evidenceId,
+    expectedPartCount,
+    ...declaredObject(item.file.size, sha256Base64),
+    idempotencyKey: `capture:${evidenceId}:${index}`,
+    targetPartIndex: index,
+    originalFileName: capturedFileBasename(item),
+    expectedMimeType: normalizeClientMimeType(item.mimeType),
+  };
+  const clientSignals = partClientSignals(item, locationIncluded);
+  const contract = {
+    ...newPartMetadataFields(item),
+    ...(clientSignals ? { clientSignals } : {}),
+  };
+  const createSession = (body: object) =>
+    apiFetch("/v1/uploads/sessions", { method: "POST", body: JSON.stringify(body) }) as Promise<{
+      session: { id: string };
+    }>;
+  let sessionRes: { session: { id: string } };
+  // B4-F-300 — the contract the bridge is told on multipart/complete: the
+  // session cannot persist it (no column), so the bridge stores what complete
+  // states. Not sent to an API that already refused it at create.
+  let bridgeContract: object = contract;
+  try {
+    sessionRes = await createSession({ ...baseBody, ...contract });
+  } catch (err) {
+    // COMPAT — the session schema is strict on an API older than the
+    // contract fields: it refuses them (400) and creates nothing. The old
+    // body is sent; the metadata is restated after the bridge below.
+    if (Object.keys(contract).length === 0 || !refusedAsUnknownFields(err)) throw err;
+    sessionRes = await createSession(baseBody);
+    bridgeContract = {};
+  }
   const sessionId = sessionRes.session.id;
+  try {
+    await driveResumableSession({ sessionId, evidenceId, evidenceTeamId, item, resumable, setSessionItems, bridgeContract });
+  } catch (err) {
+    resumable.forget?.(sessionId, { abort: true });
+    throw err;
+  }
+  resumable.forget?.(sessionId);
+  // C-05 — the bridged part's note / role / step / label, through the
+  // ordinary door's idempotent re-presign of the SAME file.
+  if (Object.values(partMetadataOf(item)).some(Boolean)) {
+    try {
+      await restatePartMetadata({
+        evidenceId,
+        index,
+        item,
+        locationIncluded,
+        previous: { privateRole: null, privateNote: null, checklistStepId: null, sourceLabel: null },
+        checksumSha256Base64: sha256Base64,
+      });
+    } catch (err) {
+      // The re-presign's ADVISORY storage check counts this file's declared
+      // size again although its bytes are already stored; near the cap it can
+      // refuse a restatement that changes no bytes. The seal measures the
+      // actual bytes and decides; any other refusal stands.
+      if ((err as { code?: unknown } | null)?.code !== "STORAGE_LIMIT_REACHED") throw err;
+    }
+  }
+}
+
+/** A 400 refusal of the request's shape (an older API's strict schema). */
+function refusedAsUnknownFields(err: unknown): boolean {
+  const e = err as { statusCode?: unknown; status?: unknown; code?: unknown } | null;
+  const status = typeof e?.statusCode === "number" ? e.statusCode : e?.status;
+  if (status !== 400) return false;
+  return e?.code == null || ["VALIDATION_ERROR", "INVALID_INPUT", "INVALID_REQUEST", "BAD_REQUEST", "API_ERROR"].includes(String(e.code));
+}
+
+async function driveResumableSession(input: {
+  sessionId: string;
+  evidenceId: string;
+  evidenceTeamId: string;
+  item: SessionItem;
+  resumable: UseResumableUploadsApi;
+  setSessionItems: (updater: (prev: SessionItem[]) => SessionItem[]) => void;
+  /** B4-F-300 — the per-file contract stated on multipart/complete. */
+  bridgeContract: object;
+}): Promise<void> {
+  const { sessionId, evidenceId, evidenceTeamId, item, resumable, setSessionItems, bridgeContract } = input;
   // 2. Initiate the S3 native multipart upload.
   await apiFetch(`/v1/uploads/sessions/${sessionId}/multipart/initiate`, {
     method: "POST",
@@ -230,11 +322,21 @@ async function runResumableItemUpload(input: {
       }
     });
   });
-  // 4. Server-side complete + bridge creation.
-  await apiFetch(`/v1/uploads/sessions/${sessionId}/multipart/complete`, {
-    method: "POST",
-    body: JSON.stringify({ teamId: evidenceTeamId, verifyHash: true }),
-  });
+  // 4. Server-side complete + bridge creation. B4-F-300: the bridged part
+  // stores the per-file contract stated here. An older API's strict schema
+  // refuses it (400) before acting; the old body is then sent and the
+  // metadata is restated after the bridge (C-05).
+  const completeMultipart = (contract: object) =>
+    apiFetch(`/v1/uploads/sessions/${sessionId}/multipart/complete`, {
+      method: "POST",
+      body: JSON.stringify({ teamId: evidenceTeamId, verifyHash: true, ...contract }),
+    });
+  try {
+    await completeMultipart(bridgeContract);
+  } catch (err) {
+    if (Object.keys(bridgeContract).length === 0 || !refusedAsUnknownFields(err)) throw err;
+    await completeMultipart({});
+  }
   // 5. Flip session to COMPLETED so the Phase 30.11 gate allows
   // the downstream evidence finalize.
   await apiFetch(`/v1/uploads/sessions/${sessionId}/complete`, {
@@ -338,6 +440,11 @@ export function useCaptureSessionOrchestration({
 
   const sessionItemsRef = useRef<SessionItem[]>([]);
   const reservationRef = useRef<CaptureRecordReservation | null>(null);
+  // B4-F-301 / B4-F-207 — the record the current reservation holds, as state:
+  // Review & Sign counts only that record's upload recovery entries, and the
+  // Clear dialog says whether a reserved record will be released.
+  const [reservedEvidenceId, setReservedEvidenceId] = useState<string | null>(null);
+  const syncReservation = () => setReservedEvidenceId(reservationRef.current?.evidenceId ?? null);
   // C-04 — the record a successful Finish opens, once the sealed items have
   // been cleared. Decided after that render, from the items actually left:
   // material added while Finish ran keeps the operator on this page.
@@ -595,6 +702,7 @@ export function useCaptureSessionOrchestration({
     const hadMaterials = sessionItemsRef.current.length > 0;
 
     reservationRef.current = null;
+    syncReservation();
     const only = options?.onlyItemIds;
     if (only) {
       // The removeSessionItem pattern: revoke and filter the sealed items only.
@@ -687,6 +795,7 @@ export function useCaptureSessionOrchestration({
       reservation.itemIds = itemIds;
     }
     reservationRef.current = reservation;
+    syncReservation();
     const resuming = reservation.evidenceId !== null;
     let currentItemId: string | null = null;
 
@@ -840,6 +949,7 @@ export function useCaptureSessionOrchestration({
         (created as { teamId?: string | null }).teamId ?? null;
       reservation.evidenceId = evidenceId;
       reservation.evidenceTeamId = evidenceTeamId;
+      syncReservation();
       setSessionStatus(
         resuming
           ? "Resuming upload into the same evidence record..."
@@ -890,7 +1000,10 @@ export function useCaptureSessionOrchestration({
               index,
               resumable,
               setSessionItems,
+              locationIncluded: Boolean(gps),
             });
+            // B4-F-300 — C-05 restates later edits for this item too.
+            (reservation.sentMetadata ??= new Map()).set(item.id, partMetadataOf(item));
             // Item is now staged + uploaded + server-bridged via the
             // EvidencePart row created at completeStorageMultipart
             // time. The downstream completeEvidence transaction
@@ -967,6 +1080,7 @@ export function useCaptureSessionOrchestration({
       const tsaNotice = tsaCompletionNotice(completed?.tsaOutcome ?? null);
       // Sealed: nothing left to resume.
       reservationRef.current = null;
+      syncReservation();
 
       setSessionStatus("Generating verification artifacts...");
       const artifactOutcome = await pollArtifacts(evidenceId);
@@ -1008,6 +1122,7 @@ export function useCaptureSessionOrchestration({
       const released = refusedUploadReleasedReservation(err); // PRO-078
       // F-03 / F-09 — see reservationUnusable.
       if (released || reservationUnusable(err)) reservationRef.current = null;
+      syncReservation();
       // UC-WEB-001 — a failed item gets a safe error; uploaded ones keep 100%.
       {
         const failedItemId = currentItemId;
@@ -1083,6 +1198,7 @@ export function useCaptureSessionOrchestration({
     locationPermissionDenied: location.permissionDenied,
     progress,
     removeSessionItem,
+    reservedEvidenceId,
     resetCaptureState,
     revokeAllPreviews,
     sessionItems,

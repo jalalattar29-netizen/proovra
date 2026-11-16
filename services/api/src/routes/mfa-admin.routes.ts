@@ -691,6 +691,17 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           reply.code(403);
           return { error: "not_member" };
         }
+        // B1-F-002 — nobody in this workspace could approve it (a personal
+        // workspace, or a sole owner nobody outranks). Nothing was filed. A
+        // stable code, distinct from `already_pending`, so the clients state
+        // what the person can still do instead of "a request is in flight".
+        if (result.reason === "no_eligible_approver") {
+          reply.code(409);
+          return {
+            error: "no_eligible_approver",
+            details: { reason: "no_eligible_approver" },
+          };
+        }
         // PHASE R8.1.6 — per-account throttle. We surface the
         // bounded `retryAfter` ISO timestamp so the UI can show a
         // calm "try again at HH:MM" message without leaking the

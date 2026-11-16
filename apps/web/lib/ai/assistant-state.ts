@@ -241,7 +241,7 @@ export function classifyAssistantError(err: AssistantErrorLike): AssistantState 
       kind: "COST_GUARD",
       title: "This workspace has used its AI allowance",
       body:
-        "The monthly limit for AI requests has been reached. It resets with the next billing period; capture, reports and verification are unaffected.",
+        "The monthly limit for AI requests has been reached. It resets at the start of the next calendar month (UTC); capture, reports and verification are unaffected.",
       canSend: false,
       tone: "notice",
     };

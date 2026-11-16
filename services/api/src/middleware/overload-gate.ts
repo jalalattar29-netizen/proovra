@@ -80,8 +80,21 @@ export function readOverloadGateSettings(env: NodeJS.ProcessEnv = process.env): 
   };
 }
 
-/** Probes the orchestrator and the proxy use; never shed. */
-const EXEMPT_PATHS = new Set(["/healthz", "/readyz", "/health", "/metrics"]);
+/**
+ * Probes the orchestrator and the proxy use; never shed.
+ *
+ * B8-F-001 — and sign-out. An overloaded API must never refuse the request
+ * that ENDS a session: the gate answered 503 SERVER_BUSY before the route could
+ * revoke it, so a person who signed out on a shared device during load left a
+ * live 30-day session behind. Logout is one bounded write.
+ */
+const EXEMPT_PATHS = new Set([
+  "/healthz",
+  "/readyz",
+  "/health",
+  "/metrics",
+  "/v1/auth/logout",
+]);
 
 function isExempt(req: FastifyRequest): boolean {
   if (req.method === "OPTIONS") return true;

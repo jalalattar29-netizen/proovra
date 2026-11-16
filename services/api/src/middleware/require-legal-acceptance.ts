@@ -29,7 +29,7 @@ export async function requireLegalAcceptance(
 
   const routePattern =
     (req as { routeOptions?: { url?: string } }).routeOptions?.url ?? null;
-  if (!legalAcceptanceRequiredFor(req.method, routePattern)) return;
+  if (!legalAcceptanceRequiredFor(req.method, routePattern, req.body)) return;
 
   await refuseWithoutCurrentLegalAcceptance(req, reply, userId);
 }

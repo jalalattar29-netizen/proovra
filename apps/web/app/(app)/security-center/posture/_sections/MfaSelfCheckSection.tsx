@@ -21,8 +21,11 @@
  *     localStorage, in a log, or in an analytics payload.
  *   * The input is `autoComplete="one-time-code"` and never `type="text"`
  *     with a name that a password manager would persist.
- *   * A verified recovery code is CONSUMED by the server. The copy says so
- *     before the operator submits.
+ *   * B1-F-020 (free-audit 0ea0) — the check no longer spends a backup code:
+ *     the server answers `{ ok, used: "recovery_code", consumed: false }`.
+ *     The copy no longer warns that checking uses the code up. An older
+ *     server that still consumed it (no `consumed` field) is told apart
+ *     after the fact, so the result never claims a spent code is still valid.
  *   * The response never contains a seed, a secret, or a new recovery code.
  */
 
@@ -46,7 +49,7 @@ type Mode = "totp" | "recovery";
 type Outcome =
   | { kind: "idle" }
   | { kind: "checking" }
-  | { kind: "verified"; used: string }
+  | { kind: "verified"; used: string; spentBackupCode: boolean }
   | { kind: "rejected"; message: string };
 
 export function MfaSelfCheckSection() {
@@ -65,10 +68,12 @@ export function MfaSelfCheckSection() {
         body: JSON.stringify(
           mode === "totp" ? { code: value } : { recoveryCode: value },
         ),
-      })) as { ok?: boolean; used?: string } | null;
+      })) as { ok?: boolean; used?: string; consumed?: boolean } | null;
+      const backup = res?.used === "recovery_code";
       setOutcome({
         kind: "verified",
-        used: res?.used === "recovery_code" ? "backup code" : "authenticator code",
+        used: backup ? "backup code" : "authenticator code",
+        spentBackupCode: backup && res?.consumed !== false,
       });
     } catch (err) {
       setOutcome({
@@ -147,7 +152,7 @@ export function MfaSelfCheckSection() {
           <p style={{ ...sectionMuted, margin: "6px 0 0" }}>
             {mode === "totp"
               ? "Nothing changes if the code is correct — this is a read-only check."
-              : "A backup code that verifies is USED UP and cannot be reused. Only run this check with a backup code if you intend to spend one."}
+              : "Checking a backup code does not use it up — it stays valid for signing in."}
           </p>
           <div style={{ marginTop: 12 }}>
             <Button
@@ -165,6 +170,13 @@ export function MfaSelfCheckSection() {
         {outcome.kind === "verified" ? (
           <div style={{ marginTop: 12 }} data-mfa-self-check-result="verified">
             <Badge tone="verified">Your {outcome.used} was accepted</Badge>
+            {outcome.used === "backup code" ? (
+              <p style={{ ...sectionMuted, margin: "6px 0 0" }} data-mfa-self-check-backup-state>
+                {outcome.spentBackupCode
+                  ? "This server used the backup code up, so it can't be used again."
+                  : "The backup code is still valid; checking it did not use it up."}
+              </p>
+            ) : null}
           </div>
         ) : null}
         {outcome.kind === "rejected" ? (

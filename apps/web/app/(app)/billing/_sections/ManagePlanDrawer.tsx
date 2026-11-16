@@ -342,9 +342,14 @@ export function ManagePlanDrawer({
                    * the provider's answer, and it is confirmed after they give
                    * it rather than predicted here.
                    */}
-                  {periodEnd
-                    ? `Your plan will move to Free at the end of the period you have paid for, on ${periodEnd}.`
-                    : "Your plan will move to Free once your payment provider confirms; we will tell you the exact date then."}{" "}
+                  {/* B6-F-67 — the same provider statement the confirmation
+                      makes: PayPal ends a subscription immediately, so the
+                      period-end sentence was untrue for it. */}
+                  {plan.paymentProviderLabel === "PayPal"
+                    ? "PayPal ends a subscription immediately: your plan moves to Free when PayPal confirms the cancellation."
+                    : periodEnd
+                      ? `Your plan will move to Free at the end of the period you have paid for, on ${periodEnd}.`
+                      : "Your plan will move to Free once your payment provider confirms; we will tell you the exact date then."}{" "}
                   Your existing evidence and custody records remain available
                   under the applicable retention and access rules.
                 </p>
@@ -380,7 +385,10 @@ export function ManagePlanDrawer({
                */
               <p className="bill-choice__meta" data-billing-manage-cancel-unavailable>
                 {actions.cancellationUnavailableReason === "NO_SUBSCRIPTION_BOUND"
-                  ? "We cannot find a live subscription for this plan with your payment provider, so there is nothing here for us to stop. Please contact support and we will look at it with you — nothing will be charged again in the meantime without one."
+                  ? // B6-F-67 — no reassurance we cannot back: this is the
+                    // case where a charge may be running with nothing for us
+                    // to stop.
+                    "We cannot find a live subscription for this plan with your payment provider, so there is nothing here for us to stop. Please contact support and we will look at it with you."
                   : "Ending this subscription is done by the account's billing owner."}
               </p>
             )}

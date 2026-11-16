@@ -15,13 +15,23 @@ import { useEffect, useState } from "react";
 import { listBillingAccounts, readBillingAccount } from "../../../../lib/api/billing-accounts";
 import { allowanceFactsFromProjection, type CaptureAllowanceFacts } from "../_lib/capture-allowance";
 
-export function useCaptureAllowance(personalSpaceId: string | null): CaptureAllowanceFacts | null {
+/**
+ * B4-F-302 — `refreshKey` re-reads the facts: Capture bumps it after a
+ * record is sealed or a capture discarded on this page, so a notice (e.g.
+ * "No record left on your plan" after sealing the third record) appears
+ * without a reload.
+ */
+export function useCaptureAllowance(personalSpaceId: string | null, refreshKey = 0): CaptureAllowanceFacts | null {
   const [facts, setFacts] = useState<CaptureAllowanceFacts | null>(null);
 
   useEffect(() => {
     let alive = true;
-    setFacts(null);
-    if (!personalSpaceId) return undefined;
+    // A refresh keeps the facts shown until the new ones arrive; a change of
+    // space clears them (they belong to another account).
+    if (!personalSpaceId) {
+      setFacts(null);
+      return undefined;
+    }
     (async () => {
       const accounts = await listBillingAccounts();
       const personal = accounts.find((account) => account.type === "PERSONAL");
@@ -34,7 +44,7 @@ export function useCaptureAllowance(personalSpaceId: string | null): CaptureAllo
     return () => {
       alive = false;
     };
-  }, [personalSpaceId]);
+  }, [personalSpaceId, refreshKey]);
 
   return facts;
 }

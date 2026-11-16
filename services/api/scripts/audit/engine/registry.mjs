@@ -721,7 +721,17 @@ export const CHANGED_PATH_CLASSES = Object.freeze([
       // the same reasoning as the lint/runner configs above.
       // release.mjs builds the store package (fail-closed origin checks).
       /^apps\/extension\/(build[\w-]*|release)\.mjs$/.test(p) ||
-      /^apps\/extension\/scripts\//.test(p),
+      /^apps\/extension\/scripts\//.test(p) ||
+      // B8-F-401 / B8-F-402 (free-audit 0ea0, classified 2026-11-16) — the
+      // recorded API route table behind the presentation-contract epoch. It
+      // ships nothing and executes nothing; `scripts/presentation-contract-
+      // manifest.mjs --check` compares it with the live route registrations
+      // and the epoch in packages/shared/src/release-contract.ts, so it
+      // decides whether a client/API pair is releasable — the same reasoning
+      // as the lint and runner configs above. It is not DOCUMENTATION (it is
+      // machine-read) and not AUDIT_ARTIFACT (the audit engine does not
+      // write it).
+      /^services\/api\/contract\/presentation-contract-routes\.json$/.test(p),
   },
   { class: "INFRASTRUCTURE", test: (p) => p.startsWith("infra/") || p.startsWith("deploy/") },
 ]);

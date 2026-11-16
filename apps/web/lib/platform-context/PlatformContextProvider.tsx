@@ -312,6 +312,14 @@ export function usePlatformContext(): PlatformContextValue {
 }
 
 /**
+ * The context when a provider is mounted, otherwise null — for presentation
+ * gates that must also render outside the app shell (isolated components).
+ */
+export function useOptionalPlatformContext(): PlatformContextValue | null {
+  return useContext(PlatformContextReactContext);
+}
+
+/**
  * Internal — pure capability lookup over the current state. Returns
  * false when no envelope is available (fail-closed).
  */

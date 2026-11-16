@@ -25,8 +25,9 @@
  * disagreeing about which tenant the user is in.
  */
 import { useCallback, useMemo, useState } from "react";
-import { View } from "react-native";
+import { Alert, View } from "react-native";
 import { useRouter } from "expo-router";
+import { WORKSPACE_SWITCH_BLOCKED_BODY, WORKSPACE_SWITCH_BLOCKED_TITLE, workspaceSwitchBlocked } from "../../src/product/workspace-switch-guard";
 
 import { apiFetch } from "../../src/api";
 import { workspaceSwitchRefusal } from "../../src/auth/session-end";
@@ -115,6 +116,11 @@ export default function SpacesScreen() {
   const switchTo = useCallback(
     async (space: Space) => {
       if (!canSwitchTo(space, view)) return;
+      // B2A-F-22 — never move a live capture's context under it.
+      if (workspaceSwitchBlocked()) {
+        Alert.alert(WORKSPACE_SWITCH_BLOCKED_TITLE, WORKSPACE_SWITCH_BLOCKED_BODY);
+        return;
+      }
       setBusy(true);
       try {
         await apiFetch(SWITCH_WORKSPACE_PATH, {

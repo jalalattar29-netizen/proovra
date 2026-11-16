@@ -272,6 +272,8 @@ export default function MarketingPricingPage() {
         `${catalogValue(catalog?.free?.maxEvidenceRecords)} complete evidence records total`,
         "Each includes its report, verification package and verification page",
         `${catalogValue(catalog?.free?.storageLabel)} storage`,
+        // B6-F-66 — D-03 (product decision 2026-11-15).
+        "Each record's first report and verification package don't count toward storage",
         "Deleting a record does not restore a slot",
       ],
     },

@@ -38,6 +38,8 @@ type Availability = {
   data?: {
     available: boolean;
     decision?: string;
+    /** R2-F-003 — product questions are still answered (ai.routes.ts availability). */
+    groundedAnswersAvailable?: boolean;
   };
 };
 
@@ -55,13 +57,36 @@ function allowedRoute(path: string): boolean {
   return /^\/(?:home|capture|cases|evidence|settings|support|reports|billing|pricing|teams)?\/?$/.test(path);
 }
 
-function errorMessage(error: unknown): string {
+/**
+ * R2-F-003 (free-user audit 0ea0) — the chat route's OWN vocabulary
+ * (ai.routes.ts, billing-enforcement `AiOperationDenial`), as the web's
+ * assistant-state.ts classifies it. The codes this switch knew are ones the
+ * route does not emit, so a Free user at 10/10 AI operations read "Too many
+ * requests. Please try again later." and a plan refusal read as a generic
+ * failure. Exported for the unit test.
+ */
+export function errorMessage(error: unknown): string {
   const e = error as {
     code?: string;
     statusCode?: number;
   };
 
   switch (e?.code) {
+    case "AI_MONTHLY_LIMIT_REACHED":
+      return "You have used this month's AI allowance. It resets on the 1st of next month (UTC). Capture, reports and verification are unaffected.";
+
+    case "AI_NOT_INCLUDED":
+      return "AI assistance is not part of your current plan. Capture, custody, verification and reporting are fully available without it.";
+
+    case "COMMERCIAL_LIFECYCLE_RESTRICTED":
+      return "This workspace's subscription does not allow new AI requests right now. Check Billing; capture, reports and verification are unaffected.";
+
+    case "AI_CHAT_RATE_LIMITED":
+      return "Too many questions at once. Wait a moment and ask again.";
+
+    case "AI_CHAT_TIMEOUT":
+      return "The assistant took too long to answer. Ask again; nothing else was affected.";
+
     case "AI_WORKSPACE_POLICY_DENIED":
     case "AI_DISABLED":
       return "AI assistance is disabled for this workspace.";
@@ -94,6 +119,21 @@ function errorMessage(error: unknown): string {
   }
 
   return "The assistant could not complete this request.";
+}
+
+/**
+ * R2-F-003 — what the availability probe means. `available: false` is not
+ * always dead: an operator capability gap (provider not configured, AI off
+ * platform-wide) still answers questions about the product from compiled
+ * knowledge, and the route says so with `groundedAnswersAvailable`.
+ */
+export function assistantAvailability(payload: Availability | null | undefined): { canSend: boolean; notice: string } {
+  if (!payload?.data) return { canSend: false, notice: "AI availability could not be confirmed." };
+  if (payload.data.available) return { canSend: true, notice: "" };
+  if (payload.data.groundedAnswersAvailable === true) {
+    return { canSend: true, notice: "AI responses are switched off. Questions about how PROOVRA works are still answered." };
+  }
+  return { canSend: false, notice: "AI assistance is disabled or unavailable for this workspace." };
 }
 
 export function NativeChatAssistant() {
@@ -155,19 +195,9 @@ export function NativeChatAssistant() {
       .then((payload: Availability) => {
         if (requestId.current !== id) return;
 
-        if (!payload?.data) {
-          setNotice("AI availability could not be confirmed.");
-          return;
-        }
-
-        if (!payload.data.available) {
-          setNotice(
-            "AI assistance is disabled or unavailable for this workspace."
-          );
-          return;
-        }
-
-        setAvailable(true);
+        const outcome = assistantAvailability(payload);
+        setNotice(outcome.notice);
+        setAvailable(outcome.canSend);
       })
       .catch((error: unknown) => {
         if (requestId.current === id) {

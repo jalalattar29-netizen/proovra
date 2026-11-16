@@ -2,7 +2,14 @@
 // BullMQ load so HTTP / pg / ioredis are auto-instrumented. This
 // side-effect import is a no-op when OTEL_ENABLED is not "true".
 import "./observability/otel-bootstrap.js";
-import { PRESENTATION_CONTRACT_HEADER, PRESENTATION_CONTRACT_VERSION } from "@proovra/shared";
+import {
+  PRESENTATION_CONTRACT_HEADER,
+  PRESENTATION_CONTRACT_MIN_CLIENT,
+  PRESENTATION_CONTRACT_MIN_CLIENT_HEADER,
+  PRESENTATION_CONTRACT_ROUTE_EPOCH,
+  PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER,
+  PRESENTATION_CONTRACT_VERSION,
+} from "@proovra/shared";
 import { randomUUID } from "node:crypto";
 import {
   LEGACY_RECORD_NEEDS_REVIEW,
@@ -689,7 +696,12 @@ allowedHeaders: [
     origin: (origin, cb) => cb(null, isCorsOriginAllowed(origin)),
     // AUD-32 (2026-10-20) — the browser may READ the contract version (a
     // cross-origin response hides every header not exposed).
-    exposedHeaders: [PRESENTATION_CONTRACT_HEADER],
+    // B8-F-401/402 — and the derived route epoch + minimum client contract.
+    exposedHeaders: [
+      PRESENTATION_CONTRACT_HEADER,
+      PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER,
+      PRESENTATION_CONTRACT_MIN_CLIENT_HEADER,
+    ],
   });
 
   // AUD-32 (2026-10-20) — every response states the presentation contract it
@@ -697,6 +709,9 @@ allowedHeaders: [
   // interpreting a response it does not understand (release-contract.ts).
   app.addHook("onSend", async (_req, reply, payload) => {
     reply.header(PRESENTATION_CONTRACT_HEADER, String(PRESENTATION_CONTRACT_VERSION));
+    // B8-F-401/402 — additive: older clients ignore both (release-contract.ts).
+    reply.header(PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER, String(PRESENTATION_CONTRACT_ROUTE_EPOCH));
+    reply.header(PRESENTATION_CONTRACT_MIN_CLIENT_HEADER, String(PRESENTATION_CONTRACT_MIN_CLIENT));
     return payload;
   });
 

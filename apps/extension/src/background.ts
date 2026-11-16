@@ -36,11 +36,30 @@ const pendingReleaseStore: PendingReleaseStore = {
   },
 };
 
+/**
+ * B4-F-101 — every read-modify-write of the remembered sessions runs in ONE
+ * queue: a release that read the list must not write it back over a session
+ * remembered meanwhile (the release now runs at worker start and popup open,
+ * not only after sign-in).
+ */
+let releaseQueue: Promise<unknown> = Promise.resolve();
+function serialized<T>(fn: () => Promise<T>): Promise<T> {
+  const next = releaseQueue.then(fn);
+  releaseQueue = next.catch(() => undefined);
+  return next;
+}
+
+function rememberStranded(captureSessionId: string): Promise<void> {
+  return serialized(() => rememberUnreleased(pendingReleaseStore, captureSessionId));
+}
+
 /** Release remembered reservations with a working token; never throws. */
-async function releaseStranded(): Promise<void> {
-  const token = (await getStoredToken())?.accessToken;
-  if (!token) return;
-  await releasePending(pendingReleaseStore, token, (t, id) => apiClient.discardSession(t, id)).catch(() => undefined);
+function releaseStranded(): Promise<void> {
+  return serialized(async () => {
+    const token = (await getStoredToken())?.accessToken;
+    if (!token) return;
+    await releasePending(pendingReleaseStore, token, (t, id) => apiClient.discardSession(t, id)).catch(() => undefined);
+  }).catch(() => undefined);
 }
 
 const registry = createCaptureRegistry({
@@ -56,6 +75,14 @@ const registry = createCaptureRegistry({
   newId: () => crypto.randomUUID(),
   onChange: (status) => {
     chrome.runtime.sendMessage({ kind: "CAPTURE_STATUS", status }).catch(() => undefined);
+  },
+  // B4-F-101 — an attempt the service worker never finished may hold a
+  // reserved record: remember its session and release it.
+  onInterrupted: (status) => {
+    if (!status.captureSessionId) return;
+    void rememberStranded(status.captureSessionId)
+      .then(() => releaseStranded())
+      .catch(() => undefined);
   },
   run: async (req, signal, attemptId) =>
     runPreserveFlow(
@@ -80,7 +107,8 @@ const registry = createCaptureRegistry({
           .then((t) => t.url ?? t.pendingUrl ?? null)
           .catch(() => null),
         waitForOnline,
-        rememberUnreleased: (captureSessionId) => rememberUnreleased(pendingReleaseStore, captureSessionId),
+        rememberUnreleased: (captureSessionId) => rememberStranded(captureSessionId),
+        noteSession: (captureSessionId) => registry.noteSession(req.tabId, attemptId, captureSessionId),
       },
       req,
       signal,
@@ -90,6 +118,18 @@ const registry = createCaptureRegistry({
       return outcome;
     }),
 });
+
+/**
+ * B4-F-101 — on every service-worker start: attempts a stopped worker left
+ * RUNNING are settled as INTERRUPTED (their sessions remembered, above), and
+ * every remembered reservation is released while a token exists. It used to
+ * run only after SIGN_IN, so an offline discard or a stopped worker held a
+ * Free slot until the server's 24 h sweep.
+ */
+void registry
+  .reconcileInterrupted()
+  .catch(() => [])
+  .then(() => releaseStranded());
 
 /** AUD-026 — an offline retry waits for the browser to come back, bounded. */
 function waitForOnline(timeoutMs: number): Promise<void> {
@@ -176,6 +216,8 @@ chrome.runtime.onMessage.addListener((message: Msg, sender, sendResponse) => {
       return;
     }
     void registry.status(message.tabId).then((status) => sendResponse({ status }));
+    // B4-F-101 — the popup opened: release what an earlier attempt left reserved.
+    void releaseStranded();
     return true;
   }
   if (message.kind === "CANCEL_CAPTURE") {

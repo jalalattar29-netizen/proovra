@@ -48,6 +48,11 @@ import { stripControlAndInvisible } from "../lib/text-sanitize.js";
 import { prisma as defaultPrisma } from "../db.js";
 import { isLiveOperatingWorkspace } from "./workspace/operating-workspace.js";
 import {
+  evaluateCreatorAuthority,
+  intakeLinkCreatorPermission,
+  revokeIntakeLinkForLostAuthority,
+} from "./sharing/standing-credential-authority.js";
+import {
   constantTimeEqualHex,
   hmacForIntake,
   lookupHashForIntakeToken,
@@ -166,6 +171,36 @@ export async function validateIntakeToken(
    */
   if (!(await isLiveOperatingWorkspace(link.teamId, client))) {
     throw new WorkflowIntakeSessionError("workspace_not_operating");
+  }
+
+  /*
+   * B3B-F-106 — THE LINK ANSWERS TO ITS CREATOR'S CURRENT AUTHORITY. Every
+   * submission creates a record owned by the creator, so a creator demoted to
+   * a role without the permission that minted the link (intake-link create, or
+   * evidence-request create for a request-bound link) no longer takes evidence
+   * through it, whichever path lowered the role. The canonical decision, with
+   * the access window set aside (A2-26: expiry does not end a link). A definite
+   * loss revokes the link with the reason; a failure to decide refuses and
+   * revokes nothing.
+   */
+  {
+    let permission;
+    try {
+      permission = await intakeLinkCreatorPermission(link.id, client);
+    } catch {
+      throw new WorkflowIntakeSessionError("workspace_not_operating");
+    }
+    const authority = await evaluateCreatorAuthority(
+      { teamId: link.teamId, userId: link.createdByUserId, permission },
+      client,
+    );
+    if (authority.verdict === "LOST") {
+      await revokeIntakeLinkForLostAuthority(link.id, client).catch(() => false);
+      throw new WorkflowIntakeSessionError("link_revoked");
+    }
+    if (authority.verdict !== "HOLDS") {
+      throw new WorkflowIntakeSessionError("workspace_not_operating");
+    }
   }
 
   return { link, reason: "ok" };

@@ -11,12 +11,12 @@
  * gated by the same server projections the web's `resolveSettingsNavigation`
  * reads (see src/product/settings-overview.ts).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, Switch, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useLocale } from "../../src/locale-context";
 import { useAuth } from "../../src/auth-context";
-import { logout as logoutApi, getLegalStatus } from "../../src/auth/auth-api";
+import { logout as logoutApi, getLegalStatus, signOutIncompleteMessage, SIGN_OUT_INCOMPLETE_TITLE } from "../../src/auth/auth-api";
 import { loadTelemetryConsent, setTelemetryConsent } from "../../src/privacy/telemetry-consent";
 import { apiFetch, setAuthToken } from "../../src/api";
 import { teardownCaptureOnSignOut } from "../../src/capture/capture-teardown";
@@ -189,11 +189,22 @@ export default function SettingsScreen() {
     // discard open capture sessions while the token is still valid, delete the
     // local spool and the durable records. Never blocks sign-out.
     await teardownCaptureOnSignOut().catch(() => undefined);
-    await logoutApi();
+    const outcome = await logoutApi();
+    if (!outcome.ok) {
+      // B8-F-001 — the server session is still alive: the device keeps it and
+      // says so, with a retry, instead of purging a token the server still honours.
+      Alert.alert(SIGN_OUT_INCOMPLETE_TITLE, signOutIncompleteMessage(outcome.reason), [
+        { text: "Stay signed in", style: "cancel" },
+        { text: "Retry sign-out", onPress: () => void doLogoutRef.current() },
+      ]);
+      return;
+    }
     setToken(null);
     setAuthToken(null);
     router.replace("/(stack)/auth");
   }, [router, setToken]);
+  const doLogoutRef = useRef(doLogout);
+  doLogoutRef.current = doLogout;
 
   const { billing } = overview;
 

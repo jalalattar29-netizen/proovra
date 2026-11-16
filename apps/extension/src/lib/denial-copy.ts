@@ -1,3 +1,11 @@
+import { userFacingErrorFor } from "@proovra/shared";
+
+/** PURE — the shared registry's sentence for a refusal billing resolves, or null. */
+export function sharedCommercialCopy(code: string | null | undefined): string | null {
+  const entry = userFacingErrorFor(code);
+  return entry && entry.actionHref === "/billing" ? entry.message : null;
+}
+
 /**
  * Truthful capture-denial copy.
  *
@@ -19,6 +27,11 @@
  * Returns `null` for codes that are not an evidence-creation/commercial refusal
  * (auth, anti-enumeration, unexpected faults); the caller falls back to its
  * generic error line for those.
+ *
+ * B4-F-100 — a commercial refusal this list does not name (a code the shared
+ * registry `userFacingErrorFor` routes to billing, e.g. a new plan state) is
+ * said in the shared registry's words instead of the generic "Nothing was
+ * saved. Please try again".
  */
 export function denialToMessage(denial: string | null | undefined): string | null {
   if (!denial) return null;
@@ -31,9 +44,17 @@ export function denialToMessage(denial: string | null | undefined): string | nul
     case "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED":
       return "This workspace has used every evidence record its plan includes for the last 30 days. Your existing records remain available — add evidence credits or upgrade to record more.";
 
+    // B4-F-100 — a LAPSED paid plan falls back to the Free allowance (shared copy).
+    case "PLAN_LAPSED_ALLOWANCE_EXHAUSTED":
+      return (
+        sharedCommercialCopy(denial) ??
+        "Your paid plan has lapsed, so the Free allowance applies and it is used up. Your existing records remain available — renew your plan or use an evidence credit to add more."
+      );
+
     // -- Credit balance -------------------------------------------------------
     case "INSUFFICIENT_CREDITS":
     case "INSUFFICIENT_EVIDENCE_CREDITS":
+    case "CREDIT_REQUIRED_NONE_AVAILABLE":
       return "Recording new evidence on this account uses credits, and there are none left. Your existing records remain available — add credits to continue.";
 
     // -- Storage --------------------------------------------------------------
@@ -58,6 +79,22 @@ export function denialToMessage(denial: string | null | undefined): string | nul
     case "LEGAL_REACCEPT_REQUIRED":
       return "PROOVRA's terms were updated. Open PROOVRA and accept the current terms, then capture again. This capture was not saved.";
 
+    // -- Personal space (B4-F-100) --------------------------------------------
+    // A managed (organization) identity has no personal space; capturing
+    // into it is refused before anything is recorded. Trying again cannot
+    // change that — choosing one of the organization's workspaces does.
+    case "MANAGED_IDENTITY_NO_PERSONAL_SPACE":
+    case "PERSONAL_SPACE_UNAVAILABLE":
+      return "Your organization manages this account, so it has no personal space to keep records in. Choose one of your organization's workspaces, then capture again. This capture was not saved.";
+
+    // -- Capture window (B4-F-103) --------------------------------------------
+    // The server checks the capture times against its own clock. The
+    // extension now states them on the server's clock; if it is still
+    // refused, the computer's clock is the likely cause.
+    case "WEB_MANIFEST_INVALID":
+    case "CAPTURE_WINDOW_INVALID":
+      return "PROOVRA could not accept this capture's details, so nothing was saved. Check that your computer's date, time and time zone are set correctly, then capture again.";
+
     // -- Rate limiting --------------------------------------------------------
     case "RATE_LIMITED":
       return "Too many capture attempts just now. Wait a moment and try again.";
@@ -69,6 +106,6 @@ export function denialToMessage(denial: string | null | undefined): string | nul
       return "The capture's files changed while it was being sealed, so nothing was sealed and nothing was charged. Capture again.";
 
     default:
-      return null;
+      return sharedCommercialCopy(denial);
   }
 }

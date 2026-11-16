@@ -28,6 +28,8 @@ import { apiFetch } from "../../src/api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { formatUserDateTime } from "../../src/lib/date";
 import { usePlatformContext } from "../../src/product/platform-context";
+import { isOwnPersonalActiveSpace, recordAllowanceFromProjection, type HomeRecordAllowance } from "../../src/product/active-space-billing";
+import { BILLING_ACCOUNTS_PATH, buildBillingAccountPath, parseBillingAccounts } from "../../src/product/billing";
 import { theme } from "../../src/theme/theme";
 import {
   ProovraShell,
@@ -124,6 +126,10 @@ export default function HomeScreen() {
   const router = useRouter();
   const platform = usePlatformContext();
   const teamId = platform.context?.activeTeamId ?? null;
+  // B2A-F-01 — the viewer's own billing figures describe ONLY their own
+  // Personal Space; elsewhere they are not shown.
+  const ownPersonal = isOwnPersonalActiveSpace(platform.envelope);
+  const [recordAllowance, setRecordAllowance] = useState<HomeRecordAllowance | null>(null);
 
   const [tab, setTab] = useState<HomeTabId>("overview");
   const [items, setItems] = useState<EvidenceItem[]>([]);
@@ -171,6 +177,7 @@ export default function HomeScreen() {
       seriesPage,
       intakeMessages,
       opsSummary,
+      allowance,
     ] = await Promise.allSettled([
       apiFetch("/v1/evidence?scope=active&limit=5"),
       teamId ? apiFetch(scoped("/v1/dashboard/command-center")) : Promise.resolve(null),
@@ -187,6 +194,14 @@ export default function HomeScreen() {
       // THE canonical workspace Operations summary: may Home say "All clear"?
       // (useHomeData.ts:185-195; ops.routes.ts:883 answers { summary, workspace }).
       teamId ? apiFetch(`/v1/ops/summary?teamId=${encodeURIComponent(teamId)}`) : Promise.resolve(null),
+      // B2A-F-03 — "x of 3 records": the PERSONAL account projection's
+      // evidenceAdmission (the Billing screen's source). Own Personal Space only.
+      ownPersonal
+        ? (async () => {
+            const personal = parseBillingAccounts(await apiFetch(BILLING_ACCOUNTS_PATH)).find((a) => a.type === "PERSONAL");
+            return personal ? recordAllowanceFromProjection(await apiFetch(buildBillingAccountPath(personal.type, personal.id))) : null;
+          })()
+        : Promise.resolve(null),
     ]);
 
     const problems: Record<string, SafeError> = {};
@@ -216,6 +231,7 @@ export default function HomeScreen() {
       opsSummary: ops?.summary ?? undefined,
     });
 
+    setRecordAllowance(ok(allowance, "billing") ?? null);
     setFailed(problems);
 
     const byType = ok(recordsByType, "recordsByType");
@@ -240,7 +256,7 @@ export default function HomeScreen() {
     const payload = evidence.value as { items?: EvidenceItem[] } | undefined;
     setItems(payload?.items ?? []);
     setState("ready");
-  }, [teamId]);
+  }, [teamId, ownPersonal]);
 
   useEffect(() => {
     void load();
@@ -261,10 +277,12 @@ export default function HomeScreen() {
   } | null;
   const intakeIncluded = envelope?.planFeatures?.["intakeIncluded"] === true;
   const reportsIncluded = envelope?.planFeatures?.["reportsIncluded"] !== false;
+  // B2A-F-04 — FREE excludes cases (fail-closed, as the web's vm.features).
+  const casesIncluded = envelope?.planFeatures?.["casesIncluded"] === true;
 
   const trust = parseTrustState(sources.trustSummary);
   const pipeline = parsePipeline(sources.commandCenter);
-  const storage = buildHomeStorage(sources);
+  const storage = buildHomeStorage(sources, { applies: ownPersonal });
   const recentReports = buildRecentReports(sources.reports);
   const reportCaseIds = new Set(
     ((sources.reports as { items?: Array<{ caseId?: string | null; report?: { available?: boolean } }> } | undefined)?.items ?? [])
@@ -302,6 +320,8 @@ export default function HomeScreen() {
     storage,
     intakeIncluded,
     activeLinks,
+    casesIncluded,
+    recordAllowance: ownPersonal ? recordAllowance : null,
   });
   const verdict = buildOperationsVerdict(sources.opsSummary, state === "loading");
   const evidenceCount = homeEvidenceCount(pipeline, trust, state === "ready" ? items.length : null);
@@ -312,7 +332,12 @@ export default function HomeScreen() {
     verificationPages: trust ? availableVerificationPages(trust.verificationPages) : null,
   });
   const summary = buildHomeSummary({ sources, trust, priorities, production, storage, showGettingStarted });
-  const kpis = buildHomeKpis(sources, { intakeIncluded, intakeStats });
+  const kpis = buildHomeKpis(sources, {
+    intakeIncluded,
+    intakeStats,
+    casesIncluded,
+    recordAllowance: ownPersonal ? recordAllowance : null,
+  });
   const verificationHealth = buildVerificationHealth(sources.trustSummary, { commandCenter: sources.commandCenter, recentReports });
   const teamWork = buildTeamWork({ envelope: platform.envelope, trustSummary: sources.trustSummary, reports: sources.reports, nowMs: Date.now() });
 
@@ -409,7 +434,7 @@ export default function HomeScreen() {
               Workspace health and the priorities ranked by severity.
             </ProovraText>
             <HomeWorkspaceHealthCard health={health} noWorkspace={noWorkspace} />
-            {showGettingStarted ? <HomeGettingStartedCard /> : <HomePrioritiesCard priorities={priorities} verdict={verdict} />}
+            {showGettingStarted ? <HomeGettingStartedCard casesIncluded={casesIncluded} /> : <HomePrioritiesCard priorities={priorities} verdict={verdict} />}
           </ProovraSection>
 
           <ProovraSection title="Your recent work">
@@ -426,7 +451,7 @@ export default function HomeScreen() {
                 ) : undefined
               }
             />
-            {state === "ready" && !noWorkspace ? <HomeActiveMattersSection matters={matters} summary={caseHealth} /> : null}
+            {state === "ready" && !noWorkspace && casesIncluded ? <HomeActiveMattersSection matters={matters} summary={caseHealth} /> : null}
           </ProovraSection>
         </>
       ) : null}

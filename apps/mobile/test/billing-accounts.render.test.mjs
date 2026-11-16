@@ -302,17 +302,19 @@ test("a refused action leaves the purchase open and names what happened", async 
   assert.equal(r.byLabel(`Check status: ${LABEL}`).length, 1, "the way forward is still there");
 });
 
-test("a store build offers no Continue, even when the check returned a link, and says where to finish", async () => {
+// B6-F-63 (free-user audit 0ea0) — and names no external purchase path.
+test("a store build offers no Continue, even when the check returned a link, and sends no one to the web to finish", async () => {
   openPurchaseAccount(() => [openAttempt()]);
   routes[`${ATTEMPT}/recheck`] = () => ({
     body: { outcome: "STILL_PENDING", provider: "PAYPAL", waitingFor: "APPROVAL", resumeUrl: "https://www.paypal.com/webapps/billing/subscriptions?ba_token=x" },
   });
   const r = await render();
-  assert.ok(r.hasText("To finish an open purchase, use Billing on the web."));
+  assert.ok(r.hasText("Check where each one stands or abandon it here."));
+  assert.ok(!r.texts().some((t) => /on the web/.test(t)));
   await r.press(`Check status: ${LABEL}`);
   await drain();
   assert.equal(r.byLabel(`Continue checkout: ${LABEL}`).length, 0);
-  assert.ok(r.hasText("To finish it, use Billing on the web, or abandon it here."));
+  assert.ok(r.hasText("It cannot be finished in this app; you can abandon it here."));
 });
 
 test("a purchase stopped for review offers Support instead of a dead end", async () => {

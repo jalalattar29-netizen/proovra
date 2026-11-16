@@ -344,13 +344,20 @@ export function MatchedVersionHistory({
                 <span className="rga-pair__meta">
                   {formatDateTime(p.generatedAtUtc)} · {formatBytes(p.sizeBytes)}
                 </span>
-                <button
-                  type="button"
-                  className="app-secondary-action rga-pair__download"
-                  onClick={() => onDownloadPackageVersion(p.version)}
-                >
-                  Download Verification Package ZIP v{p.version}
-                </button>
+                {/* B5B-F-102 — gated on the same packageAccess as the paired rows. */}
+                {packageAccess?.fullForensic === false ? (
+                  <span className="rga-pair__meta" data-testid={`unpaired-${p.version}-full-restricted`}>
+                    The full forensic package contains the original files, which your role cannot download.
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="app-secondary-action rga-pair__download"
+                    onClick={() => onDownloadPackageVersion(p.version)}
+                  >
+                    Download Verification Package ZIP v{p.version}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

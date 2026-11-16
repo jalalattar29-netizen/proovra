@@ -318,9 +318,11 @@ describe("Phase 4 §7.4 — reopenClosedWorkspace", () => {
       reopenClosedWorkspace({ teamId: "t1", actorUserId: "owner-1" }),
     ).rejects.toMatchObject({ code: "WORKSPACE_NOT_CLOSED" });
 
+    // B3A-F-008 (free-audit 0ea0): a non-owner is told what an unknown id is
+    // told — the reopen route is not an existence oracle.
     await expect(
       reopenClosedWorkspace({ teamId: "t1", actorUserId: "user-2" }),
-    ).rejects.toMatchObject({ statusCode: 403, code: "NOT_WORKSPACE_OWNER" });
+    ).rejects.toMatchObject({ statusCode: 404, code: "TEAM_NOT_FOUND" });
   });
 });
 

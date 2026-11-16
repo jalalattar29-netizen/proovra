@@ -15,6 +15,8 @@ import { detectAndScoreSession } from "../access-control/suspicious-session.serv
 import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
 import { hashSessionId } from "../identity-security/session-revocation.service.js";
 import { establishOrganizationSessionContext } from "./concurrent-session.service.js";
+import { isSelfServeAccountForOrganization } from "../security/enterprise-account-linking.service.js";
+import { resolveManagedIdentity } from "./identity-mode.service.js";
 import { provisionManagedMembership } from "./membership-provisioning.service.js";
 import { organizationIdForPolicy, resolveOrganizationPolicy } from "./org-security-policy.service.js";
 
@@ -45,7 +47,28 @@ export async function completeSsoSession(
   // Managed provisioning: bound, seated and a member before any Organization
   // context or cookie. A cross-Organization conflict is never silently re-claimed.
   const policy = await resolveOrganizationPolicy(input.teamId, client);
+  // B5B-F-302 — a pre-existing SELF-SERVE account reaches here only through a
+  // link its owner approved while signed in (the organization-link consent
+  // flow). It signs in as a member; the Organization's managed requirement
+  // never converts it, so its Personal Space and personal export stay its own.
+  // An identity this Organization already manages re-binds idempotently below.
+  let selfServe = false;
   if (policy.applicability === "ORGANIZATION" && policy.policy.managedIdentityRequired) {
+    try {
+      selfServe =
+        (await resolveManagedIdentity(input.userId, client)).managingOrganizationId !== organizationId &&
+        (await isSelfServeAccountForOrganization({ userId: input.userId, organizationId }, client));
+    } catch {
+      // Unreadable identity state: refused like any other binding failure.
+      await dropSession();
+      return { allowed: false, reason: "managed_identity_conflict" };
+    }
+  }
+  if (
+    !selfServe &&
+    policy.applicability === "ORGANIZATION" &&
+    policy.policy.managedIdentityRequired
+  ) {
     try {
       await withSeatClaimRetry(() => client.$transaction((tx) =>
         provisionManagedMembership(tx, {

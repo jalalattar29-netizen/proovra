@@ -7,12 +7,28 @@ import {
   WEB_CAPTURE_MANIFEST_SCHEMA_VERSION,
   publicDomainFromUrl,
   validateWebCaptureManifest,
+  withoutUrlFragment,
   type WebCaptureManifest,
   type WebCaptureArtifactDescriptor,
   type WebCaptureMode,
   type WebCaptureCompleteness,
   type WebCaptureLimitationCode,
 } from "@proovra/shared";
+
+import { redactSensitiveUrl } from "./sanitizer.js";
+
+/**
+ * B4-F-102 — the page address the record keeps (and the report and the
+ * provenance view print). The DOM snapshot already redacts credential and
+ * signature parameters "because the snapshot is shared with third parties";
+ * the page URL itself was recorded verbatim, fragment included. Now the
+ * fragment (never sent to the server, often an OAuth `#access_token=`) is
+ * dropped and the same parameters are replaced with REDACTED (the name stays,
+ * so the record discloses that one was present).
+ */
+export function recordedPageUrl(raw: string): string {
+  return redactSensitiveUrl(withoutUrlFragment(raw)).value.slice(0, 4096);
+}
 
 export type BuildManifestInput = {
   captureMode: WebCaptureMode;
@@ -93,7 +109,7 @@ export function buildWebCaptureManifest(input: BuildManifestInput): {
     captureEndedAtUtc: input.captureEndedAtUtc,
     page: {
       domain,
-      sourceUrlPrivate: input.sourceUrl.slice(0, 4096),
+      sourceUrlPrivate: recordedPageUrl(input.sourceUrl),
       title: input.title ? input.title.slice(0, 400) : null,
     },
     browser: input.browser,

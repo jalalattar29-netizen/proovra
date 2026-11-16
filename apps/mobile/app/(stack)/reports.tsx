@@ -169,8 +169,13 @@ export default function ReportsScreen() {
         if (mine !== generation.current) return;
         const status = (err as { statusCode?: unknown })?.statusCode;
         // 404 = not a member of the supplied workspace — the personal-bootstrap gap.
-        if (status === 404 && !nextCursor && (await fallback())) return;
-        if (status === 403) setPermissionDenied(true);
+        if (status === 404 && !nextCursor && unfilteredFirstPage && (await fallback())) return;
+        // B5B-F-103 / A2-23 — no workspace list and no user-scoped list: the
+        // workspace refused this caller (removed, expired or suspended
+        // membership answers the anti-enumeration 404). That is the
+        // access-denied state with "Switch workspace", as on the web — not a
+        // generic load error whose Retry repeats the same 404.
+        if (status === 403 || (status === 404 && !nextCursor && unfilteredFirstPage)) setPermissionDenied(true);
         // F-P1-15 — a failed QUIET poll keeps the list on screen (its
         // "Refreshed …" line stays the truth) and tells the poll to back off.
         else if (!quiet) setError(toSafeUserError(err, { message: "Unable to load artifacts." }));

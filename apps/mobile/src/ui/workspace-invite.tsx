@@ -5,7 +5,7 @@
  * "Go to dashboard" both land on native Home — there is no marketing page.
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { Alert, View } from "react-native";
 import { useRouter } from "expo-router";
 import {
   classifyWorkspaceEntryRefusal,
@@ -18,7 +18,7 @@ import {
 import { isWellFormedWorkspaceInviteToken } from "@proovra/shared";
 
 import { apiFetch } from "../api";
-import { logout } from "../auth/auth-api";
+import { logout, signOutIncompleteMessage, SIGN_OUT_INCOMPLETE_TITLE } from "../auth/auth-api";
 import { useAuth } from "../auth-context";
 import { teardownCaptureOnSignOut } from "../capture/capture-teardown";
 import { setPendingRoute } from "../deep-link/pending-intent";
@@ -179,7 +179,14 @@ export function WorkspaceInvite({ token }: { token: string }) {
         // Capture ends with the account session here too, while the token is
         // still valid. The invitation is set after sign-out, which clears intents.
         await teardownCaptureOnSignOut().catch(() => undefined);
-        await logout();
+        {
+          // B8-F-001 — a sign-out the server did not complete is said, not assumed.
+          const outcome = await logout();
+          if (!outcome.ok) {
+            Alert.alert(SIGN_OUT_INCOMPLETE_TITLE, signOutIncompleteMessage(outcome.reason));
+            return;
+          }
+        }
         setToken(null);
         setPendingRoute(`/invite/${token}`);
         router.replace("/(stack)/auth");

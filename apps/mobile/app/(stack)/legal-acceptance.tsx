@@ -81,8 +81,24 @@ export default function LegalAcceptanceScreen() {
               <ProovraText variant="body" color={theme.color.ink.secondary} style={styles.intro}>
                 To continue, please accept the following:
               </ProovraText>
+              {/*
+                R1-F-04 — an informed acceptance: each listed document opens in the
+                in-app legal reader (/legal/<policyKey>, the route the sign-in
+                screen uses), as the web gate links /legal/terms, /legal/privacy
+                and /legal/cookies. The reader returns here with Back.
+              */}
+              <ProovraText variant="label" color={theme.color.ink.muted} style={styles.intro}>
+                Tap a document to read it first.
+              </ProovraText>
               {missing.map((m) => (
-                <ProovraListRow key={m.policyKey} title={POLICY_LABELS[m.policyKey] ?? m.policyKey} subtitle={`Version ${m.version}`} />
+                <ProovraListRow
+                  key={m.policyKey}
+                  title={POLICY_LABELS[m.policyKey] ?? m.policyKey}
+                  subtitle={`Version ${m.version} · Read the document`}
+                  accessibilityHint="Opens the document"
+                  testID={`legal-gate-open-${m.policyKey}`}
+                  onPress={() => router.push(`/legal/${encodeURIComponent(m.policyKey)}` as never)}
+                />
               ))}
               <View style={styles.actions}>
                 <ProovraButton label="Accept and continue" loading={state === "saving"} onPress={() => void accept()} />

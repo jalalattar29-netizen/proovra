@@ -22,6 +22,9 @@ function fakeBrowser(setContent: () => Promise<void>) {
     setDefaultNavigationTimeout: vi.fn(),
     setViewport: vi.fn(async () => undefined),
     emulateMediaType: vi.fn(async () => undefined),
+    // B8-F-006 (free-audit 0ea0) — the renderer now intercepts requests.
+    setRequestInterception: vi.fn(async () => undefined),
+    on: vi.fn(),
     setContent: vi.fn<(html: string, options?: { timeout?: number }) => Promise<void>>(setContent),
   };
   return { browser: { newPage: vi.fn(async () => page), close }, page, close };

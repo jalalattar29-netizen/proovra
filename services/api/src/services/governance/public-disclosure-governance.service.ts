@@ -33,6 +33,7 @@ import { appendCustodyEvent } from "../custody-events.service.js";
 import { noteCustodyFailure } from "../custody-events-observability.js";
 import { enforceSensitiveAction, evidenceIsReviewed, loadWorkspaceGovernancePolicy } from "../governance.service.js";
 import { gateVerificationAction } from "./policy-runtime-gates.service.js";
+import { isAccountClosed } from "../identity/account-closed.js";
 
 export type PublicDisclosureGrantAction = "share_link_create" | "share_link_rotate" | "share_link_renew" | "disclosure_widen";
 
@@ -188,6 +189,28 @@ export async function evaluatePublicOriginalRelease(input: {
 }
 
 /**
+ * D-07 — is the record's owning account closed (IDENT-010 marker), or its
+ * workspace closed (`closedAtUtc`)? Fails toward closed.
+ */
+export async function recordOwnerOrWorkspaceClosed(evidenceId: string, teamId: string | null): Promise<boolean> {
+  try {
+    const row = await prisma.evidence.findUnique({
+      where: { id: evidenceId },
+      select: { ownerUserId: true, teamId: true },
+    });
+    if (!row) return true;
+    const workspaceId = row.teamId ?? teamId;
+    if (workspaceId) {
+      const team = await prisma.team.findUnique({ where: { id: workspaceId }, select: { closedAtUtc: true } });
+      if (!team || team.closedAtUtc !== null) return true;
+    }
+    return await isAccountClosed(row.ownerUserId, prisma);
+  } catch {
+    return true;
+  }
+}
+
+/**
  * The disclosure an anonymous answer may actually make right now. Only narrows.
  * A verification-only answer costs nothing: it discloses what a `pvr_` always
  * may, so it is returned without a lookup.
@@ -200,6 +223,17 @@ export async function narrowPublicDisclosureAtRead(input: {
 }): Promise<PublicVerifyDisclosureFacts> {
   const { disclosure } = input;
   if (disclosure.mode === "VERIFICATION_ONLY" && !disclosure.originalDownload) return disclosure;
+  // D-07 (B5B-F-500) — the page survives closure WITH MINIMAL DISCLOSURE.
+  // Once the record's owner closed their account, or the record's workspace
+  // was closed, every answer is verification only: no content preview, no
+  // recorded location, no original download (the projection then withholds
+  // names, previews and attestor identities). Decided at read time from the
+  // canonical closure facts, so records of accounts closed before this rule
+  // narrow too, and the record's own policy row is left as it was. Any
+  // failure to decide narrows.
+  if (await recordOwnerOrWorkspaceClosed(input.evidenceId, input.teamId)) {
+    return { ...disclosure, mode: "VERIFICATION_ONLY", recordedLocation: false, originalDownload: false };
+  }
   if (input.teamId) {
     let exposed = false;
     try {

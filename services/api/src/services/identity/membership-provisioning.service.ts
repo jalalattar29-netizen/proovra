@@ -1539,11 +1539,16 @@ export async function provisionManagedMembership(
 
   // 1) Managed identity binding FIRST — DB-verified evidence; a cross-org
   //    conflict or schema absence THROWS and rolls back the whole tx.
+  //    B5B-F-302 — a directory or IdP never converts a PRE-EXISTING SELF-SERVE
+  //    account: a NEW binding is allowed only for an account this
+  //    Organization's directory or IdP created (idempotent re-binding of an
+  //    identity it already manages is unchanged). Refused → 409, rolled back.
   await setManagedIdentity(
     {
       userId: input.userId,
       managingOrganizationId,
       evidence: input.evidence,
+      originPolicy: "ORGANIZATION_ORIGINATED_ONLY",
     },
     tx as unknown as PrismaClient,
   );

@@ -58,10 +58,27 @@ function jsonError(message: string, status: number, extras?: Record<string, unkn
   );
 }
 
-function getClientIp(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for") ?? "";
-  const cf = req.headers.get("cf-connecting-ip") ?? "";
-  const ip = (fwd.split(",")[0] || cf || "unknown").trim();
+/**
+ * B2A-F-16 (Free-user audit 0ea0) — the visitor IP the limiter keys on.
+ *
+ * It took the FIRST `x-forwarded-for` entry, which is whatever the client
+ * typed: a new random value per request was a new bucket per request. The
+ * platform's own headers come first now — `x-vercel-forwarded-for` and
+ * `x-real-ip` are written by the edge and replace any client copy — and of a
+ * forwarded chain the LAST hop (the one our edge appended) is used, never the
+ * client-controlled head. `cf-connecting-ip` is not consulted: outside
+ * Cloudflare it is just another header a client can send.
+ */
+export function getClientIp(req: Pick<Request, "headers">): string {
+  const first = (raw: string | null) => (raw ?? "").split(",")[0]?.trim() ?? "";
+  const last = (raw: string | null) => {
+    const parts = (raw ?? "").split(",").map((p) => p.trim()).filter(Boolean);
+    return parts.length > 0 ? parts[parts.length - 1] : "";
+  };
+  const ip =
+    first(req.headers.get("x-vercel-forwarded-for")) ||
+    first(req.headers.get("x-real-ip")) ||
+    last(req.headers.get("x-forwarded-for"));
   return ip || "unknown";
 }
 

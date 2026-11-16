@@ -38,6 +38,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendReviewerAuditEvent } from "../evidence-review/reviewer-audit.service.js";
 import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
+import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 
 // -----------------------------------------------------------------------------
 // Errors
@@ -342,6 +343,29 @@ export async function assignDiscussionThread(
     client,
   );
   if (!reach.allowed) {
+    throw new DiscussionError("assignee_not_eligible");
+  }
+  /*
+   * R1-F-05 (free-audit 0ea0) — THE RESOLVER MUST BE ABLE TO TAKE PART.
+   *
+   * Reach alone admitted a VIEWER, who became the RESOLVER of a thread every
+   * /v1/collaboration/* read then refused them (those routes ask
+   * `evidence_request.review`, which VIEWER lacks — A2-14: Viewer is
+   * read-only). A resolver is expected to read and answer, so the assignee
+   * must hold the permission the thread routes ask, decided by the canonical
+   * member authority in the thread's workspace. Same refusal, same 422.
+   */
+  const participation = await evaluateMemberAccess(
+    {
+      teamId: thread.teamId,
+      userId: input.assignedToUserId,
+      permission: "evidence_request.review",
+      resourceKind: "discussion_thread",
+      resourceId: thread.id,
+    },
+    client,
+  );
+  if (!participation.allowed) {
     throw new DiscussionError("assignee_not_eligible");
   }
   const updated = await applyStatusTransition(

@@ -184,6 +184,22 @@ export async function requestSubscriptionCancellation(input: {
     // charging because its provider call failed last time. Cancelling the
     // dependants again is safe — each is provider-first and idempotent — and
     // it is the only way a customer can clear an ACTION_REQUIRED themselves.
+    //
+    // B6-F-84 (free audit 0ea0) — the repeat first RE-RECORDS this
+    // subscription's dependent obligations (idempotent; restricted to its own
+    // dependants, B6-F-82). A crash after the provider agreed but before the
+    // obligation transaction committed — or a webhook that wrote
+    // cancelAtPeriodEnd on its own — left none, and the sweep that would
+    // re-create it is held behind BILLING_AUTO_ADDON_CANCELLATION; the
+    // customer's own repeat answered COMPLETE while the add-on kept charging.
+    await recordDependentCancellationIntent(
+      {
+        ownerUserId: subscription.userId,
+        teamId: subscription.teamId,
+        triggeredBySubscriptionId: subscription.id,
+      },
+      prisma,
+    );
     const retry = await cancelDependentRecurringAddons({
       ownerUserId: subscription.userId,
       teamId: subscription.teamId,
@@ -207,6 +223,15 @@ export async function requestSubscriptionCancellation(input: {
   if (subscription.status === prismaPkg.SubscriptionStatus.CANCELED) {
     // Same retry reasoning as above: a terminally cancelled base plan with a
     // live dependent add-on is exactly the orphan this closes.
+    // B6-F-84 — re-record its own dependants first (see the branch above).
+    await recordDependentCancellationIntent(
+      {
+        ownerUserId: subscription.userId,
+        teamId: subscription.teamId,
+        triggeredBySubscriptionId: subscription.id,
+      },
+      prisma,
+    );
     const retry = await cancelDependentRecurringAddons({
       ownerUserId: subscription.userId,
       teamId: subscription.teamId,

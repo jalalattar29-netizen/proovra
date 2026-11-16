@@ -39,7 +39,8 @@ import { runReviewerCopilot } from "../services/ai/reviewer-copilot.service.js";
 import { buildReviewerCopilotProvider, ReviewerCopilotProviderUnavailable } from "../services/ai/reviewer-copilot-provider.js";
 import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPrisma } from "../services/ai/ai-citation-db-resolver.service.js";
 import { persistCopilotRun, recordObservationInteraction } from "../services/ai/ai-copilot-run-store.service.js";
-import { workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
+import { evaluateWorkspaceAiOperation, workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
+import { AiPlanAllowanceRefused, meterAiPlanOperation } from "../services/ai/ai-plan-operation-meter.js";
 import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
 import { loadPublishedCriteria } from "./reviewer-criteria.routes.js";
 import { selectQcSample } from "../services/ai/ai-qc-sampling.service.js";
@@ -277,6 +278,9 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     }
 
     let result;
+    // B6-F-20 — one plan AI operation, taken at the first provider call.
+    const planMeter = meterAiPlanOperation(async () => (await evaluateWorkspaceAiOperation({ teamId })).scope);
+    const reviewerProvider = buildReviewerCopilotProvider();
     try {
       result = await runReviewerCopilot({
         teamId,
@@ -293,18 +297,33 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
         selectionRevisions: serverRevisions,
         criteriaVersion: criteriaVersionLabel,
         policyDecision,
-        provider: buildReviewerCopilotProvider(),
+        provider: async (input) => {
+          await planMeter.take();
+          return reviewerProvider(input);
+        },
         resolveCitation,
       });
     } catch (err) {
       if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+      if (err instanceof AiPlanAllowanceRefused) {
+        await audit("blocked", { status: err.denial });
+        return reply.code(err.statusCode).send({ code: err.denial, message: err.message });
+      }
+      await planMeter.refund();
       if (err instanceof ReviewerCopilotProviderUnavailable) {
         await audit("failure", { status: "provider_unavailable" });
         return reply.code(200).send({ status: "provider_unavailable", advisoryBoundary: "AI assistance is advisory only." });
       }
       throw err;
     }
-    if (ledger.reservationId) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+    // B6-F-26 (Free-user audit 0ea0) — the ledger records SPEND: it is
+    // reconciled only when the provider was actually reached (the plan meter
+    // took its operation). A policy-denied or no-selection run released the
+    // reservation, and with it the rollups it had incremented.
+    if (ledger.reservationId) {
+      if (planMeter.taken) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
+      else await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+    }
     await audit(result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", { status: result.status, criteriaVersion: criteriaVersionLabel, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision });
 
     // Phase D4 — bounded defensibility record (never blocks the response).

@@ -22,7 +22,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   MEDIA_INTELLIGENCE_PROVIDERS,
-  PROVIDER_ADAPTER_OPERATIONS,
   PROVIDER_BUDGET_PERIODS,
   PROVIDER_BUDGET_SCOPES,
   type MediaIntelligenceProvider,
@@ -32,9 +31,43 @@ import {
   type ProviderBudgetProjection,
   type ProviderBudgetScope, identifierLabel } from "@proovra/shared";
 
+import { mapTeamRoleToCanonical, roleHasPermission } from "@proovra/shared";
+
 import { apiFetch } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { usePlatformContext } from "../../lib/platform-context";
+import { useOptionalPlatformContext } from "../../lib/platform-context/PlatformContextProvider";
+import { actorRoleIn } from "../../lib/platform-context/actorRole";
+
+/**
+ * B6-F-48 — the ONLY operations run/text can perform: everything else needs
+ * the record's bytes and was refused (`operation_*_requires_byte_source`)
+ * after the budget gate, behind a generic banner. The default is a text one.
+ */
+export const QUICK_RUN_TEXT_OPERATIONS: ReadonlyArray<ProviderAdapterOperation> = [
+  "EXTRACT_ENTITIES",
+  "SUMMARISE_DOCUMENT",
+];
+
+/**
+ * B6-F-45 (cross-lane from API-G1) / B6-F-48 — what a refused quick run means.
+ * run/text now analyses ONLY text this platform extracted from the record
+ * (D62), and answers 409 EVIDENCE_TEXT_UNVERIFIED / EVIDENCE_TEXT_MISMATCH
+ * otherwise; a 402 is the plan/budget gate.
+ */
+export function quickRunRefusal(err: unknown): string {
+  const e = (err ?? {}) as { code?: unknown; statusCode?: unknown };
+  if (e.code === "EVIDENCE_TEXT_UNVERIFIED") {
+    // Phase G5.1 honest-MI: never instruct a text-extraction run the platform
+    // may not offer; say only why nothing was analysed.
+    return "This record has no extracted text yet, so there was nothing to analyse: the quick run analyses only text extracted from the record.";
+  }
+  if (e.code === "EVIDENCE_TEXT_MISMATCH") return "That text is not from this record, so it was not analysed.";
+  if (e.code === "not_found" || e.statusCode === 404) return "No record with that id is available to you in this workspace.";
+  if (e.statusCode === 402) return "The run was blocked by this workspace's AI allowance or provider budget. Nothing was charged.";
+  if (e.statusCode === 403) return "Your role in this workspace cannot run providers.";
+  return toSafeUserError(err, { message: "The provider run was refused. Nothing was recorded against the record." }).message;
+}
 
 export function ProviderBudgetPanel() {
   const [probes, setProbes] = useState<ProviderAdapterProbe[]>([]);
@@ -47,10 +80,16 @@ export function ProviderBudgetPanel() {
     "AZURE_DOCUMENT_INTELLIGENCE",
   );
   const [operation, setOperation] = useState<ProviderAdapterOperation>(
-    "OCR_DOCUMENT",
+    "EXTRACT_ENTITIES",
   );
-  const [text, setText] = useState("");
   const [banner, setBanner] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const runInFlight = useRef(false);
+  // B6-F-48 — run/text needs intelligence.run; a role without it (VIEWER) is
+  // not offered a form the server refuses. No stated role, no form.
+  const optionalContext = useOptionalPlatformContext();
+  const actorRole = actorRoleIn(optionalContext?.envelope ?? null, optionalContext?.activeWorkspaceId ?? null);
+  const canRun = actorRole !== null && roleHasPermission(mapTeamRoleToCanonical(actorRole), "intelligence.run");
 
   const refresh = useCallback(async () => {
     try {
@@ -92,26 +131,36 @@ export function ProviderBudgetPanel() {
     [usageSummary],
   );
 
+  /**
+   * B6-F-45 — no free-typed text. The server analyses the record's own newest
+   * extracted text (results recorded against a record must come from it,
+   * D62), so the body names only the provider and the operation.
+   */
   const onRunText = useCallback(async () => {
-    if (!evidenceId || !text.trim()) return;
+    const id = evidenceId.trim();
+    if (!id || runInFlight.current || !canRun) return;
+    runInFlight.current = true;
+    setRunning(true);
+    setBanner(null);
     try {
       const res = await apiFetch(
-        `/v1/intelligence/evidence/${encodeURIComponent(evidenceId)}/run/text`,
+        `/v1/intelligence/evidence/${encodeURIComponent(id)}/run/text`,
         {
           method: "POST",
-          body: JSON.stringify({ provider, operation, text }),
+          body: JSON.stringify({ provider, operation }),
         },
       );
       setBanner(
-        `Run completed · ${res?.insertedRecords ?? 0} records · ${res?.insertedEntities ?? 0} entities · decision=${res?.decision ?? "?"}`,
+        `Run completed · ${res?.insertedRecords ?? 0} records · ${res?.insertedEntities ?? 0} entities`,
       );
       await refresh();
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const reason = (err as any)?.reason ?? "POLICY_REJECTED";
-      setBanner(`Refused: ${reason}`);
+      setBanner(quickRunRefusal(err));
+    } finally {
+      runInFlight.current = false;
+      setRunning(false);
     }
-  }, [evidenceId, provider, operation, text, refresh]);
+  }, [evidenceId, provider, operation, canRun, refresh]);
 
   return (
     <div
@@ -267,12 +316,18 @@ export function ProviderBudgetPanel() {
       </section>
 
       <section data-intelligence-quick-run style={panelStyle}>
-        <strong style={{ fontSize: 13 }}>Quick provider run · inline text</strong>
+        <strong style={{ fontSize: 13 }}>Quick provider run · extracted text</strong>
         <p style={{ color: "#475569", fontSize: 11 }}>
-          For one-off review. Paste document text or a transcript to extract
-          entities or summarize it; the results appear in the evidence&apos;s
-          record list.
+          For one-off review. Extracts entities from, or summarizes, the text
+          already extracted from a record (its OCR or transcript); the results
+          appear in that record&apos;s list. Text typed here is never analysed
+          against a record.
         </p>
+        {!canRun ? (
+          <p style={{ color: "#475569", fontSize: 12 }} data-intelligence-run-unavailable>
+            Running providers is not available to your role in this workspace.
+          </p>
+        ) : null}
         <div
           style={{
             display: "grid",
@@ -307,37 +362,22 @@ export function ProviderBudgetPanel() {
             <AppListbox
               value={operation}
               options={[
-                ...PROVIDER_ADAPTER_OPERATIONS.map((o) => ({ value: o, label: identifierLabel(o) })),
+                ...QUICK_RUN_TEXT_OPERATIONS.map((o) => ({ value: o, label: identifierLabel(o) })),
               ]}
               onChange={(next) => setOperation(next as ProviderAdapterOperation)}
               triggerProps={{ "data-intelligence-run-operation": "" }}
             />
           </label>
         </div>
-        <textarea
-          data-intelligence-run-text
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={4}
-          placeholder="Paste document text or a transcript"
-          style={{
-            width: "100%",
-            padding: 8,
-            border: "1px solid #cbd5e1",
-            borderRadius: 8,
-            fontSize: 12,
-            fontFamily: "ui-monospace, SFMono-Regular, monospace",
-            boxSizing: "border-box",
-          }}
-        />
         <button
           type="button"
           data-intelligence-run-submit
-          onClick={onRunText}
-          disabled={!evidenceId || !text.trim()}
+          onClick={() => void onRunText()}
+          disabled={!canRun || !evidenceId.trim() || running}
+          aria-busy={running || undefined}
           style={{ ...primaryButton, marginTop: 6 }}
         >
-          Run provider
+          {running ? "Running…" : "Run provider"}
         </button>
       </section>
     </div>

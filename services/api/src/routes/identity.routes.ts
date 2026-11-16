@@ -72,6 +72,7 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z } from "zod";
+import { queryBoolean } from "../http/query-boolean.js";
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
@@ -1357,7 +1358,7 @@ export async function identityRoutes(app: FastifyInstance) {
       const q = z
         .object({
           teamId: z.string().uuid().optional(),
-          activeOnly: z.coerce.boolean().optional(),
+          activeOnly: queryBoolean.optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});

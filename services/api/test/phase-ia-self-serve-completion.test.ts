@@ -79,7 +79,12 @@ describe("Phase IA-self-serve-completion — /home wiring", () => {
     expect(RESOLVER).not.toMatch(/input\.plan\b(?!Resolved)|args\.plan\b/); // PHASE 12B — no raw-plan reads (planResolved boolean OK)
     expect(RESOLVER).toMatch(/if \(isEnterprise\) return "command-center"/);
     // Plan null → loading, NOT command-center (the fixed fallback).
-    expect(RESOLVER).toMatch(/return "loading"/);
+    // B2A-F-14 (free-audit 0ea0, pin updated 2026-11-16): a SETTLED envelope
+    // with no plan never resolves on its own, so it reads as the degraded
+    // self-serve Home instead of an endless skeleton; still never command-center.
+    expect(RESOLVER).toMatch(
+      /if \(!input\.planResolved\) return input\.envelopeSettled === true \? "self-serve-degraded" : "loading"/,
+    );
     // Default is self-serve.
     expect(RESOLVER).toMatch(/return "self-serve"/);
   });

@@ -260,6 +260,37 @@ vi.mock("../src/services/security/mfa-admin-lifecycle.service.js", () => ({
   resetTrustedDevicesForUser: async () => ({ ok: true, resetCount: 0 }),
   revokeUserFactor: async () => ({ ok: true }),
 }));
+// B1-F-002 — filing a recovery request now asks whether anyone could approve
+// it, through the canonical member-access snapshot. The real loader reads the
+// membership with relation includes this in-memory store does not model, so
+// the snapshot is built from the same fixture rows (no grants or delegated
+// scopes; the fixture workspaces are OWNED). Evaluation stays real.
+vi.mock("../src/services/identity/access-policy.service.js", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../src/services/identity/access-policy.service.js")>();
+  return {
+    ...real,
+    loadMemberAccessSnapshot: async (i: { teamId: string; userId: string }) => {
+      const m = (H.db.__store.get("teamMember") as Array<Record<string, unknown>>).find(
+        (r) => r.teamId === i.teamId && r.userId === i.userId,
+      );
+      if (!m) return null;
+      return {
+        teamMemberId: m.id as string,
+        teamId: i.teamId,
+        userId: i.userId,
+        role: m.role,
+        status: m.status,
+        accessExpiresAtUtc: (m.accessExpiresAtUtc as Date | undefined) ?? null,
+        workspaceKind: "OWNED",
+        workspaceOwnerUserId: null,
+        organizationStatus: null,
+        organizationId: null,
+        capabilityGrants: [],
+        delegatedAdminScopes: [],
+      };
+    },
+  };
+});
 vi.mock("../src/services/identity-security/trusted-device.service.js", () => ({
   listTrustedDevicesForUser: async () => [],
   projectTrustedDevice: (d: unknown) => d,

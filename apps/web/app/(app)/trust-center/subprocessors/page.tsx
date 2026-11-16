@@ -14,7 +14,9 @@
 import { scrollRegionProps } from "../../../../lib/ui/scrollRegion";
 import { Fragment, useCallback, useEffect, useState } from "react";
 
-import { identifierLabel, type SubprocessorProjection } from "@proovra/shared";
+import { identifierLabel, mapTeamRoleToCanonical, roleHasPermission, type SubprocessorProjection } from "@proovra/shared";
+import { useOptionalPlatformContext } from "../../../../lib/platform-context/PlatformContextProvider";
+import { actorRoleIn } from "../../../../lib/platform-context/actorRole";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
@@ -39,6 +41,17 @@ function Shell() {
   // Until the first read settles, an empty table is not a fact about the registry.
   const [loaded, setLoaded] = useState(false);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
+  /*
+   * B7B-F08 (Free-user audit 0ea0) — "Re-seed defaults" rewrites every
+   * canonical row, and the API gates it on trust.subprocessor.manage, which
+   * only a workspace OWNER holds (F-21). It is offered on that same rule, read
+   * from the role the envelope states for the active workspace.
+   */
+  const ctx = useOptionalPlatformContext();
+  const activeId = ctx?.activeWorkspaceId ?? null;
+  const activeRole = actorRoleIn(ctx?.envelope, activeId);
+  const canSeed =
+    activeRole !== null && roleHasPermission(mapTeamRoleToCanonical(activeRole), "trust.subprocessor.manage" as never);
 
   function degradedMessage(code: string) {
     switch (code) {
@@ -87,8 +100,13 @@ function Shell() {
     try {
       await apiFetch("/v1/trust/subprocessors/seed", { method: "POST" });
       await refresh();
-    } catch {
-      setFailed("The canonical subprocessor seed could not be applied.");
+    } catch (err) {
+      const status = (err as { statusCode?: number } | null)?.statusCode;
+      setFailed(
+        status === 403
+          ? "Only the workspace owner can re-seed the subprocessor defaults."
+          : "The canonical subprocessor seed could not be applied.",
+      );
     } finally {
       setBusy(false);
     }
@@ -126,6 +144,7 @@ function Shell() {
           >
             {busy ? "Loading…" : "Refresh"}
           </button>
+          {canSeed ? (
           <button
             type="button"
             data-subprocessors-seed
@@ -135,6 +154,7 @@ function Shell() {
           >
             Re-seed defaults
           </button>
+          ) : null}
         </div>
 
         {reason ? (

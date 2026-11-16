@@ -112,6 +112,16 @@ const KPI_SURFACE: Record<
     iconBorder: "rgba(90, 170, 255, 0.20)",
     chart: "#6EB6FF",
   },
+  // B2A-F-03 — the record allowance card (stands where matters stood on a
+  // plan without cases); same surface as the evidence card.
+  allowance: {
+    d: ICONS.evidence,
+    grad: "linear-gradient(135deg, #3157A4 0%, #234080 52%, #1D366D 100%)",
+    icon: "#8CCBFF",
+    iconBg: "rgba(90, 170, 255, 0.12)",
+    iconBorder: "rgba(90, 170, 255, 0.20)",
+    chart: "#6EB6FF",
+  },
   trust: {
     d: ICONS.shield,
     grad: "linear-gradient(135deg, #17516E 0%, #0D4459 52%, #083F52 100%)",

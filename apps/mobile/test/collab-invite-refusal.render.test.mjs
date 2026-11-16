@@ -49,9 +49,11 @@ test("at capacity: the web's title, the counts from the server, billing and back
   assert.ok(r.hasText("This team is at capacity for the owner's plan"));
   assert.ok(r.hasText("The team owner needs to free a seat or upgrade their plan before you can join. (5 of 5 seats in use on plan PRO)"));
   assert.equal(r.byLabel("Try again").length, 0, "a retry that cannot succeed is offered");
-  await r.press("View billing and upgrade options");
-  assert.deepEqual(M.calls.push, ["/billing"]);
+  // B3A-F-004 (Free-user audit 0ea0) — the TEAM OWNER must upgrade; the
+  // invitee's own Billing cannot lift the owner's capacity, so it is not offered.
+  assert.equal(r.byLabel("View billing and upgrade options").length, 0);
   await r.press("Back to Collaboration Teams");
+  assert.deepEqual(M.calls.push, []);
   assert.deepEqual(M.calls.replace, ["/teams"]);
 });
 

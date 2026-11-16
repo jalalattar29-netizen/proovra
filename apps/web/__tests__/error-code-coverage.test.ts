@@ -312,6 +312,10 @@ test("the registry does not describe codes the API no longer emits", () => {
     ["EVIDENCE_COMPLETION_INPUTS_CHANGED", "services/api/src/services/evidence-complete.service.ts"],
     // F-08 — the API overload gate (503 + Retry-After), sent from middleware.
     ["SERVER_BUSY", "services/api/src/middleware/overload-gate.ts"],
+    // B4-F-300 (free-audit 0ea0, 2026-11-16) — the early storage refusal body
+    // (EP-0427) moved verbatim from evidence.routes.ts into the service both
+    // upload doors share, so no route file spells the code any more.
+    ["STORAGE_LIMIT_REACHED", "services/api/src/services/uploads/upload-door-facts.service.ts"],
   ] as const) {
     assert.ok(
       read(authority).includes('"' + c + '"'),

@@ -59,6 +59,34 @@ export function checkoutRequest(intent: PurchaseIntent, provider: PurchaseProvid
   return { path: `/v1/billing/storage-addons/checkout/${provider}`, body };
 }
 
+/**
+ * B6-F-71 — a plan CHANGE on the subscription that already exists
+ * (page.tsx `handleChangePlan` / billing-accounts.ts `changePlan`). It is not a
+ * purchase: no provider is chosen (the subscription has one), and
+ * `confirmStorageEnding` is sent exactly when the confirmation named the
+ * storage this plan does not include (D1: recorded before the provider call).
+ */
+export function planChangeRequest(plan: "PRO" | "TEAM", confirmStorageEnding: boolean): { path: string; body: Record<string, string | boolean> } {
+  return {
+    path: "/v1/billing/subscription/plan",
+    body: confirmStorageEnding ? { plan, confirmStorageEnding: true } : { plan },
+  };
+}
+
+/** page.tsx `handleChangePlan` toasts, from the server's PlanChangeResult. */
+export function planChangeNotice(result: unknown, displayName: string, fmt: (iso: string | null) => string | null): string {
+  const r = result && typeof result === "object" ? (result as Record<string, unknown>) : {};
+  const on = fmt(typeof r.effectiveAtUtc === "string" ? r.effectiveAtUtc : null);
+  if (r.outcome === "NO_CHANGE") return "Your plan is already active.";
+  if (r.providerConfirmed !== true) {
+    return on
+      ? `Your change to ${displayName} is pending with your payment provider and is expected on ${on}.`
+      : `Your change to ${displayName} is pending with your payment provider.`;
+  }
+  if (r.outcome === "UPGRADE") return `You are on ${displayName}.`;
+  return on ? `You will move to ${displayName} on ${on}. Nothing changes until then.` : `You will move to ${displayName} at the end of this billing period.`;
+}
+
 /** Provider-approved HTTPS URLs only. A plan transition may return approvalUrl
  * without a provider discriminator; validate against BOTH provider allowlists. */
 export function verifiedCheckoutUrl(candidate: unknown): string | null {

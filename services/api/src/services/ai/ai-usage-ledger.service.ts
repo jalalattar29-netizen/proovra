@@ -232,9 +232,31 @@ export function buildPrismaLedgerStore(): LedgerStore {
       });
     },
     async markFailed(reservationId) {
-      await prisma.aiUsageEvent.update({
-        where: { id: reservationId },
-        data: { status: "failed", failedAt: new Date() },
+      // B6-F-26 (Free-user audit 0ea0) — a released reservation gives back
+      // the day/month rollups it incremented at reserve time. They used to
+      // stay counted, so denied and failed runs showed as spend and tripped
+      // owner-set operation limits. The status move is conditional on
+      // `reserved`, so a release is applied once and never after a reconcile.
+      await prisma.$transaction(async (tx) => {
+        const moved = await tx.aiUsageEvent.updateMany({
+          where: { id: reservationId, status: "reserved" },
+          data: { status: "failed", failedAt: new Date() },
+        });
+        if (moved.count !== 1) return;
+        const event = await tx.aiUsageEvent.findUnique({
+          where: { id: reservationId },
+          select: { workspaceId: true, reservedAt: true, estimatedCostUsdMicros: true },
+        });
+        if (!event) return;
+        const cost = event.estimatedCostUsdMicros;
+        await tx.aiUsageDaily.updateMany({
+          where: { workspaceId: event.workspaceId, dayUtc: dayUtcOf(event.reservedAt), operations: { gt: 0 } },
+          data: { operations: { decrement: 1 }, costUsdMicros: { decrement: cost } },
+        });
+        await tx.aiUsageMonthly.updateMany({
+          where: { workspaceId: event.workspaceId, monthUtc: monthUtcOf(event.reservedAt), operations: { gt: 0 } },
+          data: { operations: { decrement: 1 }, costUsdMicros: { decrement: cost } },
+        });
       });
     },
   };

@@ -299,9 +299,8 @@ function CustodyPanel() {
     { event: "Captured", actor: "intake.service", time: "May 17, 09:14 UTC" },
     { event: "Hash Generated", actor: "fingerprint.engine", time: "May 17, 09:15 UTC" },
     { event: "TSA Recorded", actor: "tsa.publisher", time: "May 17, 09:15 UTC" },
-    { event: "Signature Applied", actor: DEMO_RECORD.signer, time: "May 17, 09:16 UTC" },
+    { event: "Signature Applied", actor: "signing.service", time: "May 17, 09:16 UTC" },
     { event: "Sealed", actor: "storage.attestation", time: "May 17, 09:16 UTC" },
-    { event: "Reviewer Accessed", actor: DEMO_RECORD.reviewer, time: "May 18, 11:02 UTC" },
     { event: "Report Generated", actor: "reports.service", time: "May 18, 14:36 UTC" },
   ];
   return (
@@ -334,38 +333,28 @@ function CustodyPanel() {
 }
 
 function AccessPanel() {
-  const rows = [
-    { reviewer: "alex@company.com", action: "Viewed Overview", time: "May 18, 11:02 UTC" },
-    { reviewer: "alex@company.com", action: "Opened Signatures tab", time: "May 18, 11:04 UTC" },
-    { reviewer: "alex@company.com", action: "Downloaded sample report", time: "May 18, 11:08 UTC" },
-    { reviewer: "review@firm.example", action: "Viewed Overview", time: "May 18, 13:21 UTC" },
-  ];
+  // B5B-F-504 — the public page aggregates access: a count and the latest
+  // time. It never lists reviewer emails or what each reviewer did.
   return (
-    <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5">
-      <h4 className="text-[13.5px] font-semibold text-[#0F172A]">Reviewer Access Log</h4>
+    <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5" data-demo-access-aggregated>
+      <h4 className="text-[13.5px] font-semibold text-[#0F172A]">Access Activity</h4>
       <p className="mt-1 text-[12.5px] text-[#475569]">
-        Access activity is recorded separately from forensic custody events.
+        Access activity is recorded separately from forensic custody events and
+        shown here only in aggregate.
       </p>
-      <div className="mt-4 overflow-hidden rounded-xl border border-[#E2E8F0]">
-        <table className="w-full border-collapse text-left">
-          <thead className="bg-[#F8FAFC]">
-            <tr>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">Reviewer</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">Action</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className="border-t border-[#E2E8F0]">
-                <td className="px-4 py-2.5 text-[12.5px] text-[#0F172A]">{r.reviewer}</td>
-                <td className="px-4 py-2.5 text-[12.5px] text-[#475569]">{r.action}</td>
-                <td className="px-4 py-2.5 text-[12.5px] text-[#475569]">{r.time}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-[#E2E8F0] px-4 py-3">
+          <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">Access events</dt>
+          <dd className="mt-1 text-[13px] font-medium text-[#0F172A]">{DEMO_RECORD.accessEventCount}</dd>
+        </div>
+        <div className="rounded-xl border border-[#E2E8F0] px-4 py-3">
+          <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">Latest access</dt>
+          <dd className="mt-1 text-[13px] font-medium text-[#0F172A]">{DEMO_RECORD.latestAccessAt}</dd>
+        </div>
+      </dl>
+      <p className="mt-3 text-[12px] text-[#64748B]">
+        Who opened the page is withheld by the record&apos;s disclosure policy.
+      </p>
     </div>
   );
 }

@@ -10,6 +10,8 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), confirm: vi.fn() }));
 
@@ -28,6 +30,8 @@ vi.mock("../../lib/platform-context", () => {
   const safety = { runGuarded: async (fn: () => Promise<unknown>, done: () => void) => { await fn(); done(); } };
   return {
     usePlatformContext: () => ctx,
+    // B5B-F-301 — the page binds its retention step-up to the workspace.
+    useTeamId: () => "ws-1",
     useWorkspaceContextSafety: () => safety,
     WorkspaceContextBanner: () => null,
   };
@@ -175,5 +179,53 @@ describe("lifecycle retention policy release", () => {
     await waitFor(() => expect(writes()).toHaveLength(1));
     const body = JSON.parse(writes()[0][1].body);
     expect(body).toEqual({ name: "New", template: "INSURANCE_7Y", scopeKind: "WORKSPACE" });
+  });
+});
+
+// B5B-F-301 (free-audit 0ea0) — retention create and release carry account
+// step-up like the governance retention writer: a STEP_UP_REQUIRED answer opens
+// the step-up dialog instead of failing the write.
+describe("B5B-F-301: retention writes answer a step-up challenge", () => {
+  const stepUpRequired = () =>
+    Object.assign(new Error("Step-up required"), {
+      statusCode: 401,
+      code: "STEP_UP_REQUIRED",
+      details: { purpose: "RETENTION_POLICY_UPDATE" },
+    });
+
+  it("release: STEP_UP_REQUIRED opens the step-up dialog, not a failure", async () => {
+    mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (init?.method === "POST" && path.endsWith("/release")) throw stepUpRequired();
+      if (init?.method === "POST") return new Promise(() => undefined);
+      return defaultReply(path, init);
+    });
+    render(<RetentionPage />);
+    fireEvent.click(await releaseButton());
+    await waitFor(() => expect(document.querySelector("[data-step-up-modal]")).toBeTruthy());
+    expect(document.querySelector("[data-retention-release-error]")).toBeNull();
+  });
+
+  it("create: STEP_UP_REQUIRED opens the step-up dialog, not a failure", async () => {
+    mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (init?.method === "POST" && path === "/v1/lifecycle/retention/policies") throw stepUpRequired();
+      if (init?.method === "POST") return new Promise(() => undefined);
+      return defaultReply(path, init);
+    });
+    render(<RetentionPage />);
+    await releaseButton();
+    fireEvent.change(screen.getByPlaceholderText("e.g. Default 3-year retention"), { target: { value: "New" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create policy" }));
+    await waitFor(() => expect(document.querySelector("[data-step-up-modal]")).toBeTruthy());
+  });
+
+  it("organization setup's retention create is wrapped in the same step-up hook", () => {
+    const src = readFileSync(
+      resolve(__dirname, "../../app/(app)/organizations/[id]/setup/page.tsx"),
+      "utf8",
+    );
+    const start = src.indexOf("const saveRetention = useCallback");
+    const end = src.indexOf("const createLegalHold = useCallback");
+    const body = src.slice(start, end);
+    expect(body).toMatch(/stepUp\.runStepUpAction\(async \(headers\) =>\s*apiFetch\("\/v1\/lifecycle\/retention\/policies"/);
   });
 });

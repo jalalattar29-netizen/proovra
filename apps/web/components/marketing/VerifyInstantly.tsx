@@ -6,8 +6,6 @@ import { useState } from "react";
 import type { KeyboardEvent } from "react";
 import {
   ArrowRight,
-  UploadCloud,
-  Hash,
   Link as LinkIcon,
   FingerprintPattern,
   Clock,
@@ -18,25 +16,13 @@ import {
 import { MARKETING_LINKS } from "./tokens";
 import { SectionBadge } from "./SectionBadge";
 import { ShieldCheckGlyph } from "./RailIcons";
+import { resolveVerifyEntryTarget } from "../../lib/verify/verify-entry";
 
-const EMPTY_ERROR = "Enter a verification URL or record ID.";
-const INVALID_ERROR = "Enter a valid PROOVRA verification URL or record ID.";
+const EMPTY_ERROR = "Enter a verification link or reference.";
+const INVALID_ERROR = "Enter a valid PROOVRA verification link or reference (pvr_…).";
 
-function resolveVerifyTarget(input: string): string | null {
-  const raw = input.trim();
-  if (!raw) return null;
-
-  const fromUrl = raw.match(/\/verify\/([^/?#\s]+)/i);
-  if (fromUrl && fromUrl[1]) return `/verify/${fromUrl[1]}`;
-
-  // Looks like a URL but didn't carry a /verify/{id} segment — reject.
-  if (/^https?:\/\//i.test(raw) || raw.startsWith("/")) return null;
-
-  // Treat as a raw record id / hash.
-  if (/^[A-Za-z0-9._-]+$/.test(raw)) return `/verify/${raw}`;
-
-  return null;
-}
+// B5B-F-502 — the one shared parser (full links, package links, bare references).
+const resolveVerifyTarget = resolveVerifyEntryTarget;
 
 export function VerifyInstantly() {
   const router = useRouter();
@@ -96,39 +82,21 @@ export function VerifyInstantly() {
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div className="rounded-[24px] border border-[var(--proovra-border-warm)] bg-[var(--proovra-surface)] p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
-            {/* Tab strip — all three render with their original visual style.
-                "Verification URL" is the only active mode; the other two are
-                inert visual labels (no click handler, no view switch).
-                `flex-wrap`: the three no-wrap labels need more than a 375px
-                card, and "Enter Hash" ran to 295..382 under the body's
-                overflow-x clip. They now wrap to a second line instead.
-                (AUD-0060) */}
+            {/* Mode strip. B5B-F-502 — "Upload Package" and "Enter Hash" were
+                inert buttons (no handler, no view) kept as visuals after those
+                features were dropped; a control must do what it displays, so
+                only the working mode remains. `flex-wrap` kept (AUD-0060). */}
             <div
               className="flex flex-wrap gap-1 rounded-2xl bg-[var(--proovra-page-bg-soft)] p-1"
               data-verify-instantly-modes
             >
-              <button
-                type="button"
+              <span
                 aria-current="true"
                 className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-[var(--proovra-surface)] px-2 py-2 text-[12.5px] font-semibold text-[#0B1F5E] shadow-[0_2px_6px_rgba(15,23,42,0.06)]"
               >
                 <LinkIcon size={13} />
                 Verification URL
-              </button>
-              <button
-                type="button"
-                className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2 text-[12.5px] font-semibold text-[#475569] transition-colors hover:text-[#0F172A]"
-              >
-                <UploadCloud size={13} />
-                Upload Package
-              </button>
-              <button
-                type="button"
-                className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2 text-[12.5px] font-semibold text-[#475569] transition-colors hover:text-[#0F172A]"
-              >
-                <Hash size={13} />
-                Enter Hash
-              </button>
+              </span>
             </div>
 
             <label
@@ -141,8 +109,8 @@ export function VerifyInstantly() {
               <input
                 id="verify-input"
                 type="text"
-                placeholder="Paste a PROOVRA verification URL or enter a record ID"
-                aria-label="Paste a PROOVRA verification URL or enter a record ID"
+                placeholder="Paste a PROOVRA verification link or reference (pvr_…)"
+                aria-label="Paste a PROOVRA verification link or reference"
                 value={value}
                 onChange={(event) => {
                   setValue(event.target.value);
@@ -186,10 +154,10 @@ export function VerifyInstantly() {
               </p>
             ) : (
               <p className="mt-3 text-[12.5px] text-[#64748B]">
-                Paste a published verification URL or the record ID from an
-                evidence report. We will open the live verification page so you
-                can inspect every integrity signal — hash, timestamp, signature,
-                and custody chain.
+                Paste the verification link you were given, or the verification
+                reference (pvr_…) printed in an evidence report. We will open the
+                live verification page so you can inspect every integrity signal
+                — hash, timestamp, signature, and custody chain.
               </p>
             )}
 

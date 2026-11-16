@@ -167,6 +167,7 @@ test("AUD-0060 public home 'Enter Hash' mode strip wraps", () => {
   const m = src.match(/className="([^"]*)"\s*data-verify-instantly-modes/);
   assert.ok(m, "mode strip not found");
   assert.match(m![1]!, /\bflex-wrap\b/);
-  // The button (not the comment above the strip) sits inside the strip.
-  assert.ok(src.lastIndexOf("Enter Hash") > src.indexOf("data-verify-instantly-modes"));
+  // B5B-F-502 — the inert "Upload Package" / "Enter Hash" buttons were removed
+  // (a control must do what it displays); the strip keeps wrapping.
+  assert.doesNotMatch(src.slice(src.indexOf("data-verify-instantly-modes")), /<button[^>]*>s*<(UploadCloud|Hash) /);
 });

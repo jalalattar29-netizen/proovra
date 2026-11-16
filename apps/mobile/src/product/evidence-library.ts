@@ -15,6 +15,7 @@ import {
   otsAnchoringCopy,
   parseVerificationDisclosureMode,
   VERIFICATION_DISCLOSURE_MODE_LABELS,
+  roleHasPermission,
   type OtsState, evidenceVerificationStatusLabel, publicVerificationPageState } from "@proovra/shared";
 
 /** Server sort values (EvidenceListSortSchema). */
@@ -157,6 +158,9 @@ export interface LibraryQueryInput {
   otsStatus?: string;
   verificationDisclosure?: string;
   verificationStatus?: string;
+  /** EVID-017 — server filters (evidence.routes.ts buildEvidenceListReviewFilter / RetentionFilter). */
+  review?: string;
+  retention?: string;
   sort: LibrarySort;
   cursor?: string | null;
   limit?: number;
@@ -178,6 +182,8 @@ function setFilterParams(p: URLSearchParams, input: LibraryQueryInput): void {
   if (refined(input.verificationDisclosure)) p.set("verificationDisclosure", input.verificationDisclosure);
   if (refined(input.verificationStatus)) p.set("verificationStatus", input.verificationStatus);
   if (refined(input.source)) p.set("acquisition", input.source);
+  if (refined(input.review)) p.set("review", input.review);
+  if (refined(input.retention)) p.set("retention", input.retention);
 }
 
 /** Build the GET /v1/evidence query string from the current filter state. */
@@ -207,6 +213,8 @@ export function filtersToQuery(filters: LibraryFilters, cursor: string | null = 
     otsStatus: filters.otsStatus,
     verificationDisclosure: filters.verificationDisclosure,
     verificationStatus: filters.verificationStatus,
+    review: filters.review,
+    retention: filters.retention,
     sort: filters.sort,
     cursor,
     limit: 50,
@@ -373,17 +381,13 @@ export function reviewPriorityLevel(item: LibraryRowFacts, scope: string): Revie
 
 const PRIORITY_ORDER: Record<ReviewPriorityLevel, number> = { critical: 3, operational: 2, informational: 1, stable: 0 };
 
-/** The web's visibleItems (page.tsx:633): review + retention, then priority order. */
+/**
+ * The web's visibleItems: review and retention are SERVER filters now (EVID-017,
+ * B5A-F-08), so the loaded page is the result; only the priority order is local.
+ * Filtering a 50-row page here showed an empty list while later pages matched.
+ */
 export function applyLoadedRowFilters<T extends LibraryRowFacts>(items: readonly T[], f: LibraryFilters): T[] {
-  const next = items.filter((item) => {
-    const vs = String(item.verificationStatus ?? "").toUpperCase();
-    if (f.review === "review-ready" && !item.reviewReadyAtUtc) return false;
-    if (f.review === "review-required" && vs !== "REVIEW_REQUIRED") return false;
-    if (f.review === "verification-failed" && vs !== "FAILED") return false;
-    if (f.retention === "protected" && !item.storage?.verified) return false;
-    if (f.retention === "unprotected" && item.storage?.verified) return false;
-    return true;
-  });
+  const next = [...items];
   if (f.sort === "priority") {
     // Array.prototype.sort is stable, so equal levels keep the server order.
     next.sort((a, b) => PRIORITY_ORDER[reviewPriorityLevel(b, f.scope)] - PRIORITY_ORDER[reviewPriorityLevel(a, f.scope)]);
@@ -1131,6 +1135,8 @@ export interface SavedViewItem {
   retention: string;
   sort: LibrarySort;
   isDefault: boolean;
+  /** Who made the view (`ownerUserId`); null on an API that does not send it. */
+  ownerUserId?: string | null;
 }
 
 /** Server stores trash as "deleted"; native uses "trash". */
@@ -1215,6 +1221,7 @@ export function parseSavedViews(data: unknown): SavedViewItem[] {
       retention: allOr(filters["retention"]),
       sort: toSort(v["sortKey"] ?? filters["sort"]),
       isDefault: v["isDefault"] === true,
+      ownerUserId: typeof v["ownerUserId"] === "string" && v["ownerUserId"] ? (v["ownerUserId"] as string) : null,
     });
   }
   return out;
@@ -1282,13 +1289,42 @@ export function buildSavedViewBody(input: {
 }
 
 /** "Update Saved View" (SavedViewsMenu.tsx:173): name, description, default. */
-export function buildSavedViewUpdateBody(input: { name: string; description: string; isDefault: boolean }) {
-  return { name: input.name.trim(), description: input.description.trim(), isDefault: input.isDefault };
+export function buildSavedViewUpdateBody(input: { name: string; description: string; isDefault: boolean; ownsView?: boolean }) {
+  // B5B-F-303 — `isDefault` is the view OWNER's preference: a PATCH carrying it
+  // from anyone else is 403, so a rename of a colleague's team view leaves it out.
+  return {
+    name: input.name.trim(),
+    description: input.description.trim(),
+    ...(input.ownsView === false ? {} : { isDefault: input.isDefault }),
+  };
+}
+
+/**
+ * B5B-F-303 — whether the reader made this view, so "Make Default" (and the
+ * default checkbox) is offered only on their own views: the server refuses a
+ * default change by anyone else (403). Unknown on either side (an older API
+ * without `ownerUserId`, or no signed-in user id yet) keeps today's offer.
+ */
+export function savedViewOwnedBy(view: Pick<SavedViewItem, "ownerUserId">, userId: string | null | undefined): boolean {
+  if (!view.ownerUserId || !userId) return true;
+  return view.ownerUserId === userId;
+}
+
+/**
+ * B5B-F-303 / B2A-F-09 / B5A-F-14 (A2-14) — a TEAM view is a write: the API
+ * answers 403 to a saved view with a `teamId` from a role without
+ * `evidence.update_metadata` (Viewer). Such a reader is offered only the
+ * personal scope, so their "Save view" keeps working as a personal view.
+ */
+export function savedViewRoleMayShare(role: unknown): boolean {
+  if (typeof role !== "string" || !role) return true; // older envelope: unchanged
+  return roleHasPermission(role.toUpperCase() as Parameters<typeof roleHasPermission>[0], "evidence.update_metadata");
 }
 
 /**
  * The "Team view: <name>" options (page.tsx:936): the envelope's canonical
- * owned-workspace list, identity only.
+ * owned-workspace list, identity only — minus workspaces where the reader's
+ * role may not publish a team view (A2-14, `savedViewRoleMayShare`).
  */
 export function savedViewTeamOptions(envelope: unknown): Array<{ id: string; name: string }> {
   const env = envelope && typeof envelope === "object" ? (envelope as Record<string, unknown>) : {};
@@ -1299,6 +1335,7 @@ export function savedViewTeamOptions(envelope: unknown): Array<{ id: string; nam
       const w = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
       const id = typeof w["workspaceId"] === "string" ? (w["workspaceId"] as string) : null;
       if (!id) return null;
+      if (!savedViewRoleMayShare(w["role"])) return null;
       return { id, name: typeof w["name"] === "string" && w["name"] ? (w["name"] as string) : "Workspace" };
     })
     .filter((x): x is { id: string; name: string } => x !== null);

@@ -352,7 +352,11 @@ describe("R8.1.1 Part 8 — step-up uses the same factor model", () => {
 
   it("challenge-verify dispatches to the canonical orchestrator (no duplicate verify logic)", () => {
     expect(ROUTES_SRC).toMatch(/verifyActiveTotp/);
-    expect(ROUTES_SRC).toMatch(/consumeRecoveryCode/);
+    // B1-F-020 (free-audit 0ea0): the self-check verifies a recovery code
+    // through the orchestrator WITHOUT spending it (checkRecoveryCode, the
+    // same lookup/verifier as consumeRecoveryCode).
+    expect(ROUTES_SRC).toMatch(/checkRecoveryCode/);
+    expect(ORCH_SRC).toMatch(/export async function checkRecoveryCode/);
   });
 
   /**

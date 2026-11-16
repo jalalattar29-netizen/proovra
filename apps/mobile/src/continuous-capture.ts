@@ -28,6 +28,7 @@ import * as FileSystem from "expo-file-system";
 import { SCREEN_CONTINUOUS_STREAM_BOUNDS } from "@proovra/shared";
 
 import {
+  discardDirectCaptureSession,
   openDirectCaptureSession,
   reserveDirectCaptureEvidence,
   stateDirectCapturePartLost,
@@ -206,6 +207,12 @@ export async function beginContinuousSession(
   options: {
     teamId?: string | null;
     /**
+     * B4-F-205 — C-09 (AUD-026): the client's id for THIS recording's capture
+     * attempt, so a retried open replays the same session and the record it
+     * already reserved. One per recording.
+     */
+    clientAttemptId?: string | null;
+    /**
      * Decision 2 — the location read BEFORE the recording started (or why
      * there is none, or NOT_REQUESTED when the person chose not to include
      * it). Carried into the reservation; never acquired after the fact.
@@ -221,9 +228,19 @@ export async function beginContinuousSession(
   // seal through the ONE canonical continuous pipeline; the server is authoritative.
   const mode =
     Platform.OS === "ios" ? "DIRECT_SCREEN_CAPTURE_IOS" : "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS";
-  const session = await openDirectCaptureSession(mode, { teamId: options.teamId ?? null });
-  const evidenceId = await reserveDirectCaptureEvidence(session, {
-    type: "VIDEO",
+  const attemptId = options.clientAttemptId ?? null;
+  const open = () =>
+    openDirectCaptureSession(mode, {
+      teamId: options.teamId ?? null,
+      ...(attemptId ? { clientAttemptId: attemptId } : {}),
+    });
+  // The reservation body, built at call time (deviceTimeIso is the moment of
+  // the reserve). The session is passed to reserveDirectCaptureEvidence at
+  // each call below, not through a local wrapper: a wrapper taking the session
+  // as its first argument reads to the capability analyzer as a path-
+  // forwarding request function and left both calls unresolved.
+  const reserveInput = () => ({
+    type: "VIDEO" as const,
     mimeType: "video/mp4",
     deviceTimeIso: new Date().toISOString(),
     ...(options.location?.gps ? { gps: options.location.gps } : {}),
@@ -231,7 +248,32 @@ export async function beginContinuousSession(
       ? { locationRequestOutcome: options.location.locationRequestOutcome }
       : {}),
   });
-  return { session, evidenceId };
+  const opened = await open();
+  // B4-F-205 — C-09 for the continuous transport: a replayed open (same
+  // attempt id) returns the record the session already reserved.
+  if (opened.reservedEvidenceId) return { session: opened, evidenceId: opened.reservedEvidenceId };
+  try {
+    return { session: opened, evidenceId: await reserveDirectCaptureEvidence(opened, reserveInput()) };
+  } catch (err) {
+    const code = (err as { code?: unknown } | null)?.code;
+    const lostAnswer = classifyCaptureError(err) === "RETRYABLE" || code === "SESSION_ALREADY_RESERVED";
+    if (attemptId && lostAnswer) {
+      // The reservation's answer may have been lost: the same attempt id
+      // replays the session and the record it reserved, instead of leaving
+      // a reserved record nothing can reach (it held a Free slot).
+      try {
+        const replay = await open();
+        if (replay.reservedEvidenceId) return { session: replay, evidenceId: replay.reservedEvidenceId };
+        return { session: replay, evidenceId: await reserveDirectCaptureEvidence(replay, reserveInput()) };
+      } catch {
+        // Fall through: release what was opened.
+      }
+    }
+    // Nothing returned to the caller holds this session: release it (and any
+    // record it reserved) on the server now.
+    await discardDirectCaptureSession(opened).catch(() => undefined);
+    throw err;
+  }
 }
 
 /**

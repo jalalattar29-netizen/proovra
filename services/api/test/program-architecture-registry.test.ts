@@ -179,6 +179,12 @@ const CONCERNS: Concern[] = [
       "services/access-control/sso.service.ts": "SSO JIT → orchestrator",
       "services/security/saml-user-mapping.service.ts": "SAML mapping provisioning → orchestrator",
       "services/platform-context/workspace-bootstrap.service.ts": "personal-workspace bootstrap → orchestrator",
+      // B5B-F-302 — the OWNER of a pre-existing self-serve account approves,
+      // signed in and stepped up, the link an enterprise sign-in could not make
+      // on its own: an ordinary SSO_JIT-provenance membership through the
+      // orchestrator, never a managed conversion.
+      "services/identity/organization-link-consent.service.ts":
+        "owner-approved organization link (signed-in consent) → orchestrator, seat-enforced, no managed binding",
     },
   },
   // ── PHASE 10 — advanced enterprise identity (Wave B) ───────────────────

@@ -335,9 +335,12 @@ export function resolveRouteAccess(
         canLoad: false,
         canSeeNav: true,
         accessState: "DENIED_NO_CAPABILITY",
+        // B2A-F-23 (Free-user audit 0ea0) — there is no access-request flow;
+        // the action was a link to /settings that could not grant anything.
+        // Say who can, and offer only the way back.
         reason:
-          "Your role doesn't include the permissions this surface needs. An admin can grant access.",
-        primaryAction: { label: "Request access", href: "/settings" },
+          "Your role doesn't include the permissions this surface needs. Ask a workspace owner or admin to change your role.",
+        primaryAction: null,
         // F-21 — not "Browse all tools": /tools is platform-admin only
         // (PageRouteGate adds that link for platform admins itself).
         secondaryAction: { label: "Back to home", href: "/home" },

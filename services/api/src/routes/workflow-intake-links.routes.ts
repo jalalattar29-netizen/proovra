@@ -32,7 +32,7 @@ import {
   type Permission,
 } from "@proovra/shared";
 
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
 import { caseClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import {
   resolveRecipientContactDisclosure,
@@ -65,7 +65,7 @@ import { enforceRateLimit } from "../services/rate-limit.js";
 import {
   workflowIntakeFeatureDisabledReason,
 } from "../services/workflow-intake-token.service.js";
-import { intakeLinkMintRefusal } from "../services/intake/intake-link-mint-gate.js";
+import { intakeLinkMintRefusal, intakePlanRefusal } from "../services/intake/intake-link-mint-gate.js";
 import { isValidIpAllowlistEntry } from "@proovra/shared";
 
 // -----------------------------------------------------------------------------
@@ -350,6 +350,20 @@ function bigintFromOptional(
 // Route registration
 // -----------------------------------------------------------------------------
 
+/**
+ * B3B-F-103 (free-audit 0ea0): provider message ids are operator data. The
+ * `?_debug=intake-delivery` flag was honoured for any member; it now only
+ * asks, and the ids are disclosed when the caller also holds the messaging
+ * operator permission (`identity.org_policy.manage`, as the communications
+ * write routes require).
+ */
+async function providerIdsDisclosed(req: FastifyRequest, teamId: string): Promise<boolean> {
+  const q = (req.query ?? {}) as Record<string, unknown>;
+  if (q._debug !== "intake-delivery") return false;
+  const decision = await evaluateAuthorize(req, { teamId, permission: "identity.org_policy.manage" });
+  return decision.allowed;
+}
+
 export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
   // -- Create -----------------------------------------------------------
 
@@ -621,11 +635,9 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       const items = await projectIntakeLinkList({
         links: rows,
         recipientContactDisclosure: disclosure,
-        // Provider IDs are admin-only — controlled by the
-        // ?_debug=intake-delivery URL flag the web client respects.
-        includeProviderMessageId:
-          typeof (req.query as Record<string, unknown>)?._debug === "string" &&
-          (req.query as Record<string, string>)._debug === "intake-delivery",
+        // Provider IDs are admin-only — the ?_debug=intake-delivery flag asks,
+        // the canonical policy decides (B3B-F-103).
+        includeProviderMessageId: await providerIdsDisclosed(req, query.teamId),
       });
 
       return reply.code(200).send({
@@ -667,9 +679,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       });
 
       const item = await projectIntakeLinkListItem(link, {
-        includeProviderMessageId:
-          typeof (req.query as Record<string, unknown>)?._debug === "string" &&
-          (req.query as Record<string, string>)._debug === "intake-delivery",
+        includeProviderMessageId: await providerIdsDisclosed(req, link.teamId),
         recipientContactDisclosure: disclosure,
       });
 
@@ -1114,6 +1124,23 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
 
+      // B3B-F-101 — a resend invites a contributor to a link, so it passes the
+      // same plan gate a redemption does (AUD-36, on the link creator's
+      // authority): a workspace downgraded off secure intake, or out of
+      // credit, sends no invitation the first file would then be refused on.
+      // Before any provider call and before the resend budget is spent.
+      {
+        const refusal = await intakePlanRefusal({
+          teamId: existing.teamId,
+          requesterUserId: existing.createdByUserId,
+        });
+        if (refusal?.kind === "plan") {
+          return reply
+            .code(refusal.code === "INTAKE_NOT_INCLUDED" ? 409 : 402)
+            .send({ error: { code: refusal.code, message: refusal.message } });
+        }
+      }
+
       // Phase 7 — per-link resend rate limit. 10/min per
       // (link, user) protects against a UI bug or impatient
       // operator hammering the Resend button.
@@ -1192,7 +1219,9 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
                   ? 503
                   : sendResult.reason === "max_attempts_exceeded"
                     ? 429
-                    : 502;
+                    : sendResult.reason === "delivery_in_progress"
+                      ? 409
+                      : 502;
         return reply
           .code(status)
           .send({ error: { code: sendResult.reason } });

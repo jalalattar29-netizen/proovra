@@ -73,7 +73,34 @@ export type EnqueueEntry = {
   jobIdPrefix: string | null;
   schemaVersion: number;
   retry: RetryPolicy;
+  /**
+   * The registry family. B8-F-003 — a `reconciliation` job (a projection
+   * rebuilt from durable rows) that is ACTIVE does not cover a change
+   * committed after it read those rows, so a new enqueue schedules one
+   * follow-up instead of collapsing (see `rerunsWhileActive`).
+   */
+  family?: string;
 };
+
+/**
+ * B8-F-003 (free-audit 0ea0) — families whose job is a PROJECTION rebuilt
+ * from durable rows: the search document, the workspace graph and the graph
+ * search projection. Collapsing a fresh enqueue onto such a job while it is
+ * `active` treated the running job as covering a change committed after it
+ * had already read the row, so the index kept the old content and the count-
+ * based reconciler never noticed. While the job is active, the enqueue now
+ * schedules exactly ONE follow-up under the deterministic derived id (the
+ * mechanism the OTS ladder uses): a second enqueue during the same run
+ * collapses onto that follow-up, so it is at most one extra job per command.
+ * Waiting / delayed jobs still collapse — they have not read anything yet.
+ */
+export const RERUN_WHILE_ACTIVE_FAMILIES: ReadonlySet<string> = new Set([
+  "reconciliation",
+]);
+
+export function rerunsWhileActive(entry: Pick<EnqueueEntry, "family">): boolean {
+  return !!entry.family && RERUN_WHILE_ACTIVE_FAMILIES.has(entry.family);
+}
 
 /**
  * Enqueue a canonical job.
@@ -176,11 +203,18 @@ export async function enqueueCanonicalJob(input: {
       const isSelfReference =
         input.selfJobId != null &&
         String(existing.id ?? "") === String(input.selfJobId);
+      // B8-F-003 — an ACTIVE projection job is treated like the self case: the
+      // running job has (or may have) read the row already, so the newer
+      // commit gets one follow-up under the derived id.
+      const existingState = isSelfReference ? null : await existing.getState();
+      const activeProjection =
+        existingState === "active" && rerunsWhileActive(entry);
 
-      if (isSelfReference) {
-        // The live job under this id is the caller. Collapsing onto it would
-        // schedule nothing; removing it would delete a running job. Schedule
-        // under a discriminated id instead — see `selfJobId` above.
+      if (isSelfReference || activeProjection) {
+        // The live job under this id is the caller (or, B8-F-003, an active
+        // projection run). Collapsing onto it would schedule nothing; removing
+        // it would delete a running job. Schedule under a discriminated id
+        // instead — see `selfJobId` above.
         jobId = selfFollowUpJobId(jobId, payload.commandId);
         // ET-OTS-02 — the derived follow-up id is as deterministic as the base
         // id, so it recurs every other hop. BullMQ SILENTLY ignores an add whose
@@ -201,7 +235,7 @@ export async function enqueueCanonicalJob(input: {
           }
         }
       } else {
-        const state = await existing.getState();
+        const state = existingState;
         if (isLiveQueueJobState(state)) {
           return { enqueued: true, jobId, collapsed: true };
         }

@@ -35,6 +35,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { enqueueRedactionDerivativeRender } from "../../queue/redaction-derivative-queue.js";
 import { emitRedactionActivity } from "./redaction-activity.service.js";
+import { isUniqueViolation } from "./redaction-project.service.js";
 
 const ARTIFACT_TO_DERIVATIVE: Readonly<
   Record<RedactionArtifactKind, RedactionDerivativeKind>
@@ -123,15 +124,30 @@ export async function requestRedactionDerivative(
       });
     }
   } else {
-    const created = await prisma.redactionDerivative.create({
-      data: {
-        teamId: input.teamId,
-        versionId: input.versionId,
-        kind: derivativeKind,
-        state: "QUEUED",
-      },
-      select: { id: true },
-    });
+    let created: { id: string };
+    try {
+      created = await prisma.redactionDerivative.create({
+        data: {
+          teamId: input.teamId,
+          versionId: input.versionId,
+          kind: derivativeKind,
+          state: "QUEUED",
+        },
+        select: { id: true },
+      });
+    } catch (err) {
+      // B5B-F-203 (free audit 0ea0) — a concurrent first request (double
+      // submit) created this version's derivative (UNIQUE versionId) and owns
+      // its enqueue: answer with that row's state, never a 500.
+      if (!isUniqueViolation(err)) throw err;
+      const winner = await prisma.redactionDerivative.findUnique({
+        where: { versionId: input.versionId },
+        select: { id: true, state: true },
+      });
+      if (!winner) throw err;
+      if (winner.state === "QUARANTINED") return { ok: false, denial: "DERIVATIVE_QUARANTINED" };
+      return { ok: true, derivativeId: winner.id, state: winner.state as RedactionDerivativeState };
+    }
     derivativeId = created.id;
   }
   await emitRedactionActivity({

@@ -1454,6 +1454,9 @@ export async function linkResponseFromIntakeSession(
 // Reviewer decisions on individual responses
 // -----------------------------------------------------------------------------
 
+/** R1-F-01 — the response statuses a reviewer decision may still change. */
+const REVIEWABLE_RESPONSE_STATUSES = ["RECEIVED", "UNDER_REVIEW"] as const;
+
 export async function reviewEvidenceRequestResponse(
   input: {
     requestId: string;
@@ -1479,6 +1482,16 @@ export async function reviewEvidenceRequestResponse(
   client: PrismaClient = defaultPrisma,
 ): Promise<DbResponse> {
   const updated = await client.$transaction(async (tx) => {
+    /*
+     * R1-F-01 (free audit 0ea0) — A DECISION IS MADE ONCE, ON A LIVE REQUEST.
+     * Any decision used to overwrite any response: an ACCEPTED response could
+     * be re-decided REJECTED (and the contributor notified) and a cancelled or
+     * closed request still took verdicts. Under the request's lock (PRO-048),
+     * only a RECEIVED / UNDER_REVIEW response of a non-terminal request is
+     * decided, and the write is conditional on that status, so two overlapping
+     * verdicts cannot both land.
+     */
+    await lockEvidenceRequestTx(tx, input.requestId);
     const request = await tx.evidenceRequest.findUnique({
       where: { id: input.requestId },
     });
@@ -1492,9 +1505,12 @@ export async function reviewEvidenceRequestResponse(
     if (!response || response.evidenceRequestId !== input.requestId) {
       throw new EvidenceRequestError("response_not_found");
     }
+    if (isTerminalEvidenceRequestStatus(request.status as EvidenceRequestStatus)) {
+      throw new EvidenceRequestError("request_terminal");
+    }
 
-    const updated = await tx.evidenceRequestResponse.update({
-      where: { id: input.responseId },
+    const swapped = await tx.evidenceRequestResponse.updateMany({
+      where: { id: input.responseId, status: { in: [...REVIEWABLE_RESPONSE_STATUSES] } },
       data: {
         status: input.status,
         reviewerNote:
@@ -1502,6 +1518,12 @@ export async function reviewEvidenceRequestResponse(
         reviewedAtUtc: new Date(),
         reviewedByUserId: input.actorUserId,
       },
+    });
+    if (swapped.count !== 1) {
+      throw new EvidenceRequestError("response_already_reviewed", { status: response.status });
+    }
+    const updated = await tx.evidenceRequestResponse.findUniqueOrThrow({
+      where: { id: input.responseId },
     });
 
     await appendRequestEvent(

@@ -240,15 +240,12 @@ export async function reopenClosedWorkspace(input: {
       where: { id: teamId },
       select: TEAM_LIFECYCLE_SELECT,
     });
-    if (!team) {
+    // B3A-F-008 (free-audit 0ea0) — NOT AN EXISTENCE ORACLE. An absent
+    // workspace answered 404 and somebody else's 403, so any signed-in account
+    // could test a UUID. Reopen is owner-of-record only, and for anyone else
+    // the workspace is simply not there: one 404 for both.
+    if (!team || team.ownerUserId !== actorUserId) {
       throw lifecycleError(404, "TEAM_NOT_FOUND", "Workspace not found");
-    }
-    if (team.ownerUserId !== actorUserId) {
-      throw lifecycleError(
-        403,
-        "NOT_WORKSPACE_OWNER",
-        "Only the workspace owner can reopen a closed workspace",
-      );
     }
     const open = await tx.workspaceClosureRequest.findFirst({
       where: {
@@ -396,6 +393,19 @@ export async function suspendOrganizationWorkspace(input: {
     await tx.webhookEndpoint.updateMany({
       where: { teamId, status: "ACTIVE" },
       data: { status: "DISABLED" },
+    });
+    // B7B-F02 — and the other two webhook systems: automation webhook
+    // destinations (the delivery sweep skips a disabled destination, so a
+    // time-based or event trigger delivers nothing) and lifecycle endpoints.
+    // Like the integration endpoints above they stay off after a resume and
+    // are re-enabled deliberately.
+    await tx.automationWebhookDestination.updateMany({
+      where: { teamId, enabled: true },
+      data: { enabled: false, disabledAt: new Date(), disabledReason: "workspace_suspended" },
+    });
+    await tx.lifecycleWebhookEndpoint.updateMany({
+      where: { teamId, state: "ACTIVE" },
+      data: { state: "DEACTIVATED", deactivatedAtUtc: new Date() },
     });
 
     await tx.teamActivity.create({

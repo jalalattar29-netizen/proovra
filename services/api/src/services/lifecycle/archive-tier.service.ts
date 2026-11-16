@@ -560,11 +560,15 @@ export async function listArchiveTransitions(input: {
   teamId: string;
   evidenceId?: string;
   toTier?: ArchiveTier;
+  /** B5B-F-305: records closed to the reader (`hiddenRecordIdsInWorkspace`). */
+  closedEvidenceIds?: readonly string[];
 }): Promise<ArchiveTransitionProjection[]> {
   const prisma = input.prisma ?? defaultPrisma;
+  const closed = input.closedEvidenceIds ?? [];
   const rows = await prisma.archiveTierTransition.findMany({
     where: {
       teamId: input.teamId,
+      ...(closed.length > 0 ? { AND: [{ evidenceId: { notIn: [...closed] } }] } : {}),
       ...(input.evidenceId ? { evidenceId: input.evidenceId } : {}),
       ...(input.toTier ? { toTier: input.toTier } : {}),
     },

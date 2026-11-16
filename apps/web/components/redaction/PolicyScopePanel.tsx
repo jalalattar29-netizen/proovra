@@ -30,6 +30,7 @@
  *   * Stale-context rejection on every read and on the revoke outcome.
  */
 
+import { redactionDenialOf } from "../../lib/redaction/refusal";
 import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 
@@ -126,7 +127,8 @@ export function PolicyScopePanel({
     } catch (err) {
       if (isStale(captured)) return;
       const status = (err as { statusCode?: number })?.statusCode;
-      const denial = (err as { denial?: string })?.denial;
+      // B5B-F-200 — apiFetch carries the flat { denial } on error.details.
+        const denial = redactionDenialOf(err);
       if (status === 403 || status === 404 || denial === "NOT_PERMITTED") {
         setAssignments([]);
         setEffective(null);
@@ -176,7 +178,8 @@ export function PolicyScopePanel({
           setMessage("Verification cancelled — the assignment is unchanged.");
           return;
         }
-        const denial = (err as { denial?: string })?.denial;
+        // B5B-F-200 — apiFetch carries the flat { denial } on error.details.
+        const denial = redactionDenialOf(err);
         if (denial === "INVALID_TRANSITION") {
           setMessage(
             "This assignment changed while you were looking at it. Refreshed — review it again before withdrawing.",

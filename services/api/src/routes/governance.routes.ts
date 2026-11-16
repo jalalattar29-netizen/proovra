@@ -853,9 +853,9 @@ export async function governanceRoutes(app: FastifyInstance) {
         },
       });
       if (!evidence || evidence.teamId !== query.teamId) {
-        return reply
-          .code(404)
-          .send({ error: { code: "evidence_not_found" } });
+        // B7B-F04: byte-identical to the record-reach guard's answer for a
+        // closed record, so a 404 never says which of the two it was.
+        return reply.code(404).send({ error: { code: "not_found" } });
       }
 
       const policy = await loadWorkspaceGovernancePolicy(query.teamId);
@@ -909,9 +909,9 @@ export async function governanceRoutes(app: FastifyInstance) {
         select: { id: true, teamId: true },
       });
       if (!evidence || evidence.teamId !== query.teamId) {
-        return reply
-          .code(404)
-          .send({ error: { code: "evidence_not_found" } });
+        // B7B-F04: byte-identical to the record-reach guard's answer for a
+        // closed record, so a 404 never says which of the two it was.
+        return reply.code(404).send({ error: { code: "not_found" } });
       }
 
       const rows = await listLegalHoldsForEvidence(id);
@@ -992,9 +992,9 @@ export async function governanceRoutes(app: FastifyInstance) {
         select: { id: true, teamId: true },
       });
       if (!evidence || evidence.teamId !== query.teamId) {
-        return reply
-          .code(404)
-          .send({ error: { code: "evidence_not_found" } });
+        // B7B-F04: byte-identical to the record-reach guard's answer for a
+        // closed record, so a 404 never says which of the two it was.
+        return reply.code(404).send({ error: { code: "not_found" } });
       }
       const held = await isEvidenceUnderAnyLegalHold(id);
       return reply.code(200).send({ held });

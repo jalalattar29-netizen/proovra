@@ -238,10 +238,21 @@ describe("P0 — SAML JIT existing-account link guard", () => {
     expect(calls.some((c) => c.op === "teamMember.upsert")).toBe(false);
   });
 
-  it("links the existing user when exactly our org verified the domain", async () => {
+  /*
+   * B5B-F-302 — INTENTIONAL CHANGE. The verified domain used to be enough to
+   * link ANY existing account. It now links only an account THIS
+   * Organization's directory or IdP created (here: a SAML JIT row of ORG_ID);
+   * a pre-existing self-serve account is refused below.
+   */
+  it("links an existing account this org's IdP created when exactly our org verified the domain", async () => {
     const { client, calls } = fakePrisma({
       ...commonHandlers,
       "organizationDomain.findMany": () => [{ organizationId: ORG_ID }],
+      "user.findUnique": () => ({
+        providerUserId: `saml-${ORG_ID}:jalal@company.com`,
+        email: "jalal@company.com",
+        createdAt: new Date(),
+      }),
     });
     const result = await handleSamlAssertion(
       {
@@ -264,6 +275,37 @@ describe("P0 — SAML JIT existing-account link guard", () => {
     ).toBe("jalal@company.com");
     expect(calls.some((c) => c.op === "user.create")).toBe(false);
     expect(calls.some((c) => c.op === "teamMember.upsert")).toBe(true);
+  });
+
+  it("B5B-F-302: refuses a pre-existing SELF-SERVE account even with the verified domain (no link, no membership)", async () => {
+    const { client, calls } = fakePrisma({
+      ...commonHandlers,
+      "organizationDomain.findMany": () => [{ organizationId: ORG_ID }],
+      "user.findUnique": () => ({
+        providerUserId: "jalal@company.com",
+        email: "jalal@company.com",
+        createdAt: new Date(),
+      }),
+    });
+    const err = await handleSamlAssertion(
+      {
+        teamId: TEAM_ID,
+        connectionId: "conn-1",
+        provider: "GENERIC_SAML" as never,
+        assertion: samlAssertionFor("Jalal@Company.com"),
+        attributeMapping: null,
+        allowedEmailDomains: [],
+        jitDefaultRole: "MEMBER",
+        scimManaged: false,
+      } as never,
+      client,
+    ).catch((e) => e);
+    expect(err).toMatchObject({ code: "SAML_ACCOUNT_LINK_REQUIRES_CONSENT" });
+    expect((err as { details: { pendingLink: { userId: string; organizationId: string } } }).details.pendingLink)
+      .toMatchObject({ userId: USER_ID, organizationId: ORG_ID, protocol: "SAML" });
+    expect(calls.some((c) => c.op === "externalIdentityMapping.create")).toBe(false);
+    expect(calls.some((c) => c.op === "teamMember.upsert")).toBe(false);
+    expect(calls.some((c) => c.op === "user.create")).toBe(false);
   });
 });
 
@@ -432,6 +474,28 @@ describe("P0 — SCIM create existing-account link guard", () => {
       false,
     );
     expect(calls.some((c) => c.op === "teamMember.upsert")).toBe(false);
+  });
+
+  it("B5B-F-302: 409 existing_account_requires_user_consent for a self-serve account in OUR verified domain; nothing written", async () => {
+    const { client, calls } = fakePrisma({
+      "externalIdentityMapping.findFirst": () => null,
+      "user.findFirst": () => ({ id: USER_ID, createdAt: new Date(), updatedAt: new Date() }),
+      "user.findUnique": () => ({
+        providerUserId: "victim@othercompany.com",
+        email: "victim@othercompany.com",
+        createdAt: new Date(),
+      }),
+      "team.findUnique": () => ({ organizationId: ORG_ID }),
+      "organizationDomain.findMany": () => [{ organizationId: ORG_ID }],
+    });
+    const res = await scimCreateUser(
+      { teamId: TEAM_ID, organizationId: ORG_ID, tokenId: "tok-1", baseUrl: "https://x" },
+      scimUser as never,
+      client,
+    );
+    expect(res).toMatchObject({ ok: false, status: 409, detail: "existing_account_requires_user_consent" });
+    const writes = calls.filter((c) => /\.(create|createMany|update|updateMany|upsert)$/.test(c.op));
+    expect(writes.filter((c) => !c.op.startsWith("securityEvent") && !c.op.startsWith("adminAuditLog"))).toEqual([]);
   });
 });
 

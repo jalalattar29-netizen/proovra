@@ -77,7 +77,9 @@ type ClosureTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
  *   * every membership that has not ended (ACTIVE and SUSPENDED) → REVOKED,
  *     with its standing reach (case access, assignments, groups) ended;
  *   * pending invitations → revoked;
- *   * API credentials → REVOKED, webhooks → DISABLED;
+ *   * API credentials → REVOKED; integration webhooks → DISABLED, automation
+ *     rules and webhook destinations → disabled, lifecycle webhook endpoints
+ *     → DEACTIVATED (B7B-F02);
  *   * live external-review grants → REVOKED;
  *   * workspace pointers cleared;
  *   * `closedAtUtc` stamped — the durable closure state.
@@ -115,6 +117,30 @@ export async function closeWorkspacesTx(
       ...(input.actorUserId ? { revokedByUserId: input.actorUserId } : {}),
     },
   });
+  // B7B-F02 — the other two webhook systems and the automation that feeds
+  // them end with the workspace too (before the memberships, so the reason
+  // recorded is the closure, not each creator's departure). Only the
+  // integration webhooks were disabled, so an enabled WEBHOOK automation rule
+  // kept POSTing signed record events to its external URL after closure (a
+  // retained record reaching its retention date fired a time-based trigger),
+  // and an ACTIVE lifecycle endpoint kept receiving package events. Kept,
+  // never deleted; a reopened workspace re-enables them deliberately.
+  await tx.automationRule.updateMany({
+    where: { teamId: { in: teamIds }, enabled: true },
+    data: { enabled: false, disabledAt: now },
+  });
+  await tx.automationWebhookDestination.updateMany({
+    where: { teamId: { in: teamIds }, enabled: true },
+    data: { enabled: false, disabledAt: now, disabledReason: "workspace_closed" },
+  });
+  await tx.lifecycleWebhookEndpoint.updateMany({
+    where: { teamId: { in: teamIds }, state: "ACTIVE" },
+    data: { state: "DEACTIVATED", deactivatedAtUtc: now },
+  });
+  await tx.webhookEndpoint.updateMany({
+    where: { teamId: { in: teamIds }, status: "ACTIVE" },
+    data: { status: "DISABLED" },
+  });
   const revoked = await massRevokeWorkspaceMemberships(tx, {
     where: { teamIds },
     actorUserId: input.actorUserId,
@@ -127,10 +153,6 @@ export async function closeWorkspacesTx(
   await tx.apiCredential.updateMany({
     where: { teamId: { in: teamIds }, status: "ACTIVE" },
     data: { status: "REVOKED", revokedAtUtc: now, revokedReason: "workspace_closed" },
-  });
-  await tx.webhookEndpoint.updateMany({
-    where: { teamId: { in: teamIds }, status: "ACTIVE" },
-    data: { status: "DISABLED" },
   });
   await tx.externalReviewGrant.updateMany({
     where: { teamId: { in: teamIds }, state: { in: ["INVITED", "ACTIVE"] } },

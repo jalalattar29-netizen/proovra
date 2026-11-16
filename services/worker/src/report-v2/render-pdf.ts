@@ -1,5 +1,6 @@
 // D:\digital-witness\services\worker\src\report-v2\render-pdf.ts
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer";
 import sharp from "sharp";
 import { resolveReportAssetPath } from "./asset-data-url.js";
@@ -181,6 +182,52 @@ export type RenderPdfOptions = {
   launchTimeoutMs?: number;
 };
 
+/**
+ * B8-F-006 (free-audit 0ea0) — DEFENCE IN DEPTH for the report renderer.
+ *
+ * Record text (titles, notes, file names, EXIF) is escaped field by field in
+ * the section templates. That is the primary control; this is the second one,
+ * so a single unescaped field can neither reach the network nor run script:
+ *
+ *   1. REQUEST INTERCEPTION — the page may load only `data:` URLs,
+ *      `about:blank`, and `file:` URLs inside the report's own asset
+ *      directory (`report-v2/assets`, source or compiled). Every other request
+ *      (http/https to the worker network or a metadata endpoint, any other
+ *      local file) is aborted and counted.
+ *   2. NO PAGE SCRIPT — a Content-Security-Policy meta (`script-src 'none'`,
+ *      no connect / frame / object) is placed first in <head>. The renderer's
+ *      own font/image wait, layout audit and footer read run through DevTools
+ *      evaluation, which page CSP does not govern, so the templates keep
+ *      working while injected markup cannot execute.
+ */
+export const REPORT_RENDER_CSP =
+  "default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; img-src data: file:; font-src data: file:; style-src 'unsafe-inline' data: file:";
+
+export function injectReportRenderCsp(html: string): string {
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${REPORT_RENDER_CSP}" />`;
+  const head = html.match(/<head[^>]*>/i);
+  if (head && head.index !== undefined) {
+    const at = head.index + head[0].length;
+    return html.slice(0, at) + meta + html.slice(at);
+  }
+  return meta + html;
+}
+
+export function isAllowedReportRequestUrl(url: string): boolean {
+  if (url.startsWith("data:")) return true;
+  if (url === "about:blank") return true;
+  if (!url.startsWith("file:")) return false;
+  let filePath: string;
+  try {
+    filePath = fileURLToPath(url);
+  } catch {
+    return false;
+  }
+  const normalized = filePath.replace(/\\/g, "/");
+  if (normalized.includes("/../")) return false;
+  return /\/report-v2\/assets\/[^/]+$/.test(normalized);
+}
+
 export async function renderPdfFromHtml(html: string, options: RenderPdfOptions = {}): Promise<Buffer> {
   const executablePath = resolveBrowserExecutablePath();
 
@@ -218,7 +265,35 @@ export async function renderPdfFromHtml(html: string, options: RenderPdfOptions 
 
     await page.emulateMediaType("print");
 
-await page.setContent(html, {
+    // B8-F-006 — see isAllowedReportRequestUrl / injectReportRenderCsp.
+    const blockedRequests: string[] = [];
+    let blockedNavigation = false;
+    await page.setRequestInterception(true);
+    page.on("request", (request) => {
+      const url = request.url();
+      if (isAllowedReportRequestUrl(url)) {
+        void request.continue().catch(() => undefined);
+        return;
+      }
+      // A navigation (e.g. an injected <meta http-equiv="refresh">) is not
+      // governed by page CSP; aborting it leaves the page on an error
+      // document, so the render is refused below rather than printed.
+      if (request.isNavigationRequest()) blockedNavigation = true;
+      if (blockedRequests.length < 20) {
+        // Scheme + host only: never a query string or a path a record named.
+        let shown = "invalid-url";
+        try {
+          const u = new URL(url);
+          shown = u.protocol === "file:" ? "file:" : `${u.protocol}//${u.host}`;
+        } catch {
+          /* keep the placeholder */
+        }
+        blockedRequests.push(shown);
+      }
+      void request.abort("blockedbyclient").catch(() => undefined);
+    });
+
+await page.setContent(injectReportRenderCsp(html), {
   waitUntil: "domcontentloaded",
   timeout: 30_000,
 });
@@ -261,6 +336,14 @@ await page.evaluate(
     ]);
   })()`,
 );
+
+    // B8-F-006 — a blocked navigation means injected markup tried to leave
+    // the report; never print whatever document is left. Deterministic.
+    if (blockedNavigation) {
+      throw new OutputVerificationError("REPORT_RENDER_INPUT_INCONSISTENT", [
+        { check: "renderer_blocked_navigation", detail: blockedRequests.join(",").slice(0, 200) },
+      ]);
+    }
 
     // THE LAYOUT AUDIT (pdf/report-geometry.ts): an element that clips its
     // own text would print a report with words cut off or missing, and that
@@ -357,6 +440,14 @@ reportId: fullReportId(footerData.evidenceReference),
         left: "0mm",
       },
     });
+
+    if (blockedRequests.length > 0) {
+      // B8-F-006 — a template should never ask for anything outside its own
+      // assets; when it does, say so (scheme/host only, no record text).
+      console.warn(
+        JSON.stringify({ event: "report_render.blocked_requests", blocked: blockedRequests }),
+      );
+    }
 
     // The PDF names the product's renderer, not the browser that printed it.
     return setPdfRendererIdentity(Buffer.from(pdf), REPORT_PDF_CREATOR);

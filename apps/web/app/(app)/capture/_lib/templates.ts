@@ -1,6 +1,17 @@
 import { DEFAULT_MAX_EVIDENCE_SIZE_BYTES } from "@proovra/shared"
 import type { CollectionPlanTemplate } from "./types";
 
+/**
+ * The offline FALLBACK of the server's intake-template catalog
+ * (services/api/src/services/capture-intake-templates.ts), used while
+ * /v1/capture/intake-templates loads or when it fails.
+ *
+ * B4-F-308 — the step ids are the SERVER's. The draft binds the server
+ * template, and the seal's checklist gate requires the server's required step
+ * ids; fallback ids of their own (`primary_overview_media` for the server's
+ * `overview_media`, …) made a Guided seal mapped against the fallback
+ * refused. Primary readiness reads the step's purpose (role), not an id prefix.
+ */
 export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
   {
     id: "general-evidence-record",
@@ -25,7 +36,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"],
       },
       {
-        id: "context_statement",
+        id: "optional_statement",
         title: "Context statement",
         description: "Add an optional audio or video statement for additional context.",
         purposeLabel: "Context statement",
@@ -41,7 +52,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
     locationRequirement: "recommended",
     steps: [
       {
-        id: "primary_overview_media",
+        id: "overview_media",
         title: "Primary overview photo/video",
         description: "Capture a high-level image or video overview of the insured loss.",
         purposeLabel: "Primary overview media",
@@ -49,7 +60,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
       {
-        id: "primary_damage_close_up",
+        id: "damage_close_up",
         title: "Primary damage close-up",
         description: "Capture close-up evidence of damage or loss.",
         purposeLabel: "Primary damage close-up",
@@ -57,7 +68,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
       {
-        id: "supporting_ownership_document",
+        id: "ownership_document",
         title: "Supporting ownership or policy document",
         description: "Upload documentation related to ownership or policy coverage.",
         purposeLabel: "Supporting ownership or policy document",
@@ -65,7 +76,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["DOCUMENT"],
       },
       {
-        id: "context_audio_statement",
+        id: "optional_audio",
         title: "Context audio statement",
         description: "Add an optional audio statement describing the incident.",
         purposeLabel: "Context audio statement",
@@ -81,7 +92,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
     locationRequirement: "optional",
     steps: [
       {
-        id: "primary_document_media",
+        id: "primary_media",
         title: "Primary document/media",
         description: "Upload the main document or media item that is being preserved.",
         purposeLabel: "Primary document/media",
@@ -97,7 +108,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["DOCUMENT", "PHOTO", "VIDEO", "AUDIO"],
       },
       {
-        id: "context_source_note",
+        id: "source_context",
         title: "Context source note",
         description: "Provide a source or context note for the evidence.",
         purposeLabel: "Context source note",
@@ -105,7 +116,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["DOCUMENT"],
       },
       {
-        id: "supporting_timeline_evidence",
+        id: "optional_timeline",
         title: "Supporting timeline evidence",
         description: "Attach timeline evidence such as logs or recordings.",
         purposeLabel: "Supporting timeline evidence",
@@ -121,7 +132,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
     locationRequirement: "required",
     steps: [
       {
-        id: "primary_scene_overview",
+        id: "scene_overview",
         title: "Primary scene overview",
         description: "Capture an overview image or video of the incident scene.",
         purposeLabel: "Primary scene overview",
@@ -129,7 +140,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
       {
-        id: "primary_close_up_detail",
+        id: "close_up_detail",
         title: "Primary close-up detail",
         description: "Capture close-up detail of the relevant evidence.",
         purposeLabel: "Primary close-up detail",
@@ -137,7 +148,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
       {
-        id: "supporting_witness_statement",
+        id: "witness_statement",
         title: "Supporting witness/media statement",
         description: "Add a witness statement or media statement for context.",
         purposeLabel: "Supporting witness/media statement",
@@ -145,7 +156,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["AUDIO", "VIDEO", "DOCUMENT"],
       },
       {
-        id: "supporting_file_log",
+        id: "supporting_file",
         title: "Supporting file/log",
         description: "Attach supporting files such as logs, extracts, or reports.",
         purposeLabel: "Supporting file/log",
@@ -161,7 +172,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
     locationRequirement: "recommended",
     steps: [
       {
-        id: "primary_policy_document",
+        id: "policy_document",
         title: "Primary policy / compliance document",
         description: "Upload the policy, audit document, or compliance file being preserved.",
         purposeLabel: "Primary policy / compliance document",
@@ -169,7 +180,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["DOCUMENT"],
       },
       {
-        id: "primary_export_supporting_evidence",
+        id: "screenshot_export",
         title: "Primary export / supporting evidence",
         description: "Upload the export, screenshot, or supporting evidence file for the compliance record.",
         purposeLabel: "Primary export / supporting evidence",
@@ -177,7 +188,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["PHOTO", "VIDEO", "DOCUMENT"],
       },
       {
-        id: "supporting_audit_evidence",
+        id: "supporting_evidence",
         title: "Supporting audit evidence",
         description: "Add any additional supporting evidence for the audit record.",
         purposeLabel: "Supporting audit evidence",
@@ -185,7 +196,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"],
       },
       {
-        id: "context_reviewer_note",
+        id: "reviewer_context",
         title: "Context reviewer note",
         description: "Provide an internal note for reviewer context and intake rationale.",
         purposeLabel: "Context reviewer note",
@@ -209,7 +220,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
       {
-        id: "supporting_scene_context",
+        id: "scene_context",
         title: "Supporting scene/context capture",
         description: "Capture scene context to support the primary media.",
         purposeLabel: "Supporting scene/context capture",
@@ -217,7 +228,7 @@ export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
         acceptedKinds: ["PHOTO", "VIDEO"],
       },
       {
-        id: "context_source_safe_note",
+        id: "source_safe_note",
         title: "Context source-safe note",
         description: "Add an optional source-safe note for the evidence record.",
         purposeLabel: "Context source-safe note",

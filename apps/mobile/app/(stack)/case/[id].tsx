@@ -59,6 +59,8 @@ import { TeamResponsibilityPanel } from "../../../src/ui/team-responsibility";
 import { PresenceIndicator } from "../../../src/ui/presence-indicator";
 import { CaseCopilot } from "../../../src/ui/case-copilot";
 import { CaseAttachEvidenceSheet, CaseSectionTabs } from "../../../src/ui/case-detail-sections";
+import { ChallengeStepUpSheet, useChallengeStepUp } from "../../../src/ui/challenge-step-up";
+import { STEP_UP_CANCEL } from "../../../src/product/challenge-step-up";
 import { parseCaseCopilotEvidence, type CaseCopilotEvidence } from "../../../src/product/ai-copilot";
 import {
   ProovraScreen,
@@ -117,6 +119,9 @@ export default function CaseDetailScreen() {
   const [name, setName] = useState("Case");
   const [status, setStatus] = useState<string | null>(null);
   const [caseTeamId, setCaseTeamId] = useState<string | null>(null);
+  // B3C-F-006 — deleting a case needs a fresh step-up (SEC-03), as the Cases
+  // tab already does; the challenge is started for the case's own workspace.
+  const stepUp = useChallengeStepUp(caseTeamId);
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [caseFacts, setCaseFacts] = useState<{ reference: string | null; priority: string | null; createdAt: string | null; updatedAt: string | null }>({
     reference: null,
@@ -301,15 +306,19 @@ export default function CaseDetailScreen() {
     try {
       // 204 No Content (cases.routes.ts:1272): read as text. apiFetch parsed the
       // empty body as JSON and reported a deletion that had succeeded as a failure.
-      await apiFetchText(buildCasePath(String(id)), { method: "DELETE" });
+      await stepUp.run((headers) =>
+        apiFetchText(buildCasePath(String(id)), { method: "DELETE", ...(headers ? { headers } : {}) }),
+      );
       addToast("Case deleted. Evidence records were preserved.", "success");
       router.back();
     } catch (err) {
+      // The person closed the step-up: nothing was deleted and nothing failed.
+      if ((err as { code?: string } | null)?.code === STEP_UP_CANCEL) return;
       addToast(toSafeUserError(err, { message: "Could not delete case." }).message, "error");
     } finally {
       setSettingsBusy(false);
     }
-  }, [id, router, addToast]);
+  }, [id, router, addToast, stepUp]);
 
   // DELETE /v1/cases/:id/evidence/:evidenceId unlinks; it never deletes the record.
   const removeFromCase = useCallback(
@@ -814,6 +823,7 @@ export default function CaseDetailScreen() {
           onCancel={() => setConfirm(null)}
         />
       ) : null}
+      <ChallengeStepUpSheet stepUp={stepUp} />
     </ProovraScreen>
   );
 }

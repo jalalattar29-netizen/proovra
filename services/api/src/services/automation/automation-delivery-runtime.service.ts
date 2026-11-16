@@ -95,6 +95,8 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { caseClosedTo, evidenceClosedTo } from "../access/record-reach.js";
+import { isLiveOperatingWorkspace } from "../workspace/operating-workspace.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import {
   buildSafeWebhookPayload,
@@ -277,6 +279,14 @@ export async function processDelivery(input: {
   if (!destination.enabled) {
     return finaliseSkipped(prisma, delivery.id, "destination_disabled", nowMs);
   }
+  // B7B-F02 — a closed workspace, or one whose organization is suspended,
+  // sends nothing out: a delivery queued before the transition (or by a
+  // time-based trigger after it) is skipped, never POSTed. Closure and
+  // workspace suspension also disable the destination; an organization
+  // suspension is reversible and leaves it as it is.
+  if (!(await isLiveOperatingWorkspace(delivery.teamId, prisma))) {
+    return finaliseSkipped(prisma, delivery.id, "workspace_not_operating", nowMs);
+  }
   // Load the originating run for payload context (trigger / target).
   const run = await prisma.automationRun.findUnique({
     where: { id: delivery.runId },
@@ -358,6 +368,13 @@ export async function processDelivery(input: {
       "secret_decryption_failed",
       nowMs,
     );
+  }
+
+  // B7B-F01 (free-audit 0ea0): a webhook is machine egress and a machine is
+  // on no access list (AZ-R04). A run whose target is a record or case a
+  // restricted case closes to everyone but its list is not delivered.
+  if (await automationTargetRestricted(prisma, run.targetType, run.targetId)) {
+    return finaliseFailed(prisma, delivery.id, 0, "target_restricted", nowMs);
   }
 
   const eventType = `automation.${run.triggerType.toLowerCase()}`;
@@ -999,6 +1016,21 @@ async function finaliseRetryExhausted(
     attemptCount: delivery.attemptCount + 1,
     reason,
   };
+}
+
+async function automationTargetRestricted(
+  prisma: PrismaClient,
+  targetType: string,
+  targetId: string,
+): Promise<boolean> {
+  const kind = targetType.toLowerCase();
+  try {
+    if (kind === "evidence") return await evidenceClosedTo(targetId, null, prisma);
+    if (kind === "case") return await caseClosedTo(targetId, null, prisma);
+  } catch {
+    return true;
+  }
+  return false;
 }
 
 async function finaliseFailed(

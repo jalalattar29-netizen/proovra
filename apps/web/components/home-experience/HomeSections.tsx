@@ -1763,7 +1763,9 @@ export function GettingStartedChecklist({
   return (
     <SectionCard title="Start your first evidence workflow" testId="getting-started">
       <p className="home-onboard__lead">
-        Capture your first record or create a case to get started.
+        {createCase
+          ? "Capture your first record or create a case to get started."
+          : "Capture your first record to get started."}
       </p>
       <div className="home-onboard__actions">
         {capture ? (

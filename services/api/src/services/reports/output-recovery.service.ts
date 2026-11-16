@@ -41,8 +41,8 @@ import { resolveEvidenceWorkspaceIds } from "@proovra/shared-runtime";
 // AUDIT D-03 — the first issuance of an entitled Free record (and its
 // server-verified missing-file recovery) is not customer storage.
 import {
+  allowanceExcludedFirstIssuanceRecordIds,
   firstIssuanceVersionsByRecord,
-  isFreeAllowanceEarnedFact,
   MISSING_OUTPUT_RECOVERY_KEY_PREFIX,
   MISSING_OUTPUT_RECOVERY_PURPOSE,
 } from "@proovra/shared-runtime";
@@ -408,9 +408,15 @@ export async function loadEvidenceOutputFacts(input: {
   // first report and any server-verified recovery of it), as the worker gate
   // and the storage measure read them.
   const reportedIds = new Set(reports.map((r) => r.evidenceId));
+  // B5B-F-403 — credit-funded records too (allowanceExcludedFirstIssuanceRecordIds),
+  // as the worker gate and both storage measures read them.
+  const excludedRecordIds = await allowanceExcludedFirstIssuanceRecordIds(
+    prisma,
+    evidenceRows.filter((e) => reportedIds.has(e.id)).map((e) => e.id),
+  );
   const freeFirstIssuanceBy = await firstIssuanceVersionsByRecord(
     prisma,
-    evidenceRows.filter((e) => reportedIds.has(e.id) && isFreeAllowanceEarnedFact(e)).map((e) => e.id),
+    evidenceRows.filter((e) => excludedRecordIds.has(e.id)).map((e) => e.id),
   );
 
   const orgIds = [...new Set(teams.map((t) => t.organizationId).filter((o): o is string => !!o))];
@@ -519,6 +525,20 @@ export async function loadEvidenceOutputFacts(input: {
         eligibility?.issuance.decision === "ENTITLED" &&
         freeFirstIssuanceBy.get(ev.id)?.has(latestReport.version) === true;
 
+      // B5B-F-101 (free audit 0ea0) — the route's Free re-render rule
+      // (refuseFreeRenderWithoutNewFacts: plan FREE, not credit-funded, no fact
+      // newer than the latest report) is a fact of the decision, so no surface
+      // offers "Generate updated report" the route always refuses. An
+      // unreadable freshness withholds nothing (the route still decides).
+      const newVersionNeedsNewerFacts =
+        latestReport != null &&
+        eligibility?.plan === "FREE" &&
+        eligibility.funding !== "EVIDENCE_CREDIT"
+          ? await loadReportableFacts(ev.id)
+              .then((r) => r.freshness.hasNewerFacts !== true)
+              .catch(() => false)
+          : false;
+
       const facts: EvidenceOutputFacts = {
         record: resolveOutputRecordApplicability(ev.status),
         // An unresolvable commercial answer is not an entitlement: offer
@@ -557,6 +577,7 @@ export async function loadEvidenceOutputFacts(input: {
           }) ||
             freeFirstIssuanceExcluded),
         freeFirstIssuanceExcluded,
+        ...(newVersionNeedsNewerFacts ? { newVersionNeedsNewerFacts: true } : {}),
         storedOutputMissing:
           reportObject === "NOT_FOUND" ? "REPORT" : packageObject === "NOT_FOUND" ? "PACKAGE" : null,
       };

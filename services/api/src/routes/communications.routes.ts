@@ -53,7 +53,10 @@ import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 // The workspace-actor helper below composes it instead of re-implementing the
 // evaluate → 403 shape (see that helper's contract note).
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { intakePlanRefusal } from "../services/intake/intake-link-mint-gate.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   buildProviderHealthSnapshot,
@@ -153,6 +156,41 @@ async function transitionCommunicationForOperator(input: {
     );
     return tx.communicationMessage.findUniqueOrThrow({ where: { id: input.messageId } });
   });
+}
+
+/** A nullable id column, kept when NULL (`NOT IN` drops NULL rows). */
+function nullableNotIn(column: string, ids: readonly string[]): prismaPkg.Prisma.CommunicationMessageWhereInput[] {
+  return ids.length === 0 ? [] : [{ OR: [{ [column]: null }, { [column]: { notIn: [...ids] } }] }];
+}
+
+/**
+ * The messages of one workspace that name nothing closed to the reader:
+ * record reach (`hiddenRecordIdsInWorkspace`) applied to the record, the
+ * evidence request and the discussion thread a message points at.
+ */
+async function communicationReachWhere(
+  teamId: string,
+  userId: string,
+): Promise<prismaPkg.Prisma.CommunicationMessageWhereInput[]> {
+  const hidden = await hiddenRecordIdsInWorkspace(teamId, userId);
+  if (hidden.evidenceIds.length === 0 && hidden.caseIds.length === 0) return [];
+  const requestOr: prismaPkg.Prisma.EvidenceRequestWhereInput[] = [];
+  if (hidden.evidenceIds.length > 0) requestOr.push({ evidenceId: { in: hidden.evidenceIds } });
+  if (hidden.caseIds.length > 0) requestOr.push({ caseId: { in: hidden.caseIds } });
+  const [requests, threads] = await Promise.all([
+    prisma.evidenceRequest.findMany({ where: { teamId, OR: requestOr }, select: { id: true } }),
+    hidden.evidenceIds.length > 0
+      ? prisma.discussionThread.findMany({
+          where: { teamId, evidenceId: { in: hidden.evidenceIds } },
+          select: { id: true },
+        })
+      : Promise.resolve([] as Array<{ id: string }>),
+  ]);
+  return [
+    ...nullableNotIn("relatedEvidenceId", hidden.evidenceIds),
+    ...nullableNotIn("relatedEvidenceRequestId", requests.map((r) => r.id)),
+    ...nullableNotIn("relatedDiscussionThreadId", threads.map((t) => t.id)),
+  ];
 }
 
 async function requireCommunicationsActor(
@@ -286,8 +324,13 @@ export async function communicationsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const actor = await requireCommunicationsActor(req, reply, q.teamId, "identity.member.read");
       if (!actor) return;
+      // B3C-F-002 (free-audit 0ea0): a message about a record, request or
+      // thread that a restricted case closes to this reader is that record's
+      // row (ACC-01 / EVID-004): it is not listed, by preview or by id.
+      const reach = await communicationReachWhere(q.teamId, actor.userId);
       const rows = await prisma.communicationMessage.findMany({
         where: {
+          AND: reach,
           teamId: q.teamId,
           ...(q.channel ? { channel: q.channel as prismaPkg.CommunicationChannel } : {}),
           ...(q.purpose ? { purpose: q.purpose as prismaPkg.CommunicationPurpose } : {}),
@@ -527,6 +570,10 @@ export async function communicationsRoutes(app: FastifyInstance) {
   // Verify (OTP)
   // -------------------------------------------------------------------------
 
+  /** B3C-F-001 — verification starts per actor / per workspace, across all numbers. */
+  const VERIFY_STARTS_PER_ACTOR_PER_HOUR = 10;
+  const VERIFY_STARTS_PER_WORKSPACE_PER_HOUR = 30;
+
   const VerifyStartBody = z.object({
     teamId: z.string().uuid(),
     channel: z.enum(["SMS", "WHATSAPP"]),
@@ -547,6 +594,28 @@ export async function communicationsRoutes(app: FastifyInstance) {
       // VIEWER could text any number.
       const actor = await requireCommunicationsActor(req, reply, body.teamId, "identity.org_policy.manage");
       if (!actor) return;
+      // B3C-F-001 (Free-user audit 0ea0) — a code sent here goes to an
+      // outside number through the platform's provider. Messaging an outside
+      // number is part of secure intake, which the workspace's plan (or an
+      // evidence credit) must include: a Free personal workspace could
+      // otherwise text any number. Asked through the one intake plan authority,
+      // before any attempt row or provider call.
+      const planRefusal = await intakePlanRefusal({ teamId: body.teamId, requesterUserId: actor.userId });
+      if (planRefusal && planRefusal.kind === "plan") {
+        return reply.code(409).send({ error: { code: planRefusal.code, message: planRefusal.message } });
+      }
+      // The per-recipient limit inside startVerification does not bound how
+      // many DIFFERENT numbers one actor or workspace can text. These do.
+      for (const bound of [
+        { key: `comms-verify-start:actor:${actor.userId}`, max: VERIFY_STARTS_PER_ACTOR_PER_HOUR },
+        { key: `comms-verify-start:team:${body.teamId}`, max: VERIFY_STARTS_PER_WORKSPACE_PER_HOUR },
+      ]) {
+        const verdict = await enforceRateLimit({ key: bound.key, bound: "global", max: bound.max, windowSec: 3600 });
+        if (!verdict.allowed) {
+          reply.header("Retry-After", String(Math.max(1, Math.ceil((verdict.resetAtMs - Date.now()) / 1000))));
+          return reply.code(429).send({ error: { code: "rate_limited" } });
+        }
+      }
       try {
         const result = await startVerification({
           teamId: body.teamId,

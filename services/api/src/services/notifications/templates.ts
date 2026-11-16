@@ -129,6 +129,35 @@ export type RenderedTemplate = {
 };
 
 // -----------------------------------------------------------------------------
+// B2B-F-08 — every member-addressed, preference-governed email (digests,
+// review / escalation / SLA reminders, discussion mentions and replies)
+// carries the way to the control that stops it: the Notifications pane of
+// Settings (`/settings#notifications`, signed-in). There is no signed
+// one-click unsubscribe token in the platform today, so no List-Unsubscribe
+// header is claimed; the link is the honest equivalent.
+// -----------------------------------------------------------------------------
+
+export const MANAGE_NOTIFICATION_PREFERENCES_LABEL =
+  "Manage notification preferences";
+
+export function manageNotificationPreferencesUrl(): string {
+  return `${getEmailWebBaseUrl().replace(/\/+$/, "")}/settings#notifications`;
+}
+
+function managePreferencesLinks(): Array<{ label: string; url: string }> {
+  return [
+    {
+      label: MANAGE_NOTIFICATION_PREFERENCES_LABEL,
+      url: manageNotificationPreferencesUrl(),
+    },
+  ];
+}
+
+function managePreferencesTextLine(): string {
+  return `${MANAGE_NOTIFICATION_PREFERENCES_LABEL}: ${manageNotificationPreferencesUrl()}`;
+}
+
+// -----------------------------------------------------------------------------
 // renderTransactionalTemplate
 // -----------------------------------------------------------------------------
 
@@ -527,12 +556,14 @@ function renderReviewAssigned(
     bodyHtml: body,
     ctaText: d.requestUrl ? "Open the request" : undefined,
     ctaUrl: d.requestUrl ?? undefined,
+    secondaryLinks: managePreferencesLinks(),
   });
   const text = [
     `New review assignment: ${d.requestTitle}`,
     "",
     `Workspace: ${d.workspaceName}`,
     d.requestUrl ? `Open: ${d.requestUrl}` : null,
+    managePreferencesTextLine(),
   ]
     .filter((line): line is string => typeof line === "string")
     .join("\n");
@@ -569,12 +600,14 @@ function renderReviewVariant(
     bodyHtml: body,
     ctaText: d.requestUrl ? "Open the workspace" : undefined,
     ctaUrl: d.requestUrl ?? undefined,
+    secondaryLinks: managePreferencesLinks(),
   });
   const text = [
     `${subjectPrefix}: ${d.requestTitle}`,
     "",
     `Workspace: ${d.workspaceName}`,
     d.requestUrl ? `Open: ${d.requestUrl}` : null,
+    managePreferencesTextLine(),
   ]
     .filter((line): line is string => typeof line === "string")
     .join("\n");
@@ -655,6 +688,7 @@ function renderOperationsDigest(d: OperationsDigestContext): RenderedTemplate {
     bodyHtml: body,
     ctaText: d.operationsCenterUrl ? "Open the Operations Center" : undefined,
     ctaUrl: d.operationsCenterUrl ?? undefined,
+    secondaryLinks: managePreferencesLinks(),
   });
   const text = [
     `${d.cadenceLabel} operations digest — ${d.workspaceName}`,
@@ -664,6 +698,7 @@ function renderOperationsDigest(d: OperationsDigestContext): RenderedTemplate {
     ),
     overflow > 0 ? `…and ${overflow} more.` : null,
     d.operationsCenterUrl ? `Open: ${d.operationsCenterUrl}` : null,
+    managePreferencesTextLine(),
   ]
     .filter((line): line is string => typeof line === "string")
     .join("\n");

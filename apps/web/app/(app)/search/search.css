@@ -1514,3 +1514,8 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* B2A-F-18 — the Records tabpanel wrapper must not add a box to the layout. */
+.search-scope-panel {
+  display: contents;
+}

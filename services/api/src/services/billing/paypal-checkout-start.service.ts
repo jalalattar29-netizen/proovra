@@ -21,6 +21,7 @@ import {
 } from "../billing-checkout.service.js";
 import { getPlanPriceCents, resolveCheckoutCurrency } from "../billing-pricing.service.js";
 import { getPayPalOrder, getPayPalSubscription } from "../paypal.service.js";
+import { settlePayPalEvidenceCreditOrder } from "./paypal-settlement.service.js";
 import {
   bindCheckoutAttempt,
   isProviderCreateRejection,
@@ -301,18 +302,52 @@ export async function startPayPalCreditCheckout(input: {
   const currency = resolveCheckoutCurrency({ requestedCurrency: input.currency });
   const amountCents = getPlanPriceCents(prismaPkg.PlanType.PAYG, currency);
 
-  const gate = await openCheckoutAttempt({
-    userId: input.userId,
-    product: prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT,
-    provider: PAYPAL,
-    amountCents,
-    currency,
-  });
+  const open = () =>
+    openCheckoutAttempt({
+      userId: input.userId,
+      product: prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT,
+      provider: PAYPAL,
+      amountCents,
+      currency,
+    });
+  let gate = await open();
 
   if (gate.kind === "REUSE") {
     const resource = await reusable(gate, "order");
     if (resource) {
       return { kind: "REUSED", attemptId: gate.attempt.id, mode: "order", resource, currency, amountCents };
+    }
+    // B6-F-02 (free audit 0ea0) — credits are bought one after another. An
+    // order PayPal has already COMPLETED (captured) is applied now through THE
+    // settlement the webhook and return use (idempotent: the grant is keyed on
+    // the capture; capture=false, so nothing is captured from this click), and
+    // a fresh checkout opens. An order approved but not yet captured is named
+    // as the purchase being confirmed, not "already starting".
+    const previous = await getPayPalOrder(gate.attempt.providerResourceId).catch(() => null);
+    const status = String(previous?.status ?? "").toUpperCase();
+    const reusedAttemptId = gate.attempt.id;
+    if (status === "COMPLETED") {
+      await settlePayPalEvidenceCreditOrder({
+        orderId: gate.attempt.providerResourceId,
+        expectedUserId: input.userId,
+        capture: false,
+      }).catch(() => null);
+      gate = await open();
+    }
+    if (gate.kind === "REUSE" && (status === "COMPLETED" || status === "APPROVED")) {
+      const again = await reusable(gate, "order");
+      if (again) {
+        return { kind: "REUSED", attemptId: gate.attempt.id, mode: "order", resource: again, currency, amountCents };
+      }
+      return {
+        kind: "BLOCKED",
+        httpBody: {
+          message:
+            "Your previous PayPal purchase of evidence credits is being confirmed. It will appear under Billing activity in a moment; you can buy another once it is confirmed.",
+          code: "PREVIOUS_PURCHASE_CONFIRMING",
+          details: { provider: PAYPAL, attemptId: reusedAttemptId, retry: "AFTER_CONFIRMATION" },
+        },
+      };
     }
   }
   if (gate.kind !== "OPEN") {

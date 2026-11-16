@@ -377,8 +377,11 @@ export async function middleware(req: NextRequest) {
     const appHost = getHost(appBaseUrl);
     const webHost = getHost(webBaseUrl);
 
-    const isAppHost = appHost ? host.endsWith(appHost) : false;
-    const isWebHost = webHost ? host.endsWith(webHost) : false;
+    // B2A-F-15 (Free-user audit 0ea0) — exact host, or a true subdomain of it:
+    // a bare `endsWith` also matched "evil-app.example.com" for "app.example.com".
+    const hostMatches = (configured: string) => host === configured || host.endsWith(`.${configured}`);
+    const isAppHost = appHost ? hostMatches(appHost) : false;
+    const isWebHost = webHost ? hostMatches(webHost) : false;
 
     const isLegalPath = pathname === "/privacy" || pathname === "/terms" || pathname.startsWith("/legal/");
 
@@ -447,7 +450,7 @@ export async function middleware(req: NextRequest) {
     //     `/search`, `/communications`, `/collaboration`,
     //     `/notifications`, `/inbox`, `/organizations`,
     //     `/workflows`, `/evidence`, `/evidence-requests`, `/review`,
-    //     `/workspaces`, `/tools`, `/persona` — all live under
+    //     `/workspaces`, `/tools` — all live under
     //     `app/(app)/` and therefore on the app host.
     //
     // Phase Final-Closure-Remediation — `/identity` was removed from
@@ -494,7 +497,8 @@ export async function middleware(req: NextRequest) {
       "/evidence-requests",
       "/workspaces",
       "/tools",
-      "/persona",
+      // B2A-F-15 — /persona removed: no such route exists (it 308'd to a 404
+      // on the app host). /dashboard stays: next.config redirects it.
       "/dashboard",
       // F-21 (Free-user audit) — live (app)-tree prefixes this list missed,
       // so on a split deployment the marketing host served them outside the

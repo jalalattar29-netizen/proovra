@@ -160,9 +160,12 @@ test("storage add-ons are projected, and a row with no key is dropped", () => {
   assert.equal(list[0].priceCents, 500);
 });
 
+// B6-F-65 (free-user audit 0ea0) — the server's sizes are BINARY
+// (formatBytesHuman): 100 GiB is "100 GB" everywhere else, and dividing by 10^9
+// showed it as "107 GB".
 test("an add-on size reads as a person would say it", () => {
-  assert.equal(P.formatAddonSize(100_000_000_000), "100 GB");
-  assert.equal(P.formatAddonSize(1_000_000_000_000), "1 TB");
+  assert.equal(P.formatAddonSize(100 * 1024 ** 3), "100 GB");
+  assert.equal(P.formatAddonSize(1024 ** 4), "1 TB");
   // Absent or nonsensical sizes produce no label rather than "0 GB".
   assert.equal(P.formatAddonSize(null), null);
   assert.equal(P.formatAddonSize(0), null);

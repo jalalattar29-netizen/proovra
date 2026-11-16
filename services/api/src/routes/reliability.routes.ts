@@ -26,6 +26,7 @@ import { UPLOAD_SESSION_STATUSES } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { resolveMemberWorkspaceCapabilities } from "../services/platform-context/workspace-capability.service.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
   countUploadSessionsByTeam,
@@ -85,6 +86,25 @@ async function requireAdminMember(
     // lacks the capability (the MFA admin family's D14 rule).
     reply.code(403).send({
       error: { code: "permission_denied", reason: "permission_not_granted" },
+    });
+    return null;
+  }
+  // B7A-F-004 (Free-user audit 0ea0) — the Operations capability, decided
+  // server-side by the same authority as the web envelope and the ops routes
+  // (requireOpsCapability): plan, workspace kind and sharing included. The
+  // web registers this family ORGANIZATION_ONLY behind OPERATIONS_VIEW +
+  // OPERATIONS_SUPPRESS; role alone let a Free personal owner read platform
+  // upload policy and move uploads out of automatic recovery. UI hiding was
+  // never authorization.
+  const resolved = await resolveMemberWorkspaceCapabilities({ userId: outcome.actorUserId, teamId });
+  if (!resolved || !resolved.capabilities.OPERATIONS_VIEW || !resolved.capabilities.OPERATIONS_SUPPRESS) {
+    reply.code(403).send({
+      error: {
+        code: "permission_denied",
+        reason: resolved?.capabilities.OPERATIONS_VIEW ? "capability_not_granted" : "operations_not_included",
+        detail: null,
+        requiredCapability: "OPERATIONS_SUPPRESS",
+      },
     });
     return null;
   }

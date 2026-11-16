@@ -687,8 +687,13 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
         payload: { recoveryCode },
       });
       expect(used.statusCode, used.body).toBe(200);
-      expect(json(used)).toEqual({ ok: true, used: "recovery_code" });
-      expect(await prisma.mfaRecoveryCode.count({ where: { userId: p.id, usedAt: { not: null } } })).toBe(1);
+      // B1-F-020 (free-audit 0ea0): this route is a CHECK (it changes no other
+      // state), so it verifies the code without spending it.
+      expect(json(used)).toEqual({ ok: true, used: "recovery_code", consumed: false });
+      expect(await prisma.mfaRecoveryCode.count({ where: { userId: p.id, usedAt: { not: null } } })).toBe(0);
+      // A spent code (a sign-in consumed it) is refused by the check.
+      const { consumeRecoveryCode } = await import("../src/services/security/mfa.service.js");
+      expect((await consumeRecoveryCode({ userId: p.id, code: recoveryCode })).ok).toBe(true);
 
       const spent = await call({
         method: "POST",

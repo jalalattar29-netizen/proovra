@@ -216,7 +216,10 @@ function reviewerMappingLabel(asset: ReportEvidenceAsset): string {
 
 /** Contract A — exactly which audio tracks were recorded, as the manifest stated. */
 function renderRecordingAudioRow(asset: ReportEvidenceAsset, vm: ReportViewModel): string {
-  const audio = isRecording(asset) ? vm.continuousRecording?.audioStatement : null;
+  // B4-F-206 (free audit 0ea0) — any other video states a client-reported absence of audio.
+  const audio = isRecording(asset)
+    ? vm.continuousRecording?.audioStatement
+    : (asset.audioNotRecordedStatement ?? null);
   const combined =
     isRecording(asset) && vm.combinedRecording
       ? renderGalleryMetaRow(

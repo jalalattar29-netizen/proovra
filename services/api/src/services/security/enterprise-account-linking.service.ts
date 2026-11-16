@@ -89,3 +89,102 @@ export async function evaluateExistingAccountLink(
 
   return { ok: true, organizationId: team.organizationId, domain };
 }
+
+// -----------------------------------------------------------------------------
+// B5B-F-302 — WHO CREATED THIS ACCOUNT?
+//
+// A verified domain proves the Organization controls the ADDRESS. It does not
+// prove the Organization created, or may take over, an ACCOUNT somebody opened
+// for themselves at that address: a self-serve account holds a Personal Space,
+// personal evidence and a personal export right that a managed conversion
+// removes. Domain proof alone therefore never links or converts an existing
+// account. Only an account THIS Organization's own directory or IdP created is
+// the Organization's to link (an IdP-first sign-in followed by a directory push,
+// or the reverse).
+//
+// Provenance comes from the synthetic provider id each creation site writes in
+// the same transaction as the account row (and nothing else writes):
+//   scim-<organizationId>:<subject>   SCIM create            (scim.service.ts)
+//   sso-<organizationId>:<subject>    OIDC JIT create        (sso.service.ts)
+//   saml-<organizationId>:<subject>   SAML JIT create        (saml-user-mapping)
+// Rows created before DOM-13 (2026-10-25) carry `<kind>-<subject>` with no
+// Organization; they count only when this Organization holds a mapping for
+// that exact subject on this account, linked within minutes of the account's
+// creation (the creation and the link were one write). An EMAIL row whose
+// provider id is its own address, a Google/Apple row, or another
+// Organization's synthetic id is a PRE-EXISTING SELF-SERVE account here.
+// -----------------------------------------------------------------------------
+
+const SYNTHETIC_PROVIDER_ID = /^(scim|sso|saml)-(.+)$/;
+const ORGANIZATION_SCOPED_SUBJECT =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:/i;
+/** A pre-DOM-13 creation wrote the account and its mapping together. */
+const LEGACY_LINK_WINDOW_MS = 10 * 60 * 1000;
+
+export type AccountOrigin =
+  | { kind: "ORGANIZATION_ORIGINATED"; via: "scim" | "sso" | "saml"; legacy: boolean }
+  | { kind: "SELF_SERVE" };
+
+/**
+ * Was `userId` created by `organizationId`'s own directory (SCIM) or IdP
+ * (OIDC / SAML JIT)? Returns null when the account does not exist.
+ */
+export async function resolveAccountOriginForOrganization(
+  input: { userId: string; organizationId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<AccountOrigin | null> {
+  const user = await client.user.findUnique({
+    where: { id: input.userId },
+    select: { providerUserId: true, email: true, createdAt: true },
+  });
+  if (!user) return null;
+  const providerUserId = user.providerUserId ?? "";
+  // A self-serve EMAIL account's provider id is its own address — whatever
+  // that address happens to start with.
+  if (
+    user.email &&
+    providerUserId.toLowerCase() === user.email.trim().toLowerCase()
+  ) {
+    return { kind: "SELF_SERVE" };
+  }
+  const match = SYNTHETIC_PROVIDER_ID.exec(providerUserId);
+  if (!match) return { kind: "SELF_SERVE" };
+  const via = match[1] as "scim" | "sso" | "saml";
+  const rest = match[2]!;
+  if (rest.startsWith(`${input.organizationId}:`)) {
+    return { kind: "ORGANIZATION_ORIGINATED", via, legacy: false };
+  }
+  // Another Organization's directory or IdP created it: not ours.
+  if (ORGANIZATION_SCOPED_SUBJECT.test(rest)) return { kind: "SELF_SERVE" };
+  // Legacy (pre-DOM-13) synthetic id: ours only if we hold the mapping that
+  // minted it, written with the account.
+  const mapping = await client.externalIdentityMapping.findFirst({
+    where: {
+      organizationId: input.organizationId,
+      userId: input.userId,
+      externalSubjectId: rest,
+    },
+    orderBy: { linkedAtUtc: "asc" },
+    select: { linkedAtUtc: true },
+  });
+  if (
+    mapping &&
+    mapping.linkedAtUtc.getTime() - user.createdAt.getTime() <= LEGACY_LINK_WINDOW_MS
+  ) {
+    return { kind: "ORGANIZATION_ORIGINATED", via, legacy: true };
+  }
+  return { kind: "SELF_SERVE" };
+}
+
+/**
+ * True when `userId` is a pre-existing self-serve account for this Organization
+ * — i.e. NOT one its own directory or IdP created. Fails closed: an account
+ * whose provenance cannot be read is never treated as the Organization's.
+ */
+export async function isSelfServeAccountForOrganization(
+  input: { userId: string; organizationId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  const origin = await resolveAccountOriginForOrganization(input, client);
+  return origin?.kind !== "ORGANIZATION_ORIGINATED";
+}

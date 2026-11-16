@@ -11,6 +11,7 @@
  * cosmetically — the API already withheld what the record's disclosure policy
  * withholds.
  */
+import { copyWithFeedback } from "../../../lib/clipboard/copy-with-feedback";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -177,10 +178,7 @@ function CopyMiniButton({
   return (
     <button
       type="button"
-      onClick={() => {
-        navigator.clipboard.writeText(value);
-        addToast(successMessage, "success");
-      }}
+      onClick={() => void copyWithFeedback(value, addToast, successMessage)}
 style={{
   border: `1px solid ${VERIFY_BRAND.line}`,
   background: "rgba(255,255,255,0.62)",
@@ -1297,8 +1295,7 @@ export default function VerifyPage() {
     const url = reference
       ? `${window.location.origin}/verify/${encodeURIComponent(reference)}`
       : window.location.href;
-    void navigator.clipboard?.writeText(url);
-    addToast("Verification link copied", "success");
+    void copyWithFeedback(url, addToast, "Verification link copied");
   };
 
   return (

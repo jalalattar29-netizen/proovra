@@ -16,6 +16,7 @@
  *     tracker is wired in.
  */
 
+import { regionAddFailureMessage } from "../../lib/redaction/refusal";
 import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useRef, useState } from "react";
 
@@ -46,6 +47,7 @@ export function VideoRedactionViewer({
     w: number;
     h: number;
   }>(null);
+  const [addError, setAddError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   void evidenceId;
@@ -98,9 +100,12 @@ export function VideoRedactionViewer({
           },
         }),
       });
+      setAddError(null);
       onChanged();
-    } catch {
-      /* swallow */
+    } catch (err) {
+      // B5B-F-200 — a refused region (VERSION_LOCKED from another tab, NOT_PERMITTED)
+      // used to vanish silently.
+      setAddError(regionAddFailureMessage(err));
     }
   }, [
     drag,
@@ -248,6 +253,11 @@ export function VideoRedactionViewer({
         pixelate or blackout) is applied in the background, frame by
         frame; the original video is never modified.
       </small>
+      {addError ? (
+        <p role="alert" data-redaction-region-add-error style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 12.5, margin: "8px 0 0" }}>
+          {addError}
+        </p>
+      ) : null}
     </section>
   );
 }

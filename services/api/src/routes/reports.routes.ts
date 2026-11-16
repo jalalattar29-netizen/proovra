@@ -63,6 +63,7 @@ import { resolveOutputRecordApplicability } from "../services/evidence-artifact-
 
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 import { readPackageBlocked } from "../services/reports/reports-aggregator.service.js";
+import { projectPackageAccessForRecords } from "../services/evidence/evidence-record-access.service.js";
 const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   cursor: z.string().min(1).max(512).optional(),
@@ -132,6 +133,12 @@ export type UserReportRow = {
    * capability only inside the bounded legacy grace. Null until issued.
    */
   verificationRef: string | null;
+  /**
+   * B5B-F-102 (free audit 0ea0) — what the caller may download as a package:
+   * the full forensic package needs the original-file capability as well, the
+   * external disclosure package only the package capability. Null when unknown.
+   */
+  packageAccess: { fullForensic: boolean; externalDisclosure: boolean } | null;
   /**
    * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the canonical output
    * state, so this fallback and the workspace aggregator describe a record the
@@ -451,6 +458,11 @@ export default async function registerReportsRoutes(
         evidenceIds: pageRows.map((r) => r.id),
         callerUserId: userId,
       }).catch(() => new Map<string, LoadedOutputFacts>());
+      // B5B-F-102 — the caller's package capabilities per row (EP-0404's shape).
+      const packageAccessByEvidence = await projectPackageAccessForRecords({
+        userId,
+        evidenceIds: pageRows.map((r) => r.id),
+      });
 
       const items: UserReportRow[] = pageRows.map((r) => {
         const report = reportByEvidence.get(r.id) ?? null;
@@ -575,6 +587,7 @@ export default async function registerReportsRoutes(
           caseId: r.caseLinks[0]?.caseId ?? null,
           createdAt: r.createdAt.toISOString(),
           verificationRef: r.verificationRef ?? null,
+          packageAccess: packageAccessByEvidence.get(r.id) ?? null,
           report: {
             available: report !== null,
             version: report?.version ?? null,

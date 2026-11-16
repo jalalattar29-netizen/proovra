@@ -59,3 +59,13 @@ test("accepting posts the server's schema and the gate lets the user through", a
   });
   assert.equal(M.calls.replace.at(-1), "/billing", "the gate did not let the user through");
 });
+
+test("R1-F-04 — each listed policy opens its document before acceptance", async () => {
+  const r = await renderComponent(h(M.TestProviders, null, h(M.default, {})));
+  await settle();
+  await r.press("Terms of Service");
+  await r.press("Privacy Policy");
+  assert.deepEqual(M.calls.push, ["/legal/terms", "/legal/privacy"]);
+  // Opening a document records nothing.
+  assert.equal(posts.length, 0);
+});

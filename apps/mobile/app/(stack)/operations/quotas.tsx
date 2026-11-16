@@ -277,6 +277,11 @@ export default function QuotasScreen() {
                 <SoftMetric label={t.costTotal} value={formatCost(extras.totalCost)} />
                 <SoftMetric label={t.costThisMonth} value={formatCost(extras.thisMonthCost)} />
               </View>
+              {extras.costIsEstimate ? (
+                <ProovraText variant="label" color={theme.color.ink.secondary} testID="cost-estimate-note">
+                  {t.costEstimateNote}
+                </ProovraText>
+              ) : null}
             </ProovraCard>
           </ProovraPageSection>
 

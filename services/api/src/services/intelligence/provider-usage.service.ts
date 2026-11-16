@@ -103,10 +103,25 @@ export async function listRecentUsage(input: {
   prisma?: PrismaClient;
   teamId: string;
   limit?: number;
+  /** Records and cases closed to the reader (`hiddenRecordIdsInWorkspace`). */
+  hidden?: { evidenceIds: readonly string[]; caseIds: readonly string[] };
 }) {
   const prisma = input.prisma ?? defaultPrisma;
+  const closedEvidence = input.hidden?.evidenceIds ?? [];
+  const closedCases = input.hidden?.caseIds ?? [];
   return prisma.providerUsageEvent.findMany({
-    where: { teamId: input.teamId },
+    where: {
+      teamId: input.teamId,
+      // NULL ids are kept explicitly: `NOT IN` drops NULL rows.
+      AND: [
+        ...(closedEvidence.length > 0
+          ? [{ OR: [{ evidenceId: null }, { evidenceId: { notIn: [...closedEvidence] } }] }]
+          : []),
+        ...(closedCases.length > 0
+          ? [{ OR: [{ caseId: null }, { caseId: { notIn: [...closedCases] } }] }]
+          : []),
+      ],
+    },
     orderBy: { occurredAtUtc: "desc" },
     take: Math.min(input.limit ?? 100, 500),
   });

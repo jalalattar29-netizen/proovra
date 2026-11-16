@@ -67,7 +67,11 @@ test("computeFileIntegrity tries the native digest FIRST and only then the whole
   assert.match(body, /if \(chooseIntegrityPath\(true, statSize, true\) === "refuse"\) throw err;/);
   assert.match(body, /if \(d\.sizeBytes !== statSize\) throw new Error/);
   // Every capture upload (the single-file recording included) goes through it.
-  assert.match(read("../src/direct-capture.ts"), /const integrity = await computeFileIntegrityBase64\(item\.uri\);/);
+  // B4-F-201 — the allocator may hand down the integrity it already computed
+  // (to match a declared part's digest); it is computed by the same function.
+  const dc = read("../src/direct-capture.ts");
+  assert.match(dc, /const integrity = precomputed \?\? \(await computeFileIntegrityBase64\(item\.uri\)\);/);
+  assert.match(dc, /integrity = await \(options\.integrity \?\? computeFileIntegrityBase64\)\(item\.uri\);/);
   assert.match(uploadUtils, /: await computeFileIntegrity\(params\.uri\);/);
 });
 

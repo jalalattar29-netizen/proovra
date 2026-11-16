@@ -43,6 +43,9 @@ const NOW = Date.parse("2026-06-12T12:00:00Z");
 function baseInputs(overrides: Partial<NormalizeInputs> = {}): NormalizeInputs {
   return {
     plan: "PRO",
+    // B2A-F-04 — the matters surfaces follow planFeatures.casesIncluded; a
+    // PRO workspace includes cases.
+    planFeatures: { casesIncluded: true },
     workspaceId: "11111111-1111-4111-8111-111111111111",
     workspaceName: "Personal Space",
     activeSpaceType: "PERSONAL",

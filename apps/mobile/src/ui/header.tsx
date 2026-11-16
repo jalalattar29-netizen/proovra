@@ -22,15 +22,15 @@
  */
 import React, { useEffect, useState } from "react";
 import { SHELL_SURFACE, useShellSurface } from "./shell-surface";
-import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { AppState, Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { apiFetch } from "../api";
 import { useAuth } from "../auth-context";
 import { useLocale } from "../locale-context";
 import { accountDisplayName, accountInitials } from "../product/account-identity";
 import {
-  INBOX_SUMMARY_PATH,
   inboxBadgeLabel,
+  inboxSummaryPath,
   resolveInboxSummaryUnread,
 } from "../product/inbox";
 import { usePlatformContext } from "../product/platform-context";
@@ -82,21 +82,31 @@ export function ProovraHeader() {
    * both unknown and genuinely-zero, so no badge is drawn in either case.
    */
   const [unread, setUnread] = useState<number | null>(null);
+  const activeTeamId = context?.activeTeamId ?? null;
   useEffect(() => {
     let live = true;
-    void apiFetch(INBOX_SUMMARY_PATH)
-      .then((d) => {
-        if (live) setUnread(resolveInboxSummaryUnread(d));
-      })
-      .catch(() => {
-        // Leave the count unknown. The header must never invent "all clear".
-        if (live) setUnread(null);
-      });
+    // B2B-F-03 — scoped to the active workspace (as the web bell), and re-read
+    // when the app returns to the foreground, not only on a workspace change.
+    const read = () => {
+      void apiFetch(inboxSummaryPath(activeTeamId))
+        .then((d) => {
+          if (live) setUnread(resolveInboxSummaryUnread(d));
+        })
+        .catch(() => {
+          // Leave the count unknown. The header must never invent "all clear".
+          if (live) setUnread(null);
+        });
+    };
+    read();
+    const sub = AppState.addEventListener?.("change", (state) => {
+      if (state === "active") read();
+    });
     return () => {
       live = false;
+      sub?.remove?.();
     };
     // Re-read when the active workspace changes: the aggregation is scoped to it.
-  }, [context?.activeTeamId]);
+  }, [activeTeamId]);
 
   const badge = inboxBadgeLabel(unread);
 

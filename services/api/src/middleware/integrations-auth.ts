@@ -37,6 +37,12 @@ import { enforceRateLimit } from "../services/rate-limit.js";
 import { markBoundedOutcome } from "../http/bounded-outcome.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { loadWorkspaceLifecycleState, workspaceLifecycleDenial } from "../services/identity/access-policy.service.js";
+import {
+  CREATOR_LOST_AUTHORITY_REASON,
+  evaluateCreatorAuthority,
+  revokeApiKeyForLostAuthority,
+  STANDING_CREDENTIAL_PERMISSION,
+} from "../services/sharing/standing-credential-authority.js";
 import { isIpAddressAllowed, type Permission } from "@proovra/shared";
 
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
@@ -218,6 +224,65 @@ export async function requireApiKey(
     reply.code(403).send({
       error: { code: "ORGANIZATION_NOT_ACTIVE", message: "The workspace's organization is not active." },
     });
+    return false;
+  }
+
+  // B3A-F-002 — the key acts in its creator's name, so it answers to the
+  // creator's CURRENT authority: a member demoted to a role without the key
+  // permission (by any path: an administrator, the directory, SCIM) no longer
+  // acts through it. Asked through the canonical decision with the access
+  // window set aside (A2-26: expiry does not end a key). On a definite loss the
+  // key is revoked with the reason; a failure to decide refuses and revokes
+  // nothing.
+  const authority = await evaluateCreatorAuthority({
+    teamId: credential.teamId,
+    userId: credential.createdByUserId,
+    permission: STANDING_CREDENTIAL_PERMISSION.apiKey,
+  });
+  if (authority.verdict === "INDETERMINATE") {
+    reply.code(503).send({
+      error: { code: "AUTHORIZATION_UNAVAILABLE", message: "Authorization could not be evaluated. Please retry." },
+    });
+    return false;
+  }
+  if (authority.verdict !== "HOLDS") {
+    const lost = authority.verdict === "LOST";
+    if (lost) await revokeApiKeyForLostAuthority(credential.credentialId).catch(() => false);
+    safeEmitSecurityEvent({
+      teamId: credential.teamId,
+      eventType: "permission_denied",
+      severity: "WARNING",
+      apiCredentialId: credential.credentialId,
+      details: {
+        source: "integrations_auth",
+        reason: lost ? CREATOR_LOST_AUTHORITY_REASON : authority.reason,
+        detail: authority.reason,
+      },
+    });
+    safeRecordApiCredentialUsage({
+      apiCredentialId: credential.credentialId,
+      teamId: credential.teamId,
+      routePath: req.routeOptions?.url ?? req.url,
+      method: req.method,
+      action: lost ? "creator_lost_authority" : "organization_denied",
+      statusCode: lost ? 401 : 403,
+      success: false,
+      failureReason: "governance_blocked",
+      requestId: req.id ?? null,
+    });
+    if (lost) {
+      reply.code(401).send({
+        error: {
+          code: "UNAUTHORIZED",
+          reason: CREATOR_LOST_AUTHORITY_REASON,
+          message: "This API key was revoked: the member who created it no longer holds the authority to issue API keys.",
+        },
+      });
+    } else {
+      reply.code(403).send({
+        error: { code: "ORGANIZATION_NOT_ACTIVE", message: "The workspace's organization is not active." },
+      });
+    }
     return false;
   }
 

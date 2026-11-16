@@ -30,6 +30,21 @@ import type {
   WebhookSignatureFailureReason,
 } from "@proovra/shared";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
+import { DomainError } from "../../errors.js";
+import { PAYMENTS_UNAVAILABLE_CODE } from "../billing/payments-unavailable.js";
+
+/**
+ * B6-F-80 (free audit 0ea0) — the verifier could not run because THIS
+ * deployment is not configured for the provider (`must()` raised the
+ * PAYMENTS_UNAVAILABLE DomainError: the provider's webhook signing
+ * configuration is absent). Nothing is known about the delivery, so it is not a
+ * forged signature: classifying it by its free-text "... is missing" made it a
+ * `missing_signature` HIGH security event per delivery and a 400 the provider
+ * never redelivers.
+ */
+function isVerifierConfigurationUnavailable(err: unknown): err is DomainError {
+  return err instanceof DomainError && err.publicCode === PAYMENTS_UNAVAILABLE_CODE;
+}
 
 export type WebhookSignatureCheckOk = {
   ok: true;
@@ -158,7 +173,7 @@ export async function auditWebhookSignatureVerification(input: {
     await Promise.resolve(input.verify());
     return { ok: true };
   } catch (err) {
-    if (err instanceof WebhookVerifierUnavailableError) {
+    if (err instanceof WebhookVerifierUnavailableError || isVerifierConfigurationUnavailable(err)) {
       input.request.log.warn(
         { provider: input.provider, reason: "verifier_unavailable" },
         "webhook.signature.verifier_unavailable",

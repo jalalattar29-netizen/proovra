@@ -21,6 +21,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { isSelfServeAccountForOrganization } from "../security/enterprise-account-linking.service.js";
 
 export type UserIdentityMode = "STANDARD" | "MANAGED_ENTERPRISE";
 
@@ -314,11 +315,33 @@ async function validateManagedIdentityEvidence(
   return { managedBySsoConnectionId: ev.ssoConnectionId };
 }
 
+/**
+ * B5B-F-302 — thrown when a directory or IdP would convert a PRE-EXISTING
+ * SELF-SERVE account into a managed identity. Status 409: the account exists and
+ * belongs to its owner; only the owner can link it, and a link never converts it.
+ */
+export function selfServeAccountNotManageable(): IdentityModeError {
+  const err = modeError(
+    "MANAGED_IDENTITY_SELF_SERVE_ACCOUNT",
+    "This account was created by its owner, not by the organization's directory or identity provider; it cannot be converted to a managed identity.",
+  );
+  err.statusCode = 409;
+  return err;
+}
+
 export async function setManagedIdentity(
   input: {
     userId: string;
     managingOrganizationId: string;
     evidence: ManagedIdentityEvidence;
+    /**
+     * B5B-F-302 — `ORGANIZATION_ORIGINATED_ONLY` (every directory / IdP
+     * provisioning path, through `provisionManagedMembership`): a NEW binding
+     * (the identity is not already managed by this Organization) is allowed only
+     * for an account this Organization's own directory or IdP created. A
+     * verified domain or a matching email never converts a self-serve account.
+     */
+    originPolicy?: "ORGANIZATION_ORIGINATED_ONLY";
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
@@ -340,6 +363,16 @@ export async function setManagedIdentity(
       "MANAGED_IDENTITY_CONFLICT",
       "This identity is already managed by a different Organization; management cannot be reassigned implicitly.",
     );
+  }
+  if (
+    input.originPolicy === "ORGANIZATION_ORIGINATED_ONLY" &&
+    current.managingOrganizationId !== input.managingOrganizationId &&
+    (await isSelfServeAccountForOrganization(
+      { userId: input.userId, organizationId: input.managingOrganizationId },
+      client,
+    ))
+  ) {
+    throw selfServeAccountNotManageable();
   }
   await (client.user.update as unknown as (args: unknown) => Promise<unknown>)({
     where: { id: input.userId },

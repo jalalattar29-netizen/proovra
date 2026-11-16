@@ -44,6 +44,8 @@ const ADVISORY =
   "AI assistance is advisory only and does not determine truth, authenticity, authorship, identity, intent, liability, fraud, or legal admissibility.";
 
 let providerCalls = 0;
+/** B6-F-20 — make the substituted provider answer "unavailable". */
+let providerFails = false;
 
 vi.mock("../src/services/ai/case-copilot-provider.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -51,6 +53,10 @@ vi.mock("../src/services/ai/case-copilot-provider.js", async (importOriginal) =>
     ...actual,
     buildCaseCopilotProvider: () => async () => {
       providerCalls += 1;
+      if (providerFails) {
+        const Unavailable = actual.CaseCopilotProviderUnavailable as new (...a: unknown[]) => Error;
+        throw new Unavailable("provider_unavailable");
+      }
       return {
         caseSummary: "Two records describe the same scene.",
         timelineHighlights: [],
@@ -107,6 +113,15 @@ describe("Case Copilot concurrency guard (live PostgreSQL 16)", () => {
       create: { teamId, aiEnabled: true, caseCopilotEnabled: true },
       update: { aiEnabled: true, caseCopilotEnabled: true },
     });
+    // B6-F-22 (free-audit 0ea0) — the case copilot is a PAID AI capability
+    // (PlanCapabilities.aiCapabilitiesIncluded): FREE carries only the AI
+    // trial. The fixture workspaces are on plans that include it (TEAM for the
+    // organization workspace, PRO for the personal one); the Free refusal is
+    // proven in free-audit-g4a-plan-ai.integration.
+    await prisma.team.update({ where: { id: teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
+    const personalUserId = harness.fixtures.personal.userId;
+    await prisma.entitlement.updateMany({ where: { userId: personalUserId }, data: { active: false } });
+    await prisma.entitlement.create({ data: { userId: personalUserId, plan: "PRO", active: true, credits: 0 } });
   });
 
   afterAll(async () => {
@@ -777,6 +792,72 @@ describe("Case Copilot concurrency guard (live PostgreSQL 16)", () => {
         "sha256",
       ]) {
         expect(text, `refusal leaked ${leak}`).not.toContain(leak);
+      }
+    });
+  });
+
+  // =========================================================================
+  // B6-F-20 (Free-user audit 0ea0) — the copilot spends the PLAN's monthly AI
+  // allowance (entitlement_usage), not only the workspace budget ledger.
+  // =========================================================================
+  describe("B6-F-20 — the plan's monthly AI allowance", () => {
+    async function setConsumed(n: number): Promise<{ cap: number }> {
+      const billing = await import("../src/services/billing-enforcement.service.js");
+      const allowance = await billing.evaluateWorkspaceAiOperation({ teamId });
+      expect(typeof allowance.cap === "number", "the fixture plan has a finite AI cap").toBe(true);
+      const where = { teamId_key_periodStartUtc: { teamId, key: billing.AI_USAGE_KEY, periodStartUtc: billing.startOfCurrentMonthUtc() } };
+      await prisma.entitlementUsage.upsert({
+        where,
+        create: { teamId, key: billing.AI_USAGE_KEY, periodStartUtc: billing.startOfCurrentMonthUtc(), consumed: BigInt(n < 0 ? (allowance.cap as number) + n + 1 : n) },
+        update: { consumed: BigInt(n < 0 ? (allowance.cap as number) + n + 1 : n) },
+      });
+      return { cap: allowance.cap as number };
+    }
+    async function consumed(): Promise<number> {
+      const billing = await import("../src/services/billing-enforcement.service.js");
+      const row = await prisma.entitlementUsage.findUnique({
+        where: { teamId_key_periodStartUtc: { teamId, key: billing.AI_USAGE_KEY, periodStartUtc: billing.startOfCurrentMonthUtc() } },
+        select: { consumed: true },
+      });
+      return Number(row?.consumed ?? 0n);
+    }
+    afterAll(async () => {
+      const billing = await import("../src/services/billing-enforcement.service.js");
+      await prisma.entitlementUsage.deleteMany({ where: { teamId, key: billing.AI_USAGE_KEY } }).catch(() => undefined);
+      providerFails = false;
+    });
+
+    it("a run takes exactly one operation from the allowance", async () => {
+      const { cap } = await setConsumed(0);
+      const id = await linked();
+      const res = await runCurrent([id]);
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(resultStatus(res)).toBe("ok");
+      expect(await consumed()).toBe(Math.min(1, cap));
+    });
+
+    it("with the allowance spent, the copilot is refused AI_MONTHLY_LIMIT_REACHED and the provider is never called", async () => {
+      const { cap } = await setConsumed(-1); // consumed = cap
+      const id = await linked();
+      const res = await runCurrent([id]);
+      expect(res.status, JSON.stringify(res.body)).toBe(429);
+      expect((res.body as { code?: string }).code).toBe("AI_MONTHLY_LIMIT_REACHED");
+      expect(providerCalls).toBe(0);
+      expect(await consumed()).toBe(cap);
+    });
+
+    it("a provider that does not answer gives the operation back", async () => {
+      await setConsumed(0);
+      providerFails = true;
+      try {
+        const id = await linked();
+        const res = await runCurrent([id]);
+        expect(res.status, JSON.stringify(res.body)).toBe(200);
+        expect((res.body as { status?: string }).status ?? resultStatus(res)).toBe("provider_unavailable");
+        expect(providerCalls).toBeGreaterThan(0);
+        expect(await consumed()).toBe(0);
+      } finally {
+        providerFails = false;
       }
     });
   });

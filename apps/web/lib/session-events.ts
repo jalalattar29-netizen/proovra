@@ -16,3 +16,10 @@ export const SESSION_EXPIRED_EVENT = "proovra:session-expired";
  * actionable prompt in front of the person instead of a dead-end error.
  */
 export const LEGAL_REACCEPT_REQUIRED_EVENT = "proovra:legal-reaccept-required";
+
+/**
+ * B1-F-010 — announced when the re-opened acceptance step recorded the current
+ * terms WITHOUT reloading (a write was refused mid-action). The page kept its
+ * state; a write refused with LEGAL_REACCEPT_REQUIRED may now be retried.
+ */
+export const LEGAL_ACCEPTED_EVENT = "proovra:legal-accepted";

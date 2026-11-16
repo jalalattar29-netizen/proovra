@@ -985,6 +985,15 @@ export default function ExternalIntakePage({
         requestId?: string;
         details?: { missingRequiredSteps?: string[]; requestId?: string };
       };
+      // B3B-F-109 — a retry after a submit whose response was lost: the server
+      // says the link is already submitted. That is the completed state the
+      // page shows on load, not an error over the upload form.
+      if (e?.code === "LINK_ALREADY_SUBMITTED") {
+        writeStoredIntakeSession(token, null);
+        setErrorMessage(null);
+        setPhase("already_submitted");
+        return;
+      }
       // SUBMISSION_NOT_READY keeps its bespoke composition since it
       // depends on missing-step labels the catalog can't know about.
       let copy: string;

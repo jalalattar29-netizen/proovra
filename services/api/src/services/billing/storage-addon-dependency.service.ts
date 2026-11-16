@@ -108,6 +108,9 @@ export async function recordDependentCancellationIntent(
       ownerUserId: input.ownerUserId,
       teamId: input.teamId,
       endingBaseIds: [input.triggeredBySubscriptionId],
+      // B6-F-82 — the customer's own cancellation records only its own
+      // dependants; held orphans stay with the (switch-gated) sweep.
+      customerAction: true,
       now: input.now,
     },
     client,

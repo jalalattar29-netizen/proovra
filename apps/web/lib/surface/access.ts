@@ -50,6 +50,8 @@ export type SurfaceUserContext = {
     professionalSurfacesIncluded: boolean | null;
     /** Reviewer operations (members audit ENT-01) — the review capability ladder. */
     reviewerOperationsIncluded?: boolean | null;
+    /** Redaction (free audit B5B-F-205) — FEATURE_REDACTION; absent on an older API. */
+    redactionIncluded?: boolean | null;
   } | null;
 };
 
@@ -72,7 +74,7 @@ export type AccessDecision =
   | { kind: "allow" }
   | { kind: "redirect"; to: string; reason: string }
   | { kind: "notFound"; reason: string }
-  | { kind: "forbidden"; reason: string };
+  | { kind: "forbidden"; reason: string; message?: string };
 
 // ============================================================================
 // Tier eligibility — does the user qualify for this tier of surfaces?
@@ -208,7 +210,9 @@ export function getDirectAccessDecision(
     case "notFound":
       return { kind: "notFound", reason: rule.reason };
     case "forbidden":
-      return { kind: "forbidden", reason: rule.reason };
+      return rule.forbiddenMessage
+        ? { kind: "forbidden", reason: rule.reason, message: rule.forbiddenMessage }
+        : { kind: "forbidden", reason: rule.reason };
   }
 }
 

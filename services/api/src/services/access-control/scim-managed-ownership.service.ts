@@ -16,6 +16,8 @@
  *                                the atomic intent, THEN the caller applies the
  *                                update/role.
  *   STANDARD + not required    → continue (the org does not require managed).
+ *   STANDARD self-serve account → continue WITHOUT binding (B5B-F-302: an
+ *                                account its owner created is never converted).
  *   MANAGED by ANOTHER org     → cross-org conflict → throw, ZERO mutation.
  *   MANAGED_UNRESOLVED         → fail closed → throw, ZERO mutation.
  * (resolveManagedIdentity itself throws SECURITY_SCHEMA_UNAVAILABLE on schema
@@ -25,6 +27,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { resolveManagedIdentity } from "../identity/identity-mode.service.js";
+import { isSelfServeAccountForOrganization } from "../security/enterprise-account-linking.service.js";
 import {
   organizationIdForPolicy,
   resolveOrganizationPolicy,
@@ -65,7 +68,9 @@ export async function enforceScimManagedOwnership(
   ctx: ScimOwnershipContext,
   input: { userId: string; workspaceRole?: "VIEWER" | "MEMBER" },
   tx: TxClient,
-): Promise<"NOT_APPLICABLE" | "IDEMPOTENT" | "RECONCILED" | "STANDARD_ALLOWED"> {
+): Promise<
+  "NOT_APPLICABLE" | "IDEMPOTENT" | "RECONCILED" | "STANDARD_ALLOWED" | "SELF_SERVE_NOT_BOUND"
+> {
   const client = tx as unknown as PrismaClient;
   const orgId = await organizationIdForPolicy(ctx.teamId, client);
   // Non-CUSTOMER SCIM target — there is no managing Organization to enforce.
@@ -89,6 +94,15 @@ export async function enforceScimManagedOwnership(
 
   // STANDARD.
   if (!managedRequired) return "STANDARD_ALLOWED";
+
+  // B5B-F-302 — a pre-existing SELF-SERVE account (its owner linked it to the
+  // Organization, signed in) is a member, never a managed identity: the
+  // Organization's requirement does not convert it. The caller's role or
+  // attribute change on the existing membership still applies; the Personal
+  // Space and personal export stay the owner's.
+  if (await isSelfServeAccountForOrganization({ userId: input.userId, organizationId: orgId }, client)) {
+    return "SELF_SERVE_NOT_BOUND";
+  }
 
   // The org requires managed identity but the user is STANDARD — reconcile
   // through the ONE atomic intent (bind + seat + membership) ON THE CALLER'S TX,

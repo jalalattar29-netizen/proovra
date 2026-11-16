@@ -332,7 +332,12 @@ export async function runBillingReconciliationSweep(input?: {
   // BILLING REMEDIATION (2026-10-30, AUD-14) — one sweep across all processes.
   // The writers are compare-and-set, so overlap never double-applied, but it
   // doubled every provider read and raced the supersession retry's lease.
-  const lease = await acquireLease("billing_reconciliation_sweep", SWEEP_LEASE_MS);
+  // B8-F-004 — every API process starts this sweep on its own timer, so an
+  // unreadable lock REFUSES (AUD-50) instead of each process taking its own
+  // memory lease during a Redis outage.
+  const lease = await acquireLease("billing_reconciliation_sweep", SWEEP_LEASE_MS, {
+    onStoreError: "refuse",
+  });
   if (!lease.acquired) {
     return { attempted: 0, updated: 0, failed: 0, discrepancies: 0, unavailable: 0, skipped: true };
   }

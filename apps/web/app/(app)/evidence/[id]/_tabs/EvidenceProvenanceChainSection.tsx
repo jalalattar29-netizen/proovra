@@ -116,9 +116,25 @@ import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import {
+  useActiveSpace,
   useActiveWorkspaceId,
   useTenantGuard,
 } from "../../../../../lib/platform-context";
+
+/**
+ * B2A-F-06 (Free-user audit 0ea0) — what a PERSONAL workspace is told. The
+ * provenance route refuses every Personal workspace (capture-trust.routes.ts:
+ * provenance is recorded for organisation capture ingest), and the old 403
+ * copy told a Free user to "switch to the organisation that holds this
+ * evidence" — one they do not have. A Personal workspace is now told the rule
+ * without a request; any other refusal gets neutral copy that sends nobody
+ * looking for an organisation.
+ */
+export const PROVENANCE_PERSONAL_WORKSPACE_COPY =
+  "Provenance records are kept for organisation workspaces. They are not recorded for captures in a personal workspace; this record's integrity, signature and timestamps are shown above.";
+export const PROVENANCE_UNAVAILABLE_COPY =
+  "A provenance record is not available for this evidence in the workspace you are in.";
+import { capturedPageAddress } from "../../../../../lib/evidence/captured-page-url";
 import { KeyValueGrid, SectionHeading } from "./_lib";
 
 type LoadState =
@@ -147,11 +163,16 @@ export function EvidenceProvenanceChainSection({
   evidenceId: string;
 }) {
   const workspaceId = useActiveWorkspaceId();
+  const personalWorkspace = useActiveSpace()?.type === "PERSONAL";
   const { stamp, isStale } = useTenantGuard();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
 
   const load = useCallback(async () => {
     const captured = stamp();
+    if (personalWorkspace) {
+      setState({ kind: "denied", message: PROVENANCE_PERSONAL_WORKSPACE_COPY });
+      return;
+    }
     setState({ kind: "loading" });
     try {
       const res = await apiFetch(
@@ -179,9 +200,9 @@ export function EvidenceProvenanceChainSection({
         setState({
           kind: "denied",
           message:
-            status === 403
-              ? "Provenance records are kept for organisation workspaces. Switch to the organisation that holds this evidence to view its provenance."
-              : "A provenance record is not available for this evidence in the workspace you are in.",
+            // Not "switch organisation": a 403 here is also an ended
+            // membership or a missing permission, which no switch fixes.
+            PROVENANCE_UNAVAILABLE_COPY,
         });
         return;
       }
@@ -192,7 +213,7 @@ export function EvidenceProvenanceChainSection({
         }).message,
       });
     }
-  }, [evidenceId, isStale, stamp]);
+  }, [evidenceId, isStale, stamp, personalWorkspace]);
 
   // Re-run on workspace change so the section never shows a stale
   // workspace's projection.
@@ -258,7 +279,9 @@ export function captureManifestItems(
 ): Array<{ label: string; value: string }> {
   const manifestItems: Array<{ label: string; value: string }> = [];
   if (!facts) return manifestItems;
-  if (facts.web?.sourceUrlPrivate) manifestItems.push({ label: "Captured page (reported by the capture client)", value: facts.web.sourceUrlPrivate });
+  // B4-F-102 — never the fragment or a credential parameter (older records hold the raw address).
+  const capturedPage = capturedPageAddress(facts.web?.sourceUrlPrivate);
+  if (capturedPage) manifestItems.push({ label: "Captured page (reported by the capture client)", value: capturedPage });
   if (facts.web?.titlePrivate) manifestItems.push({ label: "Page title (reported)", value: facts.web.titlePrivate });
   if (facts.clientCaptureWindow?.startedAtUtc) {
     manifestItems.push({

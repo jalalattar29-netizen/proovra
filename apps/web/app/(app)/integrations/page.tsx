@@ -32,7 +32,8 @@ import {
   useStepUpAction,
 } from "../../../components/identity-security/StepUpModal";
 import { Button } from "../../../components/ui/Button";
-import { apiKeyRevocationNote, identifierLabel } from "@proovra/shared";
+import { identifierLabel } from "@proovra/shared";
+import { apiKeyRevocationNote } from "../../../lib/integrations/api-key-revocation";
 // PHASE 12 VERTICAL C — durable evidence delivery history, read from the
 // server projection rather than from what this browser session happened to
 // record.

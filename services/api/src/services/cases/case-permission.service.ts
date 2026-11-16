@@ -270,6 +270,13 @@ export type CaseViewerCapabilities = {
   canComment: boolean;
   canResolveComment: boolean;
   canManageAccess: boolean;
+  /**
+   * B3C-F-005 — Rename (MANAGE_SETTINGS) and Delete, from the destructive
+   * gate's OWN role input (`resolveCaseDestructiveAccessRole`), never from the
+   * case-owner / assignment lift the other flags use.
+   */
+  canRename: boolean;
+  canDelete: boolean;
   disabledReasons: Partial<{
     assign: string;
     changeStatus: string;
@@ -279,6 +286,8 @@ export type CaseViewerCapabilities = {
     comment: string;
     resolveComment: string;
     manageAccess: string;
+    rename: string;
+    delete: string;
   }>;
 };
 
@@ -321,31 +330,44 @@ export async function resolveCaseDestructiveGate(input: {
   userId: string;
   mutation: "DELETE" | "MANAGE_SETTINGS";
 }): Promise<DestructiveGateResult> {
-  const { caseRow, userId, mutation } = input;
+  const role = await resolveCaseDestructiveAccessRole(input);
+  if (!role.ok) {
+    return { allowed: false, reason: role.reason, accessRole: "NONE" };
+  }
+  const accessRole = role.accessRole;
+  const result = evaluateCaseMutationPermission({
+    mutation: input.mutation,
+    accessRole,
+    assignmentRoles: [],
+  });
+  if (result.allowed) {
+    return { allowed: true, accessRole };
+  }
+  return { allowed: false, reason: result.reason, accessRole };
+}
+
+/**
+ * B3C-F-005 (free audit 0ea0) — THE role input of the destructive case gate
+ * (rename / delete), shared by the gate above and by the matter-workspace
+ * capability projection (`viewer.canRename` / `viewer.canDelete`), so a case
+ * creator who is a workspace MEMBER is not offered a Rename/Delete the gate
+ * refuses. Personal case: the owner is the synthetic OWNER. Team case: the
+ * caller's LIVE workspace role, after the active-membership and case-reach
+ * checks; case ownership and assignments are deliberately not consulted.
+ */
+export async function resolveCaseDestructiveAccessRole(input: {
+  caseRow: CaseRowForGate;
+  userId: string;
+}): Promise<{ ok: true; accessRole: CaseAccessRole } | { ok: false; reason: string }> {
+  const { caseRow, userId } = input;
 
   // Personal case (no teamId): only the case owner is privileged
   // (synthetic OWNER). Anyone else is denied with no access role.
   if (!caseRow.teamId) {
     if (caseRow.ownerUserId === userId) {
-      const result = evaluateCaseMutationPermission({
-        mutation,
-        accessRole: "OWNER",
-        assignmentRoles: [],
-      });
-      if (result.allowed) {
-        return { allowed: true, accessRole: "OWNER" };
-      }
-      return {
-        allowed: false,
-        reason: result.reason,
-        accessRole: "OWNER",
-      };
+      return { ok: true, accessRole: "OWNER" };
     }
-    return {
-      allowed: false,
-      reason: "Personal cases can only be modified by their owner.",
-      accessRole: "NONE",
-    };
+    return { ok: false, reason: "Personal cases can only be modified by their owner." };
   }
 
   // Team case: resolve the caller's workspace role.
@@ -377,11 +399,7 @@ export async function resolveCaseDestructiveGate(input: {
     // An inactive membership is reported IDENTICALLY to no membership: a
     // suspended member learns nothing more about the case than an outsider,
     // and no stored role escapes this branch.
-    return {
-      allowed: false,
-      reason: "Caller is not a member of the case's workspace.",
-      accessRole: "NONE",
-    };
+    return { ok: false, reason: "Caller is not a member of the case's workspace." };
   }
   // CURRENT AUTHORITY, THEN REACH (members audit ACC-05). A status test alone
   // let an ADMIN whose access had EXPIRED, or whose organization was
@@ -391,22 +409,9 @@ export async function resolveCaseDestructiveGate(input: {
   // restricted-case rule) before the mutation matrix is consulted.
   const reach = await resolveCaseRecordAccess({ userId, caseId: caseRow.id });
   if (!reach.allowed) {
-    return {
-      allowed: false,
-      reason: "Caller is not a member of the case's workspace.",
-      accessRole: "NONE",
-    };
+    return { ok: false, reason: "Caller is not a member of the case's workspace." };
   }
-  const accessRole = member.role as CaseAccessRole;
-  const result = evaluateCaseMutationPermission({
-    mutation,
-    accessRole,
-    assignmentRoles: [],
-  });
-  if (result.allowed) {
-    return { allowed: true, accessRole };
-  }
-  return { allowed: false, reason: result.reason, accessRole };
+  return { ok: true, accessRole: member.role as CaseAccessRole };
 }
 
 /**
@@ -454,6 +459,11 @@ export function evaluateCrossTeamAttach(input: {
 export function resolveCaseViewerCapabilities(input: {
   accessRole: CaseAccessRole;
   assignmentRoles: ReadonlyArray<CaseAssignmentRole>;
+  /**
+   * B3C-F-005 — the destructive gate's role (`resolveCaseDestructiveAccessRole`).
+   * Absent or "NONE": Rename/Delete are not offered (fail closed).
+   */
+  destructiveAccessRole?: CaseAccessRole | "NONE";
 }): CaseViewerCapabilities {
   const evaluate = (mutation: CaseMutation) =>
     evaluateCaseMutationPermission({
@@ -481,6 +491,18 @@ export function resolveCaseViewerCapabilities(input: {
   if (!resolveComment.allowed)
     disabledReasons.resolveComment = resolveComment.reason;
   if (!manageAccess.allowed) disabledReasons.manageAccess = manageAccess.reason;
+  const destructive = (mutation: "DELETE" | "MANAGE_SETTINGS") =>
+    input.destructiveAccessRole && input.destructiveAccessRole !== "NONE"
+      ? evaluateCaseMutationPermission({
+          mutation,
+          accessRole: input.destructiveAccessRole,
+          assignmentRoles: [],
+        })
+      : { allowed: false as const, reason: "Only workspace OWNER or ADMIN may delete or rename a case." };
+  const rename = destructive("MANAGE_SETTINGS");
+  const del = destructive("DELETE");
+  if (!rename.allowed) disabledReasons.rename = rename.reason;
+  if (!del.allowed) disabledReasons.delete = del.reason;
   // canMutate / canManage are coarse hints used by older callers.
   // `canManage` is "OWNER/ADMIN team role or assigned OWNER on case"
   // (same as `canAssign`); `canMutate` is "any allowed mutation".
@@ -501,6 +523,8 @@ export function resolveCaseViewerCapabilities(input: {
     canComment: comment.allowed,
     canResolveComment: resolveComment.allowed,
     canManageAccess: manageAccess.allowed,
+    canRename: rename.allowed,
+    canDelete: del.allowed,
     disabledReasons,
   };
 }

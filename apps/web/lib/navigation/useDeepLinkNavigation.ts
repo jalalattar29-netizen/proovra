@@ -17,6 +17,19 @@
  *       returns after a newer open began is DISCARDED, never navigated)
  *     → router.push ONLY after server approval. No context mutation before.
  *
+ * B2A-F-07 (Free-user audit 0ea0) — the approval now STEERS the navigation:
+ *   - the resolver's \`workspaceId\` is the record's owning workspace; when it
+ *     is not the active one, the canonical context switch runs FIRST
+ *     (PlatformContext \`switchWorkspace\`, after the dirty-work guard above),
+ *     so the record never opens under another workspace's header;
+ *   - the ORIGINAL destination is opened — sub-path, query and hash kept
+ *     (\`?tab=discussion#note\` used to be dropped);
+ *   - only the app's real record routes are resolved
+ *     (\`lib/navigation/deep-link-target.ts\`): \`/investigation/cases/:id/…\`
+ *     resolves its case, and section pages under \`/reports\`, \`/review\`,
+ *     \`/audit-transparency\` open as plain in-app paths instead of being
+ *     "denied" for an id they do not carry.
+ *
  * Open-redirect rule: an external/absolute/protocol-relative destination is
  * NEVER navigated from here — this chokepoint serves internal destinations
  * only. Public/signed share links do not come through here (they are
@@ -30,8 +43,19 @@
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { resolveDeepLinkPath } from "../api/deep-link";
+import { resolveDeepLink } from "../api/deep-link";
 import { getDirtyWorkLabels } from "../platform-context/dirtyWorkRegistry";
+import { useOptionalPlatformContext } from "../platform-context/PlatformContextProvider";
+import { parseDeepLinkTarget } from "./deep-link-target";
+
+/**
+ * Record families the server authority cannot resolve yet: it carries no
+ * default read capability for them, so EVERY such link is concealed as 404
+ * (CROSS-LANE request filed). Until it can, a denial of one of these opens the
+ * page in the current workspace — the page enforces its own access — instead
+ * of telling every recipient the item is unavailable.
+ */
+const SERVER_UNRESOLVED_TYPES = new Set(["cases", "evidence-requests"]);
 
 export type DeepLinkOpenResult =
   | { status: "navigated"; path: string }
@@ -53,6 +77,10 @@ function isExternalDestination(href: string): boolean {
 
 export function useDeepLinkNavigation() {
   const router = useRouter();
+  const ctx = useOptionalPlatformContext();
+  // Read through a ref: the open() callback stays stable across renders.
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
   // Generation counter — each open() invalidates every in-flight resolution.
   const generationRef = useRef(0);
   const [pending, setPending] = useState(false);
@@ -80,36 +108,51 @@ export function useDeepLinkNavigation() {
       const generation = ++generationRef.current;
       setPending(true);
       try {
-        // 3. Server authority. For a tenant-resource path this calls
-        //    POST /v1/deep-link/resolve; for a plain internal path it
-        //    returns null and we navigate the (already internal-safe) href.
-        const resolved = await resolveDeepLinkPath(
-          href,
-          opts?.declaredWorkspaceId ?? null,
-        );
+        const target = parseDeepLinkTarget(href);
+
+        // Not a record route → plain internal navigation (still guarded by
+        // step 1 against leaving the app; the page gates itself).
+        if (!target.resource) {
+          router.push(target.path);
+          return { status: "navigated", path: target.path };
+        }
+
+        // 3. Server authority: POST /v1/deep-link/resolve re-derives the
+        //    record's workspace from persistence and authorizes the actor.
+        const resolved = await resolveDeepLink({
+          resourceType: target.resource.type,
+          resourceId: target.resource.id,
+          declaredWorkspaceId: opts?.declaredWorkspaceId ?? null,
+        });
 
         // 4. Stale-response rejection — a newer open() supersedes this one;
         //    the late result is discarded and NOTHING navigates or mutates.
         if (generation !== generationRef.current) return { status: "stale" };
 
-        if (resolved !== null) {
-          // Server-approved resource destination (workspace re-derived from
-          // persistence). Navigation happens ONLY now — after approval.
-          router.push(resolved);
-          return { status: "navigated", path: resolved };
+        if (resolved === null) {
+          if (SERVER_UNRESOLVED_TYPES.has(target.resource.type)) {
+            router.push(target.path);
+            return { status: "navigated", path: target.path };
+          }
+          return { status: "denied" };
         }
 
-        // Not a resource deep-link at all → plain internal navigation
-        // (still guarded by step 1 against leaving the app). A DENIED
-        // resource link also returns null from the resolver — distinguish
-        // by re-parsing: if the path names a resource, it was denied.
-        const looksLikeResource = /^\/(evidence|cases|investigation|evidence-requests|reports|review|audit-transparency)\//.test(
-          href.trim(),
-        );
-        if (looksLikeResource) return { status: "denied" };
+        // 5. B2A-F-07 — open it IN its workspace: switch first when the
+        //    owning workspace is not the active one.
+        const live = ctxRef.current;
+        if (live && resolved.workspaceId && resolved.workspaceId !== live.activeWorkspaceId) {
+          const personalId =
+            live.envelope?.contextOptions?.personalSpace?.workspaceId ??
+            live.envelope?.personalSpace?.id ??
+            null;
+          await live.switchWorkspace(resolved.workspaceId === personalId ? null : resolved.workspaceId);
+          if (generation !== generationRef.current) return { status: "stale" };
+        }
 
-        router.push(href);
-        return { status: "navigated", path: href };
+        // Server-approved destination. Navigation happens ONLY now — after
+        // approval (and the switch) — to the original path, remainder kept.
+        router.push(target.path);
+        return { status: "navigated", path: target.path };
       } finally {
         if (generation === generationRef.current) setPending(false);
       }

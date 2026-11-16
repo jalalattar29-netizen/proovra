@@ -146,6 +146,10 @@ const ENTRYPOINTS = Object.freeze({
     // that moves the records a user CREATED to Trash through the one lifecycle
     // authority (pnpm --filter proovra-api ops:retire-user-evidence).
     "services/api/src/scripts/retire-user-evidence.ts",
+    // B5B-F-302 (2026-11-15) — the dry-run-first release of accounts a
+    // domain-only SCIM / SSO link converted to managed identities
+    // (pnpm --filter proovra-api ops:remediate-domain-only-managed-links).
+    "services/api/src/scripts/remediate-domain-only-managed-links.ts",
     "services/api/src/seed-signing-key.ts",
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     // OTS INTEGRITY DECOUPLING (2026-09-09) — the bounded reconciliation for

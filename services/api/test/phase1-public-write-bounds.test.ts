@@ -81,7 +81,9 @@ describe("PHASE 1 §4 — unauthenticated public writes are bounded", () => {
     it(`${w.route} keys its limiter on the TRUSTED address`, () => {
       // A bound keyed on a caller-supplied header is not a bound (PHASE1-002).
       const c = code(w.file);
-      expect(c).toContain("trustedClientIpKey");
+      // B2A-F-16 (free-audit 0ea0) — leadForwardedClientIpKey delegates to
+      // trustedClientIpKey unless the proxy's x-internal-key matches.
+      expect(c).toMatch(/trustedClientIpKey|leadForwardedClientIpKey/);
       expect(
         c.match(/headers\s*\[\s*["'](x-forwarded-for|cf-connecting-ip)["']\s*\]/gi),
         `${w.file} derives an address from a caller-controlled header`,

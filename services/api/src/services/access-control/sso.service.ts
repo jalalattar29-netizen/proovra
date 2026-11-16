@@ -73,7 +73,15 @@ import {
 } from "./sso-hardening.service.js";
 // P0 remediation (2026-07-21) — canonical guard for linking an IdP-asserted
 // email to a PRE-EXISTING User (cross-tenant account-takeover fix).
-import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
+import {
+  evaluateExistingAccountLink,
+  isSelfServeAccountForOrganization,
+} from "../security/enterprise-account-linking.service.js";
+import {
+  ACCOUNT_LINK_REQUIRES_CONSENT,
+  organizationDisplayForLink,
+  type PendingOrganizationLink,
+} from "../identity/organization-link-consent.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import { provisionMembership } from "../identity/membership-provisioning.service.js";
 import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
@@ -115,6 +123,9 @@ export class SsoServiceError extends Error {
       // failures and unsafe existing-account link denials.
       | "SSO_OIDC_TOKEN_INVALID"
       | "SSO_ACCOUNT_LINK_DENIED"
+      // B5B-F-302 — the asserted address belongs to a pre-existing self-serve
+      // account: only its owner, signed in, may link it.
+      | "SSO_ACCOUNT_LINK_REQUIRES_CONSENT"
       // Phase 3 — policy-update guard: cannot enable verified-domain
       // restriction when the owning org has zero verified domains.
       | "SSO_NO_VERIFIED_DOMAINS"
@@ -1339,6 +1350,55 @@ export async function handleOidcCallback(
       }
       if (await isAccountClosed(existingUser.id, client)) {
         throw new SsoServiceError("SSO_ACCOUNT_LINK_DENIED", { reason: "account_closed" });
+      }
+      /*
+       * B5B-F-302 — A VERIFIED DOMAIN IS NOT THE OWNER'S CONSENT.
+       *
+       * The domain gate above proves the Organization controls the ADDRESS. A
+       * pre-existing SELF-SERVE account at that address (its owner opened it;
+       * this Organization's directory or IdP did not) holds a Personal Space
+       * and personal data. Linking it here minted a session AS that account for
+       * whoever the IdP asserted, and the managed-provisioning step converted
+       * it. No link, no session, nothing written: the sign-in is refused with
+       * a coded outcome and the verified facts travel to the owner's own
+       * approval (organization-link-consent.service.ts), which they give signed
+       * in to their own account. An account this Organization's directory or
+       * IdP created (an IdP-first or directory-first user) links as before.
+       */
+      if (
+        await isSelfServeAccountForOrganization(
+          { userId: existingUser.id, organizationId: conn.organizationId },
+          client,
+        )
+      ) {
+        bump("sso_login_failure_total");
+        safeEmitSecurityEvent({
+          teamId: conn.teamId,
+          eventType: "sso_login_failed",
+          severity: "WARNING",
+          details: {
+            connectionId: conn.id,
+            reason: "existing_self_serve_account_requires_consent",
+            provider: conn.provider,
+          },
+        });
+        const pendingLink: PendingOrganizationLink = {
+          connectionId: conn.id,
+          organizationId: conn.organizationId,
+          teamId: conn.teamId,
+          provider: String(conn.provider),
+          protocol: "OIDC",
+          subject: userinfo.sub,
+          email: userinfo.email.toLowerCase(),
+          displayName: userinfo.name ?? null,
+          userId: existingUser.id,
+          role,
+          ...(await organizationDisplayForLink(conn.organizationId, client)),
+        };
+        throw new SsoServiceError(ACCOUNT_LINK_REQUIRES_CONSENT, {
+          reason: "existing_self_serve_account",
+          pendingLink,
+        });
       }
     } else {
       /*

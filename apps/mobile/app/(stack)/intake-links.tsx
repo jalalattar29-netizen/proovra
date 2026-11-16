@@ -87,6 +87,12 @@ export default function IntakeLinksScreen() {
   // page.tsx:115 useCan("INTAKE_LINKS_MANAGE") — envelope.capabilities[key] === true.
   const canManage =
     (envelope as { capabilities?: Record<string, unknown> } | null)?.capabilities?.["INTAKE_LINKS_MANAGE"] === true;
+  // B3B-F-105 — CREATING a link is a plan entitlement (planFeatures.intakeIncluded,
+  // the field the settings row and the web's requiredPlanFeature read). Absent
+  // (an older envelope) keeps the action and the server decides; only an
+  // explicit false withholds it. Managing existing links stays open.
+  const intakeIncluded =
+    (envelope as { planFeatures?: Record<string, unknown> } | null)?.planFeatures?.["intakeIncluded"] !== false;
   const teamId = context?.activeTeamId ?? null;
   const teamName = context?.activeSpaceType === "PERSONAL" ? COPY.personalSpace : (context?.displayName ?? "Workspace");
 
@@ -296,7 +302,7 @@ export default function IntakeLinksScreen() {
   const detailsItem = detailsId ? (items.find((i) => i.id === detailsId) ?? null) : null;
   const submissionsItem = submissionsFor ? (items.find((i) => i.id === submissionsFor) ?? null) : null;
   // The primary action only when the surface is actually usable (page.tsx:436).
-  const canOfferCreate = canManage && !!teamId && effective.kind === "ready";
+  const canOfferCreate = canManage && intakeIncluded && !!teamId && effective.kind === "ready";
   const openCreate = (slug?: string) =>
     router.push(slug ? `/intake-link-create?purpose=${encodeURIComponent(slug)}` : "/intake-link-create");
 
@@ -344,7 +350,7 @@ export default function IntakeLinksScreen() {
         ) : null}
 
         {effective.kind === "ready" && items.length === 0 && !appliedSearch ? (
-          <IntakeLinksEmpty canCreate={canManage} purposes={BUILT_IN_PURPOSES} onCreate={() => openCreate()} onPickPurpose={(slug) => openCreate(slug)} />
+          <IntakeLinksEmpty canCreate={canManage && intakeIncluded} purposes={BUILT_IN_PURPOSES} onCreate={() => openCreate()} onPickPurpose={(slug) => openCreate(slug)} />
         ) : null}
 
         {effective.kind === "ready" && (items.length > 0 || !!appliedSearch) ? (

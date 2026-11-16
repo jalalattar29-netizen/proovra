@@ -272,7 +272,13 @@ export const PRE_CR5_PAGE_BYTES = 54441;
 // Rebaselined 2026-11-14: 43,661 -> 45,450 — C-04 (Free-user audit of 4d9b78963): a successful Finish clears only the
 // items it sealed (revoke-and-filter, the removeSessionItem pattern) and opens the record after that clear renders,
 // unless material added while Finish ran is still staged.
-export const PRE_CR5_ORCH_BYTES = 45450;
+// Rebaselined 2026-11-16: 45,450 -> 48,056 — Free-user audit 0ea0 (B4-F-300 / B4-F-301, WEB-C2A + integration
+// fix-up): runResumableItemUpload sends the per-file part contract (note/role/step/source, clientSignals with the
+// silent-video marker, a basename) on session create AND on multipart/complete (where the bridge stores it, since
+// the session has no column for it), with the strict-schema 400 fallback to the old body on each, restates the
+// bridged part's metadata (C-05), and forgets/aborts a settled resumable upload. Client transport and compat only:
+// the server still decides digest, size, binding and storage limits.
+export const PRE_CR5_ORCH_BYTES = 48056;
 // PHASE 13 rebaseline (2026-08-17): 13,423 → 13,630 — NEW-036. `StartResumableInput`
 // gained one optional pass-through flag, `multipartAlreadyInitiated`, and the one
 // line that forwards it to `MultipartUploader`. The capture orchestration runs
@@ -283,7 +289,11 @@ export const PRE_CR5_ORCH_BYTES = 45450;
 // a declared prop that is forwarded verbatim and decided nowhere in this file is
 // the opposite of that, and the rationale lives with the flag's definition in
 // `multipart-uploader.ts` rather than being duplicated here.
-const PRE_CR5_RESUMABLE_BYTES = 13630;
+// Rebaselined 2026-11-16: 13,630 -> 16,663 — B4-F-301 (Free-user audit 0ea0): `forget` (drop a settled upload's
+// snapshot, persisted entry and recovery row; abort through the uploader's OWN cancel, never a parallel path),
+// `hasUploader`, and `blockingReasonsFor(evidenceId)` so a recovery entry of another record never blocks Review &
+// Sign. Client bookkeeping only; no backend truth re-accreted (the uploader still owns the abort leg).
+const PRE_CR5_RESUMABLE_BYTES = 16663;
 // Rebaselined 2026-11-15: 3,181 -> 1096 — F-P1-03 (Free-user audit of 4d9b78963): the checksum and Content-MD5 are computed in one pass over bounded slices (no whole-file buffer, no hand-written MD5).
 const HASH_UTILS_BYTES_EXACT = 1096;
 const SESSION_READINESS_BYTES_EXACT = 9559;
@@ -294,7 +304,8 @@ const SESSION_READINESS_BYTES_EXACT = 9559;
 // Rebaselined 2026-09-30: 23,637 -> 23,876 — ET-DC-11: the capture draft takes the canonical evidence.create decision
 // Rebaselined 2026-11-01: 23,876 -> 23,898 — INGEST-009: a draft reports its own workspace, so a resumed draft files where it was started
 // Rebaselined 2026-11-13: 23,898 -> 26,271 — F-04 (Free-user audit): discarding a draft releases its unsealed reservation through the reservation authority (record lock before the draft row).
-const CAPTURE_ROUTES_BYTES_EXACT = 26271;
+// Rebaselined 2026-11-16: 26,271 -> 27,296 — B4-F-310 (free-audit 0ea0): an unexpected 5xx is rethrown to the central handler instead of echoing err.message.
+const CAPTURE_ROUTES_BYTES_EXACT = 27296;
 // Baseline grows with documented phases (G3.x/G4/G5). The
 // "no shrink/regression" guarantee is the spirit; the constant
 // is rebaselined as the file legitimately grows.

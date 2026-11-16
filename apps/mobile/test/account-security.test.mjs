@@ -324,3 +324,23 @@ test("presentSignInRows: three rows, and the last usable method is protected", (
   assert.equal(rows[2].disconnectBlocked, true);
   assert.equal(A.summarizeSignInMethods({ passwordConfigured: true, links: [{ provider: "GOOGLE" }] }), "Google · Password");
 });
+
+/* --------------------------------------- B1-F-002: recovery-code guidance */
+
+test("recoveryCodesGuidance: a factor with no codes warns and generates; with codes it regenerates", () => {
+  const none = A.recoveryCodesGuidance(A.parseMfaStatus({ factors: [{ id: "f1", label: "Phone", status: "ACTIVE" }], recoveryCodesRemaining: 0 }));
+  assert.equal(none.warning, A.NO_RECOVERY_CODES_COPY);
+  assert.equal(none.singleFactorHint, A.SINGLE_FACTOR_COPY);
+  assert.equal(none.actionLabel, "Generate recovery codes");
+  assert.equal(none.confirmLabel, "Generate");
+  assert.doesNotMatch(none.confirmConsequence, /existing recovery codes/);
+  const some = A.recoveryCodesGuidance(A.parseMfaStatus({
+    factors: [{ id: "f1", status: "ACTIVE" }, { id: "f2", status: "ACTIVE" }],
+    recoveryCodesRemaining: 6,
+  }));
+  assert.equal(some.warning, null);
+  assert.equal(some.singleFactorHint, null);
+  assert.equal(some.actionLabel, "Regenerate recovery codes");
+  const noFactor = A.recoveryCodesGuidance(A.parseMfaStatus({ factors: [], recoveryCodesRemaining: 0 }));
+  assert.equal(noFactor.warning, null, "an account with no factor has nothing to recover");
+});

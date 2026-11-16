@@ -188,11 +188,20 @@ export function buildWorkspaceReopenPath(teamId: string): string {
   return `/v1/teams/${encodeURIComponent(teamId)}/reopen`;
 }
 
-/** POST /v1/teams/:id/reopen refusals (teams.routes.ts:3709), as the web words them. */
+/**
+ * POST /v1/teams/:id/reopen refusals (teams.routes.ts reopen).
+ *
+ * B3A-F-008 — the route answers a NON-OWNER exactly like an unknown id
+ * (404 `team_not_found`), so the 404 sentence covers both and never claims
+ * the workspace was deleted. An older API still answers 403
+ * `not_workspace_owner`; that keeps a plain permission sentence.
+ */
+export const REOPEN_NOT_FOUND_COPY =
+  "This workspace could not be found, or you are not its owner. Only the owner of a closed workspace can reopen it.";
 export function reopenFailureCopy(err: unknown, fallback: string | null): string {
   const status = num(obj(err).statusCode) ?? 0;
-  if (status === 403) return "You don't have permission to reopen this workspace. Only its owner can.";
-  if (status === 404) return "This workspace no longer exists.";
+  if (status === 403) return "You don't have permission to reopen this workspace.";
+  if (status === 404) return REOPEN_NOT_FOUND_COPY;
   if (status === 409) {
     return "There is nothing to reopen: either a closure request is still open — cancel that instead — or this workspace was never closed.";
   }

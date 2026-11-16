@@ -126,7 +126,8 @@ test("T-09d: the bell reads the CANONICAL aggregation and never invents zero", (
   // me-inbox.routes.ts:1376-1386 — /v1/me/inbox, /v1/me/inbox/summary and
   // mark-all-read share ONE aggregation precisely so the badge and the page
   // cannot disagree. The header must use that, not count a page itself.
-  assert.match(header, /INBOX_SUMMARY_PATH/, "the bell does not read the canonical summary endpoint");
+  // B2B-F-03 — through inboxSummaryPath (INBOX_SUMMARY_PATH scoped to the active workspace).
+  assert.match(header, /inboxSummaryPath\(/, "the bell does not read the canonical summary endpoint");
   assert.match(header, /router\.push\("\/notifications"\)/, "the bell does not reach the notification centre");
 
   const inbox = readFileSync(resolve(MOBILE, "src/product/inbox.ts"), "utf8");

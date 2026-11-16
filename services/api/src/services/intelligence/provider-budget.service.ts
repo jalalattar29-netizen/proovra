@@ -190,6 +190,72 @@ export type ScopedBudgetGateInput = ProviderBudgetGateInput & {
   projectId?: string | null;
 };
 
+/**
+ * B6-F-44 (Free-user audit 0ea0) — the gate as a RESERVATION.
+ *
+ * `decideBudgetGate` alone is a read: it sums recorded spend and compares
+ * spend + estimate with the hard limit, and actual spend is recorded only
+ * after the provider returns. Concurrent runs all read the same total, all
+ * pass, and together overspend the hard limit.
+ *
+ * Here the decision and the provisional spend are ONE transaction, serialised
+ * per workspace by a transaction-scoped advisory lock: each caller decides
+ * against every earlier caller's committed provisional row, and an admitted
+ * caller writes its own estimate (a usage row with the operation's provider /
+ * case / project, so every applicable budget counts it) before the lock is
+ * released. N concurrent calls cannot exceed the hard limit. The admitted
+ * caller deletes the provisional row when it settles (the real usage row is
+ * recorded by then), through `releaseBudgetReservation`. No budget
+ * configured: nothing to protect, no lock and no row.
+ */
+export const BUDGET_RESERVATION_MARKER = "budget_reservation";
+
+export async function reserveBudgetGate(
+  input: ScopedBudgetGateInput & { operation: string; evidenceId?: string | null; initiatedByUserId?: string | null },
+  prismaClient: PrismaClient = defaultPrisma,
+): Promise<ProviderBudgetGateResult & { reservationId: string | null }> {
+  const anyBudget = await prismaClient.providerBudget.findMany({
+    where: { teamId: input.teamId, state: "ACTIVE", OR: [{ provider: input.provider }, { provider: null }] },
+    select: { id: true },
+    take: 1,
+  });
+  if (anyBudget.length === 0) return { decision: "ALLOW", reason: null, budgetId: null, reservationId: null };
+  return prismaClient.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"provider_budget:" + input.teamId}))`;
+    const gate = await decideBudgetGate(input, tx as unknown as PrismaClient);
+    if (gate.decision === "BLOCK") return { ...gate, reservationId: null };
+    const provisional = await tx.providerUsageEvent.create({
+      data: {
+        teamId: input.teamId,
+        provider: input.provider,
+        operation: input.operation,
+        unit: "CALL",
+        units: 0,
+        estimatedCostUsdMicros: BigInt(Math.max(0, Math.round(input.estimatedCostUsdMicros))),
+        decision: "ALLOW",
+        evidenceId: input.evidenceId ?? null,
+        caseId: input.caseId ?? null,
+        projectId: input.projectId ?? null,
+        initiatedByUserId: input.initiatedByUserId ?? null,
+        failureReason: BUDGET_RESERVATION_MARKER,
+      },
+      select: { id: true },
+    });
+    return { ...gate, reservationId: provisional.id };
+  });
+}
+
+/** Removes a provisional reservation row. Idempotent; never throws. */
+export async function releaseBudgetReservation(
+  reservationId: string | null,
+  prismaClient: PrismaClient = defaultPrisma,
+): Promise<void> {
+  if (!reservationId) return;
+  await prismaClient.providerUsageEvent
+    .deleteMany({ where: { id: reservationId, failureReason: BUDGET_RESERVATION_MARKER } })
+    .catch(() => undefined);
+}
+
 export async function decideBudgetGate(
   input: ScopedBudgetGateInput,
   prismaClient: PrismaClient = defaultPrisma,

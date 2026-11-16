@@ -14,6 +14,7 @@
 export {
   PlatformContextProvider,
   usePlatformContext,
+  useOptionalPlatformContext,
   // AUD-0047 — the provider's own switch request, for the invitation page.
   requestWorkspaceSwitch,
   type PlatformContextValue,

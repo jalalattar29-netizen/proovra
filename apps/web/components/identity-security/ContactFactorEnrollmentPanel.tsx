@@ -1046,6 +1046,12 @@ export function ContactFactorEnrollmentPanel({
               ? " Any approval granted against the previous device no longer works."
               : null}
           </p>
+          {/* B1-F-002 — a phone enrolled here gets no recovery codes. */}
+          <p data-contact-factor-recovery-hint style={{ margin: "6px 0 0" }}>
+            If you lose this phone, you can still sign in with recovery codes or
+            another second factor — but only if you set them up first. Generate
+            recovery codes under Two-factor authentication and keep them safe.
+          </p>
         </div>
       ) : null}
 

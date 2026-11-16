@@ -118,6 +118,142 @@ export const VERIFY_COPY = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// B5B-F-501 — the web page's link-state handling, ported.
+//
+// REPORT-013: a use-limited reviewer link spends one use per VIEWING SESSION,
+// not per load. The web keeps a random id per tab and sends it as
+// `x-proovra-verify-session` (apps/web/app/verify/[token]/_verify-view-session.ts);
+// the native screen sent nothing, so every load, Try Again and "Check Latest
+// Anchoring Status" spent another use until the link answered 410. The screen
+// now keeps one id for its lifetime. It is not a credential: on its own it
+// opens nothing.
+//
+// The canonical page states (owner decision 2026-10-14) and the AUD-28 link
+// notices are expected answers, not failures: a withdrawn, purged, retained or
+// temporarily unavailable record, an ended link, an unknown link and a rate
+// limit are each said in the web's words — never "Verification Failed" with a
+// retry that cannot succeed, and RETAINED (an HTTP 200) never "Evidence Not Found".
+// ---------------------------------------------------------------------------
+
+export const VERIFY_VIEW_SESSION_HEADER = "x-proovra-verify-session";
+
+/** A fresh opaque view-session id (24 random bytes, base64url); null when randomness is unavailable. */
+export function createVerifyViewSessionId(randomBytes: (n: number) => Uint8Array): string | null {
+  try {
+    const bytes = randomBytes(24);
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    const id = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return /^[A-Za-z0-9_-]{16,128}$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+export type VerifyCanonicalState =
+  | "PURGED"
+  | "WITHDRAWN"
+  | "TEMPORARILY_UNAVAILABLE"
+  | "RETAINED"
+  | "NOT_SEALED"
+  | "LEGACY_LINK_RETIRED";
+
+/** apps/web/app/verify/[token]/BasicVerificationView.tsx CANONICAL_STATE_COPY, verbatim. */
+export const VERIFY_CANONICAL_STATE_COPY: Record<VerifyCanonicalState, { title: string; body: string }> = {
+  PURGED: {
+    title: "Record permanently deleted",
+    body: "This record was permanently deleted after its retention ended. This page remains as a minimal record that it existed; the evidence and its artifacts are no longer held, so they cannot be verified here.",
+  },
+  WITHDRAWN: {
+    title: "Verification page withdrawn",
+    body: "This verification page was withdrawn following a legal, privacy or security action. Its reference is preserved and will never point to another record.",
+  },
+  TEMPORARILY_UNAVAILABLE: {
+    title: "Temporarily unavailable",
+    body: "This verification page is temporarily unavailable. Try again later.",
+  },
+  RETAINED: {
+    title: "Record retained",
+    body: "The record's owner has removed it from active use. It remains preserved under its retention protection and is no longer shown as an active record.",
+  },
+  NOT_SEALED: {
+    title: "Record not sealed",
+    body: "This record has no recorded seal (content digest and signature), so there is nothing PROOVRA can verify on this page yet.",
+  },
+  LEGACY_LINK_RETIRED: {
+    title: "This link format has been retired",
+    body: "Use the verification reference (pvr_…) or the QR code printed in the current report, or ask the record's owner for its verification link.",
+  },
+};
+
+export type VerifyLinkNotice = { kind: "LINK_ENDED" | "RATE_LIMITED" | "NOT_FOUND"; title: string; detail: string };
+
+/** web canonicalVerificationStateFromCode. */
+export function verifyCanonicalStateFromCode(code: unknown): Exclude<VerifyCanonicalState, "LEGACY_LINK_RETIRED"> | null {
+  switch (code) {
+    case "VERIFICATION_RECORD_PURGED":
+      return "PURGED";
+    case "VERIFICATION_RECORD_WITHDRAWN":
+      return "WITHDRAWN";
+    case "VERIFICATION_RECORD_TEMPORARILY_UNAVAILABLE":
+      return "TEMPORARILY_UNAVAILABLE";
+    case "VERIFICATION_RECORD_RETAINED":
+      return "RETAINED";
+    case "VERIFICATION_RECORD_NOT_SEALED":
+      return "NOT_SEALED";
+    default:
+      return null;
+  }
+}
+
+/** A 200 body that is a canonical state rather than a record (RETAINED is HTTP 200). */
+export function verifyCanonicalStateOfBody(data: unknown): VerifyCanonicalState | null {
+  const status = obj(obj(data)["canonicalVerification"])["status"];
+  return status === "RETAINED" ? "RETAINED" : null;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * What an error answer means, in the web's order: a canonical state by code; an
+ * old record-id link's 404; then the AUD-28 notices (404 / 410 / 429). Null =
+ * a real failure, shown as "Verification Failed" with Try Again.
+ */
+export function classifyVerifyError(
+  err: unknown,
+  reference: string,
+): { state: VerifyCanonicalState } | { notice: VerifyLinkNotice } | null {
+  const e = obj(err);
+  const status = typeof e["statusCode"] === "number" ? (e["statusCode"] as number) : null;
+  const byCode = verifyCanonicalStateFromCode(e["code"]);
+  if (byCode) return { state: byCode };
+  if (status === 404 && UUID.test(reference)) return { state: "LEGACY_LINK_RETIRED" };
+  if (status === 404) {
+    return {
+      notice: {
+        kind: "NOT_FOUND",
+        title: "No verification record found for this link",
+        detail:
+          "This link does not open a verification record. Check that it was copied completely, or ask the person who shared it for the current link.",
+      },
+    };
+  }
+  if (status === 410) {
+    return {
+      notice: {
+        kind: "LINK_ENDED",
+        title: "This verification link is no longer active",
+        detail: "The link was revoked, expired or used up by the person who shared it. Ask them for a new link.",
+      },
+    };
+  }
+  if (status === 429) {
+    return { notice: { kind: "RATE_LIMITED", title: "Too many checks in a short time", detail: "Please wait a minute and try again." } };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // T-14 — THE VIEW, read from the fields GET /public/verify/:id actually sends.
 //
 // THE DEFECT: the screen read top-level `type`, `createdAt`, `custodyEvents`,

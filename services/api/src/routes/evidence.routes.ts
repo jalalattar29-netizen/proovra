@@ -189,6 +189,8 @@ import {
   type EvidencePartPresentation,
   continuousRecordingFactsFromCustody,
   continuousRecordingAcquisitionText,
+  resolveEvidenceProductState,
+  partAudioNotRecordedStatement,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -248,6 +250,9 @@ const OPERATION_ACCEPTED_MESSAGE: Record<OutputOperation, string> = {
 };
 
 /** Why an output cannot be recovered now, for the people who asked. */
+/** B5B-F-505 — the "last public view" time is written at most once per this window. */
+const PUBLIC_VIEW_TIME_COALESCE_MS = 60 * 1000;
+
 const OUTPUT_REASON_MESSAGE: Partial<Record<OutputActionUnavailableReason, string>> = {
   NOT_REQUIRED: "Nothing is missing or failed for this record.",
   IN_PROGRESS: "Generation is already under way for this record.",
@@ -272,6 +277,9 @@ const OUTPUT_REASON_MESSAGE: Partial<Record<OutputActionUnavailableReason, strin
   STORAGE_LIMIT:
     "This output would exceed the storage allowance that covers this record. Free up storage or add storage in Billing, then try again.",
   RETRY_AVAILABLE: "The last attempt failed and can be retried first.",
+  // B5B-F-101 (free audit 0ea0).
+  NO_MATERIAL_CHANGE:
+    "This record's report is already current. An updated version becomes available when a new verification fact is recorded.",
   WORKSPACE_UNRESOLVED:
     "This older evidence record needs a workspace association before new output generation can be requested.",
   PERMISSION_DENIED: "You do not have permission to generate or recover outputs for this record.",
@@ -320,6 +328,7 @@ import {
   ownerIncludesReviewCapability,
   workspaceIncludesReviewCapability,
 } from "../services/billing-enforcement.service.js";
+import { AiPlanAllowanceRefused, meterAiPlanOperation } from "../services/ai/ai-plan-operation-meter.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
@@ -351,6 +360,7 @@ import {
   releaseEvidenceReservationTx,
 } from "@proovra/shared-runtime";
 import {
+  boundPartSizeBytes,
   boundPartsMatchManifest,
   isSameBoundFile,
   withPartBinding,
@@ -367,6 +377,7 @@ import {
   probeStoredObject,
 } from "../storage.js";
 import { noStorePresignedResponse } from "../http/presigned-response.js";
+import { evaluateAccess, loadMemberAccessSnapshot } from "../services/identity/access-policy.service.js";
 import { bump as bumpOpsMetric } from "@proovra/shared-runtime/ops";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
@@ -457,6 +468,7 @@ const BULK_LIFECYCLE_AUDIT_ACTION = {
   RESTORE_TRASH: "evidence.restore",
 } as const satisfies Record<keyof typeof BULK_LIFECYCLE_ACTION, string>;
 import {
+  projectEvidenceActorCapabilities,
   resolveEvidenceOperationAccess,
   resolveEvidenceRecordAccess,
   type EvidenceRecordPermission,
@@ -509,7 +521,8 @@ import {
   type TemplateIdentityTrio,
 } from "../services/templates/identity-resolver.service.js";
 import { ed25519VerifyHexSignature, sha256Hex } from "../crypto.js";
-import { readBillingOverview } from "../services/billing-overview.service.js";
+// B4-F-300 (free audit 0ea0) — shared with the resumable upload-session door.
+import { buildStorageLimitPayload, sanitizeFileName } from "../services/uploads/upload-door-facts.service.js";
 // COMMERCIAL AUTHORITY (2026-09-03) — the canonical primitives, called
 // directly for the ONE subject each caller is about, instead of scanning an
 // account-wide rollup to find it.
@@ -904,6 +917,9 @@ function sendCertificationFailure(reply: FastifyReply, err: unknown) {
     err instanceof Error && "statusCode" in err
       ? (err as Error & { statusCode?: number }).statusCode ?? 500
       : 500;
+  // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+  // handler (logged, bounded body); only a declared 4xx keeps its message.
+  if (statusCode >= 500) throw err;
   const message = err instanceof Error ? err.message : "Unexpected error";
   const code =
     statusCode < 500 &&
@@ -3141,10 +3157,14 @@ function continuousRecordingTextOf(
 function toPublicArtifactProjection(
   a: EvidenceArtifactProjection,
   recording: ReturnType<typeof continuousRecordingTextOf> = null,
+  audioNotRecorded: ReadonlyArray<{ partIndex: number; statement: string }> | null = null,
 ) {
   return {
     // Contract A — a continuous recording's layout/audio statement (shared wording).
     recording,
+    // B4-F-206 (free audit 0ea0) — F-P1-09 per file: a video whose capture
+    // client recorded no audio says so (by part index; the generic wording).
+    ...(audioNotRecorded ? { audioNotRecorded } : {}),
     userItems: a.userItems.map((item) => ({
       kind: item.kind,
       label: item.kind === "recording" ? item.label : null,
@@ -3160,6 +3180,25 @@ function toPublicArtifactProjection(
     },
     counts: a.counts,
   };
+}
+
+/**
+ * B4-F-206 (free audit 0ea0) — public Verify's per-file "no audio" statements:
+ * ORIGINAL parts whose client signals carry `audioNotCapturedReason`, by part
+ * index, in the GENERIC wording (minimal disclosure: nothing about the
+ * capturing device's permissions; the report and the owner's record page name
+ * the reason).
+ */
+function publicAudioNotRecordedOf(
+  parts: ReadonlyArray<{ partIndex: number; clientSignals?: unknown; artifactClass?: string | null }>,
+): Array<{ partIndex: number; statement: string }> {
+  const out: Array<{ partIndex: number; statement: string }> = [];
+  for (const part of parts) {
+    if (part.artifactClass === "CAPTURE_MANIFEST") continue;
+    const statement = partAudioNotRecordedStatement(part.clientSignals);
+    if (statement) out.push({ partIndex: part.partIndex, statement });
+  }
+  return out.sort((x, y) => x.partIndex - y.partIndex);
 }
 
 /** AUD-014 — the retention authority's platform policy: COMPLIANCE Object Lock configured. */
@@ -5780,7 +5819,7 @@ async function resolveWorkspaceCapabilitySnapshot(params: {
     )
   ).scope;
 
-  const [usage, subscription, recordEligibility] = await Promise.all([
+  const [usage, subscription, recordEligibility, billingVisible] = await Promise.all([
     getWorkspaceUsage(scope),
     prisma.subscription.findFirst({
       where: { userId: params.ownerUserId, teamId },
@@ -5810,6 +5849,21 @@ async function resolveWorkspaceCapabilitySnapshot(params: {
       // keeps this projection to one commercial resolution per request.
       plan: scope.plan,
     }).catch(() => null),
+    /*
+     * B5A-F-09 (free-audit 0ea0): workspace storage usage and seat counts are
+     * billing facts, not record facts. A record reader sees them only when
+     * the canonical policy grants billing.read in the record's workspace
+     * (a personal record's reader is its owner). A pure evaluation: a Viewer
+     * opening a record is not a refused billing request worth an event.
+     */
+    teamId
+      ? loadMemberAccessSnapshot({ teamId, userId: params.ownerUserId })
+          .then(
+            (member) =>
+              evaluateAccess(member ? { kind: "MEMBER", member } : null, { permission: "billing.read" }).allowed,
+          )
+          .catch(() => false)
+      : Promise.resolve(true),
   ]);
 
   const caps = getPlanCapabilities(scope.plan);
@@ -5834,15 +5888,15 @@ async function resolveWorkspaceCapabilitySnapshot(params: {
     /** How this record's completion was funded. PLAN | EVIDENCE_CREDIT. */
     recordFunding: recordEligibility?.funding ?? null,
     billingStatus: subscription?.status ?? null,
-    storageUsedLabel: usage.storageLabel ?? null,
-    storageLimitLabel: usage.storageLimitLabel ?? null,
-    storageRemainingLabel: usage.storageRemainingLabel ?? null,
+    storageUsedLabel: billingVisible ? (usage.storageLabel ?? null) : null,
+    storageLimitLabel: billingVisible ? (usage.storageLimitLabel ?? null) : null,
+    storageRemainingLabel: billingVisible ? (usage.storageRemainingLabel ?? null) : null,
     // Seats describe a SHARED workspace. A single-occupant one has none, and
     // reporting "0 of 0" for it reads as a limit rather than as absence.
-    seatsIncluded: shared ? usage.seatLimit : null,
-    seatsUsed: shared ? usage.teamMemberCount : null,
-    seatsRemaining: shared ? usage.seatRemaining : null,
-    overSeatLimit: shared
+    seatsIncluded: shared && billingVisible ? usage.seatLimit : null,
+    seatsUsed: shared && billingVisible ? usage.teamMemberCount : null,
+    seatsRemaining: shared && billingVisible ? usage.seatRemaining : null,
+    overSeatLimit: shared && billingVisible
       ? usage.seatLimit !== null && usage.teamMemberCount > usage.seatLimit
       : null,
     ...discussionFlags,
@@ -6252,79 +6306,6 @@ function buildResolvedReviewerAlerts(params: {
   }
 
   return operationalAlerts;
-}
-
-async function buildStorageLimitPayload(params: {
-  ownerUserId: string;
-  evidenceId?: string | null;
-  teamId?: string | null;
-  req?: FastifyRequest;
-  reason?: string | null;
-  incomingBytes?: string | null;
-}) {
-  // COMMERCIAL AUTHORITY (2026-09-03) — the wall names ONE workspace, and it
-  // resolves that one canonically instead of scanning an account-wide rollup
-  // to find it. `summary` and `storageAddons` stay: those ARE account-level
-  // facts, and they are what the wall offers the customer next to the refusal.
-  const [overview, scope] = await Promise.all([
-    readBillingOverview(params.ownerUserId),
-    params.teamId != null
-      ? resolveCommercialContext({
-          type: "WORKSPACE",
-          teamId: params.teamId,
-          requesterUserId: params.ownerUserId,
-        }).then((c) => c.scope)
-      : Promise.resolve(null),
-  ]);
-
-  const workspace = scope
-    ? {
-        id: params.teamId,
-        billingShape: scope.billingShape,
-        plan: scope.plan,
-      }
-    : overview.workspaces.personal;
-
-  const upgradeSuggestion =
-    workspace && workspace.billingShape === "SINGLE_OCCUPANT"
-      ? workspace.plan === prismaPkg.PlanType.PAYG
-        ? "Upgrading to PRO may be more cost-effective if you need recurring storage."
-        : workspace.plan === prismaPkg.PlanType.PRO
-          ? "If you need much larger storage, upgrading to TEAM may be more cost-effective."
-          : "Upgrade your base plan to unlock more storage options."
-      : workspace && workspace.billingShape === "SHARED"
-        ? "If your team keeps growing, a larger recurring storage add-on may be more cost-effective."
-        : null;
-
-  return {
-    code: "STORAGE_LIMIT_REACHED",
-    message: "Storage limit reached",
-    billingWall: {
-      type: "storage_limit_reached",
-      reason: params.reason ?? "workspace_storage_exhausted",
-      evidenceId: params.evidenceId ?? null,
-      workspace,
-      summary: overview.summary,
-      storageAddons: overview.storageAddons,
-      suggestedActions: [
-        "add_storage",
-        "upgrade_plan",
-        "review_archived_evidence",
-      ],
-      upgradeSuggestion,
-      incomingBytes: params.incomingBytes ?? null,
-    },
-  };
-}
-
-function sanitizeFileName(value: string | null | undefined): string | null {
-  const raw = typeof value === "string" ? value.trim() : "";
-  if (!raw) return null;
-
-  const normalized = raw.replace(/\\/g, "/").split("/").pop()?.trim() ?? "";
-  if (!normalized || normalized === "." || normalized === "..") return null;
-
-  return normalized;
 }
 
 function formatCaptureFileTimestamp(value: Date | string | null | undefined): string {
@@ -6975,6 +6956,9 @@ if (
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -7011,6 +6995,9 @@ if (
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -7248,7 +7235,26 @@ message:
             ownerUserId: evidence.ownerUserId,
             teamId: evidence.teamId ?? null,
           });
-          await assertWorkspaceAllowsStorageGrowth({ scope: storageScope, incomingBytes: BigInt(body.sizeBytes ?? 0) });
+          // B4-F-003 (free audit 0ea0) — the record's OTHER files count too.
+          // Unsealed bytes are not in the usage figure, so comparing one file
+          // at a time let a multi-file record over the remaining storage upload
+          // everything before the seal refused it. Each other part's declared
+          // size is its C-06 binding (stored at its presign), else its
+          // recorded size; this index is excluded, so an idempotent re-presign
+          // of the same file is not counted twice.
+          const otherParts = await prisma.evidencePart.findMany({
+            where: { evidenceId: id, partIndex: { not: body.partIndex } },
+            select: { clientSignals: true, sizeBytes: true },
+          });
+          const otherDeclaredBytes = otherParts.reduce((sum, part) => {
+            const declared = boundPartSizeBytes(part.clientSignals);
+            if (declared !== null) return sum + BigInt(declared);
+            return part.sizeBytes != null && part.sizeBytes > 0n ? sum + part.sizeBytes : sum;
+          }, 0n);
+          await assertWorkspaceAllowsStorageGrowth({
+            scope: storageScope,
+            incomingBytes: BigInt(body.sizeBytes ?? 0) + otherDeclaredBytes,
+          });
         } catch (err) {
           storageRefused = (err as { code?: unknown }).code === "STORAGE_LIMIT_REACHED";
         }
@@ -7503,6 +7509,9 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${o
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         if (refusedCode === "FILE_VALIDATION_BLOCKED") {
           return reply.code(statusCode).send({ message, code: refusedCode, reservationReleased });
@@ -7533,6 +7542,9 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${o
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -7799,6 +7811,9 @@ return {
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -7822,6 +7837,35 @@ return {
       }
 
       if (body.locked) {
+        // B5A-F-11 (Free-user audit 0ea0) — a lock is taken only on a record
+        // in the working set (ACTIVE or ARCHIVED, the canonical product
+        // state). Locking a trashed record stranded it: restore requires
+        // "trashed and not locked", so it could neither come back nor go.
+        const lifecycleRow = await prisma.evidence.findUnique({
+          where: { id },
+          select: { destroyedAtUtc: true, lifecycleState: true, archivedAt: true, deletedAt: true },
+        });
+        const productState = resolveEvidenceProductState({
+          lifecycleState: lifecycleRow?.lifecycleState ?? null,
+          archivedAt: lifecycleRow?.archivedAt ?? null,
+          trashedAt: lifecycleRow?.deletedAt ?? null,
+          destroyedAt: lifecycleRow?.destroyedAtUtc ?? null,
+        });
+        if (productState !== "ACTIVE" && productState !== "ARCHIVED") {
+          await auditEvidenceAction(req, {
+            userId: ownerUserId,
+            action: "evidence.lock",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: id,
+            teamId: evidence.teamId,
+            metadata: { reason: "not_in_working_set", productState },
+          });
+          return reply.code(409).send({
+            code: "EVIDENCE_NOT_LOCKABLE",
+            message: "Only a record in the working set can be locked. Restore it from the trash first.",
+          });
+        }
         // ET-CUS-08: the lock and its custody event commit together, and only
         // an actual transition records one (a repeated lock changes nothing).
         await prisma.$transaction(async (tx) => {
@@ -7919,6 +7963,9 @@ return {
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -10175,19 +10222,13 @@ return {
       }
 
       if (!latest) {
-        return reply.code(200).send({
-          categorization: {
-            status: prismaPkg.EvidenceAiCategorizationStatus.DISABLED,
-            summary: null,
-            categories: [],
-            suggestedTags: [],
-            riskFlags: [],
-            legalDisclaimer: AI_LEGAL_DISCLAIMER,
-            model: null,
-            createdAt: null,
-            updatedAt: null,
-          },
-        });
+        // B6-F-23 (Free-user audit 0ea0) — "never run" is `null`, not a
+        // DISABLED run. The empty state used the persisted provider-disabled
+        // status, and both clients treat DISABLED as terminal, so the Run
+        // button never appeared and categorization could not be started.
+        // Both clients offer Run on null (web AiCategorizationPanel, native
+        // canRunCategorization).
+        return reply.code(200).send({ categorization: null });
       }
 
       return reply.code(200).send({
@@ -10279,12 +10320,11 @@ return {
             })
             .then((m) => (m?.status === "ACTIVE" ? m.role : null))
         : null;
-      const catPlanAllowed = await scopeIncludesAiOperations(
-        await resolveEnforcementScopeForRequester({
-          ownerUserId: evidence.ownerUserId,
-          teamId: evidence.teamId ?? null,
-        }),
-      );
+      const catScope = await resolveEnforcementScopeForRequester({
+        ownerUserId: evidence.ownerUserId,
+        teamId: evidence.teamId ?? null,
+      });
+      const catPlanAllowed = await scopeIncludesAiOperations(catScope);
       const catPolicy = await evaluateWorkspaceAiPolicy({
         teamId: evidence.teamId ?? null,
         feature: "EVIDENCE_CATEGORIZATION",
@@ -10348,6 +10388,21 @@ return {
         });
       }
 
+      // B6-F-20 (Free-user audit 0ea0) — categorization spends the plan's
+      // monthly AI allowance like every other provider call; it used to ask
+      // only whether the plan includes AI. Kept only when the provider answered.
+      const catMeter = meterAiPlanOperation(async () => catScope);
+      try {
+        await catMeter.take();
+      } catch (err) {
+        if (catLedger.reservationId) {
+          await releaseAiReservation(buildPrismaLedgerStore(), catLedger.reservationId).catch(() => undefined);
+        }
+        if (err instanceof AiPlanAllowanceRefused) {
+          return reply.code(err.statusCode).send({ code: err.denial, message: err.message });
+        }
+        throw err;
+      }
       let aiResult: Awaited<ReturnType<typeof evidenceAiProvider.run>>;
       try {
         aiResult = await evidenceAiProvider.run(
@@ -10358,10 +10413,19 @@ return {
         if (catLedger.reservationId) {
           await releaseAiReservation(buildPrismaLedgerStore(), catLedger.reservationId).catch(() => undefined);
         }
+        await catMeter.refund();
         throw err;
       }
+      // B6-F-26 (Free-user audit 0ea0) — only an answered provider call is
+      // spend, on both meters: any other status gives the plan operation back
+      // and releases the ledger reservation (with the rollups it incremented).
+      if (aiResult.status !== "ok") await catMeter.refund();
       if (catLedger.reservationId) {
-        await reconcileAiUsage(buildPrismaLedgerStore(), catLedger.reservationId, null).catch(() => undefined);
+        if (aiResult.status === "ok") {
+          await reconcileAiUsage(buildPrismaLedgerStore(), catLedger.reservationId, null).catch(() => undefined);
+        } else {
+          await releaseAiReservation(buildPrismaLedgerStore(), catLedger.reservationId).catch(() => undefined);
+        }
       }
 
       const deterministicCategories = [
@@ -10439,6 +10503,9 @@ return {
     "/v1/evidence/:id/review-workspace",
     { preHandler: requireAuth },
     async (req, reply) => {
+      // B5A-F-06 (free-audit 0ea0): this body carries 600 s presigned original
+      // URLs (buildPublicEvidenceContent), so no cache may keep it (AUDIT D-05).
+      noStorePresignedResponse(reply);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const ownerUserId = getAuthUserId(req);
 
@@ -11442,10 +11509,14 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           toEvidenceLifecycleProjectionInput(evidence),
         );
 
+        // B5A-F-03 (free audit 0ea0) — what THIS caller may do to the record.
+        const actorCapabilities = await projectEvidenceActorCapabilities({ userId: ownerUserId, evidenceId: id });
+
         return reply.code(200).send(
           toJsonSafe({
             evidence: {
               ...toSafeEvidence(evidence),
+              actorCapabilities,
               analysisRevision: analysisSnapshot?.revision ?? null,
               itemCount,
               display,
@@ -11817,6 +11888,9 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -11827,6 +11901,9 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
     "/v1/evidence/:id",
     { preHandler: requireAuth },
     async (req, reply) => {
+      // B5A-F-06 (free-audit 0ea0): this body carries 600 s presigned original
+      // URLs (buildPublicEvidenceContent), so no cache may keep it (AUDIT D-05).
+      noStorePresignedResponse(reply);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const ownerUserId = getAuthUserId(req);
 
@@ -11996,6 +12073,8 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
             evidenceIntelligence,
             [EVIDENCE_LIFECYCLE_RESPONSE_FIELD]: lifecycleProjection,
             [DELETE_ELIGIBILITY_RESPONSE_FIELD]: deleteEligibility,
+            // B5A-F-03 (free audit 0ea0) — what THIS caller may do to the record.
+            actorCapabilities: await projectEvidenceActorCapabilities({ userId: ownerUserId, evidenceId: id }),
           }),
         });
                   } catch (err) {
@@ -12009,6 +12088,9 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
         if (statusCode === 404) {
           return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
         }
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -12037,6 +12119,9 @@ try {
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -12532,6 +12617,9 @@ if (
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -12834,7 +12922,10 @@ if (
             reply.code(409).send({
               code: "NEW_VERSION_NO_MATERIAL_CHANGE",
               message:
-                "This record's report is already current. A new version is issued automatically when a new verification fact is recorded.",
+                // B5B-F-401 (free audit 0ea0) — the only automatic producer is the
+                // chain-verified (Bitcoin) version; every other fact makes an
+                // updated version available for the person to request.
+                "This record's report is already current. An updated version becomes available when a new verification fact is recorded; only an independent Bitcoin verification of its timestamp issues one automatically.",
             });
             return true;
           }
@@ -13117,6 +13208,9 @@ if (
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -13711,6 +13805,9 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -13963,6 +14060,9 @@ displayName: resolvedDisplayName,
           err instanceof Error && "statusCode" in err
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
+        // B4-F-310 (free-audit 0ea0): an unexpected failure goes to the central
+        // handler (logged, bounded body); only a declared 4xx keeps its message.
+        if (statusCode >= 500) throw err;
         const message = err instanceof Error ? err.message : "Unexpected error";
         return reply.code(statusCode).send({ message });
       }
@@ -15456,7 +15556,7 @@ const content = await buildPublicEvidenceContent({
     const publicVerifyTrustShared = await import("@proovra/shared");
     const publicVerifyParts = await prisma.evidencePart.findMany({
       where: { evidenceId: id },
-      select: { partIndex: true, sha256: true, storageVersionId: true },
+      select: { partIndex: true, sha256: true, storageVersionId: true, clientSignals: true, artifactClass: true },
     });
     // UC-TRUST-001 — the unsigned digest columns must agree with the digests
     // the signed fingerprint certifies; a disagreement is an integrity failure.
@@ -16393,6 +16493,7 @@ outputContext: ((): CanonicalOutputContext => {
     artifacts: toPublicArtifactProjection(
       content.artifacts,
       continuousRecordingTextOf(evidence.acquisitionMode, allCustodyEvents),
+      publicAudioNotRecordedOf(publicVerifyParts),
     ),
     primaryItem: content.primaryItem,
 defaultPreviewItemId: defaultPreviewItem?.id ?? null,
@@ -16605,8 +16706,16 @@ await recordOriginalRelease({
             });
             shouldEmitVerifyViewed = claimed.count === 1;
             if (!shouldEmitVerifyViewed) {
-              await prisma.evidence.update({
-                where: { id },
+              // B5B-F-505 (free audit 0ea0) — inside the 24h window the "last
+              // public view" time is coalesced to one write per minute: a
+              // conditional update that matches nothing during a refresh storm,
+              // instead of an UPDATE (and a row lock on the evidence row) for
+              // every anonymous view. The per-view analytics row below stays.
+              await prisma.evidence.updateMany({
+                where: {
+                  id,
+                  lastPublicVerifyViewAtUtc: { lt: new Date(verifiedAt.getTime() - PUBLIC_VIEW_TIME_COALESCE_MS) },
+                },
                 data: { lastPublicVerifyViewAtUtc: verifiedAt },
               });
             }

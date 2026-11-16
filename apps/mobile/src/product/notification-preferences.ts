@@ -135,19 +135,28 @@ export function hasOrgPolicyLocks(view: PreferencesView): boolean {
   );
 }
 
-const PREFERENCE_GROUPS: ReadonlyArray<{ title: string; types: ReadonlyArray<string> }> = [
-  { title: "Evidence integrity & verification", types: ["SLA_NEAR_BREACH"] },
-  { title: "Reviews & quality", types: ["REVIEWER_ASSIGNMENT", "ESCALATION"] },
-  { title: "Secure intake", types: ["EVIDENCE_REQUEST_UPDATE"] },
-  { title: "Collaboration", types: ["MENTION", "ASSIGNED_THREAD"] },
-  { title: "Governance & retention", types: ["GOVERNANCE_UPDATE"] },
+/**
+ * B2B-F-12 (Free-user audit 0ea0) — each group carries the web's operational
+ * DOMAIN (NotificationPreferencesPanel PREFERENCE_GROUPS), so native hides the
+ * same groups the web hides for the same actor (`preferenceGroupVisible`).
+ */
+export type PreferenceGroupDomain = "integrity" | "review" | "intake" | "collaboration" | "governance";
+const PREFERENCE_GROUPS: ReadonlyArray<{ title: string; domain: PreferenceGroupDomain; types: ReadonlyArray<string> }> = [
+  { title: "Evidence integrity & verification", domain: "integrity", types: ["SLA_NEAR_BREACH"] },
+  { title: "Reviews & quality", domain: "review", types: ["REVIEWER_ASSIGNMENT", "ESCALATION"] },
+  { title: "Secure intake", domain: "intake", types: ["EVIDENCE_REQUEST_UPDATE"] },
+  { title: "Collaboration", domain: "collaboration", types: ["MENTION", "ASSIGNED_THREAD"] },
+  { title: "Governance & retention", domain: "governance", types: ["GOVERNANCE_UPDATE"] },
 ];
 
 /**
  * The published rows, in the web's groups. A category the server publishes
  * that no group names still renders — under "Other" — rather than vanishing.
  */
-export function groupPreferenceRows(rowsIn: PreferenceRow[]): Array<{ title: string; rows: PreferenceRow[] }> {
+export function groupPreferenceRows(
+  rowsIn: PreferenceRow[],
+  groupVisible: (domain: PreferenceGroupDomain) => boolean = () => true,
+): Array<{ title: string; rows: PreferenceRow[] }> {
   const out: Array<{ title: string; rows: PreferenceRow[] }> = [];
   const placed = new Set<string>();
   for (const g of PREFERENCE_GROUPS) {
@@ -155,7 +164,8 @@ export function groupPreferenceRows(rowsIn: PreferenceRow[]): Array<{ title: str
       .map((t) => rowsIn.find((r) => r.type === t))
       .filter((r): r is PreferenceRow => Boolean(r));
     members.forEach((r) => placed.add(r.type));
-    if (members.length > 0) out.push({ title: g.title, rows: members });
+    // A hidden group's types stay placed: they do not reappear under "Other".
+    if (members.length > 0 && groupVisible(g.domain)) out.push({ title: g.title, rows: members });
   }
   const rest = rowsIn.filter((r) => !placed.has(r.type));
   if (rest.length > 0) out.push({ title: "Other", rows: rest });

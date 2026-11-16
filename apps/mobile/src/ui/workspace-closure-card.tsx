@@ -65,6 +65,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
   const [reopenNotice, setReopenNotice] = useState<string | null>(null);
   const [reopenError, setReopenError] = useState<string | null>(null);
   const stepUp = useStepUp();
+  const reopenStepUp = useStepUp();
 
   const reload = useCallback(async () => {
     try {
@@ -124,21 +125,29 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
     [teamId, reload],
   );
 
+  // B3A-F-008 — reopen carries the SAME account step-up loop closure does: the
+  // first attempt sends no proof; a STEP_UP_REQUIRED / STEP_UP_INVALID raises
+  // the sheet and the same request is retried with `stepUp`. An API that does
+  // not yet enforce it simply answers the first attempt.
+  const onReopenError = useCallback(
+    (err: unknown) => {
+      setReopenError(reopenFailureCopy(err, toSafeUserError(err).message || null));
+      if ((err as { statusCode?: number }).statusCode === 409) void reload();
+    },
+    [reload],
+  );
+
   const reopen = useCallback(async () => {
     setReopenBusy(true);
     setReopenError(null);
     setReopenNotice(null);
-    try {
-      await apiFetch(buildWorkspaceReopenPath(teamId), { method: "POST", body: JSON.stringify({}) });
+    await reopenStepUp.start(async (proof) => {
+      await apiFetch(buildWorkspaceReopenPath(teamId), { method: "POST", body: JSON.stringify(withStepUp({}, proof)) });
       setReopenNotice(WORKSPACE_REOPENED_NOTICE);
       await reload();
-    } catch (err) {
-      setReopenError(reopenFailureCopy(err, toSafeUserError(err).message || null));
-      if ((err as { statusCode?: number }).statusCode === 409) void reload();
-    } finally {
-      setReopenBusy(false);
-    }
-  }, [teamId, reload]);
+    }, onReopenError);
+    setReopenBusy(false);
+  }, [teamId, reload, reopenStepUp, onReopenError]);
 
   if (!loaded) return null;
   const { state, membersLosingAccess, requestBlockers } = loaded;
@@ -287,6 +296,16 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
           void stepUp.retry(proof, onRequestError).finally(() => setBusy(false));
         }}
         onCancel={stepUp.dismiss}
+      />
+      <StepUpSheet
+        challenge={reopenStepUp.challenge}
+        title="Confirm reopening this workspace."
+        busy={reopenBusy}
+        onSubmit={(proof) => {
+          setReopenBusy(true);
+          void reopenStepUp.retry(proof, onReopenError).finally(() => setReopenBusy(false));
+        }}
+        onCancel={reopenStepUp.dismiss}
       />
     </ProovraCard>
   );

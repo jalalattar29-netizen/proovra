@@ -26,6 +26,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { redactionDenialOf } from "../../lib/redaction/refusal";
 
 import { apiFetch } from "../../lib/api";
 import { formatUserDateTime } from "../../lib/date";
@@ -100,7 +101,7 @@ export function DetectionManifestPanel({
     } catch (err) {
       if (isStale(captured)) return;
       const status = (err as { statusCode?: number })?.statusCode;
-      const denial = (err as { denial?: string })?.denial;
+      const denial = redactionDenialOf(err);
       if (status === 403 || status === 404 || denial === "NOT_PERMITTED") {
         setState({
           kind: "denied",

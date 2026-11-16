@@ -1,6 +1,7 @@
 import { triggerLegalGate } from "./auth/legal-gate";
 import { sessionEndReason, type SessionEndReason } from "./auth/session-end";
 import { reportNetworkOffline, reportNetworkOnline } from "./network/network-state";
+import { observeClientContractHeaders } from "./network/client-contract";
 
 /** Canonical API origin — the ONE place the base URL is resolved. */
 export function apiBaseUrl(): string {
@@ -97,6 +98,8 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
     reportNetworkOffline(); // transport failure ⇒ offline (NOT invalid creds)
     throw e;
   }
+  // B8-F-402 — every answer states the contract it serves; absent headers change nothing.
+  observeClientContractHeaders((name) => res.headers?.get?.(name));
 
   if (!res.ok) {
     const headerReqId = res.headers.get("x-request-id") ?? undefined;
@@ -254,6 +257,7 @@ export async function publicFetch(
     reportNetworkOffline();
     throw e;
   }
+  observeClientContractHeaders((name) => res.headers?.get?.(name));
 
   if (!res.ok) {
     let raw = "";

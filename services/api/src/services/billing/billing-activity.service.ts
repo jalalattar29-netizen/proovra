@@ -353,12 +353,28 @@ function requiredCapability(product: CheckoutAttemptProduct): BillingCapability 
   return product === "PLAN" ? "BILLING_MANAGE" : "BILLING_ADDON_PURCHASE";
 }
 
+/**
+ * B6-F-01 (free audit 0ea0) — who may re-check or abandon an attempt the
+ * account itself started. The purchase capability, as before; OR
+ * BILLING_CANCEL (AUD-08): a managed payer keeps exactly "see it and stop it"
+ * over billing that still charges them, and an open checkout it started is
+ * such billing. Abandoning only stops; re-checking only records what the
+ * provider proves. Neither buys or changes anything, so neither needs the
+ * right to buy (the route already asks BILLING_HISTORY_VIEW to see the row).
+ */
+function mayActOnAttempt(account: Pick<BillingAccountRef, "capabilities">, product: CheckoutAttemptProduct): boolean {
+  return (
+    account.capabilities.includes(requiredCapability(product)) ||
+    account.capabilities.includes("BILLING_CANCEL")
+  );
+}
+
 function actionsFor(
   account: BillingAccountRef,
   product: CheckoutAttemptProduct,
   state: BillingActivityState,
 ): BillingActivityItem["actions"] {
-  const may = account.capabilities.includes(requiredCapability(product));
+  const may = mayActOnAttempt(account, product);
   const open = ![
     "FAILED",
     "CANCELED",
@@ -624,7 +640,7 @@ function forbidden(): Error {
 async function authorize(account: BillingAccountRef, attemptId: string): Promise<OwnedAttempt> {
   const owned = await resolveOwnedAttempt(account, attemptId);
   if (!owned) throw notFound();
-  if (!account.capabilities.includes(requiredCapability(owned.product))) throw forbidden();
+  if (!mayActOnAttempt(account, owned.product)) throw forbidden();
   return owned;
 }
 

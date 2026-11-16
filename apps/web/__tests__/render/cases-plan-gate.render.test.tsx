@@ -40,6 +40,8 @@ vi.mock("../../lib/platform-context", () => ({
   useActiveWorkspaceId: () => "personal-1",
   usePersonalSpace: () => ({ id: "personal-1", status: "active" }),
   useEnterpriseSurfaceAccess: () => false,
+  // The real useCan reads the envelope's server-projected capabilities.
+  useCan: (key: string) => (envelope.capabilities as Record<string, boolean>)[key] === true,
   usePlanFeature: (key: string) => {
     const v = planFeatures.current[key];
     return typeof v === "boolean" ? v : null;
@@ -69,6 +71,7 @@ import { AppAccountToolbar } from "../../components/app-shell-v2/AppAccountToolb
 afterEach(() => {
   cleanup();
   apiFetch.mockReset();
+  (envelope.capabilities as Record<string, boolean>).CASES_MANAGE = true;
 });
 
 const QUEUE = (total: number) => ({
@@ -118,5 +121,39 @@ describe("F-10: case creation follows the active workspace's plan", () => {
     planFeatures.current = { casesIncluded: true };
     render(<AppAccountToolbar onLogout={() => {}} />);
     expect(document.querySelector("[data-app-header-primary-action]")).not.toBeNull();
+  });
+});
+
+describe("B3C-F-005 / A2-14: the case row menu offers a VIEWER only Open", () => {
+  const ROW = {
+    id: "c0ffee00-0000-4000-8000-000000000001", name: "Leaking roof", referenceNumber: null, status: "OPEN", priority: "P1",
+    ownerUserId: "u-2", owner: null, teamId: "personal-1", linkedEvidenceCount: 0, evidenceGapCount: 0, openIncidentCount: 0,
+    overdueWorkflowCount: 0, governanceBlockerCount: 0, activeLegalHoldCount: 0, riskScore: 0, riskLevel: "LOW",
+    riskReasonCodes: [], recommendedAction: null, latestActivityAtUtc: "2026-11-13T09:00:00.000Z",
+  };
+  async function openMenu(role: string) {
+    planFeatures.current = { casesIncluded: true };
+    // Integration fix-up 2026-11-16 (B3C-F-005): the page now decides from the
+    // server-projected CASES_MANAGE capability (granted to every writer role,
+    // never to VIEWER) instead of comparing the queue's role string, so the
+    // fixture states the capability the server projects for that role.
+    (envelope.capabilities as Record<string, boolean>).CASES_MANAGE = role !== "VIEWER";
+    apiFetch.mockResolvedValue({ ...QUEUE(1), workspace: { teamId: "personal-1", role }, items: [ROW] });
+    render(<CasesIndex />);
+    const trigger = await screen.findByRole("button", { name: "Case actions" });
+    trigger.click();
+    return await screen.findByRole("menu");
+  }
+
+  it("VIEWER: Open only", async () => {
+    const menu = await openMenu("VIEWER");
+    const items = Array.from(menu.querySelectorAll("[role='menuitem']")).map((n) => n.textContent?.trim());
+    expect(items).toEqual(["Open"]);
+  });
+
+  it("OWNER: the writes stay", async () => {
+    const menu = await openMenu("OWNER");
+    const items = Array.from(menu.querySelectorAll("[role='menuitem']")).map((n) => n.textContent?.trim());
+    expect(items).toEqual(expect.arrayContaining(["Open", "Rename", "Archive", "Delete"]));
   });
 });

@@ -144,12 +144,20 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
        * after the code sent TO it comes back, and that the step-up gate reads
        * the factor rather than a request field.
        */
-      await enforceRateLimit({
+      // B1-F-001 (Free-user audit 0ea0) — the verdict is RETURNED, not thrown.
+      // It used to be discarded, so a fresh account (no factor, so no step-up)
+      // could drive unlimited code sends to new numbers. Refused before any
+      // factor row or provider call.
+      const enrolBound = await enforceRateLimit({
         key: `contact-factor-enroll:${userId}`,
         bound: "global",
         max: 5,
         windowSec: 3600,
       });
+      if (!enrolBound.allowed) {
+        reply.header("Retry-After", String(Math.max(1, Math.ceil((enrolBound.resetAtMs - Date.now()) / 1000))));
+        return reply.code(429).send({ error: { code: "rate_limited" } });
+      }
 
       try {
         const { factor, destinationE164 } = await startContactFactorEnrollment({

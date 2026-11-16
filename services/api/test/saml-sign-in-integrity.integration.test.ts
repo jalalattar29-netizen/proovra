@@ -405,6 +405,13 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
         externalEmail: email,
       },
     });
+    // B5B-F-302 — only an account this Organization's IdP created is bound as a
+    // managed identity; a self-serve account the owner linked is never
+    // converted (b5b-f-302-self-serve-account-linking.integration.test.ts).
+    await prisma.user.update({
+      where: { id: person.userId },
+      data: { providerUserId: `saml-${org.organizationId}:${email}` },
+    });
     const user = { id: person.userId };
     const secretBytes = await factorFor(user.id);
 
@@ -495,6 +502,11 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
         externalSubjectId: email,
         externalEmail: email,
       },
+    });
+    // B5B-F-302 — an account this Organization's IdP created (see above).
+    await prisma.user.update({
+      where: { id: person.userId },
+      data: { providerUserId: `saml-${org.organizationId}:${email}` },
     });
     await prisma.teamMember.create({
       data: { teamId: org.workspaceId, userId: person.userId, role: "MEMBER", status: "ACTIVE" },

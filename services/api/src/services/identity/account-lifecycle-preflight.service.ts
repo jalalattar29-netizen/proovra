@@ -76,7 +76,7 @@ export type AccountClosureBlocker = {
 
 /** What closure WILL do to other people — shown, never blocking (LIFE-13). */
 export type AccountClosureConsequence = {
-  code: "WORKSPACE_MEMBERS_LOSE_ACCESS" | "PUBLIC_VERIFICATION_REMAINS";
+  code: "WORKSPACE_MEMBERS_LOSE_ACCESS" | "PUBLIC_VERIFICATION_REMAINS" | "RECORDS_NOT_IN_ACCOUNT_EXPORT";
   message: string;
   /**
    * WORKSPACE_MEMBERS_LOSE_ACCESS: other ACTIVE or SUSPENDED members across
@@ -122,6 +122,34 @@ export async function publicVerificationKeptConsequence(
       count === 1
         ? "Leaves 1 record\u2019s public verification page online: anyone with its verification reference, QR code or an issued report or package can still check it after your account closes. The page shows only the verification result, never your files or private details. To take it down first, open the record and use \u201cWithdraw page\u201d in its verification page settings."
         : `Leaves ${count} records\u2019 public verification pages online: anyone with a verification reference, QR code or an issued report or package can still check them after your account closes. The pages show only the verification result, never your files or private details. To take one down first, open the record and use \u201cWithdraw page\u201d in its verification page settings.`,
+    count,
+  };
+}
+
+/**
+ * B1-F-015 (free-audit 0ea0) — THE ACCOUNT EXPORT IS NOT A RECORDS EXPORT.
+ *
+ * `buildAccountExportPackage` holds the person's profile, sign-in methods,
+ * memberships and activity by design, never evidence files, reports or
+ * verification packages. Closure is irreversible, so a person who owns records
+ * is told at the decision point, together with where records are taken out
+ * (each record's own downloads). Counted for the GET preview only; it informs,
+ * it never blocks.
+ */
+export async function recordsNotInAccountExportConsequence(
+  userId: string,
+  client: Pick<typeof prisma, "evidence"> = prisma,
+): Promise<AccountClosureConsequence | null> {
+  const count = await client.evidence.count({
+    where: { ownerUserId: userId, lifecycleState: { not: "DESTROYED" } },
+  });
+  if (count === 0) return null;
+  return {
+    code: "RECORDS_NOT_IN_ACCOUNT_EXPORT",
+    message:
+      count === 1
+        ? "Does not hand you your record: the account data export holds your profile, sign-in methods, memberships and activity, not evidence files, reports or verification packages. To keep your record, open it and download its original, report or package before you close."
+        : `Does not hand you your ${count} records: the account data export holds your profile, sign-in methods, memberships and activity, not evidence files, reports or verification packages. To keep a record, open it and download its original, report or package before you close.`,
     count,
   };
 }

@@ -384,3 +384,21 @@ test("parity: security activity reads the bounded window and pages it (SecurityE
   await r.press("View more (2 older)");
   assert.equal(r.hasText("View more (2 older)"), false);
 });
+
+test("B1-F-002: a phone-only account with no recovery codes is warned, and the action GENERATES (nothing is replaced)", async () => {
+  routes["/v1/identity/mfa/factors"] = () => ({
+    body: { hasMfa: true, factors: [{ id: "f1", label: "Phone", status: "ACTIVE" }], recoveryCodesRemaining: 0 },
+  });
+  routes["/v1/identity/mfa/recovery-codes/regenerate"] = () => ({ body: { recoveryCodes: ["cccc-3333"] } });
+  const r = await render();
+  assert.ok(r.hasText("You have no recovery codes. If you lose access to your second factor, you will not be able to sign in"));
+  assert.ok(r.hasText("Only one second factor is set up."));
+  assert.equal(r.hasText("Regenerate before you run out."), false);
+  await r.press("Generate recovery codes");
+  assert.ok(r.hasText("Generate recovery codes?"));
+  assert.equal(r.hasText("Your existing recovery codes stop working immediately."), false, "claimed codes exist that do not");
+  await r.press("Generate");
+  await settle();
+  assert.ok(requests.some((x) => x.path === "/v1/identity/mfa/recovery-codes/regenerate" && x.method === "POST"));
+  assert.ok(r.hasText("cccc-3333"));
+});

@@ -59,7 +59,10 @@ const MUST_NOT_BE_CORE: ReadonlyArray<{ path: string; label: string }> = [
   { path: "/reviewer-ops", label: "Reviewer ops" },
   { path: "/investigation", label: "Investigation power tools" },
   { path: "/ops", label: "Internal platform ops" },
-  { path: "/platform", label: "Platform internal" },
+  // B2A-F-15 (Free-user audit 0ea0) — "/platform" left this list: no
+  // internal console lives there (internal consoles are /ops and
+  // /admin/platform/*, both still pinned), and app/platform is the PUBLIC
+  // marketing overview the stale INTERNAL rule 404'd on the app host.
   { path: "/tools", label: "All Tools (internal catalog)" },
 ];
 

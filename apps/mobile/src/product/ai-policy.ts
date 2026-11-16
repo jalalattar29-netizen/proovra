@@ -17,7 +17,7 @@
 
 import { formatTimestampParts } from "@proovra/shared";
 
-export type AiSettingsMode = "personal-assistance" | "personal-not-included" | "org-governance" | "org-readonly";
+export type AiSettingsMode = "personal-assistance" | "personal-not-included" | "personal-readonly" | "org-governance" | "org-readonly";
 
 /** aiAssistanceView.ts deriveAiSettingsMode, verbatim. */
 export function deriveAiSettingsMode(input: {
@@ -28,6 +28,12 @@ export function deriveAiSettingsMode(input: {
   if (input.workspaceKind === "ORGANIZATION") {
     return input.canManageWorkspaceAiPolicy === true ? "org-governance" : "org-readonly";
   }
+  // B6-F-27 (free-user audit 0ea0) — editability follows SETTINGS_MANAGE, not
+  // the space type: a member of someone else's shared personal workspace reads
+  // the owner's policy (intelligence.read) but may not change it, so they get
+  // the read-only view, never switches whose save is refused. Unknown (null)
+  // keeps the server-gated editor, as before.
+  if (input.canManageWorkspaceAiPolicy === false) return "personal-readonly";
   if (input.monthlyAllowance === 0) return "personal-not-included";
   return "personal-assistance";
 }
@@ -95,9 +101,53 @@ export function buildAiPolicyBody(teamId: string, envelope: AiPolicyEnvelope, dr
   };
 }
 
-export function aiPolicySaveFailure(statusCode: number | undefined): { kind: "conflict" | "denied" | "error"; message: string } {
+/**
+ * B6-F-22 / B6-F-46 — the switches a Free / pay-per-evidence workspace plan
+ * does not include. `PUT /v1/workspaces/ai-policy` answers 403
+ * `ENTITLEMENT_REQUIRED` when one is switched ON there; turning one off, or
+ * re-sending a value the row already holds, still succeeds.
+ */
+export const PAID_AI_POLICY_KEYS: ReadonlySet<AiPolicyKey> = new Set<AiPolicyKey>([
+  "semanticSearchEnabled",
+  "embeddingsAllowed",
+  "contentIntelligenceEnabled",
+  "rawContentProcessingAllowed",
+  "ocrAllowed",
+  "transcriptionAllowed",
+  "reviewerCopilotEnabled",
+  "caseCopilotEnabled",
+]);
+export const AI_NOT_INCLUDED_COPY = "Not included in your plan";
+
+/** False only for a plan known not to include the paid switches (FREE / PAYG). Unknown keeps them. */
+export function aiPlanIncludesPaidSwitches(plan: string | null | undefined): boolean {
+  const p = (plan ?? "").toUpperCase();
+  return p !== "FREE" && p !== "PAYG";
+}
+
+/**
+ * A paid switch is plan-locked when the plan lacks it AND the saved row has it
+ * off: a switch already on (legacy) may still be turned off, which the API allows.
+ */
+export function aiSwitchPlanLocked(key: AiPolicyKey, plan: string | null | undefined, saved: AiPolicy | null): boolean {
+  return PAID_AI_POLICY_KEYS.has(key) && !aiPlanIncludesPaidSwitches(plan) && saved?.[key] !== true;
+}
+
+function entitlementRequired(err: unknown): boolean {
+  const e = o(err);
+  const code = (o(o(e["body"])["error"])["code"] as unknown) ?? e["code"];
+  return code === "ENTITLEMENT_REQUIRED";
+}
+
+export function aiPolicySaveFailure(
+  statusCode: number | undefined,
+  err?: unknown,
+): { kind: "conflict" | "denied" | "error"; message: string } {
   if (statusCode === 409) {
     return { kind: "conflict", message: "These settings were changed elsewhere. Reload to see the latest, then re-apply your changes." };
+  }
+  if (statusCode === 403 && entitlementRequired(err)) {
+    return { kind: "denied", message: `${AI_NOT_INCLUDED_COPY}: one of the switches you turned on needs a plan that includes it. Nothing was changed.` };
   }
   if (statusCode === 403) return { kind: "denied", message: "Only workspace owners or admins can change AI settings." };
   return { kind: "error", message: "The settings could not be saved. Please try again." };

@@ -12,7 +12,7 @@
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { loadModule, renderComponent, React, act } from "./support/render.mjs";
-import { authenticatedRoutes, signIn, TEST_TEAM_ID } from "./support/authenticated.mjs";
+import { authenticatedRoutes, platformContextEnvelope, signIn, TEST_TEAM_ID } from "./support/authenticated.mjs";
 
 const h = React.createElement;
 let M;
@@ -51,6 +51,17 @@ beforeEach(async () => {
   requests = [];
   routes = {
     ...authenticatedRoutes(),
+    // B2B-F-12 — the groups follow the web's operational eligibility; this
+    // actor is eligible for every domain (a Free personal actor is pinned below).
+    "/v1/platform/context": () =>
+      platformContextEnvelope({
+        planFeatures: { intakeIncluded: true },
+        operationalEligibility: {
+          reviews: { canParticipate: true },
+          collaboration: { hasActiveMembership: true },
+          governance: { canViewOperational: true },
+        },
+      }),
     "/v1/me/notification-preferences": () => ({ status: 200, body: PREFS() }),
     "/v1/me/notification-schedule": () => ({ status: 200, body: SCHEDULE() }),
     "/v1/users/me": () => ({ status: 200, body: { user: { id: "user-1", timezone: "Europe/Berlin" } } }),
@@ -131,4 +142,16 @@ test("parity: an unprovisioned schedule says so, never renders defaults as saved
   assert.ok(r.hasText("Quiet hours and digest scheduling aren’t provisioned in this environment yet. Your other preferences still work."));
   const save = r.byLabel("Save schedule").find((n) => n.props.accessibilityRole === "button");
   assert.equal(save.props.accessibilityState.disabled, true);
+});
+
+// B2B-F-12 (Free-user audit 0ea0) — native hides the groups the web hides for
+// the same actor (NotificationPreferencesPanel preferenceGroupVisible).
+test("B2B-F-12: a Free personal actor sees the integrity group only, as on the web", async () => {
+  routes["/v1/platform/context"] = () =>
+    platformContextEnvelope({ activeSpace: { id: TEST_TEAM_ID, type: "PERSONAL", plan: "FREE", displayName: "Personal Space", status: "active" }, planFeatures: { intakeIncluded: false } });
+  const r = await render();
+  assert.ok(r.hasText("Evidence integrity & verification"));
+  for (const g of ["Reviews & quality", "Secure intake", "Collaboration", "Governance & retention"]) {
+    assert.equal(r.hasText(g), false, `${g} is offered although the web hides it for this actor`);
+  }
 });

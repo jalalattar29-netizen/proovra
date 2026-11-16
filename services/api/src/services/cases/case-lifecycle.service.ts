@@ -647,11 +647,23 @@ export async function deleteCaseComment(
 }
 
 export async function resolveCaseComment(
-  input: CaseActorContext & { caseId: string; commentId: string },
+  input: CaseActorContext & {
+    caseId: string;
+    commentId: string;
+    /**
+     * B3C-F-009 (free-audit 0ea0): the visibilities the actor may READ
+     * (`caseCommentVisibilitiesFor`). A note they cannot read is a note
+     * they cannot resolve; it answers exactly like a missing one (EVID-011).
+     */
+    readableVisibilities: readonly CaseCommentVisibilityValue[];
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.CaseComment> {
   const existing = await client.caseComment.findFirst({
-    where: { id: input.commentId, caseId: input.caseId },
+    where: {
+      id: input.commentId,
+      ...caseCommentReadFilter(input.caseId, input.actorUserId, input.readableVisibilities),
+    },
   });
   if (!existing) throw new CaseError("comment_not_found");
   const row = await client.caseComment.update({

@@ -12,6 +12,7 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { queryBoolean } from "../http/query-boolean.js";
 import { INTERNAL_RESOURCE_TYPES, type InternalResourceType } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
@@ -59,6 +60,10 @@ export async function phase11TenantRoutes(app: FastifyInstance) {
         resourceType: body.resourceType,
         resourceId: body.resourceId,
       }).catch(() => undefined);
+      // B2A-F-07 — a family with no id-bearing page: an explicit, type-only answer.
+      if (decision.reason === "unsupported_type") {
+        return reply.code(422).send({ error: { code: "DEEP_LINK_TYPE_UNSUPPORTED", resourceType: body.resourceType } });
+      }
       return reply.code(404).send({ error: { code: "not_found" } });
     }
 
@@ -89,7 +94,7 @@ export async function phase11TenantRoutes(app: FastifyInstance) {
     untilUtc: z.string().datetime().optional(),
     limit: z.coerce.number().int().min(1).max(100).optional(),
     cursorId: z.string().uuid().optional(),
-    export: z.coerce.boolean().optional(),
+    export: queryBoolean.optional(),
   });
   app.get("/v1/audit/tenant", { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const q = AuditQuery.parse(req.query ?? {});

@@ -380,7 +380,8 @@ test("the phone bottom bar is a bounded Workspace subset without the header's se
   const env = {
     activeSpace: { id: "w1", type: "PERSONAL" },
     capabilities: allCapabilities(),
-    planFeatures: { intakeIncluded: true },
+    // B2A-F-04 — Cases is nav-gated on casesIncluded.
+    planFeatures: { intakeIncluded: true, casesIncluded: true },
   };
   const bar = N.bottomBarItems(N.resolveNativeNavigation(N.navigationInputFromEnvelope(env)));
   assert.ok(bar.length <= N.BOTTOM_BAR_LIMIT);
@@ -388,6 +389,11 @@ test("the phone bottom bar is a bounded Workspace subset without the header's se
     bar.map((i) => i.route.id),
     ["workspace.home", "account.notifications", "workspace.cases", "workspace.evidence", "workspace.capture"],
   );
+  // B2A-F-04 (Free-user audit 0ea0) — FREE excludes cases: no Cases tab.
+  const free = N.bottomBarItems(
+    N.resolveNativeNavigation(N.navigationInputFromEnvelope({ ...env, planFeatures: { intakeIncluded: false, casesIncluded: false } })),
+  );
+  assert.equal(free.some((i) => i.route.id === "workspace.cases"), false, "a Free plan was offered the Cases tab");
 });
 
 test("the old hardcoded array is gone from the shell", () => {

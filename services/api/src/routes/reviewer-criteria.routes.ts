@@ -14,6 +14,22 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
+
+/**
+ * B3B-F-501 (Free-user audit 0ea0) — authoring and publishing criteria is
+ * review work, and the review capability ladder (plan-catalog.ts) includes
+ * none of it on FREE. Asked on the WRITES only: reads stay open, so a
+ * downgraded workspace still sees the criteria it published. The tier is the
+ * record-level review lifecycle (BASIC_RECORD_REVIEW, PRO and above) that
+ * criteria guide. Answered like the other review gates
+ * (review-operations.routes.ts), after membership and role.
+ */
+async function refuseUnlessReviewIncluded(teamId: string, reply: FastifyReply): Promise<boolean> {
+  if (await workspaceIncludesReviewCapability(teamId, "BASIC_RECORD_REVIEW")) return false;
+  reply.code(404).send({ error: { code: "reviewer_operations_not_included", details: null } });
+  return true;
+}
 
 /**
  * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical review-criteria gate.
@@ -79,6 +95,7 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
     if (ok.role !== "OWNER" && ok.role !== "ADMIN") {
       return reply.code(403).send({ error: { code: "permission_denied", reason: "Only owners/admins author reviewer criteria." } });
     }
+    if (await refuseUnlessReviewIncluded(body.teamId, reply)) return;
     const set = await prisma.reviewerCriteriaSet.create({
       data: {
         workspaceId: body.teamId, name: body.name, description: body.description ?? null,
@@ -114,6 +131,7 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
     if (ok.role !== "OWNER" && ok.role !== "ADMIN") {
       return reply.code(403).send({ error: { code: "permission_denied" } });
     }
+    if (await refuseUnlessReviewIncluded(body.teamId, reply)) return;
     const set = await prisma.reviewerCriteriaSet.findUnique({
       where: { id: setId },
       include: { versions: { orderBy: { version: "desc" }, take: 1 } },
@@ -167,6 +185,7 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
     const ok = await requireMember(req, reply, body.teamId);
     if (!ok) return;
     if (ok.role !== "OWNER" && ok.role !== "ADMIN") return reply.code(403).send({ error: { code: "permission_denied" } });
+    if (await refuseUnlessReviewIncluded(body.teamId, reply)) return;
     const set = await prisma.reviewerCriteriaSet.findUnique({
       where: { id: setId },
       include: { versions: { orderBy: { version: "desc" }, take: 1 } },
@@ -311,6 +330,7 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
     const ok = await requireMember(req, reply, body.teamId);
     if (!ok) return;
     if (ok.role !== "OWNER" && ok.role !== "ADMIN") return reply.code(403).send({ error: { code: "permission_denied" } });
+    if (await refuseUnlessReviewIncluded(body.teamId, reply)) return;
     const set = await prisma.reviewerCriteriaSet.findUnique({
       where: { id: setId },
       include: { versions: { orderBy: { version: "desc" }, take: 1, include: { criteria: true } } },
@@ -355,6 +375,7 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
     const ok = await requireMember(req, reply, body.teamId);
     if (!ok) return;
     if (ok.role !== "OWNER" && ok.role !== "ADMIN") return reply.code(403).send({ error: { code: "permission_denied" } });
+    // Retiring withdraws a set; it stays open after a downgrade (B3B-F-501).
     const set = await prisma.reviewerCriteriaSet.findUnique({ where: { id: setId } });
     if (!set || set.workspaceId !== body.teamId) return reply.code(404).send({ error: { code: "not_found" } });
     await prisma.$transaction([

@@ -64,6 +64,7 @@ import { dispatchEnqueuedEmailNotifications } from "../services/notifications/in
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
+import { refuseWithoutCurrentLegalAcceptance } from "../middleware/legal-acceptance-gate.js";
 import { evaluateWorkspaceClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import {
@@ -2473,6 +2474,19 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
+      // B3A-F-007 (free-audit 0ea0) — THE EXEMPTION COVERS THE REVOCATION, NOT
+      // WHAT RIDES WITH IT. This route is legal-gate exempt (REVOCATION) so an
+      // administrator with stale terms can always take access away. A removal
+      // that also TRANSFERS the member's records or share grants is a
+      // substantive write (custody events, ownership, live links), and A1-06
+      // asks current terms for those: refused 428 here, before anything moves.
+      if (
+        (transferToUserId || transferShareGrantsToOwner) &&
+        (await refuseWithoutCurrentLegalAcceptance(req, reply, userId))
+      ) {
+        return;
+      }
+
       const target = await getTeamMemberByMemberId(teamId, memberId);
 
       if (!target) {
@@ -3255,16 +3269,19 @@ export async function teamsRoutes(app: FastifyInstance) {
       //
       // A restricted case stays closed here too: an administrator off its list gets
       // the same answer as a missing case, not the row and the link.
+      //
+      // B3A-F-003 (free-audit 0ea0): membership of the owner is not consent. An
+      // administrator could annex a member's unworkspaced case, and a case in
+      // any other workspace (the owner's Personal one included) answered 400
+      // instead of 404, confirming it exists. Now: a case already in THIS
+      // workspace is "already linked"; an unworkspaced case is linkable by its
+      // OWNER only; the caller's own case elsewhere is "already linked"; every
+      // other case is indistinguishable from a missing one.
       const candidate = await prisma.case.findFirst({
         where: { id: caseId, ...caseVisibleToWhere(userId) },
       });
-      const ownerIsActiveMember = candidate
-        ? (await prisma.teamMember.count({
-            where: { teamId, userId: candidate.ownerUserId, status: "ACTIVE" },
-          })) > 0
-        : false;
       const caseItem =
-        candidate && (candidate.teamId === teamId || ownerIsActiveMember) ? candidate : null;
+        candidate && (candidate.teamId === teamId || candidate.ownerUserId === userId) ? candidate : null;
 
       if (!caseItem) {
         await auditTeamAction(req, {
@@ -3288,18 +3305,6 @@ export async function teamsRoutes(app: FastifyInstance) {
           metadata: { reason: "case_already_linked", caseId },
         });
         return reply.code(400).send({ code: "CASE_ALREADY_IN_WORKSPACE", message: "This case already belongs to a workspace." });
-      }
-
-      if (caseItem.ownerUserId !== userId && !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        await auditTeamAction(req, {
-          userId,
-          action: "teams.case_link",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: teamId,
-          metadata: { reason: "not_owner_or_admin", caseId },
-        });
-        return reply.code(403).send({ code: "FORBIDDEN", message: "Only the case owner or a workspace administrator can add this case." });
       }
 
       // The link and its audit row commit together (members re-audit AUD-01).

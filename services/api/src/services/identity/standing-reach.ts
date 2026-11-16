@@ -40,6 +40,10 @@ type ReachTx = Pick<
   | "workflowIntakeLink"
   // A2-10 — a departing creator's integration keys end with their grants.
   | "apiCredential"
+  // B7B-F09 — and the webhooks they configured.
+  | "webhookEndpoint"
+  | "automationWebhookDestination"
+  | "lifecycleWebhookEndpoint"
 > &
   ReleaseTx;
 

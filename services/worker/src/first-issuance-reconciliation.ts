@@ -45,6 +45,7 @@ import { logger } from "./logger.js";
 import { enqueueReportGenerationRequest } from "./queue.js";
 import { requestReportGenerationFromWorker } from "./report-generation-authority.js";
 import { resolveEvidenceOutputIssuance } from "./output-issuance.js";
+import { packageRebuildFitsStorage } from "./workspace-billing.js";
 
 /** Records signed at least this long ago; younger ones belong to finalize. */
 const MIN_SIGNED_AGE_MS = 15 * 60 * 1000;
@@ -88,6 +89,8 @@ export type FirstIssuanceSummary = {
   packageScanned: number;
   packageScheduled: number;
   packageSkippedNotEntitled: number;
+  /** B5B-F-402 — latest package request was storage-refused and it still would not fit. */
+  packageSkippedStorageRefused: number;
   unresolved: number;
   failed: number;
 };
@@ -113,6 +116,7 @@ export async function runFirstIssuanceReconciliation(options: {
     packageScanned: 0,
     packageScheduled: 0,
     packageSkippedNotEntitled: 0,
+    packageSkippedStorageRefused: 0,
     unresolved: 0,
     failed: 0,
   };
@@ -294,6 +298,30 @@ export async function runFirstIssuanceReconciliation(options: {
         }
         if (issuance.decision !== "ENTITLED" || !issuance.verificationPackageIncluded) {
           summary.packageSkippedNotEntitled++;
+          continue;
+        }
+        // B5B-F-402 (free audit 0ea0) — the storage gate already refused this
+        // version's package (its latest request settled NOT_APPLICABLE_STORAGE_
+        // LIMIT). The writer supersedes a NOT_APPLICABLE head with no budget, so
+        // re-asking every tick rebuilt both ZIP profiles only to be refused
+        // again, growing the chain without bound. It is re-asked only once the
+        // allowance would now admit it (storage freed or added).
+        const latestForVersion = await prisma.reportGenerationRequest.findFirst({
+          where: { evidenceId: row.id, reportVersion: row.version },
+          orderBy: { createdAtUtc: "desc" },
+          select: { state: true, terminalReasonCode: true },
+        });
+        if (
+          latestForVersion?.state === "NOT_APPLICABLE" &&
+          latestForVersion.terminalReasonCode === "NOT_APPLICABLE_STORAGE_LIMIT" &&
+          !(await packageRebuildFitsStorage({
+            ownerUserId: row.owner_user_id,
+            teamId: row.team_id,
+            evidenceId: row.id,
+            version: row.version,
+          }))
+        ) {
+          summary.packageSkippedStorageRefused++;
           continue;
         }
         if (options.dryRun || !packageRecoveryEnabled) {

@@ -38,11 +38,12 @@ test("the summary carries the same filters as the list, so workspace counts foll
   };
   const path = mod.buildLibrarySummaryPath(f);
   assert.match(path, /^\/v1\/evidence\/library-summary\?/);
-  for (const re of [/scope=archived/, /search=car/, /status=signed/, /type=multipart/, /caseAssignment=unassigned/, /reportReady=missing/, /acquisition=NOT_RECORDED/]) {
+  for (const re of [/scope=archived/, /search=car/, /status=signed/, /type=multipart/, /caseAssignment=unassigned/, /reportReady=missing/, /acquisition=NOT_RECORDED/, /review=review-required/, /retention=protected/]) {
     assert.match(path, re);
   }
-  // Review and retention have no route parameter; sort/limit/cursor are not aggregation inputs.
-  assert.doesNotMatch(path, /review|retention|sort=|limit=|cursor=/);
+  // B5A-F-08 — review and retention are route parameters (EVID-017), as the web sends
+  // them; sort/limit/cursor are not aggregation inputs.
+  assert.doesNotMatch(path, /sort=|limit=|cursor=/);
   const list = mod.buildLibraryQuery(mod.filtersToQuery(f, "c1"));
   assert.match(list, /caseAssignment=unassigned/);
   assert.match(list, /cursor=c1/);
@@ -64,16 +65,28 @@ test("Reviewer priority re-orders the loaded rows — the route orders priority 
   );
 });
 
-test("Review narrows the loaded rows as the web does", () => {
+test("B5A-F-08 — Review and Retention are server filters, never a narrowing of the loaded page", () => {
   const rows = [
     { id: "ready", reviewReadyAtUtc: "2026-09-01T00:00:00Z" },
     { id: "req", verificationStatus: "REVIEW_REQUIRED" },
     { id: "bad", verificationStatus: "FAILED" },
   ];
-  const on = (review) => mod.applyLoadedRowFilters(rows, { ...mod.DEFAULT_LIBRARY_FILTERS, review }).map((r) => r.id);
-  assert.deepEqual(on("review-ready"), ["ready"]);
-  assert.deepEqual(on("review-required"), ["req"]);
-  assert.deepEqual(on("verification-failed"), ["bad"]);
+  // The server already filtered the page; the client keeps every row it returned.
+  for (const review of ["review-ready", "review-required", "verification-failed"]) {
+    assert.deepEqual(
+      mod.applyLoadedRowFilters(rows, { ...mod.DEFAULT_LIBRARY_FILTERS, review }).map((r) => r.id),
+      ["ready", "req", "bad"],
+    );
+  }
+  const list = new URL(
+    `https://x${mod.buildLibraryQuery(mod.filtersToQuery({ ...mod.DEFAULT_LIBRARY_FILTERS, review: "review-ready", retention: "unprotected" }))}`,
+  ).searchParams;
+  assert.equal(list.get("review"), "review-ready");
+  assert.equal(list.get("retention"), "unprotected");
+  // "all" sends nothing.
+  const none = new URL(`https://x${mod.buildLibraryQuery(mod.filtersToQuery(mod.DEFAULT_LIBRARY_FILTERS))}`).searchParams;
+  assert.equal(none.get("review"), null);
+  assert.equal(none.get("retention"), null);
 });
 
 test("a deep link lands pre-filtered and the reason is shown as a dismissible chip", () => {

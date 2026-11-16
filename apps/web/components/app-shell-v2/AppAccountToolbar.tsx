@@ -33,6 +33,7 @@ import {
 } from "../../lib/platform-context/runtimeReadAccess";
 // P3 domain remediation (2026-07-21) — tenant-boundary switch safety.
 import { getDirtyWorkLabels } from "../../lib/platform-context/dirtyWorkRegistry";
+import { isRecordScopedPath } from "../../lib/navigation/record-scoped-routes";
 import {
   resolveAccountMenu,
   type AccountMenuIconKey,
@@ -42,7 +43,10 @@ import {
 // Record-scoped routes that may not exist / not be authorized in the target
 // workspace. After a successful switch we land on the safe default instead
 // of leaving a stale cross-tenant record on screen.
-const RECORD_SCOPED_ROUTE = /^\/(evidence|cases|reports|organizations|collaboration-teams|teams|intake-links|workflows)\/[^/]+/;
+// B2A-F-13 — no longer a hand-written regex of eight families: every dynamic
+// route of the app tree is classified in lib/navigation/record-scoped-routes
+// (a test fails on an unclassified one).
+const RECORD_SCOPED_ROUTE = { test: (pathname: string) => isRecordScopedPath(pathname) };
 
 type LucideIcon = ForwardRefExoticComponent<
   Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>
@@ -391,12 +395,13 @@ export function AppAccountToolbar({
             type="button"
             className="app-header-search"
             onClick={handleSearchClick}
-            aria-label="Open command palette (search)"
+            // B2A-F-19 — the palette lists pages, not records: the label says so.
+            aria-label="Open command palette (jump to a page)"
             data-app-header-search
           >
             <Search size={16} strokeWidth={1.9} />
             <span className="app-header-search-text">
-              Search or jump to…
+              Jump to a page…
             </span>
             <kbd className="app-header-search-kbd" aria-hidden="true">
               {isMac ? "⌘" : "Ctrl"}
@@ -822,7 +827,7 @@ export function AppAccountToolbar({
                       <AccountMenuIcon iconKey={item.iconKey} />
                       {item.label}
                       {item.external ? (
-                        <span aria-hidden="true" style={{ marginLeft: "auto" }}>
+                        <span aria-hidden="true" style={{ marginInlineStart: "auto" }}>
                           ↗
                         </span>
                       ) : null}

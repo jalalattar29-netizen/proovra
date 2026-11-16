@@ -338,19 +338,36 @@ export function parseCanonicalMobileDeepLink(url: string): ParsedMobileDeepLink 
       ? [parsed.hostname, ...parsed.pathname.split("/").filter(Boolean)]
       : parsed.pathname.split("/").filter(Boolean);
 
-  if (segments.length !== 2) return null;
-  const [family, rawId] = segments;
+  // B2A-F-07 (Free-user audit 0ea0) — the web's case graph,
+  // /investigation/cases/<id>[/graph], names a case: open that case.
+  const shape =
+    segments[0] === "investigation" && segments[1] === "cases" && (segments.length === 3 || (segments.length === 4 && segments[3] === "graph"))
+      ? segments.slice(1, 3)
+      : segments;
+  if (shape.length !== 2) return null;
+  const [family, rawId] = shape;
   const route = MOBILE_ROUTES[family];
-  const id = decodeURIComponent(rawId ?? "").trim();
+  let id: string;
+  try {
+    id = decodeURIComponent(rawId ?? "").trim();
+  } catch {
+    return null;
+  }
   if (!route || !id) return null;
   // MOBILE-006 — /evidence/* is claimed for record links; the web's own
   // /evidence/archive page under it is not a record (workspacePageDeepLink).
   if (family === "evidence" && id === "archive") return null;
 
+  // B2A-F-07 — the destination keeps the one query the record screen reads
+  // (`tab`, e.g. ?tab=discussion). Tenant hints (?workspace= / ?team=) are
+  // still discarded: the SERVER names the workspace.
+  const tab = parsed.searchParams.get("tab");
+  const tabQuery = tab && /^[a-z][a-z0-9_-]{0,40}$/i.test(tab) ? `?tab=${encodeURIComponent(tab)}` : "";
+
   return {
     resourceType: family as "evidence" | "cases",
     resourceId: id,
-    route: route(id),
+    route: `${route(id)}${tabQuery}`,
   };
 }
 
@@ -440,7 +457,12 @@ function verifyUrlSegments(u: URL): string[] {
 }
 
 export type MobileDeepLinkOutcome =
-  | { status: "navigate"; route: string; workspaceId: string }
+  /**
+   * `workspaceId` is the record's owning workspace (the caller switches to it
+   * when it is not the active one), or null when the server could not resolve
+   * this family and the screen authorizes itself (see SERVER_UNRESOLVED_TYPES).
+   */
+  | { status: "navigate"; route: string; workspaceId: string | null }
   | { status: "denied" } // anti-enum: covers missing / mismatch / membership / suspension
   | { status: "offline" } // AUD-0034: no answer from the server at all (transport failure)
   | { status: "blocked_busy" } // active capture/upload — unsafe context change
@@ -465,6 +487,14 @@ let generation = 0;
 export function __resetDeepLinkGeneration(): void {
   generation = 0;
 }
+
+/**
+ * B2A-F-07 — families the server authority cannot resolve yet (no default read
+ * capability, so every link is concealed as 404; CROSS-LANE request filed).
+ * A refusal of one opens the screen in the current workspace, which then
+ * authorizes its own read, instead of saying "not available" to everyone.
+ */
+const SERVER_UNRESOLVED_TYPES: ReadonlySet<string> = new Set(["cases"]);
 
 export async function resolveMobileDeepLink(
   url: string,
@@ -495,6 +525,9 @@ export async function resolveMobileDeepLink(
     const status = (err as { statusCode?: unknown; status?: unknown } | null) ?? null;
     if (typeof status?.statusCode !== "number" && typeof status?.status !== "number") {
       return { status: "offline" };
+    }
+    if (SERVER_UNRESOLVED_TYPES.has(parsed.resourceType)) {
+      return { status: "navigate", route: parsed.route, workspaceId: null };
     }
     return { status: "denied" };
   }

@@ -43,6 +43,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { repairStaleCurrentWorkspacePointers } from "../access/current-workspace-pointer.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
+import { endStandingCredentialsOnLostAuthorityTx } from "../sharing/standing-credential-authority.js";
 import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
 import { enqueueMembershipLifecycleNoticeTx } from "../notifications/membership-lifecycle-notice.js";
 import { evaluateMemberAccess } from "./access-policy.service.js";
@@ -943,9 +944,19 @@ export async function changeMemberRole(
       creators: [{ teamId: input.teamId, userId: target.userId }],
       reason: "CREATOR_LOST_AUTHORITY",
       actorUserId: input.actorUserId,
-      kinds: { ownerShares: losesShares, externalReview: losesExternal },
+      kinds: { ownerShares: losesShares, externalReview: losesExternal, intakeLinks: false, apiKeys: false, webhooks: false },
     });
   }
+  // B3A-F-002 / B3B-F-106 / B7B-F09 — the standing credentials held in their
+  // name (API keys, intake links, webhooks) end when the new role, by the
+  // canonical decision, no longer carries the permission that created them.
+  // The same question is asked again at every use (requireApiKey,
+  // validateIntakeToken) for role changes made on any other path.
+  await endStandingCredentialsOnLostAuthorityTx(tx as never, {
+    teamId: input.teamId,
+    userId: target.userId,
+    actorUserId: input.actorUserId,
+  });
   // PHASE 3 — provenance: manual admin role assignment.
   await recordMembershipGrant(tx, {
     teamMemberId: target.id,

@@ -6,6 +6,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import * as prismaPkg from "@prisma/client";
 import { z } from "zod";
+import { queryBoolean } from "../http/query-boolean.js";
 
 // Search index eligibility + readiness — the ONE authority. The counting
 // queries below emit their eligibility clause from it so the numerator and
@@ -40,11 +41,10 @@ import {
   type SearchFilterInput,
 } from "@proovra/shared";
 import { requireAuth } from "../middleware/auth.js";
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
-import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { authorizeWorkspaceOrFail, contextHasCapability } from "../middleware/authorize.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import {
   createRelationship,
@@ -163,49 +163,47 @@ function fireSearchAnalytics(params: {
 }
 
 /**
- * Phase 24 — 404-on-non-member + reviewer-capability resolution.
- * Returns `null` when the actor is not a team member; the route should
- * return immediately. `isReviewerCapable` controls whether the search
- * service exposes reviewer-restricted rows.
+ * Phase 24 — workspace gate + reviewer-capability resolution.
+ *
+ * B2A-F-10 (free-audit 0ea0): this used to be its own authority — a
+ * `teamMember` read answering 404 for no row, then a bespoke 403 carrying
+ * the policy reason and detail for a suspended or expired row, and no
+ * support-context guard at all. It is now the canonical minted context
+ * (`authorizeWorkspaceOrFail`): one deny vocabulary, the support guard, and
+ * the reviewer capability read from the PROVEN capability set rather than a
+ * second policy call. Returns `null` after sending the canonical denial.
  */
 async function requireSearchActor(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string
-): Promise<{ userId: string; isReviewerCapable: boolean; role: string | null } | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true, role: true },
-  });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  const baseDecision = await evaluateMemberAccess({
-    teamId,
-    userId,
+): Promise<{
+  userId: string;
+  isReviewerCapable: boolean;
+  role: string | null;
+  mayManageSharedViews: boolean;
+  mayPublishSharedViews: boolean;
+} | null> {
+  const ctx = await authorizeWorkspaceOrFail(req, reply, {
+    workspaceId: teamId,
     permission: "identity.member.read",
+    resourceKind: "search",
+    antiEnumeration: true,
   });
-  if (!baseDecision.allowed) {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: baseDecision.reason,
-        detail: baseDecision.detail ?? null,
-      },
-    });
-    return null;
-  }
-  const reviewerDecision = await evaluateMemberAccess({
-    teamId,
-    userId,
-    permission: "identity.access_review.action",
-  });
+  if (!ctx) return null;
   return {
-    userId,
-    isReviewerCapable: reviewerDecision.allowed,
-    role: member.role ?? null,
+    userId: ctx.userId,
+    isReviewerCapable: contextHasCapability(ctx, "identity.access_review.action"),
+    role: ctx.workspaceRole,
+    // B2A-F-09 (free-audit 0ea0) — publishing a TEAM view into every
+    // colleague's search rail (and native guidance) is a WRITE: a VIEWER held
+    // only `identity.member.read` and published one (A2-14: Viewer is
+    // read-only). Members keep publishing (D22: a member feature); the write
+    // every role but VIEWER holds decides, read from the PROVEN capability
+    // set. Managing a COLLEAGUE's shared view stays the shared-view
+    // permission (OWNER / ADMIN, or a grant).
+    mayPublishSharedViews: contextHasCapability(ctx, "evidence.update_metadata"),
+    mayManageSharedViews: contextHasCapability(ctx, "operations.saved_views.manage"),
   };
 }
 
@@ -454,6 +452,17 @@ export async function searchRoutes(app: FastifyInstance) {
       }
       const actor = await requireSearchActor(req, reply, body.teamId);
       if (!actor) return;
+      // B2A-F-09 — a VIEWER (any member without a write role) keeps PRIVATE
+      // views, which only they see; a TEAM view,
+      // shown to every member and pinnable into their rail, is refused.
+      if (body.visibility === "TEAM" && !actor.mayPublishSharedViews) {
+        return reply.code(403).send({
+          error: {
+            code: "permission_denied",
+            reason: "shared_view_requires_write_role",
+          },
+        });
+      }
       const view = await createSavedView({
         teamId: body.teamId,
         actorUserId: actor.userId,
@@ -487,7 +496,7 @@ export async function searchRoutes(app: FastifyInstance) {
         teamId: q.teamId,
         actorUserId: actor.userId,
         id,
-        canManageShared: actor.role === "OWNER" || actor.role === "ADMIN",
+        canManageShared: actor.mayManageSharedViews,
       });
       if (!ok) {
         return reply.code(404).send({ error: { code: "not_found" } });
@@ -684,7 +693,7 @@ export async function searchRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           actorUserId: z.string().uuid().optional(),
-          failClosedOnly: z.coerce.boolean().optional(),
+          failClosedOnly: queryBoolean.optional(),
           limit: z.coerce.number().int().min(1).max(200).optional(),
           beforeUtc: z.string().datetime().optional(),
         })
@@ -745,7 +754,7 @@ export async function searchRoutes(app: FastifyInstance) {
           batchSize: z.coerce.number().int().min(1).max(200).optional(),
           maxBatches: z.coerce.number().int().min(1).max(1000).optional(),
           cursorChunkId: z.string().uuid().nullable().optional(),
-          dryRun: z.coerce.boolean().optional(),
+          dryRun: queryBoolean.optional(),
         })
         .parse((req.body ?? {}) as Record<string, unknown>);
       // Phase A2 — workspace AI policy gate. A workspace that has disabled

@@ -233,12 +233,14 @@ export async function listTrustedDevicesForUser(
 }
 
 export async function listTrustedDevicesForTeam(
-  input: { teamId: string; activeOnly?: boolean },
+  /** B1-F-003 — `userId` narrows to one member's own devices. */
+  input: { teamId: string; activeOnly?: boolean; userId?: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.TrustedDevice[]> {
   return client.trustedDevice.findMany({
     where: {
       teamId: input.teamId,
+      ...(input.userId ? { userId: input.userId } : {}),
       ...(input.activeOnly
         ? { status: prismaPkg.TrustedDeviceStatus.ACTIVE }
         : {}),

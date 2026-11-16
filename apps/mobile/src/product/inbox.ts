@@ -66,9 +66,22 @@ export function resolveInboxUnread(data: unknown): number | null {
  */
 export const INBOX_SUMMARY_PATH = "/v1/me/inbox/summary";
 
-/** Parse the bell count. `null` means "unknown", never "zero". */
+/**
+ * Parse the bell count. `null` means "unknown", never "zero".
+ *
+ * B2B-F-03 (Free-user audit 0ea0) — `/v1/me/inbox/summary` answers a FLAT
+ * `{ unread, critical, … }` (me-inbox.routes.ts), not the list envelope's
+ * `metricSummary` / `scopeSummary`, so reusing the list resolver read null
+ * every time and the badge never rendered. The flat field is read first; the
+ * envelope shapes stay as a fallback.
+ */
 export function resolveInboxSummaryUnread(data: unknown): number | null {
-  return resolveInboxUnread(data);
+  return num(obj(data)["unread"]) ?? resolveInboxUnread(data);
+}
+
+/** B2B-F-03 — the summary scoped to the active workspace, as the web bell asks. */
+export function inboxSummaryPath(workspaceId: string | null): string {
+  return workspaceId ? `${INBOX_SUMMARY_PATH}?workspaceId=${encodeURIComponent(workspaceId)}` : INBOX_SUMMARY_PATH;
 }
 
 /**

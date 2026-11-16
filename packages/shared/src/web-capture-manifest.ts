@@ -35,6 +35,74 @@ export function withoutUrlFragment(raw: string): string {
   return i >= 0 ? raw.slice(0, i) : raw;
 }
 
+/**
+ * B4-F-102 (free audit 0ea0) — query parameters whose VALUE is a credential
+ * or a signature (the extension's DOM sanitizer list,
+ * apps/extension/src/lib/sanitizer.ts SENSITIVE_QUERY_PARAMS).
+ */
+export const CAPTURED_PAGE_SENSITIVE_QUERY_PARAMS: ReadonlySet<string> = new Set([
+  "x-amz-signature",
+  "x-amz-credential",
+  "x-amz-security-token",
+  "x-goog-signature",
+  "x-goog-credential",
+  "signature",
+  "sig",
+  "key-pair-id",
+  "policy",
+  "token",
+  "access_token",
+  "id_token",
+  "refresh_token",
+  "auth",
+  "authorization",
+  "apikey",
+  "api_key",
+  "api-key",
+  "key",
+  "session",
+  "sessionid",
+  "session_id",
+  "sid",
+  "jwt",
+  "code",
+  "otp",
+  "csrf",
+  "csrf_token",
+  "xsrf",
+  "password",
+  "secret",
+]);
+
+/**
+ * B4-F-102 — the captured page address as PROOVRA prints it: no fragment, and
+ * the value of every credential/signature query parameter replaced by
+ * REDACTED. A current extension records the address this way; a manifest from
+ * an older one (or facts stored from it) holds the raw address, and a signed
+ * `?X-Amz-Signature=` or an OAuth `?code=` must not reach a report. PURE; the
+ * manifest bytes (the signed record) are never altered.
+ */
+export function redactCapturedPageAddress(raw: string): string {
+  const noFragment = withoutUrlFragment(raw);
+  const queryAt = noFragment.indexOf("?");
+  if (queryAt < 0) return noFragment;
+  const base = noFragment.slice(0, queryAt);
+  const query = noFragment.slice(queryAt + 1);
+  if (!query) return base;
+  const pairs = query.split("&").map((pair) => {
+    const eq = pair.indexOf("=");
+    const rawName = eq >= 0 ? pair.slice(0, eq) : pair;
+    let name = rawName;
+    try {
+      name = decodeURIComponent(rawName.replace(/\+/g, " "));
+    } catch {
+      /* keep the raw name */
+    }
+    return CAPTURED_PAGE_SENSITIVE_QUERY_PARAMS.has(name.trim().toLowerCase()) ? `${rawName}=REDACTED` : pair;
+  });
+  return `${base}?${pairs.join("&")}`;
+}
+
 export const WEB_CAPTURE_MANIFEST_SCHEMA_VERSION = "PROOVRA_WEB_CAPTURE_MANIFEST_V1" as const;
 
 export const WEB_CAPTURE_MODES = ["VIEWPORT", "FULL_PAGE"] as const;
@@ -141,7 +209,12 @@ export type WebCaptureManifest = {
 
 export type WebCaptureManifestValidation =
   | { ok: true; manifest: WebCaptureManifest }
-  | { ok: false; error: string };
+  /**
+   * B4-F-103 (free audit 0ea0) — `captureWindow: true` when the refusal is the
+   * capture window itself (AUD-22: start after end, a future end, a start long
+   * before the session opened), so the server answers it with its own code.
+   */
+  | { ok: false; error: string; captureWindow?: true };
 
 const HEX64 = /^[0-9a-f]{64}$/;
 
@@ -196,7 +269,7 @@ export function validateWebCaptureManifest(
     sessionStartedAtUtc: opts.sessionStartedAtUtc ?? null,
     now: opts.now,
   });
-  if (windowProblem) return { ok: false, error: windowProblem };
+  if (windowProblem) return { ok: false, error: windowProblem, captureWindow: true };
   const page = m.page as Record<string, unknown> | undefined;
   if (!page || typeof page !== "object") return { ok: false, error: "missing page" };
   if (!isBoundedString(page.domain, B.maxDomainLen)) {
@@ -436,7 +509,8 @@ export function webCaptureManifestFacts(
       domain: publicDomainFromUrl(m.page.sourceUrlPrivate) ?? m.page.domain.toLowerCase(),
       // AUD-52 (2026-10-20): the fragment is never recorded (it can carry
       // tokens and is not part of what the server served).
-      sourceUrlPrivate: withoutUrlFragment(m.page.sourceUrlPrivate),
+      // B4-F-102 — no fragment and no credential/signature values.
+      sourceUrlPrivate: redactCapturedPageAddress(m.page.sourceUrlPrivate),
       titlePrivate: m.page.title,
       captureMode: m.captureMode,
       pageMutatedDuringCapture: m.pageMutatedDuringCapture,
@@ -492,7 +566,8 @@ export function readCaptureManifestFacts(payload: unknown): CaptureManifestFacts
     }
     web = {
       domain,
-      sourceUrlPrivate,
+      // B4-F-102 — facts stored before the redaction are redacted when read.
+      sourceUrlPrivate: redactCapturedPageAddress(sourceUrlPrivate),
       titlePrivate: factStr(w["titlePrivate"], WEB_CAPTURE_MANIFEST_BOUNDS.maxTitleLen),
       captureMode,
       pageMutatedDuringCapture: w["pageMutatedDuringCapture"] as boolean,

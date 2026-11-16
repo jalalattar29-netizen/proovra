@@ -144,3 +144,31 @@ export function trustedClientIpKey(req: FastifyRequest): string {
 export function __resetProxyTrustPolicyForTests(): void {
   cachedPolicy = null;
 }
+
+/**
+ * B2A-F-16 (free-audit 0ea0) — the public lead routes' limiter key.
+ *
+ * The web marketing proxy calls `/v1/contact-sales` and `/v1/demo-requests`
+ * from its own egress and names the visitor in the LEFTMOST `x-forwarded-for`
+ * entry (intermediaries only append). That entry is trusted ONLY when the
+ * request carries the proxy's shared `x-internal-key`
+ * (`CONTACT_SALES_FORWARDING_KEY`, constant-time compare, 16-char floor);
+ * every other caller is keyed on the resolved client (`req.ip`, under the
+ * process's proxy-trust policy), so a direct caller's `x-forwarded-for` can
+ * never choose its own bucket. Without the key configured on the API, the
+ * behaviour is exactly the previous one.
+ */
+export function leadForwardedClientIpKey(
+  req: FastifyRequest,
+  keyMatches: (provided: unknown) => boolean,
+): string {
+  const rawKey = req.headers["x-internal-key"];
+  const provided = Array.isArray(rawKey) ? rawKey[0] : rawKey;
+  if (keyMatches(provided)) {
+    const xff = req.headers["x-forwarded-for"];
+    const first = (Array.isArray(xff) ? xff[0] : xff)?.split(",")[0]?.trim();
+    const visitor = normalizeIp(first ?? null);
+    if (visitor) return `fwd:${visitor}`;
+  }
+  return trustedClientIpKey(req);
+}

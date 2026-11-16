@@ -583,6 +583,17 @@ export async function resetPasswordWithToken(params: {
       where: { userId: rec.userId, usedAt: null },
       data: { usedAt: now },
     });
+
+    // B1-F-017 (free-audit 0ea0) — ONE RESET RETIRES EVERY OUTSTANDING LINK.
+    // Only the presented token was claimed, so an older link from the same
+    // mailbox (several requests within the 30-minute window) still reset the
+    // password AFTER the owner had — the takeover a shared or compromised
+    // mailbox enables. Every other unused link of the account is retired in
+    // the same transaction, the pattern closure already uses.
+    await tx.passwordResetToken.updateMany({
+      where: { userId: rec.userId, usedAt: null },
+      data: { usedAt: now },
+    });
     return "ok" as const;
   }).catch((err: unknown) => {
     // A refusal found after the claim rolls the claim back with everything else.

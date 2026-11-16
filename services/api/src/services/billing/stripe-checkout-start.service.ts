@@ -39,6 +39,7 @@ import {
   type OpenCheckoutAttemptGate,
 } from "./checkout-attempts.service.js";
 import { isStripeHostedCheckoutUrl } from "./reconciliation/stripe.provider.js";
+import { settleStripeCheckoutSession, type StripeCheckoutSession } from "./stripe-settlement.service.js";
 import { APPROVAL_EXPIRY_MS, expireStalePlanAttempts } from "./checkout-attempt-recovery.service.js";
 import { payerLegacyWorkspaceIds } from "./billing-accounts.service.js";
 import { findStorageDuplicate, type StorageDuplicateFinding } from "./storage-purchase-guard.service.js";
@@ -129,22 +130,44 @@ async function createWithAttempt(input: {
   return session;
 }
 
-/** A live, still-payable session for a duplicate click, or null. */
-async function reusable(
+/** The reused attempt's session as Stripe states it now, or null when unreadable. */
+async function observeReusedSession(
   gate: Extract<OpenCheckoutAttemptGate, { kind: "REUSE" }>,
 ): Promise<Record<string, unknown> | null> {
   try {
     const session = await stripeGet(
       `/checkout/sessions/${encodeURIComponent(gate.attempt.providerResourceId)}`,
     );
-    return session.id === gate.attempt.providerResourceId &&
-      session.status === "open" &&
-      isStripeHostedCheckoutUrl(session.url)
-      ? session
-      : null;
+    return session.id === gate.attempt.providerResourceId ? session : null;
   } catch {
     return null;
   }
+}
+
+function isPayableSession(session: Record<string, unknown> | null): boolean {
+  return session !== null && session.status === "open" && isStripeHostedCheckoutUrl(session.url);
+}
+
+/** A live, still-payable session for a duplicate click, or null. */
+async function reusable(
+  gate: Extract<OpenCheckoutAttemptGate, { kind: "REUSE" }>,
+): Promise<Record<string, unknown> | null> {
+  const session = await observeReusedSession(gate);
+  return session && isPayableSession(session) ? session : null;
+}
+
+/**
+ * B6-F-02 (free audit 0ea0) — the copy for a credit purchase whose previous
+ * session Stripe has completed but PROOVRA has not yet confirmed. It names the
+ * confirming purchase instead of claiming a checkout is "already starting".
+ */
+function previousCreditPurchaseConfirming(attemptId: string): { message: string; code: string; details: Record<string, unknown> } {
+  return {
+    message:
+      "Your previous card purchase of evidence credits is being confirmed. It will appear under Billing activity in a moment; you can buy another once it is confirmed.",
+    code: "PREVIOUS_PURCHASE_CONFIRMING",
+    details: { provider: STRIPE, attemptId, retry: "AFTER_CONFIRMATION" },
+  };
 }
 
 function blockedBody(
@@ -247,17 +270,42 @@ export async function startStripeCreditCheckout(input: {
 }): Promise<StripeCheckoutStart> {
   const currency = resolveCheckoutCurrency({ requestedCurrency: input.currency });
   const amountCents = getPlanPriceCents(prismaPkg.PlanType.PAYG, currency);
-  const gate = await openCheckoutAttempt({
-    userId: input.userId,
-    product: prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT,
-    provider: STRIPE,
-    amountCents,
-    currency,
-  });
+  const open = () =>
+    openCheckoutAttempt({
+      userId: input.userId,
+      product: prismaPkg.BillingCheckoutProduct.EVIDENCE_CREDIT,
+      provider: STRIPE,
+      amountCents,
+      currency,
+    });
+  let gate = await open();
   if (gate.kind === "REUSE") {
-    const session = await reusable(gate);
-    if (session) {
+    const session = await observeReusedSession(gate);
+    if (session && isPayableSession(session)) {
       return { kind: "REUSED", attemptId: gate.attempt.id, mode: "payment", session, currency, amountCents };
+    }
+    // B6-F-02 — credits are bought one after another. A previous session that
+    // Stripe has already completed (paid) or expired is not "starting": it is
+    // applied now through THE settlement the webhook uses (idempotent: the
+    // grant is keyed on the session), and a fresh checkout opens for this
+    // purchase. Only a completed session still settling (an asynchronous
+    // payment, or a price under review) blocks, and it is named as such.
+    const status = typeof session?.status === "string" ? session.status.toLowerCase() : "";
+    if (session && (status === "complete" || status === "expired")) {
+      const reusedAttemptId = gate.attempt.id;
+      await settleStripeCheckoutSession({
+        session: session as unknown as StripeCheckoutSession,
+        expectedUserId: input.userId,
+        source: "checkout_start_previous_session",
+      }).catch(() => null);
+      gate = await open();
+      if (gate.kind === "REUSE") {
+        const again = await reusable(gate);
+        if (again) {
+          return { kind: "REUSED", attemptId: gate.attempt.id, mode: "payment", session: again, currency, amountCents };
+        }
+        return { kind: "BLOCKED", httpBody: previousCreditPurchaseConfirming(reusedAttemptId) };
+      }
     }
   }
   if (gate.kind !== "OPEN") {

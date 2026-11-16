@@ -43,6 +43,9 @@ import type {
   BillingHistoryEntry,
 } from "../../../../lib/api/billing-accounts";
 import {
+  FREE_FIRST_ISSUANCE_STORAGE_NOTE,
+  addonCancelOffered,
+  addonTermLine,
   formatDate,
   formatMoney,
   statusLabel,
@@ -234,6 +237,14 @@ export function StorageAddonsSection({
               </div>
             ) : null}
           </dl>
+          {/* B6-F-66 — D-03 (2026-11-15): on Free, a record's FIRST issued
+              report and verification package are left out of this figure.
+              Stated from the server's own access kind, never a plan name. */}
+          {projection.plan.accessKind === "FREE" ? (
+            <p className="bill-panel__note" data-billing-storage-first-issuance-note>
+              {FREE_FIRST_ISSUANCE_STORAGE_NOTE}
+            </p>
+          ) : null}
         </>
       ) : null}
 
@@ -242,7 +253,6 @@ export function StorageAddonsSection({
         <ul className="bill-addon-list">
           {capacityRows.map((addon) => {
             const price = formatMoney(addon.priceCents ?? null, addon.currency ?? null);
-            const renews = formatDate(addon.currentPeriodEndUtc);
             return (
               <li
                 key={addon.id}
@@ -280,14 +290,12 @@ export function StorageAddonsSection({
                         : "The access that included this size has ended, so it will not renew."}
                     </span>
                   ) : null}
-                  <span className="bill-addon__meta">
-                    {addon.legacyOneTime
-                      ? // Named honestly: it never renews and it is never taken
-                        // away. It is capacity already paid for outright.
-                        "One-time purchase from before add-ons became monthly — kept, and never charged again."
-                      : renews
-                        ? `Renews ${renews}`
-                        : "Recurring monthly"}
+                  {/* B6-F-61 — an ending add-on says when it ends, never "Renews". */}
+                  <span
+                    className="bill-addon__meta"
+                    data-billing-addon-term={addon.ending ? "ending" : "renewing"}
+                  >
+                    {addonTermLine(addon)}
                   </span>
                 </div>
                 <div className="bill-addon__actions">
@@ -297,8 +305,9 @@ export function StorageAddonsSection({
                   {/* The SERVER decides whether this add-on can be cancelled:
                       it depends on the viewer's capability, on whether the row
                       is a grandfathered one-time purchase, and on the
-                      subscription's state. */}
-                  {addon.canCancel ? (
+                      subscription's state. B6-F-61/62: never on an ending
+                      row, and on BILLING_CANCEL (the route's capability). */}
+                  {addonCancelOffered(addon, projection.account) ? (
                     <Button
                       variant="ghost"
                       size="sm"

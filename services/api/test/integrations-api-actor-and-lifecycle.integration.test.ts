@@ -149,7 +149,10 @@ describe("integrations API actor, plan gate and organization lifecycle (live Pos
     const viewerKey = (await createApiCredential({ teamId: A.teamId, name: "aud-36 viewer", scopes: SCOPES, actorUserId: A.viewerUserId })).rawKey;
     const before = await prisma.workflowIntakeLink.count({ where: { teamId: A.teamId } });
     const res = await post("/v1/integrations/api/intake-links", viewerKey, linkBody(7));
-    expect(res.statusCode, res.body).toBe(403);
+    // B3A-F-002 (free-audit 0ea0): a key whose creator does not hold the key
+    // permission is now refused at authentication (401 creator_lost_authority,
+    // the key revoked) before the mint gate's 403. Either way: refused, nothing written.
+    expect([401, 403], res.body).toContain(res.statusCode);
     expect(await prisma.workflowIntakeLink.count({ where: { teamId: A.teamId } })).toBe(before);
   });
 

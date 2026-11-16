@@ -51,6 +51,8 @@ export function CreateAssignmentSheet({
   const [search, setSearch] = useState("");
   const [targets, setTargets] = useState<AssignableTarget[]>([]);
   const [loadingTargets, setLoadingTargets] = useState(false);
+  const [targetsError, setTargetsError] = useState<string | null>(null);
+  const [targetsRetry, setTargetsRetry] = useState(0);
   const [target, setTarget] = useState<AssignableTarget | null>(null);
   const [assignee, setAssignee] = useState<string>("");
   const [priority, setPriority] = useState<AssignmentPriority>("NORMAL");
@@ -101,14 +103,19 @@ export function CreateAssignmentSheet({
     if (!visible) return;
     let cancelled = false;
     setLoadingTargets(true);
+    setTargetsError(null);
     const handle = setTimeout(
       () => {
         apiFetch(buildAssignableTargetsPath(teamId, targetType, search))
           .then((d) => {
             if (!cancelled) setTargets(parseAssignableTargets(d));
           })
-          .catch(() => {
-            if (!cancelled) setTargets([]);
+          .catch((err) => {
+            // R1-F-09 — a refused or failed search is not "no match".
+            if (!cancelled) {
+              setTargets([]);
+              setTargetsError(toSafeUserError(err, { message: "Couldn't search this workspace." }).message);
+            }
           })
           .finally(() => {
             if (!cancelled) setLoadingTargets(false);
@@ -120,7 +127,7 @@ export function CreateAssignmentSheet({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [teamId, targetType, search, visible]);
+  }, [teamId, targetType, search, visible, targetsRetry]);
 
   const kind = ASSIGNMENT_TARGET_OPTIONS.find((o) => o.value === targetType)?.label ?? "Record";
   const dueIso = parseLocalDueInput(due);
@@ -167,6 +174,11 @@ export function CreateAssignmentSheet({
           <ProovraText variant="bodySm" weight="semibold">{`Selected: ${target.label}`}</ProovraText>
         ) : loadingTargets ? (
           <ProovraText variant="label" color={theme.color.ink.muted}>Searching…</ProovraText>
+        ) : targetsError ? (
+          <View testID="create-assignment-targets-error" style={{ gap: theme.space.s1 }}>
+            <ProovraText variant="label" color={theme.color.status.risk.fg}>{targetsError}</ProovraText>
+            <ProovraButton label="Retry search" variant="secondary" fullWidth={false} onPress={() => setTargetsRetry((n) => n + 1)} />
+          </View>
         ) : targets.length === 0 ? (
           <ProovraText variant="label" color={theme.color.ink.muted}>{`No ${kind.toLowerCase()}s in this workspace match that.`}</ProovraText>
         ) : (

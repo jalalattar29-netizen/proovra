@@ -23,7 +23,11 @@ import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { resolveAiCapabilityDisclosure } from "../services/ai/ai-capability-disclosure.service.js";
-import { getWorkspaceAiUsageThisMonth } from "../services/billing-enforcement.service.js";
+import {
+  getWorkspaceAiUsageThisMonth,
+  workspaceIncludesAiCapability,
+} from "../services/billing-enforcement.service.js";
+import type { AiPlanCapability } from "@proovra/shared-billing";
 // §9.7 — scope via the canonical commercial envelope (explicit subjects).
 import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 import {
@@ -57,6 +61,24 @@ async function requireMember(
   });
   return outcome ? { userId: outcome.actorUserId } : null;
 }
+
+/**
+ * B6-F-22 / B6-F-46 (Free-user audit 0ea0) — the policy switches that turn on a
+ * PAID AI capability, and the catalog capability each needs
+ * (`PlanCapabilities.aiCapabilitiesIncluded`). The raw-content, OCR and
+ * transcription switches only matter beneath content intelligence; embeddings
+ * only beneath semantic search.
+ */
+const PAID_AI_SWITCHES: ReadonlyArray<readonly [keyof WorkspaceAiPolicyPatch & string, AiPlanCapability]> = [
+  ["semanticSearchEnabled", "SEMANTIC_SEARCH"],
+  ["embeddingsAllowed", "SEMANTIC_SEARCH"],
+  ["contentIntelligenceEnabled", "CONTENT_INTELLIGENCE"],
+  ["rawContentProcessingAllowed", "CONTENT_INTELLIGENCE"],
+  ["ocrAllowed", "CONTENT_INTELLIGENCE"],
+  ["transcriptionAllowed", "CONTENT_INTELLIGENCE"],
+  ["reviewerCopilotEnabled", "REVIEWER_COPILOT"],
+  ["caseCopilotEnabled", "CASE_COPILOT"],
+];
 
 const PatchBody = z.object({
   teamId: z.string().uuid(),
@@ -276,13 +298,46 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
       const patch: WorkspaceAiPolicyPatch = rest;
       const before = await getWorkspaceAiPolicyRow(teamId);
 
+      // B6-F-22 / B6-F-46 — a switch may be turned ON only where the
+      // workspace's plan makes its capability eligible. Turning a switch off is
+      // always allowed, and re-sending a value the row already holds (a
+      // paid-era switch after a downgrade) is not "switching on": the
+      // evaluator already stops it granting at evaluation time.
+      {
+        const current = (before ?? DEFAULT_WORKSPACE_AI_POLICY) as unknown as Record<string, unknown>;
+        const refused: string[] = [];
+        const capabilities = new Set<AiPlanCapability>();
+        const eligible = new Map<AiPlanCapability, boolean>();
+        for (const [field, capability] of PAID_AI_SWITCHES) {
+          if (patch[field] !== true || current[field] === true) continue;
+          if (!eligible.has(capability)) {
+            eligible.set(capability, await workspaceIncludesAiCapability(teamId, capability));
+          }
+          if (!eligible.get(capability)) {
+            refused.push(field);
+            capabilities.add(capability);
+          }
+        }
+        if (refused.length > 0) {
+          return reply.code(403).send({
+            error: {
+              code: "ENTITLEMENT_REQUIRED",
+              message: "This AI capability is not included in this workspace's plan.",
+              details: { entitlement: "AI_CAPABILITY", capabilities: [...capabilities], fields: refused },
+            },
+          });
+        }
+      }
+
       let result;
       try {
         result = await upsertWorkspaceAiPolicy({
           teamId,
           actorUserId: ok.userId,
           patch,
-          expectedVersion: expectedVersion ?? undefined,
+          // R2-F-002 — null ("I read the default; no row") is passed through:
+          // it is an expectation, not the absence of one.
+          expectedVersion,
         });
       } catch (err) {
         if (err instanceof WorkspaceAiPolicyVersionConflictError) {

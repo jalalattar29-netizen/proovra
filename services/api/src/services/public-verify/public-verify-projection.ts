@@ -32,6 +32,7 @@
 import {
   custodyEventLabel,
   WITHHELD_BY_DISCLOSURE_POLICY,
+  PART_AUDIO_NOT_RECORDED_STATEMENT,
   genericItemLabel,
   withholdIdentityRows,
   withholdIdentitySignals,
@@ -184,6 +185,19 @@ function projectContentArtifacts(artifacts: unknown, d: PublicVerifyDisclosureFa
       ? pick(artifacts.technical, ["originalPartCount", "captureRecordCount", "storedPartCount", "captureRecordPartIndexes"])
       : null,
     counts: isObj(artifacts.counts) ? pick(artifacts.counts, ["userItems"]) : null,
+    // B4-F-206 (free audit 0ea0) — F-P1-09 per file: "no audio was recorded",
+    // by part index, in the generic wording only (the builder never sends the
+    // reason). Content-preview answers only, like every artifact fact here.
+    ...(Array.isArray(artifacts.audioNotRecorded)
+      ? {
+          audioNotRecorded: (artifacts.audioNotRecorded as unknown[])
+            .filter(
+              (x): x is Obj =>
+                isObj(x) && typeof x.partIndex === "number" && x.statement === PART_AUDIO_NOT_RECORDED_STATEMENT,
+            )
+            .map((x) => ({ partIndex: x.partIndex as number, statement: PART_AUDIO_NOT_RECORDED_STATEMENT })),
+        }
+      : {}),
   };
 }
 

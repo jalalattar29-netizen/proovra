@@ -83,9 +83,37 @@ function IntelligencePageInner() {
   const [q, setQ] = useState("");
 
   const [jobs, setJobs] = useState<Job[] | null>(null);
-  const [catalogs, _setCatalogs] = useState<Catalogs | null>(null);
+  const [catalogs, setCatalogs] = useState<Catalogs | null>(null);
   const [providers, setProviders] = useState<Providers | null>(null);
   const [jobStatusFilter, setJobStatusFilter] = useState<string>("");
+  /**
+   * B6-F-48 — the jobs read can be refused (a VIEWER lacks intelligence.read)
+   * or fail. Either left Providers on "Loading…" forever and the table on "No
+   * extraction jobs yet". Now each says what happened.
+   */
+  const [jobsError, setJobsError] = useState<"denied" | "failed" | null>(null);
+
+  // B6-F-48 — the status filter and the advisory disclaimer come from the
+  // catalog; it was never fetched, so the filter had one option and the
+  // mandatory disclaimer never rendered.
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/v1/intelligence/catalogs", { method: "GET" })
+      .then((res: Partial<Catalogs> | null) => {
+        if (cancelled || !res) return;
+        setCatalogs({
+          jobKinds: Array.isArray(res.jobKinds) ? res.jobKinds : [],
+          jobStatuses: Array.isArray(res.jobStatuses) ? res.jobStatuses : [],
+          disclaimer: typeof res.disclaimer === "string" ? res.disclaimer : "",
+        });
+      })
+      .catch(() => {
+        /* the page header carries the advisory statement regardless */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
 
 useEffect(() => {
@@ -95,15 +123,21 @@ useEffect(() => {
     qs.set("teamId", teamId);
     if (jobStatusFilter) qs.set("status", jobStatusFilter);
     qs.set("limit", "100");
+    setJobsError(null);
     apiFetch(`/v1/intelligence/jobs?${qs.toString()}`, { method: "GET" })
       .then(
         (res: { jobs: Job[]; providers: Providers }) => {
           if (cancelled) return;
           setJobs(res.jobs ?? []);
-          setProviders(res.providers);
+          setProviders(res.providers ?? null);
         },
       )
-      .catch(() => setJobs([]));
+      .catch((err: { statusCode?: number } | null) => {
+        if (cancelled) return;
+        const status = err?.statusCode;
+        setJobs([]);
+        setJobsError(status === 403 || status === 404 ? "denied" : "failed");
+      });
     return () => {
       cancelled = true;
     };
@@ -150,7 +184,13 @@ useEffect(() => {
         <>
           <PageSection title="Providers">
             <Card>
-              {providers === null ? (
+              {jobsError ? (
+                <p style={mutedStyle} data-intelligence-providers-error={jobsError}>
+                  {jobsError === "denied"
+                    ? "Provider status is not available to your role in this workspace."
+                    : "Provider status could not be loaded just now."}
+                </p>
+              ) : providers === null ? (
                 <p style={mutedStyle}>Loading…</p>
               ) : (
                 <div style={mutedStyle}>
@@ -256,11 +296,27 @@ useEffect(() => {
                 },
               ]}
               emptyState={
-                <EmptyState
-                  compact
-                  title="No extraction jobs yet"
-                  purpose="OCR, transcript, entity, and similarity jobs queued for this workspace appear here."
-                />
+                jobsError ? (
+                  <EmptyState
+                    compact
+                    title={
+                      jobsError === "denied"
+                        ? "Extraction jobs are not available to your role"
+                        : "Extraction jobs could not be loaded"
+                    }
+                    purpose={
+                      jobsError === "denied"
+                        ? "Your role in this workspace does not include reading intelligence jobs."
+                        : "This is not an empty list — the jobs could not be read just now."
+                    }
+                  />
+                ) : (
+                  <EmptyState
+                    compact
+                    title="No extraction jobs yet"
+                    purpose="OCR, transcript, entity, and similarity jobs queued for this workspace appear here."
+                  />
+                )
               }
             />
           </PageSection>

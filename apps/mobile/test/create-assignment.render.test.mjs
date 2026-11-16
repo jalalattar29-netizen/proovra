@@ -115,3 +115,18 @@ test("no permission, or an archived group, offers no create", async () => {
   r = await render();
   assert.equal(r.byLabel("Create assignment").length, 0, "an archived group was offered create");
 });
+
+test("R1-F-09 — a refused target search is an error with a retry, not 'No cases … match'", async () => {
+  let refuse = true;
+  routes["/v1/collaboration-teams/t1/assignable-targets"] = () =>
+    refuse ? { __status: 403, error: { code: "FORBIDDEN", message: "Not allowed" } } : { targets: [{ id: "case-9", label: "Leaking roof", sublabel: null, status: "OPEN" }] };
+  const r = await render();
+  await r.press("Create assignment");
+  await settle();
+  assert.equal(r.hasText("No cases in this workspace match that."), false, "a refusal was shown as an empty result");
+  assert.equal(r.byTestId("create-assignment-targets-error").length, 1);
+  refuse = false;
+  await r.press("Retry search");
+  await settle();
+  assert.ok(r.byLabel("Choose Leaking roof").length > 0);
+});

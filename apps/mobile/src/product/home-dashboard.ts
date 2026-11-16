@@ -298,7 +298,14 @@ export interface HomeStorage {
  * BigInt strings on the wire; the server's `usagePercent` and its
  * `nearLimit` / `limitReached` flags are the authority.
  */
-export function buildHomeStorage(s: HomeSources): HomeStorage | null {
+export function buildHomeStorage(
+  s: HomeSources,
+  options: { applies?: boolean } = {},
+): HomeStorage | null {
+  // B2A-F-01 (Free-user audit 0ea0) — the overview is the viewer's OWN personal
+  // account. In a workspace somebody else pays for it is not that workspace's
+  // meter, so it is not built there (`isOwnPersonalActiveSpace`).
+  if (options.applies === false) return null;
   const o = obj(obj(obj(obj(s.billingOverview).workspaces).personal).storage);
   const used = str(o.usedLabel);
   if (!used) return null;
@@ -432,11 +439,31 @@ export function buildWorkspacePriorities(args: {
   intakeIncluded: boolean;
   /** Active intake links, or null when the links read failed. */
   activeLinks: number | null;
+  /** B2A-F-04 — `planFeatures.casesIncluded`; the matters row is not offered without it. */
+  casesIncluded?: boolean;
+  /** B2A-F-03 — own Personal Space record allowance, or null. */
+  recordAllowance?: { held: number; cap: number | null; nextAllowed: boolean } | null;
 }): WorkspacePriority[] {
   const t = args.trust;
   const p = args.pipeline;
   const out: WorkspacePriority[] = [];
   const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+  const allowance = args.recordAllowance ?? null;
+  const remaining = allowance && allowance.cap !== null ? Math.max(0, allowance.cap - allowance.held) : null;
+
+  // B2A-F-03 — the web's record-allowance rows, before the capture path refuses.
+  if (allowance && allowance.cap !== null && !allowance.nextAllowed) {
+    out.push({
+      key: "record_allowance",
+      severity: "critical",
+      count: 1,
+      label: "Record limit reached",
+      whyItMatters: `All ${allowance.cap} record${plural(allowance.cap, "", "s")} your plan includes are in use, so a new capture cannot be sealed.`,
+      recommendedAction: "Add an evidence credit or upgrade before capturing more evidence.",
+      actionLabel: "View plan",
+      href: "/billing",
+    });
+  }
 
   if (args.storage?.limitReached) {
     out.push({
@@ -512,7 +539,7 @@ export function buildWorkspacePriorities(args: {
       href: "/reports",
     });
   }
-  if (args.mattersNeedingWork > 0) {
+  if (args.casesIncluded !== false && args.mattersNeedingWork > 0) {
     const m = args.mattersNeedingWork;
     out.push({
       key: "matters_need_reports",
@@ -523,6 +550,25 @@ export function buildWorkspacePriorities(args: {
       recommendedAction: "Open each matter and complete its report, package, or review work.",
       actionLabel: "Open matters",
       href: "/cases",
+    });
+  }
+  if (
+    allowance &&
+    allowance.cap !== null &&
+    allowance.cap > 1 &&
+    allowance.nextAllowed &&
+    remaining !== null &&
+    remaining <= Math.max(1, Math.floor(allowance.cap / 10))
+  ) {
+    out.push({
+      key: "record_allowance",
+      severity: "warning",
+      count: remaining,
+      label: `${allowance.held} of ${allowance.cap} records used`,
+      whyItMatters: `${remaining} record${plural(remaining, "", "s")} left on your plan; captures beyond that are refused.`,
+      recommendedAction: "Plan your next capture, or add an evidence credit or upgrade.",
+      actionLabel: "View plan",
+      href: "/billing",
     });
   }
   if (args.storage?.nearLimit && !args.storage.limitReached) {
@@ -805,7 +851,7 @@ export function buildHomeSummary(args: {
 
 /* ------------------------------------------------------------------- KPIs */
 
-export type HomeKpiKey = "evidence" | "matters" | "trust" | "deliverables" | "intake";
+export type HomeKpiKey = "evidence" | "matters" | "trust" | "deliverables" | "intake" | "allowance";
 
 export interface HomeKpi {
   key: HomeKpiKey;
@@ -825,6 +871,10 @@ export interface HomeKpiOptions {
   /** Intake link stats from the pipeline projection, or null when unread. */
   intakeStats?: { activeLinks: number; failedDeliveries: number } | null;
   nowMs?: number;
+  /** B2A-F-04 — `planFeatures.casesIncluded`; without it the matters KPI is not offered. */
+  casesIncluded?: boolean;
+  /** B2A-F-03 — own Personal Space record allowance, or null. */
+  recordAllowance?: { held: number; cap: number | null; nextAllowed: boolean } | null;
 }
 
 /**
@@ -970,5 +1020,27 @@ export function buildHomeKpis(s: HomeSources, opts: HomeKpiOptions = {}): HomeKp
     };
   }
 
-  return [evidenceKpi, mattersKpi, trustKpi, deliverablesKpi, intakeKpi];
+  // B2A-F-03 / B2A-F-04 — the web's allowance card stands where matters stood
+  // on a plan without cases; with cases, the evidence card states the allowance.
+  const allowance = opts.recordAllowance ?? null;
+  if (opts.casesIncluded !== false && allowance && allowance.cap !== null) {
+    evidenceKpi.subtitle = `${allowance.held} of ${allowance.cap} records on your plan`;
+  }
+  let second: HomeKpi | null = mattersKpi;
+  if (opts.casesIncluded === false) {
+    if (allowance && allowance.cap !== null) {
+      const left = Math.max(0, allowance.cap - allowance.held);
+      second = {
+        key: "allowance",
+        label: "Records on your plan",
+        value: `${formatKpiNumber(allowance.held)} of ${formatKpiNumber(allowance.cap)}`,
+        subtitle: !allowance.nextAllowed ? "Limit reached — add a credit or upgrade" : `${left} record${left === 1 ? "" : "s"} left`,
+        tone: !allowance.nextAllowed ? "risk" : left <= 1 ? "pending" : "verified",
+        href: "/billing",
+      };
+    } else {
+      second = null;
+    }
+  }
+  return [evidenceKpi, ...(second ? [second] : []), trustKpi, deliverablesKpi, intakeKpi];
 }

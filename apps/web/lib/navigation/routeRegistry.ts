@@ -613,6 +613,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
       "Group evidence into cases, matters, claims, or investigations.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: ["CASES_VIEW"],
+    // B2A-F-04 (Free-user audit 0ea0) — FREE excludes cases: hidden from the
+    // sidebar, palette and tools, while a direct visit still loads so a
+    // downgraded account can read the cases it kept (the page states the plan).
+    navPlanFeature: "casesIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
 

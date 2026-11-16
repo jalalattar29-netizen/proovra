@@ -45,6 +45,7 @@ import {
   REVIEWER_STATUS_DISCLAIMER,
 } from "../../lib/reviewer-status";
 import { getWorkflowStatusTone } from "./_lib";
+import { useRecordActorCapabilities } from "../../../../../lib/evidence/record-actor-capabilities";
 import { ReviewerCommentsPanel } from "../../components/ReviewerCommentsPanel";
 import { LegalNotesPanel } from "../../components/LegalNotesPanel";
 import { AnnotationPanel } from "../../components/AnnotationPanel";
@@ -130,6 +131,8 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   // availability; the projection answers it.
   const lifecycle = getEvidenceLifecycle(evidence);
   const eligibility = getEvidenceDeletionEligibility(evidence);
+  // B5A-F-03 / A2-14 — what the CALLER may do; the projection says what the record allows.
+  const actor = useRecordActorCapabilities(evidence);
   const retention = getRetentionPosture(evidence);
   const trashDisabled = !eligibility.canMoveToTrash;
   const productState = lifecycle?.productState ?? "ACTIVE";
@@ -466,7 +469,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                 className="evidence-detail-lifecycle__actions"
                 data-evidence-record-actions
               >
-                {lifecycle?.canUnarchive ? (
+                {lifecycle?.canUnarchive && actor.canArchive ? (
                   <button
                     type="button"
                     className="app-secondary-action app-secondary-action--filled"
@@ -482,7 +485,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                   </button>
                 ) : null}
 
-                {lifecycle?.canArchive ? (
+                {lifecycle?.canArchive && actor.canArchive ? (
                   <button
                     type="button"
                     className="app-secondary-action app-secondary-action--filled"
@@ -496,7 +499,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                   </button>
                 ) : null}
 
-                {lifecycle?.canRestoreFromTrash ? (
+                {lifecycle?.canRestoreFromTrash && actor.canRestoreFromTrash ? (
                   <button
                     type="button"
                     className="app-secondary-action"
@@ -505,7 +508,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                   >
                     Restore from trash
                   </button>
-                ) : productState !== "TRASHED" ? (
+                ) : productState !== "TRASHED" && actor.canTrash ? (
                   // Kept visible when disabled so the affordance is stable, but
                   // the click can never reach setTrashOpen — that is exactly the
                   // "modal opens, then 409s" behaviour this replaces.
@@ -541,7 +544,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                 ) : null}
               </div>
 
-              {trashDisabled && productState !== "TRASHED" ? (
+              {trashDisabled && productState !== "TRASHED" && actor.canTrash ? (
                 <div
                   id="evidence-trash-helper"
                   className="app-alert app-alert--warn evidence-detail-lifecycle__blocked"

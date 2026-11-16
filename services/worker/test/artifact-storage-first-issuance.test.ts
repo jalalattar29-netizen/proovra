@@ -61,6 +61,12 @@ vi.mock("../src/db.js", () => ({
     },
     evidencePartDerivedAsset: { aggregate: vi.fn(async () => ({ _sum: { sizeBytes: 0 } })) },
     reportGenerationRequest: { findMany: (...args: unknown[]) => recoveryRequests(...args) },
+    // Free audit 0ea0 (B5B-F-403) — the measure and the gate also read the
+    // credit ledger (a credit-funded record's first issuance is excluded too).
+    evidenceCreditLedgerEntry: {
+      findMany: vi.fn(async () => []),
+      findUnique: vi.fn(async () => null),
+    },
   },
 }));
 vi.mock("../src/output-issuance.js", () => ({
@@ -372,7 +378,11 @@ describe("D-03: a Free first-issuance file recovery is admitted on a full allowa
     await expect(recoveryV2(FREE_FACT, [{ reportVersion: 2 }])).resolves.toBeTruthy();
     expect(previousPackage).not.toHaveBeenCalled();
     const where = (recoveryRequests.mock.calls[0]?.[0] as { where: Record<string, unknown> }).where;
-    expect(where).toMatchObject({ evidenceId: "ev-free", purpose: "missing_output_recovery" });
+    // Free audit 0ea0 (B5B-F-400) — the system re-issues: the missing-file
+    // recovery, and the automatic chain-verified version of a machine principal.
+    expect(where).toMatchObject({ evidenceId: "ev-free" });
+    expect(JSON.stringify(where)).toContain('"purpose":"missing_output_recovery"');
+    expect(JSON.stringify(where)).toContain('"purpose":"ots_upgrade_completed"');
   });
 
   it("no recovery request (a customer's updated report): refused as before", async () => {

@@ -50,7 +50,12 @@ import {
 import { listAccessibleWorkspaces } from "../services/access/accessible-workspaces.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
-import { CASE_VISIBILITY_SELECT, caseRowVisibleTo, caseVisibleToWhere } from "../services/cases/case-visibility.js";
+import {
+  CASE_VISIBILITY_SELECT,
+  caseRowVisibleTo,
+  caseVisibleToWhere,
+  evidenceVisibleThroughCasesWhere,
+} from "../services/cases/case-visibility.js";
 import {
   accessibleWorkspaceIdsFor,
   caseReachWhere,
@@ -1755,7 +1760,11 @@ export async function casesRoutes(app: FastifyInstance) {
       // under THE case-link authority (case access incl. CaseAccess, the
       // EVIDENCE_LINK matrix). A caller with no relationship to the case is
       // concealed (404) exactly like a missing case.
-      const linkAuth = await authorizeCaseEvidenceLink({ userId, caseId: id });
+      //
+      // B3C-F-004 (free-audit 0ea0): the record is named, so the record must be
+      // open to the caller (ET-SEC-16) — as POST passes it. A record a
+      // restricted case closes to them answers like a missing record.
+      const linkAuth = await authorizeCaseEvidenceLink({ userId, caseId: id, evidenceId });
       if (!linkAuth.allowed) {
         await auditCaseAction(req, {
           userId,
@@ -1770,7 +1779,9 @@ export async function casesRoutes(app: FastifyInstance) {
           },
         });
         if (linkAuth.status === 404) {
-          return reply.code(404).send({ message: "Case not found" });
+          return reply
+            .code(404)
+            .send({ message: linkAuth.subject === "evidence" ? "Evidence not found" : "Case not found" });
         }
         return reply.code(403).send({ message: "Forbidden" });
       }
@@ -1845,7 +1856,12 @@ export async function casesRoutes(app: FastifyInstance) {
           status: true,
           createdAt: true,
           teamId: true,
+          // B3C-F-004: the derived case id names only a case the caller may
+          // see, never a remaining link to a restricted case they are off.
+          // (Worded without the bare field token: the Track 1B authority
+          // guard scans every evidence-query block, comments included.)
           caseLinks: {
+            where: { case: caseVisibleToWhere(userId) },
             orderBy: { linkedAtUtc: "asc" },
             select: { caseId: true },
             take: 1,
@@ -2648,8 +2664,10 @@ export async function casesRoutes(app: FastifyInstance) {
       // divergence is no longer representable. The endpoint keeps its
       // response contract (clients still receive the same fields) and
       // always reports the store as in-sync.
+      // B3C-F-003 (free-audit 0ea0): a record a restricted case closes to the
+      // reader is not counted here either (EVID-004).
       const canonicalLinks = await prisma.caseEvidenceLink.findMany({
-        where: { caseId },
+        where: { caseId, evidence: evidenceVisibleThroughCasesWhere(userId) },
         select: { evidenceId: true, role: true },
       });
 

@@ -7,6 +7,12 @@ type Props = {
   useLocation: boolean;
   location: ReturnType<typeof useCaptureLocation>;
   busy: boolean;
+  /**
+   * B4-F-304 — Review & Sign is not ready (readiness blockers): "Finish
+   * without location" is not offered as a way around them.
+   */
+  finishDisabled?: boolean;
+  /** Opens the review dialog (the one path to the seal), accepting the location failure. */
   onFinishWithoutLocation: () => void;
 };
 
@@ -16,7 +22,7 @@ type Props = {
  * without it. And, always, what inclusion means for each audience: the report
  * and full package carry it; the public page only by a separate choice.
  */
-export function CaptureLocationStatus({ useLocation, location, busy, onFinishWithoutLocation }: Props) {
+export function CaptureLocationStatus({ useLocation, location, busy, finishDisabled = false, onFinishWithoutLocation }: Props) {
   const failed = location.failure ?? (isLocationCheckFailure(location.check) ? (location.check.status as BrowserLocationFailure) : null);
   return (
     <>
@@ -33,7 +39,7 @@ export function CaptureLocationStatus({ useLocation, location, busy, onFinishWit
               Retry location
             </button>
             {location.failure && !location.required ? (
-              <button type="button" className="app-secondary-action" onClick={onFinishWithoutLocation} disabled={busy}>
+              <button type="button" className="app-secondary-action" onClick={onFinishWithoutLocation} disabled={busy || finishDisabled}>
                 Finish without location
               </button>
             ) : null}

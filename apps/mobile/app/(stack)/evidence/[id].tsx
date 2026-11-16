@@ -152,6 +152,7 @@ import {
   custodyChainLabel,
   downloadBlockedReason,
   isIntegrityFailed,
+  integrityFailedFreesSlot,
   lifecycleFacts,
   otsRecheckAvailable,
   projectArtifactOutputs,
@@ -227,6 +228,7 @@ import { MediaIntelligencePanel } from "../../../src/ui/media-intelligence-panel
 import { EvidenceCopilot } from "../../../src/ui/evidence-copilot";
 import { projectReviewWorkflowRef, type ReviewWorkflowRef } from "../../../src/product/review-actions";
 import { ReviewerWorkflowPanel } from "../../../src/ui/reviewer-workflow-panel";
+import { resolveRecordActorCapabilities } from "../../../src/product/record-actor-capabilities";
 import { usePlatformContext } from "../../../src/product/platform-context";
 import { pollDelayMs } from "../../../src/product/poll-backoff";
 import {
@@ -263,6 +265,10 @@ interface Core {
   fileSha256: string | null;
   fingerprintHash: string | null;
   lockedAt: string | null;
+  /** B5A-F-03 — the record's persisted workspace (null = personal scope). */
+  teamId: string | null;
+  /** B5A-F-03 — the server's per-caller capabilities, when the API sends them. */
+  actorCapabilities: unknown;
 }
 
 const EMPTY_OUTPUTS: ArtifactOutputs = projectArtifactOutputs(null);
@@ -450,6 +456,8 @@ export default function EvidenceDetailScreen() {
         fileSha256: (ev.fileSha256 as string) ?? null,
         fingerprintHash: (ev.fingerprintHash as string) ?? null,
         lockedAt: typeof ev.lockedAt === "string" && ev.lockedAt ? ev.lockedAt : null,
+        teamId: typeof ev.teamId === "string" && ev.teamId ? ev.teamId : null,
+        actorCapabilities: ev.actorCapabilities ?? null,
       });
       setState("ready");
     } catch (err) {
@@ -620,8 +628,9 @@ export default function EvidenceDetailScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (tab === "discussion" && comments === null) void loadComments();
-  }, [tab, comments, loadComments]);
+    // B5A-F-08 — reviewer comments are a reviewer-operations surface, as on the web.
+    if (tab === "discussion" && reviewerOperations && comments === null) void loadComments();
+  }, [tab, reviewerOperations, comments, loadComments]);
 
   const postComment = useCallback(async () => {
     if (!id || !isSendableComment(draft)) return;
@@ -936,6 +945,8 @@ export default function EvidenceDetailScreen() {
   }
 
   const c = core!;
+  // B5A-F-03 / A2-14 — what the CALLER may do; the projection says what the record allows.
+  const actor = resolveRecordActorCapabilities({ envelope: platform.envelope, recordTeamId: c.teamId, server: c.actorCapabilities });
   const integrityFailed = isIntegrityFailed(c.status);
   const trashed = lifecycle?.productState === "TRASHED";
   const locked = c.lockedAt !== null || evidenceIsLocked(lifecycle);
@@ -1054,7 +1065,11 @@ export default function EvidenceDetailScreen() {
       {/* T-15 — "Also here" (evidence/[id]/page.tsx:1011), bound to the review workflow's workspace. */}
       {reviewWorkflow?.teamId ? <PresenceIndicator teamId={reviewWorkflow.teamId} resourceKind="evidence" resourceId={String(id)} /> : null}
 
-      {integrityFailed ? <IntegrityFailedBanner /> : null}
+      {integrityFailed ? (
+        <IntegrityFailedBanner
+          freeSlotNote={integrityFailedFreesSlot({ integrityFailed, plan: platform.context?.activeSpacePlan, reportState: outputs.report.state })}
+        />
+      ) : null}
 
       {trashed ? (
         <ProovraCard testID="evidence-trash-banner">
@@ -1105,27 +1120,31 @@ export default function EvidenceDetailScreen() {
             <ProovraButton label="Share verification link" variant="ghost" fullWidth={false} onPress={() => void shareVerification()} />
           ) : null}
           {locked ? (
-            <ProovraButton label="Unlock" variant="secondary" fullWidth={false} disabled={trashed || actionBusy} onPress={() => { setUnlockReason(""); setDialog("unlock"); }} />
-          ) : (
+            actor.canArchive ? (
+              <ProovraButton label="Unlock" variant="secondary" fullWidth={false} disabled={trashed || actionBusy} onPress={() => { setUnlockReason(""); setDialog("unlock"); }} />
+            ) : null
+          ) : actor.canEditMetadata ? (
             <ProovraButton label="Lock" variant="secondary" fullWidth={false} disabled={trashed || integrityFailed || actionBusy} onPress={() => setDialog("lock")} />
-          )}
-          {lifecycle?.canUnarchive ? (
+          ) : null}
+          {!actor.canArchive ? null : lifecycle?.canUnarchive ? (
             <ProovraButton label="Restore" accessibilityLabel="Restore archived evidence" variant="secondary" fullWidth={false} disabled={actionBusy} onPress={() => setDialog("restore")} />
           ) : lifecycle === null || lifecycle.canArchive ? (
             <ProovraButton label="Archive" variant="secondary" fullWidth={false} disabled={trashed || actionBusy} onPress={() => setDialog("archive")} />
           ) : null}
-          {lifecycle?.canTrash ? (
+          {lifecycle?.canTrash && actor.canTrash ? (
             <ProovraButton label={TRASH_COPY.moveAction} variant="danger" fullWidth={false} disabled={actionBusy} onPress={() => setTrashing(true)} />
           ) : null}
-          <ProovraButton
-            label="Edit name"
-            variant="ghost"
-            fullWidth={false}
-            onPress={() => {
-              setLabelDraft(c.displayTitle?.trim() || c.originalFileName?.trim() || "");
-              setRenaming(true);
-            }}
-          />
+          {actor.canEditMetadata ? (
+            <ProovraButton
+              label="Edit name"
+              variant="ghost"
+              fullWidth={false}
+              onPress={() => {
+                setLabelDraft(c.displayTitle?.trim() || c.originalFileName?.trim() || "");
+                setRenaming(true);
+              }}
+            />
+          ) : null}
         </View>
         {/*
           The server's reason, rendered from its CODE. Saying "this cannot be
@@ -1879,6 +1898,7 @@ export default function EvidenceDetailScreen() {
       ) : null}
       {tab === "review" && rw ? (
         <LifecycleManagementCard
+          actor={actor}
           lifecycle={lifecycle}
           facts={lifecycleFacts(lifecycle, record, (iso) => formatUserDateTime(iso) ?? iso)}
           busy={actionBusy}
@@ -2048,7 +2068,9 @@ export default function EvidenceDetailScreen() {
         <EvidenceDiscussion evidenceId={String(id)} teamId={requestTeamId} readOnly={discussionCaps.readOnly} />
       ) : null}
 
-      {tab === "discussion" ? (
+      {/* B5A-F-08 — the web hides Reviewer Comments without reviewer operations
+          (EvidenceReviewTab.tsx canSeeReviewerOps); a visibility gate only. */}
+      {tab === "discussion" && reviewerOperations ? (
         <ProovraSection title="Reviewer comments">
           {/*
             ReviewerCommentsPanel.tsx — list, add, edit, delete. Visibility

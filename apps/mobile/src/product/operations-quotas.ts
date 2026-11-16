@@ -58,6 +58,12 @@ export function quotaLabel(
 export interface UsageExtras {
   totalCost: number | null;
   thisMonthCost: number | null;
+  /**
+   * B6-F-49 — `costBasis` / `costIsCharged` (new API). The figures are an
+   * illustrative list-rate estimate; only an explicit `costIsCharged: true`
+   * would make them a charge. An older API sends neither: still an estimate.
+   */
+  costIsEstimate: boolean;
   activeApiKeys: number | null;
   activeBatches: number | null;
   /** In the server's order; empty when it sent none. */
@@ -70,6 +76,7 @@ export function parseUsageExtras(payload: unknown): UsageExtras {
   return {
     totalCost: num(cost.totalCost),
     thisMonthCost: num(cost.thisMonth),
+    costIsEstimate: data.costIsCharged !== true,
     activeApiKeys: num(data.activeApiKeys),
     activeBatches: num(data.activeBatches),
     evidenceTypes: Object.entries(obj(data.topEvidenceTypes))

@@ -26,7 +26,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { apiFetch } from "../../src/api";
-import { checkoutApprovalUrl, checkoutRequest, externalCheckoutEnabled, payPalReturnConfirmation, payPalReturnNotice, stripeCheckoutAttemptId, verifiedCheckoutUrl, type PurchaseIntent, type PurchaseProvider } from "../../src/product/billing-purchase";
+import { checkoutApprovalUrl, checkoutRequest, externalCheckoutEnabled, payPalReturnConfirmation, payPalReturnNotice, planChangeNotice, planChangeRequest, purchaseAvailability, stripeCheckoutAttemptId, verifiedCheckoutUrl, type PurchaseIntent, type PurchaseProvider } from "../../src/product/billing-purchase";
 import { ProovraSheet } from "../../src/ui/patterns";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
@@ -67,10 +67,12 @@ import {
   confirmStripeCheckoutReturn,
   describeAttemptAbandon,
   describeAttemptCheck,
+  downgradeAddonNote,
   formatMoney,
   parseBillingProjection,
   reconcileMessage,
   parseBillingActivity,
+  planManagementReachable,
   retryStorageMessage,
   storageAdditionalPrompt,
   storageRecoveryIntroduction,
@@ -152,6 +154,18 @@ export default function BillingScreen() {
   const pendingStripeAttempt = useRef<string | null>(null);
   const checkoutInFlight = useRef(false);
   const privateCheckout = externalCheckoutEnabled();
+  /**
+   * B6-F-71 — a plan CHANGE has its own confirmation: the server's effect
+   * sentence, the storage it ends (consent sent as `confirmStorageEnding`),
+   * and no provider picker. It reused the purchase sheet, so a TEAM→PRO move
+   * skipped both, and a CHECKOUT_REQUIRED answer silently became a new checkout.
+   */
+  type PlanChange = { offer: BillingProjection["planOffers"][number]; storageNote: string | null };
+  const [planChange, setPlanChange] = useState<PlanChange | null>(null);
+  const [planChangeBusy, setPlanChangeBusy] = useState(false);
+  const [planChangeError, setPlanChangeError] = useState<string | null>(null);
+  const pendingPlanChange = useRef<PlanChange | null>(null);
+  const planChangeInFlight = useRef(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -287,11 +301,25 @@ export default function BillingScreen() {
     });
   }, []);
 
+  /**
+   * B6-F-63 — "View Pricing" by what this build may do (purchaseAvailability).
+   * A store build opened the web pricing page, whose CTAs lead to a web
+   * checkout: an external purchase path signposted from the app. There it
+   * opens the in-app, read-only plan sheet instead (no purchase, no link out);
+   * only a private-distribution build keeps the website.
+   */
+  const viewPricing = useCallback(() => {
+    if (purchaseAvailability() === "EXTERNAL_CHECKOUT") openPricingWebsite();
+    else setPricingOpen(true);
+  }, [openPricingWebsite]);
+
   /** Plan selection is distinct from the public pricing website. */
   const openPlanManagement = useCallback(() => {
     if (!projection) return;
-    if (projection.actions.planManagement.mode === "CHOOSE") setPricingOpen(true);
-    else setManageOpen(true);
+    // B6-F-62 — a viewer who may only cancel has nothing to choose; their way
+    // in is Manage plan, where Cancel is.
+    if (projection.actions.planManagement.mode === "CHOOSE" && projection.actions.planManagement.enabled) setPricingOpen(true);
+    else if (planManagementReachable(projection)) setManageOpen(true);
   }, [projection]);
 
   const offerPurchase = useCallback((intent: PurchaseIntent) => {
@@ -329,6 +357,12 @@ export default function BillingScreen() {
   ]);
 
   const finishSourceDismiss = useCallback(() => {
+    const change = pendingPlanChange.current;
+    if (change) {
+      pendingPlanChange.current = null;
+      setPlanChange(change);
+      return;
+    }
     const next = pendingPurchase.current;
     if (!next) return;
 
@@ -388,10 +422,78 @@ export default function BillingScreen() {
   }, [refresh, selected, privateCheckout]);
 
   const choosePlan = useCallback((plan: "PRO" | "TEAM") => {
-    if (!projection || !selected || selected.type !== "PERSONAL") return;
-    // The server still makes the final transition decision; granted access is not provider-backed.
-    offerPurchase({ kind: "PLAN", plan, transition: projection.plan.accessKind === "SUBSCRIPTION" });
-  }, [projection, selected, offerPurchase]);
+    if (!projection || !selected || selected.type !== "PERSONAL" || !privateCheckout) return;
+    if (projection.plan.accessKind !== "SUBSCRIPTION") {
+      // Granted access is not provider-backed: a new subscription is a purchase.
+      offerPurchase({ kind: "PLAN", plan, transition: false });
+      return;
+    }
+    const offer = projection.planOffers.find((o) => o.planKey.toUpperCase() === plan);
+    if (!offer) {
+      setNotice("This plan is not available for your billing account.");
+      return;
+    }
+    setNotice(null);
+    setPlanChangeError(null);
+    const change = { offer, storageNote: downgradeAddonNote(projection, offer) };
+    if (pricingOpen || manageOpen) {
+      // The next sheet opens when this one has gone.
+      pendingPlanChange.current = change;
+      setPricingOpen(false);
+      setManageOpen(false);
+      return;
+    }
+    setPlanChange(change);
+  }, [projection, selected, privateCheckout, offerPurchase, pricingOpen, manageOpen]);
+
+  const confirmPlanChange = useCallback(async () => {
+    if (planChangeInFlight.current || !planChange || !selected || selected.type !== "PERSONAL" || !privateCheckout) return;
+    const { offer, storageNote } = planChange;
+    const plan = offer.planKey.toUpperCase();
+    if (plan !== "PRO" && plan !== "TEAM") return;
+    planChangeInFlight.current = true;
+    setPlanChangeBusy(true);
+    setPlanChangeError(null);
+    try {
+      const request = planChangeRequest(plan, storageNote !== null);
+      const result = (await apiFetch(request.path, { method: "POST", body: JSON.stringify(request.body) })) as { approvalUrl?: string | null } | null;
+      if (result?.approvalUrl) {
+        // PayPal revises an agreement only with the buyer's authorisation.
+        const url = verifiedCheckoutUrl(result.approvalUrl);
+        if (!url) {
+          setPlanChangeError(`We could not open PayPal's approval page for your change to ${offer.displayName}. Nothing changes until you approve it. Check Billing, or contact support if this continues.`);
+          refresh();
+          return;
+        }
+        pendingBrowserUrl.current = url;
+        pendingReturn.current = null;
+        pendingStripeAttempt.current = null;
+        setPlanChange(null);
+        return;
+      }
+      setPlanChange(null);
+      setNotice(planChangeNotice(result, offer.displayName, billingDate));
+      refresh();
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      if (code === "PLAN_CHANGE_ENDS_STORAGE" && storageNote === null) {
+        // The server knows of storage this plan ends that the screen did not:
+        // ask again with that consequence stated, never send consent unseen.
+        setPlanChange({ offer, storageNote: billingRefusalMessage(err) ?? "This plan does not include some of your storage. It stays until its paid date and then stops renewing." });
+        return;
+      }
+      // A refusal is said in its own words; a CHECKOUT_REQUIRED answer is NOT
+      // turned into a new checkout behind the customer's back.
+      setPlanChangeError(
+        billingRefusalMessage(err) ??
+          toSafeUserError(err, { message: "We could not confirm this plan change with your payment provider. Check Billing in a few minutes before trying again." }).message,
+      );
+      refresh();
+    } finally {
+      planChangeInFlight.current = false;
+      setPlanChangeBusy(false);
+    }
+  }, [planChange, selected, privateCheckout, refresh]);
 
   const executePurchase = useCallback(async (provider: PurchaseProvider, confirmAdditional = false) => {
     if (checkoutInFlight.current) return;
@@ -434,9 +536,6 @@ export default function BillingScreen() {
           setPurchaseError("You already have a subscription. Use Manage plan to change it instead of buying a second one.");
           refresh();
           return;
-        } else if (purchase.kind === "PLAN" && purchase.transition && code === "CHECKOUT_REQUIRED") {
-          const fresh = checkoutRequest({ ...purchase, transition: false }, provider, catalogue?.currency);
-          response = await apiFetch(fresh.path, { method: "POST", body: JSON.stringify(fresh.body) });
         } else { throw err; }
       }
       const result = response as { outcome?: string; approvalUrl?: string | null } | null;
@@ -723,7 +822,7 @@ export default function BillingScreen() {
         title={COPY.title}
         subtitle={COPY.subtitle}
         primaryAction={
-          pricingRelevant ? <ProovraButton label="View Pricing" fullWidth={false} onPress={openPricingWebsite} /> : undefined
+          pricingRelevant ? <ProovraButton label="View Pricing" fullWidth={false} onPress={viewPricing} /> : undefined
         }
         secondaryActions={<ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />}
       />
@@ -801,7 +900,7 @@ export default function BillingScreen() {
                 }
               />
 
-              <BillingEvidenceCard projection={projection} onChoosePlan={openPlanManagement} onOpenReports={() => router.push("/reports" as never)} onBuyCredits={privateCheckout && selected.type === "PERSONAL" && credit ? () => offerPurchase({ kind: "CREDITS" }) : undefined} />
+              <BillingEvidenceCard projection={projection} onChoosePlan={openPlanManagement} onOpenReports={() => router.push("/reports" as never)} onBuyCredits={privateCheckout && selected.type === "PERSONAL" && credit ? () => offerPurchase({ kind: "CREDITS" }) : undefined} onAddStorage={privateCheckout && selected.type === "PERSONAL" && projection.storageAddons?.offers.length ? () => setStorageOpen(true) : undefined} />
 
               <BillingStorageCard
                 projection={projection}
@@ -819,6 +918,10 @@ export default function BillingScreen() {
                 accessKind={projection.plan.accessKind}
                 onRetry={() => void loadHistory(selected)}
                 onRecheckAccount={() => void recheckAccount()}
+                // B6-F-62 — reconcile needs BILLING_MANAGE (as on the web); a
+                // managed payer is not offered a check the server refuses.
+                // An older API that projects no capabilities keeps the button.
+                canRecheck={projection.capabilities.length === 0 || projection.capabilities.includes("BILLING_MANAGE")}
                 recheckBusy={recheckBusy}
                 onRecheckPayment={(row) => void recheckPayment(row)}
                 onCancelPayment={(row) => setConfirm({ kind: "payment-cancel", row })}
@@ -888,6 +991,34 @@ export default function BillingScreen() {
           </View>
         </ProovraSheet>
       ) : null}
+      <ProovraSheet
+        visible={planChange !== null}
+        title={planChange ? `${planChange.offer.actionLabel ?? `Move to ${planChange.offer.displayName}`}?` : ""}
+        onClose={() => {
+          if (!planChangeBusy) {
+            setPlanChange(null);
+            setPlanChangeError(null);
+          }
+        }}
+        onDismiss={finishCheckoutDismiss}
+      >
+        <View style={{ gap: theme.space.s3 }} testID="billing-plan-change">
+          {planChange?.offer.effectSummary ? <ProovraText variant="bodySm">{planChange.offer.effectSummary}</ProovraText> : null}
+          {planChange?.storageNote ? (
+            <ProovraText variant="bodySm" testID="billing-plan-change-storage">{planChange.storageNote}</ProovraText>
+          ) : null}
+          {planChangeError ? (
+            <ProovraText variant="bodySm" color={theme.color.status.risk.fg} testID="billing-plan-change-error">{planChangeError}</ProovraText>
+          ) : null}
+          <ProovraButton
+            label={planChange?.offer.actionLabel ?? "Change plan"}
+            loading={planChangeBusy}
+            disabled={planChangeBusy}
+            onPress={() => void confirmPlanChange()}
+          />
+          <ProovraButton label="Keep current plan" variant="ghost" onPress={() => { if (!planChangeBusy) { setPlanChange(null); setPlanChangeError(null); } }} />
+        </View>
+      </ProovraSheet>
       <ProovraSheet
         visible={purchase !== null}
         title="Choose payment method"

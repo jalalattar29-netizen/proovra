@@ -236,7 +236,19 @@ export async function owedDependentCancellations(
       dependentCancellationState: true,
     },
   });
-  const context = await loadDependencyContext(client, input);
+  const loaded = await loadDependencyContext(client, input);
+  // B6-F-82 — a legacy add-on with no recorded dependency is attributed to the
+  // first qualifying ended base; the bases the caller is ending right now are
+  // asked first, so a customer's own cancellation is not attributed to an older
+  // ended base (and then held as an orphan).
+  const endingNow = new Set(input.endingBaseIds ?? []);
+  const context = {
+    ...loaded,
+    endedBases: [
+      ...loaded.endedBases.filter((b) => endingNow.has(b.id)),
+      ...loaded.endedBases.filter((b) => !endingNow.has(b.id)),
+    ],
+  };
   const grant = await readActiveInternalPlanGrant(client, input.ownerUserId, now);
   const owed = live
     .map((addon) => ({
@@ -269,6 +281,16 @@ export async function owedDependentCancellations(
  *
  * Idempotent: an add-on that already carries an unresolved obligation is left
  * exactly as it is.
+ *
+ * B6-F-82 (free audit 0ea0) — `customerAction`: the caller is the customer's
+ * own cancellation or agreed downgrade. It records an obligation ONLY for
+ * add-ons whose trigger is a base the customer is ending now
+ * (`endingBaseIds`) or the downgrade they agreed to. An orphan owed by some
+ * OTHER, earlier-ended base is not the customer's request: it is the sweep's
+ * (`reconciliation.service`), which records it only while
+ * BILLING_AUTO_ADDON_CANCELLATION reads "on" and otherwise holds it for
+ * review. Recording it here cancelled held add-ons at the provider behind the
+ * hold.
  */
 export async function recordDependentCancellationObligations(
   input: {
@@ -276,6 +298,8 @@ export async function recordDependentCancellationObligations(
     teamId: string | null;
     /** Bases being cancelled by the caller right now. */
     endingBaseIds?: string[];
+    /** B6-F-82 — restrict to the customer's own triggers (see above). */
+    customerAction?: boolean;
     now?: Date;
   },
   client: DependencyClient,
@@ -283,7 +307,14 @@ export async function recordDependentCancellationObligations(
   const now = input.now ?? new Date();
   const { owed, downgradingBaseId } = await owedDependentCancellations({ ...input, now }, client);
 
-  const fresh = owed.filter((x) => x.addon.dependentCancellationState === S.NONE);
+  const customerTriggers = new Set(
+    [...(input.endingBaseIds ?? []), downgradingBaseId].filter((id): id is string => typeof id === "string"),
+  );
+  const fresh = owed.filter(
+    (x) =>
+      x.addon.dependentCancellationState === S.NONE &&
+      (input.customerAction !== true || customerTriggers.has(x.trigger!.id)),
+  );
   const alreadyOpen = owed.filter(
     (x) =>
       x.addon.dependentCancellationState !== S.NONE &&

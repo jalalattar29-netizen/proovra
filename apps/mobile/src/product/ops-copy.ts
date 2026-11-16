@@ -503,6 +503,8 @@ const EN = {
   usageAverageCaption: "A fixed list rate, not a measured cost",
   costTotal: "Total Cost",
   costThisMonth: "This Month",
+  /** B6-F-49 — the usage-stats cost figures are a list-rate illustration, never a charge. */
+  costEstimateNote: "Illustrative estimate at list rates — nothing is billed per analysis.",
   servicesApiKeys: "Active API Keys",
   servicesBatches: "Active Batch Jobs",
 
@@ -997,6 +999,7 @@ const DE: OpsCopy = {
   usageAverageCaption: "Ein fester Listenpreis, keine gemessenen Kosten",
   costTotal: "Gesamtkosten",
   costThisMonth: "Dieser Monat",
+  costEstimateNote: "Veranschaulichende Schätzung zu Listenpreisen — pro Analyse wird nichts berechnet.",
   servicesApiKeys: "Aktive API-Schlüssel",
   servicesBatches: "Aktive Stapelaufträge",
   batchStatus: {
@@ -1476,6 +1479,7 @@ const AR: OpsCopy = {
   usageAverageCaption: "سعر قائمة ثابت، وليس تكلفة مقيسة",
   costTotal: "التكلفة الإجمالية",
   costThisMonth: "هذا الشهر",
+  costEstimateNote: "تقدير توضيحي بأسعار القائمة — لا يُحاسَب أي شيء لكل تحليل.",
   servicesApiKeys: "مفاتيح API النشطة",
   servicesBatches: "المهام الجماعية النشطة",
   batchStatus: {

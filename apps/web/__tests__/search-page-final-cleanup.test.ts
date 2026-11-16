@@ -107,9 +107,13 @@ test("A) Chip — searchHealthError fallback chip is gated on BOTH admin AND opt
 // B) Trash banner on evidence detail page
 // ============================================================================
 
-test("B) Trash banner — renders when evidence.deletedAt is set, with the correct data-attr", () => {
-  const src = read(DETAIL);
-  assert.match(src, /\{evidence\.deletedAt \?/);
+test("B) Trash banner — renders for a TRASHED record, with the correct data-attr", () => {
+  // B5A-F-04 — the banner moved into the shared _lib authority and reads the
+  // canonical projection (productState TRASHED; deletedAt only without one),
+  // so a destroyed tombstone that keeps deletedAt no longer claims "in trash".
+  const src = read(DETAIL) + read(HERO_ICON_ACTIONS);
+  assert.match(src, /<EvidenceTrashBanner/);
+  assert.match(src, /lifecycle\.productState === "TRASHED" : record\.deletedAt != null/);
   assert.match(src, /data-evidence-trash-banner="true"/);
   // User-facing copy must be plain English ("trash"), never raw
   // wire tokens like "in_trash" or "deletedAt".
@@ -117,11 +121,11 @@ test("B) Trash banner — renders when evidence.deletedAt is set, with the corre
 });
 
 test("B) Trash banner — Restore button calls the real backend endpoint, with loading/error UX preserved", () => {
-  const src = read(DETAIL);
+  const src = read(DETAIL) + read(HERO_ICON_ACTIONS);
   // The Restore action in the banner must reuse `restoreTrash`
   // (not duplicate logic). `restoreTrash` already hits
   // POST /v1/evidence/:id/restore + addToast + captureException.
-  assert.match(src, /onClick=\{\(\) => void restoreTrash\(\)\}/);
+  assert.match(src, /onRestore=\{\(\) => void restoreTrash\(\)\}/);
   assert.match(src, /data-evidence-trash-restore="true"/);
   assert.match(src, /\/v1\/evidence\/\$\{evidenceId\}\/restore/);
 });

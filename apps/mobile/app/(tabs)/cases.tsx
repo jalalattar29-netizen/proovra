@@ -432,6 +432,9 @@ export default function CasesScreen() {
         <ProovraSheet visible title={actionsFor.name} onClose={() => setActionsFor(null)}>
           <View style={styles.sheetBody} testID="case-row-actions">
             <ProovraButton label="Open" variant="secondary" onPress={() => openCase(actionsFor)} />
+            {/* B3C-F-005 / A2-14 — a VIEWER is read-only: Open is the only row action. */}
+            {state.phase === "ready" && state.queue.role === "VIEWER" ? null : (
+            <>
             {/* Rename and status live on the case's Settings section. */}
             <ProovraButton label="Rename" variant="secondary" onPress={() => openCase(actionsFor, "settings")} />
             <ProovraButton label="Change status" variant="secondary" onPress={() => openCase(actionsFor, "settings")} />
@@ -452,6 +455,8 @@ export default function CasesScreen() {
                 setActionsFor(null);
               }}
             />
+            </>
+            )}
           </View>
         </ProovraSheet>
       ) : null}

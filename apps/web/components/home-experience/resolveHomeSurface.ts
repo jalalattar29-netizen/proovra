@@ -31,13 +31,21 @@
  * Pure function: no React, no envelope access — trivially unit-testable.
  */
 
-export type HomeSurfaceDecision = "command-center" | "loading" | "self-serve";
+export type HomeSurfaceDecision = "command-center" | "loading" | "self-serve" | "self-serve-degraded";
 
 export type HomeSurfaceInput = {
   isPlatformAdmin: boolean;
   isEnterpriseWorkspace: boolean;
   /** True once the envelope has resolved the active context's plan. */
   planResolved: boolean;
+  /**
+   * B2A-F-14 (Free-user audit 0ea0) — true when the context has SETTLED (a
+   * READY envelope). A settled envelope with no plan is not "loading": the
+   * server's commercial resolution failed (it keeps the plan null and marks
+   * the workspace degraded), and no later render will fill it in. Absent =
+   * the old behaviour (unresolved reads as loading).
+   */
+  envelopeSettled?: boolean;
 };
 
 export function resolveHomeSurface(input: HomeSurfaceInput): HomeSurfaceDecision {
@@ -49,7 +57,10 @@ export function resolveHomeSurface(input: HomeSurfaceInput): HomeSurfaceDecision
 
   // 2. Envelope not yet resolved (loading, or no entitlement row).
   //    Show a skeleton — NEVER the enterprise dashboard.
-  if (!input.planResolved) return "loading";
+  //    B2A-F-14 — but a SETTLED envelope with no plan will never resolve on
+  //    its own: say so (degraded notice + retry) over the self-serve Home
+  //    instead of a skeleton that never ends.
+  if (!input.planResolved) return input.envelopeSettled === true ? "self-serve-degraded" : "loading";
 
   // 3. Default for every resolved, non-enterprise user: the single
   //    self-serve Home V2.

@@ -360,6 +360,8 @@ export type WorkspaceUsageClient = Pick<
   | "evidencePartDerivedAsset"
   // AUDIT D-03 — the first-issuance measure reads missing-file recovery requests.
   | "reportGenerationRequest"
+  // B5B-F-403 (free audit 0ea0) — and the credit ledger (credit-funded records).
+  | "evidenceCreditLedgerEntry"
 >;
 
 export async function getWorkspaceUsage(

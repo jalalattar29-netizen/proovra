@@ -35,10 +35,13 @@ for (const path of ["/operations/batch-analysis", "/operations/quotas"]) {
     assert.equal(findSurfaceTierRule(path)?.tier, "PROFESSIONAL");
   });
 
-  test(`${path}: a plan without professional surfaces is redirected; one with them is allowed`, () => {
+  test(`${path}: a plan without professional surfaces is refused; one with them is allowed`, () => {
+    // B7A-F-007 (Free-user audit 0ea0) — the quota dashboard now TELLS a Free
+    // visitor it is not on the plan (forbidden + message) instead of bouncing
+    // them to Home; batch analysis still redirects.
     assert.deepEqual(
       { kind: getDirectAccessDecision(FREE, path).kind },
-      { kind: "redirect" },
+      { kind: path === "/operations/quotas" ? "forbidden" : "redirect" },
     );
     assert.equal(getDirectAccessDecision(PRO, path).kind, "allow");
   });

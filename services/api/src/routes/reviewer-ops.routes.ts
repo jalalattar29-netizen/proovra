@@ -36,6 +36,7 @@ import { listReminders } from "../services/reviewer-ops/reminder-engine.service.
 import { advanceSweepCursor, afterCursor, readSweepCursor } from "../services/reviewer-ops/sweep-cursor.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { queryBoolean } from "../http/query-boolean.js";
 import {
   ReviewerOpsBulkInputSchema,
   ReviewerOpsSavedViewFilterSchema,
@@ -990,7 +991,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           teamId: z.string().uuid(),
           limit: z.coerce.number().int().min(1).max(200).optional(),
           reviewerUserId: z.string().uuid().optional(),
-          suggest: z.coerce.boolean().optional(),
+          suggest: queryBoolean.optional(),
         })
         .parse(req.query ?? {});
       const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");

@@ -50,6 +50,7 @@ import { evidenceVisibleThroughCasesWhere } from "./case-visibility.js";
 import { caseCommentReadFilter, caseCommentVisibilitiesFor } from "./case-lifecycle.service.js";
 import {
   getCaseAssignmentRoles,
+  resolveCaseDestructiveAccessRole,
   resolveCaseViewerCapabilities,
   type CaseAccessRole,
 } from "./case-permission.service.js";
@@ -105,6 +106,9 @@ export type MatterWorkspaceEnvelope = {
     canResolveComment: boolean;
     /** Grant / revoke direct case access (MANAGE_ACCESS). */
     canManageAccess: boolean;
+    /** B3C-F-005 — Rename / Delete, from the destructive gate's own role input. */
+    canRename: boolean;
+    canDelete: boolean;
     /**
      * Bounded reason strings keyed by action name. Only populated
      * when the action is denied — the frontend uses this for the
@@ -119,6 +123,8 @@ export type MatterWorkspaceEnvelope = {
       comment: string;
       resolveComment: string;
       manageAccess: string;
+      rename: string;
+      delete: string;
     }>;
     /**
      * Bounded list of the viewer's ACTIVE CaseAssignment role names
@@ -495,9 +501,15 @@ export async function buildMatterWorkspace(input: {
     caseRow.id,
     input.userId,
   );
+  // B3C-F-005 — Rename/Delete use the destructive gate's own role input.
+  const destructiveRole = await resolveCaseDestructiveAccessRole({
+    caseRow: { id: caseRow.id, ownerUserId: caseRow.ownerUserId, teamId: caseRow.teamId },
+    userId: input.userId,
+  }).catch(() => ({ ok: false as const, reason: "unavailable" }));
   const viewerCaps = resolveCaseViewerCapabilities({
     accessRole,
     assignmentRoles: activeAssignmentRoleNames,
+    destructiveAccessRole: destructiveRole.ok ? destructiveRole.accessRole : "NONE",
   });
 
   const evidenceIds = await listCaseEvidenceIdsForViewer({
@@ -582,6 +594,8 @@ export async function buildMatterWorkspace(input: {
       canComment: viewerCaps.canComment,
       canResolveComment: viewerCaps.canResolveComment,
       canManageAccess: viewerCaps.canManageAccess,
+      canRename: viewerCaps.canRename,
+      canDelete: viewerCaps.canDelete,
       disabledReasons: viewerCaps.disabledReasons,
       activeAssignmentRoles: activeAssignmentRoleNames,
     },

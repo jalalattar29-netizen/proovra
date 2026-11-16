@@ -565,7 +565,8 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     // Rebaselined 2026-09-30: 23,637 -> 23,876 — ET-DC-11: the capture draft takes the canonical evidence.create decision
     // Rebaselined 2026-11-01: 23,876 -> 23,898 — INGEST-009: a draft reports its own workspace, so a resumed draft files where it was started
     // Rebaselined 2026-11-13: 23,898 -> 26,271 — F-04 (Free-user audit): discarding a draft releases its unsealed reservation through the reservation authority (record lock before the draft row).
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(26271);
+    // Rebaselined 2026-11-16: 26,271 -> 27,296 — B4-F-310 (free-audit 0ea0): an unexpected 5xx is rethrown to the central handler instead of echoing err.message.
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(27296);
   });
 
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {

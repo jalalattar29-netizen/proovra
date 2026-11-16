@@ -37,6 +37,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { viewerReachInWorkspace } from "../services/access/record-reach.js";
 import {
   ANALYTICS_DEFAULT_WINDOW_DAYS,
   ANALYTICS_MAX_WINDOW_DAYS,
@@ -103,11 +104,16 @@ async function gateAnalyticsRead(
   return { ok: true, scope, userId: outcome.actorUserId };
 }
 
-function buildInput(parsed: AnalyticsQueryParsed, scope: AnalyticsScope): AnalyticsInput {
+async function buildInput(
+  parsed: AnalyticsQueryParsed,
+  gate: { scope: AnalyticsScope; userId: string },
+): Promise<AnalyticsInput> {
   return {
     teamId: parsed.teamId,
-    scope,
+    scope: gate.scope,
     windowDays: parsed.window,
+    // B7B-F03 (free-audit 0ea0): counts follow the reader's record reach.
+    reach: await viewerReachInWorkspace(parsed.teamId, gate.userId),
   };
 }
 
@@ -133,7 +139,7 @@ export async function analyticsOperationsRoutes(
       }
       const gate = await gateAnalyticsRead(req, reply, q.data.teamId);
       if (!gate.ok) return;
-      const envelope = await getOperationsOverview(buildInput(q.data, gate.scope));
+      const envelope = await getOperationsOverview(await buildInput(q.data, gate));
       reply.send(envelope);
     },
   );
@@ -153,7 +159,7 @@ export async function analyticsOperationsRoutes(
       }
       const gate = await gateAnalyticsRead(req, reply, q.data.teamId);
       if (!gate.ok) return;
-      const envelope = await getReviewerAnalytics(buildInput(q.data, gate.scope));
+      const envelope = await getReviewerAnalytics(await buildInput(q.data, gate));
       reply.send(envelope);
     },
   );
@@ -173,7 +179,7 @@ export async function analyticsOperationsRoutes(
       }
       const gate = await gateAnalyticsRead(req, reply, q.data.teamId);
       if (!gate.ok) return;
-      const envelope = await getGovernanceAnalytics(buildInput(q.data, gate.scope));
+      const envelope = await getGovernanceAnalytics(await buildInput(q.data, gate));
       reply.send(envelope);
     },
   );
@@ -193,7 +199,7 @@ export async function analyticsOperationsRoutes(
       }
       const gate = await gateAnalyticsRead(req, reply, q.data.teamId);
       if (!gate.ok) return;
-      const envelope = await getAutomationAnalytics(buildInput(q.data, gate.scope));
+      const envelope = await getAutomationAnalytics(await buildInput(q.data, gate));
       reply.send(envelope);
     },
   );
@@ -214,7 +220,7 @@ export async function analyticsOperationsRoutes(
       const gate = await gateAnalyticsRead(req, reply, q.data.teamId);
       if (!gate.ok) return;
       const envelope = await getArtifactReadinessAnalytics(
-        buildInput(q.data, gate.scope),
+        await buildInput(q.data, gate),
       );
       reply.send(envelope);
     },

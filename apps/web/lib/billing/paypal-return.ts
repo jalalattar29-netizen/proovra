@@ -216,6 +216,8 @@ export type StripeAttemptAnswer = {
   warning?: string;
   /** AUDIT E-02 — the card plan was superseded by a plan already live. */
   superseded?: boolean;
+  /** B6-F-70 — on ABANDON_CONFIRMATION_REQUIRED: whether closing also stops it at Stripe. */
+  cancelsAtProvider?: boolean;
 };
 
 /** Whether a re-check answer is final, or worth asking again shortly. */
@@ -295,6 +297,14 @@ export function stripeCancelNotice(ret: StripeReturn, answer: StripeAttemptAnswe
         tone: "info",
         title: "This checkout already ended",
         message: `This Stripe checkout is no longer open, and leaving it changed nothing. Billing shows your current ${noun} and Billing activity shows how the checkout ended.`,
+      };
+    case "ABANDON_CONFIRMATION_REQUIRED":
+      // B6-F-70 — a return link alone never closes a checkout. The customer
+      // declined (or was not asked) to close it, so it is still open.
+      return {
+        tone: "info",
+        title: "Stripe checkout not finished",
+        message: `You left Stripe checkout before paying, so this ${noun} was not applied. The checkout is still open: Billing activity shows it, where you can continue or abandon it.`,
       };
     case "PROVIDER_CANCEL_FAILED":
       return {

@@ -205,7 +205,8 @@ describe("Phase 37.95 — search activeSpace scoping", () => {
 
   it("search routes use the canonical authorize helper", () => {
     expect(SEARCH_ROUTES).toMatch(
-      /authorizeOrFail|requireAuthorize|evaluateMemberAccess/,
+      // B2A-F-10 (free-audit 0ea0): search now uses the canonical minted context.
+      /authorizeOrFail|authorizeWorkspaceOrFail|requireAuthorize|evaluateMemberAccess/,
     );
   });
 

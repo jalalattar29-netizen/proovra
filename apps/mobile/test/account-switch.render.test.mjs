@@ -193,3 +193,43 @@ test("PRO-116: Settings sign-out removes the capture-link groups with the rest o
   // Another account's groups (whose records a server-ended session kept) are not this sign-out's to remove.
   assert.notEqual(await A.getItem("proovra.capture.links.v1:u-other"), null);
 });
+
+test("B8-F-001: a sign-out the server did not complete keeps the session on the device and offers a retry", async () => {
+  const A = Settings.AsyncStorage;
+  A.__reset();
+  await Settings.setItemAsync("proovra-token", "sess-user1");
+  const base = server({ sessions: { "sess-user1": { id: "u-user1", email: "user1@example.invalid" } }, linkUser: OWNER });
+  let refuse = 1;
+  answer = (path, init) => {
+    if (path === "/v1/auth/logout" && refuse > 0) {
+      refuse -= 1;
+      return json(503, { error: { code: "SERVER_BUSY", message: "busy" } });
+    }
+    return base(path, init);
+  };
+  const alerts = [];
+  globalThis.__ALERT__ = (title, message, buttons) => alerts.push({ title, message, buttons });
+  Settings.calls.reset();
+  globalThis.__EXPO_PARAMS__ = {};
+  try {
+    const r = await renderComponent(h(Settings.TestProviders, null, h(Settings.default, {})));
+    mounted.push(r);
+    await settle(12);
+    await r.press("Sign out");
+    await settle(12);
+    assert.equal(logouts().length, 1);
+    assert.equal(alerts.length, 1, "the failed sign-out was not said");
+    assert.equal(alerts[0].title, "Sign-out did not complete");
+    assert.match(alerts[0].message, /still signed in/);
+    assert.equal(await Settings.getItemAsync("proovra-token"), "sess-user1", "the device purged a token the server still honours");
+    assert.ok(!Settings.calls.replace.includes("/(stack)/auth"), "reported as signed out");
+
+    const retry = alerts[0].buttons.find((b) => b.text === "Retry sign-out");
+    await act(async () => { await retry.onPress(); });
+    await settle(12);
+    assert.equal(logouts().length, 2);
+    assert.ok(Settings.calls.replace.includes("/(stack)/auth"), "the retried sign-out did not complete");
+  } finally {
+    globalThis.__ALERT__ = undefined;
+  }
+});

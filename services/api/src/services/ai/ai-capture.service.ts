@@ -398,6 +398,11 @@ if (providerResult.status === "ok") {
 
 return {
   ...deterministic,
+  // B6-F-21 (Free-user audit 0ea0) — the deterministic review is still
+  // returned, but under the PROVIDER's non-ok status. It inherited `ok` from
+  // the deterministic object, so the route's spend rule (release unless ok)
+  // could not see the failure and charged the monthly allowance for it.
+  status: providerResult.status,
   warnings: Array.from(
     new Set([
       ...deterministic.warnings,

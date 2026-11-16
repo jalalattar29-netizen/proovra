@@ -17,6 +17,7 @@
  *     DRAFT.
  */
 
+import { regionAddFailureMessage } from "../../lib/redaction/refusal";
 import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -70,6 +71,7 @@ export function ImageRedactionViewer({
     w: number;
     h: number;
   }>(null);
+  const [addError, setAddError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Only normalized bounding boxes can be drawn as an overlay rectangle;
   // other region kinds (text spans, audio ranges) are listed in the
@@ -136,9 +138,12 @@ export function ImageRedactionViewer({
           geometry,
         }),
       });
+      setAddError(null);
       onChanged();
-    } catch {
-      /* swallow — the parent reflects the banner */
+    } catch (err) {
+      // B5B-F-200 — a refused region (VERSION_LOCKED from another tab, NOT_PERMITTED)
+      // used to vanish silently.
+      setAddError(regionAddFailureMessage(err));
     }
   }, [drag, method, onChanged, versionId, versionLocked]);
 
@@ -254,6 +259,11 @@ export function ImageRedactionViewer({
         Regions are saved as you draw them. The redacted copy is generated
         in the background; the original evidence is never modified.
       </small>
+      {addError ? (
+        <p role="alert" data-redaction-region-add-error style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 12.5, margin: "8px 0 0" }}>
+          {addError}
+        </p>
+      ) : null}
     </section>
   );
 }

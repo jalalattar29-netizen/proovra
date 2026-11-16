@@ -216,6 +216,35 @@ vi.mock("../src/middleware/authorize.js", () => ({
     ctx: { capabilities: ReadonlySet<string> },
     permission: string,
   ) => ctx.capabilities.has(permission),
+  // B2A-F-10 (free-audit 0ea0): search now uses the canonical inline gate. Same
+  // semantics as the double above, plus the canonical deny vocabulary.
+  authorizeWorkspaceOrFail: async (
+    _req: unknown,
+    reply: { code: (n: number) => { send: (b: unknown) => void } },
+    opts: { permission: string; workspaceId?: string | null },
+  ) => {
+    H.seenPermissions.push(opts.permission);
+    if (!H.memberStatus) {
+      reply.code(404).send({ error: { code: "not_found" } });
+      return null;
+    }
+    if (H.memberStatus !== "ACTIVE") {
+      reply.code(403).send({ error: { code: "permission_denied", reason: "member_not_active" } });
+      return null;
+    }
+    return {
+      userId: H.actorUserId,
+      workspaceId: opts.workspaceId ?? TEAM,
+      workspaceKind: "OWNED",
+      workspaceRole: H.reviewerCapable ? "OWNER" : "VIEWER",
+      membershipStatus: "ACTIVE",
+      organizationId: null,
+      organizationLifecycle: null,
+      capabilities: new Set<string>(
+        H.reviewerCapable ? ["evidence.read", "identity.member.read", "identity.access_review.action"] : ["evidence.read", "identity.member.read"],
+      ),
+    };
+  },
 
   // PHASE 12 CORRECTIVE PASS §1.3 (2026-08-06) — DOUBLE EXTENDED, NOT
   // ASSERTION WEAKENED.

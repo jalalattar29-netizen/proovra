@@ -30,7 +30,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = readFileSync(resolve(HERE, "../src/routes/auth.routes.ts"), "utf8");
 
 const COOKIE_CALL = "maybeSetWebCookie(req, reply, token)";
-const RECORDER = "recordSessionFromSignedToken(req,";
+// B1-F-008 (free-audit 0ea0): every interactive sign-in now records through
+// `recordSessionOrRefuse`, which calls the one canonical recorder
+// (`recordSessionFromSignedToken`) and issues no session when the row cannot be
+// written. The invariant is unchanged: no cookie without an inventory row.
+const RECORDER = "recordSessionOrRefuse(req,";
 
 /**
  * Split the route file into per-handler slices so a recorder call in one
@@ -105,7 +109,7 @@ describe("auth session-inventory parity", () => {
     // set session cookie). `clearMfaPendingCookie` also appears on
     // failure paths, so a plain indexOf would inspect the wrong site.
     expect(SRC).toMatch(
-      /recordSessionFromSignedToken\(req,[\s\S]{0,200}clearMfaPendingCookie\(req, reply\);[\s\S]{0,200}maybeSetWebCookie\(req, reply, token\);/,
+      /recordSessionOrRefuse\(req,[\s\S]{0,200}clearMfaPendingCookie\(req, reply\);[\s\S]{0,200}maybeSetWebCookie\(req, reply, token\);/,
     );
   });
 
@@ -116,6 +120,8 @@ describe("auth session-inventory parity", () => {
       (SRC.match(/async function recordSessionFromSignedToken\(/g) ?? []).length,
     ).toBe(1);
     expect(SRC).toContain("recordAuthenticatedSession");
+    // The refusing wrapper delegates to the one recorder (B1-F-008).
+    expect(SRC).toMatch(/async function recordSessionOrRefuse\([\s\S]{0,400}await recordSessionFromSignedToken\(req, user, token\)/);
     expect(SRC).not.toMatch(/record(Google|Apple|Oauth)Session/i);
   });
 });

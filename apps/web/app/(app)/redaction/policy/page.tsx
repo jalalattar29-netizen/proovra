@@ -19,6 +19,8 @@
  *     code list — never as free-form text.
  */
 
+import { redactionRefusalMessage } from "../../../../lib/redaction/refusal";
+import { useOptionalPlatformContext } from "../../../../lib/platform-context";
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -99,6 +101,7 @@ export default function PolicyManagementConsolePage() {
 }
 
 function PolicyManagementConsole() {
+  const activeWorkspaceId = useOptionalPlatformContext()?.activeWorkspaceId ?? null;
   const [policies, setPolicies] = useState<PolicyRow[] | null>(null);
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
   const [versions, setVersions] = useState<PolicyVersionRow[]>([]);
@@ -197,8 +200,7 @@ function PolicyManagementConsole() {
       await refreshPolicies();
       setSelectedPolicyId(res?.policyId ?? null);
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
+      setBanner(redactionRefusalMessage(err, "The policy could not be created."));
     }
   }, [newName, refreshPolicies]);
 
@@ -222,8 +224,7 @@ function PolicyManagementConsole() {
       setBanner("New draft version created");
       await refreshVersionsAndAudit(selectedPolicyId);
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
+      setBanner(redactionRefusalMessage(err, "The new version could not be created."));
     }
   }, [selectedPolicyId, policies, refreshVersionsAndAudit]);
 
@@ -250,8 +251,7 @@ function PolicyManagementConsole() {
         setBanner(`Transitioned version to ${toState}`);
         if (selectedPolicyId) await refreshVersionsAndAudit(selectedPolicyId);
       } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setBanner(`Refused: ${((err as any)?.denial ?? "INVALID_TRANSITION")}`);
+        setBanner(redactionRefusalMessage(err, "The version could not be transitioned."));
       }
     },
     [selectedPolicyId, refreshVersionsAndAudit],
@@ -279,8 +279,7 @@ function PolicyManagementConsole() {
         setBanner(`Assigned to ${scope}${scopeTargetId ? ` / ${scopeTargetId.slice(0, 8)}…` : ""}`);
         await refreshVersionsAndAudit(selectedPolicyId);
       } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
+        setBanner(redactionRefusalMessage(err, "The policy version could not be assigned."));
       }
     },
     [selectedPolicyId, refreshVersionsAndAudit],
@@ -504,6 +503,7 @@ function PolicyManagementConsole() {
                 onCreateVersion={onCreateVersion}
                 onTransition={onTransitionVersion}
                 onAssign={onAssignVersion}
+                workspaceId={activeWorkspaceId ?? null}
                 onCompare={(left, right) => {
                   setCompareLeftId(left);
                   setCompareRightId(right);
@@ -621,7 +621,10 @@ function PolicyVersionsPanel({
   onTransition,
   onAssign,
   onCompare,
+  workspaceId = null,
 }: {
+  /** B5B-F-202 — the active workspace: the WORKSPACE scope's target. */
+  workspaceId?: string | null;
   policyId: string;
   archived: boolean;
   error: string | null;
@@ -785,8 +788,15 @@ function PolicyVersionsPanel({
                       value={null}
                       placeholder="Assign to…"
                       ariaLabel="Assign this policy version"
-                      options={POLICY_ASSIGNMENT_SCOPES.map((s) => ({ value: s, label: identifierLabel(s) }))}
-                      onChange={(scope) => onAssign(v.id, scope, scope === "GLOBAL" ? null : null)}
+                      // B5B-F-202 — every scope offered is bound: GLOBAL takes no
+                      // target, WORKSPACE the active workspace. CASE and PROJECT
+                      // need a chosen id, which the scope panel below collects;
+                      // this quick menu no longer sends them with a null target
+                      // (always refused, 409 POLICY_REJECTED).
+                      options={POLICY_ASSIGNMENT_SCOPES.filter(
+                        (s) => s === "GLOBAL" || (s === "WORKSPACE" && !!workspaceId),
+                      ).map((s) => ({ value: s, label: identifierLabel(s) }))}
+                      onChange={(scope) => onAssign(v.id, scope, scope === "WORKSPACE" ? workspaceId : null)}
                       style={{ minWidth: 130 }}
                       triggerProps={{ "data-redaction-policy-assign-scope": v.id }}
                     />

@@ -117,7 +117,7 @@ main() {
 
   # --- the rollback point: what is running NOW ---------------------------------
   local CUR_SHA="" CUR_TAG="" CUR_REF CUR_CID
-  CUR_CID="$(compose ps -q "${API_SVC}" 2>/dev/null || true)"
+  CUR_CID="$(compose ps -q "${API_SVC}" 2>/dev/null | head -n 1 || true)"
   if [ -n "${CUR_CID}" ]; then
     CUR_REF="$(docker inspect --format '{{.Config.Image}}' "${CUR_CID}")"
     CUR_TAG="${CUR_REF##*:}"
@@ -177,9 +177,15 @@ main() {
   for svc in "${API_SVC}" "${WORKER_SVC}"; do
     want="${API_IMAGE}"
     [ "${svc}" = "${WORKER_SVC}" ] && want="${WORKER_IMAGE}"
-    cid="$(compose ps -q "${svc}")"
-    running="$(docker inspect --format '{{.Config.Image}}' "${cid}")"
-    [ "${running}" = "${want}" ] || fail "${svc} is running '${running}', expected '${want}'."
+    # B8-F-305 — every container of the service (a scaled worker has N), not
+    # one id: each must run the release image.
+    local cids
+    cids="$(compose ps -q "${svc}")"
+    [ -n "${cids}" ] || fail "${svc} has no container after 'up'."
+    for cid in ${cids}; do
+      running="$(docker inspect --format '{{.Config.Image}}' "${cid}")"
+      [ "${running}" = "${want}" ] || fail "${svc} container ${cid} is running '${running}', expected '${want}'."
+    done
   done
 
   mkdir -p "${STATE_DIR}"
@@ -259,16 +265,22 @@ image_revision() {
 }
 
 wait_healthy() {
-  local svc="$1" url="$2" cid status i
-  cid="$(compose ps -q "${svc}")"
-  [ -n "${cid}" ] || fail "${svc} has no container after 'up'."
+  # B8-F-305 — a scaled service has several containers; ALL must be healthy.
+  local svc="$1" url="$2" cids cid status i all
+  cids="$(compose ps -q "${svc}")"
+  [ -n "${cids}" ] || fail "${svc} has no container after 'up'."
   for ((i = 1; i <= HEALTH_TIMEOUT_S; i++)); do
-    status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${cid}")"
+    all="healthy"
+    for cid in ${cids}; do
+      status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${cid}")"
+      [ "${status}" = "unhealthy" ] && break 2
+      [ "${status}" = "healthy" ] || all="${status}"
+    done
+    status="${all}"
     if [ "${status}" = "healthy" ] && curl -fsS --max-time 5 -o /dev/null "${url}"; then
       echo "  ${svc} healthy after ${i}s (${url} OK)."
       return 0
     fi
-    [ "${status}" = "unhealthy" ] && break
     sleep 1
   done
   fail "${svc} did not become healthy within ${HEALTH_TIMEOUT_S}s (last health: ${status})."

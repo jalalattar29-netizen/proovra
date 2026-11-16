@@ -242,3 +242,25 @@ test("the parser reads only keys the aggregator sends (report.state / package.st
   assert.equal(page.items[0].reportState, "failed");
   assert.equal(page.items[0].packageState, "not_requested");
 });
+
+test("B5B-F-103 / A2-23 — a removed member (404 on the list and on the fallback) sees the access-denied state, not a load error", async () => {
+  routes["/v1/reports/artifacts"] = (path) => (path.includes("summary=0") ? { __status: 404, error: { code: "not_found" } } : aggregator([]));
+  routes["/v1/reports"] = () => ({ __status: 404, error: { code: "not_found" } });
+  const r = await render();
+  assert.ok(r.hasText("You don't have access to this workspace's reports"));
+  assert.equal(r.hasText("Unable to load artifacts."), false);
+  r.unmount();
+});
+
+test("B5B-F-102 — a VIEWER's refused full package names the original-access reason and the external package, not governance", async () => {
+  routes["/v1/evidence/e1/verification-package"] = () => ({
+    __status: 403,
+    error: { code: "FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS", message: "The full forensic package contains the original files." },
+  });
+  const r = await render();
+  await r.press("Download Verification Package ZIP: Roof photo");
+  await settle();
+  assert.ok(r.texts().some((t) => /original files/.test(t) && /external disclosure package/.test(t)), r.texts().join(" | "));
+  assert.equal(r.texts().some((t) => /workspace governance, a hold, or export eligibility/.test(t)), false);
+  r.unmount();
+});

@@ -380,9 +380,13 @@ export default function ScreenCaptureScreen() {
           message:
             held === "SIGNED_OUT"
               ? PENDING_COPY.signedOut
-              : held === "REFUSED"
-                ? `${refusal || PENDING_COPY.refusedFallback} ${PENDING_COPY.refused}`
-                : `${PENDING_COPY.failed} (${refusal || "network"})`,
+              : held === "LEGAL"
+                ? PENDING_COPY.legal
+                : held === "ACCESS"
+                  ? PENDING_COPY.access
+                  : held === "REFUSED"
+                    ? `${refusal || PENDING_COPY.refusedFallback} ${PENDING_COPY.refused}`
+                    : `${PENDING_COPY.failed} (${refusal || "network"})`,
         });
         return;
       }
@@ -577,6 +581,11 @@ const PENDING_COPY = {
     "Your sign-in ended before the upload finished. Your frames are kept on this device and nothing was discarded — sign in again, then tap Retry upload.",
   refused: "Your frames are kept on this device and nothing was discarded — tap Retry upload once this is resolved, or Discard.",
   refusedFallback: "This capture could not be accepted on your current plan or storage.",
+  // B4-F-202 — the terms gate (428) and an access refusal (403) keep the frames too.
+  legal:
+    "Updated terms need your acceptance before this capture can be uploaded. Your frames are kept on this device and nothing was discarded — accept the terms, then tap Retry upload.",
+  access:
+    "Your access to this workspace changed, so the capture could not be uploaded there. Your frames are kept on this device and nothing was discarded — ask a workspace admin to restore your access, then tap Retry upload, or Discard.",
 } as const;
 
 function Bullet({ text }: { text: string }) {

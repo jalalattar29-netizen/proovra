@@ -209,12 +209,42 @@ async function ensureConnected(client: IORedis): Promise<void> {
   }
 }
 
+/**
+ * B8-F-304 — the memory store is bounded. Entries were only ever overwritten
+ * when the same key returned, so a burst of distinct keys (IPs, accounts)
+ * lived until restart. Once the map passes the threshold, expired buckets are
+ * swept — at most once per interval, so a large live map is not rescanned on
+ * every request. Only past-window entries are removed, so no live count is
+ * ever lost (the limit stays exact).
+ */
+export const MEMORY_RATE_LIMIT_PRUNE_THRESHOLD = 5_000;
+const MEMORY_RATE_LIMIT_PRUNE_INTERVAL_MS = 5_000;
+let lastMemoryPruneAtMs = 0;
+
+function pruneExpiredMemoryBuckets(now: number): void {
+  if (memoryStore.size <= MEMORY_RATE_LIMIT_PRUNE_THRESHOLD) return;
+  if (now - lastMemoryPruneAtMs < MEMORY_RATE_LIMIT_PRUNE_INTERVAL_MS) return;
+  lastMemoryPruneAtMs = now;
+  for (const [k, bucket] of memoryStore) {
+    if (bucket.resetAtMs <= now) memoryStore.delete(k);
+  }
+  for (const [k, lease] of memoryLeases) {
+    if (lease.expiresAtMs <= now) memoryLeases.delete(k);
+  }
+}
+
+/** Test-only: the number of buckets this process holds in memory. */
+export function __memoryRateLimitBucketCountForTests(): number {
+  return memoryStore.size;
+}
+
 async function enforceMemoryRateLimit(params: {
   key: string;
   max: number;
   windowSec: number;
 }): Promise<RateLimitResult> {
   const now = Date.now();
+  pruneExpiredMemoryBuckets(now);
   const resetAtMs = buildWindowReset(now, params.windowSec);
 
   const existing = memoryStore.get(params.key);
@@ -553,11 +583,39 @@ function acquireMemoryLease(key: string, ttlMs: number): Lease {
 const RELEASE_LUA =
   "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 
-export async function acquireLease(rawKey: string, ttlMs: number): Promise<Lease> {
+/**
+ * B8-F-004 — WHAT A LEASE DOES WHEN ITS STORE CANNOT ANSWER.
+ *
+ * `"memory"` (default) keeps the historical behaviour for interactive paths
+ * whose writers are compare-and-set (a Redis blip must not turn a button into
+ * "busy"). `"refuse"` is for SWEEPS and other work that every API process
+ * starts on its own timer: with Redis configured, an unreadable lock is not a
+ * licence to run (AUD-50, the worker cron lock's rule) — each process holding
+ * its own memory lease meant N concurrent sweeps during an outage. Without
+ * Redis configured there is one process and memory is the whole store, so
+ * both behave the same.
+ */
+export type LeaseOptions = { onStoreError?: "memory" | "refuse" };
+
+const REFUSED_LEASE: Lease = { acquired: false, release: async () => undefined };
+
+export async function acquireLease(
+  rawKey: string,
+  ttlMs: number,
+  options: LeaseOptions = {},
+): Promise<Lease> {
   const key = normalizeKey(rawKey);
   const ttl = clampPositiveInt(ttlMs, 60_000);
+  const refuseOnStoreError =
+    options.onStoreError === "refuse" && redisConfigured();
   const client = getRedis();
-  if (!client) return acquireMemoryLease(key, ttl);
+  if (!client) {
+    if (refuseOnStoreError) {
+      logWarn("lease.refused_store_unavailable", { key });
+      return REFUSED_LEASE;
+    }
+    return acquireMemoryLease(key, ttl);
+  }
   const redisKey = `${REDIS_KEY_PREFIX}lease:${key}`;
   const token = leaseToken();
   try {
@@ -572,6 +630,10 @@ export async function acquireLease(rawKey: string, ttlMs: number): Promise<Lease
     };
   } catch {
     markRedisUnavailable("command_failed");
+    if (refuseOnStoreError) {
+      logWarn("lease.refused_store_unavailable", { key });
+      return REFUSED_LEASE;
+    }
     return acquireMemoryLease(key, ttl);
   }
 }
@@ -582,8 +644,9 @@ export async function withLease<T>(
   ttlMs: number,
   fn: () => Promise<T>,
   onBusy: () => T | Promise<T>,
+  options: LeaseOptions = {},
 ): Promise<T> {
-  const lease = await acquireLease(key, ttlMs);
+  const lease = await acquireLease(key, ttlMs, options);
   if (!lease.acquired) return onBusy();
   try {
     return await fn();

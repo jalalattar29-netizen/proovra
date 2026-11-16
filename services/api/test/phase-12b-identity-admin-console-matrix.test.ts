@@ -548,7 +548,10 @@ const OPS: Op[] = [
   { name: "POST scim/tokens", method: "POST", url: "/v1/admin/identity/scim/tokens", payload: { teamId: TEAM, name: "Okta provisioning", scopes: ["users.read"] }, service: "createScimToken", perm: "identity.external_mapping.manage", gate: "member", ok: 201 },
   { name: "POST scim/tokens/:id/revoke", method: "POST", url: `/v1/admin/identity/scim/tokens/${TOKEN}/revoke`, payload: { teamId: TEAM, reason: "rotated" }, service: "revokeScimToken", perm: "identity.external_mapping.manage", gate: "member", ok: 200 },
   // sessions + quarantine
-  { name: "GET sessions", method: "GET", url: `/v1/admin/identity/sessions?teamId=${TEAM}`, service: "listActiveSessions", perm: "identity.org_policy.read", gate: "member", ok: 200 },
+  // B7A-F-002 (free-audit 0ea0): the session inventory (and the quarantine list
+  // below) is an administrator's read — the permission every session write
+  // takes, not the policy read every role holds.
+  { name: "GET sessions", method: "GET", url: `/v1/admin/identity/sessions?teamId=${TEAM}`, service: "listActiveSessions", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "POST sessions/:id/revoke", method: "POST", url: `/v1/admin/identity/sessions/${SESSION}/revoke`, payload: { teamId: TEAM, reason: "OPERATOR_REVOKED" }, service: "revokeActiveSession", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "POST sessions/user/:userId/revoke-all", method: "POST", url: `/v1/admin/identity/sessions/user/${SUBJECT}/revoke-all`, payload: { teamId: TEAM, reason: "MEMBER_SUSPENDED" }, service: "revokeAllSessionsForUserAdmin", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "GET timeline", method: "GET", url: `/v1/admin/identity/timeline?teamId=${TEAM}`, service: "securityEvent.findMany", perm: "identity.audit.read", gate: "member", ok: 200 },
@@ -558,7 +561,7 @@ const OPS: Op[] = [
   // change a session's risk score and, through it, what the quarantine surface
   // shows an operator.
   { name: "POST sessions/:id/score", method: "POST", url: `/v1/admin/identity/sessions/${SESSION}/score`, payload: { teamId: TEAM }, service: "detectAndScoreSession", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
-  { name: "GET quarantined-sessions", method: "GET", url: `/v1/admin/identity/quarantined-sessions?teamId=${TEAM}`, service: "listQuarantinedSessions", perm: "identity.org_policy.read", gate: "member", ok: 200 },
+  { name: "GET quarantined-sessions", method: "GET", url: `/v1/admin/identity/quarantined-sessions?teamId=${TEAM}`, service: "listQuarantinedSessions", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "POST sessions/:id/quarantine", method: "POST", url: `/v1/admin/identity/sessions/${SESSION}/quarantine`, payload: { teamId: TEAM, reason: "MANUAL_OPERATOR" }, service: "quarantineSession", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "POST sessions/:id/release", method: "POST", url: `/v1/admin/identity/sessions/${SESSION_QUAR}/release`, payload: { teamId: TEAM, note: "investigated" }, service: "releaseQuarantine", perm: "identity.contributor_session.revoke", gate: "member", ok: 204 },
   { name: "POST emergency-revoke", method: "POST", url: "/v1/admin/identity/emergency-revoke", payload: { teamId: TEAM, reason: "credential stuffing wave" }, service: "emergencyOrgRevoke", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
@@ -963,6 +966,8 @@ describe("RECONCILE — dual-mode entrypoints (machine vs operator)", () => {
       expect(H.stepUps).toEqual([]);
       expect(H.authorizeChecks).toEqual([]);
       expect(H.audits).toEqual([]);
+      // B7A-F-003 — the platform-wide legs run here, on the scheduler's call.
+      expect(hits(url.endsWith("reconcile-stale") ? "sweepStaleCallbackAttempts" : "sweepGeoCache")).toHaveLength(1);
     },
   );
 
@@ -1012,15 +1017,18 @@ describe("RECONCILE — dual-mode entrypoints (machine vs operator)", () => {
     },
   );
 
-  it("runtime/reconcile runs the full sweep set for the derived workspace only", async () => {
+  it("runtime/reconcile runs the workspace sweep set for the derived workspace only", async () => {
     const res = await POST("/v1/admin/identity/runtime/reconcile", {
       recomputeWindowMinutes: 30, decayStaleDays: 14,
     });
     expect(res.statusCode).toBe(200);
+    // B7A-F-003 (free-audit 0ea0): the geo cache is platform-wide, so the
+    // operator path does not sweep it; the scheduler (machine mode) does.
     expect(json(res)).toMatchObject({
       risk: { recomputed: 7 }, decay: { decayed: 3 },
-      releases: { released: 1 }, geo: { purged: 1 }, teamId: TEAM,
+      releases: { released: 1 }, geo: { swept: 0, skipped: "scheduler_only" }, teamId: TEAM,
     });
+    expect(hits("sweepGeoCache")).toEqual([]);
     for (const fn of ["runtimeRiskRecomputeSweep", "sweepTrustedDeviceDecay", "sweepQuarantineReleases"]) {
       expect(hits(fn)).toHaveLength(1);
       expect(hits(fn)[0].teamId).toBe(TEAM);
@@ -1029,12 +1037,15 @@ describe("RECONCILE — dual-mode entrypoints (machine vs operator)", () => {
     expect(hits("sweepTrustedDeviceDecay")[0].args).toMatchObject({ staleDays: 14 });
   });
 
-  it("sessions/reconcile-stale also sweeps callback attempts and refreshes the risk gauge", async () => {
+  it("sessions/reconcile-stale refreshes the risk gauge; the platform-wide callback sweep is the scheduler's", async () => {
     const res = await POST("/v1/admin/identity/sessions/reconcile-stale", { staleMinutes: 45, batchSize: 25 });
     expect(res.statusCode).toBe(200);
+    // B7A-F-003 (free-audit 0ea0): `sweepStaleCallbackAttempts` deletes every
+    // tenant's rows, so an operator call no longer runs it.
     expect(json(res)).toMatchObject({
-      sessions: { scanned: 4, revoked: 1 }, callbackAttempts: { expired: 2 }, teamId: TEAM,
+      sessions: { scanned: 4, revoked: 1 }, callbackAttempts: { swept: 0, skipped: "scheduler_only" }, teamId: TEAM,
     });
+    expect(hits("sweepStaleCallbackAttempts")).toEqual([]);
     expect(hits("sweepStaleSessions")[0].args).toMatchObject({
       teamId: TEAM, staleMinutes: 45, batchSize: 25, revoke: true,
     });

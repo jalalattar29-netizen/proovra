@@ -28,6 +28,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { inFlightGet } from "../../lib/inFlightGet";
+import { isOwnPersonalActiveSpace } from "../../lib/billing/active-space-billing";
+import { readPersonalAllowance } from "../../lib/billing/personal-allowance";
 import {
   useActiveSpace,
   useActiveSpaceId,
@@ -49,6 +51,7 @@ import {
   type HomeReportsInput,
   type HomeTrustSummaryInput,
   type HomeRecordsByTypeInput,
+  type HomeRecordAllowanceInput,
   type HomeSliceKey,
   type HomeViewModel,
 } from "./home-view-model";
@@ -91,6 +94,10 @@ export function useHomeData(): HomeData {
   const workspaceId = useActiveSpaceId();
   const activeSpace = useActiveSpace();
   const activeSpaceType = activeSpace?.type ?? null;
+  // B2A-F-01 — the viewer's own account describes ONLY their own Personal
+  // Space; in a joined or organization workspace its figures are not shown.
+  const ownPersonal = isOwnPersonalActiveSpace(envelope);
+  const activeSpaceShared = activeSpace?.type === "PERSONAL" && activeSpace.shared === true;
   const orgs = useOrganizations();
   // Read `orgs` through a ref inside `reload` so the callback's identity
   // does NOT change on every render when `useOrganizations()` returns a
@@ -250,6 +257,14 @@ export function useHomeData(): HomeData {
     // (personal spaces also accept legacy teamId-null rows). Feeds the
     // KPI sparkline, the activity chart, the type donut and the
     // Recent Evidence card.
+    // B2A-F-03 — the record allowance ("x of 3 records"), from the same
+    // PERSONAL account projection Capture reads. Own Personal Space only.
+    const recordAllowancePromise: Promise<HomeRecordAllowanceInput | null> = ownPersonal
+      ? readPersonalAllowance()
+          .then((a) => a?.records ?? null)
+          .catch(soft("recordAllowance"))
+      : Promise.resolve(null);
+
     const evidenceListPromise: Promise<HomeEvidenceListInput | null> = apiFetch(
       "/v1/evidence?limit=100&sort=newest",
       { method: "GET" },
@@ -287,6 +302,7 @@ export function useHomeData(): HomeData {
       evidenceList: HomeEvidenceListInput | null;
       recordsByType: HomeRecordsByTypeInput | null;
       operationsSummary: HomeOperationsSummaryInput | null;
+      recordAllowance: HomeRecordAllowanceInput | null;
     } = {
       cc: null,
       trustSummary: null,
@@ -298,6 +314,7 @@ export function useHomeData(): HomeData {
       evidenceList: null,
       recordsByType: null,
       operationsSummary: null,
+      recordAllowance: null,
     };
 
     const pending = new Set<HomeSliceKey>([
@@ -311,6 +328,7 @@ export function useHomeData(): HomeData {
       "evidenceList",
       "recordsByType",
       "operationsSummary",
+      "recordAllowance",
     ]);
 
     /*
@@ -341,6 +359,9 @@ export function useHomeData(): HomeData {
         workspaceId: workspaceId ?? null,
         workspaceName: activeSpace?.displayName ?? null,
         activeSpaceType,
+        activeSpaceShared,
+        billingDescribesActiveSpace: ownPersonal,
+        recordAllowance: settled.recordAllowance,
         commandCenter: settled.cc,
         trustSummary: settled.trustSummary,
         billing: settled.billing,
@@ -403,6 +424,9 @@ export function useHomeData(): HomeData {
       track("operationsSummary", operationsSummaryPromise, (v) => {
         settled.operationsSummary = v;
       }),
+      track("recordAllowance", recordAllowancePromise, (v) => {
+        settled.recordAllowance = v;
+      }),
     ]);
 
     // F-21 — the run is over: if any slice failed transiently, say so (with
@@ -417,7 +441,7 @@ export function useHomeData(): HomeData {
 
     // `orgs` is intentionally read via `orgsRef` (not a dep) so this
     // callback stays referentially stable across renders.
-  }, [workspaceId, activeSpaceType, activeSpace?.displayName, plan, planFeatures]);
+  }, [workspaceId, activeSpaceType, activeSpaceShared, ownPersonal, activeSpace?.displayName, plan, planFeatures]);
 
   useEffect(() => {
     void reload();

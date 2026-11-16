@@ -106,7 +106,7 @@ export function SearchAuditLogPanel({ teamId }: { teamId: string | null }) {
             kind: "denied",
             reason:
               status === 403
-                ? "You do not have permission to read this workspace's search activity. An owner, admin, or reviewer can open it."
+                ? "You do not have permission to read this workspace's search activity. A workspace owner or admin can open it."
                 : "Search activity is not available for this workspace.",
           });
           return;

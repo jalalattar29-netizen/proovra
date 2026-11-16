@@ -27,6 +27,7 @@ import { EvidenceList } from "./components/EvidenceList";
 import { QueueSelectionPreview } from "./components/QueueSelectionPreview";
 import { useInspectorHost } from "./lib/useInspectorHost";
 import { SavedViewsMenu } from "./components/SavedViewsMenu";
+import { mayShareSavedViewsIn } from "../../../lib/evidence/saved-view-sharing";
 import { BulkActionsToolbar } from "./components/BulkActionsToolbar";
 import "./evidence-library.css";
 import type {
@@ -238,7 +239,7 @@ function EvidenceLibraryPageInner() {
   const router = useRouter();
   const { addToast } = useToast();
   // The canonical workspace/context envelope — identity, not commerce.
-  const { envelope } = usePlatformContext();
+  const { envelope, contextGeneration } = usePlatformContext();
   const activeSpaceId = useActiveSpaceId();
   const detailCacheRef = useRef<Record<string, { detail: DetailWorkspaceState; loadedAtMs: number }>>({});
   const evidenceRequestRef = useRef(0);
@@ -579,6 +580,11 @@ function EvidenceLibraryPageInner() {
     if (defaultSavedViewAppliedRef.current) {
       return;
     }
+    // Wait for the saved views to arrive: deciding on the empty initial list
+    // marked the default "applied" before it was ever read.
+    if (!supportLoaded) {
+      return;
+    }
 
     // The list spans every workspace the caller belongs to; a default applies
     // only where it was saved (EVID-014).
@@ -603,7 +609,37 @@ function EvidenceLibraryPageInner() {
       ...defaultView.filters,
       scope: defaultView.scope,
     });
-  }, [activeSpaceId, filters, library.savedViews, updateFilters]);
+  }, [activeSpaceId, filters, library.savedViews, supportLoaded, updateFilters]);
+
+  /**
+   * B5A-F-01 — WHAT WAS SELECTED, PAGED OR CACHED BELONGS TO THE WORKSPACE
+   * THAT WAS LEFT. The list requests name no team: they follow the active
+   * workspace binding, so a switch changes the server's answer under a page
+   * that stays mounted. Mirrors native `useWorkspaceChangeCount`: the tenant
+   * generation (bumped only on a real workspace change) resets the cursor,
+   * the bulk selection, the inspector, the detail cache, the KPIs and the
+   * saved-view default, then the list and support data reload.
+   */
+  const lastGenerationRef = useRef(contextGeneration);
+  useEffect(() => {
+    if (lastGenerationRef.current === contextGeneration) return;
+    lastGenerationRef.current = contextGeneration;
+    detailCacheRef.current = {};
+    detailRequestRef.current += 1;
+    evidenceRequestRef.current += 1;
+    defaultSavedViewAppliedRef.current = false;
+    setCurrentCursor(null);
+    setCursorHistory([]);
+    setPageNumber(1);
+    setSelectedIds(new Set());
+    setSelectedId(null);
+    setSelectedDetail(null);
+    setDetailForId(null);
+    setDetailError(null);
+    setWorkspaceSummary(null);
+    setLibrary({ cases: [], savedViews: [], items: [], pageInfo: null });
+    setSupportLoaded(false);
+  }, [contextGeneration]);
 
   useEffect(() => {
     let cancelled = false;
@@ -621,7 +657,9 @@ function EvidenceLibraryPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [loadLibraryPage, serverQuery]);
+    // contextGeneration: a workspace switch is a server input even when the
+    // query object is unchanged (B5A-F-01).
+  }, [contextGeneration, loadLibraryPage, serverQuery]);
 
   const visibleItems = useMemo(() => {
     // Review and retention are server filters now, so the page is the result.
@@ -639,16 +677,18 @@ function EvidenceLibraryPageInner() {
     return next;
   }, [filters.sort, library.items, selectedDetail, selectedId]);
 
+  /*
+   * B5A-F-05 — NOTHING IS SELECTED FOR YOU. The first row used to be selected
+   * on every load, and reading its detail (GET /v1/evidence/:id) issues
+   * original URLs and records an EVIDENCE_VIEWED custody event for a record
+   * nobody opened. The Inspector shows its "No record selected" state until a
+   * person chooses a row; a selection that leaves the page is dropped.
+   */
   useEffect(() => {
-    if (!selectedId && visibleItems.length > 0) {
-      setSelectedId(visibleItems[0].id);
-      return;
+    if (selectedId && !loading && !visibleItems.some((item) => item.id === selectedId)) {
+      setSelectedId(null);
     }
-
-    if (selectedId && !visibleItems.some((item) => item.id === selectedId)) {
-      setSelectedId(visibleItems[0]?.id ?? null);
-    }
-  }, [selectedId, visibleItems]);
+  }, [loading, selectedId, visibleItems]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -895,13 +935,31 @@ function EvidenceLibraryPageInner() {
   // billing aggregate's `workspaces.teams`, which meant fetching every plan,
   // storage figure and seat count the caller has in order to put two names in
   // a menu. The envelope already carries the canonical owned-workspace list.
+  // B2A-F-09 / B5B-F-303 (A2-14) — a Viewer is offered no "Team view": the
+  // API refuses a shared view from a role without evidence.update_metadata
+  // (403), so their only option — a personal view (teamId null) — works.
   const teamOptions = useMemo(
     () =>
-      (envelope?.contextOptions?.ownedWorkspaces ?? []).map((workspace) => ({
-        id: workspace.workspaceId,
-        name: workspace.name ?? "Workspace",
-      })),
+      (envelope?.contextOptions?.ownedWorkspaces ?? [])
+        .filter((workspace) => mayShareSavedViewsIn(envelope, workspace.workspaceId))
+        .map((workspace) => ({
+          id: workspace.workspaceId,
+          name: workspace.name ?? "Workspace",
+        })),
     [envelope]
+  );
+
+  /**
+   * B5A-F-07 — a refused saved-view write is STATED (terms 428, a MEMBER
+   * editing a team view 403, …) and then rethrown so the menu keeps its
+   * dialog open instead of acting as if the write landed.
+   */
+  const reportSavedViewFailure = useCallback(
+    (err: unknown, fallback: string): never => {
+      addToast(toSafeUserError(err, { message: fallback }).message, "error");
+      throw err;
+    },
+    [addToast]
   );
 
   const applySavedView = useCallback(
@@ -939,7 +997,9 @@ function EvidenceLibraryPageInner() {
           sortKey: filters.sort,
           filters,
         }),
-      })) as EvidenceSavedViewsResponse;
+      }).catch((err) =>
+        reportSavedViewFailure(err, "The saved view could not be saved."),
+      )) as EvidenceSavedViewsResponse;
 
       if (response.savedView) {
         setLibrary((current) => ({
@@ -949,7 +1009,7 @@ function EvidenceLibraryPageInner() {
         addToast("Saved view created", "success");
       }
     },
-    [addToast, filters]
+    [addToast, filters, reportSavedViewFailure]
   );
 
   const updateSavedView = useCallback(
@@ -957,7 +1017,9 @@ function EvidenceLibraryPageInner() {
       const response = (await apiFetch(`/v1/evidence/saved-views/${id}`, {
         method: "PATCH",
         body: JSON.stringify(input),
-      })) as EvidenceSavedViewsResponse;
+      }).catch((err) =>
+        reportSavedViewFailure(err, "The saved view could not be updated."),
+      )) as EvidenceSavedViewsResponse;
 
       if (response.savedView) {
         setLibrary((current) => ({
@@ -972,26 +1034,30 @@ function EvidenceLibraryPageInner() {
         addToast("Saved view updated", "success");
       }
     },
-    [addToast]
+    [addToast, reportSavedViewFailure]
   );
 
   const deleteSavedView = useCallback(
     async (id: string) => {
-      await apiFetch(`/v1/evidence/saved-views/${id}`, { method: "DELETE" });
+      await apiFetch(`/v1/evidence/saved-views/${id}`, { method: "DELETE" }).catch((err) =>
+        reportSavedViewFailure(err, "The saved view could not be deleted."),
+      );
       setLibrary((current) => ({
         ...current,
         savedViews: current.savedViews.filter((view) => view.id !== id),
       }));
       addToast("Saved view deleted", "success");
     },
-    [addToast]
+    [addToast, reportSavedViewFailure]
   );
 
   const setDefaultSavedView = useCallback(
     async (id: string) => {
       const response = (await apiFetch(`/v1/evidence/saved-views/${id}/default`, {
         method: "POST",
-      })) as EvidenceSavedViewsResponse;
+      }).catch((err) =>
+        reportSavedViewFailure(err, "The default saved view could not be changed."),
+      )) as EvidenceSavedViewsResponse;
 
       if (response.savedView) {
         setLibrary((current) => ({
@@ -1005,7 +1071,7 @@ function EvidenceLibraryPageInner() {
         addToast("Default saved view updated", "success");
       }
     },
-    [addToast]
+    [addToast, reportSavedViewFailure]
   );
 
   const toggleSelected = useCallback((id: string, checked: boolean) => {
@@ -1180,6 +1246,9 @@ function EvidenceLibraryPageInner() {
     setCursorHistory((current) => current.slice(0, -1));
     setCurrentCursor(previousCursor);
     setPageNumber((current) => Math.max(1, current - 1));
+    // B5A-F-02 — eligibility and counts are computed over the visible page,
+    // so a selection may not outlive it (as updateFilters already does).
+    setSelectedIds(new Set());
   };
 
   const goToNextPage = () => {
@@ -1188,6 +1257,7 @@ function EvidenceLibraryPageInner() {
     setCursorHistory((current) => [...current, currentCursor]);
     setCurrentCursor(library.pageInfo.nextCursor);
     setPageNumber((current) => current + 1);
+    setSelectedIds(new Set());
   };
 
   // Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) / Track 1A — the
@@ -1235,6 +1305,7 @@ function EvidenceLibraryPageInner() {
             <SavedViewsMenu
               views={library.savedViews}
               teamOptions={teamOptions}
+              currentUserId={envelope?.user?.id ?? null}
               onApplyView={applySavedView}
               onCreateView={createSavedView}
               onUpdateView={updateSavedView}

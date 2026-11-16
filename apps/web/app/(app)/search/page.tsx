@@ -107,6 +107,9 @@ import {
   searchReadinessHasUsableResults,
   type SearchReadinessProjection,
   identifierLabel, identifierTextLabel } from "@proovra/shared";
+import { mapTeamRoleToCanonical, roleHasPermission } from "@proovra/shared";
+import { actorRoleIn } from "../../../lib/platform-context/actorRole";
+import { handleTablistKeyDown, panelId, tabId } from "../../../lib/a11y/tablist-keyboard";
 // The guidance column stands in for the Inspector while nothing is selected,
 // so the region is never an empty white gutter. Every list in it is real.
 import {
@@ -591,7 +594,19 @@ function SearchInner() {
   // (GET /v1/search); "activity" is the workspace search-activity log
   // (GET /v1/search/audit). Two data domains, one console — never two
   // authorities over the same domain.
-  const [scope, setScope] = useState<"records" | "activity">("records");
+  const [scopeChoice, setScope] = useState<"records" | "activity">("records");
+  /*
+   * B2A-F-11 (Free-user audit 0ea0) — GET /v1/search/audit admits only an
+   * actor holding identity.access_review.action (OWNER / ADMIN; a MEMBER, the
+   * canonical REVIEWER, is refused). The tab is offered on that same rule,
+   * read from the role the envelope states for this workspace; an unknown
+   * role does not get it.
+   */
+  const searchActivityRole = actorRoleIn(envelope, teamId);
+  const canReadSearchActivity =
+    searchActivityRole !== null &&
+    roleHasPermission(mapTeamRoleToCanonical(searchActivityRole), "identity.access_review.action" as never);
+  const scope: "records" | "activity" = canReadSearchActivity ? scopeChoice : "records";
   // The operator-help bar is disclosure-only: it states what this console
   // really matches. Collapsed by default so results stay primary.
   const [helpOpen, setHelpOpen] = useState(false);
@@ -1940,10 +1955,17 @@ function SearchInner() {
         data-search-scope-tabs
         role="tablist"
         aria-label="Search console scope"
+        // B2A-F-18 — arrows/Home/End move between the scope tabs.
+        onKeyDown={(e) =>
+          handleTablistKeyDown(e, "search-scope", canReadSearchActivity ? (["records", "activity"] as const) : (["records"] as const), scope, setScope)
+        }
       >
         <button
           type="button"
           role="tab"
+          id={tabId("search-scope", "records")}
+          aria-controls={panelId("search-scope", "records")}
+          tabIndex={scope === "records" ? 0 : -1}
           className={`app-tab${scope === "records" ? " is-active" : ""}`}
           aria-selected={scope === "records"}
           data-search-scope-tab="records"
@@ -1952,9 +1974,13 @@ function SearchInner() {
         >
           Records
         </button>
+        {canReadSearchActivity ? (
         <button
           type="button"
           role="tab"
+          id={tabId("search-scope", "activity")}
+          aria-controls={panelId("search-scope", "activity")}
+          tabIndex={scope === "activity" ? 0 : -1}
           className={`app-tab${scope === "activity" ? " is-active" : ""}`}
           aria-selected={scope === "activity"}
           data-search-scope-tab="activity"
@@ -1963,12 +1989,15 @@ function SearchInner() {
         >
           Search activity
         </button>
+        ) : null}
       </div>
 
       {scope === "activity" ? (
-        <SearchAuditLogPanel teamId={teamId} />
+        <div role="tabpanel" id={panelId("search-scope", "activity")} aria-labelledby={tabId("search-scope", "activity")}>
+          <SearchAuditLogPanel teamId={teamId} />
+        </div>
       ) : (
-      <>
+      <div role="tabpanel" id={panelId("search-scope", "records")} aria-labelledby={tabId("search-scope", "records")} className="search-scope-panel">
       {/* An ACTION failed — saving a view, loading another page. It is
           reported where it happened and never becomes a search state. The
           message is already bounded by toSafeUserError. */}
@@ -2514,7 +2543,7 @@ function SearchInner() {
         </div>
         </div>
       </div>
-      </>
+      </div>
       )}
     </div>
   );

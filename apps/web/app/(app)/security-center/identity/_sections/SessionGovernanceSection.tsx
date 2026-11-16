@@ -50,8 +50,12 @@ type RevokedSession = {
 
 type StaleReconcileResult = {
   sessions: { scanned: number; staleDetected: number; swept: number };
-  callbackAttempts: { swept: number };
+  // B7A-F-003 — the platform-wide legs now run on the scheduler only; an
+  // operator-triggered run answers `skipped: "scheduler_only"`.
+  callbackAttempts: { swept: number; skipped?: string };
 };
+
+const SCHEDULER_ONLY_COPY = "Platform clean-up runs on the scheduler.";
 
 type RuntimeReconcileResult = {
   risk: {
@@ -68,7 +72,7 @@ type RuntimeReconcileResult = {
     quarantined: number;
   };
   releases: { released: number };
-  geo: { swept: number; remaining: number };
+  geo: { swept: number; remaining: number | null; skipped?: string };
 };
 
 const UUID_RE =
@@ -196,7 +200,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
     const ok = await confirm({
       title: "Run the runtime reconcile now?",
       description:
-        "Session risk is recomputed, stale trusted devices decay, quarantines whose hold has elapsed are released, and the geo cache is swept.",
+        "Session risk is recomputed, stale trusted devices decay, and quarantines whose hold has elapsed are released.",
       confirmLabel: "Run reconcile",
       tone: "danger",
       testId: "identity-reconcile-runtime",
@@ -348,10 +352,16 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
               <li>{staleResult.sessions.scanned} sessions scanned</li>
               <li>{staleResult.sessions.staleDetected} found stale</li>
               <li>{staleResult.sessions.swept} revoked</li>
-              <li>
-                {staleResult.callbackAttempts.swept} abandoned sign-in attempts
-                cleared
-              </li>
+              {staleResult.callbackAttempts.skipped ? (
+                <li data-identity-reconcile-scheduler-only>
+                  Abandoned sign-in attempts: {SCHEDULER_ONLY_COPY}
+                </li>
+              ) : (
+                <li>
+                  {staleResult.callbackAttempts.swept} abandoned sign-in attempts
+                  cleared
+                </li>
+              )}
             </ul>
           ) : null}
         </Card>
@@ -364,7 +374,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
         >
           <p className="adm-help" style={{ marginTop: 0 }}>
             Recomputes session risk, decays stale trusted devices, releases
-            elapsed quarantines, sweeps the geo cache.
+            elapsed quarantines. Platform clean-up runs on the scheduler.
           </p>
           <Button
             variant="secondary"
@@ -399,10 +409,16 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
                 {runtimeResult.decay.autoInvalidated} invalidated
               </li>
               <li>{runtimeResult.releases.released} quarantines released</li>
-              <li>
-                geo cache: {runtimeResult.geo.swept} expired entries removed,{" "}
-                {runtimeResult.geo.remaining} remaining
-              </li>
+              {runtimeResult.geo.skipped ? (
+                <li data-identity-reconcile-scheduler-only>
+                  Geo cache: {SCHEDULER_ONLY_COPY}
+                </li>
+              ) : (
+                <li>
+                  geo cache: {runtimeResult.geo.swept} expired entries removed,{" "}
+                  {runtimeResult.geo.remaining ?? 0} remaining
+                </li>
+              )}
             </ul>
           ) : null}
         </Card>

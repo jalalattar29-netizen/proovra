@@ -83,15 +83,33 @@ function countedEvidenceRecordWhere(now: Date = new Date()): Prisma.EvidenceWher
  * that was never finalized — a discarded draft, an abandoned upload, an
  * expired reservation), which is what `deletedAt` means before sealing. Such a
  * reservation never consumed a slot; it only held one while it was live.
+ *
+ * AN INTEGRITY-REJECTED RECORD THAT NEVER RECEIVED A REPORT HOLDS NO SLOT
+ * (B4-F-001, free audit 0ea0; D-03: Free is three COMPLETE records — report,
+ * package, verification page). The integrity authority moves a record whose
+ * stored bytes no longer match its sealed digest to FAILED_HASH_MISMATCH. That
+ * is system-detected and terminal: completion refuses it
+ * (EVIDENCE_INTEGRITY_FAILED), no output is ever issued for it, and the only
+ * recovery is a NEW record — which the full allowance then refused. A record
+ * whose report was committed before the rejection keeps its slot (its outputs
+ * were issued against it), and the rule is lifecycle-independent, so trash or
+ * restore still neither frees nor consumes a slot. Its bytes stay in the
+ * storage measure until they are destroyed (trash, then purge).
  */
 export function allowanceSlotEvidenceWhere(now: Date = new Date()): Prisma.EvidenceWhereInput {
   return {
     OR: [
-      { status: { notIn: UNSEALED } },
+      { AND: [{ status: { notIn: UNSEALED } }, { NOT: INTEGRITY_REJECTED_WITHOUT_OUTPUT }] },
       { AND: [countedEvidenceRecordWhere(now), { status: { in: UNSEALED } }, { deletedAt: null }] },
     ],
   };
 }
+
+/** B4-F-001 — terminally integrity-rejected and never reported (see above). */
+const INTEGRITY_REJECTED_WITHOUT_OUTPUT: Prisma.EvidenceWhereInput = {
+  status: prismaPkg.EvidenceStatus.FAILED_HASH_MISMATCH,
+  reports: { none: {} },
+};
 
 const LIVE_INTAKE: prismaPkg.WorkflowIntakeSessionStatus[] = [
   "CREATED",

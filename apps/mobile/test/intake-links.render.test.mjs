@@ -517,3 +517,10 @@ test("more rows than a page paginate: Rows per page, Page N of M, Next", async (
   assert.ok(!r.hasText("Page 1 of 2") && !r.hasText("Page 2 of 2"));
   assert.ok(r.hasText("Request 29") && r.hasText("Request 00"));
 });
+
+test("B3B-F-105 — a plan without intake (Free, no credit) offers no New link; existing links stay manageable", async () => {
+  routes["/v1/platform/context"] = () => ({ body: { ...CONTEXT(), planFeatures: { intakeIncluded: false } } });
+  const r = await render();
+  assert.equal(r.byTestId("intake-new").length, 0, "New link offered to a plan that refuses it");
+  assert.ok(r.hasText("Insurance claim") || r.byLabel("View submissions (1)").length > 0, "the existing links are no longer shown");
+});

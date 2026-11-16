@@ -48,7 +48,17 @@
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiFetch } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
+
+/**
+ * R2-F-005 (free-user audit 0ea0) — the HTTP status of a refused read.
+ * apiFetch errors carry `statusCode` (ApiError or a flat-body Error); these
+ * panels tested `e.status`, which is never set, so every permission and
+ * not-found sentence below was dead code.
+ */
+function httpStatus(e: unknown): number | undefined {
+  return isApiResponseError(e) ? e.statusCode : undefined;
+}
 import { formatUserDateTime } from "../../lib/date";
 import { humaniseCode } from "../../lib/ots-presentation";
 
@@ -249,11 +259,11 @@ export function CaseRiskPanel({ caseId }: { caseId: string }) {
           setHint(res.hint ?? null);
         },
       )
-      .catch((e: { message?: string; status?: number }) => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        if (e?.status === 403) {
+        if (httpStatus(e) === 403) {
           setErr("You do not have permission to view risk for this matter.");
-        } else if (e?.status === 404) {
+        } else if (httpStatus(e) === 404) {
           setErr("Matter not found.");
         } else {
           setErr(toSafeUserError(e, { message: "Could not load risk snapshot." }).message);
@@ -395,11 +405,11 @@ export function EvidenceAiCategorizationCard({
         if (cancelled) return;
         setCat(res.categorization);
       })
-      .catch((e: { message?: string; status?: number }) => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        if (e?.status === 403) {
+        if (httpStatus(e) === 403) {
           setErr("You do not have access to view AI categorization for this evidence.");
-        } else if (e?.status === 404) {
+        } else if (httpStatus(e) === 404) {
           setErr("Evidence not found.");
         } else {
           setErr(toSafeUserError(e, { message: "Could not load categorization." }).message);
@@ -539,9 +549,9 @@ export function ImmutableStorageDriftSection({
         if (cancelled) return;
         setRows(res.checks ?? []);
       })
-      .catch((e: { message?: string; status?: number }) => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        if (e?.status === 403) {
+        if (httpStatus(e) === 403) {
           setErr("You do not have permission to view storage drift.");
         } else {
           setErr(toSafeUserError(e, { message: "Could not load storage drift." }).message);
@@ -684,11 +694,11 @@ export function MfaRecoveryApprovalHistoryBlock({
         if (cancelled) return;
         setRows(res.approvals ?? []);
       })
-      .catch((e: { message?: string; status?: number }) => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        if (e?.status === 403) {
+        if (httpStatus(e) === 403) {
           setErr("You are not authorized to view approvals for this request.");
-        } else if (e?.status === 404) {
+        } else if (httpStatus(e) === 404) {
           setErr("Request not found.");
         } else {
           setErr(toSafeUserError(e, { message: "Could not load approvals." }).message);
@@ -761,11 +771,11 @@ export function EvidenceRequestEventsTab({
         if (cancelled) return;
         setRows(res.events ?? []);
       })
-      .catch((e: { message?: string; status?: number }) => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        if (e?.status === 403) {
+        if (httpStatus(e) === 403) {
           setErr("You do not have access to this request's events.");
-        } else if (e?.status === 404) {
+        } else if (httpStatus(e) === 404) {
           setErr("Request not found.");
         } else {
           setErr(toSafeUserError(e, { message: "Could not load events." }).message);
@@ -869,11 +879,11 @@ export function OrgHealthSnapshotCard({ teamId }: { teamId: string }) {
         if (cancelled) return;
         setSnap(res.snapshot ?? null);
       })
-      .catch((e: { message?: string; status?: number }) => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        if (e?.status === 403) {
+        if (httpStatus(e) === 403) {
           setErr("You do not have permission to view org health.");
-        } else if (e?.status === 404) {
+        } else if (httpStatus(e) === 404) {
           setErr("Workspace not found.");
         } else {
           setErr(toSafeUserError(e, { message: "Could not load health snapshot." }).message);
@@ -961,8 +971,8 @@ export function ReviewerRoutingRecommendationsPane({
       .then((res: { recommendations: RoutingRecommendation[] }) => {
         setRows(res.recommendations ?? []);
       })
-      .catch((e: { message?: string; status?: number }) => {
-        if (e?.status === 403) {
+      .catch((e: unknown) => {
+        if (httpStatus(e) === 403) {
           setErr("You do not have permission to view routing recommendations.");
         } else {
           setErr(toSafeUserError(e, { message: "Could not load recommendations." }).message);
@@ -1060,9 +1070,9 @@ export function AccessAnomaliesCard({ teamId }: { teamId: string }) {
         if (cancelled) return;
         setRows(res.anomalies ?? []);
       })
-      .catch((e: { message?: string; status?: number }) => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        if (e?.status === 403) {
+        if (httpStatus(e) === 403) {
           setErr("You do not have permission to view access anomalies.");
         } else {
           setErr(toSafeUserError(e, { message: "Could not load anomalies." }).message);

@@ -96,6 +96,9 @@ export const NATIVE_NAV_ROUTES: readonly NativeNavRoute[] = [
   {
     id: "workspace.cases", webHref: "/cases", href: "/cases", label: "Cases", labelKey: "cases",
     domain: "PERSONAL_WORKSPACE", requiredCapabilities: ["CASES_VIEW"],
+    // B2A-F-04 (Free-user audit 0ea0) — the web registry's nav-only plan gate: FREE
+    // excludes cases, so no tab/drawer entry; a direct visit still loads kept cases.
+    navPlanFeature: "casesIncluded",
     requiredActiveSpace: "PERSONAL_OR_ORG", fallbackBehavior: "DEGRADED", group: "WORKSPACE", icon: "briefcase",
   },
   {

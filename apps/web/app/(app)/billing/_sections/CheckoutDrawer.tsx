@@ -38,7 +38,7 @@ import type {
   PlanOffer,
   StorageAddonOffer,
 } from "../../../../lib/api/billing-accounts";
-import { formatMoney, holdingQualifiers, summarizeStorageAddons } from "./format";
+import { STORAGE_FULL_NEXT_RECORD, formatMoney, holdingQualifiers, summarizeStorageAddons } from "./format";
 import { BillingDrawer } from "./BillingDrawer";
 import {
   PaymentMethodChoice,
@@ -474,7 +474,10 @@ export function CheckoutDrawer({
    */
   const description =
     intent.kind === "CREDITS"
-      ? "Each credit records one more evidence item once your included allowance is used."
+      ? // B6-F-68 — a credit funds a record, not the space it needs.
+        projection.usage.storage.state === "MEASURED" && projection.usage.storage.limitReached
+        ? `Each credit records one more evidence item once your included allowance is used. ${STORAGE_FULL_NEXT_RECORD}`
+        : "Each credit records one more evidence item once your included allowance is used."
       : intent.kind === "STORAGE"
         ? "Extra capacity, billed monthly alongside your plan. You can cancel it at any time."
         : "Select the plan that fits your evidence and collaboration needs.";

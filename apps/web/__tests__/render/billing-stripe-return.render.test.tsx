@@ -54,7 +54,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function run(qs: string, account: BillingAccountRef | null = ACCOUNT) {
+function run(
+  qs: string,
+  account: BillingAccountRef | null = ACCOUNT,
+  confirmAbandon: ((answer: unknown) => Promise<boolean>) | undefined = undefined,
+) {
   const notify = vi.fn();
   const onSettled = vi.fn();
   const replaceUrl = vi.fn();
@@ -67,6 +71,7 @@ function run(qs: string, account: BillingAccountRef | null = ACCOUNT) {
         replaceUrl,
         retryDelayMs: 1,
         personalAccount: acct,
+        confirmAbandon,
       }),
     { initialProps: { acct: account } },
   );
@@ -179,14 +184,39 @@ describe("Stripe success return — the server re-checks the attempt", () => {
 });
 
 describe("Stripe cancel return — the attempt is abandoned provider-first", () => {
-  it("closes the checkout so the next one can start", async () => {
-    replies = [{ status: 200, body: { attemptId: ATTEMPT, outcome: "ABANDONED", cancelsAtProvider: true } }];
-    const { hook } = run(`canceled=1&attempt=${ATTEMPT}`);
+  // Free audit B6-F-70 — the return link asks with confirmed:false; only the
+  // customer's click in the in-page abandon dialog sends confirmed:true.
+  it("closes the checkout so the next one can start — after the customer confirms", async () => {
+    replies = [
+      { status: 200, body: { attemptId: ATTEMPT, outcome: "ABANDON_CONFIRMATION_REQUIRED", cancelsAtProvider: true } },
+      { status: 200, body: { attemptId: ATTEMPT, outcome: "ABANDONED", cancelsAtProvider: true } },
+    ];
+    const confirmAbandon = vi.fn(async () => true);
+    const { hook } = run(`canceled=1&attempt=${ATTEMPT}`, ACCOUNT, confirmAbandon);
     await waitFor(() => expect(hook.result.current.returnNotice?.message).toMatch(/That checkout is closed/));
-    const call = attemptCalls()[0]!;
-    expect(call.url).toContain(`/checkout-attempts/${ATTEMPT}/abandon`);
-    expect(JSON.parse(call.body!)).toEqual({ confirmed: true });
+    const [first, second] = attemptCalls();
+    expect(first!.url).toContain(`/checkout-attempts/${ATTEMPT}/abandon`);
+    expect(JSON.parse(first!.body!)).toEqual({ confirmed: false });
+    expect(confirmAbandon).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(second!.body!)).toEqual({ confirmed: true });
     expect(hook.result.current.returnNotice!.message).not.toMatch(/charged/i);
+  });
+
+  it("B6-F-70: a crafted cancel link never sends confirmed:true without a click", async () => {
+    replies = [{ status: 200, body: { attemptId: ATTEMPT, outcome: "ABANDON_CONFIRMATION_REQUIRED", cancelsAtProvider: true } }];
+    const declined = vi.fn(async () => false);
+    const { hook } = run(`canceled=1&attempt=${ATTEMPT}`, ACCOUNT, declined);
+    await waitFor(() => expect(hook.result.current.returnNotice?.message).toMatch(/still open/));
+    expect(attemptCalls()).toHaveLength(1);
+    expect(JSON.parse(attemptCalls()[0]!.body!)).toEqual({ confirmed: false });
+    expect(declined).toHaveBeenCalledTimes(1);
+
+    // No dialog wired at all: still nothing closed.
+    calls = [];
+    replies = [{ status: 200, body: { attemptId: ATTEMPT, outcome: "ABANDON_CONFIRMATION_REQUIRED", cancelsAtProvider: true } }];
+    const bare = run(`canceled=1&attempt=${ATTEMPT}`);
+    await waitFor(() => expect(bare.hook.result.current.returnNotice?.message).toMatch(/still open/));
+    expect(attemptCalls().map((c) => JSON.parse(c.body!))).toEqual([{ confirmed: false }]);
   });
 
   it("a stale cancel link on a paid checkout changes nothing and says so", async () => {

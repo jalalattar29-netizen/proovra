@@ -19,7 +19,7 @@
  */
 
 import { loadCurrentReviewDecisions } from "../evidence-review/review-outcome.service.js";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   EXECUTIVE_METRICS_LIMITATIONS,
   EXECUTIVE_METRICS_SCHEMA_VERSION,
@@ -46,11 +46,18 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 export async function projectExecutiveMetrics(input: {
   prisma?: PrismaClient;
   teamId: string;
+  /** B7B-F03: the reader's record reach (`viewerReachInWorkspace(...).evidence`). */
+  evidenceReach?: Prisma.EvidenceWhereInput;
 }): Promise<ExecutiveMetricsProjection> {
   const prisma = input.prisma ?? defaultPrisma;
   const since = new Date(Date.now() - WEEK_MS);
 
-  const totals = await aggregateWindow({ prisma, teamId: input.teamId, sinceUtc: since });
+  const totals = await aggregateWindow({
+    prisma,
+    teamId: input.teamId,
+    sinceUtc: since,
+    evidenceReach: input.evidenceReach,
+  });
 
   return {
     schemaVersion: EXECUTIVE_METRICS_SCHEMA_VERSION,
@@ -104,6 +111,8 @@ export async function projectExecutiveTrends(input: {
   prisma?: PrismaClient;
   teamId: string;
   range: ExecutiveMetricsRange;
+  /** B7B-F03: the reader's record reach (`viewerReachInWorkspace(...).evidence`). */
+  evidenceReach?: Prisma.EvidenceWhereInput;
 }): Promise<ExecutiveTrendsProjection> {
   const prisma = input.prisma ?? defaultPrisma;
   const windowMs = rangeWindowMs(input.range);
@@ -119,12 +128,14 @@ export async function projectExecutiveTrends(input: {
       teamId: input.teamId,
       sinceUtc: currentStart,
       untilUtc: currentEnd,
+      evidenceReach: input.evidenceReach,
     }),
     aggregateWindow({
       prisma,
       teamId: input.teamId,
       sinceUtc: previousStart,
       untilUtc: previousEnd,
+      evidenceReach: input.evidenceReach,
     }),
   ]);
 
@@ -252,13 +263,18 @@ async function aggregateWindow(input: {
   teamId: string;
   sinceUtc: Date;
   untilUtc?: Date;
+  evidenceReach?: Prisma.EvidenceWhereInput;
 }): Promise<WindowTotals> {
   const { prisma, teamId, sinceUtc } = input;
+  // B7B-F03 (free-audit 0ea0): every evidence count, total and breakdown
+  // below is narrowed by the reader's record reach, so a record a restricted
+  // case closes to them moves no number.
+  const reach = input.evidenceReach ?? {};
   // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
   // resolved once for every query below. A strict `teamId` equality here
   // omitted a personal workspace's legacy NULL-team rows, and reported the
   // smaller number as if it were the whole population.
-  const scope = await workspaceEvidenceWhere(teamId, prisma);
+  const scope = { AND: [await workspaceEvidenceWhere(teamId, prisma), reach] };
   const untilUtc = input.untilUtc;
   const within = untilUtc ? { gte: sinceUtc, lt: untilUtc } : { gte: sinceUtc };
 
@@ -295,12 +311,12 @@ async function aggregateWindow(input: {
   // Capture totals in window.
   const captures = await safeCount(() =>
     prisma.evidence.count({
-      where: { teamId, createdAt: within } as never,
+      where: { teamId, createdAt: within, AND: [reach] } as never,
     }),
   );
   const capturesWithSignature = await safeCount(() =>
     prisma.evidence.count({
-      where: { teamId, createdAt: within, fileSha256: { not: null } } as never,
+      where: { teamId, createdAt: within, fileSha256: { not: null }, AND: [reach] } as never,
     }),
   );
   const captureSuccessRatePct =
@@ -321,6 +337,7 @@ async function aggregateWindow(input: {
           createdAt: within,
           acquisitionMode: "PROOVRA_MOBILE_APP",
           fileSha256: { not: null },
+          AND: [reach],
         } as never,
       });
       mobileSignedRatio = Math.round((sealedMobileApp / captures) * 1000) / 10;

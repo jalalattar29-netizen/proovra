@@ -176,7 +176,9 @@ test("each slice is subscribed exactly once — no duplicate requests", () => {
    * sites is what this pins.
    */
   const tracked = HOOK.match(/track\("/g) ?? [];
-  assert.equal(tracked.length, 10, "all ten slices are tracked, once each");
+  // B2A-F-03 — an eleventh slice (the record allowance) reads through
+  // readPersonalAllowance, not a new apiFetch call site.
+  assert.equal(tracked.length, 11, "all eleven slices are tracked, once each");
   const fetches = HOOK.match(/apiFetch\(/g) ?? [];
   assert.ok(
     fetches.length <= 10,

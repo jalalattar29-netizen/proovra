@@ -46,6 +46,7 @@ import {
   type IntegrityCheckedObject,
 } from "@proovra/shared-runtime";
 import {
+  INTEGRITY_RECHECK_INTERVAL_DAYS_DEFAULT,
   digestColumnsMatchSignedFingerprint,
   signedDigestsFromFingerprint,
   signedRecordDigest,
@@ -481,6 +482,38 @@ export async function runIntegrityRecheckSweep(
   });
 
   return { runId: run.runId ?? null, status: String(run.status), ...tally };
+}
+
+/**
+ * B8-F-301 (free-audit 0ea0) — the sweep's batch FOLLOWS THE POPULATION.
+ *
+ * A fixed 25 records every 15 minutes is 2,400 a day, so the 30-day cadence
+ * held only up to ~72,000 eligible records; above that `integrityCheckedAtUtc`
+ * aged without bound. The batch is now the larger of:
+ *   - the configured base batch;
+ *   - what SUSTAINS the cadence: eligible / (cadenceDays x ticksPerDay);
+ *   - what DRAINS the current due backlog within a week: due / (7 x ticksPerDay);
+ * capped at the maximum batch (each check streams the whole object, so the
+ * cap bounds S3 egress per tick). `capacityExceeded` is true when even the
+ * cap cannot sustain the cadence — the scheduler alerts on it, because that
+ * needs an operator decision (interval, cap or more workers), not a guess.
+ */
+export function adaptiveIntegrityRecheckBatch(input: {
+  due: number;
+  eligible: number;
+  intervalMs: number;
+  baseBatch: number;
+  maxBatch?: number;
+  cadenceDays?: number;
+}): { limit: number; sustainable: number; capacityExceeded: boolean } {
+  const maxBatch = Math.max(1, Math.min(input.maxBatch ?? INTEGRITY_RECHECK_SWEEP_MAX_BATCH, INTEGRITY_RECHECK_SWEEP_MAX_BATCH));
+  const base = Math.max(1, Math.min(input.baseBatch, maxBatch));
+  const cadenceDays = Math.max(1, input.cadenceDays ?? INTEGRITY_RECHECK_INTERVAL_DAYS_DEFAULT);
+  const ticksPerDay = Math.max(1, Math.floor((24 * 60 * 60 * 1000) / Math.max(1, input.intervalMs)));
+  const sustainable = Math.ceil(Math.max(0, input.eligible) / (cadenceDays * ticksPerDay));
+  const drain = Math.ceil(Math.max(0, input.due) / (7 * ticksPerDay));
+  const limit = Math.min(maxBatch, Math.max(base, sustainable, drain));
+  return { limit, sustainable, capacityExceeded: sustainable > maxBatch };
 }
 
 /** How many eligible records are due right now — the sweep's backlog. */

@@ -40,6 +40,7 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { queryBoolean } from "../http/query-boolean.js";
 import {
   SCIM_SCOPES,
   SSO_CONNECTION_STATUSES,
@@ -875,13 +876,24 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           userId: z.string().uuid().optional(),
-          includeRevoked: z.coerce.boolean().optional(),
-          includeExpired: z.coerce.boolean().optional(),
+          includeRevoked: queryBoolean.optional(),
+          includeExpired: queryBoolean.optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
           cursor: z.string().trim().min(1).max(512).optional(),
         })
         .parse(req.query ?? {});
-      const actor = await requireIdentityAdmin(req, reply, q.teamId);
+      // B7A-F-002 / B1-F-003 (free-audit 0ea0) — THE INVENTORY IS AN
+      // ADMINISTRATOR'S READ. This used the helper's default permission,
+      // `identity.org_policy.read`, which every role holds so members can read
+      // the policy; a VIEWER or MEMBER therefore listed every co-member's
+      // sessions (IP prefix, device, activity). It now asks for the permission
+      // every session write in this file asks for (OWNER / ADMIN).
+      const actor = await requireIdentityAdmin(
+        req,
+        reply,
+        q.teamId,
+        "identity.contributor_session.revoke",
+      );
       if (!actor) return;
       const after = decodeKeysetCursor(q.cursor);
       if (after === null) {
@@ -1216,8 +1228,15 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         batchSize: body.batchSize,
         revoke: true,
       });
-      // Also sweep stale OIDC callback attempts.
-      const callbackSweep = await sweepStaleCallbackAttempts({});
+      // Also sweep stale OIDC callback attempts — on the MACHINE path only.
+      // B7A-F-003 (free-audit 0ea0): that sweep is tenant-agnostic (every
+      // connection's attempts and native handoffs), so a workspace operator
+      // who triggered this reconcile ran a platform-wide delete. Platform
+      // retention belongs to the scheduler; the operator path keeps the
+      // workspace-scoped sweeps and reports the platform leg as not run.
+      const callbackSweep = machine
+        ? await sweepStaleCallbackAttempts({})
+        : { swept: 0, skipped: "scheduler_only" as const };
       // Refresh the high-risk-sessions gauge.
       await refreshHighRiskSessionGauge({ teamId });
       if (!machine) {
@@ -1300,7 +1319,13 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
           cursor: z.string().trim().min(1).max(512).optional(),
         })
         .parse(req.query ?? {});
-      const actor = await requireIdentityAdmin(req, reply, q.teamId);
+      // B7A-F-002 — the quarantine list is the same administrator's read.
+      const actor = await requireIdentityAdmin(
+        req,
+        reply,
+        q.teamId,
+        "identity.contributor_session.revoke",
+      );
       if (!actor) return;
       const after = decodeKeysetCursor(q.cursor);
       if (after === null) {
@@ -1525,7 +1550,10 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
           staleDays: body.decayStaleDays,
         }),
         sweepQuarantineReleases({ teamId }),
-        sweepGeoCache(),
+        // B7A-F-003 — the geo cache is platform-wide: the scheduler's leg only.
+        machine
+          ? sweepGeoCache()
+          : Promise.resolve({ swept: 0, remaining: null, skipped: "scheduler_only" as const }),
       ]);
       if (!machine) {
         await auditOperatorReconcile(req, {

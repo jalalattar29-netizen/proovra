@@ -9,6 +9,7 @@ import "./otel-bootstrap.js";
 import "./register-shared-runtime.js";
 import { randomUUID } from "node:crypto";
 import { Worker } from "bullmq";
+import { WORKER_CONCURRENCY_SETTINGS, workerQueueConcurrency } from "./worker-concurrency.js";
 // PHASE 12 CORRECTIVE PASS §4 (SEC-004) — the ONE secrets authority, shared
 // with the API. See the call site near the bottom of this file.
 import { getOcrProducerMode, getTranscriptProducerMode, initSecretsAuthority } from "@proovra/shared-runtime";
@@ -69,7 +70,11 @@ import { captureException, initSentry } from "./sentry.js";
 import { wrapJobHandlerWithOtelContext } from "./observability/queue-otel-context.js";
 import { PROOVRA_SPAN_NAMES } from "./otel.js";
 import { runCaptureReaperSweep } from "./capture-reaper.js";
-import { runIntegrityRecheckSweep } from "./integrity-recheck.js";
+import {
+  adaptiveIntegrityRecheckBatch,
+  countIntegrityRecheckBacklog,
+  runIntegrityRecheckSweep,
+} from "./integrity-recheck.js";
 import { runOrphanArtifactScan } from "./orphan-scan.js";
 import { runSearchIndexReconciler } from "./search-index-reconciler.js";
 import { runIntelligenceRunReconciler } from "./intelligence-run-reconciler.js";
@@ -536,7 +541,30 @@ async function runIntegrityRecheckTick(trigger: string) {
   if (integrityRecheckRunning) return;
   integrityRecheckRunning = true;
   try {
-    const sweep = await runIntegrityRecheckSweep({ trigger, limit: integrityRecheckBatch });
+    // B8-F-301 — the batch follows the due population (see
+    // adaptiveIntegrityRecheckBatch); a failed count keeps the base batch.
+    let limit = integrityRecheckBatch;
+    try {
+      const backlog = await countIntegrityRecheckBacklog();
+      const plan = adaptiveIntegrityRecheckBatch({
+        due: backlog.due,
+        eligible: backlog.eligible,
+        intervalMs: integrityRecheckIntervalMs,
+        baseBatch: integrityRecheckBatch,
+        maxBatch: envNumber("INTEGRITY_RECHECK_SWEEP_MAX_BATCH", 200),
+      });
+      limit = plan.limit;
+      if (plan.capacityExceeded) {
+        emitOperationalAlert({
+          requestId: randomUUID(),
+          reason: "integrity_recheck_capacity_exceeded",
+          context: { ...backlog, sustainablePerTick: plan.sustainable, limit },
+        });
+      }
+    } catch (err) {
+      logger.warn({ err }, "evidence.integrity.recheck_backlog_count_failed");
+    }
+    const sweep = await runIntegrityRecheckSweep({ trigger, limit });
     if (sweep.scanned > 0) logger.info({ ...sweep, trigger }, "evidence.integrity.recheck_sweep");
     if (sweep.failed > 0) {
       // A record whose stored bytes no longer match, or whose recorded object
@@ -2009,6 +2037,22 @@ async function sampleQueueHealthOnce() {
       { queueHealthSample: true, queues: snapshot },
       "worker.queue_health.sampled",
     );
+    // B8-F-005 — bound the dead-letter sinks (references only; the durable
+    // failure rows and incidents stay the authority).
+    try {
+      const { trimDeadLetterQueue } = await import("./dead-letter-retention.js");
+      for (const [name, dlq] of [
+        [reportDlqQueueName, reportDlqQueue],
+        [mediaIntelligenceDlqQueueName, mediaIntelligenceDlqQueue],
+      ] as const) {
+        const trimmed = await trimDeadLetterQueue(dlq);
+        if (trimmed > 0) {
+          logger.info({ queue: name, trimmed }, "worker.dead_letter.trimmed");
+        }
+      }
+    } catch (err) {
+      logger.warn({ err }, "worker.dead_letter.trim_failed");
+    }
   } catch (err) {
     logger.warn({ err }, "worker.queue_health.sample_failed");
   }
@@ -2139,7 +2183,8 @@ const reportWorker = safeRegisterWorker("report", () =>
     ),
     {
       connection: redisConnection,
-      concurrency: 2,
+      // B8-F-305 — default 2; WORKER_REPORT_CONCURRENCY raises it.
+      concurrency: workerQueueConcurrency(WORKER_CONCURRENCY_SETTINGS.report),
       // Signing configuration is hydrated and verified before this worker is
       // allowed to claim report/package jobs. See bootstrap below.
       autorun: false,
@@ -2157,7 +2202,8 @@ const otsUpgradeWorker = safeRegisterWorker("ots-upgrade", () =>
     ),
     {
       connection: redisConnection,
-      concurrency: 1,
+      // B8-F-303 — default 1; WORKER_OTS_UPGRADE_CONCURRENCY raises it.
+      concurrency: workerQueueConcurrency(WORKER_CONCURRENCY_SETTINGS.otsUpgrade),
       // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
@@ -2385,6 +2431,19 @@ function openConsumers(): void {
   startSearchIndexReconcilerScheduler();
   startIntelligenceRunReconcilerScheduler();
   logger.info({ workers: REGISTERED_WORKERS.filter(([, w]) => w).length }, "worker.consumers_started");
+  // B8-F-002 — say BEFORE it happens when the pool cannot serve every slot.
+  void import("./db.js")
+    .then(({ databasePoolStats, databasePoolHeadroomWarning }) => {
+      const totalConcurrency = REGISTERED_WORKERS.reduce(
+        (sum, [, w]) => sum + (w ? Number(w.opts.concurrency ?? 1) : 0),
+        0,
+      );
+      const warning = databasePoolHeadroomWarning(databasePoolStats().max, totalConcurrency);
+      if (warning) {
+        logger.warn({ ...warning, totalConcurrency }, "worker.database_pool_below_concurrency");
+      }
+    })
+    .catch(() => undefined);
 }
 
 let healthServer: HealthServer | null = null;

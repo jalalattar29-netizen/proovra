@@ -149,3 +149,22 @@ test("no intakeIncluded → no panel; a disabled feature (503) hides it; other f
   assert.equal(r.byTestId("evidence-linked-requests").length, 1);
   assert.ok(!r.hasText("No linked requests yet."), "a failed read shown as 'none'");
 });
+
+test("R1-F-07 — an overload 503 (SERVER_BUSY) is a retryable failure, not a switched-off feature", async () => {
+  routes[LIST] = () => ({ __status: 503, error: { code: "SERVER_BUSY", message: "busy" } });
+  const r = await render();
+  assert.equal(r.byTestId("evidence-linked-requests").length, 1, "the panel vanished as if the feature were off");
+  assert.ok(!r.hasText("No linked requests yet."));
+  r.unmount();
+});
+
+test("R1-F-02 — a record without a reviewer workflow keys its requests on its own workspace", async () => {
+  const OWN = "33333333-3333-3333-3333-333333333333";
+  const OWN_LIST = `/v1/evidence-requests?teamId=${OWN}&evidenceId=ev-1`;
+  routes["/v1/evidence/ev-1/review-workspace"] = () => ({ relationships: { items: [] }, evidence: { id: "ev-1", teamId: OWN }, reviewWorkflow: { available: false } });
+  routes[OWN_LIST] = () => ({ requests: [REQ] });
+  const r = await render();
+  assert.ok(requests.some((q) => q.path === OWN_LIST), "requests not read for the record's own workspace");
+  assert.equal(r.byTestId("evidence-linked-requests").length, 1);
+  r.unmount();
+});

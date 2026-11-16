@@ -33,7 +33,7 @@ import { createHash } from "node:crypto";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { parseOriginList, releaseManifestProblems } from "./scripts/manifest-plan.mjs";
+import { parseOriginList, releaseAuthUrlProblems, releaseManifestProblems } from "./scripts/manifest-plan.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, "dist");
@@ -76,6 +76,15 @@ if (env.PROOVRA_WEB_ORIGIN) {
   if (web.protocol !== "https:") fail(`PROOVRA_WEB_ORIGIN must be https:// for a release (got ${web.protocol}).`);
   if (/localhost|127\.0\.0\.1|0\.0\.0\.0/.test(web.hostname)) fail(`PROOVRA_WEB_ORIGIN must not be localhost for a release (got ${web.hostname}).`);
 }
+
+// B4-F-105 — the sign-in endpoints an override names must be https and on
+// the API origin (the one the manifest's host permissions declare).
+const authProblems = releaseAuthUrlProblems({
+  apiOrigin,
+  authorizeUrl: env.PROOVRA_AUTH_AUTHORIZE_URL,
+  tokenUrl: env.PROOVRA_AUTH_TOKEN_URL,
+});
+if (authProblems.length > 0) fail(`OAuth endpoint override refused:\n  ${authProblems.join("\n  ")}`);
 
 // --- 2. Validate manifest + build a production bundle ---------------------
 console.log(`Building production extension v${pkg.version} against ${apiOrigin} …`);

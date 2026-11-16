@@ -59,6 +59,11 @@ import {
 } from "../../../posture/_sections/section-state";
 import { formatCellDateTime } from "../../../../../../lib/date";
 import { shortId } from "../../_sections/identity-admin-shared";
+import {
+  readTelemetryScope,
+  telemetryOffersRevoke,
+  type TelemetryScope,
+} from "../../../../../../lib/identity/telemetry-scope";
 
 type TrustedDevice = {
   id: string;
@@ -84,6 +89,9 @@ export function TrustedDevicesSection() {
   });
   const [ttlDays, setTtlDays] = useState(30);
   const [busy, setBusy] = useState<string | null>(null);
+  // B1-F-003 — a read-only role reads only its own devices (`scope: "self"`);
+  // trusting and removing trust both need the administrator permission.
+  const [scope, setScope] = useState<TelemetryScope>("legacy");
 
   const load = useCallback(async () => {
     if (!teamId) return;
@@ -93,8 +101,9 @@ export function TrustedDevicesSection() {
       const res = (await apiFetch(
         `/v1/identity-security/devices?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
-      )) as { devices?: TrustedDevice[] } | null;
+      )) as { devices?: TrustedDevice[]; scope?: unknown } | null;
       if (isStale(captured)) return;
+      setScope(readTelemetryScope(res));
       setState({ kind: "ready", data: res?.devices ?? [] });
     } catch (err) {
       if (isStale(captured)) return;
@@ -270,17 +279,24 @@ export function TrustedDevicesSection() {
     },
   ];
 
+  const selfScope = scope === "self";
   return (
     <PageSection
-      title="Trusted devices"
-      description={description}
+      title={selfScope ? "Your trusted devices" : "Trusted devices"}
+      description={
+        selfScope
+          ? "Your own trusted devices in this workspace. Workspace owners and admins manage every member's devices."
+          : description
+      }
       data-trusted-devices-section
+      data-trusted-devices-scope={scope}
       action={
         <Button variant="secondary" onClick={() => void load()}>
           Refresh
         </Button>
       }
     >
+      {selfScope ? null : (
       <Card padding="comfortable" style={{ marginBottom: 12 }}>
         <div
           style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}
@@ -315,6 +331,7 @@ export function TrustedDevicesSection() {
           clamps whatever you enter here to that cap.
         </p>
       </Card>
+      )}
 
       <DataTable
         columns={columns}
@@ -322,13 +339,20 @@ export function TrustedDevicesSection() {
         getRowId={(d) => d.id}
         ariaLabel="Trusted devices"
         emptyState={
-          <EmptyState variant="inline"
-            title="No trusted devices"
-            purpose="Nobody in this workspace has a trusted device, so the second factor is requested every time the policy calls for one."
-          />
+          selfScope ? (
+            <EmptyState variant="inline"
+              title="You have no trusted devices"
+              purpose="Your second factor is requested every time the policy calls for one."
+            />
+          ) : (
+            <EmptyState variant="inline"
+              title="No trusted devices"
+              purpose="Nobody in this workspace has a trusted device, so the second factor is requested every time the policy calls for one."
+            />
+          )
         }
         rowActions={(d) =>
-          d.status === "ACTIVE" ? (
+          d.status === "ACTIVE" && telemetryOffersRevoke(scope) ? (
             <Button
               variant="destructive"
               size="sm"

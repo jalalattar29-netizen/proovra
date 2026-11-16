@@ -409,7 +409,9 @@ describe("Phase IA-home-v2 — storage formatting", () => {
     const billing: HomeBillingInput = {
       workspaces: { personal: { storage: { usedLabel: "6.528212832286954 GB", limitLabel: "10 GB", usagePercent: 65.28212832286954, nearLimit: false, limitReached: false } } },
     };
-    const vm = build("PRO", { billing });
+    // B2A-F-01 (free-audit 0ea0, pin updated 2026-11-16): the personal
+    // billing figures are built only where they describe the active space.
+    const vm = build("PRO", { billing, billingDescribesActiveSpace: true });
     expect(vm.storage?.usagePercent).toBe(65.3);
     expect(vm.storage?.usedLabel).toBe("6.53 GB");
   });
@@ -755,18 +757,25 @@ describe("Phase IA-home-findings — Storage forecast (real projection)", () => 
     };
     // evidenceCount from CC = uploaded 2 + signed 3 + reported 5 = 10.
     // 10 records at 50% ⇒ ≈ 10·(100/50 − 1) = 10 more.
-    const vm = build("PRO", { billing });
+    // B2A-F-01 (pin updated 2026-11-16): figures that describe the active space.
+    const vm = build("PRO", { billing, billingDescribesActiveSpace: true });
     expect(vm.storage?.forecastRecords).toBe(10);
+    // In a space the personal account does not pay for, no storage is built.
+    expect(build("PRO", { billing }).storage).toBeNull();
   });
 
   it("returns null (no fabrication) when usage is 0%, ≥100%, or no records", () => {
     const base = (usagePercent: number) => ({
       workspaces: { personal: { storage: { usedLabel: "x", limitLabel: "y", usagePercent, nearLimit: false, limitReached: false } } },
     });
-    expect(build("PRO", { billing: base(0) }).storage?.forecastRecords).toBeNull();
-    expect(build("PRO", { billing: base(100) }).storage?.forecastRecords).toBeNull();
+    // B2A-F-01 (pin updated 2026-11-16): `toBeNull` on forecastRecords needs
+    // a built storage object, i.e. figures that describe the active space.
+    const own = { billingDescribesActiveSpace: true } as const;
+    expect(build("PRO", { ...own, billing: base(0) }).storage?.forecastRecords).toBeNull();
+    expect(build("PRO", { ...own, billing: base(100) }).storage?.forecastRecords).toBeNull();
     // No records ⇒ cannot project.
     const noRecords = build("PRO", {
+      ...own,
       billing: base(40),
       commandCenter: null,
       trustSummary: { totalEvidence: 0 },

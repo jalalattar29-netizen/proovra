@@ -234,6 +234,53 @@ export function parseMfaStatus(payload: unknown): MfaStatus {
   };
 }
 
+/**
+ * B1-F-002 — what an account with a second factor still needs to stay
+ * recoverable (the web's RecoveryCodesNotice). Recovery codes are issued
+ * automatically only with an authenticator app; a phone- or passkey-only
+ * account holds none, a personal workspace has no administrator who could reset
+ * the factor, and support cannot remove one.
+ */
+export const NO_RECOVERY_CODES_COPY =
+  "You have no recovery codes. If you lose access to your second factor, you will not be able to sign in, and PROOVRA support cannot remove a second factor for you. Generate recovery codes and keep them somewhere safe.";
+export const SINGLE_FACTOR_COPY =
+  "Only one second factor is set up. Adding another (an authenticator app, a passkey or a phone) means losing one device does not lock you out.";
+
+export interface RecoveryCodesGuidance {
+  /** Shown as a risk line; null when the account holds codes. */
+  warning: string | null;
+  /** Shown when exactly one factor is active. */
+  singleFactorHint: string | null;
+  actionLabel: string;
+  confirmTitle: string;
+  confirmConsequence: string;
+  confirmLabel: string;
+}
+
+export function recoveryCodesGuidance(status: MfaStatus): RecoveryCodesGuidance {
+  const active = status.factors.filter((f) => f.status === "ACTIVE").length;
+  const none = status.recoveryCodesRemaining <= 0;
+  return none
+    ? {
+        warning: active > 0 ? NO_RECOVERY_CODES_COPY : null,
+        singleFactorHint: active === 1 ? SINGLE_FACTOR_COPY : null,
+        actionLabel: "Generate recovery codes",
+        confirmTitle: "Generate recovery codes?",
+        confirmConsequence:
+          "Each code signs you in once if you lose your second factor. They are shown once — store them in a safe place.",
+        confirmLabel: "Generate",
+      }
+    : {
+        warning: null,
+        singleFactorHint: active === 1 ? SINGLE_FACTOR_COPY : null,
+        actionLabel: "Regenerate recovery codes",
+        confirmTitle: "Regenerate recovery codes?",
+        confirmConsequence:
+          "Your existing recovery codes stop working immediately. New codes are shown once — store them in a safe place.",
+        confirmLabel: "Regenerate",
+      };
+}
+
 export function mfaFactorTone(status: string): ProovraStatusTone {
   if (status === "ACTIVE") return "verified";
   if (status === "PENDING") return "pending";

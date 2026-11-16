@@ -693,6 +693,30 @@ async function estimatePairedPackageBytes(evidenceId: string, version: number | 
 }
 
 /**
+ * B5B-F-402 (free audit 0ea0) — would a rebuild of the package for this report
+ * version now fit the customer-facing allowance? Asked by the package-recovery
+ * sweep before it re-requests a package the storage gate already refused
+ * (NOT_APPLICABLE_STORAGE_LIMIT): the producer decision has no storage input,
+ * so without this the sweep rebuilt both ZIP profiles every tick only for the
+ * gate to refuse them again. Same usage figure and same package estimate as
+ * the gate's (`getWorkspaceUsage`, `estimatePairedPackageBytes`); the gate
+ * still decides on the bytes actually built.
+ */
+export async function packageRebuildFitsStorage(params: {
+  ownerUserId: string;
+  teamId?: string | null;
+  evidenceId: string;
+  version: number;
+}): Promise<boolean> {
+  const scope = await resolveWorkspaceScopeForEvidence(params);
+  const [usage, estimate] = await Promise.all([
+    getWorkspaceUsage(scope),
+    estimatePairedPackageBytes(params.evidenceId, params.version),
+  ]);
+  return usage.storageBytesUsed + estimate <= usage.storageBytesLimit;
+}
+
+/**
  * F-02 (2026-11-13) — the storage step of both artifact gates. The FIRST
  * issuance a record earned at finalization (its first report version and that
  * version's package pair) is owed by the product promise and is not refused
@@ -700,9 +724,12 @@ async function estimatePairedPackageBytes(evidenceId: string, version: number | 
  * the API's offer reads the same rule). AUDIT D-03 — for an entitled FREE
  * record (stored FREE_ALLOWANCE fact) those bytes are also left out of the
  * customer-facing usage (`measureFirstIssuanceAllowanceExclusion`, applied in
- * `getWorkspaceUsage`); a credit-funded or paid-plan record's first issuance
- * still counts. Every other artifact is gated exactly as before, against that
- * same customer-facing usage.
+ * `getWorkspaceUsage`); a paid-plan record's first issuance still counts.
+ * Free audit 0ea0 — a credit-funded record's first issuance (B5B-F-403) and
+ * the automatic chain-verified version of a covered record (B5B-F-400, request
+ * purpose `ots_upgrade_completed`) are first issuance by the same shared rule
+ * (`isAllowanceExcludedFirstIssuance`). Every other artifact is gated exactly
+ * as before, against that same customer-facing usage.
  */
 async function assertArtifactStorage(params: {
   scope: WorkerWorkspaceScope;
@@ -730,6 +757,8 @@ async function assertArtifactStorage(params: {
     // AUDIT D-03 — the server-verified recovery of a proven-missing first-issued
     // file of an entitled FREE record (request purpose `missing_output_recovery`)
     // IS that first issuance: not customer storage, so never refused for it.
+    // B5B-F-400 — so is the automatic chain-verified version (purpose
+    // `ots_upgrade_completed`, machine principal) of such a record.
     if (
       params.outputs.decision === "ENTITLED" &&
       (await isAllowanceExcludedFirstIssuance(prisma, { evidenceId: params.evidenceId, version }))

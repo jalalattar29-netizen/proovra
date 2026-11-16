@@ -137,16 +137,23 @@ export function ActionRequiredBanner({
             // MANUAL_INTERVENTION. The automatic retries are spent and the
             // add-on may still be charging, so the customer is given a real
             // next step rather than being asked to keep pressing a button.
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                window.location.href = "/settings/support";
-              }}
+            //
+            // Free-user audit 0ea0 (B6-F-60): this set `window.location.href`
+            // to "/settings/support", a route that does not exist, so the one
+            // way forward from a charge that may still be running was a 404 —
+            // and a same-tab full navigation that discarded the in-memory
+            // session. It now goes where the page's support strip goes:
+            // `/support` (the billing route is listed there), in a NEW TAB so
+            // the authenticated shell and this banner both stay.
+            <a
+              href="/support"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ui-button bill-secondary-action"
               data-billing-addon-support
             >
               Contact support
-            </Button>
+            </a>
           ) : null}
         </div>
       ) : null}

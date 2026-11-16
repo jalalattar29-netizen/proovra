@@ -99,6 +99,7 @@ import { apiFetch } from "../../../lib/api";
 import "./billing.css";
 import {
   BILLING_PLAN_PARAM,
+  BILLING_WORKSPACE_PARAM,
   buildBillingHref,
   parseBillingPlanHint,
   parseBillingWorkspaceLocator,
@@ -252,7 +253,13 @@ function BillingPageInner() {
         const activeOrganization = list.find(
           (a) => a.type === "ORGANIZATION" && a.id === activeOrganizationId,
         );
-        setSelected(accountFromLocator(requestedLocator, list) ?? activeOrganization ?? list[0]!);
+        // B6-F-69 — an ABSENT `?workspace=` parses to the personal locator,
+        // which always matched the personal account, so the organization
+        // default could never apply. Only an explicit link wins over it.
+        const explicit = searchParams.has(BILLING_WORKSPACE_PARAM)
+          ? accountFromLocator(requestedLocator, list)
+          : null;
+        setSelected(explicit ?? activeOrganization ?? accountFromLocator(requestedLocator, list) ?? list[0]!);
         setPhase({ kind: "READY" });
       })
       .catch((err) => {
@@ -384,6 +391,19 @@ function BillingPageInner() {
     replaceUrl: (search) => router.replace(`/billing${search}`, { scroll: false }),
     // A Stripe return re-checks (or abandons) its attempt on this account.
     personalAccount,
+    // B6-F-70 — the same in-page abandon dialog as Billing activity; a return
+    // link never closes a checkout without this click.
+    confirmAbandon: async (answer) =>
+      await confirm({
+        title: "Close this Stripe checkout?",
+        description:
+          answer.warning ??
+          "You left Stripe checkout before paying. Closing it removes it from PROOVRA's open purchases.",
+        confirmLabel: answer.cancelsAtProvider ? "Close checkout" : "Abandon in PROOVRA",
+        cancelLabel: "Keep it",
+        tone: "warning",
+        testId: "billing-abandon-attempt",
+      }),
   });
 
   // ---- Outstanding storage add-on cancellations ---------------------------
@@ -1347,6 +1367,12 @@ function BillingPageInner() {
                     : undefined
                 }
                 onChoosePlan={() => openPlanManagement()}
+                onAddStorage={
+                  projection.actions.canBuyStorageAddon &&
+                  (projection.storageAddons?.offers ?? []).length > 0
+                    ? () => setCheckout({ kind: "STORAGE" })
+                    : undefined
+                }
               />
 
               <StorageAddonsSection

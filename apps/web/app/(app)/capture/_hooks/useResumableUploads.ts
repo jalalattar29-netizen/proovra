@@ -138,9 +138,26 @@ export type UseResumableUploadsApi = {
   cancel(sessionId: string): void;
   /** Remove a CLEANUP-SAFE recovery entry from IndexedDB. */
   clearRecovery(sessionId: string): Promise<void>;
+  /**
+   * B4-F-301 — stop tracking an upload the orchestrator has settled: its
+   * snapshot leaves the live list (and the blockers), its persisted entry is
+   * removed, and with `abort` the server session (and S3 multipart) is
+   * aborted through the uploader's existing abort. Called after a resumable
+   * item fails (abort) and after it was bridged into the record (no abort).
+   */
+  forget(sessionId: string, options?: { abort?: boolean }): void;
+  /** True when an uploader for this session is in memory (Resume can act). */
+  hasUploader(sessionId: string): boolean;
   /** Whether Review & Sign should be blocked + why. Empty array →
-   *  resumable side has no objection (legacy side may still gate). */
+   *  resumable side has no objection (legacy side may still gate).
+   *  Recovery entries (an earlier page's uploads) are not counted here. */
   blockingReasons: ReadonlyArray<ReviewSignBlocker>;
+  /**
+   * B4-F-301 — the blockers for the record the capture currently reserves:
+   * live uploads, plus recovery entries of THAT record only. A recovery entry
+   * of another (or no) record cannot block a new Review & Sign.
+   */
+  blockingReasonsFor(currentEvidenceId: string | null): ReadonlyArray<ReviewSignBlocker>;
 };
 
 // =============================================================================
@@ -165,6 +182,9 @@ export function useResumableUploads(): UseResumableUploadsApi {
   // Remember which session belongs to which team so pause / cancel
   // / clear can route telemetry without re-walking the uploads map.
   const sessionTeamRef = useRef(new Map<string, string>());
+  // B4-F-301 — sessions the orchestrator settled: their late snapshots and
+  // persistence writes are ignored, so a forgotten upload cannot come back.
+  const forgottenRef = useRef(new Set<string>());
 
   const getTelemetry = useCallback(
     (teamId: string): UploadTelemetryEmitter => {
@@ -222,6 +242,10 @@ export function useResumableUploads(): UseResumableUploadsApi {
         multipartAlreadyInitiated: input.multipartAlreadyInitiated === true,
         isOnline: () => networkRef.current.isOnline(),
         onPersist: async (snapshot) => {
+          if (forgottenRef.current.has(input.sessionId)) {
+            await persistence.remove(input.sessionId);
+            return;
+          }
           const projected = persistence.project(snapshot, {
             evidenceId: input.evidenceId,
             teamId: input.teamId,
@@ -236,6 +260,7 @@ export function useResumableUploads(): UseResumableUploadsApi {
         },
       });
       uploader.subscribe((snap) => {
+        if (forgottenRef.current.has(snap.sessionId)) return;
         setUploadsMap((prev) => {
           const next = new Map(prev);
           next.set(snap.sessionId, snap);
@@ -294,6 +319,33 @@ export function useResumableUploads(): UseResumableUploadsApi {
     [persistence],
   );
 
+  const forget = useCallback(
+    (sessionId: string, options?: { abort?: boolean }) => {
+      const up = uploadersRef.current.get(sessionId);
+      forgottenRef.current.add(sessionId);
+      // The uploader's own cancel aborts the server session and the S3
+      // multipart (best-effort, idempotent) — never a parallel abort path.
+      if (options?.abort && up) up.cancel();
+      uploadersRef.current.delete(sessionId);
+      sessionTeamRef.current.delete(sessionId);
+      setUploadsMap((prev) => {
+        if (!prev.has(sessionId)) return prev;
+        const next = new Map(prev);
+        next.delete(sessionId);
+        return next;
+      });
+      void persistence.remove(sessionId).catch(() => undefined);
+      setRecovery((prev) =>
+        prev && prev.entries.some((e) => e.sessionId === sessionId)
+          ? { ...prev, entries: prev.entries.filter((e) => e.sessionId !== sessionId) }
+          : prev,
+      );
+    },
+    [persistence],
+  );
+
+  const hasUploader = useCallback((sessionId: string) => uploadersRef.current.has(sessionId), []);
+
   const uploads = useMemo(
     () => Array.from(uploadsMap.values()),
     [uploadsMap],
@@ -306,7 +358,11 @@ export function useResumableUploads(): UseResumableUploadsApi {
   );
 
   const blockingReasons = useMemo<ReadonlyArray<ReviewSignBlocker>>(
-    () => computeBlockingReasons(uploads, recovery),
+    () => computeBlockingReasons(uploads, recovery, null),
+    [uploads, recovery],
+  );
+  const blockingReasonsFor = useCallback(
+    (currentEvidenceId: string | null) => computeBlockingReasons(uploads, recovery, currentEvidenceId),
     [uploads, recovery],
   );
 
@@ -322,7 +378,10 @@ export function useResumableUploads(): UseResumableUploadsApi {
     resume,
     cancel,
     clearRecovery,
+    forget,
+    hasUploader,
     blockingReasons,
+    blockingReasonsFor,
   };
 }
 
@@ -330,9 +389,15 @@ export function useResumableUploads(): UseResumableUploadsApi {
 // Pure helpers
 // =============================================================================
 
-function computeBlockingReasons(
+/**
+ * Exported for focused tests. B4-F-301 — a recovery entry (an upload from an
+ * earlier page load, whose file this page no longer holds) blocks only when it
+ * belongs to the record the capture currently reserves.
+ */
+export function computeBlockingReasons(
   uploads: ReadonlyArray<UploadProgressSnapshot>,
   recovery: RecoveryReport | null,
+  currentEvidenceId: string | null,
 ): ReadonlyArray<ReviewSignBlocker> {
   const blockers: ReviewSignBlocker[] = [];
   for (const u of uploads) {
@@ -375,6 +440,7 @@ function computeBlockingReasons(
   }
   if (recovery) {
     for (const e of recovery.entries) {
+      if (!currentEvidenceId || e.evidenceId !== currentEvidenceId) continue;
       if (e.needsAttention) {
         if (e.classification === "expired") {
           blockers.push({ kind: "session_expired", sessionId: e.sessionId });

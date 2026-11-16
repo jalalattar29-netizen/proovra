@@ -137,6 +137,7 @@ export function BillingHistoryCard({
   notice,
   attempts,
   resumeAllowed,
+  canRecheck = true,
 }: {
   state: HistoryState;
   accessKind: string;
@@ -150,6 +151,8 @@ export function BillingHistoryCard({
   notice: string | null;
   attempts: AttemptHandlers;
   resumeAllowed: boolean;
+  /** B6-F-62 — the account-wide re-check needs BILLING_MANAGE (StorageAndHistory.tsx `canRecheck`). */
+  canRecheck?: boolean;
 }) {
   const title = (
     <ProovraText variant="h3" weight="semibold">
@@ -184,7 +187,7 @@ export function BillingHistoryCard({
       <ProovraText variant="label" color={theme.color.ink.secondary}>
         {providerBacked ? COPY.historyProviderSubtitle : COPY.historyContractSubtitle}
       </ProovraText>
-      {providerBacked ? (
+      {providerBacked && canRecheck ? (
         <ProovraButton
           label={recheckBusy ? COPY.rechecking : COPY.recheck}
           accessibilityLabel={COPY.recheck}

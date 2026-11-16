@@ -58,7 +58,8 @@ export function EvidenceDiscussionTab({ ctx }: { ctx: EvidenceDetailCtx }) {
 
       <EvidenceDiscussionPanel
         evidenceId={evidenceId}
-        teamId={workspace.reviewWorkflow?.teamId ?? null}
+        // R1-F-02 — the record's own workspace, as the discussion capability is.
+        teamId={workspace.evidence.teamId ?? workspace.reviewWorkflow?.teamId ?? null}
         initialThreadId={initialThreadId}
         readOnly={workspaceCaps?.discussionReadOnly === true}
       />

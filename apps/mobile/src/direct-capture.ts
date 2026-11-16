@@ -215,11 +215,13 @@ export async function uploadDirectCaptureItem(
      */
     background?: boolean;
   } = {},
+  /** B4-F-201 — the file's integrity, when the allocator already computed it. */
+  precomputed?: Awaited<ReturnType<typeof computeFileIntegrityBase64>>,
 ): Promise<{ partIndex: number; sha256Hex: string; sizeBytes: number }> {
   const requestMs = timeouts.requestMs ?? CAPTURE_REQUEST_TIMEOUT_MS;
   // The integrity layer returns the hex digest directly — it no longer round-
   // trips through `globalThis.atob`, which is not guaranteed on Hermes.
-  const integrity = await computeFileIntegrityBase64(item.uri);
+  const integrity = precomputed ?? (await computeFileIntegrityBase64(item.uri));
   const sha256Hex = integrity.sha256Hex;
   // Free audit F-11 — the whole-file PUT deadline scales with the file. A
   // fixed 120 s made any file needing more uplink time unfinishable.
@@ -523,6 +525,8 @@ export async function uploadDirectCaptureItemAllocated(
     retry?: RetryPolicy;
     listParts?: (s: DirectCaptureSession) => Promise<DirectCapturePart[]>;
     upload?: typeof uploadDirectCaptureItem;
+    /** Test seam: the file-integrity function (default computeFileIntegrityBase64). */
+    integrity?: typeof computeFileIntegrityBase64;
   } = {},
 ): Promise<{ partIndex: number; sha256Hex: string; sizeBytes: number }> {
   const list = options.listParts ?? listDirectCaptureParts;
@@ -540,11 +544,41 @@ export async function uploadDirectCaptureItemAllocated(
     }
   };
   let server: DirectCapturePart[] = options.freshSession ? [] : await readServer();
+
+  /*
+   * B4-F-201 (Free-user audit 0ea0) — a part the server already holds for THIS
+   * file is this item's part. A Finish that declared part 0 and then lost its
+   * PUT left part 0 DECLARED; allocating max + 1 declared the same file again at
+   * part 1, and the seal (which expects every declaration stored) never
+   * completed. The digest is computed once and handed to the upload. A part
+   * another item of this capture holds (`taken`) is never reused, so two
+   * identical photos stay two parts.
+   */
+  let integrity: Awaited<ReturnType<typeof computeFileIntegrityBase64>> | undefined;
+  const reusable = server.filter((p) => p.sha256 && p.state !== "LOST" && !taken.includes(p.partIndex));
+  if (reusable.length > 0) {
+    integrity = await (options.integrity ?? computeFileIntegrityBase64)(item.uri);
+    const digest = integrity.sha256Hex.toLowerCase();
+    const mine = reusable
+      .filter((p) => (p.sha256 ?? "").toLowerCase() === digest)
+      .sort((a, b) => a.partIndex - b.partIndex)[0];
+    if (mine && mine.state === "UPLOADED") {
+      return { partIndex: mine.partIndex, sha256Hex: integrity.sha256Hex, sizeBytes: integrity.sizeBytes };
+    }
+    if (mine) {
+      // Same index, same digest: the declaration is idempotent and the presign
+      // mints a fresh URL for the same object.
+      const partIndex = mine.partIndex;
+      const once = () => upload(session, evidenceId, { ...item, partIndex }, options.timeouts, integrity);
+      return await (options.retry ? retryCapture(once, options.retry) : once());
+    }
+  }
+
   let lastErr: unknown = null;
   for (let attempt = 0; attempt <= PART_ALLOCATION_RETRIES; attempt += 1) {
     const partIndex = nextFreePartIndex(server, taken);
     try {
-      const once = () => upload(session, evidenceId, { ...item, partIndex }, options.timeouts);
+      const once = () => upload(session, evidenceId, { ...item, partIndex }, options.timeouts, integrity);
       return await (options.retry ? retryCapture(once, options.retry) : once());
     } catch (err) {
       if ((err as { code?: string } | null)?.code !== "PART_ALREADY_DECLARED") throw err;

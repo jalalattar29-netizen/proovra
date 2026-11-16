@@ -7,7 +7,7 @@ import {
   isOutputProductionRefusedError,
   settleRequestAsNotApplicable,
 } from "./output-production-refusal.js";
-import { outputLifecycleRefusal, type OutputProductionRefusal } from "@proovra/shared";
+import { outputLifecycleRefusal, partAudioNotRecordedStatement, type OutputProductionRefusal } from "@proovra/shared";
 // 2026-10-29 — wire contract D: one screen recording is one evidence item.
 import {
   CAPTURE_RECORD_SYSTEM_LABEL,
@@ -400,6 +400,8 @@ type ReportEvidenceAsset = {
   artifactRoleSource: ReviewerArtifactRoleSource;
   checklistStepId: string | null;
   checklistStepLabel: string | null;
+  /** B4-F-206 — client-stated absence of audio on a video part. */
+  audioNotRecordedStatement?: string | null;
   originalPreservationNote: string;
   reviewerRepresentationLabel: string;
   reviewerRepresentationNote: string;
@@ -1723,6 +1725,8 @@ export function buildReportEvidenceContent(params: {
     durationMs: number | null;
     privateRole?: string | null;
     checklistStepId?: string | null;
+    /** B4-F-206 — the part's client signals (audioNotCapturedReason). */
+    clientSignals?: unknown;
     storageBucket: string;
     storageKey: string;
     /** Wire contract D — ORIGINAL | CAPTURE_MANIFEST; required. */
@@ -1826,6 +1830,8 @@ const isPrimary = isPrimaryReviewerArtifactRole(resolvedRole.artifactRole);
           artifactRoleSource: resolvedRole.roleSource,
           checklistStepId: resolvedRole.checklistStepId,
           checklistStepLabel: resolvedRole.checklistStepLabel,
+          // B4-F-206 (free audit 0ea0) — F-P1-09: a video recorded without audio says so.
+          audioNotRecordedStatement: partAudioNotRecordedStatement(part.clientSignals, { detail: "reason" }),
           originalPreservationNote: buildOriginalPreservationNote({ label, kind }),
           reviewerRepresentationLabel: buildReviewerRepresentationLabel({
             kind,
@@ -2507,6 +2513,8 @@ async function prepareReportArtifacts(
         checklistStepId: true,
         sourceLabel: true,
         uploadedByUserId: true,
+        // B4-F-206 — the part's audioNotCapturedReason (report part listing).
+        clientSignals: true,
       },
     }),
     prisma.user.findUnique({

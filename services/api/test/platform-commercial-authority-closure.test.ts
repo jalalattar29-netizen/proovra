@@ -281,7 +281,9 @@ describe("a commercial allowance is not a rate limit", () => {
     // Budget engine (spend), workspace AI policy (customer opt-out) and the
     // provider policy evaluation are different questions from the commercial
     // allowance, and all of them stay.
-    expect(mi).toContain("decideBudgetGate(");
+    // B6-F-44 — the budget engine now reserves before it decides
+    // (reserveBudgetGate wraps decideBudgetGate); still a spend control.
+    expect(mi).toContain("reserveBudgetGate(");
     expect(mi).toContain("resolveWorkspaceAiPolicy");
     const ai = codeOnly(read("services/api/src/routes/ai.routes.ts"));
     expect(ai).toContain("AiCostGuard");

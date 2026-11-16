@@ -80,7 +80,9 @@ export async function completeWebCaptureSession(
   }
   const validation = validateWebCaptureManifest(parsed, { expectedSessionId: session.id, sessionStartedAtUtc: session.startedAtUtc ?? null });
   if (!validation.ok) {
-    throw new DirectCaptureError("WEB_MANIFEST_INVALID");
+    // B4-F-103 (free audit 0ea0) — an impossible capture window is its own
+    // refusal (the likely cause is the computer's clock), not a bad manifest.
+    throw new DirectCaptureError(validation.captureWindow ? "CAPTURE_WINDOW_INVALID" : "WEB_MANIFEST_INVALID");
   }
   const manifest: WebCaptureManifest = validation.manifest;
 

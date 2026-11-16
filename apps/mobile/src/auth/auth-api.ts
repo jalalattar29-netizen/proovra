@@ -324,11 +324,45 @@ export async function fetchMe(): Promise<AuthUser | null> {
   return (data["user"] as AuthUser | null) ?? null;
 }
 
-export async function logout(): Promise<void> {
+/**
+ * B8-F-001 — the server sign-out's OUTCOME. It used to swallow every failure,
+ * and the device then purged its token while the server session stayed valid
+ * until expiry. Only a 2xx (or a 401: no live session left to end) is done;
+ * an overload 503, a network failure, a 5xx or the handler's 503
+ * `logout_incomplete` is reported so the caller can keep the person signed in
+ * and offer a retry. Never throws.
+ */
+export type ServerSignOutResult =
+  | { ok: true }
+  | { ok: false; reason: "busy" | "network" | "incomplete" | "error" };
+
+export async function logout(): Promise<ServerSignOutResult> {
   try {
     await apiFetch("/v1/auth/logout", { method: "POST" });
-  } catch {
-    // logout is best-effort server-side; the client always clears local state.
+    return { ok: true };
+  } catch (err) {
+    const e = (err ?? {}) as { statusCode?: number; code?: string };
+    const code = typeof e.code === "string" ? e.code : "";
+    if (e.statusCode === 401) return { ok: true };
+    if (typeof e.statusCode !== "number" || e.statusCode === 0) return { ok: false, reason: "network" };
+    if (code.toLowerCase() === "logout_incomplete") return { ok: false, reason: "incomplete" };
+    if (code === "SERVER_BUSY" || e.statusCode === 503) return { ok: false, reason: "busy" };
+    return { ok: false, reason: "error" };
+  }
+}
+
+export const SIGN_OUT_INCOMPLETE_TITLE = "Sign-out did not complete";
+
+export function signOutIncompleteMessage(reason: "busy" | "network" | "incomplete" | "error"): string {
+  switch (reason) {
+    case "network":
+      return "PROOVRA could not be reached, so this session was not ended. You are still signed in on this device. Check your connection and retry.";
+    case "busy":
+      return "PROOVRA is busy and did not end this session. You are still signed in on this device. Retry in a moment.";
+    case "incomplete":
+      return "The server could not confirm that this session was ended, so it may still be active. Retry to finish signing out.";
+    default:
+      return "This session was not ended. You are still signed in on this device. Retry to sign out.";
   }
 }
 

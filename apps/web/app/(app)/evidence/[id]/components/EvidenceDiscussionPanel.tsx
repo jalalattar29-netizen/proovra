@@ -46,6 +46,7 @@ import { apiFetch } from "../../../../../lib/api";
 // same thread.
 import { PresenceIndicator } from "../../../../../components/presence/PresenceIndicator";
 import { DiscussionThreadLifecycle } from "./DiscussionThreadLifecycle";
+import { memberLabel, useWorkspaceMembers } from "./WorkspaceMemberSelect";
 
 type ThreadStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 type ThreadVisibility = "INTERNAL" | "CONTRIBUTOR_SCOPED";
@@ -199,6 +200,13 @@ export default function EvidenceDiscussionPanel({
   const [threads, setThreads] = useState<Thread[] | null>(null);
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // R1-F-03 — a failed post and an advisory notice after a SUCCESSFUL post
+  // are not "Discussion could not be loaded"; each has its own slot.
+  const [postError, setPostError] = useState<string | null>(null);
+  const [postNotice, setPostNotice] = useState<string | null>(null);
+  // R1-F-03 — authors are named from the workspace roster (the server sends
+  // only authorUserId), as DiscussionThreadLifecycle names assignees.
+  const members = useWorkspaceMembers(teamId);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
     initialThreadId ?? null,
   );
@@ -346,6 +354,8 @@ export default function EvidenceDiscussionPanel({
       const body = draft.trim();
       if (body.length === 0) return;
       setPosting(true);
+      setPostError(null);
+      setPostNotice(null);
       try {
         const posted = (await apiFetch(
           `/v1/collaboration/threads/${encodeURIComponent(
@@ -363,7 +373,7 @@ export default function EvidenceDiscussionPanel({
         // should know that rather than assume they were.
         const missed = posted?.unresolvedMentions ?? [];
         if (missed.length > 0) {
-          setError(
+          setPostNotice(
             missed
               .map((m) =>
                 m.reason === "ambiguous"
@@ -375,7 +385,7 @@ export default function EvidenceDiscussionPanel({
         }
       } catch (err) {
         const e2 = err as { message?: string };
-        setError(toSafeUserError(e2, { message: "Could not post message." }).message);
+        setPostError(toSafeUserError(e2, { message: "Could not post message." }).message);
       } finally {
         setPosting(false);
       }
@@ -449,6 +459,20 @@ export default function EvidenceDiscussionPanel({
         >
           <strong>Discussion could not be loaded</strong>
           <p>{error}</p>
+        </div>
+      ) : null}
+
+      {postError ? (
+        <div className="app-alert app-alert--danger" role="alert" data-evidence-discussion-post-error>
+          <strong>Message not posted</strong>
+          <p>{postError}</p>
+        </div>
+      ) : null}
+
+      {postNotice ? (
+        <div className="app-alert app-alert--warn" role="status" data-evidence-discussion-post-notice>
+          <strong>Message posted</strong>
+          <p>{postNotice}</p>
         </div>
       ) : null}
 
@@ -651,7 +675,7 @@ export default function EvidenceDiscussionPanel({
                             ? (m.contributorLabel ?? "Contributor")
                             : m.authorKind === "SYSTEM"
                               ? "System"
-                              : (m.authorUserId ?? "Reviewer")}
+                              : (memberLabel(members.state, m.authorUserId ?? null) ?? "A workspace member")}
                         </span>
                         {m.authorKind !== "USER" ? (
                           <span className="app-chip">

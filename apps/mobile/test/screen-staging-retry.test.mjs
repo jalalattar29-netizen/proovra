@@ -169,7 +169,8 @@ test("AUD-005: the retry rule — retryable vs terminal, backoff, timeout", asyn
   assert.equal(c({ statusCode: 408 }), "RETRYABLE");
   assert.equal(c({ statusCode: 409, code: "SESSION_BUSY" }), "RETRYABLE");
   assert.equal(c({ statusCode: 400, code: "INVALID_DIGEST" }), "TERMINAL");
-  assert.equal(c({ statusCode: 403, code: "FORBIDDEN" }), "TERMINAL");
+  // B4-F-202 — an authorization refusal is HELD (kept), not terminal.
+  assert.equal(c({ statusCode: 403, code: "FORBIDDEN" }), "HELD");
   assert.equal(c({ statusCode: 415, code: "FILE_VALIDATION_BLOCKED" }), "TERMINAL");
   assert.equal(c({ code: "LOCAL_FILE_MISSING" }), "TERMINAL");
   assert.deepEqual([1, 2, 3, 4, 5].map((n) => M.backoffDelayMs(n, { baseDelayMs: 1000, maxDelayMs: 5000 })), [1000, 2000, 4000, 5000, 5000]);
@@ -246,7 +247,6 @@ test("C-03: the retry rule — 401 and plan/storage refusals are HELD (not retri
   assert.equal(M.captureHoldReason({ statusCode: 409, code: "FREE_LIMIT_REACHED" }), "REFUSED");
   assert.equal(M.captureHoldReason({ statusCode: 409, code: "PART_ALREADY_DECLARED" }), null);
   // Still terminal: refusals no account action can change.
-  assert.equal(c({ statusCode: 403, code: "FORBIDDEN" }), "TERMINAL");
   assert.equal(c({ statusCode: 415, code: "FILE_VALIDATION_BLOCKED" }), "TERMINAL");
   let attempts = 0;
   await assert.rejects(() =>
@@ -256,4 +256,46 @@ test("C-03: the retry rule — 401 and plan/storage refusals are HELD (not retri
     }, FAST),
   );
   assert.equal(attempts, 1, "a held failure is not retried");
+});
+
+// B4-F-202 — a legal re-acceptance (428) or a permission change (403) between
+// Stop and staging used to classify TERMINAL: the session was discarded and
+// every frame deleted. Both are recoverable gates; the frames are kept.
+test("B4-F-202: the retry rule — 428 LEGAL_REACCEPT_REQUIRED and 403 access refusals are HELD", () => {
+  const c = M.classifyCaptureError;
+  assert.equal(c({ statusCode: 428, code: "LEGAL_REACCEPT_REQUIRED" }), "HELD");
+  assert.equal(c({ statusCode: 403, code: "LEGAL_REACCEPT_REQUIRED" }), "HELD");
+  assert.equal(c({ statusCode: 403, code: "FORBIDDEN" }), "HELD");
+  assert.equal(c({ statusCode: 403, code: "TEAM_ACCESS_DENIED" }), "HELD");
+  assert.equal(M.captureHoldReason({ statusCode: 428, code: "LEGAL_REACCEPT_REQUIRED" }), "LEGAL");
+  assert.equal(M.captureHoldReason({ statusCode: 403, code: "FORBIDDEN" }), "ACCESS");
+  // Storage refusing a presigned URL stays retryable (a fresh presign passes it).
+  assert.equal(c({ statusCode: 403, code: "STORAGE_URL_REJECTED" }), "RETRYABLE");
+  assert.equal(M.captureHoldReason({ statusCode: 403, code: "STORAGE_URL_REJECTED" }), null);
+});
+
+test("B4-F-202: a 428 at declaration keeps the session and every frame; after acceptance Retry stages them", async () => {
+  server.failNext(/parts\/1\/declaration$/, { status: 428, code: "LEGAL_REACCEPT_REQUIRED" }, 1);
+  const err = await M.stageScreenCapture(RESULT(), { retry: FAST, persist: M.savePendingScreenStaging }).then(() => null, (e) => e);
+  assert.ok(err instanceof M.ScreenStagingError);
+  assert.equal(err.retryable, true, "kept, not terminal");
+  assert.equal(err.held, "LEGAL");
+  assert.equal(framesOnDevice(), 3, "no frame deleted");
+  assert.equal(server.state.sessions.get("cs-1").status, "ACTIVE", "the session was NOT discarded");
+  const pending = await M.loadPendingScreenStaging();
+  assert.ok(pending, "the pending staging is kept for Retry upload");
+  const staged = await M.stageScreenCapture(RESULT(), { retry: FAST, persist: M.savePendingScreenStaging, pending });
+  assert.equal(staged.session.captureSessionId, "cs-1");
+  assert.deepEqual(declaredParts(), [0, 1, 2, 3]);
+});
+
+test("B4-F-202: a 403 (access changed) at staging keeps the frames and the session", async () => {
+  server.failNext(/direct-sessions\/[^/]+\/evidence$/, { status: 403, code: "FORBIDDEN" }, 1);
+  const err = await M.stageScreenCapture(RESULT(), { retry: FAST, persist: M.savePendingScreenStaging }).then(() => null, (e) => e);
+  assert.ok(err instanceof M.ScreenStagingError);
+  assert.equal(err.retryable, true);
+  assert.equal(err.held, "ACCESS");
+  assert.equal(framesOnDevice(), 3);
+  assert.notEqual(server.state.sessions.get("cs-1").status, "DISCARDED");
+  assert.ok(await M.loadPendingScreenStaging());
 });

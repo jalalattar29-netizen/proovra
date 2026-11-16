@@ -72,6 +72,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as Crypto from "expo-crypto";
 import { apiFetch, getAuthToken } from "../../src/api";
 import { DEFAULT_CAPTURE_RETRY } from "../../src/capture/capture-retry";
+import { releaseStaleCaptureRecord } from "../../src/capture/stale-capture-release";
+import { clearSessionConsequence } from "../../src/capture/clear-session-copy";
 import {
   VIDEO_WITHOUT_AUDIO_NOTICE,
   VIDEO_WITHOUT_AUDIO_TOAST,
@@ -649,8 +651,14 @@ hasActiveDraft: isSessionActive || isRecording,
       if (isLiveRecord(r)) continue;
       if (isSessionResumable(r)) offered.push(r);
       else {
-        stale += 1;
-        await clearCaptureSession({ captureSessionId: r.captureSessionId, draftId: r.draftId });
+        // B4-F-101 — release the server session (and its reserved record, one
+        // of the Free slots) BEFORE the device forgets it; a release that
+        // could not be answered keeps the record for the next visit.
+        const outcome = await releaseStaleCaptureRecord(r, {
+          discard: discardDirectCaptureSession,
+          clear: clearCaptureSession,
+        });
+        if (outcome !== "kept") stale += 1;
       }
     }
     if (stale > 0) setStaleRecovered(true);
@@ -2636,7 +2644,7 @@ if (!isRecording || busy) return;
           <ProovraConfirmSheet
             visible={clearConfirmOpen}
             title="Clear this evidence session?"
-            consequence="This will remove all staged materials, mapping, private notes, and local review progress. No evidence record has been created yet."
+            consequence={clearSessionConsequence(sessionEvidenceId)}
             cancelLabel="Keep Session"
             confirmLabel="Clear Session"
             tone="danger"

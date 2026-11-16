@@ -266,6 +266,9 @@ export async function createPolicyVersion(
   };
 }
 
+/** The policy version's state moved between the read and the write. */
+class PolicyTransitionLost extends Error {}
+
 export async function transitionPolicyVersion(
   input: TransitionPolicyVersionInput,
 ): Promise<TransitionPolicyVersionResult> {
@@ -311,24 +314,41 @@ export async function transitionPolicyVersion(
   if (input.toState === "PUBLISHED") patch.publishedAtUtc = now;
   if (input.toState === "SUPERSEDED") patch.supersededAtUtc = now;
 
-  await prisma.$transaction(async (tx) => {
-    if (input.toState === "PUBLISHED") {
-      // Stamp prior PUBLISHED versions of the same policy as SUPERSEDED.
-      await tx.redactionPolicyVersion.updateMany({
-        where: {
-          teamId: input.teamId,
-          policyId: version.policyId,
-          state: "PUBLISHED",
-          NOT: { id: input.policyVersionId },
-        },
-        data: { state: "SUPERSEDED", supersededAtUtc: now },
+  /*
+   * B5B-F-203 (free audit 0ea0) — COMPARE-AND-SWAP ON THE STATE THAT WAS
+   * CHECKED (the PRO-094 rule `transitionRedactionVersion` already follows).
+   * The version used to be written by id alone, so two concurrent verdicts on
+   * one IN_REVIEW version (approve and reject) both passed the edge check and
+   * the last writer won. The row is now written first, only while it is still
+   * in `from`; the loser changes nothing (the supersede of the prior
+   * published version rolls back with it) and is refused INVALID_TRANSITION.
+   */
+  const committed = await prisma
+    .$transaction(async (tx) => {
+      const swapped = await tx.redactionPolicyVersion.updateMany({
+        where: { id: input.policyVersionId, teamId: input.teamId, state: from },
+        data: patch,
       });
-    }
-    await tx.redactionPolicyVersion.update({
-      where: { id: input.policyVersionId },
-      data: patch,
+      if (swapped.count !== 1) throw new PolicyTransitionLost();
+      if (input.toState === "PUBLISHED") {
+        // Stamp prior PUBLISHED versions of the same policy as SUPERSEDED.
+        await tx.redactionPolicyVersion.updateMany({
+          where: {
+            teamId: input.teamId,
+            policyId: version.policyId,
+            state: "PUBLISHED",
+            NOT: { id: input.policyVersionId },
+          },
+          data: { state: "SUPERSEDED", supersededAtUtc: now },
+        });
+      }
+      return true;
+    })
+    .catch((err: unknown) => {
+      if (err instanceof PolicyTransitionLost) return false;
+      throw err;
     });
-  });
+  if (!committed) return { ok: false, denial: "INVALID_TRANSITION" };
 
   const code: RedactionPolicyActivityCode =
     input.toState === "IN_REVIEW"

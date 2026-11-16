@@ -967,7 +967,8 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     expect(facts).not.toBeNull();
     expect(facts!.web).toEqual({
       domain: "news.example.org",
-      sourceUrlPrivate: "https://news.example.org/story?session=private-token",
+      // B4-F-102 (free audit 0ea0) — the credential parameter's value is redacted.
+      sourceUrlPrivate: "https://news.example.org/story?session=REDACTED",
       titlePrivate: "Private headline",
       captureMode: "VIEWPORT",
       pageMutatedDuringCapture: true,

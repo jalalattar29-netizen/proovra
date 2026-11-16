@@ -71,6 +71,11 @@ import {
 } from "../services/access-control/session-inventory.service.js";
 import { organizationIdForPolicy } from "../services/identity/org-security-policy.service.js";
 import { completeSsoSession } from "../services/identity/sso-session-completion.service.js";
+import {
+  ACCOUNT_LINK_REQUIRES_CONSENT,
+  setOrganizationLinkCookie,
+  type PendingOrganizationLink,
+} from "../services/identity/organization-link-consent.service.js";
 import { resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
 // PHASE 11 — canonical safe-destination helper + internal URL builder.
 // Used ONLY to validate/compose the post-login destination string; the
@@ -169,6 +174,54 @@ function bounceToAuthError(
 ): void {
   const destination = redirectAfter ? safeIntendedDestination(redirectAfter) : "/";
   reply.code(302).redirect(signInErrorUrl("sso_error", reason, destination));
+}
+
+/**
+ * B1-F-006 class (B5B-F-302 adjacent) — the MFA enforcement resolver threw, so
+ * whether this account owes a second factor is unknown. No session, no cookie:
+ * the retryable 503 password sign-in gives in the same situation
+ * (auth.routes.ts gateLoginWithMfa), audited as a denial.
+ */
+function refuseUnknownMfaContext(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  input: {
+    userId: string;
+    teamId: string;
+    connectionId: string;
+    loginMethod: "sso_oidc";
+    err: unknown;
+  },
+) {
+  req.log.warn(
+    {
+      requestId: req.id,
+      userId: input.userId,
+      connectionId: input.connectionId,
+      errorMessage: input.err instanceof Error ? input.err.message : "mfa_enforcement_failed",
+    },
+    "auth.mfa_gate_unreachable",
+  );
+  void emitTenantAudit({
+    action: "auth.mfa_gate_unreachable",
+    outcome: "denied",
+    denialReason: "security_context_unavailable",
+    sourceApp: "SSO",
+    actorUserId: input.userId,
+    workspaceId: input.teamId,
+    resourceType: "user_auth",
+    resourceId: input.userId,
+    correlationId: req.id,
+    metadata: { loginMethod: input.loginMethod, connectionId: input.connectionId },
+  }).catch(() => null);
+  return reply.code(503).send({
+    error: {
+      code: "SECURITY_CONTEXT_UNAVAILABLE",
+      message:
+        "We could not confirm your account's sign-in security. Nothing was signed in. Try again in a moment.",
+      requestId: req.id,
+    },
+  });
 }
 
 /**
@@ -475,16 +528,22 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
     let decision: Awaited<ReturnType<typeof resolveLoginMfaEnforcement>>;
     try {
       decision = await resolveLoginMfaEnforcement({ userId: id.userId });
-    } catch {
-      // Each protocol keeps its browser leg's rule: the OIDC callback fails
-      // open on a transient orchestrator error, the SAML ACS fails closed
-      // (saml-auth.routes.ts runs the resolver unguarded).
+    } catch (err) {
+      // B1-F-006 class — both protocols FAIL CLOSED: an unknown MFA context
+      // signs nobody in (the OIDC leg used to fail open here and in the
+      // browser callback). The SAML answer keeps its established code.
       if (id.authMethod === "SAML") {
         return reply.code(503).send({
           error: { code: "SSO_TEMPORARILY_UNAVAILABLE", message: "Sign-in could not be completed. Start again." },
         });
       }
-      decision = { outcome: "NOT_REQUIRED", activeFactorCount: 0, policyTeamId: null, policyLevel: null };
+      return refuseUnknownMfaContext(req, reply, {
+        userId: id.userId,
+        teamId: id.teamId,
+        connectionId: id.ssoConnectionId,
+        loginMethod: "sso_oidc",
+        err,
+      });
     }
     const provenance = {
       sub: id.userId,
@@ -871,16 +930,22 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           decision = await resolveLoginMfaEnforcement({
             userId: result.user.id,
           });
-        } catch {
-          // Fail-OPEN on transient orchestrator errors to avoid
-          // locking every operator out on a Prisma blip. Logged via
-          // sso failure note for SecOps follow-up.
-          decision = {
-            outcome: "NOT_REQUIRED",
-            activeFactorCount: 0,
-            policyTeamId: null,
-            policyLevel: null,
-          };
+        } catch (err) {
+          // B1-F-006 class (B5B-F-302 adjacent) — FAIL CLOSED. This used to
+          // fail OPEN and sign a full session with no second factor for an
+          // account that may well have one, exactly when the system could not
+          // tell — the defect password sign-in already had fixed
+          // (auth.routes.ts gateLoginWithMfa). The security context is
+          // unknown, so no session and no cookie: a retryable 503
+          // SECURITY_CONTEXT_UNAVAILABLE, the same answer password sign-in
+          // gives. The SAML ACS already fails closed.
+          return refuseUnknownMfaContext(req, reply, {
+            userId: result.user.id,
+            teamId: conn.teamId,
+            connectionId: conn.id,
+            loginMethod: "sso_oidc",
+            err,
+          });
         }
         if (decision.outcome === "ENROLLMENT_REQUIRED") {
           safeEmitSecurityEvent(
@@ -1122,6 +1187,23 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           },
           prisma,
         );
+        // B5B-F-302 — the IdP verified an address that belongs to a
+        // pre-existing self-serve account. No session; the browser carries the
+        // signed pending link to the owner's own signed-in approval
+        // (POST /v1/identity/links/organization). A native attempt reports the
+        // coded refusal to the app; the approval is made on the web.
+        if (
+          err instanceof SsoServiceError &&
+          err.code === ACCOUNT_LINK_REQUIRES_CONSENT &&
+          !native &&
+          err.details?.["pendingLink"]
+        ) {
+          setOrganizationLinkCookie(
+            req,
+            reply,
+            err.details["pendingLink"] as PendingOrganizationLink,
+          );
+        }
         if (err instanceof SsoServiceError) {
           return fail(
             err.code === "SSO_SEAT_LIMIT_REACHED"

@@ -29,7 +29,13 @@ const subscriptionFindMany = vi.fn();
 vi.mock("../src/db.js", () => ({
   prisma: {
     evidence: { findMany: (...a: unknown[]) => evidenceFindMany(...a) },
-    reportGenerationRequest: { findMany: (...a: unknown[]) => requestFindMany(...a) },
+    reportGenerationRequest: {
+      findMany: (...a: unknown[]) => requestFindMany(...a),
+      // B5B-F-402 (free-audit 0ea0, fixture extended 2026-11-16): package
+      // recovery now reads the version's LATEST request first, to skip one the
+      // storage gate already refused. None here.
+      findFirst: async () => null,
+    },
     subscription: { findMany: (...a: unknown[]) => subscriptionFindMany(...a) },
     $queryRaw: (...a: unknown[]) => queryRaw(...a),
   },

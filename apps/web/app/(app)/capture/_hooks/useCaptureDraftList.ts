@@ -20,6 +20,8 @@ import { logCaptureClientError } from "../_lib/capture-errors";
 
 export interface CaptureDraftSummary {
   id: string;
+  /** B4-F-307 — the workspace the draft was started in (null: Personal). */
+  teamId: string | null;
   templateId: string | null;
   templateName: string | null;
   planMode: string | null;
@@ -49,6 +51,7 @@ export interface CaptureDraftDetail extends CaptureDraftSummary {
 
 type RawSession = {
   id: string;
+  teamId?: string | null;
   templateId?: string | null;
   templateName?: string | null;
   planMode?: string | null;
@@ -70,6 +73,7 @@ function summarize(raw: RawSession): CaptureDraftSummary {
       : [];
   return {
     id: raw.id,
+    teamId: raw.teamId ?? null,
     templateId: raw.templateId ?? null,
     templateName: raw.templateName ?? null,
     planMode: raw.planMode ?? null,
@@ -79,6 +83,21 @@ function summarize(raw: RawSession): CaptureDraftSummary {
     createdAt: raw.createdAt ?? "",
     expiresAtUtc: raw.expiresAtUtc ?? null,
   };
+}
+
+/**
+ * B4-F-307 — PURE: does a draft belong to the workspace Capture is in? A
+ * draft carries the workspace it was started in; one with none (Personal, or
+ * saved by an older build) belongs to the caller's own Personal space. A
+ * draft of another workspace is not offered here (it would finish into it).
+ */
+export function draftBelongsToSpace(
+  draft: Pick<CaptureDraftSummary, "teamId">,
+  space: { id?: string | null; type?: string | null; shared?: boolean } | null | undefined,
+): boolean {
+  if (!space) return false;
+  if (draft.teamId) return draft.teamId === space.id;
+  return space.type === "PERSONAL" && !space.shared;
 }
 
 export function useCaptureDraftList() {

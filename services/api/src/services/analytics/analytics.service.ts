@@ -32,6 +32,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { holdInReach, type ViewerReach } from "../access/record-reach.js";
 import {
   workspaceCaseWhere,
   workspaceEvidenceWhere,
@@ -51,6 +52,14 @@ export type AnalyticsScope = "SINGLE_OCCUPANT" | "SHARED";
 export type AnalyticsInput = {
   teamId: string;
   scope: AnalyticsScope;
+  /**
+   * B7B-F03 (free-audit 0ea0): the reader's record reach
+   * (`viewerReachInWorkspace`). Counts must not reveal the existence or
+   * volume of records a restricted case closes to them, exactly as the
+   * command center and governance control plane already do. Absent only for
+   * a machine/system caller.
+   */
+  reach?: ViewerReach;
   windowDays?: number;
   prisma?: PrismaClient;
   nowMs?: number;
@@ -146,10 +155,12 @@ export async function getOperationsOverview(
   // caller may inject one, and a scope resolved on a different connection
   // than the query it bounds is a scope that can describe a different
   // database.
-  const [scope, caseScope] = await Promise.all([
+  const [baseScope, baseCaseScope] = await Promise.all([
     workspaceEvidenceWhere(input.teamId, prisma),
     workspaceCaseWhere(input.teamId, prisma),
   ]);
+  const scope = input.reach ? { AND: [baseScope, input.reach.evidence] } : baseScope;
+  const caseScope = input.reach ? { AND: [baseCaseScope, input.reach.cases] } : baseCaseScope;
   const window = resolveWindow(input);
   const windowStart = new Date(window.start);
   const degraded: string[] = [];
@@ -303,6 +314,11 @@ export async function getReviewerAnalytics(
     "ESCALATED",
   ];
   const now = new Date(input.nowMs ?? Date.now());
+  // B7B-F03: a workflow of a record closed to the reader is not counted.
+  const workflowReach =
+    input.reach && input.reach.hidden.evidenceIds.length > 0
+      ? { evidenceId: { notIn: input.reach.hidden.evidenceIds } }
+      : {};
 
   const [
     activeReviews,
@@ -315,6 +331,7 @@ export async function getReviewerAnalytics(
       prisma.evidenceReviewWorkflow.count({
         where: {
           teamId: input.teamId,
+          ...workflowReach,
           status: { in: activeStatuses as never[] },
         },
       }),
@@ -325,6 +342,7 @@ export async function getReviewerAnalytics(
       prisma.evidenceReviewWorkflow.count({
         where: {
           teamId: input.teamId,
+          ...workflowReach,
           status: { in: activeStatuses as never[] },
           assignedToUserId: { not: null },
         },
@@ -336,6 +354,7 @@ export async function getReviewerAnalytics(
       prisma.evidenceReviewWorkflow.count({
         where: {
           teamId: input.teamId,
+          ...workflowReach,
           status: { in: activeStatuses as never[] },
           dueAt: { lt: now },
         },
@@ -396,6 +415,8 @@ export async function getGovernanceAnalytics(
   const window = resolveWindow(input);
   const windowStart = new Date(window.start);
   const degraded: string[] = [];
+  // B7B-F03: a hold naming a record or case closed to the reader is not counted.
+  const holdReach = input.reach ? { AND: holdInReach(input.reach) } : {};
 
   const sourceTrace: SourceTrace = [
     { metric: "activeLegalHolds", source: "EvidenceLegalHold", filter: "teamId + status=ACTIVE", windowed: false },
@@ -412,7 +433,7 @@ export async function getGovernanceAnalytics(
   ] = await Promise.all([
     safe(
       prisma.evidenceLegalHold.count({
-        where: { teamId: input.teamId, status: "ACTIVE" },
+        where: { teamId: input.teamId, ...holdReach, status: "ACTIVE" },
       }),
       "EvidenceLegalHold",
       degraded,
@@ -420,14 +441,14 @@ export async function getGovernanceAnalytics(
     safe(
       prisma.evidenceLegalHold.count({
         // P12.3 canonical-only (scope='CASE').
-        where: { scope: "CASE", teamId: input.teamId, status: "ACTIVE" },
+        where: { scope: "CASE", teamId: input.teamId, ...holdReach, status: "ACTIVE" },
       }),
       "CaseLegalHold",
       degraded,
     ),
     safe(
       prisma.evidenceLegalHold.count({
-        where: { teamId: input.teamId, placedAtUtc: { gte: windowStart } },
+        where: { teamId: input.teamId, ...holdReach, placedAtUtc: { gte: windowStart } },
       }),
       "EvidenceLegalHold",
       degraded,
@@ -436,6 +457,7 @@ export async function getGovernanceAnalytics(
       prisma.evidenceLegalHold.count({
         where: {
           teamId: input.teamId,
+          ...holdReach,
           releasedAtUtc: { gte: windowStart, not: null },
         } as never,
       }),
@@ -576,7 +598,7 @@ export async function getArtifactReadinessAnalytics(
       prisma.report.count({
         where: {
           generatedAtUtc: { gte: windowStart },
-          evidence: { teamId: input.teamId },
+          evidence: { teamId: input.teamId, ...(input.reach ? { AND: [input.reach.evidence] } : {}) },
         },
       }),
       "Report",
@@ -586,7 +608,7 @@ export async function getArtifactReadinessAnalytics(
       prisma.verificationPackage.count({
         where: primaryPublishedPackageWhere({
           generatedAtUtc: { gte: windowStart },
-          evidence: { teamId: input.teamId },
+          evidence: { teamId: input.teamId, ...(input.reach ? { AND: [input.reach.evidence] } : {}) },
         }),
       }),
       "VerificationPackage",

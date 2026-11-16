@@ -490,7 +490,8 @@ export default function OrganizationDetailScreen() {
                   ? "Per-workspace plan + seat usage shown below. Org-level billing unification is on the Phase 2.7X roadmap; for now the workspace is the billing unit."
                   : "Org-level billing unification is on the Phase 2.7X roadmap. Today, plan / seats / addons are managed per workspace. Visibility requires ORG_ADMIN+ or ORG_BILLING_ADMIN."
               }
-              footer={<ProovraButton label="Open billing →" variant="ghost" fullWidth={false} onPress={() => router.push("/billing")} />}
+              // B3A-F-004 — Billing lists only accounts the viewer administers.
+              footer={canSeeBilling ? <ProovraButton label="Open billing →" variant="ghost" fullWidth={false} onPress={() => router.push("/billing")} /> : undefined}
             />
             <OverviewTile
               title="Audit"

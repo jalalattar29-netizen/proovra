@@ -22,8 +22,13 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
-import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
-import { caseVisibleToWhere } from "../services/cases/case-visibility.js";
+import {
+  evaluateAccess,
+  evaluateMemberAccess,
+  loadMemberAccessSnapshot,
+} from "../services/identity/access-policy.service.js";
+import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
+import { isMembershipDenial } from "../services/access/membership-denial.js";
 import { evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
@@ -119,6 +124,46 @@ async function requireSiuWorkspaceActor(
   return { userId, teamId };
 }
 
+/**
+ * B5B-F-303 (free-audit 0ea0) — WHAT A MEMBER MAY DO WITH SHARED SIU VIEWS.
+ *
+ * Two secondary decisions on the canonical snapshot, asked AFTER
+ * `requireSiuWorkspaceActor` admitted the caller, with the pure canonical
+ * evaluator (a "no" narrows what the caller may do with a view; it is not a
+ * refusal of the request and writes no permission-denied event):
+ *
+ *   - PUBLISH (team / organization visibility): a write role. Any member, a
+ *     VIEWER included, could publish one into every colleague's worklist
+ *     toolbar; A2-14 makes the Viewer read-only. Members keep publishing
+ *     (D22: shared views are a member feature). `evidence.update_metadata`
+ *     is the write every role but VIEWER holds — the same rule as the search
+ *     and evidence saved views.
+ *   - MANAGE a colleague's shared view: `operations.saved_views.manage`
+ *     (OWNER / ADMIN, or a grant) — the role matrix's shared-view permission,
+ *     replacing the role-name comparison.
+ *
+ * A member's PRIVATE views stay theirs.
+ */
+async function siuSavedViewAuthority(
+  teamId: string,
+  userId: string,
+): Promise<{ mayPublishShared: boolean; canManageShared: boolean }> {
+  const snapshot = await loadMemberAccessSnapshot({ teamId, userId });
+  if (!snapshot) return { mayPublishShared: false, canManageShared: false };
+  const actor = { kind: "MEMBER" as const, member: snapshot };
+  return {
+    mayPublishShared: evaluateAccess(actor, { permission: "evidence.update_metadata" }).allowed,
+    canManageShared: evaluateAccess(actor, { permission: "operations.saved_views.manage" }).allowed,
+  };
+}
+
+const SHARED_VIEW_REQUIRES_WRITER = {
+  error: {
+    code: "permission_denied",
+    reason: "shared_view_requires_write_role",
+  },
+} as const;
+
 async function requireCaseActor(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -144,7 +189,18 @@ async function requireCaseActor(
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
+  /*
+   * B3C-F-011 (free-audit 0ea0): the case was located before membership was
+   * proven, so a suspended or expired former member — or anyone, for another
+   * person's unworkspaced case — got a 403 that confirmed the case exists. A
+   * refusal about WHO the caller is now answers like a missing case; only a
+   * valid member lacking a permission (or the owner of a personal case) is told.
+   */
   if (!c.teamId) {
+    if (c.ownerUserId !== userId) {
+      reply.code(404).send({ error: { code: "not_found" } });
+      return null;
+    }
     reply.code(403).send({
       error: {
         code: "permission_denied",
@@ -157,12 +213,8 @@ async function requireCaseActor(
     where: { teamId_userId: { teamId: c.teamId, userId } },
     select: { id: true, status: true, role: true },
   });
-  if (!member) {
+  if (!member || member.status !== "ACTIVE") {
     reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  if (member.status !== "ACTIVE") {
-    reply.code(403).send({ error: { code: "member_inactive" } });
     return null;
   }
   const decision = await evaluateMemberAccess({
@@ -170,6 +222,10 @@ async function requireCaseActor(
     userId,
     permission,
   });
+  if (!decision.allowed && isMembershipDenial(decision.reason)) {
+    reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  }
   if (!decision.allowed) {
     reply.code(403).send({
       error: {
@@ -202,8 +258,15 @@ async function countSiuRecordsWithheld(
   caseId: string,
 ): Promise<number> {
   const scope = await workspaceEvidenceWhere(ctx.teamId, prisma);
+  // B3C-F-003 (free-audit 0ea0): the records of this case the actor can open.
+  // A record another restricted case closes to them is neither exported nor
+  // counted, so the withheld count never measures records they cannot see.
   const caseEvidence = await prisma.evidence.findMany({
-    where: { caseLinks: { some: { caseId } }, AND: [scope], deletedAt: null },
+    where: {
+      caseLinks: { some: { caseId } },
+      AND: [scope, evidenceVisibleThroughCasesWhere(ctx.userId)],
+      deletedAt: null,
+    },
     select: { id: true },
   });
   let withheld = 0;
@@ -317,6 +380,7 @@ export async function siuRoutes(app: FastifyInstance) {
       }
       const result = await runSiuWorklist({
         teamId: ctx.teamId,
+        userId: ctx.userId,
         view,
         limit: q.limit,
       });
@@ -975,17 +1039,13 @@ export async function siuRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const userId = getAuthUserId(req);
-      // Tenancy + member check.
-      const member = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: q.teamId, userId } },
-        select: { id: true, status: true },
-      });
-      if (!member || member.status !== "ACTIVE") {
-        return reply
-          .code(403)
-          .send({ error: { code: "member_inactive" } });
-      }
+      // B5B-F-303 (free-audit 0ea0) — the canonical member authority (status,
+      // access expiry, organization lifecycle, permission), the one
+      // GET /v1/siu/worklist uses, instead of an ACTIVE-row read: an expired
+      // member or a member of a suspended organization holds an ACTIVE row.
+      const ctx = await requireSiuWorkspaceActor(req, reply, q.teamId);
+      if (!ctx) return;
+      const userId = ctx.userId;
       const views = await listCustomSavedViews({
         teamId: q.teamId,
         userId,
@@ -999,20 +1059,26 @@ export async function siuRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req, reply) => {
       const body = CreateSavedViewSchema.parse(req.body);
-      const userId = getAuthUserId(req);
-      const member = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: body.teamId, userId } },
-        select: { id: true, status: true, team: { select: { organizationId: true } } },
-      });
-      if (!member || member.status !== "ACTIVE") {
-        return reply.code(403).send({ error: { code: "member_inactive" } });
+      // B5B-F-303 — canonical authority, then the shared-view permission.
+      const ctx = await requireSiuWorkspaceActor(req, reply, body.teamId);
+      if (!ctx) return;
+      const userId = ctx.userId;
+      if (
+        body.visibility !== "private" &&
+        !(await siuSavedViewAuthority(body.teamId, userId)).mayPublishShared
+      ) {
+        return reply.code(403).send(SHARED_VIEW_REQUIRES_WRITER);
       }
+      const team = await prisma.team.findUnique({
+        where: { id: body.teamId },
+        select: { organizationId: true },
+      });
       let view;
       try {
         view = await createSavedView({
           payload: body,
           userId,
-          organizationId: member.team?.organizationId ?? null,
+          organizationId: team?.organizationId ?? null,
         });
       } catch (err) {
         if (isSavedViewNameTaken(err)) return reply.code(409).send(SAVED_VIEW_NAME_TAKEN);
@@ -1033,14 +1099,13 @@ export async function siuRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const userId = getAuthUserId(req);
-      const member = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: q.teamId, userId } },
-        select: { id: true, status: true, role: true },
-      });
-      if (!member || member.status !== "ACTIVE") {
-        return reply.code(403).send({ error: { code: "member_inactive" } });
-      }
+      // B5B-F-303 — canonical authority; publishing (a non-private
+      // visibility) and managing a colleague's shared view need the
+      // shared-view permission, not a role-name comparison.
+      const ctx = await requireSiuWorkspaceActor(req, reply, q.teamId);
+      if (!ctx) return;
+      const userId = ctx.userId;
+      const authority = await siuSavedViewAuthority(q.teamId, userId);
       let view;
       try {
         view = await updateSavedView({
@@ -1048,11 +1113,15 @@ export async function siuRoutes(app: FastifyInstance) {
           teamId: q.teamId,
           userId,
           payload: body,
-          canManageShared: member.role === "OWNER" || member.role === "ADMIN",
+          canManageShared: authority.canManageShared,
+          mayPublishShared: authority.mayPublishShared,
         });
       } catch (err) {
         if (isSavedViewNameTaken(err)) return reply.code(409).send(SAVED_VIEW_NAME_TAKEN);
         throw err;
+      }
+      if (view === "publish_refused") {
+        return reply.code(403).send(SHARED_VIEW_REQUIRES_WRITER);
       }
       if (!view) {
         return reply.code(404).send({ error: { code: "not_found" } });
@@ -1069,19 +1138,15 @@ export async function siuRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const userId = getAuthUserId(req);
-      const member = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: q.teamId, userId } },
-        select: { id: true, status: true, role: true },
-      });
-      if (!member || member.status !== "ACTIVE") {
-        return reply.code(403).send({ error: { code: "member_inactive" } });
-      }
+      // B5B-F-303 — canonical authority.
+      const ctx = await requireSiuWorkspaceActor(req, reply, q.teamId);
+      if (!ctx) return;
+      const userId = ctx.userId;
       const ok = await deleteSavedView({
         id: params.id,
         teamId: q.teamId,
         userId,
-        canManageShared: member.role === "OWNER" || member.role === "ADMIN",
+        canManageShared: (await siuSavedViewAuthority(q.teamId, userId)).canManageShared,
       });
       if (!ok) {
         return reply.code(404).send({ error: { code: "not_found" } });
@@ -1098,14 +1163,11 @@ export async function siuRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid() })
         .parse(req.body ?? {});
-      const userId = getAuthUserId(req);
-      const member = await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId: body.teamId, userId } },
-        select: { id: true, status: true },
-      });
-      if (!member || member.status !== "ACTIVE") {
-        return reply.code(403).send({ error: { code: "member_inactive" } });
-      }
+      // B5B-F-303 — canonical authority: /use returns the workspace worklist,
+      // so it is refused to exactly whom GET /v1/siu/worklist refuses.
+      const ctx = await requireSiuWorkspaceActor(req, reply, body.teamId);
+      if (!ctx) return;
+      const userId = ctx.userId;
       const view = await markSavedViewUsed({
         id: params.id,
         teamId: body.teamId,
@@ -1125,6 +1187,7 @@ export async function siuRoutes(app: FastifyInstance) {
       const worklist = resolved.ok
         ? await runSiuWorklist({
             teamId: body.teamId,
+            userId,
             view: resolved.view,
             limit: 50,
           })

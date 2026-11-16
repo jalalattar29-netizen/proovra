@@ -144,3 +144,18 @@ test("403 is a permission statement; a new case is created IN the workspace", as
   const post = requests.find((q) => q.method === "POST" && q.path === "/v1/cases");
   assert.deepEqual(post.body, { name: "Unit 4 inspection", teamId: TEST_TEAM_ID });
 });
+
+test("B3C-F-005 / A2-14 — a VIEWER's row menu offers Open only; an ADMIN keeps the writes", async () => {
+  routes["/v1/cases/matter-queue"] = () => ({ generatedAt: "x", workspace: { teamId: TEST_TEAM_ID, role: "VIEWER" }, items: [ROW({})], total: 1 });
+  let r = await render();
+  await r.press(`Case actions for ${ROW({}).name}`);
+  assert.ok(r.byLabel("Open").length > 0);
+  for (const label of ["Rename", "Change status", "Archive", "Delete"]) assert.equal(r.byLabel(label).length, 0, `${label} offered to a VIEWER`);
+  r.unmount();
+
+  routes["/v1/cases/matter-queue"] = () => ({ generatedAt: "x", workspace: { teamId: TEST_TEAM_ID, role: "ADMIN" }, items: [ROW({})], total: 1 });
+  r = await render();
+  await r.press(`Case actions for ${ROW({}).name}`);
+  for (const label of ["Rename", "Archive", "Delete"]) assert.ok(r.byLabel(label).length > 0, `${label} missing for ADMIN`);
+  r.unmount();
+});

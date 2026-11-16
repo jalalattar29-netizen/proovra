@@ -36,6 +36,7 @@ import { CommandCenter } from "../../../components/command-center/CommandCenter"
 import { SelfServeHomeDashboard } from "../../../components/home-experience/SelfServeHomeDashboard";
 import { HomeSkeleton } from "../../../components/home-experience/HomeSections";
 import { resolveHomeSurface } from "../../../components/home-experience/resolveHomeSurface";
+import { ProovraAlert } from "../../../components/feedback/ProovraAlert";
 import {
   useActiveSpace,
   usePlatformContext,
@@ -65,7 +66,7 @@ import {
  * /operations, and holds no attention authority of its own.
  */
 export default function HomePage() {
-  const { envelope } = usePlatformContext();
+  const { envelope, state, refresh } = usePlatformContext();
   const activeSpace = useActiveSpace();
 
   // "Has the envelope resolved a plan for the ACTIVE context?" — a null-check
@@ -81,6 +82,7 @@ export default function HomePage() {
     isPlatformAdmin: envelope?.platform?.isPlatformAdmin === true,
     isEnterpriseWorkspace: envelope?.flags?.isEnterpriseWorkspace === true,
     planResolved: resolvedPlan !== null,
+    envelopeSettled: state.name === "READY",
   });
 
   return (
@@ -96,6 +98,22 @@ export default function HomePage() {
         // never the enterprise dashboard.
         <div data-home-page data-home-loading>
           <HomeSkeleton />
+        </div>
+      ) : decision === "self-serve-degraded" ? (
+        // B2A-F-14 — the context settled without a plan (commercial
+        // resolution failed). Say so, offer a retry, and still show Home.
+        <div data-home-page data-self-serve-home data-home-plan-unresolved>
+          <div style={{ margin: "16px 0 0" }} data-home-plan-unresolved-notice>
+            <ProovraAlert
+              severity="warning"
+              title="Plan details are unavailable"
+              actions={[{ label: "Try again", onClick: () => void refresh() }]}
+            >
+              We couldn&rsquo;t confirm this workspace&rsquo;s plan just now, so plan-based figures may be missing. Your
+              evidence is unaffected.
+            </ProovraAlert>
+          </div>
+          <SelfServeHomeDashboard />
         </div>
       ) : (
         // Default for every resolved self-serve user (FREE/PAYG/PRO/TEAM).

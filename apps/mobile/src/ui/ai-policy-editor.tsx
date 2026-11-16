@@ -18,7 +18,9 @@ import {
   GOVERNANCE_TOGGLES,
   LAUNCHED_PERSONAL_AI_FEATURES,
   aiPlanLabel,
+  AI_NOT_INCLUDED_COPY,
   aiPolicySaveFailure,
+  aiSwitchPlanLocked,
   aiUsageResetLabel,
   buildAiPolicyBody,
   buildAiPolicyPath,
@@ -114,9 +116,12 @@ export function AiPolicyEditor({
   teamId,
   mode,
   onVisibility,
+  plan = null,
 }: {
   teamId: string;
   mode: AiSettingsMode;
+  /** B6-F-22/46 — the active workspace plan; the usage allowance's plan is the fallback. */
+  plan?: string | null;
   /** Told whether the editor is showing, so the screen renders the editor OR the read-only view — as the web does, never both. */
   onVisibility?: (visible: boolean) => void;
 }) {
@@ -188,7 +193,7 @@ export function AiPolicyEditor({
       setStatus("saved");
       setMessage("Saved. Changes take effect immediately.");
     } catch (err) {
-      const f = aiPolicySaveFailure((err as { statusCode?: number } | null)?.statusCode);
+      const f = aiPolicySaveFailure((err as { statusCode?: number } | null)?.statusCode, err);
       setStatus(f.kind);
       setMessage(f.message);
     }
@@ -208,6 +213,7 @@ export function AiPolicyEditor({
   }
 
   const saving = status === "saving";
+  const planCode = plan ?? usage?.allowance?.plan ?? null;
   const set = (k: keyof AiPolicy) => (v: boolean) => setDraft({ ...draft, [k]: v });
   const feedback = message ? (
     <ProovraCard>
@@ -232,9 +238,20 @@ export function AiPolicyEditor({
         </ProovraPageSection>
         <ProovraPageSection title="Capabilities & data classes">
           <ProovraCard>
-            {GOVERNANCE_TOGGLES.map((t) => (
-              <SwitchRow key={t.key} label={t.label} hint={t.hint} value={draft[t.key]} disabled={saving || !draft.aiEnabled} onChange={set(t.key)} />
-            ))}
+            {GOVERNANCE_TOGGLES.map((t) => {
+              // B6-F-22/46 — a paid switch the plan lacks is shown locked, not offered.
+              const locked = aiSwitchPlanLocked(t.key, planCode, envelope?.policy ?? null);
+              return (
+                <SwitchRow
+                  key={t.key}
+                  label={t.label}
+                  hint={locked ? `${AI_NOT_INCLUDED_COPY}. ${t.hint}` : t.hint}
+                  value={locked ? false : draft[t.key]}
+                  disabled={saving || !draft.aiEnabled || locked}
+                  onChange={set(t.key)}
+                />
+              );
+            })}
             {!draft.aiEnabled ? (
               <ProovraText variant="label" color={theme.color.ink.muted}>Turn on AI assistance above to choose this.</ProovraText>
             ) : null}

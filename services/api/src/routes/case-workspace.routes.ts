@@ -21,10 +21,12 @@ import { listCaseEvidenceIdsForViewer } from "../services/cases/case-risk-engine
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { queryBoolean } from "../http/query-boolean.js";
 
 import { getAuthUserId } from "../auth.js";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 import { prisma } from "../db.js";
+import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import { planIncludesCollaboration } from "@proovra/shared-billing";
 import { resolveWorkspaceCommercialContext } from "../services/billing/workspace-seats.service.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -50,6 +52,7 @@ import {
   addCaseComment,
   deleteCaseComment,
   resolveCaseComment,
+  caseCommentVisibilitiesFor,
   addEvidenceLink,
   removeEvidenceLink,
   removeLegacyEvidenceCaseId,
@@ -334,11 +337,11 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       .optional(),
     riskLevel: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
     assignedToUserId: z.string().uuid().optional(),
-    hasOpenIncidents: z.coerce.boolean().optional(),
-    hasGovernanceBlockers: z.coerce.boolean().optional(),
-    hasOverdueWorkflows: z.coerce.boolean().optional(),
-    hasLegalHold: z.coerce.boolean().optional(),
-    missingArtifact: z.coerce.boolean().optional(),
+    hasOpenIncidents: queryBoolean.optional(),
+    hasGovernanceBlockers: queryBoolean.optional(),
+    hasOverdueWorkflows: queryBoolean.optional(),
+    hasLegalHold: queryBoolean.optional(),
+    missingArtifact: queryBoolean.optional(),
     search: z.string().min(1).max(80).optional(),
     limit: z.coerce.number().int().min(1).max(200).optional(),
   });
@@ -600,10 +603,16 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         });
       }
 
+      // B3C-F-003 (free-audit 0ea0): a request about a record a restricted
+      // case closes to the reader is that record's row: not listed, not counted.
+      const closedEvidenceIds = (await hiddenRecordIdsInWorkspace(caseRow.teamId, member.userId)).evidenceIds;
       const requests = await prisma.evidenceRequest.findMany({
         where: {
           teamId: caseRow.teamId,
           caseId: params.id,
+          ...(closedEvidenceIds.length > 0
+            ? { OR: [{ evidenceId: null }, { evidenceId: { notIn: closedEvidenceIds } }] }
+            : {}),
         },
         include: {
           deliverables: {
@@ -1114,15 +1123,29 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         access,
       );
       if (!member) return;
+      // B3C-F-009: the same read rule matter-workspace applies (EVID-011).
+      const [caseRow, assignmentRoles] = await Promise.all([
+        prisma.case.findUnique({ where: { id: params.id }, select: { ownerUserId: true } }),
+        getCaseAssignmentRoles(params.id, member.userId),
+      ]);
       try {
         const row = await resolveCaseComment({
           caseId: params.id,
           commentId: params.commentId,
           actorUserId: member.userId,
+          readableVisibilities: caseCommentVisibilitiesFor({
+            accessRole: access.role,
+            isCaseOwner: caseRow?.ownerUserId === member.userId,
+            isAssigned: assignmentRoles.length > 0,
+          }),
           ipAddress: clientIp(req),
           userAgent: clientUa(req),
         });
-        return reply.code(200).send({ comment: row });
+        // The resolution, not the note: the body is read through the
+        // workspace read, which applies the visibility rule.
+        return reply.code(200).send({
+          comment: { id: row.id, resolvedAtUtc: row.resolvedAtUtc, resolvedByUserId: row.resolvedByUserId },
+        });
       } catch (err) {
         if (handleCaseError(reply, err)) return;
         throw err;
@@ -1248,7 +1271,13 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       const params = z
         .object({ id: z.string().uuid(), linkId: z.string().uuid() })
         .parse(req.params);
-      const member = await requireCaseEvidenceLink(req, reply, params.id, null);
+      // B3C-F-004: the link names a record; resolve it (inside this case only)
+      // so the record rule applies before anything is removed.
+      const link = await prisma.caseEvidenceLink.findFirst({
+        where: { id: params.linkId, caseId: params.id },
+        select: { evidenceId: true },
+      });
+      const member = await requireCaseEvidenceLink(req, reply, params.id, link?.evidenceId ?? null);
       if (!member) return;
       try {
         const result = await removeEvidenceLink({

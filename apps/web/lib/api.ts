@@ -1,4 +1,4 @@
-import { observeContractHeader } from "./contract-skew";
+import { ROUTE_EPOCH_HEADER, observeContractHeader, observeRouteEpochHeader } from "./contract-skew";
 import { LEGAL_REACCEPT_REQUIRED_EVENT, SESSION_EXPIRED_EVENT } from "./session-events";
 
 const DEFAULT_API_BASE = "https://api.proovra.com";
@@ -464,6 +464,13 @@ async function runApiFetch(
     res = await fetchWithAuthRetry(url, init, finalOpts);
     // AUD-32 — a response from a newer API contract than this build.
     observeContractHeader(res.headers?.get?.("x-proovra-contract") ?? null);
+    // B8-F-402 — a page ahead of the API's route table. Advisory only: it
+    // must never turn a delivered response into a network error.
+    try {
+      observeRouteEpochHeader(res.headers?.get?.(ROUTE_EPOCH_HEADER) ?? null);
+    } catch {
+      /* advisory */
+    }
   } catch (err: unknown) {
     const e: GenericApiError = new Error(
       err instanceof Error ? err.message : "Network error while calling API"

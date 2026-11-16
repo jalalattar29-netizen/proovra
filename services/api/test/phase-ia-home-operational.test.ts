@@ -354,9 +354,15 @@ describe("Phase IA-home-operational — Workspace Health", () => {
     const billing: HomeBillingInput = {
       workspaces: { personal: { storage: { usedLabel: "9 GB", limitLabel: "10 GB", usagePercent: 92, nearLimit: true, limitReached: false } } },
     };
-    const vm = build({ billing });
+    // B2A-F-01 (free-audit 0ea0, pin updated 2026-11-16): /v1/billing/overview
+    // describes the viewer's OWN personal account, so the storage metric is
+    // built only where those figures describe the active space. The fixture
+    // says so; in the default ORGANIZATION space the metric is withheld.
+    const vm = build({ billing, billingDescribesActiveSpace: true });
     const storage = vm.workspaceHealth.find((m) => m.key === "storage");
     expect(storage?.tone).toBe("warn");
+    const org = build({ billing });
+    expect(org.workspaceHealth.find((m) => m.key === "storage")).toBeUndefined();
   });
 });
 

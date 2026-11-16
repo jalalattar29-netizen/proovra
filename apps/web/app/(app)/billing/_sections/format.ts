@@ -174,6 +174,66 @@ export function formatDate(value: string | null | undefined): string | null {
   return formatted === "Not available" ? null : formatted;
 }
 
+/**
+ * Free-user audit 0ea0 (B6-F-66) — product decision D-03 (2026-11-15), said
+ * where the storage figure is: the first issued report and verification
+ * package of each Free record are left out of the storage the account uses.
+ */
+export const FREE_FIRST_ISSUANCE_STORAGE_NOTE =
+  "The first report and verification package issued for each record included with Free do not count toward this storage.";
+
+/**
+ * Free-user audit 0ea0 (B6-F-61) — the line under ONE storage add-on.
+ *
+ * A cancelled add-on keeps its row (status ACTIVE until its paid date) and the
+ * projection says so with `ending` / `endsAtUtc`; the row still read
+ * "Renews <date>". D1: keep what is paid until its own paid date, stop the
+ * renewal — so an ending row says when it ends and that it will not renew.
+ */
+export function addonTermLine(
+  addon: Pick<ActiveStorageAddon, "legacyOneTime" | "ending" | "endsAtUtc" | "currentPeriodEndUtc">,
+): string {
+  if (addon.legacyOneTime) {
+    // Named honestly: it never renews and it is never taken away. It is
+    // capacity already paid for outright.
+    return "One-time purchase from before add-ons became monthly — kept, and never charged again.";
+  }
+  if (addon.ending) {
+    const ends = formatDate(addon.endsAtUtc ?? addon.currentPeriodEndUtc);
+    return ends ? `Ends ${ends} — not renewing` : "Ends at the end of its paid period — not renewing";
+  }
+  const renews = formatDate(addon.currentPeriodEndUtc);
+  return renews ? `Renews ${renews}` : "Recurring monthly";
+}
+
+/**
+ * Free-user audit 0ea0 (B6-F-61, B6-F-62) — whether ONE add-on offers Cancel.
+ *
+ * - An ENDING add-on is already cancelled: a second Cancel re-called the
+ *   provider and overwrote the cancellation time. Never offered.
+ * - The cancel route (POST /v1/billing/storage-addons/cancel) needs only
+ *   BILLING_CANCEL on the PERSONAL payer (AUD-08: stopping a charge needs no
+ *   right to buy another). The projection's `canCancel` follows the purchase
+ *   capability, so a managed payer holding BILLING_CANCEL was never offered
+ *   it. Until the server projects it from BILLING_CANCEL (CROSS-LANE), a
+ *   PERSONAL account the viewer holds BILLING_CANCEL on is offered Cancel on
+ *   every recurring, live, non-ending add-on — the exact rows the route
+ *   accepts. Either shape of the server answer is honoured.
+ */
+export function addonCancelOffered(
+  addon: Pick<ActiveStorageAddon, "canCancel" | "ending" | "legacyOneTime" | "status">,
+  account: { type: string; capabilities?: ReadonlyArray<string> | null } | null | undefined,
+): boolean {
+  if (addon.ending || addon.legacyOneTime) return false;
+  if (addon.canCancel) return true;
+  const live = ["ACTIVE", "PAST_DUE"].includes(String(addon.status).toUpperCase());
+  return (
+    live &&
+    account?.type === "PERSONAL" &&
+    (account.capabilities ?? []).includes("BILLING_CANCEL")
+  );
+}
+
 const WINDOW_SUFFIX: Record<UsageWindow, string> = {
   // The window is part of the promise. "43 of 100" means something different
   // on a lifetime cap and a rolling 30-day cap, and the page that this replaces
@@ -309,6 +369,10 @@ export function splitLeadingCount(headline: string): {
     : { value: headline.slice(0, i), rest: headline.slice(i) };
 }
 
+/** B6-F-68 — appended wherever a record or a credit is offered while storage is full. */
+export const STORAGE_FULL_NEXT_RECORD =
+  "Your storage is also full, so you need storage space for the next record too.";
+
 export type EvidencePresentation = {
   /** The count, and the denominator only when there really is one. */
   headline: string;
@@ -356,7 +420,12 @@ export type EvidencePresentation = {
  */
 export function describeEvidenceAdmission(
   a: EvidenceAdmission,
-  options: { canBuyCredits: boolean; hasPlanOffer: boolean },
+  options: {
+    canBuyCredits: boolean;
+    hasPlanOffer: boolean;
+    /** B6-F-68 — the storage meter says the account is full (`usage.storage.limitReached`). */
+    storageFull?: boolean;
+  },
 ): EvidencePresentation {
   const held = a.recordsHeld.toLocaleString();
   const cap = a.effectiveLifetimeCap;
@@ -427,6 +496,11 @@ export function describeEvidenceAdmission(
     parts.push(lapse.outputs);
     next = lapse.nextRecord;
   }
+
+  // B6-F-68 — admission is only half of what the next record needs. Storage
+  // is enforced separately at upload, so a credit sold "for the next record"
+  // while storage is full would be refused there. Say both.
+  if (options.storageFull) next = `${next} ${STORAGE_FULL_NEXT_RECORD}`;
 
   const ratio =
     cap === null ? null : a.overCap ? 1 : cap > 0 ? Math.min(1, a.recordsHeld / cap) : null;

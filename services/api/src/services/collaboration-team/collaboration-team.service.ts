@@ -50,6 +50,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { effectiveGroupMemberWhere } from "./effective-membership.js";
 import {
   accessibleWorkspaceIdsFor,
@@ -2555,15 +2556,24 @@ export async function acceptInvite(
   // Constitutional rule: collaboration teams live inside a workspace,
   // and only workspace members may join its teams. The caller should
   // redirect to a workspace-join flow.
-  const wsMembership = await client.teamMember.findFirst({
-    where: {
+  //
+  // B3A-F-005 (free-audit 0ea0) — decided by the canonical member authority,
+  // not an ACTIVE-row read: a member whose access window has expired, or whose
+  // Organization is suspended or archived, holds an ACTIVE row and is not a
+  // member who may join anything. Expiry ends the member's OWN access (A2-26
+  // keeps only standing links they issued); every role may join a group, so
+  // the permission asked is the one every role holds.
+  const wsAccess = await evaluateMemberAccess(
+    {
       teamId: invite.workspaceId,
       userId: input.actorUserId,
-      status: "ACTIVE",
+      permission: "evidence.read",
+      resourceKind: "collaboration_team_invite",
+      resourceId: invite.id,
     },
-    select: { id: true },
-  });
-  if (!wsMembership) throw E.workspaceMembershipRequired();
+    client,
+  );
+  if (!wsAccess.allowed) throw E.workspaceMembershipRequired();
 
   // Canonical capacity + plan gate (owner entitlement). Runs AFTER the
   // already-member short-circuit so it only fires when the accept would

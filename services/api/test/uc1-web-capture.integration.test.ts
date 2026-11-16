@@ -363,7 +363,8 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
     const { token, sessionId, manifestJson } = await stageWebCapture({ windowStartMsAgo: 24 * 3600 * 1000 });
     const res = await call("POST", `/v1/capture/direct-sessions/${sessionId}/web-complete`, token, { manifestJson });
     expect(res.statusCode, res.body).toBe(422);
-    expect(res.json().denial).toBe("WEB_MANIFEST_INVALID");
+    // B4-F-103 (free audit 0ea0) — the capture window has its own refusal.
+    expect(res.json().denial).toBe("CAPTURE_WINDOW_INVALID");
   });
 
   it("refuses a manifest bound to a different session", async () => {

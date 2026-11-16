@@ -41,6 +41,7 @@ import {
 } from "@proovra/shared-runtime/outbound";
 
 import { prisma as defaultPrisma } from "../../../db.js";
+import { isLiveOperatingWorkspace } from "../../workspace/operating-workspace.js";
 import { inputRefusal } from "../../../errors.js";
 import { assertLimitEntitlementTx, resolveEntitlement } from "../entitlement.service.js";
 
@@ -324,6 +325,10 @@ export async function emitWebhookEvent(
   });
 
   if (endpoints.length === 0) return { deliveryIds: [] };
+  // B7B-F02 — a closed workspace, or one whose organization is suspended,
+  // queues no lifecycle delivery (closure and workspace suspension also
+  // DEACTIVATE the endpoints; an organization suspension is reversible).
+  if (!(await isLiveOperatingWorkspace(input.teamId, prisma))) return { deliveryIds: [] };
 
   const canonical = canonicalJson(input.payload);
   const deliveryIds: string[] = [];

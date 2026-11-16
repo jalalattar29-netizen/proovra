@@ -32,6 +32,7 @@ import {
 } from "@proovra/shared";
 
 import {
+  EXISTING_ACCOUNT_CONSENT_DETAIL,
   authenticateScimRequest,
   scimCreateUser,
   scimDeactivateUser,
@@ -305,6 +306,14 @@ export async function scimRoutes(app: FastifyInstance) {
         }
       } else if (plan.active === true) {
         const result = await scimReactivateUser(ctx, id);
+        if (result.consentRequired) {
+          // B5B-F-302 — a pre-existing self-serve account is its owner's: the
+          // directory does not re-grant or convert it. Nothing changed.
+          return reply
+            .type("application/scim+json")
+            .code(409)
+            .send(scimError(409, EXISTING_ACCOUNT_CONSENT_DETAIL, "uniqueness"));
+        }
         if (result.heldByAdministrator) {
           // PRO-013 — never a silent success: the membership stays suspended.
           return reply

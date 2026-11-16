@@ -18,10 +18,15 @@
  *     URL is held in component state ONLY while the dialog is open.
  */
 
-import { identifierLabel } from "@proovra/shared";
+import {
+  canTransitionEvidenceRequest,
+  identifierLabel,
+  isTerminalEvidenceRequestStatus,
+  type EvidenceRequestStatus,
+} from "@proovra/shared";
 import { AppListbox } from "../../../../../components/app-primitives";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 // PHASE 7 §10 — canonical context-safety primitives.
@@ -98,6 +103,27 @@ const DELIVERABLE_LABEL: Record<string, string> = {
   REJECTED: "Rejected as insufficient",
 };
 
+/**
+ * R1-F-01 — a card offers only the transitions the shared state machine
+ * allows (packages/shared evidence-request.ts), never a hard-coded predicate
+ * that let DRAFT offer Close and OPEN/SENT offer Needs more info (409).
+ */
+function canMove(from: string, to: EvidenceRequestStatus): boolean {
+  try {
+    return canTransitionEvidenceRequest(from as EvidenceRequestStatus, to).ok;
+  } catch {
+    return false;
+  }
+}
+
+/** A response may be decided only while it is undecided and its request is live. */
+function responseDecidable(requestStatus: string, responseStatus: string): boolean {
+  if (isTerminalEvidenceRequestStatus(requestStatus as EvidenceRequestStatus)) return false;
+  return responseStatus === "RECEIVED" || responseStatus === "UNDER_REVIEW";
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const RECIPIENT_MODE_LABEL: Record<string, string> = {
   INTERNAL_USER: "Internal user",
   EXTERNAL_CONTRIBUTOR: "External contributor",
@@ -140,7 +166,10 @@ export default function EvidenceRequestPanel({
       })
       .catch((err: { message?: string; code?: string; statusCode?: number }) => {
         if (cancelled) return;
-        if (err?.statusCode === 503 || err?.code === "FEATURE_DISABLED") {
+        // R1-F-07 — only the server's FEATURE_DISABLED hides the panel. Any
+        // other 503 (overload SERVER_BUSY, maintenance) is retryable and is
+        // said, not read as "the feature is switched off" until remount.
+        if (err?.code === "FEATURE_DISABLED") {
           setFeatureDisabled(true);
           setRequests([]);
           return;
@@ -168,10 +197,16 @@ export default function EvidenceRequestPanel({
           method: "POST",
         });
       if (res.intakeUrl) setReveal({ url: res.intakeUrl });
-      await reload();
     } catch (err) {
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not send request." }).message);
+      return;
+    }
+    // R1-F-01 — the request WAS sent; a failed refresh is not "Could not send".
+    try {
+      await reload();
+    } catch {
+      setError("The request was sent, but the list could not be refreshed. Reload the page to see it.");
     }
   }
 
@@ -328,6 +363,7 @@ export default function EvidenceRequestPanel({
                       Status: {RESPONSE_STATUS_LABEL[r.status] ?? identifierLabel(r.status)}
                     </div>
                   </div>
+                  {responseDecidable(req.status, r.status) ? (
                   <div className="evd-actions">
                     <button
                       type="button"
@@ -355,6 +391,7 @@ export default function EvidenceRequestPanel({
                       </button>
                     ))}
                   </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -368,7 +405,7 @@ export default function EvidenceRequestPanel({
             >
               Activity
             </button>
-            {req.status === "DRAFT" || req.status === "OPEN" ? (
+            {canMove(req.status, "OPEN") || canMove(req.status, "SENT") ? (
               <button
                 type="button"
                 className="app-secondary-action"
@@ -377,9 +414,7 @@ export default function EvidenceRequestPanel({
                 Send
               </button>
             ) : null}
-            {req.status !== "CANCELLED" &&
-            req.status !== "CLOSED" &&
-            req.status !== "DRAFT" ? (
+            {canMove(req.status, "NEEDS_MORE_INFO") ? (
               <button
                 type="button"
                 className="app-secondary-action"
@@ -394,8 +429,7 @@ export default function EvidenceRequestPanel({
                 Needs more info
               </button>
             ) : null}
-            {req.status !== "CANCELLED" && req.status !== "CLOSED" ? (
-              <>
+            {canMove(req.status, "CLOSED") ? (
                 <button
                   type="button"
                   className="app-secondary-action"
@@ -409,6 +443,8 @@ export default function EvidenceRequestPanel({
                 >
                   Close
                 </button>
+            ) : null}
+            {canMove(req.status, "CANCELLED") ? (
                 <button
                   type="button"
                   className="app-secondary-action evidence-detail-destructive-action"
@@ -422,7 +458,6 @@ export default function EvidenceRequestPanel({
                 >
                   Cancel
                 </button>
-              </>
             ) : null}
           </div>
         </article>
@@ -551,6 +586,18 @@ function CreateRequestDialog({
   }
 
   async function submit() {
+    if (busy) return;
+    // R1-F-01 — the server's own rules, checked first so the form can name the
+    // field instead of a flat 400 (native requestDraftError parity).
+    const blank = deliverables.findIndex((d) => !d.title.trim());
+    if (blank >= 0) {
+      setError(`Deliverable ${blank + 1} needs a title.`);
+      return;
+    }
+    if (recipientMode === "EXTERNAL_CONTRIBUTOR" && recipientEmail.trim() && !EMAIL_RE.test(recipientEmail.trim())) {
+      setError("Enter a valid recipient email, or leave it empty.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -573,10 +620,13 @@ function CreateRequestDialog({
               dueAtUtc,
               recipientMode,
               recipientLabel: recipientLabel || null,
-              recipientEmail: recipientEmail || null,
+              // Only an external contributor has an email: a value typed and
+              // then hidden by switching mode is never posted (R1-F-01).
+              recipientEmail:
+                recipientMode === "EXTERNAL_CONTRIBUTOR" ? recipientEmail.trim() || null : null,
               createIntakeLink: true,
               deliverables: deliverables.map((d, idx) => ({
-                title: d.title,
+                title: d.title.trim(),
                 description: d.description,
                 required: d.required,
                 acceptedKinds: d.acceptedKinds,
@@ -658,8 +708,10 @@ function CreateRequestDialog({
           value={recipientMode}
           ariaLabel="Recipient"
           onChange={(next) => setRecipientMode(next)}
+          // R1-F-01 — "Internal team member" is not offered: the server requires
+          // an assignee for it (internal_recipient_requires_assignee, 422) and
+          // this form has no assignee control.
           options={[
-            { value: "INTERNAL_USER", label: "Internal team member" },
             { value: "EXTERNAL_CONTRIBUTOR", label: "External contributor" },
             { value: "ANONYMOUS_SOURCE", label: "Anonymous source" },
             { value: "PSEUDONYMOUS_SOURCE", label: "Pseudonymous source" },
@@ -844,6 +896,9 @@ function NoteDialog({
   onConfirm: (note: string) => void | Promise<void>;
 }) {
   const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  // A ref, not only state: two clicks in one frame both read the old state.
+  const inFlight = useRef(false);
   return (
     <div className="evd-dialog-backdrop" role="dialog" aria-modal="true">
       <div className="evd-dialog">
@@ -866,10 +921,21 @@ function NoteDialog({
           <button
             type="button"
             className="app-primary-action"
-            disabled={note.trim().length === 0}
-            onClick={() => onConfirm(note.trim())}
+            disabled={note.trim().length === 0 || submitting}
+            onClick={async () => {
+              // R1-F-01 — one request per confirmation: a double click sent two.
+              if (inFlight.current) return;
+              inFlight.current = true;
+              setSubmitting(true);
+              try {
+                await onConfirm(note.trim());
+              } finally {
+                inFlight.current = false;
+                setSubmitting(false);
+              }
+            }}
           >
-            Confirm
+            {submitting ? "Saving…" : "Confirm"}
           </button>
         </div>
       </div>

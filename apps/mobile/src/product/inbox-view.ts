@@ -197,6 +197,30 @@ export function buildInboxQueryPath(q: InboxQuery): string {
   return `/v1/me/inbox?${params.toString()}`;
 }
 
+/**
+ * B2B-F-01 — the filters `POST /v1/me/inbox/mark-all-read` accepts as a bulk
+ * scope. `history` / `archived` / `snoozed` are state views (400) and are
+ * never sent.
+ */
+const BULK_READABLE_FILTERS: ReadonlySet<string> = new Set<InboxCategoryFilter>([
+  "assigned_to_me", "mentions", "invitations", "review", "collaboration", "governance", "security",
+  "integrity", "reports", "packages", "intake", "failures", "due_soon", "overdue", "admin",
+]);
+
+/**
+ * B2B-F-01 — "Mark all read" marks what the screen is showing: the selected
+ * workspace (`workspaceId`) and the active category chip (`filter`). With no
+ * workspace selected the list — and its count — is account-wide, so no
+ * `workspaceId` is sent and the read stays account-wide (`{}`), which is also
+ * what an older API does with any body.
+ */
+export function buildMarkAllReadBody(q: Pick<InboxQuery, "category" | "workspaceId">): { filter?: string; workspaceId?: string } {
+  return {
+    ...(q.category !== "all" && BULK_READABLE_FILTERS.has(q.category) ? { filter: q.category } : {}),
+    ...(q.workspaceId && q.workspaceId !== "all" ? { workspaceId: q.workspaceId } : {}),
+  };
+}
+
 /* ---------------------------------------------------------------- envelope */
 
 export interface InboxViewItem extends InboxItem {
@@ -435,6 +459,20 @@ function hasActualItem(key: InboxCategoryFilter, env: InboxEnvelope | null): boo
   return (FILTER_MEMBERS[key] ?? []).some((c) => (scope.byCategory[c] ?? 0) > 0);
 }
 
+/**
+ * B2B-F-12 — the web's `preferenceGroupVisible` (operationsFilterPolicy.ts):
+ * integrity always; the other domains on the same eligibility the inbox
+ * filters use (static eligibility, or a real item of that domain).
+ */
+export function preferenceGroupVisible(
+  domain: "integrity" | "review" | "intake" | "collaboration" | "governance",
+  ctx: InboxFilterContext,
+  env: InboxEnvelope | null = null,
+): boolean {
+  if (domain === "integrity") return true;
+  return eligible(domain, ctx) || hasActualItem(domain, env);
+}
+
 export function visibleInboxFilterGroups(
   ctx: InboxFilterContext,
   env: InboxEnvelope | null,
@@ -457,6 +495,15 @@ export function inboxWorkspaceOptions(platformEnvelope: unknown): Array<{ value:
     ...orgs
       .filter((o) => o.membershipStatus === "ACTIVE" && str(o.id))
       .map((o) => ({ value: str(o.id) as string, label: str(o.displayName) ?? str(o.name) ?? "Organization" })),
+    // B2B-F-09 (Free-user audit 0ea0) — personal workspaces the viewer JOINED
+    // ("Shared with you", server-authorized context options); `organizations`
+    // lists non-personal teams only, so these could not be selected.
+    ...(Array.isArray(obj(env.contextOptions).sharedWorkspaces) ? (obj(env.contextOptions).sharedWorkspaces as unknown[]).map(obj) : [])
+      .filter((w) => {
+        const id = str(w.workspaceId);
+        return id !== null && id !== personalId && !orgs.some((o) => str(o.id) === id);
+      })
+      .map((w) => ({ value: str(w.workspaceId) as string, label: str(w.name) ?? "Shared workspace" })),
   ];
 }
 

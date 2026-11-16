@@ -105,6 +105,12 @@ export function LinkCreatedDialog({
         link_expired: "This link has already expired.",
         provider_unconfigured:
           "Messaging isn't configured on this deployment. Copy the link instead.",
+        // B3B-F-101 — 409: the workspace plan has no secure intake (same
+        // code create answers).
+        INTAKE_NOT_INCLUDED:
+          "Secure intake is not included in this workspace's plan.",
+        // B3B-F-102 — 409: the same send is still in flight.
+        delivery_in_progress: "Already sending — check again in a moment.",
       };
       setSendError(
         map[e?.code ?? ""] ??

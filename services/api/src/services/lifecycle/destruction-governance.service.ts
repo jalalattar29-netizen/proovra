@@ -744,17 +744,22 @@ export async function rejectDestructionRequest(
 ): Promise<{ ok: boolean }> {
   const prisma = input.prisma ?? defaultPrisma;
 
-  const row = await prisma.destructionRequest.findFirst({
-    where: { id: input.requestId, teamId: input.teamId },
-    select: { id: true, state: true },
+  // B5B-F-306 — ONE decision per request. The reject read the state and then
+  // wrote REJECTED unconditionally, outside the lock recordApproval takes, so a
+  // concurrent final approval and a reject could each "win" and both lifecycle
+  // events and webhooks fired. It now takes the same per-request advisory lock
+  // and writes only from REQUESTED; a request already decided is not
+  // actionable ({ ok: false }) and emits nothing.
+  const rejected = await prisma.$transaction(async (txClient) => {
+    const tx = txClient as unknown as PrismaClient;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.requestId}))`;
+    const r = await tx.destructionRequest.updateMany({
+      where: { id: input.requestId, teamId: input.teamId, state: "REQUESTED" },
+      data: { state: "REJECTED" },
+    });
+    return r.count === 1;
   });
-  if (!row) return { ok: false };
-  if (row.state !== "REQUESTED") return { ok: false };
-
-  await prisma.destructionRequest.update({
-    where: { id: input.requestId },
-    data: { state: "REJECTED" },
-  });
+  if (!rejected) return { ok: false };
 
   await emitDestructionLifecycle(prisma, "DESTRUCTION_REJECTED", {
     teamId: input.teamId,

@@ -61,6 +61,17 @@ const CURATED: Record<string, SecurityEventPresentation> = {
     title: "Two-factor verification",
     description: "A second factor was verified during sign-in.",
   },
+  // B1-F-002 — auth.routes.ts (recovery-code sign-in) and mfa.routes.ts
+  // (recovery-code regeneration).
+  "auth.mfa_recovery_code_used": {
+    title: "Recovery code used to sign in",
+    description:
+      "One of your single-use recovery codes completed a sign-in. If this wasn't you, change your password and generate new recovery codes.",
+  },
+  "identity.mfa_recovery_codes_regenerated": {
+    title: "New recovery codes generated",
+    description: "A new set of recovery codes was generated. Every earlier code stopped working.",
+  },
   "identity_security.password_change": {
     title: "Password changed",
     description: "The password on your account was changed.",

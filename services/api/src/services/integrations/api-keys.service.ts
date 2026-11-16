@@ -552,6 +552,8 @@ export type VerifiedApiCredential = {
   rotationRequired: boolean;
   environment: string | null;
   expiresAtUtc: Date | null;
+  /** B3A-F-002 — the member the key acts for; their current authority is re-asked at every use. */
+  createdByUserId: string;
 };
 
 export type VerifyApiKeyFailureReason =
@@ -661,6 +663,7 @@ export async function verifyApiKeyDetailed(
       rotationRequired: matchedPrevious ? true : row.rotationRequired,
       environment: row.environment,
       expiresAtUtc: row.expiresAtUtc,
+      createdByUserId: row.createdByUserId,
     },
   };
 }

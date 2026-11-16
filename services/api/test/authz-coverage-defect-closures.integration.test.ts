@@ -321,6 +321,10 @@ describe("coverage defect closures (live PostgreSQL)", () => {
       expect(refused.statusCode, refused.body).toBe(404);
       expect(await prisma.providerUsageEvent.count({ where: { evidenceId: theirs } as never })).toBe(0);
       expect(await prisma.mediaIntelligenceRecord.count({ where: { evidenceId: theirs } })).toBe(0);
+      // B6-F-45 (D62 for text): the text must be text extracted from the record.
+      await prisma.evidenceExtractedText.create({
+        data: { evidenceId: own, teamId: mine.teamId, kind: "PDF_TEXT", status: "COMPLETED", provider: "test", text: body.text },
+      });
       const done = await kit.call("POST", `/v1/intelligence/evidence/${own}/run/text?teamId=${mine.teamId}`, mine.owner, body, hdr(mine));
       expect(done.statusCode, done.body).toBe(200);
     });

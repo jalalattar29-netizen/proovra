@@ -37,6 +37,21 @@ export function bytesToGbLabel(bytes: number): string {
   return `${display} GB`;
 }
 
+/**
+ * B2A-F-02 (Free-user audit 0ea0) — the server's own unit rule
+ * (shared-billing `formatBytesHuman`: binary units printed MB/GB), used only
+ * when the server sent no label. Free's 262,144,000 bytes read "250 MB" — the
+ * Pricing figure — not "0.24 GB"; 5 MB is "5 MB", not "0 GB".
+ */
+export function bytesToHumanLabel(bytes: number): string {
+  const MB = 1024 * 1024;
+  const trim = (n: number) => (Math.abs(n - Math.round(n)) < 0.005 ? String(Math.round(n)) : n.toFixed(2).replace(/\.?0+$/, ""));
+  if (bytes >= GB) return `${trim(bytes / GB)} GB`;
+  if (bytes >= MB) return `${trim(bytes / MB)} MB`;
+  if (bytes >= 1024) return `${trim(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
 /** The web's `toView` over `workspaces.personal.storage`. */
 export function storageViewFromOverview(overview: unknown): StorageView | null {
   const storage = obj(obj(obj(obj(overview)?.["workspaces"])?.["personal"])?.["storage"]);
@@ -52,10 +67,12 @@ export function storageViewFromOverview(overview: unknown): StorageView | null {
   if (percent == null) return null;
   percent = Math.min(100, Math.max(0, Math.round(percent * 10) / 10));
 
+  // B2A-F-02 — the SERVER's labels first (formatBytesHuman); bytes only as a
+  // fallback, formatted by the same unit rule rather than as two-decimal GB.
   const usedLabel =
-    usedBytes != null ? bytesToGbLabel(usedBytes) : typeof storage["usedLabel"] === "string" ? storage["usedLabel"] : null;
+    typeof storage["usedLabel"] === "string" ? storage["usedLabel"] : usedBytes != null ? bytesToHumanLabel(usedBytes) : null;
   const limitLabel =
-    limitBytes != null ? bytesToGbLabel(limitBytes) : typeof storage["limitLabel"] === "string" ? storage["limitLabel"] : null;
+    typeof storage["limitLabel"] === "string" ? storage["limitLabel"] : limitBytes != null ? bytesToHumanLabel(limitBytes) : null;
   if (usedLabel == null || limitLabel == null) return null;
 
   return { percent, usedLabel, limitLabel };

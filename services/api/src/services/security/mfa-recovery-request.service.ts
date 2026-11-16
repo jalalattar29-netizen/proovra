@@ -45,6 +45,7 @@ import { revokeAllSessionsForUser } from "../identity-security/session-revocatio
 import { cancelOutstandingStepUpChallenges } from "../identity-security/step-up.service.js";
 import { assertActorMayDecideMfaRecovery } from "./mfa-admin-lifecycle.service.js";
 import { resolvePlatformAdmin } from "../platform-admin.service.js";
+import { evaluateAccess, loadMemberAccessSnapshot } from "../identity/access-policy.service.js";
 // PHASE 11 — canonical internal URL builder.
 import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
@@ -126,9 +127,72 @@ export interface CreateRecoveryRequestResult {
     | "not_member"
     | "invalid_reason"
     | "user_email_missing"
-    | "rate_limited";
+    | "rate_limited"
+    // B1-F-002 — nobody could ever approve it, so it is not filed.
+    | "no_eligible_approver";
   /** Populated on `rate_limited` — when the throttle window resets. */
   retryAfter?: Date;
+}
+
+/** Bounded read: a workspace's OWNER/ADMIN set is small; this caps a pathological one. */
+const RECOVERY_APPROVER_CANDIDATE_CAP = 25;
+
+/**
+ * B1-F-002 — CAN ANYONE APPROVE THIS PERSON'S RECOVERY IN THIS WORKSPACE?
+ *
+ * A recovery request is decided by `approveRecoveryRequest`, which refuses the
+ * requester themself (`cannot_self_approve`), anyone who is not an ACTIVE
+ * OWNER/ADMIN of the workspace (`approver_not_admin`), and anyone the members
+ * rank rule does not let decide it (`approver_rank_insufficient`, which also
+ * covers a platform-authority requester). A Free user's personal workspace has
+ * exactly one member — the requester — so a request filed there could never be
+ * approved, yet it was accepted, emailed, and left to expire, telling the user
+ * an administrator would review it.
+ *
+ * This answers the same question BEFORE a row exists, with the same gates the
+ * approval applies to each candidate:
+ *   - an ACTIVE OWNER/ADMIN membership other than the requester's;
+ *   - the canonical access evaluation of that membership (status, expiry,
+ *     workspace and Organization lifecycle) for `identity.org_policy.read`,
+ *     the permission the recovery queue itself is read under — a candidate who
+ *     cannot open the queue cannot decide anything in it;
+ *   - `assertActorMayDecideMfaRecovery`, the approval's own rank rule.
+ * It records nothing. The approval re-checks everything when it happens.
+ */
+export async function hasEligibleRecoveryApprover(input: {
+  teamId: string;
+  requesterUserId: string;
+}): Promise<boolean> {
+  const candidates = await prisma.teamMember.findMany({
+    where: {
+      teamId: input.teamId,
+      status: "ACTIVE",
+      role: { in: ["OWNER", "ADMIN"] },
+      userId: { not: input.requesterUserId },
+    },
+    select: { userId: true },
+    orderBy: { createdAt: "asc" },
+    take: RECOVERY_APPROVER_CANDIDATE_CAP,
+  });
+  for (const candidate of candidates) {
+    const snapshot = await loadMemberAccessSnapshot({
+      teamId: input.teamId,
+      userId: candidate.userId,
+    });
+    if (!snapshot) continue;
+    const access = evaluateAccess(
+      { kind: "MEMBER", member: snapshot },
+      { permission: "identity.org_policy.read" },
+    );
+    if (!access.allowed) continue;
+    const refusal = await assertActorMayDecideMfaRecovery({
+      teamId: input.teamId,
+      actorUserId: candidate.userId,
+      targetUserId: input.requesterUserId,
+    });
+    if (refusal === null) return true;
+  }
+  return false;
 }
 
 /**
@@ -158,6 +222,23 @@ export async function createRecoveryRequest(
   });
   if (!membership) {
     return { ok: false, reason: "not_member" };
+  }
+
+  // B1-F-002 — a request nobody can approve is refused before any row, email,
+  // or throttle slot. See hasEligibleRecoveryApprover.
+  if (!(await hasEligibleRecoveryApprover({ teamId: input.teamId, requesterUserId: input.userId }))) {
+    void emitTenantAudit({
+      action: "mfa.recovery.request_refused",
+      outcome: "denied",
+      denialReason: "no_eligible_approver",
+      sourceApp: "API",
+      actorUserId: input.userId,
+      workspaceId: input.teamId,
+      resourceType: "mfa_recovery_request",
+      resourceId: input.userId,
+      metadata: {},
+    }).catch(() => null);
+    return { ok: false, reason: "no_eligible_approver" };
   }
 
   // PHASE R8.1.6 — per-account throttle. Count ALL recovery

@@ -329,7 +329,11 @@ describe.skipIf(!BROWSER)("mutation proofs", () => {
     async () => {
       const { input } = layoutVariant(LAYOUT_VARIANTS.find((v) => v.mode === "browser_capture")!);
       const pdf = await renderPdf(await htmlOf(input));
-      expect((await extractPdfText(pdf)).replace(/\s+/g, "")).toContain(LONG_MANIFEST_URL);
+      // B4-F-102 (free audit 0ea0) — the address is printed in full, minus its
+      // fragment and the value of its credential parameter (`session=`).
+      const printed = (await extractPdfText(pdf)).replace(/\s+/g, "");
+      expect(printed).toContain(LONG_MANIFEST_URL.split("#")[0]!.replace(/session=[^&]*/, "session=REDACTED"));
+      expect(printed).not.toContain("a1b2c3d4e5f60718293a4b5c6d7e8f90");
       expect(checkReportGeometry(await readReportGeometry(pdf), { requiredStatements: required(input) })).toEqual([]);
     },
     RENDER_TIMEOUT,

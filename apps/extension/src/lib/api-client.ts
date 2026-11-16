@@ -10,6 +10,45 @@
 import { classifyStoragePutStatus, parseRetryAfterMs } from "@proovra/shared";
 
 import { CONFIG } from "./config.js";
+import {
+  CLIENT_UPDATE_STORAGE_KEY,
+  clientUpdateVerdict,
+  escalateClientUpdate,
+  type ClientUpdateNotice,
+} from "./client-contract.js";
+
+/**
+ * B8-F-402 — the strongest "update" verdict any API answer has given this
+ * worker. Recorded for the popup (chrome.storage.local, best effort); a
+ * response is NEVER blocked on it, and absent headers record nothing.
+ */
+let clientUpdateNotice: ClientUpdateNotice | null = null;
+
+export function lastClientUpdateNotice(): ClientUpdateNotice | null {
+  return clientUpdateNotice;
+}
+
+/** Tests only. */
+export function resetClientUpdateNoticeForTests(): void {
+  clientUpdateNotice = null;
+}
+
+export function observeClientContract(headers: { get(name: string): string | null } | null | undefined): void {
+  let next: ClientUpdateNotice | null;
+  try {
+    next = escalateClientUpdate(clientUpdateNotice, clientUpdateVerdict(headers));
+  } catch {
+    return;
+  }
+  if (next === clientUpdateNotice) return;
+  clientUpdateNotice = next;
+  try {
+    const storage = (globalThis as { chrome?: { storage?: { local?: { set(v: Record<string, unknown>): Promise<void> } } } }).chrome?.storage?.local;
+    void storage?.set({ [CLIENT_UPDATE_STORAGE_KEY]: next })?.catch?.(() => undefined);
+  } catch {
+    /* no extension storage (tests) */
+  }
+}
 
 export class ApiError extends Error {
   constructor(
@@ -70,12 +109,46 @@ function legalGateCodeOf(json: unknown): string | null {
   return (error as { code?: unknown }).code === "LEGAL_REACCEPT_REQUIRED" ? "LEGAL_REACCEPT_REQUIRED" : null;
 }
 
+/**
+ * B4-F-100 — the refusal code an answer carries. The capture routes answer
+ * `{ denial }`; the canonical part presign (POST /v1/evidence/:id/parts:
+ * 409 `{ code: "STORAGE_LIMIT_REACHED", … }`) and the personal-space guard
+ * answer a flat `{ code, message }` without `denial`. Reading only
+ * `denial` turned those into a generic "Nothing was saved. Please try again"
+ * with a Retry that repeats the same refusal. The nested A1-06 gate code is
+ * lifted as before; no other nested code is.
+ */
+export function denialOf(json: unknown): string | null {
+  if (!json || typeof json !== "object") return null;
+  const o = json as Record<string, unknown>;
+  if ("denial" in o && o.denial != null) return String(o.denial);
+  if (typeof o.code === "string" && /^[A-Z][A-Z0-9_]{1,80}$/.test(o.code)) return o.code;
+  return legalGateCodeOf(json);
+}
+
+/** PURE — a response's Date header as epoch ms, or null (B4-F-103). */
+export function serverDateMsOf(headers: { get(name: string): string | null } | null | undefined): number | null {
+  const raw = headers?.get("date");
+  if (!raw) return null;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : null;
+}
+
 export async function apiFetch<T>(
   token: string,
   method: string,
   path: string,
   body?: unknown,
 ): Promise<T> {
+  return (await apiRequest<T>(token, method, path, body)).body;
+}
+
+async function apiRequest<T>(
+  token: string,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<{ body: T; serverDateMs: number | null }> {
   const res = await boundedFetch(
     `${CONFIG.apiOrigin}${path}`,
     {
@@ -89,6 +162,7 @@ export async function apiFetch<T>(
     },
     API_TIMEOUT_MS,
   );
+  observeClientContract(res.headers);
   const text = await res.text();
   let json: unknown = null;
   try {
@@ -97,13 +171,9 @@ export async function apiFetch<T>(
     /* non-JSON error body */
   }
   if (!res.ok) {
-    const denial =
-      json && typeof json === "object" && "denial" in json
-        ? String((json as Record<string, unknown>).denial)
-        : legalGateCodeOf(json);
-    throw new ApiError(res.status, denial, `${method} ${path} -> ${res.status}`);
+    throw new ApiError(res.status, denialOf(json), `${method} ${path} -> ${res.status}`);
   }
-  return json as T;
+  return { body: json as T, serverDateMs: serverDateMsOf(res.headers) };
 }
 
 export type OpenSessionResult = {
@@ -115,6 +185,12 @@ export type OpenSessionResult = {
     /** AUD-026 — the record the session already reserved, if any. */
     reservedEvidenceId?: string | null;
   };
+  /**
+   * B4-F-103 — the server's clock when it answered the open (its Date
+   * header), so the capture window can be stated on the clock the server
+   * checks it against. Null when the header is absent.
+   */
+  serverDateMs?: number | null;
 };
 
 /**
@@ -148,13 +224,14 @@ export const apiClient = {
     caseId: string | null,
     clientAttemptId: string,
   ): Promise<OpenSessionResult> {
-    return apiFetch(token, "POST", "/v1/capture/direct-sessions", {
+    const r = await apiRequest<OpenSessionResult>(token, "POST", "/v1/capture/direct-sessions", {
       mode: "DIRECT_WEB_CAPTURE_EXTENSION",
       teamId,
       deviceId: null,
       clientAttemptId,
       ...(caseId ? { caseId } : {}),
     });
+    return { ...r.body, serverDateMs: r.serverDateMs };
   },
 
   async reserveEvidence(

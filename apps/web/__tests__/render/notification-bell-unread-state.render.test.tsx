@@ -713,3 +713,39 @@ describe("the bell names categories through the shared authority", () => {
     expect(hrefs).toEqual(["/evidence/e1?tab=discussion&thread=t1", "/evidence/e2?tab=integrity", "/notifications"]);
   });
 });
+
+// ===========================================================================
+// B2B-F-01 (free-audit 0ea0) — Mark all as read uses the badge's scope
+// ===========================================================================
+
+describe("B2B-F-01: Mark all as read is scoped like the badge", () => {
+  it("sends the active workspace, so another workspace's items stay unread", async () => {
+    installServer(makeRows(2));
+    await mountBell();
+    await waitFor(() => expect(unreadAttr()).toBe("2"));
+    await openPopover("Submission 1 needs review");
+    fireEvent.click(screen.getByRole("button", { name: /mark all as read/i }));
+    await waitFor(() =>
+      expect(calls.some((c) => c.path === "/v1/me/inbox/mark-all-read")).toBe(true),
+    );
+    const call = calls.find((c) => c.path === "/v1/me/inbox/mark-all-read")!;
+    expect(JSON.parse(String(call.init?.body))).toEqual({ workspaceId: "ws-1" });
+    expect(
+      document.querySelector("[data-app-notification-bell] button")?.getAttribute("title"),
+    ).toBe("Unread operational items in this workspace");
+  });
+
+  it("with no active workspace keeps the account-wide body {}", async () => {
+    activeWorkspaceId = null;
+    installServer(makeRows(1));
+    await mountBell();
+    await waitFor(() => expect(unreadAttr()).toBe("1"));
+    await openPopover("Submission 1 needs review");
+    fireEvent.click(screen.getByRole("button", { name: /mark all as read/i }));
+    await waitFor(() =>
+      expect(calls.some((c) => c.path === "/v1/me/inbox/mark-all-read")).toBe(true),
+    );
+    const call = calls.find((c) => c.path === "/v1/me/inbox/mark-all-read")!;
+    expect(JSON.parse(String(call.init?.body))).toEqual({});
+  });
+});

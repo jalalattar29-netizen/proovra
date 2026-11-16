@@ -46,6 +46,13 @@ vi.mock("../src/services/identity/membership-provisioning.service.js", () => ({
   demoteGroupMappedRoleOnArchive: async () => {},
 }));
 // Telemetry/audit → no-ops (avoid real DB).
+// B5B-F-302 — these directory people were created by the Organization's own
+// directory (not pre-existing self-serve accounts), so reconciliation binds
+// them; the self-serve refusal is pinned in phase-10-scim-managed-ownership.
+vi.mock("../src/services/security/enterprise-account-linking.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  isSelfServeAccountForOrganization: async () => false,
+}));
 vi.mock("../src/services/security/security-event.service.js", () => ({ safeEmitSecurityEvent: () => {} }));
 vi.mock("../src/services/platform-audit-log.service.js", () => ({ appendPlatformAuditLog: async () => {} }));
 vi.mock("../src/services/ops/metrics.service.js", () => ({ bump: () => {}, setGauge: () => {} }));

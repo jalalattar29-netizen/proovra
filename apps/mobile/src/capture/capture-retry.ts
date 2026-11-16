@@ -12,8 +12,9 @@
  *                        code TIMEOUT (its work is aborted where the transport
  *                        allows), so callers can decide instead of hanging.
  *   classifyCaptureError — RETRYABLE (no response, timeout, 408/429/5xx, the
- *                        server's SESSION_BUSY) vs HELD (401, or a plan or
- *                        storage refusal: not retried now, but the captured
+ *                        server's SESSION_BUSY) vs HELD (401, a plan or
+ *                        storage refusal, the terms gate (428) or an access
+ *                        refusal (403): not retried now, but the captured
  *                        material is still good — nothing is discarded) vs
  *                        TERMINAL (any other 4xx: a validation or state
  *                        refusal that a retry cannot fix).
@@ -92,7 +93,7 @@ const HELD_REFUSAL_CODES = new Set([
   "STORAGE_LIMIT_REACHED",
 ]);
 
-export type CaptureHoldReason = "SIGNED_OUT" | "REFUSED";
+export type CaptureHoldReason = "SIGNED_OUT" | "REFUSED" | "LEGAL" | "ACCESS";
 
 /**
  * PURE — why a failure holds the capture (C-03), or null when it does not.
@@ -104,6 +105,15 @@ export type CaptureHoldReason = "SIGNED_OUT" | "REFUSED";
  *                token that expired mid-staging deleted every frame.
  *   REFUSED    — a plan or storage refusal (HELD_REFUSAL_CODES, or 402), or
  *                any other 401 (a fresher sign-in is needed): shown as is.
+ *   LEGAL      — B4-F-202: the A1-06 terms gate (428 / LEGAL_REACCEPT_REQUIRED).
+ *                api.ts has already opened the acceptance screen; once the
+ *                person accepts, Retry upload stages the same frames. It used
+ *                to be TERMINAL and deleted every frame.
+ *   ACCESS     — B4-F-202: an authorization refusal (403) — the person's role
+ *                or access changed between Stop and staging. The frames are
+ *                still the only copy; they are kept while access is restored
+ *                (or the person discards them). Storage's own 403 on a
+ *                presigned URL (STORAGE_URL_REJECTED) stays retryable.
  */
 export function captureHoldReason(err: unknown): CaptureHoldReason | null {
   const e = (err ?? {}) as ErrorShape;
@@ -114,6 +124,8 @@ export function captureHoldReason(err: unknown): CaptureHoldReason | null {
   if (raw === 401) return typeof e.sessionEnded === "string" ? "SIGNED_OUT" : "REFUSED";
   if (raw === 402) return "REFUSED";
   if (code && HELD_REFUSAL_CODES.has(code)) return "REFUSED";
+  if (raw === 428 || code === "LEGAL_REACCEPT_REQUIRED") return "LEGAL";
+  if (raw === 403 && !(code && (RETRYABLE_CODES.has(code) || TERMINAL_CODES.has(code)))) return "ACCESS";
   return null;
 }
 
