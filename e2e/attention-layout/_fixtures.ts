@@ -166,6 +166,9 @@ export function envelopeFor(context: AttentionContext): Record<string, unknown> 
     planFeatures: {
       intakeIncluded: shape.plan !== "FREE",
       professionalSurfacesIncluded: shape.plan !== "FREE",
+      // B2A-F-04 (Free-user audit 0ea0, 2026-11-17) — Home reads this
+      // fail-closed; the catalogue grants cases to PRO, TEAM and ENTERPRISE.
+      casesIncluded: shape.plan !== "FREE",
     },
     user: { id: SELF_USER_ID, email: "operator@example.invalid", name: "Operator" },
   };

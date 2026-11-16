@@ -164,7 +164,8 @@ test("the accessible name survives the collapse", async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await openOperations(page, "team-admin");
     const name = await search(page).getAttribute("aria-label");
-    expect(name, `${width}px`).toBe("Open command palette (search)");
+    // B2A-F-19 (Free-user audit 0ea0) — the palette lists pages, not records.
+    expect(name, `${width}px`).toBe("Open command palette (jump to a page)");
   }
 });
 
