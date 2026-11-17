@@ -43,6 +43,10 @@ const ORG_CAPABILITIES = [
   "SECURITY_CENTER_VIEW",
   "INTEGRATIONS_MANAGE",
   "GOVERNANCE_VIEW",
+  // Audit Transparency also needs ANALYTICS_VIEW (B2A-F-08: the page is
+  // offered exactly when /v1/analytics/audit-transparency answers). Every
+  // non-Viewer role holds it on the server, an owner included.
+  "ANALYTICS_VIEW",
   "ACCOUNT_BILLING_VIEW",
   "RETENTION_MANAGE",
 ];
