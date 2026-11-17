@@ -52,6 +52,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 import { enclosingSource, routeSource, betweenMarkers } from "../../../scripts/source-contract/index.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -290,10 +291,13 @@ describe("Phase HOME-RECORDS-BY-TYPE — donut widget", () => {
   it("subtitle is provenance-honest — latest-sample is labelled as sampled, workspace-aggregate is not", () => {
     // The exact wording is load-bearing: the widget MUST NOT present a
     // "latest 100 records" sample as if it were the whole workspace.
-    expect(WIDGET).toMatch(/latest \$\{sampleSize\} records sampled/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
     expect(WIDGET).toMatch(
-      /\$\{sampleSize\} record\$\{sampleSize === 1 \? "" : "s"\} · by primary type/,
+      /isAggregate\s*\?\s*fillCopy\(t\(sampleSize === 1 \? "homeRecordsByPrimaryOne" : "homeRecordsByPrimaryOther"\), \{ count: sampleSize \}\)\s*:\s*fillCopy\(t\("homeRecordsSampled"\), \{ count: sampleSize \}\)/,
     );
+    expect(webDictionaryEnValue("home", "homeRecordsSampled")).toBe("latest {count} records sampled · by primary type");
+    expect(webDictionaryEnValue("home", "homeRecordsByPrimaryOne")).toBe("{count} record · by primary type");
+    expect(webDictionaryEnValue("home", "homeRecordsByPrimaryOther")).toBe("{count} records · by primary type");
   });
 
   it("SelfServeHomeDashboard passes both distribution and preservedFiles to the widget", () => {

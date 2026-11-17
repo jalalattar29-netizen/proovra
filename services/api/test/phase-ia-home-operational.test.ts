@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEn, webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 import {
   normalizeHomeViewModel,
@@ -414,8 +415,14 @@ describe("Phase IA-home-operational — useful empty states", () => {
     // three records include their outputs — not upsold a report it has.
     // F-27d — without a hard-coded count: the allowance is the catalog's (or a
     // frozen downgrade grandfather), never a literal in the copy.
-    expect(SECTIONS).toMatch(/each record in your Free allowance includes its report, verification package and verification page/);
-    expect(SECTIONS).not.toMatch(/three Free records/);
-    expect(SECTIONS).not.toMatch(/Reports are included with Pay-Per-Evidence, Pro, and Team/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
+    expect(SECTIONS).toMatch(/isFreePlan \? t\("homeReportEmptyFree"\) : t\("homeReportEmpty"\)/);
+    expect(webDictionaryEnValue("home", "homeReportEmptyFree")).toMatch(
+      /each record in your Free allowance includes its report, verification package and verification page/,
+    );
+    for (const text of [SECTIONS, webDictionaryEn("home")]) {
+      expect(text).not.toMatch(/three Free records/);
+      expect(text).not.toMatch(/Reports are included with Pay-Per-Evidence, Pro, and Team/);
+    }
   });
 });

@@ -132,7 +132,11 @@ describe("defects — teams, collaboration, saved views (live PostgreSQL 16)", (
       expect(after.assignedAtUtc).toBeNull();
       expect(await prisma.discussionParticipant.count({ where: { threadId: thread.id } })).toBe(0);
 
-      // An ACTIVE member of the same workspace is still assignable.
+      // An ACTIVE member of the same workspace is still assignable — on a plan
+      // that includes reviewer operations (B3C-F-008: assigning a thread to
+      // another member is REVIEW_ASSIGNMENTS; the Free refusal is proven in
+      // free-audit-0ea0-lane-b.integration).
+      await prisma.team.update({ where: { id: a.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
       const ok = await call({
         method: "POST",
         url,

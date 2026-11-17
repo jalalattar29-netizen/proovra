@@ -26,6 +26,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 import {
   AUTHORITY_SCHEMA_VERSION,
@@ -401,7 +402,9 @@ describe("ENTERPRISE TENANT MODEL — workspace switcher", () => {
     expect(WEB_TOPBAR).toMatch(/menu\.workspaces\.organizations\.map\(/);
     expect(WEB_TOPBAR).toMatch(/data-context-group="ORGANIZATION"/); // (P3/P4 domain remediation 2026-07-21)
     expect(WEB_TOPBAR).toMatch(/data-context-organization=\{group\.organizationId\}/); // (P3/P4 domain remediation 2026-07-21)
-    expect(WEB_TOPBAR).toMatch(/\{group\.organizationName \?\? "Organizations"\}/); // (P3/P4 domain remediation 2026-07-21)
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts).
+    expect(WEB_TOPBAR).toMatch(/\{group\.organizationName \?\? t\("shellOrganizations"\)\}/); // (P3/P4 domain remediation 2026-07-21)
+    expect(webDictionaryEnValue("app-shell", "shellOrganizations")).toBe("Organizations");
   });
 
   it("switcher no longer renders an Actions section (create / join / manage removed) (account-menu refactor 2026-07-21)", () => {

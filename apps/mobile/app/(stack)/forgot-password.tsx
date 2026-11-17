@@ -10,6 +10,14 @@ import { AuthBrandHeader } from "../../src/ui/brand";
 // The web's check, verbatim (apps/web/components/marketing/ForgotPasswordModal.tsx).
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * B1-F-004 (free-audit 0ea0) — the web hint, verbatim (ForgotPasswordModal.tsx
+ * SOCIAL_SIGN_IN_RESET_HINT): a Google/Apple account has no PROOVRA password, so
+ * no reset email comes for it. The confirmation stays neutral; no email is sent.
+ */
+const SOCIAL_SIGN_IN_RESET_HINT =
+  "Signed up with Google or Apple? Your account may not have a PROOVRA password. Use Continue with Google or Continue with Apple to sign in; you can add a password afterwards from Security > Sign-in methods.";
+
 /** Forgot password — request a reset link (always a neutral confirmation). */
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -61,6 +69,9 @@ export default function ForgotPasswordScreen() {
               <ProovraText variant="body" color={theme.color.ink.secondary}>
                 If an account exists for this address, a secure password reset link has been sent.
               </ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary} testID="forgot-password-social-hint">
+                {SOCIAL_SIGN_IN_RESET_HINT}
+              </ProovraText>
               <View style={styles.actions}>
                 <ProovraButton label="Back to sign in" variant="secondary" onPress={() => router.replace("/(stack)/auth")} />
                 <ProovraButton label="Send again" variant="ghost" onPress={() => setSent(false)} />
@@ -70,6 +81,9 @@ export default function ForgotPasswordScreen() {
             <>
               <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
                 Enter the email address associated with your PROOVRA account. If an account exists, we’ll send a secure password reset link.
+              </ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary} testID="forgot-password-social-hint">
+                {SOCIAL_SIGN_IN_RESET_HINT}
               </ProovraText>
               <ProovraFormField label="Email address" error={error ? error.message : null}>
                 <ProovraInput

@@ -60,6 +60,14 @@ import { otsRawStatusPresentation } from "../../../../../lib/ots-presentation";
 import { resolveRunbookSlug } from "../../../../../lib/runbooks/slugs.generated";
 import { useUrlFilterSync } from "../../../../../lib/use-url-filter-sync";
 
+/**
+ * B7A-F-005 (free-audit 0ea0) — a record's title and its owner's email are
+ * customer subject data. The API returns them only for rows a live support
+ * grant of the signed-in staff member covers; this is how to get one.
+ */
+const RECORD_DETAIL_WITHHELD_HINT =
+  "Record titles and owner emails are customer data. They are shown only under an active support grant for the customer's organization — start one from Support access, with a reason and the customer's approval.";
+
 type RecordRow = {
   id: string;
   title: string | null;
@@ -79,6 +87,11 @@ type RecordRow = {
   } | null;
   customer: { id: string; name: string } | null;
   ownerEmail: string | null;
+  /**
+   * B7A-F-005 — the record's title and its owner's email were withheld: no
+   * live support grant of yours covers this customer. Older APIs omit it.
+   */
+  recordDetailWithheld?: boolean;
   /**
    * ADM-013 — the row's OWN cohort, from its own columns rather than from the
    * filter it arrived through. In the "All affected" list the two halves need
@@ -250,9 +263,20 @@ export default function AdminEvidenceRecordsPage() {
         header: "Record",
         render: (r) => (
           <div style={{ minWidth: 0 }}>
-            <div className="adm-table__primary adm-table__truncate" title={r.title ?? undefined}>
-              {r.title ?? "(untitled)"}
-            </div>
+            {r.recordDetailWithheld ? (
+              <div
+                className="adm-table__primary adm-table__truncate"
+                style={{ color: "var(--ink-muted)" }}
+                title={RECORD_DETAIL_WITHHELD_HINT}
+                data-testid="record-title-withheld"
+              >
+                Title withheld
+              </div>
+            ) : (
+              <div className="adm-table__primary adm-table__truncate" title={r.title ?? undefined}>
+                {r.title ?? "(untitled)"}
+              </div>
+            )}
             <AdmId value={r.id} label="evidence id" short />
           </div>
         ),
@@ -338,7 +362,13 @@ export default function AdminEvidenceRecordsPage() {
         key: "owner",
         header: "Owner",
         render: (r) => (
-          <span style={{ fontSize: 12.5 }}>{r.ownerEmail ?? "—"}</span>
+          r.recordDetailWithheld ? (
+            <span style={{ fontSize: 12.5, color: "var(--ink-muted)" }} title={RECORD_DETAIL_WITHHELD_HINT}>
+              Withheld
+            </span>
+          ) : (
+            <span style={{ fontSize: 12.5 }}>{r.ownerEmail ?? "—"}</span>
+          )
         ),
       },
       {
@@ -565,6 +595,15 @@ export default function AdminEvidenceRecordsPage() {
                 signal.
               </>
             ) : null}
+          </div>
+        </Card>
+      ) : null}
+
+      {(data?.items ?? []).some((r) => r.recordDetailWithheld) ? (
+        <Card>
+          <div style={{ fontSize: 13 }} data-testid="record-detail-withheld-notice">
+            {RECORD_DETAIL_WITHHELD_HINT}{" "}
+            <Link href="/admin/support-access">Open Support access</Link>
           </div>
         </Card>
       ) : null}

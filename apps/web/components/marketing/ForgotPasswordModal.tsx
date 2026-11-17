@@ -5,6 +5,15 @@ import Link from "next/link";
 import { apiFetch, isApiResponseError } from "../../lib/api";
 
 /**
+ * B1-F-004 (free-audit 0ea0) — an account opened with Google or Apple has no
+ * PROOVRA password, so a reset email never comes for it (the answer above stays
+ * the same either way: it never says whether an address has an account). This
+ * tells the person where to go instead. No email is sent for it.
+ */
+export const SOCIAL_SIGN_IN_RESET_HINT =
+  "Signed up with Google or Apple? Your account may not have a PROOVRA password. Use Continue with Google or Continue with Apple to sign in; you can add a password afterwards from Security > Sign-in methods.";
+
+/**
  * FP2 — Forgot Password modal.
  *
  * Opens inside /login and posts to /v1/auth/password-reset/request.
@@ -223,6 +232,12 @@ export function ForgotPasswordModal({
                 If an account exists for this address, a secure password reset
                 link has been sent.
               </p>
+              <p
+                data-testid="forgot-password-social-hint"
+                className="mt-3 text-[0.86rem] leading-[1.6] text-[#6B5B6E]"
+              >
+                {SOCIAL_SIGN_IN_RESET_HINT}
+              </p>
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
@@ -273,6 +288,12 @@ export function ForgotPasswordModal({
                 Enter the email address associated with your PROOVRA account.
                 If an account exists, we&rsquo;ll send a secure password reset
                 link.
+              </p>
+              <p
+                data-testid="forgot-password-social-hint"
+                className="mt-3 text-[0.86rem] leading-[1.6] text-[#6B5B6E]"
+              >
+                {SOCIAL_SIGN_IN_RESET_HINT}
               </p>
 
               <label

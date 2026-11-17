@@ -159,14 +159,17 @@ describe("free-user audit — plan gates match Pricing (live PostgreSQL)", () =>
       expect(enable.statusCode, enable.body).toBe(403);
       expect((await prisma.automationRule.findUniqueOrThrow({ where: { id: legacy.id } })).enabled).toBe(false);
 
-      // Control: a rule that is not a webhook is not asked.
+      // A rule that is not a webhook is not asked FEATURE_WEBHOOKS — but since
+      // B7B-F06 (owner directive) every automation rule is the governance
+      // capability FEATURE_GOVERNANCE_PLATFORM, which a Free workspace lacks.
       const label = await call("POST", "/v1/automation/rules", A().ownerToken, {
         ...base,
         name: `label ${tag()}`,
         actionType: "APPLY_LABEL",
         actionConfigJson: { label: "needs-review" },
       });
-      expect(label.statusCode, label.body).toBe(201);
+      expect(label.statusCode, label.body).toBe(403);
+      expect(label.json()).toEqual({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_GOVERNANCE_PLATFORM" });
     });
 
     it("control: an Enterprise workspace passes the gate (to the step-up) and creates a webhook rule", async () => {

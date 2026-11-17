@@ -43,6 +43,7 @@ import {
   type ReportsSort,
 } from "../services/reports/reports-aggregator.service.js";
 import { buildMatterWorkspace } from "../services/cases/matter-workspace.service.js";
+import { refuseCasePlanWrite } from "../services/cases/case-plan-gate.js";
 import { buildMatterQueue } from "../services/cases/matter-queue.service.js";
 import {
   CaseError,
@@ -968,6 +969,8 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       if (!access) return;
       const member = await gateCaseMutation(reply, "STATUS_CHANGE", params.id, access);
       if (!member) return;
+      // B3C-F-007 — case writes answer to the CURRENT Cases entitlement.
+      if (await refuseCasePlanWrite(reply, params.id)) return;
       try {
         const updated = await changeCaseStatus({
           caseId: params.id,
@@ -1029,6 +1032,10 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
           requestId: req.id,
         });
       }
+      // B3C-F-007 — adding an assignment is a case workflow write: it also
+      // answers to the CURRENT Cases entitlement (removing one, below, stays
+      // open after a downgrade).
+      if (await refuseCasePlanWrite(reply, params.id)) return;
       try {
         const row = await addCaseAssignment({
           caseId: params.id,
@@ -1090,6 +1097,9 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       if (!access) return;
       const member = await gateCaseMutation(reply, "COMMENT", params.id, access);
       if (!member) return;
+      // B3C-F-007 — a case note is a paid case edit (deleting one's own note
+      // stays open).
+      if (await refuseCasePlanWrite(reply, params.id)) return;
       try {
         const row = await addCaseComment({
           caseId: params.id,
@@ -1123,6 +1133,7 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         access,
       );
       if (!member) return;
+      if (await refuseCasePlanWrite(reply, params.id)) return;
       // B3C-F-009: the same read rule matter-workspace applies (EVID-011).
       const [caseRow, assignmentRoles] = await Promise.all([
         prisma.case.findUnique({ where: { id: params.id }, select: { ownerUserId: true } }),
@@ -1210,6 +1221,7 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       const body = EvidenceLinkBody.parse(req.body ?? {});
       const member = await requireCaseEvidenceLink(req, reply, params.id, body.evidenceId);
       if (!member) return;
+      if (await refuseCasePlanWrite(reply, params.id)) return;
       try {
         const row = await addEvidenceLink({
           caseId: params.id,
@@ -1248,6 +1260,7 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         access,
       );
       if (!member) return;
+      if (await refuseCasePlanWrite(reply, params.id)) return;
       try {
         const result = await removeLegacyEvidenceCaseId({
           caseId: params.id,
@@ -1279,6 +1292,7 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       });
       const member = await requireCaseEvidenceLink(req, reply, params.id, link?.evidenceId ?? null);
       if (!member) return;
+      if (await refuseCasePlanWrite(reply, params.id)) return;
       try {
         const result = await removeEvidenceLink({
           caseId: params.id,

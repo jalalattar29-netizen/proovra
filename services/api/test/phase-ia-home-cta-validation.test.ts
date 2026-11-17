@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEn, webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
@@ -210,7 +211,10 @@ describe("Phase IA-home-final — empty states carry a real next action", () => 
     // Zero-scaffold: the same structured trust rows render even when empty,
     // with an honest explanatory line — no dead-end placeholder text.
     expect(SECTIONS).toMatch(/data-trust-empty/);
-    expect(SECTIONS).toMatch(/No evidence captured yet/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
+    expect(SECTIONS).toMatch(/\{t\("homeTrustEmpty"\)\}/);
+    expect(webDictionaryEnValue("home", "homeTrustEmpty")).toMatch(/^No evidence captured yet/);
+    expect(webDictionaryEn("home")).not.toMatch(/Trust state appears after your first evidence record/);
     // The old passive placeholder copy is gone.
     expect(SECTIONS).not.toMatch(/Trust state appears after your first evidence record/);
   });

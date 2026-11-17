@@ -38,7 +38,8 @@ beforeEach(async () => {
   M.calls.reset();
   routes = {
     ...authenticatedRoutes(),
-    "/v1/platform/context": () => platformContextEnvelope({ planFeatures: { intakeIncluded: true } }),
+    "/v1/platform/context": () =>
+      platformContextEnvelope({ planFeatures: { intakeIncluded: true }, capabilities: { INTAKE_LINKS_MANAGE: true } }),
     "/v1/evidence": () => ({ items: [] }),
     "/v1/dashboard/command-center": () => ({}),
     "/v1/dashboard/trust-summary": () => ({}),
@@ -127,4 +128,14 @@ test("a plan without intake sees the upsell, not a pipeline", async () => {
   const r = await render();
   assert.ok(r.texts().some((t) => t.includes("Available on Pro and Team.")), "no upsell shown");
   assert.equal(r.byLabel("Active links: 2").length, 0);
+});
+
+test("B3C-F-002: a Viewer's Home does not read the workspace message log, and reports no load failure for it", async () => {
+  routes["/v1/platform/context"] = () =>
+    platformContextEnvelope({ planFeatures: { intakeIncluded: true }, capabilities: { INTAKE_LINKS_MANAGE: false, EVIDENCE_VIEW: true } });
+  const r = await render();
+  assert.equal(requests.filter((q) => q.path.startsWith("/v1/communications/messages")).length, 0);
+  assert.ok(!r.texts().some((t) => t.includes("Intake deliveries:")), "a refused operator read surfaced as a load failure");
+  // The intake list itself is still read (positive control).
+  assert.ok(requests.some((q) => q.path.startsWith("/v1/workflow/intake-links")));
 });

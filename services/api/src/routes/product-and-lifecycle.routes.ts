@@ -1316,9 +1316,28 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
       const row = await prisma.lifecycleWebhookDelivery.findFirst({
         where: { id, teamId: ctx.teamId },
-        select: { id: true, state: true },
+        select: { id: true, state: true, endpoint: { select: { state: true } } },
       });
       if (!row) return reply.code(404).send({ denial: "NOT_FOUND" });
+
+      // B7B-F05 (owner directive) — a replay is a MANUAL retry: new outbound
+      // traffic the operator chooses to send, so it asks FEATURE_WEBHOOKS as
+      // the endpoint create does. Already-ACTIVE endpoints of a workspace that
+      // lost the entitlement keep their own scheduled deliveries (F-15).
+      const replayEntitled = await assertFeatureEntitlement({
+        teamId: ctx.teamId,
+        key: "FEATURE_WEBHOOKS",
+        actorUserId: ctx.userId,
+      });
+      if (!replayEntitled.ok) {
+        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
+      }
+      // A deactivated endpoint (removed by an operator, or by workspace
+      // closure / suspension) is not sent to; re-queueing to it would only
+      // reset the delivery's history. Same answer as the integration retry.
+      if (row.endpoint?.state !== "ACTIVE") {
+        return reply.code(409).send({ denial: "ENDPOINT_INACTIVE" });
+      }
 
       await prisma.lifecycleWebhookDelivery.update({
         where: { id },
@@ -1394,6 +1413,19 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       if (await refuseUnlessEnterpriseRetention(reply, ctx.teamId)) return;
       // IDENT-019 — a quarantined session keeps reads; this is refused.
       if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "RETENTION_POLICY_UPDATE" })).refused) return;
+      // B5B-F-301 remainder — the sibling writer's account step-up, its exact
+      // contract (governance-lifecycle.routes.ts POST retention-policies):
+      // purpose RETENTION_POLICY_UPDATE, the team as the resource on create.
+      // Answered by the live web retention page and the setup wizard.
+      const stepUp = await requireStepUpForSensitiveAction({
+        req, reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "RETENTION_POLICY_UPDATE",
+        resourceKind: "evidence_retention_policy",
+        resourceId: ctx.teamId,
+      });
+      if (stepUp.sent) return;
       const res = await createRetentionPolicy({
         teamId: ctx.teamId,
         name: body.name,
@@ -1427,6 +1459,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       if (await refuseUnlessEnterpriseRetention(reply, ctx.teamId)) return;
       // IDENT-019 — a quarantined session keeps reads; this is refused.
       if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "RETENTION_POLICY_UPDATE" })).refused) return;
+      // B5B-F-301 remainder — as the sibling's transition: the policy is the resource.
+      const stepUp = await requireStepUpForSensitiveAction({
+        req, reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "RETENTION_POLICY_UPDATE",
+        resourceKind: "evidence_retention_policy",
+        resourceId: id,
+      });
+      if (stepUp.sent) return;
       const res = await releaseRetentionPolicy({
         teamId: ctx.teamId,
         policyId: id,

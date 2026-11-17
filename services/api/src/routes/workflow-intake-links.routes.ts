@@ -59,9 +59,17 @@ import {
 } from "../services/intake-link-lifecycle.service.js";
 import {
   dispatchIntakeLinkDelivery,
+  lookupIntakeDeliveryOutcome,
   type DispatchIntakeDeliveryResult,
 } from "../services/intake-link-delivery-dispatcher.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import {
+  prepareKeyedIntakeCreate,
+  resolvePriorKeyedIntakeCreate,
+  runKeyedIntakeCreate,
+  type KeyedIntakeCreateDecision,
+} from "../services/intake-link-create-idempotency.service.js";
+import { indexIntakeLinkBestEffort } from "../services/search/evidence-indexing.service.js";
 import {
   workflowIntakeFeatureDisabledReason,
 } from "../services/workflow-intake-token.service.js";
@@ -364,6 +372,60 @@ async function providerIdsDisclosed(req: FastifyRequest, teamId: string): Promis
   return decision.allowed;
 }
 
+/**
+ * B3B-F-102 — answer a keyed create that already happened. Same request: the
+ * ORIGINAL link (200, `replayed: true`) with its current projection and what
+ * its delivery came to — and no raw token, which is not stored and is shown
+ * exactly once (`rawToken: null`, `tokenRevealed: false`). A replay never
+ * sends. A different request under the same key: 409 IDEMPOTENCY_KEY_REUSED,
+ * naming nothing about the original.
+ */
+async function answerKeyedIntakeCreate(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  decided: KeyedIntakeCreateDecision,
+  input: { teamId: string; idempotencyKey: string },
+): Promise<FastifyReply> {
+  if (decided.kind === "conflict") {
+    return reply.code(409).send({
+      error: {
+        code: "IDEMPOTENCY_KEY_REUSED",
+        message:
+          "This idempotency key was already used to create an intake link with different details. Use a new key for a new link.",
+      },
+    });
+  }
+  const link = await prisma.workflowIntakeLink.findFirstOrThrow({
+    where: { id: decided.prior.linkId, teamId: input.teamId },
+  });
+  const method = decided.prior.deliveryMethod;
+  let delivery:
+    | { method: "MANUAL"; status: "skipped" }
+    | { method: "EMAIL" | "SMS"; status: "sent"; communicationMessageId: string }
+    | { method: "EMAIL" | "SMS"; status: "failed"; reason: string; communicationMessageId?: string }
+    | { method: "EMAIL" | "SMS"; status: "unconfirmed" } = { method: "MANUAL", status: "skipped" };
+  if (method !== "MANUAL") {
+    const outcome = await lookupIntakeDeliveryOutcome(
+      { teamId: input.teamId, intakeLinkId: link.id, channel: method, idempotencyKey: input.idempotencyKey },
+      prisma,
+    );
+    delivery = !outcome
+      ? { method, status: "unconfirmed" }
+      : outcome.ok
+        ? { method, status: "sent", communicationMessageId: outcome.communicationMessageId }
+        : { method, status: "failed", reason: outcome.reason, communicationMessageId: outcome.communicationMessageId };
+  }
+  return reply.code(200).send({
+    link: projectWorkflowIntakeLink(link, await resolveRecipientContactDisclosure(req, { teamId: input.teamId })),
+    rawToken: null,
+    tokenRevealed: false,
+    replayed: true,
+    warning:
+      "This link was already created by an earlier attempt with the same request. Its secure link was shown once and cannot be shown again; revoke it and create a new link if it was not received.",
+    delivery,
+  });
+}
+
 export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
   // -- Create -----------------------------------------------------------
 
@@ -378,6 +440,27 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       const body = CreateBody.parse(req.body ?? {});
       const ok = await requireIntakeWorkflowActor(req, reply, body.teamId, "workflow.intake_link.create");
       if (!ok) return;
+
+      // B3B-F-102 — a keyed create is idempotent per (workspace, actor, key).
+      // A request that already happened is answered before any gate or rate
+      // limit, so a retry gets the original result, not a fresh refusal.
+      const keyed = body.idempotencyKey
+        ? prepareKeyedIntakeCreate({
+            teamId: body.teamId,
+            actorUserId: ok.userId,
+            idempotencyKey: body.idempotencyKey,
+            payload: body as unknown as Record<string, unknown>,
+          })
+        : null;
+      if (keyed && body.idempotencyKey) {
+        const decided = await resolvePriorKeyedIntakeCreate(prisma, keyed, new Date(body.expiresAtUtc));
+        if (decided) {
+          return answerKeyedIntakeCreate(req, reply, decided, {
+            teamId: body.teamId,
+            idempotencyKey: body.idempotencyKey,
+          });
+        }
+      }
 
       // ET-INT-07 — THE intake-link mint gate (plan + governance), the same
       // one the evidence-request send / request-more flows pass. Enforced
@@ -414,54 +497,81 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       }
 
       try {
-        const result = await createWorkflowIntakeLink(
-          {
-            teamId: body.teamId,
-            workflowTemplateSlug: body.workflowTemplateSlug,
-            intakeMode: body.intakeMode,
-            caseId: body.caseId ?? null,
-            recipientLabel: body.recipientLabel ?? null,
-            recipientEmail: body.recipientEmail ?? null,
-            recipientPhone: body.recipientPhone ?? null,
-            customerId: body.customerId ?? null,
-            maxUses: body.maxUses,
-            maxFileCountPerSession: body.maxFileCountPerSession ?? null,
-            maxBytesPerSession: bigintFromOptional(body.maxBytesPerSession),
-            allowedAcceptedKinds: body.allowedAcceptedKinds,
-            consentPolicyVersion: body.consentPolicyVersion ?? null,
-            consentDisclosureText: body.consentDisclosureText ?? null,
-            expiresAtUtc: new Date(body.expiresAtUtc),
-            ipAllowlistCidrs: body.ipAllowlistCidrs,
-            senderDisplayMode: body.senderDisplayMode,
-            senderDisplayName: body.senderDisplayName ?? null,
-            locationPolicy: body.locationPolicy,
-          },
-          { actorUserId: ok.userId },
-        );
+        const createInput = {
+          teamId: body.teamId,
+          workflowTemplateSlug: body.workflowTemplateSlug,
+          intakeMode: body.intakeMode,
+          caseId: body.caseId ?? null,
+          recipientLabel: body.recipientLabel ?? null,
+          recipientEmail: body.recipientEmail ?? null,
+          recipientPhone: body.recipientPhone ?? null,
+          customerId: body.customerId ?? null,
+          maxUses: body.maxUses,
+          maxFileCountPerSession: body.maxFileCountPerSession ?? null,
+          maxBytesPerSession: bigintFromOptional(body.maxBytesPerSession),
+          allowedAcceptedKinds: body.allowedAcceptedKinds,
+          consentPolicyVersion: body.consentPolicyVersion ?? null,
+          consentDisclosureText: body.consentDisclosureText ?? null,
+          expiresAtUtc: new Date(body.expiresAtUtc),
+          ipAllowlistCidrs: body.ipAllowlistCidrs,
+          senderDisplayMode: body.senderDisplayMode,
+          senderDisplayName: body.senderDisplayName ?? null,
+          locationPolicy: body.locationPolicy,
+        };
+        const createAuditMetadata = {
+          teamId: body.teamId,
+          workflowTemplateSlug: body.workflowTemplateSlug,
+          intakeMode: body.intakeMode,
+          deliveryMethod: body.deliveryMethod,
+          // Never log raw email / phone — both helpers already
+          // hash + mask. We pass booleans so audit can confirm
+          // which channel was attempted without leaking PII.
+          hasRecipientEmail: Boolean(body.recipientEmail),
+          hasRecipientPhone: Boolean(body.recipientPhone),
+        };
 
-        // Intake-links-e2e (Phase 7) — audit the create. Fire-and-
-        // forget; a failure to log MUST NOT break the create.
-        void emitTenantAudit({
-          action: "intake.link.created",
-          outcome: "success",
-          sourceApp: "API",
-          actorUserId: ok.userId,
-          workspaceId: body.teamId,
-          resourceType: "workflow_intake_link",
-          resourceId: result.link.id,
-          correlationId: req.id ?? null,
-          metadata: {
-            teamId: body.teamId,
-            workflowTemplateSlug: body.workflowTemplateSlug,
-            intakeMode: body.intakeMode,
-            deliveryMethod: body.deliveryMethod,
-            // Never log raw email / phone — both helpers already
-            // hash + mask. We pass booleans so audit can confirm
-            // which channel was attempted without leaking PII.
-            hasRecipientEmail: Boolean(body.recipientEmail),
-            hasRecipientPhone: Boolean(body.recipientPhone),
-          },
-        }).catch(() => {});
+        let result: Awaited<ReturnType<typeof createWorkflowIntakeLink>>;
+        if (keyed && body.idempotencyKey) {
+          // B3B-F-102 — the link and its create receipt (the audit row below,
+          // carrying the key digest) commit together under a database lock on
+          // the key, so a concurrent duplicate waits and then replays. Nothing
+          // is sent until this has committed.
+          const outcome = await runKeyedIntakeCreate(prisma, keyed, {
+            requestedExpiresAt: new Date(body.expiresAtUtc),
+            create: (tx) =>
+              createWorkflowIntakeLink(
+                createInput,
+                { actorUserId: ok.userId, deferSearchIndex: true },
+                tx as unknown as typeof prisma,
+              ),
+            auditMetadata: createAuditMetadata,
+            correlationId: req.id ?? null,
+          });
+          if (outcome.kind !== "created") {
+            return answerKeyedIntakeCreate(req, reply, outcome, {
+              teamId: body.teamId,
+              idempotencyKey: body.idempotencyKey,
+            });
+          }
+          result = outcome.created;
+          indexIntakeLinkBestEffort({ teamId: body.teamId, intakeLinkId: result.link.id }, prisma);
+        } else {
+          result = await createWorkflowIntakeLink(createInput, { actorUserId: ok.userId });
+
+          // Intake-links-e2e (Phase 7) — audit the create. Fire-and-
+          // forget; a failure to log MUST NOT break the create.
+          void emitTenantAudit({
+            action: "intake.link.created",
+            outcome: "success",
+            sourceApp: "API",
+            actorUserId: ok.userId,
+            workspaceId: body.teamId,
+            resourceType: "workflow_intake_link",
+            resourceId: result.link.id,
+            correlationId: req.id ?? null,
+            metadata: createAuditMetadata,
+          }).catch(() => {});
+        }
 
         // Intake-links-e2e (Phase 4) — on-create delivery dispatch.
         // The link is already persisted; if delivery fails, the link

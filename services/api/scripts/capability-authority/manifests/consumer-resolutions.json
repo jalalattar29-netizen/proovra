@@ -370,11 +370,11 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/src/ui/evidence-discussion.tsx:412",
+      "site": "apps/mobile/src/ui/evidence-discussion.tsx:416",
       "helper": "buildThreadActionPath(threadId, action) — action is ThreadAction (\"resolve\" | \"reopen\" | \"assign\" | \"escalate\")",
       "callSitesRead": [
-        "apps/mobile/src/ui/evidence-discussion.tsx:412",
-        "apps/mobile/src/ui/evidence-discussion.tsx:396",
+        "apps/mobile/src/ui/evidence-discussion.tsx:416",
+        "apps/mobile/src/ui/evidence-discussion.tsx:400",
         "apps/mobile/src/product/evidence-discussion.ts:16"
       ],
       "routes": [
@@ -383,7 +383,7 @@
         "POST /v1/collaboration/threads/:id/assign",
         "POST /v1/collaboration/threads/:id/escalate"
       ],
-      "evidence": "openForm(a: ThreadAction) (:396) sets the action run at :412; ThreadAction is declared at evidence-discussion.ts:16.",
+      "evidence": "openForm(a: ThreadAction) (:400) sets the action run at :416; ThreadAction is declared at evidence-discussion.ts:16.",
       "reviewedAtUtc": "2026-09-25"
     },
     {

@@ -498,8 +498,10 @@ export function isPackageRetrievable(row: ArtifactRow): boolean {
 }
 
 /** The web's per-row download failures, by status (ReportsIndex.tsx:950-1010). */
-export function reportDownloadError(status: number | null, safeMessage: string | null): string {
-  const r = resolveArtifactDownloadFailure("report", { statusCode: status ?? undefined });
+export function reportDownloadError(status: number | null, safeMessage: string | null, code: string | null = null): string {
+  // B5A-F-13 (residual pass) — a reader without the exact-location authority is
+  // refused the report of a located record; the shared vocabulary says why.
+  const r = resolveArtifactDownloadFailure("report", { statusCode: status ?? undefined, code: code ?? undefined });
   return r ? r.message : safeMessage ?? "Could not start download.";
 }
 

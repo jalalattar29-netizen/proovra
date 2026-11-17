@@ -17,6 +17,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const WEB = resolve(REPO_ROOT, "apps/web");
@@ -343,9 +344,14 @@ describe("home verification summary", () => {
     // REVISED: an ANCHORED proof is an attestation RECORDED, not independently
     // checked against the Bitcoin main chain; only CHAIN_VERIFIED may be green.
     expect(HOME).toContain("{ text: recorded, tone: \"neutral\" as const }");
-    expect(HOME).toMatch(/attestations?"\} recorded`/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
+    expect(HOME).toContain('t(trust.otsAnchored === 1 ? "homeTrustAttestationOne" : "homeTrustAttestationOther")');
+    expect(webDictionaryEnValue("home", "homeTrustAttestationOne")).toBe("{count} attestation recorded");
+    expect(webDictionaryEnValue("home", "homeTrustAttestationOther")).toBe("{count} attestations recorded");
     expect(HOME).not.toMatch(/otsAnchored\} anchored`, tone: "ok"/);
-    expect(HOME).toContain('{ text: `${trust.otsPending} pending`, tone: "warn" as const }');
+    expect(HOME).not.toMatch(/\{ text: recorded, tone: "ok"/);
+    expect(HOME).toContain('{ text: fillCopy(t("homeTrustPendingCount"), { count: trust.otsPending }), tone: "warn" as const }');
+    expect(webDictionaryEnValue("home", "homeTrustPendingCount")).toBe("{count} pending");
   });
 
   it("the tone is the existing token, not a new colour", () => {

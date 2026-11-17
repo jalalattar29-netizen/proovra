@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { SEARCH_COPY } from "@proovra/shared/i18n";
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
@@ -35,7 +36,11 @@ test("renderBadgeLabel maps 'in_trash' to the user-facing 'In trash' string", ()
   const src = read(PAGE);
   assert.match(src, /function renderBadgeLabel\(/);
   // The case branch must be present + exact.
-  assert.match(src, /case "in_trash":\s*\n\s*return "In trash";/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts): the badge maps
+  // to its key, and the English is pinned in the dictionary.
+  assert.match(src, /in_trash: "searchBadgeInTrash",/);
+  assert.match(src, /return key \? t\(key\) : badge;/);
+  assert.equal(SEARCH_COPY.en.searchBadgeInTrash, "In trash");
 });
 
 test("Open action routes trash rows to the read-only context (?context=trash)", () => {
@@ -54,16 +59,18 @@ test("Open action label flips to 'Open in trash' for trash rows (every doc type)
   const fnEnd = src.indexOf("\nasync function ", fnIdx + 1);
   const body = src.slice(fnIdx, fnEnd);
   // Pin the literal — used by every documentType branch.
-  assert.match(body, /"Open in trash"/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.equal(SEARCH_COPY.en.searchOpenInTrash, "Open in trash");
   // Make sure every existing non-trash label is still reachable.
-  for (const lbl of [
-    '"Open evidence"',
-    '"Open case"',
-    '"Open report"',
-    '"Open package"',
-    '"Open note"',
-  ]) {
-    assert.ok(body.includes(lbl), `missing fallback label ${lbl}`);
+  for (const [key, english] of [
+    ["searchOpenEvidence", "Open evidence"],
+    ["searchOpenCase", "Open case"],
+    ["searchOpenReport", "Open report"],
+    ["searchOpenPackage", "Open package"],
+    ["searchOpenNote", "Open note"],
+  ] as const) {
+    assert.ok(body.includes(`isInTrash ? t("searchOpenInTrash") : t("${key}")`), `missing fallback label ${key}`);
+    assert.equal(SEARCH_COPY.en[key], english);
   }
 });
 
@@ -72,7 +79,8 @@ test("Result row + Inspector render badges via renderBadgeLabel (no raw enum lea
   // Two render sites: the result list row and the Inspector
   // "Signals" section. Both must call renderBadgeLabel.
   const occurrences = [
-    ...src.matchAll(/\{renderBadgeLabel\(b\)\}/g),
+    // B2A-F-12 — the label is translated: renderBadgeLabel takes the page's `t`.
+    ...src.matchAll(/\{renderBadgeLabel\(b, t\)\}/g),
   ];
   assert.ok(
     occurrences.length >= 2,

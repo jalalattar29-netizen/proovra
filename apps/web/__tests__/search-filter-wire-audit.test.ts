@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
+import { SEARCH_COPY } from "@proovra/shared/i18n";
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
@@ -76,18 +77,20 @@ test("describeFilterEmpty helper exists and ships per-type truthful copy when on
   const src = read(PAGE);
   assert.match(
     src,
-    /function describeFilterEmpty\(\s*filter: FilterState \| null,\s*health: SearchDiagnostics \| null,\s*\)/,
+    // B2A-F-12 — the helper now takes the page's `t` (copy moved to the web dictionary, i18n-search.ts).
+    /function describeFilterEmpty\(\s*filter: FilterState \| null,\s*health: SearchDiagnostics \| null,\s*t: \(key: TranslationKey\) => string,\s*\)/,
   );
   // Pin the contradiction-aware headline shape — when the selected
   // types matched 0 but other types matched, the message names
   // both sides.
-  assert.match(src, /No \$\{selectedLabels\} records match/);
-  assert.match(
-    src,
-    /\$\{otherLabels\} records DID match your search/,
-  );
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.ok(src.includes('headline: fillCopy(t("searchTypeEmptyHeadline"), { types: selectedLabels })'));
+  assert.ok(src.includes('detail: fillCopy(t("searchTypeEmptyDetail"), { types: otherLabels })'));
+  assert.equal(SEARCH_COPY.en.searchTypeEmptyHeadline, "No {types} records match");
+  assert.match(SEARCH_COPY.en.searchTypeEmptyDetail, /^\{types\} records DID match your search/);
   // And the generic fallback survives.
-  assert.match(src, /No matches with the current filters/);
+  assert.ok(src.includes('headline: t("searchFilterEmptyHeadline")'));
+  assert.equal(SEARCH_COPY.en.searchFilterEmptyHeadline, "No matches with the current filters");
 });
 
 test("describeFilterEmpty ONLY specialises when documentTypes is the SOLE narrowing dimension", () => {
@@ -146,7 +149,8 @@ test("no-match-filtered empty-state branch consumes describeFilterEmpty output",
   );
   assert.ok(branchIdx > 0, "no-match-filtered branch missing");
   const before = src.slice(Math.max(0, branchIdx - 1500), branchIdx);
-  assert.match(before, /describeFilterEmpty\(filter, searchHealth\)/);
+  // B2A-F-12 — the helper also receives the page's `t`.
+  assert.match(before, /describeFilterEmpty\(filter, searchHealth, t\)/);
   // The render uses both halves of the returned shape.
   const after = enclosingSource(
     src,
@@ -203,7 +207,10 @@ test("Per-type empty-state hint uses friendly DOCUMENT_TYPE_LABEL for both selec
   // Labels must come from DOCUMENT_TYPE_LABEL, not raw enum
   // values — so the user sees "Evidence" not "EVIDENCE" in the
   // empty-state copy.
-  assert.match(body, /DOCUMENT_TYPE_LABEL\[t\]/);
+  // B2A-F-12 — both sides go through documentTypeLabel(t, …), which reads DOCUMENT_TYPE_LABEL.
+  assert.match(body, /selectedTypes\s*\.map\(\(dt\) => documentTypeLabel\(t, dt\)\)/);
+  assert.match(body, /matchedOtherTypes\s*\.map\(\(dt\) => documentTypeLabel\(t, dt\)\)/);
+  assert.match(functionSource(src, "documentTypeLabel", "page.tsx"), /DOCUMENT_TYPE_LABEL\[type as DocumentType\]/);
 });
 
 // ============================================================================

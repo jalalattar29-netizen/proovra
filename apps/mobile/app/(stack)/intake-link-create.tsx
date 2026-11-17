@@ -51,6 +51,7 @@ import {
   intakeUrlFor,
   modeEligible,
   parseCreatedIntakeLink,
+  createdReplayNotice,
   parsePurposes,
   parseSenderIdentity,
   suggestedKindsNote,
@@ -188,6 +189,13 @@ export default function NewIntakeLinkScreen() {
         method: "POST",
         body: JSON.stringify(buildCreateBody(state, { teamId, origin, idempotencyKey: idempotencyKey.current })),
       });
+      // B3B-F-102 — a retry of a create that already happened: the original
+      // link exists, but its one-time secure link is not shown again.
+      const replay = createdReplayNotice(res);
+      if (replay) {
+        setSubmitError(replay);
+        return;
+      }
       const parsed = parseCreatedIntakeLink(res);
       if (!parsed) throw new Error("Couldn't create the intake link.");
       setCreated(parsed);

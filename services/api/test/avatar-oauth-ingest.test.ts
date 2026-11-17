@@ -63,7 +63,8 @@ describe("avatar persistence — upsertUserWithEmailLink", () => {
     // The create data object must contain a line that persists the
     // provider-supplied avatar (defaulting to null if none).
     expect(AUTH_SERVICE_SRC).toMatch(
-      /prisma\.user\.create\(\{[\s\S]{0,600}avatarUrl:\s*profile\.avatarUrl\s*\?\?\s*null/,
+      // B1-F-004 — the first-sign-in create runs in a transaction (tx).
+      /(?:prisma|tx)\.user\.create\(\{[\s\S]{0,600}avatarUrl:\s*profile\.avatarUrl\s*\?\?\s*null/,
     );
   });
 

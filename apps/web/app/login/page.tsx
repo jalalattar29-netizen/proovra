@@ -483,7 +483,9 @@ function LoginPageContent() {
         provider === "guest" || provider === "email"
           ? ""
           : provider.charAt(0).toUpperCase() + provider.slice(1);
-      const displayMsg = providerLabel
+      // B1-F-004 — "sign in to your existing account" is guidance, not a
+      // provider failure: shown in its own words, without the prefix.
+      const displayMsg = providerLabel && errCode !== "EXISTING_ACCOUNT_SIGN_IN_REQUIRED"
         ? fillCopy(t("loginProviderFailed"), { provider: providerLabel, message: msg })
         : msg;
 

@@ -21,6 +21,9 @@ import {
   type LucideProps,
 } from "lucide-react";
 import type { ForwardRefExoticComponent, RefAttributes } from "react";
+import { fillCopy } from "@proovra/shared/i18n";
+
+import { useT, type TranslationKey } from "../../app/providers";
 
 import { LanguageSwitcher } from "../language-switcher";
 import { NotificationBell } from "./NotificationBell";
@@ -66,8 +69,28 @@ function AccountMenuIcon({ iconKey }: { iconKey: AccountMenuIconKey }) {
   return <Icon size={16} strokeWidth={1.9} />;
 }
 
+/**
+ * B2A-F-12 — the toolbar in the reader's language. Menu labels come from the
+ * canonical resolver (lib/navigation/accountMenu) as English data; they are
+ * translated here by item id and keep their English source otherwise.
+ */
+type ToolbarT = (key: TranslationKey) => string;
+
+const MENU_ITEM_KEY: Record<string, TranslationKey> = {
+  "account.settings": "shellMenuSettings",
+  "account.billing": "shellMenuBilling",
+  "account.organizations": "shellMenuOrganizations",
+  "account.help": "shellMenuHelp",
+};
+
+function menuItemLabel(t: ToolbarT, item: { id: string; label: string }): string {
+  const key = MENU_ITEM_KEY[item.id];
+  return (key && t(key)) || item.label;
+}
+
 function getUserDisplayName(
   envelope: ReturnType<typeof usePlatformContext>["envelope"],
+  fallback = "Account",
 ) {
   const user = envelope?.user;
   const fullName = [user?.firstName, user?.lastName]
@@ -75,7 +98,7 @@ function getUserDisplayName(
     .join(" ")
     .trim();
 
-  return fullName || user?.displayName || user?.email || "Account";
+  return fullName || user?.displayName || user?.email || fallback;
 }
 
 function getInitials(
@@ -95,17 +118,18 @@ function getInitials(
 function getWorkspaceLabels(
   envelope: ReturnType<typeof usePlatformContext>["envelope"],
   state: ReturnType<typeof usePlatformContext>["state"],
+  t: ToolbarT,
 ): { name: string; scopeLine: string } {
   if (!envelope) {
     if (state.name === "LOADING_CONTEXT") {
-      return { name: "Loading workspace…", scopeLine: "Resolving" };
+      return { name: t("shellLoadingWorkspace"), scopeLine: t("shellResolving") };
     }
 
     if (state.name === "FAILED") {
-      return { name: "Workspace unavailable", scopeLine: "Tap to retry" };
+      return { name: t("shellWorkspaceUnavailable"), scopeLine: t("shellTapToRetry") };
     }
 
-    return { name: "Workspace", scopeLine: "Loading" };
+    return { name: t("shellWorkspace"), scopeLine: t("shellLoading") };
   }
 
   const active = envelope.activeSpace;
@@ -118,22 +142,22 @@ function getWorkspaceLabels(
         return {
           name: active.displayName,
           scopeLine: active.roleLabel
-            ? `Shared with you • ${active.roleLabel}`
-            : "Shared with you",
+            ? fillCopy(t("shellSharedWithYouRole"), { role: active.roleLabel })
+            : t("shellSharedWithYou"),
         };
       }
-      return { name: "Personal Space", scopeLine: "Personal • Owner" };
+      return { name: t("shellPersonalSpace"), scopeLine: t("shellPersonalOwner") };
     }
 
     return {
-      name: active.displayName ?? "Organization workspace",
+      name: active.displayName ?? t("shellOrganizationWorkspace"),
       scopeLine: active.roleLabel
-        ? `Organization • ${active.roleLabel}`
-        : "Organization • Role unavailable",
+        ? fillCopy(t("shellOrganizationRole"), { role: active.roleLabel })
+        : t("shellOrganizationRoleUnavailable"),
     };
   }
 
-  return { name: "Personal Space", scopeLine: "Personal • Owner" };
+  return { name: t("shellPersonalSpace"), scopeLine: t("shellPersonalOwner") };
 }
 
 // Dispatches Cmd+K (or Ctrl+K on non-mac) so the CommandPalette listener
@@ -166,6 +190,8 @@ export function AppAccountToolbar({
   const router = useRouter();
   const ctx = usePlatformContext();
   const { envelope, state, switchWorkspace } = ctx;
+  const t = useT();
+  const displayName = getUserDisplayName(envelope, t("shellAccount"));
 
   const [accountOpen, setAccountOpen] = useState(false);
   // P4 — the persistent context chip's switcher panel.
@@ -245,6 +271,7 @@ export function AppAccountToolbar({
   const { name: workspaceName, scopeLine } = getWorkspaceLabels(
     envelope,
     state,
+    t,
   );
   const activeSpace = envelope?.activeSpace ?? null;
 
@@ -373,7 +400,7 @@ export function AppAccountToolbar({
             type="button"
             className="app-account-toolbar-mobile-menu"
             onClick={onToggleMobileSidebar}
-            aria-label={mobileSidebarOpen ? "Close navigation" : "Open navigation"}
+            aria-label={mobileSidebarOpen ? t("shellCloseNavigation") : t("shellOpenNavigation")}
             /* The STATE, exposed. The label changed between "Open" and
                "Close" and nothing announced the panel as expanded, so a
                screen-reader user could not tell whether pressing it would
@@ -396,12 +423,12 @@ export function AppAccountToolbar({
             className="app-header-search"
             onClick={handleSearchClick}
             // B2A-F-19 — the palette lists pages, not records: the label says so.
-            aria-label="Open command palette (jump to a page)"
+            aria-label={t("shellOpenCommandPalette")}
             data-app-header-search
           >
             <Search size={16} strokeWidth={1.9} />
             <span className="app-header-search-text">
-              Jump to a page…
+              {t("shellJumpToPage")}
             </span>
             <kbd className="app-header-search-kbd" aria-hidden="true">
               {isMac ? "⌘" : "Ctrl"}
@@ -420,7 +447,7 @@ export function AppAccountToolbar({
               data-app-header-primary-action
             >
               <Plus size={16} strokeWidth={2} />
-              <span>New Case</span>
+              <span>{t("shellNewCase")}</span>
             </Link>
           )}
 
@@ -434,7 +461,7 @@ export function AppAccountToolbar({
             <div
               className="app-topbar-v2-runtime"
               data-app-topbar-runtime
-              aria-label="System status"
+              aria-label={t("shellSystemStatus")}
             >
               <GlobalRuntimeIndicator teamId={runtimeTeamId} />
             </div>
@@ -442,7 +469,7 @@ export function AppAccountToolbar({
 
           <NotificationBell />
 
-          <div className="app-topbar-v2-language" aria-label="Language">
+          <div className="app-topbar-v2-language" aria-label={t("shellLanguage")}>
             <LanguageSwitcher />
           </div>
 
@@ -475,7 +502,7 @@ export function AppAccountToolbar({
               onKeyUp={switcherKeys.onTriggerKeyUp}
               aria-haspopup="menu"
               aria-expanded={switcherOpen}
-              aria-label={`Active workspace: ${workspaceName}. Open workspace switcher.`}
+              aria-label={fillCopy(t("shellActiveWorkspaceAria"), { name: workspaceName })}
             >
               <span className="app-topbar-v2-workspace-icon" aria-hidden="true">
                 {activeSpace?.type === "PERSONAL" && activeSpace.shared ? (
@@ -500,16 +527,16 @@ export function AppAccountToolbar({
                 ref={switcherKeys.menuRef}
                 className="app-topbar-v2-workspace-menu"
                 role="menu"
-                aria-label="Switch workspace"
+                aria-label={t("shellSwitchWorkspace")}
                 onKeyDown={switcherKeys.onMenuKeyDown}
                 data-app-context-switcher
               >
                 <div className="app-topbar-v2-workspace-menu-header">
-                  <strong>Switch workspace</strong>
+                  <strong>{t("shellSwitchWorkspace")}</strong>
                   <span data-context-switcher-count>
                     {menu.workspaces.total <= 1
-                      ? "Only Personal Space"
-                      : `${menu.workspaces.total} workspaces`}
+                      ? t("shellOnlyPersonalSpace")
+                      : fillCopy(t("shellWorkspaceCount"), { count: menu.workspaces.total })}
                   </span>
                 </div>
 
@@ -520,10 +547,10 @@ export function AppAccountToolbar({
                   <div
                     className="app-topbar-v2-workspace-menu-degraded"
                     role="alertdialog"
-                    aria-label="Unsaved work warning"
+                    aria-label={t("shellUnsavedWorkWarning")}
                     data-context-switch-confirm
                   >
-                    <strong>Unsaved work in {workspaceName}</strong>
+                    <strong>{fillCopy(t("shellUnsavedWorkIn"), { name: workspaceName })}</strong>
                     {pendingSwitch.dirtyLabels.map((label) => (
                       <div key={label}>• {label}</div>
                     ))}
@@ -533,14 +560,14 @@ export function AppAccountToolbar({
                         onClick={() => performSwitch(pendingSwitch.workspaceId)}
                         data-context-switch-confirm-proceed
                       >
-                        Switch anyway
+                        {t("shellSwitchAnyway")}
                       </button>
                       <button
                         type="button"
                         onClick={() => setPendingSwitch(null)}
                         data-context-switch-confirm-cancel
                       >
-                        Stay here
+                        {t("shellStayHere")}
                       </button>
                     </div>
                   </div>
@@ -559,7 +586,7 @@ export function AppAccountToolbar({
                     data-context-group="EMPTY"
                     role="status"
                   >
-                    No workspaces are available for this account yet.
+                    {t("shellNoWorkspaces")}
                   </div>
                 ) : null}
 
@@ -569,12 +596,14 @@ export function AppAccountToolbar({
                     data-context-group="PERSONAL"
                   >
                     <div className="app-topbar-v2-workspace-menu-group-label">
-                      Personal
+                      {t("shellPersonal")}
                     </div>
                     <SwitcherOption
                       option={menu.workspaces.personal}
+                      // The resolver's fixed English name for the personal space.
+                      label={t("shellPersonalSpace")}
                       icon={<UserCircle size={14} strokeWidth={1.9} />}
-                      chip="Personal"
+                      chip={t("shellPersonal")}
                       onSelect={handleSwitchWorkspace}
                     />
                   </div>
@@ -586,14 +615,14 @@ export function AppAccountToolbar({
                     data-context-group="OWNED"
                   >
                     <div className="app-topbar-v2-workspace-menu-group-label">
-                      Your workspaces
+                      {t("shellYourWorkspaces")}
                     </div>
                     {menu.workspaces.owned.map((w) => (
                       <SwitcherOption
                         key={w.id}
                         option={w}
                         icon={<Users size={14} strokeWidth={1.9} />}
-                        chip="Workspace"
+                        chip={t("shellWorkspace")}
                         onSelect={handleSwitchWorkspace}
                       />
                     ))}
@@ -608,14 +637,14 @@ export function AppAccountToolbar({
                     data-context-group="SHARED"
                   >
                     <div className="app-topbar-v2-workspace-menu-group-label">
-                      Shared with you
+                      {t("shellSharedWithYou")}
                     </div>
                     {menu.workspaces.shared.map((w) => (
                       <SwitcherOption
                         key={w.id}
                         option={w}
                         icon={<Users size={14} strokeWidth={1.9} />}
-                        chip={w.roleLabel ? formatRoleChip(w.roleLabel) : "Shared"}
+                        chip={w.roleLabel ? formatRoleChip(w.roleLabel) : t("shellShared")}
                         onSelect={handleSwitchWorkspace}
                       />
                     ))}
@@ -630,14 +659,14 @@ export function AppAccountToolbar({
                     data-context-organization={group.organizationId}
                   >
                     <div className="app-topbar-v2-workspace-menu-group-label">
-                      {group.organizationName ?? "Organizations"}
+                      {group.organizationName ?? t("shellOrganizations")}
                     </div>
                     {group.workspaces.map((w) => (
                       <SwitcherOption
                         key={w.id}
                         option={w}
                         icon={<Building2 size={14} strokeWidth={1.9} />}
-                        chip="Organization"
+                        chip={t("shellOrganization")}
                         onSelect={handleSwitchWorkspace}
                       />
                     ))}
@@ -671,7 +700,7 @@ export function AppAccountToolbar({
               !brokenAvatarUrls.has(envelope.user.avatarUrl) ? (
                 <img
                   src={envelope.user.avatarUrl}
-                  alt={`${getUserDisplayName(envelope)} avatar`}
+                  alt={fillCopy(t("shellAvatarAlt"), { name: displayName })}
                   className="app-topbar-v2-avatar"
                   referrerPolicy="no-referrer"
                   onError={() => {
@@ -688,22 +717,22 @@ export function AppAccountToolbar({
               ) : (
                 <div
                   className="app-topbar-v2-avatar-fallback"
-                  aria-label={`${getUserDisplayName(envelope)} avatar (initials fallback)`}
+                  aria-label={fillCopy(t("shellAvatarInitialsAria"), { name: displayName })}
                 >
                   {getInitials(envelope)}
                 </div>
               )}
 
               <div className="app-topbar-v2-user-copy">
-                <strong>{getUserDisplayName(envelope)}</strong>
+                <strong>{displayName}</strong>
                 <span>
                   {isPlatformAdmin ? (
                     <>
                       <ShieldCheck size={12} strokeWidth={2} />
-                      Platform admin
+                      {t("shellPlatformAdmin")}
                     </>
                   ) : (
-                    "Account"
+                    t("shellAccount")
                   )}
                 </span>
               </div>
@@ -716,15 +745,15 @@ export function AppAccountToolbar({
                 ref={accountKeys.menuRef}
                 className="app-topbar-v2-account-menu"
                 role="menu"
-                aria-label="Account"
+                aria-label={t("shellAccount")}
                 onKeyDown={accountKeys.onMenuKeyDown}
                 data-app-topbar-account-menu
                 data-platform-state={state.name}
               >
                 {/* Header — identity + active-workspace badge. */}
                 <div className="app-topbar-v2-account-menu-header">
-                  <strong>{getUserDisplayName(envelope)}</strong>
-                  <span>{envelope?.user.email ?? "Signed in account"}</span>
+                  <strong>{displayName}</strong>
+                  <span>{envelope?.user.email ?? t("shellSignedInAccount")}</span>
                   {activeSpace ? (
                     <span
                       data-account-menu-header-workspace
@@ -757,7 +786,7 @@ export function AppAccountToolbar({
                         data-account-menu-item={item.id}
                       >
                         <AccountMenuIcon iconKey={item.iconKey} />
-                        {item.label}
+                        {menuItemLabel(t, item)}
                       </Link>
                     ))}
                   </div>
@@ -778,7 +807,7 @@ export function AppAccountToolbar({
                       data-account-menu-item="switch-workspace"
                     >
                       <Users size={16} strokeWidth={1.9} />
-                      Switch workspace
+                      {t("shellSwitchWorkspace")}
                     </button>
                   </div>
                 ) : null}
@@ -798,7 +827,7 @@ export function AppAccountToolbar({
                         data-account-menu-item={item.id}
                       >
                         <AccountMenuIcon iconKey={item.iconKey} />
-                        {item.label}
+                        {menuItemLabel(t, item)}
                       </Link>
                     ))}
                   </div>
@@ -820,12 +849,12 @@ export function AppAccountToolbar({
                       data-account-menu-item={item.id}
                       aria-label={
                         item.external
-                          ? `${item.label} — opens in a new tab`
+                          ? fillCopy(t("shellOpensInNewTab"), { label: menuItemLabel(t, item) })
                           : undefined
                       }
                     >
                       <AccountMenuIcon iconKey={item.iconKey} />
-                      {item.label}
+                      {menuItemLabel(t, item)}
                       {item.external ? (
                         <span aria-hidden="true" style={{ marginInlineStart: "auto" }}>
                           ↗
@@ -848,7 +877,7 @@ export function AppAccountToolbar({
                     data-account-menu-item="signout"
                   >
                     <LogOut size={16} strokeWidth={1.9} />
-                    Sign out
+                    {t("shellSignOut")}
                   </button>
                 </div>
               </div>
@@ -875,11 +904,14 @@ function SwitcherOption({
   option,
   icon,
   chip,
+  label,
   onSelect,
 }: {
   option: AccountMenuWorkspaceOption;
   icon: React.ReactNode;
   chip: string;
+  /** B2A-F-12 — a translated name for a resolver-fixed label (Personal Space). */
+  label?: string;
   onSelect: (workspaceId: string) => void;
 }) {
   return (
@@ -897,7 +929,7 @@ function SwitcherOption({
       aria-current={option.active ? "true" : undefined}
     >
       {icon}
-      <span style={{ flex: 1 }}>{option.label}</span>
+      <span style={{ flex: 1 }}>{label ?? option.label}</span>
       <small data-workspace-scope-chip={option.kind}>{chip}</small>
     </button>
   );

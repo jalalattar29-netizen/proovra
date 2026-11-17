@@ -118,10 +118,13 @@ export type IntakeLinkRow = {
 /** `POST /v1/workflow/intake-links` response. */
 export type CreatedIntakeLink = {
   link: IntakeLinkRow;
-  rawToken: string;
+  /** Null only on a replay (B3B-F-102): the token is shown exactly once. */
+  rawToken: string | null;
+  /** True when the server answered an earlier create with the same key. */
+  replayed?: boolean;
   delivery: {
     method: "MANUAL" | "EMAIL" | "SMS" | "WHATSAPP";
-    status: "sent" | "failed" | "skipped";
+    status: "sent" | "failed" | "skipped" | "unconfirmed";
     communicationMessageId?: string | null;
     reason?: string | null;
   };

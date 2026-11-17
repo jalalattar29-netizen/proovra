@@ -79,6 +79,20 @@ export function useOptionalLocale(): Locale {
   return useContext(LocaleContext)?.locale ?? "en";
 }
 
+/** A key of the web dictionary (`@proovra/shared/i18n` `dict`). */
+export type TranslationKey = keyof (typeof translations)["en"];
+
+const englishT = (key: TranslationKey): string => translations.en[key];
+
+/**
+ * B2A-F-12 — `t()` for surfaces that may render without the provider (an
+ * isolated render, a test): English there, the active locale everywhere else.
+ * A key missing from a locale falls back to English, as `useLocale().t` does.
+ */
+export function useT(): (key: TranslationKey) => string {
+  return useContext(LocaleContext)?.t ?? englishT;
+}
+
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("AuthContext missing");

@@ -19,6 +19,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 function readWeb(rel: string): string {
   return readFileSync(
@@ -46,8 +47,11 @@ describe("Phase 32.8C FINAL-4 — topbar workspace cluster", () => {
   it("account-menu workspace badge uses bounded labels (Personal Space / Organization workspace)", () => {
     // ENTERPRISE TENANT MODEL — fallback labels come from
     // `getWorkspaceLabels` which uses the canonical activeSpace section.
-    expect(TOPBAR).toMatch(/Personal Space/);
-    expect(TOPBAR).toMatch(/Organization workspace/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts).
+    expect(TOPBAR).toMatch(/t\("shellPersonalSpace"\)/);
+    expect(TOPBAR).toMatch(/t\("shellOrganizationWorkspace"\)/);
+    expect(webDictionaryEnValue("app-shell", "shellPersonalSpace")).toBe("Personal Space");
+    expect(webDictionaryEnValue("app-shell", "shellOrganizationWorkspace")).toBe("Organization workspace");
     // The active-workspace badge replaces the retired data-workspace-name chip.
     expect(TOPBAR).toMatch(/data-account-menu-header-workspace/);
   });
@@ -79,8 +83,11 @@ describe("Phase 32.8C FINAL-4 — workspace menu count text", () => {
     // again ("Only Personal Space" / "N workspaces"); the account menu
     // carries no count strip at all.
     expect(TOPBAR).toMatch(/data-context-switcher-count/); // (P3/P4 domain remediation 2026-07-21)
-    expect(TOPBAR).toMatch(/"Only Personal Space"/); // (P3/P4 domain remediation 2026-07-21)
-    expect(TOPBAR).toMatch(/\$\{menu\.workspaces\.total\} workspaces`/); // (P3/P4 domain remediation 2026-07-21)
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts).
+    expect(TOPBAR).toMatch(/t\("shellOnlyPersonalSpace"\)/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/fillCopy\(t\("shellWorkspaceCount"\), \{ count: menu\.workspaces\.total \}\)/); // (P3/P4 domain remediation 2026-07-21)
+    expect(webDictionaryEnValue("app-shell", "shellOnlyPersonalSpace")).toBe("Only Personal Space");
+    expect(webDictionaryEnValue("app-shell", "shellWorkspaceCount")).toBe("{count} workspaces");
     const acctIdx = TOPBAR.indexOf("data-app-topbar-account-menu");
     expect(acctIdx).toBeGreaterThan(-1);
     expect(TOPBAR.slice(acctIdx)).not.toMatch(/data-context-switcher-count/); // (P3/P4 domain remediation 2026-07-21)
@@ -117,12 +124,18 @@ describe("Phase 32.8C FINAL-4 — grouped workspace switcher", () => {
     // The panel header reads "Switch workspace"; the OWNED group is
     // labelled "Your workspaces"; each option carries a scope chip keyed by
     // its canonical kind with bounded chip copy.
-    expect(TOPBAR).toMatch(/>Switch workspace</); // (P3/P4 domain remediation 2026-07-21)
-    expect(TOPBAR).toMatch(/>\s*Your workspaces\s*</); // (P3/P4 domain remediation 2026-07-21)
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts).
+    expect(TOPBAR).toMatch(/<strong>\{t\("shellSwitchWorkspace"\)\}<\/strong>/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/>\s*\{t\("shellYourWorkspaces"\)\}\s*</); // (P3/P4 domain remediation 2026-07-21)
     expect(TOPBAR).toMatch(/data-workspace-scope-chip=\{option\.kind\}/); // (P3/P4 domain remediation 2026-07-21)
-    expect(TOPBAR).toMatch(/chip="Personal"/); // (P3/P4 domain remediation 2026-07-21)
-    expect(TOPBAR).toMatch(/chip="Workspace"/); // (P3/P4 domain remediation 2026-07-21)
-    expect(TOPBAR).toMatch(/chip="Organization"/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/chip=\{t\("shellPersonal"\)\}/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/chip=\{t\("shellWorkspace"\)\}/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR).toMatch(/chip=\{t\("shellOrganization"\)\}/); // (P3/P4 domain remediation 2026-07-21)
+    expect(webDictionaryEnValue("app-shell", "shellSwitchWorkspace")).toBe("Switch workspace");
+    expect(webDictionaryEnValue("app-shell", "shellYourWorkspaces")).toBe("Your workspaces");
+    expect(webDictionaryEnValue("app-shell", "shellPersonal")).toBe("Personal");
+    expect(webDictionaryEnValue("app-shell", "shellWorkspace")).toBe("Workspace");
+    expect(webDictionaryEnValue("app-shell", "shellOrganization")).toBe("Organization");
   });
 
   it("active workspace is visually marked (is-active + aria-current)", () => {
@@ -309,7 +322,9 @@ describe("Phase 32.8C FINAL-4 — no raw UUID in shell rendering paths", () => {
   it("type allows nullable workspace name (so we can fall back to a scope label, not an id)", () => {
     // The live toolbar falls back from activeSpace.displayName to the
     // bounded "Organization workspace" scope label — never the raw id.
-    expect(TOPBAR).toMatch(/displayName \?\?[\s\S]{0,80}Organization workspace/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts).
+    expect(TOPBAR).toMatch(/displayName \?\?[\s\S]{0,80}t\("shellOrganizationWorkspace"\)/);
+    expect(webDictionaryEnValue("app-shell", "shellOrganizationWorkspace")).toBe("Organization workspace");
   });
 });
 

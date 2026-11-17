@@ -149,8 +149,11 @@ export default function AuthScreen() {
     }
   }, [email, password, acceptLegal, completeLogin, verify]);
 
+  // B1-F-004 — "sign in to your existing account" is guidance, not a provider
+  // failure: shown in the shared words, without the "failed" prefix.
+  const oauthGuidance = oauth.error?.code === "EXISTING_ACCOUNT_SIGN_IN_REQUIRED";
   const oauthError = oauth.error
-    ? `${lastProvider ? `${PROVIDER_LABEL[lastProvider]} sign-in failed: ` : ""}${oauth.error.message}`
+    ? `${lastProvider && !oauthGuidance ? `${PROVIDER_LABEL[lastProvider]} sign-in failed: ` : ""}${oauth.error.message}`
     : null;
   const shownError = error ?? oauthError;
 
@@ -282,7 +285,7 @@ export default function AuthScreen() {
         ) : null}
         {oauthError && !error ? (
           <ProovraText variant="body" weight="semibold" color={theme.color.status.risk.fg} style={styles.failedHead}>
-            Sign-in failed
+            {oauthGuidance && oauth.error ? oauth.error.title : "Sign-in failed"}
           </ProovraText>
         ) : null}
         {shownError ? <AuthNote tone="error" testID="auth-error">{shownError}</AuthNote> : null}

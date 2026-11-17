@@ -158,23 +158,27 @@ test("/inbox is a CORE operational surface for every plan", () => {
 // 2. Intake follows the entitlement, with a fail-closed fallback.
 // ---------------------------------------------------------------------------
 
-test("/intake-links follows planFeatures.intakeIncluded (contract, not plan literals)", () => {
-  assert.equal(canAccessSurface(ctxFor("FREE"), "/intake-links"), false);
+test("/intake-links loads on every plan; FREE gets manage-only (B3B-F-104), navigation follows intakeIncluded", () => {
+  // B3B-F-104 (owner directive) — the direct URL loads for a plan without
+  // intake so standing links stay reachable and revocable; the page withholds
+  // creation and the route registry's navPlanFeature hides the entry.
+  assert.equal(canAccessSurface(ctxFor("FREE"), "/intake-links"), true);
   assert.equal(canAccessSurface(ctxFor("PAYG"), "/intake-links"), true, "PAYG includes intake per the catalog");
   assert.equal(canAccessSurface(ctxFor("PRO"), "/intake-links"), true);
   assert.equal(canAccessSurface(ctxFor("TEAM"), "/intake-links"), true);
   assert.equal(canAccessSurface(ctxFor("ENTERPRISE"), "/intake-links"), true);
 });
 
-test("unknown entitlement fails CLOSED to the tier fallback", () => {
-  // Envelope still loading — PAYG without a known entitlement falls back
-  // to the PROFESSIONAL tier (hidden), never open-by-default.
+test("unknown entitlement: the /intake-links URL still loads (CORE); creation stays fail-closed in the page", () => {
+  // B3B-F-104 — the surface tier no longer decides the commercial question
+  // for this path: the page itself withholds creation until
+  // planFeatures.intakeIncluded is KNOWN true (usePlanFeatureGate).
   const loading: SurfaceUserContext = {
     isPlatformAdmin: false,
     isEnterpriseWorkspace: false,
     planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: false },
   };
-  assert.equal(canAccessSurface(loading, "/intake-links"), false);
+  assert.equal(canAccessSurface(loading, "/intake-links"), true);
   // PRO stays visible through the tier fallback even while loading.
   assert.equal(
     canAccessSurface({ ...loading, planFeatures: { intakeIncluded: null, professionalSurfacesIncluded: true } }, "/intake-links"),

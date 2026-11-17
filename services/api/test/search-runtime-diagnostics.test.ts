@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
@@ -176,7 +177,9 @@ describe("Search-runtime-diagnostics — frontend empty-state branches", () => {
     );
     // …and the header does not report a count for a request that never
     // answered, which would read as a legitimate "0 results".
-    expect(src).toMatch(/searchFailure\s*\n?\s*\?\s*"No results to show"/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-search.ts).
+    expect(src).toMatch(/searchFailure\s*\n?\s*\?\s*t\("searchNoResultsToShow"\)/);
+    expect(webDictionaryEnValue("search", "searchNoResultsToShow")).toBe("No results to show");
     // No raw passthrough survives, in the old shape or any new one.
     expect(src).not.toMatch(/setError\(err\?\.message/);
     expect(src).not.toMatch(/setSearchFailure\([^)]*\berr\.message/);
@@ -192,8 +195,11 @@ describe("Search-runtime-diagnostics — frontend empty-state branches", () => {
     // ACTIONS. They report where they happened and never become a search
     // state — but their copy must still come from toSafeUserError, which is
     // the only sanctioned error-display path in this app.
+    // B2A-F-12 — copy moved to the web dictionary (i18n-search.ts): the
+    // load-more fallback is a dictionary key, still through toSafeUserError.
+    expect(src).toContain('toSafeUserError(err, { message: t("searchLoadMoreFailed") })');
+    expect(webDictionaryEnValue("search", "searchLoadMoreFailed")).toBe("Could not load more results.");
     for (const fallback of [
-      "Could not load more results.",
       "Could not save view.",
       "Could not delete view.",
       "Could not rename view.",
@@ -204,7 +210,9 @@ describe("Search-runtime-diagnostics — frontend empty-state branches", () => {
     // an operator action and reports through the same sanctioned path.
     const actionSites = [...src.matchAll(/setActionError\(/g)];
     expect(actionSites.length).toBe(5);
-    expect(src).toContain("Could not start the index rebuild.");
+    // B2A-F-12 — copy moved to the web dictionary (i18n-search.ts).
+    expect(src).toMatch(/toSafeUserError\(err, \{\s*message: t\("searchRebuildFailed"\),/);
+    expect(webDictionaryEnValue("search", "searchRebuildFailed")).toBe("Could not start the index rebuild.");
     // Every one of them wraps the error rather than reading `.message` off it.
     expect(src).not.toMatch(/setActionError\(\s*err[.?]/);
   });

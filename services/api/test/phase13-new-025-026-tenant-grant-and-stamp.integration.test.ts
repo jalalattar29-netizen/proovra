@@ -48,6 +48,14 @@ describe("NEW-025 / NEW-026 — tenant grants and tenant stamps", () => {
     h = await bootIntegrationHarness();
     prisma = (await import("../src/db.js")).prisma as unknown as
       import("@prisma/client").PrismaClient;
+    // B3C-F-007 — granting case access answers to the CURRENT Cases
+    // entitlement; this suite proves the grant-target rules on a workspace that
+    // includes Cases (the plan gate has its own proof in
+    // free-audit-0ea0-lane-b.integration).
+    await prisma.team.update({
+      where: { id: h.fixtures.teamA.teamId },
+      data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never,
+    });
   }, 900_000);
 
   afterAll(async () => {

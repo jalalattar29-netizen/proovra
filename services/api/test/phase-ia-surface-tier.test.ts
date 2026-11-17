@@ -190,7 +190,9 @@ describe("Phase IA-surface-tier-pricing — plan/entitlement gated surfaces", ()
   //     entitlement value.
   //   * /inbox is CORE — the Operations Center is an operational surface
   //     for every plan (categories inside are eligibility-governed).
-  const PRO_TEAM_PATHS = ["/teams", "/intake-links"];
+  // B3B-F-104 — /intake-links now loads on every plan (manage-only without
+  // intake; see the ENTITLEMENT case below), so only /teams is PRO/TEAM here.
+  const PRO_TEAM_PATHS = ["/teams"];
 
   for (const path of PRO_TEAM_PATHS) {
     it(`PROFESSIONAL: ${path} is visible to PRO user`, () => {
@@ -222,13 +224,16 @@ describe("Phase IA-surface-tier-pricing — plan/entitlement gated surfaces", ()
         "/intake-links",
       ),
     ).toBe(true);
-    // …and the entitlement can also close it regardless of tier.
+    // B3B-F-104 — without the entitlement the URL still loads (manage-only):
+    // the page withholds creation and the registry hides the entry.
     expect(
       canAccessSurface(
         { ...PRO_INDIVIDUAL, planFeatures: { intakeIncluded: false, professionalSurfacesIncluded: true } },
         "/intake-links",
       ),
-    ).toBe(false);
+    ).toBe(true);
+    expect(getSurfaceTier("/intake-links")).toBe("CORE");
+    expect(getDirectAccessDecision(PERSONAL_FREE_USER, "/intake-links").kind).toBe("allow");
   });
 });
 

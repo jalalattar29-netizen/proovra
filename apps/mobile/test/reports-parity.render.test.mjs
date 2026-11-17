@@ -264,3 +264,16 @@ test("B5B-F-102 — a VIEWER's refused full package names the original-access re
   assert.equal(r.texts().some((t) => /workspace governance, a hold, or export eligibility/.test(t)), false);
   r.unmount();
 });
+
+test("B5A-F-13 (residual pass) — a reader refused a located record's report is told why and pointed at the external package", async () => {
+  routes["/v1/evidence/e1/report/latest"] = () => ({
+    __status: 403,
+    error: { code: "REPORT_REQUIRES_LOCATION_ACCESS", message: "This report shows the exact capture location." },
+  });
+  const r = await render();
+  await r.press("Download Report PDF: Roof photo");
+  await settle();
+  assert.ok(r.texts().some((t) => /exact capture location/.test(t) && /external disclosure package/.test(t)), r.texts().join(" | "));
+  assert.equal(r.texts().some((t) => /workspace governance, a hold, or export eligibility/.test(t)), false);
+  r.unmount();
+});

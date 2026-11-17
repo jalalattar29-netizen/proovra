@@ -18,7 +18,8 @@
  *   6. GET /v1/me/inbox                             — submission review
  *        items (filtered to intake categories by the normalizer).
  *   7. GET /v1/communications/messages?teamId=&purpose=INTAKE_LINK
- *        — delivery state for the collection card + activity.
+ *        — delivery state for the collection card + activity (messaging
+ *        operators only: INTAKE_LINKS_MANAGE, B3C-F-002).
  *   8. envelope.organizations                       — team work (no fetch).
  */
 
@@ -91,6 +92,11 @@ export function useHomeData(): HomeData {
         ? envelope?.organizations?.find((o) => o.id === activeSpaceForPlan.id)?.plan ?? null
         : null;
   const planFeatures = envelope?.planFeatures ?? null;
+  // B3C-F-002 — the workspace-wide message log is the Messaging operator's
+  // read (API: notification.delivery.resend; the console route's capability:
+  // INTAKE_LINKS_MANAGE). A Viewer's Home does not ask for it; its intake
+  // cards keep the delivery state the intake-link list already carries.
+  const messagingOperator = envelope?.capabilities?.INTAKE_LINKS_MANAGE === true;
   const workspaceId = useActiveSpaceId();
   const activeSpace = useActiveSpace();
   const activeSpaceType = activeSpace?.type ?? null;
@@ -246,7 +252,7 @@ export function useHomeData(): HomeData {
         : Promise.resolve(null);
 
     const communicationsPromise: Promise<HomeCommunicationsInput | null> =
-      workspaceId && intakeIncluded
+      workspaceId && intakeIncluded && messagingOperator
         ? apiFetch(scoped("/v1/communications/messages?purpose=INTAKE_LINK"), {
             method: "GET",
           }).catch(soft("communications"))
@@ -441,7 +447,7 @@ export function useHomeData(): HomeData {
 
     // `orgs` is intentionally read via `orgsRef` (not a dep) so this
     // callback stays referentially stable across renders.
-  }, [workspaceId, activeSpaceType, activeSpaceShared, ownPersonal, activeSpace?.displayName, plan, planFeatures]);
+  }, [workspaceId, activeSpaceType, activeSpaceShared, ownPersonal, activeSpace?.displayName, plan, planFeatures, messagingOperator]);
 
   useEffect(() => {
     void reload();

@@ -964,6 +964,48 @@ describe("step 4 — review and create", () => {
     ).toBe("+14155550123");
   });
 
+  it("B3B-F-102: a replayed create says the link already exists and reveals no secure link", async () => {
+    createBehaviour = () =>
+      createdPayload({
+        rawToken: null,
+        replayed: true,
+        tokenRevealed: false,
+        delivery: { method: "SMS", status: "sent", communicationMessageId: "m-1" },
+      });
+    await openWizard();
+    await walkToReview();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    const notice = await waitFor(
+      () => document.querySelector("[data-intake-link-create-error]") as HTMLElement,
+    );
+    expect(notice.textContent).toMatch(/already created by your earlier attempt/i);
+    expect(notice.textContent).toMatch(/sent by SMS/i);
+    expect(notice.textContent).toMatch(/can't be shown again/i);
+    expect(document.querySelector("[data-testid='intake-link-created']")).toBeNull();
+    expect(document.querySelector("[data-intake-link-url]")).toBeNull();
+    expect(document.body.textContent).not.toContain("/intake/null");
+  });
+
+  it("B3B-F-102: a key reused with changed details (409) says so in English", async () => {
+    createBehaviour = () => apiFailure(409, "IDEMPOTENCY_KEY_REUSED");
+    await openWizard();
+    await walkToReview();
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector("[data-intake-link-submit]") as HTMLElement,
+      );
+    });
+    const error = await waitFor(
+      () => document.querySelector("[data-intake-link-create-error]") as HTMLElement,
+    );
+    expect(error.textContent).not.toContain("IDEMPOTENCY_KEY_REUSED");
+    expect(error.textContent).toMatch(/already created from this form with different details/i);
+  });
+
   it("reports a partial result truthfully — link created, delivery failed", async () => {
     createBehaviour = () =>
       createdPayload({

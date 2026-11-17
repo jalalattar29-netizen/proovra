@@ -2,7 +2,11 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { objectKeyFileNameFragment } from "../services/storage/object-key-file-name.js";
 import { releaseRefusedUploadReservation } from "../services/evidence-upload-refusal.service.js";
 import { bumpCaptureFailure, objectLockPolicyFromEnv } from "@proovra/shared-runtime";
-import { MISSING_OUTPUT_RECOVERY_KEY_PREFIX } from "@proovra/shared-runtime";
+import {
+  MISSING_OUTPUT_RECOVERY_KEY_PREFIX,
+  SIGNING_KEY_COMPROMISE_REPLACEMENT_KEY_PREFIX,
+} from "@proovra/shared-runtime";
+import { requestKeyCompromiseReplacement } from "../services/operations/signing-key-compromise-owners.service.js";
 import {
   accessibleWorkspaceIdsFor,
   evidenceReachWhere,
@@ -22,6 +26,10 @@ import { EXTENSION_CAPTURE_SCOPE, extensionMayPresignPart } from "../services/au
 import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
 import { secondReviewForRound } from "../services/evidence-review/second-review.service.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
+import {
+  projectCaptureCoordinates,
+  resolveCaptureLocationDisclosure,
+} from "../services/privacy/capture-location-disclosure.js";
 import { evidenceIntakeIdentityArms } from "../services/search/intake-identity-search.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
 // single source of truth the single-record case-attach route uses).
@@ -2118,8 +2126,12 @@ function bigintToString(v: unknown): string | null {
 function buildEvidenceLocationState(
   evidence: { lat: unknown; lng: unknown; accuracyMeters: unknown; locationSource?: string | null; intakePlanJson?: unknown },
   custodyEvents: ReadonlyArray<{ eventType: string; payload: unknown }>,
+  options: { withheld?: boolean } = {},
 ): EvidenceLocationPresentation {
   return resolveEvidenceLocation({
+    // B5A-F-13 — a reader without the exact-location authority gets the
+    // canonical WITHHELD state, and no coordinate leaves (capture-location.ts).
+    withheld: options.withheld === true,
     lat: rawCoordinate(evidence.lat),
     lng: rawCoordinate(evidence.lng),
     accuracyMeters: decimalToNumber(evidence.accuracyMeters),
@@ -11242,7 +11254,15 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         });
 
         const sourceContext = buildSourceContext({ evidence, parts });
-        const locationState = buildEvidenceLocationState(evidence, allCustodyEvents);
+        // B5A-F-13 (free-audit 0ea0) — exact coordinates and the map link are a
+        // disclosure, decided once for this reader (capture-location-disclosure.ts).
+        const captureLocationDisclosure = await resolveCaptureLocationDisclosure(req, {
+          teamId: evidence.teamId,
+          evidenceId: id,
+        });
+        const locationState = buildEvidenceLocationState(evidence, allCustodyEvents, {
+          withheld: captureLocationDisclosure === "WITHHELD",
+        });
         // `artifactStatus` is resolved once, above, before its first consumer.
         const caseItem = viewerCases[0]
           ? { id: viewerCases[0].caseId, name: viewerCases[0].caseName }
@@ -11515,7 +11535,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         return reply.code(200).send(
           toJsonSafe({
             evidence: {
-              ...toSafeEvidence(evidence),
+              ...projectCaptureCoordinates(toSafeEvidence(evidence), captureLocationDisclosure),
               actorCapabilities,
               analysisRevision: analysisSnapshot?.revision ?? null,
               itemCount,
@@ -11581,7 +11601,9 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             custodyLifecycle,
             custodyDisplayCounts,
             locationState,
-            sourceCaptureLocation: hasCaptureLocationMetadata({
+            // B5A-F-13 — null for a WITHHELD reader: no coordinate, accuracy
+            // or external map link (locationState says WITHHELD).
+            sourceCaptureLocation: captureLocationDisclosure === "REVEALED" && hasCaptureLocationMetadata({
               lat: decimalToNumber(evidence.lat),
               lng: decimalToNumber(evidence.lng),
             })
@@ -12041,10 +12063,15 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
           toEvidenceLifecycleProjectionInput(evidence),
         );
         const deleteEligibility = toLegacyDeleteEligibility(lifecycleProjection);
+        // B5A-F-13 — the same exact-location decision as the review workspace.
+        const captureLocationDisclosure = await resolveCaptureLocationDisclosure(req, {
+          teamId: evidence.teamId,
+          evidenceId: id,
+        });
 
         return reply.code(200).send({
           evidence: toJsonSafe({
-            ...toSafeEvidence(evidence),
+            ...projectCaptureCoordinates(toSafeEvidence(evidence), captureLocationDisclosure),
             itemCount,
             display,
             displayTitle: display.displayTitle,
@@ -12758,7 +12785,12 @@ if (
       }
       // AUDIT D-03 — the missing-file recovery's key space is the server's: a
       // caller key may not occupy a recovery's identity.
-      if (clientRequestKey && clientRequestKey.toLowerCase().startsWith(MISSING_OUTPUT_RECOVERY_KEY_PREFIX)) {
+      if (
+        clientRequestKey &&
+        (clientRequestKey.toLowerCase().startsWith(MISSING_OUTPUT_RECOVERY_KEY_PREFIX) ||
+          // B7A-F-006 — the compromise replacement's key space is the server's too.
+          clientRequestKey.toLowerCase().startsWith(SIGNING_KEY_COMPROMISE_REPLACEMENT_KEY_PREFIX))
+      ) {
         return reply.code(400).send({
           code: "IDEMPOTENCY_KEY_INVALID",
           message: "This idempotency key prefix is reserved.",
@@ -12873,6 +12905,56 @@ if (
             governance.statusCode === 503
               ? "The workspace policy for this record could not be checked. Try again shortly."
               : "This workspace's policy does not allow generating this record's report or verification package now.",
+        });
+      }
+
+      /*
+       * B7A-F-006 — THE LINKED REPLACEMENT AFTER A SIGNING-KEY COMPROMISE.
+       * Asked for explicitly by someone who may generate this record's outputs;
+       * the reason (its latest package sealed by compromised material), the
+       * signer check, the purpose and the idempotency key are all the server's
+       * (`requestKeyCompromiseReplacement`). Not a customer new version: no
+       * Free re-render rule, no new-version budget, nothing spent.
+       */
+      if (body.intent === "KEY_COMPROMISE_REPLACEMENT") {
+        const replaced = await requestKeyCompromiseReplacement({ evidenceId: id, actorUserId: userId });
+        await auditEvidenceAction(req, {
+          userId,
+          action: "evidence.report.regenerate_requested",
+          outcome: replaced.ok ? "success" : "blocked",
+          resourceId: id,
+          severity: replaced.ok ? "info" : "warning",
+          teamId: evidenceRecord.teamId ?? null,
+          metadata: replaced.ok
+            ? {
+                operation: "KEY_COMPROMISE_REPLACEMENT",
+                requestId: replaced.requestId,
+                replayed: replaced.replayed,
+                replacesReportVersion: replaced.replacesReportVersion,
+              }
+            : { operation: "KEY_COMPROMISE_REPLACEMENT", reason: replaced.code },
+        });
+        if (replaced.ok) {
+          return reply.code(202).send({
+            operation: "KEY_COMPROMISE_REPLACEMENT",
+            requestId: replaced.requestId,
+            outcome: replaced.replayed ? "REPLAYED" : replaced.outcome,
+            replacesReportVersion: replaced.replacesReportVersion,
+          });
+        }
+        const message: Record<typeof replaced.code, string> = {
+          not_found: "Evidence not found",
+          not_affected: "This record's outputs were not sealed by a withdrawn signing key, so there is nothing to replace.",
+          record_signature_not_replaceable:
+            "This record's own signature was made by the withdrawn key. A replacement cannot re-sign the record without changing its history, so none is issued; verification shows the signature as revoked.",
+          no_trustworthy_signer:
+            "A replacement cannot be issued until PROOVRA has a signing key that is not affected. Try again later.",
+          not_requested: "The replacement could not be requested now. Try again later.",
+        };
+        return reply.code(replaced.code === "not_found" ? 404 : 409).send({
+          code: `KEY_COMPROMISE_REPLACEMENT_${replaced.code.toUpperCase()}`,
+          message: message[replaced.code],
+          ...(replaced.code === "not_requested" && replaced.reason ? { reason: replaced.reason } : {}),
         });
       }
 

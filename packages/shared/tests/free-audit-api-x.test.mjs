@@ -118,3 +118,13 @@ test("B4-F-206 — a part without audio states it: the reason for the record's o
   assert.equal(partAudioNotRecordedStatement(null), null);
   assert.equal(partAudioNotRecordedStatement("x"), null);
 });
+
+test("B5A-F-13 (residual pass) — REPORT_REQUIRES_LOCATION_ACCESS names the location and the external package, not holds", () => {
+  const out = resolveArtifactDownloadFailure("report", { statusCode: 403, code: "REPORT_REQUIRES_LOCATION_ACCESS" });
+  assert.ok(out);
+  assert.match(out.message, /exact capture location/);
+  assert.match(out.message, /external disclosure package is available instead/);
+  assert.doesNotMatch(out.message, /hold/);
+  assert.equal(out.retryable, false);
+  assert.equal(out.action, "NONE");
+});

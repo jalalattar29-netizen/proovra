@@ -1224,6 +1224,18 @@ export async function integrationsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "integration.webhook.manage");
       if (!ok) return;
+      // B7B-F05 (owner directive) — a MANUAL retry is new outbound traffic the
+      // operator chooses to send, so it needs FEATURE_WEBHOOKS like create,
+      // re-enable and test (asked before step-up). The automatic retry
+      // schedule of an already-ACTIVE endpoint is untouched (F-15).
+      const retryEntitled = await assertFeatureEntitlement({
+        teamId: body.teamId,
+        key: "FEATURE_WEBHOOKS",
+        actorUserId: ok.actorUserId,
+      });
+      if (!retryEntitled.ok) {
+        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
+      }
       // Phase 4 closure — operator-initiated retry emits a signed
       // outbound POST to the endpoint URL outside the normal retry
       // schedule. The action is bounded but sensitive enough to gate

@@ -26,7 +26,7 @@ import {
 } from "@proovra/shared";
 import { AppListbox } from "../../../../../components/app-primitives";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 // PHASE 7 §10 — canonical context-safety primitives.
@@ -142,9 +142,10 @@ export default function EvidenceRequestPanel({
   const [error, setError] = useState<string | null>(null);
   const [featureDisabled, setFeatureDisabled] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [reveal, setReveal] = useState<{ url: string } | null>(null);
+  const [reveal, setReveal] = useState<{ url: string; followUp?: boolean } | null>(null);
+  const revealTitleId = useId();
   const [noteDialog, setNoteDialog] = useState<{
-    action: "cancel" | "close" | "needs-more-info" | "review";
+    action: "cancel" | "close" | "needs-more-info" | "review" | "request-more";
     requestId: string;
     responseId?: string;
     status?: string;
@@ -232,8 +233,49 @@ export default function EvidenceRequestPanel({
     }
   }
 
+  /**
+   * R1-F-01 / EP-0377 — "Needs additional context" on a response is the
+   * canonical request-more flow (the route the request page uses): the server
+   * marks the response NEEDS_MORE_INFO and issues a fresh single-use intake
+   * link in the same thread, revealed here once. Nothing is sent to the
+   * contributor from this panel; the reviewer shares the link.
+   */
+  async function requestMoreEvidence(requestId: string, responseId: string, note: string) {
+    const res: { rawToken?: string | null } | null = await apiFetch(
+      `/v1/evidence-requests/${encodeURIComponent(requestId)}/responses/${encodeURIComponent(responseId)}/request-more`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reviewerNote: note, notifyContributor: false }),
+      },
+    );
+    setNoteDialog(null);
+    if (res?.rawToken) {
+      const origin =
+        typeof window !== "undefined" && window.location
+          ? `${window.location.protocol}//${window.location.host}`
+          : "";
+      setReveal({ url: `${origin}/intake/${encodeURIComponent(res.rawToken)}`, followUp: true });
+    }
+    // The follow-up WAS created; a failed refresh is not "Could not create".
+    try {
+      await reload();
+    } catch {
+      setError("The follow-up link was created, but the list could not be refreshed. Reload the page to see it.");
+    }
+  }
+
   async function executeNoteAction(note: string) {
     if (!noteDialog) return;
+    if (noteDialog.action === "request-more") {
+      if (!noteDialog.responseId) return;
+      try {
+        await requestMoreEvidence(noteDialog.requestId, noteDialog.responseId, note);
+      } catch (err) {
+        alert(toSafeUserError(err as { message?: string }, { message: "Could not create follow-up link." }).message);
+      }
+      return;
+    }
     try {
       // D20 — cancel and close require a justification; the note the dialog
       // collected was never sent, so both were refused every time.
@@ -378,13 +420,22 @@ export default function EvidenceRequestPanel({
                         type="button"
                         className="app-ghost-action"
                         onClick={() =>
-                          setNoteDialog({
-                            action: "review",
-                            requestId: req.id,
-                            responseId: r.id,
-                            status: s,
-                            label: RESPONSE_STATUS_LABEL[s],
-                          })
+                          setNoteDialog(
+                            s === "NEEDS_MORE_INFO"
+                              ? {
+                                  action: "request-more",
+                                  requestId: req.id,
+                                  responseId: r.id,
+                                  label: "Request additional context",
+                                }
+                              : {
+                                  action: "review",
+                                  requestId: req.id,
+                                  responseId: r.id,
+                                  status: s,
+                                  label: RESPONSE_STATUS_LABEL[s],
+                                },
+                          )
                         }
                       >
                         {RESPONSE_STATUS_LABEL[s]}
@@ -491,12 +542,15 @@ export default function EvidenceRequestPanel({
       ) : null}
 
       {reveal ? (
-        <div className="evd-dialog-backdrop" role="dialog" aria-modal="true">
+        <div className="evd-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby={revealTitleId}>
           <div className="evd-dialog">
-            <h3 className="evd-title">Intake link created</h3>
+            <h3 className="evd-title" id={revealTitleId}>
+              {reveal.followUp ? "Follow-up link created" : "Intake link created"}
+            </h3>
             <p className="evd-paragraph">
-              Send this link to the intended recipient. It will not be shown
-              again.
+              {reveal.followUp
+                ? "The response is marked as needing additional context. Share this new link with the contributor so they can add what is needed. It will not be shown again."
+                : "Send this link to the intended recipient. It will not be shown again."}
             </p>
             <input
               className="app-form-input evd-input evd-mono"

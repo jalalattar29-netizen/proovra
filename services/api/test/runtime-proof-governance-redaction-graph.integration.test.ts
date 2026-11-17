@@ -168,6 +168,10 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
     // operator path (BILLING-01), never self-granted.
     const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
     await upsertEntitlementGrant({ teamId: teamA.teamId, key: "FEATURE_WEBHOOKS", value: true, kind: "FEATURE", source: "CUSTOM", grantedByUserId: teamA.ownerUserId });
+    // B7B-F06 — automation rules are the governance capability
+    // FEATURE_GOVERNANCE_PLATFORM (the Free refusal is proven in
+    // free-audit-0ea0-lane-b.integration); this suite proves the rule routes.
+    await upsertEntitlementGrant({ teamId: teamA.teamId, key: "FEATURE_GOVERNANCE_PLATFORM", value: true, kind: "FEATURE", source: "CUSTOM", grantedByUserId: teamA.ownerUserId });
   }, 180_000);
 
   afterAll(async () => {

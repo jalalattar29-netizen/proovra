@@ -9,7 +9,7 @@
   "totals": {
     "routes": 1247,
     "routesWithAnyTestCaller": 59,
-    "testOnlyRoutes": 9,
+    "testOnlyRoutes": 8,
     "testCallSites": 142,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
@@ -327,7 +327,7 @@
     {
       "routeId": "GET /public/verification-packages/by-sha256/:sha256",
       "testCallerCount": 2,
-      "testOnly": true,
+      "testOnly": false,
       "testCallerFiles": [
         "e2e/updated-report/report-package-truth.spec.ts"
       ]
@@ -7628,5 +7628,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "c930db3ce852e5f36aebfbe792f17c62e14589c2d99b61c29684550b46767fa1"
+  "contentHash": "4f731b2abb1c672079fb19bff3dcf2e4ca0a8c2738c2da309d40889f564d12d5"
 }

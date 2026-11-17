@@ -61,6 +61,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { assertFeatureEntitlement } from "../packaging/entitlement.service.js";
 import { executeAutomationAction } from "./automation-actions.service.js";
 import { emitRunLifecycle } from "./automation-dispatcher.service.js";
 import {
@@ -389,6 +390,33 @@ export async function claimAndExecute(input: {
   }
 
   const actionType = rule.actionType as AutomationActionType;
+
+  // B7B-F06 (Free-user audit 0ea0, owner directive) — automation is the
+  // governance capability FEATURE_GOVERNANCE_PLATFORM, asked by the routes
+  // that create, re-author and enable a rule. A rule left enabled by a
+  // workspace that has since lost the capability (a downgrade, a lapsed
+  // contract) is not executed: the run is a deliberate SKIP with a bounded
+  // reason, never a retry, and nothing is sent or written by the action.
+  // Read after the claim, like the rule itself, so the CURRENT entitlement
+  // answers.
+  const governance = await assertFeatureEntitlement({
+    prisma,
+    teamId: run.teamId,
+    key: "FEATURE_GOVERNANCE_PLATFORM",
+  });
+  if (!governance.ok) {
+    await finaliseSkipped(
+      prisma,
+      run,
+      generation,
+      actionType,
+      "action_rejected",
+      nowMs,
+      "entitlement_required:FEATURE_GOVERNANCE_PLATFORM",
+    );
+    return "skipped";
+  }
+
   emitRunLifecycle("automation_run_started", {
     teamId: run.teamId,
     ruleId: run.ruleId,

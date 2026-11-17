@@ -280,9 +280,9 @@ describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () =
     // fail-closed fallback while the envelope is unknown). /teams keeps
     // its PRO/TEAM pricing tier.
     expect(TIERS).toMatch(/pathPrefix:\s*"\/teams",\s*tier:\s*"PROFESSIONAL"/);
-    expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/intake-links",\s*tier:\s*"PROFESSIONAL",\s*entitlementOverride:\s*"intakeIncluded"/,
-    );
+    // B3B-F-104 — the URL loads on every plan (manage-only without intake);
+    // the registry's navPlanFeature "intakeIncluded" decides navigation.
+    expect(TIERS).toMatch(/pathPrefix:\s*"\/intake-links",\s*tier:\s*"CORE",\s*directAccessPolicy:\s*"allow"/);
     expect(TIERS).toMatch(/pathPrefix:\s*"\/inbox",\s*tier:\s*"CORE"/);
   });
 

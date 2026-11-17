@@ -73,6 +73,14 @@ describe("matter Access tab — case access family (live PostgreSQL 16)", () => 
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    // B3C-F-007 — granting case access answers to the CURRENT Cases
+    // entitlement; this suite proves the access-target rules on workspaces that
+    // include Cases (the plan gate has its own proof in
+    // free-audit-0ea0-lane-b.integration).
+    await prisma.team.updateMany({
+      where: { id: { in: [h.fixtures.teamA.teamId, h.fixtures.teamB.teamId] } },
+      data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never,
+    });
   }, 900_000);
 
   afterAll(async () => {

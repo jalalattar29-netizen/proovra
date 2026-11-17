@@ -98,6 +98,12 @@ export type CreateWorkflowIntakeLinkInput = {
 
 export type CreateWorkflowIntakeLinkContext = {
   actorUserId: string;
+  /**
+   * B3B-F-102 — set when `client` is a transaction: the best-effort search
+   * index write must not run on a transaction that commits (or aborts) under
+   * it; the caller indexes after commit.
+   */
+  deferSearchIndex?: boolean;
 };
 
 export type CreatedWorkflowIntakeLinkResult = {
@@ -337,7 +343,9 @@ export async function createWorkflowIntakeLink(
    * not be able to fail somebody's intake request. The reconcile sweep picks
    * up whatever this drops.
    */
-  indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId: link.id }, client);
+  if (!ctx.deferSearchIndex) {
+    indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId: link.id }, client);
+  }
 
   return { link, rawToken: issued.rawToken };
 }

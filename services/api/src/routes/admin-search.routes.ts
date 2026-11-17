@@ -16,8 +16,10 @@
  * Safety: the aggregation service selects ONLY non-secret columns. No
  * password hash, no token, no evidence file bytes / hash-derived secret, no
  * storageKey/bucket ever crosses the wire. Evidence exposes ID + title /
- * filename metadata ONLY. The single permitted PII field is email /
- * workEmail — already shown on the existing admin roster pages.
+ * filename metadata ONLY — and since B7A-F-005 the title / file name only
+ * inside a customer scope a live support grant covers (an exact id
+ * otherwise). The single permitted PII field is the account email /
+ * workEmail of a user or sales lead — account administration, not a record.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -25,6 +27,7 @@ import { z } from "zod";
 
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
+import { activeSupportDisclosureScopes } from "../services/identity/support-runtime.service.js";
 import {
   adminGlobalSearch,
   ALL_SEARCH_TYPES,
@@ -173,10 +176,15 @@ export async function adminSearchRoutes(app: FastifyInstance) {
         });
       }
 
+      // B7A-F-005 (free-audit 0ea0, residual) — record titles are matched and
+      // shown only inside customer scopes a live support grant of this staff
+      // actor covers; elsewhere evidence and reports answer to an exact id.
+      const supportScopes = await activeSupportDisclosureScopes(req.user?.sub ?? null);
       const result = await adminGlobalSearch({
         query: q,
         types: parseTypes(types),
         perTypeLimit: limit,
+        supportScopes,
       });
 
       // ADM-022 — global search IS audited, because "who looked up whom" is
@@ -205,6 +213,8 @@ export async function adminSearchRoutes(app: FastifyInstance) {
           query: q,
           types: parseTypes(types) ?? null,
           resultGroups: result.groups?.length ?? 0,
+          // The grants that could disclose record titles in this search.
+          supportGrantIds: supportScopes.map((s) => s.grantId),
         },
       }).catch(() => null);
 

@@ -34,6 +34,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { SEARCH_COPY } from "@proovra/shared/i18n";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -181,7 +182,9 @@ test("a canonical type that nothing indexes is not offered as a chip", () => {
 test("Document-type chip uses the friendly label (no raw enum strings rendered)", () => {
   // The renderer maps the value through DOCUMENT_TYPE_LABEL[t]
   // rather than the previous lowercase enum.
-  assert.match(SEARCH_PAGE, /\{DOCUMENT_TYPE_LABEL\[t\]\}/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts): the label map
+  // holds dictionary keys, translated at render.
+  assert.match(SEARCH_PAGE, /\{t\(DOCUMENT_TYPE_LABEL\[dt\]\)\}/);
   assert.doesNotMatch(
     SEARCH_PAGE,
     /\{t\.toLowerCase\(\)\.replace\("_", " "\)\}/,
@@ -210,7 +213,9 @@ test("Page title is 'Search' (not 'Evidence Discovery')", () => {
     SEARCH_PAGE,
     /<h1 className="search-header__title app-title-row" data-search-title>/,
   );
-  assert.match(SEARCH_PAGE, /<span data-search-title-text>Search<\/span>/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.match(SEARCH_PAGE, /<span data-search-title-text>\{t\("searchTitle"\)\}<\/span>/);
+  assert.equal(SEARCH_COPY.en.searchTitle, "Search");
   assert.match(SEARCH_PAGE, /className="app-title-icon"/);
   assert.doesNotMatch(SEARCH_PAGE, /\{terms\.evidence\} Discovery/);
   assert.equal(
@@ -223,10 +228,9 @@ test("Page title is 'Search' (not 'Evidence Discovery')", () => {
 });
 
 test("Search input placeholder advertises the real corpus", () => {
-  assert.match(
-    SEARCH_PAGE,
-    /placeholder="Search evidence, cases, reports, notes, OCR text…"/,
-  );
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.match(SEARCH_PAGE, /placeholder=\{t\("searchInputPlaceholder"\)\}/);
+  assert.equal(SEARCH_COPY.en.searchInputPlaceholder, "Search evidence, cases, reports, notes, OCR text…");
 });
 
 // ===========================================================================

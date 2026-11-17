@@ -138,8 +138,9 @@ describe("EV phase 2 — service layer", () => {
       /providerVouchesForEmail\s*=\s*isOAuthProvider\s*&&\s*profile\.emailVerified\s*!==\s*false/,
     );
     // Both the create and update branches must apply the stamp.
+    // B1-F-004 — the first-sign-in create runs in a transaction (tx).
     const create = AUTH_SVC_SRC.match(
-      /prisma\.user\.create\(\{[\s\S]*?\}\)/,
+      /(?:prisma|tx)\.user\.create\(\{[\s\S]*?\}\)/,
     )?.[0];
     const update = AUTH_SVC_SRC.match(
       /prisma\.user\.update\(\{\s*where:\s*\{\s*id:\s*user\.id\s*\}[\s\S]*?\}\)/,

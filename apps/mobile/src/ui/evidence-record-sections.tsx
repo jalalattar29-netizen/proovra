@@ -48,6 +48,7 @@ import {
   type RecordView,
   type SnapshotTiming,
 } from "../product/evidence-record";
+import { MANAGE_VERIFICATION_LINKS_ON_WEB, type VerificationManagementHandoff } from "../product/public-verify";
 import { theme } from "../theme/theme";
 import { ProovraBadge, ProovraButton, ProovraCard, ProovraSection, ProovraText } from "./index";
 
@@ -622,6 +623,29 @@ export function VerificationDisclosureCard({
       <ProovraText variant="label" color={theme.color.ink.muted}>What the page discloses is managed on the web record page.</ProovraText>
       {manageUrl ? (
         <ProovraButton label={MANAGE_VERIFICATION_PAGE_ON_WEB} variant="secondary" fullWidth={false} onPress={() => void Linking.openURL(manageUrl)} />
+      ) : null}
+    </ProovraCard>
+  );
+}
+
+/**
+ * B5B-F-105 — revoking reviewer links and withdrawing the verification page
+ * are managed on the web (owner directive). The phone says so and hands off
+ * to the web record's Verification page section, or — when it cannot confirm
+ * the record's workspace — to the web workspaces entry, with what to do next.
+ */
+export function VerificationLinksHandoffCard({ handoff }: { handoff: VerificationManagementHandoff }) {
+  return (
+    <ProovraCard testID="verification-links-handoff">
+      <ProovraText variant="h3" weight="semibold">Reviewer links and withdrawal</ProovraText>
+      <ProovraText variant="label" color={theme.color.ink.muted}>{handoff.instructions}</ProovraText>
+      {handoff.url ? (
+        <ProovraButton
+          label={MANAGE_VERIFICATION_LINKS_ON_WEB}
+          variant="secondary"
+          fullWidth={false}
+          onPress={() => void Linking.openURL(handoff.url as string)}
+        />
       ) : null}
     </ProovraCard>
   );

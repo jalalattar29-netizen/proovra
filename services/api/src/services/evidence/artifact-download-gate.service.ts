@@ -32,6 +32,7 @@
  */
 import * as prismaPkg from "@prisma/client";
 import type { StoredBytesIntegrity } from "@proovra/shared";
+import { hasCaptureLocationMetadata } from "@proovra/shared";
 import {
   STORED_BYTES_INTEGRITY_SELECT,
   readStoredBytesIntegrity,
@@ -346,6 +347,45 @@ async function evaluateArtifactDownloadPolicy(input: {
         },
         { action, reason: "full_package_requires_original_download" },
       );
+    }
+  }
+
+  // B5A-F-13 (Free audit 0ea0, residual pass 2026-11-17) — the issued report
+  // prints the exact capture location, and issued artifacts are never
+  // rewritten. Exact location needs the same authority the record view asks
+  // (capture-location-disclosure.ts: evidence.download_original), so a reader
+  // without it is refused the REPORT of a record that holds a location and is
+  // pointed at the external disclosure package (coordinates rounded to ~1 km).
+  // Records without a location, and personal records (owner only), are
+  // unaffected.
+  if (kind === "report" && teamId) {
+    const located = await prisma.evidence.findUnique({
+      where: { id: evidenceForGate.id },
+      select: { lat: true, lng: true },
+    });
+    const hasLocation = hasCaptureLocationMetadata({
+      lat: located?.lat == null ? null : Number(located.lat),
+      lng: located?.lng == null ? null : Number(located.lng),
+    });
+    if (hasLocation) {
+      const exact = await resolveEvidenceRecordAccess({
+        userId: actorUserId,
+        evidenceId: evidenceForGate.id,
+        permission: "evidence.download_original",
+      });
+      if (!exact.allowed) {
+        return denied(
+          teamId,
+          403,
+          {
+            code: "REPORT_REQUIRES_LOCATION_ACCESS",
+            reason: exact.internalReason,
+            message:
+              "This report shows the exact capture location, which you cannot see in this workspace. The external disclosure package is available instead.",
+          },
+          { action, reason: "report_requires_location_access" },
+        );
+      }
     }
   }
 

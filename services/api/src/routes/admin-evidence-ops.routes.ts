@@ -34,6 +34,7 @@ import {
   isEvidenceHealthCohort,
 } from "../services/admin/evidence-health-cohorts.service.js";
 import { buildEvidenceHealthSnapshot } from "../services/operations/evidence-health.service.js";
+import { activeSupportDisclosureScopes } from "../services/identity/support-runtime.service.js";
 import {
   EVIDENCE_HEALTH_SIGNALS,
   isEvidenceHealthSignal,
@@ -159,6 +160,11 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
         );
       }
 
+      // B7A-F-005 (free-audit 0ea0, residual) — record titles and owner emails
+      // are customer subject data: shown only for rows a live support grant of
+      // THIS staff actor covers (support-runtime.service.ts). Without one the
+      // roster is the minimal operational projection.
+      const supportScopes = await activeSupportDisclosureScopes(req.user?.sub ?? null);
       const result = await listAdminEvidenceRecords({
         signal:
           parsed.data.signal && isEvidenceHealthSignal(parsed.data.signal)
@@ -173,6 +179,7 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
         limit: parsed.data.limit,
         teamId: parsed.data.teamId,
         organizationId: parsed.data.organizationId,
+        supportScopes,
       });
 
       // PRO-081 (PLATFORM-04) / ADM-022 — resolving ONE named record (title,
@@ -202,6 +209,10 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
             page: parsed.data.page ?? null,
             limit: parsed.data.limit ?? null,
             total: result.total,
+            // The grants under which titles / owner emails were shown, and how
+            // many rows were withheld. Never the rows themselves.
+            subjectDataDisclosedUnderGrantIds: result.subjectDisclosure.grantIds,
+            subjectDataWithheldRows: result.subjectDisclosure.withheldRows,
           },
         }).catch(() => null);
       }
@@ -215,7 +226,10 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
           resourceType: "evidence",
           resourceId: parsed.data.evidenceId,
           correlationId: req.id,
-          metadata: { found: result.total > 0 },
+          metadata: {
+            found: result.total > 0,
+            subjectDataDisclosedUnderGrantIds: result.subjectDisclosure.grantIds,
+          },
         }).catch(() => null);
       }
 

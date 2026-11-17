@@ -14,29 +14,33 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const WS = "11111111-1111-4111-8111-111111111111";
 let intakeIncluded = false;
+// B3C-F-002 — the workspace message log is a messaging operator's read.
+let messagingOperator = true;
 
 // One stable context value per plan shape, as the provider memoizes it (a new
 // object per render would re-create Home's reload on every render).
-const contexts = new Map<boolean, unknown>();
-function contextFor(intake: boolean): unknown {
-  if (!contexts.has(intake)) {
-    contexts.set(intake, {
+const contexts = new Map<string, unknown>();
+function contextFor(intake: boolean, operator: boolean): unknown {
+  const key = `${intake}:${operator}`;
+  if (!contexts.has(key)) {
+    contexts.set(key, {
       envelope: {
         activeSpace: { type: "PERSONAL", id: WS, shared: false, displayName: "Personal" },
         personalSpace: { plan: "FREE" },
         account: { accountPlan: "FREE" },
         organizations: [],
         planFeatures: { intakeIncluded: intake, reportsIncluded: true, teamCollaborationIncluded: false },
+        capabilities: { INTAKE_LINKS_MANAGE: operator, EVIDENCE_VIEW: true },
       },
     });
   }
-  return contexts.get(intake);
+  return contexts.get(key);
 }
 const ACTIVE_SPACE = { type: "PERSONAL", id: WS, displayName: "Personal" };
 
 vi.mock("../../lib/platform-context/PlatformContextProvider", async (original) => ({
   ...(await original<typeof import("../../lib/platform-context/PlatformContextProvider")>()),
-  usePlatformContext: () => contextFor(intakeIncluded),
+  usePlatformContext: () => contextFor(intakeIncluded, messagingOperator),
 }));
 
 vi.mock("../../lib/platform-context", async (original) => ({
@@ -71,6 +75,7 @@ const ok = async () => new Response(JSON.stringify({}), { status: 200, headers: 
 afterEach(() => {
   vi.unstubAllGlobals();
   intakeIncluded = false;
+  messagingOperator = true;
 });
 
 describe("useHomeData", () => {
@@ -95,6 +100,16 @@ describe("useHomeData", () => {
       expect(urls.some((u) => u.includes("/v1/workflow/intake-links"))).toBe(true);
       expect(urls.some((u) => u.includes("/v1/communications/messages"))).toBe(true);
     });
+  });
+
+  it("B3C-F-002: a Viewer (no INTAKE_LINKS_MANAGE) reads the intake list but not the workspace message log", async () => {
+    intakeIncluded = true;
+    messagingOperator = false;
+    const urls = stubFetch(ok);
+    const { result } = renderHook(() => useHomeData());
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await waitFor(() => expect(urls.some((u) => u.includes("/v1/workflow/intake-links"))).toBe(true));
+    expect(urls.some((u) => u.includes("/v1/communications/messages"))).toBe(false);
   });
 
   it("no response at all ends in the retryable error state, and a retry that succeeds clears it", async () => {

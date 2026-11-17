@@ -35,6 +35,7 @@
 
 import { useState } from "react";
 
+import { useT, type TranslationKey } from "../../app/providers";
 import { ProovraAlert } from "../feedback/ProovraAlert";
 import { handleTablistKeyDown, panelId, tabId } from "../../lib/a11y/tablist-keyboard";
 import { PageShell, PageSection } from "../ui";
@@ -69,6 +70,7 @@ import {
 export function SelfServeHomeDashboard() {
   const state = useHomeData();
   const [tab, setTab] = useState<HomeTabId>("overview");
+  const tr = useT();
 
   if (state.status === "loading") {
     return (
@@ -115,8 +117,8 @@ export function SelfServeHomeDashboard() {
         <div data-home-load-error>
           <ProovraAlert
             severity="warning"
-            title="Couldn't load everything"
-            actions={[{ label: "Try again", onClick: () => state.reload() }]}
+            title={tr("homeLoadErrorTitle")}
+            actions={[{ label: tr("homeTryAgain"), onClick: () => state.reload() }]}
           >
             {state.message}
           </ProovraAlert>
@@ -132,7 +134,7 @@ export function SelfServeHomeDashboard() {
       <div
         className="home-tabs"
         role="tablist"
-        aria-label="Workspace views"
+        aria-label={tr("homeTabsLabel")}
         data-home-tabs
         // B2A-F-18 — the WAI-ARIA tabs contract: arrows/Home/End move and
         // select, only the selected tab is in the Tab order, and each tab
@@ -152,7 +154,7 @@ export function SelfServeHomeDashboard() {
             data-home-tab={t.id}
             onClick={() => setTab(t.id)}
           >
-            {t.label}
+            {tr(t.labelKey)}
           </button>
         ))}
       </div>
@@ -192,16 +194,12 @@ export function SelfServeHomeDashboard() {
           */}
           <div className="home-overview-heads">
             <div>
-              <h2 className="home-section-title">What needs you now</h2>
-              <p className="home-section-sub">
-                Workspace health and the priorities ranked by severity.
-              </p>
+              <h2 className="home-section-title">{tr("homeNeedsYouNowTitle")}</h2>
+              <p className="home-section-sub">{tr("homeNeedsYouNowSub")}</p>
             </div>
             <div>
-              <h2 className="home-section-title">Your recent work</h2>
-              <p className="home-section-sub">
-                The latest evidence you captured and the matters in progress.
-              </p>
+              <h2 className="home-section-title">{tr("homeRecentWorkTitle")}</h2>
+              <p className="home-section-sub">{tr("homeRecentWorkSub")}</p>
             </div>
           </div>
 
@@ -243,8 +241,8 @@ export function SelfServeHomeDashboard() {
           {/* Operational production modules — trust posture, verification
               health, report production, and the intake pipeline. */}
           <PageSection
-            title="Verification & production"
-            description="Trust posture, verification health, report production, and the intake pipeline."
+            title={tr("homeProductionSectionTitle")}
+            description={tr("homeProductionSectionDesc")}
             style={sectionStyle}
           >
             {/* Row 1 — Verification Summary + Public Verification Links,
@@ -285,8 +283,8 @@ export function SelfServeHomeDashboard() {
               Workspace Health moved to Overview). Row 2 — the full-width
               Recent Activity module. Storage lives in the sidebar. */}
           <PageSection
-            title="Workspace analytics"
-            description="Records by type, evidence activity, and recent activity."
+            title={tr("homeAnalyticsSectionTitle")}
+            description={tr("homeAnalyticsSectionDesc")}
             style={sectionStyle}
           >
             <div className="home-ops-row">
@@ -311,10 +309,11 @@ export function SelfServeHomeDashboard() {
 
 type HomeTabId = "overview" | "operations" | "analytics";
 
-const HOME_TABS: ReadonlyArray<{ id: HomeTabId; label: string }> = [
-  { id: "overview", label: "Overview" },
-  { id: "operations", label: "Operations" },
-  { id: "analytics", label: "Analytics" },
+// B2A-F-12 — the tab names come from the dictionary (useT), by key.
+const HOME_TABS: ReadonlyArray<{ id: HomeTabId; labelKey: TranslationKey }> = [
+  { id: "overview", labelKey: "homeTabOverview" },
+  { id: "operations", labelKey: "homeTabOperations" },
+  { id: "analytics", labelKey: "homeTabAnalytics" },
 ];
 const HOME_TAB_IDS: ReadonlyArray<HomeTabId> = HOME_TABS.map((t) => t.id);
 

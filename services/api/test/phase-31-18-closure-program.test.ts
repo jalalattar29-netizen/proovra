@@ -58,6 +58,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 import {
   betweenMarkers,
@@ -675,7 +676,9 @@ describe("Phase 31.18 — Search → graph/timeline pivots", () => {
 
   it("pivots are gated on a visible evidenceId or caseId — no leak when both are null", () => {
     const flat = SEARCH_PAGE.replace(/\s+/g, " ");
-    expect(flat).toMatch(/\(row\.evidenceId \|\| row\.caseId\) \? \( <Section label="Investigation pivots">/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-search.ts).
+    expect(flat).toMatch(/\(row\.evidenceId \|\| row\.caseId\) \? \( <Section label=\{t\("searchSectionInvestigation"\)\}>/);
+    expect(webDictionaryEnValue("search", "searchSectionInvestigation")).toBe("Investigation pivots");
   });
 });
 

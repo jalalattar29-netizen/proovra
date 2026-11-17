@@ -10,6 +10,9 @@ import { usePathname } from "next/navigation";
  * `next build`, which fails on an unused binding where `tsc` does not.
  */
 import { ArrowUpRight, CircleHelp, LayoutGrid } from "lucide-react";
+import { fillCopy } from "@proovra/shared/i18n";
+
+import { useT, type TranslationKey } from "../../app/providers";
 
 import {
   useGlobalRuntimeState,
@@ -94,6 +97,39 @@ type SidebarBadge =
   | { kind: "count"; value: number; tone: SidebarBadgeTone }
   | { kind: "dot"; tone: SidebarBadgeTone; ariaLabel: string }
   | { kind: "label"; value: string; tone: SidebarBadgeTone };
+
+/**
+ * B2A-F-12 — the shell speaks the reader's language. Registry labels, group
+ * titles and degradation chips are English data in lib/navigation; they are
+ * translated HERE, at render, by route id / group id / access state, and keep
+ * their English source wherever no dictionary entry exists.
+ */
+type ShellT = (key: TranslationKey) => string;
+
+function translatedRouteLabel(t: ShellT, route: RouteDefinition): string {
+  return t(`shellRoute.${route.id}` as TranslationKey) || route.label;
+}
+
+const GROUP_TITLE_KEY: Record<string, TranslationKey> = {
+  "sidebar.primary-workflows": "shellGroupWorkspace",
+  "sidebar.workspace": "shellGroupWorkspace",
+  "sidebar.operations": "shellGroupWorkspace",
+  "sidebar.governance": "shellGroupGovernance",
+  "sidebar.outputs": "shellGroupOutputs",
+  "sidebar.system": "shellGroupSystem",
+};
+
+function translatedGroupTitle(t: ShellT, group: SidebarGroup): string {
+  const key = GROUP_TITLE_KEY[group.id];
+  return (key && t(key)) || group.title;
+}
+
+const RUNTIME_SEVERITY_KEY: Partial<Record<GlobalRuntimeSeverity, TranslationKey>> = {
+  CRITICAL: "shellRuntimeCritical",
+  INCIDENT_ACTIVE: "shellRuntimeIncidentActive",
+  DEGRADED: "shellRuntimeDegraded",
+  UNKNOWN: "shellRuntimeUnknown",
+};
 
 function severityToTone(
   severity: GlobalRuntimeSeverity,
@@ -192,6 +228,7 @@ function hydrateBadge(
   runtime: ReturnType<typeof useGlobalRuntimeState>,
   runtimeTone: SidebarBadgeTone | null,
   governanceIncidents: number,
+  t: ShellT,
 ): SidebarBadge | null {
   if (badgeKey === "escalations_open" && runtime.counts.escalations > 0) {
     const tone: SidebarBadgeTone = runtime.escalations.some(
@@ -211,7 +248,9 @@ function hydrateBadge(
     return {
       kind: "dot",
       tone: runtimeTone,
-      ariaLabel: `Runtime ${runtime.severity.toLowerCase()}`,
+      ariaLabel: RUNTIME_SEVERITY_KEY[runtime.severity]
+        ? t(RUNTIME_SEVERITY_KEY[runtime.severity] as TranslationKey)
+        : `Runtime ${runtime.severity.toLowerCase()}`,
     };
   }
   if (badgeKey === "governance_incidents" && governanceIncidents > 0) {
@@ -264,15 +303,17 @@ function SidebarLink({
   /** R5 — disclosure-tier hint (beginner / advanced / contextual / all-tools-only). */
   disclosureTier?: string;
 }) {
+  const t = useT();
   const route = item.route;
   const access = item.access;
   const Icon = routeIconFor(route.id);
+  const label = translatedRouteLabel(t, route);
 
   // Denied-but-visible items render with a structured degradation
   // chip. The link still points at the route — the destination
   // PageRouteGate renders the recovery panel canonically.
   const degraded = !access.canLoad;
-  const degradationLabel = degraded ? degradationChip(access) : null;
+  const degradationLabel = degraded ? degradationChip(access, t) : null;
 
   return (
     <Link
@@ -281,7 +322,7 @@ function SidebarLink({
       // `title` is the collapsed-rail tooltip: when the icon rail is
       // collapsed the label span is hidden, so the native tooltip keeps
       // every destination identifiable on hover.
-      title={route.label}
+      title={label}
       // aria-current pins the active route for assistive tech + is the
       // canonical hook tests assert on.
       aria-current={active ? "page" : undefined}
@@ -299,7 +340,7 @@ function SidebarLink({
       <span className="app-sidebar-v2-link-icon" aria-hidden="true">
         <Icon size={20} strokeWidth={1.75} />
       </span>
-      <span style={{ flex: 1 }}>{route.label}</span>
+      <span style={{ flex: 1 }}>{label}</span>
       {badge ? <BadgeView badge={badge} /> : null}
       {degradationLabel ? (
         <span
@@ -332,20 +373,20 @@ function SidebarLink({
   );
 }
 
-function degradationChip(access: RouteAccessResult): string | null {
+function degradationChip(access: RouteAccessResult, t: ShellT): string | null {
   // R2 Part 7 — replaced raw architecture chips with operational
   // language. Old chips ("Org", "Access") were architecture leakage;
   // the canonical labels come from `canonicalNavigationGroups.ts`
   // so a future copy update touches one place.
   switch (access.accessState) {
     case "NEEDS_ORGANIZATION":
-      return DEGRADATION_CHIP_LABELS.NEEDS_ORGANIZATION;
+      return t("shellChipRequiresOrganization") || DEGRADATION_CHIP_LABELS.NEEDS_ORGANIZATION;
     case "NEEDS_PERSONAL_OR_ORG":
-      return DEGRADATION_CHIP_LABELS.NEEDS_PERSONAL_OR_ORG;
+      return t("shellChipSetupNeeded") || DEGRADATION_CHIP_LABELS.NEEDS_PERSONAL_OR_ORG;
     case "DENIED_NO_CAPABILITY":
-      return DEGRADATION_CHIP_LABELS.DENIED_NO_CAPABILITY;
+      return t("shellChipRequiresPermission") || DEGRADATION_CHIP_LABELS.DENIED_NO_CAPABILITY;
     case "NEEDS_UPGRADE":
-      return DEGRADATION_CHIP_LABELS.NEEDS_UPGRADE;
+      return t("shellChipUpgradeRequired") || DEGRADATION_CHIP_LABELS.NEEDS_UPGRADE;
     default:
       return null;
   }
@@ -370,6 +411,8 @@ function SidebarGroupView({
   /** R5 — tooling tier for the entire group (CSS / R10 hook). */
   toolingTier: string;
 }) {
+  const t = useT();
+  const title = translatedGroupTitle(t, group);
   return (
     <div
       className="app-sidebar-v2-group"
@@ -378,8 +421,8 @@ function SidebarGroupView({
       data-sidebar-group-domain={group.domain}
       data-tooling-tier={toolingTier}
     >
-      <div className="app-sidebar-v2-group-title">{group.title}</div>
-      <nav className="app-sidebar-v2-nav" aria-label={group.title}>
+      <div className="app-sidebar-v2-group-title">{title}</div>
+      <nav className="app-sidebar-v2-nav" aria-label={title}>
         {group.items.map((item) => (
           <SidebarLink
             key={item.route.id}
@@ -405,6 +448,7 @@ function SidebarMoreView({
   hydratedBadges: Map<string, SidebarBadge>;
   disclosureTierByRouteId: Map<string, string>;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   if (items.length === 0) return null;
   return (
@@ -426,7 +470,7 @@ function SidebarMoreView({
           data-sidebar-more-toggle
           aria-expanded={open}
           onClick={() => setOpen((prev) => !prev)}
-          title={open ? "Hide advanced" : "More / Advanced"}
+          title={open ? t("shellHideAdvanced") : t("shellMoreAdvanced")}
           style={{
             width: "100%",
             background: "transparent",
@@ -447,7 +491,9 @@ function SidebarMoreView({
             padding: "8px 18px",
           }}
         >
-          {open ? "− Hide advanced" : `+ More / Advanced (${items.length})`}
+          {open
+            ? t("shellHideAdvancedToggle")
+            : fillCopy(t("shellMoreAdvancedToggle"), { count: items.length })}
         </button>
         {open
           ? items.map((item) => (
@@ -475,6 +521,7 @@ function SidebarMoreView({
 export function AppSidebarV2() {
   const { envelope, state } = usePlatformContext();
   const pathname = usePathname();
+  const t = useT();
 
   const activeSpaceType = envelope?.activeSpace?.type ?? null;
   const isPlatformAdmin = envelope?.platform?.isPlatformAdmin === true;
@@ -664,6 +711,7 @@ export function AppSidebarV2() {
       runtime,
       runtimeTone,
       governanceIncidents,
+      t,
     );
     if (badge) hydratedBadges.set(item.route.id, badge);
   }
@@ -724,11 +772,11 @@ export function AppSidebarV2() {
               data-sidebar-group-id="sidebar.all-tools"
               data-sidebar-group-domain="ALL_TOOLS"
             >
-              <nav className="app-sidebar-v2-nav" aria-label="All Tools">
+              <nav className="app-sidebar-v2-nav" aria-label={t("shellAllTools")}>
                 <Link
                   href="/tools"
                   className={`app-sidebar-v2-link ${isActiveRoute(pathname, "/tools") ? "is-active" : ""}`}
-                  title="All Tools"
+                  title={t("shellAllTools")}
                   aria-current={
                     isActiveRoute(pathname, "/tools") ? "page" : undefined
                   }
@@ -738,7 +786,7 @@ export function AppSidebarV2() {
                   <span className="app-sidebar-v2-link-icon" aria-hidden="true">
                     <LayoutGrid size={20} strokeWidth={1.75} />
                   </span>
-                  <span style={{ flex: 1 }}>All Tools</span>
+                  <span style={{ flex: 1 }}>{t("shellAllTools")}</span>
                 </Link>
               </nav>
             </div>
@@ -757,13 +805,13 @@ export function AppSidebarV2() {
           target="_blank"
           rel="noopener noreferrer"
           className="app-sidebar-v2-help"
-          aria-label="Contact support — opens the public support page in a new tab"
+          aria-label={t("shellContactSupportAria")}
         >
           <CircleHelp size={20} strokeWidth={1.75} />
           <span>
-            <strong>Need help?</strong>
+            <strong>{t("shellNeedHelp")}</strong>
             <small>
-              Contact support
+              {t("shellContactSupport")}
               <ArrowUpRight
                 aria-hidden="true"
                 strokeWidth={2}

@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 import { functionSource } from "../../../scripts/source-contract/index.mjs";
+import { HOME_COPY } from "@proovra/shared/i18n";
 
 import {
   normalizeHomeViewModel,
@@ -500,8 +501,13 @@ test("T3B: tsa.none and ots.none reach Trust State (neutral, conditional)", () =
   assert.equal(vm.trustState.tsaNone, 5);
   assert.equal(vm.trustState.otsNone, 6);
   // Rendered as a conditional suffix; never changes the row tone.
-  assert.match(SECTIONS_SRC, /trust\.tsaNone \? ` · \$\{trust\.tsaNone\} not stamped` : ""/);
-  assert.match(SECTIONS_SRC, /trust\.otsNone \? ` · \$\{trust\.otsNone\} not anchored yet` : ""/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts): each bucket is a
+  // conditional segment (only when > 0), and the row's value is its segments joined by " · ".
+  assert.ok(SECTIONS_SRC.includes('...(trust.tsaNone ? [{ text: fillCopy(t("homeTrustNotStamped"), { count: trust.tsaNone })'));
+  assert.ok(SECTIONS_SRC.includes('...(trust.otsNone ? [{ text: fillCopy(t("homeTrustNotAnchored"), { count: trust.otsNone }), tone: "neutral" as const }] : [])'));
+  assert.ok(SECTIONS_SRC.includes('value: segments.map((seg) => seg.text).join(" · ")'));
+  assert.equal(HOME_COPY.en.homeTrustNotStamped, "{count} not stamped");
+  assert.equal(HOME_COPY.en.homeTrustNotAnchored, "{count} not anchored yet");
 });
 
 // Ticket 3C — previously filtered timeline kinds now appear with safe labels.
@@ -544,9 +550,12 @@ test("T4: hasAnyData/recentReports removed; manageHref/expiry/delivery-at render
   // CollectionRow.status removed (constant ACTIVE after the filter).
   assert.ok(!/status:\s*l\.status/.test(VM_SRC), "CollectionRow.status mapping must be gone");
   // Rendered survivors:
-  assert.match(SECTIONS_SRC, /cta=\{\{ label: "Manage team", href: team\.manageHref \}\}/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.ok(SECTIONS_SRC.includes('cta={{ label: t("homeManageTeam"), href: team.manageHref }}'));
+  assert.equal(HOME_COPY.en.homeManageTeam, "Manage team");
   assert.match(SECTIONS_SRC, /data-link-expires/);
-  assert.match(SECTIONS_SRC, /r\.delivery\.at \? ` · \$\{formatRelative\(r\.delivery\.at\)\}` : ""/);
+  // B2A-F-12 — relative times are localised: formatRelative now takes `t`.
+  assert.match(SECTIONS_SRC, /r\.delivery\.at \? ` · \$\{formatRelative\(r\.delivery\.at, t\)\}` : ""/);
 });
 
 // ===========================================================================
@@ -1078,8 +1087,11 @@ test("CTA-NORM: Header CTA is 'All evidence' → /evidence (never duplicates the
   // Static source check — the SelfServeHomeDashboard hands the
   // HomeHeader the heroAction; HomeHeader's primary logic now ignores
   // heroAction.ctaLabel / .href except in the start_capture case.
-  assert.match(DASH_SRC, /hero\.kind === "capture_first"\s*\?\s*\{\s*label:\s*"Capture evidence"/);
-  assert.match(DASH_SRC, /\{\s*label:\s*"All evidence"\s*,\s*href:\s*"\/evidence"\s*\}/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.match(DASH_SRC, /hero\.kind === "capture_first"\s*\?\s*\{\s*label:\s*t\("homeCaptureEvidence"\)/);
+  assert.match(DASH_SRC, /\{\s*label:\s*t\("homeAllEvidence"\)\s*,\s*href:\s*"\/evidence"\s*\}/);
+  assert.equal(HOME_COPY.en.homeCaptureEvidence, "Capture evidence");
+  assert.equal(HOME_COPY.en.homeAllEvidence, "All evidence");
   // Regression lock — must NEVER again use hero.ctaLabel for the header
   // primary, which is what duplicated "Review Integrity" twice.
   assert.ok(

@@ -846,3 +846,43 @@ export function projectCommunicationMessage(
     failedAtUtc: row.failedAtUtc?.toISOString() ?? null,
   };
 }
+
+/**
+ * B3C-F-002 (free-audit 0ea0) — the RECORD-SCOPED delivery summary a reader
+ * without the messaging operator authority receives: whether and when a
+ * message about the record they opened went out, and nothing about whom it
+ * went to or what it said. Recipient, body, provider, provider error and the
+ * links to other records are withheld (null, not omitted, so a client reading
+ * them gets an absence); `contentWithheld` says which projection this is.
+ *
+ * It mirrors the contextual delivery surface on an evidence request
+ * (`GET /v1/evidence-requests/:id/deliveries`): status, timestamps, attempt
+ * count — the global delivery log stays an operations surface.
+ */
+export type CommunicationMessageSummaryProjection = Omit<
+  CommunicationMessageProjection,
+  "provider" | "recipientPreview" | "errorCode"
+> & {
+  provider: null;
+  recipientPreview: null;
+  bodyPreview: null;
+  errorCode: null;
+  contentWithheld: true;
+};
+
+export function projectCommunicationMessageSummary(
+  row: prismaPkg.CommunicationMessage,
+): CommunicationMessageSummaryProjection {
+  const full = projectCommunicationMessage(row);
+  return {
+    ...full,
+    provider: null,
+    recipientPreview: null,
+    bodyPreview: null,
+    errorCode: null,
+    relatedEvidenceId: null,
+    relatedDiscussionThreadId: null,
+    relatedIntakeSessionId: null,
+    contentWithheld: true,
+  };
+}

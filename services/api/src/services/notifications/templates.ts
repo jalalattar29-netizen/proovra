@@ -108,6 +108,16 @@ export type MembershipLifecycleContext = {
   effectiveOnLabel?: string | null;
 };
 
+/**
+ * B7A-F-006 — the owner's key-compromise notice. Deliberately minimal: a link
+ * to the record and whether a replacement can be requested. No key identity,
+ * fingerprint, operator reason, record title or content.
+ */
+export type SigningKeyCompromiseNoticeContext = {
+  actionUrl: string | null;
+  replacementAvailable: boolean;
+};
+
 // Discriminated union the renderer accepts. Adding an event type means
 // adding both an entry here and a renderer branch below.
 export type TemplateContext =
@@ -119,7 +129,8 @@ export type TemplateContext =
   | { kind: "IntakeSubmitted"; data: ExternalIntakeSubmittedContext }
   | { kind: "Simple"; data: EvidenceRequestSimpleContext }
   | { kind: "OperationsDigest"; data: OperationsDigestContext }
-  | { kind: "MembershipLifecycle"; data: MembershipLifecycleContext };
+  | { kind: "MembershipLifecycle"; data: MembershipLifecycleContext }
+  | { kind: "SigningKeyCompromiseNotice"; data: SigningKeyCompromiseNoticeContext };
 
 export type RenderedTemplate = {
   subject: string;
@@ -282,6 +293,8 @@ export function renderTransactionalTemplate(
     case "ACCOUNT_CLOSED":
     case "ORGANIZATION_TERMINATION_SCHEDULED":
       return renderMembershipLifecycle(eventType, expectCtx(ctx, "MembershipLifecycle"));
+    case "SIGNING_KEY_COMPROMISE_NOTICE":
+      return renderSigningKeyCompromiseNotice(expectCtx(ctx, "SigningKeyCompromiseNotice"));
     default: {
       const _exhaustive: never = eventType;
       throw new Error(
@@ -304,6 +317,7 @@ function expectCtx(ctx: TemplateContext, kind: "IntakeSubmitted"): ExternalIntak
 function expectCtx(ctx: TemplateContext, kind: "Simple"): EvidenceRequestSimpleContext;
 function expectCtx(ctx: TemplateContext, kind: "OperationsDigest"): OperationsDigestContext;
 function expectCtx(ctx: TemplateContext, kind: "MembershipLifecycle"): MembershipLifecycleContext;
+function expectCtx(ctx: TemplateContext, kind: "SigningKeyCompromiseNotice"): SigningKeyCompromiseNoticeContext;
 function expectCtx(ctx: TemplateContext, kind: TemplateContext["kind"]): unknown {
   if (ctx.kind !== kind) {
     throw new Error(
@@ -774,6 +788,29 @@ function renderMembershipLifecycle(
     ctaUrl: d.actionUrl ?? undefined,
   });
   const text = [title, "", line, d.actionUrl ? `Open: ${d.actionUrl}` : null]
+    .filter((l): l is string => typeof l === "string")
+    .join("\n");
+  return { subject: title, html, text, plaintextPreview: text.slice(0, 2000) };
+}
+
+function renderSigningKeyCompromiseNotice(d: SigningKeyCompromiseNoticeContext): RenderedTemplate {
+  const brand = getEmailBrandName();
+  const title = `A ${brand} signing key used for one of your records was withdrawn`;
+  const lines = [
+    `As a precaution, ${brand} withdrew a signing key that signed or sealed an issued report or verification package of one of your records.`,
+    "Your record and everything already issued stay exactly as they were. Verification now shows that signature as made by a revoked key, so it is no longer presented as presently trusted.",
+    d.replacementAvailable
+      ? "You can request a replacement verification package from the record. It is linked to the original and costs nothing."
+      : "Open the record to see what verification shows now.",
+  ];
+  const html = renderEmailShell({
+    title,
+    preheader: lines[0]!.slice(0, 120),
+    bodyHtml: lines.map((l) => `<div style="margin:0 0 12px 0;">${escapeEmailHtml(l)}</div>`).join(""),
+    ctaText: d.actionUrl ? "Open the record" : undefined,
+    ctaUrl: d.actionUrl ?? undefined,
+  });
+  const text = [title, "", ...lines, d.actionUrl ? `Open: ${d.actionUrl}` : null]
     .filter((l): l is string => typeof l === "string")
     .join("\n");
   return { subject: title, html, text, plaintextPreview: text.slice(0, 2000) };

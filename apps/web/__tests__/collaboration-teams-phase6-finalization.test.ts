@@ -215,7 +215,7 @@ test("SCOPE K — /inbox is CORE for every plan (operational surface, 2026-07-18
   }
 });
 
-test("SCOPE K — PRO/TEAM get PROFESSIONAL self-serve collaboration; FREE/PAYG do not", () => {
+test("SCOPE K — PRO/TEAM get PROFESSIONAL self-serve collaboration; FREE/PAYG reach it only in manage-only mode", () => {
   for (const href of PROFESSIONAL_COLLABORATION_SURFACES) {
     for (const plan of ["PRO", "TEAM"] as WorkspacePlan[]) {
       assert.equal(
@@ -224,11 +224,15 @@ test("SCOPE K — PRO/TEAM get PROFESSIONAL self-serve collaboration; FREE/PAYG 
         `${plan} must reach professional collaboration surface ${href}`,
       );
     }
+    // B3B-F-104 (owner directive) — a plan without intake still LOADS the URL
+    // so standing links can be listed and revoked; creation is withheld by the
+    // page and the API, and navigation hides the entry (routeRegistry
+    // navPlanFeature "intakeIncluded").
     for (const plan of ["FREE", "PAYG"] as WorkspacePlan[]) {
       assert.equal(
         canAccessSurface(ctxFor(plan), href),
-        false,
-        `${plan} must NOT reach professional collaboration surface ${href}`,
+        true,
+        `${plan} loads ${href} in manage-only mode`,
       );
     }
   }

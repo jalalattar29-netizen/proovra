@@ -614,7 +614,7 @@ function RegisterPageContent() {
       if (isEmailRegisterFlow && errCode === "EMAIL_ALREADY_EXISTS") {
         setEmailAvailability("exists");
         setError(
-          "An account already exists for this email. Sign in or reset your password instead."
+          "An account already exists for this email. Sign in the way you did before (password, Google or Apple), or reset your password if you set one."
         );
       } else {
         setError(msg);
@@ -879,7 +879,7 @@ function RegisterPageContent() {
 
     if (emailAvailability === "exists") {
       setError(
-        "An account already exists for this email. Sign in or reset your password instead."
+        "An account already exists for this email. Sign in the way you did before (password, Google or Apple), or reset your password if you set one."
       );
       return;
     }

@@ -137,7 +137,7 @@ export default function RegisterScreen() {
       return;
     }
     if (availability === "exists") {
-      setError("An account already exists for this email. Sign in or reset your password instead.");
+      setError("An account already exists for this email. Sign in the way you did before (password, Google or Apple), or reset your password if you set one.");
       return;
     }
     if (!passwordMeetsRules(password)) {
@@ -165,7 +165,7 @@ export default function RegisterScreen() {
       if (safe.code === "EMAIL_ALREADY_EXISTS") {
         // The poll can miss a race; the server's 409 flips the inline affordance on.
         setAvailability("exists");
-        setError("An account already exists for this email. Sign in or reset your password instead.");
+        setError("An account already exists for this email. Sign in the way you did before (password, Google or Apple), or reset your password if you set one.");
       } else if (safe.code === "weak_new_password") {
         setError(RULES_MESSAGE);
       } else {

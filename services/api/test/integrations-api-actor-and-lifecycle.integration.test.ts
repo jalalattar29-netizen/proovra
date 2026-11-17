@@ -143,6 +143,45 @@ describe("integrations API actor, plan gate and organization lifecycle (live Pos
     expect(ok.statusCode, ok.body).toBe(201);
   });
 
+  // B3B-F-102 (Free audit 0ea0, residual pass 2026-11-17) — the API create
+  // honours the same create idempotency as the web and native create.
+  it("B3B-F-102: an Idempotency-Key retry answers the original link without a token; a changed body is 409; no key is unchanged", async () => {
+    const keyed = (payload: unknown, key: string) =>
+      h.app.inject({
+        method: "POST",
+        url: "/v1/integrations/api/intake-links",
+        headers: { authorization: `Bearer ${keyA}`, "content-type": "application/json", "idempotency-key": key },
+        payload: payload as never,
+      });
+    const body = linkBody(7);
+    const key = `b3b-f-102-${Date.now()}`;
+    const first = await keyed(body, key);
+    expect(first.statusCode, first.body).toBe(201);
+    const firstJson = JSON.parse(first.body) as { intakeLink: { id: string }; rawToken: string | null };
+    expect(firstJson.rawToken).toBeTruthy();
+
+    const retry = await keyed(body, key);
+    expect(retry.statusCode, retry.body).toBe(200);
+    const retryJson = JSON.parse(retry.body) as { intakeLink: { id: string }; rawToken: unknown; replayed: boolean };
+    expect(retryJson.intakeLink.id).toBe(firstJson.intakeLink.id);
+    expect(retryJson.rawToken).toBeNull();
+    expect(retryJson.replayed).toBe(true);
+    expect(await prisma.workflowIntakeLink.count({ where: { id: firstJson.intakeLink.id } })).toBe(1);
+
+    const changed = await keyed({ ...body, recipientLabel: "API changed" }, key);
+    expect(changed.statusCode, changed.body).toBe(409);
+    expect(JSON.parse(changed.body).error.code).toBe("IDEMPOTENCY_KEY_REUSED");
+
+    const bad = await keyed(body, "not a valid key!");
+    expect(bad.statusCode, bad.body).toBe(400);
+    expect(JSON.parse(bad.body).error.code).toBe("IDEMPOTENCY_KEY_INVALID");
+
+    const unkeyedA = await post("/v1/integrations/api/intake-links", keyA, body);
+    const unkeyedB = await post("/v1/integrations/api/intake-links", keyA, body);
+    expect([unkeyedA.statusCode, unkeyedB.statusCode]).toEqual([201, 201]);
+    expect(JSON.parse(unkeyedA.body).intakeLink.id).not.toBe(JSON.parse(unkeyedB.body).intakeLink.id);
+  });
+
   it("AUD-36: a key created by a member who may not mint intake links cannot mint them through the API", async () => {
     const A = h.fixtures.teamA;
     const { createApiCredential } = await import("../src/services/integrations/api-keys.service.js");

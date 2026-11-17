@@ -113,6 +113,17 @@ export const REPORT_GENERATION_PURPOSES = [
    * issuance. Stored in a VARCHAR column — no enum, no migration.
    */
   "missing_output_recovery",
+  /**
+   * B7A-F-006 (free-audit 0ea0) — the linked replacement of an output whose
+   * verification-package seal was made by key material later declared
+   * COMPROMISED. SERVER-ONLY: minted solely by
+   * `requestKeyCompromiseReplacement` (signing-key-compromise-owners.service.ts)
+   * after the server itself found the record's latest package sealed by
+   * compromised material AND the current signers unaffected; no route accepts
+   * a purpose from a caller. The allowance reads it like a missing-file
+   * recovery (`first-issuance-allowance.ts`). VARCHAR column — no migration.
+   */
+  "signing_key_compromise_replacement",
 ] as const;
 export type ReportGenerationPurpose =
   (typeof REPORT_GENERATION_PURPOSES)[number];

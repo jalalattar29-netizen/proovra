@@ -39,6 +39,7 @@ import {
 import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
+import { governanceNotificationReachWhere } from "./governance-notification.service.js";
 
 export type GovernanceAnalyticsResult = {
   generatedAtUtc: string;
@@ -79,6 +80,30 @@ function normalizeWindow(w: string | undefined | null): AnalyticsWindow {
   return "24h";
 }
 
+/**
+ * B7B-F03 (residual) — blocked lifecycle transitions are written to the
+ * security feed (lifecycle-orchestrator.service.ts) with the record id in the
+ * event's JSON details, which no relation filter can reach. With no closed
+ * record this is the plain count; otherwise the window's rows are read and
+ * the closed records' rows are left out.
+ */
+async function countBlockedTransitionsInReach(
+  client: PrismaClient,
+  teamId: string,
+  since: Date,
+  hiddenEvidenceIds: readonly string[],
+): Promise<number> {
+  const where = { teamId, eventType: "lifecycle_transition_blocked", createdAt: { gte: since } };
+  if (hiddenEvidenceIds.length === 0) return client.securityEvent.count({ where });
+  const closed = new Set(hiddenEvidenceIds);
+  const rows = await client.securityEvent.findMany({ where, select: { details: true } });
+  return rows.filter((r) => {
+    const d = r.details && typeof r.details === "object" ? (r.details as Record<string, unknown>) : null;
+    const id = d?.evidenceId;
+    return !(typeof id === "string" && closed.has(id));
+  }).length;
+}
+
 export async function computeGovernanceAnalytics(
   input: {
     teamId: string;
@@ -101,6 +126,21 @@ export async function computeGovernanceAnalytics(
   const reviewReach = input.reach ? evidenceIdInReach(input.reach) : {};
   const holdReach = input.reach ? { AND: holdInReach(input.reach) } : {};
   const incidentReach = input.reach ? incidentInReach(input.reach) : {};
+  // B7B-F03 (free-audit 0ea0, residual) — lifecycle events, immutable checks,
+  // export snapshots, governance notifications and case-scoped retention
+  // policies name a record, a hold or a case; one closed to the reader is
+  // that record's row and moves no number (record-reach.ts, and the
+  // notification list's own reach rule).
+  const hiddenEvidenceIds = input.reach?.hidden.evidenceIds ?? [];
+  const hiddenCaseIds = input.reach?.hidden.caseIds ?? [];
+  const recordReach = input.reach ? evidenceIdInReach(input.reach) : {};
+  const snapshotReach =
+    hiddenEvidenceIds.length > 0
+      ? { OR: [{ evidenceId: null }, { evidenceId: { notIn: hiddenEvidenceIds } }] }
+      : {};
+  const policyReach =
+    hiddenCaseIds.length > 0 ? { OR: [{ caseId: null }, { caseId: { notIn: hiddenCaseIds } }] } : {};
+  const notificationReach = { AND: await governanceNotificationReachWhere(input.teamId, input.reach, client) };
   const window = normalizeWindow(input.window);
   const windowMs = analyticsWindowToMilliseconds(window);
   const since = new Date(Date.now() - windowMs);
@@ -151,7 +191,7 @@ export async function computeGovernanceAnalytics(
     }),
     client.evidenceRetentionPolicy.groupBy({
       by: ["scope", "scopeQualifier", "caseId"],
-      where: { teamId: input.teamId, status: "ACTIVE" },
+      where: { teamId: input.teamId, status: "ACTIVE", ...policyReach },
       _count: { _all: true },
     }),
     client.evidence.count({
@@ -170,6 +210,7 @@ export async function computeGovernanceAnalytics(
     client.evidenceLifecycleEvent.count({
       where: {
         teamId: input.teamId,
+        ...recordReach,
         eventType: "lifecycle_transition",
         createdAt: { gte: since },
       },
@@ -178,13 +219,7 @@ export async function computeGovernanceAnalytics(
     // feed, not the lifecycle ledger. We count blocked-destruction
     // signals via the destruction-blocked counters proxy by looking at
     // immutable drift + blocked destruction holds — see metrics below.
-    client.securityEvent.count({
-      where: {
-        teamId: input.teamId,
-        eventType: "lifecycle_transition_blocked",
-        createdAt: { gte: since },
-      },
-    }),
+    countBlockedTransitionsInReach(client, input.teamId, since, hiddenEvidenceIds),
     client.operationalIncident.count({
       where: {
         teamId: input.teamId,
@@ -196,6 +231,7 @@ export async function computeGovernanceAnalytics(
     client.immutableStorageCheck.count({
       where: {
         teamId: input.teamId,
+        ...recordReach,
         outcome: {
           in: [
             prismaPkg.ImmutableStorageCheckOutcome.MISSING_LOCK,
@@ -210,6 +246,7 @@ export async function computeGovernanceAnalytics(
     client.governanceExportSnapshot.count({
       where: {
         teamId: input.teamId,
+        ...snapshotReach,
         exportEligibilityOutcome: {
           in: [
             "BLOCKED_BY_HOLD",
@@ -225,6 +262,7 @@ export async function computeGovernanceAnalytics(
     client.governanceNotification.count({
       where: {
         teamId: input.teamId,
+        ...notificationReach,
         kind: prismaPkg.GovernanceNotificationKind.REVIEW_OVERDUE,
         acknowledgedAtUtc: null,
       },
@@ -241,7 +279,7 @@ export async function computeGovernanceAnalytics(
     }),
     client.governanceNotification.groupBy({
       by: ["severity"],
-      where: { teamId: input.teamId, lastSeenAtUtc: { gte: since } },
+      where: { teamId: input.teamId, ...notificationReach, lastSeenAtUtc: { gte: since } },
       _count: { _all: true },
     }),
     client.evidence.groupBy({
@@ -256,12 +294,12 @@ export async function computeGovernanceAnalytics(
     }),
     client.immutableStorageCheck.groupBy({
       by: ["outcome"],
-      where: { teamId: input.teamId, checkedAtUtc: { gte: since } },
+      where: { teamId: input.teamId, ...recordReach, checkedAtUtc: { gte: since } },
       _count: { _all: true },
     }),
     client.evidenceRetentionPolicy.groupBy({
       by: ["scope", "scopeQualifier", "caseId"],
-      where: { teamId: input.teamId, status: "ACTIVE" },
+      where: { teamId: input.teamId, status: "ACTIVE", ...policyReach },
       _count: { _all: true },
       having: { id: { _count: { gt: 1 } } },
       orderBy: { _count: { id: "desc" } },

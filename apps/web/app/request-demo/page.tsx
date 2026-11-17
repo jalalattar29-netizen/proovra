@@ -225,7 +225,7 @@ function RequestDemoFormCard({ sourcePath }: { sourcePath: string }) {
         walkthrough.
       </p>
 
-      <RequestDemoForm sourcePath={sourcePath} submitButtonLabel="Request demo" />
+      <RequestDemoForm sourcePath={sourcePath} submitLabelKey="leadDemoRequestSubmit" />
 
       <p className="mt-3 inline-flex items-center gap-2 text-[11.5px] text-[#64748B]">
         <Lock size={12} />

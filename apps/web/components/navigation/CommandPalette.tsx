@@ -32,6 +32,9 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import { fillCopy } from "@proovra/shared/i18n";
+
+import { useT, type TranslationKey } from "../../app/providers";
 
 import {
   usePersonalSpaceFragment,
@@ -64,6 +67,39 @@ type IndexedItem = {
 
 const MAX_RESULTS = 20;
 
+/**
+ * B2A-F-12 — the palette in the reader's language. Titles and groups are
+ * English registry data; they are translated at render by route id / group
+ * name and keep their English source where no dictionary entry exists.
+ * Matching still scores the English registry label (lib/navigation/paletteModel).
+ */
+type PaletteT = (key: TranslationKey) => string;
+
+const PALETTE_GROUP_KEY: Record<string, TranslationKey> = {
+  Settings: "shellPaletteGroupSettings",
+  Governance: "shellPaletteGroupGovernance",
+  Tools: "shellPaletteGroupTools",
+  Pages: "shellPaletteGroupPages",
+};
+
+function translatedRouteLabel(t: PaletteT, route: RouteDefinition): string {
+  return t(`shellRoute.${route.id}` as TranslationKey) || route.label;
+}
+
+function translatedPaletteGroup(t: PaletteT, route: RouteDefinition): string {
+  const group = paletteGroupFor(route);
+  const key = PALETTE_GROUP_KEY[group];
+  return (key && t(key)) || group;
+}
+
+/** `paletteTitleFor`, in the reader's language (same Settings rule). */
+function translatedPaletteTitle(t: PaletteT, route: RouteDefinition): string {
+  if (paletteGroupFor(route) !== "Settings") return translatedRouteLabel(t, route);
+  if (route.href === "/settings") return t("shellPaletteSettingsOverview") || paletteTitleFor(route);
+  if (/^settings\b/i.test(route.label)) return translatedRouteLabel(t, route);
+  return fillCopy(t("shellPaletteSettingsPrefix"), { label: translatedRouteLabel(t, route) });
+}
+
 
 export function CommandPalette() {
   const { envelope } = usePlatformContext();
@@ -74,6 +110,7 @@ export function CommandPalette() {
   const workspaceFragment = useWorkspaceFragment();
   const personalSpaceFragment = usePersonalSpaceFragment();
   const router = useRouter();
+  const t = useT();
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -163,9 +200,9 @@ export function CommandPalette() {
     setQuery("");
     setHighlight(0);
     // Restore focus to the trigger if it remembered one.
-    const t = triggerRef.current;
-    if (t && typeof t.focus === "function") {
-      t.focus();
+    const trigger = triggerRef.current;
+    if (trigger && typeof trigger.focus === "function") {
+      trigger.focus();
     }
   }, []);
 
@@ -240,7 +277,7 @@ export function CommandPalette() {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Command palette"
+      aria-label={t("shellPaletteDialog")}
       data-command-palette
       style={{
         position: "fixed",
@@ -282,7 +319,7 @@ export function CommandPalette() {
             border: 0,
           }}
         >
-          Search tools and routes
+          {t("shellPaletteSearchLabel")}
         </label>
         <input
           id="command-palette-input"
@@ -291,8 +328,8 @@ export function CommandPalette() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onInputKey}
-          placeholder="Search tools, routes, settings…"
-          aria-label="Search tools and routes"
+          placeholder={t("shellPalettePlaceholder")}
+          aria-label={t("shellPaletteSearchLabel")}
           data-command-palette-input
           style={{
             border: "none",
@@ -304,7 +341,7 @@ export function CommandPalette() {
         />
         <ul
           role="listbox"
-          aria-label="Search results"
+          aria-label={t("shellPaletteResults")}
           data-command-palette-results
           style={{
             listStyle: "none",
@@ -319,8 +356,7 @@ export function CommandPalette() {
               style={{ padding: "16px", color: "#64748b", fontSize: 13 }}
               data-command-palette-empty
             >
-              No matching tools. Workflow profiles personalize ranking; they
-              do not change permissions or remove tools.
+              {t("shellPaletteEmpty")}
             </li>
           ) : (
             results.map((item, idx) => {
@@ -419,7 +455,7 @@ export function CommandPalette() {
                         are just no longer shouted.
                       */}
                       <strong style={{ fontSize: 13, color: "#0f172a" }}>
-                        {paletteTitleFor(item.route)}
+                        {translatedPaletteTitle(t, item.route)}
                       </strong>
                     </div>
                     <div
@@ -451,7 +487,7 @@ export function CommandPalette() {
                         marginTop: 3,
                       }}
                     >
-                      {paletteGroupFor(item.route)}
+                      {translatedPaletteGroup(t, item.route)}
                       {item.access.canLoad ? null : (
                         <>
                           {" · "}
@@ -467,8 +503,8 @@ export function CommandPalette() {
                             style={{ color: "var(--app-ink-secondary, #667085)" }}
                           >
                             {item.access.accessState === "NEEDS_ORGANIZATION"
-                              ? "Requires organization"
-                              : "Not available here"}
+                              ? t("shellChipRequiresOrganization")
+                              : t("shellPaletteNotAvailableHere")}
                           </span>
                         </>
                       )}
@@ -502,9 +538,10 @@ export function CommandPalette() {
           }}
         >
           <span>
-            <kbd>↑↓</kbd> navigate · <kbd>↵</kbd> open · <kbd>esc</kbd> close
+            <kbd>↑↓</kbd> {t("shellPaletteNavigate")} · <kbd>↵</kbd> {t("shellPaletteOpen")} ·{" "}
+            <kbd>esc</kbd> {t("shellPaletteClose")}
           </span>
-          <span>Cmd+K to toggle</span>
+          <span>{t("shellPaletteToggle")}</span>
         </footer>
       </div>
     </div>

@@ -226,3 +226,20 @@ test("B5A-F-08 — with reviewer operations the Reviewer comments panel is shown
   assert.ok(r.hasText("Reviewer comments"));
   assert.ok(requests.some((q) => q.path === "/v1/evidence/ev-1/comments"));
 });
+
+test("B3C-F-008 — a plan without reviewer operations offers no Assign or Escalate; Resolve and discussion stay", async () => {
+  routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { reviewerOperationsIncluded: false } });
+  const r = await openThread();
+  await selectThread(r);
+  assert.ok(r.hasText("Resolve thread"));
+  assert.equal(r.hasText("Assign thread"), false);
+  assert.equal(r.hasText("Escalate thread"), false);
+});
+
+test("B3C-F-008 — control: with reviewer operations Assign and Escalate are offered", async () => {
+  routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { reviewerOperationsIncluded: true } });
+  const r = await openThread();
+  await selectThread(r);
+  assert.ok(r.hasText("Assign thread"));
+  assert.ok(r.hasText("Escalate thread"));
+});

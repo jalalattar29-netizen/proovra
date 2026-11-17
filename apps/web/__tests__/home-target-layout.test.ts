@@ -13,6 +13,7 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { HOME_COPY } from "@proovra/shared/i18n";
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string) => readFileSync(resolve(APP, rel), "utf8");
@@ -182,8 +183,11 @@ test("What Needs Attention is a clean list with the pill on the right", () => {
 test("the Overview body is one three-column row under two headings", () => {
   assert.match(DASH, /className="home-overview-heads"/);
   assert.match(DASH, /className="home-overview-grid"/);
-  assert.match(DASH, /What needs you now/);
-  assert.match(DASH, /Your recent work/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.ok(DASH.includes('<h2 className="home-section-title">{tr("homeNeedsYouNowTitle")}</h2>'));
+  assert.ok(DASH.includes('<h2 className="home-section-title">{tr("homeRecentWorkTitle")}</h2>'));
+  assert.equal(HOME_COPY.en.homeNeedsYouNowTitle, "What needs you now");
+  assert.equal(HOME_COPY.en.homeRecentWorkTitle, "Your recent work");
   // Recent evidence and matters stack in the third column.
   const grid = DASH.slice(DASH.indexOf('className="home-overview-grid"'));
   const col = grid.slice(grid.indexOf('className="home-overview-col"'));
@@ -224,9 +228,11 @@ test("the verification summary colours values, not whole rows", () => {
   assert.doesNotMatch(body, /border: `1px solid \$\{ts\.border\}`/);
   // The legal boundary survives, in its own quiet strip, unchanged in wording.
   assert.match(body, /className="home-note"/);
-  assert.match(
-    body,
-    /PROOVRA records integrity signals; it does not determine factual truth or legal admissibility\./,
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts); the English wording is unchanged.
+  assert.ok(body.includes('{t("homeTrustBoundary")}'));
+  assert.equal(
+    HOME_COPY.en.homeTrustBoundary,
+    "PROOVRA records integrity signals; it does not determine factual truth or legal admissibility.",
   );
 });
 

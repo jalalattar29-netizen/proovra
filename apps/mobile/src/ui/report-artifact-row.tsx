@@ -89,7 +89,7 @@ export function ReportArtifactRow({
       const status = typeof (err as { statusCode?: unknown })?.statusCode === "number" ? (err as { statusCode: number }).statusCode : null;
       const safe = toSafeUserError(err).message;
       const code = typeof (err as { code?: unknown })?.code === "string" ? (err as { code: string }).code : null;
-      setError(kind === "report" ? reportDownloadError(status, safe) : packageDownloadError(status, safe, code));
+      setError(kind === "report" ? reportDownloadError(status, safe, code) : packageDownloadError(status, safe, code));
     } finally {
       setBusy(null);
     }

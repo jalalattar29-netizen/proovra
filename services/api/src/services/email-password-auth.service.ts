@@ -6,6 +6,7 @@ import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.
 import { ensureEntitlement } from "./billing.service.js";
 import { error as logError } from "../utils/logger.js";
 import { closedAccountProviderId } from "./identity/account-closed.js";
+import { findSelfServeAccountHoldingAddress, lockAccountAddress } from "./identity/account-address-holder.js";
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -48,7 +49,10 @@ export async function isEmailAvailableForRegistration(
     },
     select: { id: true },
   });
-  return !existing;
+  if (existing) return false;
+  // B1-F-004 — an address a Google/Apple account already holds VERIFIED is
+  // taken too: registration refuses it (registerWithEmailPassword).
+  return !(await findSelfServeAccountHoldingAddress(prisma, email));
 }
 
 function sha256Hex(input: string): string {
@@ -283,14 +287,30 @@ export async function registerWithEmailPassword(params: {
 
   let user: User;
   try {
-    user = await prisma.user.create({
-      data: {
-        provider,
-        providerUserId,
-        email,
-        displayName: params.displayName ?? null,
-        passwordHash,
-      },
+    /*
+     * B1-F-004 (free-audit 0ea0) — an address a Google/Apple (or any other
+     * self-serve) account already holds VERIFIED is not opened a second time
+     * with a password: that would be a second identity and a second Free
+     * allowance (D-03). The same 409 as an existing password account (so the
+     * answer names no sign-in method); the person signs in with the method they
+     * used and adds a password from Security > Sign-in methods. The check and
+     * the create share the per-address lock a first Google/Apple sign-in takes,
+     * so the two cannot both open an account for one address.
+     */
+    user = await prisma.$transaction(async (tx) => {
+      await lockAccountAddress(tx, email);
+      if (await findSelfServeAccountHoldingAddress(tx, email)) {
+        throw new EmailAlreadyExistsError();
+      }
+      return tx.user.create({
+        data: {
+          provider,
+          providerUserId,
+          email,
+          displayName: params.displayName ?? null,
+          passwordHash,
+        },
+      });
     });
   } catch (err) {
     // Prisma P2002 = unique constraint violation. Race between the
@@ -732,7 +752,13 @@ export type ConsumeEmailVerificationTokenResult =
   | { ok: true; user: { id: string; email: string | null; provider: string; emailVerifiedAt: Date } }
   | {
       ok: false;
-      reason: "invalid" | "expired" | "already_used" | "password_required" | "password_incorrect";
+      reason:
+        | "invalid"
+        | "expired"
+        | "already_used"
+        | "password_required"
+        | "password_incorrect"
+        | "address_held_by_existing_account";
     };
 
 export async function consumeEmailVerificationToken(
@@ -772,7 +798,7 @@ export async function consumeEmailVerificationToken(
    */
   const account = await prisma.user.findUnique({
     where: { id: rec.userId },
-    select: { emailVerifiedAt: true, passwordHash: true },
+    select: { emailVerifiedAt: true, passwordHash: true, email: true },
   });
   const firstVerificationOfPassword = Boolean(
     account && !account.emailVerifiedAt && account.passwordHash,
@@ -794,7 +820,24 @@ export async function consumeEmailVerificationToken(
   // pattern above): the read before it does not lock, so two concurrent uses
   // of one link both passed it and both minted a session. The loser of the
   // claim matches no row and writes nothing.
+  // B1-F-004 (Free audit 0ea0, residual pass 2026-11-17) — ONE SELF-SERVE
+  // ACCOUNT PER VERIFIED ADDRESS, on the verification path too. A password
+  // registration left unverified does not block a later Google/Apple sign-in
+  // (an unverified row proves nothing about the mailbox), so by the time this
+  // account's link is used another account may already hold the address
+  // verified. Verifying now would make two live accounts (two personal
+  // workspaces, two Free allowances). The address stays with the account that
+  // proved it first: nothing is stamped and the token stays unspent. The
+  // caller holds the emailed token (and the password), so the refusal tells
+  // them only about their own mailbox. Same per-address lock as account
+  // creation, so a concurrent first-time social sign-in serialises with this.
+  const heldElsewhere = Symbol("held");
   const user = await prisma.$transaction(async (tx) => {
+    if (account?.email && !account.emailVerifiedAt) {
+      await lockAccountAddress(tx, account.email);
+      const holder = await findSelfServeAccountHoldingAddress(tx, account.email);
+      if (holder && holder.id !== rec.userId) return heldElsewhere;
+    }
     const claim = await tx.emailVerificationToken.updateMany({
       where: { id: rec.id, usedAt: null, expiresAt: { gt: now } },
       data: { usedAt: now },
@@ -817,6 +860,7 @@ export async function consumeEmailVerificationToken(
       },
     });
   });
+  if (user === heldElsewhere) return { ok: false, reason: "address_held_by_existing_account" };
   if (!user) return { ok: false, reason: "already_used" };
 
   return {

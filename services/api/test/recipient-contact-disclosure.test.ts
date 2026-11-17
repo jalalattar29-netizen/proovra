@@ -292,12 +292,16 @@ describe("the inventory", () => {
   });
 
   it("the machine API masks what it echoes back", () => {
-    const handler = INTEGRATIONS.slice(
-      INTEGRATIONS.indexOf("intakeLink: {"),
-      INTEGRATIONS.indexOf("rawToken,"),
-    );
+    // B3B-F-102 (residual pass 2026-11-17) — the create and the keyed replay
+    // share ONE projection, so the mask cannot drift between them.
+    const start = INTEGRATIONS.indexOf("function integrationIntakeLinkView(");
+    expect(start).toBeGreaterThan(-1);
+    const handler = INTEGRATIONS.slice(start, INTEGRATIONS.indexOf("\n}\n", start));
     expect(handler).toContain("recipientEmailMasked: maskEmail(link.recipientEmail)");
     expect(handler).not.toContain("recipientEmail: link.recipientEmail");
+    const uses = INTEGRATIONS.match(/intakeLink: integrationIntakeLinkView\(/g) ?? [];
+    expect(uses.length).toBe(2);
+    expect(INTEGRATIONS).not.toMatch(/intakeLink: \{/);
   });
 
   it("the contributor's own view is HIDDEN — no contact at all", () => {

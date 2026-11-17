@@ -444,7 +444,8 @@ describe("Phase R9 — signup eager bootstrap", () => {
     // (unfinished) signup runs exactly the same steps; that helper is what
     // calls ensurePersonalWorkspace.
     const upsertIdx = body.indexOf("prisma.user.upsert");
-    const createIdx = body.indexOf("prisma.user.create");
+    // B1-F-004 — the create runs inside the per-address transaction (tx).
+    const createIdx = Math.max(body.indexOf("prisma.user.create"), body.indexOf("tx.user.create"));
     const userPersistIdx = Math.max(upsertIdx, createIdx);
     const bootstrapIdx = body.indexOf("await bootstrapRegisteredAccount(user);");
     // Last return inside the function body.
@@ -485,7 +486,9 @@ describe("Phase R9 — signup eager bootstrap", () => {
   });
 
   it("upsertUserWithEmailLink calls ensurePersonalWorkspace AFTER user upsert", () => {
-    const userCreateIdx = AUTH_SRC.indexOf("user = await prisma.user.create");
+    // B1-F-004 — a first sign-in creates the row (and its link) in one
+    // transaction (createAccountForFirstSignIn, tx.user.create).
+    const userCreateIdx = AUTH_SRC.indexOf("const user = await tx.user.create");
     const bootstrapIdx = AUTH_SRC.indexOf(
       "ensurePersonalWorkspace({ userId: user.id })",
     );

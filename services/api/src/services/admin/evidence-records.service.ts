@@ -11,6 +11,10 @@ import {
 } from "./evidence-health-cohorts.service.js";
 import { owedOutputNarrowing } from "../billing/owed-output-population.service.js";
 import { liveEvidenceWhere } from "@proovra/shared-runtime";
+import {
+  supportScopeCovering,
+  type SupportDisclosureScope,
+} from "../identity/support-runtime.service.js";
 import { OTS_ANCHORING_RECORD_SELECT, presentedTsaStatus, resolveRecordOtsAnchoring, resolveTsaProofStatus } from "@proovra/shared";
 
 /**
@@ -35,9 +39,12 @@ import { OTS_ANCHORING_RECORD_SELECT, presentedTsaStatus, resolveRecordOtsAnchor
  * signature. The projection is: id, workspace, customer, owner email, type,
  * failure-relevant status columns, and timestamps.
  *
- * The title IS included, because an operator triaging a failure needs to
- * recognise the record and the title is already shown to platform admins by
- * `/v1/admin/search`. Everything that would let a reader RECONSTRUCT or VERIFY
+ * The title and the owner's email are CUSTOMER SUBJECT DATA, and since
+ * B7A-F-005 (free-audit 0ea0) they are projected only for a row a live support
+ * grant covers (`supportScopeCovering`): the consented, audited authority for
+ * staff to see inside a customer's records. Without one a row is the minimal
+ * operational projection — id, type, statuses, cohort, workspace and customer
+ * ids, age — and says so (`recordDetailWithheld`). Everything that would let a reader RECONSTRUCT or VERIFY
  * the evidence is absent: platform-operations visibility and evidence-content
  * authorization are different grants, and a platform admin holding the first
  * does not thereby hold the second.
@@ -140,6 +147,12 @@ export type AdminEvidenceRecord = {
   } | null;
   customer: { id: string; name: string } | null;
   ownerEmail: string | null;
+  /**
+   * B7A-F-005 — true when the record's TITLE and its owner's EMAIL were
+   * withheld because no live support grant covers the record's customer
+   * scope. Ids, status, cohort and counts are always present.
+   */
+  recordDetailWithheld: boolean;
 };
 
 export type AdminEvidenceRecordsResult = {
@@ -153,6 +166,12 @@ export type AdminEvidenceRecordsResult = {
   limit: number;
   total: number;
   totalPages: number;
+  /**
+   * B7A-F-005 — the support grants under which this page disclosed record
+   * titles / owner emails (for the caller's audit row), and how many rows
+   * were withheld.
+   */
+  subjectDisclosure: { grantIds: string[]; withheldRows: number };
 };
 
 export async function listAdminEvidenceRecords(
@@ -184,6 +203,13 @@ export async function listAdminEvidenceRecords(
      * survive the click.
      */
     evidenceId?: string;
+    /**
+     * B7A-F-005 — the staff actor's live support scopes
+     * (`activeSupportDisclosureScopes`). A row's title and owner email are
+     * projected only when one of them covers the row's customer; everything
+     * else gets the minimal operational projection. Omitted = none.
+     */
+    supportScopes?: readonly SupportDisclosureScope[];
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<AdminEvidenceRecordsResult> {
@@ -239,17 +265,32 @@ export async function listAdminEvidenceRecords(
         updatedAt: true,
         latestReportVersion: true,
         teamId: true,
+        organizationId: true,
         ownerUserId: true,
       },
     }),
   ]);
+
+  // B7A-F-005 — which rows a live support grant covers. Decided before the
+  // owner lookup so an uncovered row's owner email is never even read.
+  const scopes = input.supportScopes ?? [];
+  const coveringGrant = new Map<string, string>();
+  for (const r of rows) {
+    const s = supportScopeCovering(scopes, { organizationId: r.organizationId, teamId: r.teamId });
+    if (s) coveringGrant.set(r.id, s.grantId);
+  }
 
   // ---- Resolve the subject for the page, in two batched queries -----------
   const teamIds = Array.from(
     new Set(rows.map((r) => r.teamId).filter((v): v is string => !!v)),
   );
   const ownerIds = Array.from(
-    new Set(rows.map((r) => r.ownerUserId).filter((v): v is string => !!v)),
+    new Set(
+      rows
+        .filter((r) => coveringGrant.has(r.id))
+        .map((r) => r.ownerUserId)
+        .filter((v): v is string => !!v),
+    ),
   );
 
   const [teams, owners] = await Promise.all([
@@ -312,9 +353,12 @@ export async function listAdminEvidenceRecords(
       // through. `ALL_AFFECTED` has no single answer, and a row inheriting it
       // would claim one.
       const contract = rowCohort ? retryabilityContract(rowCohort) : null;
+      const disclosed = coveringGrant.has(r.id);
       return {
         id: r.id,
-        title: r.title ?? null,
+        // B7A-F-005 — subject data only under a covering support grant.
+        title: disclosed ? r.title ?? null : null,
+        recordDetailWithheld: !disclosed,
         type: String(r.type),
         status: String(r.status),
         verificationStatus: r.verificationStatus
@@ -345,7 +389,7 @@ export async function listAdminEvidenceRecords(
           team?.organization && String(team.organization.kind) === "CUSTOMER"
             ? { id: team.organization.id, name: team.organization.name }
             : null,
-        ownerEmail: r.ownerUserId
+        ownerEmail: disclosed && r.ownerUserId
           ? emailByUser.get(r.ownerUserId) ?? null
           : null,
         cohort: rowCohort,
@@ -369,5 +413,9 @@ export async function listAdminEvidenceRecords(
     limit,
     total,
     totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    subjectDisclosure: {
+      grantIds: Array.from(new Set(coveringGrant.values())),
+      withheldRows: rows.length - coveringGrant.size,
+    },
   };
 }

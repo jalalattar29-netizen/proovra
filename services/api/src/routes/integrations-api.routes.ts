@@ -39,6 +39,12 @@ import {
 import { createEvidenceRequest, EvidenceRequestError } from "../services/evidence-request.service.js";
 import { projectRecipientContact } from "../services/privacy/recipient-contact-disclosure.js";
 import { createWorkflowIntakeLink, WorkflowIntakeLinkError } from "../services/workflow-intake-link.service.js";
+import {
+  prepareKeyedIntakeCreate,
+  resolvePriorKeyedIntakeCreate,
+  runKeyedIntakeCreate,
+  type KeyedIntakeCreateDecision,
+} from "../services/intake-link-create-idempotency.service.js";
 import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 import { assertWorkspaceAllowsIntake } from "../services/billing-enforcement.service.js";
 
@@ -169,6 +175,42 @@ const EvidenceSelect = {
   teamId: true,
 } as const;
 
+/**
+ * The integration API's view of an intake link (create and keyed replay).
+ * Masked, like every other projection of the recipient column: an API key
+ * echoing back the address it just sent is still a disclosure surface, and
+ * this credential holds an integration scope, not the recipient-contact reveal
+ * authority. No tokenHash, no IP allowlist details, no consent text.
+ */
+function integrationIntakeLinkView(link: {
+  id: string;
+  teamId: string;
+  workflowTemplateSlug: string;
+  workflowTemplateVersion: number;
+  intakeMode: string;
+  recipientLabel: string | null;
+  recipientEmail: string | null;
+  maxUses: number;
+  usedCount: number;
+  expiresAtUtc: Date | null;
+  createdAt: Date;
+}) {
+  return {
+    id: link.id,
+    teamId: link.teamId,
+    workflowTemplateSlug: link.workflowTemplateSlug,
+    workflowTemplateVersion: link.workflowTemplateVersion,
+    intakeMode: link.intakeMode,
+    recipientLabel: link.recipientLabel,
+    recipientEmailMasked: maskEmail(link.recipientEmail),
+    hasRecipientEmail: Boolean(link.recipientEmail),
+    maxUses: link.maxUses,
+    usedCount: link.usedCount,
+    expiresAtUtc: link.expiresAtUtc?.toISOString() ?? null,
+    createdAt: link.createdAt.toISOString(),
+  };
+}
+
 export async function integrationsApiRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   // GET /v1/integrations/api/evidence
@@ -270,6 +312,45 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
         // by the canonical mint gate below, on the creator's real role.
         const actor = await integrationActorAndIntakeGate(reply, cred);
         if (!actor) return reply;
+
+        // B3B-F-102 (Free audit 0ea0, residual pass 2026-11-17) — the same
+        // create idempotency the web and native create use: an optional
+        // `Idempotency-Key` header. Scoped to (workspace, creator, THIS
+        // credential, key); a retry with the same body answers the original
+        // link (no token: a replay never reveals one), a different body is
+        // 409 IDEMPOTENCY_KEY_REUSED. No header: unchanged, a new link each time.
+        const rawKey = req.headers["idempotency-key"];
+        const headerKey = Array.isArray(rawKey) ? rawKey[0] : rawKey;
+        if (headerKey !== undefined && (typeof headerKey !== "string" || !/^[A-Za-z0-9._:-]{1,120}$/.test(headerKey))) {
+          return reply.code(400).send({ error: { code: "IDEMPOTENCY_KEY_INVALID" } });
+        }
+        const keyed = headerKey
+          ? prepareKeyedIntakeCreate({
+              teamId: cred.teamId,
+              actorUserId: actor.actorUserId,
+              idempotencyKey: `api:${cred.credentialId}:${headerKey}`,
+              payload: body as unknown as Record<string, unknown>,
+            })
+          : null;
+        const answerKeyed = async (decided: KeyedIntakeCreateDecision) => {
+          if (decided.kind === "conflict") {
+            return reply.code(409).send({ error: { code: "IDEMPOTENCY_KEY_REUSED" } });
+          }
+          const prior = await prisma.workflowIntakeLink.findFirst({
+            where: { id: decided.prior.linkId, teamId: cred.teamId },
+          });
+          if (!prior) return reply.code(409).send({ error: { code: "IDEMPOTENCY_KEY_REUSED" } });
+          return reply.code(200).send({
+            intakeLink: integrationIntakeLinkView(prior),
+            rawToken: null,
+            tokenRevealed: false,
+            replayed: true,
+          });
+        };
+        if (keyed) {
+          const decided = await resolvePriorKeyedIntakeCreate(prisma, keyed, new Date(body.expiresAtUtc));
+          if (decided) return answerKeyed(decided);
+        }
         // AUD-36 (2026-10-20) — the policy decides on the role the credential's
         // creator ACTUALLY holds (the canonical mint gate), not a hard-coded
         // ADMIN: a key minted by a member a policy does not let mint links can
@@ -294,39 +375,33 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
           }
         }
         try {
-          const { link, rawToken } = await createWorkflowIntakeLink(
-            {
-              teamId: cred.teamId,
-              workflowTemplateSlug: body.workflowTemplateSlug,
-              intakeMode: body.intakeMode as never,
-              caseId: body.caseId ?? null,
-              recipientLabel: body.recipientLabel ?? null,
-              recipientEmail: body.recipientEmail ?? null,
-              maxUses: body.maxUses ?? 1,
-              expiresAtUtc: new Date(body.expiresAtUtc),
-            },
-            { actorUserId: actor.actorUserId },
-          );
+          const createInput = {
+            teamId: cred.teamId,
+            workflowTemplateSlug: body.workflowTemplateSlug,
+            intakeMode: body.intakeMode as never,
+            caseId: body.caseId ?? null,
+            recipientLabel: body.recipientLabel ?? null,
+            recipientEmail: body.recipientEmail ?? null,
+            maxUses: body.maxUses ?? 1,
+            expiresAtUtc: new Date(body.expiresAtUtc),
+          };
+          let created: Awaited<ReturnType<typeof createWorkflowIntakeLink>>;
+          if (keyed) {
+            const outcome = await runKeyedIntakeCreate(prisma, keyed, {
+              requestedExpiresAt: new Date(body.expiresAtUtc),
+              create: (tx) =>
+                createWorkflowIntakeLink(createInput, { actorUserId: actor.actorUserId }, tx as unknown as typeof prisma),
+              auditMetadata: { source: "integrations_api", apiCredentialId: cred.credentialId },
+              correlationId: req.id ?? null,
+            });
+            if (outcome.kind !== "created") return answerKeyed(outcome);
+            created = outcome.created;
+          } else {
+            created = await createWorkflowIntakeLink(createInput, { actorUserId: actor.actorUserId });
+          }
+          const { link, rawToken } = created;
           return reply.code(201).send({
-            intakeLink: {
-              id: link.id,
-              teamId: link.teamId,
-              workflowTemplateSlug: link.workflowTemplateSlug,
-              workflowTemplateVersion: link.workflowTemplateVersion,
-              intakeMode: link.intakeMode,
-              recipientLabel: link.recipientLabel,
-              // Masked, like every other projection of this column. An API
-              // key echoing back the address it just sent is still a
-              // disclosure surface, and this credential holds an integration
-              // scope, not the recipient-contact reveal authority.
-              recipientEmailMasked: maskEmail(link.recipientEmail),
-              hasRecipientEmail: Boolean(link.recipientEmail),
-              maxUses: link.maxUses,
-              usedCount: link.usedCount,
-              expiresAtUtc: link.expiresAtUtc?.toISOString() ?? null,
-              createdAt: link.createdAt.toISOString(),
-              // No tokenHash, no IP allowlist details, no consent text.
-            },
+            intakeLink: integrationIntakeLinkView(link),
             // Returned ONCE so the caller can hand it to a recipient.
             rawToken,
           });

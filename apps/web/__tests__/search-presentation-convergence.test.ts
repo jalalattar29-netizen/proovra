@@ -31,6 +31,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { SEARCH_COPY } from "@proovra/shared/i18n";
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
@@ -278,7 +279,9 @@ test("a failure is not reported as a count", () => {
   // of an outage. A request that did not answer has no count to report, and
   // no filter summary to explain one.
   const page = read(join(ROUTE, "page.tsx"));
-  assert.match(page, /searchFailure\s*\n?\s*\?\s*"No results to show"/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.match(page, /searchFailure\s*\n?\s*\?\s*t\("searchNoResultsToShow"\)/);
+  assert.equal(SEARCH_COPY.en.searchNoResultsToShow, "No results to show");
   assert.match(
     page,
     /\{searchFailure \? null : <span>\{filterSummary\}<\/span>\}/,
@@ -320,8 +323,12 @@ test("records the workspace withheld are counted, never listed", () => {
   // the COUNT is the honest statement that something exists the actor may not
   // see; showing the rows would defeat the rule that produced the count.
   const page = read(join(ROUTE, "page.tsx"));
-  assert.match(page, /filteredByVisibility[\s\S]{0,120}?withheld by visibility/);
-  assert.match(page, /filteredByGovernance[\s\S]{0,120}?withheld by governance/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts): the counts fill
+  // the "{count} withheld by …" sentences.
+  assert.match(page, /filteredByVisibility\)\s*parts\.push\(fillCopy\(t\("searchWithheldVisibility"\), \{ count: results\.filteredByVisibility \}\)\)/);
+  assert.match(page, /filteredByGovernance\)\s*parts\.push\(fillCopy\(t\("searchWithheldGovernance"\), \{ count: results\.filteredByGovernance \}\)\)/);
+  assert.equal(SEARCH_COPY.en.searchWithheldVisibility, "{count} withheld by visibility");
+  assert.equal(SEARCH_COPY.en.searchWithheldGovernance, "{count} withheld by governance");
   // The withheld figures reach the header only as a summary string; no branch
   // renders rows from them.
   assert.match(page, /<span data-search-withheld>\{withheldSummary\}<\/span>/);

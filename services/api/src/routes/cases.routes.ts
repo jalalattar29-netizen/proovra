@@ -63,6 +63,7 @@ import {
 } from "../services/access/record-reach.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 import { evaluateCaseDeletionHold } from "../services/governance/legal-hold.service.js";
+import { casePlanWriteRefusal, refuseCasePlanWrite } from "../services/cases/case-plan-gate.js";
 // PHASE 12 POINT 7 — the canonical commercial chokepoint + the cases plan gate.
 import {
   assertWorkspaceAllowsCases,
@@ -920,6 +921,11 @@ export async function casesRoutes(app: FastifyInstance) {
         );
       }
 
+      // B3C-F-007 — granting standing access to a case answers to the CURRENT
+      // Cases entitlement (case-plan-gate.ts), after the actor and object
+      // checks above. Withdrawing access (DELETE) stays open.
+      if (await refuseCasePlanWrite(reply, item)) return;
+
       // D5 — a CaseAccess row is STANDING access to tenant-owned case data.
       // The target must be an ACTIVE member of the case's workspace, the
       // rule `share-team` has applied since 2026-07-21. A foreign tenant's
@@ -1346,6 +1352,10 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
+      // B3C-F-007 — renaming a case answers to the CURRENT Cases entitlement
+      // (case-plan-gate.ts), after the actor and object checks above.
+      if (await refuseCasePlanWrite(reply, item)) return;
+
       const body = RenameCaseBody.parse(req.body);
 
       const updated = await prisma.$transaction(async (tx) => {
@@ -1591,6 +1601,10 @@ export async function casesRoutes(app: FastifyInstance) {
           .send({ message: linkAuth.subject === "case" ? "Case not found" : "Evidence not found" });
       }
 
+      // B3C-F-007 — linking a record into a case answers to the CURRENT Cases
+      // entitlement (case-plan-gate.ts), after the actor and object checks.
+      if (await refuseCasePlanWrite(reply, caseItem)) return;
+
       const evidence = await prisma.evidence.findUnique({
         where: { id: body.evidenceId },
       });
@@ -1785,6 +1799,11 @@ export async function casesRoutes(app: FastifyInstance) {
         }
         return reply.code(403).send({ message: "Forbidden" });
       }
+
+      // B3C-F-007 — unlinking a record changes the case (and can lift a
+      // restricted case's protection from the record), so it answers to the
+      // CURRENT Cases entitlement like linking. Deleting the case stays open.
+      if (await refuseCasePlanWrite(reply, caseItem)) return;
 
       const evidence = await prisma.evidence.findUnique({
         where: { id: evidenceId },
@@ -2045,6 +2064,11 @@ export async function casesRoutes(app: FastifyInstance) {
         );
       }
 
+      // B3C-F-007 — granting standing access to a case answers to the CURRENT
+      // Cases entitlement (case-plan-gate.ts), after the actor and object
+      // checks above. Withdrawing access (DELETE) stays open.
+      if (await refuseCasePlanWrite(reply, caseItem)) return;
+
       // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
       // Granting CaseAccess confers standing access, so a suspended /
       // revoked target member must not be shareable-to.
@@ -2157,6 +2181,11 @@ export async function casesRoutes(app: FastifyInstance) {
           },
         );
       }
+
+      // B3C-F-007 — granting standing access to a case answers to the CURRENT
+      // Cases entitlement (case-plan-gate.ts), after the actor and object
+      // checks above. Withdrawing access (DELETE) stays open.
+      if (await refuseCasePlanWrite(reply, caseItem)) return;
 
       const accepted = { accepted: true } as const;
 
@@ -2390,6 +2419,11 @@ export async function casesRoutes(app: FastifyInstance) {
           },
         );
       }
+
+      // B3C-F-007 — granting a Collaboration Team standing access answers to
+      // the CURRENT Cases entitlement (case-plan-gate.ts). Withdrawing one
+      // (DELETE) stays open.
+      if (await refuseCasePlanWrite(reply, item)) return;
 
       // The team must belong to the case's own workspace. A foreign or unknown
       // team is answered identically (cross-tenant linking is impossible and
@@ -2792,6 +2826,14 @@ export async function casesRoutes(app: FastifyInstance) {
             outcome: "SKIPPED",
             reason: readOnlySet.has(id) ? "forbidden" : "not_accessible",
           });
+          continue;
+        }
+        // B3C-F-007 — a status change is a case workflow write: a case whose
+        // workspace no longer includes Cases is skipped with the create
+        // route's code, the others in the batch proceed.
+        const planRefusal = await casePlanWriteRefusal(id);
+        if (planRefusal) {
+          results.push({ id, outcome: "SKIPPED", reason: planRefusal.code });
           continue;
         }
         try {

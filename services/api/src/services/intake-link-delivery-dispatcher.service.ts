@@ -223,6 +223,24 @@ export async function dispatchIntakeLinkDelivery(
   );
 }
 
+/**
+ * B3B-F-102 — what a keyed create's delivery came to, read without sending:
+ * the outcome recorded under the same (link, channel, nonce), or null when no
+ * tagged message exists (never attempted, still in flight, or the tag did not
+ * commit). Used by a create REPLAY, which has no token and so never sends.
+ */
+export async function lookupIntakeDeliveryOutcome(
+  input: { teamId: string; intakeLinkId: string; channel: IntakeDeliveryChannel; idempotencyKey: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<DispatchIntakeDeliveryResult | null> {
+  const idemHash = buildIntakeIdempotencyHash(input);
+  return priorDeliveryOutcome(
+    { ...input, rawToken: "", actorUserId: "", workspaceName: "" },
+    client,
+    idemHash,
+  );
+}
+
 async function priorDeliveryOutcome(
   input: DispatchIntakeDeliveryInput,
   client: PrismaClient,

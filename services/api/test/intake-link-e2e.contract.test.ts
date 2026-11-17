@@ -106,9 +106,16 @@ test("Create handler — emits 'intake.link.created' audit event with no PII", (
   // must use booleans, not raw fields.
   // The whole audit statement (the emit call, its metadata literal and the
   // trailing .catch()); throws when the created-action literal is missing.
-  const slice = enclosingSource(src, 'action: "intake.link.created"', "statement", {
+  const emit = enclosingSource(src, 'action: "intake.link.created"', "statement", {
     fileName: "workflow-intake-links.routes.ts",
   });
+  // B3B-F-102 — both create paths (fire-and-forget, and the keyed create whose
+  // audit row is its idempotency receipt) share ONE metadata literal.
+  assert.match(emit, /metadata: createAuditMetadata/);
+  assert.match(src, /auditMetadata: createAuditMetadata/);
+  const slice = enclosingSource(src, "const createAuditMetadata = {", "statement", {
+    fileName: "workflow-intake-links.routes.ts",
+  }).replace("const createAuditMetadata = {", "metadata: {");
   assert.match(slice, /hasRecipientEmail: Boolean\(body\.recipientEmail\)/);
   assert.match(slice, /hasRecipientPhone: Boolean\(body\.recipientPhone\)/);
   // Defensive PII check — these strings must NOT appear in the

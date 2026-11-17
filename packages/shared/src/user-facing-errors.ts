@@ -232,6 +232,19 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
    * to discover which addresses are registered; saying "that email isn't
    * registered" here would hand back exactly what the API refuses to say.
    */
+  /**
+   * B1-F-004 (free-audit 0ea0) — a Google/Apple sign-in whose VERIFIED address
+   * an existing account holds, with this provider not connected to it. Nothing
+   * was created. The account is not named (which method it uses stays with the
+   * person); the way forward is the step-up "connect" flow on the account they
+   * already have, which both clients title "Sign-in methods" under Security.
+   */
+  EXISTING_ACCOUNT_SIGN_IN_REQUIRED: {
+    title: "Sign in to your existing account",
+    message:
+      "An account already uses this email address, so no new account was created. Sign in to it the way you did before (password, Google or Apple), then connect this sign-in method from Security > Sign-in methods.",
+    severity: "info",
+  },
   INVALID_CREDENTIALS: {
     title: "Email or password is incorrect",
     message:
@@ -1188,6 +1201,14 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     title: "Please try again",
     message: "The request could not be sent safely. Reload the page and try again; no new version was created.",
     severity: "error",
+  },
+  // B3B-F-102 (Free audit 0ea0, residual pass) — the same form submitted again
+  // with different details after it already created something.
+  IDEMPOTENCY_KEY_REUSED: {
+    title: "Already created",
+    message:
+      "This form already created an item with different details, so nothing new was created. Find the original in the list, then start a new form.",
+    severity: "warning",
   },
   NOT_A_RECORD_CONDITION: {
     title: "Nothing to recover for this condition",

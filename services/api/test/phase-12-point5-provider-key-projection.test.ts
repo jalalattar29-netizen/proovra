@@ -111,6 +111,11 @@ const DISPOSITIONS: Record<string, "writer" | "projector" | "counter" | "schedul
   // no idempotency key); returns no row to a client.
   "services/api/src/services/email-verification.service.ts": "writer",
   "services/api/src/services/notifications/index.ts": "projector",
+  // B7A-F-006 (Free audit 0ea0, residual pass 2026-11-17) — the signing-key
+  // compromise owner notice: reads only a prior row's id (one notice per
+  // owner per record per declaration) and enqueues through the outbox;
+  // returns no row to a client.
+  "services/api/src/services/operations/signing-key-compromise-owners.service.ts": "writer",
   "services/api/src/services/notifications/reminder-scheduler.ts": "scheduler",
   "services/api/src/services/organization/org-invite-delivery.service.ts": "projector",
   "services/worker/src/mfa-recovery-digest.ts": "writer",

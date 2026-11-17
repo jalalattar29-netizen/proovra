@@ -192,12 +192,17 @@ const AUTHORISED: ContextKey[] = [
 
 /** Contexts that must NOT render the management surface at all. */
 const REFUSED: ContextKey[] = [
-  "personalFree",
   "insufficientRole",
-  "featureExcluded",
   "legacyEnvelope",
   "missingEnvelope",
 ];
+
+/**
+ * B3B-F-104 (owner directive) — a plan WITHOUT intake, for an operator who
+ * holds INTAKE_LINKS_MANAGE: the page loads in MANAGE-ONLY mode (standing
+ * links listed, disable / archive available), and creation is not offered.
+ */
+const MANAGE_ONLY: ContextKey[] = ["personalFree", "featureExcluded"];
 
 function space(
   type: "PERSONAL" | "ORGANIZATION",
@@ -380,8 +385,17 @@ async function mount(key: ContextKey) {
   return utils;
 }
 
+/**
+ * The management surface: the page shell WITHOUT its restricted panel. Since
+ * B3B-F-104 a context whose plan only hides the entry from navigation loads the
+ * shell, and the page itself fails closed to the restricted panel for an actor
+ * without INTAKE_LINKS_MANAGE.
+ */
 function managementRendered(): boolean {
-  return Boolean(document.querySelector('[data-testid="intake-links-page"]'));
+  return (
+    Boolean(document.querySelector('[data-testid="intake-links-page"]')) &&
+    !document.querySelector("[data-intake-links-restricted]")
+  );
 }
 
 beforeEach(() => {
@@ -501,14 +515,16 @@ describe("refusals fail closed", () => {
     expect((panel as HTMLElement).textContent?.trim().length).toBeGreaterThan(0);
   });
 
-  it("a plan without intake is refused even though the capability is granted", async () => {
-    await mount("featureExcluded");
-    expect(managementRendered()).toBe(false);
-    expect(
-      document.querySelector(
-        '[data-testid="route-gate-panel-workspace.intake_links"]',
-      ),
-    ).toBeTruthy();
+  it("B3B-F-104 — a plan without intake loads MANAGE-ONLY for an operator holding the capability", async () => {
+    for (const key of MANAGE_ONLY) {
+      await mount(key);
+      expect(managementRendered()).toBe(true);
+      expect(document.querySelector('[data-intake-links-manage-only="true"]')).toBeTruthy();
+      expect(document.querySelector("[data-intake-links-new-cta]")).toBeNull();
+      expect(
+        document.querySelector('[data-testid="route-gate-panel-workspace.intake_links"]'),
+      ).toBeNull();
+    }
   });
 
   it("an ENTERPRISE plan string and an enterprise-sounding name grant nothing", async () => {

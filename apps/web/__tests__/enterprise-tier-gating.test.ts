@@ -48,7 +48,9 @@ const ENTERPRISE_SURFACES = [
   "/security-center",
   "/investigation",
 ];
-const PROFESSIONAL_SURFACE = "/intake-links";
+// B3B-F-104 — /intake-links now loads on every plan (manage-only without
+// intake), so the PROFESSIONAL sample is the Collaboration-Teams surface.
+const PROFESSIONAL_SURFACE = "/teams";
 const CORE_SURFACE = "/home";
 
 test("FREE / PAYG / PRO / TEAM do NOT unlock any ENTERPRISE surface", () => {

@@ -94,6 +94,7 @@ export default function AppleCallbackPage() {
   const { setToken } = useAuth();
   const { addToast } = useToast();
   const [error, setError] = useState<string | null>(null);
+  const [errorTitle, setErrorTitle] = useState<string | null>(null);
   const isMountedRef = useRef(true);
   const exchangedRef = useRef(false);
 
@@ -232,6 +233,7 @@ export default function AppleCallbackPage() {
         if (!res.ok) {
           const text = await res.text();
           let errMsg = "Sign-in failed";
+          let guidanceCode: string | null = null;
           try {
             const errJson = JSON.parse(text) as {
               code?: string;
@@ -250,6 +252,12 @@ export default function AppleCallbackPage() {
               );
               return;
             }
+            // B1-F-004 — the address belongs to an existing account: guidance,
+            // in the shared words (toSafeUserError reads the code), not "failed".
+            const errCode = errJson.code ?? errJson.error?.code;
+            if (res.status === 409 && errCode === "EXISTING_ACCOUNT_SIGN_IN_REQUIRED") {
+              guidanceCode = errCode;
+            }
             errMsg =
               [errJson.message, errJson.hint].filter(Boolean).join(" — ") ||
               errJson.error?.message ||
@@ -259,6 +267,7 @@ export default function AppleCallbackPage() {
           }
           authLogger.logError("callback_exchange_failed", `${res.status}: ${text}`);
           authLogger.log("AUTH_SESSION_FAILED", "error", { code: "token_exchange", status: res.status, message: errMsg }, provider);
+          if (guidanceCode) throw Object.assign(new Error(guidanceCode), { code: guidanceCode });
           throw new Error(errMsg);
         }
 
@@ -360,12 +369,16 @@ export default function AppleCallbackPage() {
         clearPendingOAuthLegalAcceptance();
         window.location.replace(target);
       } catch (err) {
-        const msg = toSafeUserError(err, { message: "Sign-in failed" }).message;
+        const safe = toSafeUserError(err, { message: "Sign-in failed" });
+        const msg = safe.message;
         authLogger.logError("callback_error", msg);
         authLogger.log("AUTH_SESSION_FAILED", "error", { code: "callback_error", message: msg }, provider);
         if (!isMountedRef.current) return;
+        // B1-F-004 — guidance (sign in to the existing account) is not a failure.
+        const guidance = (err as { code?: string } | null)?.code === "EXISTING_ACCOUNT_SIGN_IN_REQUIRED";
+        setErrorTitle(guidance ? safe.title : null);
         setError(msg);
-        addToast(msg, "error", 6000);
+        addToast(msg, guidance ? "info" : "error", 6000);
       } finally {
         callbackProcessing = false;
       }
@@ -396,7 +409,7 @@ if (error) {
 
               <div className="relative z-10 p-7 text-center md:p-8">
                 <h2 className="text-[1.8rem] font-semibold tracking-[-0.04em] text-[#16282d] md:text-[2rem]">
-                  Sign-in failed
+                  {errorTitle ?? "Sign-in failed"}
                 </h2>
 
                 <p className="mt-3 text-[0.96rem] leading-[1.78] text-[#5c6a6e]">

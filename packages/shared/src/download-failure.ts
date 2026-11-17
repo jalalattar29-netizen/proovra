@@ -122,6 +122,11 @@ export function resolveArtifactDownloadFailure(
     // way forward, and the generic 403 sentence said otherwise.
     case "FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS":
       return { message: "The full forensic package contains the original files, which you cannot download in this workspace. The external disclosure package is available instead.", severity: "info", retryable: false, action: "NONE", report: false };
+    // B5A-F-13 (free audit 0ea0, residual pass) — the issued report prints the
+    // exact capture location, which needs the original-content authority; the
+    // external disclosure package (coordinates rounded) is the way forward.
+    case "REPORT_REQUIRES_LOCATION_ACCESS":
+      return { message: "This report shows the exact capture location, which you cannot see in this workspace. The external disclosure package is available instead.", severity: "info", retryable: false, action: "NONE", report: false };
     default:
       break;
   }

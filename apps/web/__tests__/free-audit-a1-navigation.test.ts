@@ -53,12 +53,15 @@ test("A1-03 — a viewer opening an inbox item loads the request inspector, but 
   assert.equal(manage.canLoad, false);
 });
 
-test("A1-03 — after a downgrade (no intake on the plan) a retained request stays readable, management does not", () => {
+test("A1-03 / B3B-F-104 — after a downgrade (no intake on the plan) a retained request stays readable, and Intake links loads (manage-only) but leaves navigation", () => {
   const planFeatures = { intakeIncluded: false } as RouteAccessInput["planFeatures"];
   const read = decide("workspace.evidence_requests", { capabilities: WRITER_CAPS, planFeatures });
   assert.equal(read.canLoad, true, `${read.accessState}: ${read.reason}`);
+  // B3B-F-104 (owner directive) — the page loads so standing links can be
+  // listed and revoked; creation is withheld by the page and refused by the API.
   const manage = decide("workspace.intake_links", { capabilities: WRITER_CAPS, planFeatures });
-  assert.equal(manage.canLoad, false);
+  assert.equal(manage.canLoad, true);
+  assert.equal(manage.canSeeNav, false);
   assert.equal(manage.accessState, "NEEDS_UPGRADE");
 });
 
@@ -119,4 +122,31 @@ test("A1-04 — every action of the no-workspace panel leads to a page that load
     assert.notEqual(next.accessState, "NEEDS_PERSONAL_OR_ORG", `${action.label} → ${href} loops back to the same panel`);
     assert.equal(next.canLoad, true, `${action.label} → ${href}: ${next.accessState}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// B2A-F-08 (residual pass 2026-11-17) — Audit & Transparency: the page opens
+// for exactly the roles the API answers (`intelligence.read`), not for Viewers.
+// ---------------------------------------------------------------------------
+
+test("B2A-F-08 — the Audit & Transparency route admits exactly the roles the API answers", async () => {
+  const { roleHasPermission } = await import("@proovra/shared");
+  // The API side: who holds intelligence.read.
+  assert.equal(roleHasPermission("VIEWER" as never, "intelligence.read" as never), false);
+  for (const role of ["OWNER", "ADMIN", "REVIEWER", "CONTRIBUTOR"]) {
+    assert.equal(roleHasPermission(role as never, "intelligence.read" as never), true, role);
+  }
+  // The web side: a Viewer holds GOVERNANCE_VIEW but not ANALYTICS_VIEW
+  // (capability-registry: ANALYTICS_VIEW is the non-Viewer writer grant).
+  // Both in an Enterprise organization, which the API also requires.
+  const viewer = decide("workspace.audit_transparency", {
+    isEnterpriseWorkspace: true,
+    capabilities: { ...VIEWER_CAPS, GOVERNANCE_VIEW: true },
+  });
+  assert.equal(viewer.canLoad, false, `${viewer.accessState}: ${viewer.reason}`);
+  const writer = decide("workspace.audit_transparency", {
+    isEnterpriseWorkspace: true,
+    capabilities: { ...WRITER_CAPS, GOVERNANCE_VIEW: true, ANALYTICS_VIEW: true },
+  });
+  assert.equal(writer.canLoad, true, `${writer.accessState}: ${writer.reason}`);
 });

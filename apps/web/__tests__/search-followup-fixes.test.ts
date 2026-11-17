@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 import { functionSource, routeSource } from "../../../scripts/source-contract/index.mjs";
+import { SEARCH_COPY } from "@proovra/shared/i18n";
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
@@ -62,11 +63,19 @@ test("Inspector — getOpenAction helper exists and maps every result type to a 
   // ternary on `isInTrash` so the literal "Open evidence" sits on
   // the false branch. Pin both as bare string literals — they
   // appear in the source regardless of the ternary shape.
-  assert.match(src, /"Open evidence"/);
-  assert.match(src, /"Open case"/);
-  assert.match(src, /"Open report"/);
-  assert.match(src, /"Open package"/);
-  assert.match(src, /"Open note"/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts): each branch
+  // reads its "Open …" key, and the English is pinned in the dictionary.
+  const openLabels = {
+    searchOpenEvidence: "Open evidence",
+    searchOpenCase: "Open case",
+    searchOpenReport: "Open report",
+    searchOpenPackage: "Open package",
+    searchOpenNote: "Open note",
+  } as const;
+  for (const [key, english] of Object.entries(openLabels)) {
+    assert.ok(src.includes(`isInTrash ? t("searchOpenInTrash") : t("${key}")`), key);
+    assert.equal(SEARCH_COPY.en[key as keyof typeof openLabels], english);
+  }
   // Hrefs hit the existing canonical routes — the trashSuffix is
   // appended as an interpolation, so widen the pin to allow it.
   assert.match(src, /href:\s*`\/evidence\/\$\{row\.evidenceId\}\$\{trashSuffix\}`/);
@@ -168,8 +177,11 @@ test("workspace-level readiness is resolved BEFORE any query-shaped explanation"
 test("Empty-state renders the explicit no-match-filtered kind with a 'clear filters' hint", () => {
   const src = read(PAGE);
   assert.match(src, /data-search-empty-state-kind="no-match-filtered"/);
-  assert.match(src, /No matches with the current filters/);
-  assert.match(src, /Try clearing one or more filters/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.ok(src.includes('headline: t("searchFilterEmptyHeadline")'));
+  assert.ok(src.includes('detail: t("searchFilterEmptyDetail")'));
+  assert.equal(SEARCH_COPY.en.searchFilterEmptyHeadline, "No matches with the current filters");
+  assert.match(SEARCH_COPY.en.searchFilterEmptyDetail, /^Try clearing one or more filters/);
 });
 
 test("Empty-state outer container exposes data-search-empty-state-filters-active so end-to-end can probe state", () => {

@@ -20,6 +20,7 @@ import {
   type AccountMenuInput,
 } from "../lib/navigation/accountMenu";
 import type { CapabilityKey } from "../lib/platform-context/types";
+import { APP_SHELL_COPY } from "@proovra/shared/i18n";
 import { enclosingSource } from "../../../scripts/source-contract/index.mjs";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -487,8 +488,11 @@ test("switching guards dirty work and lands record-scoped routes safely", () => 
   assert.match(src, /getDirtyWorkLabels\(\)/, "dirty-work registry consulted");
   // In-panel accessible confirmation (repo bans raw window.confirm).
   assert.match(src, /data-context-switch-confirm/, "in-panel confirmation");
-  assert.match(src, /Switch anyway/, "explicit proceed action");
-  assert.match(src, /Stay here/, "explicit cancel action");
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.ok(src.includes('t("shellSwitchAnyway")'), "explicit proceed action");
+  assert.equal(APP_SHELL_COPY.en.shellSwitchAnyway, "Switch anyway");
+  assert.ok(src.includes('t("shellStayHere")'), "explicit cancel action");
+  assert.equal(APP_SHELL_COPY.en.shellStayHere, "Stay here");
   assert.ok(!/window\.confirm/.test(src), "no raw window.confirm");
   assert.match(src, /RECORD_SCOPED_ROUTE/, "record-scoped routes redirected");
   assert.match(src, /router\.push\("\/home"\)/, "safe landing route");

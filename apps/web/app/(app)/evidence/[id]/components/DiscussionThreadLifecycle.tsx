@@ -19,6 +19,7 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
+import { useOptionalPlatformContext } from "../../../../../lib/platform-context";
 import { ReasonedActionButton } from "./ReasonedActionButton";
 import {
   WorkspaceMemberSelect,
@@ -111,6 +112,13 @@ export function DiscussionThreadLifecycle({
   const firstField = useRef<HTMLTextAreaElement | null>(null);
   const noticeRef = useRef<HTMLDivElement | null>(null);
   const members = useWorkspaceMembers(teamId);
+  // B3C-F-008 — assigning and escalating a thread are reviewer operations
+  // (REVIEW_ASSIGNMENTS / REVIEW_ESCALATION on the server). A plan that
+  // excludes them does not offer them; ordinary discussion (posting, resolve,
+  // reopen) stays. Unknown (no projection yet) leaves the server to answer.
+  const reviewerOperationsValue =
+    useOptionalPlatformContext()?.envelope?.planFeatures?.reviewerOperationsIncluded;
+  const reviewerOperations = typeof reviewerOperationsValue === "boolean" ? reviewerOperationsValue : null;
 
   useEffect(() => {
     alive.current = true;
@@ -287,9 +295,10 @@ export function DiscussionThreadLifecycle({
 
   const offered: Action[] = [];
   if (thread && !readOnly) {
-    if (isActive(thread.status)) offered.push("resolve", "assign");
+    if (isActive(thread.status)) offered.push("resolve");
+    if (isActive(thread.status) && reviewerOperations !== false) offered.push("assign");
     if (thread.status === "RESOLVED") offered.push("reopen");
-    if (isActive(thread.status) && !thread.escalatedAtUtc) offered.push("escalate");
+    if (isActive(thread.status) && !thread.escalatedAtUtc && reviewerOperations !== false) offered.push("escalate");
   }
 
   return (
@@ -338,6 +347,13 @@ export function DiscussionThreadLifecycle({
           ) : null}
         </dl>
       )}
+
+      {!readOnly && thread && isActive(thread.status) && reviewerOperations === false ? (
+        <p className="app-hint" data-discussion-reviewer-ops-note>
+          Assigning and escalating threads are reviewer operations, which this workspace&apos;s plan
+          doesn&apos;t include. You can still discuss and resolve the thread.
+        </p>
+      ) : null}
 
       {!readOnly ? (
         <div className="evidence-lifecycle__actions" role="group" aria-label="Thread lifecycle">

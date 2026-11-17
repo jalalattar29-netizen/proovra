@@ -44,6 +44,7 @@ import { automaticPlanLoweringEnabled } from "../billing/automatic-effects.js";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { resolveWorkspaceKind } from "../identity/workspace-kind.js";
 import type { WorkspacePlan } from "./types.js";
 
 /**
@@ -266,4 +267,66 @@ export async function resolveEnterpriseAuthority(
     now,
     endDateHeld: !automaticPlanLoweringEnabled(),
   });
+}
+
+/**
+ * B2A-F-08 (free-audit 0ea0) — the server half of the web route policy
+ * `ORGANIZATION_ONLY` + `ENTERPRISE_ONLY_ROUTE_IDS` (routeRegistry.ts), for an
+ * API that serves an Enterprise organization surface.
+ *
+ * The web decides from `envelope.flags.isEnterpriseWorkspace` on an
+ * ORGANIZATION active space. This answers the same question for one workspace
+ * from the same two authorities the envelope uses — the canonical workspace
+ * kind (`resolveWorkspaceKind`) and `resolveEnterpriseAuthority` — so the API
+ * and the navigation cannot disagree. It is not a new entitlement: it is the
+ * envelope's projection, read for a workspace id. Fails closed: an
+ * unreadable workspace, a PERSONAL or OWNED workspace, or an unprovable
+ * contract is not an Enterprise organization.
+ */
+export async function workspaceIsEnterpriseOrganization(
+  teamId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  type TeamFacts = {
+    workspaceKind: string | null;
+    isPersonal: boolean;
+    billingPlan: string | null;
+    organizationId: string | null;
+    organization: { kind: string } | null;
+  };
+  const team: TeamFacts | null = await client.team
+    .findUnique({
+      where: { id: teamId },
+      select: {
+        workspaceKind: true,
+        isPersonal: true,
+        billingPlan: true,
+        organizationId: true,
+        organization: { select: { kind: true } },
+      },
+    })
+    .then((t) => t as unknown as TeamFacts | null)
+    .catch(() => null);
+  if (!team) return false;
+  const kind = resolveWorkspaceKind({
+    workspaceKind: team.workspaceKind,
+    isPersonal: team.isPersonal,
+    billingPlan: team.billingPlan,
+    teamLoaded: true,
+  });
+  if (kind !== "ORGANIZATION") return false;
+  const organizationKind =
+    team.organization?.kind === "CUSTOMER" || team.organization?.kind === "SYSTEM"
+      ? (team.organization.kind as "CUSTOMER" | "SYSTEM")
+      : null;
+  const authority = await resolveEnterpriseAuthority(
+    {
+      workspaceKind: kind,
+      organizationKind,
+      organizationId: team.organizationId,
+      workspaceBillingPlan: (team.billingPlan ?? null) as WorkspacePlan | null,
+    },
+    client,
+  );
+  return authority.isEnterpriseCustomer;
 }

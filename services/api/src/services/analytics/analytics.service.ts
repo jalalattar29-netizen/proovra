@@ -29,7 +29,7 @@
  *   - getArtifactReadinessAnalytics(input)
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { holdInReach, type ViewerReach } from "../access/record-reach.js";
@@ -112,6 +112,16 @@ export function clampWindow(value: number | undefined): number {
  * `degradedSources`. The wrapper is intentionally generic — callers
  * pass a function that returns the metric value.
  */
+/**
+ * B7B-F03 (free-audit 0ea0, residual) — an escalation names the record it
+ * escalates (nullable `evidenceId`); one closed to the reader is that
+ * record's row and is not counted.
+ */
+function escalationInReach(reach: ViewerReach | undefined): Prisma.ReviewEscalationWhereInput {
+  const ids = reach?.hidden.evidenceIds ?? [];
+  return ids.length === 0 ? {} : { OR: [{ evidenceId: null }, { evidenceId: { notIn: ids } }] };
+}
+
 async function safe<T>(
   promise: Promise<T>,
   source: string,
@@ -234,7 +244,7 @@ export async function getOperationsOverview(
     ),
     safe(
       prisma.reviewEscalation.count({
-        where: { teamId: input.teamId, status: "OPEN" },
+        where: { teamId: input.teamId, ...escalationInReach(input.reach), status: "OPEN" },
       }),
       "ReviewEscalation",
       degraded,
@@ -364,7 +374,7 @@ export async function getReviewerAnalytics(
     ),
     safe(
       prisma.reviewEscalation.count({
-        where: { teamId: input.teamId, status: "OPEN" },
+        where: { teamId: input.teamId, ...escalationInReach(input.reach), status: "OPEN" },
       }),
       "ReviewEscalation",
       degraded,
@@ -373,6 +383,7 @@ export async function getReviewerAnalytics(
       prisma.reviewEscalation.count({
         where: {
           teamId: input.teamId,
+          ...escalationInReach(input.reach),
           status: "RESOLVED",
           updatedAt: { gte: windowStart },
         },

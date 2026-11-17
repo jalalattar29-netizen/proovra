@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
@@ -149,8 +150,11 @@ describe("Phase 32.8C FINAL-3 — header workspace display", () => {
   });
 
   it("topbar renders scope-derived label when name is missing", () => {
-    expect(TOPBAR_TSX).toMatch(/"Personal Space"/);
-    expect(TOPBAR_TSX).toMatch(/"Workspace"/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts).
+    expect(TOPBAR_TSX).toMatch(/name: t\("shellPersonalSpace"\)/);
+    expect(TOPBAR_TSX).toMatch(/name: t\("shellWorkspace"\)/);
+    expect(webDictionaryEnValue("app-shell", "shellPersonalSpace")).toBe("Personal Space");
+    expect(webDictionaryEnValue("app-shell", "shellWorkspace")).toBe("Workspace");
   });
 
   // OBSOLETE — Phase 32.8 Foundation: topbar no longer fetches
@@ -164,7 +168,12 @@ describe("Phase 32.8C FINAL-3 — header workspace display", () => {
     // `label`. The raw id is only ever the `data-context-option={option.id}`
     // attribute, never display text.
     expect(TOPBAR_TSX).toMatch(/function SwitcherOption\(/); // (P3/P4 domain remediation 2026-07-21)
-    expect(TOPBAR_TSX).toMatch(/\{option\.label\}/); // (P3/P4 domain remediation 2026-07-21)
+    // B2A-F-12 — a translated name may stand in for a resolver-fixed label
+    // (Personal Space, from the dictionary); otherwise the resolver's label.
+    expect(TOPBAR_TSX).toMatch(/\{label \?\? option\.label\}/); // (P3/P4 domain remediation 2026-07-21)
+    expect(TOPBAR_TSX).toMatch(/label=\{t\("shellPersonalSpace"\)\}/);
+    // Only the personal option is relabelled; every other option shows its own label.
+    expect(TOPBAR_TSX.match(/(?<![-\w])label=\{/g) ?? []).toHaveLength(1);
     expect(TOPBAR_TSX).toMatch(/data-context-option=\{option\.id\}/); // (P3/P4 domain remediation 2026-07-21)
     // No id-as-visible-label fallback anywhere in the toolbar.
     expect(TOPBAR_TSX).not.toMatch(/option\.label \?\? option\.id/); // (P3/P4 domain remediation 2026-07-21)

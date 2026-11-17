@@ -203,3 +203,95 @@ describe("R1-F-01 — the create form never posts what it hides, and names a bla
     expect(calls.some((c) => c.method === "POST" && c.path === "/v1/evidence-requests")).toBe(false);
   });
 });
+
+describe("R1-F-01 — 'Needs additional context' runs the canonical request-more flow (EP-0377)", () => {
+  const RESP = (id: string, status: string, label: string) => ({
+    id, status, responseEvidenceId: null, submittedAtUtc: "2026-09-02T00:00:00Z", submittedByExternalLabel: label, reviewerNote: null,
+  });
+  const listWith = (status: string, responses: unknown[]) => () => ({ status: 200, body: { requests: [req({ status, responses })] } });
+  const openCard = () => screen.getByText("Open one").closest(".evd-card") as HTMLElement;
+
+  async function askForMore(note: string) {
+    await act(async () => {
+      within(openCard()).getByRole("button", { name: /needs additional context/i }).click();
+    });
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: note } });
+    await act(async () => {
+      within(dialog).getByRole("button", { name: /confirm/i }).click();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  }
+
+  it("posts the note to /responses/:id/request-more (never /review) and reveals the follow-up link once", async () => {
+    list = listWith("UNDER_REVIEW", [RESP("r-b", "RECEIVED", "Open one")]);
+    onPost = (path) =>
+      path.endsWith("/request-more")
+        ? { status: 200, body: { response: { id: "r-b", status: "NEEDS_MORE_INFO" }, newIntakeLinkId: "il-2", rawToken: "tok_follow_up", communicationMessageId: null } }
+        : { status: 500, body: { error: { code: "INTERNAL", message: "unexpected" } } };
+    await mount();
+    await waitFor(() => expect(screen.getByText("Open one")).toBeTruthy());
+    const listsBefore = calls.filter((c) => c.method === "GET").length;
+    await askForMore("Please add the rear view");
+
+    const posts = calls.filter((c) => c.method === "POST");
+    expect(posts).toEqual([
+      {
+        method: "POST",
+        path: "/v1/evidence-requests/rq-1/responses/r-b/request-more",
+        body: { reviewerNote: "Please add the rear view", notifyContributor: false },
+      },
+    ]);
+    // The decision route is not used for this action any more.
+    expect(calls.some((c) => c.path.endsWith("/review"))).toBe(false);
+    const reveal = await screen.findByRole("dialog", { name: /follow-up link created/i });
+    const url = (within(reveal).getByRole("textbox") as HTMLInputElement).value;
+    expect(url).toMatch(/\/intake\/tok_follow_up$/);
+    expect(reveal.textContent).toMatch(/will not be shown again/i);
+    // The list is refreshed so the response shows its new state.
+    expect(calls.filter((c) => c.method === "GET").length).toBeGreaterThan(listsBefore);
+    expect(globalThis.alert).not.toHaveBeenCalled();
+  });
+
+  it("a request that turned terminal meanwhile (409 request_terminal) says so and reveals nothing", async () => {
+    list = listWith("UNDER_REVIEW", [RESP("r-b", "RECEIVED", "Open one")]);
+    onPost = () => ({ status: 409, body: { error: { code: "request_terminal" } } });
+    await mount();
+    await waitFor(() => expect(screen.getByText("Open one")).toBeTruthy());
+    await askForMore("Need more");
+    expect(calls.filter((c) => c.method === "POST" && c.path.endsWith("/request-more"))).toHaveLength(1);
+    expect(globalThis.alert).toHaveBeenCalledWith(expect.stringMatching(/closed or cancelled/i));
+    expect(screen.queryByRole("dialog", { name: /follow-up link created/i })).toBeNull();
+  });
+
+  it("a blank note sends nothing (Confirm stays disabled)", async () => {
+    list = listWith("UNDER_REVIEW", [RESP("r-b", "RECEIVED", "Open one")]);
+    await mount();
+    await waitFor(() => expect(screen.getByText("Open one")).toBeTruthy());
+    await act(async () => {
+      within(openCard()).getByRole("button", { name: /needs additional context/i }).click();
+    });
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "   " } });
+    const confirm = within(dialog).getByRole("button", { name: /confirm/i }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    await act(async () => {
+      confirm.click();
+    });
+    expect(calls.some((c) => c.method === "POST")).toBe(false);
+  });
+
+  it("a terminal request or a decided response offers no 'Needs additional context'", async () => {
+    list = listWith("CANCELLED", [RESP("r-b", "RECEIVED", "Open one")]);
+    await mount();
+    await waitFor(() => expect(screen.getByText("Open one")).toBeTruthy());
+    expect(within(openCard()).queryByRole("button", { name: /needs additional context/i })).toBeNull();
+    cleanup();
+    list = listWith("UNDER_REVIEW", [RESP("r-b", "NEEDS_MORE_INFO", "Open one")]);
+    await mount();
+    await waitFor(() => expect(screen.getByText("Open one")).toBeTruthy());
+    expect(within(openCard()).queryByRole("button", { name: /needs additional context/i })).toBeNull();
+  });
+});

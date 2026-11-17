@@ -83,6 +83,8 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   INVALID_CREDENTIALS: { disposition: "customer", where: "global" },
   EMAIL_NOT_VERIFIED: { disposition: "customer", where: "global" },
   EMAIL_ALREADY_EXISTS: { disposition: "customer", where: REGISTER },
+  // B1-F-004 — Google/Apple sign-in for an address an existing account holds.
+  EXISTING_ACCOUNT_SIGN_IN_REQUIRED: { disposition: "customer", where: "global" },
   MFA_POLICY_VERSION_CONFLICT: { disposition: "customer", where: "global" },
   INVALID_OR_EXPIRED: {
     disposition: "generic",
@@ -372,6 +374,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   PACKAGE_BLOCKED_BY_TEMPLATE_POLICY: { disposition: "customer", where: "global" },
   IDEMPOTENCY_KEY_REQUIRED: { disposition: "customer", where: "global" },
   IDEMPOTENCY_KEY_INVALID: { disposition: "customer", where: "global" },
+  // B3B-F-102 (Free audit 0ea0, residual pass) — an intake-link create retried
+  // with the same key but different details. Global copy; the intake wizard
+  // also names where the original link is.
+  IDEMPOTENCY_KEY_REUSED: { disposition: "customer", where: "global" },
   // An updated report records why it was issued (2026-09-29); the server's
   // message says what to write.
   UPDATED_REPORT_REASON_REQUIRED: { disposition: "customer", where: "global" },

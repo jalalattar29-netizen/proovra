@@ -46,6 +46,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { SEARCH_COPY } from "@proovra/shared/i18n";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -133,10 +134,15 @@ test("Guidance saved block has empty-state copy and states each view's visibilit
   // list has no business branching on a wire enum.
   assert.match(SEARCH_GUIDANCE, /\{view\.visibilityLabel\}/);
   assert.doesNotMatch(SEARCH_GUIDANCE, /=== "TEAM"/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts): the map holds
+  // dictionary keys, translated when the view's label is resolved.
   assert.match(
     SEARCH_PAGE,
-    /const SAVED_VIEW_VISIBILITY_LABEL: Record<SavedViewVisibility, string> = \{\s*\n\s*PRIVATE: "Private",\s*\n\s*TEAM: "Workspace",/,
+    /const SAVED_VIEW_VISIBILITY_LABEL: Record<SavedViewVisibility, TranslationKey> = \{\s*\n\s*PRIVATE: "searchVisibilityPrivate",\s*\n\s*TEAM: "searchVisibilityWorkspace",/,
   );
+  assert.match(SEARCH_PAGE, /visibilityLabel: t\(SAVED_VIEW_VISIBILITY_LABEL\[v\.visibility\]\)/);
+  assert.equal(SEARCH_COPY.en.searchVisibilityPrivate, "Private");
+  assert.equal(SEARCH_COPY.en.searchVisibilityWorkspace, "Workspace");
   // `null` means not loaded / no authority — distinct from an empty list.
   assert.match(SEARCH_GUIDANCE, /saved === null \|\| saved\.length === 0/);
   assert.match(SEARCH_PAGE, /savedViews === null\s*\n?\s*\? null/);
@@ -162,9 +168,12 @@ test("Result-card type badge renders DOCUMENT_TYPE_LABEL (not the raw enum strin
   // lines after the data-attribute, so an inline window can be
   // fragile across whitespace edits.
   assert.match(SEARCH_PAGE, /data-search-result-type=\{row\.documentType\}/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts): the badge reads
+  // documentTypeLabel(t, …), which maps through DOCUMENT_TYPE_LABEL.
+  assert.match(SEARCH_PAGE, /\{documentTypeLabel\(t, row\.documentType\)\}/);
   assert.match(
     SEARCH_PAGE,
-    /\{DOCUMENT_TYPE_LABEL\[row\.documentType\] \?\? row\.documentType\}/,
+    /const key = DOCUMENT_TYPE_LABEL\[type as DocumentType\];\s*\n\s*return key \? t\(key\) : type;/,
   );
   // Anti-regression: the lowercase replace("_", " ") of the
   // previous code path is gone.
@@ -288,9 +297,11 @@ test("empty-workspace is a READINESS state, resolved before any query branch", (
 
 test("No-match empty state copy advises to try a different filename / case / report", () => {
   assert.match(SEARCH_PAGE, /data-search-empty-state-kind="no-match"/);
-  assert.match(
-    SEARCH_PAGE,
-    /Try a different filename, case name, report title,\s*\n?\s*note, or record ID\./,
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.match(SEARCH_PAGE, /detail=\{t\("searchNoMatchDetail"\)\}/);
+  assert.equal(
+    SEARCH_COPY.en.searchNoMatchDetail,
+    "Try a different filename, case name, report title, note, or record ID.",
   );
 });
 

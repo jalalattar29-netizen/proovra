@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 function readWeb(rel: string): string {
   return readFileSync(
@@ -249,7 +250,13 @@ describe("Phase 32.8B — sidebar renderer consumes the canonical filter pipelin
   it("hydrates runtime badges from real runtime state — never fabricates a badge", () => {
     expect(SIDEBAR).toMatch(/runtime\.counts\.escalations > 0/);
     expect(SIDEBAR).toMatch(/governanceIncidents > 0/);
-    expect(SIDEBAR).toMatch(/ariaLabel:\s*`Runtime \$\{runtime\.severity\.toLowerCase\(\)\}`/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts): the
+    // label is still derived from the real runtime severity (keyed), with the
+    // severity template as the fallback for an unmapped value.
+    expect(SIDEBAR).toMatch(
+      /ariaLabel: RUNTIME_SEVERITY_KEY\[runtime\.severity\]\s*\?\s*t\(RUNTIME_SEVERITY_KEY\[runtime\.severity\] as TranslationKey\)\s*:\s*`Runtime \$\{runtime\.severity\.toLowerCase\(\)\}`/,
+    );
+    expect(webDictionaryEnValue("app-shell", "shellRuntimeCritical")).toBe("Runtime critical");
   });
 
 });
@@ -267,8 +274,11 @@ describe("Phase 32.8B — no-regression invariants", () => {
     // CURRENT intended sidebar behaviour instead of the retired card.
     //
     // Sidebar still renders the Need help? / Contact support affordance.
-    expect(SIDEBAR).toMatch(/Need help\?/);
-    expect(SIDEBAR).toMatch(/Contact support/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts).
+    expect(SIDEBAR).toMatch(/t\("shellNeedHelp"\)/);
+    expect(SIDEBAR).toMatch(/t\("shellContactSupport"\)/);
+    expect(webDictionaryEnValue("app-shell", "shellNeedHelp")).toBe("Need help?");
+    expect(webDictionaryEnValue("app-shell", "shellContactSupport")).toBe("Contact support");
     // Sidebar nav is driven by the canonical ROUTE_REGISTRY (not the
     // legacy server-provided navigation envelope).
     expect(SIDEBAR).toMatch(/ROUTE_REGISTRY/);

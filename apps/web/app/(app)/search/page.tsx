@@ -22,6 +22,10 @@ import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+// B2A-F-12 — the page's words come from the shared dictionary, in the
+// reader's locale (English outside a provider).
+import { fillCopy } from "@proovra/shared/i18n";
+import { useT, type TranslationKey } from "../../providers";
 import { formatUserDateTime } from "../../../lib/date";
 import {
   useActiveSpace,
@@ -370,41 +374,48 @@ const DOCUMENT_TYPES: DocumentType[] = [
   "INTAKE_LINK",
 ];
 
-const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
-  EVIDENCE: "Evidence",
-  CASE: "Case",
-  REPORT: "Report",
-  PACKAGE: "Package",
-  NOTE: "Note",
-  INTAKE_LINK: "Intake request",
+/** B2A-F-12 — dictionary keys; read with `t()` at render, in the reader's locale. */
+const DOCUMENT_TYPE_LABEL: Record<DocumentType, TranslationKey> = {
+  EVIDENCE: "searchTypeEvidence",
+  CASE: "searchTypeCase",
+  REPORT: "searchTypeReport",
+  PACKAGE: "searchTypePackage",
+  NOTE: "searchTypeNote",
+  INTAKE_LINK: "searchTypeIntakeLink",
   // Enterprise types — kept for type safety, never shown as a chip
   // because they are not in the personal DOCUMENT_TYPES list above.
-  WORKFLOW: "Workflow",
-  WORKFLOW_STEP: "Workflow step",
-  REVIEW_EVENT: "Review event",
-  AUDIT_EVENT: "Audit event",
-  COMMUNICATION: "Communication",
-  CASE_TIMELINE: "Case timeline",
-  INCIDENT: "Incident",
+  WORKFLOW: "searchTypeWorkflow",
+  WORKFLOW_STEP: "searchTypeWorkflowStep",
+  REVIEW_EVENT: "searchTypeReviewEvent",
+  AUDIT_EVENT: "searchTypeAuditEvent",
+  COMMUNICATION: "searchTypeCommunication",
+  CASE_TIMELINE: "searchTypeCaseTimeline",
+  INCIDENT: "searchTypeIncident",
 };
+
+/** A record type's label in the reader's locale; an unknown type reads as itself. */
+function documentTypeLabel(t: (key: TranslationKey) => string, type: string): string {
+  const key = DOCUMENT_TYPE_LABEL[type as DocumentType];
+  return key ? t(key) : type;
+}
 
 const EVIDENCE_TYPES: EvidenceType[] = ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"];
 
 // The chips used to render the raw enum lower-cased ("photo"), which read as
 // wire vocabulary next to the Title-Case document-type chips beside them.
-const EVIDENCE_TYPE_LABEL: Record<EvidenceType, string> = {
-  PHOTO: "Photo",
-  VIDEO: "Video",
-  AUDIO: "Audio",
-  DOCUMENT: "Document",
+const EVIDENCE_TYPE_LABEL: Record<EvidenceType, TranslationKey> = {
+  PHOTO: "searchKindPhoto",
+  VIDEO: "searchKindVideo",
+  AUDIO: "searchKindAudio",
+  DOCUMENT: "searchKindDocument",
 };
 
-const SORT_MODES: { value: SortMode; label: string }[] = [
-  { value: "UPDATED_DESC", label: "Most recent first" },
-  { value: "UPDATED_ASC", label: "Oldest first" },
-  { value: "CREATED_DESC", label: "Newest by creation" },
-  { value: "CREATED_ASC", label: "Earliest by creation" },
-  { value: "RELEVANCE_DESC", label: "Relevance" },
+const SORT_MODES: { value: SortMode; labelKey: TranslationKey }[] = [
+  { value: "UPDATED_DESC", labelKey: "searchSortUpdatedDesc" },
+  { value: "UPDATED_ASC", labelKey: "searchSortUpdatedAsc" },
+  { value: "CREATED_DESC", labelKey: "searchSortCreatedDesc" },
+  { value: "CREATED_ASC", labelKey: "searchSortCreatedAsc" },
+  { value: "RELEVANCE_DESC", labelKey: "searchSortRelevance" },
 ];
 
 const DEFAULT_LIMIT = 25;
@@ -422,9 +433,9 @@ const SUPPORT_HREF = "/support";
  * two different ways — `"Team"` in one list and `visibility.toLowerCase()` in
  * the other. One map, resolved once, in the words the rest of the product uses.
  */
-const SAVED_VIEW_VISIBILITY_LABEL: Record<SavedViewVisibility, string> = {
-  PRIVATE: "Private",
-  TEAM: "Workspace",
+const SAVED_VIEW_VISIBILITY_LABEL: Record<SavedViewVisibility, TranslationKey> = {
+  PRIVATE: "searchVisibilityPrivate",
+  TEAM: "searchVisibilityWorkspace",
 };
 
 /**
@@ -549,6 +560,7 @@ export default function SearchPage() {
 }
 
 function SearchInner() {
+  const t = useT();
   // Phase EMERGENCY-RECOVERY — search works for personal workspaces too;
   // both personal and team modes have a real Team UUID after the
   // workspace-bootstrap fix, so we consume the canonical workspace id.
@@ -978,24 +990,24 @@ function SearchInner() {
       // What the SERVER said happened, not what was asked for.
       setRecoveryNotice(
         response?.alreadyRunning === true
-          ? "Indexing is already running for this workspace."
+          ? t("searchIndexingAlreadyRunning")
           : response?.status === "COMPLETED"
-            ? "Indexing finished."
-            : "Indexing started.",
+            ? t("searchIndexingFinished")
+            : t("searchIndexingStarted"),
       );
       reloadHealth(filter?.q);
     } catch (err) {
       setRecoveryNotice(null);
       setActionError(
         toSafeUserError(err, {
-          message: "Could not start the index rebuild.",
+          message: t("searchRebuildFailed"),
         }).message,
       );
     } finally {
       rebuildInFlight.current = false;
       setRebuilding(false);
     }
-  }, [teamId, readiness?.canRecover, reloadHealth, filter?.q]);
+  }, [teamId, readiness?.canRecover, reloadHealth, filter?.q, t]);
 
   /**
    * FOCUS SURVIVES THE STATE CHANGE.
@@ -1319,7 +1331,7 @@ function SearchInner() {
       return;
     }
     const ctrl = new AbortController();
-    const t = window.setTimeout(async () => {
+    const timer = window.setTimeout(async () => {
       try {
         const res = (await apiFetch(
           `/v1/search/suggest?teamId=${encodeURIComponent(teamId)}&q=${encodeURIComponent(
@@ -1337,7 +1349,7 @@ function SearchInner() {
     }, 250);
     return () => {
       ctrl.abort();
-      window.clearTimeout(t);
+      window.clearTimeout(timer);
     };
   }, [qDraft, teamId]);
 
@@ -1362,12 +1374,12 @@ function SearchInner() {
       })
       .catch((err: unknown) =>
         setActionError(
-          toSafeUserError(err, { message: "Could not load more results." })
+          toSafeUserError(err, { message: t("searchLoadMoreFailed") })
             .message,
         ),
       )
       .finally(() => setLoading(false));
-  }, [filter, results?.nextCursor]);
+  }, [filter, results?.nextCursor, t]);
 
   /**
    * Re-run the current filter unchanged.
@@ -1393,9 +1405,9 @@ function SearchInner() {
         : savedViews.map((v) => ({
             id: v.id,
             name: v.name,
-            visibilityLabel: SAVED_VIEW_VISIBILITY_LABEL[v.visibility],
+            visibilityLabel: t(SAVED_VIEW_VISIBILITY_LABEL[v.visibility]),
           })),
-    [savedViews],
+    [savedViews, t],
   );
 
   const applySavedView = useCallback((view: SavedView) => {
@@ -1520,20 +1532,22 @@ function SearchInner() {
     if (!filter) return null;
     const parts: string[] = [];
     const types = filter.documentTypes?.length ?? 0;
-    if (types > 0) parts.push(`${types} record type${types === 1 ? "" : "s"}`);
+    if (types > 0)
+      parts.push(fillCopy(t(types === 1 ? "searchFilterRecordTypesOne" : "searchFilterRecordTypesOther"), { count: types }));
     const kinds = filter.evidenceTypes?.length ?? 0;
-    if (kinds > 0) parts.push(`${kinds} evidence kind${kinds === 1 ? "" : "s"}`);
-    if (filter.workflowLinked) parts.push("workflow-linked");
-    if (filter.onLegalHold) parts.push("legal hold");
-    if (filter.exportRestricted) parts.push("export-restricted");
-    if (filter.incidentLinked) parts.push("incident-linked");
-    if (filter.contributorScoped) parts.push("contributor-scoped");
+    if (kinds > 0)
+      parts.push(fillCopy(t(kinds === 1 ? "searchFilterEvidenceKindsOne" : "searchFilterEvidenceKindsOther"), { count: kinds }));
+    if (filter.workflowLinked) parts.push(t("searchFilterWorkflowLinked"));
+    if (filter.onLegalHold) parts.push(t("searchFilterLegalHold"));
+    if (filter.exportRestricted) parts.push(t("searchFilterExportRestricted"));
+    if (filter.incidentLinked) parts.push(t("searchFilterIncidentLinked"));
+    if (filter.contributorScoped) parts.push(t("searchFilterContributorScoped"));
     if (filter.updatedSinceUtc || filter.updatedUntilUtc)
-      parts.push("an updated-date range");
+      parts.push(t("searchFilterDateRange"));
     return parts.length > 0
-      ? `narrowed by ${parts.join(", ")}`
-      : "no filters applied";
-  }, [filter]);
+      ? fillCopy(t("searchFilterNarrowedBy"), { filters: parts.join(t("searchListSeparator")) })
+      : t("searchFilterNone");
+  }, [filter, t]);
 
   /**
    * Records the workspace withheld. Counted, never listed — the count is the
@@ -1542,11 +1556,11 @@ function SearchInner() {
   const withheldSummary = useMemo(() => {
     const parts: string[] = [];
     if (results?.filteredByVisibility)
-      parts.push(`${results.filteredByVisibility} withheld by visibility`);
+      parts.push(fillCopy(t("searchWithheldVisibility"), { count: results.filteredByVisibility }));
     if (results?.filteredByGovernance)
-      parts.push(`${results.filteredByGovernance} withheld by governance`);
+      parts.push(fillCopy(t("searchWithheldGovernance"), { count: results.filteredByGovernance }));
     return parts.length > 0 ? parts.join(" · ") : null;
-  }, [results?.filteredByVisibility, results?.filteredByGovernance]);
+  }, [results?.filteredByVisibility, results?.filteredByGovernance, t]);
 
   // Phase 16 — semantic availability prefers the dedicated status
   // endpoint when present (workspace-scoped, capability-aware). When
@@ -1618,7 +1632,7 @@ function SearchInner() {
       <div className="search-page" data-search-page="pending">
         <div className="app-panel search-state" data-search-state="workspace-pending">
           <p className="search-state__body">
-            Workspace setup pending — refresh shortly.
+            {t("searchWorkspacePending")}
           </p>
         </div>
       </div>
@@ -1639,11 +1653,10 @@ function SearchInner() {
             <span aria-hidden="true" className="app-title-icon">
               <SearchGlyph strokeWidth={1.75} data-search-title-icon />
             </span>
-            <span data-search-title-text>Search</span>
+            <span data-search-title-text>{t("searchTitle")}</span>
           </h1>
           <p className="search-header__description">
-            Search evidence, cases, reports, notes and OCR text across this
-            workspace. Results respect visibility and governance.
+            {t("searchDescription")}
           </p>
         </div>
         {/* What ordered this result set, stated plainly. Keyword matching is
@@ -1655,8 +1668,8 @@ function SearchInner() {
           data-search-ranking={usedSemanticRanking ? "advisory" : "deterministic"}
         >
           {usedSemanticRanking
-            ? "Deterministic match · advisory ranking"
-            : "Deterministic match"}
+            ? t("searchRankingAdvisory")
+            : t("searchRankingDeterministic")}
         </p>
       </header>
 
@@ -1860,7 +1873,7 @@ function SearchInner() {
                     setSuggestOpen(false);
                   }
                 }}
-                placeholder="Search evidence, cases, reports, notes, OCR text…"
+                placeholder={t("searchInputPlaceholder")}
                 className="search-form__input"
                 maxLength={200}
                 /* AUD-0061 — A COMBOBOX, BECAUSE IT BEHAVES AS ONE. A plain
@@ -1869,7 +1882,7 @@ function SearchInner() {
                    listbox, so it says so with the role that allows it, and
                    points at that listbox while it is open. */
                 role="combobox"
-                aria-label="Search query"
+                aria-label={t("searchInputAria")}
                 aria-autocomplete="list"
                 aria-expanded={suggestOpen}
                 aria-controls={suggestOpen ? SEARCH_TYPEAHEAD_LISTBOX_ID : undefined}
@@ -1902,7 +1915,7 @@ function SearchInner() {
             className="app-primary-action search-form__submit"
             data-search-submit
           >
-            Search
+            {t("searchSubmit")}
           </button>
         </form>
       </div>
@@ -1914,7 +1927,7 @@ function SearchInner() {
         <span className="search-help__icon" aria-hidden="true">
           <Info size={16} strokeWidth={2} />
         </span>
-        <span className="search-help__label">How search works</span>
+        <span className="search-help__label">{t("searchHelpLabel")}</span>
         <button
           type="button"
           className="search-help__toggle"
@@ -1923,25 +1936,14 @@ function SearchInner() {
           onClick={() => setHelpOpen((prev) => !prev)}
           data-search-help-toggle
         >
-          {helpOpen ? "Hide" : "Show"}
+          {helpOpen ? t("searchHelpHide") : t("searchHelpShow")}
         </button>
         {helpOpen ? (
           <ul className="search-help__body" id="search-help-body">
-            <li>
-              Titles, filenames, case names, report titles, package labels and
-              note text are matched directly.
-            </li>
-            <li>
-              OCR and transcript text are matched where a record carries them.
-            </li>
-            <li>
-              Records you cannot access are counted above the results, never
-              listed.
-            </li>
-            <li>
-              The filters narrow by record type, evidence kind, lifecycle state
-              and when a record was last updated.
-            </li>
+            <li>{t("searchHelpTitles")}</li>
+            <li>{t("searchHelpOcr")}</li>
+            <li>{t("searchHelpWithheld")}</li>
+            <li>{t("searchHelpFilters")}</li>
           </ul>
         ) : null}
       </div>
@@ -1954,7 +1956,7 @@ function SearchInner() {
         className="app-tabs"
         data-search-scope-tabs
         role="tablist"
-        aria-label="Search console scope"
+        aria-label={t("searchScopeAria")}
         // B2A-F-18 — arrows/Home/End move between the scope tabs.
         onKeyDown={(e) =>
           handleTablistKeyDown(e, "search-scope", canReadSearchActivity ? (["records", "activity"] as const) : (["records"] as const), scope, setScope)
@@ -1972,7 +1974,7 @@ function SearchInner() {
           data-search-scope-active={scope === "records" ? "true" : "false"}
           onClick={() => setScope("records")}
         >
-          Records
+          {t("searchScopeRecords")}
         </button>
         {canReadSearchActivity ? (
         <button
@@ -1987,7 +1989,7 @@ function SearchInner() {
           data-search-scope-active={scope === "activity" ? "true" : "false"}
           onClick={() => setScope("activity")}
         >
-          Search activity
+          {t("searchScopeActivity")}
         </button>
         ) : null}
       </div>
@@ -2018,94 +2020,94 @@ function SearchInner() {
         {/* ----------------------------- LEFT ----------------------------- */}
         <div className="search-col">
         <div className="app-panel search-filters" data-search-filters>
-          <FilterSection label="Sort">
+          <FilterSection label={t("searchFilterSort")}>
             <AppListbox
               value={filter.sort ?? "UPDATED_DESC"}
-              options={SORT_MODES}
+              options={SORT_MODES.map((m) => ({ value: m.value, label: t(m.labelKey) }))}
               onChange={(value) => updateFilter({ sort: value })}
-              ariaLabel="Sort results"
+              ariaLabel={t("searchSortAria")}
             />
           </FilterSection>
 
-          <FilterSection label="Document type">
+          <FilterSection label={t("searchFilterDocumentType")}>
             <div className="search-chip-row">
-              {DOCUMENT_TYPES.map((t) => {
-                const active = filter.documentTypes?.includes(t) ?? false;
+              {DOCUMENT_TYPES.map((dt) => {
+                const active = filter.documentTypes?.includes(dt) ?? false;
                 return (
                   <button
-                    key={t}
+                    key={dt}
                     type="button"
                     className="search-chip"
                     aria-pressed={active}
                     onClick={() =>
                       updateFilter({
-                        documentTypes: toggleArray(filter.documentTypes, t),
+                        documentTypes: toggleArray(filter.documentTypes, dt),
                       })
                     }
-                    data-search-type-chip={t}
+                    data-search-type-chip={dt}
                   >
-                    {DOCUMENT_TYPE_LABEL[t]}
+                    {t(DOCUMENT_TYPE_LABEL[dt])}
                   </button>
                 );
               })}
             </div>
           </FilterSection>
 
-          <FilterSection label="Evidence kind">
+          <FilterSection label={t("searchFilterEvidenceKind")}>
             <div className="search-chip-row">
-              {EVIDENCE_TYPES.map((t) => {
-                const active = filter.evidenceTypes?.includes(t) ?? false;
+              {EVIDENCE_TYPES.map((et) => {
+                const active = filter.evidenceTypes?.includes(et) ?? false;
                 return (
                   <button
-                    key={t}
+                    key={et}
                     type="button"
                     className="search-chip"
                     aria-pressed={active}
                     onClick={() =>
                       updateFilter({
-                        evidenceTypes: toggleArray(filter.evidenceTypes, t),
+                        evidenceTypes: toggleArray(filter.evidenceTypes, et),
                       })
                     }
-                    data-search-evidence-chip={t}
+                    data-search-evidence-chip={et}
                   >
-                    {EVIDENCE_TYPE_LABEL[t]}
+                    {t(EVIDENCE_TYPE_LABEL[et])}
                   </button>
                 );
               })}
             </div>
           </FilterSection>
 
-          <FilterSection label="Lifecycle">
+          <FilterSection label={t("searchFilterLifecycle")}>
             <Toggle
-              label="Workflow-linked only"
+              label={t("searchToggleWorkflowLinked")}
               value={filter.workflowLinked ?? false}
               onChange={(v) =>
                 updateFilter({ workflowLinked: v ? true : undefined })
               }
             />
             <Toggle
-              label="On legal hold"
+              label={t("searchToggleLegalHold")}
               value={filter.onLegalHold ?? false}
               onChange={(v) =>
                 updateFilter({ onLegalHold: v ? true : undefined })
               }
             />
             <Toggle
-              label="Export-restricted"
+              label={t("searchToggleExportRestricted")}
               value={filter.exportRestricted ?? false}
               onChange={(v) =>
                 updateFilter({ exportRestricted: v ? true : undefined })
               }
             />
             <Toggle
-              label="Incident-linked"
+              label={t("searchToggleIncidentLinked")}
               value={filter.incidentLinked ?? false}
               onChange={(v) =>
                 updateFilter({ incidentLinked: v ? true : undefined })
               }
             />
             <Toggle
-              label="Contributor-scoped"
+              label={t("searchToggleContributorScoped")}
               value={filter.contributorScoped ?? false}
               onChange={(v) =>
                 updateFilter({ contributorScoped: v ? true : undefined })
@@ -2113,13 +2115,13 @@ function SearchInner() {
             />
           </FilterSection>
 
-          <FilterSection label="Updated">
+          <FilterSection label={t("searchFilterUpdated")}>
             {/* Draft-backed: typing in a picker writes only to the local draft
                 string, and the live filter envelope is unchanged until Apply.
                 Datetime-local keystrokes used to fire a search per partial
                 value — wasteful, and sometimes an invalid instant. */}
             <div className="search-date-field">
-              <label htmlFor="search-updated-since">Since</label>
+              <label htmlFor="search-updated-since">{t("searchDateSince")}</label>
               <input
                 id="search-updated-since"
                 type="datetime-local"
@@ -2130,7 +2132,7 @@ function SearchInner() {
               />
             </div>
             <div className="search-date-field">
-              <label htmlFor="search-updated-until">Until</label>
+              <label htmlFor="search-updated-until">{t("searchDateUntil")}</label>
               <input
                 id="search-updated-until"
                 type="datetime-local"
@@ -2158,7 +2160,7 @@ function SearchInner() {
                 disabled={!dateDraftDirty}
                 data-search-filter-apply="true"
               >
-                Apply filters
+                {t("searchApplyFilters")}
               </button>
               {filtersNonEmpty ? (
                 <button
@@ -2167,7 +2169,7 @@ function SearchInner() {
                   onClick={clearNarrowingFilters}
                   data-search-filter-clear="true"
                 >
-                  Clear filters
+                  {t("searchClearFilters")}
                 </button>
               ) : null}
             </div>
@@ -2207,7 +2209,7 @@ function SearchInner() {
                           {v.name}
                         </span>
                         <span className="search-saved-view__visibility">
-                          {SAVED_VIEW_VISIBILITY_LABEL[v.visibility]}
+                          {t(SAVED_VIEW_VISIBILITY_LABEL[v.visibility])}
                         </span>
                       </button>
                       <button
@@ -2268,12 +2270,13 @@ function SearchInner() {
             <div className="search-results__head" data-search-results-head>
               <span className="search-results__count" aria-live="polite">
                 {loading
-                  ? "Searching…"
+                  ? t("searchSearching")
                   : searchFailure
-                    ? "No results to show"
-                    : `${results?.totalReturned ?? 0} result${
-                        (results?.totalReturned ?? 0) === 1 ? "" : "s"
-                      }`}
+                    ? t("searchNoResultsToShow")
+                    : fillCopy(
+                        t((results?.totalReturned ?? 0) === 1 ? "searchResultCountOne" : "searchResultCountOther"),
+                        { count: results?.totalReturned ?? 0 },
+                      )}
               </span>
               {searchFailure ? null : <span>{filterSummary}</span>}
               {withheldSummary && !searchFailure ? (
@@ -2354,15 +2357,18 @@ function SearchInner() {
                 // the workspace/index branches: with an EVIDENCE filter active,
                 // "the index is empty" would be a false explanation.
                 (() => {
-                  const hint = describeFilterEmpty(filter, searchHealth);
+                  const hint = describeFilterEmpty(filter, searchHealth, t);
                   return (
                     <div data-search-empty-state-kind="no-match-filtered">
                       <SearchNoResultsState
-                        title={`${hint.headline}${
+                        title={
                           searchHealth?.workspace?.name
-                            ? ` in "${searchHealth.workspace.name}"`
-                            : ""
-                        }`}
+                            ? fillCopy(t("searchHeadlineInWorkspace"), {
+                                headline: hint.headline,
+                                workspace: searchHealth.workspace.name,
+                              })
+                            : hint.headline
+                        }
                         detail={hint.detail}
                         filtersActive
                         onClearFilters={clearNarrowingFilters}
@@ -2376,12 +2382,12 @@ function SearchInner() {
                 // is visible.
                 <div data-search-empty-state-kind="no-match">
                   <SearchNoResultsState
-                    title={`No matches${
+                    title={
                       searchHealth?.workspace?.name
-                        ? ` in "${searchHealth.workspace.name}"`
-                        : ""
-                    }`}
-                    detail="Try a different filename, case name, report title, note, or record ID."
+                        ? fillCopy(t("searchNoMatchesInWorkspace"), { workspace: searchHealth.workspace.name })
+                        : t("searchNoMatches")
+                    }
+                    detail={t("searchNoMatchDetail")}
                     filtersActive={false}
                   />
                 </div>
@@ -2426,7 +2432,7 @@ function SearchInner() {
                           tone={searchTypeTone(row.documentType)}
                           data-search-result-type={row.documentType}
                         >
-                          {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
+                          {documentTypeLabel(t, row.documentType)}
                         </AppStatusBadge>
                         <span className="search-result__title">{row.title}</span>
                         {status ? (
@@ -2436,7 +2442,7 @@ function SearchInner() {
                             data-search-result-status={status}
                             data-search-result-badge={status}
                           >
-                            {renderBadgeLabel(status)}
+                            {renderBadgeLabel(status, t)}
                           </AppStatusText>
                         ) : lifecycle ? (
                           <AppStatusText
@@ -2482,7 +2488,7 @@ function SearchInner() {
                               tone={searchBadgeTone(b)}
                               data-search-result-badge={b}
                             >
-                              {renderBadgeLabel(b)}
+                              {renderBadgeLabel(b, t)}
                             </AppStatusBadge>
                           ))}
                         </span>
@@ -2490,7 +2496,7 @@ function SearchInner() {
 
                       {/* A timestamp reads left-to-right inside an RTL card. */}
                       <span className="search-result__time">
-                        updated {formatDateTime(row.updatedAtUtc)}
+                        {fillCopy(t("searchRowUpdated"), { time: formatDateTime(row.updatedAtUtc) })}
                       </span>
                     </button>
                   </li>
@@ -2509,7 +2515,7 @@ function SearchInner() {
                 aria-busy={loading}
                 data-search-load-more
               >
-                {loading ? "Loading…" : "Load more"}
+                {loading ? t("searchLoading") : t("searchLoadMore")}
               </button>
             </div>
           ) : null}
@@ -2575,45 +2581,33 @@ function SearchInner() {
 // `./searchTones`, which the result rows and the Inspector share — a mapping
 // that exists twice is a mapping that will eventually disagree with itself.
 
-function renderBadgeLabel(badge: string): string {
-  switch (badge) {
-    case "in_trash":
-      return "In trash";
-    case "archived":
-      return "Archived";
-    case "locked":
-      return "Locked";
-    case "legal-hold":
-      return "Legal hold";
-    case "export-restricted":
-      return "Export-restricted";
-    case "workflow-linked":
-      return "Workflow-linked";
-    case "review-linked":
-      return "Review-linked";
-    case "contributor-scoped":
-      return "Contributor-scoped";
-    case "visibility-restricted":
-      return "Visibility-restricted";
-    case "governance-restricted":
-      return "Governance-restricted";
-    case "incident-linked":
-      return "Incident-linked";
-    case "communication-linked":
-      return "Communication-linked";
-    case "integrity record":
-      return "Integrity record";
-    case "matched metadata":
-      return "Matched metadata";
-    case "related evidence":
-      return "Related evidence";
-    default:
-      return badge;
-  }
+const BADGE_LABEL: Record<string, TranslationKey> = {
+  in_trash: "searchBadgeInTrash",
+  archived: "searchBadgeArchived",
+  locked: "searchBadgeLocked",
+  "legal-hold": "searchBadgeLegalHold",
+  "export-restricted": "searchBadgeExportRestricted",
+  "workflow-linked": "searchBadgeWorkflowLinked",
+  "review-linked": "searchBadgeReviewLinked",
+  "contributor-scoped": "searchBadgeContributorScoped",
+  "visibility-restricted": "searchBadgeVisibilityRestricted",
+  "governance-restricted": "searchBadgeGovernanceRestricted",
+  "incident-linked": "searchBadgeIncidentLinked",
+  "communication-linked": "searchBadgeCommunicationLinked",
+  "integrity record": "searchBadgeIntegrityRecord",
+  "matched metadata": "searchBadgeMatchedMetadata",
+  "related evidence": "searchBadgeRelatedEvidence",
+};
+
+/** B2A-F-12 — a known badge in the reader's locale; an unknown token reads as itself. */
+function renderBadgeLabel(badge: string, t: (key: TranslationKey) => string): string {
+  const key = Object.prototype.hasOwnProperty.call(BADGE_LABEL, badge) ? BADGE_LABEL[badge] : undefined;
+  return key ? t(key) : badge;
 }
 
 function getOpenAction(
   row: ResultRow,
+  t: (key: TranslationKey) => string,
 ): { href: string; label: string } | null {
   // Search-inclusion-audit (trash decision): soft-deleted
   // (`in_trash`) result rows route to the SAME evidence detail
@@ -2631,35 +2625,35 @@ function getOpenAction(
       return row.evidenceId
         ? {
             href: `/evidence/${row.evidenceId}${trashSuffix}`,
-            label: isInTrash ? "Open in trash" : "Open evidence",
+            label: isInTrash ? t("searchOpenInTrash") : t("searchOpenEvidence"),
           }
         : null;
     case "CASE":
       return row.caseId
         ? {
             href: `/cases/${row.caseId}${trashSuffix}`,
-            label: isInTrash ? "Open in trash" : "Open case",
+            label: isInTrash ? t("searchOpenInTrash") : t("searchOpenCase"),
           }
         : null;
     case "REPORT":
       return row.evidenceId
         ? {
             href: `/evidence/${row.evidenceId}${trashSuffix}`,
-            label: isInTrash ? "Open in trash" : "Open report",
+            label: isInTrash ? t("searchOpenInTrash") : t("searchOpenReport"),
           }
         : null;
     case "PACKAGE":
       return row.evidenceId
         ? {
             href: `/evidence/${row.evidenceId}${trashSuffix}`,
-            label: isInTrash ? "Open in trash" : "Open package",
+            label: isInTrash ? t("searchOpenInTrash") : t("searchOpenPackage"),
           }
         : null;
     case "NOTE":
       return row.caseId
         ? {
             href: `/cases/${row.caseId}${trashSuffix}`,
-            label: isInTrash ? "Open in trash" : "Open note",
+            label: isInTrash ? t("searchOpenInTrash") : t("searchOpenNote"),
           }
         : null;
     // Intake requests have no detail page of their own; the Intake Links
@@ -2667,7 +2661,7 @@ function getOpenAction(
     // honours (Home uses the same one). Routing there opens the request the
     // operator just found rather than a list they have to search again.
     case "INTAKE_LINK":
-      return { href: `/intake-links?linkId=${row.sourceId}`, label: "Open request" };
+      return { href: `/intake-links?linkId=${row.sourceId}`, label: t("searchOpenRequest") };
     /*
      * WORKFLOW IS INDEXED, SO IT NEEDS A DESTINATION.
      *
@@ -2688,7 +2682,7 @@ function getOpenAction(
       return row.workflowInstanceId
         ? {
             href: `/workflows/${row.workflowInstanceId}${trashSuffix}`,
-            label: isInTrash ? "Open in trash" : "Open workflow",
+            label: isInTrash ? t("searchOpenInTrash") : t("searchOpenWorkflow"),
           }
         : null;
     /*
@@ -2720,13 +2714,14 @@ function Inspector({
   canSeeWorkflows: boolean;
   canSeeInvestigation: boolean;
 }) {
+  const t = useT();
   // Inspector primary action — every result type now exposes a
   // single "Open …" button right under the title. Previously the
   // only way to navigate to the underlying record was to click one
   // of the monospaced UUIDs under "Pointers", which read as
   // developer surface and confused Personal/SMB users. Pointers
   // remain as secondary technical metadata below.
-  const openAction = getOpenAction(row);
+  const openAction = getOpenAction(row, t);
   const lifecycle = rowLifecycleState(row);
   // Same rule as the result row: the panel states a fact once.
   const subtitle =
@@ -2746,7 +2741,7 @@ function Inspector({
         tone={searchTypeTone(row.documentType)}
         data-search-inspector-type={row.documentType}
       >
-        {DOCUMENT_TYPE_LABEL[row.documentType] ?? row.documentType}
+        {documentTypeLabel(t, row.documentType)}
       </AppStatusBadge>
       {/* Bounded: a long record name wraps rather than widening the column. */}
       <h2 className="search-inspector__title">{row.title}</h2>
@@ -2789,7 +2784,7 @@ function Inspector({
       <hr className="search-inspector__divider" />
 
       {row.badges.length > 0 ? (
-        <Section label="Signals">
+        <Section label={t("searchSectionSignals")}>
           <div className="search-inspector__badges">
             {row.badges.map((b) => (
               <AppStatusBadge
@@ -2797,18 +2792,18 @@ function Inspector({
                 tone={searchBadgeTone(b)}
                 data-search-inspector-badge={b}
               >
-                {renderBadgeLabel(b)}
+                {renderBadgeLabel(b, t)}
               </AppStatusBadge>
             ))}
           </div>
         </Section>
       ) : null}
 
-      <Section label="Pointers">
-        <KeyVal label="Document" value={<span title={row.documentId}>{recordReference("Document", row.documentId)}</span>} mono />
+      <Section label={t("searchSectionPointers")}>
+        <KeyVal label={t("searchPointerDocument")} value={<span title={row.documentId}>{recordReference("Document", row.documentId)}</span>} mono />
         {row.evidenceId ? (
           <KeyVal
-            label="Evidence"
+            label={t("searchPointerEvidence")}
             value={
               <a className="search-pointer" href={`/evidence/${row.evidenceId}`} title={row.evidenceId}>
                 {recordReference("Evidence", row.evidenceId)}
@@ -2819,7 +2814,7 @@ function Inspector({
         ) : null}
         {row.workflowInstanceId ? (
           <KeyVal
-            label="Workflow"
+            label={t("searchPointerWorkflow")}
             value={
               canSeeWorkflows ? (
                 <a
@@ -2841,14 +2836,14 @@ function Inspector({
         ) : null}
         {row.workflowStepInstanceId ? (
           <KeyVal
-            label="Workflow step"
+            label={t("searchPointerWorkflowStep")}
             value={row.workflowStepInstanceId}
             mono
           />
         ) : null}
         {row.caseId ? (
           <KeyVal
-            label="Case"
+            label={t("searchPointerCase")}
             value={
               <a className="search-pointer" href={`/cases/${row.caseId}`}>
                 {row.caseId}
@@ -2869,33 +2864,34 @@ function Inspector({
           caption to show; otherwise the entire block is dropped to
           avoid an empty section header. */}
       {canSeeInvestigation && (row.evidenceId || row.caseId) ? (
-        <Section label="Investigation pivots">
+        <Section label={t("searchSectionInvestigation")}>
           {/* Phase 15 — when the selected row carries a semantic score,
               caption the pivots so the operator knows the chain that
               produced this hit. The truncated title is enough context;
               we never echo the original query verbatim here either. */}
           {typeof row.semanticScore === "number" && row.semanticScore > 0 ? (
             <p className="app-hint">
-              Semantically similar to: {row.title.slice(0, 80)}
-              {row.title.length > 80 ? "…" : ""}
+              {fillCopy(t("searchSemanticallySimilar"), {
+                title: `${row.title.slice(0, 80)}${row.title.length > 80 ? "…" : ""}`,
+              })}
             </p>
           ) : null}
           {row.caseId ? (
             <KeyVal
-              label="Case graph"
+              label={t("searchCaseGraph")}
               value={
                 <a
                   className="app-secondary-action"
                   href={`/investigation/cases/${row.caseId}/graph`}
                 >
-                  Open case graph
+                  {t("searchOpenCaseGraph")}
                 </a>
               }
             />
           ) : null}
           {row.evidenceId ? (
             <KeyVal
-              label="Timeline"
+              label={t("searchTimeline")}
               value={
                 <a
                   className="app-secondary-action"
@@ -2903,14 +2899,14 @@ function Inspector({
                     row.evidenceId
                   )}`}
                 >
-                  Open timeline view
+                  {t("searchOpenTimeline")}
                 </a>
               }
             />
           ) : null}
           {row.evidenceId ? (
             <KeyVal
-              label="Duplicates"
+              label={t("searchDuplicates")}
               value={
                 <a
                   className="app-secondary-action"
@@ -2918,7 +2914,7 @@ function Inspector({
                     row.evidenceId
                   )}`}
                 >
-                  Review duplicates and similars
+                  {t("searchReviewDuplicates")}
                 </a>
               }
             />
@@ -2929,39 +2925,40 @@ function Inspector({
       typeof row.semanticScore === "number" &&
       row.semanticScore > 0 ? (
         // Self-serve rail — keep the semantic-score caption only.
-        <Section label="Related evidence">
+        <Section label={t("searchSectionRelatedEvidence")}>
           <p className="app-hint">
-            Semantically similar to: {row.title.slice(0, 80)}
-            {row.title.length > 80 ? "…" : ""}
+            {fillCopy(t("searchSemanticallySimilar"), {
+              title: `${row.title.slice(0, 80)}${row.title.length > 80 ? "…" : ""}`,
+            })}
           </p>
         </Section>
       ) : null}
 
-      <Section label="Lifecycle">
+      <Section label={t("searchFilterLifecycle")}>
         {/* Each fact is coloured by the ONE lifecycle mapping, so WORKFLOW:
             Open here is the same green as Open on the row. An absent value is
             a neutral dash — never green, which would read as "fine", and
             never red, which would read as "wrong". */}
-        <LifecycleFact label="Review" value={row.reviewState} />
-        <LifecycleFact label="Workflow" value={row.workflowState} />
-        <LifecycleFact label="Export" value={row.exportState} />
-        <LifecycleFact label="Retention" value={row.retentionState} />
-        <LifecycleFact label="Legal hold" value={row.legalHoldState} />
-        <KeyVal label="Updated" value={formatDateTime(row.updatedAtUtc)} />
+        <LifecycleFact factId="Review" label={t("searchFactReview")} value={row.reviewState} />
+        <LifecycleFact factId="Workflow" label={t("searchFactWorkflow")} value={row.workflowState} />
+        <LifecycleFact factId="Export" label={t("searchFactExport")} value={row.exportState} />
+        <LifecycleFact factId="Retention" label={t("searchFactRetention")} value={row.retentionState} />
+        <LifecycleFact factId="Legal hold" label={t("searchFactLegalHold")} value={row.legalHoldState} />
+        <KeyVal label={t("searchFilterUpdated")} value={formatDateTime(row.updatedAtUtc)} />
       </Section>
 
       {row.summary ? (
-        <Section label="Summary">
+        <Section label={t("searchSectionSummary")}>
           <p className="search-inspector__prose">{identifierTextLabel(row.summary)}</p>
         </Section>
       ) : null}
 
       {row.evidenceId ? (
-        <Section label="Related evidence">
+        <Section label={t("searchSectionRelatedEvidence")}>
           {relationships === null ? (
-            <p className="app-hint">Loading…</p>
+            <p className="app-hint">{t("searchLoading")}</p>
           ) : relationships.length === 0 ? (
-            <p className="app-hint">No related evidence.</p>
+            <p className="app-hint">{t("searchNoRelatedEvidence")}</p>
           ) : (
             <ul className="search-relationship-list">
               {relationships.map((r) => {
@@ -3021,9 +3018,12 @@ function FilterSection({
  * REPORTS, so it is toned TEXT and never a control.
  */
 function LifecycleFact({
+  factId,
   label,
   value,
 }: {
+  /** Stable, locale-independent id for the data attribute. */
+  factId: string;
   label: string;
   value: string | null;
 }) {
@@ -3035,12 +3035,12 @@ function LifecycleFact({
         <AppStatusText
           className="search-fact__badge"
           tone={kind}
-          data-search-lifecycle-fact={label}
+          data-search-lifecycle-fact={factId}
         >
           {searchLifecycleLabel(value)}
         </AppStatusText>
       ) : (
-        <span className="search-fact__value" data-search-lifecycle-fact={label}>
+        <span className="search-fact__value" data-search-lifecycle-fact={factId}>
           {searchLifecycleLabel(value)}
         </span>
       )}
@@ -3388,11 +3388,11 @@ function hasNarrowingFilters(filter: FilterState | null): boolean {
 function describeFilterEmpty(
   filter: FilterState | null,
   health: SearchDiagnostics | null,
+  t: (key: TranslationKey) => string,
 ): { headline: string; detail: string } {
   const generic = {
-    headline: "No matches with the current filters",
-    detail:
-      "Try clearing one or more filters on the left, or broaden your query.",
+    headline: t("searchFilterEmptyHeadline"),
+    detail: t("searchFilterEmptyDetail"),
   };
   if (!filter) return generic;
   const selectedTypes = filter.documentTypes ?? [];
@@ -3426,14 +3426,14 @@ function describeFilterEmpty(
   if (matchedOtherTypes.length === 0) return generic;
   // Render the friendly labels for both sides of the contradiction.
   const selectedLabels = selectedTypes
-    .map((t) => DOCUMENT_TYPE_LABEL[t] ?? t)
-    .join(" / ");
+    .map((dt) => documentTypeLabel(t, dt))
+    .join(t("searchTypeListSeparator"));
   const otherLabels = matchedOtherTypes
-    .map((t) => DOCUMENT_TYPE_LABEL[t as DocumentType] ?? t)
-    .join(" / ");
+    .map((dt) => documentTypeLabel(t, dt))
+    .join(t("searchTypeListSeparator"));
   return {
-    headline: `No ${selectedLabels} records match`,
-    detail: `${otherLabels} records DID match your search — clear the type filter on the left to see them.`,
+    headline: fillCopy(t("searchTypeEmptyHeadline"), { types: selectedLabels }),
+    detail: fillCopy(t("searchTypeEmptyDetail"), { types: otherLabels }),
   };
 }
 
@@ -3599,25 +3599,26 @@ function SearchTypeahead({
   const showSuggestions = !showRecent && suggestions.length > 0;
   const showEmpty = !showRecent && suggestions.length === 0 && trimmed.length >= 2;
   const showRecentEmpty = showRecent && recent.length === 0;
+  const t = useT();
 
   return (
     <div
       id={SEARCH_TYPEAHEAD_LISTBOX_ID}
       className="search-typeahead"
       role="listbox"
-      aria-label="Search suggestions"
+      aria-label={t("searchSuggestionsAria")}
       data-search-typeahead
     >
       {showRecentEmpty ? (
         <p className="search-typeahead__empty" data-search-typeahead-recent-empty>
-          Tip: try searching by filename, case name, or report title.
+          {t("searchTypeaheadTip")}
         </p>
       ) : null}
 
       {showRecent && recent.length > 0 ? (
         <div className="search-typeahead__group" data-search-typeahead-recent>
           <div className="search-typeahead__label">
-            <span>Recent searches</span>
+            <span>{t("searchRecentSearches")}</span>
             <button
               type="button"
               className="search-typeahead__clear"
@@ -3629,7 +3630,7 @@ function SearchTypeahead({
               }}
               data-search-typeahead-clear-recent
             >
-              Clear all
+              {t("searchClearAll")}
             </button>
           </div>
           {/* TWO CONTROLS, NOT ONE. The row repeats the search; the button
@@ -3663,8 +3664,8 @@ function SearchTypeahead({
                 /* NAMES THE ENTRY. "Close" or "Remove" alone would give a
                    screen-reader user ten identical buttons and no way to tell
                    which one forgets which search. */
-                aria-label={`Remove search "${r}"`}
-                title={`Remove search "${r}"`}
+                aria-label={fillCopy(t("searchRemoveRecent"), { query: r })}
+                title={fillCopy(t("searchRemoveRecent"), { query: r })}
                 onMouseDown={(e) => {
                   // THE ROW IS ALSO CLICKABLE. Without stopping propagation
                   // here, removing an entry would ALSO run the search it was
@@ -3692,7 +3693,7 @@ function SearchTypeahead({
       {showSuggestions ? (
         <div className="search-typeahead__group" data-search-typeahead-suggestions>
           <div className="search-typeahead__label">
-            <span>Suggestions</span>
+            <span>{t("searchSuggestions")}</span>
           </div>
           {suggestions.map((sug, idx) => (
             <button
@@ -3712,7 +3713,7 @@ function SearchTypeahead({
               <span className="search-typeahead__item-title">{sug.title}</span>
               {/* The kind of record, in the same words the result rows use. */}
               <span className="app-chip">
-                {DOCUMENT_TYPE_LABEL[sug.documentType] ?? sug.documentType}
+                {documentTypeLabel(t, sug.documentType)}
               </span>
             </button>
           ))}
@@ -3721,7 +3722,7 @@ function SearchTypeahead({
 
       {showEmpty ? (
         <p className="search-typeahead__empty" data-search-typeahead-empty>
-          No matching titles. Press Enter to search anyway.
+          {t("searchTypeaheadEmpty")}
         </p>
       ) : null}
     </div>

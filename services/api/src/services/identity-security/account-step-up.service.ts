@@ -104,6 +104,10 @@ export type AccountStepUpAction =
   // (workspace-owner-only route; step-up proves the owner's own recent
   // authentication).
   | "workspace_ownership_transfer"
+  // B3A-F-008 (free-audit 0ea0) — reopening a closed workspace restores the
+  // owner's access; proved like the closure that ended it (staged:
+  // WORKSPACE_REOPEN_STEP_UP_ENFORCED, teams.routes.ts).
+  | "workspace_reopen"
   // 2026-10-28 — binding or removing a passkey / security key. A stolen
   // session must not be able to enrol an attacker's authenticator (which
   // would then satisfy the strongest workspace step-up) nor strip the

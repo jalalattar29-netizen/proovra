@@ -48,6 +48,10 @@ import { requireAuth } from "../middleware/auth.js";
 import { evaluateAuthorize } from "../middleware/authorize.js";
 import { caseClosedTo, evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
+import {
+  type ReviewCapability,
+  workspaceIncludesReviewCapability,
+} from "../services/billing-enforcement.service.js";
 import { invalidateOperationsSummary } from "../services/notifications/operations-summary-cache.js";
 import {
   DiscussionError,
@@ -114,6 +118,54 @@ async function loadThreadInReach(threadId: string, teamId: string, userId: strin
     permission: "evidence.read",
   });
   return record.allowed ? thread : null;
+}
+
+/**
+ * B3C-F-008 (Free-user audit 0ea0, owner directive) — discussion vs reviewer
+ * operations.
+ *
+ * An ordinary discussion about a record (create a thread, post, resolve or
+ * reopen it) is collaboration open to every plan, under the permission and
+ * record-reach rules above. What Pricing sells as Reviewer operations answers
+ * to the plan's review ladder (`workspaceIncludesReviewCapability`, the
+ * authority every review route and the projection read):
+ *
+ *   - handing a thread to ANOTHER member        REVIEW_ASSIGNMENTS (A2-13);
+ *     taking it oneself                         BASIC_RECORD_REVIEW
+ *   - escalating a thread                       REVIEW_ESCALATION
+ *   - a REVIEW-kind thread is itself a review   BASIC_RECORD_REVIEW for every
+ *     workflow, so the whole thread is gated     write: create, post, resolve,
+ *                                                reopen (reading stays open)
+ *
+ * Asked after the membership and record-reach checks, so an outsider still
+ * gets the same 404 and nothing about the thread is revealed by the refusal.
+ */
+const REVIEW_WORKFLOW_THREAD_KINDS: ReadonlySet<string> = new Set(["REVIEW_REQUEST_CLARIFICATION"]);
+
+async function refuseReviewOperation(
+  reply: FastifyReply,
+  teamId: string,
+  capability: ReviewCapability,
+): Promise<boolean> {
+  if (await workspaceIncludesReviewCapability(teamId, capability)) return false;
+  reply.code(403).send({
+    error: {
+      code: "ENTITLEMENT_REQUIRED",
+      reason: "reviewer_operations_not_included",
+      entitlement: capability,
+      details: null,
+    },
+  });
+  return true;
+}
+
+/** A review-kind thread's writes need BASIC_RECORD_REVIEW; an ordinary thread's do not. */
+async function refuseReviewThreadWrite(
+  reply: FastifyReply,
+  thread: { teamId: string; kind: string },
+): Promise<boolean> {
+  if (!REVIEW_WORKFLOW_THREAD_KINDS.has(thread.kind)) return false;
+  return refuseReviewOperation(reply, thread.teamId, "BASIC_RECORD_REVIEW");
 }
 
 function discussionErrorToReply(err: unknown, reply: FastifyReply): void {
@@ -222,6 +274,8 @@ export async function collaborationRoutes(app: FastifyInstance) {
           return reply.code(404).send({ error: { code: "evidence_request_not_found", details: null } });
         }
       }
+      // B3C-F-008 — opening a review-kind thread starts a review workflow.
+      if (await refuseReviewThreadWrite(reply, { teamId: body.teamId, kind: body.kind })) return;
       try {
         const thread = await createDiscussionThread({
           teamId: body.teamId,
@@ -285,6 +339,7 @@ export async function collaborationRoutes(app: FastifyInstance) {
       if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      if (await refuseReviewThreadWrite(reply, thread)) return;
       try {
         const updated = await resolveDiscussionThread({
           threadId: id,
@@ -317,6 +372,7 @@ export async function collaborationRoutes(app: FastifyInstance) {
       if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      if (await refuseReviewThreadWrite(reply, thread)) return;
       try {
         const updated = await reopenDiscussionThread({
           threadId: id,
@@ -368,6 +424,12 @@ export async function collaborationRoutes(app: FastifyInstance) {
           },
         });
       }
+      // B3C-F-008 — handing the thread to ANOTHER member is REVIEW_ASSIGNMENTS
+      // (A2-13); taking it oneself is BASIC_RECORD_REVIEW. Asked before
+      // anything is written.
+      const assignCapability: ReviewCapability =
+        body.assignedToUserId === ok.userId ? "BASIC_RECORD_REVIEW" : "REVIEW_ASSIGNMENTS";
+      if (await refuseReviewOperation(reply, thread.teamId, assignCapability)) return;
       try {
         const updated = await assignDiscussionThread({
           threadId: id,
@@ -400,6 +462,8 @@ export async function collaborationRoutes(app: FastifyInstance) {
       if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      // B3C-F-008 — escalation is a reviewer operation (REVIEW_ESCALATION).
+      if (await refuseReviewOperation(reply, thread.teamId, "REVIEW_ESCALATION")) return;
       try {
         const updated = await escalateDiscussionThread({
           threadId: id,
@@ -457,6 +521,7 @@ export async function collaborationRoutes(app: FastifyInstance) {
       if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      if (await refuseReviewThreadWrite(reply, thread)) return;
       try {
         const { message, unresolvedMentions } = await postMessageWithMentionOutcome({
           threadId: id,

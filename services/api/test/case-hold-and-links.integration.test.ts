@@ -34,6 +34,10 @@ describe("case hold, role and link concurrency (live PostgreSQL 16)", () => {
     ({ prisma } = await import("../src/db.js"));
     holds = await import("../src/services/governance/legal-hold.service.js");
     links = await import("../src/services/cases/case-evidence-link.service.js");
+    // B3C-F-007 — case edits answer to the CURRENT Cases entitlement; this
+    // suite proves the hold and role rules on a workspace that includes Cases
+    // (the plan gate has its own proof in free-audit-0ea0-lane-b.integration).
+    await prisma.team.update({ where: { id: h.fixtures.teamA.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
   }, 180_000);
 
   afterAll(async () => {

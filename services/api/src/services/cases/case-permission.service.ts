@@ -464,13 +464,35 @@ export function resolveCaseViewerCapabilities(input: {
    * Absent or "NONE": Rename/Delete are not offered (fail closed).
    */
   destructiveAccessRole?: CaseAccessRole | "NONE";
+  /**
+   * B3C-F-007 — the refusal the case's paid writes get from the CURRENT plan
+   * (`case-plan-gate.ts`), or null when the plan includes Cases. Given, every
+   * plan-gated action is withheld with this reason; reading, Delete and
+   * access management (revocation stays open) are not affected.
+   */
+  planWriteRefusal?: string | null;
 }): CaseViewerCapabilities {
-  const evaluate = (mutation: CaseMutation) =>
-    evaluateCaseMutationPermission({
+  const planReason = input.planWriteRefusal ?? null;
+  const PLAN_GATED: ReadonlySet<CaseMutation> = new Set<CaseMutation>([
+    // ASSIGN is not here: removing an assignment stays open after a downgrade,
+    // and ADDING one is refused by the route (collaboration + this plan gate).
+    "STATUS_CHANGE",
+    "EVIDENCE_LINK",
+    "EVIDENCE_UNLINK_LEGACY",
+    "COMMENT",
+    "COMMENT_RESOLVE",
+  ]);
+  const evaluate = (mutation: CaseMutation) => {
+    const decision = evaluateCaseMutationPermission({
       mutation,
       accessRole: input.accessRole,
       assignmentRoles: input.assignmentRoles,
     });
+    if (decision.allowed && planReason && PLAN_GATED.has(mutation)) {
+      return { allowed: false as const, reason: planReason };
+    }
+    return decision;
+  };
   const assign = evaluate("ASSIGN");
   const changeStatus = evaluate("STATUS_CHANGE");
   const linkEvidence = evaluate("EVIDENCE_LINK");
@@ -499,7 +521,9 @@ export function resolveCaseViewerCapabilities(input: {
           assignmentRoles: [],
         })
       : { allowed: false as const, reason: "Only workspace OWNER or ADMIN may delete or rename a case." };
-  const rename = destructive("MANAGE_SETTINGS");
+  const renameDecision = destructive("MANAGE_SETTINGS");
+  const rename =
+    renameDecision.allowed && planReason ? { allowed: false as const, reason: planReason } : renameDecision;
   const del = destructive("DELETE");
   if (!rename.allowed) disabledReasons.rename = rename.reason;
   if (!del.allowed) disabledReasons.delete = del.reason;

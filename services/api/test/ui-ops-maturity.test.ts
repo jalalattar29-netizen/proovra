@@ -326,7 +326,11 @@ describe("AppSidebarV2 — IA + operational badges", () => {
   });
 
   it("operations center + observability links carry a runtime dot when severity != HEALTHY", () => {
-    expect(src).toMatch(/ariaLabel:\s*`Runtime \$\{runtime\.severity\.toLowerCase\(\)\}`/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts): keyed
+    // by the real severity, the severity template as the fallback.
+    expect(src).toMatch(
+      /ariaLabel: RUNTIME_SEVERITY_KEY\[runtime\.severity\]\s*\?\s*t\(RUNTIME_SEVERITY_KEY\[runtime\.severity\] as TranslationKey\)\s*:\s*`Runtime \$\{runtime\.severity\.toLowerCase\(\)\}`/,
+    );
     expect(src).toMatch(/kind:\s*"dot"/);
   });
 

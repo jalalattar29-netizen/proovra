@@ -168,7 +168,9 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
     // Rebaselined 2026-11-15: 87547 -> 94351. A per-account sign-in budget beside
     // the per-address one (B-21) and coded refusals (B-16) — Free-user audit
     // round 3.
-    { rel: "src/routes/auth.routes.ts", expected: 94351, tolerance: 0.05 },
+    // Rebaselined 2026-11-17: 94351 -> 100536. A Google/Apple first sign-in for an
+    // address an existing account holds is answered with guidance (B1-F-004).
+    { rel: "src/routes/auth.routes.ts", expected: 100536, tolerance: 0.05 },
   ];
   for (const { rel, expected, tolerance } of POST_E10_1_PINS) {
     it(`${rel} unchanged at the post-E10.1 baseline`, () => {

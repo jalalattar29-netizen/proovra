@@ -26,6 +26,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 import {
   SEARCH_CONTACT_HAYSTACK_KEY,
@@ -369,6 +370,8 @@ describe("a result says why it matched", () => {
   });
 
   it("the type is offered as a filter chip, not hidden", () => {
-    expect(SEARCH_PAGE).toContain('INTAKE_LINK: "Intake request"');
+    // B2A-F-12 — copy moved to the web dictionary (i18n-search.ts).
+    expect(SEARCH_PAGE).toContain('INTAKE_LINK: "searchTypeIntakeLink"');
+    expect(webDictionaryEnValue("search", "searchTypeIntakeLink")).toBe("Intake request");
   });
 });

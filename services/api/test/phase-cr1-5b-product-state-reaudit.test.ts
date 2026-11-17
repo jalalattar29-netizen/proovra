@@ -44,6 +44,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 import { listAllTsxFiles } from "./_helpers/file-walker";
 
@@ -148,7 +149,9 @@ describe("CR1.5B Test 3 — `Personal Space` label is canonical (no drift)", () 
   // retargeted to the live AppAccountToolbar.
   it("toolbar AppAccountToolbar.tsx renders the exact string `Personal Space`", () => {
     const src = readWeb("components/app-shell-v2/AppAccountToolbar.tsx");
-    expect(src).toMatch(/"Personal Space"/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts).
+    expect(src).toMatch(/t\("shellPersonalSpace"\)/);
+    expect(webDictionaryEnValue("app-shell", "shellPersonalSpace")).toBe("Personal Space");
   });
 });
 

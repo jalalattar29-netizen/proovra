@@ -17,6 +17,7 @@ import {
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { resolveVerifyEntryTarget } from "../../../lib/verify/verify-entry";
 import { SECTION_BORDER } from "./shared";
+import { VerifyPackageByFile } from "./VerifyPackageByFile";
 
 const TRUST_CHIPS = [
   "Read-only verification",
@@ -100,6 +101,9 @@ export function VerifyHero() {
 
             <div className="flex flex-col gap-4 lg:mt-8">
               <VerifyTokenCard />
+
+              {/* B5B-F-503 — a package ZIP without an ID to type: hash locally, look up by SHA-256. */}
+              <VerifyPackageByFile />
 
               <div
                 className="rounded-[14px] border bg-white/85 px-4 py-3 text-[12.5px] leading-[1.55] text-[#526176] shadow-[0_8px_22px_rgba(15,23,42,0.06)] backdrop-blur"

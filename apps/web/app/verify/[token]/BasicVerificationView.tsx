@@ -151,7 +151,7 @@ export type CanonicalVerificationState =
   | "NOT_SEALED"
   | "LEGACY_LINK_RETIRED";
 
-const CANONICAL_STATE_COPY: Record<CanonicalVerificationState, { title: string; body: string }> = {
+export const CANONICAL_STATE_COPY: Record<CanonicalVerificationState, { title: string; body: string }> = {
   PURGED: {
     title: "Record permanently deleted",
     body: "This record was permanently deleted after its retention ended. This page remains as a minimal record that it existed; the evidence and its artifacts are no longer held, so they cannot be verified here.",

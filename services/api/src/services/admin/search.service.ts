@@ -31,6 +31,10 @@ import type { PrismaClient } from "@prisma/client";
 import { customerOrganizationWhere } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  supportScopeCovering,
+  type SupportDisclosureScope,
+} from "../identity/support-runtime.service.js";
 
 import { publishedPackageWhere } from "@proovra/shared-runtime/reports";
 // Uniform, secret-free result shape returned for every entity type.
@@ -87,7 +91,23 @@ export type AdminSearchFilters = {
   types?: AdminSearchType[];
   /** Max results PER entity type (bounded, default 10). */
   perTypeLimit?: number;
+  /**
+   * B7A-F-005 (free-audit 0ea0) — the staff actor's live support scopes
+   * (activeSupportDisclosureScopes). A record TITLE is customer subject data:
+   * it is matched and shown only inside a scope a grant covers. Outside one,
+   * an evidence record or report is found by its exact id only and labelled by
+   * that id. Omitted = no grant.
+   */
+  supportScopes?: readonly SupportDisclosureScope[];
 };
+
+/** The records a support grant covers, as an Evidence filter (B7A-F-005). */
+function grantedEvidenceWhere(scopes: readonly SupportDisclosureScope[]) {
+  return scopes.map((sc) => ({
+    organizationId: sc.organizationId,
+    ...(sc.teamId ? { teamId: sc.teamId } : {}),
+  }));
+}
 
 const insensitive = (q: string) =>
   ({ contains: q, mode: "insensitive" } as const);
@@ -117,6 +137,12 @@ export async function adminGlobalSearch(
       : [...ALL_SEARCH_TYPES];
 
   const wants = (t: AdminSearchType): boolean => requested.includes(t);
+
+  // B7A-F-005 — which customer records this staff actor may see titles in.
+  const scopes = filters.supportScopes ?? [];
+  const granted = grantedEvidenceWhere(scopes);
+  const covered = (e: { teamId: string | null; organizationId: string | null } | null) =>
+    !!e && supportScopeCovering(scopes, { organizationId: e.organizationId, teamId: e.teamId }) !== null;
 
   const q = query;
 
@@ -246,9 +272,24 @@ export async function adminGlobalSearch(
             // Soft-deleted evidence is excluded.
             deletedAt: null,
             OR: [
-              { title: insensitive(q) },
-              { originalFileName: insensitive(q) },
-              { displayFileName: insensitive(q) },
+              // B7A-F-005 — a title or file name is matched only inside a
+              // customer scope a live support grant covers.
+              ...(granted.length > 0
+                ? [
+                    {
+                      AND: [
+                        { OR: granted },
+                        {
+                          OR: [
+                            { title: insensitive(q) },
+                            { originalFileName: insensitive(q) },
+                            { displayFileName: insensitive(q) },
+                          ],
+                        },
+                      ],
+                    },
+                  ]
+                : []),
               ...(isUuidLike(q) ? [{ id: q }] : []),
             ],
           },
@@ -262,6 +303,8 @@ export async function adminGlobalSearch(
             originalFileName: true,
             displayFileName: true,
             type: true,
+            teamId: true,
+            organizationId: true,
           },
         })
       : Promise.resolve([]),
@@ -273,7 +316,10 @@ export async function adminGlobalSearch(
           // snapshot metadata. Never expose storageKey/storageBucket.
           where: {
             OR: [
-              { displayTitleSnapshot: insensitive(q) },
+              // B7A-F-005 — the title snapshot is the record's title.
+              ...(granted.length > 0
+                ? [{ AND: [{ evidence: { OR: granted } }, { displayTitleSnapshot: insensitive(q) }] }]
+                : []),
               ...(isUuidLike(q) ? [{ id: q }, { evidenceId: q }] : []),
             ],
           },
@@ -284,6 +330,7 @@ export async function adminGlobalSearch(
             evidenceId: true,
             version: true,
             displayTitleSnapshot: true,
+            evidence: { select: { teamId: true, organizationId: true } },
           },
         })
       : Promise.resolve([]),
@@ -397,9 +444,11 @@ export async function adminGlobalSearch(
       evidence.map((e) => ({
         type: "evidence" as const,
         id: e.id,
-        // Title/filename METADATA only — never content.
-        label:
-          firstNonEmpty(e.title, e.displayFileName, e.originalFileName) ?? e.id,
+        // Title/filename METADATA only — never content — and only under a
+        // covering support grant (B7A-F-005); otherwise the id.
+        label: covered(e)
+          ? firstNonEmpty(e.title, e.displayFileName, e.originalFileName) ?? e.id
+          : e.id,
         sublabel: e.type ?? null,
         // ADM-019 — the id SURVIVES the click. This used to be a bare
         // `/admin/evidence-ops`, a page of global counters that discarded the
@@ -416,7 +465,9 @@ export async function adminGlobalSearch(
       reports.map((r) => ({
         type: "report" as const,
         id: r.id,
-        label: firstNonEmpty(r.displayTitleSnapshot) ?? `Report ${r.id}`,
+        label: covered(r.evidence)
+          ? firstNonEmpty(r.displayTitleSnapshot) ?? `Report ${r.id}`
+          : `Report ${r.id}`,
         sublabel: `v${r.version}`,
         // ADM-019 — a report is ABOUT a piece of evidence, so the drill-down
         // resolves that record rather than dropping the identity.

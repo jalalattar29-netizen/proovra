@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
@@ -227,8 +228,11 @@ describe("Phase G0 (B.3) — terminology normalized in primary navigation", () =
   });
 
   it("topbar workspace switcher uses 'Workspace' and 'Organization' terminology", () => {
-    expect(TOPBAR).toContain("Personal Space");
-    expect(TOPBAR).toContain("Organization workspace");
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts).
+    expect(TOPBAR).toContain('t("shellPersonalSpace")');
+    expect(TOPBAR).toContain('t("shellOrganizationWorkspace")');
+    expect(webDictionaryEnValue("app-shell", "shellPersonalSpace")).toBe("Personal Space");
+    expect(webDictionaryEnValue("app-shell", "shellOrganizationWorkspace")).toBe("Organization workspace");
   });
 });
 
@@ -255,7 +259,10 @@ describe("Phase G0 (B0.3) — workspace switcher UX", () => {
     // The live toolbar surfaces the FAILED platform-context state as a
     // "Workspace unavailable / Tap to retry" label in the switcher chip.
     expect(TOPBAR).toContain('state.name === "FAILED"');
-    expect(TOPBAR).toMatch(/Workspace unavailable/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-app-shell.ts).
+    expect(TOPBAR).toMatch(/state\.name === "FAILED"\) \{\s*return \{ name: t\("shellWorkspaceUnavailable"\), scopeLine: t\("shellTapToRetry"\) \};/);
+    expect(webDictionaryEnValue("app-shell", "shellWorkspaceUnavailable")).toBe("Workspace unavailable");
+    expect(webDictionaryEnValue("app-shell", "shellTapToRetry")).toBe("Tap to retry");
   });
 });
 

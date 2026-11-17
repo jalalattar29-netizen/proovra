@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { SEARCH_COPY } from "@proovra/shared/i18n";
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
@@ -168,7 +169,14 @@ test("5. Open is success green in the row AND in the Inspector's workflow fact",
   const uses = [...PAGE.matchAll(/rowLifecycleState\(row\)/g)];
   assert.equal(uses.length, 2);
   // …and the Lifecycle section's facts go through the same tone function.
-  assert.match(PAGE, /<LifecycleFact label="Workflow" value=\{row\.workflowState\} \/>/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts): the visible label
+  // is translated; the fixed English factId keeps the data attribute stable.
+  assert.match(
+    PAGE,
+    /<LifecycleFact factId="Workflow" label=\{t\("searchFactWorkflow"\)\} value=\{row\.workflowState\} \/>/,
+  );
+  assert.match(PAGE, /data-search-lifecycle-fact=\{factId\}/);
+  assert.equal(SEARCH_COPY.en.searchFactWorkflow, "Workflow");
   assert.match(PAGE, /tone=\{kind\}/);
 });
 

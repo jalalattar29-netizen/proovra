@@ -193,15 +193,18 @@ describe("B3A-F-004 — Upgrade only for the payer of the active workspace", () 
 });
 
 describe("B2A-F-23 — route gates do not send a member to their own billing", () => {
+  // B3B-F-104 — /intake-links now LOADS without intake (manage-only), so the
+  // plan-gated sample is the reviewer queues (requiredPlanFeature
+  // reviewQueuesIncluded, not projected true on this Free envelope).
   it("a joined workspace on a plan-gated route: no View plans, and who manages billing", async () => {
-    render(withEnvelope("shared", <PageRouteGate routeId="workspace.intake_links"><div>page</div></PageRouteGate>));
+    render(withEnvelope("shared", <PageRouteGate routeId="workspace.review_queues"><div>page</div></PageRouteGate>));
     await waitFor(() => expect(document.querySelector("[data-page-route-gate-state='NEEDS_UPGRADE']")).not.toBeNull());
     expect(screen.queryByText("View plans")).toBeNull();
     expect(document.body.textContent).toContain("Billing for this workspace is managed by its owner.");
   });
 
   it("own Personal Space keeps View plans", async () => {
-    render(withEnvelope("own", <PageRouteGate routeId="workspace.intake_links"><div>page</div></PageRouteGate>));
+    render(withEnvelope("own", <PageRouteGate routeId="workspace.review_queues"><div>page</div></PageRouteGate>));
     await waitFor(() => expect(screen.getByText("View plans")).toBeTruthy());
   });
 });

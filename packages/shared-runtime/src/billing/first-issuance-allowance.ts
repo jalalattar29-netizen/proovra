@@ -129,6 +129,16 @@ export const MISSING_OUTPUT_RECOVERY_KEY_PREFIX = "recover-missing:" as const;
 export const OTS_CHAIN_VERIFIED_REISSUE_PURPOSE = "ots_upgrade_completed" as const;
 
 /**
+ * B7A-F-006 — the server-only purpose of a replacement for an output sealed by
+ * key material later declared compromised. Equal to the
+ * `REPORT_GENERATION_PURPOSES` member of the same name. A service-caused
+ * re-issue: it never spends the customer's allowance for a first issuance.
+ */
+export const SIGNING_KEY_COMPROMISE_REPLACEMENT_PURPOSE = "signing_key_compromise_replacement" as const;
+/** Its server-minted idempotency-key prefix (`compromise-reissue:<evidenceId>:v<N>`). Reserved like the recovery prefix. */
+export const SIGNING_KEY_COMPROMISE_REPLACEMENT_KEY_PREFIX = "compromise-reissue:" as const;
+
+/**
  * The request shapes whose committed version re-issues first issuance: the
  * AUD-011 missing-file recovery, and the automatic chain-verified version
  * requested by a machine principal.
@@ -137,6 +147,9 @@ const SYSTEM_REISSUE_REQUEST_WHERE = {
   OR: [
     { purpose: MISSING_OUTPUT_RECOVERY_PURPOSE },
     { purpose: OTS_CHAIN_VERIFIED_REISSUE_PURPOSE, requestedByMachineId: { not: null } },
+    // B7A-F-006 — a replacement the PLATFORM caused (its signing key was
+    // compromised) is not the customer's new version.
+    { purpose: SIGNING_KEY_COMPROMISE_REPLACEMENT_PURPOSE },
   ],
 } as const satisfies Prisma.ReportGenerationRequestWhereInput;
 

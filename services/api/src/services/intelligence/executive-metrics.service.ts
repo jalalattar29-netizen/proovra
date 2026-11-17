@@ -36,6 +36,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
+import type { HiddenRecordIds } from "../access/record-reach.js";
 
 // ---------------------------------------------------------------------------
 // Snapshot — kept intact for backward compatibility.
@@ -48,6 +49,12 @@ export async function projectExecutiveMetrics(input: {
   teamId: string;
   /** B7B-F03: the reader's record reach (`viewerReachInWorkspace(...).evidence`). */
   evidenceReach?: Prisma.EvidenceWhereInput;
+  /**
+   * B7B-F03 (residual): the same reach as id lists (`viewerReachInWorkspace(...).hidden`),
+   * for the review, QC, AI and correction rows that name a record without a
+   * relation filter.
+   */
+  hidden?: HiddenRecordIds;
 }): Promise<ExecutiveMetricsProjection> {
   const prisma = input.prisma ?? defaultPrisma;
   const since = new Date(Date.now() - WEEK_MS);
@@ -57,6 +64,7 @@ export async function projectExecutiveMetrics(input: {
     teamId: input.teamId,
     sinceUtc: since,
     evidenceReach: input.evidenceReach,
+    hidden: input.hidden,
   });
 
   return {
@@ -113,6 +121,8 @@ export async function projectExecutiveTrends(input: {
   range: ExecutiveMetricsRange;
   /** B7B-F03: the reader's record reach (`viewerReachInWorkspace(...).evidence`). */
   evidenceReach?: Prisma.EvidenceWhereInput;
+  /** B7B-F03 (residual): `viewerReachInWorkspace(...).hidden` — see projectExecutiveMetrics. */
+  hidden?: HiddenRecordIds;
 }): Promise<ExecutiveTrendsProjection> {
   const prisma = input.prisma ?? defaultPrisma;
   const windowMs = rangeWindowMs(input.range);
@@ -129,6 +139,7 @@ export async function projectExecutiveTrends(input: {
       sinceUtc: currentStart,
       untilUtc: currentEnd,
       evidenceReach: input.evidenceReach,
+      hidden: input.hidden,
     }),
     aggregateWindow({
       prisma,
@@ -136,6 +147,7 @@ export async function projectExecutiveTrends(input: {
       sinceUtc: previousStart,
       untilUtc: previousEnd,
       evidenceReach: input.evidenceReach,
+      hidden: input.hidden,
     }),
   ]);
 
@@ -264,8 +276,15 @@ async function aggregateWindow(input: {
   sinceUtc: Date;
   untilUtc?: Date;
   evidenceReach?: Prisma.EvidenceWhereInput;
+  hidden?: HiddenRecordIds;
 }): Promise<WindowTotals> {
   const { prisma, teamId, sinceUtc } = input;
+  // B7B-F03 (free-audit 0ea0, residual) — the rows below that name a record
+  // without an Evidence relation (review workflows, QC samples, provider
+  // usage, intelligence records, corrections and their activity events) are
+  // narrowed by the same reach, as id lists (record-reach.ts). A row that
+  // names no record is workspace activity and stays counted.
+  const closed = await closedIntelligenceIds(prisma, teamId, input.hidden);
   // B7B-F03 (free-audit 0ea0): every evidence count, total and breakdown
   // below is narrowed by the reader's record reach, so a record a restricted
   // case closes to them moves no number.
@@ -350,7 +369,7 @@ async function aggregateWindow(input: {
   // Review — completion counted by the real completion timestamp column.
   const reviewed = await safeCount(() =>
     prisma.evidenceReviewWorkflow.count({
-      where: { teamId, completedAtUtc: within } as never,
+      where: { teamId, completedAtUtc: within, ...closed.workflow } as never,
     }),
   );
 
@@ -366,7 +385,7 @@ async function aggregateWindow(input: {
       // Approved = the CURRENT round decided Approved (2026-10-24), whatever
       // the workflow state: closing an approved review no longer lowers the rate.
       const completedForRate = (await prisma.evidenceReviewWorkflow.findMany({
-        where: { teamId, completedAtUtc: within } as never,
+        where: { teamId, completedAtUtc: within, ...closed.workflow } as never,
         select: { id: true, teamId: true, evidenceId: true, status: true, decisionRound: true },
       })) as Array<{ id: string; teamId: string | null; evidenceId: string; status: string; decisionRound: number }>;
       const decided = await loadCurrentReviewDecisions(completedForRate.map((w) => ({ ...w, status: String(w.status) })));
@@ -374,7 +393,7 @@ async function aggregateWindow(input: {
       approvalRatePct = Math.round((approved / reviewed) * 1000) / 10;
 
       const completedRows = await prisma.evidenceReviewWorkflow.findMany({
-        where: { teamId, completedAtUtc: within } as never,
+        where: { teamId, completedAtUtc: within, ...closed.workflow } as never,
         select: { createdAt: true, completedAtUtc: true } as never,
       });
       let durationSum = 0;
@@ -404,7 +423,7 @@ async function aggregateWindow(input: {
   try {
     const verdictRows = await prisma.qcSample.groupBy({
       by: ["verdict"],
-      where: { teamId, verdictAtUtc: within, verdict: { not: null } } as never,
+      where: { teamId, verdictAtUtc: within, verdict: { not: null }, ...closed.qc } as never,
       _count: { _all: true },
     });
     let pass = 0;
@@ -429,10 +448,10 @@ async function aggregateWindow(input: {
   let publicVerifyViews = 0;
   try {
     verifications = await prisma.evidence.count({
-      where: { teamId, lastVerifiedAtUtc: within } as never,
+      where: { teamId, lastVerifiedAtUtc: within, AND: [reach] } as never,
     });
     publicVerifyViews = await prisma.evidence.count({
-      where: { teamId, lastPublicVerifyViewAtUtc: within } as never,
+      where: { teamId, lastPublicVerifyViewAtUtc: within, AND: [reach] } as never,
     });
   } catch {
     /* swallow */
@@ -452,6 +471,7 @@ async function aggregateWindow(input: {
         teamId,
         occurredAtUtc: within,
         decision: { not: "BLOCK" },
+        AND: closed.usage,
       },
       _sum: { estimatedCostUsdMicros: true },
       _count: { _all: true },
@@ -459,18 +479,18 @@ async function aggregateWindow(input: {
     providerCalls = aggUsage._count._all;
     estimatedCostUsd = Number(aggUsage._sum.estimatedCostUsdMicros ?? 0n) / 1_000_000;
     const confAgg = await prisma.mediaIntelligenceRecord.aggregate({
-      where: { teamId, createdAt: within },
+      where: { teamId, createdAt: within, ...closed.record },
       _avg: { providerConfidence: true },
     });
     averageProviderConfidence = confAgg._avg.providerConfidence ?? 0;
     corrections = await prisma.reviewerCorrection.count({
-      where: { teamId, createdAt: within },
+      where: { teamId, createdAt: within, ...closed.correction },
     });
     blockedCalls = await prisma.providerUsageEvent.count({
-      where: { teamId, occurredAtUtc: within, decision: "BLOCK" },
+      where: { teamId, occurredAtUtc: within, decision: "BLOCK", AND: closed.usage },
     });
     const failed = await prisma.providerUsageEvent.count({
-      where: { teamId, occurredAtUtc: within, failureReason: { not: null } },
+      where: { teamId, occurredAtUtc: within, failureReason: { not: null }, AND: closed.usage },
     });
     if (providerCalls > 0) {
       jobFailureRatePct = Math.round((failed / providerCalls) * 1000) / 10;
@@ -500,16 +520,16 @@ async function aggregateWindow(input: {
     [correctionsCreated, correctionsAccepted, correctionsReverted, correctionsSuperseded] =
       await Promise.all([
         prisma.intelligenceActivityEvent.count({
-          where: { teamId, code: "CORRECTION_CREATED", occurredAtUtc: within },
+          where: { teamId, code: "CORRECTION_CREATED", occurredAtUtc: within, AND: closed.activity },
         }),
         prisma.intelligenceActivityEvent.count({
-          where: { teamId, code: "CORRECTION_ACCEPTED", occurredAtUtc: within },
+          where: { teamId, code: "CORRECTION_ACCEPTED", occurredAtUtc: within, AND: closed.activity },
         }),
         prisma.intelligenceActivityEvent.count({
-          where: { teamId, code: "CORRECTION_REVERTED", occurredAtUtc: within },
+          where: { teamId, code: "CORRECTION_REVERTED", occurredAtUtc: within, AND: closed.activity },
         }),
         prisma.intelligenceActivityEvent.count({
-          where: { teamId, code: "CORRECTION_SUPERSEDED", occurredAtUtc: within },
+          where: { teamId, code: "CORRECTION_SUPERSEDED", occurredAtUtc: within, AND: closed.activity },
         }),
       ]);
   } catch {
@@ -542,6 +562,54 @@ async function aggregateWindow(input: {
     correctionsAccepted,
     correctionsReverted,
     correctionsSuperseded,
+  };
+}
+
+/** A nullable id column, kept when NULL (`NOT IN` drops NULL rows). */
+function nullableNotIn<K extends string>(column: K, ids: readonly string[]) {
+  return ids.length === 0 ? [] : [{ OR: [{ [column]: null }, { [column]: { notIn: [...ids] } }] }];
+}
+
+/**
+ * B7B-F03 (residual) — the reach filters for the rows that name a record by
+ * id. Every list is `case-visibility.ts` applied by the database
+ * (hiddenRecordIdsInWorkspace); nothing here is a second rule. With no hidden
+ * record (or no reach supplied) every filter is empty.
+ */
+async function closedIntelligenceIds(
+  prisma: PrismaClient,
+  teamId: string,
+  hidden: HiddenRecordIds | undefined,
+) {
+  const evidenceIds = hidden?.evidenceIds ?? [];
+  const caseIds = hidden?.caseIds ?? [];
+  if (evidenceIds.length === 0 && caseIds.length === 0) {
+    return { workflow: {}, qc: {}, record: {}, correction: {}, usage: [], activity: [] };
+  }
+  const [workflows, records] =
+    evidenceIds.length === 0
+      ? [[] as Array<{ id: string }>, [] as Array<{ id: string }>]
+      : await Promise.all([
+          prisma.evidenceReviewWorkflow
+            .findMany({ where: { evidenceId: { in: evidenceIds } }, select: { id: true } })
+            .catch(() => [] as Array<{ id: string }>),
+          prisma.mediaIntelligenceRecord
+            .findMany({ where: { teamId, evidenceId: { in: evidenceIds } }, select: { id: true } })
+            .catch(() => [] as Array<{ id: string }>),
+        ]);
+  const workflowIds = workflows.map((w) => w.id);
+  const recordIds = records.map((r) => r.id);
+  return {
+    workflow: evidenceIds.length > 0 ? { evidenceId: { notIn: evidenceIds } } : {},
+    qc: workflowIds.length > 0 ? { workflowId: { notIn: workflowIds } } : {},
+    record: evidenceIds.length > 0 ? { evidenceId: { notIn: evidenceIds } } : {},
+    correction: recordIds.length > 0 ? { recordId: { notIn: recordIds } } : {},
+    usage: [...nullableNotIn("evidenceId", evidenceIds), ...nullableNotIn("caseId", caseIds)],
+    activity: [
+      ...nullableNotIn("evidenceId", evidenceIds),
+      ...nullableNotIn("caseId", caseIds),
+      ...nullableNotIn("recordId", recordIds),
+    ],
   };
 }
 

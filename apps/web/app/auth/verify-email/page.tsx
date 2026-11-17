@@ -47,6 +47,7 @@ type VerifyState =
   | "password"
   | "success"
   | "invalid"
+  | "existing-account"
   | "rate-limited"
   | "unreachable"
   | "missing-token"
@@ -161,6 +162,12 @@ function VerifyEmailPageContent() {
         const status = isApiResponseError(err) ? (err.statusCode ?? 0) : 0;
         if (code === "EMAIL_VERIFICATION_PASSWORD_REQUIRED") {
           setState("password");
+          return;
+        }
+        // B1-F-004 (residual pass) — another account already holds this
+        // address verified; this registration is left unactivated.
+        if (code === "EXISTING_ACCOUNT_SIGN_IN_REQUIRED") {
+          setState("existing-account");
           return;
         }
         if (code === "EMAIL_VERIFICATION_PASSWORD_INCORRECT") {
@@ -282,6 +289,8 @@ function VerifyEmailPageContent() {
                     <VerifyRetryCard kind={state} onRetry={() => void onRetry()} />
                   ) : state === "missing-token" ? (
                     <VerifyMissingCard />
+                  ) : state === "existing-account" ? (
+                    <VerifyExistingAccountCard />
                   ) : state === "resend-sent" ? (
                     <VerifyResendSentCard />
                   ) : state === "resend-error" ? (
@@ -505,6 +514,22 @@ function VerifyRetryCard({
       </Body>
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <PrimaryButton onClick={onRetry}>Try again</PrimaryButton>
+        <BackToSignIn />
+      </div>
+    </div>
+  );
+}
+
+function VerifyExistingAccountCard() {
+  return (
+    <div role="status" aria-live="polite" data-testid="verify-existing-account">
+      <Eyebrow label="Already registered" />
+      <Heading>An account already uses this email address</Heading>
+      <Body>
+        Sign in to it the way you did before — for example with Google or Apple. This
+        registration was not activated.
+      </Body>
+      <div className="mt-6 flex flex-wrap items-center gap-3">
         <BackToSignIn />
       </div>
     </div>

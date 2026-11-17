@@ -52,7 +52,7 @@ import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 // PHASE 12 VERTICAL A (2026-07-30) — THE canonical authorization primitive.
 // The workspace-actor helper below composes it instead of re-implementing the
 // evaluate → 403 shape (see that helper's contract note).
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
 import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { intakePlanRefusal } from "../services/intake/intake-link-mint-gate.js";
@@ -66,6 +66,7 @@ import {
   dispatchPendingMessage,
   hashRecipientPhone,
   projectCommunicationMessage,
+  projectCommunicationMessageSummary,
   communicationStatusesBefore,
 } from "../services/communications/communication.service.js";
 import {
@@ -158,6 +159,32 @@ async function transitionCommunicationForOperator(input: {
   });
 }
 
+/**
+ * B3C-F-002 (free-audit 0ea0) — THE MESSAGING OPERATOR AUTHORITY.
+ *
+ * The workspace-wide message log (every recipient preview, body preview,
+ * provider and error, across every record) is the Messaging operations
+ * console. It was authorised by `identity.member.read`, which every VIEWER
+ * holds, so a read-only member could list who the workspace texted and what it
+ * said.
+ *
+ * `notification.delivery.resend` is the messaging domain's own operator
+ * permission: permissions.ts names re-sending a message as a DOMAIN action
+ * authorised by it, and it pairs with `notification.delivery.read` (the
+ * contextual read every member holds). OWNER, ADMIN and REVIEWER (DB MEMBER)
+ * hold it — the roles that create intake links and evidence requests and so
+ * operate their deliveries; VIEWER and CONTRIBUTOR do not. The web console's
+ * route capability (INTAKE_LINKS_MANAGE, granted to the same writer roles)
+ * mirrors it.
+ *
+ * Without it a reader keeps exactly what the product already gives every
+ * member on a record they can open: a RECORD-SCOPED, minimized delivery
+ * summary (`relatedIntakeLinkId` or `relatedEvidenceRequestId` named;
+ * recipient, body, provider and error withheld). Dispatch, retry and
+ * cancel keep their stricter `identity.org_policy.manage`.
+ */
+const MESSAGING_OPERATOR_PERMISSION = "notification.delivery.resend" as const;
+
 /** A nullable id column, kept when NULL (`NOT IN` drops NULL rows). */
 function nullableNotIn(column: string, ids: readonly string[]): prismaPkg.Prisma.CommunicationMessageWhereInput[] {
   return ids.length === 0 ? [] : [{ OR: [{ [column]: null }, { [column]: { notIn: [...ids] } }] }];
@@ -174,22 +201,46 @@ async function communicationReachWhere(
 ): Promise<prismaPkg.Prisma.CommunicationMessageWhereInput[]> {
   const hidden = await hiddenRecordIdsInWorkspace(teamId, userId);
   if (hidden.evidenceIds.length === 0 && hidden.caseIds.length === 0) return [];
+  // B3C-F-002 (residual) — an intake link bound to a restricted case is that
+  // case's row (A2-08 lists it to nobody off the case), and so is every
+  // delivery sent for it and every intake session it opened.
+  const links =
+    hidden.caseIds.length > 0
+      ? await prisma.workflowIntakeLink.findMany({
+          where: { teamId, caseId: { in: hidden.caseIds } },
+          select: { id: true },
+        })
+      : [];
+  const linkIds = links.map((l) => l.id);
   const requestOr: prismaPkg.Prisma.EvidenceRequestWhereInput[] = [];
   if (hidden.evidenceIds.length > 0) requestOr.push({ evidenceId: { in: hidden.evidenceIds } });
   if (hidden.caseIds.length > 0) requestOr.push({ caseId: { in: hidden.caseIds } });
-  const [requests, threads] = await Promise.all([
+  if (linkIds.length > 0) requestOr.push({ intakeLinkId: { in: linkIds } });
+  const sessionOr: prismaPkg.Prisma.WorkflowIntakeSessionWhereInput[] = [];
+  if (hidden.evidenceIds.length > 0) sessionOr.push({ evidenceId: { in: hidden.evidenceIds } });
+  if (linkIds.length > 0) sessionOr.push({ intakeLinkId: { in: linkIds } });
+  const [requests, sessions] = await Promise.all([
     prisma.evidenceRequest.findMany({ where: { teamId, OR: requestOr }, select: { id: true } }),
-    hidden.evidenceIds.length > 0
-      ? prisma.discussionThread.findMany({
-          where: { teamId, evidenceId: { in: hidden.evidenceIds } },
-          select: { id: true },
-        })
+    sessionOr.length > 0
+      ? prisma.workflowIntakeSession.findMany({ where: { OR: sessionOr }, select: { id: true } })
       : Promise.resolve([] as Array<{ id: string }>),
   ]);
+  const requestIds = requests.map((r) => r.id);
+  // A thread is closed through its record, or through a request a restricted
+  // case closes.
+  const threadOr: prismaPkg.Prisma.DiscussionThreadWhereInput[] = [];
+  if (hidden.evidenceIds.length > 0) threadOr.push({ evidenceId: { in: hidden.evidenceIds } });
+  if (requestIds.length > 0) threadOr.push({ evidenceRequestId: { in: requestIds } });
+  const threads =
+    threadOr.length > 0
+      ? await prisma.discussionThread.findMany({ where: { teamId, OR: threadOr }, select: { id: true } })
+      : [];
   return [
     ...nullableNotIn("relatedEvidenceId", hidden.evidenceIds),
-    ...nullableNotIn("relatedEvidenceRequestId", requests.map((r) => r.id)),
+    ...nullableNotIn("relatedEvidenceRequestId", requestIds),
     ...nullableNotIn("relatedDiscussionThreadId", threads.map((t) => t.id)),
+    ...nullableNotIn("relatedIntakeLinkId", linkIds),
+    ...nullableNotIn("relatedIntakeSessionId", sessions.map((s) => s.id)),
   ];
 }
 
@@ -197,7 +248,11 @@ async function requireCommunicationsActor(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-  permission: "identity.org_policy.read" | "identity.org_policy.manage" | "identity.member.read",
+  permission:
+    | "identity.org_policy.read"
+    | "identity.org_policy.manage"
+    | "identity.member.read"
+    | typeof MESSAGING_OPERATOR_PERMISSION,
 ): Promise<{ userId: string } | null> {
   const userId = getAuthUserId(req);
   const member = await prisma.teamMember.findUnique({
@@ -322,8 +377,28 @@ export async function communicationsRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
-      const actor = await requireCommunicationsActor(req, reply, q.teamId, "identity.member.read");
+      // B3C-F-002 (free-audit 0ea0, residual) — the workspace-wide console is
+      // the operator's; a read naming one intake link or evidence request is a
+      // record-scoped summary any member may have (see
+      // MESSAGING_OPERATOR_PERMISSION).
+      const recordScoped = Boolean(q.relatedIntakeLinkId || q.relatedEvidenceRequestId);
+      const actor = await requireCommunicationsActor(
+        req,
+        reply,
+        q.teamId,
+        recordScoped ? "identity.member.read" : MESSAGING_OPERATOR_PERMISSION,
+      );
       if (!actor) return;
+      const operator = recordScoped
+        ? (
+            await evaluateAuthorize(req, {
+              teamId: q.teamId,
+              permission: MESSAGING_OPERATOR_PERMISSION,
+              resourceKind: "communications",
+              antiEnumeration: true,
+            })
+          ).allowed
+        : true;
       // B3C-F-002 (free-audit 0ea0): a message about a record, request or
       // thread that a restricted case closes to this reader is that record's
       // row (ACC-01 / EVID-004): it is not listed, by preview or by id.
@@ -345,9 +420,11 @@ export async function communicationsRoutes(app: FastifyInstance) {
         orderBy: { createdAt: "desc" },
         take: Math.min(Math.max(q.limit ?? 100, 1), 500),
       });
-      return reply
-        .code(200)
-        .send({ messages: rows.map(projectCommunicationMessage) });
+      return reply.code(200).send({
+        messages: operator
+          ? rows.map(projectCommunicationMessage)
+          : rows.map(projectCommunicationMessageSummary),
+      });
     },
   );
 

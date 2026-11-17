@@ -37,24 +37,24 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/app/auth/callback/ui/page.tsx:220",
+      "site": "apps/web/app/auth/callback/ui/page.tsx:221",
       "verdict": "OURS",
       "originBinding": "const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? (localhost ? http://localhost:8081 : https://api.proovra.com)",
-      "evidence": "apps/web/app/auth/callback/ui/page.tsx:149 — the binding is NEXT_PUBLIC_API_BASE with this API's production host as the fallback. | Re-anchored :175 -> :176 on 2026-11-13 (F-18/F-25/F-26g: the safe-return-path import was added at the top of the file). Verified BY READING: the same API-origin fetch, no new call and no new origin. | Re-anchored :176 -> :220 on 2026-11-15 (B-12/A1-08: MFA routing and URL token stripping on the callback page, Free-user audit round 3). Verified BY READING: the same call, unchanged.",
+      "evidence": "apps/web/app/auth/callback/ui/page.tsx:149 — the binding is NEXT_PUBLIC_API_BASE with this API's production host as the fallback. | Re-anchored :175 -> :176 on 2026-11-13 (F-18/F-25/F-26g: the safe-return-path import was added at the top of the file). Verified BY READING: the same API-origin fetch, no new call and no new origin. | Re-anchored :176 -> :220 on 2026-11-15 (B-12/A1-08: MFA routing and URL token stripping on the callback page, Free-user audit round 3). Verified BY READING: the same call, unchanged. | Re-anchored :220 -> :221 on 2026-11-17 (B1-F-004: the guidance code is carried out of the error parse). Verified BY READING: the same call, unchanged.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/app/auth/callback/ui/page.tsx:291",
+      "site": "apps/web/app/auth/callback/ui/page.tsx:300",
       "verdict": "OURS",
       "originBinding": "same NEXT_PUBLIC_API_BASE binding at line 148",
-      "evidence": "apps/web/app/auth/callback/ui/page.tsx:149 | Re-anchored :221 -> :222 on 2026-11-13 (F-18/F-25/F-26g: the safe-return-path import was added at the top of the file). Verified BY READING: the same API-origin fetch, no new call and no new origin. | Re-anchored :222 -> :291 on 2026-11-15 (B-12/A1-08: MFA routing and URL token stripping on the callback page, Free-user audit round 3). Verified BY READING: the same call, unchanged.",
+      "evidence": "apps/web/app/auth/callback/ui/page.tsx:149 | Re-anchored :221 -> :222 on 2026-11-13 (F-18/F-25/F-26g: the safe-return-path import was added at the top of the file). Verified BY READING: the same API-origin fetch, no new call and no new origin. | Re-anchored :222 -> :291 on 2026-11-15 (B-12/A1-08: MFA routing and URL token stripping on the callback page, Free-user audit round 3). Verified BY READING: the same call, unchanged. | Re-anchored :291 -> :300 on 2026-11-17 (B1-F-004: the guidance code is carried out of the error parse). Verified BY READING: the same call, unchanged.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/app/auth/callback/ui/page.tsx:320",
+      "site": "apps/web/app/auth/callback/ui/page.tsx:329",
       "verdict": "OURS",
       "originBinding": "same NEXT_PUBLIC_API_BASE binding at line 148",
-      "evidence": "apps/web/app/auth/callback/ui/page.tsx:149 | Re-anchored :250 -> :251 on 2026-11-13 (F-18/F-25/F-26g: the safe-return-path import was added at the top of the file). Verified BY READING: the same API-origin fetch, no new call and no new origin. | Re-anchored :251 -> :320 on 2026-11-15 (B-12/A1-08: MFA routing and URL token stripping on the callback page, Free-user audit round 3). Verified BY READING: the same call, unchanged.",
+      "evidence": "apps/web/app/auth/callback/ui/page.tsx:149 | Re-anchored :250 -> :251 on 2026-11-13 (F-18/F-25/F-26g: the safe-return-path import was added at the top of the file). Verified BY READING: the same API-origin fetch, no new call and no new origin. | Re-anchored :251 -> :320 on 2026-11-15 (B-12/A1-08: MFA routing and URL token stripping on the callback page, Free-user audit round 3). Verified BY READING: the same call, unchanged. | Re-anchored :320 -> :329 on 2026-11-17 (B1-F-004: the guidance code is carried out of the error parse). Verified BY READING: the same call, unchanged.",
       "reviewedAtUtc": "2026-08-15"
     },
     {

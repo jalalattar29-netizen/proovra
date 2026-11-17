@@ -659,10 +659,20 @@ describe("defects — exchange, lifecycle, retention, webhook cancel (live Postg
       },
       select: { id: true },
     });
+    // B5B-F-301 — the lifecycle writer asks for the sibling's step-up.
+    const challengeId = await stepUp({
+      token: teamA.ownerToken,
+      userId: teamA.ownerUserId,
+      teamId: teamA.teamId,
+      purpose: "RETENTION_POLICY_UPDATE",
+      resourceKind: "evidence_retention_policy",
+      resourceId: policy.id,
+    });
     const res = await call({
       method: "POST",
       url: `/v1/lifecycle/retention/policies/${policy.id}/release`,
       token: teamA.ownerToken,
+      headers: { [STEP]: challengeId },
     });
     expect(res.statusCode, res.body).toBe(200);
     const stored = await prisma.evidenceRetentionPolicy.findUniqueOrThrow({

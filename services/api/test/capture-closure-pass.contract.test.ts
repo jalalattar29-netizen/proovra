@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { usesKey, webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -118,7 +119,9 @@ describe("Part A — Plan-gated report polling + banner", () => {
 describe("Part B — Donut renamed + truthful subtitle", () => {
   it("title is 'Records by type' (no longer 'Evidence by type')", () => {
     // Read the specific home card; the title literal is the change.
-    expect(HOME_DASH).toMatch(/data-self-serve-section="evidence-types"[\s\S]{0,600}?Records by type/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
+    expect(HOME_DASH).toMatch(/data-self-serve-section="evidence-types"[\s\S]{0,600}?t\("homeRecordsByType"\)/);
+    expect(webDictionaryEnValue("home", "homeRecordsByType")).toBe("Records by type");
     // Make sure the old wording is gone from this specific card.
     expect(HOME_DASH).not.toMatch(
       /data-self-serve-section="evidence-types"[\s\S]{0,300}?Evidence by type/,
@@ -126,7 +129,11 @@ describe("Part B — Donut renamed + truthful subtitle", () => {
   });
 
   it("subtitle reads 'by primary type' so the record-level contract is explicit", () => {
-    expect(HOME_DASH).toMatch(/by primary type/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
+    for (const key of ["homeRecordsByPrimaryOne", "homeRecordsByPrimaryOther", "homeRecordsSampled"]) {
+      expect(usesKey(HOME_DASH, key)).toBe(true);
+      expect(webDictionaryEnValue("home", key)).toMatch(/by primary type/);
+    }
     expect(HOME_DASH).toMatch(/data-evidence-types-subtitle/);
   });
 
@@ -136,8 +143,10 @@ describe("Part B — Donut renamed + truthful subtitle", () => {
     // mode), but the records-mode copy literal is still load-bearing
     // and must remain in source so the records view stays honest.
     expect(HOME_DASH).toMatch(/title=\{subtitleTitle\}/);
-    expect(HOME_DASH).toMatch(
-      /"Counts primary evidence records, not files inside packages\."/,
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
+    expect(HOME_DASH).toMatch(/subtitleTitle = isFilesMode \? t\("homeFilesCountHint"\) : t\("homeRecordsCountHint"\)/);
+    expect(webDictionaryEnValue("home", "homeRecordsCountHint")).toBe(
+      "Counts primary evidence records, not files inside packages.",
     );
   });
 });

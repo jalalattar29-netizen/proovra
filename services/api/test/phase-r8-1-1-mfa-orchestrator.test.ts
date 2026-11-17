@@ -324,7 +324,9 @@ describe("R8.1.2 Part 7 — login flow integration LIVE (was deferred in R8.1.1)
     // phone-only accounts out or letting a password alone in.
     // 2026-11-15 (Free-user audit round 3) rebaselined 87547→94351: a per-account
     // sign-in budget beside the per-address one (B-21) and coded refusals (B-16).
-    const expected = 94351;
+    // 2026-11-17 (B1-F-004) rebaselined 94351→100536: a Google/Apple first sign-in
+    // for an address an existing account holds is answered with guidance.
+    const expected = 100536;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

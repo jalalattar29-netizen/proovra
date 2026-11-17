@@ -321,6 +321,16 @@ vi.mock("../src/services/billing-enforcement.service.js", async (importOriginal)
   workspaceIncludesReviewCapability: async () => true,
 }));
 
+// B3C-F-007 — case writes also ask the CURRENT Cases entitlement through the
+// real commercial context, which this prisma double does not model. That gate
+// has its own live-PostgreSQL proof (free-audit-0ea0-lane-b.integration), so
+// the workspace here includes Cases.
+vi.mock("../src/services/cases/case-plan-gate.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  casePlanWriteRefusal: async () => null,
+  refuseCasePlanWrite: async () => false,
+}));
+
 // PRO-089 — every redaction write now asserts FEATURE_REDACTION. The plan
 // gate has its own live-PostgreSQL proof (features-round3-closures.integration),
 // so the workspace here is entitled, as the capability above is.

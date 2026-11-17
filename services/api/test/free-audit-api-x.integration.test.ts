@@ -224,6 +224,58 @@ describe("free-audit 0ea0 — API-X cross-lane completions (live PostgreSQL)", (
     ).toBe("RECEIVED");
   });
 
+  // R1-F-01 (residual pass 2026-11-17) — "Needs additional context" now routes
+  // to request-more from the web panel; the server keeps the same one-decision
+  // rule there: a decided response mints no follow-up link and keeps its verdict.
+  it("R1-F-01 — request-more on an already decided response is refused and mints no link", async () => {
+    const request = await prisma.evidenceRequest.create({
+      data: {
+        teamId: A().teamId,
+        requestType: "DOCUMENT",
+        status: "RESPONSE_RECEIVED",
+        priority: "NORMAL",
+        title: `api-x more ${randomUUID().slice(0, 6)}`,
+        recipientMode: "EXTERNAL_CONTRIBUTOR",
+        requestedByUserId: A().ownerUserId,
+      } as never,
+      select: { id: true },
+    });
+    const response = await prisma.evidenceRequestResponse.create({
+      data: { evidenceRequestId: request.id, submittedByExternalLabel: "contributor", status: "ACCEPTED" } as never,
+      select: { id: true },
+    });
+    const linksBefore = await prisma.workflowIntakeLink.count({ where: { teamId: A().teamId } });
+    const saved = {
+      enabled: process.env.WORKFLOW_INTAKE_LINKS_ENABLED,
+      secret: process.env.WORKFLOW_INTAKE_TOKEN_SECRET,
+    };
+    process.env.WORKFLOW_INTAKE_LINKS_ENABLED = "true";
+    process.env.WORKFLOW_INTAKE_TOKEN_SECRET = saved.secret ?? "api-x-throwaway-intake-hmac-0123456789abcdef";
+    let more: Awaited<ReturnType<typeof call>>;
+    try {
+      more = await call(
+        "POST",
+        `/v1/evidence-requests/${request.id}/responses/${response.id}/request-more`,
+        A().ownerToken,
+        { reviewerNote: "need the second page", notifyContributor: false },
+      );
+    } finally {
+      if (saved.enabled === undefined) delete process.env.WORKFLOW_INTAKE_LINKS_ENABLED;
+      else process.env.WORKFLOW_INTAKE_LINKS_ENABLED = saved.enabled;
+      if (saved.secret === undefined) delete process.env.WORKFLOW_INTAKE_TOKEN_SECRET;
+      else process.env.WORKFLOW_INTAKE_TOKEN_SECRET = saved.secret;
+    }
+    expect(more.statusCode, more.body).toBe(409);
+    expect(json(more).error.code).toBe("response_already_reviewed");
+    expect(await prisma.workflowIntakeLink.count({ where: { teamId: A().teamId } })).toBe(linksBefore);
+    const row = await prisma.evidenceRequestResponse.findUniqueOrThrow({
+      where: { id: response.id },
+      select: { status: true, reviewerNote: true },
+    });
+    expect(row.status).toBe("ACCEPTED");
+    expect(row.reviewerNote).toBeNull();
+  });
+
   // ---------------------------------------------------------------------------
   // B2A-F-07 — the deep-link resolver opens cases and evidence requests.
   // ---------------------------------------------------------------------------

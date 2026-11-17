@@ -358,7 +358,11 @@ describe("PLATFORM ADMIN — drill-down and search (live PostgreSQL 16)", () => 
         .json()
         .items.find((i: { id: string }) => i.id === tsaFailedEvidenceId);
       expect(row.workspace?.id).toBe(workspaceId);
-      expect(row.ownerEmail).toBeTruthy();
+      // B7A-F-005 (Free audit 0ea0, residual pass 2026-11-17) — the roster is a
+      // minimal operational projection: with no support grant for the
+      // workspace, the owner's email and the record title are withheld.
+      expect(row.ownerEmail ?? null).toBeNull();
+      expect(row.recordDetailWithheld).toBe(true);
     });
 
     it("never returns evidence content or cryptographic material", async () => {
@@ -453,12 +457,11 @@ describe("PLATFORM ADMIN — drill-down and search (live PostgreSQL 16)", () => 
     });
 
     it("an evidence hit KEEPS its id and the destination returns that record", async () => {
-      const evidence = await prisma.evidence.findUniqueOrThrow({
-        where: { id: tsaFailedEvidenceId },
-        select: { title: true },
-      });
+      // B7A-F-005 (Free audit 0ea0, residual pass 2026-11-17) — without a
+      // support grant, staff search matches a record by its exact id only
+      // (titles are customer content); the finding here is the href identity.
       const res = await get(
-        `/v1/admin/search?q=${encodeURIComponent(evidence.title!)}&types=evidence`,
+        `/v1/admin/search?q=${encodeURIComponent(tsaFailedEvidenceId)}&types=evidence`,
       );
       const hit = res
         .json()

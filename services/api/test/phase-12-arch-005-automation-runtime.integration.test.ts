@@ -261,6 +261,12 @@ describe("§2 — ARCH-005: the Automation runtime is durable, fenced and reacha
     // operator path, never self-granted).
     const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
     await upsertEntitlementGrant({ teamId: teamA, key: "FEATURE_WEBHOOKS", value: true, kind: "FEATURE", source: "CUSTOM", grantedByUserId: ownerA });
+    // B7B-F06 — automation is the governance capability; the executor and the
+    // rule routes ask FEATURE_GOVERNANCE_PLATFORM (the Free refusal is proven
+    // in free-audit-0ea0-lane-b.integration). This suite proves the runtime.
+    for (const teamId of [teamA, teamB]) {
+      await upsertEntitlementGrant({ teamId, key: "FEATURE_GOVERNANCE_PLATFORM", value: true, kind: "FEATURE", source: "CUSTOM", grantedByUserId: ownerA });
+    }
 
     // One destination on team A, pointing at the real loopback receiver.
     const secret = webhookSvc.createDestinationSecret();

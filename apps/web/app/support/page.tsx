@@ -1,6 +1,15 @@
+"use client";
+
+/**
+ * B2A-F-12 — the Support page reads the reader's language (`useT()`, the
+ * shared dictionary `SUPPORT_LEADS_COPY`). A client page cannot export
+ * metadata, so the segment's metadata is in ./layout.tsx.
+ */
 import { scrollRegionProps } from "../../lib/ui/scrollRegion";
-import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
+import { fillCopy } from "@proovra/shared/i18n";
+import { useT, type TranslationKey } from "../providers";
 import {
   ArrowRight,
   BadgeCheck,
@@ -23,13 +32,6 @@ import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { MARKETING_BTN } from "../../lib/marketing-buttons";
 
-export const metadata: Metadata = {
-  title: "Support · PROOVRA",
-  description:
-    "Support Operations Center for PROOVRA. Pick the route that matches your request — product, billing, security disclosure, legal and privacy intake, or enterprise evaluation.",
-  alternates: { canonical: "/support" },
-};
-
 const HERO_BG = "/assets/hero/support-hero.png";
 const SUPPORT_EMAIL = "support@proovra.com";
 const BILLING_EMAIL = "billing@proovra.com";
@@ -40,42 +42,46 @@ const SECURITY_EMAIL = "security@proovra.com";
 // ---------------------------------------------------------------------------
 
 const SUPPORT_PATHS: ReadonlyArray<{
-  label: string;
-  title: string;
-  body: string;
+  label: TranslationKey;
+  title: TranslationKey;
+  body: TranslationKey;
   href: string;
-  cta: string;
+  /** A translated CTA, or "Email <address>" when `email` is set. */
+  cta: TranslationKey;
+  email?: string;
   external?: boolean;
 }> = [
   {
-    label: "Product",
-    title: "Product support",
-    body: "For questions about capture, evidence records, verification pages, reports, account workflows, and general product usage.",
+    label: "supportPathProductLabel",
+    title: "supportPathProductTitle",
+    body: "supportPathProductBody",
     href: `mailto:${SUPPORT_EMAIL}`,
-    cta: `Email ${SUPPORT_EMAIL}`,
+    cta: "supportPathEmailCta",
+    email: SUPPORT_EMAIL,
     external: true,
   },
   {
-    label: "Billing",
-    title: "Account and billing",
-    body: "For login, subscription, payment, invoice, refund, and plan questions.",
+    label: "supportPathBillingLabel",
+    title: "supportPathBillingTitle",
+    body: "supportPathBillingBody",
     href: `mailto:${BILLING_EMAIL}`,
-    cta: `Email ${BILLING_EMAIL}`,
+    cta: "supportPathEmailCta",
+    email: BILLING_EMAIL,
     external: true,
   },
   {
-    label: "Security",
-    title: "Security and responsible disclosure",
-    body: "For vulnerability reports, suspected compromise, security concerns, and responsible-disclosure intake.",
+    label: "supportPathSecurityLabel",
+    title: "supportPathSecurityTitle",
+    body: "supportPathSecurityBody",
     href: "/legal/security",
-    cta: "Open Security policy",
+    cta: "supportPathSecurityCta",
   },
   {
-    label: "Legal & privacy",
-    title: "Legal and privacy requests",
-    body: "For law-enforcement, data-subject, privacy, copyright, abuse, and other legally sensitive requests.",
+    label: "supportPathLegalLabel",
+    title: "supportPathLegalTitle",
+    body: "supportPathLegalBody",
     href: "/trust",
-    cta: "Open Trust Center",
+    cta: "supportPathLegalCta",
   },
 ];
 
@@ -83,23 +89,23 @@ const SUPPORT_PATHS: ReadonlyArray<{
 // Section 4 — Support scope
 // ---------------------------------------------------------------------------
 
-const SUPPORT_CAN_HELP: ReadonlyArray<string> = [
-  "Product navigation and getting-started questions",
-  "Evidence workflow, capture, intake, and reviewer questions",
-  "Verification page, report, and verification-package questions",
-  "Account, login, subscription, and billing questions",
-  "Security reports and responsible-disclosure intake",
-  "Enterprise evaluation, procurement, and security review questions",
+const SUPPORT_CAN_HELP: ReadonlyArray<TranslationKey> = [
+  "supportCanHelp1",
+  "supportCanHelp2",
+  "supportCanHelp3",
+  "supportCanHelp4",
+  "supportCanHelp5",
+  "supportCanHelp6",
 ];
 
-const SUPPORT_CANNOT_DO: ReadonlyArray<string> = [
-  "Does not provide legal advice.",
-  "Does not determine factual truth, authorship, identity, or intent.",
-  "Does not certify legal admissibility or evidentiary weight.",
-  "Does not act as a court, law-enforcement authority, regulator, or forensic-investigation authority.",
-  "Cannot bypass customer-controlled access permissions or workspace policies.",
-  "Cannot provide real-time emergency response or personal-safety monitoring.",
-  "Cannot guarantee recovery of deleted content.",
+const SUPPORT_CANNOT_DO: ReadonlyArray<TranslationKey> = [
+  "supportCannot1",
+  "supportCannot2",
+  "supportCannot3",
+  "supportCannot4",
+  "supportCannot5",
+  "supportCannot6",
+  "supportCannot7",
 ];
 
 // ---------------------------------------------------------------------------
@@ -107,70 +113,45 @@ const SUPPORT_CANNOT_DO: ReadonlyArray<string> = [
 // ---------------------------------------------------------------------------
 
 const RESPONSE_EXPECTATIONS: ReadonlyArray<{
-  type: string;
-  path: string;
-  expectation: string;
+  type: TranslationKey;
+  path: TranslationKey;
+  expectation: TranslationKey;
 }> = [
-  {
-    type: "Product support",
-    path: "Support queue",
-    expectation: "Reviewed in the ordinary support flow",
-  },
-  {
-    type: "Billing questions",
-    path: "Billing support",
-    expectation: "Routed to billing support or payment-provider context",
-  },
-  {
-    type: "Security reports",
-    path: "Security disclosure path",
-    expectation: "Prioritized based on severity and exploitability",
-  },
-  {
-    type: "Privacy requests",
-    path: "Privacy request process",
-    expectation: "Handled according to applicable privacy law",
-  },
-  {
-    type: "Law-enforcement requests",
-    path: "Legal process intake",
-    expectation: "Reviewed through the published Law Enforcement Request Policy",
-  },
-  {
-    type: "Enterprise procurement",
-    path: "Sales / enterprise review",
-    expectation:
-      "Routed to sales for documentation, security review, and procurement evaluation",
-  },
+  { type: "supportPathProductTitle", path: "supportRespProductPath", expectation: "supportRespProductExpect" },
+  { type: "supportRespBillingType", path: "supportDestBilling", expectation: "supportRespBillingExpect" },
+  { type: "supportChipSecurity", path: "supportDestSecurity", expectation: "supportRespSecurityExpect" },
+  { type: "supportRespPrivacyType", path: "supportRespPrivacyPath", expectation: "supportRespPrivacyExpect" },
+  { type: "supportSensitiveLawTitle", path: "supportRespLawPath", expectation: "supportRespLawExpect" },
+  { type: "supportRespEnterpriseType", path: "supportDestSales", expectation: "supportRespEnterpriseExpect" },
 ];
 
 // ---------------------------------------------------------------------------
 // Section 6 — Enterprise evaluation
 // ---------------------------------------------------------------------------
 
-const ENTERPRISE_CHECKLIST: ReadonlyArray<string> = [
-  "Trust Center documentation",
-  "Security overview",
-  "Subprocessor review",
-  "DPA review",
-  "TOMs review",
-  "Verification Methodology",
-  "AI Use Policy",
-  "Data Retention Policy",
-  "Security questionnaire support",
-  "Pilot or proof-of-concept discussion",
+const ENTERPRISE_CHECKLIST: ReadonlyArray<TranslationKey> = [
+  "supportChecklist1",
+  "supportChecklist2",
+  "supportChecklist3",
+  "supportChecklist4",
+  "supportChecklist5",
+  "supportChecklist6",
+  "supportChecklist7",
+  "supportChecklist8",
+  "supportChecklist9",
+  "supportChecklist10",
 ];
 
 const REVIEW_PACKET: ReadonlyArray<{
-  label: string;
+  label: TranslationKey;
   href: string;
   Icon: LucideIcon;
 }> = [
-  { label: "Trust Center", href: "/trust", Icon: BadgeCheck },
-  { label: "Data Processing Addendum", href: "/legal/dpa", Icon: ClipboardCheck },
-  { label: "Security Overview", href: "/legal/security", Icon: LockKeyhole },
-  { label: "Subprocessors", href: "/legal/subprocessors", Icon: Network },
-  { label: "Verification Methodology", href: "/legal/verification-methodology", Icon: Fingerprint },
+  { label: "supportDocTrustCenter", href: "/trust", Icon: BadgeCheck },
+  { label: "supportDocDpa", href: "/legal/dpa", Icon: ClipboardCheck },
+  { label: "supportDocSecurityOverview", href: "/legal/security", Icon: LockKeyhole },
+  { label: "supportDocSubprocessors", href: "/legal/subprocessors", Icon: Network },
+  { label: "supportDocVerificationMethodology", href: "/legal/verification-methodology", Icon: Fingerprint },
 ];
 
 // ---------------------------------------------------------------------------
@@ -178,35 +159,35 @@ const REVIEW_PACKET: ReadonlyArray<{
 // ---------------------------------------------------------------------------
 
 const SECURITY_REVIEW: ReadonlyArray<{
-  title: string;
-  body: string;
+  title: TranslationKey;
+  body: TranslationKey;
   href: string;
-  cta: string;
-  external?: boolean;
+  /** The document named in the "Open …" call to action. */
+  ctaDoc: TranslationKey;
 }> = [
   {
-    title: "Security Overview",
-    body: "PROOVRA's security posture, governance, key management, evidence-integrity controls, and responsible disclosure.",
+    title: "supportDocSecurityOverview",
+    body: "supportSecReviewSecurityBody",
     href: "/legal/security",
-    cta: "Open Security Overview",
+    ctaDoc: "supportDocSecurityOverview",
   },
   {
-    title: "Technical and Organizational Measures",
-    body: "TOMs covering access control, authentication, audit logging, data protection, and operational controls.",
+    title: "supportDocToms",
+    body: "supportSecReviewTomsBody",
     href: "/legal/toms",
-    cta: "Open TOMs",
+    ctaDoc: "supportDocTomsShort",
   },
   {
-    title: "Incident Response",
-    body: "Severity classification, notification expectations, and processor-role handling consistent with applicable law.",
+    title: "supportDocIncidentResponse",
+    body: "supportSecReviewIncidentBody",
     href: "/legal/incident-response",
-    cta: "Open Incident Response",
+    ctaDoc: "supportDocIncidentResponse",
   },
   {
-    title: "Subprocessors",
-    body: "Current subprocessor register with provider, purpose, data categories, region, role, and status.",
+    title: "supportDocSubprocessors",
+    body: "supportSecReviewSubprocessorsBody",
     href: "/legal/subprocessors",
-    cta: "Open Subprocessors",
+    ctaDoc: "supportDocSubprocessors",
   },
 ];
 
@@ -215,38 +196,38 @@ const SECURITY_REVIEW: ReadonlyArray<{
 // ---------------------------------------------------------------------------
 
 const SENSITIVE_REQUESTS: ReadonlyArray<{
-  title: string;
-  body: string;
+  title: TranslationKey;
+  body: TranslationKey;
   href: string;
-  label: string;
+  label: TranslationKey;
   Icon: typeof Gavel;
 }> = [
   {
-    title: "Law-enforcement requests",
-    body: "Government, law-enforcement, regulator, court, and legal-process requests follow a published intake path.",
+    title: "supportSensitiveLawTitle",
+    body: "supportSensitiveLawBody",
     href: "/legal/law-enforcement",
-    label: "Law Enforcement Requests",
+    label: "supportDocLawEnforcement",
     Icon: Gavel,
   },
   {
-    title: "Abuse reports",
-    body: "Reports of misuse, abusive content, impersonation, fraudulent verification use, or unlawful activity have a dedicated intake.",
+    title: "supportSensitiveAbuseTitle",
+    body: "supportSensitiveAbuseBody",
     href: "/legal/abuse-reporting",
-    label: "Abuse Reporting",
+    label: "supportDocAbuseReporting",
     Icon: ShieldAlert,
   },
   {
-    title: "Privacy / data-subject requests",
-    body: "Access, rectification, deletion, restriction, portability, objection, and consent-withdrawal requests under applicable privacy law.",
+    title: "supportSensitivePrivacyTitle",
+    body: "supportSensitivePrivacyBody",
     href: "/legal/privacy-requests",
-    label: "Privacy Requests",
+    label: "supportDocPrivacyRequests",
     Icon: Scale,
   },
   {
-    title: "Security vulnerabilities",
-    body: "Responsible-disclosure intake for vulnerabilities discovered in PROOVRA's public or product surfaces.",
+    title: "supportSensitiveSecurityTitle",
+    body: "supportSensitiveSecurityBody",
     href: "/legal/security",
-    label: "Security Overview",
+    label: "supportDocSecurityOverview",
     Icon: Shield,
   },
 ];
@@ -256,51 +237,89 @@ const SENSITIVE_REQUESTS: ReadonlyArray<{
 // ---------------------------------------------------------------------------
 
 const RESOURCE_GROUPS: ReadonlyArray<{
-  title: string;
-  subtitle: string;
-  links: ReadonlyArray<{ href: string; label: string }>;
+  title: TranslationKey;
+  subtitle: TranslationKey;
+  links: ReadonlyArray<{ href: string; label: TranslationKey }>;
 }> = [
   {
-    title: "Trust & governance",
-    subtitle: "Where the platform's boundary, posture, and policies are described.",
+    title: "supportGroupTrustTitle",
+    subtitle: "supportGroupTrustSubtitle",
     links: [
-      { href: "/trust", label: "Trust Center" },
-      { href: "/legal/privacy-requests", label: "Privacy Requests" },
-      { href: "/legal/security", label: "Security Overview" },
-      { href: "/legal/support", label: "Support Policy" },
+      { href: "/trust", label: "supportDocTrustCenter" },
+      { href: "/legal/privacy-requests", label: "supportDocPrivacyRequests" },
+      { href: "/legal/security", label: "supportDocSecurityOverview" },
+      { href: "/legal/support", label: "supportDocSupportPolicy" },
     ],
   },
   {
-    title: "Evidence & verification",
-    subtitle: "How PROOVRA records, verifies, and bounds evidence operations.",
+    title: "supportGroupEvidenceTitle",
+    subtitle: "supportGroupEvidenceSubtitle",
     links: [
-      { href: "/legal/evidence-handling", label: "Evidence Handling Policy" },
-      { href: "/legal/toms", label: "Technical and Organizational Measures" },
-      { href: "/legal/verification-disclaimer", label: "Verification Disclaimer" },
-      { href: "/legal/verification-methodology", label: "Verification Methodology" },
+      { href: "/legal/evidence-handling", label: "supportDocEvidenceHandling" },
+      { href: "/legal/toms", label: "supportDocToms" },
+      { href: "/legal/verification-disclaimer", label: "supportDocVerificationDisclaimer" },
+      { href: "/legal/verification-methodology", label: "supportDocVerificationMethodology" },
     ],
   },
   {
-    title: "Legal & sensitive requests",
-    subtitle: "Dedicated intake paths for legally sensitive matters.",
+    title: "supportGroupLegalTitle",
+    subtitle: "supportGroupLegalSubtitle",
     links: [
-      { href: "/legal/abuse-reporting", label: "Abuse Reporting" },
-      { href: "/legal/refund-policy", label: "Consumer Cancellation and Refund Policy" },
-      { href: "/legal/dmca", label: "Copyright and DMCA Policy" },
-      { href: "/legal/law-enforcement", label: "Law Enforcement Requests" },
+      { href: "/legal/abuse-reporting", label: "supportDocAbuseReporting" },
+      { href: "/legal/refund-policy", label: "supportDocRefund" },
+      { href: "/legal/dmca", label: "supportDocDmca" },
+      { href: "/legal/law-enforcement", label: "supportDocLawEnforcement" },
     ],
   },
   {
-    title: "Enterprise adoption",
-    subtitle: "What enterprise reviewers usually request before adoption.",
+    title: "supportGroupEnterpriseTitle",
+    subtitle: "supportGroupEnterpriseSubtitle",
     links: [
-      { href: "/legal/ai-use-policy", label: "AI Use Policy" },
-      { href: "/contact-sales", label: "Contact Sales" },
-      { href: "/legal/dpa", label: "Data Processing Addendum" },
-      { href: "/legal/subprocessors", label: "Subprocessors" },
+      { href: "/legal/ai-use-policy", label: "supportDocAiUse" },
+      { href: "/contact-sales", label: "supportDocContactSales" },
+      { href: "/legal/dpa", label: "supportDocDpa" },
+      { href: "/legal/subprocessors", label: "supportDocSubprocessors" },
     ],
   },
 ];
+
+const HERO_CHIPS: ReadonlyArray<TranslationKey> = [
+  "supportChipProduct",
+  "supportChipBilling",
+  "supportChipSecurity",
+  "supportChipLegal",
+];
+const REQUEST_TYPES: ReadonlyArray<TranslationKey> = [
+  "supportPathProductLabel",
+  "supportPathBillingLabel",
+  "supportPathSecurityLabel",
+  "supportTypeLegal",
+  "supportTypeEnterprise",
+];
+const DESTINATIONS: ReadonlyArray<TranslationKey> = [
+  "supportDestSupportTeam",
+  "supportDestBilling",
+  "supportDestSecurity",
+  "supportDestLegal",
+  "supportDestSales",
+];
+
+/**
+ * A dictionary sentence with one `{slot}` replaced by an element (a link, a
+ * highlighted phrase), so each language keeps its own word order.
+ */
+function withSlot(template: string, slot: string, node: ReactNode): ReactNode {
+  const marker = `{${slot}}`;
+  const at = template.indexOf(marker);
+  if (at < 0) return template;
+  return (
+    <>
+      {template.slice(0, at)}
+      {node}
+      {template.slice(at + marker.length)}
+    </>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -334,6 +353,7 @@ function SectionEyebrow({
 // ---------------------------------------------------------------------------
 
 export default function SupportPage() {
+  const t = useT();
   return (
     <div className="page support-page" style={{ background: "#F6F9FC" }}>
       {/* ───────────────── Section 1 — Hero ───────────────── */}
@@ -361,26 +381,27 @@ export default function SupportPage() {
             <div className="max-w-[640px]">
               <span className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-[#F8FAFC] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563EB]">
                 <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#7A3CFF]" />
-                Support
+                {t("supportEyebrow")}
               </span>
 
               <h1 className="mt-4 text-[2rem] font-semibold leading-[1.06] tracking-[-0.025em] text-[#0F172A] md:text-[2.6rem] lg:text-[3rem]">
-                Get the{" "}
-                <span
-                  className="bg-clip-text text-transparent"
-                  style={{
-                    backgroundImage:
-                      "linear-gradient(90deg, #2563EB 0%, #7C3AED 50%, #C026D3 100%)",
-                  }}
-                >
-                  right help path.
-                </span>
+                {withSlot(
+                  t("supportHeroTitle"),
+                  "highlight",
+                  <span
+                    className="bg-clip-text text-transparent"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(90deg, #2563EB 0%, #7C3AED 50%, #C026D3 100%)",
+                    }}
+                    >
+                    {t("supportHeroHighlight")}
+                  </span>,
+                )}
               </h1>
 
               <p className="mt-4 max-w-[560px] text-[15px] leading-[1.65] text-[#475569]">
-                Choose the support route that matches your request — product
-                help, billing, security reports, legal and privacy requests, or
-                enterprise evaluation.
+                {t("supportHeroLead")}
               </p>
 
               <div className="mt-7 flex flex-wrap gap-3">
@@ -388,24 +409,19 @@ export default function SupportPage() {
                   href={`mailto:${SUPPORT_EMAIL}`}
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#071B4D] px-5 text-[13.5px] font-semibold text-white shadow-[0_10px_24px_rgba(7,27,77,0.22)] transition hover:-translate-y-0.5"
                 >
-                  Email support
+                  {t("supportEmailSupport")}
                 </a>
                 <Link
                   href="/contact-sales"
                   className={MARKETING_BTN.heroSecondary}
                 >
-                  Talk to sales
+                  {t("supportTalkToSales")}
                 </Link>
               </div>
 
               {/* Hero chips — quick route hints */}
               <div className="mt-6 flex flex-wrap gap-2">
-                {[
-                  "Product help",
-                  "Billing",
-                  "Security reports",
-                  "Legal routing",
-                ].map((chip) => (
+                {HERO_CHIPS.map((chip) => (
                   <span
                     key={chip}
                     className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white/85 px-3 py-1 text-[12px] font-medium text-[#0F172A]"
@@ -414,7 +430,7 @@ export default function SupportPage() {
                       aria-hidden="true"
                       className="block h-1.5 w-1.5 rounded-full bg-[#2563EB]"
                     />
-                    {chip}
+                    {t(chip)}
                   </span>
                 ))}
               </div>
@@ -427,13 +443,12 @@ export default function SupportPage() {
       <section className="bg-white">
         <div className="mx-auto max-w-[1320px] px-6 py-16 md:px-8 md:py-20">
           <div className="mb-8 max-w-[760px]">
-            <SectionEyebrow tone="blue">Support paths</SectionEyebrow>
+            <SectionEyebrow tone="blue">{t("supportPathsEyebrow")}</SectionEyebrow>
             <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[2rem]">
-              Pick the route that matches your request.
+              {t("supportPathsTitle")}
             </h2>
             <p className="mt-3 text-[14.5px] leading-[1.65] text-[#475569]">
-              Each path routes your request to the correct operational,
-              security, legal, or enterprise workflow.
+              {t("supportPathsLead")}
             </p>
           </div>
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -451,26 +466,27 @@ export default function SupportPage() {
                 >
                   <span
                     aria-hidden="true"
-                    className="absolute left-0 top-6 h-7 w-[3px] rounded-r"
+                    className="absolute start-0 top-6 h-7 w-[3px] rounded-e"
                     style={{ background: accent }}
                   />
                   <div
                     className="text-[11.5px] font-bold uppercase tracking-[0.14em]"
                     style={{ color: accent }}
                   >
-                    {p.label}
+                    {t(p.label)}
                   </div>
                   <h3 className="mt-2 text-[1.1rem] font-semibold tracking-[-0.01em] text-[#081426]">
-                    {p.title}
+                    {t(p.title)}
                   </h3>
                   <p className="mt-2 flex-1 text-[14px] leading-[1.65] text-[#475569]">
-                    {p.body}
+                    {t(p.body)}
                   </p>
                   <LinkComp
                     {...linkProps}
                     className="mt-4 inline-flex items-center gap-1 text-[13.5px] font-semibold text-[#2563EB] hover:gap-2"
                   >
-                    {p.cta} <ArrowRight size={14} aria-hidden="true" />
+                    {p.email ? fillCopy(t(p.cta), { email: p.email }) : t(p.cta)}{" "}
+                    <ArrowRight size={14} aria-hidden="true" className="rtl:-scale-x-100" />
                   </LinkComp>
                 </div>
               );
@@ -488,14 +504,12 @@ export default function SupportPage() {
       <section style={{ background: "#F8FAFC" }}>
         <div className="mx-auto max-w-[1320px] px-6 py-16 md:px-8 md:py-20">
           <div className="mb-10 max-w-[760px]">
-            <SectionEyebrow tone="violet">Support routing</SectionEyebrow>
+            <SectionEyebrow tone="violet">{t("supportRoutingEyebrow")}</SectionEyebrow>
             <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[2rem]">
-              From question to the right team.
+              {t("supportRoutingTitle")}
             </h2>
             <p className="mt-3 text-[14.5px] leading-[1.65] text-[#475569]">
-              PROOVRA support is routed by request type so sensitive matters
-              reach the correct operational, security, legal, or enterprise
-              path.
+              {t("supportRoutingLead")}
             </p>
           </div>
 
@@ -531,14 +545,13 @@ export default function SupportPage() {
                   }}
                 >
                   <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A5B4FC]">
-                    Step 1
+                    {fillCopy(t("supportStep"), { n: 1 })}
                   </div>
                   <div className="mt-2 text-[15px] font-semibold text-white">
-                    Start with your request
+                    {t("supportStep1Title")}
                   </div>
                   <p className="mt-2 text-[13px] leading-[1.55] text-[#CBD5F5]">
-                    Describe what you need. Most requests fall into one of five
-                    types.
+                    {t("supportStep1Body")}
                   </p>
                 </div>
               </div>
@@ -548,7 +561,7 @@ export default function SupportPage() {
                 aria-hidden="true"
                 className="hidden lg:flex items-center justify-center text-[#A78BFA]"
               >
-                <ArrowRight size={22} />
+                <ArrowRight size={22} className="rtl:-scale-x-100" />
               </div>
 
               {/* Node 2 — Choose request type */}
@@ -562,19 +575,13 @@ export default function SupportPage() {
                   }}
                 >
                   <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/75">
-                    Step 2
+                    {fillCopy(t("supportStep"), { n: 2 })}
                   </div>
                   <div className="mt-2 text-[15px] font-semibold">
-                    Choose request type
+                    {t("supportStep2Title")}
                   </div>
                   <ul className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                    {[
-                      "Product",
-                      "Billing",
-                      "Security",
-                      "Legal / privacy",
-                      "Enterprise review",
-                    ].map((label) => (
+                    {REQUEST_TYPES.map((label) => (
                       <li
                         key={label}
                         className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[12px] font-medium"
@@ -583,7 +590,7 @@ export default function SupportPage() {
                           aria-hidden="true"
                           className="block h-1.5 w-1.5 rounded-full bg-[#A78BFA]"
                         />
-                        {label}
+                        {t(label)}
                       </li>
                     ))}
                   </ul>
@@ -595,7 +602,7 @@ export default function SupportPage() {
                 aria-hidden="true"
                 className="hidden lg:flex items-center justify-center text-[#A78BFA]"
               >
-                <ArrowRight size={22} />
+                <ArrowRight size={22} className="rtl:-scale-x-100" />
               </div>
 
               {/* Node 3 — Correct path (translucent dark glass) */}
@@ -608,25 +615,19 @@ export default function SupportPage() {
                   }}
                 >
                   <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A5B4FC]">
-                    Step 3
+                    {fillCopy(t("supportStep"), { n: 3 })}
                   </div>
                   <div className="mt-2 text-[15px] font-semibold text-white">
-                    Correct path
+                    {t("supportStep3Title")}
                   </div>
                   <ul className="mt-3 grid gap-1.5 text-[13px] text-[#CBD5F5]">
-                    {[
-                      "Support team",
-                      "Billing support",
-                      "Security disclosure path",
-                      "Legal / privacy intake",
-                      "Sales / enterprise review",
-                    ].map((label) => (
+                    {DESTINATIONS.map((label) => (
                       <li key={label} className="flex items-center gap-2">
                         <span
                           aria-hidden="true"
                           className="block h-[5px] w-[5px] rounded-full bg-[#A78BFA]"
                         />
-                        {label}
+                        {t(label)}
                       </li>
                     ))}
                   </ul>
@@ -641,25 +642,25 @@ export default function SupportPage() {
       <section className="bg-white">
         <div className="mx-auto max-w-[1320px] px-6 py-16 md:px-8 md:py-20">
           <div className="mb-10 max-w-[820px]">
-            <SectionEyebrow tone="blue">Support scope</SectionEyebrow>
+            <SectionEyebrow tone="blue">{t("supportScopeEyebrow")}</SectionEyebrow>
             <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[2rem]">
-              What support can help with — and where support must draw the line.
+              {t("supportScopeTitle")}
             </h2>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
             <div
               className="rounded-[20px] border bg-white p-7 shadow-[0_2px_10px_rgba(8,18,22,0.03)]"
-              style={{ borderColor: "#DDE6F2", borderLeft: "4px solid #2563EB" }}
+              style={{ borderColor: "#DDE6F2", borderInlineStart: "4px solid #2563EB" }}
             >
               <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#2563EB]">
                 <FileCheck2 size={15} aria-hidden="true" />
-                What support can help with
+                {t("supportCanHelpTitle")}
               </div>
               <ul className="mt-5 grid gap-3">
-                {SUPPORT_CAN_HELP.map((t) => (
+                {SUPPORT_CAN_HELP.map((item) => (
                   <li
-                    key={t}
+                    key={item}
                     className="flex gap-3 text-[14.5px] leading-[1.65] text-[#0F172A]"
                   >
                     <span
@@ -677,7 +678,7 @@ export default function SupportPage() {
                         />
                       </svg>
                     </span>
-                    <span>{t}</span>
+                    <span>{t(item)}</span>
                   </li>
                 ))}
               </ul>
@@ -687,25 +688,25 @@ export default function SupportPage() {
               className="rounded-[20px] border p-7 shadow-[0_2px_10px_rgba(8,18,22,0.03)]"
               style={{
                 borderColor: "#F1D5C3",
-                borderLeft: "4px solid #B45309",
+                borderInlineStart: "4px solid #B45309",
                 background: "#FEF9F2",
               }}
             >
               <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#B45309]">
                 <ShieldAlert size={15} aria-hidden="true" />
-                What support cannot do
+                {t("supportCannotTitle")}
               </div>
               <ul className="mt-5 grid gap-3">
-                {SUPPORT_CANNOT_DO.map((t) => (
+                {SUPPORT_CANNOT_DO.map((item) => (
                   <li
-                    key={t}
+                    key={item}
                     className="flex gap-3 text-[14.5px] leading-[1.65] text-[#0F172A]"
                   >
                     <span
                       aria-hidden="true"
                       className="mt-[0.55em] block h-[5px] w-[5px] shrink-0 rounded-full bg-[#B45309]"
                     />
-                    <span>{t}</span>
+                    <span>{t(item)}</span>
                   </li>
                 ))}
               </ul>
@@ -718,35 +719,32 @@ export default function SupportPage() {
       <section style={{ background: "#F8FAFC" }}>
         <div className="mx-auto max-w-[1320px] px-6 py-16 md:px-8 md:py-20">
           <div className="mb-8 max-w-[820px]">
-            <SectionEyebrow tone="violet">Response expectations</SectionEyebrow>
+            <SectionEyebrow tone="violet">{t("supportResponseEyebrow")}</SectionEyebrow>
             <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[2rem]">
-              How requests are prioritized.
+              {t("supportResponseTitle")}
             </h2>
             <p className="mt-3 text-[14.5px] leading-[1.65] text-[#475569]">
-              PROOVRA routes requests by severity, risk, plan, contractual
-              commitments, and operational capacity. Unless an enterprise
-              agreement states otherwise, these expectations are not guaranteed
-              response or resolution times.
+              {t("supportResponseLead")}
             </p>
           </div>
 
           {/* AUD-0061 — scrolls sideways at phone width; focusable + named so a keyboard can scroll it (lib/ui/scrollRegion). */}
           <div
-            {...scrollRegionProps("Response expectations")}
+            {...scrollRegionProps(t("supportResponseEyebrow"))}
             className="overflow-x-auto rounded-[20px] border bg-white shadow-[0_2px_10px_rgba(8,18,22,0.03)]"
             style={{ borderColor: "#E2E8F0" }}
           >
-            <table className="min-w-[760px] w-full border-collapse text-left">
+            <table className="min-w-[760px] w-full border-collapse text-start">
               <thead style={{ background: "#F8FAFC" }}>
                 <tr>
                   <th className="px-5 py-3 text-[11.5px] font-bold uppercase tracking-[0.14em] text-[#0F172A]">
-                    Request type
+                    {t("supportColType")}
                   </th>
                   <th className="px-5 py-3 text-[11.5px] font-bold uppercase tracking-[0.14em] text-[#0F172A]">
-                    Typical handling path
+                    {t("supportColPath")}
                   </th>
                   <th className="px-5 py-3 text-[11.5px] font-bold uppercase tracking-[0.14em] text-[#0F172A]">
-                    Expectation
+                    {t("supportColExpectation")}
                   </th>
                 </tr>
               </thead>
@@ -759,13 +757,13 @@ export default function SupportPage() {
                     }}
                   >
                     <td className="px-5 py-4 align-top text-[14px] font-semibold text-[#0F172A]">
-                      {row.type}
+                      {t(row.type)}
                     </td>
                     <td className="px-5 py-4 align-top text-[14px] text-[#475569]">
-                      {row.path}
+                      {t(row.path)}
                     </td>
                     <td className="px-5 py-4 align-top text-[14px] text-[#475569]">
-                      {row.expectation}
+                      {t(row.expectation)}
                     </td>
                   </tr>
                 ))}
@@ -807,22 +805,18 @@ export default function SupportPage() {
             <div className="relative grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
               <div>
                 <SectionEyebrow tone="white">
-                  Enterprise evaluation
+                  {t("supportEnterpriseEyebrow")}
                 </SectionEyebrow>
                 <h2 className="mt-3 text-[1.85rem] font-semibold tracking-[-0.02em] text-white md:text-[2.2rem]">
-                  Support for procurement, security review, and enterprise
-                  adoption.
+                  {t("supportEnterpriseTitle")}
                 </h2>
                 <p className="mt-4 max-w-[560px] text-[15px] leading-[1.7] text-white/80">
-                  Organizations evaluating PROOVRA may need technical, legal,
-                  privacy, and security materials before adoption. The
-                  enterprise path routes these requests to the right team
-                  instead of mixing them with ordinary product support.
+                  {t("supportEnterpriseLead")}
                 </p>
 
                 <div className="mt-7">
                   <div className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-white/65">
-                    Enterprise reviewers may ask for
+                    {t("supportEnterpriseAskFor")}
                   </div>
                   <ul className="mt-4 grid gap-2 sm:grid-cols-2">
                     {ENTERPRISE_CHECKLIST.map((item) => (
@@ -844,7 +838,7 @@ export default function SupportPage() {
                             />
                           </svg>
                         </span>
-                        <span>{item}</span>
+                        <span>{t(item)}</span>
                       </li>
                     ))}
                   </ul>
@@ -855,13 +849,13 @@ export default function SupportPage() {
                     href="/trust"
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-white px-5 text-[13.5px] font-semibold text-[#071B4D] transition hover:-translate-y-0.5"
                   >
-                    Trust Center
+                    {t("supportDocTrustCenter")}
                   </Link>
                   <Link
                     href="/contact-sales"
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-white/30 bg-white/5 px-5 text-[13.5px] font-semibold text-white transition hover:bg-white/15"
                   >
-                    Talk to sales
+                    {t("supportTalkToSales")}
                   </Link>
                 </div>
               </div>
@@ -873,7 +867,7 @@ export default function SupportPage() {
                 >
                   <div className="flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.14em] text-white/65">
                     <Building2 size={15} aria-hidden="true" />
-                    Review packet
+                    {t("supportReviewPacket")}
                   </div>
                   <div className="mt-4 grid gap-2.5">
                     {REVIEW_PACKET.map(({ Icon, ...item }) => (
@@ -895,13 +889,13 @@ export default function SupportPage() {
                             <Icon size={15} strokeWidth={1.9} />
                           </span>
                           <span className="text-[14px] font-medium text-white">
-                            {item.label}
+                            {t(item.label)}
                           </span>
                         </div>
                         <ArrowRight
                           size={14}
                           aria-hidden="true"
-                          className="text-white/55 transition group-hover:translate-x-0.5 group-hover:text-white"
+                          className="text-white/55 transition group-hover:translate-x-0.5 group-hover:text-white rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5"
                         />
                       </Link>
                     ))}
@@ -917,14 +911,12 @@ export default function SupportPage() {
       <section style={{ background: "#F8FAFC" }}>
         <div className="mx-auto max-w-[1320px] px-6 py-16 md:px-8 md:py-20">
           <div className="mb-8 max-w-[820px]">
-            <SectionEyebrow tone="blue">Security reviews</SectionEyebrow>
+            <SectionEyebrow tone="blue">{t("supportSecurityEyebrow")}</SectionEyebrow>
             <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[2rem]">
-              Security questions should go through the right path.
+              {t("supportSecurityTitle")}
             </h2>
             <p className="mt-3 text-[14.5px] leading-[1.65] text-[#475569]">
-              Before adopting PROOVRA, organizations may review security
-              documentation, architecture boundaries, subprocessors, incident
-              response posture, and verification controls.
+              {t("supportSecurityLead")}
             </p>
           </div>
 
@@ -947,13 +939,14 @@ export default function SupportPage() {
                   <Shield size={16} />
                 </div>
                 <h3 className="mt-4 text-[1rem] font-semibold tracking-[-0.01em] text-[#081426]">
-                  {r.title}
+                  {t(r.title)}
                 </h3>
                 <p className="mt-2 flex-1 text-[13.5px] leading-[1.6] text-[#475569]">
-                  {r.body}
+                  {t(r.body)}
                 </p>
                 <span className="mt-4 inline-flex items-center gap-1 text-[13px] font-semibold text-[#2563EB] transition group-hover:gap-2">
-                  {r.cta} <ArrowRight size={13} aria-hidden="true" />
+                  {fillCopy(t("supportOpenDoc"), { doc: t(r.ctaDoc) })}{" "}
+                  <ArrowRight size={13} aria-hidden="true" className="rtl:-scale-x-100" />
                 </span>
               </Link>
             ))}
@@ -971,17 +964,19 @@ export default function SupportPage() {
               />
               <div>
                 <div className="text-[13px] font-semibold text-[#0F172A]">
-                  Report a vulnerability
+                  {t("supportReportVuln")}
                 </div>
                 <p className="mt-1 text-[13px] leading-[1.55] text-[#475569]">
-                  Vulnerability reports should go to{" "}
-                  <a
-                    href={`mailto:${SECURITY_EMAIL}`}
-                    className="font-medium text-[#2563EB] underline-offset-2 hover:underline"
-                  >
-                    {SECURITY_EMAIL}
-                  </a>
-                  .
+                  {withSlot(
+                    t("supportReportVulnBody"),
+                    "email",
+                    <a
+                      href={`mailto:${SECURITY_EMAIL}`}
+                      className="font-medium text-[#2563EB] underline-offset-2 hover:underline"
+                    >
+                      {SECURITY_EMAIL}
+                    </a>,
+                  )}
                 </p>
               </div>
             </div>
@@ -993,17 +988,19 @@ export default function SupportPage() {
               />
               <div>
                 <div className="text-[13px] font-semibold text-[#0F172A]">
-                  Enterprise security questionnaire
+                  {t("supportQuestionnaireTitle")}
                 </div>
                 <p className="mt-1 text-[13px] leading-[1.55] text-[#475569]">
-                  Enterprise security questionnaires should go through{" "}
-                  <Link
-                    href="/contact-sales"
-                    className="font-medium text-[#2563EB] underline-offset-2 hover:underline"
-                  >
-                    /contact-sales
-                  </Link>
-                  .
+                  {withSlot(
+                    t("supportQuestionnaireBody"),
+                    "link",
+                    <Link
+                      href="/contact-sales"
+                      className="font-medium text-[#2563EB] underline-offset-2 hover:underline"
+                    >
+                      /contact-sales
+                    </Link>,
+                  )}
                 </p>
               </div>
             </div>
@@ -1016,15 +1013,13 @@ export default function SupportPage() {
         <div className="mx-auto max-w-[1320px] px-6 py-16 md:px-8 md:py-20">
           <div className="mb-8 max-w-[820px]">
             <SectionEyebrow tone="violet">
-              Sensitive or legal requests
+              {t("supportSensitiveEyebrow")}
             </SectionEyebrow>
             <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[2rem]">
-              Use the dedicated request path.
+              {t("supportSensitiveTitle")}
             </h2>
             <p className="mt-3 text-[14.5px] leading-[1.65] text-[#475569]">
-              For legally sensitive matters, use the dedicated intake path so
-              the request is logged and routed correctly. Each path links to
-              the relevant policy with the full submission process.
+              {t("supportSensitiveLead")}
             </p>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -1043,13 +1038,13 @@ export default function SupportPage() {
                   <Icon size={16} />
                 </div>
                 <h3 className="mt-4 text-[1rem] font-semibold tracking-[-0.01em] text-[#081426]">
-                  {s.title}
+                  {t(s.title)}
                 </h3>
                 <p className="mt-2 flex-1 text-[13.5px] leading-[1.6] text-[#475569]">
-                  {s.body}
+                  {t(s.body)}
                 </p>
                 <span className="mt-4 inline-flex items-center gap-1 text-[13px] font-semibold text-[#2563EB] transition group-hover:gap-2">
-                  {s.label} <ArrowRight size={13} aria-hidden="true" />
+                  {t(s.label)} <ArrowRight size={13} aria-hidden="true" className="rtl:-scale-x-100" />
                 </span>
               </Link>
             ))}
@@ -1061,9 +1056,9 @@ export default function SupportPage() {
       <section style={{ background: "#F8FAFC" }}>
         <div className="mx-auto max-w-[1320px] px-6 py-16 md:px-8 md:py-20">
           <div className="mb-8 max-w-[820px]">
-            <SectionEyebrow tone="slate">Support vs policy</SectionEyebrow>
+            <SectionEyebrow tone="slate">{t("supportVsEyebrow")}</SectionEyebrow>
             <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[2rem]">
-              Public Support and Support Policy are different surfaces.
+              {t("supportVsTitle")}
             </h2>
           </div>
 
@@ -1073,7 +1068,7 @@ export default function SupportPage() {
               className="relative flex flex-col rounded-[20px] border bg-white p-7 shadow-[0_2px_10px_rgba(8,18,22,0.03)]"
               style={{
                 borderColor: "#DDE6F2",
-                borderLeft: "4px solid #2563EB",
+                borderInlineStart: "4px solid #2563EB",
               }}
             >
               <div className="flex items-center gap-2">
@@ -1091,14 +1086,13 @@ export default function SupportPage() {
                 </span>
               </div>
               <h3 className="mt-4 text-[1.15rem] font-semibold tracking-[-0.01em] text-[#081426]">
-                Public Support
+                {t("supportPublicTitle")}
               </h3>
               <p className="mt-2 flex-1 text-[14px] leading-[1.65] text-[#475569]">
-                The operational support page for product help, billing routing,
-                sensitive-request paths, and enterprise evaluation.
+                {t("supportPublicBody")}
               </p>
               <span className="mt-5 inline-flex w-fit items-center gap-1.5 rounded-full border border-[#2563EB] bg-white px-3 py-1 text-[12px] font-bold uppercase tracking-[0.12em] text-[#2563EB]">
-                You are here
+                {t("supportYouAreHere")}
               </span>
             </div>
 
@@ -1107,7 +1101,7 @@ export default function SupportPage() {
               className="relative flex flex-col rounded-[20px] border bg-white p-7 shadow-[0_2px_10px_rgba(8,18,22,0.03)]"
               style={{
                 borderColor: "#DDE6F2",
-                borderLeft: "4px solid #7C3AED",
+                borderInlineStart: "4px solid #7C3AED",
               }}
             >
               <div className="flex items-center gap-2">
@@ -1125,19 +1119,17 @@ export default function SupportPage() {
                 </span>
               </div>
               <h3 className="mt-4 text-[1.15rem] font-semibold tracking-[-0.01em] text-[#081426]">
-                Support Policy
+                {t("supportDocSupportPolicy")}
               </h3>
               <p className="mt-2 flex-1 text-[14px] leading-[1.65] text-[#475569]">
-                The legal policy document describing support scope, severity
-                prioritization, escalation, limitations, and availability
-                expectations.
+                {t("supportPolicyBody")}
               </p>
               <Link
                 href="/legal/support"
                 className="mt-5 inline-flex w-fit items-center gap-1.5 rounded-full bg-[#7C3AED] px-4 py-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-white transition hover:-translate-y-0.5"
               >
-                Open Support Policy
-                <ArrowRight size={12} aria-hidden="true" />
+                {t("supportOpenPolicy")}
+                <ArrowRight size={12} aria-hidden="true" className="rtl:-scale-x-100" />
               </Link>
             </div>
           </div>
@@ -1148,9 +1140,9 @@ export default function SupportPage() {
       <section className="bg-white">
         <div className="mx-auto max-w-[1320px] px-6 py-16 md:px-8 md:py-20">
           <div className="mb-8 max-w-[820px]">
-            <SectionEyebrow tone="blue">Helpful resources</SectionEyebrow>
+            <SectionEyebrow tone="blue">{t("supportResourcesEyebrow")}</SectionEyebrow>
             <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.02em] text-[#081426] md:text-[2rem]">
-              Read the documents behind each support path.
+              {t("supportResourcesTitle")}
             </h2>
           </div>
 
@@ -1167,10 +1159,10 @@ export default function SupportPage() {
                     className="text-[11.5px] font-bold uppercase tracking-[0.14em]"
                     style={{ color: accent }}
                   >
-                    {group.title}
+                    {t(group.title)}
                   </div>
                   <p className="mt-2 text-[13px] leading-[1.6] text-[#475569]">
-                    {group.subtitle}
+                    {t(group.subtitle)}
                   </p>
                   <ul className="mt-4 grid gap-2 border-t pt-4" style={{ borderColor: "#F1F5F9" }}>
                     {group.links.map((link) => (
@@ -1184,7 +1176,7 @@ export default function SupportPage() {
                             className="block h-[5px] w-[5px] rounded-full"
                             style={{ background: accent }}
                           />
-                          <span>{link.label}</span>
+                          <span>{t(link.label)}</span>
                         </Link>
                       </li>
                     ))}
@@ -1223,15 +1215,13 @@ export default function SupportPage() {
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/80">
                   <HelpCircle size={12} aria-hidden="true" />
-                  Not sure yet?
+                  {t("supportCtaEyebrow")}
                 </div>
                 <h2 className="mt-4 text-[1.75rem] font-semibold tracking-[-0.02em] text-white md:text-[2.1rem]">
-                  Still not sure where your request belongs?
+                  {t("supportCtaTitle")}
                 </h2>
                 <p className="mt-3 max-w-[540px] text-[15px] leading-[1.7] text-white/80">
-                  Email the team and we will route it to the right path. For
-                  enterprise procurement, security review, or vendor
-                  evaluation, talk to sales.
+                  {t("supportCtaLead")}
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 md:justify-end">
@@ -1239,13 +1229,13 @@ export default function SupportPage() {
                   href={`mailto:${SUPPORT_EMAIL}`}
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-white px-5 text-[13.5px] font-semibold text-[#071B4D] shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5"
                 >
-                  Email support
+                  {t("supportEmailSupport")}
                 </a>
                 <Link
                   href="/contact-sales"
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] border border-white/30 bg-white/5 px-5 text-[13.5px] font-semibold text-white transition hover:bg-white/15"
                 >
-                  Talk to sales
+                  {t("supportTalkToSales")}
                   <CreditCard size={14} aria-hidden="true" className="opacity-0" />
                 </Link>
               </div>

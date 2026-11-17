@@ -311,8 +311,12 @@ test("SearchTypeahead suggestion rows badge each suggestion with its documentTyp
   );
   // …and the visible chip states the kind in the same words the result rows
   // use, rather than echoing the raw wire enum.
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts): the chip reads
+  // documentTypeLabel(t, …), which maps through DOCUMENT_TYPE_LABEL and
+  // falls back to the raw type only when unmapped.
+  assert.match(SEARCH_PAGE, /\{documentTypeLabel\(t, \w+\.documentType\)\}/);
   assert.match(
     SEARCH_PAGE,
-    /DOCUMENT_TYPE_LABEL\[\w+\.documentType\] \?\? \w+\.documentType/,
+    /const key = DOCUMENT_TYPE_LABEL\[type as DocumentType\];\s*\n\s*return key \? t\(key\) : type;/,
   );
 });

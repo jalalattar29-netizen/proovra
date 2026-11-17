@@ -270,7 +270,8 @@ function ContactSalesFormCard() {
         the right commercial, security, governance, or deployment contact.
       </p>
 
-      <ContactSalesForm submitButtonLabel="Contact sales" />
+      {/* B2A-F-12 — the form default is the translated "Contact sales". */}
+      <ContactSalesForm />
 
       <p className="mt-3 inline-flex items-center gap-2 text-[11.5px] text-[#64748B]">
         <Lock size={12} />

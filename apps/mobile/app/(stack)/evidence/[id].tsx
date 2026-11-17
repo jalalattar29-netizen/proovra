@@ -139,7 +139,7 @@ import {
   type ProvenanceView,
   type TechnicalView,
 } from "../../../src/product/evidence-detail";
-import { VERIFICATION_PAGE_NOT_ISSUED_COPY } from "../../../src/product/public-verify";
+import { VERIFICATION_PAGE_NOT_ISSUED_COPY, verificationManagementHandoff } from "../../../src/product/public-verify";
 import {
   LIFECYCLE_DIALOG_COPY,
   UNLOCK_REASON_MAX,
@@ -192,6 +192,7 @@ import {
   PrivateNotesHead,
   PublicVerificationSharing,
   VerificationDisclosureCard,
+  VerificationLinksHandoffCard,
   RecordSummaryCard,
   ReviewHero,
   SnapshotTimingSection,
@@ -1842,6 +1843,19 @@ export default function EvidenceDetailScreen() {
           <LatestVerificationLinkCard shareUrl={shareUrl} publicVerification={publicVerification} />
           {/* Disclosure is web-only by design: shown read-only here, with an explicit handoff. */}
           {publicVerification ? <VerificationDisclosureCard publicVerification={publicVerification} manageUrl={webRecordPageUrl(webOrigin(), String(id))} /> : null}
+          {/* B5B-F-105 — revoke reviewer links / withdraw the page: web-managed, explicit handoff. */}
+          {publicVerification || shareUrl ? (
+            <VerificationLinksHandoffCard
+              handoff={verificationManagementHandoff({
+                origin: webOrigin(),
+                evidenceId: id ? String(id) : null,
+                signedIn: platform.context != null,
+                recordTeamId: record.workflow.teamId,
+                activeTeamId: platform.context?.activeTeamId ?? null,
+                workspaceName: platform.context?.displayName ?? null,
+              })}
+            />
+          ) : null}
           {/* T-14 — package download and every retained version (web ArtifactHistorySection). */}
           <ArtifactHistoryPanel evidenceId={String(id)} history={artifactHistory} pairs={matchedPairs} />
           {publicVerification ? <PublicVerificationSharing publicVerification={publicVerification} shareUrl={shareUrl} /> : null}

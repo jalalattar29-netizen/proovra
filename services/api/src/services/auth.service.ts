@@ -4,6 +4,11 @@ import { prisma } from "../db.js";
 import * as prismaPkg from "@prisma/client";
 import { log, error } from "../utils/logger.js";
 import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
+import {
+  ExistingAccountSignInRequiredError,
+  findSelfServeAccountHoldingAddress,
+  lockAccountAddress,
+} from "./identity/account-address-holder.js";
 
 /**
  * Temporary debug tap for the avatar-ingest pipeline. Set
@@ -438,12 +443,12 @@ export async function upsertUser(profile: AuthProfile) {
   return upsertUserWithEmailLink(profile);
 }
 
-export async function upsertUserWithEmailLink(profile: AuthProfile) {
-  debugAvatar("upsertUser.in", {
-    provider: profile.provider,
-    providerUserId: profile.providerUserId,
-    incomingAvatarUrl: profile.avatarUrl ?? null,
-  });
+/**
+ * The account a provider subject signs in to, by subject only: its own legacy
+ * (provider, providerUserId) pair, else an ACTIVE identity link. Null when the
+ * subject has no account yet.
+ */
+async function resolveAccountForSubject(profile: AuthProfile) {
   let user = await prisma.user.findUnique({
     where: {
       provider_providerUserId: {
@@ -501,6 +506,100 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
       });
     }
   }
+  return user;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return Boolean(err && typeof err === "object" && (err as { code?: unknown }).code === "P2002");
+}
+
+/**
+ * B1-F-004 — the creation half of a first sign-in (see the call site). Returns
+ * the new account, or null when a concurrent writer took this subject first
+ * (its pair or its ACTIVE link): the caller resolves again by subject. Throws
+ * ExistingAccountSignInRequiredError when a verified self-serve account holds
+ * the provider-verified address.
+ */
+async function createAccountForFirstSignIn(
+  profile: AuthProfile,
+  ctx: { providerVouchesForEmail: boolean; isOAuthProvider: boolean; now: Date },
+) {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      if (profile.email && ctx.providerVouchesForEmail) {
+        await lockAccountAddress(tx, profile.email);
+        // A concurrent first sign-in of THIS subject committed while we waited
+        // for the lock: it is this person's account, not someone else's
+        // address — resolve to it by subject.
+        const subjectTaken =
+          (await tx.user.findUnique({
+            where: {
+              provider_providerUserId: { provider: profile.provider, providerUserId: profile.providerUserId },
+            },
+            select: { id: true },
+          })) ??
+          (await tx.userIdentityLink.findFirst({
+            where: { provider: profile.provider, providerSubjectId: profile.providerUserId, status: "ACTIVE" },
+            select: { id: true },
+          }));
+        if (subjectTaken) return null;
+        if (await findSelfServeAccountHoldingAddress(tx, profile.email)) {
+          throw new ExistingAccountSignInRequiredError();
+        }
+      }
+      const user = await tx.user.create({
+        data: {
+          provider: profile.provider,
+          providerUserId: profile.providerUserId,
+          email: profile.email ?? null,
+          displayName: profile.displayName ?? null,
+          // Provider-supplied avatar (Google `picture` claim, Apple none).
+          // Custom uploads (future) overwrite this on the profile page.
+          avatarUrl: profile.avatarUrl ?? null,
+          ...(ctx.providerVouchesForEmail ? { emailVerifiedAt: ctx.now } : {}),
+        },
+      });
+      if (ctx.isOAuthProvider) {
+        // A REVOKED row of this subject is re-owned (PRO-009); an ACTIVE row of
+        // another account is never touched — the create below then violates
+        // the subject's unique index and the whole creation rolls back.
+        const reclaimed = await tx.userIdentityLink.updateMany({
+          where: {
+            provider: profile.provider,
+            providerSubjectId: profile.providerUserId,
+            status: "REVOKED",
+          },
+          data: { userId: user.id, status: "ACTIVE", revokedAtUtc: null, lastUsedAtUtc: ctx.now },
+        });
+        if (reclaimed.count === 0) {
+          await tx.userIdentityLink.create({
+            data: {
+              userId: user.id,
+              provider: profile.provider,
+              providerSubjectId: profile.providerUserId,
+              normalizedEmail: profile.email?.toLowerCase() ?? null,
+              providerEmailVerified: ctx.providerVouchesForEmail,
+              status: "ACTIVE",
+              lastUsedAtUtc: ctx.now,
+            },
+          });
+        }
+      }
+      return user;
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) return null;
+    throw err;
+  }
+}
+
+export async function upsertUserWithEmailLink(profile: AuthProfile) {
+  debugAvatar("upsertUser.in", {
+    provider: profile.provider,
+    providerUserId: profile.providerUserId,
+    incomingAvatarUrl: profile.avatarUrl ?? null,
+  });
+  let user = await resolveAccountForSubject(profile);
 
   // EV3 — OAuth providers (Google, Apple) have already verified the
   // email address before issuing the id_token we accepted here.
@@ -546,20 +645,40 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
     }
   }
 
+  let createdNow = false;
   if (!user) {
-    user = await prisma.user.create({
-      data: {
-        provider: profile.provider,
-        providerUserId: profile.providerUserId,
-        email: profile.email ?? null,
-        displayName: profile.displayName ?? null,
-        // Provider-supplied avatar (Google `picture` claim, Apple none).
-        // Custom uploads (future) overwrite this on the profile page.
-        avatarUrl: profile.avatarUrl ?? null,
-        ...(providerVouchesForEmail ? { emailVerifiedAt: now } : {}),
-      },
+    /*
+     * B1-F-004 (free-audit 0ea0) — A FIRST-TIME SUBJECT OPENS AN ACCOUNT ONLY
+     * WHEN NOBODY ELSE HOLDS ITS VERIFIED ADDRESS, AND IT OPENS IT WHOLE.
+     *
+     * One transaction: the per-address lock a password registration also takes,
+     * the holder check (account-address-holder.ts — a verified, self-serve, open
+     * account), the User row and its ACTIVE identity link. A holder means the
+     * person already has an account: refuse with a guidance code (sign in there,
+     * connect this provider through the step-up linking flow) — nothing is
+     * created, merged or linked. An unverified provider address neither checks
+     * nor reveals anything; it opens an account as before.
+     *
+     * The link is written WITH the row, not best-effort after it: a concurrent
+     * link of this subject to another account (identity-links.routes.ts) or a
+     * concurrent first sign-in of the same subject hits a unique index and rolls
+     * the whole creation back, and the sign-in resolves again to whichever
+     * account won — one subject never ends up split across two accounts.
+     */
+    const created = await createAccountForFirstSignIn(profile, {
+      providerVouchesForEmail,
+      isOAuthProvider,
+      now,
     });
-  } else {
+    if (created) {
+      user = created;
+      createdNow = true;
+    } else {
+      user = await resolveAccountForSubject(profile);
+      if (!user) throw new Error("first_sign_in_conflict_unresolved");
+    }
+  }
+  if (!createdNow) {
     // B-04 — the address this sign-in writes. When it differs from the held
     // one, the old verification stamp proves nothing about it: the account is
     // verified now if the provider vouches for the new address, otherwise not

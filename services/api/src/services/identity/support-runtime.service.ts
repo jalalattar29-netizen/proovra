@@ -895,3 +895,85 @@ export async function buildSupportAccessEnvelopeSection(
     return null;
   }
 }
+
+/**
+ * B7A-F-005 (free-audit 0ea0) — THE CUSTOMER SCOPES A STAFF ACTOR MAY SEE
+ * RECORD SUBJECT DATA IN.
+ *
+ * Platform staff list customer records for operational reasons (evidence
+ * health rosters, global search). Those reads are platform-admin gated and
+ * audited, but the gate says nothing about the CUSTOMER having let anyone see
+ * a record's title or its owner's email. The consented, audited authority for
+ * that is the support grant (`startSupportAccess`: a reason, a customer-side
+ * approver or a recorded exception, an 8-hour ceiling, revocable, written to
+ * the customer's own trail).
+ *
+ * This returns the actor's grants that `evaluateSupportAccess` says are live
+ * now. It decides nothing else: a list surface asks `supportScopeCovering`
+ * per row and withholds the subject data when no grant covers it.
+ */
+export type SupportDisclosureScope = {
+  grantId: string;
+  organizationId: string;
+  teamId: string | null;
+  grant: GrantRow;
+};
+
+export async function activeSupportDisclosureScopes(
+  supportActorUserId: string | null | undefined,
+  client: Pick<PrismaClient, "supportAccessGrant"> = defaultPrisma,
+  nowMs: number = Date.now(),
+): Promise<SupportDisclosureScope[]> {
+  if (!supportActorUserId) return [];
+  let rows: GrantRow[];
+  try {
+    rows = (await client.supportAccessGrant.findMany({
+      where: { supportUserId: supportActorUserId, status: "ACTIVE" },
+      select: {
+        id: true,
+        supportUserId: true,
+        organizationId: true,
+        teamId: true,
+        reason: true,
+        accessLevel: true,
+        status: true,
+        expiresAtUtc: true,
+        revokedAtUtc: true,
+        approvedByUserId: true,
+      },
+    })) as GrantRow[];
+  } catch {
+    // Fail closed: an unreadable grant table discloses nothing.
+    return [];
+  }
+  return rows
+    .filter(
+      (g) =>
+        evaluateSupportAccess(g, { organizationId: g.organizationId, teamId: g.teamId, nowMs }).active,
+    )
+    .map((g) => ({ grantId: g.id, organizationId: g.organizationId, teamId: g.teamId, grant: g }));
+}
+
+/** The live grant covering one customer record, or null (withhold). */
+export function supportScopeCovering(
+  scopes: readonly SupportDisclosureScope[],
+  target: { organizationId: string | null | undefined; teamId: string | null | undefined },
+  nowMs: number = Date.now(),
+): SupportDisclosureScope | null {
+  if (!target.organizationId) return null;
+  for (const s of scopes) {
+    // A workspace-narrowed grant covers only that workspace; a record with no
+    // workspace is covered only by an organization-wide grant.
+    if (s.teamId && s.teamId !== (target.teamId ?? null)) continue;
+    if (
+      evaluateSupportAccess(s.grant, {
+        organizationId: target.organizationId,
+        teamId: target.teamId ?? null,
+        nowMs,
+      }).active
+    ) {
+      return s;
+    }
+  }
+  return null;
+}

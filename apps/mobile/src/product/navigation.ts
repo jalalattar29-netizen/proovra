@@ -115,7 +115,9 @@ export const NATIVE_NAV_ROUTES: readonly NativeNavRoute[] = [
     id: "workspace.intake_links", webHref: "/intake-links", href: "/intake-links", label: "Intake links",
     domain: "PERSONAL_WORKSPACE", requiredCapabilities: ["INTAKE_LINKS_MANAGE"],
     requiredActiveSpace: "PERSONAL_OR_ORG", fallbackBehavior: "REQUEST_ACCESS",
-    requiredPlanFeature: "intakeIncluded", group: "WORKSPACE", icon: "link-2",
+    // B3B-F-104 — mirrors the web registry: a navigation key (hidden without
+    // intake, still loads manage-only), no longer a load gate.
+    navPlanFeature: "intakeIncluded", group: "WORKSPACE", icon: "link-2",
   },
   {
     id: "workspace.search", webHref: "/search", href: "/search", label: "Search",

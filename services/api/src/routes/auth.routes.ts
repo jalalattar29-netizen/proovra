@@ -12,6 +12,7 @@ import {
 } from "../services/auth.service.js";
 import { bindIdTokenToAttempt } from "../services/auth/social-sign-in-nonce.service.js";
 import { isAccountClosed } from "../services/identity/account-closed.js";
+import { EXISTING_ACCOUNT_SIGN_IN_REQUIRED } from "../services/identity/account-address-holder.js";
 
 import {
   registerWithEmailPassword,
@@ -1040,6 +1041,18 @@ export async function authRoutes(app: FastifyInstance) {
         metadata: { reason: message },
       });
 
+      // B1-F-004 (free-audit 0ea0) — the verified address belongs to an existing
+      // account and this provider subject is not linked to it: nothing was
+      // created. The person signs in there and connects this provider through
+      // the step-up linking flow. No account id or sign-in method is named.
+      if ((err as { code?: unknown } | null)?.code === EXISTING_ACCOUNT_SIGN_IN_REQUIRED) {
+        return reply.code(409).send({
+          code: "EXISTING_ACCOUNT_SIGN_IN_REQUIRED",
+          message:
+            "An account already uses this email address. Sign in to it the way you did before, then connect this sign-in method from Security > Sign-in methods.",
+        });
+      }
+
       // B1-F-016 (free-audit 0ea0): the code alone; operator configuration
       // (redirect URI names and values) belongs in the audit row above.
       if (message === "invalid_code") {
@@ -1146,6 +1159,18 @@ export async function authRoutes(app: FastifyInstance) {
         severity: "warning",
         metadata: { reason: message },
       });
+
+      // B1-F-004 (free-audit 0ea0) — the verified address belongs to an existing
+      // account and this provider subject is not linked to it: nothing was
+      // created. The person signs in there and connects this provider through
+      // the step-up linking flow. No account id or sign-in method is named.
+      if ((err as { code?: unknown } | null)?.code === EXISTING_ACCOUNT_SIGN_IN_REQUIRED) {
+        return reply.code(409).send({
+          code: "EXISTING_ACCOUNT_SIGN_IN_REQUIRED",
+          message:
+            "An account already uses this email address. Sign in to it the way you did before, then connect this sign-in method from Security > Sign-in methods.",
+        });
+      }
 
       // B1-F-016 (free-audit 0ea0): the code alone; operator configuration
       // (redirect URI names and values) belongs in the audit row above.
@@ -1636,6 +1661,20 @@ export async function authRoutes(app: FastifyInstance) {
       });
       const proof = passwordProofRefusal(result.reason);
       if (proof) return reply.code(403).send(proof);
+      // B1-F-004 (residual pass 2026-11-17) — another account already holds
+      // this address verified (a Google/Apple sign-in made while this
+      // registration was unverified). Only the holder of the emailed token
+      // reaches this answer; no account id or method is named.
+      if (result.reason === "address_held_by_existing_account") {
+        return reply.code(409).send({
+          error: {
+            code: "EXISTING_ACCOUNT_SIGN_IN_REQUIRED",
+            message:
+              "An account already uses this email address. Sign in to it the way you did before (for example with Google or Apple); this unfinished registration was not activated.",
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
       return reply.code(400).send({
         error: {
           code: "INVALID_OR_EXPIRED",

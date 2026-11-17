@@ -43,15 +43,15 @@
       "reviewedAtUtc": "2026-10-07"
     },
     {
-      "site": "apps/web/components/contact-sales-form.tsx:71",
+      "site": "apps/web/components/contact-sales-form.tsx:128",
       "class": "LOCAL_NEXT_ROUTE",
-      "evidence": "apps/web/components/contact-sales-form.tsx:27 — `submitUrl = \"/api/contact-sales\"` is a defaulted prop naming a Next.js route handler in the web app. Re-anchored 2026-11-10 (64 -> 71; AUD-0059 field-error wiring; same call).",
+      "evidence": "apps/web/components/contact-sales-form.tsx:86 — `submitUrl = \"/api/contact-sales\"` is a defaulted prop naming a Next.js route handler in the web app. Re-anchored 2026-11-10 (64 -> 71; AUD-0059 field-error wiring; same call). Re-anchored 2026-11-17 (71 -> 128; B2A-F-12 dictionary copy; same call).",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/components/request-demo-form.tsx:249",
+      "site": "apps/web/components/request-demo-form.tsx:313",
       "class": "LOCAL_NEXT_ROUTE",
-      "evidence": "Same shape as contact-sales-form: a defaulted `submitUrl` prop naming a Next.js route handler. Re-anchored 2026-11-10 (152 -> 249; AUD-0059 field-error wiring; same call).",
+      "evidence": "Same shape as contact-sales-form: a defaulted `submitUrl` prop naming a Next.js route handler. Re-anchored 2026-11-10 (152 -> 249; AUD-0059 field-error wiring; same call). Re-anchored 2026-11-17 (249 -> 313; B2A-F-12 dictionary copy; same call).",
       "reviewedAtUtc": "2026-08-15"
     },
     {

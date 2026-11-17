@@ -1177,3 +1177,74 @@ describe("KPI number tone", () => {
     ).toMatch(/more than one count/i);
   });
 });
+
+// ===========================================================================
+// B3B-F-104 (Free-user audit 0ea0) — manage-only mode after losing intake
+// ===========================================================================
+
+describe("B3B-F-104 — a plan without intake gets the page in manage-only mode", () => {
+  const downgraded = (over: Record<string, unknown> = {}) =>
+    envelope({ account: { accountPlan: "FREE", accountStatus: "active" }, planFeatures: { intakeIncluded: false }, ...over });
+
+  it("lists the standing links, says why creation is unavailable, and offers no creation", async () => {
+    currentSearch = "new=1"; // a stale deep link must not open the wizard either
+    listReply = () => ({ items: MIXED });
+    await mount(downgraded());
+    const note = document.querySelector('[data-intake-links-manage-only="true"]') as HTMLElement;
+    expect(note).toBeTruthy();
+    expect(note.textContent).toMatch(/aren.t included in your current plan/i);
+    expect(note.textContent).toMatch(/disable and archive/i);
+    expect(within(note).getByRole("link", { name: "Billing" }).getAttribute("href")).toBe("/billing");
+    expect(document.querySelector("[data-intake-links-table]")).toBeTruthy();
+    expect(document.querySelector('[data-intake-links-new-cta="true"]')).toBeNull();
+    expect(document.querySelector('[data-testid="intake-link-create-wizard"]')).toBeNull();
+  });
+
+  it("a standing link can still be disabled (revoke) through the existing route", async () => {
+    listReply = () => ({ items: [MIXED[0]] });
+    await mount(downgraded());
+    await act(async () => {
+      fireEvent.click(document.querySelector("[data-intake-links-row-menu-trigger]") as HTMLElement);
+    });
+    const menu = document.querySelector('[role="menu"]') as HTMLElement;
+    await act(async () => {
+      fireEvent.click(within(menu).getByRole("menuitem", { name: /disable link/i }));
+    });
+    const dialog = await screen.findByRole("dialog");
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: /disable link/i }));
+    });
+    await waitFor(() =>
+      expect(requestLog.some((r) => r.method === "POST" && r.path.endsWith(`/${MIXED[0]!.link.id}/revoke`))).toBe(true),
+    );
+  });
+
+  it("with no standing links the empty state offers no starters", async () => {
+    listReply = () => ({ items: [] });
+    await mount(downgraded());
+    expect(document.querySelector('[data-intake-links-empty="true"]')).toBeTruthy();
+    expect(document.querySelector('[data-intake-links-empty-create="true"]')).toBeNull();
+    expect(document.querySelector("[data-intake-links-quick-start]")).toBeNull();
+    expect(document.querySelector('[data-intake-links-manage-only="true"]')).toBeTruthy();
+  });
+
+  it("a member without INTAKE_LINKS_MANAGE gets the restricted panel, not the manage-only list", async () => {
+    await mount(downgraded({ capabilities: {} }));
+    expect(document.querySelector('[data-intake-links-restricted="forbidden"]')).toBeTruthy();
+    expect(document.querySelector('[data-intake-links-manage-only="true"]')).toBeNull();
+    expect(document.querySelector("[data-intake-links-table]")).toBeNull();
+  });
+
+  it("a foreign or refused workspace (API 404) is restricted, and the notice is withdrawn", async () => {
+    listReply = () => apiFailure(404) as unknown as Record<string, unknown>;
+    await mount(downgraded());
+    expect(document.querySelector('[data-intake-links-restricted="forbidden"]')).toBeTruthy();
+    expect(document.querySelector("[data-intake-links-table]")).toBeNull();
+  });
+
+  it("control: a plan with intake shows no manage-only notice and offers creation", async () => {
+    await mount();
+    expect(document.querySelector('[data-intake-links-manage-only="true"]')).toBeNull();
+    expect(document.querySelector('[data-intake-links-new-cta="true"]')).toBeTruthy();
+  });
+});

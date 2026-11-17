@@ -36,6 +36,7 @@ import {
   isStaleThreadError,
   messageAuthorLabel,
   offeredThreadActions,
+  reviewerOperationsFromEnvelope,
   parseEvidenceThreadMessages,
   parseEvidenceThreads,
   parseThreadDetail,
@@ -55,6 +56,7 @@ import { ProovraBadge, ProovraButton, ProovraCard, ProovraFormField, ProovraInpu
 import { ProovraConfirmSheet, ProovraFilterChips } from "./patterns";
 import { WorkspaceMemberPicker } from "./workspace-member-picker";
 import { PresenceIndicator } from "./presence-indicator";
+import { usePlatformContext } from "../product/platform-context";
 
 export function EvidenceDiscussion({
   evidenceId,
@@ -343,6 +345,8 @@ function ThreadLifecycle({
   roster: Readonly<Record<string, string>>;
   onChanged: () => void;
 }) {
+  // B3C-F-008 — assign / escalate follow the plan's reviewer operations.
+  const reviewerOperations = reviewerOperationsFromEnvelope(usePlatformContext().envelope);
   const [detail, setDetail] = useState<{ phase: "loading" } | { phase: "ready"; value: ThreadDetail } | { phase: "failed"; message: string }>({
     phase: "loading",
   });
@@ -391,7 +395,7 @@ function ThreadLifecycle({
       ? "The thread details must load before its state can change."
       : null;
   const blocked = open ? threadActionBlocked(open, text, assignee?.userId ?? null, value) : null;
-  const offered = offeredThreadActions(value, readOnly);
+  const offered = offeredThreadActions(value, readOnly, reviewerOperations);
 
   const openForm = (a: ThreadAction) => {
     setOpen((cur) => (cur === a ? null : a));

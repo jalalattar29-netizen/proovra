@@ -133,6 +133,12 @@ export const NOTIFICATION_EVENT_TYPES = [
   // PROV-013 — an organization's owners and administrators are told when a
   // contract termination is scheduled, not when it has already happened.
   "ORGANIZATION_TERMINATION_SCHEDULED",
+  // B7A-F-006 — the OWNER of a record whose issued output was signed or sealed
+  // by key material PROOVRA later declared compromised. One notice per owner
+  // per record per compromise. The body names no key, fingerprint, operator
+  // reason, record title or content — only that verification now reports the
+  // output's signature as revoked and what the owner can do.
+  "SIGNING_KEY_COMPROMISE_NOTICE",
 ] as const;
 export const NotificationEventTypeSchema = z.enum(NOTIFICATION_EVENT_TYPES);
 export type NotificationEventType = z.infer<typeof NotificationEventTypeSchema>;

@@ -1,3 +1,10 @@
+import { APP_SHELL_COPY } from "./i18n-app-shell.js";
+import { HOME_COPY } from "./i18n-home.js";
+import { SEARCH_COPY } from "./i18n-search.js";
+import { SUPPORT_LEADS_COPY } from "./i18n-support-leads.js";
+
+export { APP_SHELL_COPY, HOME_COPY, SEARCH_COPY, SUPPORT_LEADS_COPY };
+
 export type Locale = "en" | "ar" | "de" | "fr" | "es" | "tr" | "ru";
 
 export const supportedLocales: Locale[] = ["en", "ar", "de", "fr", "es", "tr", "ru"];
@@ -91,7 +98,12 @@ export const dict = {
     loginErrorAppleFailed: "Apple sign-in failed",
     loginErrorEmailRequired: "Enter your email address.",
     loginErrorEmailInvalid: "Enter a valid email address.",
-    loginErrorPasswordRequired: "Enter your password."
+    loginErrorPasswordRequired: "Enter your password.",
+    // B2A-F-12 — the app shell, Home, Search, support and lead forms.
+    ...APP_SHELL_COPY.en,
+    ...HOME_COPY.en,
+    ...SEARCH_COPY.en,
+    ...SUPPORT_LEADS_COPY.en
   },
   ar: {
     brand: "PROO✓RA",
@@ -180,7 +192,12 @@ export const dict = {
     loginErrorAppleFailed: "فشل تسجيل الدخول عبر Apple",
     loginErrorEmailRequired: "أدخل عنوان بريدك الإلكتروني.",
     loginErrorEmailInvalid: "أدخل عنوان بريد إلكتروني صالحًا.",
-    loginErrorPasswordRequired: "أدخل كلمة المرور."
+    loginErrorPasswordRequired: "أدخل كلمة المرور.",
+    // B2A-F-12 — the app shell, Home, Search, support and lead forms.
+    ...APP_SHELL_COPY.ar,
+    ...HOME_COPY.ar,
+    ...SEARCH_COPY.ar,
+    ...SUPPORT_LEADS_COPY.ar
   },
   de: {
     brand: "PROO✓RA",
@@ -269,7 +286,12 @@ export const dict = {
     loginErrorAppleFailed: "Apple-Anmeldung fehlgeschlagen",
     loginErrorEmailRequired: "Geben Sie Ihre E-Mail-Adresse ein.",
     loginErrorEmailInvalid: "Geben Sie eine gültige E-Mail-Adresse ein.",
-    loginErrorPasswordRequired: "Geben Sie Ihr Passwort ein."
+    loginErrorPasswordRequired: "Geben Sie Ihr Passwort ein.",
+    // B2A-F-12 — the app shell, Home, Search, support and lead forms.
+    ...APP_SHELL_COPY.de,
+    ...HOME_COPY.de,
+    ...SEARCH_COPY.de,
+    ...SUPPORT_LEADS_COPY.de
   },
   fr: {
     brand: "PROO✓RA",
@@ -358,7 +380,12 @@ export const dict = {
     loginErrorAppleFailed: "Échec de la connexion avec Apple",
     loginErrorEmailRequired: "Saisissez votre adresse e-mail.",
     loginErrorEmailInvalid: "Saisissez une adresse e-mail valide.",
-    loginErrorPasswordRequired: "Saisissez votre mot de passe."
+    loginErrorPasswordRequired: "Saisissez votre mot de passe.",
+    // B2A-F-12 — the app shell, Home, Search, support and lead forms.
+    ...APP_SHELL_COPY.fr,
+    ...HOME_COPY.fr,
+    ...SEARCH_COPY.fr,
+    ...SUPPORT_LEADS_COPY.fr
   },
   es: {
     brand: "PROO✓RA",
@@ -447,7 +474,12 @@ export const dict = {
     loginErrorAppleFailed: "Error al iniciar sesión con Apple",
     loginErrorEmailRequired: "Introduce tu dirección de correo electrónico.",
     loginErrorEmailInvalid: "Introduce una dirección de correo electrónico válida.",
-    loginErrorPasswordRequired: "Introduce tu contraseña."
+    loginErrorPasswordRequired: "Introduce tu contraseña.",
+    // B2A-F-12 — the app shell, Home, Search, support and lead forms.
+    ...APP_SHELL_COPY.es,
+    ...HOME_COPY.es,
+    ...SEARCH_COPY.es,
+    ...SUPPORT_LEADS_COPY.es
   },
   tr: {
     brand: "PROO✓RA",
@@ -536,7 +568,12 @@ export const dict = {
     loginErrorAppleFailed: "Apple ile giriş başarısız oldu",
     loginErrorEmailRequired: "E-posta adresinizi girin.",
     loginErrorEmailInvalid: "Geçerli bir e-posta adresi girin.",
-    loginErrorPasswordRequired: "Şifrenizi girin."
+    loginErrorPasswordRequired: "Şifrenizi girin.",
+    // B2A-F-12 — the app shell, Home, Search, support and lead forms.
+    ...APP_SHELL_COPY.tr,
+    ...HOME_COPY.tr,
+    ...SEARCH_COPY.tr,
+    ...SUPPORT_LEADS_COPY.tr
   },
   ru: {
     brand: "PROO✓RA",
@@ -625,9 +662,22 @@ export const dict = {
     loginErrorAppleFailed: "Ошибка входа через Apple",
     loginErrorEmailRequired: "Введите адрес электронной почты.",
     loginErrorEmailInvalid: "Введите корректный адрес электронной почты.",
-    loginErrorPasswordRequired: "Введите пароль."
+    loginErrorPasswordRequired: "Введите пароль.",
+    // B2A-F-12 — the app shell, Home, Search, support and lead forms.
+    ...APP_SHELL_COPY.ru,
+    ...HOME_COPY.ru,
+    ...SEARCH_COPY.ru,
+    ...SUPPORT_LEADS_COPY.ru
   }
 } as const;
+
+/**
+ * B2A-F-12 — fill `{name}` placeholders in a dictionary string. An unknown
+ * placeholder is left as written (visible in review, never a crash).
+ */
+export function fillCopy(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_m, k: string) => (k in values ? String(values[k]) : `{${k}}`));
+}
 
 // ===========================================================================
 // OPERATIONS (OPS-020 / OPS-035) — one dictionary for the web page and the

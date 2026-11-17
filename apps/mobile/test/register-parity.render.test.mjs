@@ -100,7 +100,7 @@ test("a server 409 turns into the existing-account answer with Sign in / Forgot 
   await r.press(CONSENT);
   await submit(r);
   await settle();
-  assert.ok(r.hasText("An account already exists for this email. Sign in or reset your password instead."));
+  assert.ok(r.hasText("An account already exists for this email. Sign in the way you did before (password, Google or Apple), or reset your password if you set one."));
   assert.equal(r.byLabel("Forgot password?").length, 1);
 });
 

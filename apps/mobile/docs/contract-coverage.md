@@ -202,7 +202,7 @@ top level of it.
 | OK | `parsePortalAuth` | `POST /v1/portal/auth` | expiresAtUtc, newLogin, reviewerEmail, role, sessionId | expiresAtUtc, newLogin, reviewerEmail, role, sessionId |
 | OK | `parseWorkspaceInviteAccept` | `POST /v1/teams/invites/accept` | alreadyMember, role, workspaceId | alreadyMember, workspaceId |
 | OK | `parseWorkspaceInviteLookup` | `POST /v1/teams/invites/lookup` | context, state | context, state |
-| OK | `parseCreatedIntakeLink` | `POST /v1/workflow/intake-links` | delivery, link, rawToken, warning | delivery, link, rawToken |
+| OK | `parseCreatedIntakeLink` | `POST /v1/workflow/intake-links` | delivery, link, rawToken, replayed, tokenRevealed, warning | delivery, link, rawToken |
 | OK | `parseRevealedContact` | `POST /v1/workflow/intake-links/:id/recipient-contact` | recipientContact | recipientContact, recipientEmail, recipientPhone |
 | OK | `parseAiPolicyEnvelope` | `PUT /v1/teams/ai-policy` | hasExplicitPolicy, policy, version | hasExplicitPolicy, lastModifiedAtUtc, policy, version |
 

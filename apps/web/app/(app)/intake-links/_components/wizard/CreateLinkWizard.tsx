@@ -35,6 +35,7 @@ import {
   WIZARD_STEP_LABEL,
   buildCreateBody,
   channelUnavailableReason,
+  createdReplayNotice,
   eligibleIntakeModes,
   firstInvalidField,
   friendlyCreateError,
@@ -304,6 +305,16 @@ export function CreateLinkWizard({
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       })) as CreatedIntakeLink;
+      // B3B-F-102 — a retry of a create that already happened answers the
+      // original link without its one-time secure link; say so here rather
+      // than opening a reveal dialog with nothing to reveal.
+      const replay = createdReplayNotice(created);
+      if (replay) {
+        setSubmitError(replay);
+        submittingRef.current = false;
+        setBusy(false);
+        return;
+      }
       onCreated(created);
     } catch (err) {
       const e = err as { code?: string; message?: string };

@@ -156,7 +156,14 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // fail-closed fallback while the envelope is loading/unknown. The
   // previous plan-literal PRO/TEAM tier wrongly excluded PAYG, which the
   // canonical catalog includes.
-  { pathPrefix: "/intake-links", tier: "PROFESSIONAL", entitlementOverride: "intakeIncluded", directAccessPolicy: "redirect", reason: "intake links (per intakeIncluded entitlement)" },
+  //
+  // B3B-F-104 (Free-user audit 0ea0, owner directive) — the direct URL now
+  // ALWAYS loads (as `/cases` does): a plan without intake gets the page in
+  // manage-only mode so standing links stay reachable and revocable. Whether
+  // the entry is OFFERED in navigation is the route registry's
+  // `navPlanFeature: "intakeIncluded"`, and creation is refused by the page
+  // and by the API on the plan.
+  { pathPrefix: "/intake-links", tier: "CORE", directAccessPolicy: "allow", reason: "intake links (manage-only without intakeIncluded; creation per entitlement)" },
   // OpsCenter visibility remediation (2026-07-18) — the Operations
   // Center is an OPERATIONAL surface, not a paid-plan surface. The
   // backend serves /v1/me/inbox to every authenticated account, mandatory

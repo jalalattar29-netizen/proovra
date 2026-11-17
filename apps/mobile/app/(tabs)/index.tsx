@@ -74,7 +74,7 @@ import {
   HomeWorkspaceHealthCard,
 } from "../../src/ui/home-overview";
 import { HomeIntakePipelineCard } from "../../src/ui/home-intake-pipeline";
-import { HOME_INTAKE_MESSAGES_PATH, buildIntakePipeline } from "../../src/product/home-intake";
+import { HOME_INTAKE_MESSAGES_PATH, buildIntakePipeline, homeReadsIntakeMessages } from "../../src/product/home-intake";
 import {
   RECORDS_BY_TYPE_PATH,
   buildActivityGroups,
@@ -129,6 +129,8 @@ export default function HomeScreen() {
   // B2A-F-01 — the viewer's own billing figures describe ONLY their own
   // Personal Space; elsewhere they are not shown.
   const ownPersonal = isOwnPersonalActiveSpace(platform.envelope);
+  // B3C-F-002 — only a messaging operator reads the workspace message log.
+  const readsIntakeMessages = homeReadsIntakeMessages(platform.envelope);
   const [recordAllowance, setRecordAllowance] = useState<HomeRecordAllowance | null>(null);
 
   const [tab, setTab] = useState<HomeTabId>("overview");
@@ -190,7 +192,8 @@ export default function HomeScreen() {
       teamId ? apiFetch(scoped(RECORDS_BY_TYPE_PATH)) : Promise.resolve(null),
       apiFetch("/v1/evidence?scope=active&limit=100"),
       // Latest delivery per intake link, for the Intake status card.
-      teamId ? apiFetch(scoped(HOME_INTAKE_MESSAGES_PATH)) : Promise.resolve(null),
+      // B3C-F-002 — the workspace message log is the messaging operator's read.
+      teamId && readsIntakeMessages ? apiFetch(scoped(HOME_INTAKE_MESSAGES_PATH)) : Promise.resolve(null),
       // THE canonical workspace Operations summary: may Home say "All clear"?
       // (useHomeData.ts:185-195; ops.routes.ts:883 answers { summary, workspace }).
       teamId ? apiFetch(`/v1/ops/summary?teamId=${encodeURIComponent(teamId)}`) : Promise.resolve(null),
@@ -256,7 +259,7 @@ export default function HomeScreen() {
     const payload = evidence.value as { items?: EvidenceItem[] } | undefined;
     setItems(payload?.items ?? []);
     setState("ready");
-  }, [teamId, ownPersonal]);
+  }, [teamId, ownPersonal, readsIntakeMessages]);
 
   useEffect(() => {
     void load();

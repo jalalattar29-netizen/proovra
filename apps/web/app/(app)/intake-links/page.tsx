@@ -73,6 +73,7 @@ import { DetailsDrawer } from "./_components/DetailsDrawer";
 import { SubmissionsDrawer } from "./_components/SubmissionsDrawer";
 import { LinkCreatedDialog } from "./_components/LinkCreatedDialog";
 import { CreateLinkWizard } from "./_components/wizard/CreateLinkWizard";
+import { ManageOnlyNotice, useIntakeCreation } from "./_components/ManageOnly";
 import { IconLink, IconPlus } from "./_components/icons";
 import {
   DEFAULT_FILTERS,
@@ -113,6 +114,7 @@ function IntakeLinksManagement() {
   const { envelope } = usePlatformContext();
   const { workspaceName } = useOwningContextLabel();
   const canManage = useCan("INTAKE_LINKS_MANAGE");
+  const { canCreate, manageOnly } = useIntakeCreation(canManage); // B3B-F-104
   const { confirm } = useConfirmAction();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -179,16 +181,16 @@ function IntakeLinksManagement() {
   );
 
   React.useEffect(() => {
-    if (!teamId) return;
+    if (!teamId || !canManage) return; // no read for an actor the page will refuse
     // Drop the prior tenant's rows before re-fetching so a workspace switch
     // never flashes another workspace's intake links.
     setLoad({ kind: "loading" });
     setTemplates([]);
     void fetchLinks(teamId, "initial");
-  }, [teamId, fetchLinks]);
+  }, [teamId, canManage, fetchLinks]);
 
   React.useEffect(() => {
-    if (!teamId) return;
+    if (!teamId || !canManage) return;
     let cancelled = false;
     apiFetch(`/v1/workflow/templates?teamId=${encodeURIComponent(teamId)}`, {
       method: "GET",
@@ -205,7 +207,7 @@ function IntakeLinksManagement() {
     return () => {
       cancelled = true;
     };
-  }, [teamId]);
+  }, [teamId, canManage]);
 
   // ---- Filters (URL-backed) ---------------------------------------------
   const [filters, setFilters] = React.useState<FilterState>(() =>
@@ -433,7 +435,7 @@ function IntakeLinksManagement() {
    * is an affordance that cannot do what it says, and clicking it would open a
    * wizard whose Create the server is certain to refuse.
    */
-  const canOfferCreate = canManage && Boolean(teamId) && effective.kind === "ready";
+  const canOfferCreate = canCreate && Boolean(teamId) && effective.kind === "ready";
 
   // The canonical internal page header (icon + title + subtitle + one primary
   // action), rendered through PageShell exactly as the other migrated internal
@@ -474,7 +476,7 @@ function IntakeLinksManagement() {
             <span>New intake link</span>
           </button>
         </div>
-      ) : null}
+      ) : <ManageOnlyNotice show={manageOnly && effective.kind !== "restricted"} />}
     </div>
   );
 
@@ -509,7 +511,7 @@ function IntakeLinksManagement() {
 
       {effective.kind === "ready" && items.length === 0 ? (
         <EmptyState
-          canCreate={canManage}
+          canCreate={canCreate}
           onCreate={() => openWizard()}
           onPickPurpose={(slug) => openWizard(slug)}
         />
@@ -572,7 +574,7 @@ function IntakeLinksManagement() {
         </>
       ) : null}
 
-      {wizard && teamId && canManage ? (
+      {wizard && teamId && canCreate ? (
         <CreateLinkWizard
           team={{ id: teamId, name: teamName }}
           templates={templates}
@@ -586,7 +588,7 @@ function IntakeLinksManagement() {
                 : "";
             setCreated({
               result: res,
-              intakeUrl: `${base}/intake/${encodeURIComponent(res.rawToken)}`,
+              intakeUrl: `${base}/intake/${encodeURIComponent(res.rawToken ?? "")}`, // a replay (no token) is answered by the wizard
             });
             refresh();
           }}

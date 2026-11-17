@@ -219,6 +219,19 @@ describe("F-26f / F-06 — /auth/verify-email", () => {
     expect(router.push).toHaveBeenCalledWith("/home");
   });
 
+  it("B1-F-004 (residual) — an address another account holds is not an expired link: the page says to sign in there", async () => {
+    params = new URLSearchParams({ token: "tok" });
+    answer = (p) =>
+      p === "/v1/auth/email/verify"
+        ? json(409, { error: { code: "EXISTING_ACCOUNT_SIGN_IN_REQUIRED", message: "An account already uses this email address." } })
+        : json(200, {});
+    render(<VerifyEmailPage />);
+    await settle();
+    expect(screen.getByTestId("verify-existing-account")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "An account already uses this email address" })).toBeTruthy();
+    expect(screen.queryByText("Verification link invalid or expired")).toBeNull();
+  });
+
   it("a throttle is not an expired link", async () => {
     params = new URLSearchParams({ token: "tok" });
     answer = (p) => (p === "/v1/auth/email/verify" ? json(429, { message: "rate_limited" }) : json(200, {}));

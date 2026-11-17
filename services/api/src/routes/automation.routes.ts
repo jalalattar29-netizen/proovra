@@ -273,6 +273,33 @@ async function refuseWebhookActionWithoutEntitlement(
   return true;
 }
 
+/**
+ * B7B-F06 (Free-user audit 0ea0, owner directive) — workspace automation is a
+ * governance capability: the web surface is Enterprise-tier, and Pricing lists
+ * "Governance controls: Not included" off Enterprise. The catalogue key that
+ * entitles it is the packaging engine's FEATURE_GOVERNANCE_PLATFORM (the
+ * ENTERPRISE line, or an ACTIVE Enterprise contract), the same key governance
+ * policy authoring asks. Asked when a rule is created, re-authored (condition
+ * or action config) or enabled — and by the queued executor
+ * (`automation-dispatch-runtime.service.ts`). Listing, reading runs,
+ * renaming, disabling and deleting stay open, so a workspace that lost the
+ * capability can still see and switch off what it built.
+ */
+async function refuseAutomationWithoutGovernance(
+  reply: FastifyReply,
+  teamId: string,
+  actorUserId: string,
+): Promise<boolean> {
+  const entitled = await assertFeatureEntitlement({
+    teamId,
+    key: "FEATURE_GOVERNANCE_PLATFORM",
+    actorUserId,
+  });
+  if (entitled.ok) return false;
+  reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_GOVERNANCE_PLATFORM" });
+  return true;
+}
+
 export async function automationRoutes(
   app: FastifyInstance,
 ): Promise<void> {
@@ -348,6 +375,7 @@ export async function automationRoutes(
       // by Zod above.
       const actionType = body.data.actionType as AutomationActionType;
       if (await refuseWebhookActionWithoutEntitlement(reply, body.data.teamId, actionType, member.userId)) return;
+      if (await refuseAutomationWithoutGovernance(reply, body.data.teamId, member.userId)) return;
       const actionResult = validateActionConfig(
         actionType,
         body.data.actionConfigJson,
@@ -452,6 +480,15 @@ export async function automationRoutes(
         if (await refuseWebhookActionWithoutEntitlement(reply, existing.teamId, existing.actionType, member.userId)) return;
         data.actionConfigJson = r.config as object;
       }
+      // B7B-F06 — re-authoring what the rule does (its condition or action)
+      // is authoring automation; a rename alone is not. Asked after the body
+      // is validated, before anything is written.
+      if (
+        (data.conditionJson !== undefined || data.actionConfigJson !== undefined) &&
+        (await refuseAutomationWithoutGovernance(reply, existing.teamId, member.userId))
+      ) {
+        return;
+      }
 
       const updated = await prisma.automationRule.update({
         where: { id: existing.id },
@@ -499,6 +536,7 @@ export async function automationRoutes(
         return;
       }
       if (await refuseWebhookActionWithoutEntitlement(reply, existing.teamId, existing.actionType, member.userId)) return;
+      if (await refuseAutomationWithoutGovernance(reply, existing.teamId, member.userId)) return;
     }
     const updated = await prisma.automationRule.update({
       where: { id: existing.id },

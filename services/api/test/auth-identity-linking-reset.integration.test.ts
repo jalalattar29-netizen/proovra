@@ -517,10 +517,15 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
     });
     expect(unlink.statusCode, unlink.body).toBe(200);
 
+    // Google no longer signs in here. B1-F-004 (free-audit 0ea0): the address
+    // is this account's, verified, so the unlinked identity does not open a
+    // second account either — it is told to sign in and connect Google again.
     const again = await google(sub, gEmail);
-    expect(again.status, again.raw.body).toBe(200);
-    expect((again.json!.user as Json).id).not.toBe(uid);
-    expect((await prisma.userIdentityLink.findUniqueOrThrow({ where: { id: link.id } })).userId).not.toBe(uid);
+    expect(again.status, again.raw.body).toBe(409);
+    expect(body(again.raw).code).toBe("EXISTING_ACCOUNT_SIGN_IN_REQUIRED");
+    expect(body(again.raw).token).toBeUndefined();
+    expect((await prisma.userIdentityLink.findUniqueOrThrow({ where: { id: link.id } })).status).toBe("REVOKED");
+    expect(await prisma.user.count({ where: { provider: "GOOGLE", providerUserId: sub } })).toBe(0);
     // The account itself is untouched and still signs in with its password.
     expect((await login(gEmail, PW)).status).toBe(200);
   });
@@ -534,9 +539,11 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
     await prisma.userIdentityLink.create({
       data: { userId: legacy.id, provider: "GOOGLE", providerSubjectId: sub, status: "REVOKED", revokedAtUtc: new Date() },
     });
+    // B1-F-004 (free-audit 0ea0) — not through the pair, and not into a second
+    // account for the address this account holds verified: guidance instead.
     const signIn = await google(sub, gEmail);
-    expect(signIn.status, signIn.raw.body).toBe(200);
-    expect((signIn.json!.user as Json).id).not.toBe(legacy.id);
+    expect(signIn.status, signIn.raw.body).toBe(409);
+    expect(body(signIn.raw).code).toBe("EXISTING_ACCOUNT_SIGN_IN_REQUIRED");
     const detached = await prisma.user.findUniqueOrThrow({ where: { id: legacy.id } });
     expect(detached.providerUserId.startsWith("unlinked:")).toBe(true);
 

@@ -36,7 +36,11 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../db.js";
-import { createWorkflowIntakeLink, MAX_INTAKE_LINK_TTL_MS } from "./workflow-intake-link.service.js";
+import {
+  createWorkflowIntakeLink,
+  MAX_INTAKE_LINK_TTL_MS,
+  revokeWorkflowIntakeLink,
+} from "./workflow-intake-link.service.js";
 import { workflowIntakeFeatureDisabledReason } from "./workflow-intake-token.service.js";
 import { safeSendEmailNotification } from "./notifications/index.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
@@ -1611,6 +1615,12 @@ export async function requestMoreEvidenceForResponse(
   if (isTerminalEvidenceRequestStatus(request.status as EvidenceRequestStatus)) {
     throw new EvidenceRequestError("request_terminal");
   }
+  // R1-F-01 (residual pass 2026-11-17) — the one-decision rule of
+  // reviewEvidenceRequestResponse holds here too: a response that already has
+  // a verdict mints no follow-up link and keeps that verdict.
+  if (!(REVIEWABLE_RESPONSE_STATUSES as readonly string[]).includes(response.status)) {
+    throw new EvidenceRequestError("response_already_reviewed", { status: response.status });
+  }
 
   // Reuse the same template + recipient identity from the original request
   // so the new link continues the same thread for the same contributor.
@@ -1642,29 +1652,54 @@ export async function requestMoreEvidenceForResponse(
   );
 
   // Mark the response NEEDS_MORE_INFO + audit-log the new link.
-  const updated = await client.$transaction(async (tx) => {
-    const u = await tx.evidenceRequestResponse.update({
-      where: { id: input.responseId },
-      data: {
-        status: "NEEDS_MORE_INFO",
-        reviewerNote:
-          input.reviewerNote === undefined ? undefined : input.reviewerNote ?? null,
-        reviewedAtUtc: new Date(),
-        reviewedByUserId: input.actorUserId,
-      },
+  // The claim is conditional: a verdict written between the check above and
+  // this transaction wins, and the follow-up link minted for this call is
+  // revoked so no live link outlives a refused request.
+  let updated: Awaited<ReturnType<typeof client.evidenceRequestResponse.findUniqueOrThrow>>;
+  try {
+    updated = await client.$transaction(async (tx) => {
+      const swapped = await tx.evidenceRequestResponse.updateMany({
+        where: { id: input.responseId, status: { in: [...REVIEWABLE_RESPONSE_STATUSES] } },
+        data: {
+          status: "NEEDS_MORE_INFO",
+          reviewerNote:
+            input.reviewerNote === undefined ? undefined : input.reviewerNote ?? null,
+          reviewedAtUtc: new Date(),
+          reviewedByUserId: input.actorUserId,
+        },
+      });
+      if (swapped.count !== 1) {
+        throw new EvidenceRequestError("response_already_reviewed", { status: response.status });
+      }
+      const u = await tx.evidenceRequestResponse.findUniqueOrThrow({
+        where: { id: input.responseId },
+      });
+      await appendRequestEvent(
+        tx,
+        input.requestId,
+        "EVIDENCE_REQUEST_NEEDS_MORE_INFO",
+        input.actorUserId,
+        {
+          responseId: input.responseId,
+          followUpIntakeLinkId: created.link.id,
+        } as Prisma.InputJsonValue,
+      );
+      return u;
     });
-    await appendRequestEvent(
-      tx,
-      input.requestId,
-      "EVIDENCE_REQUEST_NEEDS_MORE_INFO",
-      input.actorUserId,
-      {
-        responseId: input.responseId,
-        followUpIntakeLinkId: created.link.id,
-      } as Prisma.InputJsonValue,
-    );
-    return u;
-  });
+  } catch (error) {
+    if (error instanceof EvidenceRequestError && error.code === "response_already_reviewed") {
+      await revokeWorkflowIntakeLink(
+        {
+          id: created.link.id,
+          teamId: request.teamId,
+          actorUserId: input.actorUserId,
+          reason: "response_already_reviewed",
+        },
+        client,
+      ).catch(() => null);
+    }
+    throw error;
+  }
 
   // Optionally dispatch the new link to the contributor. Failure here
   // does NOT roll back the new link or status change — the operator

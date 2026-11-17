@@ -227,14 +227,39 @@ export function isActiveThread(status: string): boolean {
   return status === "OPEN" || status === "IN_PROGRESS";
 }
 
-/** Exactly the actions the web offers for this state. */
-export function offeredThreadActions(detail: ThreadDetail | null, readOnly: boolean): ThreadAction[] {
+/**
+ * Exactly the actions the web offers for this state.
+ *
+ * B3C-F-008 (Free-user audit 0ea0) — assigning and escalating a thread are
+ * reviewer operations (REVIEW_ASSIGNMENTS / REVIEW_ESCALATION on the API). When
+ * the workspace's plan is KNOWN to exclude them (`planFeatures.
+ * reviewerOperationsIncluded === false`) they are not offered; discussion,
+ * resolve and reopen stay. Unknown (null) leaves the server to answer.
+ */
+export function offeredThreadActions(
+  detail: ThreadDetail | null,
+  readOnly: boolean,
+  reviewerOperations: boolean | null = null,
+): ThreadAction[] {
   if (!detail || readOnly) return [];
+  const ops = reviewerOperations !== false;
   const out: ThreadAction[] = [];
-  if (isActiveThread(detail.status)) out.push("resolve", "assign");
+  if (isActiveThread(detail.status)) out.push("resolve");
+  if (isActiveThread(detail.status) && ops) out.push("assign");
   if (detail.status === "RESOLVED") out.push("reopen");
-  if (isActiveThread(detail.status) && !detail.escalatedAtUtc) out.push("escalate");
+  if (isActiveThread(detail.status) && !detail.escalatedAtUtc && ops) out.push("escalate");
   return out;
+}
+
+/** `planFeatures.reviewerOperationsIncluded` as the envelope states it: true, false, or unknown (null). */
+export function reviewerOperationsFromEnvelope(envelope: unknown): boolean | null {
+  const env = envelope && typeof envelope === "object" ? (envelope as Record<string, unknown>) : null;
+  if (!env) return null;
+  const platform = env["platform"] && typeof env["platform"] === "object" ? (env["platform"] as Record<string, unknown>) : {};
+  if (platform["isPlatformAdmin"] === true) return true;
+  const pf = env["planFeatures"] && typeof env["planFeatures"] === "object" ? (env["planFeatures"] as Record<string, unknown>) : {};
+  const v = pf["reviewerOperationsIncluded"];
+  return typeof v === "boolean" ? v : null;
 }
 
 export function threadActionBlocked(

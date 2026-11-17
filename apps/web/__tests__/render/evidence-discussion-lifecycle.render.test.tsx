@@ -8,6 +8,12 @@ vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () 
 vi.mock("../../components/presence/PresenceIndicator", () => ({ PresenceIndicator: () => null }));
 
 import EvidenceDiscussionPanel from "../../app/(app)/evidence/[id]/components/EvidenceDiscussionPanel";
+import { PlatformContextProvider } from "../../lib/platform-context";
+import {
+  AUTHORITY_SCHEMA_VERSION,
+  CAPABILITY_SCHEMA_VERSION,
+  NAVIGATION_SCHEMA_VERSION,
+} from "../../lib/platform-context/types";
 
 const teamId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const evidenceId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
@@ -255,5 +261,52 @@ describe("evidence discussion thread lifecycle", () => {
     for (const name of ["Resolve", "Assign", "Escalate", "Reopen"]) {
       expect(screen.queryByRole("button", { name })).toBeNull();
     }
+  });
+});
+
+// ===========================================================================
+// B3C-F-008 (Free-user audit 0ea0) — reviewer operations follow the plan
+// ===========================================================================
+
+function envelopeWith(planFeatures: Record<string, unknown>) {
+  return {
+    authoritySchemaVersion: AUTHORITY_SCHEMA_VERSION,
+    capabilitySchemaVersion: CAPABILITY_SCHEMA_VERSION,
+    navigationSchemaVersion: NAVIGATION_SCHEMA_VERSION,
+    capabilities: {},
+    diagnostics: { requestId: "test" },
+    workspace: { id: teamId, name: "Workspace", status: "active", scope: "ORGANIZATION" },
+    activeSpace: { type: "ORGANIZATION", id: teamId, displayName: "Workspace", roleLabel: "Owner" },
+    account: { accountPlan: "FREE", accountStatus: "active" },
+    flags: { isEnterpriseWorkspace: false },
+    platform: { isPlatformAdmin: false },
+    planFeatures,
+  };
+}
+
+function mountWithPlan(planFeatures: Record<string, unknown>) {
+  return render(
+    <PlatformContextProvider testEnvelope={envelopeWith(planFeatures) as never}>
+      <EvidenceDiscussionPanel evidenceId={evidenceId} teamId={teamId} initialThreadId={threadId} readOnly={false} />
+    </PlatformContextProvider>,
+  );
+}
+
+describe("B3C-F-008 — assign and escalate are reviewer operations", () => {
+  it("a plan without reviewer operations keeps discussion and Resolve, offers no Assign or Escalate, and says why", async () => {
+    mountWithPlan({ reviewerOperationsIncluded: false });
+    await screen.findByText("Unassigned");
+    await screen.findByRole("button", { name: "Resolve" });
+    expect(within(lifecycle()).queryByRole("button", { name: "Assign" })).toBeNull();
+    expect(within(lifecycle()).queryByRole("button", { name: "Escalate" })).toBeNull();
+    expect(document.querySelector("[data-discussion-reviewer-ops-note]")?.textContent).toMatch(/reviewer operations/i);
+  });
+
+  it("control: a plan with reviewer operations offers both", async () => {
+    mountWithPlan({ reviewerOperationsIncluded: true });
+    await screen.findByText("Unassigned");
+    await screen.findByRole("button", { name: "Assign" });
+    await screen.findByRole("button", { name: "Escalate" });
+    expect(document.querySelector("[data-discussion-reviewer-ops-note]")).toBeNull();
   });
 });

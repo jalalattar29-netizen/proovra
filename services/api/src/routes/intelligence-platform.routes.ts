@@ -90,6 +90,7 @@ import {
   projectExecutiveTrends,
 } from "../services/intelligence/executive-metrics.service.js";
 import { listAuditTransparency } from "../services/intelligence/audit-transparency.service.js";
+import { workspaceIsEnterpriseOrganization } from "../services/platform-context/enterprise-authority.js";
 import {
   projectProviderQuality,
   projectReviewerQuality,
@@ -933,10 +934,13 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
-      // B7B-F03: counts follow the reader's record reach.
+      // B7B-F03: counts follow the reader's record reach — evidence totals by
+      // relation, review / QC / AI / correction rows by the hidden id lists.
+      const reach = await viewerReachInWorkspace(ctx.teamId, ctx.userId);
       const metrics = await projectExecutiveMetrics({
         teamId: ctx.teamId,
-        evidenceReach: (await viewerReachInWorkspace(ctx.teamId, ctx.userId)).evidence,
+        evidenceReach: reach.evidence,
+        hidden: reach.hidden,
       });
       return reply.code(200).send({ metrics });
     },
@@ -952,10 +956,12 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       const q = z
         .object({ range: z.enum(EXECUTIVE_METRICS_RANGES).optional() })
         .parse(req.query ?? {});
+      const reach = await viewerReachInWorkspace(ctx.teamId, ctx.userId);
       const trends = await projectExecutiveTrends({
         teamId: ctx.teamId,
         range: q.range ?? "7d",
-        evidenceReach: (await viewerReachInWorkspace(ctx.teamId, ctx.userId)).evidence,
+        evidenceReach: reach.evidence,
+        hidden: reach.hidden,
       });
       return reply.code(200).send({ trends });
     },
@@ -1091,6 +1097,20 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
+      // B2A-F-08 (free-audit 0ea0, residual) — the Audit & Transparency Center
+      // is an Enterprise organization surface: the web route is
+      // `ORGANIZATION_ONLY` and in ENTERPRISE_ONLY_ROUTE_IDS
+      // (envelope.flags.isEnterpriseWorkspace). The API answers from the same
+      // authority, for the caller's CURRENT workspace (authorizeWorkspace:
+      // ACTIVE membership + intelligence.read), so a Free, Pro or Team
+      // workspace and a Personal Space get nothing the navigation would not
+      // show them. Record-level narrowing below is unchanged.
+      if (!(await workspaceIsEnterpriseOrganization(ctx.teamId))) {
+        return reply.code(403).send({
+          denial: "ENTITLEMENT_REQUIRED",
+          requirement: "ENTERPRISE_ORGANIZATION_WORKSPACE",
+        });
+      }
       const q = z
         .object({
           category: z.enum(AUDIT_TRANSPARENCY_CATEGORIES).optional(),

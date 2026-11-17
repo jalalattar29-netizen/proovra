@@ -537,9 +537,9 @@ describe("Phase IA-home-v2 — cross-cut bug contracts still hold", () => {
     const REP = readWeb("components/reports-experience/ReportsIndex.tsx");
     expect(REP).toMatch(/tryUserScopedReports/);
   });
-  it("Bug D — /intake-links tier=PROFESSIONAL", () => {
+  it("Bug D — /intake-links has an explicit tier rule (CORE: manage-only without intake, B3B-F-104)", () => {
     const TIERS = readWeb("lib/surface/tiers.ts");
-    expect(TIERS).toMatch(/pathPrefix:\s*"\/intake-links",\s*tier:\s*"PROFESSIONAL"/);
+    expect(TIERS).toMatch(/pathPrefix:\s*"\/intake-links",\s*tier:\s*"CORE",\s*directAccessPolicy:\s*"allow"/);
   });
 });
 

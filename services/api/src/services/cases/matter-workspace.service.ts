@@ -54,6 +54,7 @@ import {
   resolveCaseViewerCapabilities,
   type CaseAccessRole,
 } from "./case-permission.service.js";
+import { CASE_PLAN_WRITE_REASON, casePlanWriteRefusal } from "./case-plan-gate.js";
 
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 export type SectionStatus =
@@ -506,10 +507,17 @@ export async function buildMatterWorkspace(input: {
     caseRow: { id: caseRow.id, ownerUserId: caseRow.ownerUserId, teamId: caseRow.teamId },
     userId: input.userId,
   }).catch(() => ({ ok: false as const, reason: "unavailable" }));
+  // B3C-F-007 — the same plan gate the case write routes ask, so the views
+  // withhold exactly what the routes refuse, with a reason they can show.
+  const planRefusal = await casePlanWriteRefusal({
+    teamId: caseRow.teamId,
+    ownerUserId: caseRow.ownerUserId,
+  }).catch(() => ({ statusCode: 409, code: "CASES_NOT_INCLUDED", message: "" }));
   const viewerCaps = resolveCaseViewerCapabilities({
     accessRole,
     assignmentRoles: activeAssignmentRoleNames,
     destructiveAccessRole: destructiveRole.ok ? destructiveRole.accessRole : "NONE",
+    planWriteRefusal: planRefusal ? CASE_PLAN_WRITE_REASON : null,
   });
 
   const evidenceIds = await listCaseEvidenceIdsForViewer({

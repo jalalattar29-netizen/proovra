@@ -28,6 +28,7 @@ import { getRouteDefinition } from "../lib/navigation/routeRegistry";
 import { getDirectAccessDecision, type SurfaceUserContext } from "../lib/surface/access";
 import { nextTabForKey } from "../lib/a11y/tablist-keyboard";
 import { getClientIp } from "../app/api/_marketing-leads";
+import { APP_SHELL_COPY } from "@proovra/shared/i18n";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WEB = resolve(HERE, "..");
@@ -313,7 +314,10 @@ test("B2A-F-18: tab keyboard contract, overlay focus return, no aria-disabled=fa
 test("B2A-F-19: the header control says what the palette does", () => {
   const src = read("components/app-shell-v2/AppAccountToolbar.tsx");
   assert.doesNotMatch(src, /Search or jump to…/);
-  assert.match(src, /Jump to a page…/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.ok(src.includes('t("shellJumpToPage")'));
+  assert.equal(APP_SHELL_COPY.en.shellJumpToPage, "Jump to a page…");
+  for (const copy of Object.values(APP_SHELL_COPY)) assert.doesNotMatch(copy.shellJumpToPage, /Search or jump to/);
 });
 
 // ---------------------------------------------------------------- B2A-F-11

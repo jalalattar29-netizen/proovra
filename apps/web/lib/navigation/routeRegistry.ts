@@ -729,11 +729,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["INTAKE_LINKS_MANAGE"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
-    // Track 1A — commercial gate follows the SERVER-computed
-    // `envelope.planFeatures.intakeIncluded` boolean (PAYG/PRO/TEAM/
-    // ENTERPRISE include intake; FREE does not). Replaces the deleted
-    // surface-tier `entitlementOverride` for this path.
-    requiredPlanFeature: "intakeIncluded",
+    // Track 1A / B3B-F-104 — `planFeatures.intakeIncluded` hides the entry
+    // from navigation; a direct visit loads MANAGE-ONLY (no creation) so
+    // standing links stay revocable (see _components/ManageOnly.tsx).
+    navPlanFeature: "intakeIncluded",
 
     // Phase IA-intake-access-fix — Intake Links is a CORE self-serve
     // surface for PRO/TEAM, not an advanced add-on. It must render in
@@ -1231,7 +1230,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description:
       "SMS, WhatsApp, OTP delivery state, retry/cancel, and provider health.",
     domain: "PERSONAL_WORKSPACE",
-    requiredCapabilities: ["EVIDENCE_VIEW"],
+    // B3C-F-002 (free-audit 0ea0) — the workspace-wide message log is an
+    // operator read: the API serves it on `notification.delivery.resend`
+    // (OWNER / ADMIN / MEMBER), which a VIEWER does not hold. EVIDENCE_VIEW
+    // let every Viewer open a console the API now refuses them;
+    // INTAKE_LINKS_MANAGE is granted to exactly the writer roles that hold
+    // the API permission. A Viewer keeps the record-scoped delivery state on
+    // the evidence request and intake surfaces they can open.
+    requiredCapabilities: ["INTAKE_LINKS_MANAGE"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "DEGRADED",
 
@@ -2726,7 +2732,12 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description:
       "Federated audit timeline across provider usage, corrections, redaction, policy, video, portal. Bounded counts only — never PII.",
     domain: "GOVERNANCE",
-    requiredCapabilities: ["GOVERNANCE_VIEW"],
+    // B2A-F-08 (Free audit 0ea0, residual pass 2026-11-17) — UI/API parity.
+    // GET /v1/audit-transparency answers `intelligence.read` holders in an
+    // Enterprise organization. GOVERNANCE_VIEW alone reaches Viewers, who hold
+    // no `intelligence.read`; ANALYTICS_VIEW is granted to exactly the
+    // non-Viewer team roles (OWNER, ADMIN, REVIEWER, CONTRIBUTOR) that do.
+    requiredCapabilities: ["GOVERNANCE_VIEW", "ANALYTICS_VIEW"],
     requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
 

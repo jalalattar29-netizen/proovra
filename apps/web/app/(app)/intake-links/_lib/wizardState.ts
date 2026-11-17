@@ -415,10 +415,38 @@ export function friendlyCreateError(
       "Your workspace policy doesn't allow this kind of intake link.",
     anonymous_intake_disabled_by_policy:
       "Your workspace policy doesn't allow anonymous intake links.",
+    // B3B-F-102 — 409: this form already created a link, and its details
+    // have changed since. The original link is in the list.
+    IDEMPOTENCY_KEY_REUSED:
+      "A link was already created from this form with different details. Find it under Intake links, then close this form to start a new one.",
   };
   if (code && map[code]) return map[code];
   if (message && map[message]) return map[message];
   return message ?? "Couldn't create the intake link.";
+}
+
+/**
+ * B3B-F-102 — a create the server had ALREADY done (a retry after a lost
+ * response). It answers the original link but never its secure link again:
+ * that is shown exactly once. Null for an ordinary create.
+ */
+export function createdReplayNotice(created: {
+  replayed?: boolean;
+  rawToken?: string | null;
+  delivery?: { method: string; status: string };
+}): string | null {
+  if (!created.replayed && created.rawToken) return null;
+  const channel = created.delivery?.method === "SMS" ? "SMS" : "email";
+  const status = created.delivery?.status;
+  const delivered =
+    status === "sent"
+      ? ` It was sent by ${channel}.`
+      : status === "failed"
+        ? ` Sending it by ${channel} failed.`
+        : status === "unconfirmed"
+          ? ` Whether it was sent by ${channel} is not confirmed — check Delivery history on the link.`
+          : "";
+  return `This link was already created by your earlier attempt.${delivered} Its secure link was shown only once and can't be shown again — if you don't have it, revoke the link and create a new one.`;
 }
 
 /**

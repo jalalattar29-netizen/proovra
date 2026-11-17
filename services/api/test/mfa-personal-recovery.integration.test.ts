@@ -45,6 +45,7 @@ describe("B1-F-002 / B1-F-006 — personal-account MFA recovery and the fail-clo
   let fx: typeof import("./point7/product-fixtures.js");
   let recording: typeof import("../src/services/communications/recording-provider.js");
   let hashPassword: (typeof import("../src/services/email-password-auth.service.js"))["hashPassword"];
+  let createResetToken: (typeof import("../src/services/email-password-auth.service.js"))["createPasswordResetTokenForEmail"];
   let resetLimits: () => Promise<void>;
   let computeLookupHash: (typeof import("../src/services/security/mfa-recovery.js"))["computeLookupHash"];
   let deps: FixtureDeps;
@@ -148,7 +149,9 @@ describe("B1-F-002 / B1-F-006 — personal-account MFA recovery and the fail-clo
     ({ prisma } = await import("../src/db.js"));
     fx = await import("./point7/product-fixtures.js");
     recording = await import("../src/services/communications/recording-provider.js");
-    ({ hashPassword } = await import("../src/services/email-password-auth.service.js"));
+    ({ hashPassword, createPasswordResetTokenForEmail: createResetToken } = await import(
+      "../src/services/email-password-auth.service.js"
+    ));
     ({ __resetLoginMfaRateLimiterForTests: resetLimits } = await import("../src/routes/auth.routes.js"));
     ({ computeLookupHash } = await import("../src/services/security/mfa-recovery.js"));
     const { signJwt } = await import("../src/services/jwt.js");
@@ -304,6 +307,32 @@ describe("B1-F-002 / B1-F-006 — personal-account MFA recovery and the fail-clo
       ]);
       expect(results.map((r) => r.statusCode).sort()).toEqual([200, 401]);
       expect(await sessions(a.user.userId)).toBe(baseline + 1);
+    });
+
+    it("no email-only unlock: an emailed password reset replaces the password but not the second factor, and the next sign-in still demands it", async () => {
+      const a = await personalPhoneAccount();
+      const issued = await createResetToken(a.user.email);
+      expect(issued).not.toBeNull();
+      const newPassword = "Reset-Only-Mailbox-Proof1";
+      const confirmed = await post("/v1/auth/password-reset/confirm", null, { token: issued!.rawToken, newPassword });
+      expect(confirmed.statusCode, confirmed.body).toBe(200);
+      expect(json(confirmed).token).toBeUndefined();
+      expect(await prisma.mfaFactor.count({ where: { userId: a.user.userId, status: "ACTIVE" } })).toBe(1);
+
+      const baseline = await sessions(a.user.userId);
+      const res = await post("/v1/auth/email/login", null, { email: a.user.email, password: newPassword });
+      expect(res.statusCode, res.body).toBe(200);
+      expect(json(res)).toMatchObject({ mfaRequired: true });
+      expect(json(res).token).toBeUndefined();
+      expect(await sessions(a.user.userId)).toBe(baseline);
+      // The reset ended the account's sessions, so the mailbox holder has no
+      // session to file anything with; and no request exists to approve.
+      const filed = await post("/v1/identity/mfa-admin/recovery-requests", a.user.token, {
+        teamId: a.teamId,
+        reason: "Lost my phone and only have my email address now",
+      });
+      expect(filed.statusCode, filed.body).toBe(401);
+      expect(await prisma.mfaRecoveryRequest.count({ where: { userId: a.user.userId } })).toBe(0);
     });
 
     it("account A's recovery code cannot complete account B's sign-in, and stays usable by A", async () => {

@@ -28,6 +28,11 @@ import {
   safeEmitSecurityEvent,
 } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import {
+  keyCompromiseDeclaredAt,
+  notifyOwnersOfKeyCompromise,
+  type KeyCompromiseNoticeSummary,
+} from "./signing-key-compromise-owners.service.js";
 import { bump } from "../ops/metrics.service.js";
 // Phase O1.5 — bounded signer rotation spans. Attributes carry only
 // bounded fields (teamId, signerPurpose, compatibility outcome).
@@ -737,6 +742,13 @@ export type KeyCompromiseResult =
       revokedKeyRows: number;
       revokedSignerIds: string[];
       keyRows: Array<{ keyId: string; version: number; purpose: string }>;
+      /**
+       * B7A-F-006 — the owners of records with an issued output signed or
+       * sealed by the material, told once each. Null when the notice pass
+       * itself could not run; a repeat of the declaration completes it without
+       * writing a notice twice.
+       */
+      ownerNotices: KeyCompromiseNoticeSummary | null;
     }
   | {
       ok: false;
@@ -800,9 +812,34 @@ async function declareKeyCompromise(input: {
     requestedState: "REVOKED",
     resultingState: "REVOKED",
   } as const;
+  // B7A-F-006 — tell the owners of affected outputs. Runs on a repeat too
+  // ("already"), so a pass that failed part-way is completed by declaring
+  // again; the notice is idempotent per (owner, record, compromise).
+  let ownerNotices: KeyCompromiseNoticeSummary | null = null;
+  try {
+    const material = { fingerprints: outcome.fingerprints, keyIdentities: outcome.keyIdentities };
+    ownerNotices = await notifyOwnersOfKeyCompromise({
+      ...material,
+      // The material's revocation time; for an identity with no registered key,
+      // the moment this signer was withdrawn (stable across repeats).
+      declaredAt: await keyCompromiseDeclaredAt(
+        material,
+        (
+          await defaultPrisma.signerControlState.findUnique({
+            where: { signerId: input.signerId },
+            select: { statusChangedAtUtc: true },
+          })
+        )?.statusChangedAtUtc ?? new Date(),
+      ),
+      actorUserId: input.actorUserId,
+    });
+  } catch {
+    ownerNotices = null;
+  }
   const metadata = {
     signerId: input.signerId,
     scope: "key_compromise",
+    ownerNotices,
     keyMaterialResolved: outcome.fingerprints.length > 0,
     fingerprintsSha256: outcome.fingerprints,
     revokedKeyRows: outcome.revokedKeyRows,
@@ -841,6 +878,7 @@ async function declareKeyCompromise(input: {
     revokedKeyRows: outcome.revokedKeyRows,
     revokedSignerIds: outcome.revokedSignerIds,
     keyRows: outcome.keyRows,
+    ownerNotices,
   };
 }
 

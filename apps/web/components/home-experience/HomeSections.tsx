@@ -15,6 +15,9 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
+import { dict, fillCopy } from "@proovra/shared/i18n";
+
+import { useT, type TranslationKey } from "../../app/providers";
 import { apiFetch } from "../../lib/api";
 import { formatUserDate } from "../../lib/date";
 import { describeArtifactDownloadFailure } from "../../lib/evidence/report-download-feedback";
@@ -74,6 +77,22 @@ const HOME_PREVIEW_LIMIT = 3;
  * is only how many of the rows already in hand get rendered. Fewer than five
  * still renders fewer; nothing is padded. */
 const INTAKE_PREVIEW_LIMIT = 5;
+
+/** The dictionary's `t`, as the Home helpers take it. */
+type HomeT = (key: TranslationKey) => string;
+
+/** English `t` for helpers called without one (tests, non-React callers). */
+const englishHomeT: HomeT = (key) => dict.en[key];
+
+/**
+ * B2A-F-12 — a view-model label for a FIXED key (a KPI, a stage, a metric, a
+ * range, an activity group), in the reader's language. Translated only when
+ * the projection said exactly the canonical English for that key; any other
+ * wording is the projection's own and is shown as written.
+ */
+export function fixedLabel(t: HomeT, key: TranslationKey | undefined, vmLabel: string): string {
+  return key && dict.en[key] === vmLabel ? t(key) : vmLabel;
+}
 
 /** MIDDLE-truncate a long identifier / UUID so BOTH the start and end stay
  * legible (e.g. `dd440009-5606-4a44-…-1792a3780fe0`). The full id is always
@@ -175,6 +194,7 @@ function SectionCard({
    * and lays its body out as a growing flex column so siblings align. */
   fill?: boolean;
 }) {
+  const t = useT();
   return (
     <section
       className="home-card"
@@ -188,7 +208,7 @@ function SectionCard({
         </div>
         {cta ? (
           <Link href={cta.href} style={cardCtaStyle}>
-            {cta.label} →
+            {cta.label} {t("homeArrowForward")}
           </Link>
         ) : null}
       </header>
@@ -208,31 +228,31 @@ function EmptyState({ children }: { children: ReactNode }) {
 }
 
 /** Future-facing variant for expiry labels ("in 3d", "in 5h"). */
-function formatRelativeFuture(iso: string): string {
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return "—";
-  const minutes = Math.round((t - Date.now()) / 60000);
-  if (minutes <= 0) return "now";
-  if (minutes < 60) return `in ${minutes}m`;
+function formatRelativeFuture(iso: string, t: HomeT): string {
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return "—";
+  const minutes = Math.round((at - Date.now()) / 60000);
+  if (minutes <= 0) return t("homeNow");
+  if (minutes < 60) return fillCopy(t("homeInMinutes"), { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `in ${hours}h`;
+  if (hours < 24) return fillCopy(t("homeInHours"), { count: hours });
   const days = Math.round(hours / 24);
-  if (days < 30) return `in ${days}d`;
-  return formatUserDate(new Date(t));
+  if (days < 30) return fillCopy(t("homeInDays"), { count: days });
+  return formatUserDate(new Date(at));
 }
 
-function formatRelative(iso: string | null): string {
+function formatRelative(iso: string | null, t: HomeT): string {
   if (!iso) return "—";
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return "—";
-  const minutes = Math.round((Date.now() - t) / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return "—";
+  const minutes = Math.round((Date.now() - at) / 60000);
+  if (minutes < 1) return t("homeJustNow");
+  if (minutes < 60) return fillCopy(t("homeMinutesAgo"), { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return fillCopy(t("homeHoursAgo"), { count: hours });
   const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return formatUserDate(new Date(t));
+  if (days < 7) return fillCopy(t("homeDaysAgo"), { count: days });
+  return formatUserDate(new Date(at));
 }
 
 // ============================================================================
@@ -241,6 +261,7 @@ function formatRelative(iso: string | null): string {
 // ============================================================================
 
 export function HeroNextAction({ action }: { action: HeroAction }) {
+  const t = useT();
   const caughtUp = action.kind === "caught_up";
   const bg = caughtUp
     ? "linear-gradient(145deg, rgba(5,150,105,0.08) 0%, rgba(14,116,144,0.05) 100%)"
@@ -262,7 +283,7 @@ export function HeroNextAction({ action }: { action: HeroAction }) {
       style={{ background: bg, border: `1px solid ${border}`, borderRadius: 14, padding: 20 }}
     >
       <div style={{ fontSize: 11, fontWeight: 750, letterSpacing: 0.6, color: caughtUp ? HOME_COLORS.okDeep : HOME_COLORS.slate, textTransform: "uppercase" }}>
-        {caughtUp ? "All clear" : "Next step"}
+        {caughtUp ? t("homeAllClear") : t("homeNextStep")}
       </div>
       <h1 style={{ margin: "8px 0 6px 0", fontSize: 20, fontWeight: 720, color: HOME_COLORS.ink }}>
         {action.title}
@@ -310,6 +331,7 @@ function RetryDeliveryButton({
   fallbackHref: string;
   onRetried?: () => void;
 }) {
+  const t = useT();
   const [state, setState] = useState<"idle" | "pending" | "done" | "error">("idle");
 
   async function retry() {
@@ -328,7 +350,7 @@ function RetryDeliveryButton({
   }
 
   if (state === "done") {
-    return <span data-delivery-retry="done" style={{ ...chipStyle, background: "#dcfce7", color: "#166534" }}>Retry scheduled</span>;
+    return <span data-delivery-retry="done" style={{ ...chipStyle, background: "#dcfce7", color: "#166534" }}>{t("homeRetryScheduled")}</span>;
   }
   return (
     <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
@@ -345,11 +367,11 @@ function RetryDeliveryButton({
           color: "#991b1b",
         }}
       >
-        {state === "pending" ? "Retrying…" : "Retry delivery"}
+        {state === "pending" ? t("homeRetrying") : t("homeRetryDelivery")}
       </button>
       {state === "error" ? (
         <Link href={fallbackHref} style={{ ...listItemTimeStyle, color: "#6D28D9", fontWeight: 600 }} data-delivery-retry-fallback>
-          Open delivery →
+          {t("homeOpenDelivery")}
         </Link>
       ) : null}
     </span>
@@ -367,34 +389,35 @@ export function ActiveMatters({
   rows: ActiveMatterRow[];
   summary: CaseHealthSummary;
 }) {
+  const t = useT();
   const showBadges =
     summary.gapsCount > 0 ||
     summary.blockersCount > 0 ||
     summary.unlinkedCount > 0 ||
     summary.unreviewedCount > 0;
   return (
-    <SectionCard title="Active matters" testId="active-matters">
+    <SectionCard title={t("homeActiveMatters")} testId="active-matters">
       {showBadges ? (
         <div data-case-health-summary style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
           {summary.gapsCount > 0 ? (
             <span data-case-gaps={summary.gapsCount} style={{ ...chipStyle, background: "#fef3c7", color: "#92400e" }}>
-              {summary.gapsCount} with evidence gaps
+              {fillCopy(t("homeWithGaps"), { count: summary.gapsCount })}
             </span>
           ) : null}
           {summary.blockersCount > 0 ? (
             <span data-case-blockers={summary.blockersCount} style={{ ...chipStyle, background: "#fee2e2", color: "#991b1b" }}>
-              {summary.blockersCount} blocked
+              {fillCopy(t("homeBlocked"), { count: summary.blockersCount })}
             </span>
           ) : null}
           {/* Ticket 3A — workspace-level record counters (hidden at 0). */}
           {summary.unlinkedCount > 0 ? (
             <span data-case-unlinked={summary.unlinkedCount} style={{ ...chipStyle, background: "rgba(79,70,229,0.08)", color: "#4338ca" }}>
-              {summary.unlinkedCount} unlinked record{summary.unlinkedCount === 1 ? "" : "s"}
+              {fillCopy(t(summary.unlinkedCount === 1 ? "homeUnlinkedOne" : "homeUnlinkedOther"), { count: summary.unlinkedCount })}
             </span>
           ) : null}
           {summary.unreviewedCount > 0 ? (
             <span data-case-unreviewed={summary.unreviewedCount} style={{ ...chipStyle, background: "#fef3c7", color: "#92400e" }}>
-              {summary.unreviewedCount} not reviewed
+              {fillCopy(t("homeNotReviewed"), { count: summary.unreviewedCount })}
             </span>
           ) : null}
         </div>
@@ -402,14 +425,14 @@ export function ActiveMatters({
       {rows.length === 0 ? (
         <div>
           <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
-            No active matters yet. Group related evidence into a case to track a matter end-to-end.
+            {t("homeNoMatters")}
           </p>
           <Link
             href="/cases"
             data-case-cta="create-case"
             style={{ ...secondaryButtonStyle, marginTop: 12, background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)", border: "1px solid var(--btn-primary-border)" }}
           >
-            Create case
+            {t("homeCreateCase")}
           </Link>
         </div>
       ) : (
@@ -420,16 +443,16 @@ export function ActiveMatters({
             // /v1/reports caseIds.
             const verdictChip =
               r.verdict === "action_required"
-                ? { label: "Action required", bg: "#fee2e2", fg: "#991b1b" }
+                ? { label: t("homeVerdictActionRequired"), bg: "#fee2e2", fg: "#991b1b" }
                 : r.verdict === "needs_work"
-                  ? { label: "Needs work", bg: "#fef3c7", fg: "#92400e" }
-                  : { label: "Healthy", bg: "#dcfce7", fg: "#166534" };
+                  ? { label: t("homeVerdictNeedsWork"), bg: "#fef3c7", fg: "#92400e" }
+                  : { label: t("homeVerdictHealthy"), bg: "#dcfce7", fg: "#166534" };
             return (
               <li key={r.caseId} data-matter-id={r.caseId} data-matter-verdict={r.verdict} data-matter-needs-work={String(r.needsWork)} style={listItemStyle}>
                 <Link href={r.href} style={{ ...listItemLinkStyle, ...innerRowSurfaceStyle }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                     <span style={listItemTitleStyle}>{r.caseName}</span>
-                    <span style={listItemTimeStyle}>{formatRelative(r.lastActivityAtUtc)}</span>
+                    <span style={listItemTimeStyle}>{formatRelative(r.lastActivityAtUtc, t)}</span>
                   </div>
                   <span style={listItemMetaStyle}>
                     <span style={{ ...chipStyle, background: verdictChip.bg, color: verdictChip.fg }}>
@@ -448,14 +471,20 @@ export function ActiveMatters({
                         data-matter-verification-status={r.verificationStatus}
                         {...(r.hasReport ? { "data-matter-has-report": true } : {})}
                         style={{ ...chipStyle, background: HOME_TINTS.teal, color: HOME_COLORS.teal, fontVariantNumeric: "tabular-nums" }}
-                        title={`${r.evidenceCount} records · ${r.reportsReadyCount} with reports (${Math.max(0, r.evidenceCount - r.reportsReadyCount)} without) · ${r.packagesReadyCount} with packages · ${r.verifyLiveCount} verifiable`}
+                        title={fillCopy(t("homeChainTitle"), {
+                          records: r.evidenceCount,
+                          reports: r.reportsReadyCount,
+                          without: Math.max(0, r.evidenceCount - r.reportsReadyCount),
+                          packages: r.packagesReadyCount,
+                          verifiable: r.verifyLiveCount,
+                        })}
                       >
                         E {r.evidenceCount} · R {r.reportsReadyCount} · P {r.packagesReadyCount} · V {r.verifyLiveCount}
                       </span>
                     ) : null}
-                    {r.hasActiveLegalHold ? <span style={chipStyle}>Legal hold</span> : null}
+                    {r.hasActiveLegalHold ? <span style={chipStyle}>{t("homeLegalHold")}</span> : null}
                     <span style={listItemTimeStyle}>
-                      {r.evidenceCount} {r.evidenceCount === 1 ? "record" : "records"}
+                      {fillCopy(t(r.evidenceCount === 1 ? "homeRecordCountOne" : "homeRecordCountOther"), { count: r.evidenceCount })}
                     </span>
                   </span>
                   <span
@@ -467,7 +496,7 @@ export function ActiveMatters({
                       color: HOME_COLORS.action,
                     }}
                   >
-                    Open matter →
+                    {t("homeOpenMatter")}
                   </span>
                 </Link>
               </li>
@@ -480,7 +509,7 @@ export function ActiveMatters({
                 data-matter-view-all={rows.length}
                 style={{ display: "inline-block", marginTop: 4, fontSize: 12, fontWeight: 600, color: HOME_COLORS.action, textDecoration: "none" }}
               >
-                View all {rows.length} →
+                {fillCopy(t("homeViewAllCount"), { count: rows.length })}
               </Link>
             </li>
           ) : null}
@@ -499,7 +528,19 @@ export function ActiveMatters({
 // a positive "danger" stage reads restrained critical; every 0-count stage
 // stays quiet neutral (a zero stage never looks active). Labels render in
 // FULL (two lines allowed) inside a 3-column × 2-row grid — never clipped.
-function StageTile({ label, count, tone }: { label: string; count: number; tone: string }) {
+/** B2A-F-12 — each intake stage's fixed name, by stage key. */
+const STAGE_LABEL_KEY: Record<string, TranslationKey> = {
+  active: "homeStageActive",
+  delivered: "homeStageDelivered",
+  awaiting: "homeStageAwaiting",
+  in_review: "homeStageInReview",
+  needs_more: "homeStageNeedsMore",
+  failed: "homeStageFailed",
+};
+
+/** `label` is the projection's (English) stage name — it keys the tone and
+ *  the data-* hook; `display` is what the reader sees. */
+function StageTile({ label, display, count, tone }: { label: string; display: string; count: number; tone: string }) {
   const active = count > 0;
   // "Active links" is the positive / live intake stage — when it has a live
   // count it must read in the SHARED enterprise success green (same token as
@@ -535,7 +576,7 @@ function StageTile({ label, count, tone }: { label: string; count: number; tone:
       }}
     >
       <div style={{ fontSize: 18, fontWeight: 700, color: sem.fg, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{count}</div>
-      <div style={{ fontSize: 10.5, color: active ? sem.fg : HOME_SEMANTIC.neutral.secondary, lineHeight: 1.25, wordBreak: "break-word" }}>{label}</div>
+      <div style={{ fontSize: 10.5, color: active ? sem.fg : HOME_SEMANTIC.neutral.secondary, lineHeight: 1.25, wordBreak: "break-word" }}>{display}</div>
     </div>
   );
 }
@@ -551,20 +592,20 @@ export function IntakePipelineCard({
   onChanged?: () => void;
   locked?: boolean;
 }) {
+  const t = useT();
   if (locked) {
     return (
-      <SectionCard title="Intake status" testId="intake-pipeline" fill>
+      <SectionCard title={t("homeIntakeStatus")} testId="intake-pipeline" fill>
         <div data-intake-locked>
           <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
-            Request evidence securely from a client, witness, source, or contributor — with delivery
-            tracking and a review queue. Available on Pro and Team.
+            {t("homeIntakeLocked")}
           </p>
           <Link
             href="/billing"
             data-intake-upgrade
             style={{ ...secondaryButtonStyle, marginTop: 12, background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)", border: "1px solid var(--btn-primary-border)" }}
           >
-            See plans
+            {t("homeSeePlans")}
           </Link>
         </div>
       </SectionCard>
@@ -572,23 +613,22 @@ export function IntakePipelineCard({
   }
   if (pipeline.empty) {
     return (
-      <SectionCard title="Intake status" testId="intake-pipeline" fill>
+      <SectionCard title={t("homeIntakeStatus")} testId="intake-pipeline" fill>
         <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
-          Request evidence securely from a client, witness, source, or contributor — then track
-          delivery and review what comes back.
+          {t("homeIntakeEmpty")}
         </p>
         <Link
           href="/intake-links?new=1"
           data-collection-cta="create-intake-link"
           style={{ ...secondaryButtonStyle, marginTop: 12, background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)", border: "1px solid var(--btn-primary-border)" }}
         >
-          Create intake link
+          {t("homeCreateIntakeLink")}
         </Link>
       </SectionCard>
     );
   }
   return (
-    <SectionCard title="Intake status" testId="intake-pipeline" fill>
+    <SectionCard title={t("homeIntakeStatus")} testId="intake-pipeline" fill>
       {/* Lifecycle visual — every count a real number. A 3-column × 2-row
           tile grid so every stage label stays FULLY readable (no clipping);
           colour is driven by count only (see StageTile). */}
@@ -602,7 +642,13 @@ export function IntakePipelineCard({
         }}
       >
         {pipeline.stages.map((st) => (
-          <StageTile key={st.key} label={st.label} count={st.count} tone={st.tone} />
+          <StageTile
+            key={st.key}
+            label={st.label}
+            display={fixedLabel(t, STAGE_LABEL_KEY[st.key], st.label)}
+            count={st.count}
+            tone={st.tone}
+          />
         ))}
       </div>
       {pipeline.links.length > 0 ? (
@@ -616,12 +662,13 @@ export function IntakePipelineCard({
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                   <span style={{ ...listItemTitleStyle, minWidth: 0 }} title={r.label}>{r.label}</span>
                   <span style={{ ...listItemTimeStyle, whiteSpace: "nowrap", flexShrink: 0 }}>
-                    {r.usedCount}
-                    {r.maxUses != null ? ` / ${r.maxUses}` : ""} used
+                    {r.maxUses != null
+                      ? fillCopy(t("homeUsedOfMax"), { used: r.usedCount, max: r.maxUses })
+                      : fillCopy(t("homeUsed"), { used: r.usedCount })}
                     {/* Ticket 4 — expiresAtUtc was mapped but never
                         rendered; useful intake metadata. */}
                     {r.expiresAtUtc ? (
-                      <span data-link-expires={r.expiresAtUtc}> · expires {formatRelativeFuture(r.expiresAtUtc)}</span>
+                      <span data-link-expires={r.expiresAtUtc}> · {fillCopy(t("homeExpires"), { when: formatRelativeFuture(r.expiresAtUtc, t) })}</span>
                     ) : null}
                   </span>
                 </div>
@@ -640,10 +687,10 @@ export function IntakePipelineCard({
                       {r.delivery.channel} · {r.delivery.statusLabel}
                       {/* Ticket 4 — delivery.at was mapped but never
                           rendered; shows when the last attempt happened. */}
-                      {r.delivery.at ? ` · ${formatRelative(r.delivery.at)}` : ""}
+                      {r.delivery.at ? ` · ${formatRelative(r.delivery.at, t)}` : ""}
                     </span>
                   ) : (
-                    <span style={{ ...homeChipStyle, background: HOME_SEMANTIC.neutral.softBg, color: HOME_SEMANTIC.neutral.secondary, border: `1px solid ${HOME_SEMANTIC.neutral.border}` }}>Not yet sent</span>
+                    <span style={{ ...homeChipStyle, background: HOME_SEMANTIC.neutral.softBg, color: HOME_SEMANTIC.neutral.secondary, border: `1px solid ${HOME_SEMANTIC.neutral.border}` }}>{t("homeNotYetSent")}</span>
                   )}
                   {failed && r.delivery ? (
                     <RetryDeliveryButton
@@ -653,8 +700,8 @@ export function IntakePipelineCard({
                       onRetried={onChanged}
                     />
                   ) : (
-                    <OpsActionLink href={r.href} style={{ marginLeft: "auto" }}>
-                      Open →
+                    <OpsActionLink href={r.href} style={{ marginInlineStart: "auto" }}>
+                      {t("homeOpenLink")}
                     </OpsActionLink>
                   )}
                 </div>
@@ -668,7 +715,7 @@ export function IntakePipelineCard({
                 extraProps={{ "data-collection-view-all": pipeline.links.length }}
                 style={{ display: "inline-block", marginTop: 4 }}
               >
-                View intake →
+                {t("homeViewIntake")}
               </OpsActionLink>
             </li>
           ) : null}
@@ -686,7 +733,7 @@ export function IntakePipelineCard({
 // semantic system: a positive "ok" tile reads success green, a positive
 // "warn" tile reads amber; a "danger"/zero tile stays restrained neutral so
 // "0 Failed" never dominates the card in red.
-function ProductionStat({ label, value, tone }: { label: string; value: number; tone?: "danger" | "warn" | "ok" }) {
+function ProductionStat({ label, display, value, tone }: { label: string; display: string; value: number; tone?: "danger" | "warn" | "ok" }) {
   const active = value > 0;
   const sem =
     active && tone === "ok"
@@ -710,7 +757,7 @@ function ProductionStat({ label, value, tone }: { label: string; value: number; 
       }}
     >
       <div style={{ fontSize: 18, fontWeight: 700, color: sem.num, fontVariantNumeric: "tabular-nums" }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: sem.fg, lineHeight: 1.2 }}>{label}</div>
+      <div style={{ fontSize: 10.5, color: sem.fg, lineHeight: 1.2 }}>{display}</div>
     </div>
   );
 }
@@ -722,11 +769,10 @@ export function ReportProductionCard({
   production: ReportProduction;
   isFreePlan: boolean;
 }) {
+  const t = useT();
   // FREE THREE-RECORD CONTRACT (owner decision 2026-10-14) — every FREE
   // record (up to three) gets its report automatically; nothing to upsell here.
-  const emptyCopy = isFreePlan
-    ? "Complete an evidence record — each record in your Free allowance includes its report, verification package and verification page."
-    : "Complete an evidence record to generate your first report.";
+  const emptyCopy = isFreePlan ? t("homeReportEmptyFree") : t("homeReportEmpty");
   const hasAny =
     production.reportsReady + production.packagesReady + production.reportsPending + production.packagesPending + production.reportsFailed + production.packagesFailed > 0 ||
     production.recent.length > 0;
@@ -735,12 +781,12 @@ export function ReportProductionCard({
   // sidebar. Report actions remain available contextually (row/stat level)
   // and via the sidebar.
   return (
-    <SectionCard title="Report production" testId="report-production" fill>
+    <SectionCard title={t("homeReportProduction")} testId="report-production" fill>
       <div data-report-production-stats style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-        <ProductionStat label="Reports ready" value={production.reportsReady} tone="ok" />
-        <ProductionStat label="Packages ready" value={production.packagesReady} tone="ok" />
-        <ProductionStat label="Pending" value={production.reportsPending + production.packagesPending} tone="warn" />
-        <ProductionStat label="Failed" value={production.reportsFailed + production.packagesFailed} tone="danger" />
+        <ProductionStat label="Reports ready" display={t("homeReportsReady")} value={production.reportsReady} tone="ok" />
+        <ProductionStat label="Packages ready" display={t("homePackagesReady")} value={production.packagesReady} tone="ok" />
+        <ProductionStat label="Pending" display={t("homePending")} value={production.reportsPending + production.packagesPending} tone="warn" />
+        <ProductionStat label="Failed" display={t("homeFailed")} value={production.reportsFailed + production.packagesFailed} tone="danger" />
       </div>
       {/* Phase HOME-INTELLIGENCE — deliverable issues that need the
           user (failures, package gaps). */}
@@ -764,7 +810,7 @@ export function ReportProductionCard({
       {!hasAny ? (
         <EmptyState>{emptyCopy}</EmptyState>
       ) : production.recent.length === 0 ? (
-        <EmptyState>No reports generated yet — the counts above update as production runs.</EmptyState>
+        <EmptyState>{t("homeNoReportsYet")}</EmptyState>
       ) : (
         <>
           {/* Phase HOME-DENSITY — cap to 3 preview items; the counts above
@@ -784,15 +830,17 @@ export function ReportProductionCard({
                     {displayLabel}
                   </Link>
                   <span style={listItemMetaStyle}>
-                    <span style={infoTextStyle}>Report{r.version != null ? ` v${r.version}` : ""}</span>
+                    <span style={infoTextStyle}>
+                      {r.version != null ? fillCopy(t("homeReportVersion"), { version: r.version }) : t("homeReport")}
+                    </span>
                     {r.packageReady ? (
-                      <span style={successTextStyle}>Package ready</span>
+                      <span style={successTextStyle}>{t("homePackageReady")}</span>
                     ) : (
                       <span style={{ ...homeChipStyle, background: HOME_SEMANTIC.neutral.softBg, color: HOME_SEMANTIC.neutral.secondary, border: `1px solid ${HOME_SEMANTIC.neutral.border}` }}>
-                        No package
+                        {t("homeNoPackage")}
                       </span>
                     )}
-                    <span style={listItemTimeStyle}>{formatRelative(r.generatedAtUtc)}</span>
+                    <span style={listItemTimeStyle}>{formatRelative(r.generatedAtUtc, t)}</span>
                   </span>
                   <ReportRowActions row={r} />
                 </li>
@@ -805,7 +853,7 @@ export function ReportProductionCard({
               extraProps={{ "data-report-view-all": production.recent.length }}
               style={{ display: "inline-block", marginTop: 8 }}
             >
-              Open reports →
+              {t("homeOpenReports")}
             </OpsActionLink>
           ) : null}
         </>
@@ -826,6 +874,7 @@ export function ReportProductionCard({
  * authoritative download path.
  */
 function ReportRowActions({ row }: { row: import("./home-view-model").RecentReportRow }) {
+  const t = useT();
   const [busy, setBusy] = useState<"pdf" | "package" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -875,7 +924,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
   const overflowItemStyle: React.CSSProperties = {
     display: "block",
     width: "100%",
-    textAlign: "left",
+    textAlign: "start",
     padding: "8px 12px",
     border: "none",
     color: HOME_COLORS.ink,
@@ -896,13 +945,13 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
           style={{ ...secondaryButtonStyle, color: HOME_COLORS.action }}
           data-report-action="open-evidence"
         >
-          Open
+          {t("homeOpen")}
         </Link>
         {hasOverflow ? (
           <span style={{ position: "relative", display: "inline-flex" }}>
             <button
               type="button"
-              aria-label="More actions"
+              aria-label={t("homeMoreActions")}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}
@@ -925,7 +974,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
                 style={{
                   position: "absolute",
                   top: "calc(100% + 4px)",
-                  right: 0,
+                  insetInlineEnd: 0,
                   zIndex: 20,
                   minWidth: 168,
                   padding: "4px 0",
@@ -950,7 +999,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
                     style={{ ...overflowItemStyle, cursor: busy ? "wait" : "pointer" }}
                     data-report-action="download-pdf"
                   >
-                    {busy === "pdf" ? "Opening…" : "Download PDF"}
+                    {busy === "pdf" ? t("homeOpening") : t("homeDownloadPdf")}
                   </button>
                 ) : null}
                 {pkgPath ? (
@@ -967,7 +1016,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
                     style={{ ...overflowItemStyle, cursor: busy ? "wait" : "pointer" }}
                     data-report-action="download-package"
                   >
-                    {busy === "package" ? "Opening…" : "Download package"}
+                    {busy === "package" ? t("homeOpening") : t("homeDownloadPackage")}
                   </button>
                 ) : null}
                 {row.actions.verify ? (
@@ -979,7 +1028,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
                     className="home-menu-item" style={overflowItemStyle}
                     data-report-action="manage-verify-links"
                   >
-                    Verification links
+                    {t("homeVerificationLinks")}
                   </a>
                 ) : null}
               </div>
@@ -1003,7 +1052,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
 // Phase HOME-POLISH — the "Not published" / "Suspended" tiles stay QUIET
 // NEUTRAL: a zero (or non-live) value is never coloured green or loud red on
 // this card; only the live count (rendered as the hero tile) earns success.
-function VerifyStat({ label, value }: { label: string; value: number; tone?: "danger" | "ok" }) {
+function VerifyStat({ label, display, value }: { label: string; display: string; value: number; tone?: "danger" | "ok" }) {
   return (
     <div
       data-verify-stat={label}
@@ -1018,20 +1067,20 @@ function VerifyStat({ label, value }: { label: string; value: number; tone?: "da
       }}
     >
       <div style={{ fontSize: 18, fontWeight: 700, color: HOME_SEMANTIC.neutral.numberInk, fontVariantNumeric: "tabular-nums" }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: HOME_SEMANTIC.neutral.secondary, lineHeight: 1.2 }}>{label}</div>
+      <div style={{ fontSize: 10.5, color: HOME_SEMANTIC.neutral.secondary, lineHeight: 1.2 }}>{display}</div>
     </div>
   );
 }
 
 export function VerificationHealthCard({ health }: { health: VerificationHealth }) {
+  const t = useT();
   const available = health.contentPreview + health.verificationOnly;
   const liveActive = available > 0;
   return (
-    <SectionCard title="Verification pages" testId="verification-health" fill>
+    <SectionCard title={t("homeVerificationPages")} testId="verification-health" fill>
       {health.empty ? (
         <p data-verify-empty style={{ margin: "0 0 10px 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
-          Every finalized record gets a permanent verification page — letting anyone independently confirm your
-          evidence.
+          {t("homeVerifyEmpty")}
         </p>
       ) : null}
       {/* Available pages get the hero treatment in the UNIFIED success green
@@ -1053,17 +1102,17 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
             {available}
           </div>
           <div style={{ fontSize: 11, color: "#526071", marginTop: 4 }}>
-            verification page{available === 1 ? "" : "s"} available
+            {t(available === 1 ? "homePagesAvailableOne" : "homePagesAvailableOther")}
           </div>
         </div>
-        <VerifyStat label="Content preview" value={health.contentPreview} />
-        <VerifyStat label="Verification only" value={health.verificationOnly} />
-        <VerifyStat label="Unavailable" value={health.unavailable} />
+        <VerifyStat label="Content preview" display={t("homeContentPreview")} value={health.contentPreview} />
+        <VerifyStat label="Verification only" display={t("homeVerificationOnly")} value={health.verificationOnly} />
+        <VerifyStat label="Unavailable" display={t("homeUnavailable")} value={health.unavailable} />
       </div>
       {health.recentDisclosureChanges.length > 0 ? (
         <div data-verify-recent-disclosure-changes style={{ marginTop: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: HOME_COLORS.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>
-            Recently changed
+            {t("homeRecentlyChanged")}
           </div>
           <ul style={{ ...listStyle, gap: 4 }}>
             {health.recentDisclosureChanges.map((change) => (
@@ -1071,7 +1120,7 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
                 <Link href={change.href} style={{ ...listItemTitleStyle, minWidth: 0, textDecoration: "none", fontSize: 12.5 }} title={change.label}>
                   {change.label}
                 </Link>
-                <span style={{ ...listItemTimeStyle, flexShrink: 0 }}>{formatRelative(change.occurredAt)}</span>
+                <span style={{ ...listItemTimeStyle, flexShrink: 0 }}>{formatRelative(change.occurredAt, t)}</span>
               </li>
             ))}
           </ul>
@@ -1108,10 +1157,10 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
                     >
                       {displayLabel}
                     </span>
-                    <span style={{ ...successTextStyle, flexShrink: 0 }}>Live</span>
+                    <span style={{ ...successTextStyle, flexShrink: 0 }}>{t("homeLive")}</span>
                   </span>
                   <OpsActionLink href={v.verifyHref} extraProps={{ "data-verify-links": true }} style={{ flexShrink: 0 }}>
-                    Verification links →
+                    {t("homeVerificationLinksLink")}
                   </OpsActionLink>
                 </li>
               );
@@ -1123,7 +1172,7 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
               extraProps={{ "data-verify-view-all": health.verifiable.length }}
               style={{ display: "inline-block", marginTop: 8 }}
             >
-              View all links →
+              {t("homeViewAllLinks")}
             </OpsActionLink>
           ) : null}
         </div>
@@ -1138,11 +1187,23 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
 
 const HEALTH_OVERALL: Record<
   "healthy" | "needs_attention" | "action_required",
-  { label: string; tone: HomeTone }
+  { labelKey: TranslationKey; tone: HomeTone }
 > = {
-  healthy: { label: "Healthy", tone: "ok" },
-  needs_attention: { label: "Needs attention", tone: "warn" },
-  action_required: { label: "Action required", tone: "danger" },
+  healthy: { labelKey: "homeVerdictHealthy", tone: "ok" },
+  needs_attention: { labelKey: "homeVerdictNeedsAttention", tone: "warn" },
+  action_required: { labelKey: "homeVerdictActionRequired", tone: "danger" },
+};
+
+/** B2A-F-12 — each workspace-health metric's fixed name, by metric key. */
+const HEALTH_METRIC_LABEL_KEY: Record<string, TranslationKey> = {
+  complete: "homeHealthComplete",
+  need_report: "homeHealthNeedReport",
+  active_cases: "homeActiveMatters",
+  submissions: "homeHealthSubmissions",
+  reports_ready: "homeReportsReady",
+  operational: "homeHealthOperational",
+  integrity: "homeHealthIntegrity",
+  storage: "homeHealthStorage",
 };
 
 /**
@@ -1168,9 +1229,10 @@ export function WorkspaceHealthCard({
   metrics: WorkspaceHealthMetric[];
   overall: "healthy" | "needs_attention" | "action_required";
 }) {
+  const t = useT();
   const verdict = HEALTH_OVERALL[overall];
   return (
-    <SectionCard title="Workspace health" testId="workspace-health" fill>
+    <SectionCard title={t("homeWorkspaceHealth")} testId="workspace-health" fill>
       <div
         className="home-verdict"
         data-health-overall={overall}
@@ -1180,7 +1242,7 @@ export function WorkspaceHealthCard({
           aria-hidden
           style={{ width: 9, height: 9, borderRadius: 999, background: "currentColor" }}
         />
-        <span>{verdict.label}</span>
+        <span>{t(verdict.labelKey)}</span>
       </div>
 
       <div className="home-rows">
@@ -1197,7 +1259,7 @@ export function WorkspaceHealthCard({
                had to pair them up itself. */
             data-tone={HEALTH_ROW_TONE[m.tone] ?? "neutral"}
           >
-            <span className="home-row__label">{m.label}</span>
+            <span className="home-row__label">{fixedLabel(t, HEALTH_METRIC_LABEL_KEY[m.key], m.label)}</span>
             <span
               className="home-row__value"
               data-tone={HEALTH_ROW_TONE[m.tone] ?? "neutral"}
@@ -1262,25 +1324,49 @@ type TrustRow = {
  * on the calendars is healthy work in flight. "Not anchored yet" is neutral
  * for the same reason. Only `failed` is danger.
  */
-export function otsTrustRow(trust: Pick<TrustState, "otsAnchored" | "otsPending" | "otsFailed" | "otsNone">): TrustRow {
-  const recorded = `${trust.otsAnchored} ${trust.otsAnchored === 1 ? "attestation" : "attestations"} recorded`;
+export function otsTrustRow(
+  trust: Pick<TrustState, "otsAnchored" | "otsPending" | "otsFailed" | "otsNone">,
+  t: HomeT = englishHomeT,
+): TrustRow {
+  const recorded = fillCopy(t(trust.otsAnchored === 1 ? "homeTrustAttestationOne" : "homeTrustAttestationOther"), {
+    count: trust.otsAnchored,
+  });
+  const segments: Array<{ text: string; tone: TrustTone }> = [
+    { text: recorded, tone: "neutral" as const },
+    ...(trust.otsPending ? [{ text: fillCopy(t("homeTrustPendingCount"), { count: trust.otsPending }), tone: "warn" as const }] : []),
+    ...(trust.otsFailed ? [{ text: fillCopy(t("homeTrustFailedCount"), { count: trust.otsFailed }), tone: "danger" as const }] : []),
+    ...(trust.otsNone ? [{ text: fillCopy(t("homeTrustNotAnchored"), { count: trust.otsNone }), tone: "neutral" as const }] : []),
+  ];
   return {
     key: "ots",
-    label: "OpenTimestamps (OTS)",
-    value: `${recorded}${trust.otsPending ? ` · ${trust.otsPending} pending` : ""}${trust.otsFailed ? ` · ${trust.otsFailed} failed` : ""}${trust.otsNone ? ` · ${trust.otsNone} not anchored yet` : ""}`,
-    segments: [
-      { text: recorded, tone: "neutral" as const },
-      ...(trust.otsPending ? [{ text: `${trust.otsPending} pending`, tone: "warn" as const }] : []),
-      ...(trust.otsFailed ? [{ text: `${trust.otsFailed} failed`, tone: "danger" as const }] : []),
-      ...(trust.otsNone ? [{ text: `${trust.otsNone} not anchored yet`, tone: "neutral" as const }] : []),
-    ],
+    label: t("homeTrustOts"),
+    // The same plain sentence, said in parts below.
+    value: segments.map((seg) => seg.text).join(" · "),
+    segments,
     tone: trust.otsFailed > 0 ? "danger" : trust.otsPending > 0 ? "warn" : "neutral",
   };
 }
 
 function trustRows(
   trust: TrustState,
+  t: HomeT,
 ): TrustRow[] {
+  /*
+    EACH COUNT WEARS ITS OWN MEANING.
+
+    The whole sentence took the row's worst tone, so "138 stamped · 34
+    failed" rendered entirely red — the 138 successes were painted as
+    failures, and the one number an operator needed to find was the same
+    colour as the good news beside it.
+  */
+  // Ticket 3B — "not stamped" is a NEUTRAL bucket (no attempt yet),
+  // appended only when > 0; it never changes the row tone.
+  const tsaSegments: Array<{ text: string; tone: TrustTone }> = [
+    { text: fillCopy(t("homeTrustStamped"), { count: trust.tsaStamped }), tone: "ok" as const },
+    ...(trust.tsaPending ? [{ text: fillCopy(t("homeTrustPendingCount"), { count: trust.tsaPending }), tone: "warn" as const }] : []),
+    ...(trust.tsaFailed ? [{ text: fillCopy(t("homeTrustFailedCount"), { count: trust.tsaFailed }), tone: "danger" as const }] : []),
+    ...(trust.tsaNone ? [{ text: fillCopy(t("homeTrustNotStamped"), { count: trust.tsaNone }), tone: "danger" as const }] : []),
+  ];
   const rows: TrustRow[] = [
     {
       key: "tsa",
@@ -1288,40 +1374,34 @@ function trustRows(
       // claim PROOVRA does not assert. The plain description of what
       // TSA actually does (a third-party time-stamp on the file hash)
       // is safer and clearer for a non-technical reader.
-      label: "Time-stamp proof (TSA)",
-      // Ticket 3B — "not stamped" is a NEUTRAL bucket (no attempt yet),
-      // appended only when > 0; it never changes the row tone.
-      value: `${trust.tsaStamped} stamped${trust.tsaPending ? ` · ${trust.tsaPending} pending` : ""}${trust.tsaFailed ? ` · ${trust.tsaFailed} failed` : ""}${trust.tsaNone ? ` · ${trust.tsaNone} not stamped` : ""}`,
-      /*
-        EACH COUNT WEARS ITS OWN MEANING.
-
-        The whole sentence took the row's worst tone, so "138 stamped · 34
-        failed" rendered entirely red — the 138 successes were painted as
-        failures, and the one number an operator needed to find was the same
-        colour as the good news beside it.
-      */
-      segments: [
-        { text: `${trust.tsaStamped} stamped`, tone: "ok" as const },
-        ...(trust.tsaPending ? [{ text: `${trust.tsaPending} pending`, tone: "warn" as const }] : []),
-        ...(trust.tsaFailed ? [{ text: `${trust.tsaFailed} failed`, tone: "danger" as const }] : []),
-        ...(trust.tsaNone ? [{ text: `${trust.tsaNone} not stamped`, tone: "danger" as const }] : []),
-      ],
+      label: t("homeTrustTsa"),
+      value: tsaSegments.map((seg) => seg.text).join(" · "),
+      segments: tsaSegments,
       tone: trust.tsaFailed > 0 ? "danger" : trust.tsaPending > 0 ? "warn" : trust.empty ? "neutral" : "ok",
     },
-    otsTrustRow(trust),
-    { key: "signed", label: "Signed records", value: `${trust.signed} of ${trust.totalEvidence}`, tone: "neutral" },
+    otsTrustRow(trust, t),
+    {
+      key: "signed",
+      label: t("homeTrustSigned"),
+      value: fillCopy(t("homeTrustSignedOf"), { signed: trust.signed, total: trust.totalEvidence }),
+      tone: "neutral",
+    },
     {
       key: "verify",
-      label: "Verification pages available",
-      value: `${trust.verifyContentPreview + trust.verifyVerificationOnly} (${trust.verifyContentPreview} content preview · ${trust.verifyVerificationOnly} verification only)`,
+      label: t("homeTrustVerify"),
+      value: fillCopy(t("homeTrustVerifyValue"), {
+        total: trust.verifyContentPreview + trust.verifyVerificationOnly,
+        preview: trust.verifyContentPreview,
+        only: trust.verifyVerificationOnly,
+      }),
       tone: "neutral",
     },
   ];
   if (trust.verifyUnavailable > 0) {
-    rows.push({ key: "verify-unavailable", label: "Verification pages unavailable", value: `${trust.verifyUnavailable}`, tone: "danger" });
+    rows.push({ key: "verify-unavailable", label: t("homeTrustVerifyUnavailable"), value: `${trust.verifyUnavailable}`, tone: "danger" });
   }
   if (trust.needingAttention > 0) {
-    rows.push({ key: "attention", label: "Records needing attention", value: `${trust.needingAttention}`, tone: "danger" });
+    rows.push({ key: "attention", label: t("homeTrustAttention"), value: `${trust.needingAttention}`, tone: "danger" });
   }
   return rows;
 }
@@ -1336,13 +1416,13 @@ function trustToneStyle(tone: "ok" | "warn" | "danger" | "neutral"): { bg: strin
 }
 
 export function TrustStateCard({ trust }: { trust: TrustState }) {
-  const rows = trustRows(trust);
+  const t = useT();
+  const rows = trustRows(trust, t);
   return (
-    <SectionCard title="Verification summary" testId="trust-state" fill>
+    <SectionCard title={t("homeVerificationSummary")} testId="trust-state" fill>
       {trust.empty ? (
         <p data-trust-empty style={{ margin: "0 0 10px 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
-          No evidence captured yet — these are the integrity signals each record will earn once
-          captured.
+          {t("homeTrustEmpty")}
         </p>
       ) : null}
       {/*
@@ -1406,13 +1486,13 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
           data-trust-cta="capture-first"
           style={{ ...secondaryButtonStyle, marginTop: 12, background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)", border: "1px solid var(--btn-primary-border)" }}
         >
-          Capture first evidence
+          {t("homeCaptureFirstEvidence")}
         </Link>
       ) : null}
       {/* The legal boundary, in the quiet cool strip it belongs in — the
           wording is untouched and is never dressed up as a finding. */}
       <p className="home-note" style={{ marginTop: "auto" }}>
-        PROOVRA records integrity signals; it does not determine factual truth or legal admissibility.
+        {t("homeTrustBoundary")}
       </p>
     </SectionCard>
   );
@@ -1492,18 +1572,26 @@ function activityDot(kind: string): string {
   return map[kind] ?? "#475569";
 }
 
+/** B2A-F-12 — the activity groups' fixed names, by group key. */
+const ACTIVITY_GROUP_LABEL_KEY: Record<string, TranslationKey> = {
+  today: "homeToday",
+  yesterday: "homeYesterday",
+  earlier: "homeEarlier",
+};
+
 export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
+  const t = useT();
   if (groups.length === 0) {
     return (
-      <SectionCard title="Recent activity" testId="activity">
-        <EmptyState>Activity appears when evidence is captured, reports are generated, or intake submissions are received.</EmptyState>
+      <SectionCard title={t("homeRecentActivity")} testId="activity">
+        <EmptyState>{t("homeActivityFeedEmpty")}</EmptyState>
       </SectionCard>
     );
   }
   return (
     <SectionCard
-      title="Recent activity"
-      subtitle="Complete history of workspace updates and evidence reports"
+      title={t("homeRecentActivity")}
+      subtitle={t("homeActivityFeedSub")}
       testId="activity"
     >
       {/*
@@ -1521,7 +1609,7 @@ export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
       */}
       {groups.map((g) => (
         <div key={g.key} className="home-act__group" data-activity-group={g.key}>
-          <div className="home-act__label">{g.label}</div>
+          <div className="home-act__label">{fixedLabel(t, ACTIVITY_GROUP_LABEL_KEY[g.key], g.label)}</div>
           <ul style={{ ...listStyle, gap: 0 }}>
             {g.events.map((e) => {
               const tone = activityDot(e.kind);
@@ -1586,7 +1674,7 @@ export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
                         </span>
                       ) : null}
                     </span>
-                    <span className="home-act__time">{formatRelative(e.occurredAt)}</span>
+                    <span className="home-act__time">{formatRelative(e.occurredAt, t)}</span>
                   </Link>
                 </li>
               );
@@ -1603,10 +1691,11 @@ export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
 // ============================================================================
 
 export function StorageUsageCard({ usage }: { usage: StorageUsage | null }) {
+  const t = useT();
   return (
-    <SectionCard title="Storage" testId="storage-usage">
+    <SectionCard title={t("homeStorage")} testId="storage-usage">
       {!usage ? (
-        <EmptyState>Storage details will appear once your billing is set up.</EmptyState>
+        <EmptyState>{t("homeStorageEmpty")}</EmptyState>
       ) : (
         // Phase HOME-POLISH (#10/#11) — this card now sits in a FULL-WIDTH
         // row, so its content is distributed horizontally instead of hugging
@@ -1625,11 +1714,11 @@ export function StorageUsageCard({ usage }: { usage: StorageUsage | null }) {
           <div style={{ flex: "0 0 auto", minWidth: 160 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <span style={{ fontSize: 24, fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>{usage.usedLabel ?? "—"}</span>
-              <span style={{ fontSize: 13, color: "#5d6d71" }}>of {usage.limitLabel ?? "—"}</span>
+              <span style={{ fontSize: 13, color: "#5d6d71" }}>{fillCopy(t("homeStorageOf"), { limit: usage.limitLabel ?? "—" })}</span>
             </div>
             {usage.usagePercent != null ? (
               <div style={{ marginTop: 4, fontSize: 12.5, fontWeight: 600, color: "#64748b", fontVariantNumeric: "tabular-nums" }}>
-                {usage.usagePercent}% used
+                {fillCopy(t("homeStoragePercentUsed"), { percent: usage.usagePercent })}
               </div>
             ) : null}
           </div>
@@ -1662,23 +1751,22 @@ export function StorageUsageCard({ usage }: { usage: StorageUsage | null }) {
           <div style={{ flex: "1 1 200px", minWidth: 180 }}>
             {usage.forecastRecords != null && !usage.limitReached ? (
               <p data-storage-forecast={usage.forecastRecords} style={{ margin: 0, fontSize: 12.5, color: "#5d6d71", lineHeight: 1.5 }}>
-                Room for ≈ {usage.forecastRecords.toLocaleString()} more record
-                {usage.forecastRecords === 1 ? "" : "s"} at your current average size.
+                {fillCopy(t(usage.forecastRecords === 1 ? "homeStorageForecastOne" : "homeStorageForecastOther"), {
+                  count: usage.forecastRecords.toLocaleString(),
+                })}
               </p>
             ) : null}
             {usage.nearLimit || usage.limitReached ? (
               <p style={{ margin: usage.forecastRecords != null && !usage.limitReached ? "8px 0 0 0" : 0, fontSize: 13, color: usage.limitReached ? HOME_SEMANTIC.critical.strong : "#9a3412", lineHeight: 1.5 }}>
-                {usage.limitReached
-                  ? "Storage limit reached — top up or upgrade to keep capturing."
-                  : "Approaching your storage limit."}{" "}
+                {usage.limitReached ? t("homeStorageLimitReached") : t("homeStorageApproaching")}{" "}
                 <Link href={usage.upgradeHref} data-storage-upgrade style={{ color: usage.limitReached ? HOME_SEMANTIC.critical.strong : "#9a3412", fontWeight: 600 }}>
-                  Manage plan →
+                  {t("homeManagePlan")}
                 </Link>
               </p>
             ) : (
               <div style={{ marginTop: usage.forecastRecords != null ? 8 : 0 }}>
                 <Link href={usage.upgradeHref} data-storage-upgrade style={{ ...homeSecondaryButtonStyle }}>
-                  View storage →
+                  {t("homeViewStorage")}
                 </Link>
               </div>
             )}
@@ -1694,21 +1782,22 @@ export function StorageUsageCard({ usage }: { usage: StorageUsage | null }) {
 // ============================================================================
 
 export function TeamWorkCard({ team }: { team: TeamWork | null }) {
+  const t = useT();
   if (!team) return null;
   return (
     // Ticket 4 — manageHref was computed but never rendered; it now
     // drives the card CTA (the /teams landing is a verified-working
     // self-serve surface).
     <SectionCard
-      title="Team work"
+      title={t("homeTeamWork")}
       testId="team-work"
-      cta={{ label: "Manage team", href: team.manageHref }}
+      cta={{ label: t("homeManageTeam"), href: team.manageHref }}
     >
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-        <Stat label="Awaiting review" value={team.submissionsAwaitingReview} />
-        <Stat label="Reports today" value={team.reportsToday} />
-        <Stat label="Members" value={team.members} />
-        <Stat label="Pending invites" value={team.pendingInvites} />
+        <Stat label={t("homeAwaitingReview")} value={team.submissionsAwaitingReview} />
+        <Stat label={t("homeReportsToday")} value={team.reportsToday} />
+        <Stat label={t("homeMembers")} value={team.members} />
+        <Stat label={t("homePendingInvites")} value={team.pendingInvites} />
       </div>
     </SectionCard>
   );
@@ -1734,6 +1823,7 @@ export function GettingStartedChecklist({
   steps: ChecklistStep[];
   complete: boolean;
 }) {
+  const t = useT();
   const visible = steps.filter((s) => s.visible);
   if (visible.length === 0) return null;
   if (complete) return null;
@@ -1761,11 +1851,9 @@ export function GettingStartedChecklist({
   const createCase = visible.find((s) => s.key === "create_first_case");
 
   return (
-    <SectionCard title="Start your first evidence workflow" testId="getting-started">
+    <SectionCard title={t("homeStartFirstWorkflow")} testId="getting-started">
       <p className="home-onboard__lead">
-        {createCase
-          ? "Capture your first record or create a case to get started."
-          : "Capture your first record to get started."}
+        {createCase ? t("homeOnboardLeadWithCase") : t("homeOnboardLead")}
       </p>
       <div className="home-onboard__actions">
         {capture ? (

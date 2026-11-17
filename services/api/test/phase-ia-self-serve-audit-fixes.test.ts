@@ -32,6 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 import {
   intakeLinksModel,
@@ -88,14 +89,18 @@ describe("Phase IA-self-serve-audit-fixes — Search inspector gates", () => {
 
   it("Investigation pivots section is gated on canSeeInvestigation", () => {
     expect(SEARCH).toMatch(
-      /canSeeInvestigation && \(row\.evidenceId \|\| row\.caseId\)[\s\S]{0,200}<Section label="Investigation pivots"/,
+      // B2A-F-12 — copy moved to the web dictionary (i18n-search.ts).
+      /canSeeInvestigation && \(row\.evidenceId \|\| row\.caseId\)[\s\S]{0,200}<Section label=\{t\("searchSectionInvestigation"\)\}/,
     );
+    expect(webDictionaryEnValue("search", "searchSectionInvestigation")).toBe("Investigation pivots");
   });
 
   it("renders a 'Related evidence' fallback section for self-serve users with a semantic score", () => {
+    // B2A-F-12 — copy moved to the web dictionary (i18n-search.ts).
     expect(SEARCH).toMatch(
-      /!canSeeInvestigation &&\s*[\s\S]{0,400}<Section label="Related evidence"/,
+      /!canSeeInvestigation &&\s*[\s\S]{0,400}<Section label=\{t\("searchSectionRelatedEvidence"\)\}/,
     );
+    expect(webDictionaryEnValue("search", "searchSectionRelatedEvidence")).toBe("Related evidence");
   });
 });
 

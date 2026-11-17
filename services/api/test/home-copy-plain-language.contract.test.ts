@@ -24,6 +24,7 @@ import { operationsCopyFor } from "@proovra/shared";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { webDictionaryEn, webDictionaryEnValue } from "./_helpers/web-dictionary-copy";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -75,9 +76,11 @@ describe("Phase HOME-COPY — Verification health → Verification pages", () =>
   // (2026-10-18) Every finalized record has a permanent verification page; the
   // card is about those pages, not about "links" an owner publishes.
   it("the SectionCard title reads 'Verification pages'", () => {
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
     expect(HOME_SECTIONS).toMatch(
-      /SectionCard title="Verification pages" testId="verification-health"/,
+      /SectionCard title=\{t\("homeVerificationPages"\)\} testId="verification-health"/,
     );
+    expect(webDictionaryEnValue("home", "homeVerificationPages")).toBe("Verification pages");
   });
 
   it("the legacy 'Verification health' title is gone", () => {
@@ -89,7 +92,9 @@ describe("Phase HOME-COPY — Verification health → Verification pages", () =>
 
 describe("Phase HOME-COPY — Trusted timestamps → Time-stamp proof", () => {
   it("the TSA row label avoids implying legal 'trust' as fact", () => {
-    expect(HOME_SECTIONS).toMatch(/label: "Time-stamp proof \(TSA\)"/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
+    expect(HOME_SECTIONS).toMatch(/label: t\("homeTrustTsa"\)/);
+    expect(webDictionaryEnValue("home", "homeTrustTsa")).toBe("Time-stamp proof (TSA)");
   });
 
   it("the legacy 'Trusted timestamps (TSA)' label is gone", () => {
@@ -99,9 +104,11 @@ describe("Phase HOME-COPY — Trusted timestamps → Time-stamp proof", () => {
 
 describe("Phase HOME-COPY — Trust state → Verification summary", () => {
   it("the Trust State card now reads 'Verification summary'", () => {
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
     expect(HOME_SECTIONS).toMatch(
-      /SectionCard title="Verification summary" testId="trust-state"/,
+      /SectionCard title=\{t\("homeVerificationSummary"\)\} testId="trust-state"/,
     );
+    expect(webDictionaryEnValue("home", "homeVerificationSummary")).toBe("Verification summary");
   });
 
   it("the legacy 'Trust state' title is gone", () => {
@@ -113,12 +120,17 @@ describe("Phase HOME-COPY — verification page wording", () => {
   // (2026-10-18) Plain language about the pages themselves: how many are
   // available, and how many are unavailable (withdrawn or suspended).
   it("the available pages read 'Verification pages available'", () => {
-    expect(HOME_SECTIONS).toMatch(/label: "Verification pages available"/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
+    expect(HOME_SECTIONS).toMatch(/label: t\("homeTrustVerify"\)/);
+    expect(webDictionaryEnValue("home", "homeTrustVerify")).toBe("Verification pages available");
   });
 
   it("unavailable pages read 'Verification pages unavailable' — never 'published' wording", () => {
-    expect(HOME_SECTIONS).toMatch(/label: "Verification pages unavailable"/);
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
+    expect(HOME_SECTIONS).toMatch(/label: t\("homeTrustVerifyUnavailable"\)/);
+    expect(webDictionaryEnValue("home", "homeTrustVerifyUnavailable")).toBe("Verification pages unavailable");
     expect(HOME_SECTIONS).not.toMatch(/label: "[^"]*(?:[Uu]npublished|[Pp]ublished)[^"]*"/);
+    expect(webDictionaryEn("home")).not.toMatch(/homeTrust\w*:\s*"[^"]*(?:[Uu]npublished|[Pp]ublished)[^"]*"/);
   });
 
   it("the legacy bare 'Public verification live'/'suspended' labels are gone", () => {
@@ -162,9 +174,11 @@ describe("Phase HOME-COPY — Workspace Health row labels", () => {
 
 describe("Phase HOME-COPY — header CTA + Workspace Priorities title", () => {
   it("the header CTA is 'All evidence' → /evidence", () => {
+    // B2A-F-12 — copy moved to the web dictionary (i18n-home.ts).
     expect(HOME_DASH).toMatch(
-      /\{\s*label:\s*"All evidence"\s*,\s*href:\s*"\/evidence"\s*\}/,
+      /\{\s*label:\s*t\("homeAllEvidence"\)\s*,\s*href:\s*"\/evidence"\s*\}/,
     );
+    expect(webDictionaryEnValue("home", "homeAllEvidence")).toBe("All evidence");
   });
 
   it("the legacy 'Evidence Queue' header label is gone", () => {

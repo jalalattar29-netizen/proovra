@@ -164,6 +164,31 @@ import {
  * pointer is indistinguishable from none and the response contract the
  * consoles read is unchanged.
  */
+/**
+ * B7B-F06 (Free-user audit 0ea0, owner directive) — Trust Center AUTHORING
+ * answers to the one catalogue key that entitles it, FEATURE_TRUST_CENTER, on
+ * every authoring route (articles already asked it; subprocessors and the
+ * status page did not). Asked after the permission gate and before any
+ * step-up or write. The key's default is not changed here: the packaging
+ * catalogue grants it to every plan (DEFAULT_ENTITLEMENTS, Free included), so
+ * this aligns the routes with the catalogue rather than withdrawing anything
+ * that is advertised. Reads and the canonical seed stay open.
+ */
+async function refuseTrustAuthoring(
+  reply: FastifyReply,
+  ctx: { teamId: string; userId: string },
+): Promise<boolean> {
+  const entitled = await assertFeatureEntitlement({
+    prisma,
+    teamId: ctx.teamId,
+    key: "FEATURE_TRUST_CENTER",
+    actorUserId: ctx.userId,
+  });
+  if (entitled.ok) return false;
+  reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_TRUST_CENTER" });
+  return true;
+}
+
 async function resolveWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -540,6 +565,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      if (await refuseTrustAuthoring(reply, ctx)) return reply;
       const body = z
         .object({
           slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
@@ -656,6 +682,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!authorized) return reply;
+      if (await refuseTrustAuthoring(reply, ctx)) return reply;
       const body = z
         .object({
           title: z.string().min(1).max(200),
@@ -704,6 +731,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!authorized) return reply;
+      if (await refuseTrustAuthoring(reply, ctx)) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = z
         .object({
@@ -761,6 +789,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!authorized) return reply;
+      if (await refuseTrustAuthoring(reply, ctx)) return reply;
       const body = z
         .object({
           title: z.string().min(1).max(200),

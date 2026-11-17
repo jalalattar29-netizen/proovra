@@ -475,6 +475,75 @@ export function parseVerificationAccess(res: unknown): NativeVerificationAccess 
 export const VERIFICATION_PAGE_NOT_ISSUED_COPY =
   "The verification page is created automatically with this record's first report.";
 
+// ---------------------------------------------------------------------------
+// B5B-F-105 — VERIFICATION-LINK MANAGEMENT STAYS ON THE WEB (owner directive).
+// Revoking reviewer links (EP-0453/0455) and withdrawing the verification page
+// (EP-0445) are step-up guarded owner actions on the web record's Verification
+// page section; the phone states that and hands off there. The handoff carries
+// the record id only — an owner surface behind sign-in, never a session or
+// verify token — and goes to the record only when this app can confirm the
+// record is in its active workspace; otherwise to the web workspaces entry.
+// ---------------------------------------------------------------------------
+
+/** The button that hands off to the web management surface. */
+export const MANAGE_VERIFICATION_LINKS_ON_WEB = "Manage links and withdrawal on the web";
+
+/** Web `evidenceVerificationPageHref` (apps/web/lib/verification-links-href.ts), verbatim. */
+export function webVerificationManagementPath(evidenceId: string): string {
+  return `/evidence/${encodeURIComponent(evidenceId)}?tab=artifacts#verification-page`;
+}
+
+export type VerificationManagementHandoff = {
+  /** Where the button opens; null when there is nowhere safe to send the person. */
+  url: string | null;
+  target: "record" | "workspaces" | "none";
+  /** What the person is told next to the button. */
+  instructions: string;
+};
+
+export function verificationManagementHandoff(input: {
+  origin: string | null;
+  evidenceId: string | null;
+  /** The API answered this app with a signed-in context. */
+  signedIn: boolean;
+  /** The workspace that holds the record (review workspace `reviewWorkflow.teamId`). */
+  recordTeamId: string | null;
+  /** This app's active workspace (platform context). */
+  activeTeamId: string | null;
+  /** The active workspace's display name. */
+  workspaceName: string | null;
+}): VerificationManagementHandoff {
+  const origin = input.origin ? input.origin.replace(/\/+$/, "") : null;
+  if (!origin || !input.evidenceId) {
+    return {
+      url: null,
+      target: "none",
+      instructions: "Reviewer links and withdrawal of this verification page are managed in the PROOVRA web app.",
+    };
+  }
+  if (!input.signedIn) {
+    return {
+      url: null,
+      target: "none",
+      instructions: "Sign in to manage this record. Reviewer links and withdrawal of its verification page are managed in the PROOVRA web app.",
+    };
+  }
+  if (input.recordTeamId && input.activeTeamId && input.recordTeamId === input.activeTeamId) {
+    const where = input.workspaceName ? ` and choose the workspace “${input.workspaceName}” if it is not already selected` : "";
+    return {
+      url: `${origin}${webVerificationManagementPath(input.evidenceId)}`,
+      target: "record",
+      instructions: `Opens this record's Verification page section in the PROOVRA web app, where you revoke reviewer links or withdraw the page. Sign in there with the same account${where}.`,
+    };
+  }
+  return {
+    url: `${origin}/workspaces`,
+    target: "workspaces",
+    instructions:
+      "This app could not confirm which workspace holds this record, so the web app opens on your workspaces. Sign in with the same account, switch to the workspace that holds this record, then open the record and go to Artifacts → Verification page to revoke reviewer links or withdraw the page.",
+  };
+}
+
 /** The absolute link on the public web origin, or null when this build has none. */
 export function verifyUrlFromPath(origin: string | null, verifyPath: string): string | null {
   if (!origin) return null;

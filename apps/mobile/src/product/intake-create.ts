@@ -373,6 +373,27 @@ export function parseCreatedIntakeLink(v: unknown): CreatedIntakeLink | null {
   };
 }
 
+/**
+ * B3B-F-102 — a create the server had ALREADY done (a retry with the same key
+ * after a lost response). It answers the original link but never its secure
+ * link again: that is shown exactly once. Null for an ordinary create.
+ */
+export function createdReplayNotice(v: unknown): string | null {
+  const d = obj(v);
+  if (d["replayed"] !== true) return null;
+  const del = obj(d["delivery"]);
+  const channel = del["method"] === "SMS" ? "SMS" : "email";
+  const delivered =
+    del["status"] === "sent"
+      ? ` It was sent by ${channel}.`
+      : del["status"] === "failed"
+        ? ` Sending it by ${channel} failed.`
+        : del["status"] === "unconfirmed"
+          ? ` Whether it was sent by ${channel} is not confirmed — check Delivery history on the link.`
+          : "";
+  return `This link was already created by your earlier attempt.${delivered} Its secure link was shown only once and can't be shown again — if you don't have it, revoke the link and create a new one.`;
+}
+
 /* ------------------------------------------------------------ copy */
 
 /**
@@ -404,6 +425,9 @@ export function friendlyCreateError(code: string | null, message: string | null)
       return "This request type doesn't support the selected link type. Pick another.";
     case "max_uses_invalid":
       return "Pick a usage limit between 1 and 10,000.";
+    // B3B-F-102 — 409: this form already created a link, with other details.
+    case "IDEMPOTENCY_KEY_REUSED":
+      return "A link was already created from this form with different details. Find it under Intake links, then start a new one.";
     default:
       return message && !/^HTTP \d+/.test(message) ? message : "Couldn't create the intake link.";
   }

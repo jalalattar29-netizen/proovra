@@ -18,6 +18,22 @@
  */
 export const HOME_INTAKE_MESSAGES_PATH = "/v1/communications/messages?purpose=INTAKE_LINK";
 
+/**
+ * B3C-F-002 (free-audit 0ea0) — the workspace-wide message log is the
+ * Messaging operator's read: the API serves it on
+ * `notification.delivery.resend` (OWNER / ADMIN / MEMBER), and the web console
+ * route and web Home ask for it only with INTAKE_LINKS_MANAGE, which the
+ * server grants to exactly those roles. A Viewer's Home does not ask (a
+ * refused read would surface as "could not be loaded"); the card then states
+ * that the delivery figures are not available, as it does for any source that
+ * was not read.
+ */
+export function homeReadsIntakeMessages(envelope: unknown): boolean {
+  if (!envelope || typeof envelope !== "object") return false;
+  const caps = (envelope as { capabilities?: unknown }).capabilities;
+  return !!caps && typeof caps === "object" && (caps as Record<string, unknown>)["INTAKE_LINKS_MANAGE"] === true;
+}
+
 /** The card shows five rows; the projection carries ten so "View intake" can be reached. */
 export const INTAKE_PREVIEW_LIMIT = 5;
 const COLLECTION_BOUND = 10;

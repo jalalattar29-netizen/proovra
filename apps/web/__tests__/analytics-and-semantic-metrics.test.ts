@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { KPI_VOCABULARY } from "../lib/intake-links/vocabulary";
 import { ACTIVITY_RANGES } from "../components/home-experience/home-view-model";
 import { ANALYTICS_PALETTE } from "../components/home-experience/home-theme";
+import { HOME_COPY } from "@proovra/shared/i18n";
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string) => readFileSync(resolve(APP, rel), "utf8");
@@ -217,7 +218,10 @@ test("the Records / Preserved files switch survives, and both modes share one ch
   // ONE component renders both — the old list is not a fallback for either.
   const uses = DASH.match(/<AnnotatedDonut/g) ?? [];
   assert.equal(uses.length, 1, "one chart, parameterised by mode");
-  assert.match(DASH, /centreLabel=\{isFilesMode \? "Files" : "Records"\}/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.ok(DASH.includes('centreLabel={isFilesMode ? t("homeFiles") : t("homeRecords")}'));
+  assert.equal(HOME_COPY.en.homeFiles, "Files");
+  assert.equal(HOME_COPY.en.homeRecords, "Records");
 });
 
 test("an activity row carries a glyph for its kind, and the same one every time", () => {
@@ -285,7 +289,9 @@ test("the period control is the shared listbox, not a native select", () => {
   // Its options come from the same table the aggregation reads.
   assert.match(DASH, /const RANGE_OPTIONS = ACTIVITY_RANGES\.map\(/);
   // The accessible name survives the loss of the visible <label>.
-  assert.match(DASH, /ariaLabel="Activity period"/);
+  // B2A-F-12 — copy moved to the web dictionary (i18n-*.ts).
+  assert.ok(DASH.includes('ariaLabel={t("homeActivityPeriod")}'));
+  assert.equal(HOME_COPY.en.homeActivityPeriod, "Activity period");
   // And the subtitle no longer repeats what the trigger already says.
   const header = DASH.slice(DASH.indexOf("<h2 style={activityTitleStyle}>"));
   assert.doesNotMatch(

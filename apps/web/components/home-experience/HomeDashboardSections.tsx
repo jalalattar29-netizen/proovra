@@ -17,8 +17,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { fillOperationsCopy, operationsCopyFor } from "@proovra/shared";
+import { fillCopy } from "@proovra/shared/i18n";
 
-import { useOptionalLocale } from "../../app/providers";
+import { useOptionalLocale, useT, type TranslationKey } from "../../app/providers";
 import { formatOpsNumber } from "../../app/(app)/operations/_lib/format";
 import { formatUserDate } from "../../lib/date";
 import { directionFor } from "../../lib/i18n";
@@ -39,6 +40,7 @@ import { AppListbox } from "../app-primitives/AppListbox";
 import { ACTIVITY_RANGES } from "./home-view-model";
 import { AnnotatedDonut, DonutReadout } from "./AnnotatedDonut";
 import { operationsRowText } from "./operations-condition-map";
+import { fixedLabel } from "./HomeSections";
 import {
   ANALYTICS_PALETTE,
   HOME_ACCENT,
@@ -149,6 +151,16 @@ const KPI_SURFACE: Record<
   },
 };
 
+/** B2A-F-12 — each KPI's fixed name, by KPI key (the subtitle is the projection's). */
+const KPI_LABEL_KEY: Record<HomeKpi["key"], TranslationKey> = {
+  evidence: "homeKpiEvidence",
+  matters: "homeActiveMatters",
+  allowance: "homeKpiAllowance",
+  trust: "homeKpiTrust",
+  deliverables: "homeKpiDeliverables",
+  intake: "homeKpiIntake",
+};
+
 // ============================================================================
 // Header — greeting, search, inbox indicator, ONE primary action.
 // ============================================================================
@@ -162,6 +174,7 @@ export function HomeHeader({ hero }: { hero: HeroAction }) {
   // hero.ctaLabel — see home-polish CTA-NORM): a true onboarding user
   // (capture_first) gets "Capture evidence"; everyone else gets the
   // plain "All evidence" list.
+  const t = useT();
   const ctx = usePlatformContext();
   const user = ctx.envelope?.user;
   const firstName =
@@ -171,13 +184,14 @@ export function HomeHeader({ hero }: { hero: HeroAction }) {
 
   // Compute the greeting after mount so server/client render agree
   // (the hour is only known on the client → avoids hydration mismatch).
-  const [greeting, setGreeting] = useState("Welcome");
+  const [greetingKey, setGreetingKey] = useState<TranslationKey>("homeGreetingWelcome");
   useEffect(() => {
     const h = new Date().getHours();
-    setGreeting(
-      h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening",
+    setGreetingKey(
+      h < 12 ? "homeGreetingMorning" : h < 18 ? "homeGreetingAfternoon" : "homeGreetingEvening",
     );
   }, []);
+  const greeting = t(greetingKey);
 
   // Neutral navigation target — NOT a duplicate of the queue/priorities
   // decision surfaces, and never derived from hero.ctaLabel (which once
@@ -185,21 +199,17 @@ export function HomeHeader({ hero }: { hero: HeroAction }) {
   // across all user types; a brand-new user is nudged to capture first.
   const primary =
     hero.kind === "capture_first"
-      ? { label: "Capture evidence", href: "/capture" }
-      : { label: "All evidence", href: "/evidence" };
+      ? { label: t("homeCaptureEvidence"), href: "/capture" }
+      : { label: t("homeAllEvidence"), href: "/evidence" };
 
   return (
     <header style={headerWrapStyle} data-home-header>
       <div style={{ minWidth: 0 }}>
         <h1 style={headerTitleStyle}>
-          {greeting}
-          {firstName ? `, ${firstName}` : ""}{" "}
+          {firstName ? fillCopy(t("homeGreetingWithName"), { greeting, name: firstName }) : greeting}{" "}
           <span aria-hidden="true">👋</span>
         </h1>
-        <p style={headerSubtitleStyle}>
-          Here&apos;s what&apos;s happening across your digital evidence
-          operations today.
-        </p>
+        <p style={headerSubtitleStyle}>{t("homeHeaderSubtitle")}</p>
       </div>
       <Link href={primary.href} style={headerPrimaryCtaStyle} data-home-primary-cta>
         {primary.label}
@@ -247,6 +257,7 @@ const headerPrimaryCtaStyle: React.CSSProperties = {
  * all still come from `vm.executiveSummary`.
  */
 export function ExecutiveSummaryBand({ summary }: { summary: ExecutiveSummary }) {
+  const t = useT();
   return (
     <section
       className="home-alert"
@@ -266,7 +277,7 @@ export function ExecutiveSummaryBand({ summary }: { summary: ExecutiveSummary })
         </p>
         {summary.secondarySignals.length > 0 ? (
           <p className="home-alert__also" data-exec-secondary>
-            Also: {summary.secondarySignals.join(" · ")}
+            {fillCopy(t("homeExecAlso"), { signals: summary.secondarySignals.join(" · ") })}
           </p>
         ) : null}
       </div>
@@ -347,6 +358,7 @@ function Sparkline({ values, color, uid }: { values: number[]; color: string; ui
 }
 
 export function KpiRow({ kpis }: { kpis: HomeKpi[] }) {
+  const t = useT();
   return (
     <div className="home-kpi-grid" data-home-kpi-row>
       {kpis.map((k, index) => {
@@ -383,7 +395,7 @@ export function KpiRow({ kpis }: { kpis: HomeKpi[] }) {
               >
                 <Icon d={surface.d} color={surface.icon} size={19} />
               </span>
-              <span style={kpiLabelStyle}>{k.label}</span>
+              <span style={kpiLabelStyle}>{fixedLabel(t, KPI_LABEL_KEY[k.key], k.label)}</span>
               <span
                 aria-hidden
                 title={k.tone}
@@ -716,12 +728,23 @@ export function WorkspacePrioritiesCard({
  */
 const RANGE_OPTIONS = ACTIVITY_RANGES.map((r) => ({ value: r.id, label: r.label }));
 
+/** B2A-F-12 — each range's name in the reader's language, by range id. */
+const RANGE_LABEL_KEY: Record<EvidenceActivityRangeId, TranslationKey> = {
+  "14d": "homeRange14d",
+  "1m": "homeRange1m",
+  "3m": "homeRange3m",
+  "6m": "homeRange6m",
+};
+
 export function EvidenceActivityChart({
   seriesByRange,
 }: {
   /** Every range, built from the records already loaded. */
   seriesByRange: Record<EvidenceActivityRangeId, EvidenceActivitySeries>;
 }) {
+  const t = useT();
+  // B2A-F-12 — the same table, its labels in the reader's language.
+  const rangeOptions = RANGE_OPTIONS.map((o) => ({ ...o, label: fixedLabel(t, RANGE_LABEL_KEY[o.value], o.label) }));
   const [rangeId, setRangeId] = useState<EvidenceActivityRangeId>("14d");
   const series = seriesByRange[rangeId] ?? seriesByRange["14d"];
   const hasData = series.totalEvidence > 0 || series.totalReports > 0;
@@ -735,16 +758,16 @@ export function EvidenceActivityChart({
       <header style={chartHeaderStyle}>
         {/* Header is title + subtitle stacked left, no decorative icon. */}
         <div style={{ minWidth: 0 }}>
-          <h2 style={activityTitleStyle}>Evidence activity</h2>
+          <h2 style={activityTitleStyle}>{t("homeActivityTitle")}</h2>
           {/* The trigger beside this already says which range is selected;
               repeating it here said it twice. What the subtitle can add is what
               the reader cannot see from the label — how the columns are grouped,
               and whether the series is capped. */}
           <span style={activitySubtitleStyle}>
             {series.bucketDays > 1
-              ? `${series.bucketDays === 7 ? "Weekly" : "Fortnightly"} totals`
-              : "Daily totals"}
-            {series.sampled ? " · latest 100 records" : ""}
+              ? t(series.bucketDays === 7 ? "homeTotalsWeekly" : "homeTotalsFortnightly")
+              : t("homeTotalsDaily")}
+            {series.sampled ? ` · ${t("homeLatest100Records")}` : ""}
           </span>
         </div>
         {/*
@@ -763,20 +786,20 @@ export function EvidenceActivityChart({
         */}
         <AppListbox
           value={rangeId}
-          options={RANGE_OPTIONS}
+          options={rangeOptions}
           onChange={setRangeId}
-          ariaLabel="Activity period"
+          ariaLabel={t("homeActivityPeriod")}
           className="home-range-listbox"
         />
         {hasData ? (
           <div style={legendStyle}>
             <span style={legendItemStyle}>
               <span style={{ ...legendSwatchStyle, background: ANALYTICS_PALETTE.evidenceSeries }} />
-              Evidence ({series.totalEvidence})
+              {fillCopy(t("homeLegendEvidence"), { count: series.totalEvidence })}
             </span>
             <span style={legendItemStyle}>
               <span style={{ ...legendSwatchStyle, background: ANALYTICS_PALETTE.reportsSeries }} />
-              Reports ({series.totalReports})
+              {fillCopy(t("homeLegendReports"), { count: series.totalReports })}
             </span>
           </div>
         ) : null}
@@ -786,16 +809,14 @@ export function EvidenceActivityChart({
           <ActivityBars series={series} />
         </div>
       ) : (
-        <p style={chartEmptyStyle}>
-          Activity appears here as evidence is captured and reports are
-          generated.
-        </p>
+        <p style={chartEmptyStyle}>{t("homeActivityEmpty")}</p>
       )}
     </section>
   );
 }
 
 function ActivityBars({ series }: { series: EvidenceActivitySeries }) {
+  const t = useT();
   const W = 760;
   const H = 240;
   const PAD_L = 24;
@@ -828,7 +849,7 @@ function ActivityBars({ series }: { series: EvidenceActivitySeries }) {
       preserveAspectRatio="none"
       style={{ width: "100%", height: "100%", display: "block" }}
       role="img"
-      aria-label={`Evidence activity over the last 14 days: ${series.totalEvidence} evidence records, ${series.totalReports} reports.`}
+      aria-label={fillCopy(t("homeActivityChartAria"), { evidence: series.totalEvidence, reports: series.totalReports })}
     >
       {ticks.map((t) => (
         <g key={t}>
@@ -856,7 +877,7 @@ function ActivityBars({ series }: { series: EvidenceActivitySeries }) {
                 rx={1.5}
                 fill={ANALYTICS_PALETTE.evidenceSeries}
               >
-                <title>{`${p.dayLabel}: ${p.evidence} evidence record${p.evidence === 1 ? "" : "s"}`}</title>
+                <title>{fillCopy(t(p.evidence === 1 ? "homeBarEvidenceOne" : "homeBarEvidenceOther"), { day: p.dayLabel, count: p.evidence })}</title>
               </rect>
             ) : null}
             {p.reports > 0 ? (
@@ -868,7 +889,7 @@ function ActivityBars({ series }: { series: EvidenceActivitySeries }) {
                 rx={1.5}
                 fill={ANALYTICS_PALETTE.reportsSeries}
               >
-                <title>{`${p.dayLabel}: ${p.reports} report${p.reports === 1 ? "" : "s"} generated`}</title>
+                <title>{fillCopy(t(p.reports === 1 ? "homeBarReportsOne" : "homeBarReportsOther"), { day: p.dayLabel, count: p.reports })}</title>
               </rect>
             ) : null}
             {i % 2 === 0 ? (
@@ -896,18 +917,17 @@ const TYPE_GLYPHS: Record<string, string> = {
 };
 
 export function RecentEvidenceCard({ rows }: { rows: RichRecentEvidenceRow[] }) {
+  const t = useT();
   return (
     <section className="home-card" style={homeCardStyle} data-self-serve-section="recent-evidence">
       <header style={homeCardHeaderStyle}>
-        <h2 style={homeCardTitleStyle}>Recent evidence</h2>
+        <h2 style={homeCardTitleStyle}>{t("homeRecentEvidenceTitle")}</h2>
         <Link href="/evidence" style={homeCardCtaStyle}>
-          All evidence →
+          {t("homeAllEvidenceLink")}
         </Link>
       </header>
       {rows.length === 0 ? (
-        <p style={chartEmptyStyle}>
-          Your newest records appear here after the first capture.
-        </p>
+        <p style={chartEmptyStyle}>{t("homeRecentEvidenceEmpty")}</p>
       ) : (
         <ul style={recentListStyle}>
           {rows.slice(0, 3).map((r) => {
@@ -922,7 +942,7 @@ export function RecentEvidenceCard({ rows }: { rows: RichRecentEvidenceRow[] }) 
                     <span style={recentTitleStyle}>{r.title}</span>
                     <span style={recentMetaStyle}>
                       {r.typeLabel}
-                      {r.caseId ? " · in case" : ""} · {formatRelativeShort(r.createdAt)}
+                      {r.caseId ? ` · ${t("homeInCase")}` : ""} · {formatRelativeShort(r.createdAt, t)}
                     </span>
                   </span>
                   {/* "Report ready" is a fact about the record, not a control.
@@ -945,17 +965,17 @@ export function RecentEvidenceCard({ rows }: { rows: RichRecentEvidenceRow[] }) 
   );
 }
 
-function formatRelativeShort(iso: string): string {
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return "—";
-  const minutes = Math.round((Date.now() - t) / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+function formatRelativeShort(iso: string, t: (key: TranslationKey) => string): string {
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return "—";
+  const minutes = Math.round((Date.now() - at) / 60000);
+  if (minutes < 1) return t("homeJustNow");
+  if (minutes < 60) return fillCopy(t("homeMinutesAgo"), { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return fillCopy(t("homeHoursAgo"), { count: hours });
   const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return formatUserDate(new Date(t));
+  if (days < 7) return fillCopy(t("homeDaysAgo"), { count: days });
+  return formatUserDate(new Date(at));
 }
 
 // ============================================================================
@@ -1012,6 +1032,7 @@ export function EvidenceTypeDonutCard({
    */
   preservedFiles?: EvidenceTypeDistribution | null;
 }) {
+  const t = useT();
   const hasFilesView =
     !!preservedFiles && preservedFiles.sampleSize >= 0;
   const [mode, setMode] = useState<"records" | "files">("records");
@@ -1027,14 +1048,12 @@ export function EvidenceTypeDonutCard({
   const subtitle =
     sampleSize > 0
       ? isFilesMode
-        ? `${sampleSize} file${sampleSize === 1 ? "" : "s"} preserved · inside evidence records`
+        ? fillCopy(t(sampleSize === 1 ? "homeFilesPreservedOne" : "homeFilesPreservedOther"), { count: sampleSize })
         : isAggregate
-          ? `${sampleSize} record${sampleSize === 1 ? "" : "s"} · by primary type`
-          : `latest ${sampleSize} records sampled · by primary type`
+          ? fillCopy(t(sampleSize === 1 ? "homeRecordsByPrimaryOne" : "homeRecordsByPrimaryOther"), { count: sampleSize })
+          : fillCopy(t("homeRecordsSampled"), { count: sampleSize })
       : "";
-  const subtitleTitle = isFilesMode
-    ? "Counts each preserved file inside multipart evidence packages."
-    : "Counts primary evidence records, not files inside packages.";
+  const subtitleTitle = isFilesMode ? t("homeFilesCountHint") : t("homeRecordsCountHint");
   return (
     <section
       className="home-card home-analytics-card"
@@ -1050,7 +1069,7 @@ export function EvidenceTypeDonutCard({
             the truthful rename + provenance subtitle make the contract
             explicit. */}
         <div style={{ minWidth: 0 }}>
-          <h2 style={donutTitleStyle}>Records by type</h2>
+          <h2 style={donutTitleStyle}>{t("homeRecordsByType")}</h2>
           <span
             style={donutSubtitleStyle}
             data-evidence-types-subtitle
@@ -1062,7 +1081,7 @@ export function EvidenceTypeDonutCard({
         {hasFilesView ? (
           <div
             role="tablist"
-            aria-label="Records or preserved files"
+            aria-label={t("homeRecordsOrFiles")}
             data-evidence-types-toggle
             style={segmentedControlStyle}
           >
@@ -1087,7 +1106,7 @@ export function EvidenceTypeDonutCard({
                 border: "1px solid transparent",
               }}
             >
-              Records
+              {t("homeRecords")}
             </button>
             <button
               type="button"
@@ -1110,16 +1129,14 @@ export function EvidenceTypeDonutCard({
                 border: "1px solid transparent",
               }}
             >
-              Preserved files
+              {t("homePreservedFiles")}
             </button>
           </div>
         ) : null}
       </header>
       {sampleSize === 0 ? (
         <p style={chartEmptyStyle}>
-          {isFilesMode
-            ? "No files have been preserved yet."
-            : "The distribution of your evidence types appears after the first capture."}
+          {isFilesMode ? t("homeNoFilesYet") : t("homeTypesEmpty")}
         </p>
       ) : (
         <div style={donutWrapStyle} className="home-donut-wrap">
@@ -1128,11 +1145,11 @@ export function EvidenceTypeDonutCard({
               slices={slices}
               total={sampleSize}
               colourFor={donutColorForKey}
-              centreLabel={isFilesMode ? "Files" : "Records"}
+              centreLabel={isFilesMode ? t("homeFiles") : t("homeRecords")}
               ariaLabel={
                 isFilesMode
-                  ? `Preserved files by type across ${sampleSize} files.`
-                  : `Evidence type distribution across ${sampleSize} records.`
+                  ? fillCopy(t("homeFilesDonutAria"), { count: sampleSize })
+                  : fillCopy(t("homeRecordsDonutAria"), { count: sampleSize })
               }
               idPrefix={isFilesMode ? "files" : "records"}
             />

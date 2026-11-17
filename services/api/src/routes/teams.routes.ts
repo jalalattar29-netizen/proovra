@@ -593,6 +593,9 @@ async function assertUserCanCreateAnotherOwnedWorkspace(ownerUserId: string) {
   throw err;
 }
 
+/** B3A-F-008 — operator switch for the reopen step-up (OFF unless "true"). */
+export const WORKSPACE_REOPEN_STEP_UP_FLAG = "WORKSPACE_REOPEN_STEP_UP_ENFORCED";
+
 export async function teamsRoutes(app: FastifyInstance) {
   app.post("/v1/teams", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const body = CreateTeamBody.parse(req.body);
@@ -4276,6 +4279,52 @@ export async function teamsRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
+
+      /*
+       * B3A-F-008 (free-audit 0ea0) — REOPEN ASKS FOR THE CLOSURE'S STEP-UP,
+       * STAGED. Reopening restores the owner's access to a closed workspace, so
+       * it takes the same account proof the closure took (verifyAccountStepUp,
+       * proof in the body). The web answers the challenge today; an installed
+       * native build may predate the client that does, so enforcement is an
+       * operator switch, OFF unless WORKSPACE_REOPEN_STEP_UP_ENFORCED is "true".
+       * When ON it applies to every caller — no client version is consulted.
+       *
+       * The uniform 404 comes FIRST: a non-owner or an unknown id is told
+       * "not found" exactly as the service tells it, and is never asked for
+       * proof (asking would say the workspace exists). The service repeats the
+       * owner check inside its transaction.
+       */
+      if (process.env[WORKSPACE_REOPEN_STEP_UP_FLAG] === "true") {
+        const body = z
+          .object({
+            stepUp: z
+              .object({
+                method: z.enum(["password", "mfa"]).optional(),
+                currentPassword: z.string().optional(),
+                code: z.string().optional(),
+              })
+              .optional(),
+          })
+          .passthrough()
+          .parse(req.body ?? {});
+        const owned = await prisma.team.findUnique({
+          where: { id: teamId },
+          select: { ownerUserId: true },
+        });
+        if (!owned || owned.ownerUserId !== userId) {
+          return reply.code(404).send({ error: { code: "team_not_found" } });
+        }
+        const stepUp = await verifyAccountStepUp({
+          req,
+          reply,
+          userId,
+          action: "workspace_reopen",
+          proof: body.stepUp,
+        });
+        if (!stepUp.ok) {
+          return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+        }
+      }
 
       try {
         const result = await reopenClosedWorkspace({

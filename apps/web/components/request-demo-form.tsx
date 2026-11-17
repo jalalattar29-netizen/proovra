@@ -15,6 +15,55 @@ import {
 import { SALES_ASSETS } from "../lib/sales-assets";
 import { EnterpriseSuccessModal } from "./marketing/EnterpriseSuccessModal";
 import { MARKETING_BTN } from "../lib/marketing-buttons";
+import { fillCopy } from "@proovra/shared/i18n";
+import { useT, type TranslationKey } from "../app/providers";
+
+/**
+ * B2A-F-12 — the option LABELS in the reader's language. The values the form
+ * sends are unchanged.
+ */
+const INTEREST_LABEL_KEYS: Readonly<Record<string, TranslationKey>> = {
+  "full-platform": "leadInterestFullPlatform",
+  "capture-intake": "leadInterestCaptureIntake",
+  verification: "leadInterestVerification",
+  "reports-packages": "leadInterestReportsPackages",
+  "cases-reviewers": "leadInterestCasesReviewers",
+  governance: "leadInterestGovernance",
+  "ai-assistant": "leadInterestAiAssistant",
+  "integrations-apis": "leadInterestIntegrations",
+  "security-trust": "leadInterestSecurityTrust",
+  other: "leadOptionOther",
+};
+const ORG_TYPE_LABEL_KEYS: Readonly<Record<string, TranslationKey>> = {
+  insurance: "leadOrgInsurance",
+  legal: "leadOrgLegal",
+  "corporate-investigations": "leadOrgInvestigations",
+  government: "leadOrgGovernment",
+  compliance: "leadOrgCompliance",
+  journalism: "leadOrgJournalism",
+  "enterprise-security": "leadOrgEnterpriseSecurity",
+  other: "leadOptionOther",
+};
+
+/** The schema's English validation messages (lib/request-demo-schema.ts), in the reader's language. */
+const REQUEST_DEMO_ERROR_KEYS: Readonly<Record<string, TranslationKey>> = {
+  "Full name is required.": "leadErrorFullNameRequired",
+  "Enter a valid email address.": "leadErrorEmailInvalid",
+  "Select a primary interest.": "leadErrorInterestRequired",
+  "Select an organization type.": "leadErrorOrgTypeRequired",
+  "Please provide a bit more detail.": "leadErrorUseCaseDetail",
+};
+
+/**
+ * The reply window in the reader's language when it is the one this dictionary
+ * knows; any other configured text is shown as configured.
+ */
+const RESPONSE_WINDOW_KEYS: Readonly<Record<string, TranslationKey>> = {
+  "within 1 business day": "leadResponseWindowStandard",
+  "within 4 business hours": "leadResponseWindowEnterprise",
+};
+
+const SUPPORT_EMAIL = "support@proovra.com";
 
 type SelectOption = { value: string; label: string };
 
@@ -56,13 +105,14 @@ export function PremiumSelect({
   error?: string;
 }) {
   const errorId = fieldId ? leadErrorId(fieldId) : undefined;
+  const t = useT();
   return (
     <>
       <AppListbox
         value={value || null}
         onChange={onChange}
         options={options}
-        placeholder={placeholder ?? "Select"}
+        placeholder={placeholder ?? t("leadSelectPlaceholder")}
         ariaLabelledby={labelId}
         triggerProps={{
           "aria-describedby": joinIds(describedBy, error ? errorId : undefined),
@@ -196,17 +246,25 @@ export function LeadFieldLabel({
 type RequestDemoFormProps = {
   submitUrl?: string;
   submitButtonLabel?: string;
+  /** The dictionary key of the submit label when no explicit label is passed (B2A-F-12). */
+  submitLabelKey?: "leadDemoSubmit" | "leadDemoRequestSubmit";
   sourcePath?: string;
   onSubmitted?: (result: unknown) => void;
 };
 
 export function RequestDemoForm({
   submitUrl = "/api/request-demo",
-  submitButtonLabel = "Submit demo request",
+  submitButtonLabel,
+  submitLabelKey = "leadDemoSubmit",
   sourcePath = "/request-demo",
   onSubmitted,
 }: RequestDemoFormProps) {
   const { addToast } = useToast();
+  const t = useT();
+  const errorText = (message: string | undefined) =>
+    message && REQUEST_DEMO_ERROR_KEYS[message] ? t(REQUEST_DEMO_ERROR_KEYS[message]) : message;
+  const responseWindow = (text: string) =>
+    RESPONSE_WINDOW_KEYS[text] ? t(RESPONSE_WINDOW_KEYS[text]) : text;
 
   const [form, setForm] = useState<RequestDemoFormValues>(
     REQUEST_DEMO_DEFAULT_VALUES
@@ -219,8 +277,14 @@ export function RequestDemoForm({
   const { formRef, focusFirstInvalid } = useFocusFirstInvalidField();
 
   const teamSizeOptions = [...TEAM_SIZE_OPTIONS];
-  const primaryInterestOptions = [...PRIMARY_INTEREST_OPTIONS];
-  const organizationTypeOptions = [...ORGANIZATION_TYPE_OPTIONS];
+  const primaryInterestOptions = PRIMARY_INTEREST_OPTIONS.map((o) => ({
+    value: o.value,
+    label: INTEREST_LABEL_KEYS[o.value] ? t(INTEREST_LABEL_KEYS[o.value]) : o.label,
+  }));
+  const organizationTypeOptions = ORGANIZATION_TYPE_OPTIONS.map((o) => ({
+    value: o.value,
+    label: ORG_TYPE_LABEL_KEYS[o.value] ? t(ORG_TYPE_LABEL_KEYS[o.value]) : o.label,
+  }));
 
   const isEnterpriseFlow = useMemo(
     () =>
@@ -236,7 +300,7 @@ export function RequestDemoForm({
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
-      addToast("Please fix the highlighted fields.", "warning");
+      addToast(t("leadFixFields"), "warning");
       focusFirstInvalid();
       return;
     }
@@ -258,10 +322,7 @@ export function RequestDemoForm({
 
       if (!response.ok) {
         // Never surface the raw upstream message — always a safe, friendly line.
-        addToast(
-          "We couldn't submit your demo request right now. Please try again, or email support@proovra.com.",
-          "error",
-        );
+        addToast(fillCopy(t("leadDemoSubmitFailed"), { email: SUPPORT_EMAIL }), "error");
         return;
       }
 
@@ -272,10 +333,7 @@ export function RequestDemoForm({
 
       setSuccessOpen(true);
     } catch {
-      addToast(
-        "We couldn't submit your demo request right now. Please try again or contact support@proovra.com.",
-        "error"
-      );
+      addToast(fillCopy(t("leadDemoSubmitFailed"), { email: SUPPORT_EMAIL }), "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -285,7 +343,7 @@ export function RequestDemoForm({
     <form ref={formRef} onSubmit={handleSubmit} className="mt-5 grid gap-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <LeadFieldLabel htmlFor="rd-fullName" required>Full name</LeadFieldLabel>
+          <LeadFieldLabel htmlFor="rd-fullName" required>{t("leadFullName")}</LeadFieldLabel>
           <Input
             id="rd-fullName"
             aria-required="true"
@@ -296,14 +354,14 @@ export function RequestDemoForm({
                 fullName: value,
               }))
             }
-            error={errors.fullName}
-            placeholder="Jane Doe"
+            error={errorText(errors.fullName)}
+            placeholder={t("leadFullNamePlaceholder")}
             className="min-h-[40px]"
           />
         </div>
 
         <div>
-          <LeadFieldLabel htmlFor="rd-workEmail" required>Work email</LeadFieldLabel>
+          <LeadFieldLabel htmlFor="rd-workEmail" required>{t("leadWorkEmail")}</LeadFieldLabel>
           <Input
             id="rd-workEmail"
             aria-required="true"
@@ -314,7 +372,7 @@ export function RequestDemoForm({
                 workEmail: value,
               }))
             }
-            error={errors.workEmail}
+            error={errorText(errors.workEmail)}
             placeholder="jane@company.com"
             type="email"
             className="min-h-[40px]"
@@ -324,7 +382,7 @@ export function RequestDemoForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <LeadFieldLabel htmlFor="rd-organization">Organization</LeadFieldLabel>
+          <LeadFieldLabel htmlFor="rd-organization">{t("leadOrganization")}</LeadFieldLabel>
           <Input
             id="rd-organization"
             value={form.organization ?? ""}
@@ -334,13 +392,13 @@ export function RequestDemoForm({
                 organization: value,
               }))
             }
-            placeholder="Company name"
+            placeholder={t("leadCompanyPlaceholder")}
             className="min-h-[40px]"
           />
         </div>
 
         <div>
-          <LeadFieldLabel htmlFor="rd-jobTitle">Job title</LeadFieldLabel>
+          <LeadFieldLabel htmlFor="rd-jobTitle">{t("leadJobTitle")}</LeadFieldLabel>
           <Input
             id="rd-jobTitle"
             value={form.jobTitle ?? ""}
@@ -350,7 +408,7 @@ export function RequestDemoForm({
                 jobTitle: value,
               }))
             }
-            placeholder="Legal Counsel"
+            placeholder={t("leadDemoJobTitlePlaceholder")}
             className="min-h-[40px]"
           />
         </div>
@@ -358,7 +416,7 @@ export function RequestDemoForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <LeadFieldLabel htmlFor="rd-country">Country</LeadFieldLabel>
+          <LeadFieldLabel htmlFor="rd-country">{t("leadCountry")}</LeadFieldLabel>
           <Input
             id="rd-country"
             value={form.country ?? ""}
@@ -368,14 +426,14 @@ export function RequestDemoForm({
                 country: value,
               }))
             }
-            placeholder="Germany"
+            placeholder={t("leadCountryPlaceholder")}
             className="min-h-[40px]"
           />
         </div>
 
         <div>
           <LeadFieldLabel id="rd-teamSize-label">
-            Team size
+            {t("leadTeamSize")}
           </LeadFieldLabel>
           <PremiumSelect
             labelId="rd-teamSize-label"
@@ -387,14 +445,14 @@ export function RequestDemoForm({
               }))
             }
             options={teamSizeOptions}
-            placeholder="Select team size"
+            placeholder={t("leadTeamSizePlaceholder")}
           />
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <LeadFieldLabel id="rd-primaryInterest-label" required>Primary interest</LeadFieldLabel>
+          <LeadFieldLabel id="rd-primaryInterest-label" required>{t("leadDemoInterest")}</LeadFieldLabel>
           <PremiumSelect
             labelId="rd-primaryInterest-label"
             required
@@ -406,14 +464,14 @@ export function RequestDemoForm({
               }))
             }
             options={primaryInterestOptions}
-            placeholder="What you want to evaluate"
+            placeholder={t("leadDemoInterestPlaceholder")}
             fieldId="rd-primaryInterest"
-            error={errors.primaryInterest}
+            error={errorText(errors.primaryInterest)}
           />
         </div>
 
         <div>
-          <LeadFieldLabel id="rd-organizationType-label" required>Organization type</LeadFieldLabel>
+          <LeadFieldLabel id="rd-organizationType-label" required>{t("leadDemoOrgType")}</LeadFieldLabel>
           <PremiumSelect
             labelId="rd-organizationType-label"
             required
@@ -425,15 +483,15 @@ export function RequestDemoForm({
               }))
             }
             options={organizationTypeOptions}
-            placeholder="Select organization type"
+            placeholder={t("leadDemoOrgTypePlaceholder")}
             fieldId="rd-organizationType"
-            error={errors.organizationType}
+            error={errorText(errors.organizationType)}
           />
         </div>
       </div>
 
       <div>
-        <LeadFieldLabel htmlFor="rd-useCase" required>Primary use case</LeadFieldLabel>
+        <LeadFieldLabel htmlFor="rd-useCase" required>{t("leadDemoUseCase")}</LeadFieldLabel>
         <LeadTextarea
           id="rd-useCase"
           required
@@ -444,14 +502,14 @@ export function RequestDemoForm({
               useCase: value,
             }))
           }
-          error={errors.useCase}
-          placeholder="Describe your workflow, for example claims review, legal matter review, external evidence intake, compliance investigation, incident response, or public verification."
+          error={errorText(errors.useCase)}
+          placeholder={t("leadDemoUseCasePlaceholder")}
           className="min-h-[96px]"
         />
       </div>
 
       <div>
-        <LeadFieldLabel htmlFor="rd-message">Additional context</LeadFieldLabel>
+        <LeadFieldLabel htmlFor="rd-message">{t("leadDemoContext")}</LeadFieldLabel>
         <LeadTextarea
           id="rd-message"
           value={form.message ?? ""}
@@ -461,8 +519,8 @@ export function RequestDemoForm({
               message: value,
             }))
           }
-          error={errors.message}
-          placeholder="Tell us what you want to evaluate, current challenges, systems involved, review process, governance requirements, or timeline."
+          error={errorText(errors.message)}
+          placeholder={t("leadDemoContextPlaceholder")}
           className="min-h-[72px]"
         />
       </div>
@@ -487,14 +545,17 @@ export function RequestDemoForm({
 
       <div className="rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
         <div className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[#2563EB]">
-          What happens next
+          {t("leadWhatHappensNext")}
         </div>
         <p className="mt-1.5 text-[12.5px] leading-[1.55] text-[#475569]">
-          We review your request, use case, team context, and areas of interest
-          so the demo can focus on the workflows that matter most to you.{" "}
+          {t("leadDemoNextBody")}{" "}
           {isEnterpriseFlow
-            ? `Complete enterprise inquiries are typically reviewed ${SALES_ASSETS.expectedEnterpriseResponseWindowText}.`
-            : `Relevant requests usually receive a reply ${SALES_ASSETS.expectedResponseWindowText}.`}
+            ? fillCopy(t("leadDemoNextEnterprise"), {
+                window: responseWindow(SALES_ASSETS.expectedEnterpriseResponseWindowText),
+              })
+            : fillCopy(t("leadDemoNextStandard"), {
+                window: responseWindow(SALES_ASSETS.expectedResponseWindowText),
+              })}
         </p>
       </div>
 
@@ -504,14 +565,14 @@ export function RequestDemoForm({
           disabled={isSubmitting}
           className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-full bg-gradient-to-r from-[#2563EB] via-[#5B21B6] to-[#EC4899] px-6 text-[13.5px] font-semibold text-white shadow-[0_10px_24px_rgba(91,33,182,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_14px_32px_rgba(91,33,182,0.40)] disabled:cursor-not-allowed disabled:opacity-70 disabled:transform-none disabled:shadow-none"
         >
-          {isSubmitting ? "Submitting..." : submitButtonLabel}
+          {isSubmitting ? t("leadSubmitting") : submitButtonLabel ?? t(submitLabelKey)}
         </button>
 
         <a
           href={SALES_ASSETS.pricingUrl}
           className={MARKETING_BTN.purpleSecondary}
         >
-          View pricing
+          {t("leadDemoViewPricing")}
         </a>
       </div>
 
