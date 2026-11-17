@@ -59,6 +59,15 @@ describe("B2B-F-14 — evidence-request reminders", () => {
   const savedFlag = process.env.NOTIFICATION_REMINDERS_ENABLED;
   beforeEach(async () => {
     process.env.NOTIFICATION_REMINDERS_ENABLED = "true";
+    // The per-request claim REFUSES when a CONFIGURED Redis cannot answer
+    // (B8-F-004) — correct in production, and the reason these failed on the CI
+    // unit step, which has no Redis on the setup file's 127.0.0.1:56379 (they
+    // passed only where a local one was running). A unit test runs as ONE
+    // process with no Redis configured: the in-process lease still makes the
+    // two overlapping runs below exclusive. The setup file re-asserts the
+    // variable before every test, so this beforeEach (which runs after it)
+    // clears it each time.
+    delete process.env.REDIS_URL;
     m.sends.length = 0;
     await clearAllRateLimitBuckets();
   });

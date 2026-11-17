@@ -46,6 +46,13 @@ const reconJob = await import("../src/jobs/billing-reconciliation.job.js");
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The reconciliation sweep's lease REFUSES when a CONFIGURED Redis cannot
+  // answer (B8-F-004), and the CI unit step has no Redis on the setup file's
+  // 127.0.0.1:56379 — the sweep returned `skipped: true` there and passed only
+  // where a local Redis was running. One process, no Redis configured: the
+  // in-memory lease. Cleared here because the setup file re-asserts it before
+  // every test.
+  delete process.env.REDIS_URL;
 });
 
 describe("dependent-cancellation retry sweep", () => {
