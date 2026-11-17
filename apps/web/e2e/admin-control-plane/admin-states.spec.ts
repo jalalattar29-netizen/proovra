@@ -41,7 +41,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 import { CONSENT_VERSION } from "../../lib/consent";
 import { ADMIN_EMPTY_COPY } from "../../lib/admin/read-state";
-import { settleFixtureSignIn } from "./_fixture-login";
+import { signInAsFixtureUser } from "./_fixture-login";
 
 const WEB = process.env.PROOVRA_FIXTURE_WEB_BASE ?? "http://localhost:3311";
 const REPO = resolve(process.cwd());
@@ -215,25 +215,16 @@ async function seedConsent(context: BrowserContext) {
   });
 }
 
+/**
+ * Free-user audit 0ea0 follow-up (2026-11-17) — THE fixture sign-in, as in
+ * admin-mutations.spec.ts. The local copy clicked submit and waited only for a
+ * URL change, so an HTTP 429 from the login budget surfaced as a bare 60 s
+ * `waitForURL` timeout (admin shard 4 on 8e18cf66c). The shared helper awaits
+ * the authentication response, waits out a stated Retry-After once, answers
+ * the MFA challenge (AUD-0021) and proves the session.
+ */
 async function signIn(page: Page, email: string) {
-  await page.goto(`${WEB}/login`, { waitUntil: "networkidle", timeout: 90_000 });
-  const box = page.locator('input[type="email"]:visible').first();
-  const pass = page.locator('input[type="password"]:visible').first();
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    await box.fill(email);
-    await pass.fill(PASSWORD);
-    const checks = page.locator('input[type="checkbox"]:visible');
-    for (let i = 0; i < (await checks.count()); i += 1) {
-      await checks.nth(i).check().catch(() => {});
-    }
-    if ((await box.inputValue()) === email) break;
-    if (attempt === 3) throw new Error("the login form kept clearing itself");
-    await page.waitForTimeout(1_000);
-  }
-  await page.locator('button[type="submit"]:visible').first().click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
-  // AUD-0021 — a platform administrator answers the second-factor challenge.
-  await settleFixtureSignIn(page, email, WEB);
+  await signInAsFixtureUser(page, email, { web: WEB, password: PASSWORD });
 }
 
 async function shoot(page: Page, name: string) {

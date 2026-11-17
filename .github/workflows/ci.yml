@@ -140,7 +140,15 @@ jobs:
       # surfaces as "File '.../packages/shared/dist/index.d.ts' is not a
       # module" (TS2306) in whichever package lost the race. Serial order is
       # topological, so each rebuild lands before its dependants read it.
+      # Node 20 on this runner defaults to a ~2 GB heap (2096 MB measured in a
+      # node:20 Linux container, 2026-11-17). The worker's tsc program does not
+      # fit in it — reproduced locally as exit 134 at --max-old-space-size=2048,
+      # rc 0 at 4096 — and it aborted this step on e5c9be381 and 8e18cf66c.
+      # Same compile budget the API build and Dockerfiles already give; the
+      # API's own typecheck script passes its larger flag explicitly.
       - name: Typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm -r --workspace-concurrency=1 typecheck
 
       # ---------------------------------------------------------------
@@ -706,7 +714,10 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm --filter proovra-api build
 
+      # Same ~2 GB default heap: tsconfig.build.json aborts at 2048 (exit 134).
       - name: Build Worker
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm --filter proovra-worker build
 
       - name: Build Web

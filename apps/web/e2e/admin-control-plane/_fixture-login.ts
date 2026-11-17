@@ -306,25 +306,43 @@ export async function signInAsFixtureUser(
    * At that width the form does not submit on Enter. Each mechanism covers the
    * case the other misses.
    */
-  let response = await submitAndAwaitAuth(
-    () => passwordBox.press("Enter"),
-    15_000,
-  );
+  const submitForm = async () => {
+    let sent = await submitAndAwaitAuth(() => passwordBox.press("Enter"), 15_000);
+    if (sent === null) {
+      const submit = page.locator('button[type="submit"]:visible').first();
+      await submit.scrollIntoViewIfNeeded().catch(() => {});
+      sent = await submitAndAwaitAuth(() => submit.click({ timeout: 30_000 }), 45_000);
+    }
+    if (sent === null) {
+      throw new Error(
+        `sign-in for ${email} never sent ${AUTH_PATH} by keyboard or pointer. ` +
+          "The form did not submit; this is not a slow redirect.",
+      );
+    }
+    return sent;
+  };
 
-  if (response === null) {
-    const submit = page.locator('button[type="submit"]:visible').first();
-    await submit.scrollIntoViewIfNeeded().catch(() => {});
-    response = await submitAndAwaitAuth(
-      () => submit.click({ timeout: 30_000 }),
-      45_000,
-    );
-  }
+  let response = await submitForm();
 
-  if (response === null) {
-    throw new Error(
-      `sign-in for ${email} never sent ${AUTH_PATH} by keyboard or pointer. ` +
-        "The form did not submit; this is not a slow redirect.",
-    );
+  /*
+   * WAIT OUT A LOGIN BUDGET ONCE (2026-11-17).
+   *
+   * The API's sign-in budgets are real product limits — ten per address per
+   * minute, and (B-21) ten per ACCOUNT per five minutes — and every test in a
+   * shard signs in as the same administrator from 127.0.0.1. Whether a shard's
+   * pace lands eleven sign-ins in one fixed window depends on timing, so admin
+   * shard 4 refused contact-sales with HTTP 429 on 8e18cf66c and passed the same
+   * code on e5c9be381. The API states how long to wait (Retry-After); waiting it
+   * out once is what a person does. No limit is relaxed, and a second refusal
+   * is reported below exactly as before.
+   */
+  if (response.status() === 429) {
+    const stated = Number(response.headers()["retry-after"]);
+    const waitSec = Number.isFinite(stated) && stated > 0 ? Math.min(stated, 330) : 60;
+    await page.waitForTimeout((waitSec + 1) * 1_000);
+    await emailBox.fill(email);
+    await passwordBox.fill(password);
+    response = await submitForm();
   }
 
   if (!response.ok()) {
