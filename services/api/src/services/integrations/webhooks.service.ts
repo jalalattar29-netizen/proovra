@@ -39,6 +39,7 @@ import {
 } from "@proovra/shared-runtime/outbound";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { assertLimitEntitlementTx, resolveEntitlement } from "../packaging/entitlement.service.js";
 import {
   integrationsFeatureDisabledReason,
   isIntegrationsFeatureEnabled,
@@ -201,7 +202,8 @@ export class WebhookEndpointError extends Error {
       | "invalid_event_types"
       | "endpoint_not_found"
       | "endpoint_already_disabled"
-      | "invalid_grace_minutes",
+      | "invalid_grace_minutes"
+      | "webhook_endpoint_limit_reached",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -276,17 +278,45 @@ export async function createWebhookEndpoint(
   const issued = issueWebhookSecret();
   if (!issued) throw new WebhookEndpointError("secret_missing");
 
-  const endpoint = await client.webhookEndpoint.create({
-    data: {
+  // PRO-G1-05 / B7B-F05 — the sold endpoint ceiling, by live count of this
+  // family's ACTIVE endpoints under a per-workspace lock in the insert's own
+  // transaction (the shape createApiCredential uses): N concurrent creates at
+  // limit - 1 admit exactly one. The ceiling is resolved before the
+  // transaction (AUD-0017). Endpoints already above it are kept.
+  const resolved = await resolveEntitlement({
+    prisma: client,
+    teamId: input.teamId,
+    key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
+  });
+  const endpoint = await client.$transaction(async (tx) => {
+    const admitted = await assertLimitEntitlementTx({
+      tx,
+      prisma: client,
       teamId: input.teamId,
-      url: urlCheck.normalized,
-      description: input.description?.slice(0, 400) ?? null,
-      status: "ACTIVE",
-      secretCiphertext: issued.secretCiphertext,
-      secretPrefix: issued.secretPrefix,
-      eventTypes,
-      createdByUserId: input.actorUserId,
-    },
+      key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
+      requested: 1,
+      resolved,
+      family: "INTEGRATION",
+    });
+    if (!admitted.ok) {
+      throw new WebhookEndpointError("webhook_endpoint_limit_reached", {
+        key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
+        limit: admitted.limit,
+        current: admitted.current,
+      });
+    }
+    return tx.webhookEndpoint.create({
+      data: {
+        teamId: input.teamId,
+        url: urlCheck.normalized,
+        description: input.description?.slice(0, 400) ?? null,
+        status: "ACTIVE",
+        secretCiphertext: issued.secretCiphertext,
+        secretPrefix: issued.secretPrefix,
+        eventTypes,
+        createdByUserId: input.actorUserId,
+      },
+    });
   });
 
   return { endpoint, rawSecret: issued.rawSecret };
@@ -348,15 +378,45 @@ export async function updateWebhookEndpoint(
     }
   }
 
+  const data = {
+    ...(input.description !== undefined
+      ? { description: input.description?.slice(0, 400) ?? null }
+      : {}),
+    ...(eventTypes !== undefined ? { eventTypes } : {}),
+    ...(input.status !== undefined ? { status: input.status } : {}),
+  };
+  // PRO-G1-05 — re-enabling a disabled endpoint adds one ACTIVE endpoint, so
+  // it is admitted against the same ceiling as a create.
+  if (input.status === "ACTIVE" && existing.status !== "ACTIVE") {
+    const resolved = await resolveEntitlement({
+      prisma: client,
+      teamId: input.teamId,
+      key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
+    });
+    return client.$transaction(async (tx) => {
+      const admitted = await assertLimitEntitlementTx({
+        tx,
+        prisma: client,
+        teamId: input.teamId,
+        key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
+        requested: 1,
+        resolved,
+        family: "INTEGRATION",
+      });
+      if (!admitted.ok) {
+        throw new WebhookEndpointError("webhook_endpoint_limit_reached", {
+          key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
+          limit: admitted.limit,
+          current: admitted.current,
+        });
+      }
+      return tx.webhookEndpoint.update({ where: { id: existing.id }, data });
+    });
+  }
+
   return client.webhookEndpoint.update({
     where: { id: existing.id },
-    data: {
-      ...(input.description !== undefined
-        ? { description: input.description?.slice(0, 400) ?? null }
-        : {}),
-      ...(eventTypes !== undefined ? { eventTypes } : {}),
-      ...(input.status !== undefined ? { status: input.status } : {}),
-    },
+    data,
   });
 }
 

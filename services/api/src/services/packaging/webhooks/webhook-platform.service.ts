@@ -43,7 +43,8 @@ import {
 import { prisma as defaultPrisma } from "../../../db.js";
 import { isLiveOperatingWorkspace } from "../../workspace/operating-workspace.js";
 import { inputRefusal } from "../../../errors.js";
-import { assertLimitEntitlementTx, resolveEntitlement } from "../entitlement.service.js";
+import type { EntitlementProjection } from "@proovra/shared";
+import { admitWebhookDelivery, assertLimitEntitlementTx, resolveEntitlement } from "../entitlement.service.js";
 
 // -----------------------------------------------------------------------------
 // Bounded constants — keep all magic numbers here.
@@ -332,10 +333,40 @@ export async function emitWebhookEvent(
 
   const canonical = canonicalJson(input.payload);
   const deliveryIds: string[] = [];
+  const admissionCache = new Map<string, EntitlementProjection>();
 
   for (const ep of endpoints) {
     const subs = normalizeSubscribedEvents(ep.subscribedEvents);
     if (!subs.includes(input.eventKind)) continue;
+    // PRO-W2-05 / PRO-G1-04 / B7B-F05 / DEC-09 — entitlement and the daily
+    // delivery quota at USE time, per delivery (the same gate the integration
+    // channel asks). A withheld delivery is recorded WITHHELD (terminal; the
+    // dispatcher polls only PENDING/RETRYING) with its reason, and nothing is
+    // sent. Reversible: the endpoint stays ACTIVE.
+    const admission = await admitWebhookDelivery({
+      prisma,
+      teamId: input.teamId,
+      featureKey: "FEATURE_WEBHOOKS",
+      cache: admissionCache,
+    });
+    if (!admission.ok) {
+      await prisma.lifecycleWebhookDelivery
+        .create({
+          data: {
+            teamId: input.teamId,
+            endpointId: ep.id,
+            eventKind: input.eventKind,
+            payload: input.payload as object,
+            signature: "",
+            state: "WITHHELD",
+            attemptCount: 0,
+            responseBodyPreview: `withheld:${admission.reason}`,
+          },
+          select: { id: true },
+        })
+        .catch(() => null);
+      continue;
+    }
     const signature = signPayload(ep.secret, canonical);
     const row = await prisma.lifecycleWebhookDelivery
       .create({
@@ -388,6 +419,21 @@ export async function deliverWebhookDelivery(
   if (!delivery) return { ok: false };
   if (delivery.state === "DELIVERED" || delivery.state === "DEAD_LETTERED") {
     return { ok: delivery.state === "DELIVERED" };
+  }
+  // RG-13 — a withheld delivery is terminal; and a delivery is sent only while
+  // the workspace still holds FEATURE_WEBHOOKS (DEC-09, reversible pause).
+  if (delivery.state === "WITHHELD") return { ok: false };
+  const stillEntitled = await resolveEntitlement({ prisma, teamId: delivery.teamId, key: "FEATURE_WEBHOOKS" })
+    .then((p) => p.value === true)
+    .catch(() => false);
+  if (!stillEntitled) {
+    await prisma.lifecycleWebhookDelivery
+      .update({
+        where: { id: delivery.id },
+        data: { state: "WITHHELD", responseBodyPreview: "withheld:entitlement_required", lastAttemptAtUtc: new Date() },
+      })
+      .catch(() => null);
+    return { ok: false };
   }
   if (!delivery.endpoint || delivery.endpoint.state !== "ACTIVE") {
     await prisma.lifecycleWebhookDelivery

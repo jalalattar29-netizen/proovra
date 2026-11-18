@@ -59,7 +59,11 @@ import { markBoundedOutcome } from "../http/bounded-outcome.js";
 // corresponding new canonical purpose via the alias map in
 // @proovra/shared (legacyAliasesForStoredPurpose / purposeSatisfies).
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
-import { assertFeatureEntitlement, resolveEntitlement } from "../services/packaging/entitlement.service.js";
+import {
+  assertFeatureEntitlement,
+  consumeQuotaEntitlement,
+  resolveEntitlement,
+} from "../services/packaging/entitlement.service.js";
 import {
   listApiCredentialUsage,
   projectApiCredentialUsage,
@@ -140,6 +144,23 @@ function gateFeatureOrReply(reply: FastifyReply): boolean {
     return false;
   }
   return true;
+}
+
+/**
+ * PRO-BL2-04 / RG-13 — an operator-initiated delivery (test send, manual
+ * retry) consumes one unit of the workspace's QUOTA_WEBHOOK_DELIVERIES_PER_DAY,
+ * atomically. At quota: 429 with the key and limit; the next UTC day resets it.
+ */
+async function consumeWebhookDeliveryQuotaOrReply(reply: FastifyReply, teamId: string): Promise<boolean> {
+  const quota = await consumeQuotaEntitlement({ teamId, key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY" });
+  if (quota.ok) return true;
+  reply.code(429).send({
+    error: {
+      code: "webhook_delivery_quota_exceeded",
+      details: { key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY", limit: quota.limit },
+    },
+  });
+  return false;
 }
 
 // Phase 2 — API credential audit event emitter.
@@ -740,6 +761,22 @@ export async function integrationsRoutes(app: FastifyInstance) {
       if (!entitled.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
       }
+      // PRO-G1-05 — a workspace at its endpoint ceiling is told so BEFORE a
+      // step-up challenge is spent. Advisory: the locked, in-transaction count
+      // in createWebhookEndpoint stays the authority.
+      {
+        const resolved = await resolveEntitlement({ teamId: body.teamId, key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX" });
+        const limit = typeof resolved.value === "number" ? resolved.value : 0;
+        const current = await prisma.webhookEndpoint.count({ where: { teamId: body.teamId, status: "ACTIVE" } });
+        if (current + 1 > limit) {
+          return reply.code(429).send({
+            error: {
+              code: "webhook_endpoint_limit_reached",
+              details: { key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX", limit, current },
+            },
+          });
+        }
+      }
       // Phase 4 closure — creating a webhook endpoint provisions a
       // signing secret and registers a destination URL that the
       // dispatcher will sign + POST to on every matching event. It is
@@ -775,7 +812,9 @@ export async function integrationsRoutes(app: FastifyInstance) {
               : err.code === "invalid_url" ||
                   err.code === "invalid_event_types"
                 ? 400
-                : 500;
+                : err.code === "webhook_endpoint_limit_reached"
+                  ? 429
+                  : 500;
           if (status === 503) {
             markBoundedOutcome(reply.request, {
               code: err.code,
@@ -898,8 +937,11 @@ export async function integrationsRoutes(app: FastifyInstance) {
         if (err instanceof WebhookEndpointError) {
           const status =
             err.code === "endpoint_not_found" ? 404 :
-            err.code === "invalid_event_types" ? 400 : 500;
-          return reply.code(status).send({ error: { code: err.code } });
+            err.code === "invalid_event_types" ? 400 :
+            err.code === "webhook_endpoint_limit_reached" ? 429 : 500;
+          return reply
+            .code(status)
+            .send({ error: { code: err.code, ...(status === 429 ? { details: err.details ?? null } : {}) } });
         }
         throw err;
       }
@@ -1129,6 +1171,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
         resourceId: id,
       });
       if (gate.sent) return;
+      // PRO-BL2-04 — a test send is a delivery: one unit of the daily quota.
+      if (!(await consumeWebhookDeliveryQuotaOrReply(reply, body.teamId))) return;
 
       const result = await dispatchTestEventToEndpoint({
         endpointId: id,
@@ -1275,6 +1319,9 @@ export async function integrationsRoutes(app: FastifyInstance) {
         resourceId: id,
       });
       if (gate.sent) return;
+      // PRO-BL2-04 — a manual retry is new outbound traffic: one unit of the
+      // daily delivery quota (the automatic retry schedule does not consume).
+      if (!(await consumeWebhookDeliveryQuotaOrReply(reply, body.teamId))) return;
       try {
         const updated = await manuallyRetryWebhookDelivery({
           id,

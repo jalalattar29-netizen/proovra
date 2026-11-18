@@ -38,6 +38,7 @@ import {
   assertFeatureEntitlement,
   assertQuotaEntitlement,
   applyProductLine,
+  consumeQuotaEntitlement,
   listEntitlements,
   upsertEntitlementGrant,
 } from "../services/packaging/entitlement.service.js";
@@ -1337,6 +1338,19 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       // reset the delivery's history. Same answer as the integration retry.
       if (row.endpoint?.state !== "ACTIVE") {
         return reply.code(409).send({ denial: "ENDPOINT_INACTIVE" });
+      }
+      // PRO-BL2-04 — "unlimited manual replays": a replay is a delivery, so it
+      // consumes one unit of QUOTA_WEBHOOK_DELIVERIES_PER_DAY, atomically.
+      const replayQuota = await consumeQuotaEntitlement({
+        teamId: ctx.teamId,
+        key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+      });
+      if (!replayQuota.ok) {
+        return reply.code(429).send({
+          denial: "QUOTA_EXCEEDED",
+          key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+          limit: replayQuota.limit,
+        });
       }
 
       await prisma.lifecycleWebhookDelivery.update({

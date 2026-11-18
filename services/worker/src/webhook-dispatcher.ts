@@ -24,6 +24,7 @@ import {
 import { createHmac } from "node:crypto";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
+import { workerFeatureEntitled } from "./governance/workspace-entitlement.js";
 
 /**
  * THE WORK THIS MODULE RECOVERS.
@@ -349,6 +350,25 @@ async function dispatchOne(
     delivery.state === "DEAD_LETTERED" ||
     delivery.state === "FAILED"
   ) {
+    return;
+  }
+
+  // PRO-W2-05 / PRO-G1-14 / DEC-09 — a delivery is sent only while the
+  // workspace still holds FEATURE_WEBHOOKS (the API's emit asks it before the
+  // row is written; this asks it again at send, so a delivery queued or
+  // retrying when the entitlement was lost is not sent). Withheld, terminal,
+  // with its reason; the endpoint stays ACTIVE, so the pause is reversible for
+  // new events. Fails closed.
+  if (!(await workerFeatureEntitled(delivery.teamId, "FEATURE_WEBHOOKS"))) {
+    await webhookDeliveryUpdate({
+      where: { id: deliveryId },
+      data: {
+        state: "WITHHELD",
+        responseBodyPreview: "withheld:entitlement_required",
+        lastAttemptAtUtc: new Date(),
+      },
+    }).catch(() => null);
+    logger.info({ deliveryId }, "webhook.dispatcher.withheld_not_entitled");
     return;
   }
 

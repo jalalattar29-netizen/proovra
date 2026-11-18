@@ -64,6 +64,9 @@ export * from "./billing/export-package-meter.js";
 export * from "./billing/commercial-lifecycle.js";
 // INTERNAL PLAN GRANT — the one reader of an account's active grant.
 export * from "./billing/internal-plan-grant.js";
+// RG-13 — the ONE packaging-entitlement decision and per-use quota meter,
+// shared so the Worker's sweeps ask the same rule as the API's engine.
+export * from "./billing/entitlement-decision.js";
 // PHASE 12 CORRECTIVE PASS §4 (SEC-004, 2026-08-06) — the ONE secrets
 // authority. It lived in services/api, so the Worker could not use it and the
 // two processes of one deployment could resolve secrets from different

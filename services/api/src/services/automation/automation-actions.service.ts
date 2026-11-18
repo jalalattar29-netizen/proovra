@@ -82,8 +82,17 @@ import {
   type AutomationTriggerType,
 } from "./automation.service.js";
 import {
+  WEBHOOK_MAX_DELIVERIES_PER_MINUTE_PER_TEAM,
   validateDestinationUrlWithDns,
 } from "./automation-webhook.service.js";
+import { consumeQuotaEntitlement, resolveEntitlement } from "../packaging/entitlement.service.js";
+
+/** RG-13 — a delivery refused by a per-workspace delivery bound (rolled back). */
+class AutomationDeliveryBoundRefusal extends Error {
+  constructor(public readonly reason: "delivery_rate_exceeded" | "quota_exceeded") {
+    super(reason);
+  }
+}
 // ARCH-005 (2026-08-07) — this file no longer imports anything that DELIVERS.
 // It records a durable, due delivery row; `automation-delivery-runtime.service`
 // is reached only by the sweep. Keeping the import out is what stops an
@@ -523,22 +532,63 @@ async function actionWebhookDelivery(
   // second webhook.
   // -------------------------------------------------------------------------
   const deliveryId = randomUUID();
+  // RG-13 / PRO-G1-04 — the automation channel's delivery bounds, asked when
+  // the delivery is CREATED (its retries do not count again):
+  //   - WEBHOOK_MAX_DELIVERIES_PER_MINUTE_PER_TEAM (120) — declared and never
+  //     read; now a live count of this workspace's deliveries created in the
+  //     last 60 s, under a per-workspace lock so concurrent runs cannot both
+  //     take the last slot;
+  //   - QUOTA_WEBHOOK_DELIVERIES_PER_DAY — the workspace's daily delivery
+  //     quota, shared with the integration and lifecycle channels.
+  // Both are inside the insert's transaction: a duplicate (P2002) rolls back
+  // and consumes nothing, and a refused bound rolls the insert back.
+  // The governance capability itself is re-asked by the dispatcher
+  // (automation-dispatch-runtime, FEATURE_GOVERNANCE_PLATFORM).
+  let quotaResolved: Awaited<ReturnType<typeof resolveEntitlement>>;
   try {
-    await prisma.automationWebhookDelivery.create({
-      data: {
-        id: deliveryId,
+    quotaResolved = await resolveEntitlement({
+      prisma,
+      teamId: input.teamId,
+      key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+    });
+  } catch {
+    return { executed: false, skipped: true, reason: "delivery_admission_unavailable" };
+  }
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`automation-webhook-rate:${input.teamId}`}))`;
+      const recent = await tx.automationWebhookDelivery.count({
+        where: { teamId: input.teamId, createdAt: { gte: new Date(Date.now() - 60_000) } },
+      });
+      if (recent >= WEBHOOK_MAX_DELIVERIES_PER_MINUTE_PER_TEAM) {
+        throw new AutomationDeliveryBoundRefusal("delivery_rate_exceeded");
+      }
+      await tx.automationWebhookDelivery.create({
+        data: {
+          id: deliveryId,
+          teamId: input.teamId,
+          runId: input.runId,
+          destinationId,
+          idempotencyKey: (
+            input.actionIdempotencyKey ?? `${input.runId}.${destinationId}`
+          ).slice(0, 120),
+          status: "PENDING",
+          attemptCount: 0,
+          nextAttemptAt: new Date(),
+        },
+      });
+      const quota = await consumeQuotaEntitlement({
+        prisma: tx as unknown as PrismaClient,
         teamId: input.teamId,
-        runId: input.runId,
-        destinationId,
-        idempotencyKey: (
-          input.actionIdempotencyKey ?? `${input.runId}.${destinationId}`
-        ).slice(0, 120),
-        status: "PENDING",
-        attemptCount: 0,
-        nextAttemptAt: new Date(),
-      },
+        key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+        resolved: quotaResolved,
+      });
+      if (!quota.ok) throw new AutomationDeliveryBoundRefusal("quota_exceeded");
     });
   } catch (err) {
+    if (err instanceof AutomationDeliveryBoundRefusal) {
+      return { executed: false, skipped: true, reason: err.reason };
+    }
     // P2002 — this (run, destination) already has a delivery. That is the
     // idempotency working, not a failure: the existing row carries the
     // canonical status and its own retry ladder.

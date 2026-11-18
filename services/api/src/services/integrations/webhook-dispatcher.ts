@@ -51,6 +51,8 @@ import {
   withProovraSpan,
 } from "../../observability/otel.js";
 import { isIntegrationsFeatureEnabled } from "./api-keys.service.js";
+import type { EntitlementProjection } from "@proovra/shared";
+import { admitWebhookDelivery } from "../packaging/entitlement.service.js";
 import {
   clearExpiredPreviousWebhookSecret,
   decryptWebhookSecret,
@@ -380,9 +382,41 @@ export async function emitWebhookEvent(
   let failedTransient = 0;
   let failedPermanent = 0;
   let enqueued = 0;
+  // RG-13 — resolved once per emission, asked per delivery.
+  const admissionCache = new Map<string, EntitlementProjection>();
 
   for (const endpoint of matching) {
     let row: DbDelivery | null = null;
+    // PRO-G1-14 / PRO-W2-05 / B7B-F05 / DEC-09 — the entitlement and the daily
+    // delivery quota are asked at USE time, per delivery. A workspace that
+    // lost FEATURE_WEBHOOKS, or is over today's quota, gets no outbound POST;
+    // the withheld delivery is recorded CANCELLED with the reason, so the
+    // tenant's delivery log says why. Reversible: endpoints stay ACTIVE.
+    const admission = await admitWebhookDelivery({
+      prisma: client,
+      teamId: input.teamId,
+      featureKey: "FEATURE_WEBHOOKS",
+      cache: admissionCache,
+    });
+    if (!admission.ok) {
+      await client.integrationWebhookDelivery
+        .create({
+          data: {
+            endpointId: endpoint.id,
+            teamId: input.teamId,
+            eventId,
+            eventType: input.eventType,
+            payloadJson: payloadJson as unknown as Prisma.InputJsonValue,
+            status: "CANCELLED",
+            attemptCount: 0,
+            nextAttemptAtUtc: null,
+            errorMessage: `withheld:${admission.reason}`,
+            failedAtUtc: new Date(),
+          },
+        })
+        .catch(() => null);
+      continue;
+    }
     try {
       row = await client.integrationWebhookDelivery.create({
         data: {

@@ -44,6 +44,9 @@ import {
 
 import {
   classifyEntitlementPeriod,
+  consumeEntitlementMeter,
+  decideEntitlementSource,
+  entitlementGrantLive,
   entitlementPeriodStart,
 } from "@proovra/shared-runtime";
 
@@ -154,8 +157,9 @@ export const DEFAULT_ENTITLEMENTS: Record<
   // as not included off Enterprise, so an unprovisioned workspace mints no key.
   // The product lines (3 / 10 / 100) and an ACTIVE Enterprise contract (the
   // ENTERPRISE line's value, through resolveEntitlement) still grant theirs.
-  // Keys already issued keep authenticating: this ceiling is read only when a
-  // NEW key is created.
+  // PRO-G1-14 / DEC-09 (2026-11-18) — it is also read at USE time
+  // (`requireApiKey`): while the current value is 0 an issued key is refused
+  // with ENTITLEMENT_REQUIRED, unrevoked, and works again once restored.
   INTEGRATION_API_KEYS_MAX: { kind: "LIMIT", value: 0 },
   INTEGRATION_WEBHOOK_ENDPOINTS_MAX: { kind: "LIMIT", value: 0 },
 };
@@ -455,6 +459,9 @@ export async function resolveEntitlement(input: {
   const standing = input.standing ?? (await resolveEnterpriseStanding(prisma, input.teamId));
   // A lapsed contract grants nothing, including through a stored row.
   if (standing === "CONTRACT_LAPSED") return projectDefault(input.key);
+  // RG-13 — the decision (grant / contract / default) is the shared one the
+  // Worker's sweeps ask too (`decideEntitlementSource`, shared-runtime).
+  const sold = PLAN_LINE_ENTITLEMENTS.ENTERPRISE[input.key];
   try {
     const row = (await prisma.entitlementGrant.findUnique({
       where: { teamId_key: { teamId: input.teamId, key: input.key } },
@@ -470,7 +477,13 @@ export async function resolveEntitlement(input: {
         expiresAtUtc: true,
       },
     })) as GrantRow | null;
-    if (row && !isExpired(row)) return projectGrant(input.key, row);
+    if (
+      row &&
+      decideEntitlementSource({ standing, grantLive: entitlementGrantLive(row), contractSellsKey: sold !== undefined }) ===
+        "GRANT"
+    ) {
+      return projectGrant(input.key, row);
+    }
   } catch {
     return projectDefault(input.key);
   }
@@ -480,17 +493,148 @@ export async function resolveEntitlement(input: {
    * console and granted the features to themselves. An ACTIVE contract is the
    * activation: nothing is stored, so nothing can go stale when it lapses.
    */
-  if (standing === "CONTRACT_ACTIVE") {
-    const sold = PLAN_LINE_ENTITLEMENTS.ENTERPRISE[input.key];
-    if (sold !== undefined) {
-      return {
-        ...projectDefault(input.key),
-        value: sold,
-        source: "PLAN",
-      };
-    }
+  if (
+    sold !== undefined &&
+    decideEntitlementSource({ standing, grantLive: false, contractSellsKey: true }) === "CONTRACT"
+  ) {
+    return {
+      ...projectDefault(input.key),
+      value: sold,
+      source: "PLAN",
+    };
   }
   return projectDefault(input.key);
+}
+
+/**
+ * RG-13 — several keys of ONE workspace, with its Enterprise standing resolved
+ * once (a per-request caller such as `requireApiKey` reads two keys; resolving
+ * the commercial context twice per call is wasted work).
+ */
+export async function resolveEntitlements<K extends EntitlementKey>(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  keys: ReadonlyArray<K>;
+}): Promise<Record<K, EntitlementProjection>> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const standing = await resolveEnterpriseStanding(prisma, input.teamId);
+  const out = {} as Record<K, EntitlementProjection>;
+  for (const key of input.keys) {
+    out[key] = await resolveEntitlement({ prisma, teamId: input.teamId, key, standing });
+  }
+  return out;
+}
+
+// ===========================================================================
+// consumeQuotaEntitlement — per-use QUOTA keys (RG-13 / PRO-G1-04)
+// ===========================================================================
+
+/**
+ * The per-use QUOTA keys and the one place each is consumed:
+ *
+ *   QUOTA_API_REQUESTS_PER_DAY        `requireApiKey`, one per authenticated
+ *                                     machine request;
+ *   QUOTA_WEBHOOK_DELIVERIES_PER_DAY  every webhook delivery CREATED, on all
+ *                                     three channels (integration, lifecycle,
+ *                                     automation) — retries of one delivery
+ *                                     do not consume again.
+ *
+ * Both were declared, defaulted, sold per product line and displayed, and
+ * nothing read or wrote them (PRO-G1-04 / PRO-BL2-04 / PRO-W2-05).
+ */
+export const PER_USE_QUOTA_KEYS = ["QUOTA_API_REQUESTS_PER_DAY", "QUOTA_WEBHOOK_DELIVERIES_PER_DAY"] as const;
+export type PerUseQuotaKey = (typeof PER_USE_QUOTA_KEYS)[number];
+
+/**
+ * Admit and record `amount` units of a per-use quota for one workspace, in one
+ * atomic statement (`consumeEntitlementMeter`): N concurrent callers at
+ * limit - 1 admit exactly one; a refused unit is not recorded. The window is
+ * the key's UTC period (`entitlementPeriodStart`), the same clock
+ * `assertQuotaEntitlement` reads.
+ *
+ * No lifecycle denial event is written per refusal: a refused API call is
+ * recorded on the credential's usage log and a withheld delivery on its own
+ * row, and an event per refusal would flood the activity log at exactly the
+ * moment a tenant is over quota.
+ */
+export async function consumeQuotaEntitlement(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  key: PerUseQuotaKey;
+  amount?: number;
+  resolved?: EntitlementProjection;
+  now?: Date;
+}): Promise<{ ok: true; limit: number; consumed: number | null } | { ok: false; denial: "QUOTA_EXCEEDED"; limit: number }> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const projection =
+    input.resolved ?? (await resolveEntitlement({ prisma, teamId: input.teamId, key: input.key }));
+  const limit = typeof projection.value === "number" ? projection.value : 0;
+  const result = await consumeEntitlementMeter(prisma as never, {
+    teamId: input.teamId,
+    key: input.key,
+    periodStartUtc: periodStart(classifyPeriod(input.key), input.now ?? new Date()),
+    amount: input.amount ?? 1,
+    limit,
+  });
+  if (!result.ok) return { ok: false, denial: "QUOTA_EXCEEDED", limit };
+  return { ok: true, limit, consumed: result.consumed };
+}
+
+// ===========================================================================
+// admitWebhookDelivery — the use-time gate of every webhook channel (RG-13)
+// ===========================================================================
+
+export type WebhookDeliveryRefusal = "entitlement_required" | "quota_exceeded" | "admission_unavailable";
+
+/**
+ * PRO-G1-14 / PRO-W2-05 / B7B-F05 / DEC-09 — may ONE new webhook delivery be
+ * created for this workspace now?
+ *
+ * Entitlement used to be asked only when an endpoint was created or widened,
+ * so endpoints of a workspace that lost FEATURE_WEBHOOKS (a lapsed contract, a
+ * removed or expired grant) kept receiving every event, and the daily delivery
+ * quota had no reader. Now every channel asks this before it writes a delivery:
+ *
+ *   - the feature (`featureKey`, FEATURE_WEBHOOKS for the integration and
+ *     lifecycle channels; automation passes its own governance key, already
+ *     asked by its dispatcher, as null);
+ *   - then one unit of QUOTA_WEBHOOK_DELIVERIES_PER_DAY, atomically.
+ *
+ * The pause is REVERSIBLE: nothing is deactivated, so restoring the
+ * entitlement (or the next UTC day) restores delivery. Fails CLOSED: an
+ * engine that cannot answer withholds the delivery with a recorded reason.
+ */
+export async function admitWebhookDelivery(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  featureKey: "FEATURE_WEBHOOKS" | null;
+  /** Resolved once per emission by the caller (several endpoints, one event). */
+  cache?: Map<string, EntitlementProjection>;
+}): Promise<{ ok: true } | { ok: false; reason: WebhookDeliveryRefusal }> {
+  const prisma = input.prisma ?? defaultPrisma;
+  try {
+    const cache = input.cache ?? new Map<string, EntitlementProjection>();
+    if (!cache.has("QUOTA_WEBHOOK_DELIVERIES_PER_DAY")) {
+      const keys: EntitlementKey[] = input.featureKey
+        ? [input.featureKey, "QUOTA_WEBHOOK_DELIVERIES_PER_DAY"]
+        : ["QUOTA_WEBHOOK_DELIVERIES_PER_DAY"];
+      const resolved = await resolveEntitlements({ prisma, teamId: input.teamId, keys });
+      for (const [k, v] of Object.entries(resolved)) cache.set(k, v as EntitlementProjection);
+    }
+    if (input.featureKey && cache.get(input.featureKey)?.value !== true) {
+      return { ok: false, reason: "entitlement_required" };
+    }
+    const quota = await consumeQuotaEntitlement({
+      prisma,
+      teamId: input.teamId,
+      key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+      resolved: cache.get("QUOTA_WEBHOOK_DELIVERIES_PER_DAY"),
+    });
+    if (!quota.ok) return { ok: false, reason: "quota_exceeded" };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: "admission_unavailable" };
+  }
 }
 
 // ===========================================================================
@@ -624,7 +768,22 @@ export async function assertQuotaEntitlement(input: {
 // assertLimitEntitlementTx — LIMIT keys, by live count (PRO-062)
 // ===========================================================================
 
-type LimitTx = Pick<PrismaClient, "$executeRaw" | "lifecycleWebhookEndpoint" | "apiCredential">;
+type LimitTx = Pick<PrismaClient, "$executeRaw" | "lifecycleWebhookEndpoint" | "apiCredential"> & {
+  webhookEndpoint?: Pick<PrismaClient["webhookEndpoint"], "count">;
+};
+
+/**
+ * PRO-G1-05 / B7B-F05 — INTEGRATION_WEBHOOK_ENDPOINTS_MAX is the sold ceiling
+ * of webhook endpoints, and the platform has two endpoint families: lifecycle
+ * endpoints (`/v1/packaging/webhooks`) and integration endpoints
+ * (`/v1/integrations/webhooks`). Only the lifecycle family was counted, so the
+ * integration family had no ceiling at all. The ceiling now applies to EACH
+ * family on its own live count (option "per family"): no family can exceed
+ * what the line sells, and no workspace loses a lifecycle endpoint slot to an
+ * integration endpoint it already holds. (Automation destinations keep their
+ * own fixed cap, WEBHOOK_MAX_DESTINATIONS_PER_TEAM.)
+ */
+export type WebhookEndpointFamily = "LIFECYCLE" | "INTEGRATION";
 
 /**
  * What each LIMIT key counts. A key with no counter cannot be enforced, so it
@@ -666,15 +825,25 @@ export async function assertLimitEntitlementTx(input: {
    * is resolved here as before.
    */
   resolved?: EntitlementProjection;
+  /** INTEGRATION_WEBHOOK_ENDPOINTS_MAX only: which endpoint family to count (default LIFECYCLE). */
+  family?: WebhookEndpointFamily;
 }): Promise<{ ok: true; limit: number; current: number } | { ok: false; limit: number; current: number }> {
   if (classifyKind(input.key) !== "LIMIT") {
     throw new Error(`entitlement_key_not_a_limit:${input.key}`);
   }
-  const counter = LIMIT_LIVE_COUNTERS[input.key];
+  const integrationFamily =
+    input.key === "INTEGRATION_WEBHOOK_ENDPOINTS_MAX" && input.family === "INTEGRATION";
+  const counter: ((tx: LimitTx, teamId: string) => Promise<number>) | undefined = integrationFamily
+    ? (tx, teamId) => {
+        if (!tx.webhookEndpoint) throw new Error("entitlement_limit_counter_unavailable:integration_webhooks");
+        return tx.webhookEndpoint.count({ where: { teamId, status: "ACTIVE" } });
+      }
+    : LIMIT_LIVE_COUNTERS[input.key];
   if (!counter) {
     throw new Error(`entitlement_limit_without_counter:${input.key}`);
   }
-  await input.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`entitlement-limit:${input.key}:${input.teamId}`}))`;
+  const lockScope = integrationFamily ? `${input.key}:INTEGRATION` : input.key;
+  await input.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`entitlement-limit:${lockScope}:${input.teamId}`}))`;
   const projection =
     input.resolved ??
     (await resolveEntitlement({
