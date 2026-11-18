@@ -154,7 +154,9 @@ describe("SLA cron route — production fail-closed", () => {
       ),
       "utf8",
     );
-    expect(middleware).toMatch(/isProduction\(\)/);
+    // PRO-W2-13: fail-closed is unconditional now (no session fallback in any
+    // environment); behaviour is proven in ws-sched-cron-secret-no-session-fallback.test.ts.
+    expect(middleware).not.toMatch(/fallbackAdminCheck/);
     expect(middleware).toMatch(/CONFIGURATION_ERROR/);
     expect(middleware).toMatch(/reply\.code\(503\)/);
   });

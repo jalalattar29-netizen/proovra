@@ -11,18 +11,15 @@
  *     `x-proovra-cron-secret` (or `x-proovra-integration-cron-secret`
  *     for integration cron routes). Wrong/missing → 401.
  *
- *  2. Secret NOT configured:
- *       - In production → 503 CONFIGURATION_ERROR (fail closed).
- *       - In non-production → the OWNER/ADMIN fallback below, which reads the
- *         signed-in user from `req.user`. B7A-F-008 (free-audit 0ea0): the
- *         cron/internal routes guarded here register NO `requireAuth` and no
- *         global hook sets `req.user`, so for them the fallback answers 401 to
- *         everyone — the development surface fails CLOSED, and a developer
- *         sets the secret. That is the intended behaviour: do not add
- *         `requireAuth` in front of these routes to "make the fallback work",
- *         because the fallback admits an ACTIVE OWNER/ADMIN of ANY workspace,
- *         and every account owns a personal workspace (any Free user would
- *         pass).
+ *  2. Secret NOT configured → 503 CONFIGURATION_ERROR in EVERY environment
+ *     (fail closed, retryable once the operator sets the secret).
+ *
+ *     WS-SCHED / PRO-W2-13: there used to be a non-production fallback that
+ *     admitted any ACTIVE OWNER/ADMIN of ANY workspace when `req.user` was
+ *     set. Every account owns a personal workspace, so that fallback bound a
+ *     platform-wide machine sweep to "any signed-in person" — not to the swept
+ *     scope. These entries are machine-only; a session is never a credential
+ *     for them. Local development sets the secret (B7A-F-008).
  *
  * Never log the secret. Constant-time compare on the hex/bytes.
  */
@@ -30,19 +27,14 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { FastifyRequest, FastifyReply } from "fastify";
 
-import { prisma } from "../db.js";
-import { getAuthUserId } from "../auth.js";
-
 // OPS-006 — header names come from the ONE shared definition the worker
 // callers import too. Re-exported so existing API importers keep working.
 import { INTEGRATION_CRON_HEADER, NOTIFICATION_CRON_HEADER, REVIEWER_OPS_CRON_HEADER } from "@proovra/shared";
-import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
 export { INTEGRATION_CRON_HEADER, NOTIFICATION_CRON_HEADER, REVIEWER_OPS_CRON_HEADER };
 // Search-reindex production-safe internal endpoint
 // (`POST /v1/internal/search/reindex`). Header + env-var pair follows
 // the existing cron-secret pattern: same constant-time compare via
-// `checkCronSecret`, same fail-closed-in-prod posture, same
-// non-prod admin fallback.
+// `checkCronSecret`, same fail-closed posture (no session fallback).
 export const SEARCH_REINDEX_HEADER = "x-internal-secret";
 
 const NOTIFICATION_SECRET_ENV = "NOTIFICATION_CRON_SECRET";
@@ -87,11 +79,6 @@ export function cronSecretMatches(
   return constantTimeEqual(expected, got);
 }
 
-/** F-41 (independent forward audit, closure) — the development fallback needs an EXPLICIT development or test environment (developmentSurfacesAllowed); a staging or undeclared deployment fails closed like production. */
-function isProduction(): boolean {
-  return !developmentSurfacesAllowed();
-}
-
 function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   try {
@@ -113,45 +100,6 @@ function readHeader(
   return null;
 }
 
-async function fallbackAdminCheck(
-  req: FastifyRequest,
-  reply: FastifyReply,
-): Promise<boolean> {
-  // Only used in non-production. Requires authenticated OWNER/ADMIN on
-  // ANY workspace — cron routes are workspace-agnostic.
-  try {
-    const userId = getAuthUserId(req);
-    // PHASE 12 REMEDIATION — AUTH-004 (2026-08-06). This ACTOR gate was
-    // status-blind: a SUSPENDED or REVOKED OWNER/ADMIN satisfied it and could
-    // drive the non-production cron fallback. ACTIVE is now required.
-    const membership = await prisma.teamMember.findFirst({
-      where: {
-        userId,
-        status: "ACTIVE",
-        role: { in: ["OWNER", "ADMIN"] },
-      },
-    });
-    if (!membership) {
-      reply.code(401).send({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Cron secret not configured; non-production fallback requires OWNER/ADMIN.",
-        },
-      });
-      return false;
-    }
-    return true;
-  } catch {
-    reply.code(401).send({
-      error: {
-        code: "UNAUTHORIZED",
-        message: "Authentication required.",
-      },
-    });
-    return false;
-  }
-}
-
 async function checkCronSecret(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -171,18 +119,14 @@ async function checkCronSecret(
     return true;
   }
 
-  // No secret configured.
-  if (isProduction()) {
-    reply.code(503).send({
-      error: {
-        code: "CONFIGURATION_ERROR",
-        message: `Cron secret (${envName}) is required in production.`,
-      },
-    });
-    return false;
-  }
-
-  return fallbackAdminCheck(req, reply);
+  // No secret configured: fail closed in every environment (PRO-W2-13).
+  reply.code(503).send({
+    error: {
+      code: "CONFIGURATION_ERROR",
+      message: `Cron secret (${envName}) is not configured.`,
+    },
+  });
+  return false;
 }
 
 export function requireNotificationCronSecret(
@@ -219,12 +163,9 @@ export function requireIntegrationCronSecret(
  * checks:
  *
  *   - Constant-time HMAC comparison via `checkCronSecret`.
- *   - Fails closed in production when SEARCH_REINDEX_SECRET is unset
- *     (503 CONFIGURATION_ERROR), so a misconfigured prod deploy can
- *     never silently expose the surface.
- *   - In non-production, the OWNER/ADMIN-on-any-team fallback applies;
- *     the route has no `requireAuth`, so it answers 401 and local dev sets
- *     the secret (B7A-F-008, see the module header).
+ *   - Fails closed in every environment when SEARCH_REINDEX_SECRET is
+ *     unset (503 CONFIGURATION_ERROR), so a misconfigured deploy can
+ *     never silently expose the surface; local dev sets the secret.
  *   - Header is `x-internal-secret`. Env var is
  *     `SEARCH_REINDEX_SECRET`.
  *
