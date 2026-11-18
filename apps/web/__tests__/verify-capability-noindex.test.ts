@@ -23,7 +23,8 @@ test("ET-PKG-13: /verify/<token> paths are capability paths; the landing page an
 
 test("ET-PKG-13: every response the middleware secures carries X-Robots-Tag on a capability path", () => {
   const src = read("middleware.ts");
-  assert.match(src, /if \(isPublicVerifyCapabilityPath\(pathname\)\) \{\s*response\.headers\.set\("X-Robots-Tag", "noindex, nofollow, noarchive"\);/);
+  // PRO-PW-06 widened the same branch to every token-bearing page family.
+  assert.match(src, /if \(isPublicVerifyCapabilityPath\(pathname\) \|\| isCapabilityUrlPath\(pathname\)\) \{\s*response\.headers\.set\("X-Robots-Tag", "noindex, nofollow, noarchive"\);/);
   const calls = src.match(/applySecurityHeaders\([^)]*\)/g) ?? [];
   const sites = calls.filter((c) => !c.includes("response: NextResponse"));
   assert.ok(sites.length >= 9, `expected every call site, saw ${sites.length}`);

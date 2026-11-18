@@ -92,7 +92,10 @@ describe("sign-in MFA challenge", () => {
       render(<MfaChallengePage />);
       await submitCode("123456");
       await screen.findByRole("heading", { name: "Sign-in session expired" });
-      expect(screen.getByRole("link", { name: "Return to sign in" }).getAttribute("href")).toBe("/login");
+      expect(screen.getByRole("link", { name: "Return to sign in" }).getAttribute("href")).toBe(
+        // PRO-A1-12 — the fresh sign-in keeps the intended destination.
+        "/login?next=%2Fcases",
+      );
     },
   );
 });
