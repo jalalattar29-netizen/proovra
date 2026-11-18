@@ -1170,7 +1170,9 @@ export async function sendEvidenceRequest(
     if (reviewer?.email) {
       const requestUrl = finalRequest.evidenceId
         ? `${getEmailWebBaseUrl().replace(/\/+$/, "")}/evidence/${encodeURIComponent(finalRequest.evidenceId)}`
-        : `${getEmailWebBaseUrl().replace(/\/+$/, "")}/review`;
+        : // PRO-PW-02 (WS-ENT) — /review is a TEAM/Enterprise surface (404 on
+          // PRO/PAYG/FREE); the request itself is CORE and reachable on every plan.
+          `${getEmailWebBaseUrl().replace(/\/+$/, "")}/evidence-requests/${encodeURIComponent(finalRequest.id)}`;
       await safeSendEmailNotification(
         {
           eventType: "REVIEW_REQUEST_ASSIGNED",

@@ -1162,6 +1162,14 @@ export async function getCollaborationTeamDetail(
     actorUserId: string;
     /** Proven by the route binding — a bounded READ for a workspace governor. */
     viaWorkspaceGovernance?: boolean;
+    /**
+     * PRO-K2-09 (WS-ENT) — the WORKSPACE layer of "two layers, both required":
+     * the caller holds the workspace collaboration write permission. A
+     * workspace VIEWER given a writing group role was offered a composer and
+     * Add people, and every write answered the anti-enumeration 404.
+     * Undefined keeps the group-only answer (non-route callers).
+     */
+    workspaceWriteAllowed?: boolean;
   },
   client: PrismaClient = defaultPrisma,
 ) {
@@ -1288,18 +1296,26 @@ export async function getCollaborationTeamDetail(
     // openAccessReview / decideAccessReviewItem / completeAccessReview and
     // revokeGuest were removed with their retired routes, 2026-09-17.)
     viewerCapabilities: {
-      canModerateComments: isCollaborationTeamModerator(viewer.role),
+      canModerateComments: input.workspaceWriteAllowed !== false && isCollaborationTeamModerator(viewer.role),
       // PRO-096 — the predicate the comment writers enforce.
-      canComment: collaborationTeamRoleHasPermission(
-        viewer.role as CollaborationTeamRole,
-        "team.comment.post",
-      ),
-      canManageGuests: collaborationTeamRoleHasPermission(
-        viewer.role as CollaborationTeamRole,
-        "team.member.invite",
-      ),
-      canManageAccessReviews: isCollaborationTeamModerator(viewer.role),
+      canComment:
+        input.workspaceWriteAllowed !== false &&
+        collaborationTeamRoleHasPermission(viewer.role as CollaborationTeamRole, "team.comment.post"),
+      canManageGuests:
+        input.workspaceWriteAllowed !== false &&
+        collaborationTeamRoleHasPermission(viewer.role as CollaborationTeamRole, "team.member.invite"),
+      canManageAccessReviews: input.workspaceWriteAllowed !== false && isCollaborationTeamModerator(viewer.role),
+      /** PRO-K2-09 — the workspace layer, so a surface can say why it is read-only. */
+      workspaceWriteAllowed: input.workspaceWriteAllowed !== false,
     },
+    /**
+     * PRO-KZ-03 (WS-ENT) — lead recovery (recoverCollaborationTeamLead) is the
+     * WORKSPACE OWNER's, whether or not they are in the group. The page keyed
+     * its banner on how the detail was read (viaWorkspaceGovernance), so an
+     * ADMIN was offered a control the server refuses and an owner who is an
+     * ordinary member was not offered one it accepts.
+     */
+    viewerIsWorkspaceOwner: team.workspace.ownerUserId === input.actorUserId,
     activeMemberCount,
     capacityMemberCount,
     pendingInviteCount,

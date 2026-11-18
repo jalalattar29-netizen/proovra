@@ -162,6 +162,14 @@ async function requireWorkspace(
    * access — those remain gated by their own checks.
    */
   canGovernWorkspace: boolean;
+  /** PRO-K2-23 (WS-ENT) — billing.read: commercial lifecycle detail is for billing roles. */
+  canSeeBilling: boolean;
+  /**
+   * PRO-K2-09 (WS-ENT) — the WORKSPACE layer of the collaboration write rule
+   * ("two layers, both required"): a workspace VIEWER holding a writing group
+   * role is still refused every write by the workspace permission.
+   */
+  canWriteInWorkspace: boolean;
 } | null> {
   const ctx = await authorizeCollaborationWorkspace(req, reply, permission);
   if (!ctx) return null;
@@ -169,6 +177,8 @@ async function requireWorkspace(
     workspaceId: ctx.workspaceId,
     userId: ctx.userId,
     canGovernWorkspace: contextHasCapability(ctx, "identity.member.role.change"),
+    canSeeBilling: contextHasCapability(ctx, "billing.read"),
+    canWriteInWorkspace: contextHasCapability(ctx, "collaboration.thread.create"),
   };
 }
 
@@ -573,6 +583,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             workspaceId: ctx.workspaceId,
             actorUserId: ctx.userId,
             viaWorkspaceGovernance: binding.viaWorkspaceGovernance,
+            workspaceWriteAllowed: contextHasCapability(binding.workspace, "collaboration.thread.create"),
           });
           return reply.send({
             team: detail,
@@ -1586,7 +1597,11 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
       try {
         const projection = await resolveCollaborationEntitlement(
           ctx.workspaceId,
-          { canViewAllTeams: ctx.canGovernWorkspace },
+          {
+            canViewAllTeams: ctx.canGovernWorkspace,
+            canSeeBilling: ctx.canSeeBilling,
+            canWriteInWorkspace: ctx.canWriteInWorkspace,
+          },
         );
         return reply.send(projection);
       } catch (err) {

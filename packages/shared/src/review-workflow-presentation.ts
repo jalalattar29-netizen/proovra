@@ -200,7 +200,10 @@ export type ReviewWorkflowActionBlock =
   | "AWAITING_SECOND_REVIEWER"
   | "ADJUDICATION_REQUIRED"
   | "NO_WORKFLOW"
-  | "NOT_PLACED";
+  | "NOT_PLACED"
+  // PRO-R2Z-10 (WS-ENT) — this action alone is outside the plan (Escalate:
+  // REVIEW_ESCALATION, TEAM and above), while the record-level review is in it.
+  | "ESCALATION_NOT_INCLUDED";
 
 export const REVIEW_WORKFLOW_BLOCK_COPY: Readonly<Record<ReviewWorkflowActionBlock, string>> = {
   NO_WORKSPACE: "Review runs in a team workspace. This record is not in one.",
@@ -219,6 +222,8 @@ export const REVIEW_WORKFLOW_BLOCK_COPY: Readonly<Record<ReviewWorkflowActionBlo
   NO_WORKFLOW: "No review has been opened for this record yet.",
   NOT_PLACED:
     "Join a Collaboration Team before claiming reviews. A workspace admin can place you in one.",
+  ESCALATION_NOT_INCLUDED:
+    "Escalating to owners and admins is part of the Team plan and above. Record a verdict, request more information or close the review instead.",
 };
 
 /**
@@ -261,6 +266,12 @@ export type ReviewWorkflowActionInput = {
    * callers that check it themselves.
    */
   planIncludesReview?: boolean;
+  /**
+   * PRO-R2Z-10 (WS-ENT) — REVIEW_ESCALATION, from the same ladder the decision
+   * route enforces. Undefined keeps the previous projection (callers that do
+   * not know it).
+   */
+  planIncludesEscalation?: boolean;
   /**
    * The viewer is a workspace OWNER or ADMIN — the role the decision
    * authority accepts as the adjudicator of a disagreement. Absent → not.
@@ -305,6 +316,7 @@ export function projectReviewWorkflowActions(
       if (input.dbStatus === null) return "NO_WORKFLOW";
       if (input.planIncludesReview === false) return "NOT_INCLUDED";
       if (!input.viewerMayReview) return "NOT_PERMITTED";
+      if (action === "ESCALATE" && input.planIncludesEscalation === false) return "ESCALATION_NOT_INCLUDED";
       if (action === "CLAIM") {
         if (input.assignedToUserId === input.viewerUserId) return "ALREADY_YOURS";
         if (input.assignedToUserId) return "OWNED_BY_SOMEONE_ELSE";

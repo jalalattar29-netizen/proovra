@@ -184,6 +184,15 @@ export async function buildWorkspaceAdmin(input: {
   role: string;
   /** AZ-R07: member and invitee addresses are for OWNER and ADMIN. */
   canSeeContact: boolean;
+  /**
+   * PRO-T1C-02 (WS-ENT) — the aggregate was gated on identity.member.read
+   * alone, so a VIEWER read billing status, seat use, integration counts and
+   * legal-hold/destruction counts. Each section is projected only to a caller
+   * holding its permission (billing.read; integration.webhook.manage or
+   * integration.api_key.manage; governance.policy.read) and is
+   * "not_applicable" otherwise. Omitted = every section (non-route callers).
+   */
+  sectionAccess?: { billing: boolean; integrations: boolean; governance: boolean };
 }): Promise<WorkspaceAdminEnvelope | { notFound: true }> {
   // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace populations.
   // Named `evidenceScope`/`caseScope` rather than `scope`: this module
@@ -366,7 +375,9 @@ export async function buildWorkspaceAdmin(input: {
     status: "unavailable",
     data: null,
   };
-  try {
+  if (input.sectionAccess && !input.sectionAccess.governance) {
+    governanceSnapshot = { status: "not_applicable", data: null };
+  } else try {
     const [
       policy,
       activeLegalHoldsCount,
@@ -432,7 +443,9 @@ export async function buildWorkspaceAdmin(input: {
     status: "unavailable",
     data: null,
   };
-  try {
+  if (input.sectionAccess && !input.sectionAccess.integrations) {
+    integrationsPosture = { status: "not_applicable", data: null };
+  } else try {
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const [apiCount, webhookCount, failedCount] = await Promise.all([
       prisma.apiCredential
@@ -468,7 +481,9 @@ export async function buildWorkspaceAdmin(input: {
     status: "unavailable",
     data: null,
   };
-  try {
+  if (input.sectionAccess && !input.sectionAccess.billing) {
+    billing = { status: "not_applicable", data: null };
+  } else try {
     billing = {
       // A plan we could not resolve is DEGRADED, not "ok" with a wrong number.
       status: effectivePlanResolved ? "ok" : "degraded",

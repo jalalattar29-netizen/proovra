@@ -42,6 +42,7 @@ import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import {
   workspaceIncludesExternalReview,
+  workspaceIncludesReviewCapability,
   workspaceIncludesReviewerOperations,
 } from "../billing-enforcement.service.js";
 import { collaborationLimitsFor } from "../billing/workspace-seats.service.js";
@@ -685,6 +686,22 @@ export async function buildPlatformContext(
    * Resolved BEFORE the capabilities (members audit ENT-01): the capability
    * map is a function of kind, plan AND role, and this is its plan half.
    */
+  /**
+   * PRO-E2-01 (WS-ENT) — the RECORD-LEVEL review lifecycle (claim, verdicts,
+   * close, reopen) is BASIC_RECORD_REVIEW: PRO and above, from the same ladder
+   * the review routes enforce (workspaceIncludesReviewCapability). The web
+   * gated the whole Review tab on reviewerOperationsIncluded (TEAM: queues,
+   * assignment to others, escalation), so a Pro owner could start a review and
+   * never record a verdict. Fails closed.
+   */
+  let basicRecordReviewIncluded = false;
+  if (workspace.id) {
+    try {
+      basicRecordReviewIncluded = await workspaceIncludesReviewCapability(workspace.id, "BASIC_RECORD_REVIEW");
+    } catch {
+      basicRecordReviewIncluded = false;
+    }
+  }
   let reviewerOperationsIncluded = false;
   if (workspace.id) {
     try {
@@ -875,6 +892,7 @@ export async function buildPlatformContext(
     intakeIncluded,
     casesIncluded: planCaps.casesIncluded,
     reviewerOperationsIncluded,
+    basicRecordReviewIncluded,
     // PHASE 12B Track 1A — server-projected surface-tier entitlement (the ONE
     // commercial catalog decides; the frontend never branches on plan names).
     professionalSurfacesIncluded: planCaps.professionalSurfacesIncluded,

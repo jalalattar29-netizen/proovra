@@ -164,6 +164,13 @@ export type DeleteSavedViewInput = {
    * delete a colleague's TEAM view.
    */
   canManageShared?: boolean;
+  /**
+   * PRO-E1-06 (WS-ENT) — the caller CURRENTLY holds the shared-view write role
+   * (evidence.update_metadata, the create rule B2A-F-09). A creator demoted to
+   * VIEWER keeps their PRIVATE views but no longer edits a TEAM view in every
+   * member's rail. Undefined keeps the previous behaviour (non-route callers).
+   */
+  mayWriteShared?: boolean;
 };
 
 export async function deleteSavedView(
@@ -180,6 +187,14 @@ export async function deleteSavedView(
   if (
     row.createdByUserId !== input.actorUserId &&
     (row.visibility === "PRIVATE" || input.canManageShared !== true)
+  ) {
+    return false;
+  }
+  if (
+    row.createdByUserId === input.actorUserId &&
+    row.visibility !== "PRIVATE" &&
+    input.mayWriteShared === false &&
+    input.canManageShared !== true
   ) {
     return false;
   }
@@ -225,6 +240,8 @@ export type RenameSavedViewInput = {
   teamId: string;
   actorUserId: string;
   name: string;
+  /** PRO-E1-06 — see DeleteSavedViewInput.mayWriteShared. */
+  mayWriteShared?: boolean;
 };
 
 export async function renameSavedView(
@@ -242,6 +259,9 @@ export async function renameSavedView(
     // route returns 404 so creator identity isn't disclosed.
     return null;
   }
+  // PRO-E1-06 — a TEAM view is shared content: renaming it needs the write
+  // role NOW, not only authorship (A2-14: a VIEWER is read-only).
+  if (row.visibility !== "PRIVATE" && input.mayWriteShared === false) return null;
   const updated = await client.savedSearchView.update({
     where: { id: row.id },
     data: { name: trimmed },

@@ -153,7 +153,7 @@ export type CollaborationEntitlementProjection = {
 
 export async function resolveCollaborationEntitlement(
   workspaceId: string,
-  options: { canViewAllTeams?: boolean } = {},
+  options: { canViewAllTeams?: boolean; canSeeBilling?: boolean; canWriteInWorkspace?: boolean } = {},
   client: PrismaClient = defaultPrisma,
 ): Promise<CollaborationEntitlementProjection> {
   const workspace = await client.team.findUniqueOrThrow({
@@ -262,11 +262,25 @@ export async function resolveCollaborationEntitlement(
     plan: ctx.plan,
     featureIncluded: teamsLimit > 0,
     mutationsAllowed,
-    lifecycle: {
-      state: ctx.lifecycle.state,
-      reasonCode,
-      graceEndsAtUtc: ctx.lifecycle.graceEndsAtUtc,
-    },
+    /*
+     * PRO-K2-23 (WS-ENT, DEC-14) — the subscription's lifecycle detail (past
+     * due, the grace end date) is billing information: it goes to a caller
+     * holding billing.read. Everyone else is told only what their actions
+     * need (mutationsAllowed, the affordances below) and a neutral reason.
+     */
+    lifecycle:
+      options.canSeeBilling === false
+        ? {
+            state: ctx.lifecycle.mutationsAllowed ? "ACTIVE" : "RESTRICTED",
+            reasonCode:
+              reasonCode !== null && reasonCode === ctx.lifecycle.state ? "WORKSPACE_BILLING_ATTENTION" : reasonCode,
+            graceEndsAtUtc: null,
+          }
+        : {
+            state: ctx.lifecycle.state,
+            reasonCode,
+            graceEndsAtUtc: ctx.lifecycle.graceEndsAtUtc,
+          },
     workspaceSeats: {
       limit: seats.limit,
       used: seats.used,
@@ -301,13 +315,14 @@ export async function resolveCollaborationEntitlement(
      * viewer's own group count and therefore enabled a button the server was
      * always going to refuse.
      */
+    // PRO-K2-09 — and the caller's workspace role may write at all.
     canCreateCollaborationTeam:
-      teamsLimit > 0 && mutationsAllowed && teamsUsed < teamsLimit,
+      options.canWriteInWorkspace !== false && teamsLimit > 0 && mutationsAllowed && teamsUsed < teamsLimit,
     canInviteWorkspaceMember:
       mutationsAllowed && workspaceSeatsAdmit(seats),
     // Assigning an EXISTING workspace member to a group consumes no seat, so it
     // is bounded only by the group ceiling and the lifecycle — never by seats.
-    canAssignExistingMember: teamsLimit > 0 && mutationsAllowed,
+    canAssignExistingMember: options.canWriteInWorkspace !== false && teamsLimit > 0 && mutationsAllowed,
     governance: {
       canViewAllTeams: options.canViewAllTeams === true,
       allTeamsCount: teamsUsed,

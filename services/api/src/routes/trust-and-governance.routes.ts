@@ -861,11 +861,12 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      // I6 — FEATURE_DEPARTMENT_ISOLATION gate (minimal coverage).
-      try {
-        const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_DEPARTMENT_ISOLATION", actorUserId: ctx.userId });
-        if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_DEPARTMENT_ISOLATION" });
-      } catch { /* engine failure must not break route */ }
+      // I6 — FEATURE_DEPARTMENT_ISOLATION gate. PRO-G2-10 (WS-ENT): an
+      // authorization gate fails CLOSED — the swallow-all catch that let an
+      // unexpected engine throw fall through to the write is gone; a throw is
+      // a retryable 503 by the central handler, never an admission.
+      const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_DEPARTMENT_ISOLATION", actorUserId: ctx.userId });
+      if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_DEPARTMENT_ISOLATION" });
       const body = z
         .object({
           // PHASE 12B CLUSTER 14 — now OPTIONAL and non-authoritative. The
@@ -1382,13 +1383,12 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      // I6 — FEATURE_CROSS_ORG_REVIEW + FEATURE_GOVERNANCE_PLATFORM gates (minimal coverage).
-      try {
-        const feOk1 = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_CROSS_ORG_REVIEW", actorUserId: ctx.userId });
-        if (!feOk1.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_CROSS_ORG_REVIEW" });
-        const feOk2 = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_GOVERNANCE_PLATFORM", actorUserId: ctx.userId });
-        if (!feOk2.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_GOVERNANCE_PLATFORM" });
-      } catch { /* engine failure must not break route */ }
+      // I6 — FEATURE_CROSS_ORG_REVIEW + FEATURE_GOVERNANCE_PLATFORM gates.
+      // PRO-G2-10 (WS-ENT) — fail closed: no swallow-all catch around the gate.
+      const feOk1 = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_CROSS_ORG_REVIEW", actorUserId: ctx.userId });
+      if (!feOk1.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_CROSS_ORG_REVIEW" });
+      const feOk2 = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_GOVERNANCE_PLATFORM", actorUserId: ctx.userId });
+      if (!feOk2.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_GOVERNANCE_PLATFORM" });
       const body = z
         .object({
           invitingOrganizationId: z.string().uuid(),

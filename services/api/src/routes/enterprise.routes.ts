@@ -92,6 +92,28 @@ function professionalGuard(permission: "evidence.read" | "evidence.update_metada
     await requireAuthAndLegal(req, reply);
     if (reply.sent) return;
     const current = await evaluateCurrentWorkspace(req, { permission });
+    // PRO-NC-08 (WS-ENT) — a ROLE refusal is not a plan refusal (A2-14). A
+    // VIEWER of a Pro workspace was told batch analysis is "included on Pro
+    // and above". The permission branch now answers with the role refusal;
+    // the plan sentence is kept for the plan branch (and for a caller with no
+    // proven workspace, as before). An authorization outage stays retryable.
+    if (!current.allowed && current.httpStatus === 503) {
+      return reply.code(503).send({
+        error: { code: "AUTHORIZATION_UNAVAILABLE", message: "Authorization could not be evaluated. Please retry." },
+      });
+    }
+    if (!current.allowed && current.httpStatus === 403) {
+      return reply.code(403).send({
+        error: {
+          code: "FORBIDDEN",
+          message:
+            permission === "evidence.update_metadata"
+              ? "Your role in this workspace cannot start or change batch jobs."
+              : "Your role in this workspace cannot open batch analysis or quotas.",
+          details: { reason: current.reasonCode, permission },
+        },
+      });
+    }
     if (current.allowed && (await workspaceIncludesProfessionalSurfaces(current.context.workspaceId))) {
       provenBatchWorkspace.set(req, current.context.workspaceId);
       return;
