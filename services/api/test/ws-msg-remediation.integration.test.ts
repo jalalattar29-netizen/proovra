@@ -1,15 +1,17 @@
 /**
  * WS-MSG remediation (RG-24 outbound messages, RG-25 bearer material, RG-30
- * intake state) — behavioural regressions on live PostgreSQL 16 through the
+ * intake state) â€” behavioural regressions on live PostgreSQL 16 through the
  * real route registration and services.
  *
  * The email provider transport (`resend-provider.js`) is the ONE seam
  * replaced: nothing leaves this machine and each test can read exactly what
  * would have been sent.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { intakeConsentDisclosureText } from "@proovra/shared";
+import { expiredEvidenceReservationWhere } from "@proovra/shared-runtime";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -25,6 +27,7 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
   let prisma: import("@prisma/client").PrismaClient;
   let svc: typeof import("../src/services/evidence-request.service.js");
+  let grantEvidenceCredits: typeof import("../src/services/billing/evidence-credits.service.js")["grantEvidenceCredits"];
   const saved: Record<string, string | undefined> = {};
   const ENV = {
     WORKFLOW_INTAKE_LINKS_ENABLED: "true",
@@ -42,6 +45,7 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
     h = await bootIntegrationHarness();
     prisma = (await import("../src/db.js")).prisma as unknown as import("@prisma/client").PrismaClient;
     svc = await import("../src/services/evidence-request.service.js");
+    ({ grantEvidenceCredits } = await import("../src/services/billing/evidence-credits.service.js"));
     await prisma.team.update({ where: { id: h.fixtures.teamA.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
   }, 900_000);
 
@@ -66,7 +70,7 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
     return { id, rawToken: out.rawToken };
   }
 
-  describe("PRO-I1-01 / R1-F-01 — request-level needs-more-info", () => {
+  describe("PRO-I1-01 / R1-F-01 â€” request-level needs-more-info", () => {
     it("never emails the workspace-internal reviewer note; the explicit contributor message is what is sent", async () => {
       const email = `ws-msg-${randomUUID().slice(0, 8)}@example.test`;
       const { id } = await sentExternalRequest(email);
@@ -117,6 +121,86 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
       expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
       expect(sent.filter((m) => m.to === email)).toHaveLength(1);
       expect(await prisma.evidenceRequestEvent.count({ where: { evidenceRequestId: id, eventType: "EVIDENCE_REQUEST_NEEDS_MORE_INFO" } })).toBe(1);
+    });
+  });
+
+  describe("PRO-I1-02 â€” an intake session holds the allowance only while active on an active link", () => {
+    const P = () => h.fixtures.personal;
+    const pAuth = () => ({ authorization: `Bearer ${P().token}` });
+    const counted = () => prisma.evidence.count({ where: { ownerUserId: P().userId, deletedAt: null } as never });
+    const newOwnerRecord = () => h.app.inject({ method: "POST", url: "/v1/evidence", headers: pAuth(), payload: { type: "PHOTO", mimeType: "image/png" } });
+
+    async function mintAndStage(): Promise<{ linkId: string; sessionId: string; evidenceId: string }> {
+      if (!(await prisma.entitlement.findFirst({ where: { userId: P().userId } as never }))) {
+        const first = await newOwnerRecord();
+        expect(first.statusCode, first.body).toBe(201);
+      }
+      await grantEvidenceCredits({ userId: P().userId, credits: 1, provider: "STRIPE" as never, providerRef: `ws-msg-${randomUUID()}` });
+      const res = await h.app.inject({
+        method: "POST", url: "/v1/workflow/intake-links", headers: pAuth(),
+        payload: { teamId: P().teamId, workflowTemplateSlug: "general-evidence-record", intakeMode: "EXTERNAL_REUSABLE", recipientLabel: "ws-msg", expiresAtUtc: new Date(Date.now() + 30 * 86_400_000).toISOString() },
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      const { rawToken, link } = res.json() as { rawToken: string; link: { id: string } };
+      const t = encodeURIComponent(rawToken);
+      const boot = await h.app.inject({ method: "GET", url: `/v1/external-intake/${t}` });
+      expect(boot.statusCode, boot.body).toBe(200);
+      const opened = boot.json() as { session: { id: string }; link: { consentPolicyVersion: string | null; consentDisclosureText: string | null } };
+      const consent = await h.app.inject({
+        method: "POST", url: `/v1/external-intake/${t}/sessions/${opened.session.id}/consent`,
+        payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(intakeConsentDisclosureText(opened.link.consentDisclosureText)).digest("hex"), termsAcknowledged: true, identityDisclosed: false, ipHash: null, userAgent: null } },
+      });
+      expect(consent.statusCode, consent.body).toBe(200);
+      // Declare one file and never upload a byte.
+      const part = await h.app.inject({
+        method: "POST", url: `/v1/external-intake/${t}/sessions/${opened.session.id}/parts`,
+        payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "c.txt", sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null },
+      });
+      expect(part.statusCode, part.body).toBe(201);
+      await prisma.entitlement.updateMany({ where: { userId: P().userId } as never, data: { credits: 0 } as never });
+      const s = (await prisma.workflowIntakeSession.findUniqueOrThrow({ where: { id: opened.session.id }, select: { evidenceId: true } })) as { evidenceId: string };
+      return { linkId: link.id, sessionId: opened.session.id, evidenceId: s.evidenceId };
+    }
+    async function ageRecord(evidenceId: string) {
+      const aged = new Date(Date.now() - 25 * 3_600_000);
+      await prisma.$executeRaw`UPDATE "evidence" SET "created_at" = ${aged}, "updated_at" = ${aged} WHERE "id" = ${evidenceId}::uuid`;
+      await prisma.$executeRaw`UPDATE "upload_sessions" SET "last_activity_at_utc" = ${aged} WHERE "evidence_id" = ${evidenceId}::uuid`;
+    }
+    async function ageSession(sessionId: string) {
+      const aged = new Date(Date.now() - 25 * 3_600_000);
+      await prisma.$executeRaw`UPDATE "workflow_intake_sessions" SET "updated_at" = ${aged}, "last_seen_at_utc" = ${aged} WHERE "id" = ${sessionId}::uuid`;
+    }
+    async function fillToTwo() {
+      while ((await counted()) < 2) {
+        const r = await newOwnerRecord();
+        expect(r.statusCode, r.body).toBe(201);
+      }
+    }
+
+    it("revoking the link frees the slot an idle reservation held; an abandoned session stops holding after the window and is sweepable", async () => {
+      await fillToTwo();
+      // 1. Revocation: a reservation idle for > 24 h held only by its session.
+      const one = await mintAndStage();
+      await ageRecord(one.evidenceId);
+      // UC-COM-001 (kept) â€” a contributor still active on an active link keeps the slot.
+      expect((await newOwnerRecord()).statusCode).toBe(409);
+      const revoke = await h.app.inject({ method: "POST", url: `/v1/workflow/intake-links/${one.linkId}/revoke`, headers: pAuth(), payload: { reason: "ws-msg" } });
+      expect(revoke.statusCode, revoke.body).toBe(200);
+      const afterRevoke = await newOwnerRecord();
+      expect(afterRevoke.statusCode, afterRevoke.body).toBe(201);
+      const revokedReservation = await prisma.evidence.count({ where: { AND: [{ id: one.evidenceId }, expiredEvidenceReservationWhere()] } });
+      expect(revokedReservation).toBe(1);
+      // Give the slot back (an unsealed owner draft) for the next case.
+      await prisma.evidence.update({ where: { id: (afterRevoke.json() as { id: string }).id }, data: { deletedAt: new Date() } as never });
+
+      // 2. Abandonment on a link that stays ACTIVE (up to 90 days).
+      const two = await mintAndStage();
+      expect((await newOwnerRecord()).statusCode).toBe(409);
+      await ageRecord(two.evidenceId);
+      await ageSession(two.sessionId);
+      const afterIdle = await newOwnerRecord();
+      expect(afterIdle.statusCode, afterIdle.body).toBe(201);
+      expect(await prisma.evidence.count({ where: { AND: [{ id: two.evidenceId }, expiredEvidenceReservationWhere()] } })).toBe(1);
     });
   });
 });
