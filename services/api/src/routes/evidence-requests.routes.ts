@@ -36,11 +36,9 @@ import {
   resolveEnforcementScopeForRequester,
 } from "../services/billing-enforcement.service.js";
 import {
-  absoluteInternalUrl,
   EVIDENCE_REQUEST_PRIORITIES,
   EVIDENCE_REQUEST_STATUSES,
   EvidenceRequestInputSchema,
-  internalNavPath,
   type Permission,
 } from "@proovra/shared";
 
@@ -48,6 +46,7 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail, evaluateAuthorize, sendDenyResponse } from "../middleware/authorize.js";
 import { resendNotificationDelivery } from "../services/notifications/index.js";
+import { intakeLinkPublicUrl } from "../services/intake-link-delivery-dispatcher.service.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import {
   createEvidenceRequest,
@@ -156,14 +155,10 @@ async function projectRequestForCaller(
 
 function intakeUrlFromToken(rawToken: string | null): string | null {
   if (!rawToken) return null;
-  // PHASE 11 — /intake/:token is a public token-scoped nav path, not
-  // the /share/:token shape publicShareUrl builds; composed via
-  // internalNavPath + absoluteInternalUrl instead.
-  const base = process.env.WEB_BASE_URL ?? "";
-  return absoluteInternalUrl(
-    base,
-    internalNavPath(`/intake/${encodeURIComponent(rawToken)}`),
-  );
+  // PRO-PW-04 — THE public intake URL authority, the same one the email and
+  // SMS use: absolute with the production default, never `WEB_BASE_URL ?? ""`
+  // (a relative link in the API field when the variable was unset).
+  return intakeLinkPublicUrl(rawToken);
 }
 
 function errorToReply(err: EvidenceRequestError, reply: FastifyReply): void {

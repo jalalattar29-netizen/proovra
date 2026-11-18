@@ -29,6 +29,7 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
   let svc: typeof import("../src/services/evidence-request.service.js");
   let entitlement: typeof import("../src/services/packaging/entitlement.service.js");
   let webhookPlatform: typeof import("../src/services/packaging/webhooks/webhook-platform.service.js");
+  let notifications: typeof import("../src/services/notifications/index.js");
   let grantEvidenceCredits: typeof import("../src/services/billing/evidence-credits.service.js")["grantEvidenceCredits"];
   const saved: Record<string, string | undefined> = {};
   const ENV = {
@@ -49,6 +50,7 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
     svc = await import("../src/services/evidence-request.service.js");
     entitlement = await import("../src/services/packaging/entitlement.service.js");
     webhookPlatform = await import("../src/services/packaging/webhooks/webhook-platform.service.js");
+    notifications = await import("../src/services/notifications/index.js");
     ({ grantEvidenceCredits } = await import("../src/services/billing/evidence-credits.service.js"));
     await prisma.team.update({ where: { id: h.fixtures.teamA.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
   }, 900_000);
@@ -64,9 +66,9 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
   const A = () => h.fixtures.teamA;
   const owner = () => ({ authorization: `Bearer ${A().ownerToken}` });
 
-  async function sentExternalRequest(recipientEmail: string) {
+  async function sentExternalRequest(recipientEmail: string, recipientPhone?: string) {
     const created = await svc.createEvidenceRequest(
-      { teamId: A().teamId, requestType: "ADDITIONAL_EVIDENCE", title: `ws-msg ${randomUUID().slice(0, 6)}`, recipientMode: "EXTERNAL_CONTRIBUTOR", recipientEmail, createIntakeLink: false } as never,
+      { teamId: A().teamId, requestType: "ADDITIONAL_EVIDENCE", title: `ws-msg ${randomUUID().slice(0, 6)}`, recipientMode: "EXTERNAL_CONTRIBUTOR", recipientEmail, ...(recipientPhone ? { recipientPhone } : {}), createIntakeLink: false } as never,
       { actorUserId: A().ownerUserId },
     );
     const id = (created as unknown as { request: { id: string } }).request.id;
@@ -229,6 +231,45 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
       const delivery = await prisma.lifecycleWebhookDelivery.findFirstOrThrow({ where: { endpointId: created.endpointId } as never, select: { signature: true } as never }) as unknown as { signature: string };
       const expected = createHmac("sha256", Buffer.from(created.secret, "base64")).update(canonicalJson({ probe: "ws-msg" }), "utf8").digest("hex");
       expect(delivery.signature).toBe(expected);
+    });
+  });
+
+  describe("PRO-N1-06 / PRO-I1Z-01 / PRO-PW-04 / PRO-I1Z-06 — bearer links are not stored; every link is absolute", () => {
+    it("the evidence-request email and SMS deliver an absolute link, while no stored preview or projection carries the token", async () => {
+      delete process.env.WORKFLOW_INTAKE_PUBLIC_BASE_URL;
+      const email = `ws-msg-${randomUUID().slice(0, 8)}@example.test`;
+      sent.length = 0;
+      const { id, rawToken } = await sentExternalRequest(email, "+15555550123");
+      expect(rawToken).toBeTruthy();
+      const token = encodeURIComponent(rawToken!);
+      // The recipient gets a working absolute link.
+      const mail = sent.filter((m) => m.to === email);
+      expect(mail).toHaveLength(1);
+      expect(mail[0]!.text).toMatch(new RegExp(`https?://[^\\s/]+/intake/${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+      // The delivery row and its projection hold no token.
+      const delivery = await prisma.notificationDelivery.findFirstOrThrow({ where: { evidenceRequestId: id, eventType: "EVIDENCE_REQUEST_SENT" } as never });
+      expect(delivery.renderedPreview ?? "").not.toContain(rawToken!);
+      expect(delivery.renderedPreview ?? "").not.toContain(token);
+      const { projectNotificationDelivery } = notifications;
+      expect(JSON.stringify(projectNotificationDelivery(delivery as never, { disclosure: "REVEALED" }))).not.toContain(token);
+      // The SMS row stores no token and is not resendable from its preview.
+      const sms = await prisma.communicationMessage.findFirstOrThrow({ where: { relatedEvidenceRequestId: id } as never, select: { bodyPreview: true, bodyResendable: true } as never }) as unknown as { bodyPreview: string; bodyResendable: boolean };
+      expect(sms.bodyPreview).not.toContain(token);
+      expect(sms.bodyPreview).toMatch(/https?:\/\/[^\s/]+\/intake\//);
+      expect(sms.bodyResendable).toBe(false);
+      // The API field is absolute too.
+      const resend = await h.app.inject({ method: "GET", url: `/v1/evidence-requests/${id}`, headers: owner() });
+      expect(resend.statusCode).toBe(200);
+    });
+
+    it("the request-more SMS link is absolute even when WORKFLOW_INTAKE_PUBLIC_BASE_URL is unset", async () => {
+      delete process.env.WORKFLOW_INTAKE_PUBLIC_BASE_URL;
+      const { id } = await sentExternalRequest(`ws-msg-${randomUUID().slice(0, 8)}@example.test`, "+15555550124");
+      const response = await prisma.evidenceRequestResponse.create({ data: { evidenceRequestId: id, status: "RECEIVED" } as never, select: { id: true } });
+      const out = await svc.requestMoreEvidenceForResponse({ requestId: id, teamId: A().teamId, responseId: response.id, actorUserId: A().ownerUserId, notifyContributor: true });
+      const msg = await prisma.communicationMessage.findUniqueOrThrow({ where: { id: out.communicationMessageId! }, select: { bodyPreview: true } });
+      expect(msg.bodyPreview ?? "").toMatch(/https?:\/\/[^\s/]+\/intake\/\[secure-link\]/);
+      expect(msg.bodyPreview ?? "").not.toContain(encodeURIComponent(out.newRawToken));
     });
   });
 });

@@ -161,7 +161,19 @@ export function buildIntakeIdempotencyHash(input: {
  * address under PROOVRA's name.
  */
 export function intakeLinkPublicUrl(rawToken: string): string {
-  return `${getEmailWebBaseUrl().replace(/\/+$/, "")}/intake/${encodeURIComponent(rawToken)}`;
+  return `${intakePublicBaseUrl()}/intake/${encodeURIComponent(rawToken)}`;
+}
+
+/**
+ * PRO-PW-04 / PRO-I1Z-06 — THE base of every public intake URL a message or an
+ * API field carries. WORKFLOW_INTAKE_PUBLIC_BASE_URL stays an OVERRIDE (only an
+ * absolute http(s) origin is accepted); otherwise the web base with its
+ * production default — never an empty base and so never a relative link.
+ */
+export function intakePublicBaseUrl(): string {
+  const override = process.env.WORKFLOW_INTAKE_PUBLIC_BASE_URL?.trim();
+  if (override && /^https?:\/\/[^\s/]+/i.test(override)) return override.replace(/\/+$/, "");
+  return getEmailWebBaseUrl().replace(/\/+$/, "");
 }
 
 /**

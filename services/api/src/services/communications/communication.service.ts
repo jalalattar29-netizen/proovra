@@ -44,6 +44,7 @@ import {
   isRetryEligibleCommunicationPurpose,
   maskPhonePreview,
   normaliseToE164,
+  sanitizeIntakeMessagePreview,
   COMMUNICATION_RETRY_MAX_ATTEMPTS,
 } from "@proovra/shared";
 
@@ -782,7 +783,12 @@ async function isRecipientOptedOut(
 
 function safeBodyPreview(body: string | null | undefined): string | null {
   if (!body) return null;
-  const t = body.trim();
+  // PRO-N1-06 / PRO-I1Z-01 — THE stored preview never carries bearer material,
+  // whichever writer forgot its own override: an intake URL (evidence-request
+  // send and request-more SMS stored the live upload link here) or a
+  // secret-shaped query value is redacted. A body that needed redaction is,
+  // by isBodyResendable, no longer resendable from the preview.
+  const t = sanitizeIntakeMessagePreview(body).trim();
   if (t.length === 0) return null;
   return t.length > 400 ? t.slice(0, 399) + "…" : t;
 }

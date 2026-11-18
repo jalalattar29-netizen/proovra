@@ -45,6 +45,7 @@ import { workflowIntakeFeatureDisabledReason } from "./workflow-intake-token.ser
 import { safeSendEmailNotification } from "./notifications/index.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
 import { getEmailWebBaseUrl } from "./notifications/templates.js";
+import { intakeLinkPublicUrl } from "./intake-link-delivery-dispatcher.service.js";
 // Phase 18 — optional SMS/WhatsApp delivery for external recipients.
 // Failures are absorbed by `enqueueOutboundMessage` (returns a result
 // object; never throws) so the request-send workflow is decoupled from
@@ -1115,9 +1116,8 @@ export async function sendEvidenceRequest(
   const workspaceName =
     team?.evidenceWorkspaceLabel ?? team?.name ?? "Your workspace";
 
-  const intakeUrl = rawToken
-    ? `${getEmailWebBaseUrl().replace(/\/+$/, "")}/intake/${encodeURIComponent(rawToken)}`
-    : null;
+  // PRO-PW-04 — THE public intake URL authority (absolute, encoded).
+  const intakeUrl = rawToken ? intakeLinkPublicUrl(rawToken) : null;
 
   if (isExternalRecipientMode(finalRequest.recipientMode as "EXTERNAL_CONTRIBUTOR")) {
     if (finalRequest.recipientEmail) {
@@ -1763,10 +1763,14 @@ export async function requestMoreEvidenceForResponse(
   };
 }
 
+/**
+ * PRO-I1Z-06 / PRO-PW-04 — the request-more link comes from THE public intake
+ * URL authority: WORKFLOW_INTAKE_PUBLIC_BASE_URL is only an override, the web
+ * base (production default) otherwise, and the token is encoded. It used to
+ * send a bare, unencoded "/intake/<token>" whenever that variable was unset.
+ */
 function renderIntakeUrl(rawToken: string): string {
-  const base = process.env.WORKFLOW_INTAKE_PUBLIC_BASE_URL ?? "";
-  if (!base) return `/intake/${rawToken}`;
-  return `${base.replace(/\/$/, "")}/intake/${rawToken}`;
+  return intakeLinkPublicUrl(rawToken);
 }
 
 async function notifyContributorOfReview(input: {

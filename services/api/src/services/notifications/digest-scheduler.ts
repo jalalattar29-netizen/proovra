@@ -54,6 +54,7 @@ import {
   type InboxItem,
 } from "../../routes/me-inbox.routes.js";
 import { safeSendEmailNotification } from "./index.js";
+import { getEmailAppBaseUrl } from "../email.service.js";
 import {
   PREFERENCE_CATEGORY_MAP,
   isWithinQuietHours,
@@ -476,7 +477,8 @@ export async function runDigestScheduler(
       summary.skippedEmpty += 1;
       continue;
     }
-    const appBase = process.env.APP_BASE_URL?.trim() || null;
+    // PRO-PW-04 — THE app-host authority (production default), never "no link".
+    const appBase = getEmailAppBaseUrl();
     try {
       await safeSendEmailNotification({
         eventType: "OPERATIONS_DIGEST",
@@ -495,9 +497,7 @@ export async function runDigestScheduler(
               severity: i.tone,
             })),
             totalUnread: batch.length,
-            operationsCenterUrl: appBase
-              ? absoluteInternalUrl(appBase, internalNavPath("/notifications"))
-              : null,
+            operationsCenterUrl: absoluteInternalUrl(appBase, internalNavPath("/notifications")),
           },
         },
       });

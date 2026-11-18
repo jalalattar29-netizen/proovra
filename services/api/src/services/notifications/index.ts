@@ -54,7 +54,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import type { RecipientContactDisclosure } from "../privacy/recipient-contact-disclosure.js";
-import { maskEmail, maskPhonePreview } from "@proovra/shared";
+import { maskEmail, maskPhonePreview, sanitizeIntakeMessagePreview } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { resolveAccessibleWorkspace } from "../access/accessible-workspaces.js";
@@ -338,7 +338,8 @@ export async function sendEmailNotification(
       status: "PENDING",
       subject: rendered.subject.slice(0, 400),
       templateKey: input.eventType,
-      renderedPreview: rendered.plaintextPreview.slice(0, 2000),
+      // PRO-N1-06 — the stored preview never carries a bearer link.
+      renderedPreview: redactDeliveryPreview(rendered.plaintextPreview),
       // Phase 8.5 — persist the exact context used to render this
       // notification so retries / manual resends can reproduce the
       // original message without re-reaching into workspace state.
@@ -960,7 +961,8 @@ export async function enqueueEmailNotificationTx(
       status: "RETRY_SCHEDULED",
       nextAttemptAtUtc: new Date(),
       subject: rendered.subject.slice(0, 400),
-      renderedPreview: rendered.plaintextPreview.slice(0, 2000),
+      // PRO-N1-06 — the stored preview never carries a bearer link.
+      renderedPreview: redactDeliveryPreview(rendered.plaintextPreview),
       templateContextJson: input.template as unknown as Prisma.InputJsonValue,
       metadata: {
         [STORED_IDEMPOTENCY_KEY_FIELD]: mintEmailIdempotencyKey(
@@ -1072,6 +1074,16 @@ export async function getNotificationDelivery(
  * of is not a policy. The decision now arrives from the server-side authority
  * and the client cannot influence it.
  */
+/**
+ * PRO-N1-06 / PRO-I1Z-01 — a delivery preview with every bearer link removed
+ * (intake upload URLs, secret-shaped query values, token-shaped strings), by
+ * THE intake preview sanitizer. The provider still receives the real message;
+ * templateContextJson (server-private) keeps what reminders and resends need.
+ */
+export function redactDeliveryPreview(preview: string): string {
+  return sanitizeIntakeMessagePreview(preview).slice(0, 2000);
+}
+
 export function projectNotificationDelivery(
   delivery: DbNotificationDelivery,
   opts: { disclosure?: RecipientContactDisclosure } = {},
@@ -1120,14 +1132,19 @@ export function projectNotificationDelivery(
     channel: delivery.channel,
     provider: delivery.provider,
     recipient,
-    recipientName: delivery.recipientName,
+    // PRO-N1-06 — an external intake recipient's name follows the same
+    // contact disclosure as their address.
+    recipientName:
+      disclosure === "REVEALED" || !delivery.intakeLinkId ? delivery.recipientName : null,
     status: delivery.status,
     subject: delivery.subject,
     templateKey: delivery.templateKey,
     // renderedPreview is plaintext (per Phase 8 schema). It is bounded
     // 2000 chars and the renderer never includes reviewer notes, token
     // hashes, or IP/UA — only safe message body fragments.
-    renderedPreview: delivery.renderedPreview,
+    // PRO-N1-06 — redacted again on read, so a row stored before the
+    // write-time redaction never returns a live bearer link.
+    renderedPreview: delivery.renderedPreview === null ? null : redactDeliveryPreview(delivery.renderedPreview),
     providerMessageId: delivery.providerMessageId,
     errorCode: delivery.errorCode,
     errorMessage: delivery.errorMessage,

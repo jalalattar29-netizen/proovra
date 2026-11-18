@@ -241,6 +241,7 @@ export {
   safeHtml as escapeEmailHtml,
   supportEmail as getEmailSupportAddress,
   webBaseUrl as getEmailWebBaseUrl,
+  appBaseUrl as getEmailAppBaseUrl,
 };
 
 function fromHeader(): string {
@@ -252,6 +253,16 @@ function fromHeader(): string {
 
 function webBaseUrl(): string {
   return env("WEB_BASE_URL") ?? "https://www.proovra.com";
+}
+
+/**
+ * PRO-PW-04 — THE app-host base for outbound links into the signed-in app
+ * (APP_BASE_URL, production default app.proovra.com). Every outbound builder
+ * that links into the app uses this instead of an ad hoc env chain, so an
+ * unset variable never yields a relative or missing link.
+ */
+function appBaseUrl(): string {
+  return (env("APP_BASE_URL") ?? "https://app.proovra.com").replace(/\/+$/, "");
 }
 
 function brandName(): string {
