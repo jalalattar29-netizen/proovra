@@ -488,6 +488,12 @@ export async function suspendMember(
         suspensionReason: input.reason ?? null,
       },
     });
+    // PRO-T1-15 — invitations this member issued no longer carry authority.
+    await revokeInvitesBeyondInviterAuthority(tx, {
+      teamId: input.teamId,
+      inviterUserId: target.userId,
+      actorUserId: input.actorUserId,
+    });
     // §4.4 — the operator can no longer enter this workspace, so a pointer
     // naming it must not survive the transaction that withdrew the access.
     // Cleared to NULL only: choosing a replacement context belongs to
@@ -579,6 +585,12 @@ export async function revokeMember(
         revokedByUserId: input.actorUserId,
         revocationReason: input.reason ?? null,
       },
+    });
+    // PRO-T1-15 — invitations this member issued no longer carry authority.
+    await revokeInvitesBeyondInviterAuthority(tx, {
+      teamId: input.teamId,
+      inviterUserId: target.userId,
+      actorUserId: input.actorUserId,
     });
     // PHASE 3 (2026-07-21) — a manual admin revocation is authoritative over
     // EVERY grant source (SCIM/SSO/group/invite); mark all provenance rows
@@ -876,6 +888,12 @@ export async function leaveWorkspace(
         revocationReason: "left_workspace",
       },
     });
+    // PRO-T1-15 — invitations the leaver issued no longer carry authority.
+    await revokeInvitesBeyondInviterAuthority(tx, {
+      teamId: input.teamId,
+      inviterUserId: target.userId,
+      actorUserId: input.userId,
+    });
     await revokeAllMembershipGrants(tx, { teamMemberId: target.id, actorUserId: input.userId });
     await revokePendingInvitesForMember(tx, {
       teamId: input.teamId,
@@ -981,6 +999,12 @@ export async function changeMemberRole(
   const updated = await tx.teamMember.update({
     where: { id: target.id },
     data: { role: input.newRole },
+  });
+  // PRO-T1-15 — a demoted inviter's invitations above their new ceiling end.
+  await revokeInvitesBeyondInviterAuthority(tx, {
+    teamId: input.teamId,
+    inviterUserId: target.userId,
+    actorUserId: input.actorUserId,
   });
   // Members audit SEC-08 — a creator who loses the authority that let them
   // create an outward grant loses the grant with it.
