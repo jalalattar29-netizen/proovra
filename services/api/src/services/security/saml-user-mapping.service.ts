@@ -40,6 +40,7 @@ import type { SamlAssertion } from "./saml-assertion.service.js";
 // email to a PRE-EXISTING User (cross-tenant account-takeover fix).
 import {
   evaluateExistingAccountLink,
+  evaluateExternalLinkAuthority,
   isSelfServeAccountForOrganization,
 } from "./enterprise-account-linking.service.js";
 import { organizationDisplayForLink, type PendingOrganizationLink } from "../identity/organization-link-consent.service.js";
@@ -432,6 +433,61 @@ export async function handleSamlAssertion(
       });
     }
 
+    // PRO-A2-02 — a stored link on a pre-existing self-serve account is
+    // honoured only with the owner's consent (never an administrator's manual
+    // link). See the OIDC mapped branch in sso.service.ts.
+    const linkAuthority = await evaluateExternalLinkAuthority(
+      {
+        userId: externalMapping.userId,
+        organizationId,
+        provider: String(provider),
+        linkSource: (externalMapping as { linkSource?: string | null }).linkSource,
+      },
+      client,
+    );
+    if (!linkAuthority.honoured) {
+      bump("saml_login_failure_total");
+      safeEmitSecurityEvent({
+        teamId,
+        eventType: "saml_login_failed",
+        severity: "HIGH",
+        details: { connectionId, reason: linkAuthority.reason, nameIdHash: assertion.nameIdHash },
+      });
+      const owner = await client.user.findUnique({
+        where: { id: externalMapping.userId },
+        select: { email: true, emailVerifiedAt: true },
+      });
+      if (
+        email &&
+        owner?.email &&
+        owner.emailVerifiedAt &&
+        owner.email.trim().toLowerCase() === email.trim().toLowerCase()
+      ) {
+        const pendingLink: PendingOrganizationLink = {
+          connectionId,
+          organizationId,
+          teamId,
+          provider: String(provider),
+          protocol: "SAML",
+          subject: externalSubjectId,
+          email: email.trim().toLowerCase(),
+          displayName: displayName ?? null,
+          userId: externalMapping.userId,
+          role: input.jitDefaultRole === "VIEWER" ? "VIEWER" : "MEMBER",
+          ...(await organizationDisplayForLink(organizationId, client)),
+        };
+        throw new SamlMappingError("SAML_ACCOUNT_LINK_REQUIRES_CONSENT", {
+          connectionId,
+          reason: "existing_self_serve_account",
+          pendingLink,
+        });
+      }
+      throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
+        connectionId,
+        reason: linkAuthority.reason,
+      });
+    }
+
     // Repeat login — user already linked and revalidated.
     userId = externalMapping.userId;
 
@@ -639,6 +695,7 @@ export async function handleSamlAssertion(
               externalSubjectId,
               displayName: displayName ?? null,
               externalEmail: email,
+              linkSource: "SAML_JIT",
             },
           });
 

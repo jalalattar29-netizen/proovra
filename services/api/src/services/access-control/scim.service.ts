@@ -1043,6 +1043,7 @@ export async function scimCreateUser(
           displayName:
             parsed.data.displayName ?? parsed.data.name?.formatted ?? null,
           externalEmail: email,
+          linkSource: "SCIM",
         },
       });
 

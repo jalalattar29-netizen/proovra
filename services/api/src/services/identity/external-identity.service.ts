@@ -26,6 +26,10 @@ import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // PHASE 12 POINT 4 PASS C3 — the canonical managed-identity ownership read.
 import { resolveManagedIdentity } from "./identity-mode.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import {
+  ADMIN_MANUAL_LINK_SOURCE,
+  isSelfServeAccountForOrganization,
+} from "../security/enterprise-account-linking.service.js";
 
 export type ExternalIdentityErrorCode =
   | "user_not_in_workspace"
@@ -36,7 +40,10 @@ export type ExternalIdentityErrorCode =
   | "managed_identity_readonly"
   // PHASE 12 POINT 4 PASS C3 — that external subject already resolves to a
   // different user; re-pointing it would hand over their login.
-  | "external_subject_already_mapped";
+  | "external_subject_already_mapped"
+  // PRO-A2-02 — the subject is a pre-existing self-serve account; only its
+  // owner may link it (organization-link consent flow).
+  | "owner_consent_required";
 
 export class ExternalIdentityError extends Error {
   readonly code: ExternalIdentityErrorCode;
@@ -109,6 +116,22 @@ export async function linkExternalIdentity(
     select: { organizationId: true },
   });
 
+  // PRO-A2-02 / B5B-F-302 — an administrator's manual link is not the
+  // owner's consent. A PRE-EXISTING SELF-SERVE account (its owner opened it;
+  // this Organization's directory or IdP did not) may be linked only by its
+  // owner, signed in, through the organization-link consent flow
+  // (POST /v1/identity/links/organization). Without this an identity admin
+  // could bind a subject their IdP controls and then sign in AS the member.
+  // Fails closed: unreadable provenance is treated as self-serve.
+  if (
+    await isSelfServeAccountForOrganization(
+      { userId: input.userId, organizationId: owner.organizationId },
+      client,
+    )
+  ) {
+    throw new ExternalIdentityError("owner_consent_required");
+  }
+
   // The external subject may not be taken from another user OF THIS
   // ORGANIZATION. The DB unique on (organization, provider, externalSubjectId)
   // would reject this anyway; refusing here makes it a bounded denial instead
@@ -150,6 +173,7 @@ export async function linkExternalIdentity(
       externalSubjectId: input.externalSubjectId.slice(0, 320),
       displayName: input.displayName?.slice(0, 180) ?? null,
       externalEmail: input.externalEmail?.slice(0, 320) ?? null,
+      linkSource: ADMIN_MANUAL_LINK_SOURCE,
     },
   });
   safeEmitSecurityEvent(

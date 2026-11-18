@@ -6873,6 +6873,10 @@ model ExternalIdentityMapping {
   linkedAtUtc   DateTime  @default(now()) @map("linked_at_utc") @db.Timestamptz(6)
   unlinkedAtUtc DateTime? @map("unlinked_at_utc") @db.Timestamptz(6)
 
+  /// PRO-A2-02 — who created the link: SCIM | OIDC_JIT | SAML_JIT |
+  /// OWNER_CONSENT | ADMIN_MANUAL. NULL = legacy (pre-column) row.
+  linkSource String? @map("link_source") @db.VarChar(24)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

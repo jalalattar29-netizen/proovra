@@ -340,6 +340,11 @@ export async function setManagedIdentity(
      * (the identity is not already managed by this Organization) is allowed only
      * for an account this Organization's own directory or IdP created. A
      * verified domain or a matching email never converts a self-serve account.
+     *
+     * PRO-A2-01 (WS-ORG RG-06) — this is now the SECURE DEFAULT for every
+     * caller: the parameter is kept for call-site readability only. The
+     * invitation path used to omit it and converted a domain-matching
+     * self-serve account on DOMAIN evidence alone.
      */
     originPolicy?: "ORGANIZATION_ORIGINATED_ONLY";
   },
@@ -365,7 +370,6 @@ export async function setManagedIdentity(
     );
   }
   if (
-    input.originPolicy === "ORGANIZATION_ORIGINATED_ONLY" &&
     current.managingOrganizationId !== input.managingOrganizationId &&
     (await isSelfServeAccountForOrganization(
       { userId: input.userId, organizationId: input.managingOrganizationId },

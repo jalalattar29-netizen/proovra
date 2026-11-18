@@ -188,3 +188,70 @@ export async function isSelfServeAccountForOrganization(
   const origin = await resolveAccountOriginForOrganization(input, client);
   return origin?.kind !== "ORGANIZATION_ORIGINATED";
 }
+
+// -----------------------------------------------------------------------------
+// PRO-A2-02 (WS-ORG RG-06) — A STORED LINK IS RE-CHECKED WHERE IT IS USED.
+//
+// An Organization identity link (ExternalIdentityMapping) lets the
+// Organization's IdP sign in AS the linked account, approve that account's IdP
+// step-up, and resolve it as a directory group member. For an account the
+// Organization's own directory or IdP created that is the point of the link.
+// For a PRE-EXISTING SELF-SERVE account only the owner's own signed-in consent
+// (organization-link-consent.service.ts) may establish it: an administrator's
+// manual link is not consent. Every reader of a mapping asks this ONE
+// predicate before trusting it.
+//
+//   - Organization-originated account                 → honoured
+//   - linkSource OWNER_CONSENT                        → honoured
+//   - linkSource NULL (written before the column):    honoured only with the
+//     owner-consent evidence the consent flow wrote with it (a membership
+//     grant whose externalRef is `org-link:<provider>:…` on a workspace of this
+//     Organization). Never guessed: a legacy link without that evidence is
+//     not honoured, and the owner can re-approve it through the consent flow.
+//   - anything else (ADMIN_MANUAL, SCIM/JIT on a self-serve account) → refused
+//
+// Fails closed: unreadable provenance is a refusal.
+// -----------------------------------------------------------------------------
+
+export const OWNER_CONSENT_LINK_SOURCE = "OWNER_CONSENT";
+export const ADMIN_MANUAL_LINK_SOURCE = "ADMIN_MANUAL";
+export const ORGANIZATION_LINK_GRANT_PREFIX = "org-link:";
+
+export type ExternalLinkAuthority =
+  | { honoured: true; basis: "ORGANIZATION_ORIGINATED" | "OWNER_CONSENT" | "LEGACY_OWNER_CONSENT_EVIDENCE" }
+  | { honoured: false; reason: "self_serve_link_without_owner_consent" };
+
+export async function evaluateExternalLinkAuthority(
+  input: {
+    userId: string;
+    organizationId: string;
+    provider: string;
+    linkSource: string | null | undefined;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<ExternalLinkAuthority> {
+  if (!(await isSelfServeAccountForOrganization(input, client))) {
+    return { honoured: true, basis: "ORGANIZATION_ORIGINATED" };
+  }
+  if (input.linkSource === OWNER_CONSENT_LINK_SOURCE) {
+    return { honoured: true, basis: "OWNER_CONSENT" };
+  }
+  if (input.linkSource === null || input.linkSource === undefined) {
+    const memberships = await client.teamMember.findMany({
+      where: { userId: input.userId, team: { organizationId: input.organizationId } },
+      select: { id: true },
+    });
+    const evidence =
+      memberships.length > 0
+        ? await client.membershipGrant.findFirst({
+            where: {
+              teamMemberId: { in: memberships.map((m) => m.id) },
+              externalRef: { startsWith: `${ORGANIZATION_LINK_GRANT_PREFIX}${input.provider}:` },
+            },
+            select: { id: true },
+          })
+        : null;
+    if (evidence) return { honoured: true, basis: "LEGACY_OWNER_CONSENT_EVIDENCE" };
+  }
+  return { honoured: false, reason: "self_serve_link_without_owner_consent" };
+}

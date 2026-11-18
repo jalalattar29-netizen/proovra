@@ -75,6 +75,7 @@ import {
 // email to a PRE-EXISTING User (cross-tenant account-takeover fix).
 import {
   evaluateExistingAccountLink,
+  evaluateExternalLinkAuthority,
   isSelfServeAccountForOrganization,
 } from "../security/enterprise-account-linking.service.js";
 import {
@@ -1286,6 +1287,57 @@ export async function handleOidcCallback(
       bump("sso_login_failure_total");
       throw new SsoServiceError("SSO_ACCOUNT_LINK_DENIED", { reason: "account_closed" });
     }
+    // PRO-A2-02 — a stored link on a pre-existing self-serve account is
+    // honoured only with the owner's consent (never an administrator's manual
+    // link). No session is minted otherwise; when the IdP asserted the
+    // account's own verified address, the owner can approve the link signed in
+    // to their own account (the same consent ticket the JIT path issues).
+    const linkAuthority = await evaluateExternalLinkAuthority(
+      {
+        userId: externalMapping.userId,
+        organizationId: conn.organizationId,
+        provider: String(conn.provider),
+        linkSource: (externalMapping as { linkSource?: string | null }).linkSource,
+      },
+      client,
+    );
+    if (!linkAuthority.honoured) {
+      bump("sso_login_failure_total");
+      safeEmitSecurityEvent({
+        teamId: conn.teamId,
+        eventType: "sso_login_failed",
+        severity: "HIGH",
+        details: { connectionId: conn.id, reason: linkAuthority.reason, provider: conn.provider },
+      });
+      const owner = await client.user.findUnique({
+        where: { id: externalMapping.userId },
+        select: { email: true, emailVerifiedAt: true },
+      });
+      if (
+        owner?.email &&
+        owner.emailVerifiedAt &&
+        owner.email.trim().toLowerCase() === userinfo.email.trim().toLowerCase()
+      ) {
+        const pendingLink: PendingOrganizationLink = {
+          connectionId: conn.id,
+          organizationId: conn.organizationId,
+          teamId: conn.teamId,
+          provider: String(conn.provider),
+          protocol: "OIDC",
+          subject: userinfo.sub,
+          email: userinfo.email.toLowerCase(),
+          displayName: userinfo.name ?? null,
+          userId: externalMapping.userId,
+          role: conn.jitDefaultRole === "VIEWER" ? "VIEWER" : "MEMBER",
+          ...(await organizationDisplayForLink(conn.organizationId, client)),
+        };
+        throw new SsoServiceError(ACCOUNT_LINK_REQUIRES_CONSENT, {
+          reason: "existing_self_serve_account",
+          pendingLink,
+        });
+      }
+      throw new SsoServiceError("SSO_ACCOUNT_LINK_DENIED", { reason: linkAuthority.reason });
+    }
     userId = externalMapping.userId;
   } else {
     // JIT path
@@ -1479,6 +1531,7 @@ export async function handleOidcCallback(
               externalSubjectId: jitSubject,
               displayName: userinfo.name ?? null,
               externalEmail: jitEmail,
+              linkSource: "OIDC_JIT",
             },
           });
 
