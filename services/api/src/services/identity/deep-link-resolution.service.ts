@@ -24,6 +24,7 @@ import type { FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import type { InternalResourceType, Permission } from "@proovra/shared";
 
+import { getAuthUserId } from "../../auth.js";
 import { prisma as defaultPrisma } from "../../db.js";
 import { evaluateAuthorize } from "../../middleware/authorize.js";
 import { caseClosedTo, evidenceClosedTo } from "../access/record-reach.js";
@@ -138,6 +139,38 @@ export type DeepLinkDecision =
   | { ok: false; reason: "unsupported_type"; httpStatus: 422 };
 
 /**
+ * PRO-N1-10 — a legacy personal-scope record (Evidence.teamId NULL) is its
+ * OWNER's own (the inbox scope rule, me-inbox.routes.ts): it resolves to the
+ * owner's Personal workspace, for the owner only. Anyone else gets the same
+ * concealed not_found as a missing record. Reports bind through their record.
+ */
+async function legacyPersonalRecordTeamId(
+  client: PrismaClient,
+  req: FastifyRequest,
+  type: InternalResourceType,
+  id: string,
+): Promise<string | null> {
+  if (type !== "evidence" && type !== "reports") return null;
+  let actorUserId: string;
+  try {
+    actorUserId = getAuthUserId(req);
+  } catch {
+    return null;
+  }
+  const owner =
+    type === "evidence"
+      ? await client.evidence.findUnique({ where: { id }, select: { teamId: true, ownerUserId: true } })
+      : (await client.report.findUnique({ where: { id }, select: { evidence: { select: { teamId: true, ownerUserId: true } } } }))
+          ?.evidence ?? null;
+  if (!owner || owner.teamId !== null || owner.ownerUserId !== actorUserId) return null;
+  const personal = await client.team.findFirst({
+    where: { ownerUserId: actorUserId, isPersonal: true },
+    select: { id: true },
+  });
+  return personal?.id ?? null;
+}
+
+/**
  * The canonical deep-link decision. `declaredWorkspaceId` (if a URL/query
  * carried one) MUST equal the resource's persisted Workspace — a client cannot
  * override the binding; a mismatch is concealed. `permission` defaults to the
@@ -157,7 +190,9 @@ export async function resolveDeepLink(
   if (DEEP_LINK_UNSUPPORTED_TYPES.has(input.resourceType)) {
     return { ok: false, reason: "unsupported_type", httpStatus: 422 };
   }
-  const teamId = await resolveResourceTeamId(client, input.resourceType, input.resourceId);
+  const teamId =
+    (await resolveResourceTeamId(client, input.resourceType, input.resourceId)) ??
+    (await legacyPersonalRecordTeamId(client, req, input.resourceType, input.resourceId));
   if (!teamId) return { ok: false, reason: "not_found", httpStatus: 404 };
 
   // URL-declared context must MATCH persistence (never override it).

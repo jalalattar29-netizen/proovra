@@ -229,7 +229,10 @@ class ContinuousScreenCaptureService : Service() {
       }
       if (!ok || after == null) return false
       val seg = after.segments.firstOrNull { it.sequence == sequence }
-      if (seg != null && seg.path in automaticallyDeletablePaths(after)) {
+      // PRO-NBC-04 — not persisted as UPLOADED (the ledger write failed): the
+      // file is kept and the confirmation is not reported as recorded.
+      if (seg == null || seg.uploadState != SEGMENT_UPLOADED) return false
+      if (seg.path in automaticallyDeletablePaths(after)) {
         try { File(seg.path).delete() } catch (_: Throwable) {}
       }
       return true

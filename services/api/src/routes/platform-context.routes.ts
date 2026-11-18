@@ -24,6 +24,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { isDomainError } from "../errors.js";
 import { buildPlatformContext } from "../services/platform-context/platform-context.service.js";
+import { readWorkspaceHeader } from "../services/access/request-workspace.js";
 import { getTenantRuntimeProjection } from "../runtime/runtime-readiness.js";
 // P0 remediation (2026-07-21) — tenant-scoped context-switch audit events.
 // NOTE: the GET route remains strictly read-only/no-audit; only the
@@ -67,6 +68,9 @@ function readRequestedSchemaVersion(req: {
   return 2;
 }
 
+/** PRO-T1-16 — a header value that can be a workspace id at all. */
+const NAMED_WORKSPACE_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function platformContextRoutes(app: FastifyInstance) {
   app.get(
     "/v1/platform/context",
@@ -76,11 +80,15 @@ export async function platformContextRoutes(app: FastifyInstance) {
       const jwtRole =
         typeof req.user?.role === "string" ? (req.user.role as string) : null;
 
+      // PRO-T1-16 — the workspace THIS client names (validated by the builder;
+      // the switch route below never passes it: a switch answers its target).
+      const named = readWorkspaceHeader(req);
       const result = await buildPlatformContext({
         userId,
         requestId: req.id,
         jwtRole,
         requestedSchemaVersion: readRequestedSchemaVersion(req),
+        requestedWorkspaceId: named && NAMED_WORKSPACE_SHAPE.test(named) ? named : null,
       });
 
       if (!result.ok) {

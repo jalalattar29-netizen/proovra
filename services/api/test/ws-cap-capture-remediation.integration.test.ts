@@ -98,6 +98,7 @@ describe("WS-CAP capture remediation (Postgres, real HTTP)", () => {
   let svc: typeof import("../src/services/capture-trust/direct-capture-ingest.service.js");
   let uploads: typeof import("../src/services/uploads/upload-session.service.js");
   let complete: typeof import("../src/services/evidence-complete.service.js");
+  let cleanup: typeof import("../src/services/evidence/refused-upload-cleanup.service.js");
   let originalBilling: Record<string, unknown> | null = null;
 
   beforeAll(async () => {
@@ -110,6 +111,7 @@ describe("WS-CAP capture remediation (Postgres, real HTTP)", () => {
     svc = await import("../src/services/capture-trust/direct-capture-ingest.service.js");
     uploads = await import("../src/services/uploads/upload-session.service.js");
     complete = await import("../src/services/evidence-complete.service.js");
+    cleanup = await import("../src/services/evidence/refused-upload-cleanup.service.js");
     const { signJwt } = await import("../src/services/jwt.js");
     const secret = process.env.AUTH_JWT_SECRET!;
     deps = {
@@ -461,5 +463,107 @@ describe("WS-CAP capture remediation (Postgres, real HTTP)", () => {
     expect([200, 201], presign.body).toContain(presign.statusCode);
     const row = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { updatedAt: true } });
     expect(row.updatedAt.getTime()).toBeGreaterThan(Date.now() - 5 * MIN);
+  }, 240_000);
+
+  // --- PRO-C1Z-01 -------------------------------------------------------------
+
+  it("PRO-C1Z-01: a sealed record whose fan-out never finished is completed by the recovery pass, once", async () => {
+    const t: PersonalTenant = await seedPersonalTenant(deps, "FREE");
+    const bytes = Buffer.from(`C1Z01-${randomBytes(6).toString("hex")}`);
+    const created = await call("POST", "/v1/evidence", t.owner.token, {
+      type: "PHOTO",
+      mimeType: "image/jpeg",
+      teamId: t.personalTeamId,
+      originalFileName: "a.jpg",
+    });
+    const id = created.json().id as string;
+    const presign = await call("POST", `/v1/evidence/${id}/parts`, t.owner.token, presignBody(bytes));
+    objects.set(decodeURIComponent(new URL(presign.json().upload.putUrl as string).pathname.slice(1)), bytes);
+    const done = await call("POST", `/v1/evidence/${id}/complete`, t.owner.token, {});
+    expect(done.statusCode, done.body).toBe(200);
+    // The process "died" after the commit: no done marker, no live claim.
+    const sealedAt = new Date(Date.now() - 30 * MIN);
+    await prisma.evidence.update({
+      where: { id },
+      data: { completionFanoutDoneAtUtc: null, completionFanoutClaimedAtUtc: null, signedAtUtc: sealedAt },
+    });
+    const first = await complete.recoverSealedRecordObligations({ now: new Date() });
+    expect(first.fanoutRecovered).toBeGreaterThanOrEqual(1);
+    const row = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { completionFanoutDoneAtUtc: true } });
+    expect(row.completionFanoutDoneAtUtc).not.toBeNull();
+    // Marked done: a second pass does not run it again.
+    const again = await complete.recoverSealedRecordObligations({ now: new Date() });
+    const candidates = await prisma.evidence.count({ where: { id, completionFanoutDoneAtUtc: null } });
+    expect(candidates).toBe(0);
+    expect(again.failed).toBe(0);
+  }, 240_000);
+
+  // --- PRO-C1-03 --------------------------------------------------------------
+
+  it("PRO-C1-03: an assembled session object no part references is removed; a referenced one never is", async () => {
+    const A = h.fixtures.teamA;
+    const evidenceId = await reservedRecord();
+    const listed: string[] = [];
+    const storage = {
+      listObjectVersions: async (p: { bucket: string; key: string }) => {
+        listed.push(p.key);
+        return [];
+      },
+      deleteObjectVersion: async () => ({ deleted: true }),
+    } as never;
+    const { discardUnboundSessionObject } = cleanup;
+    const orphan = { bucket: "ws-cap-test-bucket", key: `evidence/${evidenceId}/multipart/s-1/object` };
+    await discardUnboundSessionObject(evidenceId, orphan, { storage, client: prisma as never });
+    expect(listed).toEqual([orphan.key]);
+
+    listed.length = 0;
+    const bound = { bucket: "ws-cap-test-bucket", key: `evidence/${evidenceId}/multipart/s-2/object` };
+    await prisma.evidencePart.create({ data: { evidenceId, partIndex: 0, storageBucket: bound.bucket, storageKey: bound.key } });
+    await discardUnboundSessionObject(evidenceId, bound, { storage, client: prisma as never });
+    expect(listed).toEqual([]);
+    void A;
+  }, 240_000);
+
+  // --- PRO-N1-10 --------------------------------------------------------------
+
+  it("PRO-N1-10: a legacy record with no workspace resolves to its owner's Personal workspace, for the owner only", async () => {
+    const t: PersonalTenant = await seedPersonalTenant(deps, "FREE");
+    const created = await call("POST", "/v1/evidence", t.owner.token, {
+      type: "PHOTO",
+      mimeType: "image/jpeg",
+      teamId: t.personalTeamId,
+      originalFileName: "legacy.jpg",
+    });
+    const id = created.json().id as string;
+    await prisma.$executeRawUnsafe(`UPDATE "evidence" SET "team_id" = NULL WHERE "id" = $1::uuid`, id);
+    const owner = await call("POST", "/v1/deep-link/resolve", t.owner.token, { resourceType: "evidence", resourceId: id });
+    expect(owner.statusCode, owner.body).toBe(200);
+    expect(owner.json().workspaceId).toBe(t.personalTeamId);
+    const other = await call("POST", "/v1/deep-link/resolve", h.fixtures.teamB.ownerToken, { resourceType: "evidence", resourceId: id });
+    expect(other.statusCode).toBe(404);
+  }, 240_000);
+
+  // --- PRO-T1-16 --------------------------------------------------------------
+
+  it("PRO-T1-16: the context describes the workspace this client names, and the shared pointer does not move", async () => {
+    const A = h.fixtures.teamA;
+    const B = h.fixtures.teamB;
+    await prisma.teamMember.upsert({
+      where: { teamId_userId: { teamId: B.teamId, userId: A.memberUserId } },
+      create: { teamId: B.teamId, userId: A.memberUserId, role: "MEMBER", status: "ACTIVE" },
+      update: { status: "ACTIVE" },
+    } as never);
+    await prisma.user.update({ where: { id: A.memberUserId }, data: { currentWorkspaceId: A.teamId } });
+    const named = await call("GET", "/v1/platform/context", A.memberToken, undefined, { "x-proovra-workspace-id": B.teamId });
+    expect(named.statusCode, named.body).toBe(200);
+    expect(named.json().activeSpace?.id ?? named.json().workspace?.id).toBe(B.teamId);
+    const pointer = await prisma.user.findUniqueOrThrow({ where: { id: A.memberUserId }, select: { currentWorkspaceId: true } });
+    expect(pointer.currentWorkspaceId).toBe(A.teamId);
+    // A workspace the caller cannot enter is not used: the pointer answers.
+    const foreign = await call("GET", "/v1/platform/context", A.memberToken, undefined, {
+      "x-proovra-workspace-id": "00000000-0000-4000-8000-000000000000",
+    });
+    expect(foreign.statusCode, foreign.body).toBe(200);
+    expect(foreign.json().activeSpace?.id ?? foreign.json().workspace?.id).toBe(A.teamId);
   }, 240_000);
 });

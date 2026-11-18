@@ -289,6 +289,11 @@ export default function EvidenceLibraryScreen() {
     setPageNumber(1);
     setSelected(new Set());
     setInspectorId(null);
+    // PRO-E1-07 — the filters (or an applied team view) of the workspace that
+    // was left do not stay in force; the new workspace's default view applies.
+    setFilters(DEFAULT_LIBRARY_FILTERS);
+    defaultViewApplied.current = false;
+    setViewsLoaded(false);
   }, [workspaceChanges]);
 
   const caseMap = useMemo(() => new Map(cases.map((c) => [c.id, c.name] as const)), [cases]);
@@ -747,7 +752,8 @@ export default function EvidenceLibraryScreen() {
             accessibilityLabel="Search title, filename, or record ID"
           />
           <EvidenceLibrarySavedViews
-            views={savedViews}
+            // PRO-E1-07 — personal views everywhere; team views only in their workspace.
+            views={savedViews.filter((v) => v.teamId === null || v.teamId === (platform.context?.activeTeamId ?? null))}
             teamOptions={teamOptions}
             sourceNotSaved={filters.acquisition !== "all"}
             onApply={(v) => applyView(v)}
