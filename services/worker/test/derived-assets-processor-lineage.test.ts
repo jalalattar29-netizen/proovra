@@ -29,6 +29,17 @@ const s = vi.hoisted(() => ({
   puts: [] as string[],
   deletes: [] as string[],
   writes: [] as Array<Record<string, unknown>>,
+  storage: { allowed: true } as { allowed: true } | { allowed: false; reason: "storage_limit" },
+  storageAsks: [] as Array<{ evidenceId: string; incomingBytes: bigint | number }>,
+}));
+
+// WS-SCHED / PRO-W1-05 — the workspace storage gate (the real one is proven in
+// its own suites); here only its verdict and the bytes it was asked about.
+vi.mock("../src/workspace-billing.js", () => ({
+  workspaceAllowsDerivedArtifact: vi.fn(async (p: { evidenceId: string; incomingBytes: bigint | number }) => {
+    s.storageAsks.push(p);
+    return s.storage;
+  }),
 }));
 
 vi.mock("../src/canonical-job.js", () => ({
@@ -119,6 +130,25 @@ beforeEach(() => {
   s.puts = [];
   s.deletes = [];
   s.writes = [];
+  s.storage = { allowed: true };
+  s.storageAsks = [];
+});
+
+describe("derived-assets processor — storage admission (WS-SCHED PRO-W1-05)", () => {
+  it("asks the workspace storage gate for the exact derived size before writing", async () => {
+    const res = await processDerivedAssetJob(job as never);
+    expect(res.status).toBe("COMPLETED");
+    expect(s.storageAsks).toEqual([{ evidenceId: s.request.evidenceId, incomingBytes: Buffer.from("webm-proxy-bytes").byteLength }]);
+  });
+
+  it("over the limit: FAILED storage_limit, nothing written under the lock, no COMPLETED row", async () => {
+    s.storage = { allowed: false, reason: "storage_limit" };
+    const res = await processDerivedAssetJob(job as never);
+    expect(res.status).toBe("FAILED");
+    expect(s.puts).toEqual([]);
+    expect(s.writes.every((w) => w.status !== "COMPLETED")).toBe(true);
+    expect(s.writes.at(-1)).toMatchObject({ status: "FAILED", lastError: "storage_limit" });
+  });
 });
 
 describe("derived-assets processor — lineage (DER-005 / DER-014)", () => {

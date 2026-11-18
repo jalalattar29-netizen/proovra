@@ -879,6 +879,10 @@ export async function buildExchangePackage(
         where: {
           AND: [
             { id: { in: candidateIds } },
+            // WS-SCHED / PRO-W1C-04 — a record that is destroyed or claimed for
+            // destruction is never packaged again (closes the race with an
+            // executor whose inventory was taken before this build).
+            { destroyedAtUtc: null, lifecycleState: { notIn: ["DESTROYED", "PENDING_DESTRUCTION"] } },
             await workspaceEvidenceWhere(teamId, prisma),
             evidenceVisibleThroughCasesWhere(pkg.createdByUserId ?? null),
           ],

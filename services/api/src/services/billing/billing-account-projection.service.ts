@@ -75,7 +75,7 @@ import {
   startOfCurrentMonthUtc,
 } from "../billing-enforcement.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
-import { storageAddonQuotaWhere } from "../workspace-billing.service.js";
+import { getTeamWorkspaceScope, storageAddonQuotaWhere } from "../workspace-billing.service.js";
 import { error as logError } from "../../utils/logger.js";
 import { allowanceSlotEvidenceWhere } from "@proovra/shared-runtime";
 import { resolveCommercialContext } from "./commercial-context.service.js";
@@ -2347,14 +2347,16 @@ async function buildOrganizationProjection(input: {
     where: { OR: seatOwners.map(nonOwnerActiveMemberWhere) },
   });
 
-  const storageAgg = await prisma.evidence.aggregate({
-    where: {
-      teamId: { in: workspaceIds },
-      lifecycleState: { not: "DESTROYED" },
-    },
-    _sum: { sizeBytes: true },
-  });
-  const usedBytes = storageAgg._sum.sizeBytes ?? 0n;
+  // WS-SCHED / PRO-W2C2-07 — the organisation figure is the SUM of each
+  // workspace's CANONICAL storage figure (originals + reports + packages +
+  // derived assets, Retention Archive excluded, first issuance excluded): the
+  // number quota, add-ons and invoices read. Its own evidence-only aggregate
+  // (archive included, artifacts omitted) told owners a second "used" number.
+  let usedBytes = 0n;
+  for (const workspaceId of workspaceIds) {
+    const usage = await getTeamWorkspaceScope(workspaceId).then((scope) => getWorkspaceUsage(scope));
+    usedBytes += usage.storageBytesUsed;
+  }
 
   const baseBytes =
     limits.contractGovernsCapability && limits.storageBytes !== null

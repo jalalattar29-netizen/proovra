@@ -46,6 +46,7 @@ import { prisma } from "./db.js";
 import { artifactLockFor } from "./object-retention.js";
 import { logger } from "./logger.js";
 import { getObjectStream, putObjectBuffer } from "./storage.js";
+import { workspaceAllowsDerivedArtifact } from "./workspace-billing.js";
 import { detectDerivedAssetCapability } from "./derived-assets-capability.js";
 // Phase 31.20 — ffmpeg-derived asset producers.
 import {
@@ -460,6 +461,9 @@ export async function processDerivedAssetJob(
   if (!(await stillEligible({ teamId, evidenceId, evidencePartId, assetKind }))) {
     return { ok: true, status: "FAILED" };
   }
+  if (!(await storageAllows({ teamId, evidenceId, evidencePartId, assetKind }, derivedBuffer.byteLength))) {
+    return { ok: true, status: "FAILED" };
+  }
 
   let derivedVersionId: string | null = null;
   try {
@@ -665,6 +669,9 @@ async function handleFfmpegAssetKind(params: {
     if (!(await stillEligible({ teamId, evidenceId, evidencePartId, assetKind }))) {
       return { ok: true, status: "FAILED" };
     }
+    if (!(await storageAllows({ teamId, evidenceId, evidencePartId, assetKind }, result.bytes.byteLength))) {
+      return { ok: true, status: "FAILED" };
+    }
     let derivedVersionId: string | null = null;
     try {
       const put = await putObjectBuffer({
@@ -854,6 +861,19 @@ async function persistCompleted(
  * stored. False (and the request settled FAILED) when the record left service
  * while the job was running.
  */
+/**
+ * WS-SCHED / PRO-W1-05 — the storage gate before a derived object is written
+ * under the record's lock. Refused growth settles the row FAILED storage_limit
+ * (nothing written); a later request after storage is freed regenerates it.
+ */
+async function storageAllows(input: PersistBaseInput, incomingBytes: number): Promise<boolean> {
+  const verdict = await workspaceAllowsDerivedArtifact({ evidenceId: input.evidenceId, incomingBytes });
+  if (verdict.allowed) return true;
+  await persistFailed({ ...input, reason: verdict.reason });
+  await tryBump("derived_assets_processor_failed_total");
+  return false;
+}
+
 async function stillEligible(input: PersistBaseInput): Promise<boolean> {
   const mi = await loadMediaIntelligence();
   const eligibility = await mi.evaluateDerivedProductionEligibility(input.evidenceId, prisma);

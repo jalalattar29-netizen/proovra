@@ -50,6 +50,8 @@ describe("ENT-05 — the org Seats projection is the canonical seat authority (l
   let refreshTeamSeatState: typeof import("../src/services/billing.service.js")["refreshTeamSeatState"];
   let grantModule: typeof import("../src/services/enterprise-provisioning.service.js");
   let projectionModule: typeof import("../src/services/billing/billing-account-projection.service.js");
+  let usageModule: typeof import("../src/services/workspace-usage.service.js");
+  let scopeModule: typeof import("../src/services/workspace-billing.service.js");
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
@@ -58,6 +60,8 @@ describe("ENT-05 — the org Seats projection is the canonical seat authority (l
     ({ refreshTeamSeatState } = await import("../src/services/billing.service.js"));
     grantModule = await import("../src/services/enterprise-provisioning.service.js");
     projectionModule = await import("../src/services/billing/billing-account-projection.service.js");
+    usageModule = await import("../src/services/workspace-usage.service.js");
+    scopeModule = await import("../src/services/workspace-billing.service.js");
     const { signJwt } = await import("../src/services/jwt.js");
     const secret = process.env.AUTH_JWT_SECRET!;
     deps = {
@@ -194,6 +198,32 @@ describe("ENT-05 — the org Seats projection is the canonical seat authority (l
       viewerUserId: t.owner.userId,
     });
     expect(projection.collaboration?.seats?.pendingInvites).toBe(2);
+  });
+
+  it("WS-SCHED PRO-W2C2-07 — the Organization storage figure is the sum of the canonical workspace figures", async () => {
+    const { buildBillingAccountProjection } = projectionModule;
+    const { getWorkspaceUsage } = usageModule;
+    const { getTeamWorkspaceScope } = scopeModule;
+    const t = await seedContractWorkspace(1, 4);
+    const base = { type: "PHOTO", status: "SIGNED", teamId: t.workspaceId, organizationId: t.organizationId, ownerUserId: t.owner.userId };
+    const live = await prisma.evidence.create({ data: { ...base, title: "live", sizeBytes: 1_000n } as never, select: { id: true } });
+    // Retention Archive bytes are excluded from the figure quota and invoices read.
+    await prisma.evidence.create({
+      data: { ...base, title: "archived", sizeBytes: 50_000n, lifecycleState: "RETENTION_ARCHIVED" } as never,
+    });
+    // A report is stored bytes the canonical meter counts.
+    await prisma.report.create({
+      data: { evidenceId: live.id, version: 1, storageBucket: "b", storageKey: `r/${randomUUID()}`, sizeBytes: 300, generatedAtUtc: new Date() } as never,
+    });
+
+    const canonical = await getWorkspaceUsage(await getTeamWorkspaceScope(t.workspaceId));
+    const projection = await buildBillingAccountProjection({
+      account: { type: "ORGANIZATION", id: t.organizationId, displayName: "Org", capabilities: [], billingOwnerMissing: false },
+      viewerUserId: t.owner.userId,
+    });
+    const storage = projection.usage.storage as { usedBytes: string };
+    expect(storage.usedBytes).toBe(canonical.storageBytesUsed.toString());
+    expect(BigInt(storage.usedBytes)).toBeLessThan(50_000n);
   });
 
   it("an ORG_MEMBER sees no billing block (and no seat state) at all", async () => {

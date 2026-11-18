@@ -55,6 +55,7 @@ import { deleteObjectVersions, getObjectStream, isObjectLockEnabled, s3 } from "
 import { combineSegmentFiles } from "./combine-recording.js";
 import { decideCombineInputs, locateCombineManifest, type CombinePartRow } from "./combine-inputs.js";
 import { uploadFileMultipart } from "./multipart-upload.js";
+import { workspaceAllowsDerivedArtifact } from "../workspace-billing.js";
 
 type JobInput = { jobId: string | undefined; teamId: string; evidenceId: string; runId: string };
 type MediaIntelligenceModule = typeof import("@proovra/shared-runtime/media-intelligence");
@@ -178,6 +179,12 @@ export async function processCombineScreenRecordingJob(
       });
     }
 
+    // PRO-W1C-08 — the downloads are unbounded in time; renew before combining.
+    if (!(await mi.renewRunLease(runId, teamId, fence, prisma)).held) {
+      logger.warn({ requestId, jobId, runId, evidenceId, generation }, "combined_recording.claim_lost_before_combine");
+      return { ok: true, signalsEmitted: 0 };
+    }
+
     // ---- combine ---------------------------------------------------------
     const ffmpegVersion = await getFfmpegVersion();
     const combined = await combineSegmentFiles({
@@ -200,6 +207,18 @@ export async function processCombineScreenRecordingJob(
     const key = `derived-assets/${evidenceId}/${SCREEN_RECORDING_COMBINED_ASSET_KIND}/${screenRecordingCombinedVariantKey(generation)}-${outputSha256.slice(0, 16)}.mp4`;
     const recheck = await mi.evaluateDerivedProductionEligibility(evidenceId, prisma);
     if (!recheck.eligible) return fail(`evidence_ineligible:${recheck.reason}`);
+    // WS-SCHED / PRO-W1C-03, PRO-W1-05 — the locked output counts in workspace
+    // storage and can never be deleted by the customer: admitted like any
+    // other growth, BEFORE a byte is written.
+    const storageGate = await workspaceAllowsDerivedArtifact({ evidenceId, incomingBytes: combined.sizeBytes });
+    if (!storageGate.allowed) return fail(`combine:${storageGate.reason}`);
+    // WS-SCHED / PRO-W1C-08 — download + combine may have used most of the
+    // run lease; renew it (fenced) so the upload is not overtaken by the
+    // reconciler, and stop here if this attempt no longer holds the claim.
+    if (!(await mi.renewRunLease(runId, teamId, fence, prisma)).held) {
+      logger.warn({ requestId, jobId, runId, evidenceId, generation }, "combined_recording.claim_lost_before_upload");
+      return { ok: true, signalsEmitted: 0 };
+    }
     const put = await uploadFileMultipart({
       client: s3,
       bucket: anchor.storageBucket,
@@ -218,6 +237,11 @@ export async function processCombineScreenRecordingJob(
     }
 
     // ---- record (multi-source lineage) + supersede the previous generation --
+    // PRO-W1C-08 — a stale attempt (claim taken over during the upload) never
+    // records a row: its object stays unreferenced and `finally` removes it.
+    if (!(await mi.renewRunLease(runId, teamId, fence, prisma)).held) {
+      throw new CombineStructural("claim_lost_before_record");
+    }
     const variantKey = screenRecordingCombinedVariantKey(generation);
     const recorded = await mi.recordDerivedAsset(
       {

@@ -987,6 +987,14 @@ export async function executeEvidenceDestruction(
       data: { artifactStorageKey: null, exportStatus: "destroyed" },
     });
 
+    // WS-SCHED / PRO-W1C-04 — exchange packages that named this record: their
+    // objects are gone and verified gone, so they stop being deliverable. The
+    // row stays (history); it no longer points at bytes or serves a link.
+    await tx.evidenceExchangePackage.updateMany({
+      where: { evidenceIds: { array_contains: [evidence.id] }, state: { not: "REVOKED" } },
+      data: { state: "REVOKED", revokedAtUtc: now, storageKey: null, signedUrl: null, signedUrlExpiresAtUtc: null },
+    });
+
     // UC-0 (P0-7) — everything PROOVRA DERIVED from the content. These tables
     // have no foreign key to the tombstone (or cascade only on a row delete the
     // tombstone never performs), so without this they outlived destruction:
@@ -1188,8 +1196,22 @@ async function enumerateStorageTargets(
       : Promise.resolve([] as Array<{ artifactStorageBucket: string | null; artifactStorageKey: string | null }>),
   ]);
 
+  // WS-SCHED / PRO-W1C-04 — an Evidence Exchange package that names this record
+  // embeds its metadata and full custody payloads, so it is a derivative of the
+  // record exactly like an SIU export bundle. Every attempt object of every
+  // such package is a target. The ZIP is written under the LATEST lock of all
+  // its records, so while another included record is still retained the
+  // inventory step below blocks with OBJECT_LOCK_RETENTION_ACTIVE and its date
+  // (truthfully deferred) rather than certifying a destruction it did not do.
+  const exchangePackages = await prisma.evidenceExchangePackage.findMany({
+    where: { evidenceIds: { array_contains: [evidenceId] } },
+    select: { id: true, teamId: true, storageKey: true },
+  });
+  const exchangeBucket = evidence.storageBucket ?? parts.find((p) => p.storageBucket)?.storageBucket ?? null;
+
   const all: Array<{ bucket: string | null; key: string | null; required?: boolean }> = [
     { bucket: evidence.storageBucket, key: evidence.storageKey, required: true },
+    ...exchangePackages.map((pkg) => ({ bucket: exchangeBucket, key: pkg.storageKey })),
     ...[...parts, ...reports, ...packages].map((row) => ({
       bucket: row.storageBucket,
       key: row.storageKey,
@@ -1214,6 +1236,16 @@ async function enumerateStorageTargets(
       for (const prefix of evidenceOwnedStoragePrefixes(evidenceId)) {
         for (const key of await storage.listKeysUnderPrefix({ bucket, prefix })) {
           all.push({ bucket, key });
+        }
+      }
+    }
+    // PRO-W1C-04 — every build attempt of a package naming this record
+    // (ET-SEC-27 writes one object per attempt; only the winner is pointed at).
+    if (exchangeBucket) {
+      for (const pkg of exchangePackages) {
+        const prefix = `exchange-packages/${pkg.teamId}/${pkg.id}/`;
+        for (const key of await storage.listKeysUnderPrefix({ bucket: exchangeBucket, prefix })) {
+          all.push({ bucket: exchangeBucket, key });
         }
       }
     }

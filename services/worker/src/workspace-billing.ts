@@ -782,6 +782,37 @@ async function assertArtifactStorage(params: {
   return assertWorkspaceStorageAvailable({ scope: params.scope, incomingBytes: own + following });
 }
 
+/**
+ * WS-SCHED / PRO-W1-05, PRO-W1C-03 (DEC-04) — THE storage gate for a derived
+ * object (thumbnail, frame, waveform, proxy, combined recording) BEFORE it is
+ * written under the record's Object Lock. Those bytes count in workspace usage
+ * (`sumDerivedAssetStorageBytes`, both hosts) and can never be deleted by the
+ * customer, so they are admitted like any other customer-requested growth:
+ * refused with STORAGE_LIMIT_REACHED when they would not fit. Reads, exports
+ * and reductions are untouched. Returns false (refused) instead of throwing so
+ * every producer settles its row the same way.
+ */
+export async function workspaceAllowsDerivedArtifact(params: {
+  evidenceId: string;
+  incomingBytes: bigint | number;
+}): Promise<{ allowed: true } | { allowed: false; reason: "storage_limit" | "evidence_not_found" }> {
+  const ev = await prisma.evidence.findUnique({
+    where: { id: params.evidenceId },
+    select: { ownerUserId: true, teamId: true },
+  });
+  if (!ev) return { allowed: false, reason: "evidence_not_found" };
+  const scope = await resolveWorkspaceScopeForEvidence({ ownerUserId: ev.ownerUserId, teamId: ev.teamId });
+  try {
+    await assertWorkspaceStorageAvailable({ scope, incomingBytes: params.incomingBytes });
+    return { allowed: true };
+  } catch (err) {
+    if ((err as { code?: string }).code === "STORAGE_LIMIT_REACHED") {
+      return { allowed: false, reason: "storage_limit" };
+    }
+    throw err;
+  }
+}
+
 export async function assertWorkspaceAllowsVerificationPackageArtifact(params: {
   ownerUserId: string;
   teamId?: string | null;
