@@ -39,6 +39,7 @@ import { z } from "zod";
 // PHASE1-002 — the one trusted-client-IP binding; see `clientIp` below.
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 
 // ---------------------------------------------------------------------------
 // FINAL-004 (2026-08-15) — the anti-abuse control this file's own header
@@ -102,6 +103,7 @@ async function applyCitizenRateLimits(
     windowSec: 60,
   });
   if (!ipResult.allowed) {
+    if (isLimiterUnavailable(ipResult)) { replyLimiterUnavailable(reply, ipResult); return false; }
     reply.code(429).send({ error: { code: "RATE_LIMITED", scope: "ip" } });
     return false;
   }
@@ -113,6 +115,7 @@ async function applyCitizenRateLimits(
     windowSec: 60,
   });
   if (!tokenResult.allowed) {
+    if (isLimiterUnavailable(tokenResult)) { replyLimiterUnavailable(reply, tokenResult); return false; }
     reply.code(429).send({ error: { code: "RATE_LIMITED", scope: "token" } });
     return false;
   }

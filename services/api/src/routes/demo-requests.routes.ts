@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { leadForwardedClientIpKey, trustedClientIp } from "../middleware/client-ip.js";
 import { cronSecretMatches, readCronSecretFromEnvs } from "../middleware/cron-secret.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { createDemoRequest } from "../services/demo-request.service.js";
 
 function readHeader(req: FastifyRequest, name: string): string | null {
@@ -30,6 +31,7 @@ export async function demoRequestsRoutes(app: FastifyInstance) {
       windowSec: 60,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       // Refused BEFORE the write, so a rate-limited request leaves no row.
       return reply
         .code(429)

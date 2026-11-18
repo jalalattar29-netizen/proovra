@@ -90,6 +90,7 @@ import {
   type SsoSessionCompletion,
 } from "../services/identity/sso-session-completion.service.js";
 import { enforceRateLimit, clearAllRateLimitBuckets } from "../services/rate-limit.js";
+import { assertLimiterAvailable, isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 // Phase 2.7Z+ — E2E auth rate-limit bypass (env-gated, production-safe).
 // See services/api/src/services/auth-test-bypass.ts for the three
 // layers of defense and the operational rules.
@@ -542,6 +543,8 @@ async function loginMfaIsRateLimited(userId: string): Promise<boolean> {
     max: LOGIN_MFA_ATTEMPT_MAX,
     windowSec: Math.round(LOGIN_MFA_ATTEMPT_WINDOW_MS / 1000),
   });
+  // DEC-20 — a store outage is a retryable 503, not "too many attempts".
+  assertLimiterAvailable(result);
   return !result.allowed;
 }
 
@@ -1213,6 +1216,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       logAuthRateLimited(req, "auth.email_register", rl.resetAtMs, { scope: "ip", store: rl.store });
       return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
@@ -1334,6 +1338,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
 
@@ -1365,6 +1370,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       logAuthRateLimited(req, "auth.email_login", rl.resetAtMs, { scope: "ip", store: rl.store });
       return replyLoginRateLimited(reply, rl);
     }
@@ -1386,6 +1392,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_LOGIN_ACCOUNT_WINDOW_SEC,
     });
     if (!accountRl.allowed) {
+      if (isLimiterUnavailable(accountRl)) return replyLimiterUnavailable(reply, accountRl);
       logAuthRateLimited(req, "auth.email_login", accountRl.resetAtMs, { scope: "account", store: accountRl.store });
       return replyLoginRateLimited(reply, accountRl);
     }
@@ -1505,6 +1512,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       logAuthRateLimited(req, "auth.password_reset_requested", rl.resetAtMs, { scope: "ip", store: rl.store });
       // B-09 — this is a 429, not the handler's 200: the per-address limit
       // is the same for every address, so it discloses nothing about any one
@@ -1641,6 +1649,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
 
@@ -1731,6 +1740,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
 
@@ -1864,6 +1874,7 @@ export async function authRoutes(app: FastifyInstance) {
       max: 20,
       windowSec: 60,
     });
+    if (isLimiterUnavailable(limited)) return replyLimiterUnavailable(reply, limited);
     if (!limited.allowed) return reply.code(429).send({ message: "rate_limited" });
     const raw = typeof req.body === "object" && req.body !== null ? (req.body as Record<string, unknown>) : {};
     const handoff = raw.handoff === true;
@@ -1904,6 +1915,7 @@ export async function authRoutes(app: FastifyInstance) {
       max: 5,
       windowSec: 600,
     });
+    if (isLimiterUnavailable(limited)) return replyLimiterUnavailable(reply, limited);
     if (!limited.allowed) return reply.code(429).send({ message: "rate_limited" });
     const { contact } = await signInMethodsFor(challenge.userId);
     if (!contact) return reply.code(409).send({ message: "mfa_method_unavailable" });
@@ -1976,6 +1988,7 @@ export async function authRoutes(app: FastifyInstance) {
       max: 5,
       windowSec: 300,
     });
+    if (isLimiterUnavailable(limited)) return replyLimiterUnavailable(reply, limited);
     if (!limited.allowed) return reply.code(429).send({ message: "rate_limited" });
     const challenge = await loadOpenLoginChallengeByHandoff(parsed.data.token);
     if (!challenge || !challenge.passkeyChallenge) {

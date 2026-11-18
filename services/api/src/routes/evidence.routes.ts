@@ -389,6 +389,7 @@ import { evaluateAccess, loadMemberAccessSnapshot } from "../services/identity/a
 import { bump as bumpOpsMetric } from "@proovra/shared-runtime/ops";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { admitPublicVerifyClient } from "../services/public-verify/public-verify-gate.js";
 import { readVerificationViewCounts } from "../services/public-verify/view-counts.service.js";
 // Phase A.1D — explicit retry/regenerate path for report artifacts.
@@ -7161,6 +7162,7 @@ const storage = await getStorageProtectionSummary(
         windowSec: readPositiveIntEnv("EVIDENCE_PART_PRESIGN_RATE_WINDOW_SEC", 3600),
       });
       if (!partRate.allowed) {
+        if (isLimiterUnavailable(partRate)) return replyLimiterUnavailable(reply, partRate);
         const retryAfterSec = Math.max(1, Math.ceil((partRate.resetAtMs - Date.now()) / 1000));
         reply.header("Retry-After", String(retryAfterSec));
         return reply.code(429).send({ code: "RATE_LIMITED", retryAfterSec, message: "Too many upload requests. Try again later." });

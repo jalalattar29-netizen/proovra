@@ -117,6 +117,7 @@ import {
 } from "../services/access-control/sso-browser-binding.js";
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { completeSsoSession } from "../services/identity/sso-session-completion.service.js";
 import {
   setOrganizationLinkCookie,
@@ -430,11 +431,14 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
 
       // IDENT-014 — public, and each call writes a ledger row.
       const rl = await enforceRateLimit({
+        // PRO-S1-07 — anonymous sign-in entry: one bound across replicas, refused when the store cannot decide.
+        bound: "global",
         key: `saml:login:ip:${trustedClientIpKey(req).slice(0, 200)}`,
         max: SAML_LOGIN_RATE_LIMIT_PER_MIN,
         windowSec: 60,
       });
       if (!rl.allowed) {
+        if (isLimiterUnavailable(rl) && !q.native) return replyLimiterUnavailable(reply, rl);
         if (q.native) return refuse("rate_limited");
         return reply.code(429).send({ error: { code: "RATE_LIMITED" } });
       }

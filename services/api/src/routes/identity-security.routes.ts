@@ -102,6 +102,7 @@ import {
   isPasswordPolicyCompliant,
 } from "../services/email-password-auth.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { assertLimiterAvailable, isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 /**
  * PHASE 13 (NEW-058) — the enrolment routes that give an account a factor live
  * in `identity-security-contact-factors.routes.ts`, registered alongside this
@@ -396,15 +397,17 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
    * spend the approval; only the starting session can. Denials are uniform.
    */
   // Bounded per challenge, across instances (a handoff is never a hot path).
-  const handoffRateLimited = async (challengeId: string): Promise<boolean> =>
-    !(
-      await enforceRateLimit({
-        key: `step-up-handoff:${challengeId}`,
-        bound: "global",
-        max: 10,
-        windowSec: 600,
-      })
-    ).allowed;
+  const handoffRateLimited = async (challengeId: string): Promise<boolean> => {
+    const rl = await enforceRateLimit({
+      key: `step-up-handoff:${challengeId}`,
+      bound: "global",
+      max: 10,
+      windowSec: 600,
+    });
+    // DEC-20 — a store outage is a retryable 503, not "too many attempts".
+    assertLimiterAvailable(rl);
+    return !rl.allowed;
+  };
 
   const HandoffBody = z.object({
     challengeId: z.string().uuid(),
@@ -1144,6 +1147,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         windowSec: 60,
       });
       if (!userRl.allowed) {
+        if (isLimiterUnavailable(userRl)) return replyLimiterUnavailable(reply, userRl);
         auditIdentitySecurityEvent(req, {
           userId,
           action: "identity_security.password_change",
@@ -1163,6 +1167,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         windowSec: 60,
       });
       if (!ipRl.allowed) {
+        if (isLimiterUnavailable(ipRl)) return replyLimiterUnavailable(reply, ipRl);
         return reply.code(429).send({ error: { code: "rate_limited" } });
       }
 

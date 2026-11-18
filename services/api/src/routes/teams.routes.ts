@@ -63,6 +63,7 @@ import { transferCreatorShareGrantsToOwnerTx } from "../services/sharing/creator
 import { dispatchEnqueuedEmailNotifications } from "../services/notifications/index.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
 import { refuseWithoutCurrentLegalAcceptance } from "../middleware/legal-acceptance-gate.js";
 import { evaluateWorkspaceClosurePreflight } from "../services/identity/account-lifecycle-preflight.service.js";
@@ -2892,6 +2893,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         windowSec: 60,
       });
       if (!rl.allowed) {
+        if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
         // `resetAtMs` is what the limiter reports; Retry-After is seconds, and
         // never below 1 — a `Retry-After: 0` invites an immediate retry.
         const retryAfterSec = Math.max(

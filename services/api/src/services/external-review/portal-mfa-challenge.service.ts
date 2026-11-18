@@ -49,6 +49,7 @@ import {
   sendCustomEmailViaResend,
 } from "../email.service.js";
 import { enforceRateLimit } from "../rate-limit.js";
+import { assertLimiterAvailable } from "../../http/limiter-unavailable.js";
 
 // ---------------------------------------------------------------------------
 // Policy
@@ -334,6 +335,8 @@ export async function issuePortalMfaCode(input: {
     max: PORTAL_MFA_ISSUE_LIMIT.max,
     windowSec: PORTAL_MFA_ISSUE_LIMIT.windowSec,
   });
+  // DEC-20 — a store outage is a retryable 503, not "too many codes".
+  assertLimiterAvailable(budget);
   if (!budget.allowed) return { ok: false, reason: "RATE_LIMITED" };
 
   const code = generateCode();

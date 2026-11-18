@@ -26,6 +26,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 
 import { trustedClientIpKey } from "../../middleware/client-ip.js";
 import { enforceDistinctClientLimit, enforceRateLimit } from "../rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../../http/limiter-unavailable.js";
 
 function readPositiveIntEnv(name: string, fallback: number): number {
   const n = Number.parseInt(String(process.env[name] ?? ""), 10);
@@ -75,6 +76,10 @@ export async function admitPublicVerifyClient(req: FastifyRequest, reply: Fastif
     bound: "global",
   });
   if (r.allowed) return true;
+  if (isLimiterUnavailable(r)) {
+    replyLimiterUnavailable(reply, r);
+    return false;
+  }
   refuse(req, reply, "ip", r.resetAtMs);
   return false;
 }
@@ -99,6 +104,10 @@ export async function admitPublicVerifyMiss(
     bound: "global",
   });
   if (r.allowed) return true;
+  if (isLimiterUnavailable(r)) {
+    replyLimiterUnavailable(reply, r);
+    return false;
+  }
   refuse(req, reply, target.kind, r.resetAtMs);
   return false;
 }
