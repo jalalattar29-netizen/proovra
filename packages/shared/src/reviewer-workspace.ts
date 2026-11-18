@@ -340,6 +340,12 @@ export const REVIEWER_DENIAL_REASONS = [
    * adjudicator has from both reviews (WORKFLOW-018).
    */
   "QC_REVIEWER_NOT_INDEPENDENT",
+  /**
+   * PRO-R2-04 — the challenger and the reviewer whose decision is challenged
+   * cannot take or resolve the disagreement: second review and adjudication
+   * are independent of the earlier deciders.
+   */
+  "DISAGREEMENT_RESOLVER_NOT_INDEPENDENT",
   "RATE_LIMITED",
   "POLICY_REJECTED",
 ] as const;
@@ -369,6 +375,8 @@ const REVIEWER_DENIAL_MESSAGES: Readonly<Record<ReviewerDenialReason, string>> =
   QC_VERDICT_INVALID: "That quality-check verdict is not allowed here.",
   QC_REVIEWER_NOT_INDEPENDENT:
     "A reviewer who decided this review cannot quality-check it. Choose someone who did not decide it.",
+  DISAGREEMENT_RESOLVER_NOT_INDEPENDENT:
+    "The person who filed this disagreement, or whose decision it challenges, cannot review or resolve it. Another reviewer must.",
   RATE_LIMITED: "Too many attempts. Wait a moment and try again.",
   POLICY_REJECTED: "Your workspace's review policy does not allow this.",
 };

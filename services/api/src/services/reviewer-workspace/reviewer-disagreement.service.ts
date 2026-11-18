@@ -145,9 +145,31 @@ export async function transitionDisagreement(
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.reviewerDisagreement.findFirst({
     where: { id: input.disagreementId, teamId: input.teamId },
-    select: { id: true, state: true, challengerUserId: true, workflowId: true },
+    select: { id: true, state: true, challengerUserId: true, workflowId: true, originalDecisionId: true },
   });
   if (!row) return deny("DISAGREEMENT_NOT_FOUND");
+  // PRO-R2-04 — independence, as second review and adjudication are
+  // independent of the earlier deciders (review-decision.service): neither
+  // the challenger nor the reviewer whose decision is challenged may take the
+  // second / supervisor review or resolve the disagreement.
+  if (
+    input.to === "UNDER_SECOND_REVIEW" ||
+    input.to === "UNDER_SUPERVISOR_REVIEW" ||
+    input.to.startsWith("RESOLVED_")
+  ) {
+    if (input.actorUserId === row.challengerUserId) {
+      return deny("DISAGREEMENT_RESOLVER_NOT_INDEPENDENT");
+    }
+    const original = row.originalDecisionId
+      ? await prisma.workflowReviewDecision.findFirst({
+          where: { id: row.originalDecisionId, teamId: input.teamId },
+          select: { reviewerUserId: true },
+        })
+      : null;
+    if (original && original.reviewerUserId === input.actorUserId) {
+      return deny("DISAGREEMENT_RESOLVER_NOT_INDEPENDENT");
+    }
+  }
   if (
     !(DISAGREEMENT_STATES as ReadonlyArray<string>).includes(input.to) ||
     !isAllowedDisagreementTransition(row.state as DisagreementState, input.to)
@@ -208,7 +230,7 @@ export async function transitionDisagreement(
    * Taking the SUPERVISOR review (UNDER_SUPERVISOR_REVIEW) is the same act at
    * the next stage and passes the same authority.
    */
-  const refusal = await withinAssignmentWrite(prisma, async (tx): Promise<AssigneeIneligibility | null> => {
+  const refusal = await withinAssignmentWrite(prisma, async (tx): Promise<AssigneeIneligibility | "STATE_MOVED" | null> => {
     if (input.to === "UNDER_SECOND_REVIEW" || input.to === "UNDER_SUPERVISOR_REVIEW") {
       const workflow = await tx.evidenceReviewWorkflow.findFirst({
         where: { id: row.workflowId, teamId: input.teamId },
@@ -231,12 +253,16 @@ export async function transitionDisagreement(
         throw err;
       }
     }
-    await tx.reviewerDisagreement.update({
-      where: { id: row.id },
+    // PRO-R2-04 — compare-and-swap on the state just read: of two racing
+    // transitions only one applies; the other is told the state moved on.
+    const moved = await tx.reviewerDisagreement.updateMany({
+      where: { id: row.id, teamId: input.teamId, state: row.state },
       data: data as never,
     });
+    if (moved.count === 0) return "STATE_MOVED" as const;
     return null;
   });
+  if (refusal === "STATE_MOVED") return deny("DISAGREEMENT_STATE_INVALID");
   if (refusal) {
     return {
       ok: false,

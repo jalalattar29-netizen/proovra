@@ -47,6 +47,7 @@ import {
   type ReviewerVerdict, identifierLabel } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useAuth } from "../../../providers";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -454,12 +455,17 @@ function TransitionButtons({
     rationale?: string,
   ) => Promise<void>;
 }) {
+  // PRO-R2Z-08 — Withdraw is the challenger's own act (the API keeps it to
+  // them); it is offered to nobody else.
+  const viewerUserId = useAuth().user?.id ?? null;
   const targets = useMemo(
     () =>
-      DISAGREEMENT_STATES.filter((to) =>
-        isPlausibleTransition(row.state, to),
+      DISAGREEMENT_STATES.filter(
+        (to) =>
+          isPlausibleTransition(row.state, to) &&
+          (to !== "WITHDRAWN" || (viewerUserId !== null && row.challengerUserId === viewerUserId)),
       ),
-    [row.state],
+    [row.state, row.challengerUserId, viewerUserId],
   );
   return (
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

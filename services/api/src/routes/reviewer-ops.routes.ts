@@ -612,6 +612,24 @@ function sendDecisionAuthorityError(
         },
       });
       return;
+    // PRO-R2-01 — a verdict not allowed from the review's current stage
+    // (e.g. APPROVE on an ASSIGNED, not-started review) is a typed 409, like
+    // a stale decision; it used to fall through with no reply at all.
+    case "decision_not_from_stage":
+      reply.code(409).send({
+        error: {
+          code: "decision_not_allowed",
+          reason: "decision_not_from_stage",
+          details: err.details ?? null,
+        },
+      });
+      return;
+    default:
+      // No authority refusal may ever leave the request unanswered.
+      reply.code(409).send({
+        error: { code: "decision_not_allowed", reason: String((err as { code?: unknown }).code ?? "unknown") },
+      });
+      return;
   }
 }
 

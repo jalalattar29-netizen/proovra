@@ -36,6 +36,7 @@ import { hiddenWorkflowIdsInWorkspace } from "../access/record-reach.js";
 // `.catch(() => {})` keeps emission best-effort so audit failure cannot
 // roll back the primary QC mutation.
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { callerHasCapability, resolveReviewerRole } from "./reviewer-roles.js";
 import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
@@ -195,6 +196,23 @@ export async function assignSample(input: {
     select: { evidenceId: true },
   });
   if (!workflow) return deny("WORKFLOW_NOT_FOUND");
+  // PRO-R2-08 — the QC work goes only to someone who can render its verdict:
+  // the same reviewer-role capability the verdict route asks
+  // (review.qc.verdict). Holding work one cannot perform left the sample
+  // stuck until an administrator reassigned it.
+  const assigneeMember = await prisma.teamMember.findFirst({
+    where: { teamId: input.teamId, userId: input.qcReviewerUserId, status: "ACTIVE" },
+    select: { role: true },
+  });
+  if (
+    !assigneeMember ||
+    !callerHasCapability(
+      resolveReviewerRole({ workspaceRole: assigneeMember.role as "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" }),
+      "review.qc.verdict",
+    )
+  ) {
+    return { ok: false, denial: "NOT_PERMITTED", code: "REVIEW_ASSIGNEE_NOT_ELIGIBLE" };
+  }
   if (
     await decidedSampledRound(prisma, {
       teamId: input.teamId,
