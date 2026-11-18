@@ -312,6 +312,23 @@ async function main(): Promise<number> {
     }
   }
 
+  // ---- 5. Lowerings the sweep held earlier (PRO-W2C-01) --------------------
+  // Their subscription is already CANCELED, so section 4 never reaches them;
+  // these are the accounts `applyHeldPlanLowerings` lowers once the switch is on.
+  const { heldPlanLoweringCandidates } = await import("../services/billing/subscription-lifecycle.handlers.js");
+  for (const c of await heldPlanLoweringCandidates(now)) {
+    emit({
+      action: "APPLY_HELD_PLAN_LOWERING",
+      provider: "SUBSCRIPTION_ENDED",
+      effectiveMonth: month(now),
+      subscriptionId: c.subscriptionId,
+      from: c.from,
+      to: "FREE",
+      paidThroughUtc: c.periodEndUtc?.toISOString() ?? null,
+      held: !automaticPlanLoweringEnabled(),
+    });
+  }
+
   for (const [key, total] of [...totals.entries()].sort()) {
     const [action, provider, effectiveMonth] = key.split(" ");
     console.log(

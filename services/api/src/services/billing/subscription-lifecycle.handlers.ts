@@ -33,7 +33,8 @@ import { endLegacyWorkspaceBilling } from "./legacy-workspace-billing.service.js
 // legitimately does set an organization workspace's plan.
 import { prisma } from "../../db.js";
 import { setPersonalPlan, upsertSubscription } from "../billing.service.js";
-import { lowersPlan } from "./automatic-effects.js";
+import { automaticPlanLoweringEnabled, lowersPlan } from "./automatic-effects.js";
+import { internalGrantCoversPlan, readActiveInternalPlanGrant } from "@proovra/shared-runtime";
 
 /** Members audit ENT-12 — a provider fact changed the plan; the audit names the subscription. */
 const WEBHOOK_PLAN_ORIGIN = (providerSubId: string) => ({
@@ -506,4 +507,109 @@ async function supersede(input: {
     },
   });
   return result.canceled;
+}
+
+/**
+ * PRO-W2C-01 (WS-BILL, 2026-11-18) — a plan lowering the sweep HELD stays
+ * re-findable.
+ *
+ * The sweep that learns a subscription ended moves its row to CANCELED and,
+ * while BILLING_AUTO_PLAN_LOWERING is off, records AUTOMATIC_PLAN_LOWERING_HELD
+ * instead of lowering the entitlement. The row is then CANCELED, so no later
+ * pass selected the account again: turning the switch on (the documented
+ * release step) never lowered it, and the preview never listed it.
+ *
+ * The candidates are exactly the held set: an active PRO/TEAM entitlement whose
+ * owner
+ *   - has an AUTOMATIC_PLAN_LOWERING_HELD review item (the durable held fact),
+ *   - has NO live base subscription (ACTIVE / PAST_DUE / TRIALING, not
+ *     superseded),
+ *   - had a subscription for that very plan that activated, ended CANCELED and
+ *     whose paid period is over (DEC-02: access runs to the paid-through date),
+ *   - and holds no internal plan grant covering the plan.
+ * The preview enumerates the same list (`heldPlanLoweringCandidates`).
+ */
+export type HeldPlanLoweringCandidate = {
+  userId: string;
+  from: prismaPkg.PlanType;
+  subscriptionId: string;
+  providerSubId: string;
+  periodEndUtc: Date | null;
+};
+
+export async function heldPlanLoweringCandidates(now: Date = new Date()): Promise<HeldPlanLoweringCandidate[]> {
+  const held = await prisma.billingReviewItem.findMany({
+    where: { reason: "AUTOMATIC_PLAN_LOWERING_HELD", product: "PLAN" },
+    select: { userId: true },
+    distinct: ["userId"],
+  });
+  const out: HeldPlanLoweringCandidate[] = [];
+  for (const { userId } of held) {
+    const entitlement = await prisma.entitlement.findFirst({
+      where: { userId, active: true },
+      orderBy: { createdAt: "desc" },
+      select: { plan: true },
+    });
+    if (!entitlement || !lowersPlan(entitlement.plan, prismaPkg.PlanType.FREE)) continue;
+    if (!(SELF_SERVICE_BASE_SUBSCRIPTION_PLANS as readonly prismaPkg.PlanType[]).includes(entitlement.plan)) continue;
+    const live = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        supersededBySubscriptionId: null,
+        status: {
+          in: [
+            prismaPkg.SubscriptionStatus.ACTIVE,
+            prismaPkg.SubscriptionStatus.PAST_DUE,
+            prismaPkg.SubscriptionStatus.TRIALING,
+          ],
+        },
+      },
+      select: { id: true },
+    });
+    if (live) continue;
+    const ended = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        plan: entitlement.plan,
+        supersededBySubscriptionId: null,
+        status: prismaPkg.SubscriptionStatus.CANCELED,
+        activatedAtUtc: { not: null },
+      },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, providerSubId: true, currentPeriodEnd: true },
+    });
+    if (!ended) continue;
+    if (ended.currentPeriodEnd && ended.currentPeriodEnd.getTime() > now.getTime()) continue;
+    const grant = await readActiveInternalPlanGrant(prisma, userId, now);
+    if (grant && internalGrantCoversPlan(grant.plan, entitlement.plan)) continue;
+    out.push({
+      userId,
+      from: entitlement.plan,
+      subscriptionId: ended.id,
+      providerSubId: ended.providerSubId,
+      periodEndUtc: ended.currentPeriodEnd,
+    });
+  }
+  return out;
+}
+
+/**
+ * Apply the held lowerings — only once an operator has switched automatic plan
+ * lowering on. With the switch off this changes nothing (the review items stay
+ * the visible trace). A late provider webhook racing this step is harmless:
+ * `setPersonalPlan` serialises on the payer and audits only a real change.
+ */
+export async function applyHeldPlanLowerings(now: Date = new Date()): Promise<{ lowered: number; held: number }> {
+  const candidates = await heldPlanLoweringCandidates(now);
+  if (!automaticPlanLoweringEnabled()) return { lowered: 0, held: candidates.length };
+  let lowered = 0;
+  for (const c of candidates) {
+    await setPersonalPlan(c.userId, prismaPkg.PlanType.FREE, {
+      actorUserId: null,
+      serviceActor: "billing_reconciliation",
+      providerSubId: c.providerSubId,
+    });
+    lowered += 1;
+  }
+  return { lowered, held: 0 };
 }

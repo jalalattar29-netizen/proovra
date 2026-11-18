@@ -49,7 +49,10 @@ import {
 } from "../services/billing/reconciliation/reconciliation.service.js";
 import type { BillingAccountRef } from "../services/billing/billing-accounts.service.js";
 import { acquireLease } from "../services/rate-limit.js";
-import { retrySupersededCancellations } from "../services/billing/subscription-lifecycle.handlers.js";
+import {
+  applyHeldPlanLowerings,
+  retrySupersededCancellations,
+} from "../services/billing/subscription-lifecycle.handlers.js";
 import { finalizeEndedStorageAddons } from "../services/billing/paid-period.service.js";
 import { closeDueInternalGrants } from "../services/billing/internal-plan-grant.service.js";
 import { sweepExcludedReferences } from "../services/billing/provider-binding-check.service.js";
@@ -377,6 +380,13 @@ async function runSweep(input?: {
   });
   await retrySupersededCancellations().catch((err: unknown) => {
     logWarn("billing.reconciliation.supersession_retry_failed", {
+      err: err instanceof Error ? err.message : "unknown",
+    });
+  });
+  // PRO-W2C-01 — a lowering the sweep held is applied once the switch is on
+  // (and changes nothing while it is off).
+  await applyHeldPlanLowerings().catch((err: unknown) => {
+    logWarn("billing.reconciliation.held_plan_lowering_failed", {
       err: err instanceof Error ? err.message : "unknown",
     });
   });
