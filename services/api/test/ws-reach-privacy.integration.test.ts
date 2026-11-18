@@ -125,7 +125,7 @@ describe("WS-REACH privacy and reach residuals (live PostgreSQL)", () => {
 
   it("PRO-E2-02 — an external submitter's address is masked for a record reader", async () => {
     const address = `ext-submitter-${tag()}@example.test`;
-    const ev = await record(tenant.owner.id, { acquisitionMode: "SECURE_INTAKE_LINK", submittedByEmail: address });
+    const ev = await record(tenant.owner.id, { acquisitionMode: "SECURE_INTAKE_LINK", acquisitionModeSource: "RECORDED_AT_CREATION", submittedByEmail: address });
     const res = await get(`/v1/evidence/${ev}`, viewer);
     expect(res.statusCode, res.body).toBe(200);
     expect(res.body).not.toContain(address);
