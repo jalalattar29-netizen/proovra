@@ -8,8 +8,11 @@
  * running and the old account's staged records and residue stayed for the new
  * one. Every path that ends a session now comes here:
  *
- *   1. capture is torn down while the old token is still the current one, so
- *      its open server sessions can still be released (capture-teardown.ts);
+ *   1. native capture is stopped (capture-teardown.ts). PRO-NBC-03 / DEC-24:
+ *      the account's staged captures, their files and server sessions are
+ *      PRESERVED — keyed by their owner, unreadable by another account — so an
+ *      unproven "same account" verdict or a failed logout can never destroy
+ *      unsealed evidence;
  *   2. the old session is revoked on the server (`POST /v1/auth/logout`);
  *   3. what the person left on the device goes (account-residue.ts).
  *
@@ -20,7 +23,7 @@ import { teardownCaptureOnSignOut } from "../capture/capture-teardown";
 import { clearAccountResidue } from "./account-residue";
 import { logout } from "./auth-api";
 
-/** Sign-out: tear down capture, then revoke the current session. The caller clears the token. */
+/** Sign-out: stop capture (preserving what was captured), then revoke the current session. The caller clears the token. */
 export async function endDeviceSession(): Promise<void> {
   await teardownCaptureOnSignOut().catch(() => undefined);
   await logout();

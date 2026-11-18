@@ -2,40 +2,21 @@
  * UC-AND-006 — capture ends with the account session.
  *
  * Signing out used to leave a MediaProjection foreground service recording the
- * screen (up to the session bound) and left the staged / live capture records
- * on the device for the next account. Sign-out now runs this BEFORE the token
- * is revoked, so the server sessions can still be discarded:
+ * screen (up to the session bound). Sign-out stops native capture first, so
+ * nothing more is recorded under the ending session.
  *
- *   1. stop any native capture (continuous recording, frame session);
- *   2. discard every open direct-capture session this device holds for the
- *      user (the live continuous one and the staged one) — their reserved
- *      records are released instead of waiting for the reaper;
- *   3. delete the local spool (segment/frame files the records name);
- *   4. clear both durable records and unbind the store owner.
- *
- * Every step is best-effort and isolated: a failure in one never stops the
- * others, and never blocks the sign-out itself.
+ * What was captured is NOT destroyed (PRO-NBC-03 / DEC-24, below): the staged
+ * and live capture records are keyed by their owner, so the next account on the
+ * device cannot read them, and the person who signs back in can still finish
+ * them or discard them explicitly.
  */
-import * as FileSystem from "expo-file-system";
-
 import {
-  discardContinuousSpool,
   getContinuousSegments,
   getScreenCaptureState,
   getScreenContinuousState,
   stopContinuousCapture,
   stopScreenCapture,
 } from "../../modules/proovra-screen-capture";
-import { discardDirectCaptureSession } from "../direct-capture";
-import { clearCaptureLinks } from "./capture-links";
-import {
-  clearCaptureSession,
-  getCaptureSessionOwner,
-  loadCaptureSessions,
-  setCaptureSessionOwner,
-} from "./capture-session-store";
-import { clearLiveContinuousSession, loadLiveContinuousSession } from "./continuous-session-store";
-import { clearPendingScreenStaging, loadPendingScreenStaging } from "./screen-staging-store";
 
 async function quietly(step: () => Promise<unknown>): Promise<void> {
   try {
@@ -43,11 +24,6 @@ async function quietly(step: () => Promise<unknown>): Promise<void> {
   } catch {
     // Isolated: the next step still runs.
   }
-}
-
-async function deleteQuietly(uri: string | null | undefined): Promise<void> {
-  if (!uri) return;
-  await quietly(() => FileSystem.deleteAsync(uri, { idempotent: true }));
 }
 
 /** Stops the recorders, adding whatever they hold to `localFiles`. */
@@ -81,42 +57,25 @@ export async function stopCaptureOnSessionEnd(): Promise<void> {
   await stopNativeCapture(new Set());
 }
 
+/**
+ * PRO-NBC-03 / PRO-NA-13 / DEC-24 — SIGNING OUT IS NOT CONSENT TO DELETE EVIDENCE.
+ *
+ * Sign-out (and an account switch) used to discard every open server capture
+ * session, delete the staged files and clear the records — BEFORE the server
+ * sign-out was even known to succeed, so a failed sign-out kept the person
+ * signed in with their staged captures already gone, and a successful one
+ * destroyed screen captures whose device copies had been deleted once their
+ * parts were staged.
+ *
+ * Now sign-out only STOPS capture (nothing more is recorded under the ending
+ * session; a recorder's output is kept). Every record, its files and its server
+ * session stay where they are: the records are keyed by their owner, so no
+ * other account on this device can read them (UC-AND-006 holds by the owner
+ * key, not by destruction), the server keeps a staged session for its 24 h
+ * lifetime, and the same person signing back in is offered them to finish or
+ * to discard explicitly. Unfinished evidence is removed only by an explicit,
+ * informed discard.
+ */
 export async function teardownCaptureOnSignOut(): Promise<void> {
-  // 1. Native capture stops first: nothing more is recorded after sign-out.
-  const localFiles = new Set<string>();
-  await stopNativeCapture(localFiles);
-
-  // 2. Release the open server sessions while the token is still valid.
-  const live = await loadLiveContinuousSession();
-  // EVERY pending record of this account, not only the newest one.
-  const stagedRecords = await loadCaptureSessions();
-  const sessions = new Map<string, string>();
-  if (live) sessions.set(live.captureSessionId, live.expiresAtUtc);
-  for (const staged of stagedRecords) {
-    sessions.set(staged.captureSessionId, staged.expiresAtUtc);
-    for (const it of staged.items) if (it.uri) localFiles.add(it.uri);
-  }
-  // AUD-005 — a screen staging kept for Retry belongs to this account too.
-  const screenStaging = await loadPendingScreenStaging();
-  if (screenStaging) {
-    if (screenStaging.session) sessions.set(screenStaging.session.captureSessionId, screenStaging.session.expiresAtUtc);
-    for (const f of screenStaging.result.frames) localFiles.add(f.uri);
-  }
-  for (const [captureSessionId, expiresAtUtc] of sessions) {
-    await quietly(() => discardDirectCaptureSession({ captureSessionId, expiresAtUtc }));
-  }
-
-  // 3. The local spool (files named by the records, then the recorder's own).
-  for (const uri of localFiles) await deleteQuietly(uri);
-  await quietly(() => discardContinuousSpool());
-  // AUD-006 — iOS: the signed-out user's own recording, by its id.
-  if (live?.recordingId) await quietly(() => discardContinuousSpool(live.recordingId));
-
-  // 4. The durable records, the groups linking them (PRO-116), then the owner binding.
-  const owner = getCaptureSessionOwner();
-  await quietly(() => clearLiveContinuousSession());
-  await quietly(() => clearCaptureSession());
-  await quietly(() => clearPendingScreenStaging());
-  await quietly(() => clearCaptureLinks(owner));
-  setCaptureSessionOwner(null);
+  await stopNativeCapture(new Set());
 }

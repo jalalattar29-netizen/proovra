@@ -50,25 +50,29 @@ beforeEach(() => {
   };
 });
 
-test("sign-out stops the recorder, discards every open session, deletes the spool and clears the records", async () => {
+// PRO-NBC-03 / PRO-NA-13 / DEC-24 — sign-out stops capture but is never consent
+// to delete evidence: no server discard, no file deletion, the records stay
+// for their owner (and only for their owner).
+test("PRO-NBC-03: sign-out stops the recorder and preserves every staged capture, server session and file", async () => {
   T.setCaptureSessionOwner("user-a");
   await T.saveLiveContinuousSession({ captureSessionId: "cs-live", evidenceId: "ev-1", expiresAtUtc: "", platform: "android", declared: [], clientLimitations: [], openedAtIso: "" });
   await T.saveCaptureSession({
     captureSessionId: "cs-staged", expiresAtUtc: "", evidenceId: "ev-2", type: "PHOTO",
-    items: [{ id: "i1", uri: "file:///cache/photo.jpg", mimeType: "image/jpeg", partIndex: 0, source: "CAMERA", uploaded: false }],
+    items: [{ id: "i1", uri: "file:///cache/photo.jpg", mimeType: "image/jpeg", partIndex: 0, source: "CAMERA", uploaded: true }],
   });
 
   await T.teardownCaptureOnSignOut();
 
   assert.ok(native.includes("stopContinuousCapture"), "the recording kept running after sign-out");
-  assert.ok(native.includes("discardContinuousSpool"));
-  const discards = requests.filter((r) => r.method === "POST" && r.path.endsWith("/discard")).map((r) => r.path).sort();
-  assert.deepEqual(discards, ["/v1/capture/direct-sessions/cs-live/discard", "/v1/capture/direct-sessions/cs-staged/discard"]);
-  assert.ok(globalThis.__DELETED__.includes("file:///cache/photo.jpg"));
-  assert.ok(globalThis.__DELETED__.includes("file:///cache/proovra-continuous-1-1.mp4"));
-  // The owner is unbound, and the next user finds nothing.
-  assert.equal(T.getCaptureSessionOwner(), null);
-  T.setCaptureSessionOwner("user-a");
+  assert.ok(!native.includes("discardContinuousSpool"), "the recording's spool was deleted on sign-out");
+  const discards = requests.filter((r) => r.method === "POST" && r.path.endsWith("/discard"));
+  assert.deepEqual(discards, [], "sign-out discarded a staged capture on the server");
+  assert.deepEqual(globalThis.__DELETED__, [], "sign-out deleted a captured file");
+  // The owner's records are still there for them ...
+  assert.equal((await T.loadCaptureSession())?.captureSessionId, "cs-staged");
+  assert.equal((await T.loadLiveContinuousSession())?.captureSessionId, "cs-live");
+  // ... and unreadable by anyone else on the device.
+  T.setCaptureSessionOwner("user-b");
   assert.equal(await T.loadCaptureSession(), null);
   assert.equal(await T.loadLiveContinuousSession(), null);
 });

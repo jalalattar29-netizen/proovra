@@ -185,9 +185,10 @@ export default function SettingsScreen() {
   }, []);
 
   const doLogout = useCallback(async () => {
-    // UC-AND-006 — capture ends with the account session: stop native capture,
-    // discard open capture sessions while the token is still valid, delete the
-    // local spool and the durable records. Never blocks sign-out.
+    // UC-AND-006 — capture ends with the account session: native capture stops.
+    // PRO-NBC-03 / DEC-24 — staged captures are NOT discarded: they stay, keyed
+    // to this account, for it to finish or discard after signing back in, so a
+    // failed sign-out never leaves the person signed in with their evidence gone.
     await teardownCaptureOnSignOut().catch(() => undefined);
     const outcome = await logoutApi();
     if (!outcome.ok) {
