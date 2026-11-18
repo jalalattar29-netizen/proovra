@@ -170,6 +170,10 @@ async function refuseReviewThreadWrite(
 
 function discussionErrorToReply(err: unknown, reply: FastifyReply): void {
   if (err instanceof DiscussionError) {
+    if (err.code === "rate_limited") {
+      reply.header("Retry-After", "60").code(429).send({ error: { code: "RATE_LIMITED", details: err.details ?? null } });
+      return;
+    }
     const status =
       err.code === "thread_not_found" ||
       err.code === "evidence_not_in_workspace" ||

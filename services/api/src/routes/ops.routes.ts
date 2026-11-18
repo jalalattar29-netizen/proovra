@@ -4110,7 +4110,8 @@ export async function opsRoutes(app: FastifyInstance) {
       const { dismissRun } = await import(
         "@proovra/shared-runtime/media-intelligence"
       );
-      const result = await dismissRun(runId, body.teamId);
+      // Registry-default shared-runtime function: pass the API client explicitly.
+      const result = await dismissRun(runId, body.teamId, prisma);
       if (!result.ok) {
         // The run is absent, belongs to another workspace, or is already
         // terminal. All three are reported as one code: distinguishing them
@@ -4120,6 +4121,23 @@ export async function opsRoutes(app: FastifyInstance) {
           .code(409)
           .send({ error: { code: "run_not_dismissable" } });
       }
+      // PRO-P1C-05 — a dismissal is an Operations act like every other in this
+      // file: who, which run, and the stated reason (it used to be dropped).
+      // Only a dismissal that happened is recorded (a refused one returned 409
+      // above). A failed audit does not fail the committed dismissal.
+      void emitTenantAudit({
+        action: "operations.media_intelligence_run.dismissed",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: actor.userId,
+        workspaceId: body.teamId,
+        resourceType: "media_intelligence_run",
+        resourceId: runId,
+        requestedState: "DISMISSED",
+        resultingState: "DISMISSED",
+        reasonCode: "operator_dismissed",
+        metadata: { reason: body.reason ?? null },
+      }).catch(() => null);
       return reply.code(200).send({ runId, dismissed: true });
     },
   );

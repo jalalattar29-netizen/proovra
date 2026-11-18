@@ -36,7 +36,9 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendReviewerAuditEvent } from "../evidence-review/reviewer-audit.service.js";
+import { appendReviewerAuditEvent, appendReviewerAuditEventTx } from "../evidence-review/reviewer-audit.service.js";
+import { trackAuditAppend } from "../audit/detached-audit-tracker.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 
@@ -58,7 +60,9 @@ export class DiscussionError extends Error {
       | "internal_only"
       | "user_not_found"
       | "service_account_forbidden"
-      | "assignee_not_eligible",
+      | "assignee_not_eligible"
+      // PRO-K2-20 — the per-actor write throttle.
+      | "rate_limited",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -77,13 +81,36 @@ function emitAudit(
   eventType: Parameters<typeof appendReviewerAuditEvent>[0]["eventType"],
   metadata: Prisma.InputJsonValue | null,
 ): void {
-  // Best-effort; never fail the caller on audit-chain hiccups.
-  appendReviewerAuditEvent({
-    evidenceId,
-    actorUserId,
-    eventType,
-    metadata,
-  }).catch(() => null);
+  // Best-effort; never fail the caller on audit-chain hiccups. PRO-K2-20 —
+  // but never silent either: the append is tracked (a failure is counted and
+  // logged, and shutdown drains it).
+  void trackAuditAppend(
+    appendReviewerAuditEvent({
+      evidenceId,
+      actorUserId,
+      eventType,
+      metadata,
+    }),
+  ).catch(() => null);
+}
+
+/** PRO-K2-20 — per-actor caps on new threads and messages, per minute. */
+export const DISCUSSION_THREADS_PER_ACTOR_PER_MIN = 20;
+export const DISCUSSION_MESSAGES_PER_ACTOR_PER_MIN = 60;
+
+async function assertDiscussionWriteBudget(
+  client: PrismaClient,
+  kind: "thread" | "message",
+  teamId: string,
+  actorUserId: string,
+): Promise<void> {
+  const since = new Date(Date.now() - 60 * 1000);
+  const recent =
+    kind === "thread"
+      ? await client.discussionThread.count({ where: { teamId, createdByUserId: actorUserId, createdAt: { gte: since } } })
+      : await client.discussionMessage.count({ where: { teamId, authorUserId: actorUserId, createdAt: { gte: since } } });
+  const cap = kind === "thread" ? DISCUSSION_THREADS_PER_ACTOR_PER_MIN : DISCUSSION_MESSAGES_PER_ACTOR_PER_MIN;
+  if (recent >= cap) throw new DiscussionError("rate_limited", { retryAfterSeconds: 60 });
 }
 
 async function loadEvidenceWorkspace(
@@ -91,11 +118,13 @@ async function loadEvidenceWorkspace(
   evidenceId: string,
   teamId: string,
 ): Promise<void> {
-  const ev = await client.evidence.findUnique({
-    where: { id: evidenceId },
-    select: { id: true, teamId: true, deletedAt: true },
+  // PRO-K2-20 — the canonical workspace predicate (a personal workspace's
+  // legacy team-less records are in it), not a raw teamId equality.
+  const ev = await client.evidence.findFirst({
+    where: { AND: [{ id: evidenceId }, await workspaceEvidenceWhere(teamId, client)] },
+    select: { id: true, deletedAt: true },
   });
-  if (!ev || ev.deletedAt || ev.teamId !== teamId) {
+  if (!ev || ev.deletedAt) {
     throw new DiscussionError("evidence_not_in_workspace");
   }
 }
@@ -126,48 +155,75 @@ export async function createDiscussionThread(
   if (!title) {
     throw new DiscussionError("body_empty", { field: "title" });
   }
+  // PRO-K2-20 — the first message is validated BEFORE anything is written, so
+  // a refused body cannot leave an empty thread behind.
+  if (input.initialBody && input.initialBody.trim()) {
+    const firstBody = sanitiseDiscussionBody(input.initialBody);
+    if (!firstBody) throw new DiscussionError("body_empty");
+    if (firstBody.length > DISCUSSION_BODY_MAX_BYTES) throw new DiscussionError("body_too_long");
+  }
+  await assertDiscussionWriteBudget(client, "thread", input.teamId, input.createdByUserId);
 
-  const thread = await client.discussionThread.create({
-    data: {
-      teamId: input.teamId,
+  // PRO-K2-20 — thread, creator participant and its audit row commit together
+  // (the rule collaboration-team.service states: AUDIT COMMITS WITH THE CHANGE).
+  const thread = await client.$transaction(async (tx) => {
+    const created = await tx.discussionThread.create({
+      data: {
+        teamId: input.teamId,
+        evidenceId: input.evidenceId,
+        evidenceRequestId: input.evidenceRequestId ?? null,
+        kind: input.kind as DbThreadKind,
+        visibility: input.visibility as DbVisibility,
+        title,
+        createdByUserId: input.createdByUserId,
+      },
+    });
+
+    // Creator is implicit RESOLVER participant.
+    await tx.discussionParticipant.create({
+      data: {
+        threadId: created.id,
+        teamId: input.teamId,
+        userId: input.createdByUserId,
+        role: "RESOLVER" as DbRole,
+        addedByUserId: input.createdByUserId,
+      },
+    });
+
+    await appendReviewerAuditEventTx(tx, {
       evidenceId: input.evidenceId,
-      evidenceRequestId: input.evidenceRequestId ?? null,
-      kind: input.kind as DbThreadKind,
-      visibility: input.visibility as DbVisibility,
-      title,
-      createdByUserId: input.createdByUserId,
-    },
-  });
-
-  // Creator is implicit RESOLVER participant.
-  await client.discussionParticipant.create({
-    data: {
-      threadId: thread.id,
-      teamId: input.teamId,
-      userId: input.createdByUserId,
-      role: "RESOLVER" as DbRole,
-      addedByUserId: input.createdByUserId,
-    },
-  });
-
-  emitAudit(client, input.evidenceId, input.createdByUserId, "DISCUSSION_THREAD_CREATED", {
-    threadId: thread.id,
-    kind: thread.kind,
-    visibility: thread.visibility,
-    titleLength: title.length,
+      actorUserId: input.createdByUserId,
+      eventType: "DISCUSSION_THREAD_CREATED",
+      metadata: {
+        threadId: created.id,
+        kind: created.kind,
+        visibility: created.visibility,
+        titleLength: title.length,
+      },
+    });
+    return created;
   });
 
   if (input.initialBody && input.initialBody.trim()) {
-    await postMessage(
-      {
-        threadId: thread.id,
-        teamId: input.teamId,
-        authorKind: "USER",
-        authorUserId: input.createdByUserId,
-        body: input.initialBody,
-      },
-      client,
-    );
+    try {
+      await postMessage(
+        {
+          threadId: thread.id,
+          teamId: input.teamId,
+          authorKind: "USER",
+          authorUserId: input.createdByUserId,
+          body: input.initialBody,
+        },
+        client,
+      );
+    } catch (err) {
+      // PRO-K2-20 — the message failed after the thread committed (a DB
+      // fault): remove the empty thread rather than leave it to invite a
+      // duplicate retry. Its creation audit row stays (append-only history).
+      await client.discussionParticipant.deleteMany({ where: { threadId: thread.id } }).catch(() => null);
+      await client.discussionThread.deleteMany({ where: { id: thread.id } }).catch(() => null);
+      throw err;
+    }
   }
 
   return thread;
@@ -481,6 +537,9 @@ export async function postMessageWithMentionOutcome(
   if (!body) throw new DiscussionError("body_empty");
   if (body.length > DISCUSSION_BODY_MAX_BYTES) {
     throw new DiscussionError("body_too_long");
+  }
+  if (input.authorKind === "USER" && input.authorUserId) {
+    await assertDiscussionWriteBudget(client, "message", input.teamId, input.authorUserId);
   }
   const thread = await client.discussionThread.findUnique({
     where: { id: input.threadId },

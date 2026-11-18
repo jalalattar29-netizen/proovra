@@ -487,12 +487,33 @@ export async function computeCaseRisk(input: {
  * Compute the risk AND persist the snapshot. Never throws. Returns the
  * computation (with persistence best-effort).
  */
+/** PRO-K1-14 — an unchanged risk is re-recorded at most once per window. */
+export const CASE_RISK_SNAPSHOT_WINDOW_MS = 60 * 60_000;
+
 export async function recordCaseRiskSnapshot(input: {
   teamId: string | null;
   caseId: string;
 }): Promise<CaseRiskComputation> {
   const computation = await computeCaseRisk(input);
   try {
+    // PRO-K1-14 — a page load is not a new risk observation. A snapshot is
+    // persisted only when the computation changed since the latest one, or
+    // the latest is older than the window, so reloads (every reader, after
+    // every action) do not grow case_risk_snapshots without bound.
+    const latest = await prisma.caseRiskSnapshot.findFirst({
+      where: { caseId: input.caseId },
+      orderBy: { sampledAtUtc: "desc" },
+      select: { sampledAtUtc: true, riskScore: true, riskLevel: true, reasonCodes: true },
+    });
+    if (
+      latest &&
+      Date.now() - latest.sampledAtUtc.getTime() < CASE_RISK_SNAPSHOT_WINDOW_MS &&
+      latest.riskScore === computation.riskScore &&
+      latest.riskLevel === computation.riskLevel &&
+      JSON.stringify(latest.reasonCodes ?? []) === JSON.stringify(computation.reasonCodes ?? [])
+    ) {
+      return computation;
+    }
     await prisma.caseRiskSnapshot.create({
       data: {
         teamId: input.teamId,

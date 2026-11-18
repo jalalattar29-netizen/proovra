@@ -47,4 +47,17 @@ describe("AUD-0013 — seeding mount follows the seed's own production rule", ()
     vi.stubEnv("OPERATIONAL_SEEDING_ENABLED", "true");
     expect(seedingRefusal()).toBeNull();
   });
+
+  it("PRO-LEAD-08: a staging or unclassified deployment is guarded like production", () => {
+    vi.stubEnv("OPERATIONAL_SEEDING_ENABLED", "true");
+    vi.stubEnv("OPERATIONAL_SEEDING_ALLOW_PRODUCTION", "");
+    vi.stubEnv("PROOVRA_ENV", "staging");
+    vi.stubEnv("NODE_ENV", "staging");
+    expect(seedingRefusal()).toBe("SEEDING_PROD_GUARDED");
+    vi.stubEnv("PROOVRA_ENV", "");
+    vi.stubEnv("NODE_ENV", "");
+    expect(seedingRefusal()).toBe("SEEDING_PROD_GUARDED");
+    vi.stubEnv("OPERATIONAL_SEEDING_ALLOW_PRODUCTION", "true");
+    expect(seedingRefusal()).toBeNull();
+  });
 });

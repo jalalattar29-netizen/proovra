@@ -8914,12 +8914,37 @@ return {
       const csv = buildMetadataCsv(csvItems);
       // The other export routes audit; this one wrote no record that metadata
       // for these evidence ids left the system (EVID-013).
+      // PRO-E1-12 — the row names EVERY exported record (bounded: the bulk
+      // action takes at most 100) and the workspace each belongs to, not just
+      // the first id.
+      const exportedIds = csvItems.map((item) => item.id).slice(0, 100);
+      const exportedTeams = exportedIds.length
+        ? await prisma.evidence.findMany({ where: { id: { in: exportedIds } }, select: { id: true, teamId: true } })
+        : [];
+      const byWorkspace: Record<string, number> = {};
+      for (const row of exportedTeams) {
+        const key = row.teamId ?? "personal";
+        byWorkspace[key] = (byWorkspace[key] ?? 0) + 1;
+      }
+      const workspaceKeys = Object.keys(byWorkspace);
+      // The audit metadata is size-bounded (5 KiB): 100 ids fit; workspace
+      // attribution keeps the ten largest groups and counts the rest.
+      const topWorkspaces = Object.fromEntries(
+        Object.entries(byWorkspace).sort((x, y) => y[1] - x[1]).slice(0, 10),
+      );
       await auditEvidenceAction(req, {
         userId,
         action: "evidence.metadata_csv_export",
         outcome: "success",
         resourceId: csvItems[0]?.id ?? "bulk",
-        metadata: { exportedCount: csvItems.length, failedCount: results.filter((item) => !item.ok).length },
+        teamId: workspaceKeys.length === 1 && workspaceKeys[0] !== "personal" ? workspaceKeys[0] : null,
+        metadata: {
+          exportedCount: csvItems.length,
+          failedCount: results.filter((item) => !item.ok).length,
+          exportedIds,
+          byWorkspace: topWorkspaces,
+          otherWorkspaceCount: Math.max(0, workspaceKeys.length - 10),
+        },
       });
       return reply.code(200).send({
         successCount: results.filter((item) => item.ok).length,

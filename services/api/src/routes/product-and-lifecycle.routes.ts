@@ -1171,6 +1171,22 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         }
         throw err;
       }
+      // PRO-G1-08 — the create is a tenant audit fact (same envelope as the
+      // deactivate below); never the secret. A failed audit does not fail the
+      // committed create (the tracker counts it).
+      void emitTenantAudit({
+        action: "integration.lifecycle_webhook.create",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "lifecycle_webhook_endpoint",
+        resourceId: res.endpointId,
+        actorAuthority: "ORG_ADMIN",
+        requestedState: "ACTIVE",
+        resultingState: "ACTIVE",
+        metadata: { url: body.url, subscribedEvents: body.subscribedEvents },
+      }).catch(() => null);
       // secret is ONLY returned in this response
       return reply.code(201).send({
         endpointId: res.endpointId,
@@ -1356,6 +1372,19 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           responseBodyPreview: null,
         },
       });
+      // PRO-G1-08 — a replay re-sends workspace data to an external URL.
+      void emitTenantAudit({
+        action: "integration.lifecycle_webhook.delivery_replay",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "lifecycle_webhook_delivery",
+        resourceId: id,
+        previousState: row.state ?? null,
+        requestedState: "PENDING",
+        resultingState: "PENDING",
+      }).catch(() => null);
       return reply.code(200).send({ ok: true, replayedId: id });
     },
   );

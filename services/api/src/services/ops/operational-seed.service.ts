@@ -58,7 +58,7 @@ import {
 } from "../reviewer-ops/reviewer-operations-engine.service.js";
 import { snapshotWorkspaceWorkload } from "../reviewer-ops/workload.service.js";
 import { recordIncident } from "../observability/incident.service.js";
-import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { developmentSurfacesAllowed, workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 // -----------------------------------------------------------------------------
 // Types
@@ -186,7 +186,11 @@ export function seedingRefusal(): "SEEDING_DISABLED" | "SEEDING_PROD_GUARDED" | 
     (process.env.OPERATIONAL_SEEDING_ENABLED ?? "false").toLowerCase() ===
     "true";
   if (!enabled) return "SEEDING_DISABLED";
-  if (process.env.NODE_ENV === "production") {
+  // PRO-LEAD-08 — the canonical deployment classification, not NODE_ENV: a
+  // staging or misclassified deployment (NODE_ENV not "production") is guarded
+  // like production unless it is an unambiguous development or test
+  // environment. The explicit production opt-in is unchanged.
+  if (!developmentSurfacesAllowed()) {
     const allow =
       (process.env.OPERATIONAL_SEEDING_ALLOW_PRODUCTION ?? "false").toLowerCase() ===
       "true";
