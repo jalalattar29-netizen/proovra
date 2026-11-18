@@ -1114,7 +1114,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "evidence-immutability",
     title: "Evidence immutability",
     summary:
-      "Originals are persisted once and never overwritten. When the storage bucket has S3 Object Lock configured, PROOVRA applies bounded retention + legal-hold semantics through the operations/object-lock-status.service.ts; otherwise immutability is enforced by the application contract (no overwrite/replace API path exists).",
+      "Originals are persisted once and never overwritten. When the storage bucket has S3 Object Lock configured, PROOVRA applies object retention at write time and reports the bucket state through operations/object-lock-status.service.ts. Legal holds are enforced by the application (the hold evaluator and the destruction executor refuse any release or purge of held records); no storage-native legal hold is placed. Otherwise immutability is enforced by the application contract (no overwrite/replace API path exists).",
     body:
       "An original evidence file is uploaded via storage.ts to a content-addressable key, its SHA-256 is recorded on the Evidence row at capture, and OpenTimestamps anchoring fixes the digest to a public-blockchain proof. Reviewer corrections + redactions produce DERIVATIVES — separate Evidence rows with their own custody events — so the original bytes remain intact and re-hash-verifiable. The bootstrap/object-lock-verification.ts probe reports whether the configured bucket actually has Object Lock enabled; the Status Page surfaces an honest verdict rather than asserting Object Lock when it is not configured.",
     implementationReferences: [
@@ -1133,7 +1133,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     summary:
       "S3 Object Lock is supported when the configured storage bucket has it enabled (S3-Compliance or S3-Governance mode). PROOVRA does not silently assert Object Lock — bootstrap probes the bucket and surfaces the verdict honestly via the status page DEPENDENCY_HEALTH component.",
     body:
-      "The bootstrap/object-lock-verification.ts script runs at API startup and calls GetObjectLockConfigurationCommand against the evidence bucket; the result feeds the operations/object-lock-status.service.ts read-model. When enabled, PROOVRA applies retention via PutObjectRetentionCommand and legal holds via PutObjectLegalHoldCommand (storage.ts wraps these). Retention windows are typically configured at the bucket policy level by operators. When Object Lock is NOT enabled (e.g. Cloudflare R2 today, or buckets without compliance-mode), the status page reports the gap rather than masking it.",
+      "The bootstrap/object-lock-verification.ts script runs at API startup and calls GetObjectLockConfigurationCommand against the evidence bucket; the result feeds the operations/object-lock-status.service.ts read-model. When enabled, PROOVRA applies retention via PutObjectRetentionCommand (storage.ts wraps it). Legal holds are NOT placed as storage-native S3 legal holds: they are enforced by the application, whose hold evaluator and destruction executor refuse to release or purge a held record. Retention windows are typically configured at the bucket policy level by operators. When Object Lock is NOT enabled on a bucket, the status page reports the gap rather than masking it.",
     implementationReferences: [
       "services/api/src/bootstrap/object-lock-verification.ts",
       "services/api/src/services/operations/object-lock-status.service.ts",
