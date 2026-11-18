@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 
 describe("input errors are answered, not escalated (live PostgreSQL)", () => {
   let h: IntegrationHarness;
@@ -71,6 +72,8 @@ describe("input errors are answered, not escalated (live PostgreSQL)", () => {
       sort: { key: "updatedAtUtc", direction: "desc" },
       visibility: "private",
     });
+    // PRO-K1-03 (WS-ENT) — graph, diagnostics and SIU are Enterprise organization tools.
+    await makeEnterpriseOrganizationWorkspace(prisma, A.teamId);
     const first = await call("POST", "/v1/siu/saved-views", A.memberToken, body(name));
     expect(first.statusCode, first.body).toBe(201);
     const dup = await call("POST", "/v1/siu/saved-views", A.memberToken, body(name));

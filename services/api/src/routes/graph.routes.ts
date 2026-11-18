@@ -37,7 +37,24 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail as authorizeMemberOrFail } from "../middleware/authorize.js";
+import { refuseUnlessEnterpriseOrganization } from "./_enterprise-surface-gate.js";
+
+/**
+ * PRO-K1-03 — every graph route is an Enterprise organization surface: the
+ * member authorization (anti-enumeration 404 for non-members) and then the
+ * Enterprise-organization authority, in that order.
+ */
+async function authorizeOrFail(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  options: Parameters<typeof authorizeMemberOrFail>[2],
+): Promise<{ actorUserId: string; teamId: string } | null> {
+  const actor = await authorizeMemberOrFail(req, reply, options);
+  if (!actor) return null;
+  if (await refuseUnlessEnterpriseOrganization(reply, actor.teamId)) return null;
+  return actor;
+}
 import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { isMembershipDenial } from "../services/access/membership-denial.js";
@@ -1533,6 +1550,8 @@ async function requireGraphAdminActor(
     });
     return null;
   }
+  // PRO-K1-03 — reconcile and diagnostics are Enterprise organization tools.
+  if (await refuseUnlessEnterpriseOrganization(reply, teamId)) return null;
   return { userId };
 }
 

@@ -21,6 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { generateVerificationRef } from "@proovra/shared-runtime";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 
 type Prisma = (typeof import("../src/db.js"))["prisma"];
 type Person = { id: string; token: string };
@@ -117,6 +118,8 @@ describe("free-audit 0ea0 — API-G1-REACH (live PostgreSQL)", () => {
       where: { id: A().teamId },
       data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" },
     });
+    // PRO-K1-03 (WS-ENT) — graph, diagnostics and SIU are Enterprise organization tools.
+    await makeEnterpriseOrganizationWorkspace(prisma, A().teamId);
 
     [listed, off, offViewer, offAdmin] = await Promise.all([
       person("MEMBER"),

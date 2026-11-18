@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 import { coverageKit, type CoverageKit, type Person } from "./support/coverage-actors.js";
 import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 import { RowFactory, RowSet, type Tenant } from "./support/write-sweep-engine.js";
@@ -122,6 +123,8 @@ describe("coverage defect closures (live PostgreSQL)", () => {
   });
 
   it("SIU: a VIEWER writes nothing on a case; an OWNER writes the same request", async () => {
+    // PRO-K1-03 (WS-ENT) — SIU is an Enterprise organization tool.
+    await makeEnterpriseOrganizationWorkspace(prisma, mine.teamId);
     const caseId = await rows(mine).id("Case");
     const body = { claimType: "auto" };
     const refused = await kit.call("PUT", `/v1/cases/${caseId}/siu-profile`, mine.viewer, body, hdr(mine));

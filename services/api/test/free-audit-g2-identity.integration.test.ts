@@ -12,6 +12,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 import type { FixtureDeps, SeededUser } from "./point7/product-fixtures.js";
 
 const inventoryFault = vi.hoisted(() => ({ userId: null as string | null }));
@@ -134,6 +135,8 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       where: { id: A().teamId },
       data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" },
     });
+    // PRO-K1-03 (WS-ENT) — graph, diagnostics and SIU are Enterprise organization tools.
+    await makeEnterpriseOrganizationWorkspace(prisma, A().teamId);
     orgId = (await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { organizationId: true } }))
       .organizationId as string;
   }, 180_000);

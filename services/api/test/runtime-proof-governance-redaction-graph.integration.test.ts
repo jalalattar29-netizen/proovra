@@ -27,6 +27,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 
 describe("Batch K6 — governance, redaction, graph and automation (live PostgreSQL)", () => {
   let h: IntegrationHarness;
@@ -161,6 +162,8 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
     for (const userId of [teamB.ownerUserId, teamB.adminUserId]) {
       await prisma.user.update({ where: { id: userId }, data: { currentWorkspaceId: teamB.teamId } });
     }
+    // PRO-K1-03 (WS-ENT) — graph, diagnostics and SIU are Enterprise organization tools.
+    await makeEnterpriseOrganizationWorkspace(prisma, teamA.teamId);
     await seedTotp(teamA.ownerUserId);
     await seedTotp(teamA.adminUserId);
     await seedTotp(teamB.ownerUserId);
