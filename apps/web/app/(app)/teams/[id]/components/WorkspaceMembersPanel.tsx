@@ -303,7 +303,13 @@ export const WorkspaceMembersPanel = forwardRef<
       if (onLeft) onLeft();
       else window.location.assign("/");
     } catch (err) {
-      notify(toSafeUserError(err, { message: "You could not leave this workspace." }).message, "error");
+      const code = (err as { code?: string }).code;
+      notify(
+        code === "OWNED_RECORDS_HANDOVER_REQUIRED"
+          ? "You still own evidence or cases in this workspace. Ask an administrator to take them over before you leave."
+          : toSafeUserError(err, { message: "You could not leave this workspace." }).message,
+        "error",
+      );
     } finally {
       setLeaving(false);
     }

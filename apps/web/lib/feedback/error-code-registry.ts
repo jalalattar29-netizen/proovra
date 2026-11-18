@@ -230,6 +230,11 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   INTERNAL_MEMBER: { disposition: "customer", where: "global" },
   OWNERSHIP_TRANSFER_REQUIRED: { disposition: "customer", where: "global" },
   TRANSFER_TARGET_REQUIRED: { disposition: "customer", where: "global" },
+  // PRO-T1-18 — leaving while still owning records: the leave control says so.
+  OWNED_RECORDS_HANDOVER_REQUIRED: {
+    disposition: "customer",
+    where: "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx",
+  },
   INVALID_TRANSFER_TARGET: { disposition: "customer", where: "global" },
 
   // -- Workspace membership (members audit INV-01 / INV-02) ----------------
@@ -733,6 +738,11 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // -- Retired to typed 410 tombstones on 2026-09-16 ------------------------
   // Each is answered only to a stale client or a direct API call: no web or
   // mobile surface calls the route that emits it.
+  // PRO-K2-19 — activity/v2 had no client; it answers only a direct call.
+  COLLABORATION_TEAM_ACTIVITY_V2_RETIRED: {
+    disposition: "internal",
+    why: "A retired read answering a direct API call: no web or native surface ever called it; the team activity feed is the read.",
+  },
   COLLABORATION_TEAM_ACCESS_REVIEW_RETIRED: {
     disposition: "internal",
     why:
