@@ -332,7 +332,7 @@ async function deliver(eventType: string, resource: Record<string, unknown>, eve
     method: "POST",
     url: "/webhooks/paypal",
     // F-02 — a genuine delivery carries PayPal's transmission headers.
-    headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id" },
+    headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id", "paypal-auth-algo": "SHA256withRSA", "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-test", "paypal-transmission-time": new Date().toISOString() },
     payload: JSON.stringify({ id: eventId, event_type: eventType, resource }),
   });
 }
@@ -880,6 +880,29 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
       expect.objectContaining({ externalSubscriptionId: "I-SA-ORPHAN", status: "FAILED", ownerUserId: USER }),
     ]);
     expect(state.reviewItems[0]).toMatchObject({ reason: "STORAGE_SUBSCRIPTION_WITHOUT_RECORD" });
+  });
+
+  // PRO-BL1-06 — a sale for a subscription with no local record whose live read
+  // fails is FAILED and redelivered, never acknowledged as PROCESSED.
+  it("PRO-BL1-06 — orphan sale + failed live read: the event is FAILED (5xx) for PayPal to redeliver", async () => {
+    state.subscriptionReadFails = true;
+    const res = await deliver(
+      "PAYMENT.SALE.COMPLETED",
+      { id: "SALE-ORPHAN-1", billing_agreement_id: "I-NO-LOCAL-RECORD", amount: { total: "19.00", currency: "USD" } },
+      "WH-BL106",
+    );
+    expect(res.statusCode).toBeGreaterThanOrEqual(500);
+    expect(state.webhookEvents.get("WH-BL106")?.processingStatus).toBe("FAILED");
+
+    // Redelivered once PayPal answers: routed through settlement and PROCESSED.
+    state.subscriptionReadFails = false;
+    setSubscription("I-NO-LOCAL-RECORD", { status: "ACTIVE", plan_id: "P-S10-USD", custom_id: `sa1|${USER}|-|p10` });
+    const again = await deliver(
+      "PAYMENT.SALE.COMPLETED",
+      { id: "SALE-ORPHAN-1", billing_agreement_id: "I-NO-LOCAL-RECORD", amount: { total: "19.00", currency: "USD" } },
+      "WH-BL106",
+    );
+    expect(again.statusCode).toBe(200);
   });
 
   it("cancellation marks the add-on CANCELED", async () => {

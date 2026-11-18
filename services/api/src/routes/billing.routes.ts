@@ -1565,6 +1565,11 @@ export async function billingRoutes(app: FastifyInstance) {
         attemptId: guard.attemptId,
         confirmed: body.data.confirmed === true,
       });
+      // PRO-BL1C-02 (WS-BILL) — the audit records what actually happened at the
+      // provider (a Stripe session expired by this abandon), as the PayPal
+      // return route already does; it used to say false/LOCAL every time. A
+      // confirmation request performs nothing, so it records no provider act.
+      const stoppedAtProvider = result.outcome === "ABANDONED" && result.cancelsAtProvider === true;
       auditBillingAction(req, {
         userId: guard.userId,
         action: "billing.checkout_attempt_abandoned",
@@ -1575,11 +1580,13 @@ export async function billingRoutes(app: FastifyInstance) {
           result: result.outcome,
           act:
             result.outcome === "ABANDONED"
-              ? "LOCAL_ABANDONMENT"
+              ? stoppedAtProvider
+                ? "PROVIDER_CANCELLATION"
+                : "LOCAL_ABANDONMENT"
               : result.outcome === "ABANDON_CONFIRMATION_REQUIRED"
                 ? "CONFIRMATION_REQUESTED"
                 : "NO_LOCAL_ABANDONMENT",
-          cancelsAtProvider: false,
+          cancelsAtProvider: stoppedAtProvider,
         },
       });
       return reply.code(200).send(result);

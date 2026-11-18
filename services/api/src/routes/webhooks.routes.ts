@@ -24,7 +24,13 @@ import {
   parseStripeEvent,
   verifyStripeSignature,
 } from "../services/stripe.service.js";
-import { verifyPayPalWebhook } from "../services/paypal.service.js";
+import {
+  PAYPAL_WEBHOOK_VERIFY_PER_IP_PER_MINUTE,
+  PayPalHttpError,
+  payPalWebhookTransmissionPrecheck,
+  verifyPayPalWebhook,
+} from "../services/paypal.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { parsePayPalStorageAddonCustomId } from "../services/paypal-checkout-policy.service.js";
 // PAYPAL END-TO-END (2026-09-25) — orders, captures and subscriptions are
 // settled by ONE service shared with the authenticated return routes, from
@@ -522,15 +528,27 @@ export async function webhooksRoutes(app: FastifyInstance) {
     // F-02 — a POST without PayPal's transmission signature and id is refused
     // here, before any outbound call: it used to cost two PayPal requests
     // (token + verify) per unauthenticated POST.
-    const transmissionHeader = (name: string) => {
-      const v = req.headers[name];
-      const s = Array.isArray(v) ? v[0] : v;
-      return typeof s === "string" && s.trim().length > 0;
-    };
+    // PRO-BL1-07 (WS-BILL) — header PRESENCE alone let any anonymous POST with
+    // two non-empty headers spend a PayPal token + verify call. The delivery
+    // must now look like PayPal's (cert URL on a PayPal https host, a known
+    // algorithm, a recent transmission time, a parseable event) before the
+    // verifier is asked, and verifier calls are bounded per sender address.
+    const structurallyGenuine = payPalWebhookTransmissionPrecheck(req.headers, rawBody, new Date());
+    if (structurallyGenuine) {
+      const limited = await enforceRateLimit({
+        key: `paypal-webhook-verify:${req.ip}`,
+        max: PAYPAL_WEBHOOK_VERIFY_PER_IP_PER_MINUTE,
+        windowSec: 60,
+      });
+      if (!limited.allowed) {
+        const retryAfter = Math.max(1, Math.ceil((limited.resetAtMs - Date.now()) / 1000));
+        return reply.code(429).header("retry-after", String(retryAfter)).send({ ok: false, retryable: true });
+      }
+    }
     const sigCheck = await auditWebhookSignatureVerification({
       provider: "paypal",
       request: req,
-      presentSignature: transmissionHeader("paypal-transmission-sig") && transmissionHeader("paypal-transmission-id"),
+      presentSignature: structurallyGenuine,
       verify: async () => {
         verification = await verifyPayPalWebhook(req.headers, rawBody);
         if (verification.verification_status !== "SUCCESS") {
@@ -940,7 +958,17 @@ export async function webhooksRoutes(app: FastifyInstance) {
               source: event.event_type,
               log: req.log,
             }).catch((err: unknown) => {
+              // PRO-BL1-06 (WS-BILL) — a failed live read used to be logged and
+              // the event marked PROCESSED, so a real charge for a subscription
+              // with no local record was neither recorded nor retried. Only
+              // PayPal's own "no such subscription" (404) is final; anything
+              // else fails the event (FAILED + 5xx) so PayPal redelivers it.
+              if (err instanceof PayPalHttpError && err.status === 404) {
+                req.log.warn({ provider: "PAYPAL", providerSubId }, "paypal.sale.orphan_subscription_not_found");
+                return;
+              }
               req.log.warn({ err, provider: "PAYPAL", providerSubId }, "paypal.sale.orphan_subscription_read_failed");
+              throw err;
             });
           }
         }

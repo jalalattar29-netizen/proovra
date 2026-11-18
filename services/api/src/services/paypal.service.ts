@@ -956,6 +956,56 @@ export async function cancelPayPalSubscription(
   return true;
 }
 
+/** PRO-BL1-07 — verifier calls one sender address may cause per minute. */
+export const PAYPAL_WEBHOOK_VERIFY_PER_IP_PER_MINUTE = 300;
+
+/** How far a transmission time may be from now (PayPal stamps each delivery). */
+const PAYPAL_TRANSMISSION_SKEW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * PRO-BL1-07 (WS-BILL, 2026-11-18) — cheap, local, structural checks a genuine
+ * PayPal delivery always passes, run BEFORE any outbound call. Not a signature
+ * check (that is PayPal's postback): it only stops arbitrary anonymous POSTs
+ * from spending a token request and a verify request each.
+ *
+ *   - transmission id and signature present;
+ *   - an auth algorithm PayPal uses (SHA…withRSA);
+ *   - the cert URL is https on a paypal.com host;
+ *   - the transmission time parses and is within a day of now;
+ *   - the body is a JSON object with an event id and type.
+ */
+export function payPalWebhookTransmissionPrecheck(
+  headers: Record<string, string | string[] | undefined>,
+  rawBody: string,
+  now: Date,
+): boolean {
+  const h = (name: string): string => {
+    const v = headers[name];
+    const s = Array.isArray(v) ? v[0] : v;
+    return typeof s === "string" ? s.trim() : "";
+  };
+  const id = h("paypal-transmission-id");
+  const sig = h("paypal-transmission-sig");
+  if (!id || id.length > 128 || !sig || sig.length > 4096) return false;
+  if (!/^SHA\d+withRSA$/i.test(h("paypal-auth-algo"))) return false;
+  let cert: URL;
+  try {
+    cert = new URL(h("paypal-cert-url"));
+  } catch {
+    return false;
+  }
+  const host = cert.hostname.toLowerCase();
+  if (cert.protocol !== "https:" || !(host === "paypal.com" || host.endsWith(".paypal.com"))) return false;
+  const sent = Date.parse(h("paypal-transmission-time"));
+  if (!Number.isFinite(sent) || Math.abs(now.getTime() - sent) > PAYPAL_TRANSMISSION_SKEW_MS) return false;
+  try {
+    const body = JSON.parse(rawBody) as { id?: unknown; event_type?: unknown };
+    return typeof body?.id === "string" && typeof body?.event_type === "string";
+  } catch {
+    return false;
+  }
+}
+
 export async function verifyPayPalWebhook(
   headers: Record<string, string | string[] | undefined>,
   rawBody: string,

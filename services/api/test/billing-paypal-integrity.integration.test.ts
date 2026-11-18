@@ -721,7 +721,7 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
           harness.app.inject({
             method: "POST",
             url: "/webhooks/paypal",
-            headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id" },
+            headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id", "paypal-auth-algo": "SHA256withRSA", "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-test", "paypal-transmission-time": new Date().toISOString() },
             payload: JSON.stringify({
               id,
               event_type: "PAYMENT.CAPTURE.REFUNDED",
@@ -775,7 +775,7 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
       harness.app.inject({
         method: "POST",
         url: "/webhooks/paypal",
-        headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id" },
+        headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id", "paypal-auth-algo": "SHA256withRSA", "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-test", "paypal-transmission-time": new Date().toISOString() },
         payload: JSON.stringify({
           id: eventId,
           event_type: "PAYMENT.CAPTURE.COMPLETED",
