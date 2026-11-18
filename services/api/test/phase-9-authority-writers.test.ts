@@ -87,6 +87,11 @@ const AUTHORITY_WRITERS: Array<{
       // `cancel_at_period_end=false`. Never writes status; PayPal is refused.
       "services/billing/subscription-resume.service.ts":
         "canonical: provider-confirmed un-cancel (cancelAtPeriodEnd=false); never writes status",
+      // PRO-BL1-01 (2026-11-18) — the in-flight provider INTENT key and its
+      // time (CAS on the stored key), and nothing else: never a status, plan
+      // or cancellation flag.
+      "services/billing/provider-intent.service.ts":
+        "canonical: provider_intent_key / provider_intent_at_utc only (durable idempotency identity)",
       // BILLING RECONCILIATION (2026-08-27) — the ORDERING STAMP, and nothing
       // else.
       //

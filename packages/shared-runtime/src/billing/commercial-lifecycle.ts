@@ -100,7 +100,23 @@ async function readProviderLifecycle(
     subject.kind === "WORKSPACE"
       ? { teamId: subject.teamId }
       : { userId: subject.ownerUserId, plan: subject.plan as never };
-  const where = { ...scope, NOT: { provider: "PAYPAL" as never, status: "TRIALING" as never } };
+  /*
+   * PRO-BL1C-01 (WS-BILL, 2026-11-18) — A SUPERSEDED DUPLICATE IS NOT A SECOND
+   * LIVE SUBSCRIPTION. A duplicate base subscription that activated beside the
+   * kept one is marked `supersededBySubscriptionId` at once and cancelled at
+   * the provider (retried for hours or days when that fails). Counted here, it
+   * made the kept, paid subscription read CANCELLED: Personal-workspace records
+   * fell to the FREE allowance (spending purchased credits), paid mutations
+   * answered 402 and worker issuance read CANCELLED. The live-base resolver
+   * (base-subscription.service) already excludes it; so does this reader, for
+   * both subjects. Two NON-superseded live rows still fail closed below; the
+   * duplicate banner and closure still see the superseded row.
+   */
+  const where = {
+    ...scope,
+    supersededBySubscriptionId: null,
+    NOT: { provider: "PAYPAL" as never, status: "TRIALING" as never },
+  };
 
   const live = await client.subscription.findMany({
     where: { ...where, status: { in: ["ACTIVE", "TRIALING"] } },
