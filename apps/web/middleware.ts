@@ -220,8 +220,16 @@ function applyStaticSecurityHeaders(response: NextResponse, pathname: string) {
   }
 }
 
-/** What the failure path can still enforce without a nonce (no script policy). */
-export const FAIL_SAFE_CSP = "default-src 'self' https: data: blob: 'unsafe-inline'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
+/**
+ * What the failure path can still enforce without a nonce.
+ *
+ * PRO-PW-09 — it carries an explicit `script-src 'self'`: with no script
+ * directive the `default-src` (https: + 'unsafe-inline') governed scripts, so
+ * the one path meant to "never fail OPEN" allowed inline scripts and scripts
+ * from any https origin. Same-origin bundles still load; inline and foreign
+ * scripts do not.
+ */
+export const FAIL_SAFE_CSP = "default-src 'self' https: data: blob: 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
 
 function applySecurityHeaders(response: NextResponse, csp: string, pathname: string) {
   applyStaticSecurityHeaders(response, pathname);
@@ -325,7 +333,15 @@ export async function middleware(req: NextRequest) {
     // opens when its authority is unreachable is not a boundary.
     const runbookSlug = RUNBOOK_DETAIL_PATH.exec(pathname)?.[1];
     if (runbookSlug !== undefined) {
-      const canonical = resolveRunbookSlug(decodeURIComponent(runbookSlug));
+      // PRO-PW-09 — a malformed %-escape is an unknown slug (404), not an
+      // exception that drops the request onto the middleware failure path.
+      let decodedSlug: string | null;
+      try {
+        decodedSlug = decodeURIComponent(runbookSlug);
+      } catch {
+        decodedSlug = null;
+      }
+      const canonical = decodedSlug === null ? null : resolveRunbookSlug(decodedSlug);
       if (canonical === null) {
         const target = req.nextUrl.clone();
         target.pathname = "/not-found";
@@ -525,6 +541,12 @@ export async function middleware(req: NextRequest) {
     if (isWebHost && isAppPath && appBaseUrl) {
       const target = new URL(appBaseUrl);
       target.pathname = pathname;
+      // PRO-A1-02 / PRO-PW-01 — the query travels with the path, exactly as the
+      // /login|/register branch above carries it: the plan hint chosen on
+      // /pricing (`/billing?workspace=personal&plan=PRO`), a `next` with its
+      // own query, a settings tab, a checkout return. The destination page
+      // still sanitises what it reads.
+      target.search = req.nextUrl.search;
       const res = NextResponse.redirect(target);
       applySecurityHeaders(res, csp, pathname);
       return res;
