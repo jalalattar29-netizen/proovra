@@ -701,6 +701,11 @@ allowedHeaders: [
       PRESENTATION_CONTRACT_HEADER,
       PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER,
       PRESENTATION_CONTRACT_MIN_CLIENT_HEADER,
+      // PRO-PW-05 — the support reference (a refusal whose body carries no
+      // requestId) and the back-off a 429/503 asks for. Neither is a secret:
+      // both are already sent; the browser simply hid them cross-origin.
+      "x-request-id",
+      "retry-after",
     ],
   });
 

@@ -36,6 +36,7 @@ import {
   workspaceIncludesReviewCapability,
   type ReviewCapability,
 } from "../services/billing-enforcement.service.js";
+import { reviewCapabilityRefusalBody } from "../services/reviewer-ops/review-capability-refusal.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
   ReviewOperationError,
@@ -124,7 +125,9 @@ async function refuseUnlessReviewIncluded(
   capability: ReviewCapability,
 ): Promise<boolean> {
   if (await workspaceIncludesReviewCapability(teamId, capability)) return false;
-  reply.code(404).send({ error: { code: "reviewer_operations_not_included", details: null } });
+  // PRO-R2-14 — the one review-capability refusal shape (reviewer-ops), sent
+  // after membership is proven.
+  reply.code(403).send(reviewCapabilityRefusalBody(capability, reply.request.id));
   return true;
 }
 

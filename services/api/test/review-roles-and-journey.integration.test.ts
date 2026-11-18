@@ -160,25 +160,28 @@ describe("role × plan matrix — what the server does equals what the page is o
       // The editor PATCH and the bulk route are refused too (audit F6).
       const edit = await patchWorkflow(token, ev, { priority: "HIGH" });
       expect(edit.status, label).toBe(403);
-      expect(edit.body.error.code, label).toBe("reviewer_operations_not_included");
+      expect(edit.body.error.code, label).toBe("ENTITLEMENT_REQUIRED");
+      expect(edit.body.error.reason, label).toBe("reviewer_operations_not_included");
       const bulk = await call(token, "POST", "/v1/review-operations/bulk", {
         teamId: A.teamId,
         evidenceIds: [ev],
         action: "ESCALATE",
         note: "bulk while not included",
       });
-      expect(bulk.status, label).toBe(404);
-      expect(bulk.body.error.code, label).toBe("reviewer_operations_not_included");
+      expect(bulk.status, label).toBe(403);
+      expect(bulk.body.error.code, label).toBe("ENTITLEMENT_REQUIRED");
+      expect(bulk.body.error.reason, label).toBe("reviewer_operations_not_included");
       expect(await prisma.reviewEscalation.count({ where: { evidenceId: ev } }), label).toBe(0);
       const o = await offered(token, ev);
       expect(Object.values(o.actions!).every((a) => !a.enabled), label).toBe(true);
       expect(o.actions!.CLAIM.blockedBy, label).toBe("NOT_INCLUDED");
       expect(o.attention!.items.map((i) => i.code), label).not.toContain("REVIEW_NOT_STARTED");
       const res = await claim(token, ev, A.teamId);
-      // 404 (the route file's anti-enumeration posture), with its own code.
-      expect(res.status, label).toBe(404);
-      expect(res.body.error.code, label).toBe("reviewer_operations_not_included");
-      expect((await decide(token, ev, "ESCALATE", "x")).body.error.code, label).toBe("reviewer_operations_not_included");
+      // PRO-R2-14 — the one review-capability shape (403, after membership).
+      expect(res.status, label).toBe(403);
+      expect(res.body.error.code, label).toBe("ENTITLEMENT_REQUIRED");
+      expect(res.body.error.reason, label).toBe("reviewer_operations_not_included");
+      expect((await decide(token, ev, "ESCALATE", "x")).body.error.code, label).toBe("ENTITLEMENT_REQUIRED");
       const wf = await workflowOf(ev);
       expect(wf.assignedToUserId, label).toBeNull();
       expect(wf.status, label).toBe("NOT_STARTED");

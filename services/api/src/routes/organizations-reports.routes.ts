@@ -485,7 +485,7 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
        * share one id by construction (`issueInvitation` creates the sidecar
        * with `id` set to the grant's id), so the join is on `id`.
        */
-      const assignments =
+      const fetchedAssignments =
         teamIds.length === 0
           ? []
           : await prisma.externalReviewerRoleAssignment.findMany({
@@ -503,9 +503,13 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
                 createdAt: true,
                 _count: { select: { activities: true } },
               },
-              orderBy: { createdAt: "desc" },
-              take: AUDIT_ROW_CAP,
+              // PRO-O1-14 — one past the cap, so truncation is detected and
+              // signalled exactly as audit.csv signals it.
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              take: AUDIT_ROW_CAP + 1,
             });
+      const externalTruncated = fetchedAssignments.length > AUDIT_ROW_CAP;
+      const assignments = externalTruncated ? fetchedAssignments.slice(0, AUDIT_ROW_CAP) : fetchedAssignments;
 
       const lifecycleById = new Map(
         (assignments.length === 0
@@ -573,7 +577,14 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       ];
 
       const csv = toCsv(grants, columns);
-      await auditExport(orgId, userId, "external-access", grants.length);
+      await auditExport(orgId, userId, "external-access", grants.length, {
+        truncated: externalTruncated,
+        ...(externalTruncated ? { rowCap: AUDIT_ROW_CAP } : {}),
+      });
+      if (externalTruncated) {
+        reply.header("x-report-truncated", "true");
+        reply.header("x-report-row-cap", String(AUDIT_ROW_CAP));
+      }
       return sendCsv(reply, "org-external-access.csv", csv);
     },
   );
@@ -581,13 +592,14 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------------
   // GET /v1/orgs/:id/reports/download-audit.csv  (ORG_AUDITOR+)
   //
-  // HONEST-UNAVAILABLE. The Phase 5 (P5-B) evidence-download audit exists,
-  // but it lives in the PLATFORM AdminAuditLog (category "evidence") scoped
-  // to user + evidence id — there is NO org-tier attribution from those
-  // rows back to a single org's workspaces. Rather than fabricate that
-  // linkage, we return 200 with a single documented "not available at the
-  // org tier" note row and point the operator at the real source. This is
-  // intentionally NOT a 500 and NOT an empty/fake dataset.
+  // PRO-O1-14 — the report / verification-package / original download audits
+  // ARE attributed: they are tenant-audit rows written with the record's
+  // workspace id (evidence.routes.ts `auditEvidenceAction` → `emitTenantAudit`).
+  // This export used to answer a single "not attributed to an organization"
+  // note pointing at a platform-admin endpoint the auditor cannot call. It now
+  // lists the download events of the organization's workspaces (the same
+  // workspace set the external-access export resolves), newest first, under
+  // the same row cap and truncation signalling as audit.csv.
   // -------------------------------------------------------------------------
   app.get(
     "/v1/orgs/:id/reports/download-audit.csv",
@@ -602,26 +614,69 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
         return reply.code(429).send(RATE_LIMITED);
       }
 
-      const rows = [
-        {
-          status: "not_available_at_org_tier",
-          note:
-            "Evidence report/package/original download events are recorded in the platform audit log (category=evidence), scoped to user + evidence id. They are not attributed to an organization, so an org-scoped download-audit report is not available. Query the platform audit log (GET /v1/admin/audit-log) for the raw download events.",
-        },
-      ];
-      const columns: CsvColumn<(typeof rows)[number]>[] = [
-        { header: "status", value: (r) => r.status },
-        { header: "note", value: (r) => r.note },
+      const teams = await prisma.team.findMany({
+        where: { organizationId: orgId, isPersonal: false },
+        select: { id: true, name: true },
+      });
+      const teamById = new Map(teams.map((t) => [t.id, t.name]));
+      const teamIds = teams.map((t) => t.id);
+
+      const events =
+        teamIds.length === 0
+          ? []
+          : await prisma.adminAuditLog.findMany({
+              where: {
+                category: "tenant_audit",
+                workspaceId: { in: teamIds },
+                action: { in: [...DOWNLOAD_AUDIT_ACTIONS] },
+              },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              take: AUDIT_ROW_CAP + 1,
+              select: {
+                id: true,
+                createdAt: true,
+                action: true,
+                outcome: true,
+                userId: true,
+                workspaceId: true,
+                resourceId: true,
+              },
+            });
+      const truncated = events.length > AUDIT_ROW_CAP;
+      const rows = truncated ? events.slice(0, AUDIT_ROW_CAP) : events;
+
+      type Row = (typeof rows)[number];
+      const columns: CsvColumn<Row>[] = [
+        { header: "occurredAtUtc", value: (e) => e.createdAt.toISOString() },
+        { header: "action", value: (e) => e.action },
+        { header: "outcome", value: (e) => e.outcome },
+        { header: "actorUserId", value: (e) => e.userId },
+        { header: "workspaceId", value: (e) => e.workspaceId },
+        { header: "workspaceName", value: (e) => (e.workspaceId ? teamById.get(e.workspaceId) ?? null : null) },
+        { header: "evidenceId", value: (e) => e.resourceId },
+        { header: "eventId", value: (e) => e.id },
       ];
 
       const csv = toCsv(rows, columns);
-      // Signal unavailability honestly via a header + audit metadata; the
-      // body itself is a documented note, not fabricated data.
-      reply.header("x-report-available", "false");
-      await auditExport(orgId, userId, "download-audit", 0, {
-        available: false,
+      reply.header("x-report-available", "true");
+      if (truncated) {
+        reply.header("x-report-truncated", "true");
+        reply.header("x-report-row-cap", String(AUDIT_ROW_CAP));
+      }
+      await auditExport(orgId, userId, "download-audit", rows.length, {
+        available: true,
+        truncated,
+        ...(truncated ? { rowCap: AUDIT_ROW_CAP } : {}),
       });
       return sendCsv(reply, "org-download-audit.csv", csv);
     },
   );
 }
+
+/** PRO-O1-14 — the tenant-audit actions a download writes (evidence.routes.ts). */
+const DOWNLOAD_AUDIT_ACTIONS = [
+  "evidence.report.downloaded",
+  "evidence.verification_package.downloaded",
+  "evidence.original.downloaded",
+  "evidence.downloaded",
+] as const;

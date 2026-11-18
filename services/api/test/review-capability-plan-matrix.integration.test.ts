@@ -241,16 +241,18 @@ describe("FREE / PAY_PER_EVIDENCE — every capability refused, credits grant no
     expect(outsiderBulk.status).toBe(404);
     expect(JSON.stringify(outsiderBulk.body)).not.toContain("ENTITLEMENT_REQUIRED");
 
-    // The single-item lifecycle and queue reads refuse with the single-route
-    // posture (404, reviewer_operations_not_included).
+    // The single-item lifecycle and queue reads refuse with the one review-
+    // capability shape (PRO-R2-14: 403 ENTITLEMENT_REQUIRED, after membership).
     const claim = await call(A.adminToken, "POST", `/v1/review-operations/evidence/${(await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: workflowId } })).evidenceId}/claim`, { teamId: A.teamId });
     expectCleanRefusal(claim, "claim");
-    expect(claim.status).toBe(404);
-    expect(claim.body.error.code).toBe("reviewer_operations_not_included");
+    expect(claim.status).toBe(403);
+    expect(claim.body.error.code).toBe("ENTITLEMENT_REQUIRED");
+    expect(claim.body.error.reason).toBe("reviewer_operations_not_included");
     const queue = await call(A.adminToken, "GET", `/v1/review-operations/queue?teamId=${A.teamId}`);
     expectCleanRefusal(queue, "queue");
-    expect(queue.status).toBe(404);
-    expect(queue.body.error.code).toBe("reviewer_operations_not_included");
+    expect(queue.status).toBe(403);
+    expect(queue.body.error.code).toBe("ENTITLEMENT_REQUIRED");
+    expect(queue.body.error.reason).toBe("reviewer_operations_not_included");
   });
 
   it("evidence credits on the payer never grant review (PAY_PER_EVIDENCE is a FREE account with a wallet)", async () => {
@@ -262,8 +264,9 @@ describe("FREE / PAY_PER_EVIDENCE — every capability refused, credits grant no
     );
     const res = await call(P.token, "POST", `/v1/review-operations/evidence/${evidenceId}/claim`, { teamId: P.teamId });
     expectCleanRefusal(res, "credits claim");
-    expect(res.status).toBe(404);
-    expect(res.body.error.code).toBe("reviewer_operations_not_included");
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("ENTITLEMENT_REQUIRED");
+    expect(res.body.error.reason).toBe("reviewer_operations_not_included");
     const ops = await call(P.token, "GET", `/v1/reviewer-ops/queue?teamId=${P.teamId}`);
     expectCleanRefusal(ops, "credits ops queue");
   });
@@ -308,8 +311,9 @@ describe("PRO — BASIC_RECORD_REVIEW included, the TEAM tiers refused", () => {
     // Escalate opens an escalation routed to admins — TEAM's shared routing.
     const esc = await decide("ESCALATE", "needs a supervisor");
     expectCleanRefusal(esc, "PRO escalate");
-    expect(esc.status).toBe(404);
-    expect(esc.body.error.code).toBe("reviewer_operations_not_included");
+    expect(esc.status).toBe(403);
+    expect(esc.body.error.code).toBe("ENTITLEMENT_REQUIRED");
+    expect(esc.body.error.reason).toBe("reviewer_operations_not_included");
     expect(await prisma.reviewEscalation.count({ where: { evidenceId } })).toBe(0);
   });
 

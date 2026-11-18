@@ -312,6 +312,8 @@ import {
   buildEvidencePreviewPolicy,
 } from "@proovra/shared-evidence-presentation";
 import { z } from "zod";
+import { BULK_OPERATION_FAILED, bulkRefusalReason } from "../services/evidence/bulk-refusal-reason.js";
+import { reviewCapabilityRefusalBody } from "../services/reviewer-ops/review-capability-refusal.js";
 import {
   AppError,
   ErrorCode,
@@ -8873,11 +8875,15 @@ return {
 
         results.push({ evidenceId, ok: true });
       } catch (error) {
-        results.push({
-          evidenceId,
-          ok: false,
-          reason: error instanceof Error ? error.message : "Operation failed",
-        });
+        // PRO-E1-05 / PRO-E2-07 — only a DOMAIN refusal reaches the per-record
+        // reason; an unexpected failure (a database or service fault in
+        // attach / detach / re-read) is logged and answered "Operation
+        // failed", as the lifecycle branches already did.
+        const reason = bulkRefusalReason(error);
+        if (reason === BULK_OPERATION_FAILED) {
+          req.log.error({ err: error, bulkAction: body.action }, "bulk evidence action failed");
+        }
+        results.push({ evidenceId, ok: false, reason });
       }
     }
 
@@ -9844,7 +9850,8 @@ return {
         // The review workflow is a plan entitlement (2026-10-23, audit F6) —
         // the same authority the review routes and the page read.
         if (!(await workspaceIncludesReviewCapability(evidence.teamId, "BASIC_RECORD_REVIEW"))) {
-          return reply.code(403).send({ error: { code: "reviewer_operations_not_included", details: null } });
+          // PRO-R2-14 — the one review-capability refusal shape.
+          return reply.code(403).send(reviewCapabilityRefusalBody("BASIC_RECORD_REVIEW", req.id));
         }
         // Handing the review to SOMEONE ELSE is the `review.assign`
         // capability, as on every other assignment route (members audit
@@ -9889,7 +9896,7 @@ return {
         // personal plan answers (re-audit 2026-10-24, finding 6) — the branch
         // above was the one reviewer-workflow door with no commercial gate at
         // all, and a FREE account could drive transitions through it.
-        return reply.code(403).send({ error: { code: "reviewer_operations_not_included", details: null } });
+        return reply.code(403).send(reviewCapabilityRefusalBody("BASIC_RECORD_REVIEW", req.id));
       }
 
       if (body.assignedToUserId && !evidence.teamId) {

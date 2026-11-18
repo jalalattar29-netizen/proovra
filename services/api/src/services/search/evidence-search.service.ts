@@ -180,12 +180,15 @@ export async function executeSearch(
   // refused by design, and "OFF" there is not a hold.
   const holdCoverage = await resolveWorkspaceLegalHoldCoverage(client, filter.teamId);
   if (filter.onLegalHold === true) {
-    Object.assign(
-      where,
+    // PRO-E1-02 — on `AND`, never a top-level `OR`: the free-text block below
+    // assigns `where.OR`, which silently replaced this clause whenever a query
+    // was typed, so non-held matches came back under "Legal hold".
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
       holdCoverage.wholeWorkspace
         ? { evidenceId: { not: null } }
         : { OR: [{ legalHoldState: "ON" }, { evidenceId: { in: [...holdCoverage.evidenceIds] } }] },
-    );
+    ];
   } else if (filter.onLegalHold === false) {
     // Spelled out, because these columns are nullable and NOT over a NULL matches
     // nothing: records with no evidence link are "not held", not unknown.
@@ -205,6 +208,25 @@ export async function executeSearch(
   }
   if (filter.workflowLinked !== undefined) {
     where.workflowInstanceId = filter.workflowLinked ? { not: null } : null;
+  }
+  // PRO-E1-04 — "Incident linked" was accepted by the schema, sent by web and
+  // native, and never applied. A record is incident-linked when an operational
+  // incident of this workspace names it (`relatedEvidenceId`, the link the
+  // Operations surface itself uses). Resolved live, like the hold filter, and
+  // pushed onto `AND` so it composes with the free-text `OR`.
+  if (filter.incidentLinked !== undefined) {
+    const linked = await client.operationalIncident.findMany({
+      where: { teamId: filter.teamId, relatedEvidenceId: { not: null } },
+      select: { relatedEvidenceId: true },
+      distinct: ["relatedEvidenceId"],
+    });
+    const ids = linked.map((r) => r.relatedEvidenceId).filter((id): id is string => id !== null);
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+      filter.incidentLinked
+        ? { evidenceId: { in: ids } }
+        : { OR: [{ evidenceId: null }, { evidenceId: { notIn: ids } }] },
+    ];
   }
   // PHASE 12B — case scoping. Absorbed from the deleted owner-scoped
   // /v1/search/evidence primitive. `case_id` is an indexed column on
@@ -936,6 +958,7 @@ function buildSafeFilterSnapshot(
     onLegalHold: filter.onLegalHold ?? null,
     exportRestricted: filter.exportRestricted ?? null,
     workflowLinked: filter.workflowLinked ?? null,
+    incidentLinked: filter.incidentLinked ?? null,
     contributorScoped: filter.contributorScoped ?? null,
     updatedSinceUtc: filter.updatedSinceUtc ?? null,
     updatedUntilUtc: filter.updatedUntilUtc ?? null,

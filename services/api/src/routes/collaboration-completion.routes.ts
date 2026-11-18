@@ -244,6 +244,10 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
           workspaceId: binding.workspace.workspaceId,
           userId: binding.workspace.userId,
         };
+        // PRO-K2-13 — a malformed path id is a 400, never a Prisma error served as 500.
+        if (!z.string().uuid().safeParse(req.params.commentId).success) {
+          return reply.code(400).send({ error: { code: "invalid_params", message: "commentId must be an id.", requestId: req.id ?? null } });
+        }
         const parsed = EditCommentBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -295,6 +299,10 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
           workspaceId: binding.workspace.workspaceId,
           userId: binding.workspace.userId,
         };
+        // PRO-K2-13 — a malformed path id is a 400, never a Prisma error served as 500.
+        if (!z.string().uuid().safeParse(req.params.commentId).success) {
+          return reply.code(400).send({ error: { code: "invalid_params", message: "commentId must be an id.", requestId: req.id ?? null } });
+        }
         try {
           await deleteComment({
             teamId: req.params.teamId,
@@ -550,15 +558,35 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
         };
         try {
           const q = (req.query as Record<string, string | undefined>) ?? {};
+          // PRO-K2-13 — as PRO-096 above: malformed paging, actor ids and
+          // dates are a 400, never a Prisma error served as 500.
+          const parsed = z
+            .object({
+              limit: z.coerce.number().int().min(1).max(200).optional(),
+              cursor: z.string().uuid().optional(),
+              actor: z.string().uuid().optional(),
+              since: z.string().max(40).refine((s) => !Number.isNaN(Date.parse(s))).optional(),
+              until: z.string().max(40).refine((s) => !Number.isNaN(Date.parse(s))).optional(),
+            })
+            .safeParse({ limit: q.limit, cursor: q.cursor, actor: q.actor, since: q.since, until: q.until });
+          if (!parsed.success) {
+            return reply.code(400).send({
+              error: {
+                code: "invalid_query",
+                message: "limit must be a whole number from 1 to 200; cursor and actor must be ids; since and until must be ISO dates.",
+                requestId: req.id ?? null,
+              },
+            });
+          }
           const res = await listTeamActivityFiltered({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
             eventType: q.eventType ?? null,
-            actorFilter: q.actor ?? null,
-            sinceUtc: q.since ? new Date(q.since) : null,
-            untilUtc: q.until ? new Date(q.until) : null,
-            limit: q.limit ? parseInt(q.limit, 10) : undefined,
-            cursor: q.cursor ?? null,
+            actorFilter: parsed.data.actor ?? null,
+            sinceUtc: parsed.data.since ? new Date(parsed.data.since) : null,
+            untilUtc: parsed.data.until ? new Date(parsed.data.until) : null,
+            limit: parsed.data.limit,
+            cursor: parsed.data.cursor ?? null,
           });
           return reply.send(res);
         } catch (err) {

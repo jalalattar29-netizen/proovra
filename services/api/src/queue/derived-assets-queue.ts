@@ -24,11 +24,7 @@ import {
 import { bump } from "@proovra/shared-runtime/ops";
 
 import { prisma } from "../db.js";
-import {
-  enqueueCanonicalWork,
-  getReadOnlyQueueHandle,
-} from "./canonical-queue-client.js";
-import { QUEUE_NAMES } from "@proovra/shared";
+import { enqueueCanonicalWork } from "./canonical-queue-client.js";
 
 /**
  * Bounded catalog. `image_thumbnail` runs sharp; video/audio kinds run ffmpeg;
@@ -140,37 +136,7 @@ export async function enqueueDerivedAssetGeneration(
   return { enqueued: false, reason: outcome.reason, derivedAssetId };
 }
 
-/**
- * Operator-triggered single-job retry, used by the /ops media-graph surface.
- *
- * It retries a FAILED job in place rather than enqueuing a new one, so the
- * operator's action cannot produce a second artifact for the same request.
- */
-export async function retryDerivedAssetJob(
-  jobId: string,
-): Promise<{ ok: true; retried: true } | { ok: false; reason: string }> {
-  const queue = getReadOnlyQueueHandle(
-    QUEUE_NAMES.DERIVED_ASSETS,
-    JOB_NAMES.GENERATE_DERIVED_ASSET,
-  );
-  if (!queue) return { ok: false, reason: "queue_unavailable" };
-  try {
-    const job = await queue.getJob(jobId);
-    if (!job) return { ok: false, reason: "job_not_found" };
-    const state = await job.getState();
-    if (state !== "failed") {
-      return { ok: false, reason: `job_not_failed:${state}` };
-    }
-    await job.retry();
-    bump("derived_assets_enqueue_total");
-    return { ok: true, retried: true };
-  } catch (err) {
-    return {
-      ok: false,
-      reason:
-        err instanceof Error
-          ? `retry_failed:${err.message.slice(0, 80)}`
-          : "retry_failed",
-    };
-  }
-}
+// PRO-P3DZ-03 — the unreferenced `retryDerivedAssetJob` (its docstring named an
+// /ops media-graph caller that never existed) is removed. Recovery of a FAILED
+// derived asset is re-requesting it (`enqueueDerivedAssetGeneration` above
+// re-opens the row to PENDING) and the stranded reconciler.
