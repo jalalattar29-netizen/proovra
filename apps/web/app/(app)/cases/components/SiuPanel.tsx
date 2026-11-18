@@ -18,10 +18,11 @@
  *   * No PII rendering when the API returns redacted placeholders.
  *   * Loading / error / empty / blocked states are explicit.
  */
-import { identifierLabel } from "@proovra/shared";
+import { identifierLabel, SIU_CLAIM_TYPES } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import {
   StepUpModal,
   isStepUpCancelled,
@@ -173,6 +174,24 @@ export function SiuPanel({ caseId, teamId }: SiuPanelProps) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [exportReason, setExportReason] = useState("");
+  const [newClaimType, setNewClaimType] = useState("auto");
+
+  // PRO-K1-10 — create the profile from the tab; a refusal shows the server's sentence.
+  const createProfile = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await apiFetch(`/v1/cases/${caseId}/siu-profile`, {
+        method: "PUT",
+        body: JSON.stringify({ claimType: newClaimType }),
+      });
+      await loadProfile();
+    } catch (e) {
+      setErr(toSafeUserError(e, { message: "Couldn't create the investigation profile." }).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const loadProfile = useCallback(async () => {
     try {
@@ -446,12 +465,43 @@ export function SiuPanel({ caseId, teamId }: SiuPanelProps) {
       ) : null}
 
       {!profile ? (
-        <p style={mutedText} data-testid="siu-empty">
-          {/* Phase CASE-DETAIL-PERSONAL-UX — spec-locked empty-state
-              copy. The prior text leaked the literal backend route
-              path (`PUT /v1/cases/.../siu-profile`) into user copy. */}
-          No investigation profile has been created for this case.
-        </p>
+        <>
+          <p style={mutedText} data-testid="siu-empty">
+            {/* Phase CASE-DETAIL-PERSONAL-UX — spec-locked empty-state
+                copy. The prior text leaked the literal backend route
+                path (`PUT /v1/cases/.../siu-profile`) into user copy. */}
+            No investigation profile has been created for this case.
+          </p>
+          {/* PRO-K1-10 — the entry point the tab lacked: create the profile
+              through the existing route (the server decides who may: case
+              mutation matrix, plan gate; claimant PII is edited separately). */}
+          <div data-testid="siu-create">
+            <label style={mutedText}>
+              Claim type{" "}
+              <select
+                value={newClaimType}
+                onChange={(e) => setNewClaimType(e.target.value)}
+                disabled={busy}
+                data-testid="siu-create-claim-type"
+              >
+                {SIU_CLAIM_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+            </label>{" "}
+            <button
+              type="button"
+              className="app-secondary-action"
+              disabled={busy}
+              onClick={() => void createProfile()}
+              data-testid="siu-create-submit"
+            >
+              Create investigation profile
+            </button>
+          </div>
+        </>
       ) : (
         <>
           <table style={tableStyle} data-testid="siu-profile-summary">

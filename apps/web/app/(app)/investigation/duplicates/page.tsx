@@ -25,6 +25,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useHealthDestination } from "../../../../lib/navigation/healthDestination";
@@ -34,6 +35,7 @@ import {
   type ProducerModeStatusLike,
 } from "../../../../lib/empty-state/classifier";
 import { formatUserDateTime } from "../../../../lib/date";
+import { relationshipInspectorHref } from "../relationships/href";
 type DuplicateEdgeKind =
   | "SAME_HASH_AS"
   | "SIMILAR_TO"
@@ -47,6 +49,10 @@ type DuplicateEdge = {
   sourceEvidenceId: string;
   targetEvidenceId: string;
   observedAtUtc: string;
+  /** PRO-K1C-05 — the recorded decision; absent on an older API. */
+  decision?: { decision: string; decidedByUserId: string | null; decidedAt: string } | null;
+  /** PRO-K1C-05 — local outcome of the last decision attempt on this row. */
+  decisionNotice?: { tone: "ok" | "error"; text: string } | null;
 };
 
 type DuplicatesResponse = {
@@ -220,16 +226,29 @@ function DuplicatesReviewPageInner() {
   ) => {
     if (!teamId) return;
     setActionBusy((m) => ({ ...m, [edge.edgeId]: decision }));
+    // PRO-K1C-05 — the outcome is shown on the row: the recorded decision on
+    // success, the server's refusal (e.g. not permitted) on failure.
+    const patchEdge = (patch: Partial<DuplicateEdge>) =>
+      setEdges((list) => (list ? list.map((e) => (e.edgeId === edge.edgeId ? { ...e, ...patch } : e)) : list));
     try {
-      await apiFetch(
+      const res = (await apiFetch(
         `/v1/graph/duplicates/${encodeURIComponent(edge.edgeId)}/decision`,
         {
           method: "POST",
           body: JSON.stringify({ teamId, decision }),
         },
-      );
-    } catch {
-      /* best-effort UI; the next poll cycle will reconcile state */
+      )) as { decision?: string; decidedAt?: string } | null;
+      patchEdge({
+        decision: { decision: res?.decision ?? decision, decidedByUserId: null, decidedAt: res?.decidedAt ?? new Date().toISOString() },
+        decisionNotice: { tone: "ok", text: "Decision recorded." },
+      });
+    } catch (err) {
+      patchEdge({
+        decisionNotice: {
+          tone: "error",
+          text: toSafeUserError(err, { message: "The decision could not be recorded." }).message,
+        },
+      });
     } finally {
       setActionBusy((m) => {
         const next = { ...m };
@@ -284,10 +303,10 @@ function DuplicatesReviewPageInner() {
   // who want to assert a manual link should open the relationships
   // page (deep-linked below). This helper is a no-op stub kept for
   // forward-compat with the in-row pivot row.
-  const markRelatedHref = (edge: DuplicateEdge): string =>
-    `/investigation/relationships?nodeId=${encodeURIComponent(
-      edge.sourceEvidenceId,
-    )}&edgeId=${encodeURIComponent(edge.edgeId)}`;
+  // PRO-K1C-06 — a duplicate edge names records, not a case or graph node:
+  // the inspector cannot serve it, so no inspector link is built.
+  const markRelatedHref = (edge: DuplicateEdge): string | null =>
+    relationshipInspectorHref({ caseId: (edge as { caseId?: string | null }).caseId ?? null, edgeId: edge.edgeId });
 
   const filtered = useMemo(() => {
     if (!edges) return null;
@@ -502,7 +521,7 @@ function DuplicateSection({
     edge: DuplicateEdge,
     decision: "CONFIRMED" | "DISMISSED" | "MARKED_DERIVATIVE",
   ) => Promise<void> | void;
-  markRelatedHref: (edge: DuplicateEdge) => string;
+  markRelatedHref: (edge: DuplicateEdge) => string | null;
   producerMode: ProducerModeStatus | null;
   fetchError: Error | null;
   isAdmin: boolean;
@@ -620,7 +639,7 @@ function DuplicateRow({
     edge: DuplicateEdge,
     decision: "CONFIRMED" | "DISMISSED" | "MARKED_DERIVATIVE",
   ) => Promise<void> | void;
-  markRelatedHref: (edge: DuplicateEdge) => string;
+  markRelatedHref: (edge: DuplicateEdge) => string | null;
 }) {
   // When anchored to a specific evidence, display the OTHER endpoint
   // as the primary subject. Without an anchor, show both sides.
@@ -655,6 +674,17 @@ function DuplicateRow({
       {edge.safeSummary ? (
         <div style={summaryStyle}>{edge.safeSummary}</div>
       ) : null}
+      {edge.decision ? (
+        <div style={summaryStyle} data-duplicate-decision={edge.decision.decision}>
+          Decision: {edge.decision.decision.replace(/_/g, " ").toLowerCase()} ·{" "}
+          {formatUserDateTime(edge.decision.decidedAt)}
+        </div>
+      ) : null}
+      {edge.decisionNotice ? (
+        <div role={edge.decisionNotice.tone === "error" ? "alert" : "status"} style={summaryStyle}>
+          {edge.decisionNotice.text}
+        </div>
+      ) : null}
       {/* Wave 2 — reviewer decision actions. CONFIRMED, DISMISSED,
           MARKED_DERIVATIVE go through POST /v1/graph/duplicates/:edgeId/decision.
           "Mark related" pivots to the canonical manual-relationship surface
@@ -677,9 +707,11 @@ function DuplicateRow({
         >
           {actionBusy === "DISMISSED" ? "Dismissing…" : "Dismiss"}
         </button>
-        <Link href={markRelatedHref(edge)} style={pivotLinkSmallStyle}>
-          Mark related
-        </Link>
+        {markRelatedHref(edge) ? (
+          <Link href={markRelatedHref(edge) as string} style={pivotLinkSmallStyle}>
+            Mark related
+          </Link>
+        ) : null}
       </div>
       <div style={pivotsRowStyle}>
         <Link href={`/evidence/${a}`} style={pivotLinkSmallStyle}>
@@ -705,14 +737,11 @@ function DuplicateRow({
         >
           Open B in Search
         </Link>
-        <Link
-          href={`/investigation/relationships?nodeId=${encodeURIComponent(
-            edge.edgeId,
-          )}&edgeId=${encodeURIComponent(edge.edgeId)}`}
-          style={pivotLinkSmallStyle}
-        >
-          Inspect relationship
-        </Link>
+        {markRelatedHref(edge) ? (
+          <Link href={markRelatedHref(edge) as string} style={pivotLinkSmallStyle}>
+            Inspect relationship
+          </Link>
+        ) : null}
       </div>
     </li>
   );

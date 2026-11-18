@@ -89,8 +89,21 @@ type Load<T> =
 export type MatterAccessViewer = {
   userId: string;
   canManageAccess?: boolean;
+  /**
+   * PRO-K1-13 — a new grant is offered (plan-gated server-side; revocation
+   * stays open). Absent on an older API: the grant follows canManageAccess.
+   */
+  canGrantAccess?: boolean;
   disabledReasons?: Readonly<Record<string, string>>;
 };
+
+/**
+ * PRO-K1-13 — what restricting actually does, said before it is done: the
+ * linked records close to everyone off the list and share links they handed
+ * out on them stop working.
+ */
+const RESTRICT_CONSEQUENCES =
+  " Records linked to this case also become visible only to them, and share links or external-review access that other members created for those records are revoked.";
 
 const FALLBACK_MANAGE_REASON =
   "Only a workspace Owner or Admin, or the case owner, can change who has access to this case.";
@@ -215,8 +228,12 @@ export function MatterAccessTab({
   const viewerIsOwner = caseOwnerUserId !== null && caseOwnerUserId === viewer.userId;
   const alreadyGranted = selected ? grantList.some((g) => g.userId === selected.userId) : false;
 
+  const grantRefusal =
+    viewer.canGrantAccess === false ? viewer.disabledReasons?.["grantAccess"] ?? manageReason : null;
   const grantDisabledReason = !canManage
     ? manageReason
+    : grantRefusal
+      ? grantRefusal
     : unconfirmed
       ? "Reload the page to confirm the last access change before making another."
       : grants.status !== "ready"
@@ -242,6 +259,7 @@ export function MatterAccessTab({
         title: "Restrict this case to named people?",
         description:
           `Right now every active member of this workspace can open this case. After ${selected.label} is given access, only the case owner and the people listed here can open it.` +
+          RESTRICT_CONSEQUENCES +
           selfNote,
         confirmLabel: "Give access and restrict",
         tone: "warning",
@@ -343,7 +361,9 @@ export function MatterAccessTab({
     if (!restricted) {
       const ok = await confirm({
         title: "Restrict this case to a Collaboration Team?",
-        description: `Right now every active member of this workspace can open this case. After ${team.name} is given access, only the case owner, the people listed here and that team's members can open it.`,
+        description:
+          `Right now every active member of this workspace can open this case. After ${team.name} is given access, only the case owner, the people listed here and that team's members can open it.` +
+          RESTRICT_CONSEQUENCES,
         confirmLabel: "Give access and restrict",
         tone: "warning",
       });
@@ -603,8 +623,8 @@ export function MatterAccessTab({
                   className="app-primary-action"
                   data-matter-access-team-grant
                   busy={busy === "team-grant"}
-                  disabled={busy !== null || selectedTeamId === ""}
-                  disabledReason={selectedTeamId === "" ? "Choose a Collaboration Team first." : null}
+                  disabled={busy !== null || selectedTeamId === "" || grantRefusal !== null}
+                  disabledReason={grantRefusal ?? (selectedTeamId === "" ? "Choose a Collaboration Team first." : null)}
                   onClick={() => void grantTeam()}
                 >
                   {busy === "team-grant" ? "Giving access…" : "Give team access"}

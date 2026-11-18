@@ -183,8 +183,14 @@ export type CaseRiskComputation = {
 export async function computeCaseRisk(input: {
   teamId: string | null;
   caseId: string;
+  /**
+   * PRO-K1-06 — a human reader's population (`listCaseEvidenceIdsForViewer`).
+   * When given, the risk is computed over it, for display only (never
+   * persisted): a closed record moves no number a reader sees (EVID-004).
+   */
+  evidenceIds?: string[];
 }): Promise<CaseRiskComputation> {
-  const evidenceIds = await listCaseEvidenceIds(input);
+  const evidenceIds = input.evidenceIds ?? (await listCaseEvidenceIds(input));
 
   // Per-evidence counts (parallel, bounded).
   let missingReports = 0;
@@ -518,6 +524,23 @@ export async function recordCaseRiskSnapshot(input: {
     /* advisory write — never throws */
   }
   return computation;
+}
+
+/**
+ * PRO-K1-06 — the risk a reader may see: the stored case-wide figure when every
+ * linked record is open to them, otherwise the same computation over their own
+ * population (not persisted).
+ */
+export async function caseRiskForViewer(input: {
+  teamId: string | null;
+  caseId: string;
+  viewerUserId: string;
+}): Promise<{ narrowed: boolean; viewerEvidenceIds: string[] }> {
+  const [all, mine] = await Promise.all([
+    prisma.caseEvidenceLink.count({ where: { caseId: input.caseId } }),
+    listCaseEvidenceIdsForViewer({ caseId: input.caseId, viewerUserId: input.viewerUserId }),
+  ]);
+  return { narrowed: mine.length < Math.min(all, 500), viewerEvidenceIds: mine };
 }
 
 export function labelForReason(code: RiskReasonCode): string {

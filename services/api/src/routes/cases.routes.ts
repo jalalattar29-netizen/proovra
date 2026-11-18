@@ -694,8 +694,9 @@ export async function casesRoutes(app: FastifyInstance) {
       //        has no `archivedAt` / `deletedAt` columns (cases
       //        track lifecycle via the `status` enum), so the
       //        spec's "exclude archived / deleted" rule maps to
-      //        excluding the inactive status values that the
-      //        attach gate would later fail on anyway.
+      //        excluding the inactive status values. (PRO-K1-08: closure
+      //        is case organization; the attach gate does not refuse a
+      //        closed case — the picker simply does not offer one.)
 
       const eligibleFetched = await prisma.case.findMany({
         where: {
@@ -1265,7 +1266,14 @@ export async function casesRoutes(app: FastifyInstance) {
       // Only an ACTIVE membership confers access (P0 2026-07-21), so a
       // suspended or revoked member is not listed as someone who has it.
       const members = await prisma.teamMember.findMany({
-        where: { teamId: caseItem.teamId, status: "ACTIVE" },
+        // PRO-K1-11 — the grant applies the canonical membership rule
+        // (isActiveWorkspaceMember: ACTIVE and unexpired access); the picker
+        // does not offer a member whose access has expired.
+        where: {
+          teamId: caseItem.teamId,
+          status: "ACTIVE",
+          OR: [{ accessExpiresAtUtc: null }, { accessExpiresAtUtc: { gt: new Date() } }],
+        },
         include: {
           user: {
             select: {

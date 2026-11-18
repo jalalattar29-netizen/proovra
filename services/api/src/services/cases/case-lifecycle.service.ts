@@ -120,57 +120,63 @@ export async function changeCaseStatus(
   input: ChangeCaseStatusInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.Case> {
-  const existing = await client.case.findUnique({
-    where: { id: input.caseId },
-    select: {
-      id: true,
-      teamId: true,
-      status: true,
-    },
-  });
-  if (!existing) throw new CaseError("case_not_found");
-  const from = String(existing.status);
-  if (!transitionAllowed(from, input.toStatus)) {
-    throw new CaseError("invalid_transition");
-  }
-
-  // Preservation invariant: an active legal hold blocks CLOSED/ARCHIVED.
-  //
-  // PHASE 12 POINT 3 — this counted rows in the LEGACY `case_legal_holds`
-  // store directly. That was wrong in both directions: a hold placed through
-  // the canonical service (scope='CASE' on `evidence_legal_holds`) did NOT
-  // block closure, and the query would throw outright once the contract
-  // migration drops the legacy table. Destructive gates must go through the
-  // ONE effective-hold evaluator, which unions every store and fails closed on
-  // an unresolvable historical hold.
-  if (CLOSURE_STATUSES.has(input.toStatus)) {
-    const { isUnderEffectiveLegalHold } = await import(
-      "@proovra/shared-runtime"
-    );
-    const held = await isUnderEffectiveLegalHold(
-      client as unknown as Parameters<typeof isUnderEffectiveLegalHold>[0],
-      { teamId: existing.teamId, caseIds: [existing.id] },
-    );
-    if (held) {
-      throw new CaseError("active_legal_hold_blocks_closure");
+  // PRO-K1-08 — ONE transaction: the case row is locked FOR UPDATE (the lock
+  // the unlink and delete paths take, and a hold insert waits on through its
+  // foreign key), the hold is re-read under it, and the status, its history
+  // row, the closure cascade and the audit row commit together or not at all.
+  // A caller already inside a transaction runs it on that transaction.
+  const inTx = typeof (client as { $transaction?: unknown }).$transaction !== "function";
+  const run = <T>(fn: (tx: PrismaClient) => Promise<T>): Promise<T> =>
+    inTx ? fn(client) : client.$transaction((tx) => fn(tx as unknown as PrismaClient));
+  return run(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "cases" WHERE "id" = ${input.caseId}::uuid FOR UPDATE`;
+    const existing = await tx.case.findUnique({
+      where: { id: input.caseId },
+      select: {
+        id: true,
+        teamId: true,
+        status: true,
+      },
+    });
+    if (!existing) throw new CaseError("case_not_found");
+    const from = String(existing.status);
+    if (!transitionAllowed(from, input.toStatus)) {
+      throw new CaseError("invalid_transition");
     }
-  }
 
-  const closedAtUtc = input.toStatus === "CLOSED" ? new Date() : null;
-  const closureReason = input.toStatus === "CLOSED" ? input.reason ?? null : null;
+    // Preservation invariant: an active legal hold blocks CLOSED/ARCHIVED,
+    // decided by the ONE effective-hold evaluator (PHASE 12 POINT 3), now
+    // under the row lock so a hold placed concurrently is honoured.
+    if (CLOSURE_STATUSES.has(input.toStatus)) {
+      const { isUnderEffectiveLegalHold } = await import(
+        "@proovra/shared-runtime"
+      );
+      const held = await isUnderEffectiveLegalHold(
+        tx as unknown as Parameters<typeof isUnderEffectiveLegalHold>[0],
+        { teamId: existing.teamId, caseIds: [existing.id] },
+      );
+      if (held) {
+        throw new CaseError("active_legal_hold_blocks_closure");
+      }
+    }
 
-  const updated = await client.case.update({
-    where: { id: existing.id },
-    data: {
-      status: input.toStatus as prismaPkg.CaseStatus,
-      ...(closedAtUtc ? { closedAtUtc } : {}),
-      ...(closureReason !== null && input.toStatus === "CLOSED"
-        ? { closureReason: closureReason ? closureReason.slice(0, 400) : null }
-        : {}),
-    },
-  });
-  try {
-    await client.caseStatusHistory.create({
+    const closedAtUtc = input.toStatus === "CLOSED" ? new Date() : null;
+    const closureReason = input.toStatus === "CLOSED" ? input.reason ?? null : null;
+
+    const updated = await tx.case.update({
+      where: { id: existing.id },
+      data: {
+        status: input.toStatus as prismaPkg.CaseStatus,
+        ...(closedAtUtc ? { closedAtUtc } : {}),
+        ...(closureReason !== null && input.toStatus === "CLOSED"
+          ? { closureReason: closureReason ? closureReason.slice(0, 400) : null }
+          : {}),
+        // PRO-K1-08 — leaving CLOSED clears the closure facts (a reopened
+        // case does not keep claiming when and why it was closed).
+        ...(from === "CLOSED" && input.toStatus !== "CLOSED" ? { closedAtUtc: null, closureReason: null } : {}),
+      },
+    });
+    await tx.caseStatusHistory.create({
       data: {
         teamId: existing.teamId,
         caseId: existing.id,
@@ -180,37 +186,15 @@ export async function changeCaseStatus(
         reason: input.reason ? input.reason.slice(0, 400) : null,
       },
     });
-  } catch {
-    /* best-effort */
-  }
 
-  // Phase 2.4 — Closure cascade.
-  //
-  // When a case transitions to CLOSED or ARCHIVED, all currently
-  // ACTIVE assignments must be deactivated. Without this cascade a
-  // closed case still appears in reviewers' personal queues and
-  // permission gates that key off "assignment.status === ACTIVE"
-  // misreport access. The pre-Phase-2.4 behavior left assignments
-  // active indefinitely, which is the root cause of the
-  // "I see this closed case in my queue" bug class.
-  //
-  // We DO NOT touch:
-  //   - The Case row itself (already updated above).
-  //   - Evidence links — closed cases keep their evidence association
-  //     because the audit trail must remain intact.
-  //   - Comments — historical comments stay readable. New comments
-  //     are blocked at the route layer when the case is in a closure
-  //     state, not here.
-  //
-  // The cascade is best-effort: if it fails (extremely unlikely; this
-  // is a single updateMany), we log a critical audit row but do not
-  // roll back the status change. The next read of the assignments
-  // list still surfaces the inconsistency; an operator can manually
-  // remove residual assignments.
-  let cascadedAssignmentCount = 0;
-  if (CLOSURE_STATUSES.has(input.toStatus)) {
-    try {
-      const cascade = await client.caseAssignment.updateMany({
+    // Phase 2.4 — Closure cascade: closing or archiving ends every ACTIVE
+    // assignment (a closed case leaves reviewers' queues). Evidence links,
+    // notes and history are kept. Closure is case organization: it does not
+    // by itself refuse later case writes (PRO-K1-08 decision; the UI copy
+    // says exactly this).
+    let cascadedAssignmentCount = 0;
+    if (CLOSURE_STATUSES.has(input.toStatus)) {
+      const cascade = await tx.caseAssignment.updateMany({
         where: { caseId: existing.id, status: "ACTIVE" },
         data: {
           status: "REMOVED",
@@ -219,51 +203,11 @@ export async function changeCaseStatus(
         },
       });
       cascadedAssignmentCount = cascade.count;
-    } catch {
-      /* best-effort — captured in the audit metadata below */
-      cascadedAssignmentCount = -1;
     }
-  }
 
-  await emitTenantAudit(
-    {
-      action: "cases.status_changed",
-      outcome: "success",
-      sourceApp: "API",
-      actorUserId: input.actorUserId,
-      workspaceId: existing.teamId,
-      resourceType: "case",
-      resourceId: existing.id,
-      metadata: {
-        fromStatus: from,
-        toStatus: input.toStatus,
-        // Phase 2.4 — surface the cascade for SOC + audit consumers.
-        // `-1` indicates the cascade failed; `0` indicates no
-        // assignments existed to cascade.
-        cascadedAssignmentCount,
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
-      },
-    },
-    client,
-  );
-
-  // Phase CASE-ARCHIVE-RESTORE — dedicated `cases.restored` audit
-  // event on the restore transition (ARCHIVED → OPEN). Emitted in
-  // addition to the canonical `cases.status_changed` row so:
-  //   - Audit consumers that count `cases.status_changed` for
-  //     analytics keep working (back-compat).
-  //   - A targeted query for `action: "cases.restored"` surfaces
-  //     ONLY restorations without scanning every status mutation
-  //     for the `fromStatus === "ARCHIVED"` predicate.
-  // Same canonical `emitTenantAudit` facade — no parallel
-  // logging system, no schema change.
-  // Phase CASES-PERSONAL-UX-CLEANUP — restore target is now OPEN
-  // (was CLOSED). The trigger condition is updated accordingly.
-  if (from === "ARCHIVED" && input.toStatus === "OPEN") {
     await emitTenantAudit(
       {
-        action: "cases.restored",
+        action: "cases.status_changed",
         outcome: "success",
         sourceApp: "API",
         actorUserId: input.actorUserId,
@@ -271,18 +215,42 @@ export async function changeCaseStatus(
         resourceType: "case",
         resourceId: existing.id,
         metadata: {
-          caseId: existing.id,
-          previousStatus: from,
-          restoredStatus: input.toStatus,
-          reason: input.reason ? input.reason.slice(0, 400) : null,
+          fromStatus: from,
+          toStatus: input.toStatus,
+          cascadedAssignmentCount,
           ipAddress: input.ipAddress ?? null,
           userAgent: input.userAgent ?? null,
         },
       },
-      client,
+      tx,
     );
-  }
-  return updated;
+
+    // Phase CASE-ARCHIVE-RESTORE — dedicated `cases.restored` audit event on
+    // the restore transition (ARCHIVED → OPEN), beside the canonical one.
+    if (from === "ARCHIVED" && input.toStatus === "OPEN") {
+      await emitTenantAudit(
+        {
+          action: "cases.restored",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: input.actorUserId,
+          workspaceId: existing.teamId,
+          resourceType: "case",
+          resourceId: existing.id,
+          metadata: {
+            caseId: existing.id,
+            previousStatus: from,
+            restoredStatus: input.toStatus,
+            reason: input.reason ? input.reason.slice(0, 400) : null,
+            ipAddress: input.ipAddress ?? null,
+            userAgent: input.userAgent ?? null,
+          },
+        },
+        tx,
+      );
+    }
+    return updated;
+  });
 }
 
 // ---------------------------------------------------------------------------

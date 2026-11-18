@@ -834,6 +834,19 @@ export async function graphRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 
+      // PRO-K1C-05 — the previous decision, so a repeated identical decision
+      // appends no second audit / custody entry on both records.
+      let previousDecision: string | null = null;
+      try {
+        const prev = (await prisma.$queryRawUnsafe(
+          `SELECT "decision" FROM "duplicate_decisions" WHERE "team_id" = $1::uuid AND "edge_id" = $2::uuid`,
+          body.teamId,
+          edgeRow.id,
+        )) as Array<{ decision: string }>;
+        previousDecision = prev[0]?.decision ?? null;
+      } catch {
+        previousDecision = null;
+      }
       // Upsert the decision row. Unique by (team_id, edge_id).
       let row: { id: string; created_at_utc: Date } | null = null;
       try {
@@ -869,6 +882,14 @@ export async function graphRoutes(app: FastifyInstance) {
         });
       }
 
+      if (previousDecision === body.decision) {
+        return reply.code(200).send({
+          id: row.id,
+          decision: body.decision,
+          decidedAt: row.created_at_utc.toISOString(),
+          unchanged: true,
+        });
+      }
       // Bounded audit emit. Never write AdminAuditLog directly per
       // dedup register; always go through emitTenantAudit.
       try {
@@ -953,8 +974,37 @@ export async function graphRoutes(app: FastifyInstance) {
         prisma,
       );
       bump("graph_duplicate_list_executed_total");
+      // PRO-K1C-05 — a recorded decision is read back (additive fields):
+      // { decision, decidedByUserId, decidedAt } per edge, null when none.
+      const edgeIds = result.edges.map((e) => (e as { edgeId?: string; id?: string }).edgeId ?? (e as { id?: string }).id).filter(
+        (x): x is string => typeof x === "string",
+      );
+      const decisions = new Map<string, { decision: string; decided_by_user_id: string | null; created_at_utc: Date }>();
+      if (edgeIds.length > 0) {
+        try {
+          const rows = (await prisma.$queryRawUnsafe(
+            `SELECT "edge_id"::text AS edge_id, "decision", "decided_by_user_id"::text AS decided_by_user_id, "created_at_utc"
+               FROM "duplicate_decisions" WHERE "team_id" = $1::uuid AND "edge_id"::text = ANY($2::text[])`,
+            q.teamId,
+            edgeIds,
+          )) as Array<{ edge_id: string; decision: string; decided_by_user_id: string | null; created_at_utc: Date }>;
+          for (const r of rows) decisions.set(r.edge_id, r);
+        } catch {
+          /* decisions are additive; the list stands without them */
+        }
+      }
       return reply.code(200).send({
-        edges: result.edges.map(projectDuplicateEdgeForPublic),
+        edges: result.edges.map((e) => {
+          const projected = projectDuplicateEdgeForPublic(e);
+          const id = (e as { edgeId?: string; id?: string }).edgeId ?? (e as { id?: string }).id;
+          const d = id ? decisions.get(id) : undefined;
+          return {
+            ...projected,
+            decision: d
+              ? { decision: d.decision, decidedByUserId: d.decided_by_user_id, decidedAt: d.created_at_utc.toISOString() }
+              : null,
+          };
+        }),
         truncated: result.truncated,
       });
     },

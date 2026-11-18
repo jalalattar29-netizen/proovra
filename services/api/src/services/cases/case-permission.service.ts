@@ -271,6 +271,13 @@ export type CaseViewerCapabilities = {
   canResolveComment: boolean;
   canManageAccess: boolean;
   /**
+   * PRO-K1-13 — GRANTING access is a paid case write (the routes answer
+   * refuseCasePlanWrite); REVOKING stays open. `canManageAccess` keeps meaning
+   * "may manage the list" (revocation included); this one says whether a
+   * new grant is offered.
+   */
+  canGrantAccess: boolean;
+  /**
    * B3C-F-005 — Rename (MANAGE_SETTINGS) and Delete, from the destructive
    * gate's OWN role input (`resolveCaseDestructiveAccessRole`), never from the
    * case-owner / assignment lift the other flags use.
@@ -286,6 +293,7 @@ export type CaseViewerCapabilities = {
     comment: string;
     resolveComment: string;
     manageAccess: string;
+    grantAccess: string;
     rename: string;
     delete: string;
   }>;
@@ -513,6 +521,9 @@ export function resolveCaseViewerCapabilities(input: {
   if (!resolveComment.allowed)
     disabledReasons.resolveComment = resolveComment.reason;
   if (!manageAccess.allowed) disabledReasons.manageAccess = manageAccess.reason;
+  const grantAccess =
+    manageAccess.allowed && planReason ? { allowed: false as const, reason: planReason } : manageAccess;
+  if (!grantAccess.allowed) disabledReasons.grantAccess = grantAccess.reason;
   const destructive = (mutation: "DELETE" | "MANAGE_SETTINGS") =>
     input.destructiveAccessRole && input.destructiveAccessRole !== "NONE"
       ? evaluateCaseMutationPermission({
@@ -547,6 +558,7 @@ export function resolveCaseViewerCapabilities(input: {
     canComment: comment.allowed,
     canResolveComment: resolveComment.allowed,
     canManageAccess: manageAccess.allowed,
+    canGrantAccess: grantAccess.allowed,
     canRename: rename.allowed,
     canDelete: del.allowed,
     disabledReasons,

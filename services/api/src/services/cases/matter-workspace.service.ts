@@ -21,6 +21,7 @@
 
 import { loadOutputPairing } from "../reports/output-recovery.service.js";
 import { prisma } from "../../db.js";
+import { hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
 import { evidenceAnalysisRevisionFor } from "../ai/evidence-analysis-snapshot.service.js";
 import * as prismaPkg from "@prisma/client";
 import {
@@ -40,6 +41,7 @@ import {
 import { resolveEvidenceOutputEligibilityByRecord } from "../billing/evidence-output-eligibility.service.js";
 import { resolveOutputRecordApplicability } from "../evidence-artifact-status.service.js";
 import {
+  caseRiskForViewer,
   computeCaseRisk,
   listCaseEvidenceIdsForViewer,
   recordCaseRiskSnapshot,
@@ -107,6 +109,8 @@ export type MatterWorkspaceEnvelope = {
     canResolveComment: boolean;
     /** Grant / revoke direct case access (MANAGE_ACCESS). */
     canManageAccess: boolean;
+    /** PRO-K1-13 — a new grant is offered (plan-gated); additive. */
+    canGrantAccess: boolean;
     /** B3C-F-005 — Rename / Delete, from the destructive gate's own role input. */
     canRename: boolean;
     canDelete: boolean;
@@ -536,10 +540,17 @@ export async function buildMatterWorkspace(input: {
     }),
   );
 
+  // PRO-K1-06 — records a restricted case closes to this reader: a workflow
+  // about one of them is not shown (its title and summary are its data).
+  const hiddenEvidenceIds = caseRow.teamId
+    ? (await hiddenRecordIdsInWorkspace(caseRow.teamId, input.userId)).evidenceIds
+    : [];
+
   // Risk projection (lazy write).
   const risk = await runRisk({
     teamId: caseRow.teamId,
     caseId: caseRow.id,
+    viewerUserId: input.userId,
   });
 
   const [
@@ -560,10 +571,10 @@ export async function buildMatterWorkspace(input: {
     runCommandSummary(caseRow.id, caseRow.teamId, evidenceIds),
     runEvidenceBoard(caseRow.id, evidenceIds),
     runRelationships(caseRow.id, evidenceIds, input.userId),
-    runWorkflows(caseRow.id),
+    runWorkflows(caseRow.id, hiddenEvidenceIds),
     runIncidentsAndCausality(caseRow.id, evidenceIds),
     runReviewerCoordination(caseRow.id, caseRow.teamId, evidenceIds),
-    runGovernance(caseRow.id, evidenceIds, risk.data?.auditReadinessScore ?? null),
+    runGovernance(caseRow.id, evidenceIds, risk.data?.auditReadinessScore ?? null, hiddenEvidenceIds),
     runCustodyAndIntegrity(evidenceIds),
     runTimeline(caseRow.id, evidenceIds, commentFilter),
     runNotes(caseRow.id, evidenceIds, commentFilter),
@@ -602,6 +613,7 @@ export async function buildMatterWorkspace(input: {
       canComment: viewerCaps.canComment,
       canResolveComment: viewerCaps.canResolveComment,
       canManageAccess: viewerCaps.canManageAccess,
+      canGrantAccess: viewerCaps.canGrantAccess,
       canRename: viewerCaps.canRename,
       canDelete: viewerCaps.canDelete,
       disabledReasons: viewerCaps.disabledReasons,
@@ -633,9 +645,15 @@ export async function buildMatterWorkspace(input: {
 async function runRisk(input: {
   teamId: string | null;
   caseId: string;
+  /** PRO-K1-06 — the reader: a narrowed reader sees the risk of their own population. */
+  viewerUserId: string;
 }): Promise<MatterWorkspaceEnvelope["risk"]> {
   try {
-    const data = await recordCaseRiskSnapshot(input);
+    const stored = await recordCaseRiskSnapshot({ teamId: input.teamId, caseId: input.caseId });
+    const view = await caseRiskForViewer(input);
+    const data = view.narrowed
+      ? await computeCaseRisk({ teamId: input.teamId, caseId: input.caseId, evidenceIds: view.viewerEvidenceIds })
+      : stored;
     return {
       status: "ok",
       data,
@@ -643,7 +661,8 @@ async function runRisk(input: {
     };
   } catch {
     try {
-      const data = await computeCaseRisk(input);
+      const view = await caseRiskForViewer(input);
+      const data = await computeCaseRisk({ teamId: input.teamId, caseId: input.caseId, evidenceIds: view.viewerEvidenceIds });
       return {
         status: "degraded",
         data,
@@ -1080,11 +1099,13 @@ async function runRelationships(
 
 async function runWorkflows(
   caseId: string,
+  hiddenEvidenceIds: string[],
 ): Promise<MatterWorkspaceEnvelope["sections"]["workflows"]> {
   try {
     const rows = await prisma.operationalWorkflow.findMany({
       where: {
         caseId,
+        ...(hiddenEvidenceIds.length ? { OR: [{ evidenceId: null }, { evidenceId: { notIn: hiddenEvidenceIds } }] } : {}),
         status: {
           in: [
             "OPEN",
@@ -1442,6 +1463,7 @@ async function runGovernance(
   caseId: string,
   evidenceIds: string[],
   auditReadinessScore: number | null,
+  hiddenEvidenceIds: string[],
 ): Promise<MatterWorkspaceEnvelope["sections"]["governance"]> {
   try {
     const [canonicalCaseHolds, evidenceHolds, governanceWorkflows] =
@@ -1488,6 +1510,7 @@ async function runGovernance(
       prisma.operationalWorkflow.findMany({
         where: {
           caseId,
+          ...(hiddenEvidenceIds.length ? { OR: [{ evidenceId: null }, { evidenceId: { notIn: hiddenEvidenceIds } }] } : {}),
           workflowType: {
             in: [
               "GOVERNANCE_ESCALATION",

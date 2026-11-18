@@ -4321,6 +4321,24 @@ async function projectReviewerAuditForViewer<
   return out;
 }
 
+/**
+ * PRO-R2-07 — reviewer notes written by /v1/reviewer-ops/workspace/:id/notes
+ * are stored as `{"v":1,"type","body"}`; every comment reader shows the text
+ * (and the type, additively), never the raw envelope.
+ */
+function decodeReviewerNoteEnvelope(stored: string): { body: string; type: string | null } {
+  if (!stored.trim().startsWith("{")) return { body: stored, type: null };
+  try {
+    const parsed = JSON.parse(stored) as { v?: number; type?: unknown; body?: unknown };
+    if (parsed && parsed.v === 1 && typeof parsed.type === "string" && typeof parsed.body === "string") {
+      return { body: parsed.body, type: parsed.type };
+    }
+  } catch {
+    /* plain text */
+  }
+  return { body: stored, type: null };
+}
+
 function mapCollaborativeAuthor(user: { id: string; displayName: string | null; email: string | null }) {
   return {
     id: user.id,
@@ -9033,7 +9051,9 @@ return {
         id: comment.id,
         evidenceId: comment.evidenceId,
         visibility: comment.visibility,
-        body: comment.body,
+        // PRO-R2-07 — a reviewer note stored as a v1 envelope reads as its text.
+        body: decodeReviewerNoteEnvelope(comment.body).body,
+        noteType: decodeReviewerNoteEnvelope(comment.body).type,
         createdAt: comment.createdAt.toISOString(),
         updatedAt: comment.updatedAt.toISOString(),
         edited: comment.updatedAt.getTime() !== comment.createdAt.getTime(),
