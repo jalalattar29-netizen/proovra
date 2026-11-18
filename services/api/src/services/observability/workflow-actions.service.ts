@@ -23,7 +23,7 @@
  *      operator is looking at a stale board.
  *
  *   3. DURABLE IDEMPOTENCY.
- *      `findWorkflowActionReplay` / `recordWorkflowActionIdempotency`
+ *      `findWorkflowActionReplay` / `reserveWorkflowActionIdempotency`
  *      persist the caller's idempotency key on an
  *      `OperationalWorkflowEvent.metadataJson` row (durable Postgres
  *      state, NOT in-process memory). A retry with the same key
@@ -44,6 +44,8 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
+import { resolveMemberWorkspaceCapabilities } from "../platform-context/workspace-capability.service.js";
+import type { CapabilityKey } from "../platform-context/types.js";
 
 // ---------------------------------------------------------------------------
 // Bounded action catalog
@@ -109,12 +111,50 @@ export const WORKFLOW_ACTIONS_REQUIRING_STEP_UP: ReadonlySet<WorkflowActionKey> 
 const DESTRUCTIVE_ACTIONS: ReadonlySet<WorkflowActionKey> =
   new Set<WorkflowActionKey>(["resolve", "suppress", "reopen"]);
 
+export type WorkflowOpsPermission =
+  | "operations.acknowledge"
+  | "operations.assign"
+  | "operations.resolve"
+  | "operations.suppress";
+
 /**
- * Canonical capability every workflow mutation is gated on. Mirrors the
- * gate `requireOpsActorAction` already enforces so the projection can
- * never disagree with the enforcement path.
+ * PRO-P1C-01 — THE one action → permission table, read by the routes'
+ * `requireOpsCapability` gate AND by this projection, so the two cannot
+ * disagree. It replaces the single stale `identity.access_review.action`
+ * (the pre-Phase-4B gate) the projection used to decide all eight actions
+ * by, which disabled every action for a MEMBER who may act and enabled
+ * Assign/Escalate for a solo owner the route refuses.
  */
-export const WORKFLOW_ACTION_PERMISSION = "identity.access_review.action";
+export const WORKFLOW_ACTION_OPS_PERMISSION: Readonly<Record<WorkflowActionKey, WorkflowOpsPermission>> = {
+  start: "operations.acknowledge",
+  assign: "operations.assign",
+  escalate: "operations.assign",
+  mitigation: "operations.acknowledge",
+  resolve: "operations.resolve",
+  suppress: "operations.suppress",
+  reopen: "operations.resolve",
+  "schedule-retry": "operations.acknowledge",
+};
+
+/** Each Operations permission and the workbench capability that must accompany it (as the routes' gate). */
+const OPS_PERMISSION_CAPABILITY = {
+  "operations.acknowledge": "OPERATIONS_ACKNOWLEDGE",
+  "operations.assign": "OPERATIONS_ASSIGN",
+  "operations.resolve": "OPERATIONS_RESOLVE",
+  "operations.suppress": "OPERATIONS_SUPPRESS",
+} as const satisfies Record<WorkflowOpsPermission, CapabilityKey>;
+
+/** Per action: may the caller take it in this workspace (role permission AND workbench capability). */
+export type WorkflowActionGrants = Readonly<Record<WorkflowActionKey, boolean>>;
+
+const NO_GRANTS: WorkflowActionGrants = Object.freeze(
+  Object.fromEntries(WORKFLOW_ACTION_KEYS.map((a) => [a, false])) as Record<WorkflowActionKey, boolean>,
+);
+
+/** True when at least one action is open to the caller (the response's `canAct`). */
+export function anyWorkflowActionGranted(grants: WorkflowActionGrants): boolean {
+  return WORKFLOW_ACTION_KEYS.some((a) => grants[a]);
+}
 
 type WorkflowStatus = prismaPkg.OperationalWorkflowStatus;
 
@@ -156,7 +196,7 @@ export function stateReasonFor(
 export type WorkflowActionProjection = {
   /** Stale-state token the caller must echo back as `expectedVersion`. */
   version: string;
-  /** True when the caller holds the mutation capability in this workspace. */
+  /** True when the caller may take at least one action in this workspace. */
   canAct: boolean;
   actions: ReadonlyArray<WorkflowActionAvailability>;
 };
@@ -164,19 +204,19 @@ export type WorkflowActionProjection = {
 /**
  * Builds the permission-aware action projection for one workflow.
  *
- * `canAct` is resolved ONCE per request by the caller (routes evaluate
+ * `grants` is resolved ONCE per request by the caller (routes evaluate
  * it against the workspace derived from the persisted workflow row) and
  * threaded in, so a list projection does not fan out one capability
  * evaluation per row.
  */
 export function projectWorkflowActions(input: {
   workflow: Pick<prismaPkg.OperationalWorkflow, "status" | "updatedAt">;
-  canAct: boolean;
+  grants: WorkflowActionGrants;
 }): WorkflowActionProjection {
   const actions = WORKFLOW_ACTION_KEYS.map<WorkflowActionAvailability>(
     (action) => {
       const stateReason = stateReasonFor(action, input.workflow.status);
-      const reason: WorkflowActionUnavailableReason | null = !input.canAct
+      const reason: WorkflowActionUnavailableReason | null = !input.grants[action]
         ? "CAPABILITY_REQUIRED"
         : stateReason;
       return {
@@ -184,7 +224,7 @@ export function projectWorkflowActions(input: {
         label: ACTION_LABELS[action],
         available: reason === null,
         reason,
-        permission: WORKFLOW_ACTION_PERMISSION,
+        permission: WORKFLOW_ACTION_OPS_PERMISSION[action],
         requiresStepUp: WORKFLOW_ACTIONS_REQUIRING_STEP_UP.has(action),
         destructive: DESTRUCTIVE_ACTIONS.has(action),
       };
@@ -192,7 +232,7 @@ export function projectWorkflowActions(input: {
   );
   return {
     version: workflowVersion(input.workflow),
-    canAct: input.canAct,
+    canAct: anyWorkflowActionGranted(input.grants),
     actions,
   };
 }
@@ -209,23 +249,41 @@ export function workflowVersion(
 }
 
 /**
- * Resolves whether the caller currently holds the workflow-mutation
- * capability in the given workspace. Fail-closed: any evaluator error
- * resolves to `false` rather than granting the action.
+ * PRO-P1C-01 — per action, whether the caller holds what the action's route
+ * enforces: the action's `operations.*` permission (canonical role matrix,
+ * member lifecycle included) AND the matching workbench capability (plan,
+ * workspace kind, sharing). The same two questions `requireOpsCapability`
+ * asks, answered once per distinct permission. Fail-closed: any evaluator
+ * error resolves to "no action" rather than granting one.
  */
 export async function resolveWorkflowActionCapability(input: {
   teamId: string;
   userId: string;
-}): Promise<boolean> {
+}): Promise<WorkflowActionGrants> {
   try {
-    const decision = await evaluateMemberAccess({
-      teamId: input.teamId,
+    const resolved = await resolveMemberWorkspaceCapabilities({
       userId: input.userId,
-      permission: WORKFLOW_ACTION_PERMISSION,
+      teamId: input.teamId,
     });
-    return decision.allowed === true;
+    if (!resolved) return NO_GRANTS;
+    const permissions = [...new Set(Object.values(WORKFLOW_ACTION_OPS_PERMISSION))];
+    const held = new Map<WorkflowOpsPermission, boolean>();
+    for (const permission of permissions) {
+      const decision = await evaluateMemberAccess({
+        teamId: input.teamId,
+        userId: input.userId,
+        permission,
+      });
+      held.set(
+        permission,
+        decision.allowed === true && resolved.capabilities[OPS_PERMISSION_CAPABILITY[permission]] === true,
+      );
+    }
+    return Object.fromEntries(
+      WORKFLOW_ACTION_KEYS.map((a) => [a, held.get(WORKFLOW_ACTION_OPS_PERMISSION[a]) === true]),
+    ) as Record<WorkflowActionKey, boolean>;
   } catch {
-    return false;
+    return NO_GRANTS;
   }
 }
 
@@ -351,43 +409,89 @@ export async function findWorkflowActionReplay(
   }
 }
 
+/** PRO-P1-06 — the reservation token, unique per workspace. */
+export function workflowReservationToken(
+  workflowId: string,
+  action: WorkflowActionKey,
+  idempotencyKey: string,
+): string {
+  return `${workflowId}:${idempotencyToken(action, idempotencyKey)}`.slice(0, 200);
+}
+
+export type WorkflowIdempotencyReservation =
+  | { kind: "reserved"; markerId: string }
+  | { kind: "replay"; recordedAtUtc: string };
+
 /**
- * Records the idempotency marker AFTER the state writer succeeded.
- * Best-effort: a marker write failure never rolls back an applied
- * action, it only means a retry with the same key re-applies.
+ * PRO-P1-06 — RESERVE the key BEFORE the effect.
+ *
+ * The marker used to be written after the state writer, so two concurrent
+ * requests with one key both found no marker and both applied. The marker is
+ * now inserted first under the (team, idempotency_token) unique index: exactly
+ * one request inserts it and runs the action; the other hits the index and
+ * replays. A marker whose action then fails is released
+ * (`releaseWorkflowActionIdempotency`), so a retry can run.
  */
-export async function recordWorkflowActionIdempotency(
+export async function reserveWorkflowActionIdempotency(
   input: {
     workflowId: string;
     teamId: string;
     action: WorkflowActionKey;
     idempotencyKey: string;
     actorUserId: string;
-    resultingStatus: prismaPkg.OperationalWorkflowStatus;
+    currentStatus: prismaPkg.OperationalWorkflowStatus;
   },
   client: PrismaClient = defaultPrisma,
-): Promise<void> {
+): Promise<WorkflowIdempotencyReservation> {
+  const reservationToken = workflowReservationToken(input.workflowId, input.action, input.idempotencyKey);
   try {
-    await client.operationalWorkflowEvent.create({
+    const marker = await client.operationalWorkflowEvent.create({
       data: {
         workflowId: input.workflowId,
         teamId: input.teamId,
         eventType: "STATUS_CHANGED",
         actorUserId: input.actorUserId,
-        toStatus: input.resultingStatus,
+        fromStatus: input.currentStatus,
         summary: `Operator action "${input.action}" recorded with an idempotency key.`,
+        idempotencyToken: reservationToken,
         metadataJson: {
-          opsIdempotencyToken: idempotencyToken(
-            input.action,
-            input.idempotencyKey,
-          ),
+          opsIdempotencyToken: idempotencyToken(input.action, input.idempotencyKey),
           opsAction: input.action,
         },
       },
+      select: { id: true },
     });
-  } catch {
-    /* best-effort provenance marker */
+    return { kind: "reserved", markerId: marker.id };
+  } catch (err) {
+    if ((err as { code?: string })?.code !== "P2002") throw err;
+    const prior = await client.operationalWorkflowEvent.findFirst({
+      where: { teamId: input.teamId, idempotencyToken: reservationToken },
+      select: { occurredAtUtc: true },
+    });
+    return {
+      kind: "replay",
+      recordedAtUtc: (prior?.occurredAtUtc ?? new Date()).toISOString(),
+    };
   }
+}
+
+/** PRO-P1-06 — the action applied: the reservation records the resulting status. */
+export async function completeWorkflowActionIdempotency(
+  markerId: string,
+  resultingStatus: prismaPkg.OperationalWorkflowStatus,
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  await client.operationalWorkflowEvent
+    .update({ where: { id: markerId }, data: { toStatus: resultingStatus } })
+    .catch(() => undefined);
+}
+
+/** PRO-P1-06 — the action did NOT apply: release the key so a retry runs. */
+export async function releaseWorkflowActionIdempotency(
+  markerId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  await client.operationalWorkflowEvent.delete({ where: { id: markerId } }).catch(() => undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -426,7 +530,7 @@ export type WorkflowPublicProjection = {
  */
 export function projectWorkflowForPublic(
   workflow: prismaPkg.OperationalWorkflow,
-  canAct: boolean,
+  grants: WorkflowActionGrants,
 ): WorkflowPublicProjection {
   return {
     id: workflow.id,
@@ -450,6 +554,6 @@ export function projectWorkflowForPublic(
     evidenceId: workflow.evidenceId,
     queueName: workflow.queueName,
     updatedAtUtc: workflow.updatedAt.toISOString(),
-    projection: projectWorkflowActions({ workflow, canAct }),
+    projection: projectWorkflowActions({ workflow, grants }),
   };
 }

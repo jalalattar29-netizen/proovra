@@ -153,11 +153,15 @@ import { runSchemaValidation } from "../runtime/schema-validation.js";
 // optimistic concurrency, and durable idempotency.
 import {
   WORKFLOW_ACTIONS_REQUIRING_STEP_UP,
+  WORKFLOW_ACTION_OPS_PERMISSION,
+  anyWorkflowActionGranted,
   assertWorkflowVersion,
   bindWorkflowWorkspace,
+  completeWorkflowActionIdempotency,
   findWorkflowActionReplay,
   projectWorkflowForPublic,
-  recordWorkflowActionIdempotency,
+  releaseWorkflowActionIdempotency,
+  reserveWorkflowActionIdempotency,
   resolveWorkflowActionCapability,
   stateReasonFor,
   type BoundWorkflow,
@@ -339,7 +343,7 @@ async function requireDomainActionOnOpsSurface(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-  permission: "intelligence.run",
+  permission: "intelligence.run" | "review.assign",
 ): Promise<{ userId: string } | null> {
   const userId = getAuthUserId(req);
   const member = await prisma.teamMember.findUnique({
@@ -2554,6 +2558,11 @@ export async function opsRoutes(app: FastifyInstance) {
       reply.code(409).send({ error: { code: "invalid_transition" } });
       return true;
     }
+    // PRO-P1C-02 — the writer's compare-and-set lost to a concurrent change.
+    if (e?.code === "stale_workflow_state") {
+      reply.code(409).send({ error: { code: "stale_workflow_state" } });
+      return true;
+    }
     // The in-write assignee re-check refused (a placement or access change
     // landed after the early check): the same answer the early check gives.
     if (e?.code === "invalid_assignee") {
@@ -2629,8 +2638,22 @@ export async function opsRoutes(app: FastifyInstance) {
       userId: input.actorUserId,
     });
 
+    const replayCurrent = async (recordedAtUtc: string) => {
+      const current =
+        (await prisma.operationalWorkflow.findFirst({
+          where: { id: bound.workflow.id, teamId },
+        })) ?? bound.workflow;
+      return reply.code(200).send({
+        workflow: projectWorkflowForPublic(current, canAct),
+        applied: false,
+        idempotentReplay: true,
+        replayedAtUtc: recordedAtUtc,
+      });
+    };
+
     // 3. Durable idempotency replay — returns the CURRENT server state
-    //    without re-applying.
+    //    without re-applying. (A marker an older image stamped after its
+    //    effect is still honoured here.)
     if (input.idempotencyKey) {
       const replay = await findWorkflowActionReplay({
         workflowId: bound.workflow.id,
@@ -2638,18 +2661,7 @@ export async function opsRoutes(app: FastifyInstance) {
         action,
         idempotencyKey: input.idempotencyKey,
       });
-      if (replay) {
-        const current =
-          (await prisma.operationalWorkflow.findFirst({
-            where: { id: bound.workflow.id, teamId },
-          })) ?? bound.workflow;
-        return reply.code(200).send({
-          workflow: projectWorkflowForPublic(current, canAct),
-          applied: false,
-          idempotentReplay: true,
-          replayedAtUtc: replay.recordedAtUtc,
-        });
-      }
+      if (replay) return replayCurrent(replay.recordedAtUtc);
     }
 
     // 4. Target-bound step-up for the sensitive closures.
@@ -2666,26 +2678,34 @@ export async function opsRoutes(app: FastifyInstance) {
       if (stepUp.sent) return;
     }
 
-    // 5. ONE state writer.
-    let updated: prismaPkg.OperationalWorkflow;
-    try {
-      updated = await input.apply();
-    } catch (err) {
-      if (handleWorkflowError(reply, err)) return;
-      throw err;
-    }
-
-    // 6. Durable provenance for the idempotency key.
+    // 5. PRO-P1-06 — RESERVE the key before the effect (unique index): of
+    //    two concurrent requests with one key exactly one applies; the
+    //    other replays.
+    let markerId: string | null = null;
     if (input.idempotencyKey) {
-      await recordWorkflowActionIdempotency({
-        workflowId: updated.id,
+      const reservation = await reserveWorkflowActionIdempotency({
+        workflowId: bound.workflow.id,
         teamId,
         action,
         idempotencyKey: input.idempotencyKey,
         actorUserId: input.actorUserId,
-        resultingStatus: updated.status,
+        currentStatus: bound.workflow.status,
       });
+      if (reservation.kind === "replay") return replayCurrent(reservation.recordedAtUtc);
+      markerId = reservation.markerId;
     }
+
+    // 6. ONE state writer (which re-checks the state machine and the
+    //    version it read as a compare-and-set — PRO-P1C-02).
+    let updated: prismaPkg.OperationalWorkflow;
+    try {
+      updated = await input.apply();
+    } catch (err) {
+      if (markerId) await releaseWorkflowActionIdempotency(markerId);
+      if (handleWorkflowError(reply, err)) return;
+      throw err;
+    }
+    if (markerId) await completeWorkflowActionIdempotency(markerId, updated.status);
 
     return reply.code(200).send({
       workflow: projectWorkflowForPublic(updated, canAct),
@@ -2701,8 +2721,10 @@ export async function opsRoutes(app: FastifyInstance) {
       const q = z
         .object({
           teamId: z.string().uuid(),
-          status: z.string().min(1).max(40).optional(),
-          workflowType: z.string().min(1).max(40).optional(),
+          // PRO-P1-04 — closed vocabularies: an unknown value is a 400, never
+          // a Prisma enum error served as a 500.
+          status: z.nativeEnum(prismaPkg.OperationalWorkflowStatus).optional(),
+          workflowType: z.nativeEnum(prismaPkg.OperationalWorkflowType).optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
         })
         .parse(req.query ?? {});
@@ -2724,10 +2746,13 @@ export async function opsRoutes(app: FastifyInstance) {
         teamId: q.teamId,
         userId: actor.userId,
       });
+      // PRO-P1C-01 — `canAct` is per action now; the list-level flag says
+      // whether ANY action is open to the caller.
+      const anyAction = anyWorkflowActionGranted(canAct);
       return reply.code(200).send({
         workflows: rows.map((r) => projectWorkflowForPublic(r, canAct)),
-        canAct,
-        denialReason: canAct ? null : "CAPABILITY_REQUIRED",
+        canAct: anyAction,
+        denialReason: anyAction ? null : "CAPABILITY_REQUIRED",
       });
     },
   );
@@ -2775,8 +2800,8 @@ export async function opsRoutes(app: FastifyInstance) {
         .catch(() => []);
       return reply.code(200).send({
         workflow: projectWorkflowForPublic(row, canAct),
-        canAct,
-        denialReason: canAct ? null : "CAPABILITY_REQUIRED",
+        canAct: anyWorkflowActionGranted(canAct),
+        denialReason: anyWorkflowActionGranted(canAct) ? null : "CAPABILITY_REQUIRED",
         history: history.map((h) => ({
           id: h.id,
           eventType: h.eventType,
@@ -2804,7 +2829,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
+      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["assign"]);
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -2874,7 +2899,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
+      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["start"]);
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -2916,7 +2941,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
+      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["escalate"]);
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -2958,7 +2983,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
+      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["mitigation"]);
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -3001,7 +3026,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
+      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["resolve"]);
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -3044,7 +3069,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.suppress");
+      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["suppress"]);
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -3086,7 +3111,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
+      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["reopen"]);
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -3128,7 +3153,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
+      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["schedule-retry"]);
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -3696,47 +3721,80 @@ export async function opsRoutes(app: FastifyInstance) {
       );
       if (!actor) return;
 
+      // PRO-P1-05 — a reviewer routing recommendation is a REVIEW-domain
+      // record (who should review what). Operations links to it and does not
+      // acquire the right to change it: dismissing one needs the review
+      // domain's own assignment authority — the `review.assign` permission
+      // and the plan's REVIEW_ASSIGNMENTS capability, exactly what the
+      // reviewer-ops assignment routes require.
+      if (body.actionType === "BULK_DISMISS_RECOMMENDATIONS") {
+        const reviewer = await requireDomainActionOnOpsSurface(req, reply, body.teamId, "review.assign");
+        if (!reviewer) return;
+        const { workspaceIncludesReviewCapability } = await import("../services/billing-enforcement.service.js");
+        if (!(await workspaceIncludesReviewCapability(body.teamId, "REVIEW_ASSIGNMENTS"))) {
+          return reply.code(403).send({
+            error: {
+              code: "ENTITLEMENT_REQUIRED",
+              reason: "reviewer_operations_not_included",
+              entitlement: "REVIEW_ASSIGNMENTS",
+              requestId: req.id,
+            },
+          });
+        }
+      }
+
       // OPS-030 — refused before any item runs: a bulk "Stop notifying" with
       // no reason would otherwise record N item failures for one omission.
       if (body.actionType === "BULK_SUPPRESS_INCIDENTS" && (body.note ?? "").trim().length < 3) {
         return reply.code(400).send({ error: { code: "SUPPRESSION_REASON_REQUIRED" } });
       }
 
-      // 1. Durable idempotency replay — the marker is persisted on the
-      //    run row's resultJson, so a retry after a dropped connection
-      //    reads back the original outcome instead of re-fanning out.
+      // 1. Durable idempotency replay — the key is reserved on the run row
+      //    (PRO-P1-06: `idempotency_token`, unique, written BEFORE any item
+      //    runs) and, for runs an older image wrote, stamped on resultJson,
+      //    so a retry reads back the original outcome instead of re-fanning
+      //    out.
+      const bulkIdempotencyToken = body.idempotencyKey
+        ? `${body.actionType}:${body.idempotencyKey}`.slice(0, 200)
+        : null;
+      const replayRun = async (prior: prismaPkg.BulkOperationalActionRun) => {
+        const priorItems = await prisma.bulkOperationalActionItem
+          .findMany({
+            where: { runId: prior.id },
+            orderBy: { createdAt: "asc" },
+            take: 500,
+          })
+          .catch(() => []);
+        return reply.code(200).send({
+          run: {
+            runId: prior.id,
+            status: prior.status,
+            ...(prior.resultJson as Record<string, unknown> | null),
+          },
+          items: priorItems.map(projectBulkItem),
+          idempotentReplay: true,
+        });
+      };
       if (body.idempotencyKey) {
         const prior = await prisma.bulkOperationalActionRun
           .findFirst({
             where: {
               teamId: body.teamId,
               actionType: body.actionType,
-              resultJson: {
-                path: ["opsIdempotencyKey"],
-                equals: body.idempotencyKey,
-              },
+              OR: [
+                { idempotencyToken: bulkIdempotencyToken },
+                {
+                  resultJson: {
+                    path: ["opsIdempotencyKey"],
+                    equals: body.idempotencyKey,
+                  },
+                },
+              ],
             },
             orderBy: { createdAt: "desc" },
           })
           .catch(() => null);
-        if (prior) {
-          const priorItems = await prisma.bulkOperationalActionItem
-            .findMany({
-              where: { runId: prior.id },
-              orderBy: { createdAt: "asc" },
-              take: 500,
-            })
-            .catch(() => []);
-          return reply.code(200).send({
-            run: {
-              runId: prior.id,
-              status: prior.status,
-              ...(prior.resultJson as Record<string, unknown> | null),
-            },
-            items: priorItems.map(projectBulkItem),
-            idempotentReplay: true,
-          });
-        }
+        if (prior) return replayRun(prior);
       }
 
       // 1b. Assignee eligibility, checked ONCE before the fan-out.
@@ -3806,20 +3864,32 @@ export async function opsRoutes(app: FastifyInstance) {
       });
       if (stepUp.sent) return;
 
-      const { runBulkAction } = await import(
+      const { runBulkAction, BulkIdempotencyReplay } = await import(
         "../services/dashboard/bulk-actions.service.js"
       );
-      const result = await runBulkAction({
-        teamId: body.teamId,
-        actionType: body.actionType,
-        targetIds: body.targetIds,
-        note: body.note ?? null,
-        assigneeUserId: body.assigneeUserId ?? null,
-        nextRetryAtUtc: body.nextRetryAtUtc ?? null,
-        actorUserId: actor.userId,
-        ipAddress: requestIp(req),
-        userAgent: requestUa(req),
-      });
+      let result: Awaited<ReturnType<typeof runBulkAction>>;
+      try {
+        result = await runBulkAction({
+          teamId: body.teamId,
+          actionType: body.actionType,
+          targetIds: body.targetIds,
+          note: body.note ?? null,
+          assigneeUserId: body.assigneeUserId ?? null,
+          nextRetryAtUtc: body.nextRetryAtUtc ?? null,
+          actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+          idempotencyToken: bulkIdempotencyToken,
+        });
+      } catch (err) {
+        // PRO-P1-06 — a concurrent request reserved the same key first: this
+        // one ran nothing and answers that run (possibly still RUNNING).
+        if (err instanceof BulkIdempotencyReplay) {
+          const prior = await prisma.bulkOperationalActionRun.findUnique({ where: { id: err.runId } });
+          if (prior) return replayRun(prior);
+        }
+        throw err;
+      }
 
       // 3. Stamp the idempotency marker onto the persisted run.
       if (body.idempotencyKey) {

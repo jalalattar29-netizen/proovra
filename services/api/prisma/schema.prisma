@@ -11191,9 +11191,13 @@ model OperationalWorkflowEvent {
   summary       String                       @db.VarChar(400)
   metadataJson  Json?                        @map("metadata_json")
   occurredAtUtc DateTime                     @default(now()) @map("occurred_at_utc") @db.Timestamptz(6)
+  /// PRO-P1-06 — an operator action's idempotency reservation
+  /// (`<workflowId>:<action>:<key>`), written BEFORE the effect.
+  idempotencyToken String?                   @map("idempotency_token") @db.VarChar(200)
 
   workflow OperationalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
+  @@unique([teamId, idempotencyToken])
   @@index([workflowId, occurredAtUtc(sort: Desc)])
   @@index([teamId, occurredAtUtc(sort: Desc)])
   @@index([eventType])
@@ -11499,9 +11503,13 @@ model BulkOperationalActionRun {
 
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   completedAtUtc DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  /// PRO-P1-06 — the run's idempotency reservation (`<actionType>:<key>`),
+  /// written with the run row BEFORE any item runs.
+  idempotencyToken String? @map("idempotency_token") @db.VarChar(200)
 
   items BulkOperationalActionItem[]
 
+  @@unique([teamId, idempotencyToken])
   @@index([teamId, status])
   @@index([teamId, createdAt(sort: Desc)])
   @@index([actionType])
