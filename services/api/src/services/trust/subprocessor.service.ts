@@ -177,22 +177,32 @@ export async function listSubprocessorVersions(input: {
 
 /**
  * Idempotent seed of the canonical thirteen subprocessors PROOVRA
- * uses today. ensureSubprocessorSeed calls upsertSubprocessor for
- * each row, which performs prisma.subprocessor.upsert keyed on
- * (teamId, slug) — safe to re-run, additive across releases.
+ * uses today.
+ *
+ * PRO-G2-04 / PRO-G2-13 (RG-20) — INSERT-IF-ABSENT. A canonical slug the
+ * workspace already holds is never touched: the seed used to re-apply every
+ * canonical row (state back to ACTIVE, contractRef cleared, a new version
+ * authored by whoever triggered it), so a read path or a re-seed silently
+ * undid what the owner had recorded. Changing an existing row is an authored
+ * write through POST /v1/trust/subprocessors. `updated` is kept in the result
+ * for older clients and is always 0.
  */
 export async function ensureSubprocessorSeed(input: {
   prisma?: PrismaClient;
   teamId: string;
   systemUserId: string;
-}): Promise<{ created: number; updated: number }> {
+}): Promise<{ created: number; updated: number; skipped: number }> {
   let created = 0;
-  let updated = 0;
+  let skipped = 0;
   for (const seed of SEED_SUBPROCESSORS) {
     const existing = await (input.prisma ?? defaultPrisma).subprocessor.findFirst({
       where: { teamId: input.teamId, slug: seed.slug },
       select: { id: true },
     });
+    if (existing) {
+      skipped += 1;
+      continue;
+    }
     const res = await upsertSubprocessor({
       prisma: input.prisma,
       teamId: input.teamId,
@@ -205,14 +215,13 @@ export async function ensureSubprocessorSeed(input: {
       dataCategories: seed.dataCategories,
       documentationUrl: seed.documentationUrl,
       contractRef: null,
-      changeSummary: existing ? "seed re-applied" : "initial registration",
+      changeSummary: "initial registration",
       authoredByUserId: input.systemUserId,
     });
     if (!res.ok) continue;
-    if (existing) updated += 1;
-    else created += 1;
+    created += 1;
   }
-  return { created, updated };
+  return { created, updated: 0, skipped };
 }
 
 type SeedSubprocessor = {

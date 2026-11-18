@@ -134,6 +134,64 @@ export type TrustArticleProjection = {
   driftState?: TrustArticleDriftState;
 };
 
+/**
+ * PRO-G2-03 (RG-20) — THE rule for an article's `implementationReferences`.
+ *
+ * A reference names a file or folder of the PROOVRA repository, relative to
+ * the monorepo root, under one of the source roots below (an optional
+ * `#anchor` is allowed). The drift and security-claim scanners check whether
+ * a reference exists on the API host; a tenant-supplied absolute path or a
+ * `..` traversal turned that check into a file-existence oracle over the
+ * server. The writer refuses non-conforming references, and both scanners
+ * skip any stored legacy value that does not conform — it is never probed.
+ */
+export const TRUST_IMPLEMENTATION_REFERENCE_PREFIXES = [
+  "services/",
+  "packages/",
+  "apps/",
+  "docs/",
+] as const;
+export const TRUST_IMPLEMENTATION_REFERENCE_MAX_COUNT = 20;
+export const TRUST_IMPLEMENTATION_REFERENCE_MAX_LENGTH = 400;
+
+const TRUST_REFERENCE_PATH = /^[A-Za-z0-9_][A-Za-z0-9._/-]*$/;
+const TRUST_REFERENCE_ANCHOR = /^[A-Za-z0-9._:-]{0,120}$/;
+
+export function isSafeTrustImplementationReference(ref: unknown): ref is string {
+  if (typeof ref !== "string") return false;
+  if (ref.length === 0 || ref.length > TRUST_IMPLEMENTATION_REFERENCE_MAX_LENGTH) return false;
+  const hash = ref.indexOf("#");
+  const pathPart = hash === -1 ? ref : ref.slice(0, hash);
+  const anchor = hash === -1 ? "" : ref.slice(hash + 1);
+  if (!TRUST_REFERENCE_PATH.test(pathPart)) return false;
+  if (!TRUST_REFERENCE_ANCHOR.test(anchor)) return false;
+  if (!TRUST_IMPLEMENTATION_REFERENCE_PREFIXES.some((p) => pathPart.startsWith(p))) return false;
+  for (const segment of pathPart.split("/")) {
+    if (segment === ".." || segment === ".") return false;
+  }
+  if (pathPart.includes("//")) return false;
+  return true;
+}
+
+/** Splits stored references into the ones a scanner may check and the rest. */
+export function partitionTrustImplementationReferences(value: unknown): {
+  safe: ReadonlyArray<string>;
+  refused: ReadonlyArray<string>;
+} {
+  const safe: string[] = [];
+  const refused: string[] = [];
+  if (!Array.isArray(value)) return { safe, refused };
+  for (const entry of value) {
+    if (typeof entry !== "string" || entry.length === 0) continue;
+    if (safe.length < TRUST_IMPLEMENTATION_REFERENCE_MAX_COUNT && isSafeTrustImplementationReference(entry)) {
+      safe.push(entry);
+    } else {
+      refused.push(entry);
+    }
+  }
+  return { safe, refused };
+}
+
 export type TrustArticleVersionProjection = {
   id: string;
   articleId: string;

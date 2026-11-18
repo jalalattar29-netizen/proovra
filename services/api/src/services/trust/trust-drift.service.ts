@@ -21,10 +21,11 @@
  */
 
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
+  partitionTrustImplementationReferences,
   TRUST_ARTICLE_DRIFT_STATES,
   type TrustArticleDriftState,
 } from "@proovra/shared";
@@ -79,11 +80,16 @@ export async function runTrustArticleDriftScan(
   let missingReferenceCount = 0;
 
   for (const row of rows) {
-    const refs = parseImplementationReferences(row.implementationReferences);
-    const missing: string[] = [];
-    for (const ref of refs) {
-      const absolute = isAbsolute(ref) ? ref : resolve(monorepoRoot, ref);
-      if (!existsSync(absolute)) {
+    // PRO-G2-03 — only a repository-relative reference under a source root is
+    // ever checked on this host. A stored legacy value that does not conform
+    // (absolute path, traversal, unknown root) is reported as unresolvable
+    // WITHOUT touching the filesystem, so the answer for it is constant and
+    // reveals nothing about the host.
+    const { safe, refused } = partitionTrustImplementationReferences(row.implementationReferences);
+    const missing: string[] = [...refused];
+    for (const ref of safe) {
+      const absolute = resolve(monorepoRoot, ref.split("#")[0] ?? ref);
+      if (!absolute.startsWith(monorepoRoot) || !existsSync(absolute)) {
         missing.push(ref);
       }
     }

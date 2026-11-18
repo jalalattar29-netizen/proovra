@@ -189,6 +189,61 @@ async function refuseTrustAuthoring(
   return true;
 }
 
+/**
+ * PRO-G2-13 / PRO-G2-04 (RG-20) — THE ONE TRUST WRITE RULE.
+ *
+ * Every Trust Center write (articles, the canonical seeds, subprocessors, the
+ * status page) answers here, in one order: the resource's capability
+ * (canonical permission engine, concealed refusal) -> the commercial
+ * entitlement when the write is CUSTOMER-AUTHORED content (DEC-12: custom
+ * authoring is an Enterprise capability; the canonical platform seed is not
+ * customer content and needs none) -> a target-bound step-up when the write
+ * PUBLISHES or OVERWRITES existing content. A route never assembles its own
+ * combination again.
+ *
+ * Answers true when a refusal or challenge was sent.
+ */
+type TrustWriteSpec = {
+  permission:
+    | "trust.article.publish"
+    | "trust.subprocessor.manage"
+    | "governance.policy.manage";
+  customerAuthored: boolean;
+  stepUp: null | {
+    purpose: "TRUST_CONTENT_PUBLISH" | "STATUS_INCIDENT_PUBLISH" | "STATUS_MAINTENANCE_PUBLISH";
+    resourceKind: string;
+    resourceId: string;
+  };
+};
+
+async function refuseTrustWrite(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  ctx: { teamId: string; userId: string },
+  spec: TrustWriteSpec,
+): Promise<boolean> {
+  const authorized = await authorizeOrFail(req, reply, {
+    teamId: ctx.teamId,
+    permission: spec.permission,
+    antiEnumeration: true,
+  });
+  if (!authorized) return true;
+  if (spec.customerAuthored && (await refuseTrustAuthoring(reply, ctx))) return true;
+  if (spec.stepUp) {
+    const stepUp = await requireStepUpForSensitiveAction({
+      req,
+      reply,
+      teamId: ctx.teamId,
+      userId: ctx.userId,
+      purpose: spec.stepUp.purpose,
+      resourceKind: spec.stepUp.resourceKind,
+      resourceId: spec.stepUp.resourceId,
+    });
+    if (stepUp.sent) return true;
+  }
+  return false;
+}
+
 async function resolveWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -284,12 +339,23 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       //
       // Guarded with try/catch so a seed failure never turns a read
       // into a 500: the user simply sees the original empty state.
-      if (articles.length === 0) {
+      //
+      // PRO-G2-04 / PRO-G2-13 — the self-heal asks whether the WORKSPACE has
+      // no articles at all, never whether this (possibly filtered) list is
+      // empty: `?state=DEPRECATED` is always empty and used to republish and
+      // overwrite every canonical article as the reader. The seed is
+      // insert-if-absent, so it can only ever add the platform text to an
+      // empty workspace; it never changes an existing row.
+      if (
+        articles.length === 0 &&
+        (await prisma.trustCenterArticle.count({ where: { teamId: ctx.teamId } })) === 0
+      ) {
         try {
           await ensureTrustCenterSeed({
             teamId: ctx.teamId,
             systemUserId: ctx.userId,
             publish: true,
+            mode: "insert_missing",
           });
           articles = await listTrustArticles({
             teamId: ctx.teamId,
@@ -351,8 +417,6 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      // B7B-F06 — the shared authoring gate; an engine failure is an error, never a publish.
-      if (await refuseTrustAuthoring(reply, ctx)) return reply;
       const body = z
         .object({
           kind: z.enum(TRUST_ARTICLE_KINDS),
@@ -362,7 +426,8 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           summary: z.string().min(1).max(600),
           body: z.string().min(1).max(40000),
           publish: z.boolean().optional(),
-          implementationReferences: z.array(z.string().max(400)).optional(),
+          // PRO-G2-03 — bounded count; the path rule is enforced by the writer.
+          implementationReferences: z.array(z.string().max(400)).max(20).optional(),
           policyTags: z.array(z.string().max(60)).optional(),
         })
         .parse(req.body);
@@ -385,6 +450,20 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         const ok = await evaluateMemberAccess({ teamId: ctx.teamId, userId: ctx.userId, permission: kindPermission });
         if (!ok.allowed) return reply.code(403).send({ denial: "PERMISSION_REQUIRED", permission: kindPermission });
       }
+      // B7B-F06 — the shared authoring gate; an engine failure is an error, never a publish.
+      // PRO-G2-13 — the one trust write rule; publishing asks a step-up bound to this article.
+      if (
+        await refuseTrustWrite(req, reply, ctx, {
+          permission: "trust.article.publish",
+          customerAuthored: true,
+          stepUp:
+            body.publish === true
+              ? { purpose: "TRUST_CONTENT_PUBLISH", resourceKind: "TRUST_ARTICLE", resourceId: `${body.kind}:${body.slug}` }
+              : null,
+        })
+      ) {
+        return reply;
+      }
       const res = await upsertTrustArticle({
         teamId: ctx.teamId,
         kind: body.kind,
@@ -398,7 +477,11 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         implementationReferences: body.implementationReferences,
         policyTags: body.policyTags,
       });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
+      if (!res.ok) {
+        return reply
+          .code(res.denial === "INVALID_IMPLEMENTATION_REFERENCE" ? 400 : 409)
+          .send({ denial: res.denial });
+      }
       return reply
         .code(201)
         .send({ articleId: res.articleId, version: res.version, state: res.state });
@@ -435,43 +518,39 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       //     step-up. A DRAFT re-seed only requires ACTIVE workspace
       //     membership (`governance.policy.read`), which preserves the
       //     production fix that opened this route to ordinary members.
+      //
+      // PRO-G2-04 / PRO-G2-13 (RG-20) — a seed is a trust WRITE, so it answers
+      // the one trust write rule with the article authoring capability
+      // (trust.article.publish). A VIEWER's "draft re-seed" used to rewrite
+      // and unpublish every canonical article under read permission.
+      //   * draft (publish:false): INSERT-IF-ABSENT — only missing canonical
+      //     articles are added, in DRAFT. Nothing existing changes, so no
+      //     step-up is asked.
+      //   * publish:true: the explicit "restore the platform text" action —
+      //     re-applies the canonical text and publishes it, overwriting the
+      //     canonical slugs. Target-bound step-up.
+      // The canonical seed is platform text, not customer-authored content,
+      // so it does not ask the custom-authoring entitlement.
       const body = z
         .object({ publish: z.boolean().optional() })
         .parse(req.body ?? {});
       const publish = body.publish === true;
-      const authorized = await authorizeOrFail(req, reply, {
-        teamId: ctx.teamId,
-        permission: publish
-          ? "governance.policy.manage"
-          : "governance.policy.read",
-        antiEnumeration: true,
-      });
-      if (!authorized) return reply;
-      if (publish) {
-        const stepUp = await requireStepUpForSensitiveAction({
-          req,
-          reply,
-          teamId: ctx.teamId,
-          userId: ctx.userId,
-          // NOTE (reported upstream): PROOVRA has no dedicated
-          // TRUST_CONTENT_PUBLISH step-up purpose and `STEP_UP_PURPOSES`
-          // lives in packages/shared. `PUBLIC_VERIFY_PUBLISH` is the
-          // existing "publish to the public" purpose; the challenge is
-          // TARGET-BOUND to (TRUST_ARTICLE_SEED, teamId) so an approval
-          // for any other resource cannot be spent here.
-          // PHASE 12 — dedicated purpose. This previously borrowed
-          // PUBLIC_VERIFY_PUBLISH, which conflated trust-content publication
-          // with evidence verify-page publication on the audit trail.
-          purpose: "TRUST_CONTENT_PUBLISH",
-          resourceKind: "TRUST_ARTICLE_SEED",
-          resourceId: ctx.teamId,
-        });
-        if (stepUp.sent) return reply;
+      if (
+        await refuseTrustWrite(req, reply, ctx, {
+          permission: "trust.article.publish",
+          customerAuthored: false,
+          stepUp: publish
+            ? { purpose: "TRUST_CONTENT_PUBLISH", resourceKind: "TRUST_ARTICLE_SEED", resourceId: ctx.teamId }
+            : null,
+        })
+      ) {
+        return reply;
       }
       const summary = await ensureTrustCenterSeed({
         teamId: ctx.teamId,
         systemUserId: ctx.userId,
         publish,
+        mode: publish ? "reapply_canonical" : "insert_missing",
       });
       await emitTrustEvent({
         teamId: ctx.teamId,
@@ -519,7 +598,13 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       // customer content. The POST seed endpoint was gated by
       // delegated tier; the canonical seed is now self-healing on
       // read so every workspace member can see the registry.
-      if (subprocessors.length === 0) {
+      // PRO-G2-04 — seed only a workspace that has NO subprocessor rows at
+      // all (a filtered empty list such as ?state=REMOVED used to reset every
+      // canonical row as the reader); the seed itself is insert-if-absent.
+      if (
+        subprocessors.length === 0 &&
+        (await prisma.subprocessor.count({ where: { teamId: ctx.teamId } })) === 0
+      ) {
         try {
           await ensureSubprocessorSeed({
             teamId: ctx.teamId,
@@ -562,7 +647,6 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      if (await refuseTrustAuthoring(reply, ctx)) return reply;
       const body = z
         .object({
           slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
@@ -577,6 +661,18 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           changeSummary: z.string().min(1).max(600),
         })
         .parse(req.body);
+      // PRO-G2-13 — the one trust write rule: capability, custom-authoring
+      // entitlement, then a step-up bound to the registry entry (a registry
+      // change is published trust content).
+      if (
+        await refuseTrustWrite(req, reply, ctx, {
+          permission: "trust.subprocessor.manage",
+          customerAuthored: true,
+          stepUp: { purpose: "TRUST_CONTENT_PUBLISH", resourceKind: "SUBPROCESSOR", resourceId: body.slug },
+        })
+      ) {
+        return reply;
+      }
       const res = await upsertSubprocessor({
         teamId: ctx.teamId,
         slug: body.slug,
@@ -612,6 +708,18 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
+      // PRO-G2-04 / PRO-G2-13 — the one trust write rule (capability only:
+      // the seed is platform text and, now insert-if-absent, never overwrites
+      // an admin's record, so it asks no step-up).
+      if (
+        await refuseTrustWrite(req, reply, ctx, {
+          permission: "trust.subprocessor.manage",
+          customerAuthored: false,
+          stepUp: null,
+        })
+      ) {
+        return reply;
+      }
       const summary = await ensureSubprocessorSeed({
         teamId: ctx.teamId,
         systemUserId: ctx.userId,
@@ -673,13 +781,16 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       // PHASE 12 VERTICAL C — a status incident is PUBLISHED to the status
       // page the moment it is created. Capability → target-bound step-up →
       // idempotent write → audit (emitted by the ONE writer).
-      const authorized = await authorizeOrFail(req, reply, {
-        teamId: ctx.teamId,
-        permission: "governance.policy.manage",
-        antiEnumeration: true,
-      });
-      if (!authorized) return reply;
-      if (await refuseTrustAuthoring(reply, ctx)) return reply;
+      // PRO-G2-13 — capability + entitlement through the one trust write rule.
+      if (
+        await refuseTrustWrite(req, reply, ctx, {
+          permission: "governance.policy.manage",
+          customerAuthored: true,
+          stepUp: null,
+        })
+      ) {
+        return reply;
+      }
       const body = z
         .object({
           title: z.string().min(1).max(200),
@@ -722,13 +833,16 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      const authorized = await authorizeOrFail(req, reply, {
-        teamId: ctx.teamId,
-        permission: "governance.policy.manage",
-        antiEnumeration: true,
-      });
-      if (!authorized) return reply;
-      if (await refuseTrustAuthoring(reply, ctx)) return reply;
+      // PRO-G2-13 — capability + entitlement through the one trust write rule.
+      if (
+        await refuseTrustWrite(req, reply, ctx, {
+          permission: "governance.policy.manage",
+          customerAuthored: true,
+          stepUp: null,
+        })
+      ) {
+        return reply;
+      }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = z
         .object({
@@ -780,13 +894,16 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      const authorized = await authorizeOrFail(req, reply, {
-        teamId: ctx.teamId,
-        permission: "governance.policy.manage",
-        antiEnumeration: true,
-      });
-      if (!authorized) return reply;
-      if (await refuseTrustAuthoring(reply, ctx)) return reply;
+      // PRO-G2-13 — capability + entitlement through the one trust write rule.
+      if (
+        await refuseTrustWrite(req, reply, ctx, {
+          permission: "governance.policy.manage",
+          customerAuthored: true,
+          stepUp: null,
+        })
+      ) {
+        return reply;
+      }
       const body = z
         .object({
           title: z.string().min(1).max(200),
@@ -1562,9 +1679,11 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       // `missingReferences` are INTERNAL repository paths. This read is
       // operator-only and never reaches a public surface.
+      // PRO-T1C-09 — gated by the authority of the scan that produces it
+      // (governance.trust_scan.run, OWNER floor), not by membership.
       const authorized = await authorizeOrFail(req, reply, {
         teamId: ctx.teamId,
-        permission: "governance.policy.read",
+        permission: "governance.trust_scan.run",
         antiEnumeration: true,
       });
       if (!authorized) return reply;
@@ -1605,9 +1724,10 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       // `evidencePaths` are INTERNAL repository paths — operator-only read.
+      // PRO-T1C-09 — the scan's own authority (governance.trust_scan.run).
       const authorized = await authorizeOrFail(req, reply, {
         teamId: ctx.teamId,
-        permission: "governance.policy.read",
+        permission: "governance.trust_scan.run",
         antiEnumeration: true,
       });
       if (!authorized) return reply;

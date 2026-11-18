@@ -155,8 +155,10 @@ export function TrustContentIntegritySection({
             }
           : {
               title: "Restore the canonical trust articles as drafts?",
+              // PRO-G2-04 — the draft re-seed adds MISSING canonical articles
+              // only; it never unpublishes or rewrites what the workspace holds.
               description:
-                "The platform trust articles are restored in DRAFT. Nothing becomes visible on the Trust Center until someone reviews and publishes it.",
+                "Any missing platform trust articles are added in DRAFT for review. Nothing new becomes visible on the Trust Center until someone reviews and publishes it.",
               confirmLabel: "Restore as drafts",
               tone: "neutral",
               testId: "trust-seed-draft",
@@ -189,7 +191,7 @@ export function TrustContentIntegritySection({
         const failure = classifyTrustPhase(err, {
           deniedTitle: "You can't restore trust articles",
           deniedDetail:
-            "Restoring published trust articles requires trust-governance management in this workspace.",
+            "Restoring trust articles requires the workspace's Trust Center publishing permission.",
           errorMessage: "Could not restore the trust articles.",
         });
         setNote({ tone: "warn", text: failure.detail });

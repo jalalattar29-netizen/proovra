@@ -27,12 +27,14 @@
 import type { PrismaClient } from "@prisma/client";
 import {
   AI_DISCLOSURE_SECTIONS,
+  isSafeTrustImplementationReference,
   METHODOLOGY_SECTIONS,
   SECURITY_SECTIONS,
   TRUST_ARTICLE_DRIFT_STATES,
   TRUST_ARTICLE_KINDS,
   TRUST_ARTICLE_STATES,
   TRUST_CENTER_SECTIONS,
+  TRUST_IMPLEMENTATION_REFERENCE_MAX_COUNT,
   type AiDisclosureSection,
   type MethodologySection,
   type SecuritySection,
@@ -65,7 +67,7 @@ export type UpsertArticleInput = {
 
 export type UpsertArticleResult =
   | { ok: true; articleId: string; version: number; state: TrustArticleState }
-  | { ok: false; denial: "POLICY_REJECTED" };
+  | { ok: false; denial: "POLICY_REJECTED" | "INVALID_IMPLEMENTATION_REFERENCE" };
 
 export async function upsertTrustArticle(
   input: UpsertArticleInput,
@@ -75,6 +77,17 @@ export async function upsertTrustArticle(
   }
   if (!validateSection(input.kind, input.section)) {
     return { ok: false, denial: "POLICY_REJECTED" };
+  }
+  // PRO-G2-03 — the ONE writer of implementationReferences validates them:
+  // repository-relative paths under a source root, no traversal, bounded
+  // count. A reference is a pointer an auditor can open in the repository,
+  // never a path the server is asked to probe on a tenant's behalf.
+  const refs = input.implementationReferences ?? [];
+  if (
+    refs.length > TRUST_IMPLEMENTATION_REFERENCE_MAX_COUNT ||
+    !refs.every((r) => isSafeTrustImplementationReference(r))
+  ) {
+    return { ok: false, denial: "INVALID_IMPLEMENTATION_REFERENCE" };
   }
   const prisma = input.prisma ?? defaultPrisma;
   const state: TrustArticleState = input.publish ? "PUBLISHED" : "DRAFT";
@@ -244,20 +257,38 @@ export async function listTrustArticleVersions(input: {
  * platform always reports the full catalog so the Trust Center UI
  * never shows holes — sections start in DRAFT until an operator
  * publishes them or this seed re-runs with publish=true.
+ *
+ * PRO-G2-04 / PRO-G2-13 (RG-20) — two modes, one writer:
+ *   * "insert_missing" (the DEFAULT): only canonical slugs the workspace does
+ *     not hold are created. An existing article — published, drafted or edited
+ *     by its owner — is never touched. Read paths and any caller without the
+ *     authoring authority get this mode only.
+ *   * "reapply_canonical": the owner's explicit "restore the platform text"
+ *     action. It overwrites the canonical slugs with the canonical text (and
+ *     state). Only the authorized, stepped-up seed route may ask for it.
  */
+export type TrustSeedMode = "insert_missing" | "reapply_canonical";
+
 export async function ensureTrustCenterSeed(input: {
   prisma?: PrismaClient;
   teamId: string;
   systemUserId: string;
   publish?: boolean;
-}): Promise<{ created: number; updated: number }> {
+  mode?: TrustSeedMode;
+}): Promise<{ created: number; updated: number; skipped: number }> {
+  const mode: TrustSeedMode = input.mode ?? "insert_missing";
   let created = 0;
   let updated = 0;
+  let skipped = 0;
   for (const seed of SEED_ARTICLES) {
     const existing = await (input.prisma ?? defaultPrisma).trustCenterArticle.findFirst({
       where: { teamId: input.teamId, kind: seed.kind, slug: seed.slug },
       select: { id: true, version: true },
     });
+    if (existing && mode === "insert_missing") {
+      skipped += 1;
+      continue;
+    }
     const result = await upsertTrustArticle({
       prisma: input.prisma,
       teamId: input.teamId,
@@ -276,7 +307,7 @@ export async function ensureTrustCenterSeed(input: {
     if (existing) updated += 1;
     else created += 1;
   }
-  return { created, updated };
+  return { created, updated, skipped };
 }
 
 // ---------------------------------------------------------------------------
