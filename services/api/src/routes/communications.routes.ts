@@ -68,6 +68,7 @@ import {
   projectCommunicationMessage,
   projectCommunicationMessageSummary,
   communicationStatusesBefore,
+  reclaimStrandedCommunicationMessages,
 } from "../services/communications/communication.service.js";
 import {
   VerificationError,
@@ -774,12 +775,19 @@ export async function communicationsRoutes(app: FastifyInstance) {
       const ok = await requireIntegrationCronSecret(req, reply);
       if (!ok) return;
       const now = new Date();
+      // WS-SCHED / PRO-W2-06 — a send stranded by a stopped process returns to
+      // the retry pool first (the same lease the platform reconcile applies).
+      await reclaimStrandedCommunicationMessages(prisma, now).catch(() => undefined);
+      // PRO-W2C2-05 / PRO-I1Z-04 — oldest due first: unsendable rows are now
+      // settled or pushed back by dispatchPendingMessage, and the order makes
+      // the window deterministic instead of whatever Postgres returns.
       const due = await prisma.communicationMessage.findMany({
         where: {
           status: prismaPkg.CommunicationStatus.RETRY_SCHEDULED,
           nextAttemptAtUtc: { lte: now },
         },
         select: { id: true },
+        orderBy: [{ nextAttemptAtUtc: "asc" }, { id: "asc" }],
         take: 100,
       });
       let processed = 0;

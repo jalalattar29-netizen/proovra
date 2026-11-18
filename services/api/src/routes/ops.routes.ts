@@ -406,7 +406,6 @@ export type ReconcileSummary = {
 
 export async function runMasterReconcile(): Promise<ReconcileSummary> {
   const now = new Date();
-  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
   // 1. Expire step-up challenges past their TTL.
   const expiredStepUps = await prisma.stepUpChallenge.updateMany({
@@ -450,34 +449,24 @@ export async function runMasterReconcile(): Promise<ReconcileSummary> {
   });
   setGauge("notifications_retry_scheduled", dueNotifs);
 
-  // 5. Cancel QUEUED communications that have been stuck for >5
-  // minutes with no provider attempt — safe-net for a crash mid-send
-  // (we never retry them, only mark CANCELLED with reason). Bounded
-  // to 100 per run to avoid a single tick from doing too much.
-  const stuckPending = await prisma.communicationMessage.findMany({
-    where: {
-      status: prismaPkg.CommunicationStatus.QUEUED,
-      createdAt: { lte: fiveMinutesAgo },
-      providerMessageId: null,
-    },
-    select: { id: true },
-    take: 100,
-  });
+  // 5. WS-SCHED / PRO-W2-06 — QUEUED communications whose sending process
+  // stopped before the provider answered are RECLAIMED by the canonical
+  // lease (back to RETRY_SCHEDULED with attempt accounting, FAILED `stranded`
+  // at the ceiling or when the body cannot be resent). They used to be
+  // CANCELLED here after five minutes by createdAt — lost instead of retried,
+  // and a retry claimed a moment earlier could be cancelled mid-send. Bounded
+  // to 100 per run.
   let cancelledStuckCount = 0;
-  for (const row of stuckPending) {
-    try {
-      await prisma.communicationMessage.update({
-        where: { id: row.id },
-        data: {
-          status: prismaPkg.CommunicationStatus.CANCELLED,
-          errorCode: "stuck_queued_reconciled",
-          errorMessage: "Queued > 5 minutes without provider correlation id.",
-        },
-      });
-      cancelledStuckCount += 1;
-    } catch {
-      /* best-effort */
-    }
+  try {
+    const { reclaimStrandedCommunicationMessages } = await import(
+      "../services/communications/communication.service.js"
+    );
+    const reclaimed = await reclaimStrandedCommunicationMessages(prisma, now);
+    // The summary field keeps its name for old dashboards; it now counts rows
+    // settled by the reclaim (retried + failed).
+    cancelledStuckCount = reclaimed.retried + reclaimed.failed;
+  } catch {
+    /* best-effort */
   }
 
   // 6. Count intelligence jobs stuck in PROCESSING for >1 hour. We do

@@ -476,10 +476,20 @@ export async function dispatchPendingMessage(
   ) {
     return { status: "not_eligible", message: row };
   }
+  // WS-SCHED / PRO-W2C2-05, PRO-I1Z-04 — a row the sweep cannot send is
+  // SETTLED or pushed back, never left due: unchanged not_eligible rows were
+  // re-selected every minute and could fill the take-100 window for every
+  // tenant. A non-phone channel can never be retried here; an unconfigured
+  // provider is a platform condition, retried on a backoff.
   if (!isPhoneChannel(row.channel as CommunicationChannel)) {
-    return { status: "not_eligible", message: row };
+    return closeRetry(row, prismaPkg.CommunicationStatus.FAILED, "channel_not_retryable",
+      "This channel is not retried by the messaging sweep.", client);
   }
   if (!provider.isConfigured()) {
+    await client.communicationMessage.updateMany({
+      where: { id: row.id, status: row.status, attemptCount: row.attemptCount },
+      data: { nextAttemptAtUtc: new Date(Date.now() + PROVIDER_UNCONFIGURED_BACKOFF_MS) },
+    });
     return { status: "not_eligible", message: row };
   }
   // Re-derive phone? We do NOT store it. Retrying requires the original
@@ -498,7 +508,11 @@ export async function dispatchPendingMessage(
   }
   const phone = await resolvePhoneFromSource(row, client);
   if (!phone) {
-    return { status: "not_eligible", message: row };
+    // The request was closed / cancelled / fulfilled, or the link / session was
+    // revoked or expired (workspace closure revokes every link): its source is
+    // gone, so the retry ends here, with the reason.
+    return closeRetry(row, prismaPkg.CommunicationStatus.CANCELLED, "source_closed",
+      "The request or link this message belonged to is no longer open.", client);
   }
   // A recipient can reply STOP after the first attempt, and the limits apply to
   // a retry as they do to a first send.
@@ -549,6 +563,71 @@ function isBodyResendable(input: EnqueueOutboundMessageInput): boolean {
   if (input.bodyPreviewOverride != null || input.template) return false;
   const preview = safeBodyPreview(input.body);
   return preview !== null && preview === input.body;
+}
+
+/** PRO-W2C2-05 — an unconfigured provider is retried on this backoff, not every minute. */
+export const PROVIDER_UNCONFIGURED_BACKOFF_MS = 15 * 60 * 1000;
+
+/**
+ * WS-SCHED / PRO-W2-06 — THE LEASE on a QUEUED message. A row is QUEUED (with
+ * no provider id) only while one process is sending it: the first send, or a
+ * retry this sweep claimed. A process that dies before the provider answer is
+ * written leaves it QUEUED. Platform maintenance used to CANCEL such rows after
+ * five minutes (`stuck_queued_reconciled`), so the message was lost instead of
+ * retried — and, because it read `createdAt`, it could cancel a retry claimed a
+ * moment earlier. Now a QUEUED row untouched (`updatedAt`) for longer than the
+ * lease returns to RETRY_SCHEDULED when its purpose and body allow a retry and
+ * it has attempts left, and is otherwise settled FAILED `stranded`. Each move is
+ * conditional on the row as read, so a live send is never touched and two
+ * reconciles settle a row once.
+ */
+export const COMMUNICATION_QUEUED_LEASE_MS = 5 * 60 * 1000;
+
+export async function reclaimStrandedCommunicationMessages(
+  client: PrismaClient = defaultPrisma,
+  now: Date = new Date(),
+): Promise<{ retried: number; failed: number }> {
+  const cutoff = new Date(now.getTime() - COMMUNICATION_QUEUED_LEASE_MS);
+  const stranded = await client.communicationMessage.findMany({
+    where: {
+      status: prismaPkg.CommunicationStatus.QUEUED,
+      direction: prismaPkg.CommunicationDirection.OUTBOUND,
+      providerMessageId: null,
+      updatedAt: { lte: cutoff },
+    },
+    orderBy: { updatedAt: "asc" },
+    take: 100,
+  });
+  let retried = 0;
+  let failed = 0;
+  for (const row of stranded) {
+    const retryable =
+      row.bodyResendable &&
+      isRetryEligibleCommunicationPurpose(row.purpose as CommunicationPurpose) &&
+      row.attemptCount < COMMUNICATION_RETRY_MAX_ATTEMPTS;
+    const moved = await client.communicationMessage.updateMany({
+      where: { id: row.id, status: row.status, attemptCount: row.attemptCount, updatedAt: { lte: cutoff } },
+      data: retryable
+        ? {
+            status: prismaPkg.CommunicationStatus.RETRY_SCHEDULED,
+            nextAttemptAtUtc: now,
+            errorCode: "stranded",
+            errorMessage: "The sending process stopped before the provider answered; retried.",
+          }
+        : {
+            status: prismaPkg.CommunicationStatus.FAILED,
+            failedAtUtc: now,
+            nextAttemptAtUtc: null,
+            errorCode: "stranded",
+            errorMessage: "The sending process stopped before the provider answered.",
+          },
+    });
+    if (moved.count === 1) {
+      if (retryable) retried += 1;
+      else failed += 1;
+    }
+  }
+  return { retried, failed };
 }
 
 async function closeRetry(
@@ -664,10 +743,23 @@ async function updateAfterProviderAttempt(
   _provider: MessagingProvider,
   client: PrismaClient,
 ): Promise<EnqueueOutboundMessageResult> {
+  // PRO-W2-06 — every write here is FENCED on the attempt this process made:
+  // a row reclaimed, cancelled or settled meanwhile is not overwritten. A
+  // provider SUCCESS still wins over a reclaim of the same attempt (the row
+  // went back to RETRY_SCHEDULED with the same attemptCount), so an accepted
+  // message is never sent again.
+  const fenced = async (
+    statuses: prismaPkg.CommunicationStatus[],
+    data: prismaPkg.Prisma.CommunicationMessageUpdateManyMutationInput,
+  ) => {
+    await client.communicationMessage.updateMany({
+      where: { id: row.id, attemptCount: row.attemptCount, status: { in: statuses } },
+      data,
+    });
+    return client.communicationMessage.findUniqueOrThrow({ where: { id: row.id } });
+  };
   if (result.ok) {
-    const updated = await client.communicationMessage.update({
-      where: { id: row.id },
-      data: {
+    const updated = await fenced([prismaPkg.CommunicationStatus.QUEUED, prismaPkg.CommunicationStatus.RETRY_SCHEDULED], {
         provider: prismaPkg.CommunicationProvider.TWILIO,
         providerMessageId: result.providerMessageId,
         status:
@@ -678,7 +770,6 @@ async function updateAfterProviderAttempt(
         errorCode: null,
         errorMessage: null,
         nextAttemptAtUtc: null,
-      },
     });
     return {
       message: updated,
@@ -698,14 +789,11 @@ async function updateAfterProviderAttempt(
   if (allowRetry) {
     const delay = communicationRetryDelaySeconds(row.attemptCount + 1);
     const nextAt = new Date(Date.now() + delay * 1000);
-    const updated = await client.communicationMessage.update({
-      where: { id: row.id },
-      data: {
+    const updated = await fenced([prismaPkg.CommunicationStatus.QUEUED], {
         status: prismaPkg.CommunicationStatus.RETRY_SCHEDULED,
         nextAttemptAtUtc: nextAt,
         errorCode: result.errorCode,
         errorMessage: result.errorMessage,
-      },
     });
     safeEmitSecurityEvent(
       {
@@ -724,14 +812,11 @@ async function updateAfterProviderAttempt(
     );
     return { message: updated, status: "retry_scheduled" };
   }
-  const updated = await client.communicationMessage.update({
-    where: { id: row.id },
-    data: {
+  const updated = await fenced([prismaPkg.CommunicationStatus.QUEUED], {
       status: prismaPkg.CommunicationStatus.FAILED,
       failedAtUtc: new Date(),
       errorCode: result.errorCode,
       errorMessage: result.errorMessage,
-    },
   });
   safeEmitSecurityEvent(
     {

@@ -361,6 +361,52 @@ describe("process answers what will happen (misleading 200, tracked apart from t
     const res = await post(id);
     expect(res.statusCode, res.body).toBe(200);
   });
+
+  // WS-SCHED / PRO-G2-06 — a run interrupted mid-batch (restart, deploy) left
+  // the job PROCESSING forever with no lease or recovery.
+  it("WS-SCHED: an interrupted run is resumed after its lease: finished items stay, the rest run once", async () => {
+    const id = await seed("pending", 3);
+    const items = await prisma.batchAnalysisJobItem.findMany({ where: { jobId: id }, orderBy: { position: "asc" } });
+    // The state a killed process leaves: claimed 20 minutes ago, item 0 done,
+    // item 1 started, item 2 never reached.
+    await prisma.batchAnalysisJob.update({
+      where: { id },
+      data: { status: "PROCESSING", claimedAtUtc: new Date(Date.now() - 20 * 60_000), startedAtUtc: new Date(Date.now() - 20 * 60_000), processedItems: 1 },
+    });
+    await prisma.batchAnalysisJobItem.update({ where: { id: items[0]!.id }, data: { status: "COMPLETED", resultJson: { kept: true }, completedAtUtc: new Date() } });
+    await prisma.batchAnalysisJobItem.update({ where: { id: items[1]!.id }, data: { status: "PROCESSING", startedAtUtc: new Date() } });
+
+    const res = await post(id);
+    expect(res.statusCode, res.body).toBe(200);
+    // The route answers before the run finishes; wait for the durable outcome.
+    for (let i = 0; i < 50 && (await otherSees(id)).job?.status !== "COMPLETED"; i += 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    const seen = await otherSees(id);
+    expect(seen.job?.status).toBe("COMPLETED");
+    expect(Number(seen.job?.processed_items)).toBe(3);
+    expect(seen.items.map((i: { status: string }) => i.status)).toEqual(["COMPLETED", "COMPLETED", "COMPLETED"]);
+    const first = await prisma.batchAnalysisJobItem.findUniqueOrThrow({ where: { id: items[0]!.id } });
+    expect(first.resultJson).toEqual({ kept: true });
+  });
+
+  it("WS-SCHED: a run inside its lease is still refused, and two resumes of an abandoned run claim once", async () => {
+    const live = await seed("pending", 1);
+    await prisma.batchAnalysisJob.update({ where: { id: live }, data: { status: "PROCESSING", claimedAtUtc: new Date() } });
+    expect((await post(live)).statusCode).toBe(409);
+
+    const abandoned = await seed("pending", 1);
+    await prisma.batchAnalysisJob.update({
+      where: { id: abandoned },
+      data: { status: "PROCESSING", claimedAtUtc: new Date(Date.now() - 20 * 60_000) },
+    });
+    const results = await Promise.allSettled([
+      batchAnalysisService.processBatch(OWNER, abandoned),
+      batchAnalysisService.processBatch(OWNER, abandoned),
+    ]);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    expect((await otherSees(abandoned)).job?.status).toBe("COMPLETED");
+  });
 });
 
 describe("A1-01 — Batch analysis and Quotas & usage are refused to a plan without the PROFESSIONAL surfaces", () => {
