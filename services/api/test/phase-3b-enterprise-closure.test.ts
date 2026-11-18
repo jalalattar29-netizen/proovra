@@ -323,8 +323,12 @@ describe("Phase 3B Closure — scoped budget enforcement", () => {
             decision?: { not?: string };
           };
         }) => {
+          // PRO-AI1-10 — a CASE sum is (caseId = X) OR (evidence linked to X).
+          const caseFilter =
+            args.where.caseId ??
+            (args.where as { OR?: Array<{ caseId?: string }> }).OR?.find((o) => o.caseId)?.caseId;
           const filtered = usageRows.filter((r) => {
-            if (args.where.caseId && r.caseId !== args.where.caseId) return false;
+            if (caseFilter && r.caseId !== caseFilter) return false;
             return r.decision !== "BLOCK";
           });
           const sum = filtered.reduce(
@@ -348,6 +352,7 @@ describe("Phase 3B Closure — scoped budget enforcement", () => {
           return data;
         },
       },
+      caseEvidenceLink: { findMany: async () => [] },
     } as never;
 
     // Case A: consumed 8000 + new cost 5000 = 13000 > hard 10000 → BLOCK.

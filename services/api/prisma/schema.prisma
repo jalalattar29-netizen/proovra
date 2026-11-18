@@ -6110,6 +6110,12 @@ model EvidenceExtractedText {
   extractedAtUtc  DateTime?                   @map("extracted_at_utc") @db.Timestamptz(6)
   createdAt       DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  // RG-05 (PRO-AI1-04 / PRO-AI1Z-01) — the evidence part a cloud OCR /
+  // transcript run read. With the partial unique index
+  // evidence_extracted_texts_part_claim_uniq (evidence, part, provider) WHERE
+  // status IN (PENDING, COMPLETED) — raw SQL in 20281121050000 — it makes the
+  // paid extraction of one part happen once across retries.
+  sourcePartId    String?                     @map("source_part_id") @db.Uuid
 
   evidence Evidence @relation("EvidenceExtractedTexts", fields: [evidenceId], references: [id], onDelete: Cascade)
 

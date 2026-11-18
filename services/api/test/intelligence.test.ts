@@ -41,6 +41,7 @@ describe("extracted text projection — privacy", () => {
       extractedAtUtc: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
+      sourcePartId: null,
     });
     const json = JSON.stringify(projected);
     expect(json).not.toContain("SHOULD NEVER LEAK");
@@ -148,7 +149,8 @@ describe("intelligence routes — anti-enumeration + scope", () => {
       ),
       "utf8",
     );
-    expect(src).toMatch(/ev\.teamId\s*!==\s*(?:body|query)\.teamId/);
+    // PRO-AI1C-05 — through THE workspace-of-a-record rule.
+    expect(src).toMatch(/resolveEvidenceWorkspaceId\([\s\S]{0,200}\)\) !== query\.teamId/);
   });
 });
 

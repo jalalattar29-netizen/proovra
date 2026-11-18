@@ -132,6 +132,13 @@ export type ProviderAdapter = {
    */
   probe(): ProviderAdapterProbe;
 
+  /**
+   * PRO-AI1-08 — true for an adapter that runs entirely in-process (no
+   * provider is called). Such an operation takes no plan AI operation and
+   * records zero cost: only a real PROVIDER operation is spend.
+   */
+  readonly local?: true;
+
   // Operations — each returns the bounded IntelligenceProviderResult.
   ocrDocument?(input: OcrDocumentInput): Promise<IntelligenceProviderResult>;
   ocrImage?(input: OcrImageInput): Promise<IntelligenceProviderResult>;

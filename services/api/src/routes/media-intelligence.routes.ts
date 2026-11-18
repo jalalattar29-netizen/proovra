@@ -47,6 +47,7 @@ import { listRecentRunsForEvidence } from "../services/media-intelligence/run-tr
 import { bump } from "../services/ops/metrics.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { workspaceIncludesAiCapability } from "../services/billing-enforcement.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 // Wave 3 Phase 7B — bounded custody emit on workspace MI refresh.
 import * as prismaPkg from "@prisma/client";
 import { appendInvestigationCustody } from "../services/investigation-custody.service.js";
@@ -151,14 +152,12 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
       // Anti-enumeration: a non-team evidence_id surfaces 404 even
-      // if the row exists in another workspace.
-      const evidence = await prisma.evidence.findUnique({
-        where: { id: evidenceId },
-        select: { id: true, teamId: true },
-      });
-      if (!evidence || evidence.teamId !== teamId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
+      // if the row exists in another workspace. PRO-AI1C-05 — bound through
+      // THE workspace-of-a-record rule (bindDerivedRecord), the same one the
+      // run, analyzer and derived routes use, so a legacy NULL-team Personal
+      // record whose signals were written for its owner's personal workspace
+      // can be read there too.
+      if (!(await bindDerivedRecord(reply, { evidenceId, teamId }))) return;
       const rows = (await prisma.$queryRawUnsafe(
         `SELECT "id", "signal_type", "material_id", "severity", "confidence",
                 "safe_summary", "status", "created_at_utc", "updated_at_utc",
@@ -426,23 +425,52 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      // PRO-AI1-11 — the bulk refresh asks the SAME plan question as the
+      // single-record run (media intelligence is content intelligence, paid
+      // plans only) and is rate limited per workspace: it enqueued up to 50
+      // analyses per call for any plan, repeatedly.
+      if (!(await workspaceIncludesAiCapability(body.teamId, "CONTENT_INTELLIGENCE"))) {
+        return reply.code(403).send({
+          error: {
+            code: "ENTITLEMENT_REQUIRED",
+            message: "Media intelligence is not included in this workspace's plan.",
+            details: { entitlement: "AI_CAPABILITY", capabilities: ["CONTENT_INTELLIGENCE"] },
+          },
+        });
+      }
+      const refreshRate = await enforceRateLimit({
+        key: `ratelimit:media_intelligence_refresh:${body.teamId}`,
+        max: 3,
+        windowSec: 600,
+      });
+      if (!refreshRate.allowed) {
+        reply.header("Retry-After", String(Math.max(1, Math.ceil((refreshRate.resetAtMs - Date.now()) / 1000))));
+        return reply.code(429).send({ error: { code: "media_intelligence_refresh_rate_limited" } });
+      }
+
       const REFRESH_CAP = 50;
       type EvidenceRow = { id: string };
       let evidence: EvidenceRow[] = [];
       try {
-        evidence = (await prisma.$queryRawUnsafe(
-          `SELECT "id"
-             FROM "evidence"
-             WHERE "team_id" = $1 AND "deleted_at" IS NULL
-               AND NOT ("id" = ANY($3::uuid[]))
-             ORDER BY "created_at" DESC
-             LIMIT $2`,
-          body.teamId,
-          REFRESH_CAP,
-          // B3C-F-003 (free-audit 0ea0): a record a restricted case closes to
-          // the caller is neither analysed nor counted on their request.
-          (await hiddenRecordIdsInWorkspace(body.teamId, actor.actorUserId)).evidenceIds,
-        )) as EvidenceRow[];
+        // PRO-AI1C-05 — candidates come from THE workspace evidence scope, so
+        // a legacy NULL-team Personal record of the owner is refreshed too.
+        const { workspaceEvidenceWhereMany } = await import("@proovra/shared-runtime");
+        const scope = await workspaceEvidenceWhereMany([body.teamId], prisma as never);
+        // B3C-F-003 (free-audit 0ea0): a record a restricted case closes to
+        // the caller is neither analysed nor counted on their request.
+        const hidden = (await hiddenRecordIdsInWorkspace(body.teamId, actor.actorUserId)).evidenceIds;
+        evidence = await prisma.evidence.findMany({
+          where: {
+            AND: [
+              scope as never,
+              { deletedAt: null },
+              ...(hidden.length > 0 ? [{ id: { notIn: [...hidden] } }] : []),
+            ],
+          },
+          orderBy: { createdAt: "desc" },
+          take: REFRESH_CAP,
+          select: { id: true },
+        });
       } catch {
         return reply.code(503).send({
           error: { code: "media_intelligence_unavailable" },

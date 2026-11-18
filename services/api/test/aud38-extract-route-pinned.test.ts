@@ -50,6 +50,9 @@ vi.mock("../src/services/intelligence/media-intelligence.service.js", () => ({
 }));
 vi.mock("../src/services/intelligence/extraction.service.js", () => ({
   runExtractionInline: async () => ({ recordsCreated: 1, extractedTextChars: 1 }),
+  // RG-05 — the per-part claim (one paid extraction per part).
+  claimExtractionPart: async () => ({ state: "CLAIMED", claimId: "claim-1" }),
+  releaseExtractionClaim: async () => undefined,
 }));
 
 process.env.INTERNAL_SERVICE_TOKEN = "aud38-internal-service-token-000";

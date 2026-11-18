@@ -79,6 +79,8 @@ function prismaStub(policyReadFails: boolean) {
     },
     governancePolicyAudit: { create: async () => ({ id: "audit-1" }) },
     mediaIntelligenceRecord: { findFirst: async () => null },
+    // PRO-AI1-10 — the evidence's case links (none here).
+    caseEvidenceLink: { findMany: async () => [] },
   } as never;
 }
 

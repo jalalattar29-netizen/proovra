@@ -126,10 +126,14 @@ async function runAzure(input: {
       providerRecordKey,
     });
   }
-  // Bounded usage — bill one page per 5000 characters of extracted
-  // text as a conservative heuristic when Azure does not report
-  // page count directly in `analyzeDocumentLayout`'s bounded result.
-  const pages = Math.max(1, Math.ceil(text.length / 5000));
+  // PRO-AI1C-02 — usage is the page count Azure ANALYSED (its billed unit).
+  // The text-length heuristic (one page per 5000 characters) remains only as
+  // the fallback when the result carries no page list; it under-counted a
+  // scanned document with little recognised text by orders of magnitude.
+  const pages =
+    typeof result.analyzedPages === "number" && result.analyzedPages > 0
+      ? result.analyzedPages
+      : Math.max(1, Math.ceil(text.length / 5000));
   return {
     ok: true,
     records,
