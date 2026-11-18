@@ -676,18 +676,37 @@ export async function listEvidenceRequests(
 // compliance / accountability significance; we make the note an enforced
 // invariant rather than a UI convention so callers can't accidentally
 // skip it.
+//
+// PRO-I1-01 / R1-F-01 — NEEDS_MORE_INFO is not in this list. Its reviewer note
+// is workspace-internal and optional (both web surfaces say so); what the
+// contributor reads is the separate, explicit `contributorMessage`.
 const REQUIRE_REVIEWER_NOTE_ON_TRANSITION: ReadonlyArray<EvidenceRequestStatus> = [
-  "NEEDS_MORE_INFO",
   "CANCELLED",
   "CLOSED",
 ];
+
+/** Upper bound of the explicit contributor-facing message (PRO-I1-01). */
+export const NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX = 1000;
+
+/**
+ * PRO-I1-01 — the sentence the contributor reads when the operator wrote no
+ * explicit message. Never the reviewer note: that note is workspace-internal.
+ */
+export const NEEDS_MORE_INFO_NEUTRAL_MESSAGE =
+  "The requester needs more information about your submission. If further files are needed, they will send you a new secure upload link.";
 
 export type TransitionEvidenceRequestInput = {
   id: string;
   teamId: string;
   actorUserId: string;
   to: EvidenceRequestStatus;
+  /** Workspace-internal. Stored on the request and its event trail; never sent outside the workspace. */
   reviewerNote?: string | null;
+  /**
+   * PRO-I1-01 — NEEDS_MORE_INFO only: an OPTIONAL message the operator chose to
+   * send to the contributor. Absent → a fixed neutral sentence is sent instead.
+   */
+  contributorMessage?: string | null;
   payload?: Prisma.InputJsonValue;
 };
 
@@ -858,10 +877,9 @@ export async function transitionEvidenceRequest(
     for (const intakeLinkId of revokedLinkIds) indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId }, client);
     // Phase 8 — fire-and-forget notifications for sensitive transitions.
     // Outside the transaction so a failure here cannot roll back the
-    // state change. The reviewer note has already been validated as
-    // non-empty by the require-note guard; the renderer treats it as a
-    // safe-to-show "context message" (sanitization via escapeEmailHtml
-    // in templates.ts).
+    // state change. PRO-I1-01 — the reviewer note is workspace-internal and
+    // is NEVER the email's context message: the contributor reads the
+    // operator's explicit contributorMessage, or a fixed neutral sentence.
     try {
       if (input.to === "NEEDS_MORE_INFO" && result.intakeLinkId) {
         const team = await client.team.findUnique({
@@ -884,10 +902,11 @@ export async function transitionEvidenceRequest(
                   workspaceName:
                     team?.evidenceWorkspaceLabel ?? team?.name ?? "Your workspace",
                   requestTitle: result.title,
-                  // The reviewer note is the operator's safe-to-share
-                  // explanation for the additional ask. It is escaped by
-                  // the template renderer before going into HTML.
-                  contextMessage: input.reviewerNote ?? "",
+                  // PRO-I1-01 — only the explicit contributor message (escaped
+                  // by the renderer) or the neutral sentence; never the note.
+                  contextMessage:
+                    (input.contributorMessage ?? "").trim().slice(0, NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX) ||
+                    NEEDS_MORE_INFO_NEUTRAL_MESSAGE,
                   intakeUrl: null,
                 },
               },

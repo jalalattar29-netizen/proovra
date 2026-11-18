@@ -38,7 +38,7 @@ import { useRouteAccess } from "../../../../lib/navigation/useRouteDestination";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
 import { EvidenceRequestEventsTab } from "../../../../components/hidden-feature-panels/HiddenFeaturePanels";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
-import { identifierLabel } from "@proovra/shared";
+import { canTransitionEvidenceRequest, identifierLabel, type EvidenceRequestStatus } from "@proovra/shared";
 import { EvidenceRequestAssignment } from "./_components/EvidenceRequestAssignment";
 
 type AuthRequestView = {
@@ -133,6 +133,8 @@ function Inner() {
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [reviewerNote, setReviewerNote] = useState("");
+  // PRO-I1-01 — the ONLY text emailed to the contributor; the note stays internal.
+  const [contributorMessage, setContributorMessage] = useState("");
   // Bumped after an assignment change so the activity timeline rereads.
   const [eventsRevision, setEventsRevision] = useState(0);
   const { confirm, askReason } = useConfirmAction();
@@ -173,18 +175,21 @@ function Inner() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reviewerNote: reviewerNote.trim() || undefined,
+            contributorMessage: contributorMessage.trim() || undefined,
           }),
         },
       );
       setReviewerNote("");
+      setContributorMessage("");
       await load();
     } catch (err) {
+      // The typed text is kept so the operator can retry.
       const e = err as { message?: string };
       setError(toSafeUserError(e, { message: "Could not mark request as needing more info." }).message);
     } finally {
       setActionBusy(null);
     }
-  }, [load, requestId, reviewerNote]);
+  }, [contributorMessage, load, requestId, reviewerNote]);
 
   const waiveDeliverable = useCallback(
     async (deliverableId: string) => {
@@ -457,10 +462,9 @@ function Inner() {
       )}
 
       {/* Reviewer action — mark as needs-more-info */}
+      {/* PRO-I1-11 — shown exactly where the shared state machine allows it. */}
       {canManage &&
-      data.status !== "CLOSED" &&
-      data.status !== "CANCELLED" &&
-      data.status !== "FULFILLED" ? (
+      canTransitionEvidenceRequest(data.status as EvidenceRequestStatus, "NEEDS_MORE_INFO").ok ? (
         <section
           data-evidence-request-rerequest
           style={{
@@ -474,17 +478,31 @@ function Inner() {
           <p style={{ ...mutedStyle, margin: "4px 0 8px" }}>
             Flag this request as needing more information from the contributor.
             The contributor's intake page will show a re-request banner pointing
-            at the unfulfilled deliverables. Workspace-internal note below is
-            attached to the audit event.
+            at the unfulfilled deliverables. When the request has an email
+            recipient, they are told more is needed: with your message to the
+            contributor if you write one, otherwise with a standard sentence.
+            The reviewer note stays inside the workspace and is attached to the
+            audit event.
           </p>
           <textarea
             value={reviewerNote}
             onChange={(e) => setReviewerNote(e.target.value)}
             placeholder="Reviewer note (workspace-internal, optional)"
+            aria-label="Reviewer note (workspace-internal, optional)"
             rows={2}
             maxLength={4000}
             style={textareaStyle}
             data-evidence-request-reviewer-note
+          />
+          <textarea
+            value={contributorMessage}
+            onChange={(e) => setContributorMessage(e.target.value)}
+            placeholder="Message to the contributor (sent by email, optional)"
+            aria-label="Message to the contributor (sent by email, optional)"
+            rows={2}
+            maxLength={1000}
+            style={textareaStyle}
+            data-evidence-request-contributor-message
           />
           <button
             type="button"

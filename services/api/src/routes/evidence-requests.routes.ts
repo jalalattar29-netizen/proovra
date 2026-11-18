@@ -58,6 +58,7 @@ import {
   getEvidenceRequest,
   listEvidenceRequestEvents,
   listEvidenceRequests,
+  NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX,
   projectRequestForAuthenticatedView,
   requestMoreEvidenceForResponse,
   reviewEvidenceRequestResponse,
@@ -608,8 +609,13 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (sendFeatureDisabled(reply)) return;
       const { id } = ParamsId.parse(req.params);
+      // PRO-I1-01 — `reviewerNote` is workspace-internal and optional;
+      // `contributorMessage` is the only text the contributor is emailed.
       const body = z
-        .object({ reviewerNote: z.string().max(4000).nullable().optional() })
+        .object({
+          reviewerNote: z.string().max(4000).nullable().optional(),
+          contributorMessage: z.string().max(NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX).nullable().optional(),
+        })
         .parse(req.body ?? {});
 
       const existing = await getEvidenceRequest(id);
@@ -619,12 +625,16 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       if (!ok) return;
 
       try {
+        const note = (body.reviewerNote ?? "").trim();
+        const contributorMessage = (body.contributorMessage ?? "").trim();
         const row = await transitionEvidenceRequest({
           id,
           teamId: existing.teamId,
           actorUserId: ok.userId,
           to: "NEEDS_MORE_INFO",
-          reviewerNote: body.reviewerNote ?? null,
+          reviewerNote: note.length > 0 ? note : null,
+          contributorMessage: contributorMessage.length > 0 ? contributorMessage : null,
+          payload: { contributorMessageProvided: contributorMessage.length > 0 },
         });
         return reply
           .code(200)
