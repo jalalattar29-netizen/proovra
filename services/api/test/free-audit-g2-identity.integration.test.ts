@@ -654,6 +654,12 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
         data: { passwordHash: await resetSvc.hashPassword(password) },
       });
       const first = await resetSvc.createPasswordResetTokenForEmail(t.owner.email);
+      // PRO-A1-09 — a second link is minted only after the per-address
+      // cooldown; age the first one past it.
+      await prisma.passwordResetToken.updateMany({
+        where: { userId: t.owner.userId },
+        data: { createdAt: new Date(Date.now() - 2 * 60_000) },
+      });
       const second = await resetSvc.createPasswordResetTokenForEmail(t.owner.email);
       expect(first && second).toBeTruthy();
       const done = await resetSvc.resetPasswordWithToken({ token: first!.rawToken, newPassword: "An0ther-strong-passphrase!" });

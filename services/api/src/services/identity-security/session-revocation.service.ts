@@ -35,6 +35,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { resolveSecret } from "../../config/index.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { isSelfServeAccountForOrganization } from "../security/enterprise-account-linking.service.js";
 
 const SID_HASH_SECRET_ENV = "IDENTITY_SECURITY_HASH_SECRET";
 
@@ -217,6 +218,121 @@ export async function revokeAllSessionsForUser(
     },
   }, client);
   return row;
+}
+
+/**
+ * PRO-T1-05 / PRO-A2-04 / PRO-A2-06 (DEC-08) — WORKSPACE AUTHORITY LOSS ENDS
+ * WORKSPACE AUTHORITY, NOT THE PERSON'S ACCOUNT.
+ *
+ * Removing, suspending or deprovisioning someone in one workspace or
+ * Organization used to write an ALL_FOR_USER revocation: every session of the
+ * account ended on every device, the person's own Personal workspace included,
+ * at the hands of a third party. Workspace access already ends on the next
+ * request through the canonical per-request membership evaluation
+ * (evaluateMemberAccess), so the session itself does not need to die.
+ *
+ * The rule, decided once here for every caller (rbac suspend/revoke/leave,
+ * Organization member removal/suspension, Organization suspension,
+ * HIGH_SECURITY activation, SCIM deactivation, admin revoke-all, emergency
+ * revoke):
+ *   - an identity the Organization ORIGINATED (its directory or IdP created
+ *     it — `isSelfServeAccountForOrganization` false) stays under the
+ *     Organization's legitimate security control: every session ends
+ *     (ALL_FOR_USER);
+ *   - an independent (self-serve) account, or any member of a workspace with
+ *     no Organization, loses only the delegations the Organization issued:
+ *     the sessions minted through ITS SSO connections. Nothing else is ended;
+ *     no ALL_FOR_USER row is written.
+ * Account-security events (password change/reset, account closure, the
+ * person's own "sign out everywhere", platform/MFA-recovery security actions)
+ * keep calling `revokeAllSessionsForUser` directly.
+ *
+ * Returns which scope was applied and how many sessions ended. Fails closed:
+ * when the account's provenance cannot be read it is treated as self-serve
+ * (only Organization-issued sessions end; workspace access still ends at the
+ * per-request evaluation).
+ */
+export type AuthorityLossRevocationScope = "ACCOUNT" | "ORGANIZATION_SESSIONS" | "NONE";
+
+export async function revokeSessionsForAuthorityLoss(
+  input: RevokeAllForUserInput & {
+    /** The Organization whose authority ended; resolved from teamId when absent. */
+    organizationId?: string | null;
+  },
+  client: PrismaClient = defaultPrisma,
+  options: { securityEvent?: boolean } = {},
+): Promise<{ scope: AuthorityLossRevocationScope; revoked: number }> {
+  let organizationId = input.organizationId ?? null;
+  if (!organizationId && input.teamId) {
+    const team = await client.team.findUnique({
+      where: { id: input.teamId },
+      select: { organizationId: true },
+    });
+    organizationId = team?.organizationId ?? null;
+  }
+  if (organizationId) {
+    const selfServe = await isSelfServeAccountForOrganization(
+      { userId: input.userId, organizationId },
+      client,
+    ).catch(() => true);
+    if (!selfServe) {
+      const live = await client.authenticatedSession.count({
+        where: { userId: input.userId, revokedAtUtc: null, expiresAtUtc: { gt: new Date() } },
+      });
+      await revokeAllSessionsForUser(input, client, options);
+      return { scope: "ACCOUNT", revoked: live };
+    }
+  }
+  if (!organizationId) return { scope: "NONE", revoked: 0 };
+  const connections = await client.ssoConnection.findMany({
+    where: { organizationId },
+    select: { id: true },
+  });
+  if (connections.length === 0) return { scope: "NONE", revoked: 0 };
+  const orgSessions = await client.authenticatedSession.findMany({
+    where: {
+      userId: input.userId,
+      revokedAtUtc: null,
+      expiresAtUtc: { gt: new Date() },
+      ssoConnectionId: { in: connections.map((c) => c.id) },
+    },
+    select: { sessionIdHash: true, teamId: true },
+  });
+  if (orgSessions.length === 0) return { scope: "NONE", revoked: 0 };
+  await client.revokedSession.createMany({
+    data: orgSessions.map((session) => ({
+      teamId: session.teamId ?? null,
+      userId: input.userId,
+      scope: prismaPkg.RevokedSessionScope.SINGLE_SESSION,
+      sessionIdHash: session.sessionIdHash,
+      reason: input.reason.slice(0, 64),
+      revokedByUserId: input.actorUserId ?? null,
+    })),
+    skipDuplicates: true,
+  });
+  await client.authenticatedSession.updateMany({
+    where: {
+      userId: input.userId,
+      revokedAtUtc: null,
+      sessionIdHash: { in: orgSessions.map((s) => s.sessionIdHash) },
+    },
+    data: {
+      revokedAtUtc: new Date(),
+      revokedByUserId: input.actorUserId ?? null,
+      revokedReason: input.reason.slice(0, 64),
+    },
+  });
+  await emitTenantAudit({
+    action: "identity_security.session.revoke_organization_sessions",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId ?? input.userId,
+    workspaceId: input.teamId ?? null,
+    resourceType: "user",
+    resourceId: input.userId,
+    metadata: { reason: input.reason, organizationId, revokedCount: orgSessions.length },
+  }, client);
+  return { scope: "ORGANIZATION_SESSIONS", revoked: orgSessions.length };
 }
 
 /**

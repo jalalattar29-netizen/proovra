@@ -25,7 +25,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { sessionsOfWorkspaceWhere } from "./session-inventory.service.js";
+import {
+  revokeUserSessionsInWorkspaceScope,
+  sessionsOfWorkspaceWhere,
+} from "./session-inventory.service.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import {
   keysetAfter,
@@ -34,7 +37,6 @@ import {
 } from "../pagination/keyset-cursor.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
-import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
 
 // -----------------------------------------------------------------------------
 // Projection
@@ -348,9 +350,13 @@ export async function emergencyOrgRevoke(
   input: { teamId: string; actorUserId: string; reason: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ usersRevoked: number; sessionsAffected: number }> {
+  // PRO-A2C-04 / PRO-T1-05 (DEC-08) — the people this workspace answers for
+  // (the inventory's own scope, not merely who signed in here), each ended
+  // within the workspace's authority over them, with the inventory mirror in
+  // the same scope as the revocation so sessionsAffected is the truth.
   const activeUsers = await client.authenticatedSession.findMany({
     where: {
-      teamId: input.teamId,
+      ...(await sessionsOfWorkspaceWhere(input.teamId, client)),
       revokedAtUtc: null,
       expiresAtUtc: { gt: new Date() },
     },
@@ -366,27 +372,16 @@ export async function emergencyOrgRevoke(
   let usersFailed = 0;
   for (const u of activeUsers) {
     try {
-      await revokeAllSessionsForUser(
+      const upd = await revokeUserSessionsInWorkspaceScope(
         {
           teamId: input.teamId,
           userId: u.userId,
           reason: "OPERATOR_REVOKED",
           actorUserId: input.actorUserId,
+          mirrorReason: "EMERGENCY_ORG_WIDE",
         },
         client,
       );
-      const upd = await client.authenticatedSession.updateMany({
-        where: {
-          teamId: input.teamId,
-          userId: u.userId,
-          revokedAtUtc: null,
-        },
-        data: {
-          revokedAtUtc: new Date(),
-          revokedByUserId: input.actorUserId,
-          revokedReason: "EMERGENCY_ORG_WIDE",
-        },
-      });
       sessionsAffected += upd.count;
     } catch {
       // Best-effort, but COUNTED. Swallowing the failure silently is what made

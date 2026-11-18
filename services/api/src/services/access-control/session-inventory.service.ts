@@ -42,6 +42,7 @@ import {
 } from "../pagination/keyset-cursor.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { isSelfServeAccountForOrganization } from "../security/enterprise-account-linking.service.js";
 import {
   hashSessionId,
   revokeAllSessionsForUser,
@@ -250,11 +251,55 @@ export async function sessionsOfWorkspaceWhere(
   // sessions started later, in their own Personal Space — with no time bound.
   // Removal ends the workspace's authority over the person: what remains is
   // only the sessions that STARTED in this workspace (the `teamId` leg).
+  //
+  // PRO-A2-04 (DEC-08) — and a CURRENT member's account-global sessions are
+  // the workspace's only when the Organization governs that identity (its
+  // directory or IdP originated it). For an independent (self-serve) member
+  // the workspace answers for what it issued: sessions that started here and
+  // sessions signed in through its Organization's SSO — never the person's
+  // Personal-Space or other-workspace sessions.
+  const scope = await workspaceSessionAuthority(teamId, client);
   const members = await client.teamMember.findMany({
     where: { teamId, status: { in: ["ACTIVE", "SUSPENDED"] } },
     select: { userId: true },
   });
-  return { OR: [{ teamId }, { userId: { in: members.map((m) => m.userId) } }] };
+  const managed: string[] = [];
+  if (scope.organizationId) {
+    const verdicts = await Promise.all(
+      members.map(async (m) => ({
+        userId: m.userId,
+        selfServe: await isSelfServeAccountForOrganization(
+          { userId: m.userId, organizationId: scope.organizationId as string },
+          client,
+        ).catch(() => true),
+      })),
+    );
+    for (const v of verdicts) if (!v.selfServe) managed.push(v.userId);
+  }
+  const legs: Prisma.AuthenticatedSessionWhereInput[] = [{ teamId }];
+  if (managed.length > 0) legs.push({ userId: { in: managed } });
+  if (scope.ssoConnectionIds.length > 0) {
+    legs.push({
+      ssoConnectionId: { in: scope.ssoConnectionIds },
+      userId: { in: members.map((m) => m.userId) },
+    });
+  }
+  return { OR: legs };
+}
+
+/** The workspace's Organization and the SSO connections that Organization owns. */
+async function workspaceSessionAuthority(
+  teamId: string,
+  client: PrismaClient,
+): Promise<{ organizationId: string | null; ssoConnectionIds: string[] }> {
+  const team = await client.team.findUnique({ where: { id: teamId }, select: { organizationId: true } });
+  const organizationId = team?.organizationId ?? null;
+  if (!organizationId) return { organizationId: null, ssoConnectionIds: [] };
+  const connections = await client.ssoConnection.findMany({
+    where: { organizationId },
+    select: { id: true },
+  });
+  return { organizationId, ssoConnectionIds: connections.map((c) => c.id) };
 }
 
 export const SESSION_INVENTORY_DEFAULT_LIMIT = 100;
@@ -402,6 +447,78 @@ export async function revokeActiveSession(
   return { ok: true, projection: projectSession(updated) };
 }
 
+/**
+ * PRO-A2-04 / PRO-A2C-04 (DEC-08) — end one person's sessions within the
+ * workspace's authority over them, with the inventory mirror in the SAME
+ * scope as the revocation. Shared by admin revoke-all and emergency revoke.
+ */
+export async function revokeUserSessionsInWorkspaceScope(
+  input: {
+    teamId: string;
+    userId: string;
+    actorUserId: string;
+    reason?: SessionRevocationReason;
+    mirrorReason?: string;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ count: number; scope: "ACCOUNT" | "WORKSPACE" }> {
+  const now = new Date();
+  const reason = input.reason ?? "OPERATOR_REVOKED";
+  /*
+   * PRO-A2-04 / PRO-A2C-04 (DEC-08) — the revocation and its inventory mirror
+   * have ONE scope, the workspace's authority over this person:
+   *   - an identity the Organization originated: every session of the account
+   *     (ALL_FOR_USER) — and every inventory row is marked, not only the ones
+   *     that started in this workspace, so the count is the truth;
+   *   - an independent account: only the sessions this workspace answers for
+   *     (started here, or signed in through its Organization's SSO), each
+   *     ended by its own id. Their Personal Space is not signed out.
+   */
+  const scope = await workspaceSessionAuthority(input.teamId, client);
+  const managed = scope.organizationId
+    ? !(await isSelfServeAccountForOrganization(
+        { userId: input.userId, organizationId: scope.organizationId },
+        client,
+      ).catch(() => true))
+    : false;
+  let result: { count: number };
+  if (managed) {
+    const unrevoked = await client.authenticatedSession.count({
+      where: { userId: input.userId, revokedAtUtc: null },
+    });
+    await revokeAllSessionsForUser(
+      { teamId: input.teamId, userId: input.userId, reason, actorUserId: input.actorUserId },
+      client,
+    );
+    // revokeAllSessionsForUser marks the live rows; every remaining
+    // unrevoked row of the account is marked too, and the count is the rows
+    // that were unrevoked before.
+    await client.authenticatedSession.updateMany({
+      where: { userId: input.userId, revokedAtUtc: null },
+      data: { revokedAtUtc: now, revokedByUserId: input.actorUserId, revokedReason: (input.mirrorReason ?? reason).slice(0, 64) },
+    });
+    result = { count: unrevoked };
+  } else {
+    const legs: Prisma.AuthenticatedSessionWhereInput[] = [{ teamId: input.teamId }];
+    if (scope.ssoConnectionIds.length > 0) legs.push({ ssoConnectionId: { in: scope.ssoConnectionIds } });
+    const rows = await client.authenticatedSession.findMany({
+      where: { userId: input.userId, revokedAtUtc: null, OR: legs },
+      select: { id: true, sessionIdHash: true, teamId: true },
+    });
+    for (const row of rows) {
+      await revokeSession(
+        { teamId: row.teamId, userId: input.userId, sessionIdHash: row.sessionIdHash, reason, actorUserId: input.actorUserId },
+        client,
+      );
+    }
+    result = await client.authenticatedSession.updateMany({
+      where: { id: { in: rows.map((r) => r.id) }, revokedAtUtc: null },
+      data: { revokedAtUtc: now, revokedByUserId: input.actorUserId, revokedReason: (input.mirrorReason ?? reason).slice(0, 64) },
+    });
+  }
+  return { count: result.count, scope: managed ? "ACCOUNT" : "WORKSPACE" };
+}
+
 export async function revokeAllSessionsForUserAdmin(
   input: {
     teamId: string;
@@ -411,24 +528,8 @@ export async function revokeAllSessionsForUserAdmin(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ revokedCount: number }> {
-  const now = new Date();
-  await revokeAllSessionsForUser(
-    {
-      teamId: input.teamId,
-      userId: input.userId,
-      reason: input.reason ?? "OPERATOR_REVOKED",
-      actorUserId: input.actorUserId,
-    },
-    client,
-  );
-  const result = await client.authenticatedSession.updateMany({
-    where: { userId: input.userId, teamId: input.teamId, revokedAtUtc: null },
-    data: {
-      revokedAtUtc: now,
-      revokedByUserId: input.actorUserId,
-      revokedReason: (input.reason ?? "OPERATOR_REVOKED").slice(0, 64),
-    },
-  });
+  const { count } = await revokeUserSessionsInWorkspaceScope(input, client);
+  const result = { count };
   bump("session_revoked_admin_total", result.count);
   safeEmitSecurityEvent({
     teamId: input.teamId,

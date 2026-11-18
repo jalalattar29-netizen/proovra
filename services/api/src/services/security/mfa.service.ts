@@ -301,6 +301,13 @@ export async function verifyAndActivateEnrollment(input: {
         verifiedAtUtc: now,
       },
     }),
+    // PRO-A1-11 — the new batch REPLACES every earlier one (regenerateRecoveryBatch's
+    // invalidate-then-create step): an old printed batch is retired by
+    // re-enrolment and 'recovery codes remaining' never exceeds one batch.
+    prisma.mfaRecoveryCode.updateMany({
+      where: { userId: input.userId, usedAt: null, batchInvalidatedAt: null },
+      data: { batchInvalidatedAt: now },
+    }),
     prisma.mfaRecoveryCode.createMany({ data: recoveryRows }),
   ]);
 
@@ -369,8 +376,13 @@ export async function verifyActiveTotp(input: {
   userId: string;
   code: string;
 }): Promise<{ ok: boolean; factorId: string | null }> {
-  const factor = await prisma.mfaFactor.findFirst({
+  // PRO-A1-11 — EVERY active authenticator answers. An account may hold more
+  // than one (a new phone added beside the old); checking one unspecified row
+  // rejected the other app's codes. The step is claimed on the factor whose
+  // secret matches, so one code is still accepted once.
+  const factors = await prisma.mfaFactor.findMany({
     where: { userId: input.userId, status: "ACTIVE", kind: "TOTP" },
+    orderBy: { createdAt: "desc" },
     select: {
       id: true,
       secretCiphertext: true,
@@ -379,6 +391,10 @@ export async function verifyActiveTotp(input: {
       secretKekId: true,
     },
   });
+  const matched = factors
+    .map((f) => ({ f, step: matchTotpStep(openSecret(requireTotpSecret(f)), input.code) }))
+    .find((m) => m.step !== null);
+  const factor = matched?.f ?? factors[0];
   if (!factor) {
     safeEmitSecurityEvent({
       teamId: null,
@@ -388,8 +404,7 @@ export async function verifyActiveTotp(input: {
     });
     return { ok: false, factorId: null };
   }
-  const secret = openSecret(requireTotpSecret(factor));
-  const step = matchTotpStep(secret, input.code);
+  const step = matched ? matched.step : null;
   // WCC-NEW-008 — a matching code is accepted ONCE (see claimTotpStep).
   const ok = step !== null && (await claimTotpStep(prisma, factor.id, step));
   if (ok) {
@@ -804,6 +819,20 @@ export async function createMfaPendingChallenge(
   input: CreateMfaPendingChallengeInput,
 ): Promise<CreateMfaPendingChallengeResult> {
   void gcStalePendingChallenges();
+  if ((input.purpose ?? "LOGIN") === "LOGIN") {
+    // PRO-A1-05 — no new sign-in challenge while the account is in a
+    // second-factor lockout window.
+    const recent = await recentLoginFailures(input.userId);
+    if (recent.failures >= LOGIN_FAILURE_LOCK_THRESHOLD) {
+      safeEmitSecurityEvent({
+        teamId: null,
+        eventType: "auth_login_failed",
+        severity: "WARNING",
+        details: { actorUserId: input.userId, phase: "mfa_challenge", reason: "mfa_temporarily_locked" },
+      });
+      throw new MfaLoginTemporarilyLockedError(recent.retryAfterSec);
+    }
+  }
   const ttl =
     typeof input.ttlSeconds === "number" && input.ttlSeconds > 0
       ? Math.min(input.ttlSeconds, MFA_PENDING_CHALLENGE_TTL_SECONDS)
@@ -978,14 +1007,93 @@ export async function consumeMfaPendingChallenge(
 export async function recordPendingChallengeFailure(
   jti: string,
 ): Promise<void> {
+  // PRO-A1-05 — the attempt itself was counted when it was CLAIMED
+  // (claimLoginChallengeAttempt). A failed answer that used the last allowed
+  // attempt ends the challenge now: the next answer cannot be checked.
   try {
-    await prisma.mfaPendingChallenge.update({
-      where: { jti },
-      data: { failureCount: { increment: 1 } },
+    await prisma.mfaPendingChallenge.updateMany({
+      where: { jti, consumedAt: null, failureCount: { gte: LOGIN_CHALLENGE_MAX_ATTEMPTS } },
+      data: { expiresAt: new Date() },
     });
   } catch {
     // Row may have been GC'd or the JTI was bogus. Best effort only.
   }
+}
+
+/**
+ * PRO-A1-05 — SECOND-FACTOR GUESSING IS BOUNDED.
+ *
+ * The sign-in second factor had only a 5/min burst limiter: someone holding
+ * the password could guess authenticator codes indefinitely (≈2 %/day). Now:
+ *   - each sign-in challenge accepts at most LOGIN_CHALLENGE_MAX_ATTEMPTS
+ *     checked answers. An attempt is CLAIMED atomically before the answer is
+ *     checked (guarded increment), so parallel wrong answers cannot exceed the
+ *     cap; the last failed attempt ends the challenge;
+ *   - new sign-in challenges for the account are refused for a stated window
+ *     once LOGIN_FAILURE_LOCK_THRESHOLD failed answers were recorded within
+ *     LOGIN_FAILURE_WINDOW_SECONDS (the step-up path's bounded pattern).
+ * The burst limiter keyed mfa-verify:<user> stays.
+ */
+export const LOGIN_CHALLENGE_MAX_ATTEMPTS = 5;
+export const LOGIN_FAILURE_WINDOW_SECONDS = 30 * 60;
+export const LOGIN_FAILURE_LOCK_THRESHOLD = 10;
+
+export class MfaLoginTemporarilyLockedError extends Error {
+  readonly code = "MFA_TEMPORARILY_LOCKED" as const;
+  /** Fail-closed for callers that let it propagate (no session either way). */
+  readonly statusCode = 429;
+  constructor(readonly retryAfterSec: number) {
+    super("mfa_temporarily_locked");
+    this.name = "MfaLoginTemporarilyLockedError";
+  }
+}
+
+/** Failed second-factor answers on this account's recent sign-in challenges. */
+async function recentLoginFailures(userId: string): Promise<{ failures: number; retryAfterSec: number }> {
+  const since = new Date(Date.now() - LOGIN_FAILURE_WINDOW_SECONDS * 1000);
+  const rows = await prisma.mfaPendingChallenge.findMany({
+    where: { userId, purpose: "LOGIN", createdAt: { gte: since }, failureCount: { gt: 0 } },
+    select: { failureCount: true, consumedAt: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+  // A consumed challenge's last claimed attempt was the successful one.
+  const failures = rows.reduce((n, r) => n + r.failureCount - (r.consumedAt ? 1 : 0), 0);
+  const oldest = rows[0]?.createdAt ?? new Date();
+  const retryAfterSec = Math.max(
+    1,
+    Math.ceil((oldest.getTime() + LOGIN_FAILURE_WINDOW_SECONDS * 1000 - Date.now()) / 1000),
+  );
+  return { failures, retryAfterSec };
+}
+
+/**
+ * Claim one checked attempt on an open sign-in challenge. "ok": the answer may
+ * be checked. "exhausted": the cap was reached (the challenge is ended).
+ * "closed": no open challenge (expired, consumed, someone else's).
+ */
+export async function claimLoginChallengeAttempt(input: {
+  jti: string;
+  userId: string;
+}): Promise<"ok" | "exhausted" | "closed"> {
+  const claimed = await prisma.mfaPendingChallenge.updateMany({
+    where: openLoginWhere({
+      jti: input.jti,
+      userId: input.userId,
+      failureCount: { lt: LOGIN_CHALLENGE_MAX_ATTEMPTS },
+    }),
+    data: { failureCount: { increment: 1 } },
+  });
+  if (claimed.count === 1) return "ok";
+  const open = await prisma.mfaPendingChallenge.findFirst({
+    where: openLoginWhere({ jti: input.jti, userId: input.userId }),
+    select: { id: true },
+  });
+  if (!open) return "closed";
+  await prisma.mfaPendingChallenge.updateMany({
+    where: { id: open.id, consumedAt: null },
+    data: { expiresAt: new Date() },
+  });
+  return "exhausted";
 }
 
 // -----------------------------------------------------------------------------

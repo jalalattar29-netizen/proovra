@@ -739,6 +739,12 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
     level: z.enum(MFA_POLICY_LEVELS as unknown as [string, ...string[]]),
     stepUpTtlSeconds: z.number().int().min(60).max(3600).nullable().optional(),
     trustedDeviceTtlDays: z.number().int().min(1).max(180).nullable().optional(),
+    /**
+     * PRO-P3AZ-02 — the version the caller loaded. With it the write is the
+     * canonical optimistic one (a concurrent edit answers 409); without it
+     * (legacy callers until the sunset) the server's own read is used.
+     */
+    policyVersion: z.number().int().min(0).optional(),
   });
 
   /*
@@ -796,7 +802,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         const updated = await updateMfaPolicyVersioned({
           teamId: body.teamId,
           actorUserId: actor.userId,
-          expectedPolicyVersion: current.policyVersion,
+          expectedPolicyVersion: body.policyVersion ?? current.policyVersion,
           level: body.level as never,
           ...(body.stepUpTtlSeconds !== undefined ? { stepUpTtlSeconds: body.stepUpTtlSeconds } : {}),
           ...(body.trustedDeviceTtlDays !== undefined

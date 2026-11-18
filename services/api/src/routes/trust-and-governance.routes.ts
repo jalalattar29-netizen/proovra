@@ -1341,6 +1341,21 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         })
         .parse(req.body);
       if (await denyTeamIfNotEnterprise(reply, ctx.teamId, "accessReviews")) return reply;
+      // PRO-G2-17 — a REVOKED decision performs the real grant revocation, so
+      // it is stepped up like its sibling access-removing writes (department
+      // membership revoke). Keep/other decisions change no access.
+      if (body.decision === "REVOKED") {
+        const stepUp = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          purpose: "MEMBER_REVOKE",
+          resourceKind: "ACCESS_REVIEW_ITEM",
+          resourceId: id,
+        });
+        if (stepUp.sent) return reply;
+      }
       const r = await recordItemDecision({
         teamId: ctx.teamId,
         itemId: id,

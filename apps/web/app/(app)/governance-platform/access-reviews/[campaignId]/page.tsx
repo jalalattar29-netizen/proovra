@@ -35,6 +35,8 @@ import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../../lib/api";
+import { StepUpModal, isStepUpCancelled, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
+import { useActiveWorkspaceId } from "../../../../../lib/platform-context/useTeamWorkspaceGate";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { permissionRequiredDetail } from "../../../../../lib/labels/governanceReviewLabels";
@@ -83,26 +85,40 @@ function Shell() {
     }
   }, [campaignId]);
 
+  const stepUp = useStepUpAction({ teamId: useActiveWorkspaceId() });
   const decide = useCallback(
     async (itemId: string, decision: AccessReviewItemDecision) => {
+      // PRO-G2-17 — Revoke removes the member's grant: confirm first, and the
+      // server asks for a step-up (answered through the step-up dialog).
+      if (
+        decision === "REVOKED" &&
+        typeof window !== "undefined" &&
+        !window.confirm("Revoke this access? The member loses this grant immediately.")
+      ) {
+        return;
+      }
       setBusy(true);
       setDenial(null);
       try {
-        await apiFetch(
-          `/v1/governance/access-reviews/items/${itemId}/decision`,
-          {
-            method: "POST",
-            body: JSON.stringify({ decision }),
-          },
+        await stepUp.runStepUpAction(async (headers) =>
+          apiFetch(
+            `/v1/governance/access-reviews/items/${itemId}/decision`,
+            {
+              method: "POST",
+              headers: { ...(headers ?? {}) },
+              body: JSON.stringify({ decision }),
+            },
+          ),
         );
         await refresh();
       } catch (err) {
+        if (isStepUpCancelled(err)) return;
         handleError(err, setDenial);
       } finally {
         setBusy(false);
       }
     },
-    [refresh],
+    [refresh, stepUp],
   );
 
   useEffect(() => {
@@ -232,6 +248,7 @@ function Shell() {
           }
         />
       </div>
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

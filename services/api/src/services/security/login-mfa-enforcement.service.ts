@@ -183,6 +183,19 @@ export interface LoginMfaEnforcementResult {
   basis?: "PLATFORM_AUTHORITY";
 }
 
+/**
+ * PRO-A1-01 — thrown when the account's second-factor state cannot be read.
+ * Callers (gateLoginWithMfa, the OIDC callback, the native SSO exchange, the
+ * SAML ACS) map it to 503 SECURITY_CONTEXT_UNAVAILABLE and issue nothing.
+ */
+export class LoginMfaContextUnavailableError extends Error {
+  readonly code = "SECURITY_CONTEXT_UNAVAILABLE" as const;
+  constructor(readonly kind: EnforcementErrorKind) {
+    super(`login_mfa_context_unavailable:${kind}`);
+    this.name = "LoginMfaContextUnavailableError";
+  }
+}
+
 export interface ResolveLoginMfaEnforcementInput {
   userId: string;
 }
@@ -201,9 +214,11 @@ export interface ResolveLoginMfaEnforcementInput {
  *     are fail-OPEN'd.
  *   - Operators can override via `MFA_ENFORCEMENT_FAIL_MODE`.
  *
- * The function still NEVER throws — callers see one of the three
- * bounded outcomes regardless of which Prisma call failed. The
- * auth.routes.ts fail-open `catch` is now defence-in-depth only.
+ * PRO-A1-01 — one exception: when the FACTOR read fails the function
+ * throws LoginMfaContextUnavailableError (unknown factor state is never
+ * encoded as zero factors); every caller answers 503
+ * SECURITY_CONTEXT_UNAVAILABLE. Membership/policy failures keep their
+ * bounded circuit-breaker outcomes.
  */
 export async function resolveLoginMfaEnforcement(
   input: ResolveLoginMfaEnforcementInput,
@@ -251,6 +266,25 @@ export async function resolveLoginMfaEnforcement(
   }
 
   // ===== CIRCUIT BREAKER — short-circuit on classified errors. =====
+  // PRO-A1-01 / PRO-S1-10 / B1-F-006 — an UNKNOWN factor state is not "no
+  // factor". Encoding the failed read as activeFactorCount = 0 turned every
+  // fail mode into a session (NOT_REQUIRED) or an enrolment credential
+  // (ENROLLMENT_REQUIRED) for an account that may hold a second factor, so a
+  // password holder could sign in or enrol their own authenticator. No fail
+  // mode — not even the operator's `open` — may mint anything when the
+  // system cannot tell whether a factor is enrolled: the resolver throws and
+  // every caller answers 503 SECURITY_CONTEXT_UNAVAILABLE (retryable, no
+  // token, no cookie, no enrolment token). `open` keeps its meaning for
+  // membership/policy failures, where the factor state IS known.
+  if (!factorLookupOk) {
+    safeEmitSecurityEvent({
+      teamId: null,
+      eventType: "mfa_enforcement_failed_closed",
+      severity: "WARNING",
+      details: { actorUserId: input.userId, kind: "factor_lookup_failed", failMode },
+    });
+    throw new LoginMfaContextUnavailableError("factor_lookup_failed");
+  }
   if (!membershipLookupOk) {
     return circuitBreakerOutcome(
       "membership_lookup_failed",

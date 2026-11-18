@@ -90,7 +90,7 @@ import { isAccountClosed } from "../identity/account-closed.js";
 import { ipInRanges } from "./ip-ranges.js";
 // P0 remediation (2026-07-21) — SCIM deactivation revokes sessions
 // immediately (same primitive as RBAC suspend).
-import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
+import { revokeSessionsForAuthorityLoss } from "../identity-security/session-revocation.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import {
   applyDirectoryRoleChange,
@@ -1351,8 +1351,11 @@ export async function scimDeactivateUser(
     },
     select: { id: true, teamId: true },
   });
+  // PRO-A2-06 — reach needs a CURRENT relationship: an ACTIVE or SUSPENDED
+  // membership. A person who has left the Organization (REVOKED rows only) is
+  // not the directory's to act on any more: 404, nothing written.
   const known = await client.teamMember.findFirst({
-    where: { userId, team: { organizationId: ctx.organizationId } },
+    where: { userId, status: { in: ["ACTIVE", "SUSPENDED"] }, team: { organizationId: ctx.organizationId } },
     select: { id: true },
   });
   if (!known) return { ok: false };
@@ -1388,8 +1391,9 @@ export async function scimDeactivateUser(
   // give no access to them), and the Personal Space and personal data were
   // never the Organization's. A later directory reactivation re-binds an
   // account the Organization created through the normal provisioning intent.
-  await client.$transaction(async (tx) => {
+  const changed = await client.$transaction(async (tx) => {
     const txc = tx as unknown as PrismaClient;
+    let changedAnything = members.length > 0;
     // Re-audit 3, B-N1 — ORDER MATTERS. The governance-membership transition
     // writes its audit row on the DEFAULT client, outside this transaction,
     // while the work release below writes its audit rows INSIDE it, taking the
@@ -1436,6 +1440,7 @@ export async function scimDeactivateUser(
         source: "SCIM",
         reason: SCIM_DEACTIVATION_MEMBERSHIP_MARKER,
       });
+      changedAnything = true;
     }
 
     // PHASE 3 (2026-07-21) — canonical orchestrator: MEMBER_SUSPENSION, once
@@ -1448,10 +1453,11 @@ export async function scimDeactivateUser(
       });
     }
     // Unlink the Organization's external mappings for this user (soft).
-    await txc.externalIdentityMapping.updateMany({
+    const unlinked = await txc.externalIdentityMapping.updateMany({
       where: { organizationId: ctx.organizationId, userId, unlinkedAtUtc: null },
       data: { unlinkedAtUtc: new Date() },
     });
+    if (unlinked.count > 0) changedAnything = true;
     // B5B-F-302 — end THIS Organization's managed binding (no-op otherwise),
     // once the directory has left the person no access in the Organization.
     // A workspace OWNER is never suspended by a directory push (above), so an
@@ -1466,6 +1472,7 @@ export async function scimDeactivateUser(
         txc,
       );
     }
+    return changedAnything;
   });
 
   // -------------------------------------------------------------------------
@@ -1483,13 +1490,21 @@ export async function scimDeactivateUser(
   // Both are best-effort-ordered AFTER the membership suspension so access
   // is already denied server-side even if a later step fails.
   // -------------------------------------------------------------------------
-  try {
-    await revokeAllSessionsForUser(
-      { teamId: ctx.teamId, userId, reason: "SCIM_DEACTIVATED" },
-      client,
-    );
-  } catch {
-    bump("security_event_emit_failed");
+  //
+  // PRO-A2-06 / PRO-T1-05 (DEC-08) — only when THIS call changed something (a
+  // repeated DELETE is harmless: it must not sign the person out again), and
+  // through the canonical authority-loss scope: an identity the Organization
+  // originated loses every session; an independent account that linked to the
+  // Organization loses only the sessions the Organization's SSO issued.
+  if (changed) {
+    try {
+      await revokeSessionsForAuthorityLoss(
+        { teamId: ctx.teamId, organizationId: ctx.organizationId, userId, reason: "SCIM_DEACTIVATED" },
+        client,
+      );
+    } catch {
+      bump("security_event_emit_failed");
+    }
   }
   try {
     await client.user.updateMany({

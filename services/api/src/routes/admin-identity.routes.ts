@@ -895,6 +895,9 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.contributor_session.revoke",
       );
       if (!actor) return;
+      // PRO-A2-04 (DEC-11) — session governance is an Enterprise capability;
+      // the console being hidden elsewhere is not a server-side refusal.
+      if (await denyTeamIfNotEnterprise(reply, q.teamId, "sessionGovernance")) return;
       const after = decodeKeysetCursor(q.cursor);
       if (after === null) {
         // A cursor that does not decode is a broken client, not "start
@@ -946,6 +949,19 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.contributor_session.revoke",
       );
       if (!actor) return;
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
+      // PRO-A2-04 — ending another person's session is a sensitive action,
+      // stepped up like its revoke-all sibling.
+      const revokeGate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: actor.userId,
+        purpose: "CONTRIBUTOR_SESSION_REVOKE",
+        resourceKind: "authenticated_session",
+        resourceId: id,
+      });
+      if (revokeGate.sent) return;
       const result = await revokeActiveSession({
         teamId: body.teamId,
         sessionId: id,
@@ -998,6 +1014,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.contributor_session.revoke",
       );
       if (!actor) return;
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -1287,6 +1304,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.contributor_session.revoke",
       );
       if (!actor) return;
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
       const result = await detectAndScoreSession({
         teamId: body.teamId,
         sessionId: id,
@@ -1376,6 +1394,18 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
         action: "MEMBER_SUSPEND",
       });
       if (!gate.allow) return;
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
+      // PRO-A2-04 — restricting another person's session is stepped up.
+      const quarantineStepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: actor.userId,
+        purpose: "CONTRIBUTOR_SESSION_REVOKE",
+        resourceKind: "authenticated_session",
+        resourceId: id,
+      });
+      if (quarantineStepUp.sent) return;
       const result = await quarantineSession({
         teamId: body.teamId,
         sessionId: id,
@@ -1411,6 +1441,7 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
         "identity.contributor_session.revoke",
       );
       if (!actor) return;
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
       /*
        * PRO-023 (AUTH-17) — release had none of the gates its sibling
        * (quarantine) has, so a quarantined session listed itself and released
@@ -1463,6 +1494,7 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
         "identity.contributor_session.revoke",
       );
       if (!actor) return;
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
       // Emergency revoke always wraps the step-up gate. This is the
       // single hardest action in the platform.
       const stepUp = await requireStepUpForSensitiveAction({
