@@ -100,8 +100,17 @@ async function buildSearchOrClause(
   // is no Case→User relation in the Prisma schema, so we cannot use a
   // relation filter; we resolve the id set instead. Bounded.
   try {
+    // PRO-K1-07 — the candidates are THIS workspace's case owners, not every
+    // account on the platform: a common term used to fill the 200-row cap with
+    // strangers and drop the workspace's real owners.
+    const workspaceOwners = await prisma.case.findMany({
+      where: { teamId },
+      select: { ownerUserId: true },
+      distinct: ["ownerUserId"],
+    });
     const owners = await prisma.user.findMany({
       where: {
+        id: { in: workspaceOwners.map((o) => o.ownerUserId) },
         OR: [
           { email: { contains: term, mode: "insensitive" } },
           { displayName: { contains: term, mode: "insensitive" } },
@@ -213,7 +222,38 @@ export type MatterQueueEnvelope = {
   };
   items: MatterQueueItem[];
   total: number;
+  /**
+   * PRO-K1-07 — additive paging facts. `total` is the true number of cases
+   * matching (`totalIsExact`) or, when a row-level filter had to be applied
+   * after a bounded scan, the matches found so far (`totalIsExact: false`).
+   * `hasMore` / `nextCursor` continue the list; an older client ignores them.
+   */
+  hasMore?: boolean;
+  nextCursor?: string | null;
+  totalIsExact?: boolean;
 };
+
+/**
+ * PRO-K1-07 — how many cases a row-level filter (open incidents, blockers,
+ * overdue work, legal hold, artifact gaps, risk) may scan for one page. Those
+ * counters span several tables, so they are decided per case; scanning only
+ * the first page (50) and filtering it is what dropped matches beyond it.
+ */
+const MATTER_QUEUE_FILTER_SCAN_CAP = 1000;
+
+/** Offset cursor, opaque to the client. */
+function decodeQueueCursor(cursor: string | null | undefined): number {
+  if (!cursor) return 0;
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as { o?: unknown };
+    return typeof parsed.o === "number" && Number.isInteger(parsed.o) && parsed.o >= 0 ? parsed.o : 0;
+  } catch {
+    return 0;
+  }
+}
+function encodeQueueCursor(offset: number): string {
+  return Buffer.from(JSON.stringify({ o: offset }), "utf8").toString("base64url");
+}
 
 export async function buildMatterQueue(input: {
   teamId: string;
@@ -221,8 +261,19 @@ export async function buildMatterQueue(input: {
   role: string;
   filter: MatterQueueFilter;
   limit?: number;
+  /** PRO-K1-07 — continuation from a previous page's `nextCursor`. */
+  cursor?: string | null;
 }): Promise<MatterQueueEnvelope> {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
+  const offset = decodeQueueCursor(input.cursor);
+  const rowFiltered = Boolean(
+    input.filter.hasOpenIncidents ||
+      input.filter.hasGovernanceBlockers ||
+      input.filter.hasOverdueWorkflows ||
+      input.filter.hasLegalHold ||
+      input.filter.missingArtifact ||
+      input.filter.riskLevel,
+  );
 
   // Build the WHERE clause deterministically from the filter.
   // The queue reads the workspace, so it answers to the case rule like the case
@@ -238,6 +289,13 @@ export async function buildMatterQueue(input: {
     // (`teamId`) stays as a top-level AND on `where`, so no OR branch can
     // ever widen the query beyond the caller's workspace.
     where.OR = await buildSearchOrClause(input.teamId, input.filter.search);
+  }
+  // PRO-K1-07 — the assignee filter is SQL (it was applied to the first
+  // page after the cut, so assigned cases beyond it were missed).
+  if (input.filter.assignedToUserId) {
+    (where.AND as unknown[]).push({
+      assignments: { some: { assignedToUserId: input.filter.assignedToUserId, status: "ACTIVE" } },
+    });
   }
 
   // Pull base cases.
@@ -255,8 +313,11 @@ export async function buildMatterQueue(input: {
   try {
     cases = await prisma.case.findMany({
       where,
-      orderBy: [{ priority: "asc" }, { updatedAt: "desc" }],
-      take: limit,
+      orderBy: [{ priority: "asc" }, { updatedAt: "desc" }, { id: "desc" }],
+      // PRO-K1-07 — one row past the page proves `hasMore`; a row-level
+      // filter scans a bounded window instead of only the first page.
+      skip: offset,
+      take: rowFiltered ? MATTER_QUEUE_FILTER_SCAN_CAP : limit + 1,
       select: {
         id: true,
         name: true,
@@ -555,30 +616,41 @@ export async function buildMatterQueue(input: {
     }
   }
 
-  // Apply assignedToUserId filter via a secondary join (cheap and
-  // bounded).
-  let filtered = items;
-  if (input.filter.assignedToUserId) {
-    try {
-      const assigned = await prisma.caseAssignment.findMany({
-        where: {
-          assignedToUserId: input.filter.assignedToUserId,
-          status: "ACTIVE",
-          caseId: { in: items.map((i) => i.id) },
-        },
-        select: { caseId: true },
-      });
-      const assignedCaseIds = new Set(assigned.map((a) => a.caseId));
-      filtered = items.filter((i) => assignedCaseIds.has(i.id));
-    } catch {
-      /* degrade: no filter applied */
-    }
+  // PRO-K1-07 — the page, its continuation, and a true count.
+  //
+  // Unfiltered (or SQL-filtered) lists fetched limit + 1 rows: the extra row
+  // proves another page, and the total is a COUNT of every case matching, not
+  // the length of this page. A row-level filter scanned a bounded window and
+  // matched within it; the continuation resumes after the last scanned row
+  // that was shown, and the total says it is a lower bound when the window was
+  // cut.
+  const page = items.slice(0, limit);
+  let hasMore: boolean;
+  let nextOffset: number;
+  let total: number;
+  let totalIsExact: boolean;
+  if (!rowFiltered) {
+    hasMore = cases.length > limit;
+    nextOffset = offset + page.length;
+    total = await prisma.case.count({ where }).catch(() => offset + items.length);
+    totalIsExact = true;
+  } else {
+    const scanCut = cases.length >= MATTER_QUEUE_FILTER_SCAN_CAP;
+    const lastShown = page.length > 0 ? page[page.length - 1] : null;
+    const lastShownIndex = lastShown ? cases.findIndex((c) => c.id === lastShown.id) : -1;
+    hasMore = items.length > limit || scanCut;
+    nextOffset = items.length > limit ? offset + lastShownIndex + 1 : offset + cases.length;
+    total = offset === 0 && !scanCut ? items.length : page.length;
+    totalIsExact = offset === 0 && !scanCut;
   }
 
   return {
     generatedAt: new Date().toISOString(),
     workspace: { teamId: input.teamId, role: input.role },
-    items: filtered,
-    total: filtered.length,
+    items: page,
+    total,
+    hasMore,
+    nextCursor: hasMore ? encodeQueueCursor(nextOffset) : null,
+    totalIsExact,
   };
 }

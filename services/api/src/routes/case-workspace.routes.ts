@@ -345,6 +345,8 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
     missingArtifact: queryBoolean.optional(),
     search: z.string().min(1).max(80).optional(),
     limit: z.coerce.number().int().min(1).max(200).optional(),
+    // PRO-K1-07 — continuation from a previous page's nextCursor.
+    cursor: z.string().min(1).max(200).optional(),
   });
 
   app.get(
@@ -359,6 +361,7 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         userId: member.userId,
         role: member.role,
         limit: q.limit,
+        cursor: q.cursor ?? null,
         filter: {
           status: q.status,
           riskLevel: q.riskLevel,
