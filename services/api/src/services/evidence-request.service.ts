@@ -233,12 +233,17 @@ export async function assignEvidenceRequestReviewer(
   client: PrismaClient = defaultPrisma,
 ): Promise<RequestRow> {
   return client.$transaction(async (tx) => {
+    // PRO-I1-12 — under the request lock, refused on a terminal request.
+    await lockEvidenceRequestTx(tx, input.id);
     const existing = await tx.evidenceRequest.findUnique({
       where: { id: input.id },
-      select: { id: true, teamId: true, evidenceId: true, caseId: true },
+      select: { id: true, teamId: true, evidenceId: true, caseId: true, status: true },
     });
     if (!existing || existing.teamId !== input.teamId) {
       throw new EvidenceRequestError("request_not_found");
+    }
+    if (isTerminalEvidenceRequestStatus(existing.status as EvidenceRequestStatus)) {
+      throw new EvidenceRequestError("request_terminal");
     }
     await assertRequestReviewerEligible(tx as unknown as PrismaClient, {
       teamId: existing.teamId,
@@ -1677,6 +1682,18 @@ export async function requestMoreEvidenceForResponse(
   let updated: Awaited<ReturnType<typeof client.evidenceRequestResponse.findUniqueOrThrow>>;
   try {
     updated = await client.$transaction(async (tx) => {
+      // PRO-I1-04 — the claim runs under the request's lock (PRO-048) and
+      // re-reads the request: a cancel/close that committed between the
+      // unlocked pre-check and here has already revoked every link it knew
+      // about, so this one would have outlived it. It is refused and revoked.
+      await lockEvidenceRequestTx(tx, input.requestId);
+      const current = await tx.evidenceRequest.findUnique({
+        where: { id: input.requestId },
+        select: { status: true },
+      });
+      if (!current || isTerminalEvidenceRequestStatus(current.status as EvidenceRequestStatus)) {
+        throw new EvidenceRequestError("request_terminal");
+      }
       const swapped = await tx.evidenceRequestResponse.updateMany({
         where: { id: input.responseId, status: { in: [...REVIEWABLE_RESPONSE_STATUSES] } },
         data: {
@@ -1706,13 +1723,16 @@ export async function requestMoreEvidenceForResponse(
       return u;
     });
   } catch (error) {
-    if (error instanceof EvidenceRequestError && error.code === "response_already_reviewed") {
+    if (
+      error instanceof EvidenceRequestError &&
+      (error.code === "response_already_reviewed" || error.code === "request_terminal")
+    ) {
       await revokeWorkflowIntakeLink(
         {
           id: created.link.id,
           teamId: request.teamId,
           actorUserId: input.actorUserId,
-          reason: "response_already_reviewed",
+          reason: error.code,
         },
         client,
       ).catch(() => null);
@@ -1850,23 +1870,35 @@ export async function waiveDeliverable(
     throw new EvidenceRequestError("deliverable_already_resolved");
   }
 
-  const updated = await client.evidenceRequestDeliverable.update({
-    where: { id: input.deliverableId },
-    data: {
-      status: "WAIVED",
-      waivedReason: input.reason ?? null,
-    },
+  // PRO-I1-12 — a waive is a state change of the request: under its lock
+  // (PRO-048), refused on a cancelled/closed request, and conditional on the
+  // deliverable still being open, with its event in the same transaction.
+  return client.$transaction(async (tx) => {
+    await lockEvidenceRequestTx(tx, input.requestId);
+    const current = await tx.evidenceRequest.findUnique({
+      where: { id: input.requestId },
+      select: { status: true },
+    });
+    if (!current || isTerminalEvidenceRequestStatus(current.status as EvidenceRequestStatus)) {
+      throw new EvidenceRequestError("request_terminal");
+    }
+    const claimed = await tx.evidenceRequestDeliverable.updateMany({
+      where: { id: input.deliverableId, status: { notIn: ["FULFILLED", "WAIVED"] } },
+      data: {
+        status: "WAIVED",
+        waivedReason: input.reason ?? null,
+      },
+    });
+    if (claimed.count !== 1) throw new EvidenceRequestError("deliverable_already_resolved");
+    await appendRequestEvent(
+      tx,
+      input.requestId,
+      "EVIDENCE_REQUEST_DELIVERABLE_WAIVED",
+      input.actorUserId,
+      { deliverableId: input.deliverableId, reason: input.reason ?? null } as Prisma.InputJsonValue,
+    );
+    return tx.evidenceRequestDeliverable.findUniqueOrThrow({ where: { id: input.deliverableId } });
   });
-
-  await appendRequestEvent(
-    client,
-    input.requestId,
-    "EVIDENCE_REQUEST_DELIVERABLE_WAIVED",
-    input.actorUserId,
-    { deliverableId: input.deliverableId, reason: input.reason ?? null } as Prisma.InputJsonValue,
-  );
-
-  return updated;
 }
 
 // -----------------------------------------------------------------------------

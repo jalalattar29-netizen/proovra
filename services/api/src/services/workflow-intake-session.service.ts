@@ -123,7 +123,7 @@ export async function validateIntakeToken(
   const lookup = lookupHashForIntakeToken(rawToken);
   if (!lookup) throw new WorkflowIntakeSessionError("token_invalid");
 
-  const link = await client.workflowIntakeLink.findUnique({
+  let link = await client.workflowIntakeLink.findUnique({
     where: { tokenHash: lookup.tokenHash },
   });
   if (!link) throw new WorkflowIntakeSessionError("token_invalid");
@@ -141,8 +141,19 @@ export async function validateIntakeToken(
   // Free acceptance J7 — a SUBMITTED one-time link is flipped to EXPIRED by
   // transitionIntakeSession, so "already submitted" must be asked before the
   // status/expiry checks, or the read-only completed page is unreachable.
+  // PRO-I1-03 — and it is answered from a DURABLE ACCEPTED submission, not
+  // from the reserved use counter (reserveIntakeLinkUse runs BEFORE sealing).
   if (link.maxUses === 1 && link.usedCount >= 1) {
-    throw new WorkflowIntakeSessionError("link_already_submitted");
+    const use = await oneTimeLinkUseState(link, client);
+    if (use === "submitted") throw new WorkflowIntakeSessionError("link_already_submitted");
+    if (use === "in_progress") throw new WorkflowIntakeSessionError("link_in_use");
+    // "orphaned": a use reserved long ago with nothing sealed (the process
+    // ended inside finalization). Give it back, conditionally, and go on.
+    await reconcileOrphanedIntakeLinkUse(link, client);
+    const fresh = await client.workflowIntakeLink.findUnique({ where: { id: link.id } });
+    if (!fresh) throw new WorkflowIntakeSessionError("token_invalid");
+    link = fresh;
+    if (link.maxUses === 1 && link.usedCount >= 1) throw new WorkflowIntakeSessionError("link_in_use");
   }
   const now = new Date();
   if (link.expiresAtUtc.getTime() <= now.getTime()) {
@@ -724,6 +735,54 @@ export function assertIntakeClientAllowed(
  * Reserve one use of the link: a single conditional increment, true when a use
  * was available. Concurrent submits on a ONE_TIME link reserve exactly once.
  */
+/**
+ * PRO-I1-03 — how long a reserved one-time use with nothing sealed is treated
+ * as a submission still in flight (completion: hashing, signing, timestamping)
+ * before it is considered orphaned and given back.
+ */
+export const RESERVED_INTAKE_USE_STALE_MS = 30 * 60 * 1000;
+
+/**
+ * PRO-I1-03 — what the reserved use of a ONE-TIME link stands for:
+ *   "submitted"   — a session reached SUBMITTED or its record is sealed;
+ *   "in_progress" — a use is reserved, nothing is sealed yet, and the
+ *                   reservation (the link's last write) is recent;
+ *   "orphaned"    — reserved long ago and nothing was ever sealed.
+ */
+export async function oneTimeLinkUseState(
+  link: { id: string; updatedAt: Date },
+  client: PrismaClient = defaultPrisma,
+): Promise<"submitted" | "in_progress" | "orphaned"> {
+  const sealed = await client.workflowIntakeSession.count({
+    where: {
+      intakeLinkId: link.id,
+      OR: [{ status: "SUBMITTED" }, { evidence: { is: { status: { in: ["SIGNED", "REPORTED"] } } } }],
+    },
+  });
+  if (sealed > 0) return "submitted";
+  return Date.now() - link.updatedAt.getTime() < RESERVED_INTAKE_USE_STALE_MS ? "in_progress" : "orphaned";
+}
+
+/** PRO-I1-03 — give back an orphaned one-time use: conditional on the row read. */
+export async function reconcileOrphanedIntakeLinkUse(
+  link: { id: string; updatedAt: Date },
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  const n = await client.$executeRaw`
+    UPDATE workflow_intake_links
+       SET used_count = used_count - 1, updated_at = NOW()
+     WHERE id = ${link.id}::uuid AND max_uses = 1 AND used_count = 1
+       AND date_trunc('milliseconds', updated_at) = ${link.updatedAt}
+       AND NOT EXISTS (
+         SELECT 1 FROM workflow_intake_sessions s
+           LEFT JOIN evidence e ON e.id = s.evidence_id
+          WHERE s.intake_link_id = ${link.id}::uuid
+            AND (s.status = 'SUBMITTED' OR e.status IN ('SIGNED', 'REPORTED'))
+       )
+  `;
+  return n === 1;
+}
+
 export async function reserveIntakeLinkUse(
   linkId: string,
   client: PrismaClient = defaultPrisma,

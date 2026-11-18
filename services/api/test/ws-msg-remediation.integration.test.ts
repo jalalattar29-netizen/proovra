@@ -30,6 +30,7 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
   let entitlement: typeof import("../src/services/packaging/entitlement.service.js");
   let webhookPlatform: typeof import("../src/services/packaging/webhooks/webhook-platform.service.js");
   let notifications: typeof import("../src/services/notifications/index.js");
+  let intakeSessions: typeof import("../src/services/workflow-intake-session.service.js");
   let grantEvidenceCredits: typeof import("../src/services/billing/evidence-credits.service.js")["grantEvidenceCredits"];
   const saved: Record<string, string | undefined> = {};
   const ENV = {
@@ -51,6 +52,7 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
     entitlement = await import("../src/services/packaging/entitlement.service.js");
     webhookPlatform = await import("../src/services/packaging/webhooks/webhook-platform.service.js");
     notifications = await import("../src/services/notifications/index.js");
+    intakeSessions = await import("../src/services/workflow-intake-session.service.js");
     ({ grantEvidenceCredits } = await import("../src/services/billing/evidence-credits.service.js"));
     await prisma.team.update({ where: { id: h.fixtures.teamA.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
   }, 900_000);
@@ -365,6 +367,59 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
         payload: { teamId: A().teamId, force: true },
       });
       expect([403, 404]).toContain(res.statusCode);
+    });
+  });
+
+  describe("PRO-I1-03 — a one-time link says 'already submitted' only for a durable accepted submission", () => {
+    it("a reserved use with nothing sealed answers LINK_IN_USE, and an orphaned reservation is given back", async () => {
+      const res = await h.app.inject({
+        method: "POST", url: "/v1/workflow/intake-links", headers: owner(),
+        payload: { teamId: A().teamId, workflowTemplateSlug: "general-evidence-record", intakeMode: "EXTERNAL_ONE_TIME", recipientLabel: "ws-msg", maxUses: 1, expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() },
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      const { rawToken, link } = res.json() as { rawToken: string; link: { id: string } };
+      const t = encodeURIComponent(rawToken);
+      const boot = await h.app.inject({ method: "GET", url: `/v1/external-intake/${t}` });
+      expect(boot.statusCode, boot.body).toBe(200);
+      // Attempt 1 reserved the use and is still finalizing (or its answer was lost).
+      const { reserveIntakeLinkUse } = intakeSessions;
+      expect(await reserveIntakeLinkUse(link.id)).toBe(true);
+      const reopened = await h.app.inject({ method: "GET", url: `/v1/external-intake/${t}` });
+      expect(reopened.statusCode).toBe(409);
+      expect(reopened.json()).toMatchObject({ error: { code: "LINK_IN_USE" } });
+      // The process ended inside finalization: 31 minutes later the reservation is orphaned.
+      const aged = new Date(Date.now() - 31 * 60_000);
+      await prisma.$executeRaw`UPDATE "workflow_intake_links" SET "updated_at" = ${aged} WHERE "id" = ${link.id}::uuid`;
+      const recovered = await h.app.inject({ method: "GET", url: `/v1/external-intake/${t}` });
+      expect(recovered.statusCode, recovered.body).toBe(200);
+      const row = await prisma.workflowIntakeLink.findUniqueOrThrow({ where: { id: link.id }, select: { usedCount: true } });
+      expect(row.usedCount).toBe(0);
+    });
+  });
+
+  describe("PRO-I1-04 — request-more racing a cancel leaves no live link", () => {
+    it("a cancel that commits between request-more's check and its claim makes request-more mint nothing live", async () => {
+      const { id } = await sentExternalRequest(`ws-msg-${randomUUID().slice(0, 8)}@example.test`);
+      const response = await prisma.evidenceRequestResponse.create({ data: { evidenceRequestId: id, status: "RECEIVED" } as never, select: { id: true } });
+      const t0 = new Date();
+      let release!: () => void;
+      const gate = new Promise<void>((r) => { release = r; });
+      // The cancel holds the request lock (as transitionEvidenceRequestTx does) and commits later.
+      const cancel = prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`evidence-request:${id}`}))`;
+        await tx.evidenceRequest.update({ where: { id }, data: { status: "CANCELLED", cancelledAtUtc: new Date() } as never });
+        await gate;
+      }, { timeout: 30_000 });
+      const more = svc
+        .requestMoreEvidenceForResponse({ requestId: id, teamId: A().teamId, responseId: response.id, actorUserId: A().ownerUserId, notifyContributor: false })
+        .then(() => "ok", (e: unknown) => (e as { code?: string }).code ?? "error");
+      await new Promise((r) => setTimeout(r, 2_000));
+      release();
+      await cancel;
+      const outcome = await more;
+      const live = await prisma.workflowIntakeLink.count({ where: { teamId: A().teamId, status: "ACTIVE", createdAt: { gte: t0 } } as never });
+      expect(live).toBe(0);
+      expect(outcome).toBe("request_terminal");
     });
   });
 });

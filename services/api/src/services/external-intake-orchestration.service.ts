@@ -63,6 +63,7 @@ import { appendCustodyEvent } from "./custody-events.service.js";
 import { swallowCustodyAppendError } from "./custody-events-observability.js";
 import { bump } from "./ops/metrics.service.js";
 import {
+  oneTimeLinkUseState,
   releaseIntakeLinkUse,
   reserveIntakeLinkUse,
   transitionIntakeSession,
@@ -1121,9 +1122,18 @@ export async function submitExternalIntake(
     if (linkNow && (linkNow.status === "REVOKED" || (linkNow.status === "ACTIVE" && linkNow.expiresAtUtc.getTime() <= Date.now()))) {
       throw new ExternalIntakeOrchestrationError("link_revoked");
     }
-    throw new WorkflowIntakeSessionError(
-      input.link.maxUses === 1 ? "link_already_submitted" : "link_exhausted",
-    );
+    // PRO-I1-03 — "already submitted" only for a durable accepted submission;
+    // a use reserved by an attempt still in flight answers "in use", so the
+    // contributor keeps the upload form instead of a false receipt.
+    if (input.link.maxUses === 1) {
+      const fresh = await client.workflowIntakeLink.findUnique({
+        where: { id: input.link.id },
+        select: { id: true, updatedAt: true },
+      });
+      const use = fresh ? await oneTimeLinkUseState(fresh, client) : "submitted";
+      throw new WorkflowIntakeSessionError(use === "submitted" ? "link_already_submitted" : "link_in_use");
+    }
+    throw new WorkflowIntakeSessionError("link_exhausted");
   }
   try {
     const completed = await completeEvidence({
