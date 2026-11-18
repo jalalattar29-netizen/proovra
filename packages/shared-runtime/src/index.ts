@@ -40,6 +40,9 @@ export * from "./incident-transition-authority.js";
 // in the Worker — and the two computed DIFFERENT pending-report counts because
 // only one carried the pipeline-status filter. One implementation, both hosts.
 export * from "./org-health-projection.js";
+// RG-20 (PRO-G2-01) — THE workspace-anchored trust/governance manifest builder
+// behind both the API preview and the Worker verification package.
+export * from "./trust-verification-manifests.js";
 
 export * from "./signing/index.js";
 
