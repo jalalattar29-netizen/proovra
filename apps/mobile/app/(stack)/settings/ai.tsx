@@ -133,7 +133,7 @@ export default function AiSettingsScreen() {
   }
 
   const s = settings!;
-  const status = aiStatusDisplay(s.status);
+  const status = aiStatusDisplay(s.status, s.reason);
   const managedBy = resolveAiManagedBy({
     status: s.status,
     workspaceKind,
@@ -163,7 +163,7 @@ export default function AiSettingsScreen() {
             {AI_ADVISORY_NOTICE}
           </ProovraText>
           <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-            {aiStatusDetail(s.status, s.enabled, status.detail)}
+            {aiStatusDetail(s.status, s.enabled, status.detail, s.reason)}
           </ProovraText>
         </ProovraCard>
       </ProovraPageSection>

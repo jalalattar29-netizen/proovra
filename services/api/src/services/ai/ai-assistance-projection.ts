@@ -68,7 +68,35 @@ export type AiAssistanceProjection = {
    * than having to choose one of two true things.
    */
   enabled: boolean;
+  /**
+   * PRO-AI1Z-04 — additive and optional. Set when the viewer's monthly AI
+   * allowance is spent: the status is then TEMPORARILY_UNAVAILABLE (a value
+   * every installed client already renders) and this says why, with the UTC
+   * date the allowance resets.
+   */
+  reason?: "ALLOWANCE_EXHAUSTED";
+  allowanceResetsAtUtc?: string;
 };
+
+/**
+ * PRO-AI1Z-04 — fold the viewer's AI allowance into the projection. A spent
+ * allowance is not "available"; it is unavailable until the next UTC month.
+ */
+export function withAllowance(
+  projection: AiAssistanceProjection,
+  allowanceDenial: string | null | undefined,
+  now: Date = new Date(),
+): AiAssistanceProjection {
+  if (!projection.available || allowanceDenial !== "AI_MONTHLY_LIMIT_REACHED") return projection;
+  const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return {
+    ...projection,
+    status: "TEMPORARILY_UNAVAILABLE",
+    available: false,
+    reason: "ALLOWANCE_EXHAUSTED",
+    allowanceResetsAtUtc: reset.toISOString(),
+  };
+}
 
 /**
  * Map an evaluator decision to what a customer may be shown.

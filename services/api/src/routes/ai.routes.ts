@@ -34,6 +34,7 @@ import {
 } from "../services/ai/ai-provider-outcome.js";
 import {
   assertWorkspaceAllowsAiOperation,
+  evaluateWorkspaceAiOperation,
   releaseWorkspaceAiOperation,
   reserveWorkspaceAiOperation,
 } from "../services/billing-enforcement.service.js";
@@ -371,12 +372,26 @@ export async function aiRoutes(app: FastifyInstance) {
     async (req) => {
       const userId = getAuthUserId(req);
       const { policyTeamId, userRole } = await resolveAiCommercialScope(req, userId);
+      // PRO-AI1Z-04 / POL-AI1-05 — the plan and the allowance are inputs, so a
+      // plan without AI reads PLAN_NOT_ENTITLED and a spent allowance is not
+      // reported as available.
+      const allowance = policyTeamId
+        ? await evaluateWorkspaceAiOperation({ teamId: policyTeamId })
+        : null;
       const policy = await evaluateWorkspaceAiPolicy({
         teamId: policyTeamId,
         userRole,
         feature: "SUPPORT_CHAT",
         dataClass: "METADATA",
+        ...(allowance
+          ? {
+              planAllowed:
+                allowance.denial !== "AI_NOT_INCLUDED" &&
+                allowance.denial !== "COMMERCIAL_LIFECYCLE_RESTRICTED",
+            }
+          : {}),
       });
+      const allowanceExhausted = allowance?.denial === "AI_MONTHLY_LIMIT_REACHED";
 
       /*
        * Grounded topics survive an operator capability gap but not a workspace
@@ -386,8 +401,10 @@ export async function aiRoutes(app: FastifyInstance) {
 
       return {
         data: {
-          available: policy.allowed,
+          available: policy.allowed && !allowanceExhausted,
           decision: policy.decision,
+          // Additive: the monthly allowance is spent (resets next UTC month).
+          allowanceExhausted,
           /** True when questions about the product are still answerable. */
           groundedAnswersAvailable:
             policy.allowed || isOperatorCapabilityGap(policy.decision),

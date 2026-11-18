@@ -50,7 +50,7 @@ import { releaseBudgetReservation, reserveBudgetGate } from "./provider-budget.s
 import { recordProviderUsage } from "./provider-usage.service.js";
 import { emitLifecycleEvent } from "./intelligence-activity.service.js";
 import { evaluateIntelligencePolicy } from "../governance/policy-evaluation.service.js";
-import { resolveWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
+import { evaluateSemanticEgress, resolveWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
 import { classifyProviderError } from "../ai/ai-provider-outcome.js";
 // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the AI commercial
 // allowance is resolved by THE canonical billing authority, not by the
@@ -61,6 +61,7 @@ import {
   releaseWorkspaceAiOperation,
   reserveWorkspaceAiOperation,
   scopeIncludesAiCapability,
+  workspaceIncludesAiCapability,
 } from "../billing-enforcement.service.js";
 
 // ---------------------------------------------------------------------------
@@ -214,6 +215,35 @@ function entitiesForRecord(
     return own ? [own] : [];
   }
   return index === 0 ? entities : [];
+}
+
+/**
+ * PRO-AI1C-03 — whether THIS workspace would let each automatic producer run:
+ * the same policy switches runProviderOperation enforces for byte-source OCR
+ * and transcription (AI on, content intelligence, raw content, the per-kind
+ * switch) plus the plan's CONTENT_INTELLIGENCE eligibility, and the RG-04
+ * semantic-egress gate for semantic search. A read failure answers "not
+ * enabled" — a status chip must never claim more than the gate would allow.
+ */
+export async function resolveWorkspaceProducerGate(
+  teamId: string,
+): Promise<{ ocr: boolean; transcript: boolean; semantic_search: boolean }> {
+  try {
+    const [policy, contentPlan, semantic] = await Promise.all([
+      resolveWorkspaceAiPolicy(teamId),
+      workspaceIncludesAiCapability(teamId, "CONTENT_INTELLIGENCE"),
+      evaluateSemanticEgress({ teamId, dataClass: "DERIVED_CONTENT" }),
+    ]);
+    const content =
+      contentPlan && policy.aiEnabled && policy.contentIntelligenceEnabled && policy.rawContentProcessingAllowed;
+    return {
+      ocr: content && policy.ocrAllowed,
+      transcript: content && policy.transcriptionAllowed,
+      semantic_search: semantic.allowed,
+    };
+  } catch {
+    return { ocr: false, transcript: false, semantic_search: false };
+  }
 }
 
 // ---------------------------------------------------------------------------

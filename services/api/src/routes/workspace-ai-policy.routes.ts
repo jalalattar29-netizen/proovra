@@ -13,14 +13,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { projectAiAssistance } from "../services/ai/ai-assistance-projection.js";
 import { buildAiAssistanceSettings } from "../services/ai/ai-assistance-settings.service.js";
 
 import type { Permission } from "@proovra/shared";
 
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, authorizeWorkspaceOrFail } from "../middleware/authorize.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { resolveAiCapabilityDisclosure } from "../services/ai/ai-capability-disclosure.service.js";
 import {
@@ -33,7 +32,6 @@ import { resolveCommercialContext } from "../services/billing/commercial-context
 import {
   DEFAULT_WORKSPACE_AI_POLICY,
   WorkspaceAiPolicyVersionConflictError,
-  evaluateWorkspaceAiPolicy,
   getWorkspaceAiPolicyRow,
   resolveWorkspaceAiPolicy,
   upsertWorkspaceAiPolicy,
@@ -151,10 +149,17 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req, reply) => {
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
-      if (!ok) return;
+      // PRO-AI1Z-04 — the canonical workspace context, so the status is
+      // evaluated for THIS viewer's role (stored role names: REVIEWER maps
+      // back to MEMBER, as on the chat route).
+      const ctx = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: query.teamId,
+        permission: "governance.policy.read",
+      });
+      if (!ctx) return;
+      const userRole = ctx.workspaceRole === "REVIEWER" ? "MEMBER" : ctx.workspaceRole;
 
-      return reply.code(200).send(await buildAiAssistanceSettings({ teamId: query.teamId }));
+      return reply.code(200).send(await buildAiAssistanceSettings({ teamId: query.teamId, userRole }));
     },
   );
 
@@ -163,8 +168,12 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req, reply) => {
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
-      const ok = await requireMember(req, reply, query.teamId, "intelligence.read");
-      if (!ok) return;
+      // PRO-AI1Z-04 — the canonical context carries this viewer's role.
+      const viewer = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: query.teamId,
+        permission: "intelligence.read",
+      });
+      if (!viewer) return;
 
       const resolved = await resolveWorkspaceAiPolicy(query.teamId);
       const row = await getWorkspaceAiPolicyRow(query.teamId);
@@ -187,10 +196,11 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
        * SUPPORT_CHAT / METADATA is the right probe: it is the least-privileged
        * advisory operation, so a denial here means no AI operation would pass.
        */
-      const decision = await evaluateWorkspaceAiPolicy({
+      // PRO-AI1Z-04 — evaluated for THIS viewer's role and with the plan
+      // allowance as an input, through the same builder as the member view.
+      const viewerAssistance = await buildAiAssistanceSettings({
         teamId: query.teamId,
-        feature: "SUPPORT_CHAT",
-        dataClass: "METADATA",
+        userRole: viewer.workspaceRole === "REVIEWER" ? "MEMBER" : viewer.workspaceRole,
       });
 
       return reply.code(200).send({
@@ -202,7 +212,14 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
         capabilities,
         // Bounded and user-safe: never a decision code, an environment
         // variable name, or a provider name. See ai-assistance-projection.ts.
-        assistance: projectAiAssistance(decision, resolved),
+        assistance: {
+          status: viewerAssistance.status,
+          available: viewerAssistance.available,
+          enabled: viewerAssistance.enabled,
+          ...(viewerAssistance.reason
+            ? { reason: viewerAssistance.reason, allowanceResetsAtUtc: viewerAssistance.allowanceResetsAtUtc }
+            : {}),
+        },
       });
     },
   );

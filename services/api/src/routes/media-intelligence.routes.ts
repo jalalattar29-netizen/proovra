@@ -1097,9 +1097,14 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         ReturnType<typeof resolveProducerModeStatuses>
       > = [];
       try {
+        // PRO-AI1C-03 — the chips answer for THIS workspace's policy and plan.
+        const { resolveWorkspaceProducerGate } = await import(
+          "../services/intelligence/media-intelligence.service.js"
+        );
         producerModeStatuses = await resolveProducerModeStatuses({
           teamId,
           prisma,
+          workspaceGate: await resolveWorkspaceProducerGate(teamId),
         });
       } catch (err) {
         req.log?.warn?.(

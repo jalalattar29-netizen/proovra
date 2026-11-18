@@ -361,3 +361,63 @@ export const SENSITIVE_ROUTE_STATE: AssistantState = {
 };
 
 export const READY_STATE = READY;
+
+/**
+ * PRO-AI1C-04 — what a COPILOT / capture-assistance panel says when its
+ * request fails, decided by the SAME classifier the chat widget uses, keyed on
+ * the server's code first and the HTTP status second.
+ *
+ * The panels used to map the status alone, so a spent monthly allowance (429
+ * AI_MONTHLY_LIMIT_REACHED) read "Too many AI requests. Please wait a moment."
+ * and a plan without AI (402) read as a generic failure with a Retry button —
+ * a retry certain to fail. A refusal the reader cannot fix by retrying is now
+ * non-retryable and says why; `settingsHref` points at where the allowance and
+ * plan are shown.
+ *
+ * `fallback` keeps each panel's own wording for the statuses that are about
+ * the request itself (a changed record, a gone record, a permission).
+ */
+export type AiPanelFailure = {
+  message: string;
+  retryable: boolean;
+  /** Settings > AI usage, for an allowance or plan refusal. */
+  settingsHref: string | null;
+};
+
+export function aiPanelFailure(
+  err: AssistantErrorLike,
+  fallback: (status: number) => string,
+): AiPanelFailure {
+  const code = err.code ?? "";
+  if (code === "COMMERCIAL_LIFECYCLE_RESTRICTED") {
+    return {
+      message:
+        "This workspace's subscription does not allow new AI operations right now. Evidence capture, custody, verification and reports are unaffected.",
+      retryable: false,
+      settingsHref: "/settings#workspace",
+    };
+  }
+  if (code === "AI_BUDGET_LEDGER_UNAVAILABLE") {
+    return {
+      message: "AI usage could not be checked just now. Try again shortly; nothing else is affected.",
+      retryable: true,
+      settingsHref: null,
+    };
+  }
+  const state = classifyAssistantError(err);
+  switch (state.kind) {
+    case "COST_GUARD":
+    case "NOT_AVAILABLE_FOR_PLAN":
+      return { message: `${state.title}. ${state.body}`, retryable: false, settingsHref: "/settings#workspace" };
+    case "POLICY_DISABLED":
+    case "ROLE_NOT_PERMITTED":
+    case "SESSION_EXPIRED":
+      return { message: `${state.title}. ${state.body}`, retryable: false, settingsHref: null };
+    case "RATE_LIMITED":
+    case "PROVIDER_TIMEOUT":
+    case "TEMPORARILY_UNAVAILABLE":
+      return { message: `${state.title}. ${state.body}`, retryable: true, settingsHref: null };
+    default:
+      return { message: fallback(err.statusCode ?? 0), retryable: true, settingsHref: null };
+  }
+}

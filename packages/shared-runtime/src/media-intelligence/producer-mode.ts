@@ -270,8 +270,14 @@ export const PRODUCER_REASON_COPY = {
     "Existing extracted content will be indexed. New extraction will not run.",
   PROVIDER_ACTIVE: (provider: string): string =>
     `Automatic extraction is active using ${provider}.`,
+  // PRO-AI1C-03 — said only when THIS workspace's AI policy or plan would
+  // refuse the extraction (the deployment may still be ready for others).
   CREDENTIALS_PRESENT_WORKSPACE_DISABLED:
     "Credentials detected, but extraction is disabled by workspace configuration.",
+  // PRO-AI1C-03 — the deployment's provider credentials are not ready. This
+  // case used to carry the workspace-disabled sentence, the opposite fact.
+  CREDENTIALS_NOT_READY:
+    "Provider credentials are not ready. No automatic extraction will run.",
   LOCAL_RUNTIME_UNAVAILABLE:
     "Local runtime is unavailable. Cloud provider may still be available if configured.",
   DEFERRED_NO_PRODUCER: "Provider not configured for this workspace.",
@@ -296,6 +302,18 @@ export const PRODUCER_REASON_COPY = {
 export type ResolveProducerModeStatusesInput = {
   teamId: string;
   prisma: PrismaClient;
+  /**
+   * PRO-AI1C-03 — whether THIS workspace's AI policy and plan would let each
+   * automatic producer run (the canonical gates the run path enforces,
+   * resolved by the caller, which holds them). Omitted = not evaluated: the
+   * deployment-only answer, as before. A false entry turns an "active"
+   * producer into automatic:false with the workspace-disabled reason.
+   */
+  workspaceGate?: {
+    ocr: boolean;
+    transcript: boolean;
+    semantic_search: boolean;
+  };
 };
 
 /**
@@ -326,7 +344,24 @@ export async function resolveProducerModeStatuses(
   const semantic = await resolveSemanticSearchStatus(lastRuns);
 
   // Stable order — matches PRODUCER_KINDS exactly.
-  return [ocr, transcript, perceptual, derivative, semantic];
+  const gate = opts.workspaceGate;
+  return [
+    applyWorkspaceGate(ocr, gate?.ocr),
+    applyWorkspaceGate(transcript, gate?.transcript),
+    perceptual,
+    derivative,
+    applyWorkspaceGate(semantic, gate?.semantic_search),
+  ];
+}
+
+/** PRO-AI1C-03 — a producer the workspace would refuse is not "active" there. */
+function applyWorkspaceGate(status: ProducerModeStatus, allowed: boolean | undefined): ProducerModeStatus {
+  if (allowed !== false || !status.automatic) return status;
+  return {
+    ...status,
+    automatic: false,
+    reason: PRODUCER_REASON_COPY.CREDENTIALS_PRESENT_WORKSPACE_DISABLED,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -419,7 +454,7 @@ async function resolveOcrStatus(
     automatic: false,
     indexExistingOnly: false,
     provider: "none",
-    reason: PRODUCER_REASON_COPY.CREDENTIALS_PRESENT_WORKSPACE_DISABLED,
+    reason: PRODUCER_REASON_COPY.CREDENTIALS_NOT_READY,
     last,
   });
 }
@@ -508,7 +543,7 @@ async function resolveTranscriptStatus(
     automatic: false,
     indexExistingOnly: false,
     provider: "none",
-    reason: PRODUCER_REASON_COPY.CREDENTIALS_PRESENT_WORKSPACE_DISABLED,
+    reason: PRODUCER_REASON_COPY.CREDENTIALS_NOT_READY,
     last,
   });
 }

@@ -40,7 +40,31 @@ export type AiStatusCopy = {
   tone: "green" | "slate" | "amber";
 };
 
-export function aiStatusCopy(status: AiAssistanceStatus): AiStatusCopy {
+/**
+ * PRO-AI1Z-04 — additive detail a newer API sends with TEMPORARILY_UNAVAILABLE
+ * when the monthly AI allowance is spent. Absent from an older API.
+ */
+export type AiAssistanceReason = "ALLOWANCE_EXHAUSTED";
+
+function resetLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+}
+
+export function aiStatusCopy(
+  status: AiAssistanceStatus,
+  extra?: { reason?: AiAssistanceReason | null; allowanceResetsAtUtc?: string | null },
+): AiStatusCopy {
+  if (extra?.reason === "ALLOWANCE_EXHAUSTED") {
+    const reset = resetLabel(extra.allowanceResetsAtUtc);
+    return {
+      label: "Allowance used",
+      detail: `This workspace's monthly AI allowance is used up${reset ? `. It resets on ${reset} (UTC)` : " until the start of next month (UTC)"}. Capture, custody, verification and reporting are unaffected.`,
+      tone: "slate",
+    };
+  }
   switch (status) {
     case "AVAILABLE":
       return {
@@ -102,7 +126,10 @@ export function resolveManagedBy(input: {
   status: AiAssistanceStatus;
   workspaceKind: "PERSONAL" | "ORGANIZATION" | null;
   canManage: boolean | null;
+  reason?: AiAssistanceReason | null;
 }): AiManagedBy {
+  // A spent allowance is a plan fact, not a platform outage.
+  if (input.reason === "ALLOWANCE_EXHAUSTED") return "PLAN";
   if (input.status === "TEMPORARILY_UNAVAILABLE") return "PLATFORM";
   if (input.status === "NOT_INCLUDED_IN_PLAN") return "PLAN";
   if (input.workspaceKind === "ORGANIZATION") {

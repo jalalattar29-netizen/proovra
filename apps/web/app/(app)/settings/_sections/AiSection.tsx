@@ -68,6 +68,9 @@ type Assistance = {
   status: AiAssistanceStatus;
   available: boolean;
   enabled: boolean;
+  /** PRO-AI1Z-04 — additive; a newer API says why it is unavailable. */
+  reason?: "ALLOWANCE_EXHAUSTED";
+  allowanceResetsAtUtc?: string;
 };
 
 type Policy = {
@@ -428,6 +431,8 @@ export function AiSection() {
           <AiStatusRow
             status={envelopeState.assistance.status}
             enabled={envelopeState.assistance.enabled}
+            reason={envelopeState.assistance.reason ?? null}
+            allowanceResetsAtUtc={envelopeState.assistance.allowanceResetsAtUtc ?? null}
             workspaceKind={isOrg ? "ORGANIZATION" : "PERSONAL"}
             canManage
           />
