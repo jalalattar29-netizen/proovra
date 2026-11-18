@@ -2067,13 +2067,21 @@ export async function organizationsRoutes(app: FastifyInstance) {
         await lockOrganizationOwnersTx(tx, orgId);
         const target = await tx.organizationMembership.findFirst({
           where: { id: memberId, organizationId: orgId },
-          select: { id: true, userId: true, role: true },
+          select: { id: true, userId: true, role: true, status: true },
         });
         if (!target) {
           return { kind: "not_found" as const };
         }
         if (target.userId === userId) {
           return { kind: "self_remove_blocked" as const };
+        }
+        // PRO-T2-02 — an organization's authority over a person ends with the
+        // membership. A REVOKED row (removed earlier, or the person left) is
+        // history: removing it again used to re-run the workspace revocation,
+        // write another ORG_MEMBER_REMOVED event and sign the person out of
+        // every session, as often as an admin liked. Nothing moves now.
+        if (target.status === "REVOKED") {
+          return { kind: "already_removed" as const };
         }
         if (
           target.role === "ORG_OWNER" &&
@@ -2098,10 +2106,15 @@ export async function organizationsRoutes(app: FastifyInstance) {
         }
 
         // PHASE 3 — canonical orchestrator: governance removal (provenance closed).
-        await removeOrganizationMembership(tx, {
+        const removal = await removeOrganizationMembership(tx, {
           organizationMembershipId: target.id,
           actorUserId: userId,
         });
+        // PRO-T2-02 — a concurrent removal/leave won the fence: nothing below
+        // runs (closing the provenance of an ended membership is a no-op).
+        if (!removal || !removal.ok || !removal.changed) {
+          return { kind: "already_removed" as const };
+        }
 
         // -------------------------------------------------------------------
         // P0 remediation (2026-07-21) — admin removal must be at least as
@@ -2185,18 +2198,23 @@ export async function organizationsRoutes(app: FastifyInstance) {
       switch (result.kind) {
         case "not_found":
           return reply.code(404).send({ message: "Membership not found." });
+        case "already_removed":
+          return reply.code(409).send({
+            error: { code: "MEMBERSHIP_ALREADY_REMOVED" },
+            message: "This person is no longer a member of the organization.",
+          });
         case "self_remove_blocked":
           return reply
             .code(409)
-            .send({ message: "Cannot remove your own membership." });
+            .send({ error: { code: "SELF_ACTION_FORBIDDEN" }, message: "Cannot remove your own membership." });
         case "owner_remove_requires_owner":
           return reply
             .code(403)
-            .send({ message: "Only ORG_OWNER can remove an ORG_OWNER." });
+            .send({ error: { code: "OWNER_ACTION_REQUIRES_OWNER" }, message: "Only ORG_OWNER can remove an ORG_OWNER." });
         case "last_owner_protected":
           return reply
             .code(409)
-            .send({ message: "Cannot remove the last ORG_OWNER." });
+            .send({ error: { code: "LAST_OWNER_PROTECTED" }, message: "Cannot remove the last ORG_OWNER." });
         case "workspace_owner_protected":
           return reply.code(409).send({
             error: { code: "OWNERSHIP_TRANSFER_REQUIRED" },
@@ -2282,12 +2300,22 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (target.userId === userId) {
           return reply
             .code(409)
-            .send({ message: "Cannot change your own membership status." });
+            .send({ error: { code: "SELF_ACTION_FORBIDDEN" }, message: "Cannot change your own membership status." });
         }
         if (target.role === "ORG_OWNER" && access.role !== "ORG_OWNER") {
           return reply
             .code(403)
-            .send({ message: "Only ORG_OWNER can act on an ORG_OWNER." });
+            .send({ error: { code: "OWNER_ACTION_REQUIRES_OWNER" }, message: "Only ORG_OWNER can act on an ORG_OWNER." });
+        }
+        // PRO-T2-03 — restore reverses a SUSPENSION only. A removed or
+        // self-departed membership (REVOKED) returns only through a new
+        // invitation the person accepts; nothing is written here.
+        if (action === "restore" && target.status === "REVOKED") {
+          return reply.code(409).send({
+            error: { code: "ILLEGAL_MEMBERSHIP_TRANSITION" },
+            message: "A removed membership cannot be restored. Invite the person again; they rejoin when they accept.",
+            code: "ILLEGAL_MEMBERSHIP_TRANSITION",
+          });
         }
         // IDENT-019 — a quarantined session keeps reads; suspending is refused.
         // (Restore is not a declared privileged action.) Organization-level
@@ -2378,12 +2406,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (decided.kind === "owner_required") {
           return reply
             .code(403)
-            .send({ message: "Only ORG_OWNER can act on an ORG_OWNER." });
+            .send({ error: { code: "OWNER_ACTION_REQUIRES_OWNER" }, message: "Only ORG_OWNER can act on an ORG_OWNER." });
         }
         if (decided.kind === "last_owner") {
           return reply
             .code(409)
-            .send({ message: "Cannot suspend the last ORG_OWNER." });
+            .send({ error: { code: "LAST_OWNER_PROTECTED" }, message: "Cannot suspend the last ORG_OWNER." });
         }
         if (decided.kind === "workspace_owner") {
           return reply.code(409).send({
@@ -2409,6 +2437,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
               return reply.code(404).send({ message: "Membership not found." });
             case "stale_generation":
               return reply.code(409).send({
+                error: { code: "STALE_MEMBERSHIP_GENERATION" },
                 message:
                   "This membership changed while you were looking at it. Reload and try again.",
                 code: "STALE_MEMBERSHIP_GENERATION",
@@ -2416,6 +2445,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
               });
             case "illegal_transition":
               return reply.code(409).send({
+                error: { code: "ILLEGAL_MEMBERSHIP_TRANSITION" },
                 message: `A ${outcome.from.toLowerCase()} membership cannot be ${action}d.`,
                 code: "ILLEGAL_MEMBERSHIP_TRANSITION",
               });
@@ -2425,7 +2455,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
         // A SUSPENDED member's live sessions must stop being useful now, not
         // at token expiry. Best-effort AFTER the durable transition — access is
         // already denied server-side even if this write fails.
-        if (action === "suspend") {
+        // PRO-T2-02 — only when the suspension actually happened: a repeated
+        // suspend of an already-SUSPENDED row (changed:false) signs nobody out.
+        if (action === "suspend" && outcome.changed) {
           try {
             await revokeAllSessionsForUser(
               {

@@ -60,7 +60,9 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 // PHASE 3 (2026-07-22) — canonical membership orchestrator.
-import { applyDirectoryRoleChange } from "../identity/membership-provisioning.service.js";
+// PRO-A2Z-01 — reconciliation suspends through the canonical member lifecycle.
+import { RbacError, suspendMember } from "../identity/rbac.service.js";
+import { archiveScimGroupProjection } from "./scim-groups.service.js";
 
 // ---------------------------------------------------------------------------
 // Drift report types (operator-safe projection)
@@ -164,6 +166,7 @@ export async function detectScimDrift(
     select: {
       userId: true,
       role: true,
+      status: true,
       user: { select: { id: true, email: true, displayName: true } },
     },
     take: 500,
@@ -200,10 +203,14 @@ export async function detectScimDrift(
   }
 
   // ---- Category 2: UNLINKED_IDENTITY_ACTIVE_USER ----
+  // PRO-A2Z-01 — only an ACTIVE member whose identity the directory/IdP
+  // actually held (not an administrator's manual link, which link-then-unlink
+  // could manufacture) and who holds no other live link is drift to suspend.
   const unlinked = await client.externalIdentityMapping.findMany({
     where: {
       organization: { workspaces: { some: { id: input.teamId } } },
       unlinkedAtUtc: { not: null },
+      OR: [{ linkSource: null }, { linkSource: { not: "ADMIN_MANUAL" } }],
     },
     select: {
       userId: true,
@@ -214,9 +221,11 @@ export async function detectScimDrift(
     },
     take: 200,
   });
-  const activeMemberSet = new Set(memberUserIds);
+  const activeMemberSet = new Set(
+    memberships.filter((m) => m.status === "ACTIVE").map((m) => m.userId),
+  );
   for (const u of unlinked) {
-    if (activeMemberSet.has(u.userId)) {
+    if (activeMemberSet.has(u.userId) && !linkedSet.has(u.userId)) {
       items.push({
         id: stableId("unlinked_active", u.userId, u.provider),
         category: "UNLINKED_IDENTITY_ACTIVE_USER",
@@ -540,33 +549,47 @@ export async function executeScimReconciliation(
       }
 
       if (item.proposedAction === "SUSPEND_MEMBERSHIP") {
-        // Suspend = demote to VIEWER. We never delete. The audit
-        // event carries the prior role so an operator can restore.
+        // PRO-A2Z-01 / PRO-TZ-01 (WS-ORG RG-07) — "Suspend membership" is an
+        // actual SUSPENSION through the canonical member lifecycle
+        // (rbac.service `suspendMember`): the OWNER is immutable, the actor
+        // must outrank the target, the last administrator is protected,
+        // creator grants and standing credentials end, sessions end, a tenant
+        // audit row and a lifecycle notice are written. It used to demote any
+        // role — the OWNER and the last administrator included — to VIEWER
+        // through the directory role writer with its privileged guard off,
+        // leaving the person ACTIVE. A refusal is SKIPPED with its reason and
+        // changes nothing.
         const prior = await client.teamMember.findUnique({
           where: {
             teamId_userId: { teamId: input.teamId, userId: item.subject.id },
           },
-          select: { role: true },
+          select: { id: true, role: true, status: true },
         });
-        if (prior) {
-          // PHASE 3 — canonical orchestrator: reconciliation demotion to
-          // VIEWER (SCIM provenance; prior role is carried in the audit
-          // event below for operator restore).
-          const member = await client.teamMember.findUnique({
-            where: {
-              teamId_userId: { teamId: input.teamId, userId: item.subject.id },
-            },
-            select: { id: true },
-          });
-          if (!member) continue;
-          await applyDirectoryRoleChange(client, {
-            teamMemberId: member.id,
-            currentRole: prior.role,
-            desiredRole: "VIEWER",
-            source: "SCIM",
-            externalRef: "scim-reconciliation",
-            allowPrivilegedChange: true,
-          });
+        if (prior && prior.status === "ACTIVE") {
+          try {
+            await suspendMember(
+              {
+                teamId: input.teamId,
+                teamMemberId: prior.id,
+                actorUserId: input.actorUserId,
+                reason: "SCIM reconciliation: identity provider unlinked this identity",
+              },
+              client,
+            );
+          } catch (err) {
+            if (err instanceof RbacError) {
+              details.push({
+                itemId: item.id,
+                action: item.proposedAction,
+                outcome: "SKIPPED",
+                reason:
+                  err.code === "member_owner_immutable" ? "owner_protected" : err.code,
+              });
+              skippedCount++;
+              continue;
+            }
+            throw err;
+          }
           bump("scim_reconciliation_applied_total");
           safeEmitSecurityEvent({
             teamId: input.teamId,
@@ -591,7 +614,7 @@ export async function executeScimReconciliation(
             itemId: item.id,
             action: item.proposedAction,
             outcome: "SKIPPED",
-            reason: "Membership no longer exists",
+            reason: prior ? "Membership is no longer active" : "Membership no longer exists",
           });
           skippedCount++;
         }
@@ -602,10 +625,24 @@ export async function executeScimReconciliation(
         // DOM-13 — a workspace reconciliation ends the group's reach into THIS
         // workspace; the Organization group itself is archived only when no
         // workspace is projected any more.
-        await client.scimGroupWorkspaceProjection.updateMany({
+        // PRO-A2Z-02 — through the canonical projection archive, so what the
+        // group granted here is undone by provenance exactly as a directory
+        // DELETE or an administrator's archive does (it used to archive with
+        // no role change, leaving group-granted ADMINs outside any group).
+        const projections = await client.scimGroupWorkspaceProjection.findMany({
           where: { scimGroupId: item.subject.id, workspaceId: input.teamId, status: "ACTIVE" },
-          data: { status: "ARCHIVED" },
+          select: { id: true, organizationId: true },
         });
+        for (const projection of projections) {
+          await archiveScimGroupProjection(
+            {
+              organizationId: projection.organizationId,
+              projectionId: projection.id,
+              actorUserId: input.actorUserId,
+            },
+            client,
+          );
+        }
         const stillProjected = await client.scimGroupWorkspaceProjection.count({
           where: { scimGroupId: item.subject.id, status: "ACTIVE" },
         });

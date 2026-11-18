@@ -776,7 +776,9 @@ function MembersTab() {
                     >
                       {MEMBER_STATUS_LABEL[m.status]}
                     </Badge>
-                    {canMutate ? (
+                    {/* PRO-T2-02 — a removed (REVOKED) row is history: the server
+                        refuses to remove it again, so no Remove is offered. */}
+                    {canMutate && m.status !== "REVOKED" ? (
                       <Button
                         type="button"
                         variant="destructive"

@@ -64,7 +64,10 @@ import {
   provisionMembership,
 } from "../identity/membership-provisioning.service.js";
 import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
-import { isSelfServeAccountForOrganization } from "../security/enterprise-account-linking.service.js";
+import {
+  evaluateExternalLinkAuthority,
+  isSelfServeAccountForOrganization,
+} from "../security/enterprise-account-linking.service.js";
 import {
   enforceScimManagedOwnership,
   ScimManagedOwnershipError,
@@ -204,7 +207,7 @@ async function resolveDirectoryGroup(
  * of every duplicate merged into it (N-4 — a removal through the survivor also
  * undoes the role an archived duplicate had granted).
  */
-async function groupProvenanceRefs(group: DbGroup, client: PrismaClient): Promise<string[]> {
+async function groupProvenanceRefs(group: Pick<DbGroup, "id">, client: PrismaClient): Promise<string[]> {
   const merged = await client.scimGroup.findMany({
     where: { mergedIntoGroupId: group.id },
     select: { id: true },
@@ -578,8 +581,9 @@ export async function scimDeleteGroup(
   // archive committed first, so a demotion failure left an ARCHIVED group whose
   // members kept the elevated role it had granted.
   //
-  // Demotion targets MEMBER (the conservative default) so we never silently
-  // revoke privileged access (OWNER/ADMIN rows) or hard-delete users.
+  // PRO-A2Z-02 — only what THIS group granted is undone (provenance, never
+  // role equality): an ADMIN the group made returns to MEMBER, a hand-appointed
+  // ADMIN and every VIEWER are untouched. Nobody is hard-deleted.
   const demoted = await client.$transaction(async (tx) => {
     const txc = tx as unknown as PrismaClient;
     const projections = await liveGroupProjections(row.id, txc);
@@ -599,6 +603,7 @@ export async function scimDeleteGroup(
       const affected = await demoteGroupMappedRoleOnArchive(txc, {
         teamId: pr.workspaceId,
         mappedRole: pr.mappedRole,
+        provenanceRefs: await groupProvenanceRefs(row, txc),
         externalRef: `scim-group:${row.id}`,
       });
       count += affected.count;
@@ -733,11 +738,21 @@ async function isOrganizationIdentity(
   userId: string,
   client: PrismaClient,
 ): Promise<boolean> {
-  const link = await client.externalIdentityMapping.findFirst({
+  const links = await client.externalIdentityMapping.findMany({
     where: { organizationId, userId, unlinkedAtUtc: null },
-    select: { id: true },
+    select: { id: true, provider: true, linkSource: true },
   });
-  return Boolean(link);
+  // PRO-A2-02 — a live link counts only when its provenance is honoured
+  // (an administrator's manual link on a self-serve account never made the
+  // person a directory identity).
+  for (const link of links) {
+    const authority = await evaluateExternalLinkAuthority(
+      { userId, organizationId, provider: String(link.provider), linkSource: link.linkSource },
+      client,
+    );
+    if (authority.honoured) return true;
+  }
+  return false;
 }
 
 /**
@@ -1057,6 +1072,7 @@ export async function archiveScimGroupProjection(
       const affected = await demoteGroupMappedRoleOnArchive(txc, {
         teamId: projection.workspaceId,
         mappedRole: projection.mappedRole,
+        provenanceRefs: await groupProvenanceRefs({ id: projection.scimGroupId }, txc),
         externalRef: `scim-group:${projection.scimGroupId}`,
       });
       demoted = affected.count;

@@ -28,8 +28,9 @@ import { organizationIdForPolicy } from "./org-security-policy.service.js";
 // ARCH-004 — the ONE lifecycle authority for governance membership. This
 // module composes it; it does not reimplement any transition.
 import {
-  restoreOrganizationMembership,
+  reviveRevokedOrganizationMembershipByInvitation,
   revokeOrganizationMembership,
+  type LifecycleOutcome,
   type OrgMembershipStatusSource,
 } from "./org-membership-lifecycle.service.js";
 // PHASE 12 REMEDIATION §4.4 (2026-08-06) — ONE pointer-hygiene authority,
@@ -47,6 +48,9 @@ import {
 } from "../billing/workspace-seats.service.js";
 import { endStandingReachForMembers, releaseWorkOnSuspension } from "./standing-reach.js";
 import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
+// PRO-LEAD-01 — directory role loss ends standing credentials like an admin change.
+import { endStandingCredentialsOnLostAuthorityTx } from "../sharing/standing-credential-authority.js";
+import { mapTeamRoleToCanonical, roleHasPermission } from "@proovra/shared";
 
 export type TxClient = Prisma.TransactionClient | PrismaClient;
 
@@ -330,8 +334,8 @@ export async function grantOrganizationMembership(
       // An administrator removed the person and then re-invited them: the
       // acceptance ends the removal through the canonical (audited, fenced)
       // restore, and the membership takes the role it was re-invited for.
-      const restored = await restoreOrganizationMembership({
-        prisma: tx as unknown as Parameters<typeof restoreOrganizationMembership>[0]["prisma"],
+      const restored = await reviveRevokedOrganizationMembershipByInvitation({
+        prisma: tx as unknown as Parameters<typeof reviveRevokedOrganizationMembershipByInvitation>[0]["prisma"],
         organizationId: input.organizationId,
         membershipId: existing.id,
         actorUserId: input.actorUserId ?? null,
@@ -989,13 +993,35 @@ export async function applyDirectoryRoleChange(
   },
 ): Promise<{ changed: boolean }> {
   if (input.desiredRole === "OWNER") return { changed: false };
-  if (
-    !input.allowPrivilegedChange &&
-    (input.currentRole === "OWNER" || input.currentRole === "ADMIN")
-  ) {
+  // PRO-TZ-01 / PRO-A2Z-01 (WS-ORG RG-07) — the OWNER row is immutable to the
+  // directory on EVERY path, privileged or not (rbac `assertNotOwner`).
+  if (input.currentRole === "OWNER") return { changed: false };
+  if (!input.allowPrivilegedChange && input.currentRole === "ADMIN") {
     return { changed: false };
   }
   if (input.currentRole === input.desiredRole) return { changed: false };
+  const target = await tx.teamMember.findUnique({
+    where: { id: input.teamMemberId },
+    select: { teamId: true, userId: true, role: true, status: true },
+  });
+  if (!target || String(target.role) === "OWNER") return { changed: false };
+  // PRO-TZ-01 — the last administrator rule (rbac `assertNotLastAdministrator`):
+  // a directory never leaves a workspace with no live OWNER/ADMIN.
+  if (
+    String(target.role) === "ADMIN" &&
+    target.status === "ACTIVE" &&
+    input.desiredRole !== "ADMIN"
+  ) {
+    const remaining = await tx.teamMember.count({
+      where: {
+        teamId: target.teamId,
+        id: { not: input.teamMemberId },
+        status: "ACTIVE",
+        role: { in: ["OWNER", "ADMIN"] as never },
+      },
+    });
+    if (remaining === 0) return { changed: false };
+  }
   await tx.teamMember.update({
     where: { id: input.teamMemberId },
     data: { role: input.desiredRole as never },
@@ -1007,42 +1033,118 @@ export async function applyDirectoryRoleChange(
     externalRef: input.externalRef ?? null,
     grantedRole: input.desiredRole,
   });
+  // PRO-LEAD-01 / B7B-F09 — a directory demotion ends the standing credentials
+  // (API keys, intake links, webhooks, lifecycle webhooks) and outward grants
+  // whose permission the new role no longer carries, in the same unit as the
+  // role write — the rule rbac `changeMemberRole` applies to an administrator's
+  // change ("whichever path changed the role").
+  await endCreatorAuthorityOnRoleLossTx(tx, {
+    teamId: target.teamId,
+    userId: target.userId,
+    newRole: input.desiredRole,
+    actorUserId: null,
+  });
   return { changed: true };
 }
 
 /**
- * Bulk demotion when an IdP group mapping is archived: every ACTIVE member
- * currently holding the mapped role is demoted to MEMBER (conservative
- * default — preserves access, sheds the mapped privilege). Provenance per
- * affected member.
+ * PRO-LEAD-01 — the role-change leg of creator authority, shared by every
+ * directory path that lowers a role (SCIM PATCH, group add/remove/realign,
+ * group archive): outward share / external-review grants by role, then the
+ * canonical standing-credential rule (which also honours a capability grant
+ * or delegated scope that still carries the permission).
+ */
+async function endCreatorAuthorityOnRoleLossTx(
+  tx: TxClient,
+  input: { teamId: string; userId: string; newRole: string; actorUserId: string | null },
+): Promise<void> {
+  const nextRole = mapTeamRoleToCanonical(input.newRole as never);
+  const losesShares = !roleHasPermission(nextRole, "evidence.publish_verify");
+  const losesExternal = !roleHasPermission(nextRole, "governance.legal_hold.manage");
+  if (losesShares || losesExternal) {
+    await revokeCreatorShareGrantsTx(tx as never, {
+      creators: [{ teamId: input.teamId, userId: input.userId }],
+      reason: "CREATOR_LOST_AUTHORITY",
+      actorUserId: input.actorUserId,
+      kinds: { ownerShares: losesShares, externalReview: losesExternal, intakeLinks: false, apiKeys: false, webhooks: false },
+    });
+  }
+  await endStandingCredentialsOnLostAuthorityTx(tx as never, {
+    teamId: input.teamId,
+    userId: input.userId,
+    actorUserId: input.actorUserId,
+  });
+}
+
+/**
+ * Undo what an archived IdP group granted in one workspace.
+ *
+ * PRO-A2Z-02 (WS-ORG RG-07) — PROVENANCE, NOT ROLE. Only members whose most
+ * recent live grant is THIS group's (`provenanceRefs`: the group and any
+ * group merged into it) at the mapped role, and who still hold that role,
+ * return to MEMBER. It used to select every ACTIVE holder of the mapped role:
+ * archiving a VIEWER-mapped group PROMOTED every VIEWER (invited read-only
+ * people included) to MEMBER, and archiving an ADMIN-mapped group demoted
+ * administrators the OWNER appointed by hand. A VIEWER- or MEMBER-mapped
+ * group has nothing to undo by role (a removal never ELEVATES a VIEWER), so
+ * it changes nobody. Each change goes through `applyDirectoryRoleChange`
+ * (OWNER immutable, last administrator kept, provenance, standing
+ * credentials — PRO-LEAD-01).
  */
 export async function demoteGroupMappedRoleOnArchive(
   tx: TxClient,
-  input: { teamId: string; mappedRole: string; externalRef?: string | null },
+  input: {
+    teamId: string;
+    mappedRole: string;
+    /** The archived group's grant refs (`scim-group:<id>`, merged ids included). */
+    provenanceRefs: string[];
+    externalRef?: string | null;
+  },
 ): Promise<{ count: number }> {
-  const affected = await tx.teamMember.findMany({
+  if (input.mappedRole !== "ADMIN") return { count: 0 };
+  if (input.provenanceRefs.length === 0) return { count: 0 };
+  const granted = await tx.membershipGrant.findMany({
     where: {
+      externalRef: { in: input.provenanceRefs },
+      revokedAtUtc: null,
+      teamMemberId: { not: null },
+    },
+    select: { teamMemberId: true },
+    distinct: ["teamMemberId"],
+  });
+  const grantedIds = granted
+    .map((g) => g.teamMemberId)
+    .filter((id): id is string => Boolean(id));
+  if (grantedIds.length === 0) return { count: 0 };
+  const candidates = await tx.teamMember.findMany({
+    where: {
+      id: { in: grantedIds },
       teamId: input.teamId,
       role: input.mappedRole as never,
       status: "ACTIVE",
     },
-    select: { id: true },
+    select: { id: true, role: true },
   });
-  if (affected.length === 0) return { count: 0 };
-  await tx.teamMember.updateMany({
-    where: { id: { in: affected.map((m) => m.id) } },
-    data: { role: "MEMBER" },
-  });
-  for (const m of affected) {
-    await recordMembershipGrant(tx, {
-      teamMemberId: m.id,
-      source: "IDP_GROUP",
-      intent: "GROUP_MAPPING",
-      externalRef: input.externalRef ?? null,
-      grantedRole: "MEMBER",
+  let count = 0;
+  for (const m of candidates) {
+    const latest = await tx.membershipGrant.findFirst({
+      where: { teamMemberId: m.id, revokedAtUtc: null },
+      orderBy: { createdAt: "desc" },
+      select: { externalRef: true, grantedRole: true },
     });
+    if (!latest?.externalRef || !input.provenanceRefs.includes(latest.externalRef)) continue;
+    if (latest.grantedRole !== input.mappedRole) continue;
+    const r = await applyDirectoryRoleChange(tx, {
+      teamMemberId: m.id,
+      currentRole: String(m.role),
+      desiredRole: "MEMBER",
+      source: "IDP_GROUP",
+      externalRef: input.externalRef ?? null,
+      allowPrivilegedChange: true,
+    });
+    if (r.changed) count += 1;
   }
-  return { count: affected.length };
+  return { count };
 }
 
 // WORKSPACE AND COLLABORATION RECONCILIATION — // was DELETED, with zero-consumer proof.
@@ -1114,7 +1216,9 @@ export async function removeOrganizationMembership(
     source?: OrgMembershipStatusSource;
     reason?: string | null;
   },
-): Promise<void> {
+  // PRO-T2-02 — the lifecycle outcome is returned (it used to be discarded) so
+  // a caller runs side effects only when the removal actually happened.
+): Promise<LifecycleOutcome | null> {
   await closeGrantsForOrgMemberships(
     tx,
     [input.organizationMembershipId],
@@ -1127,8 +1231,8 @@ export async function removeOrganizationMembership(
     where: { id: input.organizationMembershipId },
     select: { organizationId: true, userId: true },
   });
-  if (!row) return;
-  await revokeOrganizationMembership({
+  if (!row) return null;
+  const outcome = await revokeOrganizationMembership({
     prisma: tx as unknown as Parameters<typeof revokeOrganizationMembership>[0]["prisma"],
     organizationId: row.organizationId,
     membershipId: input.organizationMembershipId,
@@ -1144,6 +1248,7 @@ export async function removeOrganizationMembership(
     { userId: row.userId, managingOrganizationId: row.organizationId },
     tx as unknown as PrismaClient,
   );
+  return outcome;
 }
 
 // Workspace-membership PHYSICAL removal is retired (members audit MEM-01):
@@ -1300,6 +1405,15 @@ export async function transferWorkspaceOwnerRoles(
       intent: "ADMIN_ASSIGNMENT",
       grantedByUserId: input.actorUserId ?? null,
       grantedRole: "ADMIN",
+    });
+    // PRO-LEAD-01 — OWNER → ADMIN loses the OWNER-only permissions (lifecycle
+    // webhooks among them): the prior owner's standing credentials answer to
+    // the new role in the same transaction.
+    await endCreatorAuthorityOnRoleLossTx(tx, {
+      teamId: input.teamId,
+      userId: input.fromUserId,
+      newRole: "ADMIN",
+      actorUserId: input.actorUserId ?? null,
     });
   }
   return { ok: true };

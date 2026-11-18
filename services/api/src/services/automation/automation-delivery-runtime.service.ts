@@ -111,6 +111,11 @@ import {
 } from "./automation-webhook.service.js";
 import { sanitiseReason } from "./automation.service.js";
 import { recordIncident } from "../observability/incident.service.js";
+import {
+  CREATOR_LOST_AUTHORITY_REASON,
+  STANDING_CREDENTIAL_PERMISSION,
+  evaluateCreatorAuthority,
+} from "../sharing/standing-credential-authority.js";
 
 /**
  * OPS-13 — the identity of the per-destination condition
@@ -286,6 +291,36 @@ export async function processDelivery(input: {
   // suspension is reversible and leaves it as it is.
   if (!(await isLiveOperatingWorkspace(delivery.teamId, prisma))) {
     return finaliseSkipped(prisma, delivery.id, "workspace_not_operating", nowMs);
+  }
+  // PRO-G1Z-01 / PRO-LEAD-01 — the destination POSTs in its creator's name:
+  // it sends only while the creator still holds integration.webhook.manage
+  // (canonical decision; access-window expiry set aside, A2-26). LOST
+  // disables the destination and skips; an unreadable answer leaves the
+  // delivery queued for a later pass, sending nothing.
+  const creator = await evaluateCreatorAuthority(
+    {
+      teamId: destination.teamId,
+      userId: destination.createdByUserId,
+      permission: STANDING_CREDENTIAL_PERMISSION.webhook,
+    },
+    prisma,
+  );
+  if (creator.verdict === "LOST") {
+    await prisma.automationWebhookDestination
+      .updateMany({
+        where: { id: destination.id, enabled: true },
+        data: { enabled: false, disabledAt: new Date(nowMs), disabledReason: CREATOR_LOST_AUTHORITY_REASON },
+      })
+      .catch(() => null);
+    return finaliseSkipped(prisma, delivery.id, CREATOR_LOST_AUTHORITY_REASON, nowMs);
+  }
+  if (creator.verdict !== "HOLDS") {
+    return {
+      deliveryId: delivery.id,
+      status: delivery.status as ProcessDeliveryOutcome["status"],
+      attemptCount: delivery.attemptCount,
+      reason: `creator_authority_${creator.verdict.toLowerCase()}`,
+    };
   }
   // Load the originating run for payload context (trigger / target).
   const run = await prisma.automationRun.findUnique({
