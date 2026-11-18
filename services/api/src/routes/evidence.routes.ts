@@ -389,6 +389,7 @@ import { evaluateAccess, loadMemberAccessSnapshot } from "../services/identity/a
 import { bump as bumpOpsMetric } from "@proovra/shared-runtime/ops";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { claimPublicVerifyAuditSlot } from "../services/public-verify/public-verify-audit-coalescer.js";
 import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { admitPublicVerifyClient } from "../services/public-verify/public-verify-gate.js";
 import { readVerificationViewCounts } from "../services/public-verify/view-counts.service.js";
@@ -2054,6 +2055,27 @@ function auditVerificationAction(
   }
 ) {
   const outcome: TenantAuditOutcome = params.outcome ?? "success";
+  // PRO-O1-02 — an ANONYMOUS view is chained once per (record, outcome)
+  // window, not once per request; signed-in actions are unchanged.
+  if (params.userId === null) {
+    void claimPublicVerifyAuditSlot({
+      action: params.action,
+      outcome,
+      reason: params.denialReason ?? (typeof params.metadata?.outcome === "string" ? params.metadata.outcome : null),
+      resourceId: params.resourceId ?? null,
+    }).then((first) => {
+      if (first) emitVerificationAudit(req, params, outcome);
+    });
+    return;
+  }
+  emitVerificationAudit(req, params, outcome);
+}
+
+function emitVerificationAudit(
+  req: FastifyRequest,
+  params: Parameters<typeof auditVerificationAction>[1],
+  outcome: TenantAuditOutcome,
+) {
   void emitTenantAudit({
     action: params.action,
     outcome,

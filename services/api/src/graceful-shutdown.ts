@@ -25,6 +25,12 @@ export function installGracefulShutdown(
   app: DrainableServer,
   deps: {
     closePool: () => Promise<unknown>;
+    /**
+     * PRO-S1-02 — detached work that must finish on this pool (audit appends
+     * started after their response). Awaited after the server stopped taking
+     * requests and before the pool closes; it must bound itself.
+     */
+    drainBackground?: () => Promise<unknown>;
     /** Waits for telemetry's own flush (otel.ts) so exit does not cut it. */
     flushTelemetry?: () => Promise<unknown>;
     exit: (code: number) => void;
@@ -43,6 +49,7 @@ export function installGracefulShutdown(
     deadline.unref?.();
     draining = app
       .close()
+      .then(() => (deps.drainBackground ? deps.drainBackground() : undefined))
       .then(() => deps.closePool())
       .then(() => (deps.flushTelemetry ? deps.flushTelemetry() : undefined))
       .then(

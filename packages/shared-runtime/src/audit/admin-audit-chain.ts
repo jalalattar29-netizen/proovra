@@ -299,13 +299,60 @@ type AuditTx = {
  * the clock and one millisecond after the current head. Ordering by
  * `createdAt` then always equals append order.
  */
+/**
+ * PRO-S1-01 — the chain lock is ONE key for every append on the platform, and a
+ * waiter sits inside BEGIN holding a pooled connection for its whole wait. A
+ * caller that passes `lockWaitMs` waits at most that long: uncontended, the
+ * try-lock succeeds in the same single round trip as before; contended, the
+ * wait is bounded by a transaction-local lock_timeout (put back once the lock
+ * is held, so the rest of the caller's transaction keeps its own behaviour)
+ * and a timeout throws {@link AuditChainLockBusyError}. The chain itself — one
+ * global hash chain, strictly increasing createdAt — is unchanged. Omitted (or
+ * null), the wait is unbounded as before.
+ */
+export class AuditChainLockBusyError extends Error {
+  readonly code = "AUDIT_CHAIN_LOCK_BUSY";
+  constructor(readonly waitMs: number) {
+    super(`audit chain lock not acquired within ${waitMs}ms`);
+    this.name = "AuditChainLockBusyError";
+  }
+}
+
+export function isAuditChainLockBusyError(err: unknown): err is AuditChainLockBusyError {
+  return (err as { code?: unknown } | null)?.code === "AUDIT_CHAIN_LOCK_BUSY";
+}
+
+function isLockWaitCancelled(err: unknown): boolean {
+  const text = `${(err as { message?: unknown })?.message ?? ""} ${JSON.stringify((err as { meta?: unknown })?.meta ?? {})}`;
+  return /(55P03|57014)|lock timeout|statement timeout/i.test(text);
+}
+
+async function takeAuditChainLock(tx: AuditTx, lockWaitMs: number | null | undefined): Promise<void> {
+  if (lockWaitMs === null || lockWaitMs === undefined) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})`;
+    return;
+  }
+  const taken = await tx.$executeRaw`SELECT 1 WHERE pg_try_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})`;
+  if (taken === 1) return;
+  const waitMs = Math.max(1, Math.round(lockWaitMs));
+  await tx.$executeRaw`SELECT set_config('lock_timeout', ${`${waitMs}ms`}, true)`;
+  try {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})`;
+  } catch (err) {
+    if (isLockWaitCancelled(err)) throw new AuditChainLockBusyError(waitMs);
+    throw err;
+  }
+  await tx.$executeRaw`SET LOCAL lock_timeout TO DEFAULT`;
+}
+
 export async function appendAdminAuditChainRowTx(
   txIn: unknown,
   row: AdminAuditChainRow,
   now: Date = new Date(),
+  options: { lockWaitMs?: number | null } = {},
 ): Promise<void> {
   const tx = txIn as AuditTx;
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADMIN_AUDIT_ADVISORY_LOCK_KEY})`;
+  await takeAuditChainLock(tx, options.lockWaitMs);
   const last = await tx.adminAuditLog.findFirst({
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: { hash: true, createdAt: true },

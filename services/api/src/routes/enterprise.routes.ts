@@ -119,6 +119,14 @@ function getRequestPath(req: FastifyRequest): string {
 // and the legacy `/v1/api-keys*` handlers are pure retirement notices. So
 // every event in this file is genuinely PLATFORM-scoped (never fabricate a
 // tenant subject).
+const ENTERPRISE_READ_ACTIONS: ReadonlySet<string> = new Set([
+  "enterprise.batch_view",
+  "enterprise.batch_list",
+  "enterprise.batch_results_view",
+  "enterprise.quotas_view",
+  "enterprise.usage_stats_view",
+]);
+
 function auditEnterpriseAction(
   req: FastifyRequest,
   params: {
@@ -133,6 +141,12 @@ function auditEnterpriseAction(
 ) {
   const outcome =
     params.outcome === "blocked" ? "denied" : params.outcome === "failure" ? "error" : "success";
+  // PRO-G2-15 — a successful READ of one's own usage, quotas or batch results
+  // is not a chain event: each row took the platform-wide audit lock on every
+  // page poll. These are the caller's OWN usage, quotas and batch jobs
+  // (userId-keyed, no tenant data); denials, failures, exports and writes are
+  // still chained.
+  if (outcome === "success" && ENTERPRISE_READ_ACTIONS.has(params.action)) return;
   void emitPlatformAudit({
     action: params.action,
     outcome,

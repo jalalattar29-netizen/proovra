@@ -257,7 +257,14 @@ const MEMORY_RATE_LIMIT_PRUNE_INTERVAL_MS = 5_000;
 let lastMemoryPruneAtMs = 0;
 
 function pruneExpiredMemoryBuckets(now: number): void {
-  if (memoryStore.size <= MEMORY_RATE_LIMIT_PRUNE_THRESHOLD) return;
+  // The lease map is bounded by the same sweep (coalescing leases are keyed per
+  // record, so they can outnumber the buckets).
+  if (
+    memoryStore.size <= MEMORY_RATE_LIMIT_PRUNE_THRESHOLD &&
+    memoryLeases.size <= MEMORY_RATE_LIMIT_PRUNE_THRESHOLD
+  ) {
+    return;
+  }
   if (now - lastMemoryPruneAtMs < MEMORY_RATE_LIMIT_PRUNE_INTERVAL_MS) return;
   lastMemoryPruneAtMs = now;
   for (const [k, bucket] of memoryStore) {
@@ -626,6 +633,7 @@ function leaseToken(): string {
 
 function acquireMemoryLease(key: string, ttlMs: number): Lease {
   const now = Date.now();
+  pruneExpiredMemoryBuckets(now);
   const held = memoryLeases.get(key);
   if (held && held.expiresAtMs > now) {
     return { acquired: false, release: async () => undefined };
