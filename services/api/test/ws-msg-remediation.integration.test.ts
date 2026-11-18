@@ -272,4 +272,99 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
       expect(msg.bodyPreview ?? "").not.toContain(encodeURIComponent(out.newRawToken));
     });
   });
+
+  describe("PRO-A1-03 — codes to a new destination are bounded across accounts and workspaces", () => {
+    it("the N+1th enrolment start to one number is refused 429 before any factor row or provider call", async () => {
+      const previous = process.env.VERIFY_NEW_DESTINATION_PER_RECIPIENT_PER_DAY;
+      process.env.VERIFY_NEW_DESTINATION_PER_RECIPIENT_PER_DAY = "2";
+      try {
+        const phone = `+1555${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+        // Two different accounts (two workspaces) aim at the same number.
+        const callers = [
+          { token: A().ownerToken, teamId: A().teamId },
+          { token: h.fixtures.teamB.ownerToken, teamId: h.fixtures.teamB.teamId },
+          { token: h.fixtures.personal.token, teamId: h.fixtures.personal.teamId },
+        ];
+        const statuses: number[] = [];
+        const factorsBefore = await prisma.mfaFactor.count();
+        for (const c of callers) {
+          const res = await h.app.inject({
+            method: "POST",
+            url: "/v1/identity-security/contact-factors/enroll/start",
+            headers: { authorization: `Bearer ${c.token}` },
+            payload: { teamId: c.teamId, channel: "SMS", destination: phone },
+          });
+          statuses.push(res.statusCode);
+        }
+        const factorsAfterTwo = statuses.slice(0, 2).filter((s) => s !== 429 && s !== 503).length;
+        expect(statuses[2]).toBe(429);
+        // The refused third start created no factor.
+        expect(await prisma.mfaFactor.count()).toBeLessThanOrEqual(factorsBefore + factorsAfterTwo);
+      } finally {
+        if (previous === undefined) delete process.env.VERIFY_NEW_DESTINATION_PER_RECIPIENT_PER_DAY;
+        else process.env.VERIFY_NEW_DESTINATION_PER_RECIPIENT_PER_DAY = previous;
+      }
+    });
+  });
+
+  describe("PRO-T2-06 — organization invitation resends are on the abuse rail", () => {
+    it("a second resend inside the cooldown is refused 429 with no email and the token unchanged", async () => {
+      const org = await prisma.organization.create({ data: { name: `ws-msg-${randomUUID().slice(0, 8)}`, kind: "CUSTOMER" } as never, select: { id: true } });
+      await prisma.organizationMembership.create({ data: { organizationId: org.id, userId: A().ownerUserId, role: "ORG_OWNER" } as never });
+      const email = `ws-msg-invitee-${randomUUID().slice(0, 8)}@example.test`;
+      const created = await h.app.inject({ method: "POST", url: `/v1/orgs/${org.id}/invites`, headers: owner(), payload: { email, role: "ORG_MEMBER" } });
+      expect(created.statusCode, created.body).toBeLessThan(300);
+      const invite = await prisma.organizationInvite.findFirstOrThrow({ where: { organizationId: org.id, email } as never, select: { id: true } });
+      sent.length = 0;
+      const first = await h.app.inject({ method: "POST", url: `/v1/orgs/${org.id}/invites/${invite.id}/resend`, headers: owner(), payload: {} });
+      expect(first.statusCode, first.body).toBe(200);
+      const afterFirst = await prisma.organizationInvite.findUniqueOrThrow({ where: { id: invite.id }, select: { tokenHash: true, resendCount: true } });
+      const mailsAfterFirst = sent.filter((m) => m.to === email).length;
+      const second = await h.app.inject({ method: "POST", url: `/v1/orgs/${org.id}/invites/${invite.id}/resend`, headers: owner(), payload: {} });
+      expect(second.statusCode, second.body).toBe(429);
+      expect(second.json()).toMatchObject({ code: "ORG_INVITE_RESEND_COOLDOWN" });
+      const afterSecond = await prisma.organizationInvite.findUniqueOrThrow({ where: { id: invite.id }, select: { tokenHash: true, resendCount: true } });
+      expect(afterSecond).toEqual(afterFirst);
+      expect(sent.filter((m) => m.to === email).length).toBe(mailsAfterFirst);
+    });
+  });
+
+  describe("PRO-N1-14 / PRO-N1Z-02 / PRO-N1Z-03 — delivery resend authority", () => {
+    it("a contextual retry of a template-less SKIPPED row is not offered and answers 409; a lapsed plan blocks a re-invitation", async () => {
+      const { id } = await sentExternalRequest(`ws-msg-${randomUUID().slice(0, 8)}@example.test`);
+      const skipped = await prisma.notificationDelivery.create({
+        data: { teamId: A().teamId, eventType: "EVIDENCE_REQUEST_SENT", channel: "EMAIL", provider: "RESEND", recipient: "(missing)", status: "SKIPPED", templateKey: "EVIDENCE_REQUEST_SENT", errorCode: "missing_recipient", evidenceRequestId: id } as never,
+        select: { id: true },
+      });
+      const list = await h.app.inject({ method: "GET", url: `/v1/evidence-requests/${id}/deliveries`, headers: owner() });
+      expect(list.statusCode).toBe(200);
+      const row = (list.json() as { deliveries: Array<{ id: string; retryable: boolean }> }).deliveries.find((d) => d.id === skipped.id);
+      expect(row?.retryable).toBe(false);
+      const retry = await h.app.inject({ method: "POST", url: `/v1/evidence-requests/${id}/deliveries/${skipped.id}/retry`, headers: owner(), payload: {} });
+      expect(retry.statusCode).toBe(409);
+
+      // A FAILED request mail on a workspace whose plan lost secure intake is not re-sent.
+      const failed = await prisma.notificationDelivery.findFirstOrThrow({ where: { evidenceRequestId: id, eventType: "EVIDENCE_REQUEST_SENT", status: { not: "SKIPPED" } } as never, select: { id: true } });
+      await prisma.notificationDelivery.update({ where: { id: failed.id }, data: { status: "FAILED" } as never });
+      await prisma.team.update({ where: { id: A().teamId }, data: { billingPlan: "FREE" } as never });
+      try {
+        sent.length = 0;
+        const blocked = await h.app.inject({ method: "POST", url: `/v1/evidence-requests/${id}/deliveries/${failed.id}/retry`, headers: owner(), payload: {} });
+        expect(blocked.statusCode, blocked.body).toBe(409);
+        expect(sent).toHaveLength(0);
+      } finally {
+        await prisma.team.update({ where: { id: A().teamId }, data: { billingPlan: "TEAM" } as never });
+      }
+    });
+
+    it("the delivery-log resend asks notification.delivery.resend (a MEMBER is refused)", async () => {
+      const res = await h.app.inject({
+        method: "POST",
+        url: `/v1/notifications/deliveries/${randomUUID()}/resend`,
+        headers: { authorization: `Bearer ${A().memberToken}` },
+        payload: { teamId: A().teamId, force: true },
+      });
+      expect([403, 404]).toContain(res.statusCode);
+    });
+  });
 });

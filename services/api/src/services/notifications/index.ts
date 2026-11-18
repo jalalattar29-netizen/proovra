@@ -698,7 +698,46 @@ export type ResendOutcome =
   | "skipped_terminal"
   | "blocked_already_sent"
   | "not_found"
-  | "failed_to_dispatch";
+  | "failed_to_dispatch"
+  // PRO-N1Z-02 — a re-invitation to a contributor the intake plan gate refuses.
+  | "blocked_plan"
+  // PRO-N1Z-02 — the evidence request was cancelled or closed.
+  | "blocked_request_closed"
+  // PRO-N1-14 — another resend or the retry sweeper holds the row.
+  | "in_progress";
+
+/**
+ * PRO-N1Z-02 — THE re-invitation gate for a stored delivery: a message that
+ * invites an outside contributor to an evidence request's intake link is sent
+ * again only while the request is open and the workspace's plan still includes
+ * secure intake (the same intakePlanRefusal link resend and redemption ask).
+ * Used by every resend path (delivery log, contextual retry) and by reminders.
+ */
+export async function deliveryReinvitationRefusal(
+  delivery: { eventType: string; teamId: string | null; evidenceRequestId: string | null; intakeLinkId: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<null | { outcome: "blocked_plan"; code: string } | { outcome: "blocked_request_closed" }> {
+  if (!delivery.eventType.startsWith("EVIDENCE_REQUEST_") || !delivery.teamId) return null;
+  if (delivery.evidenceRequestId) {
+    const request = await client.evidenceRequest.findUnique({
+      where: { id: delivery.evidenceRequestId },
+      select: { status: true },
+    });
+    if (request && (request.status === "CANCELLED" || request.status === "CLOSED")) {
+      return { outcome: "blocked_request_closed" };
+    }
+  }
+  if (!delivery.intakeLinkId) return null;
+  const link = await client.workflowIntakeLink.findUnique({
+    where: { id: delivery.intakeLinkId },
+    select: { createdByUserId: true },
+  });
+  if (!link) return null;
+  const { intakePlanRefusal } = await import("../intake/intake-link-mint-gate.js");
+  const refusal = await intakePlanRefusal({ teamId: delivery.teamId, requesterUserId: link.createdByUserId });
+  if (refusal && refusal.kind === "plan") return { outcome: "blocked_plan", code: refusal.code };
+  return null;
+}
 
 export async function resendNotificationDelivery(
   input: {
@@ -735,11 +774,19 @@ export async function resendNotificationDelivery(
   ) {
     return { delivery, outcome: "blocked_already_sent" };
   }
+  // A row a process holds right now (another resend, the retry sweeper) is not
+  // taken over: the claim below would race it.
+  if (delivery.status === "PENDING") {
+    return { delivery, outcome: "in_progress" };
+  }
+  const reinvite = await deliveryReinvitationRefusal(delivery, client);
+  if (reinvite) return { delivery, outcome: reinvite.outcome };
 
   // Reset the row to PENDING before dispatch so the lifecycle remains
-  // observable to a concurrent reader.
-  const refreshed = await client.notificationDelivery.update({
-    where: { id: delivery.id },
+  // observable to a concurrent reader. PRO-N1-14 — a CONDITIONAL claim on the
+  // status read above, so a concurrent resend or sweeper pass dispatches once.
+  const claimed = await client.notificationDelivery.updateMany({
+    where: { id: delivery.id, status: delivery.status },
     data: {
       status: "PENDING",
       errorCode: null,
@@ -748,6 +795,8 @@ export async function resendNotificationDelivery(
       initiatedByUserId: input.actorUserId,
     },
   });
+  if (claimed.count !== 1) return { delivery, outcome: "in_progress" };
+  const refreshed = await client.notificationDelivery.findUniqueOrThrow({ where: { id: delivery.id } });
 
   try {
     const result = await dispatchDelivery(refreshed, client);

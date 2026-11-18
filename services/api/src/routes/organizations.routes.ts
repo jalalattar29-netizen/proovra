@@ -130,6 +130,9 @@ import {
   recordOrgInviteDeliveryPending,
   resendOrgInviteDelivery,
   resolveOrganizationInvitationAllowance,
+  ORG_INVITE_RESEND_COOLDOWN_MS,
+  orgInviteResendCooldownCutoff,
+  orgInviteResendCooldownRefusal,
 } from "../services/organization/org-invite-delivery.service.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
@@ -1741,6 +1744,17 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply.code(denial.status).send(denial.body);
       }
 
+      // PRO-T2-06 — a resend is a send: it counts in the organization's
+      // 24-hour invitation rail (resends included) before anything changes.
+      {
+        const overAllowance = organizationInvitationRefusal(
+          await resolveOrganizationInvitationAllowance(prisma, orgId),
+          1,
+          { resend: true },
+        );
+        if (overAllowance) return reply.code(overAllowance.status).send(overAllowance.body);
+      }
+
       const result = await prisma.$transaction(async (tx) => {
         const invite = await tx.organizationInvite.findFirst({
           where: { id: inviteId, organizationId: orgId },
@@ -1760,6 +1774,18 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (invite.revokedAt) return { kind: "revoked" as const };
         if (invite.expiresAt <= new Date())
           return { kind: "expired" as const };
+
+        // PRO-T2-06 — the per-invitation cooldown is the claim: a conditional
+        // write, so two concurrent resends produce one send and the second is
+        // refused with no email and the token unchanged.
+        const claimed = await tx.organizationInvite.updateMany({
+          where: {
+            id: invite.id,
+            OR: [{ lastResentAt: null }, { lastResentAt: { lt: orgInviteResendCooldownCutoff() } }],
+          },
+          data: { lastResentAt: new Date() },
+        });
+        if (claimed.count !== 1) return { kind: "cooldown" as const };
 
         const newExpires = inviteExpiresAt();
         const updated = await tx.organizationInvite.update({
@@ -1804,6 +1830,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       if (result.kind === "not_found") {
         return reply.code(404).send({ message: "Invite not found." });
+      }
+      if (result.kind === "cooldown") {
+        const refusal = orgInviteResendCooldownRefusal();
+        reply.header("Retry-After", String(Math.ceil(ORG_INVITE_RESEND_COOLDOWN_MS / 1000)));
+        return reply.code(refusal.status).send(refusal.body);
       }
       if (result.kind === "already_accepted") {
         return reply

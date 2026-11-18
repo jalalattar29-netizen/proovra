@@ -29,6 +29,7 @@ import {
 
 import { prisma } from "../db.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireNotificationCronSecret } from "../middleware/cron-secret.js";
 import {
@@ -236,6 +237,27 @@ export async function notificationsRoutes(app: FastifyInstance) {
 
       const ok = await requireMember(req, reply, body.teamId);
       if (!ok) return;
+      // PRO-N1-14 — resending mails a recipient again: the dedicated
+      // capability, not the read permission plus a role-name comparison...
+      const canResend = await authorizeOrFail(req, reply, {
+        teamId: body.teamId,
+        permission: "notification.delivery.resend",
+        antiEnumeration: true,
+      });
+      if (!canResend) return;
+      // ...and bounded per workspace and per delivery.
+      for (const bound of [
+        { key: `notification-resend:team:${body.teamId}`, max: 30, windowSec: 3600 },
+        { key: `notification-resend:delivery:${id}`, max: 3, windowSec: 3600 },
+      ]) {
+        const verdict = await enforceRateLimit({ key: bound.key, bound: "global", max: bound.max, windowSec: bound.windowSec });
+        if (!verdict.allowed) {
+          reply.header("Retry-After", String(Math.max(1, Math.ceil((verdict.resetAtMs - Date.now()) / 1000))));
+          return verdict.store === "unavailable"
+            ? reply.code(503).send({ error: { code: "temporarily_unavailable" } })
+            : reply.code(429).send({ error: { code: "rate_limited" } });
+        }
+      }
 
       const result = await resendNotificationDelivery({
         id,
@@ -263,6 +285,9 @@ export async function notificationsRoutes(app: FastifyInstance) {
         case "not_found":
           return reply.code(404).send({ error: { code: result.outcome } });
         case "skipped_terminal":
+        case "blocked_plan":
+        case "blocked_request_closed":
+        case "in_progress":
           return reply.code(409).send({ error: { code: result.outcome } });
         case "failed_to_dispatch":
           // The row exists; the resend attempt failed. Surface 200 with

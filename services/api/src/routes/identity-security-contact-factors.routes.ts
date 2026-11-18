@@ -38,6 +38,7 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z } from "zod";
+import { normaliseToE164 } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -57,6 +58,7 @@ import {
 } from "../services/security/verified-contact-factor.service.js";
 import {
   VerificationError,
+  enforceNewDestinationVerificationBudget,
   checkVerification,
   startVerification,
 } from "../services/communications/verification.service.js";
@@ -157,6 +159,23 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
       if (!enrolBound.allowed) {
         reply.header("Retry-After", String(Math.max(1, Math.ceil((enrolBound.resetAtMs - Date.now()) / 1000))));
         return reply.code(429).send({ error: { code: "rate_limited" } });
+      }
+
+      // PRO-A1-03 — the aggregate new-destination budget (per destination
+      // across workspaces, per workspace, platform-wide), before any factor
+      // row or provider call.
+      const proposed = normaliseToE164(body.destination);
+      if (proposed) {
+        const budget = await enforceNewDestinationVerificationBudget({ teamId: body.teamId, phoneE164: proposed });
+        if (!budget.allowed) {
+          if (budget.reason === "destination_not_allowed") {
+            return reply.code(422).send({ error: { code: "destination_not_allowed" } });
+          }
+          reply.header("Retry-After", String(budget.retryAfterSec));
+          return budget.reason === "limiter_unavailable"
+            ? reply.code(503).send({ error: { code: "temporarily_unavailable" } })
+            : reply.code(429).send({ error: { code: "rate_limited" } });
+        }
       }
 
       try {
