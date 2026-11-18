@@ -422,13 +422,22 @@ function projectHumanSummary(o: unknown, d: PublicVerifyDisclosureFacts, attribu
  * nothing else: the categorical labels (identity level, provider) of the
  * capture-time and report-time snapshots do not leave beside that statement.
  */
-function projectRecordFacts(r: unknown): unknown {
-  if (!isObj(r) || !isObj(r.identity) || r.identity.disclosure !== "WITHHELD") return r;
-  return { ...r, identity: { ...r.identity, captureTime: null, atReportTime: null } };
+function projectRecordFacts(r: unknown, contentAllowed: boolean): unknown {
+  if (!isObj(r)) return r;
+  let out: Obj = r;
+  // PRO-O1-06 (RG-18) — the exact MIME type is CONTENT: a verification-only,
+  // closed-account or BASIC answer states the single item's kind only.
+  if (!contentAllowed && typeof out.recordKindLabel === "string" && out.recordKindLabel.startsWith("Single item · ")) {
+    out = { ...out, recordKindLabel: "Single item" };
+  }
+  if (!isObj(out.identity) || out.identity.disclosure !== "WITHHELD") return out;
+  return { ...out, identity: { ...out.identity, captureTime: null, atReportTime: null } };
 }
 
-function projectBasic(b: unknown, d: PublicVerifyDisclosureFacts): unknown {
-  if (!isObj(b) || d.mode !== "VERIFICATION_ONLY") return b;
+function projectBasic(b: unknown, d: PublicVerifyDisclosureFacts, basicTier = false): unknown {
+  // PRO-O1C-04 — the BASIC tier is the minimal original-integrity result:
+  // the device-declared capture time leaves only on a rich content preview.
+  if (!isObj(b) || (d.mode !== "VERIFICATION_ONLY" && !basicTier)) return b;
   const original = isObj(b.original) ? { ...b.original } : b.original;
   if (isObj(original)) {
     delete original.deviceDeclaredCaptureAtUtc;
@@ -446,7 +455,16 @@ function projectProvenanceTime(p: unknown, d: PublicVerifyDisclosureFacts): unkn
 }
 
 function projectCertifications(c: unknown, d: PublicVerifyDisclosureFacts): unknown {
-  if (!isObj(c) || d.mode !== "VERIFICATION_ONLY") return c;
+  if (!isObj(c)) return c;
+  if (d.mode !== "VERIFICATION_ONLY") {
+    // PRO-O1-05 (DEC-25) — the attestor's identity is what a workspace member
+    // DECLARED; the answer says so beside the names it carries (additive).
+    const mark = (x: unknown) =>
+      isObj(x) && (x.attestorName != null || x.attestorTitle != null || x.attestorOrganization != null)
+        ? { ...x, attestorIdentity: "DECLARED_NOT_VERIFIED" }
+        : x ?? null;
+    return { ...c, custodian: mark(c.custodian), qualifiedPerson: mark(c.qualifiedPerson) };
+  }
   const strip = (x: unknown) =>
     isObj(x)
       ? { ...x, attestorName: null, attestorTitle: null, attestorOrganization: null, revokeReason: null }
@@ -572,7 +590,7 @@ export function projectPublicVerification(
   out.certifications = projectCertifications(full.certifications, d);
   out.overview = projectOverview(full.overview, d, options.attributionExposed);
   out.humanSummary = projectHumanSummary(full.humanSummary, d, options.attributionExposed);
-  out.recordFacts = projectRecordFacts(full.recordFacts);
+  out.recordFacts = projectRecordFacts(full.recordFacts, d.mode === "CONTENT_PREVIEW");
   out.display =
     d.mode === "VERIFICATION_ONLY" && isObj(full.display)
       ? { ...full.display, displayTitle: "Digital Evidence Record" }
@@ -609,9 +627,17 @@ export function projectPublicVerification(
  */
 export function projectBasicPublicVerification(full: Obj, disclosure: PublicVerifyDisclosureFacts): Obj {
   const out: Obj = pick(full, ["tier", "link", "verificationMatrix"]);
-  out.recordFacts = projectRecordFacts(full.recordFacts);
-  out.basicVerification = projectBasic(full.basicVerification, disclosure);
-  out.disclosure = disclosure;
-  if (isObj(full.canonicalVerification)) out.canonicalVerification = { ...full.canonicalVerification, disclosure };
+  out.recordFacts = projectRecordFacts(full.recordFacts, false);
+  out.basicVerification = projectBasic(full.basicVerification, disclosure, true);
+  // PRO-O1C-04 (RG-18) — the disclosure object describes what THIS body
+  // carries: a BASIC answer carries no content and no location, whatever the
+  // record's own policy allows on the rich tier.
+  const basicDisclosure: PublicVerifyDisclosureFacts = {
+    ...disclosure,
+    mode: "VERIFICATION_ONLY",
+    recordedLocation: false,
+  };
+  out.disclosure = basicDisclosure;
+  if (isObj(full.canonicalVerification)) out.canonicalVerification = { ...full.canonicalVerification, disclosure: basicDisclosure };
   return out;
 }

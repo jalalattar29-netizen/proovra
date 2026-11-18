@@ -418,6 +418,8 @@ function Shell() {
   const create = useCallback(async () => {
     setCreating(true);
     setDenial(null);
+    setActionError(null);
+    const requestWorkspaceId = activeWorkspaceRef.current;
     try {
       const ids = evidenceIds
         .split(",")
@@ -430,7 +432,24 @@ function Shell() {
       setEvidenceIds("");
       await refresh();
     } catch (err) {
+      if (requestWorkspaceId !== activeWorkspaceRef.current) return;
       applyDenial(err, setDenial);
+      // PRO-O1-11 (RG-18) — every other refusal is shown, not swallowed: an
+      // invalid / out-of-scope id (409 INVALID_EVIDENCE), a held or trashed
+      // record (409 EXPORT_BLOCKED), the quota (429), a malformed id (400).
+      const e2 = err as { statusCode?: number; details?: Record<string, unknown> } | null;
+      const denialCode = typeof e2?.details?.["denial"] === "string" ? (e2.details["denial"] as string) : null;
+      const isPermissionDenial =
+        e2?.statusCode === 403 && (denialCode === "ENTITLEMENT_REQUIRED" || denialCode === "PERMISSION_REQUIRED");
+      if (!isPermissionDenial) {
+        setActionError(
+          denialCode === "EXPORT_BLOCKED"
+            ? "A selected record is under legal hold, in trash or bound for destruction, so it cannot leave custody in a package."
+            : denialCode === "INVALID_EVIDENCE"
+              ? "One or more evidence IDs are not records of this workspace that you can package. Check the IDs and try again."
+              : toSafeUserError(err, { message: "The package could not be created." }).message,
+        );
+      }
     } finally {
       setCreating(false);
     }

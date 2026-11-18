@@ -1330,7 +1330,11 @@ export async function redactionRoutes(app: FastifyInstance) {
       const res = await registerVideoFrameBatch({
         teamId: ctx.teamId,
         evidenceId,
-        extractor: body.extractor,
+        // PRO-R3-10 (RG-18) — a user session cannot declare a machine extractor:
+        // rows registered here are operator-entered, whatever the form sent
+        // (older clients still send FFMPEG_SAMPLE; it is accepted and recorded
+        // truthfully).
+        extractor: "OPERATOR_INLINE",
         samplePreset: body.samplePreset,
         frames: body.frames,
         actorUserId: ctx.userId,

@@ -3,7 +3,7 @@ import * as Crypto from "expo-crypto";
 import { CopyButton } from "../src/ui/copy-button";
 import { Image, Linking, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { apiFetch } from "../src/api";
+import { publicFetch } from "../src/api";
 import { toSafeUserError, type SafeError } from "../src/errors/safe-error";
 import { formatUserDateTime } from "../src/lib/date";
 import * as WebBrowser from "expo-web-browser";
@@ -148,7 +148,10 @@ export default function VerifyScreen() {
     if (viewSession.current === undefined) viewSession.current = createVerifyViewSessionId(Crypto.getRandomBytes);
     const init: RequestInit = viewSession.current ? { headers: { [VERIFY_VIEW_SESSION_HEADER]: viewSession.current } } : {};
     try {
-      const res = (await apiFetch(`/public/verify/${encodeURIComponent(verificationId)}`, init)) as VerifyData;
+      // PRO-NB-08 — public verification is a flow outside the account: the
+      // signed-in session (bearer, workspace header, session-end handler) is
+      // never attached. The server does not personalise this answer.
+      const res = (await publicFetch(`/public/verify/${encodeURIComponent(verificationId)}`, init)) as VerifyData;
       const bodyState = verifyCanonicalStateOfBody(res);
       if (bodyState) {
         setCanonicalState(bodyState);

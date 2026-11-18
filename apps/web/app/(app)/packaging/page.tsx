@@ -80,9 +80,12 @@ function Shell() {
   const [entitlements, setEntitlements] = useState<Entitlement[]>([]);
   const [busy, setBusy] = useState(false);
   const [denial, setDenial] = useState<PermissionDenialState>(null);
+  // PRO-O1-11 (RG-18) — a failed read is not an empty entitlement set.
+  const [loadFailed, setLoadFailed] = useState(false);
   const refresh = useCallback(async () => {
     setBusy(true);
     setDenial(null);
+    setLoadFailed(false);
     try {
       const res = (await apiFetch("/v1/packaging/entitlements", {
         method: "GET",
@@ -90,6 +93,7 @@ function Shell() {
       setEntitlements(res?.entitlements ?? []);
     } catch (err) {
       setEntitlements([]);
+      setLoadFailed(true);
       applyDenial(err, setDenial);
     } finally {
       setBusy(false);
@@ -192,7 +196,7 @@ function Shell() {
             {entitlements.length === 0 ? (
               <tr>
                 <td colSpan={5} style={{ ...td, color: "#475569" }}>
-                  No entitlements.
+                  {loadFailed ? "Entitlements could not be loaded. Refresh to try again." : "No entitlements."}
                 </td>
               </tr>
             ) : (

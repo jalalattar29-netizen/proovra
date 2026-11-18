@@ -931,8 +931,8 @@ function buildCertificationBlockTitle(
   kind: "custodian" | "qualified"
 ): string {
   return kind === "custodian"
-    ? "Custodian certification state"
-    : "Qualified-person certification state";
+    ? "Custodian declaration (not verified by PROOVRA)"
+    : "Qualified-person declaration (not verified by PROOVRA)";
 }
 
 function buildCertificationCallout(
@@ -943,13 +943,18 @@ function buildCertificationCallout(
   const status = safe(cert?.status, "").toUpperCase();
 
   if (status === "ATTESTED") {
+    // PRO-O1-05 (RG-18, DEC-25) — a DECLARATION, stated as one: the attestor's
+    // name, title and organization are what a workspace member entered.
+    // PROOVRA records that the declaration was made and binds it to the
+    // preserved evidence state; it does not verify the person, their
+    // qualification or the truth of the statement.
     return {
       title,
       body:
         kind === "custodian"
-          ? "A custodian attestation record is attached and corresponds to the preserved evidence state."
-          : "A qualified-person certification record is attached and corresponds to the preserved evidence state.",
-      tone: "success",
+          ? "A custodian declaration is recorded for the preserved evidence state. The attestor's name, title and organization are as entered by a workspace member; PROOVRA has not verified the person's identity or role, or the truth of the statement."
+          : "A qualified-person declaration is recorded for the preserved evidence state. The attestor's name, title and organization are as entered by a workspace member; PROOVRA has not verified the person's identity or qualification, or the truth of the statement.",
+      tone: "neutral",
     };
   }
 
@@ -988,10 +993,11 @@ function buildCertificationRows(
     { label: `${prefix} Version`, value: String(cert?.version ?? "N/A") },
     { label: `${prefix} Requested At`, value: safe(cert?.requestedAtUtc) },
     { label: `${prefix} Attested At`, value: safe(cert?.attestedAtUtc) },
-    { label: `${prefix} Attestor Name`, value: safe(cert?.attestorName) },
-    { label: `${prefix} Attestor Title`, value: safe(cert?.attestorTitle) },
+    // PRO-O1-05 — declared values, labelled as declared (not verified).
+    { label: `${prefix} Attestor Name (declared)`, value: safe(cert?.attestorName) },
+    { label: `${prefix} Attestor Title (declared)`, value: safe(cert?.attestorTitle) },
     {
-      label: `${prefix} Organization`,
+      label: `${prefix} Organization (declared)`,
       value: safe(cert?.attestorOrganization),
     },
     {

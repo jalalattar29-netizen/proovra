@@ -48,6 +48,7 @@ import { evaluateEffectiveLegalHold, resolveEvidenceWorkspaceId } from "@proovra
 import type { FastifyRequest } from "fastify";
 import type { PrivilegedAction } from "@proovra/shared";
 import { isRequestSessionQuarantined, SESSION_QUARANTINED_BODY } from "../access-control/adaptive-runtime-gate.service.js";
+import { safeIpPreview, safeUaPreview } from "../platform-audit-log.service.js";
 
 /**
  * GOV-012 — was the record held when its bytes were released? Recorded on the
@@ -272,6 +273,10 @@ async function evaluateArtifactDownloadPolicy(input: {
       err instanceof Error && "statusCode" in err
         ? ((err as Error & { statusCode?: number }).statusCode ?? 500)
         : 500;
+    // PRO-O1-15 (RG-18) — only a DECLARED 4xx keeps its message (B4-F-310).
+    // An unexpected failure goes to the central handler: logged, bounded body,
+    // no driver/query text returned to the client.
+    if (!(statusCode >= 400 && statusCode < 500)) throw err;
     const message = err instanceof Error ? err.message : "Unexpected error";
     return { allowed: false, teamId: null, statusCode, body: { message } };
   }
@@ -635,8 +640,12 @@ export async function recordOriginalRelease(input: {
       accessedAtUtc: at.toISOString(),
       ...(underLegalHold === false ? {} : { underLegalHold }),
     },
-    ip: input.ip ?? undefined,
-    userAgent: input.userAgent ?? undefined,
+    // PRO-O1C-03 (RG-18) — an ANONYMOUS public-verify viewer's address and
+    // user-agent are stored masked (the ET-CUS-14 rule the audit and view rows
+    // already follow); an authenticated release keeps the actor's values.
+    ip: (input.channel === "public_verify" ? safeIpPreview(input.ip ?? undefined) : input.ip) ?? undefined,
+    userAgent:
+      (input.channel === "public_verify" ? safeUaPreview(input.userAgent ?? undefined) : input.userAgent) ?? undefined,
   }).catch(noteCustodyFailure);
 }
 

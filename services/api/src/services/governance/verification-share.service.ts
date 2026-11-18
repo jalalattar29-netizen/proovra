@@ -278,7 +278,9 @@ export async function loadLinkGrantForShare(
   if (!row) return null;
   return {
     grantsOriginal: row.purpose === "OWNER_SHARE" && row.projection === "STANDARD" && row.allowOriginalDownload === true,
-    rotatable: verificationShareStateOf(row, now) === "ACTIVE",
+    // PRO-O1-04 — only an owner share is rotated; an artifact link (REPORT /
+    // PACKAGE purpose) belongs to the issued artifact.
+    rotatable: row.purpose === "OWNER_SHARE" && verificationShareStateOf(row, now) === "ACTIVE",
     renewable: row.purpose === "OWNER_SHARE" && row.revokedAtUtc === null,
   };
 }
@@ -306,7 +308,12 @@ export async function revokeVerificationLink(
     const current = (await tx.verificationShareToken.findFirst({
       where: { id: input.linkId, evidenceId: input.record.id },
     })) as VerificationShareRow | null;
-    if (!current) throw new VerificationShareError("link_not_found");
+    // PRO-O1-04 (RG-18) — the link printed in an issued report or package
+    // (purpose REPORT / PACKAGE) belongs to the record's publication state,
+    // not to a person: it is not revoked through the reviewer-share controls
+    // (taking the page down is the step-up-gated withdraw route). The rule
+    // renew already applies.
+    if (!current || current.purpose !== "OWNER_SHARE") throw new VerificationShareError("link_not_found");
     const changed = await revokeVerificationShareTokenTx(tx, {
       id: current.id,
       evidenceId: input.record.id,
@@ -331,7 +338,9 @@ export async function rotateVerificationLink(
     const current = (await tx.verificationShareToken.findFirst({
       where: { id: input.linkId, evidenceId: input.record.id },
     })) as VerificationShareRow | null;
-    if (!current) throw new VerificationShareError("link_not_found");
+    // PRO-O1-04 — an artifact link is never rotated (nobody can print the new
+    // token into the issued, immutable report).
+    if (!current || current.purpose !== "OWNER_SHARE") throw new VerificationShareError("link_not_found");
     // Only a link that still works is rotated. A revoked one stays revoked; an
     // expired or used-up one is replaced by creating a new link on purpose.
     if (verificationShareStateOf(current, now) !== "ACTIVE") {

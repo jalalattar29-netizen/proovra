@@ -391,6 +391,7 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   KEY_COMPROMISE_REPLACEMENT_NO_TRUSTWORTHY_SIGNER: { disposition: "customer", where: "global" },
   KEY_COMPROMISE_REPLACEMENT_NOT_REQUESTED: { disposition: "customer", where: "global" },
   KEY_COMPROMISE_REPLACEMENT_OTHER_REQUEST_ACTIVE: { disposition: "customer", where: "global" },
+  VERIFICATION_ACCESS_STATE_NOT_CHANGEABLE: { disposition: "customer", where: "global" },
   KEY_COMPROMISE_REPLACEMENT_ATTEMPTS_EXHAUSTED: { disposition: "customer", where: "global" },
   KEY_COMPROMISE_REPLACEMENT_NOT_FOUND: {
     disposition: "generic",

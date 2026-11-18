@@ -12554,6 +12554,8 @@ model EvidenceExchangePackage {
   teamId                String    @map("team_id") @db.Uuid
   kind                  String    @db.VarChar(32)
   state                 String    @db.VarChar(32)
+  /// WS-OUT RG-18 (PRO-W1C-05) — FULL_FORENSIC | EXTERNAL_DISCLOSURE.
+  disclosureProfile     String    @default("FULL_FORENSIC") @map("disclosure_profile") @db.VarChar(32)
   evidenceIds           Json      @map("evidence_ids")
   caseId                String?   @map("case_id") @db.Uuid
   scopeNote             String?   @map("scope_note") @db.VarChar(400)

@@ -4,8 +4,6 @@
  * paid lapse (PRO-O1C-02). Same recording-client harness as
  * report-admission-commit-client.test.ts.
  */
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const globalTouches = vi.hoisted(() => [] as string[]);
@@ -23,7 +21,7 @@ vi.mock("../src/db.js", () => ({
   ),
 }));
 
-const { assertRunAdmittedAtCommit, decideRunAdmission } = await import("../src/report-generation-authority.js");
+const { decideRunAdmission } = await import("../src/report-generation-authority.js");
 
 type Responses = Record<string, unknown>;
 

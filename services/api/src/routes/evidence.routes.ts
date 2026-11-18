@@ -2887,6 +2887,12 @@ anchorHash ? `Anchor: ${anchorHash}` : null,
       if (context?.isIntake) {
         return `Identity snapshot recorded • Submitted by: ${INTAKE_SUBMITTED_BY_LABEL}`;
       }
+      // PRO-O1C-01 (RG-18) — attribution (identity level, sign-in provider) is
+      // shown only when the public-verify identity exposure allows it, the same
+      // rule the page's identity rows follow; otherwise the bare label.
+      if (!getPublicVerifyIdentityExposure().exposeAttribution) {
+        return "Identity snapshot recorded";
+      }
       const identityLevel = normalizePublicPayloadValue(
         obj.identityLevelSnapshot
       );
@@ -14116,8 +14122,8 @@ const resolvedDisplayName =
 noStorePresignedResponse(reply);
 return reply.code(200).send({
   evidenceId: id,
-  bucket: releaseBucket,
-  key: releaseKey,
+  // PRO-O1-08 (RG-18) — no storage bucket / object key in the body: clients
+  // use `url` and `downloadFileName` (web and mobile read nothing else).
   // The name the presigned URL saves under (Content-Disposition).
   downloadFileName: releaseFileName,
 originalFileName: resolvedOriginalFileName ?? resolvedDisplayName,
@@ -14487,7 +14493,7 @@ displayName: resolvedDisplayName,
         resourceId: id,
         teamId: packageDownloadTeamId,
         metadata: {
-          packageKey: latest.storageKey,
+          // PRO-O1-08 — no object key in tenant-visible audit metadata.
           version: latest.version,
           packageType: latest.packageType ?? null,
         },

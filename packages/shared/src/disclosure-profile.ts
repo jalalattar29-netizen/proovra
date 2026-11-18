@@ -120,6 +120,25 @@ const EXTERNAL_KEY_RULES: ReadonlyArray<KeyRule> = [
     reason: "RECORD_DESCRIPTION",
   },
   { test: (k) => /^(evidenceid|caseid|custodyeventid)$/.test(lower(k)), action: "WITHHELD", reason: "INTERNAL_IDENTIFIER" },
+  // PRO-W1C-01 (RG-18) — internal row/part ids and the camera's unique image
+  // id / firmware tag (a stable device identifier across packages).
+  {
+    test: (k) => /^(partid|materialid|evidencepartid|attestationrecordid|imageuniqueid)$/.test(lower(k)),
+    action: "WITHHELD",
+    reason: "INTERNAL_IDENTIFIER",
+  },
+  {
+    test: (k) => /^(softwaretag|lensmodel|cameraserialnumber|bodyserialnumber)$/.test(lower(k)),
+    action: "WITHHELD",
+    reason: "NETWORK_OR_DEVICE_IDENTIFIER",
+  },
+  // PRO-W1C-01 — a certification's free-text statement, its snapshot and a
+  // typed revoke reason are what a person wrote (they name people).
+  {
+    test: (k) => /^(statementmarkdown|statementsnapshot|revokereason)$/.test(lower(k)),
+    action: "WITHHELD",
+    reason: "DIRECT_IDENTIFIER",
+  },
   { test: (k) => /email/.test(lower(k)), action: "WITHHELD", reason: "DIRECT_IDENTIFIER" },
   { test: (k) => /^(phone|phonenumber|contributorphone|recipientphone|recipientemail|displayname|fullname)$/.test(lower(k)), action: "WITHHELD", reason: "DIRECT_IDENTIFIER" },
   // What a capture client reported privately (the captured page's address
@@ -244,7 +263,14 @@ const EXTERNAL_CUSTODY_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /** Files whose `payload` and `presentationPayload` are custody payloads. */
-const EXTERNAL_CUSTODY_FILES: ReadonlySet<string> = new Set(["custody.json", "forensic-custody.json", "access-activity.json"]);
+// PRO-W1C-01 — provenance/chain.json carries each capture trust event's raw
+// payload (trustEventRecords[].payload): the same positive allow-list applies.
+const EXTERNAL_CUSTODY_FILES: ReadonlySet<string> = new Set([
+  "custody.json",
+  "forensic-custody.json",
+  "access-activity.json",
+  "provenance/chain.json",
+]);
 
 /** The external profile's files that ARE the recorded location. */
 export const EXTERNAL_LOCATION_FILES: ReadonlySet<string> = new Set(["capture-context.json", "map-preview.png"]);
@@ -445,6 +471,13 @@ export function projectJsonForDisclosure(
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
       const childPath = `${path}.${k}`;
+      // PRO-W1C-01 — the capture client's model / platform / OS / browser /
+      // app version in the provenance chain are device identifiers.
+      if (file === "provenance/chain.json" && k === "client" && /.captureManifestFacts$/.test(path) && v) {
+        out[k] = WITHHELD_VALUE;
+        records.push({ file, path: childPath, action: "WITHHELD", reason: "NETWORK_OR_DEVICE_IDENTIFIER" });
+        continue;
+      }
       if (custodyPayload && !EXTERNAL_CUSTODY_PAYLOAD_KEYS.has(k)) {
         if (v !== null && v !== undefined && v !== "") {
           out[k] = WITHHELD_VALUE;

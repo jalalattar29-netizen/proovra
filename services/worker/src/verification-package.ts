@@ -2967,6 +2967,14 @@ This declaration describes the process and artifact boundaries. It does not inde
  * write download-ready state, or persist package artifacts when this
  * error is thrown.
  */
+/** PRO-W1C-01 — technical-metadata files withheld whole from the external profile. */
+const EXTERNAL_WITHHELD_TECHNICAL_FILES: ReadonlySet<string> = new Set([
+  "technical-metadata/intake-delivery.json",
+  "technical-metadata/capture-environment.json",
+  "technical-metadata/exif-details.json",
+  "technical-metadata/device-enrichment.json",
+]);
+
 export class PackageGateDeniedError extends Error {
   readonly code: "PACKAGE_GATE_DENIED";
   readonly outcome: string;
@@ -3368,6 +3376,19 @@ export async function createVerificationPackage(data: {
         // F-14 (independent forward audit) — the map is always the precise
         // location; capture-context.json IS the recorded location, withheld
         // unless the owner disclosed it (the report's and Public Verify's rule).
+        // PRO-W1C-01 (RG-18) — advisory files whose fields identify a person or
+        // device (the intake recipient's masked contact + its stable hash, the
+        // submitter's browser / OS / timezone / locale / network, camera make,
+        // model, lens and unique image id) leave the external profile WHOLE-FILE
+        // withheld, digest kept, as fingerprint.json is.
+        if (EXTERNAL_WITHHELD_TECHNICAL_FILES.has(name)) {
+          withheldFiles.push({
+            file: name,
+            sha256: sha256Hex(buffer),
+            reason: name === "technical-metadata/intake-delivery.json" ? "DIRECT_IDENTIFIER" : "NETWORK_OR_DEVICE_IDENTIFIER",
+          });
+          return;
+        }
         if (name === "map-preview.png" || (EXTERNAL_LOCATION_FILES.has(name) && data.recordedLocationDisclosed !== true)) {
           withheldFiles.push({ file: name, sha256: sha256Hex(buffer), reason: "PRECISE_LOCATION" });
           return;
