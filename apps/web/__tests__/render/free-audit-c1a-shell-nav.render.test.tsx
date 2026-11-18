@@ -257,6 +257,55 @@ describe("B2A-F-07 — deep links open in their workspace, with their remainder"
     expect(calls.some((c) => c.url.includes("/v1/deep-link/resolve"))).toBe(false);
   });
 
+  // PRO-N1-02 / PRO-KZ-02 — a NON-record destination of another workspace's
+  // item opens in that workspace (switch first); a refused switch opens nothing.
+  it("PRO-N1-02: a non-record item of another workspace switches to it first, then opens", async () => {
+    let result: DeepLinkOpenResult | null = null;
+    function ItemHarness() {
+      const { open } = useDeepLinkNavigation();
+      return <button onClick={() => void open("/reviewer-ops/wf-1", { itemWorkspaceId: OTHER }).then((r) => (result = r))}>go</button>;
+    }
+    answer = (url, method) =>
+      url.includes("/v1/platform/context/switch-workspace") && method === "POST" ? { body: envelope("org") } : undefined;
+    render(withEnvelope("own", <ItemHarness />));
+    fireEvent.click(screen.getByText("go"));
+    await waitFor(() => expect(result).not.toBeNull());
+    expect(result).toEqual({ status: "navigated", path: "/reviewer-ops/wf-1" });
+    const sw = calls.find((c) => c.url.includes("/v1/platform/context/switch-workspace"));
+    expect(sw?.body).toEqual({ workspaceId: OTHER });
+    expect(pushes).toEqual(["/reviewer-ops/wf-1"]);
+  });
+
+  it("PRO-N1-02 / PRO-TZ-04: a refused switch opens nothing and reports a denial", async () => {
+    let result: DeepLinkOpenResult | null = null;
+    function ItemHarness() {
+      const { open } = useDeepLinkNavigation();
+      return <button onClick={() => void open("/intake-links?link=L-1", { itemWorkspaceId: OTHER }).then((r) => (result = r))}>go</button>;
+    }
+    answer = (url, method) =>
+      url.includes("/v1/platform/context/switch-workspace") && method === "POST"
+        ? { status: 403, body: { error: { code: "WORKSPACE_ACCESS_DENIED", message: "no" } } }
+        : undefined;
+    render(withEnvelope("own", <ItemHarness />));
+    fireEvent.click(screen.getByText("go"));
+    await waitFor(() => expect(result).not.toBeNull());
+    expect(result).toEqual({ status: "denied" });
+    expect(pushes).toEqual([]);
+  });
+
+  it("an item of the active workspace opens without a switch", async () => {
+    let result: DeepLinkOpenResult | null = null;
+    function ItemHarness() {
+      const { open } = useDeepLinkNavigation();
+      return <button onClick={() => void open("/communications", { itemWorkspaceId: PERSONAL }).then((r) => (result = r))}>go</button>;
+    }
+    render(withEnvelope("own", <ItemHarness />));
+    fireEvent.click(screen.getByText("go"));
+    await waitFor(() => expect(result).not.toBeNull());
+    expect(calls.some((c) => c.url.includes("switch-workspace"))).toBe(false);
+    expect(pushes).toEqual(["/communications"]);
+  });
+
   it("an evidence denial still navigates nothing", async () => {
     answer = (url) => (url.includes("/v1/deep-link/resolve") ? { status: 404, body: { error: { code: "not_found" } } } : undefined);
     const r = await openVia("own", "/evidence/E-hidden");

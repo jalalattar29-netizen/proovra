@@ -657,7 +657,10 @@ export function NotificationBell() {
                               // canonical chokepoint (server resolve first);
                               // the raw href never navigates directly.
                               e.preventDefault();
-                              void openDestination(href).then((result) => {
+                              // PRO-N1-02 / PRO-KZ-02 — opened in the item's workspace.
+                              void openDestination(href, {
+                                itemWorkspaceId: typeof it.context?.teamId === "string" ? it.context.teamId : null,
+                              }).then((result) => {
                                 if (result.status === "navigated") {
                                   setOpen(false);
                                   void mutate(it.itemKey, "read");

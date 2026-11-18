@@ -75,6 +75,18 @@ function isExternalDestination(href: string): boolean {
   return !trimmed.startsWith("/");
 }
 
+/** The switch argument for a workspace id: the Personal Space is `null`. */
+function toSwitchTarget(
+  live: NonNullable<ReturnType<typeof useOptionalPlatformContext>>,
+  workspaceId: string,
+): string | null {
+  const personalId =
+    live.envelope?.contextOptions?.personalSpace?.workspaceId ??
+    live.envelope?.personalSpace?.id ??
+    null;
+  return workspaceId === personalId ? null : workspaceId;
+}
+
 export function useDeepLinkNavigation() {
   const router = useRouter();
   const ctx = useOptionalPlatformContext();
@@ -93,6 +105,14 @@ export function useDeepLinkNavigation() {
         releaseDirtyWork?: boolean;
         /** Declared workspace hint (server validates; never authoritative). */
         declaredWorkspaceId?: string | null;
+        /**
+         * PRO-N1-02 / PRO-KZ-02 — the workspace the ITEM belongs to (an inbox
+         * item's server-authored context.teamId). A non-record destination
+         * (review, failed message, access review, intake link, collaboration
+         * team …) is opened IN that workspace: the canonical switch runs first
+         * when it is not the active one. A refused switch opens nothing.
+         */
+        itemWorkspaceId?: string | null;
       },
     ): Promise<DeepLinkOpenResult> => {
       // 1. Open-redirect refusal — before ANY other step.
@@ -113,6 +133,13 @@ export function useDeepLinkNavigation() {
         // Not a record route → plain internal navigation (still guarded by
         // step 1 against leaving the app; the page gates itself).
         if (!target.resource) {
+          const itemWorkspaceId = opts?.itemWorkspaceId ?? null;
+          const live = ctxRef.current;
+          if (live && itemWorkspaceId && itemWorkspaceId !== live.activeWorkspaceId) {
+            const switched = await live.switchWorkspace(toSwitchTarget(live, itemWorkspaceId));
+            if (generation !== generationRef.current) return { status: "stale" };
+            if (switched === false) return { status: "denied" };
+          }
           router.push(target.path);
           return { status: "navigated", path: target.path };
         }
@@ -141,12 +168,10 @@ export function useDeepLinkNavigation() {
         //    owning workspace is not the active one.
         const live = ctxRef.current;
         if (live && resolved.workspaceId && resolved.workspaceId !== live.activeWorkspaceId) {
-          const personalId =
-            live.envelope?.contextOptions?.personalSpace?.workspaceId ??
-            live.envelope?.personalSpace?.id ??
-            null;
-          await live.switchWorkspace(resolved.workspaceId === personalId ? null : resolved.workspaceId);
+          const switched = await live.switchWorkspace(toSwitchTarget(live, resolved.workspaceId));
           if (generation !== generationRef.current) return { status: "stale" };
+          // PRO-TZ-04 — a refused switch never opens the record under the old header.
+          if (switched === false) return { status: "denied" };
         }
 
         // Server-approved destination. Navigation happens ONLY now — after

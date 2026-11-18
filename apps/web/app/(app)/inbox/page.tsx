@@ -1873,7 +1873,10 @@ function InboxPageInner() {
                               // only once the destination actually opened.
                               e.preventDefault();
                               setDeniedItemKey(null);
-                              void openDestination(safeNotificationHref(item.href)).then((result) => {
+                              // PRO-N1-02 — every destination opens in the ITEM's workspace.
+                              void openDestination(safeNotificationHref(item.href), {
+                                itemWorkspaceId: typeof item.context?.teamId === "string" ? item.context.teamId : null,
+                              }).then((result) => {
                                 if (result.status === "navigated") {
                                   if (!item.isRead && item.canMarkRead) void markRead(item);
                                 } else if (result.status === "denied") {
