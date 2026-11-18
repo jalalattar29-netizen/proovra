@@ -54,6 +54,7 @@ import {
 } from "../services/billing-enforcement.service.js";
 import { boundPartSizeBytes } from "../services/evidence/evidence-part-binding.service.js";
 import { buildStorageLimitPayload } from "../services/uploads/upload-door-facts.service.js";
+import { captureWorkspaceMismatch } from "../services/evidence/capture-workspace-binding.js";
 import { getUploadSizeLimits } from "../services/reliability/upload-limits.service.js";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
 import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
@@ -439,6 +440,13 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      // PRO-C1-01 — a web page that switched workspace does not open an upload
+      // into the record it reserved in the workspace it left.
+      {
+        const moved = captureWorkspaceMismatch(req, body.teamId);
+        if (moved) return reply.code(moved.statusCode).send(moved.body);
+      }
 
       const personalDenial = await assertPersonalUploadMutationAllowed(
         body.teamId,

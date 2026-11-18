@@ -98,6 +98,20 @@ export function reservationFitsItems(
   return reservation.itemIds.every((id, index) => itemIds[index] === id);
 }
 
+/**
+ * PRO-C1-01 — does this reservation hold a record of a workspace other than the
+ * one now active? Only a known record workspace and a known active workspace
+ * can disagree; an unknown either side is not a switch.
+ */
+export function reservationInOtherWorkspace(
+  reservation: CaptureRecordReservation | null,
+  activeWorkspaceId: string | null,
+): boolean {
+  if (!reservation?.evidenceId) return false;
+  if (!reservation.evidenceTeamId || !activeWorkspaceId) return false;
+  return reservation.evidenceTeamId !== activeWorkspaceId;
+}
+
 
 export type CaptureSessionAddFiles = (
   files: File[],
@@ -782,6 +796,14 @@ export function useCaptureSessionOrchestration({
     const itemIds = items.map((item) => item.id);
     let reservation = reservationRef.current;
     if (reservation && !reservationFitsItems(reservation, itemIds)) {
+      reservation = null;
+    }
+    // PRO-C1-01 — a record reserved in another workspace is never resumed from
+    // this one: the Review dialog names the active workspace, so the Finish
+    // goes through POST /v1/evidence again, where the server releases the old
+    // reservation (C-08, CAPTURE_WORKSPACE_CHANGED) and reserves here. An
+    // unknown context keeps the reservation (nothing is created while unknown).
+    if (reservationInOtherWorkspace(reservation, activeSpace?.id ?? null)) {
       reservation = null;
     }
     if (!reservation) {

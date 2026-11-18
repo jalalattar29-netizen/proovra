@@ -43,6 +43,8 @@ const RESERVATION_UNUSABLE_CODES = new Set([
   "EVIDENCE_RESERVATION_EXPIRED",
   "PART_INDEX_TAKEN",
   "PART_DIGEST_MISMATCH",
+  // PRO-C1-01 — the record was reserved in a workspace this page has left.
+  "CAPTURE_WORKSPACE_CHANGED",
 ]);
 
 /**
