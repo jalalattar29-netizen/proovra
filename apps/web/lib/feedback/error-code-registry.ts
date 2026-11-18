@@ -359,6 +359,9 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // The verification page's disclosure (2026-10-18): contextual copy in the
   // one control that changes it.
   DISCLOSURE_CHANGE_NOT_PERMITTED: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
+  // PRO-E2-03 / DEC-15 — the record panels offer Edit only to the author (viewerCanEdit),
+  // so this refusal reaches a browser only from a stale page or a hand-made call.
+  AUTHOR_ONLY_EDIT: { disposition: "generic", why: "Edit is offered only to the author; a stale-page refusal reads as the generic failure." },
   // Wire contract D (2026-10-29) — a multi-file original: the page lists and
   // downloads the original files instead of one fragment.
   ORIGINAL_IS_MULTIPART: {

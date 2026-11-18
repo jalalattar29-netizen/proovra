@@ -41,7 +41,8 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
-import { useConfirmAction, useToast } from "../../../../components/ui";
+import { useToast } from "../../../../components/ui";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   useEnterpriseSurfaceAccess,
