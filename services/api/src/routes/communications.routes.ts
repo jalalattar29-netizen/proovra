@@ -623,6 +623,28 @@ export async function communicationsRoutes(app: FastifyInstance) {
             });
             return;
           }
+          // PRO-I1Z-05 — a recipient who opted out (STOP) is re-enabled only
+          // by a verification they completed AFTER opting out, never by an
+          // older one.
+          const existingPref = await prisma.communicationPreference.findFirst({
+            where: { teamId: body.teamId, externalContactHash: hashRecipientPhone(phone) },
+            select: { optOutAtUtc: true, smsOptOut: true, whatsappOptOut: true },
+          });
+          const approvedAt = approved.approvedAtUtc ?? null;
+          if (
+            existingPref?.optOutAtUtc &&
+            (existingPref.smsOptOut || existingPref.whatsappOptOut) &&
+            (!approvedAt || approvedAt.getTime() <= existingPref.optOutAtUtc.getTime())
+          ) {
+            reply.code(409).send({
+              error: {
+                code: "contact_reverification_required",
+                message:
+                  "This contact opted out of messages. They must complete a new verification before messaging can be enabled again.",
+              },
+            });
+            return;
+          }
         }
         const pref = await upsertContactPreference({
           teamId: body.teamId,

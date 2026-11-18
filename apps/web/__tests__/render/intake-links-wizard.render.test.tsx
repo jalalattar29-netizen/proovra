@@ -772,7 +772,7 @@ describe("step 3 — collection rules", () => {
     });
     await clickNext();
     expect(step()).toBe("rules");
-    expect(document.body.textContent).toMatch(/between 1 and 8760 hours/i);
+    expect(document.body.textContent).toMatch(/between 1 and 2160 hours/i);
   });
 });
 
@@ -1360,7 +1360,7 @@ describe("collection limits and accepted types", () => {
       "[data-intake-link-expiry-hours]",
     ) as HTMLInputElement;
     expect(hours.getAttribute("min")).toBe("1");
-    expect(hours.getAttribute("max")).toBe("8760");
+    expect(hours.getAttribute("max")).toBe("2160");
 
     for (const bad of ["0", "8761"]) {
       await act(async () => {
@@ -1368,7 +1368,7 @@ describe("collection limits and accepted types", () => {
       });
       await clickNext();
       expect(step()).toBe("rules");
-      expect(document.body.textContent).toMatch(/between 1 and 8760 hours/i);
+      expect(document.body.textContent).toMatch(/between 1 and 2160 hours/i);
     }
     await act(async () => {
       fireEvent.change(hours, { target: { value: "1" } });

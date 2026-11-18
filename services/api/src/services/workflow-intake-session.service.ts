@@ -587,6 +587,11 @@ export async function recordIntakeConsent(
       consentAcceptedAtUtc: acceptedAt,
       consentSnapshotJson: {
         ...consent,
+        // PRO-I1Z-02 — "identity disclosed" records a fact, not a checkbox: true
+        // only when the session actually carries an identity the contributor gave.
+        identityDisclosed:
+          consent.identityDisclosed === true &&
+          Boolean(session.submitterEmail || session.submitterDisplayName || session.pseudonym),
         acceptedAtUtc: acceptedAt.toISOString(),
         clientReportedAcceptedAtUtc: consent.acceptedAtUtc,
       } as unknown as Prisma.InputJsonValue,

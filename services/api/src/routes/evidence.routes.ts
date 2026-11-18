@@ -2110,6 +2110,22 @@ async function getThrottlePlan(userId: string, teamId: string | null | undefined
   return getUserPlan(userId);
 }
 
+/**
+ * PRO-C1-12 — a part row as a client may see it: storage coordinates (bucket,
+ * object key, object version) are internal and never projected, as the
+ * upload-session surface already rules. Display names come from displayName.
+ */
+function withoutStorageCoordinates<T extends Record<string, unknown>>(
+  row: T,
+): Omit<T, "storageBucket" | "storageKey" | "storageVersionId"> {
+  const { storageBucket: _b, storageKey: _k, storageVersionId: _v, ...rest } = row as T & {
+    storageBucket?: unknown;
+    storageKey?: unknown;
+    storageVersionId?: unknown;
+  };
+  return rest;
+}
+
 function bigintToString(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   if (typeof v === "bigint") return v.toString();
@@ -7629,7 +7645,8 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${o
 const previewable = isPreviewableEvidenceKind(kind);
 
 return {
-  ...toJsonSafe(part),
+  // PRO-C1-12 — an allow-list projection: no bucket, key or version id.
+  ...withoutStorageCoordinates(toJsonSafe(part) as Record<string, unknown>),
   privateRole: part.privateRole ?? null,
   privateNote: part.privateNote ?? null,
   checklistStepId: part.checklistStepId ?? null,
@@ -7686,13 +7703,9 @@ return {
         multipart: enrichedParts.length > 1,
         // Why the part URLs are absent, when they are (2026-09-29, M1).
         originalDownloadBlockedByPolicy: !originalDownloadAllowed,
-        primary:
-          evidence.storageBucket && evidence.storageKey
-            ? {
-                bucket: evidence.storageBucket,
-                key: evidence.storageKey,
-              }
-            : null,
+        // PRO-C1-12 — which part is primary is on each part (isPrimary); the
+        // record's storage location itself is not projected.
+        primary: evidence.storageBucket && evidence.storageKey ? { stored: true } : null,
         parts: enrichedParts,
         // Wire contract D — the user items these files make up.
         artifacts: toPublicArtifactProjection(

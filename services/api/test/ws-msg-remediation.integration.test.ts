@@ -422,4 +422,36 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
       expect(outcome).toBe("request_terminal");
     });
   });
+
+  describe("PRO-I1-10 / PRO-I1Z-02 — the contributor can remove a staged file; identity disclosure is a fact", () => {
+    it("DELETE removes a staged part of an unsealed submission; a second removal answers 404", async () => {
+      const res = await h.app.inject({
+        method: "POST", url: "/v1/workflow/intake-links", headers: owner(),
+        payload: { teamId: A().teamId, workflowTemplateSlug: "general-evidence-record", intakeMode: "EXTERNAL_REUSABLE", recipientLabel: "ws-msg", expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() },
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      const t = encodeURIComponent((res.json() as { rawToken: string }).rawToken);
+      const boot = await h.app.inject({ method: "GET", url: `/v1/external-intake/${t}` });
+      const opened = boot.json() as { session: { id: string }; link: { consentPolicyVersion: string | null; consentDisclosureText: string | null } };
+      const consent = await h.app.inject({
+        method: "POST", url: `/v1/external-intake/${t}/sessions/${opened.session.id}/consent`,
+        payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(intakeConsentDisclosureText(opened.link.consentDisclosureText)).digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
+      });
+      expect(consent.statusCode, consent.body).toBe(200);
+      // PRO-I1Z-02 — no identity was given, so the consent does not record one.
+      const snap = await prisma.workflowIntakeSession.findUniqueOrThrow({ where: { id: opened.session.id }, select: { consentSnapshotJson: true } });
+      expect((snap.consentSnapshotJson as { identityDisclosed?: boolean }).identityDisclosed).toBe(false);
+      const part = await h.app.inject({
+        method: "POST", url: `/v1/external-intake/${t}/sessions/${opened.session.id}/parts`,
+        payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "wrong.txt", sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null },
+      });
+      expect(part.statusCode, part.body).toBe(201);
+      const partId = (part.json() as { part: { id: string } }).part.id;
+      const removed = await h.app.inject({ method: "DELETE", url: `/v1/external-intake/${t}/sessions/${opened.session.id}/parts/${partId}` });
+      expect(removed.statusCode, removed.body).toBe(200);
+      expect(await prisma.evidencePart.count({ where: { id: partId } })).toBe(0);
+      const again = await h.app.inject({ method: "DELETE", url: `/v1/external-intake/${t}/sessions/${opened.session.id}/parts/${partId}` });
+      expect(again.statusCode).toBe(404);
+    });
+  });
 });

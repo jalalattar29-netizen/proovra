@@ -1362,6 +1362,10 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
   //      render a plain confirmation; nothing is required of the
   //      user beyond clicking the link.
   // ---------------------------------------------------------------------------
+  // PRO-A2C-02 — GET is SAFE: it verifies the token and answers a confirmation
+  // page (no write, no jti spent), so a mail scanner or link prefetcher can no
+  // longer apply the snooze. The page's button POSTs the same token to the
+  // route below, which performs the snooze.
   app.get(
     "/v1/identity/mfa-admin/digest-preferences/snooze-link",
     async (req, reply) => {
@@ -1371,6 +1375,50 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           : {};
       const rawToken =
         typeof rawQuery.token === "string" ? rawQuery.token : "";
+      if (!rawToken) {
+        reply.code(400);
+        return { ok: false, error: "missing_token" };
+      }
+      const jwtSecret = getSecret("AUTH_JWT_SECRET");
+      if (!jwtSecret) {
+        reply.code(500);
+        return { ok: false, error: "server_misconfigured" };
+      }
+      const verified = verifyMfaDigestSnoozeToken(rawToken, jwtSecret);
+      if (!verified.ok || !verified.payload) {
+        reply.code(400);
+        return { ok: false, error: verified.reason ?? "invalid" };
+      }
+      const days = Math.max(1, Math.round(verified.payload.snoozeSeconds / 86_400));
+      const escapedToken = rawToken.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+      reply
+        .code(200)
+        .header("content-type", "text/html; charset=utf-8")
+        .header("cache-control", "no-store")
+        .header("x-robots-tag", "noindex, nofollow, noarchive")
+        .header("referrer-policy", "no-referrer");
+      return [
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">",
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
+        "<title>Snooze recovery digest</title></head><body style=\"font-family:system-ui,sans-serif;max-width:32rem;margin:3rem auto;padding:0 1rem\">",
+        "<h1 style=\"font-size:1.25rem\">Snooze the MFA-recovery digest?</h1>",
+        `<p>Digest emails for this scope will pause for ${days} day${days === 1 ? "" : "s"}. Your email setting is not changed, and security events and audit logs are unaffected.</p>`,
+        "<form method=\"post\" action=\"/v1/identity/mfa-admin/digest-preferences/snooze-link\">",
+        `<input type="hidden" name="token" value="${escapedToken}">`,
+        "<button type=\"submit\">Snooze digest</button></form></body></html>",
+      ].join("");
+    },
+  );
+
+  app.post(
+    "/v1/identity/mfa-admin/digest-preferences/snooze-link",
+    async (req, reply) => {
+      const rawBody =
+        typeof req.body === "object" && req.body !== null
+          ? (req.body as Record<string, unknown>)
+          : {};
+      const rawToken =
+        typeof rawBody.token === "string" ? rawBody.token : "";
       if (!rawToken) {
         reply.code(400);
         return { ok: false, error: "missing_token" };
@@ -1396,10 +1444,11 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
       const suppressUntil = new Date(
         Date.now() + verified.payload.snoozeSeconds * 1000,
       ).toISOString();
+      // PRO-A2C-02 — a snooze sets ONLY the suppression window; it never
+      // re-enables a digest the admin switched off.
       const result = await updateDigestPreference({
         actorUserId: verified.payload.sub,
         teamId: verified.payload.teamId,
-        digestEnabled: true,
         suppressUntil,
         ipAddress: req.ip ?? null,
         userAgent: readUserAgent(req),

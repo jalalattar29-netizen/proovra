@@ -236,3 +236,10 @@ export const WorkflowIntakeConsentSnapshotSchema = z.object({
 export type WorkflowIntakeConsentSnapshot = z.infer<
   typeof WorkflowIntakeConsentSnapshotSchema
 >;
+
+/**
+ * PRO-I1-07 - THE longest an intake link may live, in hours (90 days). The API
+ * refuses anything longer (expiry_too_far); the create wizard derives its custom
+ * expiry ceiling from this same value.
+ */
+export const MAX_INTAKE_LINK_TTL_HOURS = 90 * 24;

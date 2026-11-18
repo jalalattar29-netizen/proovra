@@ -864,7 +864,26 @@ export type CommunicationMessageProjection = {
   sentAtUtc: string | null;
   deliveredAtUtc: string | null;
   failedAtUtc: string | null;
+  /**
+   * PRO-I1-05 — whether the operator retry CAN succeed for this row: a failed
+   * or scheduled row whose stored body is the whole message. A token-bearing
+   * intake-link message (redacted preview, not resendable) is false: the only
+   * recovery is disabling the link and issuing a new one (`reissueRequired`).
+   */
+  retryable: boolean;
+  reissueRequired: boolean;
 };
+
+/** PRO-I1-05 — the retry route's own eligibility, as a projection fact. */
+function isOperatorRetryable(row: prismaPkg.CommunicationMessage): boolean {
+  return (
+    (row.status === prismaPkg.CommunicationStatus.FAILED ||
+      row.status === prismaPkg.CommunicationStatus.RETRY_SCHEDULED) &&
+    row.direction === prismaPkg.CommunicationDirection.OUTBOUND &&
+    row.bodyResendable === true &&
+    Boolean(row.bodyPreview)
+  );
+}
 
 export function projectCommunicationMessage(
   row: prismaPkg.CommunicationMessage,
@@ -890,6 +909,13 @@ export function projectCommunicationMessage(
     sentAtUtc: row.sentAtUtc?.toISOString() ?? null,
     deliveredAtUtc: row.deliveredAtUtc?.toISOString() ?? null,
     failedAtUtc: row.failedAtUtc?.toISOString() ?? null,
+    retryable: isOperatorRetryable(row),
+    reissueRequired:
+      (row.status === prismaPkg.CommunicationStatus.FAILED ||
+        row.status === prismaPkg.CommunicationStatus.RETRY_SCHEDULED ||
+        row.status === prismaPkg.CommunicationStatus.UNDELIVERED) &&
+      row.relatedIntakeLinkId !== null &&
+      row.bodyResendable !== true,
   };
 }
 
@@ -929,6 +955,8 @@ export function projectCommunicationMessageSummary(
     relatedEvidenceId: null,
     relatedDiscussionThreadId: null,
     relatedIntakeSessionId: null,
+    // A reader without messaging authority is never offered a retry.
+    retryable: false,
     contentWithheld: true,
   };
 }

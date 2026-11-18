@@ -37,6 +37,7 @@ import {
   WorkflowIntakeMode,
   WorkflowIntakeModeSchema,
   isIntakeLinkLocationPolicy,
+  MAX_INTAKE_LINK_TTL_HOURS,
   type IntakeLinkLocationPolicy,
 } from "@proovra/shared";
 
@@ -113,7 +114,7 @@ export type CreatedWorkflowIntakeLinkResult = {
 };
 
 /** AUD-36 (2026-10-20) — the longest an intake link may live. */
-export const MAX_INTAKE_LINK_TTL_MS = 90 * 24 * 3600 * 1000;
+export const MAX_INTAKE_LINK_TTL_MS = MAX_INTAKE_LINK_TTL_HOURS * 3600 * 1000;
 
 export class WorkflowIntakeLinkError extends Error {
   constructor(

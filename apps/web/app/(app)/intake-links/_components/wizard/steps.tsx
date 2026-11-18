@@ -290,7 +290,7 @@ export function StepDelivery({
       <Field
         label="Recipient label"
         htmlFor={FIELD_IDS.recipientLabel}
-        help="Optional. Only you see this — for example “John Smith — claim 4842”."
+        help="Optional. Shown to the recipient as the “Reference” line of an emailed link — for example “Claim 4842”. Do not put internal remarks here."
       >
         <input
           id={FIELD_IDS.recipientLabel}

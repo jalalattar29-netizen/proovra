@@ -73,9 +73,15 @@ function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 
+/**
+ * PRO-P1-03 — the greeting token of an auto-reply to an address that may never
+ * have asked: letters (any script), apostrophes and hyphens only, at most 40
+ * characters. Anything else (a URL, markup, a long string) greets "there".
+ */
 function firstNameFromFullName(fullName: string): string {
-  const trimmed = fullName.trim();
-  return trimmed.split(/\s+/)[0] ?? trimmed;
+  const first = (fullName.trim().split(/\s+/)[0] ?? "").trim();
+  if (first.length === 0 || first.length > 40) return "there";
+  return /^[\p{L}\p{M}'’-]+$/u.test(first) ? first : "there";
 }
 
 function inferPriority(input: {
@@ -281,7 +287,12 @@ export async function createContactSalesRequest(
   let webhookSentAt: Date | null = null;
 
   const emailService = getEmailService();
-  if (emailService.isConfigured()) {
+  // PRO-P1-03 — a row the spam score marked (honeypot, disposable domain, IP
+  // or address hammering) is kept for review but sends NO provider email and
+  // no webhook: it used to notify operators for every accepted request.
+  if (created.isSpam) {
+    console.warn(JSON.stringify({ tag: "contact_sales_spam_suppressed", requestId: created.id }));
+  } else if (emailService.isConfigured()) {
     try {
       await emailService.sendContactSalesNotification({
         to: resolveNotificationEmail(),
@@ -358,7 +369,7 @@ export async function createContactSalesRequest(
   }
 
   try {
-    const webhookDelivered = await sendWebhookIfConfigured({
+    const webhookDelivered = created.isSpam ? false : await sendWebhookIfConfigured({
       id: created.id,
       fullName: created.fullName,
       workEmail: created.workEmail,

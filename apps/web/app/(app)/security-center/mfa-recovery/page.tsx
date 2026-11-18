@@ -203,7 +203,7 @@ function MfaRecoveryAdminBody() {
   }, [previewIncludeSuppressed]);
 
   // PHASE R8.1.8 — snooze quick action. Sends a PATCH with
-  // `suppressUntil = now + 7d` for the targeted scope. Optional
+  // `suppressUntil = now + DIGEST_SNOOZE_DAYS` for the targeted scope. Optional
   // `teamId` writes a team-scoped row; omit for global.
   const doSnooze = async (scopeTeamId: string | null, days: number) => {
     setPrefsBusy(true);
@@ -217,7 +217,8 @@ function MfaRecoveryAdminBody() {
           method: "PATCH",
           body: JSON.stringify({
             teamId: scopeTeamId,
-            digestEnabled: true,
+            // PRO-A2U-03 — a snooze sets only the window; it never re-enables
+            // a digest the admin switched off (as the posture page does).
             suppressUntil,
           }),
         },
@@ -244,7 +245,6 @@ function MfaRecoveryAdminBody() {
           method: "PATCH",
           body: JSON.stringify({
             teamId: scopeTeamId,
-            digestEnabled: true,
             suppressUntil: null,
           }),
         },
@@ -488,12 +488,12 @@ function MfaRecoveryAdminBody() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => void doSnooze(null, 7)}
+                  onClick={() => void doSnooze(null, DIGEST_SNOOZE_DAYS)}
                   disabled={prefsBusy}
                   data-cc-mfa-recovery-digest-snooze
-                  title="Pause digest emails for 7 days. Recovery queue + audit log unaffected."
+                  title={`Pause digest emails for ${DIGEST_SNOOZE_DAYS} days. Recovery queue + audit log unaffected.`}
                 >
-                  Snooze digest for 7 days
+                  Snooze digest for {DIGEST_SNOOZE_DAYS} days
                 </Button>
               )}
             </>
@@ -669,12 +669,12 @@ function MfaRecoveryAdminBody() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => void doSnooze(t.teamId, 7)}
+                    onClick={() => void doSnooze(t.teamId, DIGEST_SNOOZE_DAYS)}
                     disabled={prefsBusy}
-                    title="Snooze digest emails for this team for 7 days. Recovery queue + audit log unaffected."
+                    title={`Snooze digest emails for this team for ${DIGEST_SNOOZE_DAYS} days. Recovery queue + audit log unaffected.`}
                     data-cc-mfa-recovery-digest-snooze-team
                   >
-                    Snooze 7d
+                    Snooze {DIGEST_SNOOZE_DAYS}d
                   </Button>
                 </li>
               ))}
@@ -709,7 +709,7 @@ function MfaRecoveryAdminBody() {
           pref={preferences?.find((p) => p.teamId === null) ?? null}
           prefsBusy={prefsBusy}
           onToggleEnabled={(enabled) => void doToggleEnabled(null, enabled)}
-          onSnooze={() => void doSnooze(null, 7)}
+          onSnooze={() => void doSnooze(null, DIGEST_SNOOZE_DAYS)}
           onResume={() => void doResume(null)}
         />
         {/* Per-team overrides — render whatever rows exist. The
@@ -727,7 +727,7 @@ function MfaRecoveryAdminBody() {
               onToggleEnabled={(enabled) =>
                 void doToggleEnabled(p.teamId, enabled)
               }
-              onSnooze={() => void doSnooze(p.teamId, 7)}
+              onSnooze={() => void doSnooze(p.teamId, DIGEST_SNOOZE_DAYS)}
               onResume={() => void doResume(p.teamId)}
             />
           ))}
@@ -998,6 +998,9 @@ const rowStyle: CSSProperties = {
   padding: "8px 0",
   borderTop: "1px solid #f1f5f9",
 };
+/** PRO-A2U-03 — ONE snooze length, the posture page's (MfaDigestPreferencesSection SNOOZE_DAYS). */
+const DIGEST_SNOOZE_DAYS = 15;
+
 // PHASE R8.1.8 — small row editor for the preferences card. Pure
 // presentational; all state lives in the parent body component.
 function DigestPreferenceRowEditor(props: {
@@ -1056,7 +1059,8 @@ function DigestPreferenceRowEditor(props: {
         />
         <span style={{ fontSize: 13 }}>Enabled</span>
       </label>
-      {isSnoozed ? (
+      {/* PRO-A2U-03 — no Snooze for a digest that is switched off. */}
+      {!enabled ? null : isSnoozed ? (
         <Button
           variant="primary"
           size="sm"
@@ -1074,7 +1078,7 @@ function DigestPreferenceRowEditor(props: {
           disabled={props.prefsBusy}
           data-cc-mfa-recovery-digest-preference-snooze
         >
-          Snooze 7d
+          Snooze {DIGEST_SNOOZE_DAYS}d
         </Button>
       )}
     </div>

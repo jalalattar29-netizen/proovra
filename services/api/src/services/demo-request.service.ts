@@ -85,9 +85,14 @@ function countUppercaseRatio(text: string): number {
   return upper / letters.length;
 }
 
+/**
+ * PRO-P1-03 — the greeting token of an auto-reply: letters (any script),
+ * apostrophes and hyphens only, at most 40 characters; otherwise "there".
+ */
 function firstNameFromFullName(fullName: string): string {
-  const trimmed = fullName.trim();
-  return trimmed.split(/\s+/)[0] ?? trimmed;
+  const first = (fullName.trim().split(/\s+/)[0] ?? "").trim();
+  if (first.length === 0 || first.length > 40) return "there";
+  return /^[\p{L}\p{M}'’-]+$/u.test(first) ? first : "there";
 }
 
 function inferPriority(input: {
@@ -396,7 +401,8 @@ export async function createDemoRequest(
   let autoReplySentAt: Date | null = null;
   let webhookSentAt: Date | null = null;
 
-  if (emailService.isConfigured()) {
+  // PRO-P1-03 — a spam-scored row is kept but sends no provider email or webhook.
+  if (emailService.isConfigured() && !created.isSpam) {
     await emailService.sendDemoRequestNotification({
       to: notificationEmail,
       requestId: created.id,
@@ -493,7 +499,7 @@ export async function createDemoRequest(
   };
 
   try {
-    const webhookDelivered = await sendWebhookIfConfigured(webhookPayload);
+    const webhookDelivered = created.isSpam ? false : await sendWebhookIfConfigured(webhookPayload);
     if (webhookDelivered) webhookSentAt = new Date();
   } catch {
     webhookSentAt = null;

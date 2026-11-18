@@ -475,6 +475,12 @@ export default function ExternalIntakePage({
   // token-bound POST — never as a query parameter, and never for any other
   // intake mode (the server refuses it for those regardless).
   const [pseudonym, setPseudonym] = useState("");
+  // PRO-I1Z-02 — one-time / reusable links: the name and/or email the
+  // contributor chooses to give, posted through the identity route (as the
+  // native client does). Nothing is recorded when both are left empty.
+  const [contributorName, setContributorName] = useState("");
+  const [contributorEmail, setContributorEmail] = useState("");
+  const [contributorIdentityError, setContributorIdentityError] = useState<string | null>(null);
   const [identityBusy, setIdentityBusy] = useState(false);
   const [locationState, setLocationState] = useState<LocationState>({
     phase: "idle",
@@ -631,6 +637,9 @@ export default function ExternalIntakePage({
 
   /** True only for the mode that actually collects a contributor-chosen name. */
   const requiresPseudonym = link?.intakeMode === "EXTERNAL_PSEUDONYMOUS";
+  /** PRO-I1Z-02 — the modes whose sender may learn who responded, if the contributor says. */
+  const offersContributorIdentity =
+    link?.intakeMode === "EXTERNAL_ONE_TIME" || link?.intakeMode === "EXTERNAL_REUSABLE";
 
   async function acceptConsent() {
     if (!link || !session) return;
@@ -678,6 +687,48 @@ export default function ExternalIntakePage({
         setIdentityBusy(false);
       }
     }
+    // PRO-I1Z-02 — post the name/email the contributor gave, when they agreed to
+    // associate it; the consent then records identityDisclosed truthfully.
+    let disclosedIdentity = false;
+    if (offersContributorIdentity && identityDisclosed) {
+      const name = contributorName.trim();
+      const email = contributorEmail.trim();
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setContributorIdentityError("Enter a valid email address, or leave it empty.");
+        return;
+      }
+      if (name || email) {
+        setContributorIdentityError(null);
+        setIdentityBusy(true);
+        try {
+          await apiFetch(
+            `/v1/external-intake/${encodeURIComponent(token)}/sessions/${session.id}/identity`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                ...(name ? { submitterDisplayName: name.slice(0, 180) } : {}),
+                ...(email ? { submitterEmail: email.slice(0, 320) } : {}),
+              }),
+            },
+            { auth: false },
+          );
+          disclosedIdentity = true;
+        } catch (err) {
+          const e = err as { code?: string; message?: string };
+          // A refusal of the identity is answered beside the fields; the
+          // typed values stay so the contributor can correct them.
+          if (e.code === "SUBMITTER_IDENTITY_INVALID" || e.code === "INVALID_INPUT") {
+            setContributorIdentityError("Check the name and email you entered, then try again.");
+          } else {
+            setErrorMessage(friendlyIntakeError(e));
+          }
+          return;
+        } finally {
+          setIdentityBusy(false);
+        }
+      }
+    }
     const policyVersion = link.consentPolicyVersion ?? "default";
     const text = intakeConsentDisclosureText(link.consentDisclosureText);
     let hash: string;
@@ -699,7 +750,7 @@ export default function ExternalIntakePage({
               policyVersion,
               disclosureTextHash: hash,
               termsAcknowledged,
-              identityDisclosed,
+              identityDisclosed: offersContributorIdentity ? disclosedIdentity : requiresPseudonym ? true : identityDisclosed,
               ipHash: null,
               userAgent:
                 typeof navigator !== "undefined"
@@ -900,6 +951,29 @@ export default function ExternalIntakePage({
         denial ? null : (e.requestId ?? e.details?.requestId ?? null),
       );
       setErrorMessage(friendlyIntakeError(e));
+    }
+  }
+
+  /**
+   * PRO-I1-10 — take a staged file back out before submitting (a wrong or
+   * sensitive file, or a selection over this link's size limit). The server
+   * refuses it once the submission is sealed; an older server without the
+   * route answers an error, which is shown and changes nothing here.
+   */
+  async function removePart(partId: string) {
+    if (!session) return;
+    try {
+      await apiFetch(
+        `/v1/external-intake/${encodeURIComponent(token)}/sessions/${session.id}/parts/${partId}`,
+        { method: "DELETE" },
+        { auth: false },
+      );
+      setParts((prev) => prev.filter((p) => p.id !== partId));
+      setErrorMessage(null);
+    } catch (err) {
+      setErrorMessage(
+        friendlyIntakeError(err as { code?: string; message?: string }),
+      );
     }
   }
 
@@ -1244,7 +1318,9 @@ export default function ExternalIntakePage({
             <p className="ipk-panel__body ipk-muted">
               {link.isAnonymous
                 ? "This link is anonymous: your identity is not recorded with the submission."
-                : "Your email address is recorded with the submission so the sender knows who responded."}
+                : offersContributorIdentity
+                  ? "Your name or email is recorded with the submission only if you enter it below, so the sender knows who responded."
+                  : "The name you choose below is recorded with the submission."}
             </p>
           </div>
 
@@ -1309,22 +1385,64 @@ export default function ExternalIntakePage({
                 I have read and accept the terms above.
               </span>
             </label>
-            {!link.isAnonymous ? (
-              <label className="ipk-ack">
-                <input
-                  className="app-checkbox"
-                  type="checkbox"
-                  checked={identityDisclosed}
-                  onChange={(e) => setIdentityDisclosed(e.target.checked)}
-                  data-intake-ack="identity"
-                />
-                <span className="ipk-ack__label">
-                  My submission may be associated with my email address.
-                  <span className="ipk-ack__note">
-                    The sender needs this to know who responded.
+            {offersContributorIdentity ? (
+              <>
+                <label className="ipk-ack">
+                  <input
+                    className="app-checkbox"
+                    type="checkbox"
+                    checked={identityDisclosed}
+                    onChange={(e) => setIdentityDisclosed(e.target.checked)}
+                    data-intake-ack="identity"
+                  />
+                  <span className="ipk-ack__label">
+                    Associate my submission with the name or email I enter below.
+                    <span className="ipk-ack__note">
+                      Optional. The sender uses it to know who responded.
+                    </span>
                   </span>
-                </span>
-              </label>
+                </label>
+                {identityDisclosed ? (
+                  <div className="ipk-field" data-intake-contributor-identity>
+                    <label className="app-field-label" htmlFor="ipk-contributor-name">
+                      Your name (optional)
+                    </label>
+                    <input
+                      id="ipk-contributor-name"
+                      className="app-form-input"
+                      type="text"
+                      maxLength={180}
+                      autoComplete="name"
+                      value={contributorName}
+                      onChange={(e) => setContributorName(e.target.value)}
+                    />
+                    <label className="app-field-label" htmlFor="ipk-contributor-email">
+                      Your email (optional)
+                    </label>
+                    <input
+                      id="ipk-contributor-email"
+                      className="app-form-input"
+                      type="email"
+                      maxLength={320}
+                      autoComplete="email"
+                      value={contributorEmail}
+                      onChange={(e) => {
+                        setContributorEmail(e.target.value);
+                        if (contributorIdentityError) setContributorIdentityError(null);
+                      }}
+                      aria-invalid={contributorIdentityError ? true : undefined}
+                      aria-describedby="ipk-contributor-identity-help"
+                    />
+                    <p
+                      className={contributorIdentityError ? "app-field-error" : "app-field-help"}
+                      id="ipk-contributor-identity-help"
+                    >
+                      {contributorIdentityError ??
+                        "Leave both empty to submit without your name or email."}
+                    </p>
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </div>
 
@@ -1574,6 +1692,16 @@ export default function ExternalIntakePage({
                         Retry upload
                       </button>
                     ) : null}
+                    <button
+                      type="button"
+                      className="app-secondary-action"
+                      data-intake-part-remove={p.id}
+                      aria-label={`Remove ${p.fileName}`}
+                      disabled={phase === "submitting"}
+                      onClick={() => void removePart(p.id)}
+                    >
+                      Remove
+                    </button>
                   </div>
                   {expectedSteps.length > 0 ? (
                     <AppListbox

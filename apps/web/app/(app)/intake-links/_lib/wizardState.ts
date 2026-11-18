@@ -419,6 +419,13 @@ export function friendlyCreateError(
     // have changed since. The original link is in the list.
     IDEMPOTENCY_KEY_REUSED:
       "A link was already created from this form with different details. Find it under Intake links, then close this form to start a new one.",
+    // PRO-I1-07 — the server's own refusals, worded.
+    expiry_too_far: "An intake link can last at most 90 days. Choose a shorter expiry.",
+    COMMERCIAL_LIFECYCLE_RESTRICTED:
+      "This workspace's subscription doesn't currently allow new intake links. Check billing, then try again.",
+    case_not_in_workspace: "That case isn't in this workspace. Pick another case.",
+    invalid_sender_display_name:
+      "That sender name can't be used. Use a plain name without links, emails or phone numbers.",
   };
   if (code && map[code]) return map[code];
   if (message && map[message]) return map[message];

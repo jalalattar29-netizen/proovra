@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { neutralizeSpreadsheetFormula } from "../services/reporting/csv-export.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { trustedClientIp } from "../middleware/client-ip.js";
@@ -69,8 +70,11 @@ function readUserAgent(req: {
 
 function csvEscape(value: string | null | undefined): string {
   const safe = value ?? "";
-  if (/[",\n\r]/.test(safe)) {
-    return `"${safe.replace(/"/g, '""')}"`;
+  // PRO-LEAD-03 — THE spreadsheet-formula neutraliser every server CSV uses
+  // (B3A-F-006): a tenant-placed `=HYPERLINK(...)` resourceId exports as text.
+  const neutral = neutralizeSpreadsheetFormula(safe);
+  if (neutral !== safe || /[",\n\r]/.test(safe)) {
+    return `"${neutral.replace(/"/g, '""')}"`;
   }
   return safe;
 }

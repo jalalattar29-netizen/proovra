@@ -54,7 +54,7 @@ import {
   INTAKE_LOCATION_COPY as LOC,
   intakeDeviceTime,
   intakeLocationBody,
-  nextIntakePartIndex,
+  mergePickedIntakeFiles,
   type IntakeLocationState,
   type ResumedIntakePart,
 } from "../../../src/product/external-intake";
@@ -165,21 +165,38 @@ export default function IntakeCaptureScreen() {
     if (res.canceled) return;
 
     const room = INTAKE_MAX_PARTS - staged.length;
-    // New files are numbered after every part the session already holds.
-    const first = nextIntakePartIndex(staged.map((s) => s.partIndex));
-    const next = res.assets.slice(0, room).map((a, k) => ({
+    // PRO-NC-06 — a re-picked unfinished file reuses ITS declared index (the
+    // server then returns the same part with a fresh URL); new files are
+    // numbered after every part the session already holds.
+    const picked = res.assets.map((a) => ({
       uri: a.uri,
       name: a.name ?? "file",
       mimeType: a.mimeType ?? "application/octet-stream",
       size: typeof a.size === "number" ? a.size : null,
-      sent: false,
-      partId: null,
-      stepId: null,
-      partIndex: first + k,
-      unfinished: false,
     }));
-    setStaged((prev) => [...prev, ...next]);
+    setStaged((prev) => mergePickedIntakeFiles(prev, picked, room));
   }, [staged]);
+
+  // PRO-NC-06 / PRO-I1-10 — take a file back out before sending. A part the
+  // server already declared is removed there first; an older server without
+  // the route answers an error, which is shown and changes nothing.
+  const remove = useCallback(
+    async (index: number) => {
+      const item = staged[index];
+      if (!item || !token || !sessionId) return;
+      if (item.partId) {
+        try {
+          await publicFetch(buildIntakePartStepPath(token, sessionId, item.partId), { method: "DELETE" });
+        } catch (err) {
+          fail(intakeSendFailureMessage(err), err);
+          return;
+        }
+      }
+      setError(null);
+      setStaged((prev) => prev.filter((_, idx) => idx !== index));
+    },
+    [staged, token, sessionId, fail],
+  );
 
   // Assigning a file to a step: an unsent file carries it in its parts POST; a
   // sent one is re-mapped with the web's PATCH …/parts/:partId (setPartStep).
@@ -347,9 +364,17 @@ export default function IntakeCaptureScreen() {
                     </View>
                     {s.unfinished ? (
                       <ProovraText variant="label" color={theme.color.status.pending.fg}>
-                        This file did not finish uploading. Choose the same file again to retry.
+                        This file did not finish uploading. Choose the same file again to retry, or remove it.
                       </ProovraText>
                     ) : null}
+                    <ProovraButton
+                      label="Remove"
+                      variant="ghost"
+                      fullWidth={false}
+                      disabled={busy}
+                      onPress={() => void remove(i)}
+                      accessibilityLabel={`Remove ${s.name}`}
+                    />
                     {/* The web's per-file "Map to step…" select, as chips. */}
                     {steps.length > 0 ? (
                       <ProovraFilterChips

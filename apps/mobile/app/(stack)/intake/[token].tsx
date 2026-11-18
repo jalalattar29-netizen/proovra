@@ -46,6 +46,7 @@ import {
   buildIntakeIdentityPath,
   buildIntakeValidatePath,
   classifyIntakeFailure,
+  intakeStepFailure,
   identityFieldsFor,
   intakeFailureMessage,
   intakeFailureNote,
@@ -75,6 +76,8 @@ export default function IntakeScreen() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  // PRO-NC-07 — a recoverable identity/consent error stays on the step.
+  const [stepError, setStepError] = useState<string | null>(null);
 
   const validate = useCallback(async () => {
     if (!token) {
@@ -131,9 +134,12 @@ export default function IntakeScreen() {
           }),
         ),
       });
+      setStepError(null);
       setPhase({ kind: "consent", intake: phase.intake });
     } catch (err) {
-      setPhase({ kind: "failed", failure: classifyIntakeFailure(err) });
+      const outcome = intakeStepFailure(err);
+      if (outcome.terminal) setPhase({ kind: "failed", failure: outcome.failure });
+      else setStepError(outcome.message);
     } finally {
       setBusy(false);
     }
@@ -160,9 +166,12 @@ export default function IntakeScreen() {
           }),
         ),
       });
+      setStepError(null);
       setPhase({ kind: "ready", intake: phase.intake });
     } catch (err) {
-      setPhase({ kind: "failed", failure: classifyIntakeFailure(err) });
+      const outcome = intakeStepFailure(err);
+      if (outcome.terminal) setPhase({ kind: "failed", failure: outcome.failure });
+      else setStepError(outcome.message);
     } finally {
       setBusy(false);
     }
@@ -180,6 +189,14 @@ export default function IntakeScreen() {
       />
 
       {phase.kind === "validating" ? <ProovraLoadingState label="Opening your link" /> : null}
+
+      {stepError && (phase.kind === "identity" || phase.kind === "consent") ? (
+        <ProovraCard>
+          <ProovraText variant="bodySm" color={theme.color.status.pending.fg} testID="intake-step-error">
+            {stepError}
+          </ProovraText>
+        </ProovraCard>
+      ) : null}
 
       {phase.kind === "failed" ? (
         <ProovraEmpty

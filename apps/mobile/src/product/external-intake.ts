@@ -240,6 +240,62 @@ export function nextIntakePartIndex(heldIndexes: readonly number[]): number {
   return heldIndexes.length === 0 ? 0 : Math.max(...heldIndexes) + 1;
 }
 
+/**
+ * PRO-NC-06 — a picked file that IS a resumed, unfinished part (same name, and
+ * the same size when both are known) re-declares that part's OWN index, so the
+ * server returns the same part with a fresh upload URL (ET-INT-02). It used to
+ * take a new index, leaving the declared part objectless and every submit
+ * refused part_not_uploaded. Other picks are numbered after every held part.
+ */
+export type IntakeStagedRow = {
+  uri: string;
+  name: string;
+  mimeType: string;
+  size: number | null;
+  sent: boolean;
+  partId: string | null;
+  stepId: string | null;
+  partIndex: number;
+  unfinished: boolean;
+};
+
+export function mergePickedIntakeFiles<T extends IntakeStagedRow>(
+  staged: readonly T[],
+  picked: ReadonlyArray<{ uri: string; name: string; mimeType: string; size: number | null }>,
+  room: number,
+): T[] {
+  const out = staged.map((s) => ({ ...s }));
+  let nextIndex = nextIntakePartIndex(out.map((s) => s.partIndex));
+  let added = 0;
+  for (const p of picked) {
+    const match = out.find(
+      (s) => s.unfinished && s.name === p.name && (s.size === null || p.size === null || s.size === p.size),
+    );
+    if (match) {
+      match.uri = p.uri;
+      match.mimeType = match.mimeType || p.mimeType;
+      match.size = match.size ?? p.size;
+      match.unfinished = false;
+      continue;
+    }
+    if (added >= room) continue;
+    out.push({
+      uri: p.uri,
+      name: p.name,
+      mimeType: p.mimeType,
+      size: p.size,
+      sent: false,
+      partId: null,
+      stepId: null,
+      partIndex: nextIndex,
+      unfinished: false,
+    } as T);
+    nextIndex += 1;
+    added += 1;
+  }
+  return out;
+}
+
 export function parseValidatedIntake(payload: unknown): ValidatedIntake | null {
   const d = obj(payload);
   const link = obj(d.link);
@@ -752,6 +808,34 @@ export function intakeFailureMessage(failure: IntakeFailure): string {
     case "UNKNOWN":
       return "This link could not be opened. Try again, or ask for a new one.";
   }
+}
+
+/**
+ * PRO-NC-07 — the outcome of a failed identity or consent step. Only a LINK
+ * state answer (404 unknown link, 410 gone / already submitted) ends the flow;
+ * a refused field (400), a rate limit (429), a conflict or an answer that never
+ * arrived keeps the contributor on the step with what they typed and an inline
+ * message they can act on.
+ */
+export function intakeStepFailure(err: unknown): { terminal: true; failure: IntakeFailure } | { terminal: false; message: string } {
+  const e = obj(err);
+  const status = typeof e.statusCode === "number" ? e.statusCode : null;
+  const code = (str(e.code) ?? "").toUpperCase();
+  if (status === 404 || status === 410 || code === "LINK_ALREADY_SUBMITTED" || code === "LINK_NO_LONGER_AVAILABLE") {
+    return { terminal: true, failure: classifyIntakeFailure(err) };
+  }
+  if (status === null) {
+    return { terminal: false, message: "We couldn't reach the server. Check your connection, then try again." };
+  }
+  if (status === 429 || code === "RATE_LIMITED") {
+    return { terminal: false, message: "Too many attempts in a short time. Wait a moment, then try again." };
+  }
+  if (status === 400 || code === "SUBMITTER_IDENTITY_INVALID" || code === "INVALID_BODY") {
+    return { terminal: false, message: "Check what you entered (for example the email address), then try again." };
+  }
+  const message = str(e.message);
+  if (message && !/^HTTP \d+$/.test(message)) return { terminal: false, message };
+  return { terminal: false, message: "This step could not be completed. Try again in a moment." };
 }
 
 /** The web's heading for the failed landing: a used link is an outcome, not a fault. */
