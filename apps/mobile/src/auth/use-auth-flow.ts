@@ -15,6 +15,7 @@ import { useAuth } from "../auth-context";
 import { endSessionReplacedBy } from "./account-switch";
 import { fetchMe, getLegalStatus, recordLegalAcceptance, type LoginResult } from "./auth-api";
 import { endMfaEnrollment, holdMfaEnrollment } from "./mfa-enrollment-session";
+import { holdMfaPending } from "./mfa-pending-session";
 import type { OAuthMode } from "./use-oauth";
 import { takePendingRoute } from "../deep-link/pending-intent";
 
@@ -54,7 +55,9 @@ export function useCompleteLogin() {
         return;
       }
       if (result.kind === "mfaRequired") {
-        router.push({ pathname: "/mfa", params: { pendingToken: result.mfaPendingToken, mode } });
+        // PRO-NA-08 — the challenge token stays out of the route (in memory).
+        holdMfaPending(result.mfaPendingToken);
+        router.push({ pathname: "/mfa", params: { mode } });
         return;
       }
       // The session this sign-in replaces, if the device holds one (PRO-113).

@@ -94,12 +94,17 @@ export function newDestinationCountryAllowed(phoneE164: string): boolean {
 
 export async function enforceNewDestinationVerificationBudget(input: {
   teamId: string;
-  phoneE164: string;
+  /** The destination as the caller typed it; normalised here (handlers never resolve it). */
+  destinationRaw: string;
 }): Promise<NewDestinationBudgetVerdict> {
-  if (!newDestinationCountryAllowed(input.phoneE164)) {
+  const phoneE164 = normaliseToE164(input.destinationRaw);
+  // An unparseable number is refused later by the factor/verification service
+  // with its own typed answer; the budget has nothing to count.
+  if (!phoneE164) return { allowed: true };
+  if (!newDestinationCountryAllowed(phoneE164)) {
     return { allowed: false, reason: "destination_not_allowed", retryAfterSec: 0 };
   }
-  const recipientHash = hashRecipientPhone(input.phoneE164);
+  const recipientHash = hashRecipientPhone(phoneE164);
   const rails = [
     { key: `verify-new-dest:recipient:${recipientHash}`, max: positiveIntEnv("VERIFY_NEW_DESTINATION_PER_RECIPIENT_PER_DAY", 5), windowSec: 86_400 },
     { key: `verify-new-dest:team:${input.teamId}`, max: positiveIntEnv("VERIFY_NEW_DESTINATION_PER_TEAM_PER_DAY", 30), windowSec: 86_400 },

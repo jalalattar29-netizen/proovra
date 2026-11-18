@@ -64,6 +64,7 @@ import { secondReviewForRound } from "../services/evidence-review/second-review.
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 // PHASE 12 REMEDIATION — AUTH-002 (2026-08-06). The ONE canonical answer to
@@ -5023,6 +5024,31 @@ export async function meInboxRoutes(app: FastifyInstance) {
           "itemKey must start with a known source-type prefix and contain only safe characters.",
       });
       return null;
+    }
+    // PRO-N1-15 — a key that names nothing the caller has seen (no state row,
+    // no inbox snapshot row) may still be a live, not-yet-snapshotted item, so
+    // it is not refused outright; but such NEW rows are bounded per user, so a
+    // script can no longer create unlimited InboxItemState rows for keys that
+    // name nothing.
+    const userId = getAuthUserId(req);
+    const known =
+      (await prisma.inboxItemState.count({ where: { userId, itemKey } })) > 0 ||
+      ((await snapshotsAvailable()) &&
+        (await prisma.operationsInboxSnapshot.count({ where: { userId, itemKey } })) > 0);
+    if (!known) {
+      const bound = await enforceRateLimit({
+        key: `inbox-item-state:new:${userId}`,
+        bound: "global",
+        max: 120,
+        windowSec: 3600,
+      });
+      if (!bound.allowed) {
+        reply.header("Retry-After", String(Math.max(1, Math.ceil((bound.resetAtMs - Date.now()) / 1000))));
+        await reply.code(bound.store === "unavailable" ? 503 : 429).send({
+          message: bound.store === "unavailable" ? "TEMPORARILY_UNAVAILABLE" : "INBOX_ITEM_STATE_RATE_LIMITED",
+        });
+        return null;
+      }
     }
     return {
       itemKey,

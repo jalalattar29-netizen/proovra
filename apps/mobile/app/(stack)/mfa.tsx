@@ -10,6 +10,7 @@ import {
   type SignInMethod,
 } from "../../src/auth/auth-api";
 import { useCompleteLogin, type LoginMode } from "../../src/auth/use-auth-flow";
+import { currentMfaPending, endMfaPending } from "../../src/auth/mfa-pending-session";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import { ProovraScreen, ProovraCard, ProovraText, ProovraButton, ProovraInput, ProovraFormField } from "../../src/ui";
@@ -81,7 +82,9 @@ export default function MfaScreen() {
   const router = useRouter();
   const completeLogin = useCompleteLogin();
   const params = useLocalSearchParams<{ pendingToken?: string; mode?: string; enroll?: string }>();
-  const pendingToken = typeof params.pendingToken === "string" ? params.pendingToken : "";
+  // PRO-NA-08 — the challenge token is held in memory, not in the route; a
+  // route param is still read for a caller that has not moved yet.
+  const pendingToken = currentMfaPending() ?? (typeof params.pendingToken === "string" ? params.pendingToken : "");
   const enrollmentRequired = params.enroll === "1";
   const loginMode: LoginMode =
     params.mode === "google" || params.mode === "apple" || params.mode === "sso" ? params.mode : "email";
@@ -137,6 +140,8 @@ export default function MfaScreen() {
       setStatus("Verifying second factor...");
       try {
         const session = await verifyMfa(pendingToken, challenge);
+        // The challenge is spent: the held token is dropped (PRO-NA-08).
+        endMfaPending();
         await completeLogin({ kind: "session", token: session.token, user: session.user }, loginMode);
       } catch (err) {
         const read = mfaFailure(err, method);

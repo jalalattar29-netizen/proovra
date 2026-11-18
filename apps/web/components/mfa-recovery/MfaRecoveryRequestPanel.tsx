@@ -262,6 +262,11 @@ export function MfaRecoveryRequestPanel({
           setRequestError("This recovery request is no longer available.");
         } else if (status === 400) {
           setRequestError("A new verification email cannot be sent for this request in its current state.");
+        } else if (status === 503) {
+          // PRO-P3AZ-01 — nothing was sent and nothing was spent.
+          setRequestError(
+            "The verification email could not be sent right now. The link already in your inbox still works — try again shortly.",
+          );
         } else {
           setRequestError(
             toSafeUserError(err, {

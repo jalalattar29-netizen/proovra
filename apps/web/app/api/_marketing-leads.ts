@@ -36,12 +36,13 @@ const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
 const RATE_LIMIT_MAX = 5;
 const rateBuckets = new Map<string, RateLimitBucket>();
 
-const ALLOWED_HOST_SUFFIXES = [
-  "proovra.com",
-  "vercel.app",
-  "localhost",
-  "127.0.0.1",
-];
+/**
+ * PRO-PW-07 — the origins a lead form may be posted from: this site's own
+ * configured hosts (exact), the PROOVRA hosts, local development, and —
+ * outside a production deployment only — a single-label Vercel preview. Any
+ * `*.vercel.app` page (anyone's) used to be admitted.
+ */
+const PROOVRA_HOSTS = ["proovra.com", "www.proovra.com", "app.proovra.com"];
 
 function readApiBase(): string {
   const apiBase =
@@ -94,10 +95,23 @@ function hostFromHeader(rawHost: string | null | undefined): string | null {
   }
 }
 
-function isAllowedHost(host: string): boolean {
-  return ALLOWED_HOST_SUFFIXES.some(
-    (suffix) => host === suffix || host.endsWith(`.${suffix}`) || host.startsWith(`${suffix}:`) || host === suffix
-  );
+function configuredHosts(): string[] {
+  const out: string[] = [];
+  for (const raw of [process.env.NEXT_PUBLIC_WEB_BASE, process.env.NEXT_PUBLIC_APP_BASE]) {
+    const host = hostFromHeader(raw ?? null);
+    if (host) out.push(host.replace(/:\d+$/, ""));
+  }
+  return out;
+}
+
+export function isAllowedHost(host: string): boolean {
+  const h = host.toLowerCase();
+  if (PROOVRA_HOSTS.includes(h) || configuredHosts().includes(h)) return true;
+  if (h === "localhost" || h === "127.0.0.1") return true;
+  // A Vercel preview of this project is a single label under vercel.app, and
+  // never an origin a production deployment accepts.
+  if (process.env.VERCEL_ENV !== "production" && /^[a-z0-9-]+\.vercel\.app$/.test(h)) return true;
+  return false;
 }
 
 function isSameOrSafeOrigin(req: Request): boolean {
@@ -127,6 +141,11 @@ function checkRateLimit(intent: LeadIntent, ip: string): {
   const bucket = rateBuckets.get(key);
 
   if (!bucket || bucket.resetAt < now) {
+    // PRO-PW-07 — expired buckets are evicted as new ones are written, so
+    // the map is bounded by the visitors of one window.
+    if (rateBuckets.size >= 1_000) {
+      for (const [k, b] of rateBuckets) if (b.resetAt < now) rateBuckets.delete(k);
+    }
     rateBuckets.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return { allowed: true };
   }
@@ -228,6 +247,13 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
     );
   }
 
+  // PRO-PW-07 — a lead is a JSON post from this site's form. A text/plain
+  // "simple request" from another page (no preflight) is refused.
+  const contentType = (req.headers.get("content-type") ?? "").toLowerCase();
+  if (!contentType.startsWith("application/json")) {
+    return jsonError("Unsupported content type.", 415);
+  }
+
   let raw: unknown = null;
   try {
     raw = await req.json();
@@ -253,6 +279,18 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
   // learn the heuristic. Never log payload content beyond keys.
   const honeyValue = (validated as Record<string, unknown>)[config.honeypotField];
   if (typeof honeyValue === "string" && honeyValue.trim().length > 0) {
+    // PRO-PW-07 — recorded (keys only), so an autofilled honeypot that drops a
+    // real enquiry is visible to operators.
+    logLead({
+      intent: config.intent,
+      sourcePage: "honeypot",
+      payload: validated,
+      ip,
+      userAgent: req.headers.get("user-agent") ?? "",
+      referer: req.headers.get("referer") ?? "",
+      upstreamStatus: "skipped",
+      upstreamMessage: "honeypot_filled",
+    });
     return NextResponse.json(
       { ok: true, message: config.successMessage },
       { status: 200 }

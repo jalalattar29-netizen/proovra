@@ -268,9 +268,29 @@ function buildStubPrisma(): {
       findUnique: async (args: { where: { id: string } }) => {
         return notifications.find((n) => n.id === args.where.id) ?? null;
       },
+      findUniqueOrThrow: async (args: { where: { id: string } }) => {
+        const row = notifications.find((n) => n.id === args.where.id);
+        if (!row) throw new Error("not found");
+        return row;
+      },
       findMany: async () => [],
-      updateMany: async () => ({ count: 0 }),
+      // PRO-N1-14 — the resend claims the row conditionally on the status it read.
+      updateMany: async (args: { where: { id?: string; status?: unknown }; data: Record<string, unknown> }) => {
+        let count = 0;
+        for (let i = 0; i < notifications.length; i++) {
+          const n = notifications[i]!;
+          if (args.where.id !== undefined && n.id !== args.where.id) continue;
+          if (args.where.status !== undefined && typeof args.where.status === "string" && n.status !== args.where.status) continue;
+          if (args.where.id === undefined) continue;
+          notifications[i] = { ...n, ...args.data };
+          count++;
+        }
+        return { count };
+      },
     },
+    // PRO-N1Z-02 — the re-invitation gate reads the request and the link.
+    evidenceRequest: { findUnique: async () => ({ status: "SENT" }) },
+    workflowIntakeLink: { findUnique: async () => null },
     webhookEndpoint: {
       findMany: async (args: {
         where: { teamId: string; status: "ACTIVE" };

@@ -963,6 +963,15 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
             details: { reason: result.reason, nextResendAfter },
           };
         }
+        // PRO-P3AZ-01 — the email could not be sent: retryable, and the link
+        // already sent still works.
+        if (result.reason === "email_unavailable") {
+          reply.code(503).header("Retry-After", "60");
+          return {
+            error: "email_unavailable",
+            details: { reason: "email_unavailable", previousLinkStillValid: true },
+          };
+        }
         reply.code(400);
         return { error: result.reason };
       }

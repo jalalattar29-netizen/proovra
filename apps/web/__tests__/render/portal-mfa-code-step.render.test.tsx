@@ -123,7 +123,7 @@ describe("portal sign-in — emailed code step", () => {
     expect(authBodies()[1]).toEqual({ token: TOKEN, mfaToken: "482913" });
 
     await act(async () => release(ok));
-    await waitFor(() => expect(push).toHaveBeenCalledWith(`/portal/${encodeURIComponent(TOKEN)}`));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/portal/session") /* PRO-R1-04 — no credential in the URL */);
     expect(push).toHaveBeenCalledTimes(1);
   });
 
@@ -232,7 +232,7 @@ describe("invitation landing — emailed code step in place", () => {
     replies.push(ok);
     fireEvent.change(codeInput(), { target: { value: "654321" } });
     fireEvent.click(verifyButton());
-    await waitFor(() => expect(push).toHaveBeenCalledWith(`/portal/${encodeURIComponent(TOKEN)}`));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/portal/session") /* PRO-R1-04 — no credential in the URL */);
     expect(push).not.toHaveBeenCalledWith("/portal");
     expect(authBodies()[1]).toEqual({ token: TOKEN, mfaToken: "654321" });
   });

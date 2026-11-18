@@ -832,6 +832,8 @@ function InboxPageInner() {
   // described as the end of the list.
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  // PRO-N1-15 — a failed mark-read/unread/archive is SAID, not only reverted.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const buildUrl = useCallback(
     (cursor: string | null): string => {
@@ -1076,6 +1078,7 @@ function InboxPageInner() {
       } catch (err) {
         applyOptimisticUpdate(item.itemKey, prevState);
         console.error("[inbox] mark-read failed:", err);
+        setActionError("Couldn’t mark that notification as read. It is unchanged — try again.");
       } finally {
         setPendingItemKey(null);
       }
@@ -1099,6 +1102,7 @@ function InboxPageInner() {
       } catch (err) {
         applyOptimisticUpdate(item.itemKey, prevState);
         console.error("[inbox] mark-unread failed:", err);
+        setActionError("Couldn’t mark that notification as unread. It is unchanged — try again.");
       } finally {
         setPendingItemKey(null);
       }
@@ -1125,6 +1129,7 @@ function InboxPageInner() {
         void refreshCounts();
       } catch (err) {
         console.error("[inbox] archive failed:", err);
+        setActionError("Couldn’t archive that notification. It is back in the list — try again.");
         // Re-fetch to restore truth.
         void load();
       } finally {
@@ -1154,6 +1159,7 @@ function InboxPageInner() {
       } catch (err) {
         applyOptimisticUpdate(item.itemKey, { dismissedAt: previous });
         console.error("[inbox] unarchive failed:", err);
+        setActionError("Couldn’t restore that notification. It is unchanged — try again.");
       } finally {
         setPendingItemKey(null);
       }
@@ -1990,6 +1996,11 @@ function InboxPageInner() {
           </Button>
         </div>
       )}
+      {actionError ? (
+        <p role="status" data-inbox-action-error className="ops-metrics__note">
+          {actionError}
+        </p>
+      ) : null}
       {state.kind === "ready" && loadMoreError ? (
         <p role="status" data-inbox-load-more-error className="ops-metrics__note">
           Couldn’t load more notifications. The ones above are unchanged — use Load more to try again.

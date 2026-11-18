@@ -943,9 +943,11 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         // page can render the request title + deliverables as the primary
         // call to action. Reviewer notes and workspace internals are NEVER
         // included; see projectRequestForExternalView for the allowlist.
-        const { projectRequestForExternalView } = await import(
+        const { projectRequestForExternalView, markEvidenceRequestViewedFromIntakeOpen } = await import(
           "../services/evidence-request.service.js"
         );
+        // PRO-I1-11 — the open is what VIEWED / firstOpenedAtUtc record.
+        await markEvidenceRequestViewedFromIntakeOpen(link.id);
         const requestView = await projectRequestForExternalView(link.id);
 
         return reply.code(200).send({

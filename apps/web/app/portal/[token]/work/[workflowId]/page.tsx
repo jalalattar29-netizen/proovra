@@ -42,8 +42,9 @@ import {
   isPortalMfaDenial,
   markReviewOpened,
   postComment,
+  portalPathFor,
   readPortalFailure,
-  setBearer,
+  resolvePortalBearer,
   submitDecision,
   type PortalComment,
   type PortalDecision,
@@ -152,10 +153,18 @@ export default function PortalReviewPage({
   }, [workflowId, takeSessionLoss]);
 
   const reauth = useCallback(async () => {
-    setBearer(decodeURIComponent(token));
+    // PRO-R1-04 — the path carries no credential: the bearer is this tab's.
+    const { bearer, legacy } = resolvePortalBearer(token);
+    if (legacy && typeof window !== "undefined") {
+      window.history.replaceState(null, "", portalPathFor(`/work/${workflowId}`));
+    }
+    if (!bearer) {
+      setDenial("TOKEN_INVALID");
+      return false;
+    }
     try {
       await authenticate({
-        token: decodeURIComponent(token),
+        token: bearer,
         existingSessionId: getSessionId() ?? undefined,
       });
       return true;
@@ -169,7 +178,7 @@ export default function PortalReviewPage({
       }
       return false;
     }
-  }, [token]);
+  }, [token, workflowId]);
 
   const refresh = useCallback(async () => {
     const ok = await reauth();
@@ -333,7 +342,7 @@ export default function PortalReviewPage({
     >
       <header style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
         <Link
-          href={`/portal/${encodeURIComponent(token)}`}
+          href={portalPathFor()}
           data-portal-back
           style={{ fontSize: 12, color: "#0f172a", textDecoration: "underline" }}
         >

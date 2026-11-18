@@ -58,11 +58,17 @@ export type GroupDetectionsIntoTracksInput = {
   iouThreshold?: number;
 };
 
-export type GroupDetectionsIntoTracksResult = {
-  ok: true;
-  trackIds: ReadonlyArray<string>;
-  trackCount: number;
-};
+export type GroupDetectionsIntoTracksResult =
+  | {
+      ok: true;
+      trackIds: ReadonlyArray<string>;
+      trackCount: number;
+    }
+  | {
+      ok: false;
+      /** PRO-R3-16 — a frameId or versionId that is not this record's / workspace's. */
+      denial: "FOREIGN_REFERENCE";
+    };
 
 export async function groupDetectionsIntoTracks(
   input: GroupDetectionsIntoTracksInput,
@@ -74,6 +80,22 @@ export async function groupDetectionsIntoTracks(
   }
   if (input.detections.length > 5000) {
     return { ok: true, trackIds: [], trackCount: 0 };
+  }
+  // PRO-R3-16 — every referenced id is bound to THIS workspace and record
+  // before anything is written: a foreign frame id became a cross-tenant
+  // foreign-key reference (or a 500), a foreign version id was stored as is.
+  {
+    const frameIds = [...new Set(input.detections.map((d) => d.frameId))];
+    const owned = await prisma.videoFrame.count({
+      where: { id: { in: frameIds }, teamId: input.teamId, evidenceId: input.evidenceId },
+    });
+    if (owned !== frameIds.length) return { ok: false, denial: "FOREIGN_REFERENCE" };
+    if (input.versionId) {
+      const version = await prisma.redactionVersion.count({
+        where: { id: input.versionId, teamId: input.teamId },
+      });
+      if (version !== 1) return { ok: false, denial: "FOREIGN_REFERENCE" };
+    }
   }
   // Sort by frame index ascending — tracks extend forward only.
   const sorted = [...input.detections].sort(

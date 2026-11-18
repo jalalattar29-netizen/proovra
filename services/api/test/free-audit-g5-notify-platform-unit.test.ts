@@ -97,7 +97,10 @@ describe("B2B-F-14 — evidence-request reminders", () => {
     };
     const sentUrl = opts.sentUrl === undefined ? "https://www.proovra.com/intake/raw-token-abc" : opts.sentUrl;
     return {
-      evidenceRequest: { findMany: async () => [request] },
+      // PRO-N1Z-02 — the re-invitation gate reads the request status and the link
+      // (an unknown link is not plan-checked; the plan gate is proven in integration).
+      evidenceRequest: { findMany: async () => [request], findUnique: async () => ({ status: "SENT" }) },
+      workflowIntakeLink: { findUnique: async () => null },
       team: { findUnique: async () => ({ name: "Workspace", evidenceWorkspaceLabel: null }) },
       notificationDelivery: {
         findFirst: async (args: { where: { eventType: string } }) => {

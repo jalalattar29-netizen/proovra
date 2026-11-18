@@ -22,7 +22,9 @@ import { PortalMfaCodeStep } from "../../components/external-portal/PortalMfaCod
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import {
   authenticate,
+  portalPathFor,
   readPortalFailure,
+  setBearer,
   type PortalMfaDetail,
 } from "../../lib/external-portal/portal-client";
 
@@ -59,7 +61,9 @@ export default function PortalTokenEntryPage() {
   const [busy, setBusy] = useState(false);
 
   const open = useCallback(() => {
-    router.push(`/portal/${encodeURIComponent(token.trim())}`);
+    // PRO-R1-04 — the bearer is this tab's; the URL carries no credential.
+    setBearer(token.trim());
+    router.push(portalPathFor());
   }, [router, token]);
 
   const onSubmit = useCallback(async () => {

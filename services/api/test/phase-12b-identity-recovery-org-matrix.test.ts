@@ -632,6 +632,11 @@ vi.mock("../src/services/organization/org-invite-delivery.service.js", () => ({
   // here the allowance is roomy so the matrix exercises the routes' other rules.
   resolveOrganizationInvitationAllowance: async () => ({ pending: 0, maxPending: 1000, sentLast24h: 0, maxPer24h: 5000 }),
   organizationInvitationRefusal: () => null,
+  // PRO-T2-06 — the per-invitation resend cooldown (its claim is proven in
+  // ws-msg-remediation.integration.test.ts).
+  ORG_INVITE_RESEND_COOLDOWN_MS: 60 * 60 * 1000,
+  orgInviteResendCooldownCutoff: (now: Date = new Date()) => new Date(now.getTime() - 60 * 60 * 1000),
+  orgInviteResendCooldownRefusal: () => ({ status: 429, body: { error: { code: "ORG_INVITE_RESEND_COOLDOWN", message: "wait" }, code: "ORG_INVITE_RESEND_COOLDOWN", message: "wait" } }),
 }));
 vi.mock("../src/services/identity/membership-provisioning.service.js", () => ({
   parseWorkspaceAssignments: (v: unknown) => v ?? [],

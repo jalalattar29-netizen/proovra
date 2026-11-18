@@ -1404,12 +1404,14 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       // `rawToken` is GONE from the accepted shape. A client that still
       // sends it is not rejected (extra keys are ignored by this schema) but
       // the value can never reach the transport.
-      const body = z
-        .object({
-          inviterDisplayName: z.string().max(200).optional(),
-          workspaceName: z.string().max(200).optional(),
-        })
-        .parse(req.body ?? {});
+      // PRO-R1-15 — nor can the body name the inviter or the workspace: the
+      // PROOVRA-branded email always names the authenticated user and the real
+      // workspace, as resend does. The old fields are still accepted (and
+      // ignored) so an existing API client does not break.
+      z.object({
+        inviterDisplayName: z.string().max(200).optional(),
+        workspaceName: z.string().max(200).optional(),
+      }).parse(req.body ?? {});
 
       const team = await prisma.team.findUnique({
         where: { id: ctx.workspaceId },
@@ -1424,12 +1426,8 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         teamId: ctx.workspaceId,
         grantId: id,
         actorUserId: ctx.userId,
-        inviterDisplayName:
-          body.inviterDisplayName ??
-          user?.displayName ??
-          user?.email ??
-          "PROOVRA operator",
-        workspaceName: body.workspaceName ?? team?.name ?? "PROOVRA workspace",
+        inviterDisplayName: user?.displayName ?? user?.email ?? "PROOVRA operator",
+        workspaceName: team?.name ?? "PROOVRA workspace",
         reason: "Operator sent the external-reviewer invitation email.",
       });
       if (!res.ok) {
@@ -1440,6 +1438,8 @@ export async function externalPortalRoutes(app: FastifyInstance) {
           denial: "POLICY_REJECTED",
           deliveryId: res.deliveryId,
           failureReason: res.failureReason,
+          // PRO-R1-09 — whether the reviewer still holds a working link.
+          previousLinkKept: (res.failureReason ?? "").endsWith(":previous_link_kept"),
         });
       }
       return reply.code(200).send({

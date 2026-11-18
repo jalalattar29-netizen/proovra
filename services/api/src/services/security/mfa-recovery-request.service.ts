@@ -585,7 +585,10 @@ export interface ResendRecoveryEmailResult {
     | "request_not_in_email_pending"
     | "resend_throttled"
     | "resend_limit_reached"
-    | "user_email_missing";
+    | "user_email_missing"
+    // PRO-P3AZ-01 — nothing left the process: the earlier link still works and
+    // no send was spent.
+    | "email_unavailable";
   nextResendAfter?: Date;
 }
 
@@ -628,6 +631,10 @@ export async function resendRecoveryRequestEmail(
     select: { email: true },
   });
   if (!user?.email) return { ok: false, reason: "user_email_missing" };
+  // PRO-P3AZ-01 — no transport, no resend: the link already in the inbox
+  // keeps working and nothing is spent (it used to be retired regardless).
+  const emailService = getEmailService();
+  if (!emailService.isConfigured()) return { ok: false, reason: "email_unavailable" };
   const rawToken = randomBytes(32).toString("hex");
   const newEmailExpiresAt = new Date(
     Date.now() + MFA_RECOVERY_EMAIL_TTL_SECONDS * 1000,
@@ -635,6 +642,39 @@ export async function resendRecoveryRequestEmail(
   const newBlockedUntil = new Date(
     Date.now() + MFA_RECOVERY_EMAIL_RESEND_COOLDOWN_SECONDS * 1000,
   );
+  // PRO-P3AZ-01 — CLAIM the resend conditionally on the state read above, so
+  // two concurrent resends cannot both rotate: one wins, the other is told to
+  // wait. The claim takes only the cooldown; the token is not touched yet.
+  const claimed = await prisma.mfaRecoveryRequest.updateMany({
+    where: {
+      id: row.id,
+      status: "EMAIL_VERIFICATION_PENDING",
+      emailResendCount: row.emailResendCount,
+      OR: [{ emailResendBlockedUntil: null }, { emailResendBlockedUntil: { lte: new Date() } }],
+    },
+    data: { emailResendBlockedUntil: newBlockedUntil },
+  });
+  if (claimed.count !== 1) {
+    return { ok: false, reason: "resend_throttled", nextResendAfter: newBlockedUntil };
+  }
+  const verificationUrl = buildVerificationUrl(row.id, rawToken);
+  try {
+    await emailService.sendMfaRecoveryVerificationEmail(
+      user.email,
+      verificationUrl,
+    );
+  } catch {
+    // PRO-P3AZ-01 — the send failed: give the claim back, keep the previous
+    // token (its link still works), spend nothing, and say so.
+    await prisma.mfaRecoveryRequest
+      .updateMany({
+        where: { id: row.id, emailResendBlockedUntil: newBlockedUntil },
+        data: { emailResendBlockedUntil: row.emailResendBlockedUntil },
+      })
+      .catch(() => undefined);
+    return { ok: false, reason: "email_unavailable" };
+  }
+  // Only a message the transport accepted retires the previous link.
   await prisma.mfaRecoveryRequest.update({
     where: { id: row.id },
     data: {
@@ -644,18 +684,6 @@ export async function resendRecoveryRequestEmail(
       emailResendBlockedUntil: newBlockedUntil,
     },
   });
-  const verificationUrl = buildVerificationUrl(row.id, rawToken);
-  try {
-    const emailService = getEmailService();
-    if (emailService.isConfigured()) {
-      await emailService.sendMfaRecoveryVerificationEmail(
-        user.email,
-        verificationUrl,
-      );
-    }
-  } catch {
-    // best-effort
-  }
   safeEmitSecurityEvent({
     teamId: row.teamId,
     eventType: "mfa_recovery_email_verification_sent",

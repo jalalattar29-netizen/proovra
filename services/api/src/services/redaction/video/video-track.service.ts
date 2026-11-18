@@ -166,6 +166,12 @@ export async function appendTrackDetection(
     select: { id: true },
   });
   if (!track) return { ok: false, denial: "VERSION_NOT_FOUND" };
+  // PRO-R3-16 — the frame must be this workspace's (no cross-tenant FK).
+  const frame = await prisma.videoFrame.findFirst({
+    where: { id: input.frameId, teamId: input.teamId },
+    select: { id: true },
+  });
+  if (!frame) return { ok: false, denial: "VERSION_NOT_FOUND" };
   await prisma.videoTrackDetection.upsert({
     where: {
       trackId_frameId: { trackId: input.trackId, frameId: input.frameId },

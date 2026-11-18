@@ -38,7 +38,6 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z } from "zod";
-import { normaliseToE164 } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -164,9 +163,8 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
       // PRO-A1-03 — the aggregate new-destination budget (per destination
       // across workspaces, per workspace, platform-wide), before any factor
       // row or provider call.
-      const proposed = normaliseToE164(body.destination);
-      if (proposed) {
-        const budget = await enforceNewDestinationVerificationBudget({ teamId: body.teamId, phoneE164: proposed });
+      {
+        const budget = await enforceNewDestinationVerificationBudget({ teamId: body.teamId, destinationRaw: body.destination });
         if (!budget.allowed) {
           if (budget.reason === "destination_not_allowed") {
             return reply.code(422).send({ error: { code: "destination_not_allowed" } });

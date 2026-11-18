@@ -2003,6 +2003,39 @@ export async function resolveEvidenceRequestIdForIntakeLink(
   return followUp?.evidenceRequestId ?? null;
 }
 
+/**
+ * PRO-I1-11 — the recipient opened the request's PRIMARY link: a SENT request
+ * becomes VIEWED (the state machine's own SENT → VIEWED edge) and records its
+ * first open. Conditional on SENT, under the request lock, so it is written
+ * once and never moves a request backwards. Best-effort: an open never fails
+ * because of it.
+ */
+export async function markEvidenceRequestViewedFromIntakeOpen(
+  intakeLinkId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  try {
+    const request = await client.evidenceRequest.findFirst({
+      where: { intakeLinkId, status: "SENT" },
+      select: { id: true },
+    });
+    if (!request) return false;
+    return await client.$transaction(async (tx) => {
+      await lockEvidenceRequestTx(tx, request.id);
+      const now = new Date();
+      const moved = await tx.evidenceRequest.updateMany({
+        where: { id: request.id, status: "SENT" },
+        data: { status: "VIEWED", firstOpenedAtUtc: now },
+      });
+      if (moved.count !== 1) return false;
+      await appendRequestEvent(tx, request.id, "EVIDENCE_REQUEST_VIEWED", null);
+      return true;
+    });
+  } catch {
+    return false;
+  }
+}
+
 export async function projectRequestForExternalView(
   intakeLinkId: string,
   client: PrismaClient = defaultPrisma,

@@ -186,7 +186,20 @@ const EMAIL_EVENT_PREFERENCE: Partial<Record<NotificationEventType, Notification
   REVIEW_DUE_SOON_REMINDER: "SLA_NEAR_BREACH",
   REVIEW_INACTIVITY_REMINDER: "SLA_NEAR_BREACH",
   DISCUSSION_MENTION_RECEIVED: "MENTION",
+  // PRO-N1-04 — member-addressed evidence-request mail follows the panel's
+  // "Evidence request updates" Email choice (it ignored it). Only a member has
+  // a preference: mail to an outside recipient is not governed by this map.
+  EVIDENCE_REQUEST_RESPONSE_RECEIVED: "EVIDENCE_REQUEST_UPDATE",
 };
+
+/**
+ * PRO-N1-04 — events that were ALWAYS mailed before the preference governed
+ * them: a member who never opened the panel keeps receiving them (an explicit
+ * Off now stops them). Preserves existing behaviour (DEC-22).
+ */
+const EMAIL_EVENT_MAILED_BY_DEFAULT: ReadonlySet<NotificationEventType> = new Set([
+  "EVIDENCE_REQUEST_RESPONSE_RECEIVED",
+]);
 
 export type SendEmailNotificationInput = {
   eventType: NotificationEventType;
@@ -282,7 +295,12 @@ export async function sendEmailNotification(
   const preferenceType = EMAIL_EVENT_PREFERENCE[input.eventType];
   if (preferenceType && input.recipientUserId && input.teamId) {
     const choice = await resolveEmailDeliveryChoice(
-      { userId: input.recipientUserId, teamId: input.teamId, preferenceType },
+      {
+        userId: input.recipientUserId,
+        teamId: input.teamId,
+        preferenceType,
+        ...(EMAIL_EVENT_MAILED_BY_DEFAULT.has(input.eventType) ? { whenAbsent: "IMMEDIATE" as const } : {}),
+      },
       client,
     );
     if (choice !== "IMMEDIATE") {
@@ -508,6 +526,10 @@ async function currentRecipientIneligibility(
       userId: delivery.recipientUserId,
       teamId: delivery.teamId,
       preferenceType,
+      // PRO-N1-04 — the same default the first send used (retry/resend re-check).
+      ...(EMAIL_EVENT_MAILED_BY_DEFAULT.has(delivery.eventType as NotificationEventType)
+        ? { whenAbsent: "IMMEDIATE" as const }
+        : {}),
     },
     client,
   );

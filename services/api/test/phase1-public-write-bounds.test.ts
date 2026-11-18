@@ -119,7 +119,9 @@ describe("PHASE 1 §4 — unauthenticated public writes are bounded", () => {
       "services/api/src/routes/contact-sales.routes.ts",
       "services/api/src/routes/demo-requests.routes.ts",
     ]) {
-      expect(code(f)).toContain("trustedClientIp");
+      // PRO-P1-02 — leadRecordedClientIp records the forwarded visitor only with
+      // the proxy key (the limiter's own decision) and trustedClientIp otherwise.
+      expect(code(f)).toMatch(/trustedClientIp|leadRecordedClientIp/);
     }
   });
 });

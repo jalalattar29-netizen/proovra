@@ -293,9 +293,9 @@ const FrameBatchBody = z.object({
       z.object({
         frameIndex: z.number().int().nonnegative(),
         timestampMs: z.number().int().nonnegative(),
-        storageBucket: z.string().max(180).optional(),
-        storageKey: z.string().max(400).optional(),
-        storageRegion: z.string().max(40).optional(),
+        // PRO-R3-16 — storage coordinates are never caller-supplied: a
+        // client-named bucket/key was stored and later returned. Old clients
+        // that still send them are not refused; the values are dropped.
         byteSize: z.number().int().nonnegative().optional(),
         contentType: z.string().max(120).optional(),
       }),
@@ -1384,6 +1384,8 @@ export async function redactionRoutes(app: FastifyInstance) {
         detections: body.detections,
         authoredByUserId: ctx.userId,
       });
+      // PRO-R3-16 — a frame or version that is not this record's is refused.
+      if (!res.ok) return reply.code(409).send({ denial: res.denial });
       return reply.code(200).send({
         trackCount: res.trackCount,
         trackIds: res.trackIds,

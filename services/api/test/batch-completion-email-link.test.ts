@@ -37,7 +37,8 @@ describe("A1-02 — batch-completion email link", () => {
 
   it("the completion email is built with that link, not a /batch/<id> path the web never had", () => {
     const src = readFileSync(ROUTES, "utf8");
-    expect(src).toMatch(/sendBatchComplete\([\s\S]{0,400}batchCompletionEmailLink\(process\.env\.APP_URL\)/);
+    // PRO-PW-04 — the link base is THE app-host authority, not APP_URL (read nowhere else).
+    expect(src).toMatch(/sendBatchComplete\([\s\S]{0,500}batchCompletionEmailLink\(getEmailAppBaseUrl\(\)\)/);
     expect(src).not.toMatch(/\/batch\/\$\{/);
     expect(existsSync(resolve(WEB_APP, "(app)", "batch"))).toBe(false);
   });

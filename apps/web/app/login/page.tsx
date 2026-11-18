@@ -29,7 +29,7 @@ import { useSocialNoncePrefetch } from "../../lib/useSocialNoncePrefetch";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { ForgotPasswordModal } from "../../components/marketing/ForgotPasswordModal";
 import { ssoSignInFailureMessage } from "../../lib/identity/ssoSignIn";
-import { safeReturnPath } from "../../lib/navigation/safe-return-path";
+import { DEFAULT_RETURN_PATH, safeReturnPath } from "../../lib/navigation/safe-return-path";
 
 const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
@@ -1212,7 +1212,8 @@ function LoginPageContent() {
                         }}
                       >
                         <span>{t("loginNoAccount")} </span>
-                        <Link href="/register" style={{ color: "#D63E76", fontWeight: 600 }}>
+                        {/* PRO-A1-12 — the intended destination survives the switch to Register. */}
+                        <Link href={nextUrl !== DEFAULT_RETURN_PATH ? `/register?next=${encodeURIComponent(nextUrl)}` : "/register"} style={{ color: "#D63E76", fontWeight: 600 }}>
                           {t("register")}
                         </Link>
                       </div>

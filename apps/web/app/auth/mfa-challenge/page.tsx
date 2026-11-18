@@ -372,7 +372,8 @@ function MfaChallengeBody() {
           {error}
         </p>
         <Link
-          href="/login"
+          // PRO-A1-12 — an expired challenge keeps the intended destination.
+          href={next !== SAFE_NEXT_FALLBACK ? `/login?next=${encodeURIComponent(next)}` : "/login"}
           style={{
             display: "inline-block",
             padding: "10px 18px",

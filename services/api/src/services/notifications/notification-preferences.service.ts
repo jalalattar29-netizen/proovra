@@ -218,8 +218,52 @@ export async function isPreferenceEnabled(
  */
 export type EmailDeliveryChoice = "IMMEDIATE" | "DIGEST" | "OFF";
 
+/** Email cadences, strongest (most frequent) first. */
+const EMAIL_CADENCE_ORDER = ["IMMEDIATE", "HOURLY", "DAILY", "WEEKLY"] as const;
+
+function cadenceRank(value: string | null | undefined): number {
+  const i = (EMAIL_CADENCE_ORDER as readonly string[]).indexOf(value ?? "IMMEDIATE");
+  return i < 0 ? 0 : i;
+}
+
+/**
+ * PRO-N1-05 — the organization's policy for one category of the workspace's
+ * organization (mandatory email, minimum cadence), or null. A policy table that
+ * is not there yet (pre-migration) or a failed read answers "no policy": the
+ * member's own choice then applies, exactly as before.
+ */
+async function loadEmailPolicy(
+  input: { teamId: string; preferenceType: NotificationPreferenceType },
+  client: PrismaClient,
+): Promise<{ mandatoryEmail: boolean; minimumFrequency: string | null } | null> {
+  try {
+    const team = await client.team.findUnique({
+      where: { id: input.teamId },
+      select: { organizationId: true },
+    });
+    if (!team?.organizationId) return null;
+    return await client.organizationNotificationPolicy.findUnique({
+      where: { organizationId_category: { organizationId: team.organizationId, category: input.preferenceType } },
+      select: { mandatoryEmail: true, minimumFrequency: true },
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function resolveEmailDeliveryChoice(
-  input: { userId: string; teamId: string; preferenceType: NotificationPreferenceType },
+  input: {
+    userId: string;
+    teamId: string;
+    preferenceType: NotificationPreferenceType;
+    /**
+     * PRO-N1-04 — what an ABSENT row means for this event. Default: the
+     * channel default (email is opt-in). An event that has always been mailed
+     * passes "IMMEDIATE" so members who never chose keep receiving it, while an
+     * explicit Off in the panel now stops it.
+     */
+    whenAbsent?: EmailDeliveryChoice;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<EmailDeliveryChoice> {
   const row = await client.workspaceNotificationPreference.findUnique({
@@ -233,9 +277,26 @@ export async function resolveEmailDeliveryChoice(
     },
     select: { enabled: true, frequency: true },
   });
+  // PRO-N1-05 — the organization policy is applied HERE, at send time (the
+  // one resolver the email sender asks), not only as a lock in the panel: a
+  // mandatory category is mailed whatever the member row says, at least as
+  // often as the policy's minimum cadence.
+  const policy = await loadEmailPolicy(input, client);
+  if (policy?.mandatoryEmail) {
+    if (!row || !row.enabled) return "IMMEDIATE";
+    const chosen = cadenceRank(row.frequency);
+    const floor = policy.minimumFrequency ? cadenceRank(policy.minimumFrequency) : chosen;
+    return Math.min(chosen, floor) === 0 ? "IMMEDIATE" : "DIGEST";
+  }
+  if (!row) {
+    if (input.whenAbsent) return input.whenAbsent;
+    if (!defaultEnabledForChannel("EMAIL")) return "OFF";
+  }
   const enabled = row ? row.enabled : defaultEnabledForChannel("EMAIL");
   if (!enabled) return "OFF";
-  return !row?.frequency || row.frequency === "IMMEDIATE" ? "IMMEDIATE" : "DIGEST";
+  const chosen = cadenceRank(row?.frequency);
+  const floor = policy?.minimumFrequency ? cadenceRank(policy.minimumFrequency) : chosen;
+  return Math.min(chosen, floor) === 0 ? "IMMEDIATE" : "DIGEST";
 }
 
 // -----------------------------------------------------------------------------

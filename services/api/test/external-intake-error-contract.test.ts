@@ -58,9 +58,10 @@ describe("public intake error contract", () => {
 
     // Every generic catch-all delegates to it.
     const delegations = ROUTES.match(/intakeUnhandled\(\s*err,\s*req,\s*reply,\s*"/g) ?? [];
-    // 4: the /transition route is a retired 410 tombstone (ET-INT-01) that
-    // touches nothing, so it has no catch-all to route.
-    expect(delegations.length).toBe(4);
+    // 5: the /transition route is a retired 410 tombstone (ET-INT-01) that
+    // touches nothing, so it has no catch-all to route; PRO-I1-10 added the
+    // staged-part DELETE, which routes its catch-all here too.
+    expect(delegations.length).toBe(5);
   });
 
   it("never turns a rejected body into a 500", () => {

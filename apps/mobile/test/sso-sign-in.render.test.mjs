@@ -147,7 +147,9 @@ test("an MFA-protected SSO account goes on to its challenge", async () => {
   const r = await ssoReady();
   await r.press("Sign in with your organization (SSO)");
   await settle();
-  assert.deepEqual(M.calls.push.at(-1), { pathname: "/mfa", params: { pendingToken: "pending-token-abcdefghijklmnop", mode: "sso" } });
+  // PRO-NA-08 — the challenge token is held in memory, never in route params.
+  assert.deepEqual(M.calls.push.at(-1), { pathname: "/mfa", params: { mode: "sso" } });
+  assert.ok(!JSON.stringify(M.calls.push).includes("pending-token-abcdefghijklmnop"));
   assert.equal(await M.getItemAsync("proovra-token"), null);
 });
 

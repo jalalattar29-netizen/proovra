@@ -720,9 +720,8 @@ export async function communicationsRoutes(app: FastifyInstance) {
       }
       // PRO-A1-03 — the shared new-destination budget (per number across
       // workspaces, per workspace per day, platform-wide per hour).
-      const proposed = normaliseToE164(body.phone);
-      if (proposed) {
-        const budget = await enforceNewDestinationVerificationBudget({ teamId: body.teamId, phoneE164: proposed });
+      {
+        const budget = await enforceNewDestinationVerificationBudget({ teamId: body.teamId, destinationRaw: body.phone });
         if (!budget.allowed) {
           if (budget.reason === "destination_not_allowed") {
             return reply.code(422).send({ error: { code: "destination_not_allowed" } });
