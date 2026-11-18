@@ -70,6 +70,18 @@ export class OutputPolicyBlockedError extends Error {
   }
 }
 
+/**
+ * RG-03 (PRO-W1-01) — the BLOCKED_POLICY reason a run settles with when the
+ * package governance gate denied the package it owned. A hold maps to the
+ * recoverable `legal_hold_active` (superseded once the effective hold ends,
+ * blockerStillActive); every other gate outcome is recorded by name and stays
+ * terminal until an operator or the package-only re-ask acts.
+ */
+export function packageGateBlockedReason(outcome: string): string {
+  if (outcome === "BLOCKED_BY_HOLD") return "legal_hold_active";
+  return `package_gate_${outcome.toLowerCase()}`.slice(0, 64);
+}
+
 export function isOutputPolicyBlockedError(err: unknown): err is OutputPolicyBlockedError {
   return (
     err instanceof OutputPolicyBlockedError ||

@@ -358,7 +358,11 @@ async function buildReviewerRepresentationCard(params: {
 // preview honoured a MIME hint it actually ignored.
 async function extractImagePreview(buffer: Buffer): Promise<ExtractedPreview> {
   try {
+    // PRO-W1C-07 (RG-18) — apply the EXIF orientation BEFORE resizing: the
+    // re-encoded preview carries no metadata, so a later rotate() has nothing
+    // left to apply and a portrait phone photo printed sideways.
     const resized = await sharp(buffer)
+      .rotate()
       .resize(800, 800, {
         fit: "inside",
         withoutEnlargement: true,

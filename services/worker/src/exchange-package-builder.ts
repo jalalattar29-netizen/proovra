@@ -974,9 +974,11 @@ export async function buildExchangePackage(
     );
 
     // Lifecycle manifests — always included.
+    // PRO-W1C-02 — scoped to the package's reach-checked selection.
     const lifecycleEntries = await buildLifecycleAndExchangeManifests({
       prisma,
       teamId,
+      evidenceIds,
     }).catch(() => []);
     for (const le of lifecycleEntries) {
       appendEntry(archive, entries, le.path, jsonBuffer(le.json), "application/json");

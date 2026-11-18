@@ -68,6 +68,9 @@ import type { PrismaClient } from "@prisma/client";
 import {
   absoluteInternalUrl,
   internalNavPath,
+  isTerminalJobExecutionState,
+  MAX_TERMINAL_SUPERSESSIONS,
+  outputLifecycleRefusal,
   type KeyCompromiseReplacementState,
   type RecordKeyCompromise,
 } from "@proovra/shared";
@@ -288,6 +291,34 @@ export type KeyCompromiseNoticeSummary = {
 };
 
 /**
+ * RG-03 (PRO-O1-13, DEC-03) — who is told about one affected record.
+ *
+ * The record's owner, while they can still act on it: a personal record's
+ * owner always; a workspace record's owner while an ACTIVE member of its
+ * workspace. When the owner has left (removed, suspended, closed account),
+ * the workspace's current ACTIVE OWNER/ADMIN members are told instead, through
+ * the same scoped notice (minimal disclosure: the record link only).
+ */
+async function keyCompromiseRecipients(
+  record: Pick<AffectedRecord, "ownerUserId" | "teamId">,
+  client: Pick<PrismaClient, "teamMember">,
+): Promise<string[]> {
+  if (!record.teamId) return [record.ownerUserId];
+  const ownerActive = await client.teamMember.findFirst({
+    where: { teamId: record.teamId, userId: record.ownerUserId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (ownerActive) return [record.ownerUserId];
+  const operators = await client.teamMember.findMany({
+    where: { teamId: record.teamId, status: "ACTIVE", role: { in: ["OWNER", "ADMIN"] } },
+    select: { userId: true },
+    orderBy: { userId: "asc" },
+    take: 10,
+  });
+  return operators.length > 0 ? operators.map((o) => o.userId) : [record.ownerUserId];
+}
+
+/**
  * One notice per (owner, affected record) — and per (requester, affected
  * destruction certificate) — for this compromise: an e-mail through the
  * transactional outbox and an in-app item, in one transaction. Safe to call
@@ -320,27 +351,52 @@ export async function notifyOwnersOfKeyCompromise(
   let budget = Math.max(0, Math.trunc(input.inlineLimit ?? KEY_COMPROMISE_INLINE_NOTICE_LIMIT));
   const webBase = getEmailWebBaseUrl();
 
+  // RG-03 (PRO-O1-13) — one bulk read of the records already noticed for this
+  // compromise, so a continuation pass (the maintenance sweep, a repeated
+  // declaration) moves straight to the records still owed a notice instead of
+  // re-locking every finished one. The per-record lock below still decides.
+  const noticed = new Set<string>(
+    (
+      await client.securityEvent
+        .findMany({
+          where: { eventType: SIGNING_KEY_COMPROMISE_IN_APP_EVENT, createdAt: { gte: input.declaredAt } },
+          select: { details: true },
+        })
+        .catch(() => [] as Array<{ details: unknown }>)
+    )
+      .map((e) => (e.details as { evidenceId?: unknown } | null)?.evidenceId)
+      .filter((v): v is string => typeof v === "string"),
+  );
+
   for (const record of affected) {
+    if (noticed.has(record.evidenceId)) {
+      summary.alreadyNotified += 1;
+      continue;
+    }
     if (budget <= 0) {
       summary.deferred += 1;
       continue;
     }
     try {
-      const outcome = await client.$transaction(async (tx) => {
+      const recipients = await keyCompromiseRecipients(record, client);
+      const outcomes: Array<{ kind: "already" } | { kind: "no_address" } | { kind: "enqueued"; id: string | null }> = [];
+      for (const recipientUserId of recipients) {
+        outcomes.push(
+          await client.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`signing-key-compromise-notice:${record.evidenceId}`}))`;
         const [priorEmail, priorInApp] = await Promise.all([
           tx.notificationDelivery.findFirst({
             where: {
               eventType: SIGNING_KEY_COMPROMISE_NOTICE_EVENT,
               evidenceId: record.evidenceId,
-              recipientUserId: record.ownerUserId,
+              recipientUserId,
               createdAt: { gte: input.declaredAt },
             },
             select: { id: true },
           }),
           tx.securityEvent.findFirst({
             where: {
-              userId: record.ownerUserId,
+              userId: recipientUserId,
               eventType: SIGNING_KEY_COMPROMISE_IN_APP_EVENT,
               createdAt: { gte: input.declaredAt },
               details: { path: ["evidenceId"], equals: record.evidenceId },
@@ -353,14 +409,14 @@ export async function notifyOwnersOfKeyCompromise(
         await tx.securityEvent.create({
           data: {
             teamId: record.teamId,
-            userId: record.ownerUserId,
+            userId: recipientUserId,
             eventType: SIGNING_KEY_COMPROMISE_IN_APP_EVENT,
             severity: "HIGH",
             details: { evidenceId: record.evidenceId, subject: "record" },
           },
         });
         const owner = await tx.user.findUnique({
-          where: { id: record.ownerUserId },
+          where: { id: recipientUserId },
           select: { email: true, displayName: true },
         });
         if (!owner?.email) return { kind: "no_address" as const };
@@ -372,7 +428,7 @@ export async function notifyOwnersOfKeyCompromise(
           teamId: record.teamId,
           recipientEmail: owner.email,
           recipientName: owner.displayName ?? null,
-          recipientUserId: record.ownerUserId,
+          recipientUserId,
           evidenceId: record.evidenceId,
           initiatedByUserId: input.actorUserId,
           template: {
@@ -385,17 +441,22 @@ export async function notifyOwnersOfKeyCompromise(
           },
         });
         return { kind: "enqueued" as const, id };
-      });
-      // Only a NEW notice spends the inline budget, so a repeated declaration
-      // passes the already-notified subjects and continues with the deferred ones.
-      if (outcome.kind === "already") summary.alreadyNotified += 1;
+          }),
+        );
+      }
+      // Only a NEW notice spends the inline budget, so a continuation pass
+      // skips the already-notified subjects and continues with the deferred ones.
+      if (outcomes.every((o) => o.kind === "already")) summary.alreadyNotified += 1;
       else {
         budget -= 1;
-        summary.inAppNotices += 1;
-        if (outcome.kind === "no_address") summary.noAddress += 1;
-        else {
-          summary.noticesEnqueued += 1;
-          if (outcome.id) await dispatchEnqueuedEmailNotifications([outcome.id], client);
+        for (const outcome of outcomes) {
+          if (outcome.kind === "already") continue;
+          summary.inAppNotices += 1;
+          if (outcome.kind === "no_address") summary.noAddress += 1;
+          else {
+            summary.noticesEnqueued += 1;
+            if (outcome.id) await dispatchEnqueuedEmailNotifications([outcome.id], client);
+          }
         }
       }
     } catch {
@@ -545,6 +606,7 @@ function madeByCompromised(
 
 const LIVE_REQUEST_STATES = ["QUEUED", "PROCESSING", "FAILED_RETRYABLE"];
 
+
 type RecordEvaluation = {
   outputs: RecordKeyCompromise["outputs"];
   replacement: KeyCompromiseReplacementState;
@@ -558,7 +620,15 @@ async function evaluateRecordKeyCompromise(
 ): Promise<RecordEvaluation | null> {
   const record = await client.evidence.findUnique({
     where: { id: evidenceId },
-    select: { teamId: true, signingKeyId: true, signingKeyVersion: true, signingKeySha256: true },
+    select: {
+      teamId: true,
+      signingKeyId: true,
+      signingKeyVersion: true,
+      signingKeySha256: true,
+      status: true,
+      lifecycleState: true,
+      deletedAt: true,
+    },
   });
   if (!record) return null;
   const [latest, packages] = await Promise.all([
@@ -602,11 +672,16 @@ async function evaluateRecordKeyCompromise(
     });
     if (live) replacement = "IN_PROGRESS";
     else if (outputs.latestPackageSeal && latestVersion != null) {
-      const prior = await client.reportGenerationRequest.findFirst({
-        where: { evidenceId, clientRequestKey: replacementKey(evidenceId, latestVersion) },
-        select: { state: true },
-      });
-      if (prior) replacement = prior.state === "SUCCEEDED" ? "IN_PROGRESS" : "FAILED";
+      // RG-03 (PRO-O1Z-01) — a record whose lifecycle refuses every new output
+      // (archived, trashed, pending destruction...) is not offered a control
+      // that the writer would refuse.
+      const lifecycleRefusal = outputLifecycleRefusal(record as never);
+      const attempt = lifecycleRefusal ? null : await replacementAttempt(evidenceId, latestVersion, client);
+      if (lifecycleRefusal) replacement = "NOT_OFFERED";
+      else if (attempt!.otherForcedLive) replacement = "IN_PROGRESS";
+      else if (attempt!.latest?.state === "SUCCEEDED") replacement = "IN_PROGRESS";
+      else if (attempt!.latest && attempt!.nextOrdinal >= MAX_TERMINAL_SUPERSESSIONS) replacement = "FAILED";
+      // PRO-W1-08 — a terminal attempt within the bound is offered again.
       else replacement = (await replacementSignersUsable(client)) ? "AVAILABLE" : "NO_TRUSTWORTHY_SIGNER";
     } else if (outputs.packageSeal) replacement = "LATEST_UNAFFECTED";
     else replacement = "NOT_OFFERED";
@@ -616,6 +691,65 @@ async function evaluateRecordKeyCompromise(
 
 function replacementKey(evidenceId: string, version: number): string {
   return `${SIGNING_KEY_COMPROMISE_REPLACEMENT_KEY_PREFIX}${evidenceId}:v${version}`;
+}
+
+/** Attempt k's client key: attempt 0 keeps the historical key (existing rows replay). */
+function replacementAttemptKey(evidenceId: string, version: number, ordinal: number): string {
+  const base = replacementKey(evidenceId, version);
+  return ordinal === 0 ? base : `${base}:a${ordinal}`;
+}
+
+/**
+ * RG-03 (PRO-W1-08 / PRO-O1-01 / PRO-W1-02) — where the replacement of one
+ * report version stands.
+ *
+ *   * attempts are this purpose's rows for the version, keyed
+ *     `compromise-reissue:<id>:v<N>` then `…:a1`, `…:a2`; the latest
+ *     attempt decides: live or SUCCEEDED is in progress; a terminal
+ *     non-success is followed by attempt k+1 while k+1 < the shared
+ *     MAX_TERMINAL_SUPERSESSIONS bound (the fixed key used to replay the dead
+ *     row forever);
+ *   * a live FORCED report request of ANOTHER purpose at this record is
+ *     reported as in progress, never collapsed onto or answered "ok" for.
+ */
+async function replacementAttempt(
+  evidenceId: string,
+  version: number,
+  client: PrismaClient,
+): Promise<{
+  latest: { state: string; clientRequestKey: string } | null;
+  nextOrdinal: number;
+  otherForcedLive: boolean;
+}> {
+  const base = replacementKey(evidenceId, version);
+  const rows = (
+    await client.reportGenerationRequest.findMany({
+      where: { evidenceId, clientRequestKey: { startsWith: base } },
+      select: { state: true, clientRequestKey: true },
+    })
+  ).filter((r) => r.clientRequestKey === base || (r.clientRequestKey ?? "").startsWith(`${base}:a`));
+  const ordinalOf = (key: string) => (key === base ? 0 : Number.parseInt(key.slice(base.length + 2), 10) || 0);
+  let latest: { state: string; clientRequestKey: string } | null = null;
+  let latestOrdinal = -1;
+  for (const r of rows) {
+    const o = ordinalOf(r.clientRequestKey as string);
+    if (o > latestOrdinal) {
+      latestOrdinal = o;
+      latest = { state: r.state, clientRequestKey: r.clientRequestKey as string };
+    }
+  }
+  const otherForcedLive =
+    (await client.reportGenerationRequest.findFirst({
+      where: {
+        evidenceId,
+        artifactType: "REPORT",
+        forceRegenerate: true,
+        state: { in: LIVE_REQUEST_STATES },
+        NOT: { purpose: SIGNING_KEY_COMPROMISE_REPLACEMENT_PURPOSE },
+      },
+      select: { id: true },
+    })) !== null;
+  return { latest, nextOrdinal: latestOrdinal + 1, otherForcedLive };
 }
 
 /**
@@ -658,7 +792,9 @@ export type KeyCompromiseReplacementResult =
         | "not_affected"
         | "record_signature_not_replaceable"
         | "no_trustworthy_signer"
-        | "not_requested";
+        | "not_requested"
+        | "other_request_active"
+        | "replacement_attempts_exhausted";
       reason?: string;
     };
 
@@ -687,14 +823,29 @@ export async function requestKeyCompromiseReplacement(
       return { ok: false, code: "not_affected" };
     case "IN_PROGRESS":
     case "FAILED":
-      // A repeat replays the request already made for this version.
       if (!evaluated.outputs.latestPackageSeal) return { ok: false, code: "not_affected" };
       break;
     case "AVAILABLE":
       break;
   }
   const latest = evaluated.latestVersion;
-  const key = replacementKey(input.evidenceId, latest);
+  const attempt = await replacementAttempt(input.evidenceId, latest, client);
+  // PRO-W1-02 — another purpose's forced request is running for this record:
+  // say so; never answer "ok" with someone else's request.
+  if (attempt.otherForcedLive && !(attempt.latest && !isTerminalJobExecutionState(attempt.latest.state))) {
+    return { ok: false, code: "other_request_active" };
+  }
+  // A live or succeeded attempt is replayed; a terminal non-success attempt is
+  // followed by the next one within the bound (PRO-W1-08).
+  let ordinal = 0;
+  if (attempt.latest) {
+    const replay = !isTerminalJobExecutionState(attempt.latest.state) || attempt.latest.state === "SUCCEEDED";
+    if (replay) ordinal = attempt.nextOrdinal - 1;
+    else if (attempt.nextOrdinal >= MAX_TERMINAL_SUPERSESSIONS) {
+      return { ok: false, code: "replacement_attempts_exhausted" };
+    } else ordinal = attempt.nextOrdinal;
+  }
+  const key = replacementAttemptKey(input.evidenceId, latest, ordinal);
   const before = await client.reportGenerationRequest.findFirst({
     where: { evidenceId: input.evidenceId, clientRequestKey: key },
     select: { id: true },
@@ -706,6 +857,8 @@ export async function requestKeyCompromiseReplacement(
     forceRegenerate: true,
     intent: "NEW_VERSION",
     clientRequestKey: key,
+    // The replacement's own request identity: never another purpose's chain.
+    systemReissueIdentity: `kc${ordinal}`,
     regenerateReason: `key_compromise_replacement_v${latest}`,
     requestedByUserId: input.actorUserId,
   });
@@ -717,4 +870,66 @@ export async function requestKeyCompromiseReplacement(
     outcome: requested.outcome,
     replacesReportVersion: latest,
   };
+}
+
+/**
+ * RG-03 (PRO-O1-13) — THE DURABLE CONTINUATION of every recent key-compromise
+ * declaration's owner notices.
+ *
+ * A declaration notifies at most KEY_COMPROMISE_INLINE_NOTICE_LIMIT subjects
+ * inline; records beyond it were `deferred`, and a failed notice transaction
+ * was counted and dropped — completed only if an operator declared the same
+ * compromise again. The platform maintenance sweep now calls this every tick:
+ * for each compromised key material revoked within the lookback it runs the
+ * same idempotent fan-out (one notice per recipient, record and compromise,
+ * decided under the per-record lock), bounded per call. No schema: the notice
+ * rows themselves are the progress record.
+ */
+export const KEY_COMPROMISE_CONTINUATION_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
+export const KEY_COMPROMISE_CONTINUATION_LIMIT = 200;
+
+export async function continueKeyCompromiseNotices(
+  input: { now?: Date; inlineLimit?: number } = {},
+  client: PrismaClient = defaultPrisma,
+): Promise<{ materials: number; noticesWritten: number; deferred: number; failed: number }> {
+  const now = input.now ?? new Date();
+  const revoked = await client.signingKey.findMany({
+    where: { revokedAt: { gte: new Date(now.getTime() - KEY_COMPROMISE_CONTINUATION_LOOKBACK_MS) } },
+    select: { keyId: true, version: true, publicKeyPem: true, fingerprintSha256: true, revokedAt: true },
+    take: 50,
+  });
+  const byFingerprint = new Map<string, Array<{ keyId: string; version: number }>>();
+  for (const r of revoked) {
+    let fp = r.fingerprintSha256?.toLowerCase() ?? null;
+    if (!fp) {
+      try {
+        fp = publicKeySpkiSha256(r.publicKeyPem);
+      } catch {
+        fp = null;
+      }
+    }
+    if (!fp) continue;
+    const list = byFingerprint.get(fp) ?? [];
+    list.push({ keyId: r.keyId, version: r.version });
+    byFingerprint.set(fp, list);
+  }
+  let budget = Math.max(0, Math.trunc(input.inlineLimit ?? KEY_COMPROMISE_CONTINUATION_LIMIT));
+  const out = { materials: 0, noticesWritten: 0, deferred: 0, failed: 0 };
+  for (const [fp, keyIdentities] of byFingerprint) {
+    // Only material DECLARED compromised (an authorization-only revocation is
+    // not a compromise and owes no notice).
+    const declaredAt = await keyMaterialCompromisedAt(client, fp).catch(() => null);
+    if (!declaredAt) continue;
+    out.materials += 1;
+    const summary = await notifyOwnersOfKeyCompromise(
+      { fingerprints: [fp], keyIdentities, declaredAt, actorUserId: null, inlineLimit: budget },
+      client,
+    );
+    const written = summary.inAppNotices;
+    out.noticesWritten += written;
+    out.deferred += summary.deferred;
+    out.failed += summary.failed;
+    budget = Math.max(0, budget - written);
+  }
+  return out;
 }

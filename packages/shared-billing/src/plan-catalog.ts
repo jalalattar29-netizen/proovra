@@ -1253,7 +1253,23 @@ export function resolveOutputIssuanceEntitlement(input: {
    * reader learns coverage from the stored `earned` fact instead.
    */
   freeAllowanceSlot?: boolean;
+  /**
+   * RG-03 (PRO-O1C-02, DEC-03) — the question is a CUSTOMER-REQUESTED new
+   * version (purpose updated_report). A stored PAID earned fact makes the
+   * first issuance, its recovery and a system replacement owed; it does not
+   * keep unlimited customer new versions open after a lapse — for those the
+   * CURRENT lifecycle decides. The FREE allowance fact is the Free record's
+   * entitlement itself and is kept (its no-material-change rule applies).
+   */
+  customerNewVersion?: boolean;
 }): OutputIssuanceEntitlement {
+  if (
+    input.customerNewVersion === true &&
+    input.earned &&
+    input.earned.basis !== "FREE_ALLOWANCE"
+  ) {
+    input = { ...input, earned: null };
+  }
   if (input.funding === "EVIDENCE_CREDIT") {
     return {
       decision: "ENTITLED",

@@ -258,7 +258,7 @@ export async function commitIssuance(input: IssuanceCommitInput): Promise<void> 
     // here duplicated its first step. The request row names what was asked.
     const asked = await tx.reportGenerationRequest.findUnique({
       where: { id: input.command.requestId },
-      select: { teamId: true, artifactType: true, forceRegenerate: true },
+      select: { teamId: true, artifactType: true, forceRegenerate: true, purpose: true },
     });
     if (!asked) throw new ReportClaimLost(input.command.requestId);
     // AUD-0017 (TXP-024) — on this transaction's connection.

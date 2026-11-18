@@ -62,6 +62,9 @@ export const OPS_MASTER_RECONCILE_LEASE_KEY = "cron:ops-master-reconcile";
 export const RELIABILITY_UPLOAD_RECONCILE_LEASE_KEY =
   "cron:reliability-upload-reconcile";
 export const OUTPUT_HOLD_RELEASE_LEASE_KEY = "cron:output-hold-release";
+/** RG-03 (PRO-O1-13) — the key-compromise owner-notice continuation. */
+export const KEY_COMPROMISE_NOTICE_LEASE_KEY = "cron:key-compromise-notices";
+type KeyCompromiseNoticeSweepSummary = { materials: number; noticesWritten: number; deferred: number; failed: number };
 
 export type PlatformMaintenanceStepOutcome<T> =
   | { status: "completed"; summary: T; durationMs: number }
@@ -74,6 +77,7 @@ export type PlatformMaintenanceSweepResult = {
   uploadReconcile: PlatformMaintenanceStepOutcome<ReconcileStalledSummary>;
   /** REPORT-004 — absent when no release sweep is configured (a narrow test). */
   outputHoldRelease?: PlatformMaintenanceStepOutcome<OutputHoldSweepSummary>;
+  keyCompromiseNotices?: PlatformMaintenanceStepOutcome<KeyCompromiseNoticeSweepSummary>;
 };
 
 type SweepLogger = {
@@ -86,6 +90,7 @@ export type PlatformMaintenanceDeps = {
   runMasterReconcile: () => Promise<ReconcileSummary>;
   reconcileUploads: () => Promise<ReconcileStalledSummary>;
   releaseHeldOutputs?: () => Promise<OutputHoldSweepSummary>;
+  continueKeyCompromiseNotices?: () => Promise<KeyCompromiseNoticeSweepSummary>;
   withLease: <T>(
     key: string,
     ttlMs: number,
@@ -97,18 +102,26 @@ export type PlatformMaintenanceDeps = {
 };
 
 async function defaultDeps(): Promise<PlatformMaintenanceDeps> {
-  const [{ runMasterReconcile }, { reconcileUploads }, { withLease }, { captureException }, { sweepHeldOutputs }] =
-    await Promise.all([
-      import("../routes/ops.routes.js"),
-      import("../services/reliability/upload-reconciliation.service.js"),
-      import("../services/rate-limit.js"),
-      import("../observability/sentry.js"),
-      import("../services/governance/output-hold-release.service.js"),
-    ]);
+  const [
+    { runMasterReconcile },
+    { reconcileUploads },
+    { withLease },
+    { captureException },
+    { sweepHeldOutputs },
+    { continueKeyCompromiseNotices },
+  ] = await Promise.all([
+    import("../routes/ops.routes.js"),
+    import("../services/reliability/upload-reconciliation.service.js"),
+    import("../services/rate-limit.js"),
+    import("../observability/sentry.js"),
+    import("../services/governance/output-hold-release.service.js"),
+    import("../services/operations/signing-key-compromise-owners.service.js"),
+  ]);
   return {
     runMasterReconcile,
     reconcileUploads: () => reconcileUploads({}),
     releaseHeldOutputs: () => sweepHeldOutputs(),
+    continueKeyCompromiseNotices: () => continueKeyCompromiseNotices(),
     withLease,
     captureException,
   };
@@ -202,7 +215,17 @@ export async function runPlatformMaintenanceSweep(
       "output_hold.stale_detected",
     );
   }
-  return { trigger, masterReconcile, uploadReconcile, ...(outputHoldRelease ? { outputHoldRelease } : {}) };
+  const continueNotices = deps.continueKeyCompromiseNotices;
+  const keyCompromiseNotices = continueNotices
+    ? await runStep("key_compromise_notices", KEY_COMPROMISE_NOTICE_LEASE_KEY, continueNotices, deps, trigger)
+    : undefined;
+  return {
+    trigger,
+    masterReconcile,
+    uploadReconcile,
+    ...(outputHoldRelease ? { outputHoldRelease } : {}),
+    ...(keyCompromiseNotices ? { keyCompromiseNotices } : {}),
+  };
 }
 
 /** Never-rejecting wrapper for the interval timer. */

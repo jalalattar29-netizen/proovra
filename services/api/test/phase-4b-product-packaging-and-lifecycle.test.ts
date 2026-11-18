@@ -1539,20 +1539,25 @@ describe("17. Verification package wires 7 lifecycle manifests", () => {
     expect(src).toContain("buildLifecycleAndExchangeManifests");
   });
 
-  it("verification-package-lifecycle.ts declares all 7 path strings under lifecycle/ prefix", () => {
+  // PRO-W1C-02 (WS-OUT RG-18) — the exchange package states only facts about
+  // its selection: the workspace-wide retention / exchange / transfer families
+  // (other packages, counterparties) are no longer written, and no family is
+  // filled with a placeholder state when no matching row exists.
+  it("verification-package-lifecycle.ts declares the selection-scoped lifecycle/ paths only", () => {
     const src = fs.readFileSync(lcPath, "utf8");
-    const expectedPaths = [
+    for (const p of [
       "lifecycle/lifecycle-manifest.json",
-      "lifecycle/retention-manifest.json",
       "lifecycle/legal-hold-manifest.json",
       "lifecycle/archive-manifest.json",
       "lifecycle/destruction-manifest.json",
-      "lifecycle/exchange-manifest.json",
-      "lifecycle/transfer-manifest.json",
-    ];
-    for (const p of expectedPaths) {
+    ]) {
       expect(src).toContain(p);
     }
+    for (const p of ["lifecycle/exchange-manifest.json", "lifecycle/transfer-manifest.json"]) {
+      expect(src).not.toContain(p);
+    }
+    expect(src).not.toMatch(/state: row?.status ?? "ACTIVE"/);
+    expect(src).toContain("evidenceIds: ReadonlyArray<string>");
   });
 });
 

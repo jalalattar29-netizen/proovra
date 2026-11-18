@@ -381,6 +381,9 @@ export {
   outputLifecycleRefusal,
   OUTPUT_PRODUCING_LIFECYCLE_STATE_LIST,
   decideOutputProduction,
+  // RG-03 (PRO-O1Z-01) — the system re-issue purposes (lifecycle, not entitlement).
+  SYSTEM_REISSUE_REQUEST_PURPOSES,
+  isSystemReissueRequestPurpose,
   // F-02 (2026-11-13) — the first issuance a record earned is not refused for storage.
   STORAGE_EXEMPT_FIRST_ISSUANCE_BASES,
   firstIssuanceExemptFromStorageLimit,

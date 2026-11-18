@@ -12963,6 +12963,18 @@ if (
             code: "KEY_COMPROMISE_REPLACEMENT_NOT_REQUESTED",
             message: "The replacement could not be requested now. Try again later.",
           },
+          // RG-03 (PRO-W1-02) — another forced request for this record is running.
+          other_request_active: {
+            code: "KEY_COMPROMISE_REPLACEMENT_OTHER_REQUEST_ACTIVE",
+            message:
+              "Another report version for this record is being issued now. When it finishes, it is sealed with a current key; check this record again then.",
+          },
+          // RG-03 (PRO-W1-08) — the bounded attempts all ended without a replacement.
+          replacement_attempts_exhausted: {
+            code: "KEY_COMPROMISE_REPLACEMENT_ATTEMPTS_EXHAUSTED",
+            message:
+              "The replacement could not be issued after several attempts. Nothing was changed; contact PROOVRA support to complete it.",
+          },
         };
         return reply.code(replaced.code === "not_found" ? 404 : 409).send({
           ...refusal[replaced.code],

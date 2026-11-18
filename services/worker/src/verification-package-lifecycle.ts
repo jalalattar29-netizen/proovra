@@ -31,321 +31,142 @@ export type LifecycleManifestFileEntry = {
 
 const MAX_IDS = 50;
 
-function evidenceIdMatches(json: unknown, evidenceId: string): boolean {
-  if (!Array.isArray(json)) return false;
-  return json.some((v) => typeof v === "string" && v === evidenceId);
-}
-
+/**
+ * PRO-W1C-02 (RG-18) — THE SELECTION, NOT THE WORKSPACE.
+ *
+ * An exchange package hands SELECTED records to another party. Every family
+ * here used to take "the latest row in the workspace" — another record's legal
+ * hold, the last counterparty a transfer went to, another package — none of
+ * them about the selection and none filtered by the requester's reach; and
+ * where no row existed the file still stated an affirmative state (hold
+ * ACTIVE, destruction REQUESTED, transfer INITIATED).
+ *
+ * Now: `evidenceIds` (the builder's scoped, reach-checked id list) is REQUIRED
+ * and every family reads only rows that name a selected record. A family with
+ * no matching row is OMITTED, never filled with a placeholder state.
+ */
 export async function buildLifecycleAndExchangeManifests(input: {
   prisma: PrismaClient;
   teamId: string;
-  evidenceId?: string;
+  /** The package's scoped selection. Empty = nothing to state. */
+  evidenceIds: ReadonlyArray<string>;
 }): Promise<ReadonlyArray<LifecycleManifestFileEntry>> {
-  const { prisma, teamId, evidenceId } = input;
+  const { prisma, teamId } = input;
+  const ids = [...new Set(input.evidenceIds)].slice(0, 500);
   const now = new Date().toISOString();
   const out: LifecycleManifestFileEntry[] = [];
+  if (ids.length === 0) return out;
+  const names = (json: unknown) => Array.isArray(json) && json.some((v) => typeof v === "string" && ids.includes(v));
 
-  // --- lifecycle-manifest.json ---
+  let holds: Array<{ id: string; scope: string; status: string; evidenceId: string | null; createdAt: Date; releasedAtUtc: Date | null }> = [];
+  let archives: Array<{ evidenceId: string; fromTier: string; toTier: string; transitionedAtUtc: Date; costEstimateUsdMicros: bigint | number }> = [];
+  let destructions: Array<{ id: string; state: string; evidenceIds: unknown; certifiedAtUtc: Date | null }> = [];
   try {
-    // GOV-005: the one retention store records bind to.
-    const totalPolicies = await prisma.evidenceRetentionPolicy
-      .count({ where: { teamId } })
-      .catch(() => 0);
-    const totalLegalHolds = await prisma.evidenceLegalHold
-      .count({
-        where: evidenceId
-          ? { teamId, scope: "EVIDENCE", evidenceId }
-          : { teamId },
-      })
-      .catch(() => 0);
-    const totalArchiveTransitions = await prisma.archiveTierTransition
-      .count({
-        where: evidenceId ? { teamId, evidenceId } : { teamId },
-      })
-      .catch(() => 0);
-    const totalDestructionRequests = await prisma.destructionRequest
-      .count({ where: { teamId } })
-      .catch(() => 0);
-    out.push({
-      path: "lifecycle/lifecycle-manifest.json",
-      json: {
-        schemaVersion: "PROOVRA_LIFECYCLE_MANIFEST_V1",
-        generatedAtUtc: now,
-        teamId,
-        totalPolicies,
-        totalLegalHolds,
-        totalArchiveTransitions,
-        totalDestructionRequests,
-      },
-    });
+    holds = (await prisma.evidenceLegalHold.findMany({
+      where: { teamId, scope: "EVIDENCE", evidenceId: { in: ids } },
+      orderBy: { createdAt: "desc" },
+      take: MAX_IDS,
+      select: { id: true, scope: true, status: true, evidenceId: true, createdAt: true, releasedAtUtc: true },
+    })) as typeof holds;
   } catch {
-    // advisory — never fail package generation
+    holds = [];
   }
-
-  // --- retention-manifest.json ---
   try {
-    const row = mapRetentionPolicy(
-      await prisma.evidenceRetentionPolicy
-        .findFirst({ where: { teamId, status: "ACTIVE" }, orderBy: { createdAt: "desc" }, select: { id: true, displayName: true, description: true, retentionDays: true, scope: true } })
-        .catch(() => null),
-    );
-    out.push({
-      path: "lifecycle/retention-manifest.json",
-      json: {
-        schemaVersion: "PROOVRA_RETENTION_MANIFEST_V1",
-        generatedAtUtc: now,
-        policyId: row?.id ?? "",
-        policyName: row?.name ?? "",
-        template: row?.template ?? "CUSTOM",
-        years: row?.years ?? 0,
-        appliesTo: row?.scopeKind ?? "WORKSPACE",
-        isOverride: row?.isOverride ?? false,
-      },
-    });
+    archives = (await prisma.archiveTierTransition.findMany({
+      where: { teamId, evidenceId: { in: ids } },
+      orderBy: { transitionedAtUtc: "desc" },
+      take: MAX_IDS,
+      select: { evidenceId: true, fromTier: true, toTier: true, transitionedAtUtc: true, costEstimateUsdMicros: true },
+    })) as typeof archives;
   } catch {
-    // advisory
+    archives = [];
   }
-
-  // --- legal-hold-manifest.json ---
   try {
-    const row = await prisma.evidenceLegalHold
-      .findFirst({
-        where: evidenceId
-          ? { teamId, scope: "EVIDENCE", evidenceId }
-          : { teamId, status: "ACTIVE" },
+    destructions = (
+      (await prisma.destructionRequest.findMany({
+        where: { teamId },
         orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          scope: true,
-          status: true,
-          evidenceId: true,
-          createdAt: true,
-          releasedAtUtc: true,
-        },
-      })
-      .catch(() => null);
+        take: 500,
+        select: { id: true, state: true, evidenceIds: true, certifiedAtUtc: true },
+      })) as typeof destructions
+    ).filter((r) => names(r.evidenceIds));
+  } catch {
+    destructions = [];
+  }
+
+  // --- lifecycle-manifest.json: counts about the SELECTION ---
+  out.push({
+    path: "lifecycle/lifecycle-manifest.json",
+    json: {
+      schemaVersion: "PROOVRA_LIFECYCLE_MANIFEST_V1",
+      generatedAtUtc: now,
+      teamId,
+      selectedRecordCount: ids.length,
+      totalLegalHolds: holds.length,
+      totalArchiveTransitions: archives.length,
+      totalDestructionRequests: destructions.length,
+    },
+  });
+
+  // --- legal-hold-manifest.json: only a hold that names a selected record ---
+  const hold = holds[0];
+  if (hold) {
     out.push({
       path: "lifecycle/legal-hold-manifest.json",
       json: {
         schemaVersion: "PROOVRA_LEGAL_HOLD_MANIFEST_V1",
         generatedAtUtc: now,
-        holdId: row?.id ?? "",
-        kind: row?.scope ?? "EVIDENCE",
-        state: row?.status ?? "ACTIVE",
-        scopeTargetId: row?.evidenceId ?? null,
-        createdAt: row?.createdAt?.toISOString() ?? now,
-        releasedAtUtc: row?.releasedAtUtc?.toISOString() ?? null,
+        holdId: hold.id,
+        kind: hold.scope,
+        state: hold.status,
+        scopeTargetId: hold.evidenceId,
+        createdAt: hold.createdAt.toISOString(),
+        releasedAtUtc: hold.releasedAtUtc?.toISOString() ?? null,
       },
     });
-  } catch {
-    // advisory
   }
 
   // --- archive-manifest.json ---
-  try {
-    const row = await prisma.archiveTierTransition
-      .findFirst({
-        where: evidenceId ? { teamId, evidenceId } : { teamId },
-        orderBy: { transitionedAtUtc: "desc" },
-        select: {
-          evidenceId: true,
-          fromTier: true,
-          toTier: true,
-          transitionedAtUtc: true,
-          costEstimateUsdMicros: true,
-        },
-      })
-      .catch(() => null);
+  const archive = archives[0];
+  if (archive) {
     out.push({
       path: "lifecycle/archive-manifest.json",
       json: {
         schemaVersion: "PROOVRA_ARCHIVE_MANIFEST_V1",
         generatedAtUtc: now,
-        evidenceId: row?.evidenceId ?? evidenceId ?? "",
-        fromTier: row?.fromTier ?? "HOT",
-        toTier: row?.toTier ?? "HOT",
-        transitionedAtUtc: row?.transitionedAtUtc?.toISOString() ?? now,
-        costEstimateUsdMicros: row ? Number(row.costEstimateUsdMicros) : 0,
+        evidenceId: archive.evidenceId,
+        fromTier: archive.fromTier,
+        toTier: archive.toTier,
+        transitionedAtUtc: archive.transitionedAtUtc.toISOString(),
+        costEstimateUsdMicros: Number(archive.costEstimateUsdMicros),
       },
     });
-  } catch {
-    // advisory
   }
 
   // --- destruction-manifest.json ---
-  try {
-    const rows = await prisma.destructionRequest
-      .findMany({
-        where: { teamId },
-        orderBy: { createdAt: "desc" },
-        take: MAX_IDS,
-        select: {
-          id: true,
-          state: true,
-          evidenceIds: true,
-          certifiedAtUtc: true,
-        },
-      })
-      .catch(
-        () =>
-          [] as Array<{
-            id: string;
-            state: string;
-            evidenceIds: unknown;
-            certifiedAtUtc: Date | null;
-          }>,
-      );
-    const row = evidenceId
-      ? rows.find((r) => evidenceIdMatches(r.evidenceIds, evidenceId)) ?? null
-      : rows[0] ?? null;
-    // DestructionCertificate is a separate model — look it up by requestId if available.
-    const cert = row
-      ? await prisma.destructionCertificate
-          .findFirst({
-            where: { requestId: row.id },
-            select: { certificateHash: true, evidenceCount: true },
-          })
-          .catch(() => null)
-      : null;
-    const evidenceCount = cert?.evidenceCount ??
-      (Array.isArray(row?.evidenceIds) ? (row?.evidenceIds as unknown[]).length : 0);
+  const destruction = destructions[0];
+  if (destruction) {
+    const cert = await prisma.destructionCertificate
+      .findFirst({ where: { requestId: destruction.id }, select: { certificateHash: true, evidenceCount: true } })
+      .catch(() => null);
     out.push({
       path: "lifecycle/destruction-manifest.json",
       json: {
         schemaVersion: "PROOVRA_DESTRUCTION_MANIFEST_V1",
         generatedAtUtc: now,
-        requestId: row?.id ?? "",
-        state: row?.state ?? "REQUESTED",
-        evidenceCount,
-        certifiedAtUtc: row?.certifiedAtUtc?.toISOString() ?? null,
+        requestId: destruction.id,
+        state: destruction.state,
+        evidenceCount:
+          cert?.evidenceCount ?? (Array.isArray(destruction.evidenceIds) ? destruction.evidenceIds.length : 0),
+        certifiedAtUtc: destruction.certifiedAtUtc?.toISOString() ?? null,
         certificateHash: cert?.certificateHash ?? null,
       },
     });
-  } catch {
-    // advisory
   }
 
-  // --- exchange-manifest.json ---
-  try {
-    const rows = await prisma.evidenceExchangePackage
-      .findMany({
-        where: { teamId },
-        orderBy: { createdAt: "desc" },
-        take: MAX_IDS,
-        select: {
-          id: true,
-          kind: true,
-          state: true,
-          evidenceIds: true,
-          packageSha256: true,
-          createdAt: true,
-        },
-      })
-      .catch(
-        () =>
-          [] as Array<{
-            id: string;
-            kind: string;
-            state: string;
-            evidenceIds: unknown;
-            packageSha256: string | null;
-            createdAt: Date;
-          }>,
-      );
-    const row = evidenceId
-      ? rows.find((r) => evidenceIdMatches(r.evidenceIds, evidenceId)) ?? null
-      : rows[0] ?? null;
-    const evidenceCount = row
-      ? Array.isArray(row.evidenceIds)
-        ? row.evidenceIds.length
-        : 0
-      : 0;
-    out.push({
-      path: "lifecycle/exchange-manifest.json",
-      json: {
-        schemaVersion: "PROOVRA_EXCHANGE_MANIFEST_V1",
-        generatedAtUtc: now,
-        packageId: row?.id ?? "",
-        kind: row?.kind ?? "EVIDENCE",
-        state: row?.state ?? "DRAFT",
-        evidenceCount,
-        packageSha256: row?.packageSha256 ?? null,
-        createdAt: row?.createdAt?.toISOString() ?? now,
-      },
-    });
-  } catch {
-    // advisory
-  }
-
-  // --- transfer-manifest.json ---
-  try {
-    const rows = await prisma.chainTransfer
-      .findMany({
-        where: { teamId },
-        orderBy: { createdAt: "desc" },
-        take: MAX_IDS,
-        select: {
-          id: true,
-          fromOrganizationId: true,
-          toOrganizationSlug: true,
-          state: true,
-          evidenceIds: true,
-          createdAt: true,
-          completedAtUtc: true,
-        },
-      })
-      .catch(
-        () =>
-          [] as Array<{
-            id: string;
-            fromOrganizationId: string;
-            toOrganizationSlug: string;
-            state: string;
-            evidenceIds: unknown;
-            createdAt: Date;
-            completedAtUtc: Date | null;
-          }>,
-      );
-    const row = evidenceId
-      ? rows.find((r) => evidenceIdMatches(r.evidenceIds, evidenceId)) ?? null
-      : rows[0] ?? null;
-    const evidenceCount = row
-      ? Array.isArray(row.evidenceIds)
-        ? row.evidenceIds.length
-        : 0
-      : 0;
-    out.push({
-      path: "lifecycle/transfer-manifest.json",
-      json: {
-        schemaVersion: "PROOVRA_TRANSFER_MANIFEST_V1",
-        generatedAtUtc: now,
-        transferId: row?.id ?? "",
-        fromOrganizationId: row?.fromOrganizationId ?? "",
-        toOrganizationSlug: row?.toOrganizationSlug ?? "",
-        state: row?.state ?? "INITIATED",
-        evidenceCount,
-        createdAt: row?.createdAt?.toISOString() ?? now,
-        completedAtUtc: row?.completedAtUtc?.toISOString() ?? null,
-      },
-    });
-  } catch {
-    // advisory
-  }
-
+  // Other exchange packages and chain transfers are the workspace's
+  // relationships with third parties, not facts about this selection: they are
+  // never written into an exchange package.
   return out;
 }
 
-/** GOV-005 — a binding-store policy in the manifest's (lifecycle-template) shape. */
-const mapRetentionPolicy = (p: { id: string; displayName: string; description: string | null; retentionDays: number | null; scope: string } | null) =>
-  p
-    ? {
-        id: p.id,
-        name: p.displayName,
-        template: p.description?.startsWith("lifecycle-template:")
-          ? p.description.slice("lifecycle-template:".length).split(/\s/)[0] || "CUSTOM"
-          : "CUSTOM",
-        years: p.retentionDays === null ? 0 : Math.round((p.retentionDays / 365.25) * 100) / 100,
-        scopeKind: p.scope,
-        isOverride: false,
-      }
-    : null;

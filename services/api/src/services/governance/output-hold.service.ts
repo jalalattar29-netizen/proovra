@@ -9,6 +9,8 @@
  * conditional write, so concurrent callers lift it exactly once — and audits
  * the release. Issuing is the caller's (output-hold-release.service).
  */
+import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
+
 import { prisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { FINALIZATION_GOVERNED_ACTIONS, decideGovernedOutputActions } from "./finalization-governance.service.js";
@@ -28,9 +30,28 @@ export async function tryLiftOutputHold(evidenceId: string): Promise<OutputHoldL
     },
   });
   if (!row?.outputsHeldAtUtc) return "not_held";
+  /*
+   * RG-03 (PRO-WZ-01) — the release is decided for a CURRENT actor of the
+   * workspace. The finalizing actor recorded at hold time is used while they
+   * are still an ACTIVE member; once they left (removed with transfer,
+   * suspended), the record's current owner — the admin the removal handed it
+   * to — is asked instead. Re-deciding for a departed actor answered
+   * no_workspace_membership for ever.
+   */
+  let actorUserId = row.outputsHeldActorUserId ?? row.ownerUserId;
+  if (row.outputsHeldActorUserId && row.outputsHeldActorUserId !== row.ownerUserId) {
+    const workspaceId = await resolveEvidenceWorkspaceId(row, prisma as never).catch(() => null);
+    const stillMember = workspaceId
+      ? await prisma.teamMember.findFirst({
+          where: { teamId: workspaceId, userId: row.outputsHeldActorUserId, status: "ACTIVE" },
+          select: { id: true },
+        })
+      : null;
+    if (!stillMember) actorUserId = row.ownerUserId;
+  }
   const decision = await decideGovernedOutputActions({
     evidenceId,
-    actorUserId: row.outputsHeldActorUserId ?? row.ownerUserId,
+    actorUserId,
     actions: FINALIZATION_GOVERNED_ACTIONS,
   }).catch(() => null);
   if (!decision || !decision.allowed) {

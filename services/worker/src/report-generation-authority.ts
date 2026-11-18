@@ -36,7 +36,7 @@
 
 import { bump } from "@proovra/shared-runtime/ops";
 import { workerOutputEntitlement } from "./output-issuance.js";
-import { decideOutputProduction } from "@proovra/shared";
+import { decideOutputProduction, isSystemReissueRequestPurpose } from "@proovra/shared";
 import {
   createReportGenerationRequest,
   type ReportGenerationPurpose,
@@ -110,6 +110,8 @@ export type ResolvedReportCommand = {
   teamId: string;
   artifactType: string;
   forceRegenerate: boolean;
+  /** RG-03 — the request's purpose (a system re-issue is admitted on lifecycle only). */
+  purpose?: string | null;
   regenerateReason: string | null;
   attemptCount: number;
   /**
@@ -136,7 +138,7 @@ export type ReportCommandResolution =
  * failure — never assumed entitled.
  */
 export async function assertRunAdmittedAtCommit(
-  command: Pick<ResolvedReportCommand, "teamId" | "artifactType" | "forceRegenerate">,
+  command: Pick<ResolvedReportCommand, "teamId" | "artifactType" | "forceRegenerate"> & { purpose?: string | null },
   live: { id: string; teamId: string | null; ownerUserId: string; status: unknown; lifecycleState: unknown; deletedAt: Date | null },
   // AUD-0017 (TXP-023/024) — the commit transaction's client: the admission
   // reads on the connection that holds the record's lock, never a second one.
@@ -148,6 +150,7 @@ export async function assertRunAdmittedAtCommit(
       requestTeamId: command.teamId,
       artifactType: command.artifactType,
       forceRegenerate: command.forceRegenerate,
+      purpose: command.purpose ?? null,
     },
     client,
   );
@@ -171,7 +174,15 @@ export type RunAdmission =
   /** An expected business outcome: settle NOT_APPLICABLE, publish nothing. */
   | { kind: "REFUSED"; refusal: OutputProductionRefusal }
   /** A policy block: BLOCKED_POLICY with this bounded reason, publish nothing. */
-  | { kind: "BLOCKED"; reasonCode: "workspace_mismatch" | "workspace_not_found" | "organization_not_active" | "legal_hold_active" };
+  | {
+      kind: "BLOCKED";
+      reasonCode:
+        | "workspace_mismatch"
+        | "workspace_not_found"
+        | "workspace_closed"
+        | "organization_not_active"
+        | "legal_hold_active";
+    };
 
 /**
  * F-07 (independent forward audit) — THE RUN ADMISSION: may this request's run
@@ -198,21 +209,32 @@ export async function decideRunAdmission(
     requestTeamId: string;
     artifactType: string;
     forceRegenerate: boolean;
+    /** The request's purpose; a system re-issue PROOVRA owes (RG-03). */
+    purpose?: string | null;
   },
   client: WorkerDbClient = prisma,
 ): Promise<RunAdmission> {
   const { evidence } = input;
+  // RG-03 (PRO-O1Z-01, DEC-03) — the linked replacement of a key-compromised
+  // output is owed whatever the subject's plan is now: lifecycle applies,
+  // commercial entitlement does not (the same rule the writer applies).
+  const systemReissue = isSystemReissueRequestPurpose(input.purpose);
   const decision = decideOutputProduction({
     subject: evidence as never,
     artifactType: input.artifactType === "VERIFICATION_PACKAGE" ? "VERIFICATION_PACKAGE" : "REPORT",
-    entitlement: await workerOutputEntitlement(
-      {
-        id: evidence.id,
-        ownerUserId: evidence.ownerUserId,
-        teamId: evidence.teamId ?? null,
-      },
-      client,
-    ),
+    entitlement: systemReissue
+      ? null
+      : await workerOutputEntitlement(
+          {
+            id: evidence.id,
+            ownerUserId: evidence.ownerUserId,
+            teamId: evidence.teamId ?? null,
+            // RG-03 (PRO-O1C-02) — re-derived the same way the API asked it.
+            customerNewVersion: input.purpose === "updated_report",
+          },
+          client,
+        ),
+    systemReissue,
   });
   if (!decision.produce && decision.refusal) return { kind: "REFUSED", refusal: decision.refusal };
   // The record's workspace — its team, or its owner's personal workspace for
@@ -223,8 +245,15 @@ export async function decideRunAdmission(
   // Lifecycle lives on the Organization (a Team has no status of its own), so
   // "is this workspace still allowed to do work" resolves through the org,
   // which is also where suspension is applied.
-  const workspace = await client.team.findUnique({ where: { id: workspaceId }, select: { organizationId: true } });
+  const workspace = await client.team.findUnique({
+    where: { id: workspaceId },
+    select: { organizationId: true, closedAtUtc: true },
+  });
   if (!workspace) return { kind: "BLOCKED", reasonCode: "workspace_not_found" };
+  // RG-03 (PRO-W1-03) — a CLOSED workspace issues no new output (the same
+  // liveness the customer decision reports as WORKSPACE_CLOSED). Recoverable:
+  // a reopen clears closedAtUtc and the next request supersedes this block.
+  if (workspace.closedAtUtc) return { kind: "BLOCKED", reasonCode: "workspace_closed" };
   const organization = await client.organization.findUnique({
     where: { id: workspace.organizationId },
     select: { status: true },
@@ -233,7 +262,10 @@ export async function decideRunAdmission(
   // Regeneration REPLACES a finalised artifact: under an effective hold
   // (record, linked case or workspace) it is refused; a first generation is
   // not, because there is nothing yet to preserve.
-  if (input.forceRegenerate) {
+  // DEC-03 — a legal hold does not block the non-destructive integrity
+  // replacement of preserved material (a system re-issue adds a linked
+  // version; it replaces nothing).
+  if (input.forceRegenerate && !systemReissue) {
     const held = (
       await evaluateEffectiveLegalHold(client as never, { teamId: workspaceId, evidenceId: evidence.id }).catch(() => ({ held: true }))
     ).held;
@@ -264,6 +296,7 @@ export async function resolveAndClaimReportRequest(input: {
       evidenceId: true,
       artifactType: true,
       forceRegenerate: true,
+      purpose: true,
       regenerateReason: true,
       expectedPolicyVersion: true,
       state: true,
@@ -328,6 +361,7 @@ export async function resolveAndClaimReportRequest(input: {
     requestTeamId: request.teamId,
     artifactType: request.artifactType,
     forceRegenerate: request.forceRegenerate,
+    purpose: request.purpose,
   });
   if (admission.kind === "REFUSED") {
     const { settleRequestAsNotApplicable } = await import("./output-production-refusal.js");
@@ -403,6 +437,7 @@ export async function resolveAndClaimReportRequest(input: {
       teamId: workspaceId,
       artifactType: request.artifactType,
       forceRegenerate: request.forceRegenerate,
+      purpose: request.purpose,
       regenerateReason: request.regenerateReason,
       attemptCount: request.attemptCount + 1,
       reportVersion: request.reportVersion,
@@ -713,16 +748,46 @@ export async function mintRequestForLegacyJob(input: {
  * one.) Both go through the SAME durable-row-then-enqueue path the api uses,
  * so there is one request model rather than two.
  */
+/** RG-03 (PRO-W1-04) — rest after a technical terminal before an owed re-ask. */
+export const OWED_TECHNICAL_RETRY_BACKOFF_MS = 30 * 60 * 1000;
+
 export async function requestReportGenerationFromWorker(input: {
   evidenceId: string;
   purpose: ReportGenerationPurpose;
   machineId: string;
   /** Package-only recovery for exactly this report version. */
   packageForReportVersion?: number | null;
+  /**
+   * RG-03 (PRO-W1-04) — the output is OWED (an entitled first issuance, or
+   * the package a committed report lacks). A TECHNICAL terminal of the same
+   * request identity (an outage longer than the retry budget) is superseded
+   * once it has rested OWED_TECHNICAL_RETRY_BACKOFF_MS, within the writer's
+   * MAX_TERMINAL_SUPERSESSIONS bound. Integrity, policy and commercial
+   * terminals are never superseded here (the writer classifies).
+   */
+  owed?: boolean;
   enqueue: (requestId: string) => Promise<{ enqueued: boolean; reason?: string }>;
 }): Promise<{ enqueued: boolean; requestId?: string; reason?: string }> {
   const packageOnly = input.packageForReportVersion != null;
+  let supersedeTechnicalTerminal = false;
+  if (input.owed) {
+    const latest = await prisma.reportGenerationRequest.findFirst({
+      where: {
+        evidenceId: input.evidenceId,
+        artifactType: packageOnly ? "VERIFICATION_PACKAGE" : "REPORT",
+        ...(packageOnly ? { reportVersion: input.packageForReportVersion } : {}),
+      },
+      orderBy: { createdAtUtc: "desc" },
+      select: { state: true, completedAtUtc: true, updatedAtUtc: true },
+    });
+    const restedSince = latest?.completedAtUtc ?? latest?.updatedAtUtc ?? null;
+    supersedeTechnicalTerminal =
+      latest?.state === "FAILED_TERMINAL" &&
+      restedSince !== null &&
+      Date.now() - restedSince.getTime() >= OWED_TECHNICAL_RETRY_BACKOFF_MS;
+  }
   const persisted = await createReportGenerationRequest(prisma, {
+    supersedeTechnicalTerminal,
     evidenceId: input.evidenceId,
     purpose: input.purpose,
     artifactType: packageOnly ? "VERIFICATION_PACKAGE" : "REPORT",

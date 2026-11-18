@@ -2,8 +2,10 @@ import { deriveReportFreshnessForRecord } from "@proovra/shared-runtime/reports"
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import {
+  OutputPolicyBlockedError,
   OutputProductionRefusedError,
   isOutputPolicyBlockedError,
+  packageGateBlockedReason,
   isOutputProductionRefusedError,
   settleRequestAsNotApplicable,
 } from "./output-production-refusal.js";
@@ -1138,39 +1140,40 @@ case "TIMESTAMP_FAILED": {
     case "EVIDENCE_CLAIMED":
       return "Guest evidence ownership claimed.";
 
-    default: {
-      const entries = Object.entries(obj)
-        .filter(([key, value]) => {
-          const lowered = key.toLowerCase();
-          if (
-            lowered.includes("bucket") ||
-            lowered.includes("storagekey") ||
-            lowered === "key" ||
-            lowered.includes("token") ||
-            lowered.includes("secret") ||
-            lowered.includes("password") ||
-            lowered.includes("lat") ||
-            lowered.includes("lng") ||
-            lowered.includes("accuracy") ||
-            lowered.includes("ip") ||
-            lowered.includes("useragent")
-          ) {
-            return false;
-          }
-
-          return (
-            typeof value === "string" ||
-            typeof value === "number" ||
-            typeof value === "boolean"
-          );
-        })
-        .slice(0, 5)
-        .map(([key, value]) => `${key}: ${String(value)}`);
-
-      return entries.length > 0
-        ? entries.join(" • ")
-        : "No structured event details recorded.";
+    // PRO-W1C-06 (RG-18) — explicit, allow-listed summaries for the events
+    // worth describing; enumerated values only (never ids or free text).
+    case "CERTIFICATION_REQUESTED":
+    case "CERTIFICATION_ATTESTED":
+    case "CERTIFICATION_REVOKED": {
+      const type =
+        typeof obj.declarationType === "string" && /^[A-Z_]{1,40}$/.test(obj.declarationType)
+          ? obj.declarationType.replace(/_/g, " ").toLowerCase()
+          : null;
+      const version = Number.isInteger(obj.version) ? Number(obj.version) : null;
+      const detail = [type, version !== null ? `version ${version}` : null].filter(Boolean).join(", ");
+      const what =
+        event === "CERTIFICATION_REQUESTED"
+          ? "Certification requested"
+          : event === "CERTIFICATION_ATTESTED"
+            ? "Certification declaration recorded (a statement by the attesting account, not verified by PROOVRA)"
+            : "Certification revoked";
+      return detail ? `${what} (${detail}).` : `${what}.`;
     }
+
+    case "EVIDENCE_OWNERSHIP_TRANSFERRED":
+      return "Record ownership transferred within the workspace.";
+
+    /*
+     * PRO-W1C-06 (RG-18) — AN EVENT WITHOUT A SUMMARY PRINTS NO PAYLOAD.
+     *
+     * The default arm joined the first five primitive payload fields through a
+     * key-substring deny-list, so an issued, immutable report printed internal
+     * user ids, link/session ids and free-text revoke reasons nobody chose to
+     * print (and any field a future event adds). The timeline already names
+     * the event; its payload stays in the custody chain.
+     */
+    default:
+      return "Event details are not printed in the report.";
   }
 }
 
@@ -4268,6 +4271,11 @@ async function runReportGeneration(
      * commercial answer instead of escalating an outage.
      */
     let packageAllowanceRefusal: PackageAllowanceRefusal | null = null;
+    // RG-03 (PRO-W1-01) — a governance gate denial of the package this run
+    // owns. The request is not SUCCEEDED without its package: it settles as a
+    // BLOCKED_POLICY with the gate's reason (a hold is recoverable, so the
+    // package-only re-ask supersedes it once the hold ends).
+    let packageGateDenial: { outcome: string } | null = null;
 
     /*
      * =====================================================================
@@ -5946,6 +5954,7 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
             "Every verification package of this report version is already published",
           );
         } else if (verificationError instanceof PackageGateDeniedError) {
+          packageGateDenial = { outcome: String(verificationError.outcome) };
           await failIssuance({ requestId: command.requestId, reason: `PACKAGE_GATE_DENIED:${verificationError.reason}`, fence: { claimedAtUtc: command.claimedAtUtc } });
           try {
             const { bump } = await import("@proovra/shared-runtime/ops");
@@ -6407,6 +6416,9 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           ? "NOT_APPLICABLE_STORAGE_LIMIT"
           : "NOT_APPLICABLE_NOT_ENTITLED",
       );
+    }
+    if (packageGateDenial) {
+      throw new OutputPolicyBlockedError(packageGateBlockedReason(packageGateDenial.outcome));
     }
     if (packageTechnicalFailure && verificationPackageEntitled) {
       await recordPackageGenerationIncident({

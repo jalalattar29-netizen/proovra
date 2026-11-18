@@ -780,7 +780,37 @@ function SignerDetailDrawer({
               body: JSON.stringify({ teamId, reason: reason.trim(), ...scope }),
             },
           );
-        })) as { result?: { state?: string; status?: string; revokedSignerIds?: string[] } } | undefined;
+        })) as
+          | {
+              result?: {
+                state?: string;
+                status?: string;
+                revokedSignerIds?: string[];
+                ownerNotices?: {
+                  affectedRecords?: number;
+                  inAppNotices?: number;
+                  alreadyNotified?: number;
+                  deferred?: number;
+                  failed?: number;
+                  noAddress?: number;
+                } | null;
+              };
+            }
+          | undefined;
+        // RG-03 (PRO-O1-13) — say what the owner fan-out did. Older APIs send
+        // no ownerNotices; nothing is claimed then. Deferred/failed notices
+        // are continued by the platform maintenance sweep (no repeat needed).
+        const notices = action === "compromise" ? res?.result?.ownerNotices : undefined;
+        const noticeLine =
+          notices === undefined
+            ? ""
+            : notices === null
+              ? " Owner notices could not be sent now; they are retried automatically."
+              : ` Owner notices: ${notices.inAppNotices ?? 0} sent, ${notices.alreadyNotified ?? 0} already notified${
+                  (notices.deferred ?? 0) + (notices.failed ?? 0) > 0
+                    ? `, ${(notices.deferred ?? 0) + (notices.failed ?? 0)} pending (continued automatically)`
+                    : ""
+                }${(notices.noAddress ?? 0) > 0 ? `, ${notices.noAddress} in-app only (no e-mail address)` : ""}.`;
 
         // "Recorded" was the old copy, and it was the honest word for what the
         // old backend did: it recorded an event and changed nothing. Now the
@@ -790,10 +820,10 @@ function SignerDetailDrawer({
         onSuccess(
           state === "already"
             ? action === "compromise"
-              ? "No change — this key is already declared compromised."
+              ? `No change — this key is already declared compromised.${noticeLine}`
               : `No change — this signer is already ${String(res?.result?.status ?? "").toLowerCase()}.`
             : action === "compromise"
-              ? `Key declared compromised. ${res?.result?.revokedSignerIds?.length ?? 0} signer(s) withdrawn; every use of the key is revoked.`
+              ? `Key declared compromised. ${res?.result?.revokedSignerIds?.length ?? 0} signer(s) withdrawn; every use of the key is revoked.${noticeLine}`
               : action === "revoke"
                 ? "Signer authorization revoked. It can no longer sign new material."
                 : action === "retire"

@@ -117,8 +117,11 @@ function project(input: {
    * answered by its ledger row).
    */
   earnedUnreadable?: boolean;
+  /** RG-03 (PRO-O1C-02) — a customer new version: a paid earned fact does not decide it. */
+  customerNewVersion?: boolean;
 }): EvidenceOutputEligibility {
   const issuance = resolveOutputIssuanceEntitlement({
+    customerNewVersion: input.customerNewVersion,
     // An unreadable earned fact leaves the decision without its input: the
     // one resolver answers UNRESOLVED for an unknown plan (credits excepted).
     plan: input.earnedUnreadable ? null : input.plan,
@@ -261,6 +264,8 @@ export async function resolveEvidenceOutputEligibility(input: {
    * a second authority — it IS the envelope's answer, handed along.
    */
   plan?: PlanType | null;
+  /** RG-03 (PRO-O1C-02) — eligibility for a customer-requested new version. */
+  customerNewVersion?: boolean;
 }): Promise<EvidenceOutputEligibility> {
   const [subject, earnedById, funding] = await Promise.all([
     resolveSubject({ ownerUserId: input.ownerUserId, teamId: input.teamId }),
@@ -284,6 +289,7 @@ export async function resolveEvidenceOutputEligibility(input: {
     lifecycle,
     earned: earnedById?.get(input.evidenceId) ?? null,
     earnedUnreadable: earnedById === null,
+    customerNewVersion: input.customerNewVersion,
   });
 }
 
