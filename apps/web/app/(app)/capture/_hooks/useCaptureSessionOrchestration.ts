@@ -120,7 +120,10 @@ export type CaptureSessionAddFiles = (
     /** Stored on the part as its source label (server bound: 120 chars). */
     sourceLabel?: string;
     /** F-P1-09 — audio facts of a recording (a video without microphone). */
-    audioSignals?: Pick<SessionItemClientSignals, "audioTracks" | "audioNotCapturedReason">;
+    audioSignals?: Pick<
+      SessionItemClientSignals,
+      "audioTracks" | "audioNotCapturedReason" | "audioInterrupted" | "audioInterruptedReason"
+    >;
   }
 ) => Promise<void>;
 

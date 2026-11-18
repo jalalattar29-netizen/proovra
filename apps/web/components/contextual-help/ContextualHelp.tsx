@@ -26,6 +26,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { writePreferenceStorage } from "../../lib/consent";
 
 export type HelpSurface =
   | "capture"
@@ -135,11 +136,8 @@ export function ContextualHelp({
 
   function dismiss() {
     setDismissed(true);
-    try {
-      window.localStorage.setItem(dismissKey, "true");
-    } catch {
-      /* ignore */
-    }
+    // PRO-C1C-04 — persisted only with preferences consent; hidden for this mount either way.
+    writePreferenceStorage(dismissKey, "true");
   }
 
   return (

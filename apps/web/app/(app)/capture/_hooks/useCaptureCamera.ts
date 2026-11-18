@@ -8,6 +8,13 @@ import {
   logCaptureClientError,
 } from "../_lib/capture-errors";
 import type { CaptureSessionAddFiles } from "./useCaptureSessionOrchestration";
+import {
+  recordingByteBudget,
+  recordingCanStart,
+  recordingNoRoomMessage,
+  recordingReachedBudget,
+  recordingStoppedAtLimitMessage,
+} from "../_lib/recording-budget";
 
 type CaptureToast = (
   message: string,
@@ -18,11 +25,14 @@ type CaptureToast = (
 type UseCaptureCameraParams = {
   addFilesToSessionRef: MutableRefObject<CaptureSessionAddFiles | null>;
   addToast: CaptureToast;
+  /** PRO-C1-07 — bytes already staged in the session (the recording's budget). */
+  getStagedBytes?: () => number;
 };
 
 export function useCaptureCamera({
   addFilesToSessionRef,
   addToast,
+  getStagedBytes,
 }: UseCaptureCameraParams) {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraMode, setCameraMode] = useState<CameraMode>(null);
@@ -322,6 +332,13 @@ export function useCaptureCamera({
       return;
     }
 
+    // PRO-C1-07 — a recording that could never be added is not started.
+    const budget = recordingByteBudget(getStagedBytes?.() ?? 0);
+    if (!recordingCanStart(budget)) {
+      setCameraError(recordingNoRoomMessage());
+      return;
+    }
+
     try {
       recordedChunksRef.current = [];
       setRecordingSeconds(0);
@@ -340,11 +357,32 @@ export function useCaptureCamera({
 
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
 
+      let recordedBytes = 0;
+      let stoppedAtLimit = false;
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
+          recordedBytes += event.data.size;
+          // PRO-C1-07 — stop at the budget, so the clip is always stageable.
+          if (!stoppedAtLimit && recordingReachedBudget(recordedBytes, budget) && recorder.state !== "inactive") {
+            stoppedAtLimit = true;
+            recorder.stop();
+            addToast(recordingStoppedAtLimitMessage(budget), "warning");
+          }
         }
       };
+
+      // PRO-C1-10 — a microphone muted, unplugged or revoked mid-recording
+      // leaves a marker: the start-time audio facts no longer describe it.
+      let audioInterruption: "TRACK_ENDED" | "TRACK_MUTED" | null = null;
+      for (const track of stream.getAudioTracks()) {
+        track.addEventListener("ended", () => {
+          audioInterruption = "TRACK_ENDED";
+        });
+        track.addEventListener("mute", () => {
+          audioInterruption ??= "TRACK_MUTED";
+        });
+      }
 
       // B4-F-303 — the marker comes from the stream actually recorded, not
       // from the name of a permission error: any recording without an audio
@@ -375,6 +413,8 @@ export function useCaptureCamera({
 
         if (blob.size === 0) {
           setCameraError("Recorded video is empty.");
+          // PRO-C1Z-02 — the overlay returns to Record (not a stuck REC).
+          setIsRecording(false);
           return;
         }
 
@@ -394,7 +434,11 @@ export function useCaptureCamera({
         try {
           await addFilesToSessionRef.current?.([recordedFile], {
             sessionEvidenceType: "VIDEO",
-            ...(audioReason ? { audioSignals: videoWithoutAudioSignals(audioReason) } : {}),
+            ...(audioReason
+              ? { audioSignals: videoWithoutAudioSignals(audioReason) }
+              : audioInterruption
+                ? { audioSignals: { audioInterrupted: true, audioInterruptedReason: audioInterruption } }
+                : {}),
           });
         } catch (err) {
           // F-24 — the recording was refused, never silently dropped: the

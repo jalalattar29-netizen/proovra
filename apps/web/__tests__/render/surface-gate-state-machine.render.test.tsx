@@ -159,7 +159,7 @@ class NotFoundBoundary extends React.Component<
 }
 
 /** Exposes `switchWorkspace` so a test can drive the SWITCHING transition. */
-let switcher: ((id: string | null) => Promise<void>) | null = null;
+let switcher: ((id: string | null) => Promise<boolean | void>) | null = null;
 /** `refresh()` enters SWITCHING too, but targeting the CURRENT workspace (NEW-070). */
 let refresher: (() => Promise<void>) | null = null;
 function Switcher() {

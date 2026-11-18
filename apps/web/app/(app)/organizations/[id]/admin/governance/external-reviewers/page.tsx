@@ -50,7 +50,7 @@ import { PageRouteGate } from "../../../../../../../components/navigation/PageRo
 import { apiFetch, isApiResponseError } from "../../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../../lib/feedback/toSafeUserError";
 import { formatUtcAuditDateTime } from "../../../../../../../lib/date";
-import { useTeamId } from "../../../../../../../lib/platform-context";
+import { useActiveSpace, useTeamId } from "../../../../../../../lib/platform-context";
 import { PageSection } from "../../../../../../../components/ui/PageShell";
 import { Card } from "../../../../../../../components/ui/Card";
 import { Badge } from "../../../../../../../components/ui/Badge";
@@ -126,6 +126,7 @@ function ExternalReviewerGovernanceView() {
   const params = useParams<{ id: string }>();
   const orgId = params?.id ?? "";
   const teamId = useTeamId();
+  const activeSpace = useActiveSpace();
   const [state, setState] = useState<Loadable<GrantsResponse>>({
     kind: "loading",
   });
@@ -260,6 +261,10 @@ function ExternalReviewerGovernanceView() {
         title="External reviewer grants"
         headerAction={<Badge tone="governance" dot>Read-only</Badge>}
       >
+        {/* PRO-TZ-04 — the grants read is bound to the ACTIVE workspace; say which. */}
+        <p data-testid="external-reviewers-workspace-scope">
+          Showing grants of the active workspace{activeSpace?.displayName ? `: ${activeSpace.displayName}` : ""}. Switch workspace to see another workspace's grants.
+        </p>
         <p
           style={{
             margin: 0,

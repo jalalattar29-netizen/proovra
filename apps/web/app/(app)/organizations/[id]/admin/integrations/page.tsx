@@ -32,10 +32,11 @@
  */
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
+import { useOptionalPlatformContext } from "../../../../../../lib/platform-context/PlatformContextProvider";
 import { apiFetch, isApiResponseError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { Card } from "../../../../../../components/ui/Card";
@@ -123,6 +124,23 @@ export default function OrganizationAdminIntegrationsPage() {
 function IntegrationsTab() {
   const params = useParams<{ id: string }>();
   const orgId = params?.id ?? "";
+  const router = useRouter();
+  const platform = useOptionalPlatformContext();
+  const [switchNotice, setSwitchNotice] = useState<string | null>(null);
+  const manageIn = useCallback(
+    async (workspaceId: string) => {
+      setSwitchNotice(null);
+      if (platform && platform.activeWorkspaceId !== workspaceId) {
+        const switched = await platform.switchWorkspace(workspaceId);
+        if (switched === false) {
+          setSwitchNotice("PROOVRA could not switch to that workspace, so its integrations were not opened.");
+          return;
+        }
+      }
+      router.push("/integrations");
+    },
+    [platform, router],
+  );
 
   const [state, setState] = useState<Loadable<WorkspacesResponse>>({
     kind: "loading",
@@ -178,6 +196,11 @@ function IntegrationsTab() {
       data-org-id={orgId}
       style={{ display: "flex", flexDirection: "column", gap: 24 }}
     >
+      {switchNotice ? (
+        <p role="alert" data-testid="integrations-switch-refused">
+          {switchNotice}
+        </p>
+      ) : null}
       {/* Intro */}
       <Card
         variant="summary"
@@ -235,16 +258,18 @@ function IntegrationsTab() {
                 // integrations portal. The integrations page reads the
                 // active workspace from platform-context; the ?team hint
                 // lets it land pre-scoped where supported.
-                <Link
-                  href={`/integrations?team=${encodeURIComponent(w.id)}`}
+                // PRO-TZ-04 — the portal reads the ACTIVE workspace, so
+                // "Manage" switches to the row's workspace first (as the
+                // setup wizard does) and opens nothing when that is refused.
+                <Button
+                  variant="secondary"
+                  size="sm"
                   data-testid={`integrations-open-${w.id}`}
                   data-workspace-id={w.id}
-                  style={{ textDecoration: "none" }}
+                  onClick={() => void manageIn(w.id)}
                 >
-                  <Button variant="secondary" size="sm">
-                    Manage →
-                  </Button>
-                </Link>
+                  Manage →
+                </Button>
               )}
             />
           </div>

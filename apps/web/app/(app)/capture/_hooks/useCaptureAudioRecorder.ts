@@ -13,6 +13,13 @@ import {
   logCaptureClientError,
 } from "../_lib/capture-errors";
 import type { CaptureSessionAddFiles } from "./useCaptureSessionOrchestration";
+import {
+  recordingByteBudget,
+  recordingCanStart,
+  recordingNoRoomMessage,
+  recordingReachedBudget,
+  recordingStoppedAtLimitMessage,
+} from "../_lib/recording-budget";
 
 type CaptureToast = (
   message: string,
@@ -25,6 +32,8 @@ type UseCaptureAudioRecorderParams = {
   addToast: CaptureToast;
   closeCamera: () => void;
   onClearPageError: () => void;
+  /** PRO-C1-07 — bytes already staged in the session (the recording's budget). */
+  getStagedBytes?: () => number;
 };
 
 export function useCaptureAudioRecorder({
@@ -32,6 +41,7 @@ export function useCaptureAudioRecorder({
   addToast,
   closeCamera,
   onClearPageError,
+  getStagedBytes,
 }: UseCaptureAudioRecorderParams) {
   const [audioRecorderOpen, setAudioRecorderOpen] = useState(false);
   const [audioRecorderState, setAudioRecorderState] =
@@ -137,6 +147,14 @@ export function useCaptureAudioRecorder({
       return;
     }
 
+    // PRO-C1-07 — a recording that could never be added is not started.
+    const budget = recordingByteBudget(getStagedBytes?.() ?? 0);
+    if (!recordingCanStart(budget)) {
+      setAudioRecorderState("failed");
+      setAudioRecorderError(recordingNoRoomMessage());
+      return;
+    }
+
     try {
       const preferredMimeType = pickSupportedAudioMimeType();
       let stream: MediaStream;
@@ -162,9 +180,18 @@ export function useCaptureAudioRecorder({
           ? new MediaRecorder(stream, { mimeType: preferredMimeType })
           : new MediaRecorder(stream);
 
+      let recordedBytes = 0;
+      let stoppedAtLimit = false;
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
+          recordedBytes += event.data.size;
+          // PRO-C1-07 — stop at the budget, so the recording is always stageable.
+          if (!stoppedAtLimit && recordingReachedBudget(recordedBytes, budget) && recorder.state !== "inactive") {
+            stoppedAtLimit = true;
+            recorder.stop();
+            addToast(recordingStoppedAtLimitMessage(budget), "warning");
+          }
         }
       };
 

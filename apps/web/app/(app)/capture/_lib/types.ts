@@ -68,6 +68,13 @@ export type SessionItemClientSignals = {
    * audio was not included.
    */
   audioNotCapturedReason?: VideoAudioNotCapturedReason;
+  /**
+   * PRO-C1-10 — the microphone track ended or was muted DURING the recording
+   * (unplugged, permission revoked, hardware mute): the clip may be silent for
+   * part of its length. A client signal, labelled as such.
+   */
+  audioInterrupted?: boolean;
+  audioInterruptedReason?: "TRACK_ENDED" | "TRACK_MUTED";
 };
 
 export type VideoAudioNotCapturedReason = "MICROPHONE_PERMISSION_DENIED" | "MICROPHONE_UNAVAILABLE" | "AUDIO_NOT_SHARED";

@@ -6,6 +6,13 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { CaptureStagingLimitError, describeStagingFailure, logCaptureClientError } from "../_lib/capture-errors";
 import { videoWithoutAudioSignals } from "../_lib/types";
 import type { CaptureSessionAddFiles } from "./useCaptureSessionOrchestration";
+import {
+  recordingByteBudget,
+  recordingCanStart,
+  recordingNoRoomMessage,
+  recordingReachedBudget,
+  recordingStoppedAtLimitMessage,
+} from "../_lib/recording-budget";
 
 /**
  * WEB SCREEN CAPTURE (owner mandate R02 / LCH-004) — browser screen recording
@@ -105,11 +112,15 @@ export function screenRecordingFileName(startedAtUtc: string | null, mimeType: s
 
 type Params = {
   addFilesToSession: CaptureSessionAddFiles;
+  /** PRO-C1-07 — bytes already staged in the session (the recording's budget). */
+  getStagedBytes?: () => number;
   /** The page's timeline, so the limitations are part of the session record. */
   onRecorded?: (facts: ScreenRecordingFacts, label: string) => void;
 };
 
-export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Params) {
+export function useCaptureScreenRecorder({ addFilesToSession, onRecorded, getStagedBytes }: Params) {
+  const getStagedBytesRef = useRef(getStagedBytes);
+  getStagedBytesRef.current = getStagedBytes;
   const [state, setState] = useState<ScreenRecorderState>(() =>
     isScreenRecordingSupported() ? "idle" : "unsupported",
   );
@@ -191,6 +202,13 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
       return;
     }
     if (sessionActiveRef.current) return;
+    // PRO-C1-07 — a recording that could never be added is not started. (Read
+    // synchronously: getDisplayMedia must stay the first awaited call.)
+    const budget = recordingByteBudget(getStagedBytesRef.current?.() ?? 0);
+    if (!recordingCanStart(budget)) {
+      setError(recordingNoRoomMessage());
+      return;
+    }
     sessionActiveRef.current = true;
     accumulatedMsRef.current = 0;
     liveSinceRef.current = null;
@@ -242,8 +260,19 @@ export function useCaptureScreenRecorder({ addFilesToSession, onRecorded }: Para
       return;
     }
     recorderRef.current = recorder;
+    let recordedBytes = 0;
+    let stoppedAtLimit = false;
     recorder.ondataavailable = (event: BlobEvent) => {
-      if (event.data && event.data.size > 0) chunksRef.current.push(event.data);
+      if (event.data && event.data.size > 0) {
+        chunksRef.current.push(event.data);
+        recordedBytes += event.data.size;
+        // PRO-C1-07 — stop at the budget, so the recording is always stageable.
+        if (!stoppedAtLimit && recordingReachedBudget(recordedBytes, budget) && recorder.state !== "inactive") {
+          stoppedAtLimit = true;
+          recorder.stop();
+          setError(recordingStoppedAtLimitMessage(budget));
+        }
+      }
     };
     recorder.onstop = () => {
       releaseStream();
