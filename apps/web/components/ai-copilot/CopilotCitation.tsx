@@ -36,7 +36,9 @@ const TYPE_LABEL: Record<string, string> = {
   WORKFLOW_STATUS: "Workflow",
 };
 
-const SAFE_ROUTE = /^\/[a-z0-9/_:.[\]-]*$/i;
+// PRO-AI1-05 — one leading slash only: "//host" is protocol-relative and
+// would leave the application (stored runs may still carry such a route).
+const SAFE_ROUTE = /^\/(?!\/)[a-z0-9/_:.[\]-]*$/i;
 
 export function CopilotCitation({ citation }: { citation: CopilotCitationData }) {
   const typeLabel = TYPE_LABEL[citation.type] ?? "Source";

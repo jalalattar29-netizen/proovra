@@ -18,7 +18,7 @@ import type {
   EvidenceContext,
 } from "./ai-context-resolver.service.js";
 import {
-  validateCitations,
+  projectValidatedCitations, validateCitations,
   type AiCitation,
   type CitationResolver,
 } from "./ai-citation.service.js";
@@ -171,8 +171,8 @@ export async function runCaseCopilot(
     { workspaceId: input.teamId },
     input.resolveCitation,
   );
-  const validIds = new Set(citationCheck.valid.map((c) => c.objectId));
-  const outputCitations = modelCitations.filter((c) => validIds.has(String(c.objectId)));
+  // PRO-AI1-05 — validated entries only, each with the server-derived route.
+  const outputCitations = projectValidatedCitations(modelCitations, citationCheck);
   const grounded = { ...data, citations: outputCitations };
 
   return {

@@ -56,13 +56,26 @@ export type CitationTarget = {
   deleted: boolean;
   authorized: boolean;
   sequenceExists?: boolean;
+  /**
+   * PRO-AI1-05 — the in-app route of the VALIDATED object, derived by the
+   * server from (type, id). The model's own route is never rendered: a
+   * citation for evidence X links to X's page, or to nothing.
+   */
+  route?: string | null;
 };
 export type CitationResolver = (
   type: CitationType,
   objectId: string,
 ) => Promise<CitationTarget | null>;
 
-const ROUTE_RE = /^\/[a-z0-9/_:.[\]-]*$/i;
+// PRO-AI1-05 — a single leading slash only: "//host" is a protocol-relative
+// URL that leaves the application.
+const ROUTE_RE = /^\/(?!\/)[a-z0-9/_:.[\]-]*$/i;
+
+/** True for a same-origin in-app path (never protocol-relative). */
+export function isSafeInAppRoute(route: string | null | undefined): boolean {
+  return typeof route === "string" && ROUTE_RE.test(route);
+}
 
 export type CitationValidation = {
   valid: AiCitation[];
@@ -86,6 +99,9 @@ export async function validateCitations(
 
     if (!CITATION_TYPES.includes(c.type)) { reject("UNKNOWN_TYPE"); continue; }
     if (!c.objectId || typeof c.objectId !== "string") { reject("MISSING_OBJECT_ID"); continue; }
+    // A model route that is not even a same-origin path (protocol-relative,
+    // scheme) marks a suspect citation: dropped. A well-formed one is still
+    // never rendered — it is replaced by the server's route below.
     if (!c.route || !ROUTE_RE.test(c.route)) { reject("MALFORMED_ROUTE"); continue; }
     if (c.workspaceId !== ctx.workspaceId) { reject("CROSS_TENANT"); continue; }
 
@@ -101,9 +117,27 @@ export async function validateCitations(
       c.objectVersion !== target.currentVersion
     ) { reject("VERSION_MISMATCH"); continue; }
 
-    valid.push(c);
+    // PRO-AI1-05 — the link is the server's, bound to the validated object.
+    const route = isSafeInAppRoute(target.route) ? (target.route as string) : "";
+    valid.push({ ...c, route });
   }
   return { valid, rejected };
+}
+
+/**
+ * PRO-AI1-05 — the citations a client receives: the model's entries whose
+ * (type, objectId) survived validation, each carrying the SERVER's route for
+ * that object (empty when the object has no page). Matching on the pair, not
+ * the id alone, so an invalid citation cannot ride on a valid one's id.
+ */
+export function projectValidatedCitations(
+  modelCitations: ReadonlyArray<Record<string, unknown>>,
+  validation: CitationValidation,
+): Array<Record<string, unknown>> {
+  const routeByKey = new Map(validation.valid.map((c) => [`${c.type}|${c.objectId}`, c.route]));
+  return modelCitations
+    .filter((c) => routeByKey.has(`${String(c.type)}|${String(c.objectId ?? "")}`))
+    .map((c) => ({ ...c, route: routeByKey.get(`${String(c.type)}|${String(c.objectId ?? "")}`) ?? "" }));
 }
 
 /** True when at least one citation survived validation (grounding requirement). */

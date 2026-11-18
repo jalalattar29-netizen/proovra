@@ -554,7 +554,9 @@ export function IntelligenceRecordsPanel() {
                       ) : null}
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
-                      {v.state !== "ACCEPTED" && !v.isReverted ? (
+                      {/* PRO-AI1Z-03 — Accept only a live DRAFT; Revert only a live
+                          DRAFT or ACCEPTED correction, never a revert marker. */}
+                      {v.state === "DRAFT" && !v.isReverted ? (
                         <button
                           type="button"
                           style={ghostButton}
@@ -565,7 +567,7 @@ export function IntelligenceRecordsPanel() {
                           {busy === `accept:${v.id}` ? "Accepting…" : "Accept"}
                         </button>
                       ) : null}
-                      {!v.isReverted ? (
+                      {(v.state === "DRAFT" || v.state === "ACCEPTED") && !v.isReverted ? (
                         <button
                           type="button"
                           style={ghostButton}
