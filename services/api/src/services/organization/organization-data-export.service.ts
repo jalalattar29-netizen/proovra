@@ -102,6 +102,9 @@ export async function buildOrganizationExportPackage(
  * requests. The REQUESTED → PROCESSING flip is a guarded update, so two ticks
  * never build the same request.
  */
+/** PRO-PSZ-02 — a PROCESSING org export older than this was abandoned. */
+export const ORG_EXPORT_PROCESSING_STALE_MS = 60 * 60 * 1000;
+
 export async function processOrganizationDataExports(
   now: Date,
   deps: { client?: PrismaClient; storage?: StoragePort } = {},
@@ -113,6 +116,22 @@ export async function processOrganizationDataExports(
     data: { status: "EXPIRED", manifestJson: null },
   });
   summary.expired = expired.count;
+
+  // WS-SCHED / PRO-PSZ-02 — reap abandoned claims, as the account export does
+  // (F-25). A build interrupted by a restart left the request PROCESSING
+  // forever and the route refused every new export for the organization.
+  // Guarded on the claim's own state, so a build that finished meanwhile is
+  // never touched; the completion write below is fenced on PROCESSING + this
+  // claim's start, so a reaped build cannot resurrect it.
+  const staleBefore = new Date(now.getTime() - ORG_EXPORT_PROCESSING_STALE_MS);
+  const reaped = await client.organizationDataExportRequest.updateMany({
+    where: {
+      status: "PROCESSING",
+      OR: [{ startedAtUtc: { lt: staleBefore } }, { startedAtUtc: null }],
+    },
+    data: { status: "FAILED", failureCode: "generation_stalled" },
+  });
+  summary.failed += reaped.count;
 
   const pending = await client.organizationDataExportRequest.findMany({
     where: { status: "REQUESTED" },
@@ -128,8 +147,8 @@ export async function processOrganizationDataExports(
     if (claimed.count === 0) continue;
     try {
       const { json, sha256, pkg } = await buildOrganizationExportPackage(req.organizationId, deps);
-      await client.organizationDataExportRequest.update({
-        where: { id: req.id },
+      const completed = await client.organizationDataExportRequest.updateMany({
+        where: { id: req.id, status: "PROCESSING", startedAtUtc: now },
         data: {
           status: "READY",
           completedAtUtc: new Date(),
@@ -142,6 +161,8 @@ export async function processOrganizationDataExports(
           missingObjectCount: pkg.storageCheck.missing.length,
         },
       });
+      // Reaped (stalled) while it was building: the FAILED answer stands.
+      if (completed.count === 0) continue;
       summary.generated += 1;
       await emitPlatformAudit({
         action: "organization.data_export_ready",
@@ -155,7 +176,10 @@ export async function processOrganizationDataExports(
       }).catch(() => null);
     } catch {
       await client.organizationDataExportRequest
-        .update({ where: { id: req.id }, data: { status: "FAILED", failureCode: "generation_failed" } })
+        .updateMany({
+          where: { id: req.id, status: "PROCESSING", startedAtUtc: now },
+          data: { status: "FAILED", failureCode: "generation_failed" },
+        })
         .catch(() => null);
       summary.failed += 1;
     }

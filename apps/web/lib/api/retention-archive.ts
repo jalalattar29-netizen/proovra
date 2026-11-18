@@ -81,4 +81,7 @@ export const ARCHIVE_RESTORE_FAILURE_LABEL: Readonly<Record<string, string>> = {
   CUSTODY_CHAIN_INVALID: "The record's custody history did not verify.",
   STORAGE_UNAVAILABLE: "Storage did not answer. You can request the restore again.",
   STATE_CHANGED: "The record changed while the restore was running.",
+  // WS-SCHED / PRO-E1C-04 — the restore hit an unexpected error on every
+  // attempt; the record stays archived and a new request can be made.
+  INTERNAL_ERROR: "The restore could not finish. The record stays archived; you can request the restore again.",
 };

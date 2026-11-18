@@ -55,7 +55,10 @@ export type ArchiveRestoreFailureCode =
   | "SIGNATURE_REFERENCE_MISSING"
   | "CUSTODY_CHAIN_INVALID"
   | "STORAGE_UNAVAILABLE"
-  | "STATE_CHANGED";
+  | "STATE_CHANGED"
+  // WS-SCHED / PRO-E1C-04 — any other exception, on the claim that reached
+  // the attempt ceiling.
+  | "INTERNAL_ERROR";
 
 type VerifiedObject = {
   kind: "ORIGINAL" | "REPORT" | "PACKAGE";
@@ -267,6 +270,10 @@ async function failRequest(
     });
   });
   if (failureCode === "STATE_CHANGED") return;
+  if (failureCode === "INTERNAL_ERROR") {
+    logger.error({ requestId: request.id, evidenceId: request.evidenceId }, "archive_restore.failed_internal_error");
+    return;
+  }
   const failure =
     failureCode === "OBJECT_VERSION_MISSING"
       ? "object_missing"
@@ -452,6 +459,25 @@ export async function processArchiveRestoreRequests(
     } catch (err) {
       // The lease lapses and a later tick resumes it; the record has not moved.
       logger.error({ err, requestId: r.id }, "archive_restore.request_failed_unexpectedly");
+      // WS-SCHED / PRO-E1C-04 — ONE attempt ceiling for every path: the
+      // module's contract is "retried on a later tick (bounded attempts)",
+      // but only STORAGE_UNAVAILABLE consulted the ceiling, so any other
+      // exception re-claimed the request every lease forever while the owner
+      // saw "Restore in progress" and could not ask again. A claim that has
+      // used its attempts now ends FAILED INTERNAL_ERROR (custody
+      // ARCHIVE_RESTORE_FAILED), and a new request can be made.
+      try {
+        const row = await prisma.evidenceArchiveRestoreRequest.findUnique({
+          where: { id: r.id },
+          select: { id: true, evidenceId: true, teamId: true, status: true, attemptCount: true },
+        });
+        if (row && row.status === "RUNNING" && row.attemptCount >= ARCHIVE_RESTORE_MAX_ATTEMPTS) {
+          await failRequest(row, "INTERNAL_ERROR", [], now);
+          out.push({ requestId: r.id, evidenceId: row.evidenceId, outcome: "FAILED", failureCode: "INTERNAL_ERROR" });
+        }
+      } catch (settleErr) {
+        logger.error({ err: settleErr, requestId: r.id }, "archive_restore.settle_failed");
+      }
     }
   }
   if (out.length > 0) {
