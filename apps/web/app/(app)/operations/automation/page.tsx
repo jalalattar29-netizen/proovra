@@ -77,6 +77,11 @@ type CatalogEntry = {
   label: string;
   description: string;
   internalOnly?: boolean;
+  /**
+   * PRO-G1-01 — the action is not wired to its effect yet: a run of it ends
+   * Skipped. Absent from an older API (the label then stays as it was).
+   */
+  recordOnly?: boolean;
 };
 
 type RulesEnvelope = {
@@ -97,7 +102,9 @@ function catalogLabels(
   entries: readonly CatalogEntry[] | undefined,
 ): Readonly<Record<string, string>> {
   const labels: Record<string, string> = {};
-  for (const entry of entries ?? []) labels[entry.value] = entry.label;
+  for (const entry of entries ?? []) {
+    labels[entry.value] = entry.recordOnly ? `${entry.label} (not performed yet)` : entry.label;
+  }
   return labels;
 }
 

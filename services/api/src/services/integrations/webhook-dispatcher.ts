@@ -43,6 +43,10 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { caseClosedTo, evidenceClosedTo } from "../access/record-reach.js";
+import { isLiveOperatingWorkspace } from "../workspace/operating-workspace.js";
+
+/** PRO-G1-09 — how long a delivery of a non-operating workspace waits before it is looked at again. */
+const NOT_OPERATING_DEFER_MS = 15 * 60_000;
 // Phase O1.4 — bounded webhook-dispatch span. Attributes are
 // bounded: eventType + endpointId hash prefix + status. NEVER the
 // payload, signature, or destination URL.
@@ -365,6 +369,9 @@ export async function emitWebhookEvent(
       e.eventTypes.length === 0 || e.eventTypes.includes(input.eventType),
   );
   if (matching.length === 0) return { ...EMPTY_RESULT };
+  // PRO-G1-09 — nothing is queued for a workspace that is not operating
+  // (closed, or its organization suspended), as the lifecycle emit does.
+  if (!(await isLiveOperatingWorkspace(input.teamId, client))) return { ...EMPTY_RESULT };
   if (await webhookPayloadRestricted(input.payload, client)) return { ...EMPTY_RESULT };
 
   const eventId = randomUUID();
@@ -444,6 +451,26 @@ async function attemptDeliveryInner(
   client: PrismaClient,
 ): Promise<"delivered" | "transient" | "permanent"> {
   const nextAttemptCount = row.attemptCount + 1;
+
+  // PRO-G1-09 / B7B-F02 — a closed workspace, or one whose organization is
+  // suspended, sends nothing out (the rule the lifecycle emit and the
+  // automation send already apply). A row due during that window is deferred
+  // — RETRY_SCHEDULED later, attempt count untouched, nothing signed — so it
+  // delivers after the organization resumes. Closure and workspace suspension
+  // also disable the endpoint, which the sweeper turns into CANCELLED.
+  if (!(await isLiveOperatingWorkspace(row.teamId, client))) {
+    await client.integrationWebhookDelivery
+      .update({
+        where: { id: row.id },
+        data: {
+          status: "RETRY_SCHEDULED",
+          errorMessage: "workspace_not_operating",
+          nextAttemptAtUtc: new Date(Date.now() + NOT_OPERATING_DEFER_MS),
+        },
+      })
+      .catch(() => null);
+    return "transient";
+  }
 
   // PRO-067 — the destination is checked again at every send, before any
   // transport is called. An endpoint stored before the shared policy existed

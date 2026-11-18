@@ -123,6 +123,28 @@ export type ActionExecutionResult = {
 };
 
 // ---------------------------------------------------------------------------
+// PRO-G1-01 — which actions actually perform their described effect
+// ---------------------------------------------------------------------------
+
+/** The bounded skip reason a run of a not-yet-wired action ends with. */
+export const ACTION_NOT_IMPLEMENTED = "action_not_implemented";
+
+/**
+ * The actions wired to a real effect. Today only the internal webhook
+ * delivery writes anything (a delivery row the sweep sends); the other seven
+ * handlers validate and return, as their own comments say. Wiring one means
+ * calling its authority (notification inbox, reviewer-ops assignment /
+ * escalation) from its handler AND adding it here, in one change.
+ */
+const IMPLEMENTED_AUTOMATION_ACTIONS: ReadonlySet<AutomationActionType> = new Set<AutomationActionType>([
+  "WEBHOOK_DELIVERY_INTERNAL_ONLY",
+]);
+
+export function isAutomationActionImplemented(actionType: AutomationActionType): boolean {
+  return IMPLEMENTED_AUTOMATION_ACTIONS.has(actionType);
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -170,6 +192,21 @@ export async function executeAutomationAction(
       void exhaustive;
       throw new Error(`unknown_action_type:${String(input.actionType)}`);
     }
+  }
+
+  // PRO-G1-01 — an action that is not wired to its authority yet must not be
+  // reported as performed. Its handler still validates the configuration and
+  // the target (so a misconfigured rule keeps its precise reason), but a run
+  // that passes validation ends SKIPPED `action_not_implemented` — never
+  // SUCCEEDED, which the run history and the audit trail read as "the
+  // notification was sent / the task opened".
+  if (result.executed && !isAutomationActionImplemented(input.actionType)) {
+    result = {
+      executed: false,
+      skipped: true,
+      reason: ACTION_NOT_IMPLEMENTED,
+      summary: result.summary,
+    };
   }
 
   // Audit emission for the action result. Even SKIPPED actions are

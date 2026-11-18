@@ -17,6 +17,7 @@ import {
   workspaceIncludesProfessionalSurfaces,
 } from "../services/billing-enforcement.service.js";
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
+import { resolveEntitlement } from "../services/packaging/entitlement.service.js";
 import { AppError, ErrorCode } from "../errors.js";
 // A-3 closure — legacy in-memory `apiKeyService` import retired.
 // The Phase 17 `ApiCredential` model + `/v1/integrations/api-keys`
@@ -171,12 +172,6 @@ function fireEnterpriseAnalyticsEvent(params: {
   }).catch(() => null);
 }
 
-function startOfMonth(): Date {
-  const d = new Date();
-  d.setDate(1);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 function nextMonthStart(): Date {
   const d = new Date();
@@ -271,28 +266,21 @@ async function getRealUsageStats(req: FastifyRequest, userId: string) {
 }
 
 async function getRealQuotas(req: FastifyRequest, userId: string) {
-  const month = startOfMonth();
-
-  const analysesUsed = await prisma.analyticsEvent.count({
-    where: {
-      userId,
-      eventType: {
-        in: ["ai_analysis_completed", "ai_tags_suggested", "ai_safety_checked"],
-      },
-      createdAt: { gte: month },
-    },
-  });
-
   // B6-F-40 — this workspace's jobs only.
   const batchJobsUsed = await batchAnalysisService.countJobs(userId, undefined, batchWorkspaceOf(req));
-  // A-3 closure — quota counter sources from canonical `ApiCredential`
-  // (Phase 17). Legacy in-memory key-store enumeration is retired.
+  // PRO-G1-11 / PRO-G2-11 — API keys of the workspace this request PROVED
+  // (the same predicate as /v1/usage-stats `activeApiKeys`), against the limit
+  // key creation enforces: INTEGRATION_API_KEYS_MAX, resolved exactly as the
+  // create route resolves it. It counted every workspace the caller OWNS and
+  // showed "No enforced limit" while a Pro workspace's create answered 429
+  // with limit 0. (The user-wide analytics count that sat here is gone: the
+  // allowance below is the workspace meter, and nothing else is shown.)
+  const { teamId: provenTeamId } = batchWorkspaceOf(req);
   const apiKeysUsed = await prisma.apiCredential.count({
-    where: {
-      status: "ACTIVE",
-      team: { ownerUserId: userId },
-    },
+    where: { status: "ACTIVE", teamId: provenTeamId },
   });
+  const apiKeysEntitlement = await resolveEntitlement({ teamId: provenTeamId, key: "INTEGRATION_API_KEYS_MAX" });
+  const apiKeysLimit = typeof apiKeysEntitlement.value === "number" ? apiKeysEntitlement.value : 0;
 
   // BILLING-010 — the seats shown are the seats enforced: the ONE seat answer for
   // the workspace in use. This read a personal entitlement or an env default,
@@ -306,8 +294,8 @@ async function getRealQuotas(req: FastifyRequest, userId: string) {
 
   // BILLING-010 — the AI allowance is the one the AI gate enforces, on the meter
   // it charges. The three limits here were env figures nothing enforced, and the
-  // count was analytics events of the user. Batch jobs and API keys have no
-  // enforced limit, so none is shown.
+  // count was analytics events of the user. Batch jobs have no enforced
+  // limit, so none is shown; API keys show the enforced per-workspace limit.
   const allowance = current.allowed
     ? await evaluateWorkspaceAiOperation({ teamId: current.context.workspaceId })
     : null;
@@ -316,7 +304,7 @@ async function getRealQuotas(req: FastifyRequest, userId: string) {
   return {
     analyses: {
       limit: ai?.cap ?? null,
-      used: ai ? ai.consumed : analysesUsed,
+      used: ai ? ai.consumed : 0,
       remaining: ai && ai.cap !== null ? Math.max(0, ai.cap - ai.consumed) : null,
       resetDate: nextMonthStart().toISOString(),
     },
@@ -326,9 +314,9 @@ async function getRealQuotas(req: FastifyRequest, userId: string) {
       remaining: null,
     },
     apiKeys: {
-      limit: null,
+      limit: apiKeysLimit,
       used: apiKeysUsed,
-      remaining: null,
+      remaining: Math.max(0, apiKeysLimit - apiKeysUsed),
     },
     teamMembers: {
       // Null when nothing bounds the workspace as a whole: capacity is then per

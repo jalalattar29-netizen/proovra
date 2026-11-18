@@ -228,6 +228,8 @@ describe("webhook dispatcher SSRF hardening", () => {
         integrationWebhookDelivery: {
           update: async () => ({}),
         },
+        // PRO-G1-09 — the send-time liveness read: an operating personal workspace.
+        team: { findUnique: async () => ({ isPersonal: true, workspaceKind: "PERSONAL", billingPlan: "FREE", closedAtUtc: null, organization: null }) },
         webhookEndpoint: {
           update: async () => ({}),
         },

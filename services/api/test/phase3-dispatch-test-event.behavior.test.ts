@@ -119,6 +119,8 @@ function makePrismaStub(endpoint: FakeEndpoint | null): {
   const endpointFindCalls: Array<{ id: string; teamId: string }> = [];
   let nextRowId = 0;
   const client = {
+    // PRO-G1-09 — the send-time liveness read: an operating personal workspace.
+    team: { findUnique: async () => ({ isPersonal: true, workspaceKind: "PERSONAL", billingPlan: "FREE", closedAtUtc: null, organization: null }) },
     webhookEndpoint: {
       findFirst: async (q: { where: { id: string; teamId: string } }) => {
         endpointFindCalls.push({

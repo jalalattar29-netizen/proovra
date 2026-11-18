@@ -47,6 +47,15 @@ import {
 } from "../services/intake-link-create-idempotency.service.js";
 import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 import { assertWorkspaceAllowsIntake } from "../services/billing-enforcement.service.js";
+import {
+  decodeKeysetCursor,
+  keysetAfter,
+  keysetPage,
+  type KeysetKey,
+} from "../services/pagination/keyset-cursor.js";
+
+/** PRO-G1-03 — a bare record id: the pre-keyset cursor format, still accepted. */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * ET-INT-10 — the API credential is not a User. Rows these routes write carry
@@ -229,7 +238,7 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
             createdAfter: z.string().datetime().optional(),
             createdBefore: z.string().datetime().optional(),
             limit: z.coerce.number().int().min(1).max(100).optional(),
-            cursor: z.string().uuid().optional(),
+            cursor: z.string().min(1).max(512).optional(),
           })
           .parse(req.query ?? {});
 
@@ -237,25 +246,54 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
         if (query.createdAfter) dateFilter.gte = new Date(query.createdAfter);
         if (query.createdBefore) dateFilter.lte = new Date(query.createdBefore);
 
-        const rows = await prisma.evidence.findMany({
+        // PRO-G1-03 — keyset paging on the ORDER key. The list is ordered by
+        // (createdAt desc, id desc) and the cursor names that pair, so a walk
+        // returns every row exactly once. A bare-UUID cursor (the old format,
+        // which paged by `id < cursor` under a createdAt order and skipped and
+        // repeated rows) is upgraded by resolving that row's createdAt inside
+        // this workspace; an unknown or malformed cursor is a 400, never a
+        // silent restart from the top.
+        let after: KeysetKey | undefined;
+        if (query.cursor) {
+          if (UUID_SHAPE.test(query.cursor)) {
+            const anchor = await prisma.evidence.findFirst({
+              where: { id: query.cursor, teamId: cred.teamId },
+              select: { id: true, createdAt: true },
+            });
+            if (!anchor) return reply.code(400).send({ error: { code: "invalid_cursor" } });
+            after = { at: anchor.createdAt, id: anchor.id };
+          } else {
+            const decoded = decodeKeysetCursor(query.cursor);
+            if (!decoded) return reply.code(400).send({ error: { code: "invalid_cursor" } });
+            after = decoded;
+          }
+        }
+        const limit = Math.min(Math.max(query.limit ?? 25, 1), 100);
+
+        const fetched = await prisma.evidence.findMany({
           where: {
             // AZ-R04: an API key is no person, so it is on no access list and
             // sees only unrestricted records.
-            AND: [await workspaceEvidenceWhere(cred.teamId, prisma), evidenceVisibleThroughCasesWhere(null)],
+            AND: [
+              await workspaceEvidenceWhere(cred.teamId, prisma),
+              evidenceVisibleThroughCasesWhere(null),
+              ...(after ? [keysetAfter("createdAt", after)] : []),
+            ],
             ...(query.status ? { status: query.status as never } : {}),
             ...(Object.keys(dateFilter).length > 0
               ? { createdAt: dateFilter }
               : {}),
-            ...(query.cursor ? { id: { lt: query.cursor } } : {}),
           },
           select: EvidenceSelect,
-          orderBy: { createdAt: "desc" },
-          take: Math.min(Math.max(query.limit ?? 25, 1), 100),
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: limit + 1,
         });
+        const page = keysetPage(fetched, limit, (row) => ({ at: row.createdAt, id: row.id }));
 
         return reply.code(200).send({
-          evidence: rows.map(projectEvidenceForApi),
-          nextCursor: rows.length > 0 ? rows[rows.length - 1].id : null,
+          evidence: page.rows.map(projectEvidenceForApi),
+          nextCursor: page.nextCursor,
+          hasMore: page.hasMore,
         });
       });
     },
@@ -373,6 +411,16 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
           if (refusal?.kind === "plan") {
             return reply.code(409).send({ error: { code: refusal.code, message: refusal.message } });
           }
+        }
+        // PRO-G1-06 — record reach, exactly as the sibling evidence-request
+        // create asks it (AZ-R04: a key is no person, so it is on no access
+        // list). The service below evaluates the key CREATOR's reach; without
+        // this check a key could bind a link to a restricted case its creator
+        // happens to see and use 201-vs-404 as an existence oracle. A
+        // restricted case answers exactly like a foreign one. A keyed replay
+        // of an earlier success was answered above and is unaffected.
+        if (body.caseId && (await caseClosedTo(body.caseId, null))) {
+          return reply.code(404).send({ error: { code: "case_not_in_workspace" } });
         }
         try {
           const createInput = {

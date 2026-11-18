@@ -76,6 +76,12 @@ export type AutomationCatalogEntry = {
   label: string;
   description: string;
   internalOnly?: boolean;
+  /**
+   * PRO-G1-01 — the action is not wired to its effect yet: a run ends SKIPPED
+   * `action_not_implemented`. Offered for existing rules only; a new rule
+   * cannot choose it.
+   */
+  recordOnly?: boolean;
 };
 
 export const AUTOMATION_TRIGGER_CATALOG: Readonly<
@@ -132,31 +138,38 @@ export const AUTOMATION_ACTION_CATALOG: Readonly<
 > = {
   NOTIFY_USER: {
     label: "Notify a person",
-    description: "Sends a notification to one workspace member.",
+    description: "Not performed yet: a run records that the rule matched but sends no notification.",
+    recordOnly: true,
   },
   NOTIFY_ROLE: {
     label: "Notify a role",
-    description: "Sends a notification to every member holding a role.",
+    description: "Not performed yet: a run records that the rule matched but sends no notification.",
+    recordOnly: true,
   },
   CREATE_REVIEW_TASK: {
     label: "Create a review task",
-    description: "Opens a review task on the record that triggered the rule.",
+    description: "Not performed yet: a run records that the rule matched but opens no review task.",
+    recordOnly: true,
   },
   CREATE_ESCALATION: {
     label: "Raise an escalation",
-    description: "Raises an escalation for a lead to act on.",
+    description: "Not performed yet: a run records that the rule matched but raises no escalation.",
+    recordOnly: true,
   },
   ASSIGN_REVIEWER: {
     label: "Assign a reviewer",
-    description: "Assigns a workspace member as the reviewer.",
+    description: "Not performed yet: a run records that the rule matched but assigns no reviewer.",
+    recordOnly: true,
   },
   APPLY_LABEL: {
     label: "Apply a label",
-    description: "Adds a label to the record that triggered the rule.",
+    description: "Not performed yet: a run records that the rule matched but adds no label.",
+    recordOnly: true,
   },
   ADD_OPERATIONAL_COMMENT: {
     label: "Add an operational comment",
-    description: "Records a comment on the record for the operations trail.",
+    description: "Not performed yet: a run records that the rule matched but writes no comment.",
+    recordOnly: true,
   },
   WEBHOOK_DELIVERY_INTERNAL_ONLY: {
     label: "Deliver a signed webhook",
