@@ -166,7 +166,8 @@ test("every surface that seals a direct capture goes through the rule", () => {
   // and every other exit from an opened session (Discard, Try Again, a start
   // failure) releases it through the primitive.
   const continuous = read("../app/(stack)/continuous-capture.tsx");
-  assert.match(continuous, /const releaseSession = useCallback\(async \(\) => \{[\s\S]*?discardDirectCaptureSession\(active\.session\)/);
+  // PRO-NB-03: the primitive is reached through the release-or-keep rule.
+  assert.match(continuous, /const releaseSession = useCallback\(async \(\) => \{[\s\S]*?releaseDirectSessionOrKeep\(active\.session, active\.evidenceId, \{ discard: discardDirectCaptureSession/);
   assert.match(continuous, /const reset = useCallback\(async \(\) => \{[\s\S]*?await releaseSession\(\)/);
 
   // /capture releases through the primitive directly, in its own failure and
