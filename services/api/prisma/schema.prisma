@@ -12462,6 +12462,10 @@ model CaseSiuExport {
   /// bundled, and only when THE per-record download gate releases both.
   artifactInclusionJson Json      @default("{}") @map("artifact_inclusion_json")
   generatedByUserId     String?   @map("generated_by_user_id") @db.Uuid
+  /// PRO-K1-01 — TRUE when the bundle carries unredacted claimant PII. NULL = legacy, treated as PII-bearing.
+  includesPii           Boolean?  @map("includes_pii")
+  /// PRO-K1-01 — record ids whose artifacts the bundle carries. NULL = legacy, generator-only.
+  includedEvidenceIds   Json?     @map("included_evidence_ids")
   generatedAtUtc        DateTime  @default(now()) @map("generated_at_utc") @db.Timestamptz(6)
   downloadedAtUtc       DateTime? @map("downloaded_at_utc") @db.Timestamptz(6)
   errorCode             String?   @map("error_code") @db.VarChar(80)

@@ -54,6 +54,12 @@ export type BuildSiuExportInput = {
   warningExportReason: string | null;
   /** Bounded actor user id captured for audit + CaseSiuExport persistence. */
   actorUserId: string | null;
+  /**
+   * PRO-K1-01 — whether the profile is the UNREDACTED projection (the caller held
+   * siu.pii.export). Persisted on the export row so a later download is
+   * decided by what the stored bundle contains.
+   */
+  includesPii: boolean;
 };
 
 export type BuildSiuExportOutput = {
@@ -524,6 +530,9 @@ async function buildSiuExportBundleInner(
       manifestSha256,
       artifactInclusionJson: inclusion as Prisma.InputJsonValue,
       generatedByUserId: input.actorUserId ?? null,
+      // PRO-K1-01 — the disclosure facts a re-download is decided by.
+      includesPii: input.includesPii,
+      includedEvidenceIds: includedEvidenceIds as Prisma.InputJsonValue,
       errorCode: uploadFailureCode,
       errorMessage: uploadFailureMessage,
     },
@@ -545,6 +554,63 @@ async function buildSiuExportBundleInner(
 // ---------------------------------------------------------------------------
 // Phase M3.2 — download a previously generated SIU export
 // ---------------------------------------------------------------------------
+
+/**
+ * PRO-K1-01 — WHO MAY TAKE A STORED BUNDLE AGAIN. Case reach alone is not
+ * enough: the bundle is what it contains.
+ *   - A PII-bearing bundle (includes_pii TRUE, or NULL for a legacy bundle whose
+ *     content is unknown: the safer rule) needs the siu.pii.export capability
+ *     NOW (mayExportPii), and the route asks a fresh step-up.
+ *   - A bundle whose record population is unknown (legacy) is the generator's
+ *     only.
+ *   - Every record the bundle carries must be open to the downloader now: a
+ *     record another restricted case closes to them (EVID-004 / B3C-F-003)
+ *     refuses the whole bundle.
+ * Refusals answer like a missing export for a reader who may not know it
+ * exists, except the step-up/capability answer, which the generator can act on.
+ */
+export type SiuExportDownloadDecision =
+  | { allowed: true; piiBearing: boolean }
+  | { allowed: false; status: 403 | 404; code: string };
+
+export async function authorizeSiuExportDownload(input: {
+  caseId: string;
+  teamId: string;
+  exportId: string;
+  actorUserId: string;
+  mayExportPii: boolean;
+}): Promise<SiuExportDownloadDecision> {
+  const row = await prisma.caseSiuExport.findFirst({
+    where: { id: input.exportId, caseId: input.caseId },
+    select: {
+      includesPii: true,
+      includedEvidenceIds: true,
+      generatedByUserId: true,
+      siuProfile: { select: { teamId: true } },
+    },
+  });
+  if (!row || row.siuProfile.teamId !== input.teamId) {
+    return { allowed: false, status: 404, code: "siu_export_not_found" };
+  }
+  const isGenerator = row.generatedByUserId !== null && row.generatedByUserId === input.actorUserId;
+  const ids = Array.isArray(row.includedEvidenceIds)
+    ? (row.includedEvidenceIds as unknown[]).filter((x): x is string => typeof x === "string")
+    : null;
+  if (ids === null && !isGenerator) {
+    return { allowed: false, status: 404, code: "siu_export_not_found" };
+  }
+  if (ids && ids.length > 0) {
+    const closed = await prisma.evidence.count({
+      where: { id: { in: ids }, NOT: evidenceVisibleThroughCasesWhere(input.actorUserId) },
+    });
+    if (closed > 0) return { allowed: false, status: 404, code: "siu_export_not_found" };
+  }
+  const piiBearing = row.includesPii !== false;
+  if (piiBearing && !input.mayExportPii) {
+    return { allowed: false, status: 403, code: "siu_pii_capability_required" };
+  }
+  return { allowed: true, piiBearing };
+}
 
 export async function downloadSiuExportArtifact(input: {
   caseId: string;

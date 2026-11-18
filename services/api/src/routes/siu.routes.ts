@@ -35,6 +35,14 @@ import { requireStepUpForSensitiveAction } from "../services/identity-security/s
 import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
+  caseOwnerAccessRole,
+  evaluateCaseMutationPermission,
+  getCaseAssignmentRoles,
+  type CaseAccessRole,
+  type CaseMutation,
+} from "../services/cases/case-permission.service.js";
+import { refuseCasePlanWrite } from "../services/cases/case-plan-gate.js";
+import {
   SIU_INTAKE_TEMPLATES,
   SIU_REVIEW_INDICATOR_CODES,
   SIU_CHECKLIST_ITEM_STATUSES,
@@ -46,6 +54,7 @@ import {
   addReviewIndicator,
   createFollowUpRequest,
   loadSiuProfile,
+  siuProfileInReach,
   mapEvidenceToChecklistItem,
   setChecklistItemStatus,
   updateFollowUpStatus,
@@ -54,6 +63,7 @@ import {
 import { runSiuExportPreflight } from "../services/siu/siu-preflight.service.js";
 import {
   buildSiuExportBundle,
+  authorizeSiuExportDownload,
   downloadSiuExportArtifact,
   markSiuExportDelivered,
   listSiuExports,
@@ -157,6 +167,16 @@ async function siuSavedViewAuthority(
   };
 }
 
+/**
+ * PRO-K1-04 / B3C-F-007 — the SIU profile, checklist, indicator and follow-up
+ * writes: an EVIDENCE_LINK-class case mutation (a VIEWER, or a creator demoted
+ * to VIEWER, never writes) answering to the case plan gate.
+ */
+const SIU_CASE_WRITE = { mutation: "EVIDENCE_LINK", planGated: true } as const satisfies {
+  mutation: CaseMutation;
+  planGated: boolean;
+};
+
 const SHARED_VIEW_REQUIRES_WRITER = {
   error: {
     code: "permission_denied",
@@ -169,7 +189,13 @@ async function requireCaseActor(
   reply: FastifyReply,
   caseId: string,
   permission: "identity.member.read" | "evidence.update_metadata" = "identity.member.read",
-): Promise<{ userId: string; teamId: string; exposePii: boolean; role: string | null } | null> {
+  /**
+   * PRO-K1-04 / B3C-F-007 — an SIU write is a case write: decided by the case
+   * mutation matrix (owner rank from the CURRENT role, A2-14) and, when
+   * planGated is set, by the case plan gate every other case write asks.
+   */
+  write?: { mutation: CaseMutation; planGated: boolean },
+): Promise<{ userId: string; teamId: string; exposePii: boolean; role: string | null; caseOwnerUserId: string | null } | null> {
   const userId = getAuthUserId(req);
   /*
    * THE RESTRICTED-CASE RULE APPLIES HERE TOO (2026-09-29, audit H1).
@@ -236,11 +262,40 @@ async function requireCaseActor(
     });
     return null;
   }
-  // Bounded PII exposure policy: only the case owner sees claimant
-  // fields by default. Future phases can wire this to a dedicated
-  // capability.
-  const exposePii = c.ownerUserId === userId;
-  return { userId, teamId: c.teamId, exposePii, role: member.role ? String(member.role) : null };
+  if (write) {
+    const accessRole: CaseAccessRole =
+      c.ownerUserId === userId ? caseOwnerAccessRole(String(member.role)) : (String(member.role) as CaseAccessRole);
+    const mutation = evaluateCaseMutationPermission({
+      mutation: write.mutation,
+      accessRole,
+      assignmentRoles: await getCaseAssignmentRoles(caseId, userId),
+    });
+    if (!mutation.allowed) {
+      reply.code(403).send({
+        error: { code: "permission_denied", reason: "case_mutation_denied", detail: mutation.reason },
+      });
+      return null;
+    }
+    if (write.planGated && (await refuseCasePlanWrite(reply, caseId))) return null;
+  }
+  // PRO-K1-04 — claimant PII is exposed by the siu.pii.export capability,
+  // decided on the CURRENT role (a creator demoted to Viewer no longer holds it).
+  const exposePii = (
+    await evaluateSiuCapability({
+      teamId: c.teamId,
+      userId,
+      caseOwnerUserId: c.ownerUserId,
+      currentRole: member.role ? String(member.role) : null,
+      capability: "siu.pii.export",
+    })
+  ).allowed;
+  return {
+    userId,
+    teamId: c.teamId,
+    exposePii,
+    role: member.role ? String(member.role) : null,
+    caseOwnerUserId: c.ownerUserId,
+  };
 }
 
 /**
@@ -421,7 +476,7 @@ export async function siuRoutes(app: FastifyInstance) {
         });
       }
       return reply.code(200).send({
-        profile,
+        profile: await siuProfileInReach(profile, ctx.teamId, ctx.userId),
         durable: true as const,
         storage: "prisma" as const,
         piiRedacted: true as const,
@@ -437,9 +492,27 @@ export async function siuRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const params = z.object({ id: z.string().uuid() }).parse(req.params);
-      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata", SIU_CASE_WRITE);
       if (!ctx) return;
       const patch = SiuProfileUpsertInputSchema.parse(req.body);
+      // PRO-K1-04 — claimant PII is written only under siu.pii.edit.
+      const touchesPii = ["claimantName", "claimantContact"].some(
+        (k) => (patch as Record<string, unknown>)[k] !== undefined,
+      );
+      if (touchesPii) {
+        const piiEdit = await evaluateSiuCapability({
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          caseOwnerUserId: ctx.caseOwnerUserId,
+          currentRole: ctx.role,
+          capability: "siu.pii.edit",
+        });
+        if (!piiEdit.allowed) {
+          return reply.code(403).send({
+            error: { code: "siu_pii_capability_required", capability: "siu.pii.edit", reason: piiEdit.reason },
+          });
+        }
+      }
       const profile = await upsertSiuProfile({
         caseId: params.id,
         teamId: ctx.teamId,
@@ -464,7 +537,7 @@ export async function siuRoutes(app: FastifyInstance) {
           investigationStatus: patch.investigationStatus ?? null,
         },
       }).catch(() => {});
-      return reply.code(200).send({ profile });
+      return reply.code(200).send({ profile: await siuProfileInReach(profile, ctx.teamId, ctx.userId) });
     },
   );
 
@@ -481,18 +554,19 @@ export async function siuRoutes(app: FastifyInstance) {
       const body = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata", SIU_CASE_WRITE);
       if (!ctx) return;
       const profile = await mapEvidenceToChecklistItem({
         caseId: params.id,
         teamId: ctx.teamId,
         itemId: params.itemId,
         evidenceId: body.evidenceId,
+        actorUserId: ctx.userId,
       });
       if (!profile) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
-      return reply.code(200).send({ profile });
+      return reply.code(200).send({ profile: await siuProfileInReach(profile, ctx.teamId, ctx.userId) });
     },
   );
 
@@ -512,7 +586,7 @@ export async function siuRoutes(app: FastifyInstance) {
           note: z.string().max(240).optional().nullable(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata", SIU_CASE_WRITE);
       if (!ctx) return;
       const profile = await setChecklistItemStatus({
         caseId: params.id,
@@ -525,7 +599,7 @@ export async function siuRoutes(app: FastifyInstance) {
       if (!profile) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
-      return reply.code(200).send({ profile });
+      return reply.code(200).send({ profile: await siuProfileInReach(profile, ctx.teamId, ctx.userId) });
     },
   );
 
@@ -545,7 +619,7 @@ export async function siuRoutes(app: FastifyInstance) {
           evidenceId: z.string().uuid().optional().nullable(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata", SIU_CASE_WRITE);
       if (!ctx) return;
       const profile = await addReviewIndicator({
         caseId: params.id,
@@ -571,7 +645,7 @@ export async function siuRoutes(app: FastifyInstance) {
         correlationId: req.id ?? null,
         metadata: { teamId: ctx.teamId, code: body.code },
       }).catch(() => {});
-      return reply.code(200).send({ profile });
+      return reply.code(200).send({ profile: await siuProfileInReach(profile, ctx.teamId, ctx.userId) });
     },
   );
 
@@ -591,7 +665,7 @@ export async function siuRoutes(app: FastifyInstance) {
           intakeLinkId: z.string().uuid().optional().nullable(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata", SIU_CASE_WRITE);
       if (!ctx) return;
       const followUp = await createFollowUpRequest({
         caseId: params.id,
@@ -643,7 +717,7 @@ export async function siuRoutes(app: FastifyInstance) {
           receivedEvidenceId: z.string().uuid().optional().nullable(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata", SIU_CASE_WRITE);
       if (!ctx) return;
       const followUp = await updateFollowUpStatus({
         caseId: params.id,
@@ -651,6 +725,7 @@ export async function siuRoutes(app: FastifyInstance) {
         followUpId: params.followUpId,
         status: body.status,
         receivedEvidenceId: body.receivedEvidenceId,
+        actorUserId: ctx.userId,
       });
       if (!followUp) {
         return reply.code(404).send({ error: { code: "not_found" } });
@@ -689,6 +764,7 @@ export async function siuRoutes(app: FastifyInstance) {
       const result = await runSiuExportPreflight({
         caseId: params.id,
         teamId: ctx.teamId,
+        actorUserId: ctx.userId,
       });
       if (!result) {
         return reply.code(404).send({ error: { code: "siu_profile_not_found" } });
@@ -727,7 +803,13 @@ export async function siuRoutes(app: FastifyInstance) {
           warningExportReason: z.string().max(240).optional().nullable(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id);
+      // PRO-K1-04 — generating a stored bundle is not a read: a VIEWER (or a
+      // demoted creator) is refused by the case mutation matrix. Not plan
+      // gated: export stays available after a downgrade (B3C-F-007).
+      const ctx = await requireCaseActor(req, reply, params.id, "identity.member.read", {
+        mutation: "EVIDENCE_LINK",
+        planGated: false,
+      });
       if (!ctx) return;
       // IDENT-019 — a quarantined session keeps reads; this is refused.
       if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "EXPORT_GENERATE_PACKAGE" })).refused) return;
@@ -744,6 +826,7 @@ export async function siuRoutes(app: FastifyInstance) {
       const preflight = await runSiuExportPreflight({
         caseId: params.id,
         teamId: ctx.teamId,
+        actorUserId: ctx.userId,
       });
       if (!preflight) {
         return reply.code(404).send({ error: { code: "siu_profile_not_found" } });
@@ -825,10 +908,11 @@ export async function siuRoutes(app: FastifyInstance) {
       const out = await buildSiuExportBundle({
         caseId: params.id,
         teamId: ctx.teamId,
-        profile,
+        profile: await siuProfileInReach(profile, ctx.teamId, ctx.userId),
         preflight,
         warningExportReason: body.warningExportReason ?? null,
         actorUserId: ctx.userId,
+        includesPii: ctx.exposePii,
       });
       await emitTenantAudit({
         action: "siu_export_generated",
@@ -954,6 +1038,7 @@ export async function siuRoutes(app: FastifyInstance) {
         teamId: ctx.teamId,
         userId: ctx.userId,
         caseOwnerUserId: ownerRow?.ownerUserId ?? null,
+        currentRole: ctx.role,
         capability: "siu.pii.view",
       });
       if (!decision.allowed) {
@@ -1021,7 +1106,7 @@ export async function siuRoutes(app: FastifyInstance) {
         },
       }).catch(() => {});
       return reply.code(200).send({
-        profile,
+        profile: await siuProfileInReach(profile, ctx.teamId, ctx.userId),
         piiRedacted: false as const,
         durable: true as const,
         capability: "siu.pii.view" as const,
@@ -1220,6 +1305,46 @@ export async function siuRoutes(app: FastifyInstance) {
         .parse(req.params);
       const ctx = await requireCaseActor(req, reply, params.id);
       if (!ctx) return;
+      // PRO-K1-01 — a stored bundle leaves the platform again: a quarantined
+      // session is refused as the generator is (KZ note).
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "EXPORT_GENERATE_PACKAGE" })).refused) return;
+      // PRO-K1-01 — decided by what the stored bundle CONTAINS: its PII (the
+      // siu.pii.export capability now, plus a fresh step-up) and every record
+      // it carries (each must be open to this downloader now).
+      const disclosure = await authorizeSiuExportDownload({
+        caseId: params.id,
+        teamId: ctx.teamId,
+        exportId: params.exportId,
+        actorUserId: ctx.userId,
+        mayExportPii: ctx.exposePii,
+      });
+      if (!disclosure.allowed) {
+        await emitTenantAudit({
+          action: "siu_export_download_refused",
+          outcome: "denied",
+          severity: "warning",
+          sourceApp: "API",
+          actorUserId: ctx.userId,
+          workspaceId: ctx.teamId,
+          resourceType: "case",
+          resourceId: params.id,
+          correlationId: req.id ?? null,
+          metadata: { teamId: ctx.teamId, exportId: params.exportId, reason: disclosure.code },
+        }).catch(() => {});
+        return reply.code(disclosure.status).send({ error: { code: disclosure.code } });
+      }
+      if (disclosure.piiBearing) {
+        const piiStepUp = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          purpose: "SIU_PII_REVEAL",
+          resourceKind: "case",
+          resourceId: params.id,
+        });
+        if (piiStepUp.sent) return;
+      }
       // The stored bundle carries the same artifacts; the same gate applies
       // NOW, not only when it was generated (2026-09-29, audit M2).
       const withheldNow = await countSiuRecordsWithheld(req, ctx, params.id);

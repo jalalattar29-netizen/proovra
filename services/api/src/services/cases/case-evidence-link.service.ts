@@ -515,10 +515,14 @@ export async function deleteCaseAtomically(
     const removed = await tx.caseEvidenceLink.deleteMany({ where: { caseId: input.caseId } });
     await tx.caseAccess.deleteMany({ where: { caseId: input.caseId } });
     await tx.caseCollaborationTeamAccess.deleteMany({ where: { caseId: input.caseId } });
+    // PRO-K1-15 — the case's notes go with the case. case_comments has no
+    // foreign key to cases, so they used to survive as personal data with no
+    // reader and no retention path. They are coordination notes, not evidence,
+    // custody or an issued artifact; the deletion is audited below.
+    const removedComments = await tx.caseComment.deleteMany({ where: { caseId: input.caseId } });
     // EVID-005: the search documents go with the case. Reach hides them by
     // looking up the live case row, so once it is gone a restricted case's
-    // name and note text would match for every member, with no expiry. Comments
-    // stay as stored; the reconcile no longer indexes a comment with no case.
+    // name and note text would match for every member, with no expiry.
     await tx.evidenceSearchDocument.deleteMany({
       where: {
         OR: [
@@ -544,6 +548,7 @@ export async function deleteCaseAtomically(
         metadata: {
           caseId: input.caseId,
           removedLinkCount: removed.count,
+          removedCommentCount: removedComments.count,
           reason: "case_deleted",
           ipAddress: input.ipAddress ?? null,
           userAgent: input.userAgent ?? null,

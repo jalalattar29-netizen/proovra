@@ -41,6 +41,8 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
+import { hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
+import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
@@ -67,6 +69,25 @@ async function requireCaseInTeam(input: {
   });
   if (!c || !c.teamId) return null;
   return { caseId: c.id, teamId: c.teamId };
+}
+
+/**
+ * PRO-K1-06 / PRO-K1-12 — an SIU profile names records (checklist mappings,
+ * indicators, follow-up returns). A record another restricted case closes to
+ * the reader (EVID-004) is not named to them: ids are dropped, an indicator
+ * about it keeps its text but not the id. Applied to every profile a human
+ * reader receives, including the one written into an export bundle.
+ */
+export async function siuProfileInReach(profile: SiuProfile, teamId: string, viewerUserId: string): Promise<SiuProfile> {
+  const hidden = (await hiddenRecordIdsInWorkspace(teamId, viewerUserId)).evidenceIds;
+  if (hidden.length === 0) return profile;
+  const open = (id: string | null) => id === null || !hidden.includes(id);
+  return {
+    ...profile,
+    checklist: profile.checklist.map((c) => ({ ...c, mappedEvidenceIds: c.mappedEvidenceIds.filter(open) })),
+    reviewIndicators: profile.reviewIndicators.map((r) => (open(r.evidenceId ?? null) ? r : { ...r, evidenceId: null })),
+    followUps: profile.followUps.map((f) => ({ ...f, returnedEvidenceIds: f.returnedEvidenceIds.filter(open) })),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -395,11 +416,46 @@ function inferTemplateFromClaimType(
 // Checklist operations
 // ---------------------------------------------------------------------------
 
+/**
+ * PRO-K1-12 — ET-SEC-16 / B3C-F-004: a record named in an SIU write must be a
+ * live record of this workspace that is OPEN to the actor (the canonical
+ * record-access engine), and, where the write maps it onto the case, linked to
+ * this case. Otherwise the write answers exactly like an unknown id, so the
+ * route is no existence oracle and no dangling id is stored.
+ */
+async function siuRecordOpenTo(input: {
+  caseId: string;
+  teamId: string;
+  evidenceId: string;
+  actorUserId: string | null;
+  requireCaseLink: boolean;
+}): Promise<boolean> {
+  const ev = await prisma.evidence.findFirst({
+    where: {
+      id: input.evidenceId,
+      teamId: input.teamId,
+      deletedAt: null,
+      ...(input.requireCaseLink ? { caseLinks: { some: { caseId: input.caseId } } } : {}),
+    },
+    select: { id: true },
+  });
+  if (!ev) return false;
+  if (!input.actorUserId) return true;
+  const access = await resolveEvidenceRecordAccess({
+    userId: input.actorUserId,
+    evidenceId: input.evidenceId,
+    permission: "evidence.read",
+  });
+  return access.allowed;
+}
+
 export async function mapEvidenceToChecklistItem(input: {
   caseId: string;
   teamId: string;
   itemId: string;
   evidenceId: string;
+  /** PRO-K1-12 — the actor whose record reach decides (null: system). */
+  actorUserId: string | null;
 }): Promise<SiuProfile | null> {
   const tenant = await requireCaseInTeam(input);
   if (!tenant) return null;
@@ -408,11 +464,7 @@ export async function mapEvidenceToChecklistItem(input: {
     select: { id: true },
   });
   if (!profileRow) return null;
-  const ev = await prisma.evidence.findFirst({
-    where: { id: input.evidenceId, teamId: input.teamId },
-    select: { id: true },
-  });
-  if (!ev) return null;
+  if (!(await siuRecordOpenTo({ ...input, requireCaseLink: true }))) return null;
   const item = await prisma.caseSiuChecklistItem.findUnique({
     where: {
       case_siu_checklist_profile_item_uniq: {
@@ -503,6 +555,9 @@ export async function addReviewIndicator(input: {
     select: { id: true },
   });
   if (!profileRow) return null;
+  if (input.evidenceId && !(await siuRecordOpenTo({ ...input, evidenceId: input.evidenceId, requireCaseLink: false }))) {
+    return null;
+  }
   await prisma.caseSiuReviewIndicator.create({
     data: {
       siuProfileId: profileRow.id,
@@ -562,6 +617,20 @@ async function createFollowUpRequestInner(input: {
     select: { id: true },
   });
   if (!profileRow) return null;
+  // PRO-K1-12 — the checklist item is this profile's, and the intake link this
+  // workspace's; otherwise the same answer as an unknown id.
+  const item = await prisma.caseSiuChecklistItem.findFirst({
+    where: { siuProfileId: profileRow.id, templateItemId: input.checklistItemId },
+    select: { id: true },
+  });
+  if (!item) return null;
+  if (input.intakeLinkId) {
+    const link = await prisma.workflowIntakeLink.findFirst({
+      where: { id: input.intakeLinkId, teamId: input.teamId },
+      select: { id: true },
+    });
+    if (!link) return null;
+  }
   const row = await prisma.caseSiuFollowUp.create({
     data: {
       siuProfileId: profileRow.id,
@@ -583,9 +652,17 @@ export async function updateFollowUpStatus(input: {
   followUpId: string;
   status: SiuFollowUpStatus;
   receivedEvidenceId?: string | null;
+  /** PRO-K1-12 — the actor whose record reach decides (null: system). */
+  actorUserId: string | null;
 }): Promise<SiuFollowUpRequest | null> {
   const tenant = await requireCaseInTeam(input);
   if (!tenant) return null;
+  if (
+    input.receivedEvidenceId &&
+    !(await siuRecordOpenTo({ ...input, evidenceId: input.receivedEvidenceId, requireCaseLink: false }))
+  ) {
+    return null;
+  }
   const profileRow = await prisma.caseSiuProfile.findUnique({
     where: { caseId: input.caseId },
     select: { id: true },
