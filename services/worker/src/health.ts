@@ -7,6 +7,7 @@ import { prisma } from "./db.js";
 import { redisConnection, reportDlqQueue, reportQueue } from "./queue.js";
 import { probeEvidenceBucket } from "./storage.js";
 import { getOtsBitcoinVerifierReadiness } from "./ots-bitcoin-verifier.js";
+import { isWorkerShuttingDown } from "./shutdown-state.js";
 
 export type HealthServer = {
   close: () => Promise<void>;
@@ -148,6 +149,10 @@ export async function startHealthServer(): Promise<HealthServer> {
    * read this; the restart signal reads `/health`.
    */
   app.get("/readyz", async (_req, reply) => {
+    // PRO-S1-06 — a draining worker takes no new work: not ready, at once.
+    if (isWorkerShuttingDown()) {
+      return reply.code(503).send({ status: "draining", reason: "shutting_down" });
+    }
     const readiness = await evaluateWorkerReadiness();
     if (!readiness.ready) {
       logger.warn({ reason: readiness.reason, checks: readiness.checks }, "worker.readyz.not_ready");

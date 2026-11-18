@@ -102,7 +102,7 @@ import {
   isPasswordPolicyCompliant,
 } from "../services/email-password-auth.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
-import { assertLimiterAvailable, isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
+import { assertLimiterAvailable } from "../http/limiter-unavailable.js";
 /**
  * PHASE 13 (NEW-058) — the enrolment routes that give an account a factor live
  * in `identity-security-contact-factors.routes.ts`, registered alongside this
@@ -398,14 +398,8 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
    */
   // Bounded per challenge, across instances (a handoff is never a hot path).
   const handoffRateLimited = async (challengeId: string): Promise<boolean> => {
-    const rl = await enforceRateLimit({
-      key: `step-up-handoff:${challengeId}`,
-      bound: "global",
-      max: 10,
-      windowSec: 600,
-    });
-    // DEC-20 — a store outage is a retryable 503, not "too many attempts".
-    assertLimiterAvailable(rl);
+    const rl = await enforceRateLimit({ key: `step-up-handoff:${challengeId}`, bound: "global", max: 10, windowSec: 600 });
+    assertLimiterAvailable(rl); // DEC-20: outage → 503
     return !rl.allowed;
   };
 
@@ -1147,7 +1141,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         windowSec: 60,
       });
       if (!userRl.allowed) {
-        if (isLimiterUnavailable(userRl)) return replyLimiterUnavailable(reply, userRl);
+        assertLimiterAvailable(userRl);
         auditIdentitySecurityEvent(req, {
           userId,
           action: "identity_security.password_change",
@@ -1167,7 +1161,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         windowSec: 60,
       });
       if (!ipRl.allowed) {
-        if (isLimiterUnavailable(ipRl)) return replyLimiterUnavailable(reply, ipRl);
+        assertLimiterAvailable(ipRl);
         return reply.code(429).send({ error: { code: "rate_limited" } });
       }
 

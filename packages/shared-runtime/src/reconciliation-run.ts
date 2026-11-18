@@ -103,6 +103,50 @@ const SILENT: ReconciliationLogger = {
 export const RUN_LOCK_LEASE_MS = 60 * 60 * 1000;
 
 /**
+ * PRO-W2-09 — a RUNNING row whose holder heartbeats is alive however long it
+ * runs; one whose last heartbeat is older than this is a stopped process and
+ * its slot is taken over. A row with no heartbeat (an older writer) keeps the
+ * fixed {@link RUN_LOCK_LEASE_MS} from its start.
+ */
+export const RUN_HEARTBEAT_INTERVAL_MS = 60 * 1000;
+export const RUN_HEARTBEAT_STALE_MS = 5 * 60 * 1000;
+
+/** Run ids whose body is executing in THIS process (for shutdown finalisation). */
+const activeRuns = new Map<string, PrismaClient>();
+
+/**
+ * PRO-W2-09 — called by a stopping process before it exits: every run this
+ * process still holds is closed as FAILED(interrupted_by_shutdown), so the
+ * next replica's tick takes the slot at once instead of after the lease.
+ * Conditional on the row still being RUNNING; never throws.
+ */
+export async function markActiveReconciliationRunsInterrupted(): Promise<number> {
+  let closed = 0;
+  for (const [runId, client] of activeRuns) {
+    try {
+      const r = await client.governanceReconciliationRun.updateMany({
+        where: { id: runId, status: prismaPkg.GovernanceReconciliationStatus.RUNNING },
+        data: {
+          status: prismaPkg.GovernanceReconciliationStatus.FAILED,
+          finishedAtUtc: new Date(),
+          errorSummary: "interrupted_by_shutdown",
+        },
+      });
+      closed += r.count;
+    } catch {
+      // Best effort: the heartbeat staleness rule still frees the slot.
+    }
+  }
+  activeRuns.clear();
+  return closed;
+}
+
+/** Test seam. */
+export function __activeReconciliationRunCountForTests(): number {
+  return activeRuns.size;
+}
+
+/**
  * Is this the database refusing a second holder of a unique slot?
  *
  * Narrow on purpose. `P2002` is the ONLY error that means "someone else has
@@ -190,11 +234,15 @@ export async function runGovernanceReconciliation<T>(
       kind: input.kind,
       status: prismaPkg.GovernanceReconciliationStatus.RUNNING,
     },
-    select: { id: true, startedAtUtc: true },
+    select: { id: true, startedAtUtc: true, heartbeatAtUtc: true },
   });
   if (existing) {
     const ageMs = Date.now() - existing.startedAtUtc.getTime();
-    if (ageMs > RUN_LOCK_LEASE_MS) {
+    // PRO-W2-09 — a heartbeating holder is judged on its last heartbeat.
+    const stale = existing.heartbeatAtUtc
+      ? Date.now() - existing.heartbeatAtUtc.getTime() > RUN_HEARTBEAT_STALE_MS
+      : ageMs > RUN_LOCK_LEASE_MS;
+    if (stale) {
       const released = await client.governanceReconciliationRun.updateMany({
         where: {
           id: existing.id,
@@ -299,11 +347,29 @@ export async function runGovernanceReconciliation<T>(
   let status: prismaPkg.GovernanceReconciliationStatus =
     prismaPkg.GovernanceReconciliationStatus.SUCCEEDED;
 
+  // PRO-W2-09 — heartbeat while the body runs; registered for shutdown.
+  activeRuns.set(run.id, client);
+  const touch = async (): Promise<void> => {
+    try {
+      await client.governanceReconciliationRun.updateMany({
+        where: { id: run.id, status: prismaPkg.GovernanceReconciliationStatus.RUNNING },
+        data: { heartbeatAtUtc: new Date() },
+      });
+    } catch {
+      // A missed heartbeat only shortens the takeover window; never fail the run.
+    }
+  };
+  await touch();
+  const heartbeat = setInterval(() => void touch(), RUN_HEARTBEAT_INTERVAL_MS);
+  heartbeat.unref?.();
   try {
     bodyResult = await input.body(ctx);
   } catch (err) {
     error = err instanceof Error ? err : new Error(String(err));
     status = prismaPkg.GovernanceReconciliationStatus.FAILED;
+  } finally {
+    clearInterval(heartbeat);
+    activeRuns.delete(run.id);
   }
 
   // Partial success: had failures but did not throw.

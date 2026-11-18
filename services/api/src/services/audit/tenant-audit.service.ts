@@ -349,7 +349,7 @@ export function __clearActorSnapshotCacheForTests(): void {
  * concealed resource's data. Runs on the caller's `db`/tx when supplied so an
  * audit can share a domain mutation's atomic boundary.
  */
-export function emitTenantAudit(
+export async function emitTenantAudit(
   env: TenantAuditEnvelope,
   db?: PrismaClient,
 ): Promise<void> {
@@ -459,7 +459,7 @@ export type PlatformAuditEnvelope = {
   requestId?: string | null;
 };
 
-export function emitPlatformAudit(
+export async function emitPlatformAudit(
   env: PlatformAuditEnvelope,
   db?: PrismaClient,
 ): Promise<void> {

@@ -304,12 +304,20 @@ services:
     # outage marks the container unhealthy instead of starting a restart storm.
     # `/health` remains the liveness endpoint. start_period covers boot (schema
     # validation, Object Lock bootstrap); retries x interval tolerates a blip.
+    # PRO-W2-11 — the in-container probe follows the configured WORKER_PORT.
+    # (The host publish above stays: the deploy gate reads 127.0.0.1:8090.
+    # Running more than one worker container needs that publish removed and
+    # the gate moved to per-container health — an owner deploy-path decision.)
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/readyz || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:$${WORKER_PORT:-8090}/readyz || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 60s
+    # PRO-W2-11 / PRO-S1-06 — a stop drains active jobs: the worker bounds its
+    # own drain at WORKER_SHUTDOWN_DEADLINE_MS (default 120 s), so the runtime
+    # waits longer than that before SIGKILL (Docker's default was 10 s).
+    stop_grace_period: 150s
     restart: unless-stopped
 
   # OPS-004 — scheduled database backups, a restore drill, and the off-host copy.
