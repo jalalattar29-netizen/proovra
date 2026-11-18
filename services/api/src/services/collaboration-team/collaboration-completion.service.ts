@@ -545,6 +545,18 @@ export async function createComment(
           recipientIds.add(m.userId);
     }
 
+    // PRO-K2-02 — a comment on a case, a record or a record's review follows
+    // that record's reach (PRO-046): a recipient the target is closed to gets
+    // no notification and so no copy of its text, by the same rule
+    // listComments applies to them.
+    if (targetType !== "TEAM" && targetId) {
+      for (const uid of Array.from(recipientIds)) {
+        if (await commentTargetClosedTo(tx as unknown as PrismaClient, targetType, targetId, uid)) {
+          recipientIds.delete(uid);
+        }
+      }
+    }
+
     // Filter by preferences.
     let notificationCount = 0;
     if (recipientIds.size > 0) {
@@ -631,7 +643,7 @@ export async function listComments(
   }>;
   directory: Record<string, CollaborationTeamUserDirectoryEntry>;
 }> {
-  const { team } = await requireMemberRole(client, input.teamId, input.actorUserId);
+  const { team, role } = await requireMemberRole(client, input.teamId, input.actorUserId);
   const closedTargets = await closedCommentTargetsWhere(client, team.workspaceId, input.actorUserId);
   const where: Prisma.CollaborationTeamCommentWhereInput = {
     teamId: input.teamId,
@@ -665,7 +677,7 @@ export async function listComments(
   );
   const directory = await resolveUserDirectoryEntries(
     actorIds,
-    { viewerIsWorkspaceMember: true },
+    { viewerIsWorkspaceMember: collaborationTeamRoleHasPermission(role, "team.member.invite") }, // PRO-K2-05 (WCR-16)
     client,
   );
   return {
@@ -1099,7 +1111,7 @@ export async function listTeamActivityFiltered(
   },
   client: PrismaClient = defaultPrisma,
 ) {
-  await requireMemberRole(client, input.teamId, input.actorUserId);
+  const { role } = await requireMemberRole(client, input.teamId, input.actorUserId);
   const where: Prisma.CollaborationTeamActivityWhereInput = {
     teamId: input.teamId,
   };
@@ -1124,7 +1136,7 @@ export async function listTeamActivityFiltered(
     .filter(Boolean) as string[];
   const directory = await resolveUserDirectoryEntries(
     actorIds,
-    { viewerIsWorkspaceMember: true },
+    { viewerIsWorkspaceMember: collaborationTeamRoleHasPermission(role, "team.member.invite") }, // PRO-K2-05 (WCR-16)
     client,
   );
   return {

@@ -44,6 +44,7 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
+import { caseClosedTo, evidenceClosedTo } from "../access/record-reach.js";
 
 // ---------------------------------------------------------------------------
 // Bounded action catalog
@@ -248,7 +249,17 @@ export type BoundWorkflow = {
  * route's 404 cannot be used to enumerate workflows across tenants.
  */
 export async function bindWorkflowWorkspace(
-  input: { workflowId: string; declaredTeamId: string },
+  input: {
+    workflowId: string;
+    declaredTeamId: string;
+    /**
+     * The acting user (required, PRO-P1-01): a workflow naming a record or a
+     * case a restricted case closes to the actor is, to them, not there, the
+     * same 404 as an unknown id. `null` is a machine path (only unrestricted
+     * records stay open).
+     */
+    actorUserId: string | null;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<BoundWorkflow | null> {
   const workflow = await client.operationalWorkflow.findUnique({
@@ -256,6 +267,10 @@ export async function bindWorkflowWorkspace(
   });
   if (!workflow) return null;
   if (workflow.teamId !== input.declaredTeamId) return null;
+  if (workflow.evidenceId && (await evidenceClosedTo(workflow.evidenceId, input.actorUserId, client))) {
+    return null;
+  }
+  if (workflow.caseId && (await caseClosedTo(workflow.caseId, input.actorUserId, client))) return null;
   return { workflow, teamId: workflow.teamId };
 }
 

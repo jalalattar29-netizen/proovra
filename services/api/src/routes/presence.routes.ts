@@ -37,6 +37,7 @@ import {
   recordHeartbeatViaSelector as recordHeartbeat,
 } from "../services/presence/presence-selector.js";
 import { presenceResourceClosedTo } from "../services/presence/presence-reach.js";
+import { safeDisplayName } from "../services/collaboration-team/collaboration-team.service.js";
 
 const HeartbeatBody = z.object({
   teamId: z.string().uuid(),
@@ -86,17 +87,16 @@ export async function presenceRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 
-      // Capture a bounded display name. Falls back to the user id
-      // suffix when no displayName is set so the indicator never
-      // surfaces a raw uuid.
+      // Capture a bounded display name through the shared roster projection
+      // (PRO-K2-17): it never falls back to an address, so a person with no
+      // name is shown as "Workspace member", never their e-mail local part.
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, displayName: true, email: true },
+        select: { id: true, displayName: true, firstName: true, lastName: true },
       });
-      const displayName =
-        user?.displayName?.trim() ||
-        (user?.email ?? "").split("@")[0] ||
-        `user-${userId.slice(0, 6)}`;
+      const displayName = safeDisplayName(
+        user ?? { displayName: null, firstName: null, lastName: null },
+      );
 
       recordHeartbeat({
         teamId: body.teamId,

@@ -752,6 +752,8 @@ export async function addEvidenceLink(
   } catch (err) {
     if (err instanceof CaseEvidenceAuthorityError) {
       if (err.code === "case_not_found") throw new CaseError("case_not_found");
+      // PRO-K1-02 — the restricted-case narrowing refusal is an answer (403), not a missing record.
+      if (err.code === "restricted_link_requires_manager") throw caseUnlinkRefusalError(err) ?? err;
       // evidence_not_found / evidence_deleted / cross_workspace_denied all
       // collapse to the anti-enumeration-safe evidence_not_found.
       throw new CaseError("evidence_not_found");

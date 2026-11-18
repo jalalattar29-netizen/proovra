@@ -380,11 +380,16 @@ async function audit(
  * `/v1/ops/workflows/:id` endpoint.
  */
 export async function getWorkflow(
-  input: { workflowId: string; teamId: string },
+  input: {
+    workflowId: string;
+    teamId: string;
+    /** The reader's record reach (`workflowInReach`), required (PRO-P1-01). */
+    reach: prismaPkg.Prisma.OperationalWorkflowWhereInput;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.OperationalWorkflow | null> {
   return client.operationalWorkflow.findFirst({
-    where: { id: input.workflowId, teamId: input.teamId },
+    where: { AND: [{ id: input.workflowId, teamId: input.teamId }, input.reach] },
   });
 }
 
@@ -398,11 +403,14 @@ export async function listWorkflows(
     status?: string;
     workflowType?: string;
     limit?: number;
+    /** The reader's record reach (`workflowInReach`), required (PRO-P1-01). */
+    reach: prismaPkg.Prisma.OperationalWorkflowWhereInput;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.OperationalWorkflow[]> {
   return client.operationalWorkflow.findMany({
     where: {
+      AND: [input.reach],
       teamId: input.teamId,
       ...(input.status
         ? { status: input.status as prismaPkg.OperationalWorkflowStatus }

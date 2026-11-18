@@ -166,6 +166,30 @@ export function holdInReach(reach: ViewerReach): Prisma.EvidenceLegalHoldWhereIn
   ];
 }
 
+/**
+ * An operational workflow names a record and/or a case (PRO-P1-01): either may be
+ * closed to the caller, and then the workflow is that record's row.
+ */
+export function workflowInReach(reach: ViewerReach): Prisma.OperationalWorkflowWhereInput {
+  return {
+    AND: [
+      ...nullableNotIn("evidenceId", reach.hidden.evidenceIds),
+      ...nullableNotIn("caseId", reach.hidden.caseIds),
+    ],
+  };
+}
+
+/** True when a row naming this record and/or case is closed to the caller. */
+export function namesHiddenRecord(
+  reach: ViewerReach,
+  ids: { evidenceId?: string | null; caseId?: string | null },
+): boolean {
+  return (
+    (!!ids.evidenceId && reach.hidden.evidenceIds.includes(ids.evidenceId)) ||
+    (!!ids.caseId && reach.hidden.caseIds.includes(ids.caseId))
+  );
+}
+
 /** For a row whose evidence id is required and has no relation. */
 export function evidenceIdInReach(reach: ViewerReach): { evidenceId?: { notIn: string[] } } {
   return reach.hidden.evidenceIds.length > 0 ? { evidenceId: { notIn: reach.hidden.evidenceIds } } : {};

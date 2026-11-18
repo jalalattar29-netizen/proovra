@@ -271,7 +271,7 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
     let cursor: string | null = null;
     let pages = 0;
     do {
-      const page = await drilldown.listGroupAffectedRecords({
+      const page = await drilldown.listGroupAffectedRecords({ incidentReach: {},
         teamId: team.teamId,
         sourceId: "evidence_integrity.tsa_failed",
         limit: drilldown.AFFECTED_PAGE_MAX,
@@ -297,7 +297,7 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
   }, 900_000);
 
   it("a page size the caller asks for is honoured, and capped", async () => {
-    const small = await drilldown.listGroupAffectedRecords({
+    const small = await drilldown.listGroupAffectedRecords({ incidentReach: {},
       teamId: team.teamId,
       sourceId: "evidence_integrity.tsa_failed",
       limit: 7,
@@ -308,7 +308,7 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
 
     // An unbounded request is bounded for the caller rather than refused: the
     // page is a page whatever they ask for.
-    const capped = await drilldown.listGroupAffectedRecords({
+    const capped = await drilldown.listGroupAffectedRecords({ incidentReach: {},
       teamId: team.teamId,
       sourceId: "evidence_integrity.tsa_failed",
       limit: 10_000,
@@ -318,7 +318,7 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
   }, 900_000);
 
   it("the drill-down returns only safe fields", async () => {
-    const page = await drilldown.listGroupAffectedRecords({
+    const page = await drilldown.listGroupAffectedRecords({ incidentReach: {},
       teamId: team.teamId,
       sourceId: "evidence_integrity.tsa_failed",
       limit: 5,
@@ -373,7 +373,7 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
     const seen = new Set<string>();
     let cursor: string | null = null;
     do {
-      const page = await drilldown.listGroupAffectedRecords({
+      const page = await drilldown.listGroupAffectedRecords({ incidentReach: {},
         teamId: team.teamId,
         sourceId: "evidence_integrity.tsa_failed",
         limit: drilldown.AFFECTED_PAGE_MAX,
@@ -400,13 +400,13 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
     // The cursor resolves to nothing under this workspace's scope, so the
     // caller gets the FIRST page — the same answer a nonsense cursor gets, and
     // therefore no signal that the row is real.
-    const withForeign = await drilldown.listGroupAffectedRecords({
+    const withForeign = await drilldown.listGroupAffectedRecords({ incidentReach: {},
       teamId: team.teamId,
       sourceId: "evidence_integrity.tsa_failed",
       limit: 5,
       cursor: theirRow.id,
     });
-    const first = await drilldown.listGroupAffectedRecords({
+    const first = await drilldown.listGroupAffectedRecords({ incidentReach: {},
       teamId: team.teamId,
       sourceId: "evidence_integrity.tsa_failed",
       limit: 5,
@@ -420,7 +420,7 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
   it("an unknown group key returns an empty page, not an error", async () => {
     // Anti-enumeration: a key that names nothing and a key that names another
     // tenant's group are the same empty answer.
-    const page = await drilldown.listGroupAffectedRecords({
+    const page = await drilldown.listGroupAffectedRecords({ incidentReach: {},
       teamId: team.teamId,
       sourceId: "nobody.registered.this",
       limit: 10,

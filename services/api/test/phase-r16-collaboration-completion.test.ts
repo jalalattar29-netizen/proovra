@@ -239,6 +239,12 @@ describe("Phase R16 — user directory helper", () => {
     expect(e.emailMasked).toMatch(/^a\*\*\*@/);
   });
 
+  it("PRO-K2-05/K2-17: a reader who may not see the address does not get its local part as a name", () => {
+    const nameless = { id: "u-3", email: "carol.secret@example.com", displayName: null, firstName: null, lastName: null, avatarUrl: null };
+    expect(buildCollaborationTeamUserDirectoryEntry(nameless, { viewerIsWorkspaceMember: false }).displayName).toBe("Team member");
+    expect(buildCollaborationTeamUserDirectoryEntry(nameless, { viewerIsWorkspaceMember: true }).displayName).toBe("carol.secret");
+  });
+
   it("falls back gracefully when displayName + email missing", () => {
     const e = buildCollaborationTeamUserDirectoryEntry(
       {

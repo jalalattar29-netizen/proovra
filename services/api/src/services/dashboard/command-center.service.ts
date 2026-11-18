@@ -2907,16 +2907,13 @@ async function runIncidents(
 
   let causalityChains: CommandCenterCausalityChainItem[] = [];
   try {
-    causalityChains = (
-      await listWorkspaceCausalityChains({
-        teamId,
-        limit: 12,
-      })
-    ).filter(
-      (c) =>
-        !c.linkedEvidenceIds.some((id) => reach.hidden.evidenceIds.includes(id)) &&
-        !c.linkedCaseIds.some((id) => reach.hidden.caseIds.includes(id)),
-    );
+    // The reach filter lives in the reader itself (PRO-P1-01), one rule for
+    // the dashboard and the Operations route.
+    causalityChains = await listWorkspaceCausalityChains({
+      teamId,
+      limit: 12,
+      hidden: reach.hidden,
+    });
   } catch {
     causalityChains = [];
   }

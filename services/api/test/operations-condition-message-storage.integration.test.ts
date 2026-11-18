@@ -216,7 +216,7 @@ describe("condition message codes are stored, projected and localized (live Post
       fingerprint: unique("drill"),
       message: { code: "ops.integration.webhook_destination_disabled", params: { failures: 3 } },
     });
-    const page = await drilldown.listGroupAffectedRecords({
+    const page = await drilldown.listGroupAffectedRecords({ incidentReach: {},
       teamId,
       sourceId: "integration.webhook_destination_disabled",
       limit: 50,

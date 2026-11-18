@@ -23,6 +23,7 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { caseClosedTo, evidenceClosedTo } from "../access/record-reach.js";
 import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
@@ -231,6 +232,11 @@ async function runOneItem(input: {
   actor: RunBulkActionInput;
 }): Promise<void> {
   const c = input.client;
+  // THE ACTOR'S RECORD REACH, per item and at write time (PRO-P1-01). A target
+  // naming a record or case a restricted case closes to the actor is, to them,
+  // not there: the item fails with the same code an unknown id gets, exactly
+  // as the single-item routes answer 404 (`incidentClosedTo`).
+  await assertBulkTargetInActorReach(c, input);
   switch (input.actionType) {
     case "BULK_ASSIGN_WORKFLOWS": {
       if (!input.actor.assigneeUserId) {
@@ -437,6 +443,35 @@ async function runOneItem(input: {
         },
       });
       return;
+    }
+  }
+}
+
+async function assertBulkTargetInActorReach(
+  c: PrismaClient,
+  input: { actionType: BulkActionType; teamId: string; targetId: string; actor: RunBulkActionInput },
+): Promise<void> {
+  const actorUserId = input.actor.actorUserId;
+  if (input.actionType.endsWith("_INCIDENTS")) {
+    const row = await c.operationalIncident.findFirst({
+      where: { id: input.targetId, teamId: input.teamId },
+      select: { relatedEvidenceId: true },
+    });
+    if (row?.relatedEvidenceId && (await evidenceClosedTo(row.relatedEvidenceId, actorUserId, c))) {
+      throw new BulkActionError("incident_not_found");
+    }
+    return;
+  }
+  if (input.actionType.endsWith("_WORKFLOWS") || input.actionType === "BULK_ADD_MITIGATION" || input.actionType === "BULK_SCHEDULE_RETRY") {
+    const row = await c.operationalWorkflow.findFirst({
+      where: { id: input.targetId, teamId: input.teamId },
+      select: { evidenceId: true, caseId: true },
+    });
+    if (
+      (row?.evidenceId && (await evidenceClosedTo(row.evidenceId, actorUserId, c))) ||
+      (row?.caseId && (await caseClosedTo(row.caseId, actorUserId, c)))
+    ) {
+      throw new BulkActionError("workflow_not_found");
     }
   }
 }

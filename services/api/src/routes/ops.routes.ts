@@ -42,7 +42,13 @@ import {
   getFeatureSnapshot,
 } from "../config/index.js";
 import { prisma } from "../db.js";
-import { evidenceClosedTo, incidentInReach, viewerReachInWorkspace } from "../services/access/record-reach.js";
+import {
+  evidenceClosedTo,
+  incidentInReach,
+  namesHiddenRecord,
+  viewerReachInWorkspace,
+  workflowInReach,
+} from "../services/access/record-reach.js";
 import { buildOperationsSummary } from "../services/operations/operations-summary.service.js";
 import { ensureWorkspaceOperationsFresh } from "../services/operations/operations-reconciliation.service.js";
 import { checkWriterSchemaContract } from "../services/operations/operations-writer-readiness.js";
@@ -363,6 +369,33 @@ async function requireDomainActionOnOpsSurface(
     return null;
   }
   return { userId };
+}
+
+/** Bulk-run items whose incident / workflow target is open to the reader (PRO-P1-01). */
+async function bulkItemsInReach<T extends { targetId: string }>(
+  items: T[],
+  teamId: string,
+  userId: string,
+): Promise<T[]> {
+  if (items.length === 0) return items;
+  const reach = await viewerReachInWorkspace(teamId, userId);
+  if (reach.hidden.evidenceIds.length === 0 && reach.hidden.caseIds.length === 0) return items;
+  const ids = items.map((i) => i.targetId);
+  const [incidents, workflows] = await Promise.all([
+    prisma.operationalIncident.findMany({
+      where: { id: { in: ids }, teamId },
+      select: { id: true, relatedEvidenceId: true },
+    }),
+    prisma.operationalWorkflow.findMany({
+      where: { id: { in: ids }, teamId },
+      select: { id: true, evidenceId: true, caseId: true },
+    }),
+  ]);
+  const closed = new Set<string>([
+    ...incidents.filter((r) => namesHiddenRecord(reach, { evidenceId: r.relatedEvidenceId })).map((r) => r.id),
+    ...workflows.filter((r) => namesHiddenRecord(reach, r)).map((r) => r.id),
+  ]);
+  return items.filter((i) => !closed.has(i.targetId));
 }
 
 /** READ the workspace's shared operational state. */
@@ -1332,10 +1365,18 @@ export async function opsRoutes(app: FastifyInstance) {
         }
         after = { firstSeen: at, id };
       }
+      // Each workspace narrowed by the caller's record reach inside it, as the
+      // workspace list is (PRO-P1-01): org authority is not record reach.
+      const scoped: prismaPkg.Prisma.OperationalIncidentWhereInput[] = [];
+      for (const t of readable) {
+        scoped.push({
+          AND: [workspaceIncidentWhere(t.id), incidentInReach(await viewerReachInWorkspace(t.id, userId))],
+        });
+      }
       const rows = await prisma.operationalIncident.findMany({
         where: {
           AND: [
-            { OR: readable.map((t) => workspaceIncidentWhere(t.id)) },
+            { OR: scoped },
             incidentStatusFilterWhere(q.status),
             ...(q.severity ? [{ severity: q.severity as never }] : []),
             ...(q.sourceId ? [{ sourceId: q.sourceId }] : []),
@@ -1862,6 +1903,7 @@ export async function opsRoutes(app: FastifyInstance) {
         severity: q.severity ?? null,
         limit,
         cursor: q.cursor ?? null,
+        incidentReach: incidentInReach(await viewerReachInWorkspace(q.teamId, actor.userId)),
       });
 
       return reply.code(200).send({
@@ -2716,6 +2758,7 @@ export async function opsRoutes(app: FastifyInstance) {
         status: q.status,
         workflowType: q.workflowType,
         limit: q.limit,
+        reach: workflowInReach(await viewerReachInWorkspace(q.teamId, actor.userId)),
       });
       // PHASE 12 — VERTICAL B. Action availability is resolved SERVER-side
       // once per request and stamped onto every row. The browser renders
@@ -2745,7 +2788,11 @@ export async function opsRoutes(app: FastifyInstance) {
       const { getWorkflow } = await import(
         "../services/observability/workflow.service.js"
       );
-      const row = await getWorkflow({ workflowId: id, teamId: q.teamId });
+      const row = await getWorkflow({
+        workflowId: id,
+        teamId: q.teamId,
+        reach: workflowInReach(await viewerReachInWorkspace(q.teamId, actor.userId)),
+      });
       if (!row) {
         return reply
           .code(404)
@@ -2809,6 +2856,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
+        actorUserId: actor.userId,
       });
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
@@ -2879,6 +2927,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
+        actorUserId: actor.userId,
       });
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
@@ -2921,6 +2970,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
+        actorUserId: actor.userId,
       });
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
@@ -2963,6 +3013,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
+        actorUserId: actor.userId,
       });
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
@@ -3006,6 +3057,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
+        actorUserId: actor.userId,
       });
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
@@ -3049,6 +3101,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
+        actorUserId: actor.userId,
       });
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
@@ -3091,6 +3144,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
+        actorUserId: actor.userId,
       });
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
@@ -3133,6 +3187,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
+        actorUserId: actor.userId,
       });
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
@@ -3182,6 +3237,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const chains = await listWorkspaceCausalityChains({
         teamId: q.teamId,
         limit: q.limit,
+        hidden: (await viewerReachInWorkspace(q.teamId, actor.userId)).hidden,
       });
       return reply.code(200).send({ chains });
     },
@@ -3202,7 +3258,9 @@ export async function opsRoutes(app: FastifyInstance) {
       const chain = await prisma.operationalCausalityChain.findFirst({
         where: { id, teamId: q.teamId },
       });
-      if (!chain) {
+      const reach = await viewerReachInWorkspace(q.teamId, actor.userId);
+      const { causalityChainInReach } = await import("../services/dashboard/causality.service.js");
+      if (!chain || !causalityChainInReach(chain, reach.hidden)) {
         return reply
           .code(404)
           .send({ error: { code: "chain_not_found" } });
@@ -3218,7 +3276,7 @@ export async function opsRoutes(app: FastifyInstance) {
         linkedWorkflowIds.length > 0
           ? await prisma.operationalWorkflow
               .findMany({
-                where: { id: { in: linkedWorkflowIds }, teamId: q.teamId },
+                where: { AND: [{ id: { in: linkedWorkflowIds }, teamId: q.teamId }, workflowInReach(reach)] },
                 select: {
                   id: true,
                   title: true,
@@ -3904,7 +3962,9 @@ export async function opsRoutes(app: FastifyInstance) {
           createdAtUtc: run.createdAt.toISOString(),
           completedAtUtc: run.completedAtUtc?.toISOString() ?? null,
         },
-        items: items.map(projectBulkItem),
+        // An item naming a condition or workflow closed to the reader is not
+        // listed (PRO-P1-01): its target is that record's row.
+        items: (await bulkItemsInReach(items, q.teamId, actor.userId)).map(projectBulkItem),
       });
     },
   );

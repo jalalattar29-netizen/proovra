@@ -3067,7 +3067,7 @@ function boundedPage(limit: number | undefined): number {
 }
 
 /** Display name that never falls back to an address. */
-function safeDisplayName(user: {
+export function safeDisplayName(user: {
   displayName: string | null;
   firstName: string | null;
   lastName: string | null;

@@ -118,17 +118,34 @@ export function PresenceIndicator({
   useEffect(() => {
     aliveRef.current = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    const hidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
+    let running = false;
     async function loop() {
-      if (!aliveRef.current) return;
-      await beat();
-      if (aliveRef.current) {
+      if (!aliveRef.current || running) return;
+      running = true;
+      try {
+        await beat();
+      } finally {
+        running = false;
+      }
+      // PRO-K2-17: a hidden tab stops polling (one observe-only beat when it
+      // hides) and resumes when it becomes visible again.
+      if (aliveRef.current && !hidden()) {
         timer = setTimeout(loop, HEARTBEAT_INTERVAL_MS);
+      } else {
+        timer = null;
       }
     }
+    function onVisibility() {
+      if (!aliveRef.current || hidden() || timer || running) return;
+      void loop();
+    }
     void loop();
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
     return () => {
       aliveRef.current = false;
       if (timer) clearTimeout(timer);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
     };
     // `generation` participates so a workspace/resource switch restarts the
     // loop against the new context instead of polling the stale one.
