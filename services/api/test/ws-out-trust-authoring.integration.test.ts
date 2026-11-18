@@ -263,6 +263,51 @@ describe("WS-OUT RG-20 — trust authoring, seeds and governance reads (live Pos
     expect([403, 404]).toContain(viewerClaims.statusCode);
   });
 
+  it("PRO-LEAD-05: an org auditor without workspace membership sees hold counts, never hold titles, reasons or record ids", async () => {
+    const t = await tenant("ENTERPRISE", { contract: true });
+    const evidence = await prisma.evidence.create({
+      data: {
+        title: "held-record",
+        displayFileName: "held.pdf",
+        type: "PHOTO",
+        status: "SIGNED",
+        teamId: t.teamId,
+        organizationId: t.orgId,
+        ownerUserId: t.owner.id,
+        sizeBytes: 1_000n,
+      } as never,
+      select: { id: true },
+    });
+    await prisma.evidenceLegalHold.create({
+      data: {
+        teamId: t.teamId,
+        scope: "EVIDENCE",
+        evidenceId: evidence.id,
+        organizationId: t.orgId,
+        title: "HOLD-TITLE-SECRET",
+        reason: "HOLD-REASON-SECRET",
+        status: "ACTIVE",
+        placedByUserId: t.owner.id,
+      } as never,
+    });
+    const auditor = await kit.person(null);
+    await prisma.organizationMembership.create({
+      data: { organizationId: t.orgId, userId: auditor.id, role: "ORG_AUDITOR" } as never,
+    });
+    const url = `/v1/orgs/${t.orgId}/governance/control-center`;
+    const byAuditor = await call("GET", url, auditor);
+    expect(byAuditor.statusCode, byAuditor.body).toBe(200);
+    expect(byAuditor.json().sections.legalHolds.data.activeCount).toBe(1);
+    expect(byAuditor.body).not.toContain("HOLD-TITLE-SECRET");
+    expect(byAuditor.body).not.toContain("HOLD-REASON-SECRET");
+    expect(byAuditor.body).not.toContain(evidence.id);
+
+    // The workspace owner (ORG_OWNER and ACTIVE workspace member) sees the sample.
+    const byOwner = await call("GET", url, t.owner);
+    expect(byOwner.statusCode, byOwner.body).toBe(200);
+    expect(byOwner.body).toContain("HOLD-TITLE-SECRET");
+  });
+
   it("PRO-G2-07: reconciliation runs listed to a workspace caller never include team-less platform runs", async () => {
     const t = await tenant("PRO");
     const platform = await prisma.governanceReconciliationRun.create({

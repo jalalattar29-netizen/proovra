@@ -478,7 +478,8 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
         return reply.code(access.denial.status).send(access.denial.body);
       }
 
-      const envelope = await buildOrgGovernanceControlCenter({ orgId });
+      // PRO-LEAD-05 — content samples follow the viewer's workspace membership and record reach.
+      const envelope = await buildOrgGovernanceControlCenter({ orgId, viewerUserId: userId });
       return reply.code(200).send(envelope);
     },
   );
