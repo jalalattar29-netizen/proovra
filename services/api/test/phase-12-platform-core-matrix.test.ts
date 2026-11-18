@@ -251,6 +251,8 @@ vi.mock("../src/db.js", () => ({
           : null;
       },
     },
+    // PRO-I1Z-05 — the re-opt-in gate reads the contact's opt-out state.
+    communicationPreference: { findFirst: async () => null },
     subscription: { findFirst: async () => null, findMany: async () => [], update: async () => ({}) },
     workspaceStorageAddon: {
       findMany: async () => [],
@@ -527,6 +529,8 @@ vi.mock("../src/services/communications/verification.service.js", () => {
         : { status: "denied", attempt: null };
     },
     projectVerificationAttempt: (a: Record<string, unknown>) => ({ id: a.id, recipientPreview: a.recipientPreview }),
+    // PRO-A1-03 — the new-destination budget (proven in ws-msg-remediation.integration).
+    enforceNewDestinationVerificationBudget: async () => ({ allowed: true }),
   };
 });
 
