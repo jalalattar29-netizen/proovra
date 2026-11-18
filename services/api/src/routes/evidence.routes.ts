@@ -601,6 +601,7 @@ import {
   resolvePublicVerifyDisclosure,
 } from "../services/public-verify/public-verify-projection.js";
 import { resolvePackageSealCheck } from "../services/public-verify/package-seal-check.service.js";
+import { captureWorkspaceMismatch } from "../services/evidence/capture-workspace-binding.js";
 
 import { primaryPublishedPackageWhere, publishedProfilePackageWhere, asPublishedPackage } from "@proovra/shared-runtime/reports";
 const EvidenceTypeSchema = prismaPkg.EvidenceType
@@ -7234,6 +7235,13 @@ message:
   });
 }
 
+      // PRO-C1-01 — a web page that switched workspace never writes into the
+      // record it reserved in the workspace it left.
+      {
+        const moved = captureWorkspaceMismatch(req, evidence.teamId);
+        if (moved) return reply.code(moved.statusCode).send(moved.body);
+      }
+
       // F-12 (Free-user audit 2026-11-13) — EARLY feedback on the DECLARED
       // size, before a byte moves. A file that ALONE would take the workspace
       // past its storage limit can never be sealed, so it is refused now
@@ -12153,6 +12161,13 @@ try {
         return reply.code(statusCode).send({ message });
       }
 
+      // PRO-C1-01 — a web page that switched workspace never seals the record
+      // it reserved in the workspace it left (refused before any write).
+      {
+        const moved = captureWorkspaceMismatch(req, evidence.teamId);
+        if (moved) return reply.code(moved.statusCode).send(moved.body);
+      }
+
       // PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement on FINALIZE.
       // Finalizing (`/complete`) PERSONAL-scope Evidence is a personal action: a
       // managed enterprise identity has no personal space, so deny BEFORE
@@ -12390,26 +12405,9 @@ return reply.code(200).send({
   }),
 });
       } catch (err) {
-if (
-  err instanceof Error &&
-  "code" in err &&
-  (err as Error & { code?: string }).code === "INSUFFICIENT_CREDITS"
-) {
-  await auditEvidenceAction(req, {
-    userId: ownerUserId,
-    action: "evidence.complete",
-    outcome: "blocked",
-    severity: "warning",
-    resourceId: id,
-    teamId: evidence.teamId,
-    metadata: { reason: "INSUFFICIENT_CREDITS" },
-  });
-  return reply.code(402).send({
-    code: "INSUFFICIENT_CREDITS",
-    message: "Insufficient credits",
-  });
-}
-
+        // PRO-C1-06 — the INSUFFICIENT_CREDITS arm that stood here had no
+        // producer (the funding authority raises INSUFFICIENT_EVIDENCE_CREDITS);
+        // expected refusals are classified by the final arm below instead.
         if (
           err instanceof Error &&
           err.message === "Cannot complete evidence without an uploaded file"
@@ -12584,24 +12582,38 @@ if (
           });
         }
 
+        // PRO-C1-06 — THE AUDIT HAS TO AGREE WITH THE ANSWER, as on the create
+        // route: an error that declares an expected denial (credits spent
+        // elsewhere since admission, a missing checklist step, an integrity
+        // refusal, a finalize race) is recorded as the blocked, warning outcome
+        // it is and is not counted as a capture failure. Silence still means
+        // UNEXPECTED: critical audit and the failure metric. The answer is the
+        // central handler's either way.
+        const expected = classifyReportability(err) !== "UNEXPECTED";
         await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.complete",
-          outcome: "failure",
-          severity: "critical",
+          outcome: expected ? "blocked" : "failure",
+          severity: expected ? "warning" : "critical",
           resourceId: id,
           teamId: evidence.teamId,
           metadata: {
-            reason: err instanceof Error ? err.message : "unknown_error",
+            reason: expected
+              ? ((err as { code?: string }).code ?? "REQUEST_REFUSED")
+              : err instanceof Error
+                ? err.message
+                : "unknown_error",
           },
         });
 
         // UC-LCH-002 — an unexpected completion failure counts against the record's channel
         // (web upload or mobile app). Best-effort: metrics never change the answer.
-        await prisma.evidence
-          .findUnique({ where: { id }, select: { acquisitionMode: true } })
-          .then((row) => bumpCaptureFailure(row?.acquisitionMode ?? null))
-          .catch(() => undefined);
+        if (!expected) {
+          await prisma.evidence
+            .findUnique({ where: { id }, select: { acquisitionMode: true } })
+            .then((row) => bumpCaptureFailure(row?.acquisitionMode ?? null))
+            .catch(() => undefined);
+        }
 
         throw err;
       }

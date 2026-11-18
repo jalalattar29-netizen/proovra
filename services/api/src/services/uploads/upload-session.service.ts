@@ -354,6 +354,24 @@ export type CreateSessionResult =
   | { ok: true; session: UploadSessionRow; reused: boolean }
   | { ok: false; reason: UploadSessionDenialCode };
 
+/**
+ * PRO-C1-11 — does a live session reused by its idempotency key declare the
+ * same upload as this request? Absent declarations on both sides agree.
+ */
+function sameDeclaredUpload(
+  prior: RawSession & { target_part_index: number | null },
+  input: CreateSessionInput,
+): boolean {
+  const bytes = (v: bigint | number | null | undefined) => (v === null || v === undefined ? null : String(v));
+  const digest = (v: string | null | undefined) => (v ? v.trim().toLowerCase() : null);
+  return (
+    Number(prior.expected_part_count) === input.expectedPartCount &&
+    bytes(prior.expected_total_bytes) === bytes(input.expectedTotalBytes) &&
+    digest(prior.expected_sha256) === digest(input.expectedSha256) &&
+    (prior.target_part_index ?? null) === (input.targetPartIndex ?? null)
+  );
+}
+
 export async function createUploadSession(
   input: CreateSessionInput,
   client: PrismaClient = defaultPrisma,
@@ -441,13 +459,14 @@ export async function createUploadSession(
                 "expected_part_count", "expected_total_bytes", "expected_sha256",
                 "safe_note", "idempotency_key", "expires_at_utc",
                 "completed_at_utc", "aborted_at_utc", "aborted_by_user_id",
-                "abort_reason", "created_at_utc", "updated_at_utc"
+                "abort_reason", "created_at_utc", "updated_at_utc",
+                "target_part_index"
            FROM "evidence_upload_sessions"
            WHERE "team_id" = $1 AND "idempotency_key" = $2
            LIMIT 1`,
         input.teamId,
         input.idempotencyKey,
-      )) as RawSession[];
+      )) as Array<RawSession & { target_part_index: number | null }>;
       if (existing.length > 0) {
         const prior = existing[0]!;
         // ET-UPL-03 — a key only collapses onto the SAME record and actor.
@@ -469,8 +488,16 @@ export async function createUploadSession(
             input.teamId,
           );
         } else {
+          // PRO-C1-11 — a key binds the declared FILE too: the same key with
+          // another size, digest, part count or target index is a different
+          // request, refused now rather than discovered after the whole upload
+          // (size_mismatch / hash_mismatch at assembly).
+          if (!sameDeclaredUpload(prior, input)) {
+            return { ok: false, reason: "idempotency_key_conflict" };
+          }
           bump("upload_session_idempotent_reuse_total");
-          return { ok: true, session: projectSession(prior), reused: true };
+          const { target_part_index: _targetPartIndex, ...priorSession } = prior;
+          return { ok: true, session: projectSession(priorSession), reused: true };
         }
       }
     } catch {
@@ -1543,6 +1570,8 @@ type SessionWithMultipart = {
   original_file_name: string | null;
   expected_mime_type: string | null;
   bridged_evidence_part_id: string | null;
+  /** PRO-C1-09 — the session's declared lifetime has passed (decided by the DB clock). */
+  lifetime_expired: boolean;
 };
 
 async function loadSessionWithMultipart(
@@ -1556,7 +1585,8 @@ async function loadSessionWithMultipart(
             "multipart_upload_id", "storage_bucket", "storage_key",
             "completed_at_storage_utc", "completed_object_etag", "aborted_at_storage_utc",
             "target_part_index", "original_file_name", "expected_mime_type",
-            "bridged_evidence_part_id"
+            "bridged_evidence_part_id",
+            ("expires_at_utc" <= NOW()) AS "lifetime_expired"
        FROM "evidence_upload_sessions"
        WHERE "id" = $1 AND "team_id" = $2
        LIMIT 1`,
@@ -1741,7 +1771,9 @@ export async function presignStorageUploadPart(
   if (!session.multipart_upload_id || !session.storage_bucket || !session.storage_key) {
     return { ok: false, reason: "multipart_not_initiated" };
   }
-  if (session.state !== "UPLOADING") {
+  // PRO-C1-09 — the bounded lifetime bounds: an expired session mints no URL,
+  // whether or not the reconcile tick has flipped it yet.
+  if (session.state !== "UPLOADING" || session.lifetime_expired) {
     return { ok: false, reason: "session_already_terminal" };
   }
   if (input.partIndex >= session.expected_part_count) {
@@ -1906,7 +1938,10 @@ export async function completeStorageMultipart(
     session.state === "COMPLETED" ||
     session.state === "ABORTED" ||
     session.state === "EXPIRED" ||
-    session.state === "FAILED"
+    session.state === "FAILED" ||
+    // PRO-C1-09 — not assembled before its lifetime ended: refused. An object
+    // storage already assembled (INGEST-005 retry) is re-checked as before.
+    (session.lifetime_expired && !session.completed_at_storage_utc)
   ) {
     return { ok: false, reason: "session_already_terminal" };
   }

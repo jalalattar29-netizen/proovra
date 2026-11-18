@@ -49,6 +49,10 @@
 import type { ReconcileStalledSummary } from "../services/reliability/upload-reconciliation.service.js";
 import type { ReconcileSummary } from "../routes/ops.routes.js";
 import type { OutputHoldSweepSummary } from "../services/governance/output-hold-release.service.js";
+import type { recoverSealedRecordObligations } from "../services/evidence-complete.service.js";
+
+/** PRO-C1Z-01 / PRO-C1-02 — what one sealed-record recovery pass did. */
+export type SealedRecordRecoverySummary = Awaited<ReturnType<typeof recoverSealedRecordObligations>>;
 
 /** Default cadence. Matches the 5-minute granularity runMasterReconcile's own
  *  "QUEUED for more than 5 minutes" cancellation is written against. */
@@ -62,6 +66,7 @@ export const OPS_MASTER_RECONCILE_LEASE_KEY = "cron:ops-master-reconcile";
 export const RELIABILITY_UPLOAD_RECONCILE_LEASE_KEY =
   "cron:reliability-upload-reconcile";
 export const OUTPUT_HOLD_RELEASE_LEASE_KEY = "cron:output-hold-release";
+export const SEALED_RECORD_RECOVERY_LEASE_KEY = "cron:sealed-record-recovery";
 
 export type PlatformMaintenanceStepOutcome<T> =
   | { status: "completed"; summary: T; durationMs: number }
@@ -74,6 +79,8 @@ export type PlatformMaintenanceSweepResult = {
   uploadReconcile: PlatformMaintenanceStepOutcome<ReconcileStalledSummary>;
   /** REPORT-004 — absent when no release sweep is configured (a narrow test). */
   outputHoldRelease?: PlatformMaintenanceStepOutcome<OutputHoldSweepSummary>;
+  /** PRO-C1Z-01 — absent when no recovery pass is configured (a narrow test). */
+  sealedRecordRecovery?: PlatformMaintenanceStepOutcome<SealedRecordRecoverySummary>;
 };
 
 type SweepLogger = {
@@ -86,6 +93,7 @@ export type PlatformMaintenanceDeps = {
   runMasterReconcile: () => Promise<ReconcileSummary>;
   reconcileUploads: () => Promise<ReconcileStalledSummary>;
   releaseHeldOutputs?: () => Promise<OutputHoldSweepSummary>;
+  recoverSealedRecords?: () => Promise<SealedRecordRecoverySummary>;
   withLease: <T>(
     key: string,
     ttlMs: number,
@@ -97,18 +105,27 @@ export type PlatformMaintenanceDeps = {
 };
 
 async function defaultDeps(): Promise<PlatformMaintenanceDeps> {
-  const [{ runMasterReconcile }, { reconcileUploads }, { withLease }, { captureException }, { sweepHeldOutputs }] =
+  const [
+    { runMasterReconcile },
+    { reconcileUploads },
+    { withLease },
+    { captureException },
+    { sweepHeldOutputs },
+    { recoverSealedRecordObligations },
+  ] =
     await Promise.all([
       import("../routes/ops.routes.js"),
       import("../services/reliability/upload-reconciliation.service.js"),
       import("../services/rate-limit.js"),
       import("../observability/sentry.js"),
       import("../services/governance/output-hold-release.service.js"),
+      import("../services/evidence-complete.service.js"),
     ]);
   return {
     runMasterReconcile,
     reconcileUploads: () => reconcileUploads({}),
     releaseHeldOutputs: () => sweepHeldOutputs(),
+    recoverSealedRecords: () => recoverSealedRecordObligations(),
     withLease,
     captureException,
   };
@@ -202,7 +219,20 @@ export async function runPlatformMaintenanceSweep(
       "output_hold.stale_detected",
     );
   }
-  return { trigger, masterReconcile, uploadReconcile, ...(outputHoldRelease ? { outputHoldRelease } : {}) };
+  // PRO-C1Z-01 / PRO-C1-02 — what every sealed record is owed after its commit
+  // (the once-only fan-out, a storage protection pending repair), re-driven
+  // through the existing authorities for records nobody completed again.
+  const recoverSealedRecords = deps.recoverSealedRecords;
+  const sealedRecordRecovery = recoverSealedRecords
+    ? await runStep("sealed_record_recovery", SEALED_RECORD_RECOVERY_LEASE_KEY, recoverSealedRecords, deps, trigger)
+    : undefined;
+  return {
+    trigger,
+    masterReconcile,
+    uploadReconcile,
+    ...(outputHoldRelease ? { outputHoldRelease } : {}),
+    ...(sealedRecordRecovery ? { sealedRecordRecovery } : {}),
+  };
 }
 
 /** Never-rejecting wrapper for the interval timer. */

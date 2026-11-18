@@ -36,7 +36,7 @@ import { evaluateFinalizationGovernance } from "../governance/finalization-gover
 import { createHash, randomBytes } from "node:crypto";
 
 import * as prismaPkg from "@prisma/client";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   CAPTURE_MANIFEST_FACTS_STAGE,
   CAPTURE_SEAL_CLAIM,
@@ -58,7 +58,7 @@ import { evidenceAdmissionKeyFor, withEvidenceCapacityAdmissionKey } from "../bi
 import { completeEvidence } from "../evidence-complete.service.js";
 import { emitCaptureTrustEvent } from "./trust-event.service.js";
 import { headObject } from "../../storage.js";
-import { releaseEvidenceReservationTx } from "@proovra/shared-runtime";
+import { releaseEvidenceReservationTx, reservationHoldsStagedContentTx } from "@proovra/shared-runtime";
 import { verifyCaptureSignature } from "./signature-verifier.service.js";
 import { verifyDeviceAttestation } from "./attestation-verifier.service.js";
 import { authorizeCaseEvidenceLink } from "../cases/case-permission.service.js";
@@ -602,6 +602,9 @@ async function requireActive(
     throw new DirectCaptureError("SESSION_NOT_ACTIVE");
   }
   if (session.expiresAtUtc && session.expiresAtUtc.getTime() <= now.getTime()) {
+    // PRO-NBC-01 — C-02 decided here too: a staged session is still live.
+    const kept = await keepStagedSessionLive(db, session, now);
+    if (kept) return kept;
     // F-23 (independent forward audit, closure) — a session whose record is
     // ALREADY SEALED is not interrupted by a late call: interrupting it would
     // append CAPTURE_SESSION_INTERRUPTED to a sealed record's custody and leave
@@ -611,6 +614,75 @@ async function requireActive(
     throw new DirectCaptureError("CAPTURE_WINDOW_EXPIRED");
   }
   return session;
+}
+
+/**
+ * PRO-NBC-01 / PRO-NB-01 — C-02 (the worker's capture reaper) keeps an idle
+ * ACTIVE session whose reserved, unsealed record already holds staged content
+ * until its maximum lifetime (start + MAX_SESSION_LIFETIME_SECONDS): the
+ * mobile app deletes its device copies once the parts are staged. The API
+ * applied only the one-hour idle expiry, so a seal (or declaration) arriving
+ * after that hour but before the reaper's next pass was refused AND
+ * interrupted the session, after which the reaper released the record C-02
+ * exists to keep. One rule now: such a session is live here as well, and its
+ * expiry slides exactly as activity slides it. The reaper stays the single
+ * place that ends a session past its maximum lifetime.
+ *
+ * Returns the session with its slid expiry, or null when the rule does not
+ * apply (no record, sealed or released record, no staged content, past the
+ * lifetime, not ACTIVE).
+ */
+async function keepStagedSessionLive(
+  db: PrismaClient,
+  session: SessionRow,
+  now: Date,
+): Promise<SessionRow | null> {
+  if (session.status !== prismaPkg.CaptureSessionStatus.ACTIVE) return null;
+  if (!session.finalizedEvidenceId || !session.startedAtUtc) return null;
+  const maxEnd = session.startedAtUtc.getTime() + MAX_SESSION_LIFETIME_SECONDS * 1000;
+  if (maxEnd <= now.getTime()) return null;
+  const record = await db.evidence.findUnique({
+    where: { id: session.finalizedEvidenceId },
+    select: { status: true, deletedAt: true },
+  });
+  if (
+    !record ||
+    record.deletedAt ||
+    (record.status !== prismaPkg.EvidenceStatus.CREATED && record.status !== prismaPkg.EvidenceStatus.UPLOADING)
+  ) {
+    return null;
+  }
+  if (!(await reservationHoldsStagedContentTx(db as unknown as Prisma.TransactionClient, session.finalizedEvidenceId))) {
+    return null;
+  }
+  const next = new Date(Math.min(now.getTime() + DEFAULT_TTL_SECONDS * 1000, maxEnd));
+  const moved = await db.captureSession.updateMany({
+    where: { id: session.id, status: prismaPkg.CaptureSessionStatus.ACTIVE },
+    data: { expiresAtUtc: next },
+  });
+  if (moved.count !== 1) return null;
+  return { ...session, expiresAtUtc: next };
+}
+
+/**
+ * requireActiveInTransaction, applying the staged-content keep (PRO-NBC-01) on
+ * the caller's OWN transaction connection — no second pooled connection — before
+ * an expired session is refused.
+ */
+async function requireActiveInTransactionKeepingStaged(
+  tx: PrismaClient,
+  session: SessionRow,
+  now: Date,
+): Promise<SessionRow> {
+  if (
+    session.status === prismaPkg.CaptureSessionStatus.ACTIVE &&
+    session.expiresAtUtc &&
+    session.expiresAtUtc.getTime() <= now.getTime()
+  ) {
+    const kept = await keepStagedSessionLive(tx, session, now);
+    if (kept) return kept;
+  }
+  return requireActiveInTransaction(session, now);
 }
 
 /** requireActive's expiry: interrupt the session unless its record is already sealed (F-23). */
@@ -930,7 +1002,7 @@ export async function declareDirectCapturePart(
             data: { endReason: null },
           });
         }
-        const fresh = requireActiveInTransaction(locked, now);
+        const fresh = await requireActiveInTransactionKeepingStaged(tx as unknown as PrismaClient, locked, now);
         return declareUnderSessionLock(tx, fresh, input, sha256, signatureVerdict, now);
       },
       { timeout: 30_000, maxWait: 10_000 },
@@ -1160,7 +1232,10 @@ export async function listDirectCaptureParts(input: {
   prisma?: PrismaClient;
   sessionId: string;
   ownerUserId: string;
-}): Promise<{ parts: DirectCapturePartListing[] }> {
+}): Promise<{
+  parts: DirectCapturePartListing[];
+  session: { status: string; expiresAtUtc: string | null; maxExpiresAtUtc: string | null };
+}> {
   const db = input.prisma ?? defaultPrisma;
   const session = await loadOwnedDirectCaptureSession(db, input.sessionId, input.ownerUserId);
   const rows = await db.captureTrustEventRecord.findMany({
@@ -1232,7 +1307,50 @@ export async function listDirectCaptureParts(input: {
       state: lost.has(partIndex) ? "LOST" : uploaded.has(partIndex) ? "UPLOADED" : "DECLARED",
       source: d.source,
     }));
-  return { parts };
+  // PRO-NBC-01 / PRO-NB-01 — the server's own view of the session's life, so a
+  // client never judges a staged session by an expiry it heard earlier.
+  const maxExpiresAtUtc = session.startedAtUtc
+    ? new Date(session.startedAtUtc.getTime() + MAX_SESSION_LIFETIME_SECONDS * 1000).toISOString()
+    : null;
+  return {
+    parts,
+    session: {
+      status: String(session.status),
+      expiresAtUtc: session.expiresAtUtc ? session.expiresAtUtc.toISOString() : null,
+      maxExpiresAtUtc,
+    },
+  };
+}
+
+/**
+ * PRO-NBC-02 — an owner-authorized keep-alive for a session that is still
+ * capturing but has nothing to declare yet (a SINGLE_FILE continuous recording
+ * declares its one part only after Stop). It slides the expiry exactly as a
+ * reservation or declaration does (extendDirectCaptureSessionOnActivity,
+ * bounded by the session's maximum lifetime) and never revives a session that
+ * has already expired or ended.
+ */
+export async function touchDirectCaptureSession(input: {
+  prisma?: PrismaClient;
+  sessionId: string;
+  ownerUserId: string;
+  now?: Date;
+}): Promise<{ expiresAtUtc: string | null; maxExpiresAtUtc: string | null }> {
+  const db = input.prisma ?? defaultPrisma;
+  const now = input.now ?? new Date();
+  const session = await requireActive(
+    db,
+    await loadOwnedDirectCaptureSession(db, input.sessionId, input.ownerUserId),
+    now,
+  );
+  const moved = await extendDirectCaptureSessionOnActivity(db, session, now);
+  const expires = moved ?? session.expiresAtUtc;
+  return {
+    expiresAtUtc: expires ? expires.toISOString() : null,
+    maxExpiresAtUtc: session.startedAtUtc
+      ? new Date(session.startedAtUtc.getTime() + MAX_SESSION_LIFETIME_SECONDS * 1000).toISOString()
+      : null,
+  };
 }
 
 /**
@@ -1323,7 +1441,7 @@ export async function declareDirectCapturePartLost(input: {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${session.id}`}))`;
         const locked = await loadOwnedDirectCaptureSession(tx as unknown as PrismaClient, session.id, input.ownerUserId);
         if (isLiveSealClaim(locked, now)) throw new DirectCaptureError("SESSION_BUSY");
-        const fresh = requireActiveInTransaction(locked, now);
+        const fresh = await requireActiveInTransactionKeepingStaged(tx as unknown as PrismaClient, locked, now);
         const txc = tx as unknown as PrismaClient;
         if ((await readLostPartIndexes(txc, fresh)).has(input.partIndex)) {
           return { partIndex: input.partIndex, created: false };
@@ -1629,7 +1747,7 @@ export async function completeDirectCapture(input: {
     const session =
       recordSealed && loaded.status === prismaPkg.CaptureSessionStatus.ACTIVE
         ? loaded
-        : requireActiveInTransaction(loaded, now);
+        : await requireActiveInTransactionKeepingStaged(tx, loaded, now);
     if (!session.finalizedEvidenceId) throw new DirectCaptureError("SESSION_NOT_RESERVED");
     const plan: DirectCaptureSealPlan = input.plan
       ? await input.plan({ db, tx, session, declarations, now })
