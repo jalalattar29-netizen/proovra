@@ -25,7 +25,7 @@ import { requireAuth } from "../middleware/auth.js";
 // server-side but checks neither ACTIVE membership, parent-Organization
 // lifecycle, access expiry, nor capability.
 import { getAuthUserId } from "../auth.js";
-import { authorizeOrFail, evaluateCurrentWorkspace } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateCurrentWorkspace, sendDenyResponse } from "../middleware/authorize.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { provenRequestWorkspace } from "../services/access/request-workspace.js";
 import { requireWorkspacePermission } from "../middleware/require-workspace-permission.js";
@@ -155,6 +155,11 @@ async function resolveWorkspace(
   if (proven) return proven;
   const outcome = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
   if (!outcome.allowed) {
+    // PRO-BL2-06 — an outage / unauthenticated context keeps its own answer.
+    if (outcome.httpStatus === 503 || outcome.httpStatus === 401) {
+      sendDenyResponse(reply, outcome);
+      return null;
+    }
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
