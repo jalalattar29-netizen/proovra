@@ -145,6 +145,8 @@ export type CollaborationTeamDetail = {
   members: ReadonlyArray<CollaborationTeamMember>;
   invites: ReadonlyArray<CollaborationTeamInvite>;
   assignmentCount: number;
+  /** PRO-K2-18 — tasks not COMPLETED/CANCELLED. Absent from an older server. */
+  openAssignmentCount?: number;
 };
 
 export type CollaborationTeamActivityItem = {

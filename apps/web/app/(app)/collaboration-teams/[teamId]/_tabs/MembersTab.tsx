@@ -136,6 +136,9 @@ function MembersTab({
   );
   const [rosterCursor, setRosterCursor] = useState<string | null>(null);
   const [rosterSearch, setRosterSearch] = useState("");
+  // PRO-K2-19 — suspended members leave the default (effective) roster, so
+  // the only way back to them (Reinstate) needs a view that lists them.
+  const [rosterStatus, setRosterStatus] = useState<"CURRENT" | "SUSPENDED">("CURRENT");
   const [rosterLoading, setRosterLoading] = useState(false);
 
   const loadRoster = useCallback(
@@ -144,6 +147,7 @@ function MembersTab({
       try {
         const page = await listTeamMembers(team.id, {
           search: rosterSearch,
+          status: rosterStatus === "SUSPENDED" ? "SUSPENDED" : null,
           cursor: opts?.cursor ?? null,
         });
         setRosterCursor(page.nextCursor);
@@ -160,8 +164,19 @@ function MembersTab({
         setRosterLoading(false);
       }
     },
-    [team.id, rosterSearch, addToast],
+    [team.id, rosterSearch, rosterStatus, addToast],
   );
+
+  /**
+   * PRO-K2-07 — a mutation refreshes BOTH the team detail and the roster page.
+   * `loadRoster` is keyed on the team id and the search text, neither of which
+   * a mutation changes, so the parent refresh alone left the pre-mutation
+   * roster on screen (a removed member still ACTIVE with live buttons).
+   */
+  const refreshAfterMutation = useCallback(async () => {
+    await onRefresh();
+    await loadRoster();
+  }, [onRefresh, loadRoster]);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,7 +259,9 @@ function MembersTab({
             aria-disabled={atCapacity || undefined}
             title={
               atCapacity
-                ? "Everyone in this workspace is already in this team."
+                ? // PRO-K2-18 — the reason is the team's member limit, not
+                  // that the workspace has nobody left to add.
+                  "This team has reached its member limit."
                 : "Add someone from this workspace"
             }
             data-testid="members-invite-button"
@@ -267,7 +284,7 @@ function MembersTab({
       {addingMember && !atCapacity ? (
         <AddMemberPanel
           team={team}
-          onRefresh={onRefresh}
+          onRefresh={refreshAfterMutation}
           onClose={() => setAddingMember(false)}
         />
       ) : null}
@@ -294,15 +311,20 @@ function MembersTab({
           >
             <span>
               Team is at capacity for your plan
-              {planLabel ? ` (${planLabel})` : ""}. Upgrade to add more.
+              {planLabel ? ` (${planLabel})` : ""}.
+              {entitlement?.upgradeHref ? " Upgrade to add more." : ""}
             </span>
-            <Link
-              href="/billing"
-              className="app-secondary-action"
-              data-testid="members-at-capacity-upgrade"
-            >
-              Upgrade
-            </Link>
+            {/* PRO-K2-18 — only when the projection says upgrading is the
+                remedy (it is not for a billing-restricted workspace). */}
+            {entitlement?.upgradeHref ? (
+              <Link
+                href={entitlement.upgradeHref}
+                className="app-secondary-action"
+                data-testid="members-at-capacity-upgrade"
+              >
+                Upgrade
+              </Link>
+            ) : null}
           </div>
         ) : null}
 
@@ -329,7 +351,28 @@ function MembersTab({
           </div>
         ) : null}
 
-        {visibleMembers.length === 0 ? (
+        {canManage ? (
+          <div style={{ marginBottom: "0.9rem" }}>
+            <label htmlFor="members-status-filter" className="app-table__muted" style={{ marginRight: 8 }}>
+              Show
+            </label>
+            <select
+              id="members-status-filter"
+              data-testid="members-status-filter"
+              value={rosterStatus}
+              onChange={(e) => setRosterStatus(e.target.value === "SUSPENDED" ? "SUSPENDED" : "CURRENT")}
+            >
+              <option value="CURRENT">Current members</option>
+              <option value="SUSPENDED">Suspended members</option>
+            </select>
+          </div>
+        ) : null}
+
+        {visibleMembers.length === 0 && rosterStatus === "SUSPENDED" ? (
+          <p className="app-table__muted" data-testid="members-suspended-empty">
+            No suspended members.
+          </p>
+        ) : visibleMembers.length === 0 ? (
           <div className="app-empty">
             <span className="app-empty__icon" aria-hidden>
               <svg
@@ -388,7 +431,7 @@ function MembersTab({
                     activeLeadCount={activeLeadCount}
                     onChanged={async (msg) => {
                       addToast(msg, "success");
-                      await onRefresh();
+                      await refreshAfterMutation();
                     }}
                     onError={(err) => notifyApiError(addToast, err)}
                   />
@@ -550,6 +593,18 @@ function MemberRow({
       await onChanged(`Role updated to ${roleLabel(role)}.`);
     } catch (err) {
       onError(err, { message: "Couldn't update this member's role." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onReinstate = async () => {
+    setBusy(true);
+    try {
+      await updateMember(teamId, member.id, { status: "ACTIVE" });
+      await onChanged("Member reinstated.");
+    } catch (err) {
+      onError(err, { message: "Couldn't reinstate this member." });
     } finally {
       setBusy(false);
     }
@@ -720,6 +775,17 @@ function MemberRow({
                 Remove from team
               </button>
             </>
+          ) : canManage && !isArchived && member.status === "SUSPENDED" ? (
+            <button
+              type="button"
+              onClick={() => void onReinstate()}
+              disabled={busy}
+              className="app-ghost-action"
+              data-testid={`member-reinstate-${member.id}`}
+              title="Restore this member's participation in this team"
+            >
+              Reinstate
+            </button>
           ) : isArchived ? (
             /*
               WHY, NOT JUST NOTHING (§F).

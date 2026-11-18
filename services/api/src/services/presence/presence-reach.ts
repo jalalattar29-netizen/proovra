@@ -53,6 +53,39 @@ async function caseClosedHere(
   return here > 0 && caseClosedTo(caseId, callerUserId, client);
 }
 
+/**
+ * PRO-K2-03 — a presence key must name a real row of the authorized workspace.
+ * Without this, any member could mint unbounded distinct keys (one per random
+ * id) in the presence store. The discussion_thread kind also accepts the
+ * record id itself (the mobile panel keys on the record until a thread is
+ * selected), exactly as `presenceResourceClosedTo` reads it.
+ */
+export async function presenceResourceExistsHere(
+  kind: PresenceResourceKind,
+  resourceId: string,
+  teamId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  if (!UUID.test(resourceId)) return false;
+  switch (kind) {
+    case "evidence":
+      return (await client.evidence.count({ where: { id: resourceId, ...IN_WORKSPACE(teamId) } })) > 0;
+    case "matter":
+      return (await client.case.count({ where: { id: resourceId, ...IN_WORKSPACE(teamId) } })) > 0;
+    case "discussion_thread":
+      return (
+        (await client.discussionThread.count({ where: { id: resourceId, teamId } })) > 0 ||
+        (await client.evidence.count({ where: { id: resourceId, ...IN_WORKSPACE(teamId) } })) > 0
+      );
+    case "reviewer_workflow":
+      return (
+        (await client.evidenceReviewWorkflow.count({ where: { id: resourceId, ...IN_WORKSPACE(teamId) } })) > 0
+      );
+    case "evidence_request":
+      return (await client.evidenceRequest.count({ where: { id: resourceId, teamId } })) > 0;
+  }
+}
+
 export async function presenceResourceClosedTo(
   kind: PresenceResourceKind,
   resourceId: string,

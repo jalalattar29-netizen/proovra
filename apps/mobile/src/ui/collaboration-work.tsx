@@ -165,7 +165,9 @@ export function CollaborationWorkSection({
   const memberName = useCallback(
     (userId: string | null) => {
       if (!userId) return "Team-level";
-      const m = members.find((x) => x.id === userId);
+      // PRO-NC-10 — an assignment names the PERSON (userId), never the
+      // membership row id.
+      const m = members.find((x) => x.userId === userId);
       // An id is not a person. When the member is not in the loaded roster the
       // row says so rather than printing the id where a name belongs.
       return m ? m.displayName : "Another member";
@@ -214,8 +216,8 @@ export function CollaborationWorkSection({
           // The sentinel the SERVER understands for team-level work.
           { value: ASSIGNEE_UNASSIGNED, label: ASSIGNEE_TEAM_LEVEL_LABEL },
           ...members
-            .filter((m) => m.status === "ACTIVE")
-            .map((m) => ({ value: m.id, label: m.displayName })),
+            .filter((m): m is typeof m & { userId: string } => m.status === "ACTIVE" && m.userId !== null)
+            .map((m) => ({ value: m.userId, label: m.displayName })),
         ]}
         value={assignee}
         onChange={setAssignee}
@@ -365,13 +367,15 @@ export function CollaborationWorkSection({
           }}
         />
         {/* ACTIVE members only, as the web's editor offers (AssignmentsTab.tsx:913-915). */}
-        {members.filter((m) => m.status === "ACTIVE").map((m) => (
+        {members
+          .filter((m): m is typeof m & { userId: string } => m.status === "ACTIVE" && m.userId !== null)
+          .map((m) => (
           <ProovraListRow
             key={m.id}
             title={m.displayName}
-            subtitle={editing && m.id === editing.assigneeUserId ? "Current" : (m.email ?? undefined)}
+            subtitle={editing && m.userId === editing.assigneeUserId ? "Current" : (m.email ?? undefined)}
             onPress={() => {
-              if (editing) void update(editing, { assigneeUserId: m.id });
+              if (editing) void update(editing, { assigneeUserId: m.userId });
             }}
           />
         ))}

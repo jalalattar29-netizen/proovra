@@ -512,7 +512,12 @@ function TeamDetail() {
    * is the population, and the server has always sent it.
    */
   const activeMemberCountForBadge = team.activeMemberCount;
-  const openAssignmentCount = team.assignmentCount;
+  // PRO-K2-18 — the badge counts OPEN work (completed and cancelled tasks are
+  // history); an older server without the field falls back to the total.
+  const openAssignmentCount = team.openAssignmentCount ?? team.assignmentCount;
+  // PRO-K2-18 / AUD-0051 — capacity is counted as the server enforces it
+  // (owner excluded), exactly as the Members tab does.
+  const capacityMemberCountForBadge = team.capacityMemberCount ?? activeMemberCountForBadge;
 
   // Per-tab count badges — only where a real count exists on `team`.
   const tabCounts: Partial<Record<TabId, number>> = {
@@ -704,7 +709,7 @@ function TeamDetail() {
               {headerEntitlement ? (
                 <PlanLimitBadge
                   kind="MEMBERS_USED"
-                  current={activeMemberCountForBadge}
+                  current={capacityMemberCountForBadge}
                   max={headerEntitlement.collaborationTeamMembers.limit}
                   planLabel={headerEntitlement.plan}
                 />

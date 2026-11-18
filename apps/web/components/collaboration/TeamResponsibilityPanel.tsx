@@ -65,7 +65,7 @@ import { useConfirmAction } from "../ui/ConfirmActionModal";
 import { useToast } from "../ui";
 import { notifyApiError } from "../../lib/feedback/notify";
 import { AppStatusBadge, type AppTone } from "../app-primitives/AppStatusBadge";
-import { formatUserDate } from "../../lib/date";
+import { formatUserDate, toDateTimeLocalInputValue } from "../../lib/date";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 function priorityTone(p: TeamResponsibility["priority"]): AppTone {
@@ -364,7 +364,8 @@ export function TeamResponsibilityPanel({
             teamId: editing.teamId,
             assigneeUserId: editing.assigneeUserId ?? "",
             priority: editing.priority,
-            dueAt: editing.dueAtUtc ? editing.dueAtUtc.slice(0, 16) : "",
+            // PRO-K2-24 — the viewer's wall-clock, not the UTC digits.
+            dueAt: toDateTimeLocalInputValue(editing.dueAtUtc),
             note: editing.note ?? "",
           }}
           onClose={() => setEditing(null)}
@@ -372,7 +373,13 @@ export function TeamResponsibilityPanel({
             await updateAssignment(editing.teamId, editing.id, {
               assigneeUserId: values.assigneeUserId || null,
               priority: values.priority,
-              dueAtUtc: values.dueAt ? new Date(values.dueAt).toISOString() : null,
+              // An untouched field keeps the stored instant exactly.
+              dueAtUtc:
+                values.dueAt === toDateTimeLocalInputValue(editing.dueAtUtc)
+                  ? (editing.dueAtUtc ?? null)
+                  : values.dueAt
+                    ? new Date(values.dueAt).toISOString()
+                    : null,
               note: values.note.trim() || null,
             });
             addToast("Responsibility updated.", "success");

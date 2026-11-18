@@ -1234,7 +1234,7 @@ export async function getCollaborationTeamDetail(
    */
   if (!viewerRow && !input.viaWorkspaceGovernance) throw E.notFound("Team");
   const viewer = { role: viewerRow?.role ?? "VIEWER" };
-  const [activeMemberCount, capacityMemberCount, pendingInviteCount, validLeadCount] = await Promise.all([
+  const [activeMemberCount, capacityMemberCount, pendingInviteCount, validLeadCount, openAssignmentCount] = await Promise.all([
     client.collaborationTeamMember.count({
       // WCR-11 — effective members only.
       where: { teamId: input.teamId, ...effectiveGroupMemberWhere(input.workspaceId) },
@@ -1253,6 +1253,10 @@ export async function getCollaborationTeamDetail(
     // Members ledger X5 — whether the group still has a valid lead, so the
     // workspace owner is offered Lead recovery only when it is needed.
     client.collaborationTeamMember.count({ where: validLeadWhere(input.teamId, input.workspaceId) }),
+    // PRO-K2-18 — the Work badge counts open work, not every task ever.
+    client.collaborationTeamAssignment.count({
+      where: { teamId: input.teamId, status: { notIn: ["COMPLETED", "CANCELLED"] } },
+    }),
   ]);
   /**
    * An address is administrative data. A VIEWER reads the team; an EXTERNAL
@@ -1341,6 +1345,7 @@ export async function getCollaborationTeamDetail(
       deliveryStatus: inv.deliveryStatus,
     })),
     assignmentCount: team._count.assignments as number,
+    openAssignmentCount,
   };
 }
 
@@ -3229,9 +3234,14 @@ export async function listCollaborationTeamMembers(
    * history (a roster of who was suspended, say) and is honoured as asked.
    */
   const effective = effectiveGroupMemberWhere(input.workspaceId);
+  // PRO-K2-24 — `status=ACTIVE` is not history: the pickers that ask for it
+  // (assignee, lead recovery) mean "who can be handed this now", so it gets the
+  // effective-membership predicate too. Only other explicit statuses read
+  // history as asked.
+  const historyStatus = input.status && input.status !== "ACTIVE" ? input.status : null;
   const where: Prisma.CollaborationTeamMemberWhereInput = {
     teamId: input.teamId,
-    ...(input.status ? { status: input.status } : effective),
+    ...(historyStatus ? { status: historyStatus } : effective),
     ...(input.role ? { role: input.role } : {}),
     ...(search
       ? {
@@ -3248,7 +3258,7 @@ export async function listCollaborationTeamMembers(
                   { email: { contains: search, mode: "insensitive" } },
                 ],
               },
-              ...(input.status
+              ...(historyStatus
                 ? []
                 : [
                     {
