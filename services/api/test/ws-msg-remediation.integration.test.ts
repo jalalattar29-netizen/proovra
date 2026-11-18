@@ -7,10 +7,10 @@
  * replaced: nothing leaves this machine and each test can read exactly what
  * would have been sent.
  */
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { intakeConsentDisclosureText } from "@proovra/shared";
+import { canonicalJson, intakeConsentDisclosureText } from "@proovra/shared";
 import { expiredEvidenceReservationWhere } from "@proovra/shared-runtime";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -27,6 +27,8 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
   let prisma: import("@prisma/client").PrismaClient;
   let svc: typeof import("../src/services/evidence-request.service.js");
+  let entitlement: typeof import("../src/services/packaging/entitlement.service.js");
+  let webhookPlatform: typeof import("../src/services/packaging/webhooks/webhook-platform.service.js");
   let grantEvidenceCredits: typeof import("../src/services/billing/evidence-credits.service.js")["grantEvidenceCredits"];
   const saved: Record<string, string | undefined> = {};
   const ENV = {
@@ -45,6 +47,8 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
     h = await bootIntegrationHarness();
     prisma = (await import("../src/db.js")).prisma as unknown as import("@prisma/client").PrismaClient;
     svc = await import("../src/services/evidence-request.service.js");
+    entitlement = await import("../src/services/packaging/entitlement.service.js");
+    webhookPlatform = await import("../src/services/packaging/webhooks/webhook-platform.service.js");
     ({ grantEvidenceCredits } = await import("../src/services/billing/evidence-credits.service.js"));
     await prisma.team.update({ where: { id: h.fixtures.teamA.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
   }, 900_000);
@@ -201,6 +205,30 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
       const afterIdle = await newOwnerRecord();
       expect(afterIdle.statusCode, afterIdle.body).toBe(201);
       expect(await prisma.evidence.count({ where: { AND: [{ id: two.evidenceId }, expiredEvidenceReservationWhere()] } })).toBe(1);
+    });
+  });
+
+  describe("PRO-G1-02 — lifecycle webhook signing secrets are wrapped at rest", () => {
+    it("the column holds an e3.3 envelope, not the raw secret; emission still signs with the revealed secret", async () => {
+      const { upsertEntitlementGrant } = entitlement;
+      await upsertEntitlementGrant({ teamId: A().teamId, key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX", value: 5, kind: "LIMIT", source: "CUSTOM", grantedByUserId: A().ownerUserId } as never);
+      const created = await webhookPlatform.createWebhookEndpoint({
+        prisma: prisma as never,
+        teamId: A().teamId,
+        url: `https://203.0.113.10/ws-msg/${randomUUID()}`,
+        subscribedEvents: ["EVIDENCE_CREATED"] as never,
+        createdByUserId: A().ownerUserId,
+      });
+      const row = await prisma.lifecycleWebhookEndpoint.findUniqueOrThrow({ where: { id: created.endpointId }, select: { secret: true } });
+      expect(row.secret).not.toBe(created.secret);
+      expect(row.secret).not.toContain(created.secret);
+      expect(row.secret.startsWith("e3.3:")).toBe(true);
+      expect(webhookPlatform.readLifecycleSigningSecret(row.secret)).toBe(created.secret);
+      const { deliveryIds } = await webhookPlatform.emitWebhookEvent({ prisma: prisma as never, teamId: A().teamId, eventKind: "EVIDENCE_CREATED" as never, payload: { probe: "ws-msg" } });
+      expect(deliveryIds.length).toBeGreaterThan(0);
+      const delivery = await prisma.lifecycleWebhookDelivery.findFirstOrThrow({ where: { endpointId: created.endpointId } as never, select: { signature: true } as never }) as unknown as { signature: string };
+      const expected = createHmac("sha256", Buffer.from(created.secret, "base64")).update(canonicalJson({ probe: "ws-msg" }), "utf8").digest("hex");
+      expect(delivery.signature).toBe(expected);
     });
   });
 });

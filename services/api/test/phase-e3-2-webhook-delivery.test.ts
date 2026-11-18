@@ -201,7 +201,8 @@ describe("E3.2 Test 3 — secret generation + storage envelope", () => {
   it("createDestinationSecret returns plaintext + storedEnvelope + fingerprint", () => {
     const s = createDestinationSecret();
     expect(s.plaintext.length).toBeGreaterThan(20);
-    expect(s.storedEnvelope.startsWith("e3.2:")).toBe(true);
+    // PRO-G1-02 — new envelopes are the authenticated e3.3 wrap (e3.2 is read-only legacy).
+    expect(s.storedEnvelope.startsWith("e3.3:")).toBe(true);
     expect(s.fingerprint.startsWith("sha256:")).toBe(true);
   });
 

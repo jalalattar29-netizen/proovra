@@ -19,7 +19,9 @@ import { SWEEP_NAMES, getWorkEntryOrThrow } from "@proovra/shared";
 import {
   LIFECYCLE_WEBHOOK_OUTBOUND_POLICY,
   checkOutboundUrlStatic,
+  isWrappedWebhookSigningSecret,
   sendOutboundRequest,
+  unwrapWebhookSigningSecret,
 } from "@proovra/shared-runtime/outbound";
 import { createHmac } from "node:crypto";
 import { prisma } from "./db.js";
@@ -113,6 +115,22 @@ function computeBackoffSeconds(attemptCount: number): number {
   const exp = Math.min(attemptCount, 16);
   const raw = Math.pow(2, exp) * BACKOFF_BASE_SECONDS;
   return Math.min(raw, BACKOFF_CAP_SECONDS);
+}
+
+/**
+ * PRO-G1-02 — the endpoint's signing secret as stored: an `e3.3:` envelope
+ * (AES-256-GCM, key derived from AUTH_JWT_SECRET exactly as the API derives
+ * it) is opened; a legacy raw row is read as is until re-wrapped. Null when an
+ * envelope does not authenticate (or the key is absent) — the delivery then
+ * fails closed and nothing is sent.
+ */
+export function readLifecycleSigningSecret(stored: string): string | null {
+  if (isWrappedWebhookSigningSecret(stored)) {
+    const material = process.env["AUTH_JWT_SECRET"];
+    if (!material) return null;
+    return unwrapWebhookSigningSecret(stored, [material], "lifecycle-webhook");
+  }
+  return stored.length > 0 ? stored : null;
 }
 
 function signPayload(secretBase64: string, body: string): string {
@@ -405,7 +423,21 @@ async function dispatchOne(
 
   // The endpoint's stored signing secret is used directly as HMAC key
   // material. It is read HERE, at execution, and never travels on a payload.
-  const signature = signPayload(endpoint.secret, canonical);
+  const signingSecret = readLifecycleSigningSecret(endpoint.secret);
+  if (!signingSecret) {
+    logger.warn({ deliveryId }, "webhook.dispatcher.signing_secret_unreadable");
+    await webhookDeliveryUpdate({
+      where: { id: deliveryId },
+      data: { state: "FAILED", lastAttemptAtUtc: new Date() },
+    }).catch(() => null);
+    await emitLifecycleEvent({
+      teamId: delivery.teamId,
+      deliveryId,
+      code: "WEBHOOK_FAILED",
+    });
+    return;
+  }
+  const signature = signPayload(signingSecret, canonical);
   const nextAttemptCount = delivery.attemptCount + 1;
 
   // PHASE 12 — POINT 5: ATOMIC CLAIM — this did not exist.
