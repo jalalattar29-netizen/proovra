@@ -187,7 +187,8 @@ async function measureAllowance(
  * credit-funded record into one extra free plan slot. One definition now
  * serves both: `measureAllowance(...).planOccupying` over the canonical
  * population (sealed plan-funded records whatever their lifecycle — trashed
- * and archived keep their slot — plus live unsealed reservations; legacy
+ * and archived keep their slot; since PRO-BL2-01 NOT live unsealed
+ * reservations, which are not records that exist; legacy
  * NULL-team rows and members' captures in the Personal workspace included;
  * records funded by a consumed credit excluded).
  *
@@ -202,7 +203,15 @@ export async function measurePersonalPlanOccupancy(
   const subject = { billingShape: "SINGLE_OCCUPANT" as const, ownerUserId, teamId: null };
   // F-03 — the plan write waits as before (never shed as "busy").
   await lockEvidenceCapacitySubject(subject, client, { waitMs: null });
-  return (await measureAllowance(subject, client)).planOccupying;
+  // PRO-BL2-01 (WS-BILL, 2026-11-18) — the freeze keeps "the records that
+  // already exist": SEALED plan-funded records only. Live unsealed
+  // reservations are not records; they release by deletion or TTL, and
+  // counting them froze the cap above durable history (N drafts at the plan
+  // write = N free plan-funded records for life on the lower plan). The gate
+  // and settlement keep `planOccupying` (reservations still occupy a slot
+  // while they live); only the freeze changes.
+  const measured = await measureAllowance(subject, client);
+  return measured.planOccupying - measured.unsealed;
 }
 
 /**

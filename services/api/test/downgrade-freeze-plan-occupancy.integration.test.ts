@@ -129,35 +129,53 @@ describe("F-07 — downgrade freeze uses the gate's plan-occupying count (live P
     expect(await prisma.evidence.count({ where: { id: { in: credited }, deletedAt: null } })).toBe(2);
   }, 120_000);
 
-  it("a paid history above the Free allowance freezes at the plan-occupying count: trashed, legacy and live unsealed count, credit-funded do not", async () => {
+  it("a paid history above the Free allowance freezes at the SEALED plan-occupying count: trashed and legacy count, live unsealed and credit-funded do not", async () => {
     const t = await seedPersonalTenant(deps, "PRO");
     for (let i = 0; i < 3; i++) await seedRecord(t, "SIGNED");
     await seedRecord(t, "SIGNED", { lifecycleState: "TRASHED", deletedAt: new Date() }); // trash keeps its slot
     await seedRecord(t, "SIGNED", { teamId: null }); // legacy NULL-team row
-    await seedRecord(t, "UPLOADING"); // a live reservation admitted under PRO
+    await seedRecord(t, "UPLOADING"); // a live reservation admitted under PRO — not a record that exists (PRO-BL2-01)
     await seedCreditFunded(t);
-    expect(await occupancy(t.owner.userId)).toBe(6);
+    expect(await occupancy(t.owner.userId)).toBe(5);
 
     await setPersonalPlan(t.owner.userId, "FREE");
-    expect(await overrideOf(t.owner.userId)).toBe(6);
+    expect(await overrideOf(t.owner.userId)).toBe(5);
     // At the frozen cap, nothing more is admitted without a credit…
     await expect(admit(t)).rejects.toMatchObject({ publicCode: "FREE_LIMIT_REACHED" });
-    // …and the reservation admitted under PRO still settles on the plan.
+    // …and the reservation admitted under PRO, sealed on FREE above the frozen
+    // history, needs a credit like any other over-cap record.
     const inFlight = (await prisma.evidence.findFirstOrThrow({ where: { ownerUserId: t.owner.userId, status: "UPLOADING" }, select: { id: true } })).id;
-    expect((await settle(t, inFlight)).funding).toBe("PLAN");
-    expect(await occupancy(t.owner.userId)).toBe(6);
+    await expect(settle(t, inFlight)).rejects.toBeTruthy();
+    expect(await occupancy(t.owner.userId)).toBe(5);
   }, 120_000);
 
-  it("concurrent settlement and downgrade: the frozen cap equals the occupancy that results, whatever the order", async () => {
+  it("PRO-BL2-01 — drafts alive at the downgrade mint no lifetime plan slots once they are gone", async () => {
+    const t = await seedPersonalTenant(deps, "PRO");
+    for (let i = 0; i < 4; i++) await seedRecord(t, "SIGNED");
+    const drafts: string[] = [];
+    for (let i = 0; i < 6; i++) drafts.push(await seedRecord(t, "UPLOADING"));
+
+    await setPersonalPlan(t.owner.userId, "FREE");
+    // At the base this froze at 10 (4 sealed + 6 releasable reservations).
+    expect(await overrideOf(t.owner.userId)).toBe(4);
+
+    // The drafts are deleted (or expire): nothing they held survives.
+    await prisma.evidence.updateMany({ where: { id: { in: drafts } }, data: { deletedAt: new Date() } as never });
+    await expect(admit(t)).rejects.toMatchObject({ publicCode: "FREE_LIMIT_REACHED" });
+  }, 120_000);
+
+  it("concurrent settlement and downgrade: the freeze counts the in-flight record only if it sealed first, and nothing more is admitted", async () => {
     for (let round = 0; round < 3; round++) {
       const t = await seedPersonalTenant(deps, "PRO");
       for (let i = 0; i < 4; i++) await seedRecord(t, "SIGNED");
       const inFlight = await seedRecord(t, "UPLOADING");
 
-      const [settled] = await Promise.all([settle(t, inFlight), setPersonalPlan(t.owner.userId, "FREE")]);
-      expect(settled.funding).toBe("PLAN");
-      expect(await overrideOf(t.owner.userId), `round ${round}`).toBe(5);
-      expect(await occupancy(t.owner.userId)).toBe(5);
+      const [settled] = await Promise.allSettled([settle(t, inFlight), setPersonalPlan(t.owner.userId, "FREE")]);
+      if (settled.status === "fulfilled") expect(settled.value.funding).toBe("PLAN");
+      // Sealed before the freeze: counted (5). Not yet sealed: never counted
+      // (4) — a settlement that read the paid scope before the plan write may
+      // still seal it on that scope, but no RESERVATION becomes a frozen slot.
+      expect([4, 5], `round ${round}`).toContain(await overrideOf(t.owner.userId));
       await expect(admit(t)).rejects.toMatchObject({ publicCode: "FREE_LIMIT_REACHED" });
     }
   }, 120_000);
