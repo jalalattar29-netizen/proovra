@@ -1105,6 +1105,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
         key: "FEATURE_WEBHOOKS",
+        record: false, // PRO-BL2-08 — a read is not a violation attempt
       });
       if (!featureOk.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
@@ -1898,6 +1899,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
         key: "FEATURE_ARCHIVE_TIERS",
+        record: false, // PRO-BL2-08 — a read is not a violation attempt
       });
       if (!featureOk.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_ARCHIVE_TIERS" });
@@ -2006,6 +2008,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
         key: "FEATURE_DESTRUCTION_GOVERNANCE",
+        record: false, // PRO-BL2-08 — a read is not a violation attempt
       });
       if (!featureOk.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_DESTRUCTION_GOVERNANCE" });
@@ -2312,6 +2315,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           teamId: ctx.teamId,
           key: "FEATURE_LIFECYCLE_DASHBOARD",
           actorUserId: ctx.userId,
+          // PRO-BL2-08 — the dashboard is served either way; a read writes nothing.
+          record: false,
         });
         entitlementMissing = !feOk.ok;
       } catch {

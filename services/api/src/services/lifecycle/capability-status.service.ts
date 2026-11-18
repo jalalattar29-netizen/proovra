@@ -63,6 +63,8 @@ async function isFeatureEntitled(input: {
       prisma: input.prisma,
       teamId: input.teamId,
       key: input.key,
+      // PRO-BL2-08 — a status probe is not a violation attempt.
+      record: false,
     });
     return res.ok === true;
   } catch {
