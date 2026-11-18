@@ -313,7 +313,7 @@ import {
 } from "@proovra/shared-evidence-presentation";
 import { z } from "zod";
 import { BULK_OPERATION_FAILED, bulkRefusalReason } from "../services/evidence/bulk-refusal-reason.js";
-import { reviewCapabilityRefusalBody } from "../services/reviewer-ops/review-capability-refusal.js";
+import { reviewCapabilityRefusalBody } from "../services/billing/review-capability-refusal.js";
 import {
   AppError,
   ErrorCode,

@@ -36,7 +36,7 @@ import {
   workspaceIncludesReviewCapability,
   type ReviewCapability,
 } from "../services/billing-enforcement.service.js";
-import { reviewCapabilityRefusalBody } from "../services/reviewer-ops/review-capability-refusal.js";
+import { reviewCapabilityRefusalBody } from "../services/billing/review-capability-refusal.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
   ReviewOperationError,

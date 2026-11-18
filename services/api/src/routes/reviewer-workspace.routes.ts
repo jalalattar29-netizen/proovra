@@ -52,7 +52,7 @@ import {
   evaluateCurrentWorkspace,
 } from "../middleware/authorize.js";
 import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
-import { reviewCapabilityRefusalBody } from "../services/reviewer-ops/review-capability-refusal.js";
+import { reviewCapabilityRefusalBody } from "../services/billing/review-capability-refusal.js";
 import { enforceReviewActionGate, workflowIdsInReach } from "../services/reviewer-ops/review-action-gate.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 

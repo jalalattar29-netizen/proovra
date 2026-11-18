@@ -188,7 +188,10 @@ describe("anti-enumeration — review-operations routes", () => {
       ),
       "utf8",
     );
-    expect(src).not.toMatch(/reply\.code\(403\)/);
+    // PRO-R2-14 — the one 403 is the plan refusal, sent only AFTER membership
+    // is proven (a non-member still gets the 404).
+    expect(src.match(/reply\.code\(403\)/g) ?? []).toHaveLength(1);
+    expect(src).toContain("reply.code(403).send(reviewCapabilityRefusalBody(");
     expect(src).toMatch(/reply\.code\(404\)/);
   });
 

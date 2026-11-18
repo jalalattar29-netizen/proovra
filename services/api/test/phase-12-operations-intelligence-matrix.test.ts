@@ -379,8 +379,10 @@ vi.mock("../src/db.js", () => {
           : null,
     },
     bulkOperationalActionRun: {
-      findFirst: async ({ where }: { where: { resultJson?: { equals?: unknown } } }) => {
-        const key = where?.resultJson?.equals;
+      // PRO-P1-06 — the replay lookup matches the reserved token OR (for runs an
+      // older image wrote) the stamped resultJson marker.
+      findFirst: async ({ where }: { where: { OR?: Array<{ resultJson?: { equals?: unknown } }> } }) => {
+        const key = where?.OR?.find((c) => c.resultJson)?.resultJson?.equals;
         return H.bulkReplayKey && key === H.bulkReplayKey
           ? { id: BULK_RUN, status: "COMPLETED", resultJson: { total: 2, succeeded: 2, failed: 0, skipped: 0 } }
           : null;
@@ -438,6 +440,11 @@ vi.mock("../src/services/dashboard/causality.service.js", () => ({
 }));
 
 vi.mock("../src/services/dashboard/bulk-actions.service.js", () => ({
+  BulkIdempotencyReplay: class BulkIdempotencyReplay extends Error {
+    constructor(readonly runId: string) {
+      super("bulk_idempotency_replay");
+    }
+  },
   runBulkAction: async () => {
     H.writes.push("runBulkAction");
     return { runId: BULK_RUN, total: 2, succeeded: 2, failed: 0, skipped: 0 };

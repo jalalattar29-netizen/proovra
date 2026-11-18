@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 378,
-    "classifiedMigrations": 378,
+    "filesystemMigrations": 379,
+    "classifiedMigrations": 379,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 378,
+    "productionSnapshotUnknown": 379,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 378,
-    "classifiedMigrations": 378,
+    "filesystemMigrations": 379,
+    "classifiedMigrations": 379,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 378,
+    "productionSnapshotUnknown": 379,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 139,
+      "EXPAND": 140,
       "BACKFILL": 36,
       "CONTRACT_DROP": 12,
       "REPAIR": 6
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 160,
+      "SAFE_TO_APPLY_NOW": 161,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 7
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 378
+    "ProductionMigrationStateUnknown": 379
   },
   "gateFailures": [],
   "migrations": [
@@ -28307,8 +28307,76 @@
       "evidence": "AUTH-LOCKOUT-NONTOTP (2026-11-07). Six nullable columns on mfa_pending_challenges (the sign-in challenge already owns the second factor) carrying the passkey challenge, the mobile handoff token hash and the phone-code attempt binding,. No row is rewritten; an older image never reads them. Rollback: leave the columns."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281121140000_ops_idempotency_reservation",
       "order": 377,
+      "sqlPresent": true,
+      "byteLength": 1491,
+      "checksumSha256": "153a92bc6e2eedfbc3e37332a13426f96a9b31c99bc154b3af0b918aafcdbc21",
+      "checksumSha256Raw": "153a92bc6e2eedfbc3e37332a13426f96a9b31c99bc154b3af0b918aafcdbc21",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "bulk_operational_action_runs",
+          "operational_workflow_events"
+        ],
+        "addedColumns": [
+          "idempotency_token"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "bulk_operational_action_runs_team_id_idempotency_token_key",
+          "operational_workflow_events_team_id_idempotency_token_key"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260628100000_phase328c_workflow_causality",
+        "20260629100000_phase328c_enterprise_gap_closure"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 2 FROM pg_indexes WHERE schemaname='public' AND indexname IN ('operational_workflow_events_team_id_idempotency_token_key','bulk_operational_action_runs_team_id_idempotency_token_key');\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "PRO-P1-06 (WS-SHELL, 2026-11-18). Two nullable idempotency_token columns (operational_workflow_events, bulk_operational_action_runs), each with a unique index on (team_id, idempotency_token), so an Operations idempotency key is reserved before the effect. NULL is distinct in a unique index, so every existing row and every row an older image writes is admitted; an older image never reads the columns. Rollback: leave them."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 378,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

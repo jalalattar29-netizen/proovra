@@ -15,7 +15,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
-import { reviewCapabilityRefusalBody } from "../services/reviewer-ops/review-capability-refusal.js";
+import { reviewCapabilityRefusalBody } from "../services/billing/review-capability-refusal.js";
 
 /**
  * B3B-F-501 (Free-user audit 0ea0) — authoring and publishing criteria is

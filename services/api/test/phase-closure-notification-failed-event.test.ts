@@ -271,6 +271,8 @@ function buildStubPrisma(): {
       findMany: async () => [],
       updateMany: async () => ({ count: 0 }),
     },
+    // PRO-G1-09 — the send-time liveness read: an operating personal workspace.
+    team: { findUnique: async () => ({ isPersonal: true, workspaceKind: "PERSONAL", billingPlan: "FREE", closedAtUtc: null, organization: null }) },
     webhookEndpoint: {
       findMany: async (args: {
         where: { teamId: string; status: "ACTIVE" };

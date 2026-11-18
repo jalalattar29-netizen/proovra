@@ -153,7 +153,6 @@ import { runSchemaValidation } from "../runtime/schema-validation.js";
 // optimistic concurrency, and durable idempotency.
 import {
   WORKFLOW_ACTIONS_REQUIRING_STEP_UP,
-  WORKFLOW_ACTION_OPS_PERMISSION,
   anyWorkflowActionGranted,
   assertWorkflowVersion,
   bindWorkflowWorkspace,
@@ -2829,7 +2828,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["assign"]);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -2899,7 +2898,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["start"]);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -2941,7 +2940,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["escalate"]);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -2983,7 +2982,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["mitigation"]);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -3026,7 +3025,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["resolve"]);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -3069,7 +3068,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["suppress"]);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.suppress");
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -3111,7 +3110,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["reopen"]);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
@@ -3153,7 +3152,7 @@ export async function opsRoutes(app: FastifyInstance) {
       // Authorization FIRST: a non-member is told the workspace does not exist
       // before anything about the workflow is consulted, so the two 404s can
       // no longer be told apart to probe which workflow belongs to which team.
-      const actor = await requireOpsCapability(req, reply, body.teamId, WORKFLOW_ACTION_OPS_PERMISSION["schedule-retry"]);
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
       if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
