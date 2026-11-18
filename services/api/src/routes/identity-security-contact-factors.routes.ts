@@ -41,7 +41,6 @@ import { z } from "zod";
 
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
-import { prisma } from "../db.js";
 import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import {
@@ -51,6 +50,7 @@ import {
 import {
   VerifiedContactFactorError,
   completeContactFactorEnrollment,
+  completeContactFactorReplacement,
   listContactFactors,
   readOwnContactFactorStatus,
   resolveEnrollingDestination,
@@ -268,17 +268,8 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
       if (body.replacesFactorId) {
         // Refused before the code is spent: only the caller's own ACTIVE
         // phone factor, never the one being enrolled.
-        const replaced = await prisma.mfaFactor.findFirst({
-          where: {
-            id: body.replacesFactorId,
-            userId,
-            status: "ACTIVE",
-            revokedAt: null,
-            kind: { in: ["SMS", "WHATSAPP"] } as never,
-          },
-          select: { id: true },
-        });
-        if (!replaced || replaced.id === body.factorId) {
+        const replacedStatus = await readOwnContactFactorStatus({ userId, factorId: body.replacesFactorId });
+        if (replacedStatus !== "ACTIVE" || body.replacesFactorId === body.factorId) {
           return reply.code(409).send({ error: { code: "replaced_factor_invalid" } });
         }
       }
@@ -301,19 +292,13 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
         return reply.code(400).send({ status: "denied" });
       }
 
-      const factor = await prisma.$transaction(async (tx) => {
-        const activated = await completeContactFactorEnrollment(
-          { userId, factorId: body.factorId },
-          tx as never,
-        );
-        if (body.replacesFactorId) {
-          await revokeContactFactor(
-            { userId, factorId: body.replacesFactorId, reason: "replaced" },
-            tx as never,
-          );
-        }
-        return activated;
-      });
+      const factor = body.replacesFactorId
+        ? await completeContactFactorReplacement({
+            userId,
+            factorId: body.factorId,
+            replacesFactorId: body.replacesFactorId,
+          })
+        : await completeContactFactorEnrollment({ userId, factorId: body.factorId });
       // PRO-A1Z-04 — closure rule N-6: binding a factor ends every outstanding
       // step-up approval, as TOTP activation and passkey registration do.
       await cancelOutstandingStepUpChallenges(userId).catch(() => 0);

@@ -20,6 +20,10 @@ import { describe, expect, it } from "vitest";
 
 import { vi } from "vitest";
 
+// Static import (an in-test dynamic import of this graph can exceed the test
+// timeout under load); the vi.mock calls below are hoisted above it.
+import { scimDeactivateUser } from "../src/services/access-control/scim.service.js";
+
 import {
   evaluateSamlAudience,
   samlConnectionRequiresIssuerRemediation,
@@ -93,6 +97,11 @@ vi.mock("../src/services/identity-security/session-revocation.service.js", () =>
   revokeAllSessionsForUser: async (input: unknown) => {
     SCIM_H.sessionsRevoked.push(input);
   },
+  // PRO-A2-06 / PRO-T1-05 (DEC-08) — the canonical authority-loss scope.
+  revokeSessionsForAuthorityLoss: async (input: unknown) => {
+    SCIM_H.sessionsRevoked.push(input);
+    return { scope: "ACCOUNT", revoked: 1 };
+  },
 }));
 vi.mock("../src/services/platform-audit-log.service.js", () => ({
   appendPlatformAuditLog: async () => ({}),
@@ -105,9 +114,6 @@ describe("Phase 8 §11.6/§11.16 — SCIM deprovisioning end-to-end (behavioral)
   it("deactivate: suspends membership (frees seat), unlinks mapping, revokes sessions, heals context", async () => {
     const calls: Array<{ op: string; args: unknown[] }> = [];
     const sessionsRevoked = SCIM_H.sessionsRevoked;
-    const { scimDeactivateUser } = await import(
-      "../src/services/access-control/scim.service.js"
-    );
 
     // PHASE 3 (2026-07-21) — deactivation became ONE atomic composition:
     // suspend + unlink + heal now run inside a single `$transaction` so a

@@ -224,6 +224,9 @@ vi.mock("../src/db.js", () => {
     trustedDevice,
     organizationSecurityPolicy,
     user: { findUnique: async () => ({ email: "admin@example.test" }) },
+    // PRO-A2-05 — the workspace's Organization (account-level factor routes
+    // act only on identities it originated; see the enterprise-account-linking mock).
+    team: { findUnique: async () => ({ organizationId: "org-a" }) },
     securityEvent: {
       create: async () => {
         H.writes.push("securityEvent.create");
@@ -236,6 +239,12 @@ vi.mock("../src/db.js", () => {
   };
   return { prisma };
 });
+
+// PRO-A2-05 — the targets here are identities the Organization originated, so
+// the account-level factor routes reach their step-up gate.
+vi.mock("../src/services/security/enterprise-account-linking.service.js", () => ({
+  isSelfServeAccountForOrganization: async () => false,
+}));
 
 // --- emitters / audit -----------------------------------------------------
 vi.mock("../src/services/audit/tenant-audit.service.js", () => ({

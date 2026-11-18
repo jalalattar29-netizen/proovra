@@ -510,3 +510,27 @@ export async function revokeContactFactor(
 export function destinationFingerprint(e164: string): string {
   return createHash("sha256").update(e164).digest("hex").slice(0, 16);
 }
+
+/**
+ * PRO-A1Z-01 — "Replace this device" as a server act: the new phone becomes
+ * ACTIVE and the replaced one (the caller's own ACTIVE contact factor) is
+ * revoked — generation bumped, so approvals bound to it refuse at spend — in
+ * ONE transaction. Two concurrent replacements of the same phone leave one
+ * ACTIVE phone: the second revoke finds nothing and the transaction fails.
+ */
+export async function completeContactFactorReplacement(
+  input: { userId: string; factorId: string; replacesFactorId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<ProjectedContactFactor> {
+  return client.$transaction(async (tx) => {
+    const activated = await completeContactFactorEnrollment(
+      { userId: input.userId, factorId: input.factorId },
+      tx,
+    );
+    await revokeContactFactor(
+      { userId: input.userId, factorId: input.replacesFactorId, reason: "replaced" },
+      tx,
+    );
+    return activated;
+  });
+}

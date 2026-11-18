@@ -255,7 +255,8 @@ describe("§1 — 9-path managed-identity matrix", () => {
   it("4. SCIM deactivate → releases THIS Organization's managed binding + revokes sessions", () => {
     const block = functionBody(SCIM, "scimDeactivateUser");
     expect(block).toMatch(/releaseManagedIdentity\(\s*\{ userId, managingOrganizationId: ctx\.organizationId \}/);
-    expect(block).toMatch(/revokeAllSessionsForUser\(/);
+    // PRO-A2-06 / PRO-T1-05 (DEC-08) — through the canonical authority-loss scope.
+    expect(block).toMatch(/revokeSessionsForAuthorityLoss\(/);
     expect(block).toMatch(/suspendWorkspaceMembership\(/); // seat released via suspension
     // ARCH-004 — and the GOVERNANCE membership is suspended in the same
     // transaction, so a deprovisioned directory user is not left a live member.

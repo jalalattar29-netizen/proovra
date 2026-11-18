@@ -149,6 +149,11 @@ function memberMatches(m: MemberRow, where: Record<string, unknown>): boolean {
       if (have === (v as { not: unknown }).not) return false;
       continue;
     }
+    // PRO-A2-06 — SCIM reach reads `status: { in: [ACTIVE, SUSPENDED] }`.
+    if (v && typeof v === "object" && "in" in (v as object)) {
+      if (!(v as { in: unknown[] }).in.includes(have)) return false;
+      continue;
+    }
     if (v === null ? have !== null && have !== undefined : have !== v) return false;
   }
   return true;

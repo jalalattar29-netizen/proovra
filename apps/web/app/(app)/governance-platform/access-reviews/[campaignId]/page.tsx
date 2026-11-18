@@ -36,7 +36,8 @@ import { DataTable, type DataTableColumn } from "../../../../../components/ui/Da
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../../lib/api";
 import { StepUpModal, isStepUpCancelled, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
-import { useActiveWorkspaceId } from "../../../../../lib/platform-context/useTeamWorkspaceGate";
+import { useActiveSpaceId } from "../../../../../lib/platform-context/useTenantModel";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { permissionRequiredDetail } from "../../../../../lib/labels/governanceReviewLabels";
@@ -85,15 +86,21 @@ function Shell() {
     }
   }, [campaignId]);
 
-  const stepUp = useStepUpAction({ teamId: useActiveWorkspaceId() });
+  const stepUp = useStepUpAction({ teamId: useActiveSpaceId() });
+  const { confirm } = useConfirmAction();
   const decide = useCallback(
     async (itemId: string, decision: AccessReviewItemDecision) => {
       // PRO-G2-17 — Revoke removes the member's grant: confirm first, and the
       // server asks for a step-up (answered through the step-up dialog).
       if (
         decision === "REVOKED" &&
-        typeof window !== "undefined" &&
-        !window.confirm("Revoke this access? The member loses this grant immediately.")
+        !(await confirm({
+          title: "Revoke this access?",
+          description: "The member loses this grant immediately.",
+          confirmLabel: "Revoke access",
+          tone: "danger",
+          testId: "access-review-revoke",
+        }))
       ) {
         return;
       }
@@ -118,7 +125,7 @@ function Shell() {
         setBusy(false);
       }
     },
-    [refresh, stepUp],
+    [refresh, stepUp, confirm],
   );
 
   useEffect(() => {

@@ -919,8 +919,7 @@ export async function authRoutes(app: FastifyInstance) {
       });
     } catch (err) {
       if (!(err instanceof MfaLoginTemporarilyLockedError)) throw err;
-      // PRO-A1-05 — too many wrong second-factor answers recently: no new
-      // challenge for a stated window. No token, no cookie.
+      // PRO-A1-05 — account in a second-factor lockout window.
       auditAuthEvent(req, {
         userId: user.id,
         action: "auth.mfa_challenge_issued",
@@ -1626,7 +1625,7 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.post("/v1/auth/password-reset/confirm", async (req, reply) => {
-    // PRO-A1-09 — bounded per client address like the request route.
+    // PRO-A1-09
     const confirmRl = await enforceRateLimit({
       key: `auth:password-reset-confirm:ip:${readClientIp(req)}`,
       bound: "global",
@@ -1636,8 +1635,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (!confirmRl.allowed) return replyRateLimited(reply, confirmRl.resetAtMs, confirmRl.store);
     const body = PasswordResetConfirmBody.parse(req.body);
 
-    // PRO-A1-08 — the sessions and step-up approvals end in the SAME
-    // transaction as the password change: both commit, or neither does.
+    // PRO-A1-08 — revocation commits with the password change.
     const res = await resetPasswordWithToken({
       token: body.token,
       newPassword: body.newPassword,
@@ -1665,10 +1663,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(400).send({ message: res.reason });
     }
 
-    // D13 — a reset is how an account is taken back: every session issued
-    // before it ended, and (N-6) every step-up approved under the old
-    // password, inside the reset's own transaction above. The best-effort
-    // security event is emitted after the commit.
+    // D13 / N-6 — sessions and step-ups ended in the reset transaction; event after commit.
     emitAllSessionsRevokedEvent({ userId: res.userId, reason: "PASSWORD_CHANGED", actorUserId: res.userId });
 
     auditAuthEvent(req, {
@@ -1754,10 +1749,7 @@ export async function authRoutes(app: FastifyInstance) {
       });
     }
 
-    // PRO-A1-10 — the verify link is an interactive sign-in like every other:
-    // it passes the same second-factor gate before a session exists. An
-    // account under an MFA policy (or holding a factor) gets the challenge or
-    // the guided enrolment, never a mailbox-only session.
+    // PRO-A1-10 — the verify link passes the same second-factor gate as every sign-in.
     const gate = await gateLoginWithMfa(req, reply, fullUser, "email_verification");
     if (gate.mfaIssued) return reply;
 
@@ -2015,8 +2007,7 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.post("/v1/auth/mfa/passkey-handoff/options", async (req, reply) => {
-    // PRO-A1-09 — an anonymous route that builds WebAuthn options: bounded
-    // per client address like its neighbours.
+    // PRO-A1-09 — bounded per client address.
     const optionsRl = await enforceRateLimit({
       key: `auth:mfa-passkey-handoff-options:ip:${readClientIp(req)}`,
       bound: "global",
@@ -2146,10 +2137,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(429).send({ message: "rate_limited" });
     }
 
-    // PRO-A1-05 — claim one checked attempt on THIS challenge before the
-    // answer is looked at: at most LOGIN_CHALLENGE_MAX_ATTEMPTS answers are
-    // ever checked per challenge (parallel guesses included), and a closed
-    // or exhausted challenge checks nothing.
+    // PRO-A1-05 — claim one checked attempt before the answer is looked at.
     const attempt = await claimLoginChallengeAttempt({ jti: challengeJti, userId });
     if (attempt !== "ok") {
       clearMfaPendingCookie(req, reply);
@@ -2229,8 +2217,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (!verifyOk) {
       // Do NOT clear the pending cookie here — the user may retry
       // within the 5-min window. Rate-limit above bounds the retries.
-      // PRO-A1-05 — the attempt was counted when claimed; the last allowed
-      // failed attempt ends the challenge (awaited, so the next answer sees it).
+      // PRO-A1-05 — the last allowed failed attempt ends the challenge.
       await recordPendingChallengeFailure(challengeJti);
       auditAuthEvent(req, {
         userId,
@@ -2435,9 +2422,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (!factor) {
       return reply.code(409).send({ message: "mfa_factor_not_enrolled" });
     }
-    // PRO-A1-01 (defence in depth) — the enrolment token is only for an
-    // account that had no factor. Another ACTIVE factor means the account was
-    // already protected: completing here would sign in without it.
+    // PRO-A1-01 — another ACTIVE factor: the account was already protected.
     const otherActive = await prisma.mfaFactor.findFirst({
       where: { userId, status: "ACTIVE", revokedAt: null, id: { not: factor.id } },
       select: { id: true },
@@ -2666,8 +2651,7 @@ export async function authRoutes(app: FastifyInstance) {
       // Pending MFA tokens are NOT a session — they only authorize
       // the verify-mfa endpoint.
       if (payload.mfa === "pending") return { authenticated: false };
-      // PRO-A1-13 — a restricted-scope token (mfa.enroll, capture.direct) is
-      // refused by every ordinary route (requireAuth), so the probe says no.
+      // PRO-A1-13 — restricted-scope tokens are refused by every ordinary route.
       if (isRestrictedScope((payload as { scope?: unknown }).scope)) return { authenticated: false };
 
       // Confirm the session is not on the revocation deny list.
