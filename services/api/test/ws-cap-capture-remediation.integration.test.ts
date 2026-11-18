@@ -99,6 +99,7 @@ describe("WS-CAP capture remediation (Postgres, real HTTP)", () => {
   let uploads: typeof import("../src/services/uploads/upload-session.service.js");
   let complete: typeof import("../src/services/evidence-complete.service.js");
   let cleanup: typeof import("../src/services/evidence/refused-upload-cleanup.service.js");
+  let reaper: typeof import("../../worker/src/capture-reaper.js");
   let originalBilling: Record<string, unknown> | null = null;
 
   beforeAll(async () => {
@@ -112,6 +113,7 @@ describe("WS-CAP capture remediation (Postgres, real HTTP)", () => {
     uploads = await import("../src/services/uploads/upload-session.service.js");
     complete = await import("../src/services/evidence-complete.service.js");
     cleanup = await import("../src/services/evidence/refused-upload-cleanup.service.js");
+    reaper = await import("../../worker/src/capture-reaper.js");
     const { signJwt } = await import("../src/services/jwt.js");
     const secret = process.env.AUTH_JWT_SECRET!;
     deps = {
@@ -481,18 +483,19 @@ describe("WS-CAP capture remediation (Postgres, real HTTP)", () => {
     objects.set(decodeURIComponent(new URL(presign.json().upload.putUrl as string).pathname.slice(1)), bytes);
     const done = await call("POST", `/v1/evidence/${id}/complete`, t.owner.token, {});
     expect(done.statusCode, done.body).toBe(200);
-    // The process "died" after the commit: no done marker, no live claim.
-    const sealedAt = new Date(Date.now() - 30 * MIN);
+    // The process "died" after the commit: no done marker, no live claim. (The
+    // seal time itself is immutable; the pass runs "half an hour later".)
     await prisma.evidence.update({
       where: { id },
-      data: { completionFanoutDoneAtUtc: null, completionFanoutClaimedAtUtc: null, signedAtUtc: sealedAt },
+      data: { completionFanoutDoneAtUtc: null, completionFanoutClaimedAtUtc: null },
     });
-    const first = await complete.recoverSealedRecordObligations({ now: new Date() });
+    const later = new Date(Date.now() + 30 * MIN);
+    const first = await complete.recoverSealedRecordObligations({ now: later });
     expect(first.fanoutRecovered).toBeGreaterThanOrEqual(1);
     const row = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { completionFanoutDoneAtUtc: true } });
     expect(row.completionFanoutDoneAtUtc).not.toBeNull();
     // Marked done: a second pass does not run it again.
-    const again = await complete.recoverSealedRecordObligations({ now: new Date() });
+    const again = await complete.recoverSealedRecordObligations({ now: later });
     const candidates = await prisma.evidence.count({ where: { id, completionFanoutDoneAtUtc: null } });
     expect(candidates).toBe(0);
     expect(again.failed).toBe(0);
@@ -565,5 +568,31 @@ describe("WS-CAP capture remediation (Postgres, real HTTP)", () => {
     });
     expect(foreign.statusCode, foreign.body).toBe(200);
     expect(foreign.json().activeSpace?.id ?? foreign.json().workspace?.id).toBe(A.teamId);
+  }, 240_000);
+
+  // --- PRO-C1C-01 -------------------------------------------------------------
+
+  it("PRO-C1C-01: the reaper removes a released reservation's objects (own prefix included) once; a sealed record's keys are never touched", async () => {
+    const evidenceId = await reservedRecord();
+    const partKey = `evidence/${evidenceId}/parts/000-a.jpg`;
+    const sessionKey = `evidence/${evidenceId}/multipart/s-9/object`;
+    await prisma.evidencePart.create({ data: { evidenceId, partIndex: 0, storageBucket: "ws-cap-test-bucket", storageKey: partKey } });
+    // Released by the API (a discard) two hours ago: soft delete only.
+    await prisma.evidence.update({ where: { id: evidenceId }, data: { deletedAt: new Date(Date.now() - 120 * MIN) } });
+    const deleted: string[] = [];
+    const deleteObject = async (o: { bucket: string; key: string }) => {
+      deleted.push(o.key);
+      return { deleted: true, deletedVersions: 1, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
+    };
+    const listKeys = async ({ prefix }: { bucket: string; prefix: string }) =>
+      prefix === `evidence/${evidenceId}/` ? [partKey, sessionKey] : [];
+    await reaper.removeReleasedReservationObjects({ deleteObject, listKeys, bucket: "ws-cap-test-bucket", batchSize: 1000 });
+    expect(deleted).toEqual(expect.arrayContaining([partKey, sessionKey]));
+    const stamped = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { releasedObjectsRemovedAtUtc: true } });
+    expect(stamped.releasedObjectsRemovedAtUtc).not.toBeNull();
+    // Swept once.
+    deleted.length = 0;
+    await reaper.removeReleasedReservationObjects({ deleteObject, listKeys, bucket: "ws-cap-test-bucket", batchSize: 1000 });
+    expect(deleted.filter((k) => k.includes(evidenceId))).toEqual([]);
   }, 240_000);
 });
