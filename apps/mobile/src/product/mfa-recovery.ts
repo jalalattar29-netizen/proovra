@@ -56,12 +56,17 @@ export type MfaRecoveryFailure =
 export function classifyVerifyFailure(err: unknown): MfaRecoveryFailure {
   const e = obj(err);
   const status = typeof e.statusCode === "number" ? e.statusCode : null;
-  const message = str(e.message) ?? "";
+  // NAT-MFA-01 (Free audit 0ea0, SN-0054) — the route answers a FLAT
+  // `{ error: "<reason>" }` with no message, which api.ts carries as the
+  // error's `code` (its message is "HTTP 400: API error"). Reading the message
+  // alone turned every expired or already-handled link into "unknown". The web
+  // reads the same flat reason (`flatReason`, verify/page.tsx:57-60).
+  const reason = str(e.code) ?? str(e.message) ?? "";
 
-  if (message === "token_expired" || message.includes("expired")) return "expired";
-  if (message === "wrong_user") return "wrong_user";
-  if (message === "request_not_in_email_pending") return "already_handled";
-  if (message === "token_invalid" || status === 404) return "invalid";
+  if (reason === "token_expired") return "expired";
+  if (reason === "wrong_user") return "wrong_user";
+  if (reason === "request_not_in_email_pending") return "already_handled";
+  if (reason === "token_invalid" || status === 404) return "invalid";
   return "unknown";
 }
 

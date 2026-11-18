@@ -188,7 +188,8 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
     const PINS = [
       // Rebaselined 2026-11-13: 21,793 -> 26,271 — F-04 (Free-user audit): discarding a draft releases its unsealed reservation through the reservation authority (record lock before the draft row).
       // Rebaselined 2026-11-16: 26,271 -> 27,296 — B4-F-310 (free-audit 0ea0): an unexpected 5xx is rethrown to the central handler instead of echoing err.message.
-      { rel: "src/routes/capture.routes.ts", expected: 27296 },
+      // Rebaselined 2026-11-18: 27,296 -> 27,778 — F9 (final Free acceptance): a Viewer gets 403 NOT_PERMITTED, not WORKSPACE_MEMBERSHIP_REQUIRED.
+      { rel: "src/routes/capture.routes.ts", expected: 27778 },
       // Rebaselined 2026-09-09 (OTS INTEGRITY DECOUPLING): 46,824 → 51,943.
       // This is a ±10% band, and the accumulated audited growth since 46,824
       // had reached its edge. Finalization now enters the OTS lifecycle

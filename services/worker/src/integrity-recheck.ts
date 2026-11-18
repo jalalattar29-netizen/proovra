@@ -390,6 +390,13 @@ export async function recheckEvidenceIntegrity(input: {
 /** Records one tick examines. Bounded: a tick is a slice, the schedule is the loop. */
 export const INTEGRITY_RECHECK_SWEEP_BATCH = 25;
 export const INTEGRITY_RECHECK_SWEEP_MAX_BATCH = 200;
+/**
+ * The most a configured INTEGRITY_RECHECK_SWEEP_MAX_BATCH may raise the batch to.
+ * The default cap above is what runs unless an operator raises it (the capacity
+ * alert asks for that); this ceiling only stops a typo from streaming the whole
+ * bucket in one tick.
+ */
+export const INTEGRITY_RECHECK_SWEEP_HARD_CEILING = 2000;
 
 export type IntegrityRecheckSweepResult = {
   runId: string | null;
@@ -423,7 +430,7 @@ export async function runIntegrityRecheckSweep(
     teamId?: string | null;
   } = {},
 ): Promise<IntegrityRecheckSweepResult> {
-  const limit = Math.max(1, Math.min(options.limit ?? INTEGRITY_RECHECK_SWEEP_BATCH, INTEGRITY_RECHECK_SWEEP_MAX_BATCH));
+  const limit = Math.max(1, Math.min(options.limit ?? INTEGRITY_RECHECK_SWEEP_BATCH, INTEGRITY_RECHECK_SWEEP_HARD_CEILING));
   const tally = { scanned: 0, verified: 0, failed: 0, unavailable: 0, skipped: 0 };
 
   const run = await runGovernanceReconciliation(prisma, {
@@ -506,7 +513,7 @@ export function adaptiveIntegrityRecheckBatch(input: {
   maxBatch?: number;
   cadenceDays?: number;
 }): { limit: number; sustainable: number; capacityExceeded: boolean } {
-  const maxBatch = Math.max(1, Math.min(input.maxBatch ?? INTEGRITY_RECHECK_SWEEP_MAX_BATCH, INTEGRITY_RECHECK_SWEEP_MAX_BATCH));
+  const maxBatch = Math.max(1, Math.min(input.maxBatch ?? INTEGRITY_RECHECK_SWEEP_MAX_BATCH, INTEGRITY_RECHECK_SWEEP_HARD_CEILING));
   const base = Math.max(1, Math.min(input.baseBatch, maxBatch));
   const cadenceDays = Math.max(1, input.cadenceDays ?? INTEGRITY_RECHECK_INTERVAL_DAYS_DEFAULT);
   const ticksPerDay = Math.max(1, Math.floor((24 * 60 * 60 * 1000) / Math.max(1, input.intervalMs)));

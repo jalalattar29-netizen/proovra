@@ -2760,6 +2760,8 @@ export * from "./queue-job-correlation.js";
 export * from "./evidence-acquisition.js";
 // AUD-013 — THE record-signature validity resolver (revoked / rotated / mismatched keys).
 export * from "./record-signature-validity.js";
+// B7A-F-006 — a record's signing-key-compromise state and the linked replacement.
+export * from "./key-compromise-replacement.js";
 // UC — the ONE cross-platform capture-capability authority (F7). Answers a
 // PRODUCT/PLATFORM question only ("which capture channels can this platform
 // offer, and in what truthful availability state?"). It never decides

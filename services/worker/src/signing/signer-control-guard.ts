@@ -15,7 +15,7 @@
  * to remove.
  */
 
-import { signerProviderToken } from "@proovra/shared-runtime";
+import { isKeyIdentityCompromised, signerProviderToken } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 
 export type WorkerSignerPurpose =
@@ -33,6 +33,41 @@ export class SignerRevokedError extends Error {
     super(`Signer ${signerId} is ${status} and may not be used for new signatures.`);
     this.name = "SignerRevokedError";
   }
+}
+
+/**
+ * B7A-F-006 — the key this worker would sign with is held by material PROOVRA
+ * declared compromised (`signing_keys.revoked_at`, under any identity or
+ * purpose). TERMINAL: retrying cannot make that key trustworthy, so the
+ * request fails with this bounded reason instead of being retried — and no
+ * report or package is issued, signed or sealed by compromised material. The
+ * API's replacement offer reads the API process's signing env
+ * (`replacementSignersUsable`); this is the worker's own re-check of the env
+ * it actually signs with, at execution time.
+ */
+export class SigningKeyCompromisedError extends Error {
+  readonly code = "SIGNING_KEY_COMPROMISED" as const;
+  readonly retriable = false as const;
+  constructor(
+    readonly signerId: string,
+    readonly purpose: WorkerSignerPurpose,
+  ) {
+    super(`SIGNING_KEY_COMPROMISED: the ${purpose} signing key was declared compromised and may not sign.`);
+    this.name = "SigningKeyCompromisedError";
+  }
+}
+
+function envKeyIdentity(purpose: WorkerSignerPurpose): { keyId: string; version: number } | null {
+  const keyId =
+    purpose === "verification_package"
+      ? envValue("PACKAGE_SIGNING_KEY_ID") ?? envValue("SIGNING_KEY_ID")
+      : envValue("SIGNING_KEY_ID");
+  const version = Number(
+    purpose === "verification_package"
+      ? envValue("PACKAGE_SIGNING_KEY_VERSION") ?? envValue("SIGNING_KEY_VERSION")
+      : envValue("SIGNING_KEY_VERSION"),
+  );
+  return keyId && Number.isInteger(version) && version >= 1 ? { keyId, version } : null;
 }
 
 function envValue(name: string): string | null {
@@ -72,4 +107,10 @@ export async function assertWorkerSignerUsable(
   });
   const status = row?.status ?? "ACTIVE";
   if (status !== "ACTIVE") throw new SignerRevokedError(signerId, status);
+  // B7A-F-006 — and its key is not compromised material (read now, from the
+  // registry every verifier reads; never cached).
+  const identity = envKeyIdentity(purpose);
+  if (identity && (await isKeyIdentityCompromised(prisma as never, identity))) {
+    throw new SigningKeyCompromisedError(signerId, purpose);
+  }
 }

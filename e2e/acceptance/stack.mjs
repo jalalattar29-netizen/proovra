@@ -59,6 +59,9 @@ const PREFIX = CUSTOM ? `acc-${INSTANCE}` : SECOND ? "acc-b" : "acc";
 const C = { postgres: `${PREFIX}-postgres`, redis: `${PREFIX}-redis`, minio: `${PREFIX}-minio` };
 const MINIO_IMAGE = "pgsty/minio:RELEASE.2026-08-04T00-00-00Z";
 
+// ACCEPT_EXTENSION_ID=<32 a-p> lets that extension build use the real sign-in.
+const EXTENSION_ID = /^[a-p]{32}$/.test(process.env.ACCEPT_EXTENSION_ID ?? "") ? process.env.ACCEPT_EXTENSION_ID : "";
+
 const controls = JSON.parse(readFileSync(resolve(HERE, "production-controls.json"), "utf8"));
 
 const env = buildLocalFixtureEnv({
@@ -120,7 +123,13 @@ const env = buildLocalFixtureEnv({
     ...(process.env.ACCEPTANCE_DATABASE_POOL_MAX
       ? { DATABASE_POOL_MAX: process.env.ACCEPTANCE_DATABASE_POOL_MAX }
       : {}),
+    // A test build of the extension (its manifest key fixes its id) may sign in
+    // through the real PKCE flow: its origin and its chromiumapp redirect only.
+    ...(EXTENSION_ID ? { EXTENSION_ALLOWED_ORIGINS: `chrome-extension://${EXTENSION_ID}` } : {}),
   },
+  ...(EXTENSION_ID
+    ? { redirectAllowLists: { EXTENSION_OAUTH_REDIRECT_ALLOW: [`https://${EXTENSION_ID}.chromiumapp.org/oauth2`] } }
+    : {}),
 });
 
 const WEB_ENV = {

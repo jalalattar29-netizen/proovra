@@ -1042,6 +1042,41 @@ export default function ExternalIntakePage({
     );
   }
 
+  // Checked BEFORE the error branch: a reopened submitted link has no link or
+  // session loaded (the API answers 410 LINK_ALREADY_SUBMITTED), and the error
+  // branch below would otherwise win and show a generic failure.
+  if (phase === "already_submitted") {
+    // Friendly read-only state when a contributor re-opens a
+    // ONE_TIME link AFTER they have already submitted. No upload
+    // controls, no submit button — just confirmation that the
+    // earlier submission was received. Differs from `phase ===
+    // "submitted"` only in that we did not just transition (the
+    // user reopened the tab fresh), so we cannot show a brand-new
+    // submission reference; the submission already exists in the
+    // workspace's hands.
+    return (
+      <main className="ipk" data-intake-phase="already_submitted">
+        <IntakeBrand />
+        <div className="ipk-outcome">
+          <div className="ipk-outcome__mark ipk-outcome__mark--ok" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </div>
+          <h1 className="ipk-outcome__title">Already submitted</h1>
+          <p className="ipk-outcome__body">
+            This link has already been used. Your earlier submission was
+            received and the workspace can review it.
+          </p>
+          <p className="ipk-outcome__note">
+            If you need to send more files, contact the sender for a new upload
+            link.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   if (phase === "error" || !link || !session) {
     // Phase C3 — operationally meaningful empty/error states. The
     // contributor sees a clear next step rather than a generic
@@ -1128,37 +1163,6 @@ export default function ExternalIntakePage({
     );
   }
 
-  if (phase === "already_submitted") {
-    // Friendly read-only state when a contributor re-opens a
-    // ONE_TIME link AFTER they have already submitted. No upload
-    // controls, no submit button — just confirmation that the
-    // earlier submission was received. Differs from `phase ===
-    // "submitted"` only in that we did not just transition (the
-    // user reopened the tab fresh), so we cannot show a brand-new
-    // submission reference; the submission already exists in the
-    // workspace's hands.
-    return (
-      <main className="ipk" data-intake-phase="already_submitted">
-        <IntakeBrand />
-        <div className="ipk-outcome">
-          <div className="ipk-outcome__mark ipk-outcome__mark--ok" aria-hidden="true">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 6 9 17l-5-5" />
-            </svg>
-          </div>
-          <h1 className="ipk-outcome__title">Already submitted</h1>
-          <p className="ipk-outcome__body">
-            This link has already been used. Your earlier submission was
-            received and the workspace can review it.
-          </p>
-          <p className="ipk-outcome__note">
-            If you need to send more files, contact the sender for a new upload
-            link.
-          </p>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="ipk" data-intake-phase={phase}>

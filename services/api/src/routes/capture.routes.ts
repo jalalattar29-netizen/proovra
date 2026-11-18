@@ -290,6 +290,15 @@ export async function captureRoutes(app: FastifyInstance) {
           resourceKind: "capture_session",
         });
         if (!decision.allowed) {
+          // Free acceptance J6 (FAIL-2) — an active member whose role lacks
+          // evidence.create (a Viewer) is told that, not that they are no
+          // member; every other refusal keeps the membership answer.
+          if (decision.reason === "permission_not_granted") {
+            return reply.code(403).send({
+              code: "NOT_PERMITTED",
+              message: "Your role in this workspace can view records but not add them.",
+            });
+          }
           return reply.code(403).send({
             code: "WORKSPACE_MEMBERSHIP_REQUIRED",
             message: "You are not an active member of this workspace.",

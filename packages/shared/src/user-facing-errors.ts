@@ -1228,6 +1228,34 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "An updated report records why it was issued. Describe the later facts it should document, then try again; nothing was created.",
     severity: "info",
   },
+  /*
+   * B7A-F-006 — the linked replacement after PROOVRA withdrew a signing key
+   * (regenerate route, `intent: "KEY_COMPROMISE_REPLACEMENT"`). Each refusal
+   * says what is true and never implies a replacement exists.
+   */
+  KEY_COMPROMISE_REPLACEMENT_NOT_AFFECTED: {
+    title: "Nothing to replace",
+    message:
+      "This record's latest report and verification package were not sealed with the withdrawn key, so there is nothing to replace. Nothing was requested.",
+    severity: "info",
+  },
+  KEY_COMPROMISE_REPLACEMENT_RECORD_SIGNATURE_NOT_REPLACEABLE: {
+    title: "This record's signature can't be replaced",
+    message:
+      "This record's own signature was made with the withdrawn key. A replacement cannot re-sign the record without changing its history, so none is issued. Verification shows the signature as made by a withdrawn key.",
+    severity: "warning",
+  },
+  KEY_COMPROMISE_REPLACEMENT_NO_TRUSTWORTHY_SIGNER: {
+    title: "A replacement can't be issued yet",
+    message:
+      "PROOVRA does not yet have a signing key that is unaffected. Nothing was requested and nothing was charged. Try again later.",
+    severity: "warning",
+  },
+  KEY_COMPROMISE_REPLACEMENT_NOT_REQUESTED: {
+    title: "The replacement wasn't requested",
+    message: "The replacement could not be requested right now. Nothing was charged. Try again in a few minutes.",
+    severity: "error",
+  },
   CONCURRENCY_LIMITED: {
     title: "Several versions are already being created",
     message:

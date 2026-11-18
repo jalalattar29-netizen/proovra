@@ -229,3 +229,12 @@ test("the reveal dialog hides a Send action when no recipient exists for it", ()
   );
   assert.doesNotMatch(src, /data-intake-link-send="WHATSAPP"/);
 });
+
+test("Free acceptance J7: a staged file's details keep a readable width beside the checklist-step picker", () => {
+  const css = readFileSync(PUBLIC_CSS, "utf8");
+  const main = css.match(/\.ipk-file__main\s*\{([^}]*)\}/);
+  assert.ok(main, ".ipk-file__main rule exists");
+  assert.doesNotMatch(main[1], /min-width:\s*0\s*;/, "the details column may not shrink to zero width");
+  assert.match(main[1], /min-width:\s*\d+(\.\d+)?rem/);
+  assert.match(css, /\.ipk-file\s*>\s*:not\(\.ipk-file__main\)\s*\{[^}]*flex:\s*0 1 220px/);
+});

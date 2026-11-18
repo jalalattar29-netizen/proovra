@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { getLegalStatus, recordLegalAcceptance } from "../../src/auth/auth-api";
+import { getLegalStatus, recordLegalAcceptance, type LegalStatus } from "../../src/auth/auth-api";
+import { safeLegalGateNext } from "../../src/auth/legal-gate";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import {
@@ -27,13 +28,36 @@ const POLICY_LABELS: Record<string, string> = {
  * acceptance is missing, or from the runtime 428 interceptor. `next` carries an
  * optional destination to resume after acceptance.
  */
+/** NAT-LEGAL-01 — the POST names this when a policy was re-issued after the list was read. */
+const VERSION_NOT_CURRENT = "LEGAL_POLICY_VERSION_NOT_CURRENT";
+const VERSION_CHANGED_COPY =
+  "The terms changed while this screen was open. The list now shows the current versions — review them and accept again.";
+
+function toMissing(status: LegalStatus): Array<{ policyKey: string; version: string }> {
+  return status.missingPolicies.map((p) => ({ policyKey: p, version: status.requiredVersions[p] ?? "" }));
+}
+
 export default function LegalAcceptanceScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ next?: string }>();
-  const next = typeof params.next === "string" && params.next.startsWith("/") ? params.next : "/(tabs)";
+  const next = safeLegalGateNext(params.next);
   const [state, setState] = useState<"loading" | "ready" | "error" | "saving">("loading");
   const [error, setError] = useState<SafeError | null>(null);
   const [missing, setMissing] = useState<Array<{ policyKey: string; version: string }>>([]);
+
+  /**
+   * NAT-LEGAL-02 — leaving the gate. The sign-in bootstrap names where to go
+   * (`next`, and nothing is beneath it). The runtime 428 interceptor and
+   * Settings open the gate OVER the current screen with no `next`: going back
+   * resumes that screen with everything on it, as the web step closes and keeps
+   * the page (B1-F-010) — the refused write was never persisted and the person
+   * retries it. Replacing with Home threw the interrupted screen away.
+   */
+  const leave = useCallback(() => {
+    if (next) router.replace(next as never);
+    else if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)");
+  }, [router, next]);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -41,16 +65,16 @@ export default function LegalAcceptanceScreen() {
     try {
       const status = await getLegalStatus();
       if (status.ok) {
-        router.replace(next as never);
+        leave();
         return;
       }
-      setMissing(status.missingPolicies.map((p) => ({ policyKey: p, version: status.requiredVersions[p] ?? "" })));
+      setMissing(toMissing(status));
       setState("ready");
     } catch (err) {
       setError(toSafeUserError(err));
       setState("error");
     }
-  }, [router, next]);
+  }, [leave]);
 
   useEffect(() => {
     void load();
@@ -61,12 +85,30 @@ export default function LegalAcceptanceScreen() {
     setError(null);
     try {
       await recordLegalAcceptance(missing);
-      router.replace(next as never);
+      leave();
     } catch (err) {
+      // NAT-LEGAL-01 — a policy re-issued after the list was read is refused
+      // with the versions now required. Re-posting the stale list could never
+      // succeed, so the list is re-read and the person accepts what is current.
+      if ((err as { code?: unknown } | null)?.code === VERSION_NOT_CURRENT) {
+        try {
+          const status = await getLegalStatus();
+          if (status.ok) {
+            leave();
+            return;
+          }
+          setMissing(toMissing(status));
+          setError({ ...toSafeUserError(err), message: VERSION_CHANGED_COPY });
+        } catch (reloadErr) {
+          setError(toSafeUserError(reloadErr));
+        }
+        setState("ready");
+        return;
+      }
       setError(toSafeUserError(err));
       setState("ready");
     }
-  }, [missing, router, next]);
+  }, [missing, leave]);
 
   return (
     <ProovraScreen scroll={false} width="form">
@@ -102,6 +144,22 @@ export default function LegalAcceptanceScreen() {
               ))}
               <View style={styles.actions}>
                 <ProovraButton label="Accept and continue" loading={state === "saving"} onPress={() => void accept()} />
+                {/*
+                  NAT-LEGAL-03 — the gate must not trap the person (A1-06; the web
+                  step's "Not now", LegalAcceptanceStep.tsx:55-60). Reads stay open
+                  and the server keeps refusing every non-exempt write with 428,
+                  which brings this screen back; signing out, exporting, closing
+                  the account and revoking stay reachable without agreeing.
+                */}
+                <ProovraButton
+                  label="Not now"
+                  variant="ghost"
+                  disabled={state === "saving"}
+                  onPress={leave}
+                />
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  Until you accept, PROOVRA cannot save changes. You can still read your records, export your data, sign out or close your account.
+                </ProovraText>
                 {error ? (
                   <ProovraText variant="label" color={theme.color.status.risk.fg}>
                     {error.message}

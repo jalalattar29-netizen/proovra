@@ -88,8 +88,11 @@ describe("Phase IA-capture-409-autosave — autosave-loop halt", () => {
   });
 
   it("savingState includes the bounded 'locked' state alongside idle/saving/error", () => {
+    // Final Free acceptance (2026-11-18, F9): "forbidden" joins "locked" as a
+    // second terminal state — a 403 (role no longer allows adding records)
+    // stops autosave exactly as the 409 lock does.
     expect(HOOK).toMatch(
-      /useState<\s*"idle"\s*\|\s*"saving"\s*\|\s*"error"\s*\|\s*"locked"\s*>/,
+      /useState<\s*"idle"\s*\|\s*"saving"\s*\|\s*"error"\s*\|\s*"locked"\s*\|\s*"forbidden"\s*>/,
     );
   });
 

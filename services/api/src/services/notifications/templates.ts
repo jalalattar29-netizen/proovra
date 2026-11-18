@@ -116,6 +116,16 @@ export type MembershipLifecycleContext = {
 export type SigningKeyCompromiseNoticeContext = {
   actionUrl: string | null;
   replacementAvailable: boolean;
+  /**
+   * What the notice is about (absent = a record). A destruction certificate is
+   * the workspace's record that records were destroyed; it is never re-issued.
+   */
+  subject?: "record" | "destruction_certificate";
+  /**
+   * Affected outputs no replacement restores, stated plainly so the notice
+   * never implies a valid replacement exists for them.
+   */
+  notReplaceable?: Array<"RECORD_SIGNATURE" | "CUSTODY_ATTESTATIONS">;
 };
 
 // Discriminated union the renderer accepts. Adding an event type means
@@ -795,14 +805,41 @@ function renderMembershipLifecycle(
 
 function renderSigningKeyCompromiseNotice(d: SigningKeyCompromiseNoticeContext): RenderedTemplate {
   const brand = getEmailBrandName();
+  // B7A-F-006 — a destruction certificate: what is true, and that it is not re-issued.
+  if (d.subject === "destruction_certificate") {
+    const title = `A ${brand} signing key used for a destruction certificate was withdrawn`;
+    const lines = [
+      `As a precaution, ${brand} withdrew a signing key that signed a destruction certificate of your workspace.`,
+      "The certificate is kept exactly as it was. Verification now shows its signature as made by a revoked key, so it is no longer presented as presently trusted.",
+      "A destruction certificate records a destruction that already happened, so it is not re-issued and no replacement certificate is available.",
+    ];
+    const html = renderEmailShell({
+      title,
+      preheader: lines[0]!.slice(0, 120),
+      bodyHtml: lines.map((l) => `<div style="margin:0 0 12px 0;">${escapeEmailHtml(l)}</div>`).join(""),
+      ctaText: d.actionUrl ? "Open destruction requests" : undefined,
+      ctaUrl: d.actionUrl ?? undefined,
+    });
+    const text = [title, "", ...lines, d.actionUrl ? `Open: ${d.actionUrl}` : null]
+      .filter((l): l is string => typeof l === "string")
+      .join("\n");
+    return { subject: title, html, text, plaintextPreview: text.slice(0, 2000) };
+  }
   const title = `A ${brand} signing key used for one of your records was withdrawn`;
+  const notReplaceable = new Set(d.notReplaceable ?? []);
   const lines = [
     `As a precaution, ${brand} withdrew a signing key that signed or sealed an issued report or verification package of one of your records.`,
     "Your record and everything already issued stay exactly as they were. Verification now shows that signature as made by a revoked key, so it is no longer presented as presently trusted.",
     d.replacementAvailable
       ? "You can request a replacement verification package from the record. It is linked to the original and costs nothing."
       : "Open the record to see what verification shows now.",
-  ];
+    notReplaceable.has("RECORD_SIGNATURE")
+      ? "The record's own signature was made with that key. A replacement cannot re-sign the record without changing its history, so no replacement is issued for it."
+      : null,
+    notReplaceable.has("CUSTODY_ATTESTATIONS")
+      ? "Custody-event attestations made with that key are not re-signed by a replacement; they stay in the record's history."
+      : null,
+  ].filter((l): l is string => typeof l === "string");
   const html = renderEmailShell({
     title,
     preheader: lines[0]!.slice(0, 120),

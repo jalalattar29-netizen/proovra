@@ -14,7 +14,8 @@ import { computeTotpCode, decodeBase32, timeStep, TOTP_DIGITS, TOTP_PERIOD_SECON
 import { answerCookieBanner } from "../../helpers/consent";
 
 const ROOT = resolve(__dirname, "..", "..", "..");
-const STATE_FILE = resolve(ROOT, ".p7tmp", "acceptance-state.json");
+// ACCEPT_STATE_NAME lets independent journey files keep separate state on one stack.
+const STATE_FILE = resolve(ROOT, ".p7tmp", `${process.env.ACCEPT_STATE_NAME ?? "acceptance-state"}.json`);
 const EMAILS = resolve(ROOT, ".p7tmp", "recorded-emails.jsonl");
 export const SHOT_DIR = resolve(ROOT, ".p7tmp", "acceptance-shots");
 export const API_BASE = process.env.API_BASE ?? "http://localhost:8391";
@@ -158,7 +159,7 @@ export async function newProfile(browser: Browser, p?: Person): Promise<{ contex
 
 export async function keepProfile(context: BrowserContext, p: Person, s: JourneyState, key: string): Promise<void> {
   mkdirSync(resolve(ROOT, ".p7tmp", "acceptance-profiles"), { recursive: true });
-  p.storage = resolve(ROOT, ".p7tmp", "acceptance-profiles", `${key}.json`);
+  p.storage = resolve(ROOT, ".p7tmp", "acceptance-profiles", `${process.env.ACCEPT_STATE_NAME ?? "acceptance"}-${key}.json`);
   await context.storageState({ path: p.storage });
   saveState(s);
 }

@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**173 bindings — OK 173, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**175 bindings — OK 175, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -87,6 +87,7 @@ top level of it.
 | OK | `parseEvidenceLifecycle` | `GET /v1/evidence/:id` | evidence | evidence, lifecycle |
 | OK | `parseAiCategorization` | `GET /v1/evidence/:id/ai-categorization` | categorization | categories, categorization, model, riskFlags, status, suggestedTags, summary, updatedAt |
 | OK | `parseAnnotations` | `GET /v1/evidence/:id/annotations` | canWrite, items | items |
+| OK | `parseArchiveRestoreStatus` | `GET /v1/evidence/:id/archive-restore` | request | request |
 | OK | `parseDuplicateReport` | `GET /v1/evidence/:id/duplicates` | exactHashMatches, fingerprintMatches, groupedMatches, limitation, partHashMatches, possi… | groupedMatches, limitation, totalRecords |
 | OK | `parseLegalNotes` | `GET /v1/evidence/:id/legal-notes` | canWrite, items | items |
 | OK | `parseOperationalTimeline` | `GET /v1/evidence/:id/operational-timeline` | entries, evidenceId, generatedAtUtc, teamId | entries |
@@ -189,6 +190,7 @@ top level of it.
 | OK | `parseSendResult` | `POST /v1/evidence-requests/:id/send` | intakeUrl, rawToken, request, warning | intakeUrl, warning |
 | OK | `parseRunAccepted` | `POST /v1/evidence/:evidenceId/media-intelligence/run` | evidenceId, jobId, mode, queued, reason, runId, signalsByType, signalsEmitted | queued, runId |
 | OK | `parseAiCategorization` | `POST /v1/evidence/:id/ai-categorization/run` | categorization | categories, categorization, model, riskFlags, status, suggestedTags, summary, updatedAt |
+| OK | `parseArchiveRestoreRequested` | `POST /v1/evidence/:id/archive-restore` | deduplicated, request | deduplicated |
 | OK | `parseEvidenceBulkResponse` | `POST /v1/evidence/bulk` | csv, failedCount, fileName, items, results, successCount | accepted, csv, failedCount, fileName, pendingCount, queued, results, successCount, updated |
 | OK | `parseIntakePartUpload` | `POST /v1/external-intake/:token/sessions/:sid/parts` | part, upload | headers, part, partId, upload |
 | OK | `parseEnrolmentStart` | `POST /v1/identity-security/contact-factors/enroll/start` | codeExpiresAtUtc, factor, verificationAttemptId | codeExpiresAtUtc, factor, verificationAttemptId |

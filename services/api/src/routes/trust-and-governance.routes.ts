@@ -351,11 +351,8 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      // I6 — FEATURE_TRUST_CENTER gate (minimal coverage, one rep mutation).
-      try {
-        const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_TRUST_CENTER", actorUserId: ctx.userId });
-        if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_TRUST_CENTER" });
-      } catch { /* engine failure must not break route */ }
+      // B7B-F06 — the shared authoring gate; an engine failure is an error, never a publish.
+      if (await refuseTrustAuthoring(reply, ctx)) return reply;
       const body = z
         .object({
           kind: z.enum(TRUST_ARTICLE_KINDS),

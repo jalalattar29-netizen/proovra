@@ -154,6 +154,31 @@ export function evaluateCookieMutation(
  * host/origin parsing, never a substring test: `https://proovra.com.evil.example`
  * contains "proovra.com" but is not Proovra.
  */
+/**
+ * B8-F-007 — the domains this process may CLEAR `proovra_session` on: host-only
+ * always; `.proovra.com` only when this process is the production cookie
+ * domain (a staging API under *.proovra.com must never delete the production
+ * session in a shared browser); and SSO_COOKIE_DOMAIN when one is configured,
+ * so a session the SSO/SAML setters wrote there is also ended.
+ */
+export function sessionCookieClearDomains(
+  host: string | undefined,
+  origin: string | undefined,
+  env: CorsEnv = process.env,
+): Array<string | undefined> {
+  // Order matters to the reply, not the browser: a sign-in sets the session on
+  // the SSO or production domain right after these clears, and @fastify/cookie
+  // replaces a same-name/domain/path clear IN PLACE. Listing that domain first
+  // keeps the live session the first proovra_session header, exactly as the
+  // pre-B8-F-007 order (.proovra.com, then host-only) did in production.
+  const domains: Array<string | undefined> = [];
+  const sso = (env["SSO_COOKIE_DOMAIN"] ?? "").trim();
+  if (sso) domains.push(sso);
+  if (isProovraProductionRequest(host, origin, env) && !domains.includes(".proovra.com")) domains.push(".proovra.com");
+  domains.push(undefined);
+  return domains;
+}
+
 export function isProovraProductionRequest(
   host: string | undefined,
   origin: string | undefined,

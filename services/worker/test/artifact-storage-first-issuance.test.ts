@@ -348,7 +348,10 @@ describe("D-03: an entitled Free record's first issuance is left out of the cust
         issuanceVersion: 2,
       }),
     ).rejects.toMatchObject({ code: "STORAGE_LIMIT_REACHED" });
-    expect(firstReports).not.toHaveBeenCalled();
+    // No first-issuance read. (B7A-F-006: the only report read is the population's
+    // LATER versions, for committed key-compromise replacements — none here.)
+    expect(firstReports.mock.calls.every(([a]) => (a as { where?: { version?: unknown } })?.where?.version !== undefined)).toBe(true);
+    expect(JSON.stringify(firstReports.mock.calls)).toContain('"version":{"gt":1}');
   });
 });
 
@@ -393,6 +396,11 @@ describe("D-03: a Free first-issuance file recovery is admitted on a full allowa
     await expect(recoveryV2({ outputEarnedPlan: "PRO", outputEarnedBasis: "PAID_SUBSCRIPTION" }, [{ reportVersion: 2 }])).rejects.toMatchObject({
       code: "STORAGE_LIMIT_REACHED",
     });
-    expect(recoveryRequests).not.toHaveBeenCalled();
+    // No system re-issue read for a record that is not covered. (B7A-F-006: the
+    // only request read is the key-compromise replacement check, which a
+    // recovery row does not satisfy.)
+    for (const [a] of recoveryRequests.mock.calls) {
+      expect((a as { where: { purpose?: unknown } }).where.purpose).toBe("signing_key_compromise_replacement");
+    }
   });
 });

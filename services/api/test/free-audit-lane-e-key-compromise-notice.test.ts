@@ -39,4 +39,34 @@ describe("B7A-F-006 — SIGNING_KEY_COMPROMISE_NOTICE", () => {
     expect(r.text).not.toMatch(/replacement/);
     expect(r.text).not.toMatch(/Open:/);
   });
+
+  const LEAKS = [/fingerprint/i, /sha-?256/i, /key ?id/i, /kms/i, /operator/i, /compromis/i];
+
+  it("B7A-F-006 final: outputs no replacement restores are stated plainly, never implied replaced", () => {
+    const r = renderTransactionalTemplate("SIGNING_KEY_COMPROMISE_NOTICE", {
+      kind: "SigningKeyCompromiseNotice",
+      data: {
+        actionUrl: "https://app.example.test/evidence/x",
+        replacementAvailable: false,
+        notReplaceable: ["RECORD_SIGNATURE", "CUSTODY_ATTESTATIONS"],
+      },
+    });
+    expect(r.text).toMatch(/cannot re-sign the record without changing its history/);
+    expect(r.text).toMatch(/Custody-event attestations made with that key are not re-signed/);
+    expect(r.text).not.toMatch(/You can request a replacement/);
+    for (const leak of LEAKS) expect([r.subject, r.text, r.html].join("\n")).not.toMatch(leak);
+  });
+
+  it("B7A-F-006 final: a destruction certificate notice says it is kept and is not re-issued", () => {
+    const r = renderTransactionalTemplate("SIGNING_KEY_COMPROMISE_NOTICE", {
+      kind: "SigningKeyCompromiseNotice",
+      data: { actionUrl: "https://app.example.test/governance/destruction", replacementAvailable: false, subject: "destruction_certificate" },
+    });
+    expect(r.subject).toMatch(/destruction certificate/);
+    expect(r.text).toMatch(/kept exactly as it was/);
+    expect(r.text).toMatch(/not re-issued and no replacement certificate is available/);
+    expect(r.text).not.toMatch(/You can request a replacement/);
+    expect(r.text).toContain("https://app.example.test/governance/destruction");
+    for (const leak of LEAKS) expect([r.subject, r.text, r.html].join("\n")).not.toMatch(leak);
+  });
 });

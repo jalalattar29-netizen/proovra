@@ -15,8 +15,10 @@ export const calls = {
   dismissAll: 0,
   redirect: null,
   openURL: [],
+  setParams: [],
   reset() {
     calls.redirect = null;
+    calls.setParams = [];
     calls.push = [];
     calls.replace = [];
     calls.back = 0;
@@ -37,11 +39,16 @@ const stableRouter = {
     calls.back += 1;
   },
   navigate: (r) => calls.push.push(r),
-  canGoBack: () => true,
+  // A test sets globalThis.__EXPO_CAN_GO_BACK__ = false for a screen that was
+  // the first in its stack (reached by router.replace, nothing beneath it).
+  canGoBack: () => globalThis.__EXPO_CAN_GO_BACK__ !== false,
   canDismiss: () => true,
   dismissAll: () => {
     calls.dismissAll += 1;
   },
+  // Recorded so a screen that scrubs a credential from its route params can be
+  // checked (mfa-recovery-verify drops `token` once it has been posted).
+  setParams: (p) => calls.setParams.push(p),
 };
 export const useRouter = () => stableRouter;
 export const usePathname = () => "/";
@@ -262,7 +269,10 @@ export const router = {
 };
 
 /* ---------------------------------------------------------- expo-secure-store */
-const secure = new Map();
+// On globalThis, not in the module: the device keychain outlives the app
+// process, so a test that loads a screen's bundle afresh (an app kill and cold
+// start) still finds what the previous bundle stored.
+const secure = (globalThis.__SECURE_STORE__ ??= new Map());
 export const getItemAsync = async (k) => (secure.has(k) ? secure.get(k) : null);
 export const setItemAsync = async (k, v) => {
   secure.set(k, v);

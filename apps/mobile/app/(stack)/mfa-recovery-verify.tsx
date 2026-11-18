@@ -70,6 +70,17 @@ export default function MfaRecoveryVerifyScreen() {
       return;
     }
 
+    // NAT-MFA-02 (Free audit 0ea0, SN-0054) — the token leaves the route params
+    // the moment it is posted, as the web strips `?token=` from the URL
+    // (verify/page.tsx:96-110): it is single-use, and the navigation state is
+    // not a place to keep a credential once it has done its job. The re-render
+    // this causes is absorbed by the `started` guard above.
+    try {
+      router.setParams({ token: undefined });
+    } catch {
+      /* the screen keeps working; the token is spent on the server either way */
+    }
+
     try {
       await apiFetch(buildVerifyEmailPath(link.requestId), {
         method: "POST",
@@ -88,7 +99,7 @@ export default function MfaRecoveryVerifyScreen() {
     } catch (err) {
       setState({ kind: "error", reason: classifyVerifyFailure(err) });
     }
-  }, [params.id, params.token]);
+  }, [params.id, params.token, router]);
 
   useEffect(() => {
     void run();

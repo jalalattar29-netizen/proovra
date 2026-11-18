@@ -2636,6 +2636,8 @@ export async function buildInboxAggregation(
               eventType: true,
               severity: true,
               createdAt: true,
+              // B7A-F-006 — the withdrawn-key notice names its record (or certificate).
+              details: true,
             },
             orderBy: { createdAt: "desc" },
             take: PER_CATEGORY_TAKE,
@@ -3515,14 +3517,20 @@ export async function buildInboxAggregation(
       // the user can see their personal security events feed.
       // -----------------------------------------------------------------
       for (const ev of myHighSecurityEvents) {
+        // B7A-F-006 — the owner's withdrawn-signing-key notice links to the
+        // record it is about (or the destruction requests for a certificate),
+        // where the replacement control and its limits are shown.
+        const keyNotice = ev.eventType === "signing_key_compromise_notice" ? signingKeyNoticeTarget(ev.details) : null;
         items.push({
           id: `security_event_high:${ev.id}`,
           category: "security_event_high",
           tone: "high",
           title: `Security alert: ${humanizeSecurityEventType(ev.eventType)}`,
           message: { key: "security_alert", params: { eventType: ev.eventType } },
-          body: `A high-severity event on your account was recorded. Open Account security to review the timeline.`,
-          href: "/settings/security",
+          body: keyNotice
+            ? "Everything already issued stays exactly as it was; verification now shows that signature as made by a revoked key. Open it to see what can be replaced."
+            : `A high-severity event on your account was recorded. Open Account security to review the timeline.`,
+          href: keyNotice ?? "/settings/security",
           occurredAt: ev.createdAt.toISOString(),
           dueAt: null,
           context: {
@@ -5597,8 +5605,20 @@ function humanizeCaseAssignmentRole(role: string): string {
   }
 }
 
+/** B7A-F-006 — where the withdrawn-key notice lands (null = not one of ours). */
+function signingKeyNoticeTarget(details: unknown): string | null {
+  const d = details && typeof details === "object" ? (details as Record<string, unknown>) : {};
+  if (typeof d.evidenceId === "string" && /^[0-9a-f-]{36}$/i.test(d.evidenceId)) {
+    return `/evidence/${encodeURIComponent(d.evidenceId)}`;
+  }
+  if (typeof d.certificateId === "string") return "/governance/destruction";
+  return null;
+}
+
 function humanizeSecurityEventType(eventType: string): string {
   switch (eventType) {
+    case "signing_key_compromise_notice":
+      return "A signing key used for your output was withdrawn";
     case "step_up_failed":
     case "step_up_required":
       return "Step-up verification required";

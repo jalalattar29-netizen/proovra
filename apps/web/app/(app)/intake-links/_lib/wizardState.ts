@@ -422,6 +422,13 @@ export function friendlyCreateError(
   };
   if (code && map[code]) return map[code];
   if (message && map[message]) return map[message];
+  // Free acceptance J7 — no server answer reached us. apiFetch raises that as
+  // NETWORK_ERROR carrying the browser's own words ("Failed to fetch"); an
+  // error with no code at all is the same. The create may still have
+  // happened; the same form replays it (B3B-F-102), so say that instead.
+  if (code === "NETWORK_ERROR" || (!code && message)) {
+    return "We couldn't confirm the link was created. Press Create again: if it was created, it is shown instead of a second one.";
+  }
   return message ?? "Couldn't create the intake link.";
 }
 

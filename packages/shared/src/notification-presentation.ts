@@ -438,6 +438,12 @@ const SECURITY_EVENTS: Words = {
   device_revoked: { en: "Trusted device revoked", de: "Vertrauenswürdiges Gerät widerrufen", ar: "تم إلغاء الجهاز الموثوق" },
   password_changed: { en: "Password changed", de: "Passwort geändert", ar: "تم تغيير كلمة المرور" },
   anomalous_login: { en: "Anomalous login detected", de: "Ungewöhnliche Anmeldung erkannt", ar: "تم اكتشاف تسجيل دخول غير معتاد" },
+  // B7A-F-006 — the owner's in-app notice that a signing key used for their output was withdrawn.
+  signing_key_compromise_notice: {
+    en: "A signing key used for your output was withdrawn",
+    de: "Ein für Ihre Ausgabe verwendeter Signaturschlüssel wurde zurückgezogen",
+    ar: "تم سحب مفتاح توقيع استُخدم لمخرجاتك",
+  },
 };
 const SECURITY_EVENT_FALLBACK: L3 = { en: "Security event", de: "Sicherheitsereignis", ar: "حدث أمني" };
 
@@ -556,6 +562,12 @@ const MSG = {
     "A high-severity event on your account was recorded. Open Account security to review the timeline.",
     "Für Ihr Konto wurde ein Ereignis mit hohem Schweregrad aufgezeichnet. Öffnen Sie die Kontosicherheit, um den Verlauf zu prüfen.",
     "تم تسجيل حدث عالي الخطورة على حسابك. افتح أمان الحساب لمراجعة المخطط الزمني.",
+  ),
+  // B7A-F-006 — what the withdrawn-key notice says (it links to the record).
+  signingKeyWithdrawnBody: t(
+    "Everything already issued stays exactly as it was; verification now shows that signature as made by a revoked key. Open it to see what can be replaced.",
+    "Alles bereits Ausgestellte bleibt unverändert; die Verifizierung zeigt diese Signatur jetzt als mit einem widerrufenen Schlüssel erstellt. Öffnen Sie sie, um zu sehen, was ersetzt werden kann.",
+    "يبقى كل ما صدر كما هو تمامًا؛ ويُظهر التحقق الآن هذا التوقيع على أنه صادر بمفتاح ملغى. افتحه لمعرفة ما يمكن استبداله.",
   ),
   reportFailureTitle: t("Report generation failure — {team}", "Fehler bei der Berichterstellung — {team}", "فشل إنشاء التقرير — {team}"),
   packageFailureTitle: t("Verification package failure — {team}", "Fehler beim Verifizierungspaket — {team}", "فشل حزمة التحقق — {team}"),
@@ -766,7 +778,7 @@ export function renderNotificationMessage(
     case "security_alert":
       return {
         title: f(MSG.securityTitle, { event: word(SECURITY_EVENTS, l, p.eventType, SECURITY_EVENT_FALLBACK) }),
-        body: f(MSG.securityBody),
+        body: f(p.eventType === "signing_key_compromise_notice" ? MSG.signingKeyWithdrawnBody : MSG.securityBody),
       };
     case "report_failure":
     case "package_failure":

@@ -505,3 +505,18 @@ test("delivery failure reasons read as English and say 'disabled', not 'revoked'
   );
   assert.equal(friendlyDeliveryReason("brand_new_reason"), "brand_new_reason");
 });
+
+test("Free acceptance J7: a lost answer (no server code) reads as product copy, never the browser's network text", () => {
+  for (const raw of ["Failed to fetch", "NetworkError when attempting to fetch resource.", "Load failed"]) {
+    // What apiFetch really raises for a lost answer (code NETWORK_ERROR,
+    // statusCode 0), and a bare error with no code.
+    for (const code of ["NETWORK_ERROR", undefined]) {
+      const copy = friendlyCreateError(code, raw);
+      assert.notEqual(copy, raw);
+      assert.match(copy, /Create again/);
+      assert.match(copy, /not a second one|instead of a second/);
+    }
+  }
+  // A server that names a code keeps its own words for codes the map does not know.
+  assert.equal(friendlyCreateError("something_new", "Server said no."), "Server said no.");
+});

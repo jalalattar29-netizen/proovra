@@ -106,6 +106,7 @@ import { lockRefusalMessage } from "../../../../lib/evidence/lock-refusal";
 import { integrityRejectedSlotNote } from "../../../../lib/evidence/integrity-rejected-slot";
 import { deriveEvidenceOutputAttention } from "../../../../components/evidence-outputs/output-attention";
 import { EvidenceOutputAttentionBanner, OutputAttentionTabIndicator, outputAttentionTabName } from "../../../../components/evidence-outputs/EvidenceOutputAttention";
+import { KeyCompromiseNotice } from "../../../../components/evidence-outputs/KeyCompromiseNotice";
 
 const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIcon }> = [
   { id: "overview", label: "Overview", icon: LayoutGrid },
@@ -1335,6 +1336,9 @@ function EvidenceDetailPageInner() {
           onGenerateUpdatedReport={() => setUpdatedReportOpen(true)}
           busy={generateOutputsBusy}
         />
+
+        {/* B7A-F-006: above the tabs, where the key-compromise email lands. */}
+        <KeyCompromiseNotice evidenceId={evidenceId} keyCompromise={workspace.artifactStatus.keyCompromise} onRequested={loadWorkspace} />
 
         <WhatNeedsAttentionStrip
           ctx={ctx}

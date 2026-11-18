@@ -138,6 +138,12 @@ export async function validateIntakeToken(
   if (link.status === "REVOKED") {
     throw new WorkflowIntakeSessionError("link_revoked");
   }
+  // Free acceptance J7 — a SUBMITTED one-time link is flipped to EXPIRED by
+  // transitionIntakeSession, so "already submitted" must be asked before the
+  // status/expiry checks, or the read-only completed page is unreachable.
+  if (link.maxUses === 1 && link.usedCount >= 1) {
+    throw new WorkflowIntakeSessionError("link_already_submitted");
+  }
   const now = new Date();
   if (link.expiresAtUtc.getTime() <= now.getTime()) {
     throw new WorkflowIntakeSessionError("link_expired");

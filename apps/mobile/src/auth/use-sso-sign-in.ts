@@ -23,6 +23,7 @@ import {
   parseSsoReturn,
   ssoFailureMessage,
   takeSsoVerifier,
+  takeSsoVerifierForReturn,
 } from "./sso-native";
 
 /** A completion refusal: the shared wording, or the organization's own "no" when the reason is not one we word. */
@@ -41,7 +42,8 @@ export async function finishSsoReturn(
 ): Promise<string | null> {
   const parsed = parseSsoReturn(url);
   if (!parsed) return ssoFailureMessage("sso_failed");
-  const verifier = takeSsoVerifier();
+  // NAT-SSO-01 — this process's attempt, or after an app kill the stored copy.
+  const verifier = await takeSsoVerifierForReturn();
   // No verifier: the other landing (deep link or auth session) already finished
   // this attempt, or the app restarted and the attempt is gone.
   if (!verifier && opts.quietIfSpent) return null;
@@ -82,7 +84,9 @@ export function useSsoSignIn(onResult: (result: LoginResult) => Promise<void>) {
           return;
         }
         const { verifier, challenge } = await createPkcePair();
-        holdSsoVerifier(verifier);
+        // Written to the secure store before the browser opens: the app may be
+        // killed behind it (NAT-SSO-01).
+        await holdSsoVerifier(verifier);
         const res = await WebBrowser.openAuthSessionAsync(
           buildNativeSsoUrl(apiBaseUrl(), loginPath, challenge),
           SSO_RETURN_URL,

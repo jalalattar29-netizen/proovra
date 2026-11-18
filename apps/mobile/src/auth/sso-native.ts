@@ -16,9 +16,12 @@
  *      only it holds, at `POST /v1/auth/sso/native/exchange`, and gets the same
  *      answers any sign-in gets (session, MFA challenge, MFA enrolment).
  *
- * The verifier is held in memory for the length of one attempt and spent once.
+ * The verifier is held for the length of one attempt and spent once: in memory,
+ * and in the secure store so a return that cold-starts the app after it was
+ * killed can still be redeemed (see "the in-flight verifier" below).
  */
 import * as Crypto from "expo-crypto";
+import * as SecureStore from "expo-secure-store";
 
 export const SSO_RETURN_URL = "proovra://sso/complete";
 export const SSO_COMPLETE_ROUTE = "/(stack)/sso-complete";
@@ -117,11 +120,49 @@ export const SSO_NOT_AVAILABLE_FOR_EMAIL =
   "No single sign-on is set up for this email address. Sign in with your email and password, or ask your administrator.";
 
 /* --------------------------------------------- the in-flight verifier ---- */
+//
+// NAT-SSO-01 (Free audit 0ea0, R1-G-002) — memory alone did not survive the
+// one thing a phone does routinely during an SSO sign-in: kill the app while
+// the system browser is in front. The return then cold-starts the app, the
+// verifier was gone, and a sign-in the person had just completed at their IdP
+// ended in "This sign-in has expired". So the verifier is ALSO kept in the
+// device's secure store (Keychain / Keystore, never AsyncStorage) for the
+// attempt's own lifetime, and:
+//   - a process that started an attempt uses its memory only — the auth
+//     session and a deep-link landing race there, and memory is what keeps
+//     the spend single;
+//   - only a process that started no attempt (a cold start) reads the stored
+//     copy, once, deleting it as it does;
+//   - every spend (redeem, refusal, cancel, failure) deletes the stored copy.
+// The verifier alone is worthless without the single-use, two-minute code the
+// IdP return carries, and the code is worthless without it.
+
+export const SSO_VERIFIER_STORE_KEY = "proovra-sso-verifier";
+/** The attempt's own bound (sso-native-handoff.service.ts NATIVE_SSO_CHALLENGE_TTL_MS). */
+export const SSO_VERIFIER_TTL_MS = 15 * 60 * 1000;
 
 let heldVerifier: string | null = null;
+/** True once this process has started an attempt: its memory is then the only truth. */
+let attemptStartedHere = false;
+/** A cold start reads the stored copy once, whichever landing asks first. */
+let storedCopyClaimed = false;
 
-export function holdSsoVerifier(verifier: string): void {
+function forgetStoredVerifier(): void {
+  void SecureStore.deleteItemAsync(SSO_VERIFIER_STORE_KEY).catch(() => undefined);
+}
+
+/** Hold this attempt's verifier; resolves once the stored copy is written (best effort). */
+export async function holdSsoVerifier(verifier: string): Promise<void> {
   heldVerifier = verifier;
+  attemptStartedHere = true;
+  try {
+    await SecureStore.setItemAsync(
+      SSO_VERIFIER_STORE_KEY,
+      JSON.stringify({ verifier, expiresAt: Date.now() + SSO_VERIFIER_TTL_MS }),
+    );
+  } catch {
+    // Without the secure store the attempt still completes while the app lives.
+  }
 }
 
 export function hasHeldSsoVerifier(): boolean {
@@ -132,5 +173,33 @@ export function hasHeldSsoVerifier(): boolean {
 export function takeSsoVerifier(): string | null {
   const v = heldVerifier;
   heldVerifier = null;
+  forgetStoredVerifier();
   return v;
+}
+
+/**
+ * The verifier for a return being redeemed: this process's own attempt, or —
+ * only on a cold start — the copy stored before the app was killed, if it is
+ * still within the attempt's lifetime. Either way it is spent here.
+ */
+export async function takeSsoVerifierForReturn(): Promise<string | null> {
+  if (heldVerifier !== null || attemptStartedHere) return takeSsoVerifier();
+  if (storedCopyClaimed) return null;
+  storedCopyClaimed = true;
+  let raw: string | null = null;
+  try {
+    raw = await SecureStore.getItemAsync(SSO_VERIFIER_STORE_KEY);
+  } catch {
+    raw = null;
+  }
+  forgetStoredVerifier();
+  if (!raw) return null;
+  try {
+    const rec = JSON.parse(raw) as { verifier?: unknown; expiresAt?: unknown };
+    if (typeof rec.verifier !== "string" || !/^[A-Za-z0-9_-]{43,128}$/.test(rec.verifier)) return null;
+    if (typeof rec.expiresAt !== "number" || rec.expiresAt <= Date.now()) return null;
+    return rec.verifier;
+  } catch {
+    return null;
+  }
 }

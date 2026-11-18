@@ -305,7 +305,8 @@ const SESSION_READINESS_BYTES_EXACT = 9559;
 // Rebaselined 2026-11-01: 23,876 -> 23,898 — INGEST-009: a draft reports its own workspace, so a resumed draft files where it was started
 // Rebaselined 2026-11-13: 23,898 -> 26,271 — F-04 (Free-user audit): discarding a draft releases its unsealed reservation through the reservation authority (record lock before the draft row).
 // Rebaselined 2026-11-16: 26,271 -> 27,296 — B4-F-310 (free-audit 0ea0): an unexpected 5xx is rethrown to the central handler instead of echoing err.message.
-const CAPTURE_ROUTES_BYTES_EXACT = 27296;
+// Rebaselined 2026-11-18: 27,296 -> 27,778 — F9 (final Free acceptance): a Viewer refused by permission_not_granted gets 403 NOT_PERMITTED with its own message, not WORKSPACE_MEMBERSHIP_REQUIRED.
+const CAPTURE_ROUTES_BYTES_EXACT = 27778;
 // Baseline grows with documented phases (G3.x/G4/G5). The
 // "no shrink/regression" guarantee is the spirit; the constant
 // is rebaselined as the file legitimately grows.

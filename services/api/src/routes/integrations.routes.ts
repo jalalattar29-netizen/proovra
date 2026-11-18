@@ -809,6 +809,30 @@ export async function integrationsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "integration.webhook.manage");
       if (!ok) return;
+      // B7B-F05 (Free acceptance pass) — WIDENING a kept endpoint's subscription
+      // is new delivery scope, which is FEATURE_WEBHOOKS, as a re-enable is. A
+      // workspace without it keeps what it had (F-15) and may narrow it, but
+      // cannot add event types or switch to "every event" (an empty list).
+      if (body.eventTypes !== undefined) {
+        const current = await prisma.webhookEndpoint.findFirst({
+          where: { id, teamId: body.teamId },
+          select: { eventTypes: true },
+        });
+        const widens =
+          current !== null &&
+          current.eventTypes.length > 0 &&
+          (body.eventTypes.length === 0 || body.eventTypes.some((t) => !current.eventTypes.includes(t)));
+        if (widens) {
+          const entitled = await assertFeatureEntitlement({
+            teamId: body.teamId,
+            key: "FEATURE_WEBHOOKS",
+            actorUserId: ok.actorUserId,
+          });
+          if (!entitled.ok) {
+            return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
+          }
+        }
+      }
       // Phase 4 closure — status transitions on the endpoint are
       // sensitive: re-enabling resumes outbound signed deliveries on
       // a workspace-configured URL, disabling pauses an active

@@ -12942,18 +12942,30 @@ if (
             replacesReportVersion: replaced.replacesReportVersion,
           });
         }
-        const message: Record<typeof replaced.code, string> = {
-          not_found: "Evidence not found",
-          not_affected: "This record's outputs were not sealed by a withdrawn signing key, so there is nothing to replace.",
-          record_signature_not_replaceable:
-            "This record's own signature was made by the withdrawn key. A replacement cannot re-sign the record without changing its history, so none is issued; verification shows the signature as revoked.",
-          no_trustworthy_signer:
-            "A replacement cannot be issued until PROOVRA has a signing key that is not affected. Try again later.",
-          not_requested: "The replacement could not be requested now. Try again later.",
+        // B7A-F-006 — literal bounded codes (the clients' error registry and its
+        // coverage guard read them from this file).
+        const refusal: Record<typeof replaced.code, { code: string; message: string }> = {
+          not_found: { code: "KEY_COMPROMISE_REPLACEMENT_NOT_FOUND", message: "Evidence not found" },
+          not_affected: {
+            code: "KEY_COMPROMISE_REPLACEMENT_NOT_AFFECTED",
+            message: "This record's outputs were not sealed by a withdrawn signing key, so there is nothing to replace.",
+          },
+          record_signature_not_replaceable: {
+            code: "KEY_COMPROMISE_REPLACEMENT_RECORD_SIGNATURE_NOT_REPLACEABLE",
+            message:
+              "This record's own signature was made by the withdrawn key. A replacement cannot re-sign the record without changing its history, so none is issued; verification shows the signature as revoked.",
+          },
+          no_trustworthy_signer: {
+            code: "KEY_COMPROMISE_REPLACEMENT_NO_TRUSTWORTHY_SIGNER",
+            message: "A replacement cannot be issued until PROOVRA has a signing key that is not affected. Try again later.",
+          },
+          not_requested: {
+            code: "KEY_COMPROMISE_REPLACEMENT_NOT_REQUESTED",
+            message: "The replacement could not be requested now. Try again later.",
+          },
         };
         return reply.code(replaced.code === "not_found" ? 404 : 409).send({
-          code: `KEY_COMPROMISE_REPLACEMENT_${replaced.code.toUpperCase()}`,
-          message: message[replaced.code],
+          ...refusal[replaced.code],
           ...(replaced.code === "not_requested" && replaced.reason ? { reason: replaced.reason } : {}),
         });
       }

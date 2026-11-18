@@ -316,18 +316,27 @@ export async function isAllowanceExcludedFirstIssuance(
 export type FirstIssuanceAllowanceExclusion = {
   /** Entitled Free records in the measured population. */
   records: number;
+  /**
+   * B7A-F-006 — bytes of every committed `signing_key_compromise_replacement`
+   * version (its report and published packages) of ANY record in the
+   * population, not already counted as first issuance. A replacement PROOVRA
+   * caused by withdrawing its signing key is never customer storage, whatever
+   * the plan or the version it replaced. Included in totalBytes.
+   */
+  replacementBytes: bigint;
   /** Bytes of their first-issuance report versions. */
   reportBytes: bigint;
   /** Bytes of every published package row of those versions. */
   packageBytes: bigint;
   /** B4-F-002 — stored derived review materials of the entitled Free records. */
   derivedBytes: bigint;
-  /** reportBytes + packageBytes + derivedBytes: what the customer-facing figure leaves out. */
+  /** reportBytes + packageBytes + derivedBytes + replacementBytes: what the customer-facing figure leaves out. */
   totalBytes: bigint;
 };
 
 const NOTHING_EXCLUDED: FirstIssuanceAllowanceExclusion = {
   records: 0,
+  replacementBytes: 0n,
   reportBytes: 0n,
   packageBytes: 0n,
   derivedBytes: 0n,
@@ -348,6 +357,94 @@ function toBytes(value: unknown): bigint {
  */
 export async function measureFirstIssuanceAllowanceExclusion(
   // AUD-0017 — any client with the delegates, so a transaction passes its own.
+  client: ExclusionClient,
+  evidenceWhere: Prisma.EvidenceWhereInput,
+): Promise<FirstIssuanceAllowanceExclusion> {
+  const firstIssued = new Map<string, Set<number>>();
+  const first = await measureFirstIssuanceOnly(client, evidenceWhere, firstIssued);
+  // B7A-F-006 — a platform-caused replacement is never customer storage.
+  const replacementBytes = await measureKeyCompromiseReplacementBytes(client, evidenceWhere, firstIssued);
+  return { ...first, replacementBytes, totalBytes: first.totalBytes + replacementBytes };
+}
+
+type ExclusionClient = Pick<
+  PrismaClient,
+  | "evidence"
+  | "report"
+  | "verificationPackage"
+  | "reportGenerationRequest"
+  | "evidenceCreditLedgerEntry"
+  | "evidencePartDerivedAsset"
+>;
+
+/**
+ * B7A-F-006 — the committed key-compromise replacement versions of the
+ * population (a replacement is version 2 or later), minus versions already
+ * excluded as first issuance. Bounded by the population's later report
+ * versions, then read by record id (indexed).
+ */
+async function measureKeyCompromiseReplacementBytes(
+  client: ExclusionClient,
+  evidenceWhere: Prisma.EvidenceWhereInput,
+  firstIssued: ReadonlyMap<string, ReadonlySet<number>>,
+): Promise<bigint> {
+  const later = (await client.report.findMany({
+    where: { evidence: evidenceWhere, version: { gt: 1 } },
+    select: { evidenceId: true, version: true, sizeBytes: true },
+  })) ?? [];
+  if (later.length === 0) return 0n;
+  const requests = (await client.reportGenerationRequest.findMany({
+    where: {
+      evidenceId: { in: [...new Set(later.map((r) => r.evidenceId))] },
+      purpose: SIGNING_KEY_COMPROMISE_REPLACEMENT_PURPOSE,
+      stage: { in: REPORT_COMMITTED_STAGES },
+      reportVersion: { not: null },
+    },
+    select: { evidenceId: true, reportVersion: true, purpose: true },
+  })) ?? [];
+  const replaced = new Map<string, Set<number>>();
+  for (const r of requests) {
+    if (r.purpose !== SIGNING_KEY_COMPROMISE_REPLACEMENT_PURPOSE || r.reportVersion == null) continue;
+    if (firstIssued.get(r.evidenceId)?.has(r.reportVersion)) continue;
+    const set = replaced.get(r.evidenceId) ?? new Set<number>();
+    set.add(r.reportVersion);
+    replaced.set(r.evidenceId, set);
+  }
+  if (replaced.size === 0) return 0n;
+  let bytes = 0n;
+  for (const r of later) if (replaced.get(r.evidenceId)?.has(r.version)) bytes += toBytes(r.sizeBytes);
+  const packages = (await client.verificationPackage.findMany({
+    where: publishedPackageWhere({ evidenceId: { in: [...replaced.keys()] } }),
+    select: { evidenceId: true, version: true, reportVersion: true, sizeBytes: true },
+  })) ?? [];
+  for (const p of packages) {
+    if (replaced.get(p.evidenceId)?.has(p.reportVersion ?? p.version)) bytes += toBytes(p.sizeBytes);
+  }
+  return bytes;
+}
+
+/**
+ * B7A-F-006 — is THIS version of THIS record a key-compromise replacement
+ * (committed, or the live request reserving it)? The worker's artifact gates
+ * never refuse it for storage: it is not customer storage.
+ */
+export async function isKeyCompromiseReplacementVersion(
+  client: Pick<PrismaClient, "reportGenerationRequest">,
+  input: { evidenceId: string; version: number },
+): Promise<boolean> {
+  const rows = (await client.reportGenerationRequest.findMany({
+    where: {
+      evidenceId: input.evidenceId,
+      purpose: SIGNING_KEY_COMPROMISE_REPLACEMENT_PURPOSE,
+      reportVersion: input.version,
+      OR: [{ stage: { in: REPORT_COMMITTED_STAGES } }, { state: { in: LIVE_REQUEST_STATES } }],
+    },
+    select: { purpose: true, reportVersion: true },
+  })) ?? [];
+  return rows.some((r) => r.purpose === SIGNING_KEY_COMPROMISE_REPLACEMENT_PURPOSE && r.reportVersion === input.version);
+}
+
+async function measureFirstIssuanceOnly(
   client: Pick<
     PrismaClient,
     | "evidence"
@@ -358,6 +455,7 @@ export async function measureFirstIssuanceAllowanceExclusion(
     | "evidencePartDerivedAsset"
   >,
   evidenceWhere: Prisma.EvidenceWhereInput,
+  firstIssued: Map<string, Set<number>>,
 ): Promise<FirstIssuanceAllowanceExclusion> {
   const free = await client.evidence.findMany({
     where: { AND: [evidenceWhere, FREE_ALLOWANCE_EARNED_EVIDENCE_WHERE] },
@@ -391,6 +489,7 @@ export async function measureFirstIssuanceAllowanceExclusion(
         );
 
   const first = await readFirstIssuance(client, records.map((r) => r.id));
+  for (const [id, v] of first) firstIssued.set(id, v.versions);
   if (first.size === 0) {
     return { ...NOTHING_EXCLUDED, records: records.length, derivedBytes, totalBytes: derivedBytes };
   }
@@ -410,6 +509,7 @@ export async function measureFirstIssuanceAllowanceExclusion(
 
   return {
     records: records.length,
+    replacementBytes: 0n,
     reportBytes,
     packageBytes,
     derivedBytes,

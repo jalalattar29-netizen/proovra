@@ -103,13 +103,17 @@ describe("capture scope and draft authority (live PostgreSQL 16, real HTTP)", ()
   it("a capture draft in a workspace takes the canonical evidence.create decision (VIEWER and expired member refused)", async () => {
     const viewer = await post(A().viewerToken, "/v1/capture/sessions", { teamId: A().teamId });
     expect(viewer.statusCode, viewer.body).toBe(403);
-    expect(viewer.json()).toMatchObject({ code: "WORKSPACE_MEMBERSHIP_REQUIRED" });
+    // Free acceptance J6 (FAIL-2) — an ACTIVE Viewer is a member: the refusal
+    // names the role, not a missing membership.
+    expect(viewer.json()).toMatchObject({ code: "NOT_PERMITTED" });
+    expect(viewer.json().message).toMatch(/view records but not add/);
 
     const where = { teamId_userId: { teamId: A().teamId, userId: A().memberUserId } };
     await prisma.teamMember.update({ where, data: { accessExpiresAtUtc: new Date(Date.now() - 60_000) } });
     try {
       const expired = await post(A().memberToken, "/v1/capture/sessions", { teamId: A().teamId });
       expect(expired.statusCode, expired.body).toBe(403);
+      expect(expired.json()).toMatchObject({ code: "WORKSPACE_MEMBERSHIP_REQUIRED" });
     } finally {
       await prisma.teamMember.update({ where, data: { accessExpiresAtUtc: null } });
     }

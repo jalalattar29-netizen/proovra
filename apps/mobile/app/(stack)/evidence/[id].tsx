@@ -224,6 +224,7 @@ import { ProvenanceChainSection } from "../../../src/ui/provenance-chain";
 import { ReviewActionsPanel } from "../../../src/ui/review-actions-panel";
 import { RuntimeStatusBanner } from "../../../src/ui/runtime-status-banner";
 import { NewVersionAction } from "../../../src/ui/new-version-action";
+import { KeyCompromiseNotice } from "../../../src/ui/key-compromise-notice";
 import { PresenceIndicator } from "../../../src/ui/presence-indicator";
 import { MediaIntelligencePanel } from "../../../src/ui/media-intelligence-panel";
 import { EvidenceCopilot } from "../../../src/ui/evidence-copilot";
@@ -1833,6 +1834,8 @@ export default function EvidenceDetailScreen() {
               </ProovraText>
             </ProovraCard>
           )}
+          {/* B7A-F-006 — a withdrawn signing key made part of this record (null: nothing shown). */}
+          <KeyCompromiseNotice evidenceId={String(id)} keyCompromise={outputs.keyCompromise} onRequested={() => void load()} />
           {outputs.report.state === "QUEUED" || outputs.report.state === "GENERATING" ? (
             <RuntimeStatusBanner requires={["artifactGeneration"]} />
           ) : null}

@@ -353,6 +353,10 @@ export const SECURITY_EVENT_TYPES = [
   // The queue is global, so this records a fleet-wide action and the count it
   // actually changed — not the workspace the operator happened to stand in.
   "media_intelligence_dlq_replayed",
+  // B7A-F-006 — the owner's in-app notice (userId = the owner) that a signing
+  // key used for one of their outputs was withdrawn. Written by the notice
+  // fan-out only; read by the caller-scoped inbox (security_event_high).
+  "signing_key_compromise_notice",
   "custody_attestation_signed",
   "custody_attestation_verified",
   "custody_attestation_backfill_started",

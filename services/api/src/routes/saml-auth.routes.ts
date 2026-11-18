@@ -32,7 +32,7 @@ import {
 } from "../services/auth/mfa-enrollment-session.js";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
+import { isProovraProductionRequest, sessionCookieClearDomains } from "../http/cors-origin-policy.js";
 import { getSecret } from "../config/runtime-secrets.js";
 import { z } from "zod";
 
@@ -247,8 +247,10 @@ function setSessionCookie(
     domain: productionDomain,
     maxAge: 60 * 60 * 24 * 30, // 30 days
   };
-  reply.clearCookie("proovra_session", { path: "/", domain: ".proovra.com" });
-  reply.clearCookie("proovra_session", { path: "/" });
+  // B8-F-007 — only the domains this process owns (never production from staging).
+  for (const domain of sessionCookieClearDomains(host, origin)) {
+    reply.clearCookie("proovra_session", { path: "/", domain });
+  }
   reply.setCookie("proovra_session", token, opts);
 }
 

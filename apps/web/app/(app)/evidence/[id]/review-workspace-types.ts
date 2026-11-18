@@ -545,6 +545,12 @@ export type ReviewWorkspaceResponse = {
     } & Omit<ArtifactOutputsExtras, "newVersion" | "pollIntervalMs">;
     /** Immutable report/package pairs (absent from an older API). */
     versions?: MatchedHistory;
+    /**
+     * B7A-F-006 — what a signing-key compromise means for this record (null =
+     * no output made by withdrawn key material; absent from an older API).
+     * Raw on purpose: read ONLY through `parseRecordKeyCompromise`.
+     */
+    keyCompromise?: unknown;
     packageAccess?: ArtifactPackageAccess | null;
     report:
       | {

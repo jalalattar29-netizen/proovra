@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
+import { isProovraProductionRequest, sessionCookieClearDomains } from "../http/cors-origin-policy.js";
 import { z } from "zod";
 
 import {
@@ -694,8 +694,13 @@ export async function authRoutes(app: FastifyInstance) {
           maxAge: 60 * 60 * 24 * 30,
         };
 
-    reply.clearCookie("proovra_session", { path: "/", domain: ".proovra.com" });
-    reply.clearCookie("proovra_session", { path: "/" });
+    // B8-F-007 — only the domains this process owns (never production from staging).
+    for (const domain of sessionCookieClearDomains(
+      req.headers.host,
+      typeof req.headers.origin === "string" ? req.headers.origin : undefined,
+    )) {
+      reply.clearCookie("proovra_session", { path: "/", domain });
+    }
     reply.setCookie("proovra_session", token, cookieOpts);
   }
 
@@ -2433,16 +2438,14 @@ export async function authRoutes(app: FastifyInstance) {
     // B8-F-001 — cleared only after the session ended (or none was live).
     const clearSessionCookie = () => {
       if (req.headers["x-web-client"] === "1" || credential?.source === "cookie") {
-        // AUD-021 — exact host/origin parsing, never a substring test.
-        const isProductionDomain = isProovraProductionRequest(
+        // AUD-021 exact host/origin parsing lives in the helper.
+        // B8-F-007 — also ends a session the SSO/SAML setters wrote on SSO_COOKIE_DOMAIN.
+        for (const domain of sessionCookieClearDomains(
           req.headers.host,
           typeof req.headers.origin === "string" ? req.headers.origin : undefined,
-        );
-
-        reply.clearCookie("proovra_session", {
-          path: "/",
-          domain: isProductionDomain ? ".proovra.com" : undefined,
-        });
+        )) {
+          reply.clearCookie("proovra_session", { path: "/", domain });
+        }
       }
     };
 

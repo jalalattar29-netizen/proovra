@@ -162,6 +162,7 @@ import {
 } from "./report-v2/build-report-pdf.js";
 import {
   assertPdfSigningProductionSafetyOrThrow,
+  pdfArtifactSignatureExpected,
   pdfSigningCustodyEventType,
   type PdfSigningOutcome,
 } from "./pdf/signPdf.js";
@@ -216,7 +217,8 @@ import {
 import { loadProvenanceChainForPackage } from "./capture-trust/load-provenance-chain.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
 import { recheckEvidenceIntegrity, recordIntegrityObservation } from "./integrity-recheck.js";
-import { compositeSha256, sha256HexFromStream } from "@proovra/shared-runtime";
+import { compositeSha256, sha256HexFromStream, SIGNING_KEY_COMPROMISE_REPLACEMENT_PURPOSE } from "@proovra/shared-runtime";
+import { assertWorkerSignerUsable } from "./signing/signer-control-guard.js";
 import { resolveExpectedOriginalDigest } from "./integrity-recheck.js";
 // PHASE 12 — POINT 5: the payload carries a request id; the authority is a row.
 import { decodeCanonicalJob } from "./canonical-job.js";
@@ -1468,6 +1470,26 @@ export function toPackageAllowanceRefusal(error: unknown): unknown {
     return new PackageAllowanceRefusal(code);
   }
   return error;
+}
+
+/**
+ * B7A-F-006 — both signers a key-compromise replacement would use. A signer
+ * whose operator status is not ACTIVE fails terminally here too (it is not
+ * retried into a replacement that could not be issued).
+ */
+export async function assertSignersUsableForReplacement(): Promise<void> {
+  const purposes: Array<"verification_package" | "report_pdf"> = ["verification_package"];
+  if (pdfArtifactSignatureExpected()) purposes.push("report_pdf");
+  for (const purpose of purposes) {
+    try {
+      await assertWorkerSignerUsable(purpose);
+    } catch (err) {
+      if (err && typeof err === "object" && (err as { code?: unknown }).code === "signer_not_usable") {
+        throw createWorkerError("REPLACEMENT_SIGNER_NOT_USABLE", false);
+      }
+      throw err;
+    }
+  }
 }
 
 export function createWorkerError(code: string, retriable: boolean): WorkerError {
@@ -4165,6 +4187,24 @@ async function runReportGeneration(
 
     if (!evidence) {
       throw createWorkerError("EVIDENCE_NOT_FOUND", false);
+    }
+
+    /*
+     * B7A-F-006 — A REPLACEMENT FOR OUTPUTS SEALED BY COMPROMISED MATERIAL IS
+     * NEVER ITSELF MADE BY COMPROMISED MATERIAL. The API offered it after
+     * checking ITS signing env; this worker signs with its own. Before anything
+     * is rendered, reserved or committed, both signers this run would use (the
+     * package seal and, when PDFs are signed, the report PDF) are re-checked:
+     * ACTIVE in signer_control_state and their key not declared compromised.
+     * A failure is terminal (`SIGNING_KEY_COMPROMISED` / the signer's status),
+     * so no replacement version is issued half-made. (The package seal key is
+     * checked again by fingerprint when it is bound — package-seal-key.ts.)
+     */
+    const requestPurpose = (
+      await prisma.reportGenerationRequest.findUnique({ where: { id: command.requestId }, select: { purpose: true } })
+    )?.purpose;
+    if (requestPurpose === SIGNING_KEY_COMPROMISE_REPLACEMENT_PURPOSE) {
+      await assertSignersUsableForReplacement();
     }
 
     /*

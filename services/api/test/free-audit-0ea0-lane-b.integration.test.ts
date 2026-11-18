@@ -737,6 +737,44 @@ describe("free-audit 0ea0 — lane B: what survives a downgrade (live PostgreSQL
       expect((await lifecycleState(life.deliveryId)).state).toBe("PENDING");
     });
 
+    it("downgraded: widening a kept endpoint's event subscription is refused and changes nothing; narrowing stays open; an entitled workspace may widen", async () => {
+      async function scopedEndpoint(t: Tenant) {
+        return prisma.webhookEndpoint.create({
+          data: {
+            teamId: t.teamId,
+            url: "https://hooks.example.com/lane-b-scope",
+            status: "ACTIVE",
+            secretCiphertext: "x",
+            secretPrefix: "whsec_ls",
+            createdByUserId: t.owner.id,
+            eventTypes: ["evidence.created", "evidence.completed"],
+          },
+          select: { id: true },
+        });
+      }
+      const eventTypes = async (id: string) =>
+        (await prisma.webhookEndpoint.findUniqueOrThrow({ where: { id }, select: { eventTypes: true } })).eventTypes;
+
+      const t = await tenant("FREE");
+      const kept = await scopedEndpoint(t);
+      // Empty means "every event" — the widest possible subscription.
+      for (const widened of [[], ["evidence.created", "evidence.package_generated"]]) {
+        const res = await call("PUT", `/v1/integrations/webhooks/${kept.id}`, t.owner, { teamId: t.teamId, eventTypes: widened }, ws(t.teamId));
+        expect(res.statusCode, res.body).toBe(403);
+        expect(res.json()).toEqual({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
+        expect(await eventTypes(kept.id)).toEqual(["evidence.created", "evidence.completed"]);
+      }
+      const narrowed = await call("PUT", `/v1/integrations/webhooks/${kept.id}`, t.owner, { teamId: t.teamId, eventTypes: ["evidence.created"] }, ws(t.teamId));
+      expect(narrowed.statusCode, narrowed.body).toBe(200);
+      expect(await eventTypes(kept.id)).toEqual(["evidence.created"]);
+
+      const e = await tenant("ENTERPRISE", { contract: true });
+      const entitled = await scopedEndpoint(e);
+      const widen = await call("PUT", `/v1/integrations/webhooks/${entitled.id}`, e.owner, { teamId: e.teamId, eventTypes: [] }, ws(e.teamId));
+      expect(widen.statusCode, widen.body).toBe(200);
+      expect(await eventTypes(entitled.id)).toEqual([]);
+    });
+
     it("closure: the closed workspace's deactivated endpoint is not replayed to, even while entitled", async () => {
       const t = await tenant("ENTERPRISE", { contract: true });
       const life = await lifecycleDelivery(t);

@@ -16,6 +16,7 @@ import {
   countActiveSeatOccupancy,
   evidenceScopeFor,
   isAllowanceExcludedFirstIssuance,
+  isKeyCompromiseReplacementVersion,
   measureFirstIssuanceAllowanceExclusion,
   readActiveInternalPlanGrant,
   sumDerivedAssetStorageBytes,
@@ -763,6 +764,13 @@ async function assertArtifactStorage(params: {
       params.outputs.decision === "ENTITLED" &&
       (await isAllowanceExcludedFirstIssuance(prisma, { evidenceId: params.evidenceId, version }))
     ) {
+      return getWorkspaceUsage(params.scope);
+    }
+    // B7A-F-006 — the replacement PROOVRA owes after withdrawing a signing key
+    // (request purpose `signing_key_compromise_replacement`, server-minted) is
+    // not customer storage: `getWorkspaceUsage` leaves its bytes out
+    // (`measureFirstIssuanceAllowanceExclusion`), and it is never refused for it.
+    if (await isKeyCompromiseReplacementVersion(prisma, { evidenceId: params.evidenceId, version })) {
       return getWorkspaceUsage(params.scope);
     }
   }

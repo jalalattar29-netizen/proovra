@@ -385,6 +385,15 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   NOT_A_RECORD_CONDITION: { disposition: "customer", where: "global" },
   RECORD_WORKSPACE_UNRESOLVED: { disposition: "customer", where: "global" },
   CONCURRENCY_LIMITED: { disposition: "customer", where: "global" },
+  // B7A-F-006 — the linked replacement after PROOVRA withdrew a signing key.
+  KEY_COMPROMISE_REPLACEMENT_NOT_AFFECTED: { disposition: "customer", where: "global" },
+  KEY_COMPROMISE_REPLACEMENT_RECORD_SIGNATURE_NOT_REPLACEABLE: { disposition: "customer", where: "global" },
+  KEY_COMPROMISE_REPLACEMENT_NO_TRUSTWORTHY_SIGNER: { disposition: "customer", where: "global" },
+  KEY_COMPROMISE_REPLACEMENT_NOT_REQUESTED: { disposition: "customer", where: "global" },
+  KEY_COMPROMISE_REPLACEMENT_NOT_FOUND: {
+    disposition: "generic",
+    why: "A 404 for a record the caller cannot see; saying more would confirm the record exists.",
+  },
   OUTPUT_ACTION_UNAVAILABLE: { disposition: "customer", where: "global" },
   AI_CHAT_RATE_LIMITED: { disposition: "customer", where: "global" },
   AI_CHAT_TIMEOUT: { disposition: "customer", where: "global" },

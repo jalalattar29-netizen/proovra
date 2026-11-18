@@ -87,6 +87,30 @@ type CaptureDraftPersistError = Error & {
   code?: string;
 };
 
+/**
+ * Free acceptance J6 (FAIL-2) — the caller may not write drafts in this
+ * workspace (e.g. demoted to Viewer while the page was open). Terminal for the
+ * draft, like the 409 lock: retrying cannot succeed and only floods the API.
+ */
+function isDraftForbiddenError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  return (err as CaptureDraftPersistError).statusCode === 403;
+}
+
+/**
+ * Free acceptance J6 (FAIL-1) — the same state handed in again. The page
+ * re-runs its autosave effect on renders that change nothing it saves; a save
+ * itself causes such renders, so without this the draft re-saved forever.
+ * Items compare by identity: staged items are immutable state objects.
+ */
+function sameDraftPayload(a: CaptureDraftStateInput | null, b: CaptureDraftStateInput): boolean {
+  if (!a) return false;
+  if (a.templateId !== b.templateId || a.planMode !== b.planMode) return false;
+  if (a.internalNotes !== b.internalNotes || a.useLocation !== b.useLocation) return false;
+  if (a.items === b.items) return true;
+  return a.items.length === b.items.length && a.items.every((item, i) => item === b.items[i]);
+}
+
 function isSessionLockedError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
   const e = err as CaptureDraftPersistError;
@@ -104,7 +128,7 @@ export function useCaptureDraftPersistence({
   teamIdRef.current = teamId;
   const [draftId, setDraftId] = useState<string | null>(null);
   const [savingState, setSavingState] = useState<
-    "idle" | "saving" | "error" | "locked"
+    "idle" | "saving" | "error" | "locked" | "forbidden"
   >("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
@@ -120,6 +144,8 @@ export function useCaptureDraftPersistence({
   // draft. Without this flag the debounce kept re-firing on every
   // keystroke and the backend kept responding 409 forever.
   const lockedRef = useRef(false);
+  // FAIL-1 — the payload last queued, in flight or saved; an identical one is not re-saved.
+  const acceptedPayloadRef = useRef<CaptureDraftStateInput | null>(null);
   // F-04 — a resumed draft keeps its saved file details until files are
   // re-attached: autosave omits `items` while none are staged, instead of
   // overwriting the server snapshot with an empty list.
@@ -209,6 +235,16 @@ export function useCaptureDraftPersistence({
         draftIdRef.current = null;
         setDraftId(null);
         setSavingState("locked");
+      } else if (isDraftForbiddenError(err)) {
+        // FAIL-2 — stop for this draft; the page refreshes the workspace
+        // context so the route gate reflects the role the server applied.
+        lockedRef.current = true;
+        pendingPayloadRef.current = null;
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+          debounceTimerRef.current = null;
+        }
+        setSavingState("forbidden");
       } else {
         logCaptureClientError("web_capture_draft_persist", err, {
           hasDraftId: Boolean(draftIdRef.current),
@@ -249,6 +285,8 @@ const isMeaningful =
         return;
       }
 
+      if (sameDraftPayload(acceptedPayloadRef.current, next)) return;
+      acceptedPayloadRef.current = next;
       pendingPayloadRef.current = next;
       lastPayloadRef.current = next;
 
@@ -297,6 +335,7 @@ const isMeaningful =
       debounceTimerRef.current = null;
     }
     pendingPayloadRef.current = null;
+    acceptedPayloadRef.current = null;
     draftIdRef.current = null;
     // Phase IA-capture-409 — clearing the session is the user-initiated
     // recovery path from a locked draft. Reset lockedRef so the next
@@ -338,6 +377,7 @@ const isMeaningful =
       debounceTimerRef.current = null;
     }
     pendingPayloadRef.current = null;
+    acceptedPayloadRef.current = null;
     lockedRef.current = false;
     keepSavedItemsRef.current = true;
     draftIdRef.current = id;
@@ -354,6 +394,7 @@ const isMeaningful =
       debounceTimerRef.current = null;
     }
     pendingPayloadRef.current = null;
+    acceptedPayloadRef.current = null;
     draftIdRef.current = null;
     // Phase IA-capture-409 — finalize is the normal end-of-life for a
     // draft. Reset lockedRef so the operator can immediately begin a

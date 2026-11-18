@@ -55,6 +55,8 @@ type ArtifactStatusResponse = {
     } | null;
   };
   versions?: { versions?: Array<{ reportVersion?: number; package?: { version?: number } | null }> };
+  /** B7A-F-006 — the key-compromise replacement state (absent from an older API). */
+  keyCompromise?: { replacement?: string } | null;
 };
 
 /** How long fast polling may run before the page says it is taking long. */
@@ -77,7 +79,10 @@ function signatureOf(r: ArtifactStatusResponse | null | undefined): string {
   const pairs = (r?.versions?.versions ?? [])
     .map((v) => `${v.reportVersion}:${v.package?.version ?? "-"}`)
     .join(",");
-  return `${one(o?.report)}#${one(o?.verificationPackage)}#${o?.newVersion?.action ?? ""}#${progress}#${pairs}`;
+  // A key-compromise replacement moving on (IN_PROGRESS -> replaced / FAILED)
+  // changes the record's notice too.
+  const keyCompromise = r?.keyCompromise?.replacement ?? "";
+  return `${one(o?.report)}#${one(o?.verificationPackage)}#${o?.newVersion?.action ?? ""}#${progress}#${pairs}#${keyCompromise}`;
 }
 
 /**

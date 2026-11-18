@@ -27,7 +27,7 @@ import {
   isDatabasePoolTimeout,
 } from "../src/db.js";
 import { deadLetterRetentionMs, trimDeadLetterQueue } from "../src/dead-letter-retention.js";
-import { adaptiveIntegrityRecheckBatch, INTEGRITY_RECHECK_SWEEP_MAX_BATCH } from "../src/integrity-recheck.js";
+import { adaptiveIntegrityRecheckBatch, INTEGRITY_RECHECK_SWEEP_HARD_CEILING, INTEGRITY_RECHECK_SWEEP_MAX_BATCH } from "../src/integrity-recheck.js";
 import {
   injectReportRenderCsp,
   isAllowedReportRequestUrl,
@@ -162,6 +162,22 @@ describe("B8-F-301 — integrity-recheck batch follows the population", () => {
     const huge = adaptiveIntegrityRecheckBatch({ due: 0, eligible: 1_000_000, intervalMs: fifteenMin, baseBatch: 25 });
     expect(huge.limit).toBe(INTEGRITY_RECHECK_SWEEP_MAX_BATCH);
     expect(huge.capacityExceeded).toBe(true);
+  });
+
+  // Final Free pass (2026-11-18, capacity run): the capacity alert asks an
+  // operator to raise "interval, cap or more workers", but the configured cap
+  // was clamped back to the 200 default, so raising it changed nothing.
+  it("a raised INTEGRITY_RECHECK_SWEEP_MAX_BATCH is honoured, up to the hard ceiling", () => {
+    const fifteenMin = 15 * 60 * 1000;
+    const raised = adaptiveIntegrityRecheckBatch({ due: 0, eligible: 1_000_000, intervalMs: fifteenMin, baseBatch: 25, maxBatch: 400 });
+    expect(raised.limit).toBe(Math.ceil(1_000_000 / (30 * 96)));
+    expect(raised.capacityExceeded).toBe(false);
+    const absurd = adaptiveIntegrityRecheckBatch({ due: 0, eligible: 100_000_000, intervalMs: fifteenMin, baseBatch: 25, maxBatch: 1_000_000 });
+    expect(absurd.limit).toBe(INTEGRITY_RECHECK_SWEEP_HARD_CEILING);
+    expect(absurd.capacityExceeded).toBe(true);
+    const src = fs.readFileSync(new URL("../src/integrity-recheck.ts", import.meta.url), "utf8");
+    // The sweep honours the planner's limit up to the same ceiling, not the default.
+    expect(src).toMatch(/Math\.min\(options\.limit \?\? INTEGRITY_RECHECK_SWEEP_BATCH, INTEGRITY_RECHECK_SWEEP_HARD_CEILING\)/);
   });
 });
 

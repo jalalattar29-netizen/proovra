@@ -65,6 +65,7 @@ import {
   type OutputOfferEnvelope,
   type OutputProgressView,
   type ReportFreshness,
+  type RecordKeyCompromise,
   projectOutputProgress,
 } from "@proovra/shared";
 import type { EvidenceFundingSource } from "@proovra/shared-billing";
@@ -80,6 +81,7 @@ import {
   loadReportableFacts,
   type ReportableFacts,
 } from "./reports/output-offer.service.js";
+import { describeRecordKeyCompromise } from "./operations/signing-key-compromise-owners.service.js";
 import {
   listMatchedArtifactVersions,
   type MatchedArtifactHistory,
@@ -268,6 +270,14 @@ export interface EvidenceArtifactStatus {
    * policy and export eligibility are still applied at download time.
    */
   packageAccess: { fullForensic: boolean; externalDisclosure: boolean } | null;
+  /**
+   * B7A-F-006 — what PROOVRA's withdrawal of a signing key means for this
+   * record: which outputs the withdrawn material made, and where the linked
+   * replacement stands (the same evaluation the regenerate route's
+   * `intent: "KEY_COMPROMISE_REPLACEMENT"` applies). Null = nothing of this
+   * record was made by withdrawn key material (or it could not be read now).
+   */
+  keyCompromise: RecordKeyCompromise | null;
   report:
     | {
         available: true;
@@ -413,6 +423,12 @@ export async function buildEvidenceArtifactStatus(params: {
     throw err;
   }
   const { facts, actions } = loaded;
+  // B7A-F-006 — additive; a failure to read it degrades to null, never to a
+  // failed status read.
+  const keyCompromise = await describeRecordKeyCompromise({
+    evidenceId,
+    callerMayRequest: facts.callerMayGenerate === true,
+  }).catch(() => null);
 
   /*
    * THE PACKAGE THAT BELONGS TO THE LATEST REPORT.
@@ -714,6 +730,7 @@ export async function buildEvidenceArtifactStatus(params: {
     },
     versions,
     packageAccess,
+    keyCompromise,
     report: latestReport && reportAvailability === "READY"
       ? {
           available: true,

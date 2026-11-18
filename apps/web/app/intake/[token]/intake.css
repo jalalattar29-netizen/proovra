@@ -542,7 +542,13 @@
 }
 
 .ipk-file__main {
-  flex: 1;
+  /* Free acceptance J7 — the file details keep a readable width; the
+     checklist-step picker beside them may not squeeze the name to zero. */
+  flex: 1 1 60%;
+  min-width: 10rem;
+}
+.ipk-file > :not(.ipk-file__main) {
+  flex: 0 1 220px;
   min-width: 0;
 }
 

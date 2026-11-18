@@ -17,6 +17,7 @@ import { CaptureClearConfirmDialog } from "./_lib/CaptureClearConfirmDialog";
 import { EMPTY_SESSION_ISSUE_CODE } from "./_lib/readiness-issue-codes";
 import type { ReadinessIssue } from "./_lib/session-readiness";
 import { useActiveSpace } from "../../../lib/platform-context/useTenantModel";
+import { useOptionalPlatformContext } from "../../../lib/platform-context/PlatformContextProvider";
 import { CaptureDirectWebCaptureCard, CaptureDirectWebCaptureNote } from "./_lib/CaptureDirectWebCaptureCard";
 import { CaptureDraftReattachNotice } from "./_lib/CaptureDraftReattachNotice";
 import { newDraftRestoreState, restoreDraftItemMetadata } from "./_lib/draft-item-restore";
@@ -183,6 +184,16 @@ function CapturePageInner() {
 
   // B4-F-307 — a draft is started in (and listed for) the active workspace.
   const draftPersistence = useCaptureDraftPersistence({ enabled: true, teamId: activeSpace?.id || null });
+  // Free acceptance J6 — the hook object is a new literal every render; the
+  // autosave effect depends on the stable callback only (FAIL-1).
+  const { scheduleSave: scheduleDraftSave, savingState: draftSavingState } = draftPersistence;
+  // FAIL-2 — a draft refused 403 means this role may no longer add records
+  // here: re-read the workspace context so the route gate shows it.
+  const platformContext = useOptionalPlatformContext();
+  const refreshPlatformContext = platformContext?.refresh;
+  useEffect(() => {
+    if (draftSavingState === "forbidden") void refreshPlatformContext?.();
+  }, [draftSavingState, refreshPlatformContext]);
   const draftIdRef = useRef<string | null>(null);
   draftIdRef.current = draftPersistence.draftId;
 
@@ -317,6 +328,8 @@ function CapturePageInner() {
       ? "Saving draft…"
       : draftPersistence.savingState === "locked"
         ? "Session finalized — start a new capture"
+        : draftPersistence.savingState === "forbidden"
+          ? "Your role cannot add records here"
         : draftPersistence.savingState === "error"
           ? "Draft save failed"
           : draftPersistence.draftId
@@ -327,6 +340,8 @@ function CapturePageInner() {
   const draftTitle =
     draftPersistence.savingState === "locked"
       ? "This capture session is already finalized or locked. Start a new capture session to continue."
+      : draftPersistence.savingState === "forbidden"
+        ? "Your role in this workspace changed: you can view records but not add them. Nothing was saved."
       : draftPersistence.savingState === "error"
         ? "Failed to save the latest changes to the server draft."
         : draftPersistence.lastSavedAt
@@ -371,7 +386,7 @@ function CapturePageInner() {
   }, [selectedCollectionPlan?.id, selectedCollectionPlan?.steps, setSessionItems]);
 
   useEffect(() => {
-    draftPersistence.scheduleSave({
+    scheduleDraftSave({
       templateId: collectionPlanId,
       planMode,
       internalNotes,
@@ -384,7 +399,7 @@ function CapturePageInner() {
     internalNotes,
     useLocation,
     sessionItems,
-    draftPersistence,
+    scheduleDraftSave,
   ]);
 
   // RESUME — apply everything the draft actually persists.

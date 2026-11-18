@@ -11,6 +11,8 @@
 
 import { reviewWorkflowStateLabel } from "@proovra/shared";
 import { reportFreshnessChangeCopy } from "@proovra/shared";
+// B7A-F-006 — the record's signing-key-compromise state (additive status field).
+import { parseRecordKeyCompromise, type RecordKeyCompromise } from "@proovra/shared";
 // 2026-10-29 — wire contract D: one screen recording is one item.
 import {
   CAPTURE_RECORD_SYSTEM_LABEL,
@@ -498,6 +500,12 @@ export interface ArtifactOutputs {
   freshness: ReportFreshness | null;
   /** The durable request the screen follows, from persisted columns only. */
   activeRequest: NativeActiveRequest | null;
+  /**
+   * B7A-F-006 — what a withdrawn signing key means for this record (top-level
+   * `keyCompromise` on the status, beside `outputs`). Null = nothing of this
+   * record was made by withdrawn key material, or an older API without it.
+   */
+  keyCompromise: RecordKeyCompromise | null;
 }
 
 export interface NativeActiveRequest {
@@ -628,6 +636,7 @@ export function projectArtifactOutputs(payload: unknown): ArtifactOutputs {
     offerRevision: s(o(outputs["offer"])["revision"]),
     freshness: freshnessView(outputs["freshness"]),
     activeRequest: activeRequestView(outputs["activeRequest"]),
+    keyCompromise: parseRecordKeyCompromise(st["keyCompromise"]),
   };
 }
 
