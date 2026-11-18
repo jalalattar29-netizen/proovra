@@ -98,6 +98,8 @@ export function CustomerContractPanel({
   const [grantWorkspace, setGrantWorkspace] = useState(workspaces[0]?.id ?? "");
   const [grantKey, setGrantKey] = useState<string>(ENTITLEMENT_KEYS[0]);
   const [grantValue, setGrantValue] = useState("true");
+  // PRO-R3-07 / DEC-12 — an exception states when it ends (the API requires it).
+  const [grantExpiry, setGrantExpiry] = useState("");
 
   const run = async (label: string, action: (headers: Record<string, string>) => Promise<unknown>) => {
     if (busy || !teamId) return null;
@@ -206,6 +208,7 @@ export function CustomerContractPanel({
           kind: isFeature ? "FEATURE" : grantKey.startsWith("QUOTA_") ? "QUOTA" : "LIMIT",
           value: isFeature ? grantValue === "true" : Number(grantValue),
           source: "CUSTOM",
+          expiresAtUtc: new Date(`${grantExpiry}T23:59:59.000Z`).toISOString(),
         }),
       }),
     );
@@ -345,7 +348,16 @@ export function CustomerContractPanel({
                   triggerProps={{ "data-testid": "customer-grant-key" }}
                 />
                 <input className="input" value={grantValue} onChange={(e) => setGrantValue(e.target.value)} aria-label="Value" data-testid="customer-grant-value" />
-                <Button size="sm" variant="secondary" onClick={() => void grantException()} disabled={busy || !teamId} data-testid="customer-grant-submit">
+                <input
+                  className="input"
+                  type="date"
+                  value={grantExpiry}
+                  min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+                  onChange={(e) => setGrantExpiry(e.target.value)}
+                  aria-label="Ends on (UTC)"
+                  data-testid="customer-grant-expiry"
+                />
+                <Button size="sm" variant="secondary" onClick={() => void grantException()} disabled={busy || !teamId || !grantExpiry} data-testid="customer-grant-submit">
                   Record exception
                 </Button>
               </div>

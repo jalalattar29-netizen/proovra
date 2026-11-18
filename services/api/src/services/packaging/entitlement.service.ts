@@ -297,9 +297,6 @@ function projectDefault(key: EntitlementKey): EntitlementProjection {
   };
 }
 
-function isExpired(row: GrantRow, now: Date = new Date()): boolean {
-  return row.expiresAtUtc !== null && row.expiresAtUtc.getTime() <= now.getTime();
-}
 
 // ===========================================================================
 // resolveEntitlement
@@ -404,16 +401,24 @@ async function resolveLegalHoldEntitlement(
  */
 type EnterpriseStanding = "NOT_ENTERPRISE" | "CONTRACT_ACTIVE" | "CONTRACT_LAPSED";
 
-async function resolveEnterpriseStanding(
-  prisma: PrismaClient,
-  teamId: string,
-): Promise<EnterpriseStanding> {
+/**
+ * PRO-R3-07 / DEC-10 (WS-ENT) — the standing, plus whether the workspace's paid
+ * subscription has TERMINALLY lapsed (`lifecycle.mutationsAllowed === false`:
+ * past due beyond grace, or cancelled). A product-line grant (`source: PLAN`,
+ * written by `applyProductLine` for a paying customer) stops answering while
+ * the subscription is lapsed; reads of what already exists are the routes'
+ * business and are unaffected. A CUSTOM / PROMO exception is bounded by its own
+ * expiry instead (DEC-12). The commercial engine is asked once.
+ */
+type StandingFacts = { standing: EnterpriseStanding; paidLapsed: boolean };
+
+async function resolveStandingFacts(prisma: PrismaClient, teamId: string): Promise<StandingFacts> {
   try {
     const workspace = await prisma.team.findUnique({
       where: { id: teamId },
       select: { ownerUserId: true },
     });
-    if (!workspace) return "NOT_ENTERPRISE";
+    if (!workspace) return { standing: "NOT_ENTERPRISE", paidLapsed: false };
     const { resolveCommercialContext } = await import(
       "../billing/commercial-context.service.js"
     );
@@ -422,18 +427,23 @@ async function resolveEnterpriseStanding(
       teamId,
       requesterUserId: workspace.ownerUserId,
     });
-    if (ctx.plan !== "ENTERPRISE") return "NOT_ENTERPRISE";
+    const paidLapsed = ctx.lifecycle?.mutationsAllowed === false;
+    if (ctx.plan !== "ENTERPRISE") return { standing: "NOT_ENTERPRISE", paidLapsed };
     const { resolveEnterpriseContractLimits } = await import(
       "../billing/enterprise-contract-limits.js"
     );
-    return resolveEnterpriseContractLimits(ctx.enterpriseContract).contractGovernsCapability
-      ? "CONTRACT_ACTIVE"
-      : "CONTRACT_LAPSED";
+    return {
+      standing: resolveEnterpriseContractLimits(ctx.enterpriseContract).contractGovernsCapability
+        ? "CONTRACT_ACTIVE"
+        : "CONTRACT_LAPSED",
+      paidLapsed,
+    };
   } catch {
     // A commercial engine that cannot answer has not said yes.
-    return "NOT_ENTERPRISE";
+    return { standing: "NOT_ENTERPRISE", paidLapsed: false };
   }
 }
+
 
 export async function resolveEntitlement(input: {
   prisma?: PrismaClient;
@@ -441,6 +451,8 @@ export async function resolveEntitlement(input: {
   key: EntitlementKey;
   /** Resolved once by a caller reading several keys of one workspace. */
   standing?: EnterpriseStanding;
+  /** PRO-R3-07 — resolved with `standing` (see `resolveStandingFacts`). */
+  paidLapsed?: boolean;
 }): Promise<EntitlementProjection> {
   const prisma = input.prisma ?? defaultPrisma;
   /**
@@ -456,7 +468,11 @@ export async function resolveEntitlement(input: {
   if (input.key === "FEATURE_LEGAL_HOLD") {
     return resolveLegalHoldEntitlement(prisma, input.teamId);
   }
-  const standing = input.standing ?? (await resolveEnterpriseStanding(prisma, input.teamId));
+  const facts: StandingFacts =
+    input.standing !== undefined
+      ? { standing: input.standing, paidLapsed: input.paidLapsed === true }
+      : await resolveStandingFacts(prisma, input.teamId);
+  const standing = facts.standing;
   // A lapsed contract grants nothing, including through a stored row.
   if (standing === "CONTRACT_LAPSED") return projectDefault(input.key);
   // RG-13 — the decision (grant / contract / default) is the shared one the
@@ -477,10 +493,16 @@ export async function resolveEntitlement(input: {
         expiresAtUtc: true,
       },
     })) as GrantRow | null;
+    // PRO-R3-07 — a product-line grant does not outlive the paid subscription
+    // it was applied for (terminal lapse); restoring payment restores it.
+    const suspendedByLapse = facts.paidLapsed && row?.source === "PLAN";
     if (
       row &&
-      decideEntitlementSource({ standing, grantLive: entitlementGrantLive(row), contractSellsKey: sold !== undefined }) ===
-        "GRANT"
+      decideEntitlementSource({
+        standing,
+        grantLive: entitlementGrantLive(row) && !suspendedByLapse,
+        contractSellsKey: sold !== undefined,
+      }) === "GRANT"
     ) {
       return projectGrant(input.key, row);
     }
@@ -517,10 +539,10 @@ export async function resolveEntitlements<K extends EntitlementKey>(input: {
   keys: ReadonlyArray<K>;
 }): Promise<Record<K, EntitlementProjection>> {
   const prisma = input.prisma ?? defaultPrisma;
-  const standing = await resolveEnterpriseStanding(prisma, input.teamId);
+  const { standing, paidLapsed } = await resolveStandingFacts(prisma, input.teamId);
   const out = {} as Record<K, EntitlementProjection>;
   for (const key of input.keys) {
-    out[key] = await resolveEntitlement({ prisma, teamId: input.teamId, key, standing });
+    out[key] = await resolveEntitlement({ prisma, teamId: input.teamId, key, standing, paidLapsed });
   }
   return out;
 }
@@ -966,10 +988,10 @@ export async function listEntitlements(input: {
   teamId: string;
 }): Promise<ReadonlyArray<EntitlementProjection>> {
   const prisma = input.prisma ?? defaultPrisma;
-  const standing = await resolveEnterpriseStanding(prisma, input.teamId);
+  const { standing, paidLapsed } = await resolveStandingFacts(prisma, input.teamId);
   const out: EntitlementProjection[] = [];
   for (const key of ENTITLEMENT_KEYS) {
-    out.push(await resolveEntitlement({ prisma, teamId: input.teamId, key, standing }));
+    out.push(await resolveEntitlement({ prisma, teamId: input.teamId, key, standing, paidLapsed }));
   }
   return out;
 }
@@ -983,6 +1005,8 @@ export async function applyProductLine(input: {
   teamId: string;
   line: ProductLine;
   grantedByUserId: string;
+  /** PRO-R3-07 / DEC-12 — the operator route always states one. */
+  expiresAtUtc?: Date | null;
 }): Promise<{ ok: boolean; granted: number }> {
   if (!(PRODUCT_LINES as ReadonlyArray<string>).includes(input.line)) {
     return { ok: false, granted: 0 };
@@ -1004,6 +1028,7 @@ export async function applyProductLine(input: {
         source: "PLAN",
         productLine: input.line,
         grantedByUserId: input.grantedByUserId,
+        expiresAtUtc: input.expiresAtUtc ?? null,
       });
       granted += 1;
     } catch {

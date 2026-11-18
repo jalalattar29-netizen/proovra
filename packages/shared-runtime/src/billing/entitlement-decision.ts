@@ -70,22 +70,29 @@ export type EntitlementFactsClient = {
  */
 export async function resolveWorkerFeatureEntitlement(
   client: EntitlementFactsClient,
-  input: { teamId: string; key: WorkerFeatureEntitlementKey; standing: EntitlementStanding; now?: Date },
+  input: {
+    teamId: string;
+    key: WorkerFeatureEntitlementKey;
+    standing: EntitlementStanding;
+    /** PRO-R3-07 — the paid subscription is terminally lapsed: a product-line (PLAN) grant does not answer. */
+    paidLapsed?: boolean;
+    now?: Date;
+  },
 ): Promise<boolean> {
   const spec = WORKER_FEATURE_ENTITLEMENTS[input.key];
   if (input.standing === "CONTRACT_LAPSED") return spec.defaultValue;
-  let row: { valueBool: boolean | null; expiresAtUtc: Date | null } | null = null;
+  let row: { valueBool: boolean | null; expiresAtUtc: Date | null; source?: string | null } | null = null;
   try {
     row = (await client.entitlementGrant.findUnique({
       where: { teamId_key: { teamId: input.teamId, key: input.key } },
-      select: { valueBool: true, expiresAtUtc: true },
-    })) as { valueBool: boolean | null; expiresAtUtc: Date | null } | null;
+      select: { valueBool: true, expiresAtUtc: true, source: true },
+    })) as { valueBool: boolean | null; expiresAtUtc: Date | null; source?: string | null } | null;
   } catch {
     return spec.defaultValue;
   }
   const source = decideEntitlementSource({
     standing: input.standing,
-    grantLive: entitlementGrantLive(row, input.now),
+    grantLive: entitlementGrantLive(row, input.now) && !(input.paidLapsed === true && row?.source === "PLAN"),
     contractSellsKey: true,
   });
   if (source === "GRANT") return row?.valueBool === true;

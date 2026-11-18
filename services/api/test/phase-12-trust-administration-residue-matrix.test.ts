@@ -797,7 +797,7 @@ describe("Trust residue — packaging entitlement grant", () => {
       method: "POST",
       url: "/v1/packaging/entitlements/grant",
       headers: json,
-      payload: { ...OPERATOR_TARGET, key: "FEATURE_REDACTION", kind: "FEATURE", value: true, source: "CUSTOM" },
+      payload: { ...OPERATOR_TARGET, key: "FEATURE_REDACTION", kind: "FEATURE", value: true, source: "CUSTOM", expiresAtUtc: new Date(Date.now() + 365 * 86_400_000).toISOString() },
     });
     expect(res.statusCode).toBe(201);
     expect(JSON.parse(res.body).grantId).toBe("grant-1");
@@ -813,7 +813,7 @@ describe("Trust residue — packaging entitlement grant", () => {
       // QUOTA_AI_OPERATIONS_PER_MONTH, retired as a duplicate commercial
       // authority. The behaviour under test is numeric pass-through, so any
       // surviving QUOTA key exercises it; this one the engine still owns.
-      payload: { ...OPERATOR_TARGET, key: "QUOTA_EXPORT_PACKAGES_PER_MONTH", kind: "QUOTA", value: 25, productLine: "ENTERPRISE" },
+      payload: { ...OPERATOR_TARGET, key: "QUOTA_EXPORT_PACKAGES_PER_MONTH", kind: "QUOTA", value: 25, productLine: "ENTERPRISE", expiresAtUtc: new Date(Date.now() + 365 * 86_400_000).toISOString() },
     });
     expect(res.statusCode).toBe(201);
     expect(H.writes).toEqual(["upsertEntitlementGrant:QUOTA:QUOTA_EXPORT_PACKAGES_PER_MONTH:25"]);

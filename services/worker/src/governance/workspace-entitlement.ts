@@ -16,7 +16,7 @@
  */
 
 import type { EntitlementStanding, WorkerFeatureEntitlementKey } from "@proovra/shared-runtime";
-import { resolveWorkerFeatureEntitlement } from "@proovra/shared-runtime";
+import { readCommercialLifecycle, resolveWorkerFeatureEntitlement } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
 import { getTeamWorkspaceScope } from "../workspace-billing.js";
@@ -60,7 +60,20 @@ export async function workerFeatureEntitled(
 ): Promise<boolean> {
   try {
     const standing = await workerEnterpriseStanding(teamId);
-    return await resolveWorkerFeatureEntitlement(prisma, { teamId, key, standing });
+    // PRO-R3-07 — the same lifecycle reader the API's commercial context uses.
+    const scope = await getTeamWorkspaceScope(teamId);
+    const lifecycle = await readCommercialLifecycle(
+      prisma as never,
+      scope.billingShape === "SINGLE_OCCUPANT"
+        ? { kind: "PERSONAL", ownerUserId: scope.ownerUserId, plan: String(scope.plan) }
+        : { kind: "WORKSPACE", teamId, plan: String(scope.plan) },
+    );
+    return await resolveWorkerFeatureEntitlement(prisma, {
+      teamId,
+      key,
+      standing,
+      paidLapsed: lifecycle.mutationsAllowed === false,
+    });
   } catch {
     return false;
   }

@@ -239,6 +239,52 @@ describe("RG-13 machine-channel entitlements and quotas (live PostgreSQL)", () =
     expect(after).toMatchObject({ status: "CANCELLED", errorMessage: "withheld:entitlement_required" });
   });
 
+  it("PRO-R3-07: a product-line (PLAN) grant stops answering while the paid subscription is terminally lapsed; a bounded CUSTOM exception does not", async () => {
+    const { teamB } = h.fixtures;
+    await prisma.team.update({ where: { id: teamB.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
+    await ent.upsertEntitlementGrant({
+      teamId: teamB.teamId,
+      key: "FEATURE_REDACTION",
+      value: true,
+      kind: "FEATURE",
+      source: "PLAN",
+      productLine: "CAPTURE_AND_VERIFY",
+      grantedByUserId: teamB.ownerUserId,
+    });
+    const read = () => ent.resolveEntitlement({ teamId: teamB.teamId, key: "FEATURE_REDACTION" }).then((p) => p.value);
+    expect(await read()).toBe(true);
+    // The paid subscription ended (cancelled, period over): lifecycle CANCELLED.
+    const sub = await prisma.subscription.create({
+      data: {
+        userId: teamB.ownerUserId,
+        teamId: teamB.teamId,
+        provider: "STRIPE",
+        providerSubId: `sub_wsent_${randomUUID()}`,
+        status: "CANCELED",
+        plan: "TEAM",
+        currentPeriodEnd: new Date(Date.now() - 86_400_000),
+      } as never,
+    });
+    try {
+      expect(await read()).toBe(false);
+      // An operator exception with a stated end still answers.
+      await ent.upsertEntitlementGrant({
+        teamId: teamB.teamId,
+        key: "FEATURE_REDACTION",
+        value: true,
+        kind: "FEATURE",
+        source: "CUSTOM",
+        grantedByUserId: teamB.ownerUserId,
+        expiresAtUtc: new Date(Date.now() + 86_400_000),
+      });
+      expect(await read()).toBe(true);
+    } finally {
+      await prisma.subscription.delete({ where: { id: sub.id } });
+      await prisma.team.update({ where: { id: teamB.teamId }, data: { billingStatus: "ACTIVE", billingPlan: "FREE" } });
+      await prisma.entitlementGrant.deleteMany({ where: { teamId: teamB.teamId, key: "FEATURE_REDACTION" } });
+    }
+  });
+
   it("PRO-W2-05: the lifecycle emit withholds deliveries of an unentitled workspace and records the reason", async () => {
     const { teamA } = h.fixtures;
     const ep = await prisma.lifecycleWebhookEndpoint.create({

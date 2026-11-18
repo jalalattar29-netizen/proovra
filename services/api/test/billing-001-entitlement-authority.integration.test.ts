@@ -55,6 +55,8 @@ describe("BILLING-001 — the entitlement authority (live PostgreSQL)", () => {
     kind: "FEATURE",
     value: true,
     source: "PLAN",
+    // PRO-R3-07 / DEC-12 (WS-ENT) — a new operator grant states its expiry.
+    expiresAtUtc: new Date(Date.now() + 365 * 86_400_000).toISOString(),
   });
 
   async function refuses(workspaceId: string, token: string) {
@@ -70,7 +72,7 @@ describe("BILLING-001 — the entitlement authority (live PostgreSQL)", () => {
       method: "POST",
       url: "/v1/packaging/entitlements/apply-product-line",
       headers,
-      payload: { teamId: workspaceId, targetWorkspaceId: workspaceId, line: "ENTERPRISE" },
+      payload: { teamId: workspaceId, targetWorkspaceId: workspaceId, line: "ENTERPRISE", expiresAtUtc: new Date(Date.now() + 365 * 86_400_000).toISOString() },
     });
     expect(line.statusCode, line.body).toBe(403);
     expect(await prisma.entitlementGrant.count({ where: { teamId: workspaceId } })).toBe(0);
