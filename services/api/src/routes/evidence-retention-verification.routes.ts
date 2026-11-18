@@ -48,6 +48,7 @@ import {
   type EvidenceRecordPermission,
 } from "../services/evidence/evidence-record-access.service.js";
 import { evaluatePublicDisclosureGrant } from "../services/governance/public-disclosure-governance.service.js";
+import { resolveShareWorkspaceId } from "../services/governance/verification-share.service.js";
 import { sendDisclosureRefusal } from "./verification-share.routes.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
@@ -416,11 +417,14 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
       if (!governed.allowed) {
         return sendDisclosureRefusal(reply, governed);
       }
-      if (row.teamId) {
+      // PRO-O1-07 — a legacy NULL-team personal record answers its owner's
+      // personal workspace challenge (the rule the reviewer-share route uses).
+      const challengeWorkspaceId = await resolveShareWorkspaceId(row);
+      if (challengeWorkspaceId) {
         const gate = await requireStepUpForSensitiveAction({
           req,
           reply,
-          teamId: row.teamId,
+          teamId: challengeWorkspaceId,
           userId: actorUserId,
           purpose: "PUBLIC_VERIFY_PUBLISH",
           resourceKind: "evidence",
@@ -515,13 +519,16 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
        * no workspace (Personal legacy) has no workspace challenge to answer, as
        * on the disclosure route.
        */
-      const owner = await prisma.evidence.findUnique({ where: { id }, select: { teamId: true } });
+      const owner = await prisma.evidence.findUnique({ where: { id }, select: { teamId: true, ownerUserId: true } });
       if (!owner) return reply.code(404).send(NOT_FOUND);
-      if (owner.teamId) {
+      // PRO-O1-07 — a legacy NULL-team personal record is challenged in its
+      // owner's personal workspace, not waved through.
+      const challengeWorkspaceId = await resolveShareWorkspaceId(owner);
+      if (challengeWorkspaceId) {
         const gate = await requireStepUpForSensitiveAction({
           req,
           reply,
-          teamId: owner.teamId,
+          teamId: challengeWorkspaceId,
           userId: actorUserId,
           purpose: target === "WITHDRAWN" ? "PUBLIC_VERIFY_SUSPEND" : "PUBLIC_VERIFY_RESTORE",
           resourceKind: "evidence",
@@ -537,6 +544,13 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
         });
         if (!row) return null;
         if (row.verificationAccessState === target) return { changed: false, teamId: row.teamId, withdrawalReason: null };
+        // PRO-O1-12 — the customer moves only between AVAILABLE and WITHDRAWN.
+        // Any other state (SUSPENDED: temporarily unavailable, set by an
+        // operator) is not the tenant's to clear or overwrite.
+        const from = target === "AVAILABLE" ? "WITHDRAWN" : "AVAILABLE";
+        if (row.verificationAccessState !== from) {
+          return { refused: true as const, state: row.verificationAccessState };
+        }
         const now = new Date();
         // PRO-088: reinstating keeps the reason the page was withdrawn for. It
         // is the record of what was reversed (the page projection shows it only
@@ -565,6 +579,14 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
         return { changed: true, teamId: row.teamId, withdrawalReason };
       });
       if (!result) return reply.code(404).send(NOT_FOUND);
+      if ("refused" in result) {
+        return reply.code(409).send({
+          error: {
+            code: "VERIFICATION_ACCESS_STATE_NOT_CHANGEABLE",
+            message: "This verification page is in a state only PROOVRA operations can change.",
+          },
+        });
+      }
       if (result.changed) {
         audit(req, {
           actorUserId,

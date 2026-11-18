@@ -20,10 +20,8 @@ import type {
 } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
-import { prisma } from "../db.js";
-import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import {
   GovernanceSnapshotError,
   buildGovernanceSnapshot,
@@ -37,36 +35,26 @@ const TimelineQuery = TeamIdQuery.extend({
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
+/**
+ * PRO-G2-09 (RG-20) — the canonical authorizer, like the rest of the
+ * governance family: ACTIVE membership, expiry, organization lifecycle,
+ * support-context guard, capability, anti-enumeration (an outsider and a
+ * suspended member both get the concealed 404) and a bounded 503 when the
+ * engine cannot decide. The local status-blind membership probe that leaked
+ * the engine's reason/detail is gone.
+ */
 async function requireGovernanceReadActor(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
 ): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true },
-  });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  const decision = await evaluateMemberAccess({
+  const authorized = await authorizeOrFail(req, reply, {
     teamId,
-    userId,
     permission: "audit.read",
+    antiEnumeration: true,
   });
-  if (!decision.allowed) {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: decision.reason,
-        detail: decision.detail ?? null,
-      },
-    });
-    return null;
-  }
-  return { userId };
+  if (!authorized) return null;
+  return { userId: authorized.actorUserId };
 }
 
 export async function governanceSnapshotRoutes(app: FastifyInstance) {

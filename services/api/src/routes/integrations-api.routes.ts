@@ -273,11 +273,14 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
       const cred = req.apiCredential!;
       return runWithApiAudit(req, reply, "evidence.get", async () => {
         const { id } = ParamsId.parse(req.params);
-        const row = await prisma.evidence.findUnique({
-          where: { id },
+        // PRO-G1Z-04 — the SAME workspace population as the list above (a
+        // personal workspace's legacy NULL-team record included), so every
+        // listed id fetches; another workspace's id stays 404.
+        const row = await prisma.evidence.findFirst({
+          where: { AND: [{ id }, await workspaceEvidenceWhere(cred.teamId, prisma)] },
           select: EvidenceSelect,
         });
-        if (!row || row.teamId !== cred.teamId || (await evidenceClosedTo(id, null))) {
+        if (!row || (await evidenceClosedTo(id, null))) {
           return reply.code(404).send({ error: { code: "not_found" } });
         }
         return reply.code(200).send({ evidence: projectEvidenceForApi(row) });

@@ -508,6 +508,30 @@ export async function transitionLifecycle(
       });
     }
 
+    // PRO-G2-08 (RG-20) — the tenant audit row commits WITH the transition. It
+    // was appended after the commit and awaited without a catch, so an audit
+    // failure answered 500 (and blocked a destruction approval) for a state
+    // change that had already happened.
+    if (input.actorUserId) {
+      await emitTenantAudit(
+        {
+          action: "lifecycle.transition",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: input.actorUserId,
+          workspaceId: input.teamId,
+          resourceType: "evidence",
+          resourceId: input.evidenceId,
+          correlationId: input.requestId ?? null,
+          metadata: {
+            fromState,
+            toState: input.toState,
+          },
+        },
+        tx as unknown as PrismaClient,
+      );
+    }
+
     return event;
   });
 
@@ -523,22 +547,6 @@ export async function transitionLifecycle(
       actorUserId: input.actorUserId,
     },
   });
-  if (input.actorUserId) {
-    await emitTenantAudit({
-      action: "lifecycle.transition",
-      outcome: "success",
-      sourceApp: "API",
-      actorUserId: input.actorUserId,
-      workspaceId: input.teamId,
-      resourceType: "evidence",
-      resourceId: input.evidenceId,
-      correlationId: input.requestId ?? null,
-      metadata: {
-        fromState,
-        toState: input.toState,
-      },
-    }, client);
-  }
 
   return {
     fromState,

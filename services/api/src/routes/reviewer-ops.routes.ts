@@ -117,7 +117,6 @@ import {
   workflowIdsInReach,
 } from "../services/reviewer-ops/review-action-gate.js";
 import { evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
-import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   GovernancePolicyVersionConflictError,
   loadWorkspaceGovernancePolicyVersion,
@@ -2005,29 +2004,13 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           actorUserId: ctx.actorUserId,
           patch,
           expectedVersion,
+          // PRO-G2-08 — the audit row commits with the change (one transaction).
+          audit: { correlationId: req.id ?? null },
         });
       } catch (err) {
         if (sendPolicyVersionConflict(reply, err)) return;
         throw err;
       }
-      await emitTenantAudit({
-        action: "governance.workspace_policy_updated",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: ctx.actorUserId,
-        workspaceId: body.teamId,
-        resourceType: "workspace_governance_policy",
-        resourceId: written.row.id,
-        capability: "governance.policy.manage",
-        policyId: written.row.id,
-        policyVersion: written.newVersion,
-        correlationId: req.id ?? null,
-        metadata: {
-          previousVersion: written.previousVersion,
-          newVersion: written.newVersion,
-          changedFields: written.changedFields,
-        },
-      });
       bump("reviewer_sla_policy_updated_total");
       safeEmitSecurityEvent({
         teamId: body.teamId,

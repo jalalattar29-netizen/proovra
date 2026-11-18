@@ -24,6 +24,8 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 
@@ -201,7 +203,8 @@ export async function buildOperationalTimeline(
   const cap = Math.min(input.limit ?? 100, 500);
 
   const evidence = await client.evidence.findFirst({
-    where: { id: input.evidenceId, teamId: input.teamId },
+    // PRO-G2-05 — the canonical workspace population (legacy NULL-team records).
+    where: { AND: [{ id: input.evidenceId }, await workspaceEvidenceWhere(input.teamId, client)] },
     select: { id: true, teamId: true },
   });
   if (!evidence) {

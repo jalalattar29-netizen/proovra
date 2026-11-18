@@ -28,12 +28,12 @@ import type {
 import { z } from "zod";
 
 import type { Permission } from "@proovra/shared";
+import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
-import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { runGovernanceHandler } from "./_governance-error-bound.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import {
@@ -52,6 +52,7 @@ import {
   CaseLegalHoldError,
   isEvidenceUnderAnyLegalHold,
   LegalHoldError as CanonicalLegalHoldError,
+  getLegalHoldInLegacyShape,
   listCaseScopedLegalHoldsLegacyShape,
   listEvidenceScopedLegalHoldsLegacyShape,
   placeCanonicalLegalHold,
@@ -324,6 +325,8 @@ export async function governanceRoutes(app: FastifyInstance) {
           actorUserId: ok.actorUserId,
           patch,
           expectedVersion,
+          // PRO-G2-08 — the audit row commits with the change (one transaction).
+          audit: { correlationId: req.id ?? null },
         });
       } catch (err) {
         if (err instanceof GovernancePolicyVersionConflictError) {
@@ -345,27 +348,9 @@ export async function governanceRoutes(app: FastifyInstance) {
         throw err;
       }
 
-      // Audit: old version → new version and the NAMES of the changed fields.
-      // Never the values — a governance policy value is workspace-internal and
-      // the audit sink is a different trust boundary from the policy row.
-      await emitTenantAudit({
-        action: "governance.workspace_policy_updated",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: ok.actorUserId,
-        workspaceId: ok.teamId,
-        resourceType: "workspace_governance_policy",
-        resourceId: written.row.id,
-        capability: "governance.policy.manage",
-        policyId: written.row.id,
-        policyVersion: written.newVersion,
-        correlationId: req.id ?? null,
-        metadata: {
-          previousVersion: written.previousVersion,
-          newVersion: written.newVersion,
-          changedFields: written.changedFields,
-        },
-      });
+      // Audit: old version → new version and the NAMES of the changed fields
+      // (never the values) — written by the policy writer inside its
+      // transaction (PRO-G2-08).
 
       // REPORT-004 — a policy change can release records whose first outputs
       // the previous policy held. Bounded; a failure never fails the update.
@@ -568,6 +553,11 @@ export async function governanceRoutes(app: FastifyInstance) {
       if (await legalHoldClosedTo(id, body.teamId, ok.actorUserId)) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      // PRO-G2-12 — this compat route acts on EVIDENCE-scoped holds only; a hold
+      // of another scope is refused before any approval check or step-up.
+      if (!(await getLegalHoldInLegacyShape({ teamId: body.teamId, holdId: id, scope: "EVIDENCE" }))) {
+        return reply.code(404).send({ error: { code: "hold_not_found" } });
+      }
 
       // Before step-up is offered: nobody re-authenticates for a release that is
       // going to be refused. GOV-011 — only a second person's recorded approval
@@ -613,10 +603,8 @@ export async function governanceRoutes(app: FastifyInstance) {
 
       // Re-read the row rather than fabricating a released projection: if the
       // canonical store cannot show it, we do not claim it happened.
-      const rows = await listEvidenceScopedLegalHoldsLegacyShape({
-        teamId: body.teamId,
-      });
-      const row = rows.find((r) => r.id === id) ?? rows[0];
+      // PRO-G2-12 — the acted-on hold itself, never another row.
+      const row = await getLegalHoldInLegacyShape({ teamId: body.teamId, holdId: id, scope: "EVIDENCE" });
       if (!row) {
         return reply.code(404).send({ error: { code: "hold_not_found" } });
       }
@@ -769,6 +757,11 @@ export async function governanceRoutes(app: FastifyInstance) {
       if (await legalHoldClosedTo(id, body.teamId, ok.actorUserId)) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      // PRO-G2-12 — this compat route acts on CASE-scoped holds only; a hold
+      // of another scope is refused before any approval check or step-up.
+      if (!(await getLegalHoldInLegacyShape({ teamId: body.teamId, holdId: id, scope: "CASE" }))) {
+        return reply.code(404).send({ error: { code: "hold_not_found" } });
+      }
 
       // Before step-up is offered: nobody re-authenticates for a release that is
       // going to be refused. GOV-011 — only a second person's recorded approval
@@ -815,10 +808,8 @@ export async function governanceRoutes(app: FastifyInstance) {
         throw err;
       }
 
-      const rows = await listCaseScopedLegalHoldsLegacyShape({
-        teamId: body.teamId,
-      });
-      const row = rows.find((r) => r.id === id) ?? rows[0];
+      // PRO-G2-12 — the acted-on hold itself, never another row.
+      const row = await getLegalHoldInLegacyShape({ teamId: body.teamId, holdId: id, scope: "CASE" });
       if (!row) {
         return reply.code(404).send({ error: { code: "hold_not_found" } });
       }
@@ -848,11 +839,14 @@ export async function governanceRoutes(app: FastifyInstance) {
         select: {
           id: true,
           teamId: true,
+          ownerUserId: true,
           retentionUntilUtc: true,
           archivedAt: true,
         },
       });
-      if (!evidence || evidence.teamId !== query.teamId) {
+      // PRO-G2-05 — the canonical record->workspace rule (a legacy NULL-team
+      // personal record belongs to its owner's personal workspace).
+      if (!evidence || (await resolveEvidenceWorkspaceId(evidence, prisma as never)) !== query.teamId) {
         // B7B-F04: byte-identical to the record-reach guard's answer for a
         // closed record, so a 404 never says which of the two it was.
         return reply.code(404).send({ error: { code: "not_found" } });
@@ -906,9 +900,11 @@ export async function governanceRoutes(app: FastifyInstance) {
       // Verify the evidence is in this workspace.
       const evidence = await prisma.evidence.findUnique({
         where: { id },
-        select: { id: true, teamId: true },
+        select: { id: true, teamId: true, ownerUserId: true },
       });
-      if (!evidence || evidence.teamId !== query.teamId) {
+      // PRO-G2-05 — the canonical record->workspace rule (a legacy NULL-team
+      // personal record belongs to its owner's personal workspace).
+      if (!evidence || (await resolveEvidenceWorkspaceId(evidence, prisma as never)) !== query.teamId) {
         // B7B-F04: byte-identical to the record-reach guard's answer for a
         // closed record, so a 404 never says which of the two it was.
         return reply.code(404).send({ error: { code: "not_found" } });
@@ -989,9 +985,11 @@ export async function governanceRoutes(app: FastifyInstance) {
       if (!ok) return;
       const evidence = await prisma.evidence.findUnique({
         where: { id },
-        select: { id: true, teamId: true },
+        select: { id: true, teamId: true, ownerUserId: true },
       });
-      if (!evidence || evidence.teamId !== query.teamId) {
+      // PRO-G2-05 — the canonical record->workspace rule (a legacy NULL-team
+      // personal record belongs to its owner's personal workspace).
+      if (!evidence || (await resolveEvidenceWorkspaceId(evidence, prisma as never)) !== query.teamId) {
         // B7B-F04: byte-identical to the record-reach guard's answer for a
         // closed record, so a 404 never says which of the two it was.
         return reply.code(404).send({ error: { code: "not_found" } });
