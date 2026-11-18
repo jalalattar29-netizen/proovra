@@ -105,6 +105,27 @@ async function denyIfTeamNotEnterprise(
   }
 }
 
+/**
+ * WS-SCHED / PRO-G2-02, DEC-05 — who may move a destruction review towards
+ * destruction. Enterprise destruction governance answers first (unchanged,
+ * two-person). Without it, a self-serve workspace's own ACTIVE OWNER (canonical
+ * kind PERSONAL / OWNED) decides alone; anyone else gets the plan refusal as
+ * before. Null = refused, reply sent.
+ */
+async function destructionDecisionAuthority(
+  reply: FastifyReply,
+  teamId: string,
+  actorUserId: string,
+): Promise<"ENTERPRISE" | "SELF_SERVE_OWNER" | null> {
+  try {
+    await assertTeamAllowsEnterpriseFeature(teamId, "destructionGovernance");
+    return "ENTERPRISE";
+  } catch {
+    if (await isSelfServeDestructionOwner(prisma, teamId, actorUserId)) return "SELF_SERVE_OWNER";
+  }
+  return (await denyIfTeamNotEnterprise(reply, teamId, "destructionGovernance")) ? null : "ENTERPRISE";
+}
+
 import {
   RetentionEngineError,
   countActivePolicyConflicts,
@@ -123,6 +144,7 @@ import {
   getDestructionReview,
   listDestructionReviews,
   transitionDestructionReview,
+  isSelfServeDestructionOwner,
 } from "../services/governance-lifecycle/destruction-review.service.js";
 import {
   LifecycleOrchestratorError,
@@ -549,7 +571,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "evidence.delete");
       if (!ok) return;
-      if (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance")) return;
+      // PRO-G2-02 / DEC-05 — a self-serve workspace's owner may open one too.
+      if (!(await destructionDecisionAuthority(reply, body.teamId, ok.actorUserId))) return;
       // ACC-12: a workspace role is not reach. A destruction request on a record
       // the requester cannot open is refused like a record that is not there.
       if (await evidenceClosedTo(body.evidenceId, ok.actorUserId)) {
@@ -990,11 +1013,12 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       // Only the moves towards destruction need the plan. Declining, deferring and
       // cancelling stay open, so a workspace that left Enterprise can still clear
       // its own queue (GOV-006).
-      if (
-        (body.nextStatus === "APPROVED" || body.nextStatus === "EXECUTED") &&
-        (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance"))
-      ) {
-        return;
+      // PRO-G2-02 / DEC-05 — without Enterprise destruction governance, a
+      // self-serve workspace's own owner decides (single person, step-up below).
+      let authority: "ENTERPRISE" | "SELF_SERVE_OWNER" | null = null;
+      if (body.nextStatus === "APPROVED" || body.nextStatus === "EXECUTED") {
+        authority = await destructionDecisionAuthority(reply, body.teamId, ok.actorUserId);
+        if (!authority) return;
       }
       if (body.nextStatus === "EXECUTED" && !destructionExecutionEnabled()) {
         return mapDestructionError(reply, new DestructionReviewError("DESTRUCTION_EXECUTION_DISABLED"));
@@ -1026,6 +1050,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
             ? new Date(body.deferredUntilUtc)
             : null,
           requestId: req.id,
+          selfServeOwner: authority === "SELF_SERVE_OWNER",
         });
         return reply.code(200).send({ review });
       } catch (err) {
