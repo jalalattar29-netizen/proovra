@@ -137,7 +137,15 @@ export async function startPortalSsoFlow(
   if (!role) {
     return { ok: false, denial: "INVITE_NOT_FOUND" };
   }
-  const connectionId = input.ssoConnectionIdOverride ?? role.ssoConnectionId;
+  // PRO-R1-03 — the connection is the one bound to the grant, never one the
+  // caller names: an override is accepted only when it IS that binding. No
+  // writer binds a connection today (the console no longer offers SSO and the
+  // bulk route refuses it), so portal SSO stays dormant until the SAML leg
+  // binds InResponseTo, audience, Recipient/Destination and replay.
+  if (input.ssoConnectionIdOverride && input.ssoConnectionIdOverride !== role.ssoConnectionId) {
+    return { ok: false, denial: "POLICY_REJECTED" };
+  }
+  const connectionId = role.ssoConnectionId;
   if (!connectionId) {
     return { ok: false, denial: "POLICY_REJECTED" };
   }

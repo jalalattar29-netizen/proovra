@@ -175,6 +175,12 @@ const BulkIssueBody = z.object({
     })
     .optional(),
   rows: z.array(BulkRowSchema).min(1).max(BULK_INVITATION_MAX_ROWS),
+  // PRO-R1-03 — read only so an SSO request is REFUSED, never silently
+  // dropped into a plain bearer-link invitation. TOKEN (what installed
+  // consoles send by default) is accepted unchanged.
+  defaultAuthMethod: z.string().max(16).optional(),
+  defaultSsoConnectionId: z.string().max(64).optional(),
+  defaultAllowedDomains: z.array(z.string().max(253)).max(50).optional(),
 });
 
 const BulkRevokeBody = z.object({
@@ -359,6 +365,27 @@ function isOwnerTier(
     }).workspaceRole === "OWNER"
   );
 }
+
+/**
+ * PRO-R1-08 — the activity codes a reviewer may read about their own grant:
+ * what the reviewer did, never what operators did around it.
+ */
+const PORTAL_REVIEWER_VISIBLE_ACTIVITY: ReadonlySet<string> = new Set([
+  "GRANT_ACCEPTED",
+  "LOGIN",
+  "LOGOUT",
+  "MFA_CHALLENGE_PASSED",
+  "MFA_CHALLENGE_FAILED",
+  "INACTIVITY_TIMEOUT",
+  "REVIEW_OPENED",
+  "EVIDENCE_VIEWED",
+  "ANNOTATION_CREATED",
+  "COMMENT_POSTED",
+  "DECISION_SUBMITTED",
+  "DOWNLOAD_ATTEMPTED",
+  "DOWNLOAD_PERMITTED",
+  "DOWNLOAD_REFUSED",
+]);
 
 /**
  * Resolve the portal session. Token + optional sessionId are read
@@ -649,6 +676,18 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       });
       if (bulkGate.sent) return;
       const body = BulkIssueBody.parse(req.body);
+      if (
+        (body.defaultAuthMethod !== undefined && body.defaultAuthMethod !== "TOKEN") ||
+        (body.defaultSsoConnectionId !== undefined && body.defaultSsoConnectionId !== "") ||
+        (body.defaultAllowedDomains !== undefined && body.defaultAllowedDomains.length > 0)
+      ) {
+        return reply.code(400).send({
+          error: {
+            code: "EXTERNAL_REVIEW_SSO_NOT_SUPPORTED",
+            message: "Outside reviewers sign in with the emailed link (and the emailed code when required). SSO is not available for external review.",
+          },
+        });
+      }
 
       const team = await prisma.team.findUnique({
         where: { id: ctx.workspaceId },
@@ -1173,7 +1212,20 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         grantId: s.grantId,
         limit: 200,
       });
-      return reply.code(200).send({ activity: rows });
+      // PRO-R1-08 — the reviewer route never returns workspace-internal data:
+      // only reviewer-originated codes, and never a payload or an IP (operator
+      // events carry staff ids, break-glass justifications, batch ids). The
+      // keys stay for installed clients; sessionId only for this session.
+      const activity = rows
+        .filter((r) => PORTAL_REVIEWER_VISIBLE_ACTIVITY.has(r.code))
+        .map((r) => ({
+          id: r.id,
+          code: r.code,
+          sessionId: r.sessionId === s.sessionId ? r.sessionId : null,
+          payload: null,
+          occurredAtUtc: r.occurredAtUtc,
+        }));
+      return reply.code(200).send({ activity });
     },
   );
 

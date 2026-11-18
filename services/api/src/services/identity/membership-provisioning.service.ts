@@ -47,6 +47,7 @@ import {
 } from "../billing/workspace-seats.service.js";
 import { endStandingReachForMembers, releaseWorkOnSuspension } from "./standing-reach.js";
 import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
+import { endCreatorAuthorityOnRoleChangeTx } from "../sharing/standing-credential-authority.js";
 
 export type TxClient = Prisma.TransactionClient | PrismaClient;
 
@@ -996,9 +997,18 @@ export async function applyDirectoryRoleChange(
     return { changed: false };
   }
   if (input.currentRole === input.desiredRole) return { changed: false };
-  await tx.teamMember.update({
+  const written = await tx.teamMember.update({
     where: { id: input.teamMemberId },
     data: { role: input.desiredRole as never },
+    select: { teamId: true, userId: true },
+  });
+  // PRO-R1-05 — the directory lowers a role exactly as an administrator does:
+  // the outward grants and standing credentials the new role no longer
+  // supports end here, through the one shared role-change leg.
+  await endCreatorAuthorityOnRoleChangeTx(tx as never, {
+    teamId: written.teamId,
+    userId: written.userId,
+    actorUserId: null,
   });
   await recordMembershipGrant(tx, {
     teamMemberId: input.teamMemberId,
@@ -1026,13 +1036,22 @@ export async function demoteGroupMappedRoleOnArchive(
       role: input.mappedRole as never,
       status: "ACTIVE",
     },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
   if (affected.length === 0) return { count: 0 };
   await tx.teamMember.updateMany({
     where: { id: { in: affected.map((m) => m.id) } },
     data: { role: "MEMBER" },
   });
+  // PRO-R1-05 — the bulk demotion ends what each demoted creator may no
+  // longer hold, through the same role-change leg as every other writer.
+  for (const m of affected) {
+    await endCreatorAuthorityOnRoleChangeTx(tx as never, {
+      teamId: input.teamId,
+      userId: m.userId,
+      actorUserId: null,
+    });
+  }
   for (const m of affected) {
     await recordMembershipGrant(tx, {
       teamMemberId: m.id,

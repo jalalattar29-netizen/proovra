@@ -891,9 +891,12 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         const rows = (await prisma.$queryRawUnsafe(
           `SELECT
              COUNT(*)::int AS "total",
-             COUNT(*) FILTER (WHERE "state" = 'INVITED')::int AS "invited",
-             COUNT(*) FILTER (WHERE "state" = 'ACTIVE')::int AS "active",
-             COUNT(*) FILTER (WHERE "state" = 'EXPIRED')::int AS "expired",
+             -- PRO-P3DZ-01: expiry overrides the stored state (read-time
+             -- rule, evaluateExternalReviewAccess); an INVITED/ACTIVE grant
+             -- past its expiry counts as expired, never as active.
+             COUNT(*) FILTER (WHERE "state" = 'INVITED' AND "expires_at_utc" > NOW())::int AS "invited",
+             COUNT(*) FILTER (WHERE "state" = 'ACTIVE' AND "expires_at_utc" > NOW())::int AS "active",
+             COUNT(*) FILTER (WHERE "state" = 'EXPIRED' OR ("state" IN ('INVITED','ACTIVE') AND "expires_at_utc" <= NOW()))::int AS "expired",
              COUNT(*) FILTER (WHERE "state" = 'REVOKED')::int AS "revoked"
            FROM "external_review_grants"
            WHERE "team_id" = $1
@@ -1013,6 +1016,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
               AND ("evidence_id" IS NULL OR NOT ("evidence_id" = ANY($2::uuid[])))
               AND ("case_id" IS NULL OR NOT ("case_id" = ANY($3::uuid[])))
               AND "state" IN ('INVITED','ACTIVE')
+              AND "expires_at_utc" > NOW()
             ORDER BY "created_at_utc" DESC
             LIMIT 20`,
           teamId,

@@ -227,10 +227,15 @@ export async function acceptInvitation(input: {
   if (!res.ok) {
     return { ok: false, denial: mapGrantDenial(res.reason) };
   }
-  await prisma.externalReviewerRoleAssignment.updateMany({
-    where: { id: input.grantId, teamId: input.teamId },
+  // PRO-R1-13 — acceptance is recorded ONCE. Every portal page re-runs the
+  // token exchange (an ACTIVE -> ACTIVE same-state transition succeeds), so the
+  // stamp is conditional on its absence and GRANT_ACCEPTED is emitted only by
+  // the call that set it; later sign-ins record LOGIN only.
+  const stamped = await prisma.externalReviewerRoleAssignment.updateMany({
+    where: { id: input.grantId, teamId: input.teamId, inviteAcceptedAtUtc: null },
     data: { inviteAcceptedAtUtc: new Date() },
   });
+  if (stamped.count === 0) return { ok: true };
   await emitPortalActivity({
     prisma,
     teamId: input.teamId,

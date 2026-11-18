@@ -35,7 +35,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BULK_INVITATION_MAX_ROWS,
   EXTERNAL_REVIEWER_ROLES,
-  PORTAL_AUTH_METHODS,
   WATERMARK_POLICIES,
   identifierLabel,
   type ExternalReviewerRole,
@@ -1478,9 +1477,6 @@ function BulkInvitePanel({
     "ALWAYS" | "BYTES_ONLY" | "NEVER"
   >("ALWAYS");
   const [defaultMfa, setDefaultMfa] = useState(false);
-  const [authMethod, setAuthMethod] = useState<PortalAuthMethod>("TOKEN");
-  const [ssoConnectionId, setSsoConnectionId] = useState("");
-  const [allowedDomains, setAllowedDomains] = useState("");
   const [busy, setBusy] = useState(false);
   const [outcomes, setOutcomes] = useState<{
     bulkBatchId: string;
@@ -1510,10 +1506,6 @@ function BulkInvitePanel({
     if (!target || scope.blockedReason) return;
     setBusy(true);
     try {
-      const allowedDomainList = allowedDomains
-        .split(/[,\s]+/)
-        .map((d) => d.trim().toLowerCase().replace(/^@/, ""))
-        .filter(Boolean);
       // Bulk issue grants multiple outside reviewers access to sensitive
       // evidence — step-up gated on the backend. Wrap in
       // `runStepUpAction`: a 401 STEP_UP_REQUIRED surfaces the modal and
@@ -1538,12 +1530,9 @@ function BulkInvitePanel({
               displayName: p.displayName,
               organization: p.organization,
             })),
-            // Federation defaults — surfaced for honest UX but the
-            // closure SSO binding actually flips authMethod when the
-            // first successful SSO bind occurs (server-side).
-            defaultAuthMethod: authMethod,
-            defaultSsoConnectionId: ssoConnectionId || undefined,
-            defaultAllowedDomains: allowedDomainList,
+            // PRO-R1-03 — no SSO fields: outside reviewers sign in with the
+            // emailed link (and the emailed code when required). The API
+            // refuses an SSO request rather than issuing a bearer link.
           }),
         }),
       );
@@ -1608,9 +1597,6 @@ function BulkInvitePanel({
     defaultRole,
     defaultWatermark,
     defaultMfa,
-    authMethod,
-    ssoConnectionId,
-    allowedDomains,
     onCompleted,
     stepUp,
     addToast,
@@ -1758,7 +1744,7 @@ function BulkInvitePanel({
               triggerProps={{ "data-bulk-default-role": "" }}
             />
           </Field>
-          <Field label="Default watermark policy">
+          <Field label="On-screen watermark (portal panel only; downloads are not marked)">
             <AppListbox
               value={defaultWatermark}
               options={[
@@ -1803,37 +1789,10 @@ function BulkInvitePanel({
               margin: "4px 0",
             }}
           />
-          <strong style={{ fontSize: 12, color: "var(--ink-primary, #0f172a)" }}>
-            SSO controls
-          </strong>
-          <Field label="Auth method">
-            <AppListbox
-              value={authMethod}
-              options={[
-                ...PORTAL_AUTH_METHODS.map((m) => ({ value: m, label: identifierLabel(m) })),
-              ]}
-              onChange={(next) => setAuthMethod(next as PortalAuthMethod)}
-              triggerProps={{ "data-bulk-auth-method": "" }}
-            />
-          </Field>
-          <Field label="SSO connection id (optional)">
-            <input
-              data-bulk-sso-connection
-              placeholder="00000000-0000-0000-0000-000000000000"
-              value={ssoConnectionId}
-              onChange={(e) => setSsoConnectionId(e.target.value)}
-              style={inputStyle}
-            />
-          </Field>
-          <Field label="Allowed SSO domains (comma-separated)">
-            <input
-              data-bulk-allowed-domains
-              placeholder="acme.com, acme.co.uk"
-              value={allowedDomains}
-              onChange={(e) => setAllowedDomains(e.target.value)}
-              style={inputStyle}
-            />
-          </Field>
+          <p data-bulk-sign-in-note style={{ fontSize: 12, margin: 0, color: "var(--ink-secondary, #475569)" }}>
+            Reviewers sign in with the emailed link, plus the emailed code when MFA is required.
+            Single sign-on is not available for outside reviewers.
+          </p>
         </div>
       </div>
 
