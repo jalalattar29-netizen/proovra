@@ -495,7 +495,7 @@ test("AUD-0065 — the screen states an expired session, and a gone session at a
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("../app/(stack)/continuous-capture.tsx", import.meta.url), "utf8");
   // PRO-NB-01 — judged by the session's 24 h lifetime (captureSessionRecoverable).
-  assert.match(src, /setRecovery\(captureSessionRecoverable\(live\) \?\{ kind: "ended" \} : \{ kind: "expired" \}\)/);
+  assert.match(src, /setRecovery\(captureSessionRecoverable\(live\) \? \{ kind: "ended" \} : \{ kind: "expired" \}\)/);
   assert.match(src, /recovery\?\.kind === "expired"/);
   assert.match(src, /if \(isSessionGone\(err\)\) \{\s*dispatch\(\{ type: "STAGE_FAILED", message: CONTINUOUS_SESSION_GONE \}\);/);
 });
