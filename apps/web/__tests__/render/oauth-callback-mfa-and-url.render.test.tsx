@@ -157,9 +157,19 @@ describe("A1-08 — provider credentials leave the URL once read", () => {
 
   it("an Apple code in the fragment is stripped too", async () => {
     answer = () => json(401, { message: "nonce_invalid" });
+    sessionStorage.setItem("proovra-apple-state", "s1");
     openCallback("?provider=apple#code=apple-code-1&state=s1");
     expect(realLocation.hash).toBe("");
     await settle();
     expect(posts).toEqual(["/v1/auth/apple"]);
+  });
+
+  it("PRO-A1-15: a state this browser never stored is refused before any API call", async () => {
+    sessionStorage.removeItem("proovra-apple-state");
+    answer = () => json(200, { token: "t" });
+    openCallback("?provider=apple#code=apple-code-2&state=forged");
+    await settle();
+    expect(posts).toEqual([]);
+    expect(setToken).not.toHaveBeenCalled();
   });
 });

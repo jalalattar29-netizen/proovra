@@ -155,6 +155,8 @@ export type RecordAuthenticatedSessionInput = {
   authMethod?: string | null;
   authnContext?: string | null;
   idpAuthAtUtc?: Date | null;
+  /** PRO-X1-04 — the authorizing web session's hashed id (extension sessions only). */
+  parentSessionIdHash?: string | null;
 };
 
 export async function recordAuthenticatedSession(
@@ -189,6 +191,7 @@ export async function recordAuthenticatedSession(
         input.idpAuthAtUtc && Number.isFinite(input.idpAuthAtUtc.getTime())
           ? input.idpAuthAtUtc
           : null,
+      ...(input.parentSessionIdHash ? { parentSessionIdHash: input.parentSessionIdHash } : {}),
     },
   });
   return projectSession(row);
@@ -605,6 +608,38 @@ export async function endOwnSession(
       revokedReason: input.inventoryReason.slice(0, 64),
     },
   });
+  // PRO-X1-04 (DEC-29) — the extension sessions this session authorized end
+  // with it (each by its own id); the person's unrelated sessions are untouched.
+  const children = await client.authenticatedSession.findMany({
+    where: { userId: input.userId, parentSessionIdHash: sessionIdHash, revokedAtUtc: null },
+    select: { sessionIdHash: true, teamId: true },
+  });
+  for (const child of children) {
+    await revokeSession(
+      {
+        userId: input.userId,
+        sessionIdHash: child.sessionIdHash,
+        teamId: child.teamId ?? null,
+        reason: input.reason,
+        actorUserId: input.userId,
+      },
+      client,
+    );
+  }
+  if (children.length > 0) {
+    await client.authenticatedSession.updateMany({
+      where: {
+        userId: input.userId,
+        sessionIdHash: { in: children.map((c) => c.sessionIdHash) },
+        revokedAtUtc: null,
+      },
+      data: {
+        revokedAtUtc: new Date(),
+        revokedByUserId: input.userId,
+        revokedReason: "PARENT_SESSION_ENDED",
+      },
+    });
+  }
   return { sessionIdHash };
 }
 

@@ -353,7 +353,7 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
     ).toBe(owner.id);
   });
 
-  it("B-04: a linked sign-in that changes the address keeps it verified only when the provider vouches for it", async () => {
+  it("B-04 / PRO-A1-04: a linked sign-in never rewrites a password account's address; a provider-created account's change is verified only when vouched", async () => {
     const P = "LinkB04Password123";
     const owner = await emailUser("b04", P);
     const verifiedBefore = (await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).emailVerifiedAt!;
@@ -364,17 +364,32 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
       stepUp: { method: "password", currentPassword: P },
     });
     expect(linked.statusCode, linked.body).toBe(200);
+    // PRO-A1-04 — the linked identity reports another address: the account keeps its own.
+    const other = `rem3-b04-other-${randomUUID().slice(0, 8)}@test.proovra.local`;
+    const viaLink = await call("POST", "/v1/auth/google", undefined, { idToken: await freshToken(sub, other) });
+    expect(viaLink.statusCode, viaLink.body).toBe(200);
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: owner.id }, select: { email: true, emailVerifiedAt: true } })).toEqual({
+      email: owner.email,
+      emailVerifiedAt: verifiedBefore,
+    });
+
+    // B-04 — a Google-CREATED account follows its provider's address, verified only when vouched.
+    const gSub = `rem3-b04-created-${randomUUID()}`;
+    const created = await call("POST", "/v1/auth/google", undefined, {
+      idToken: await freshToken(gSub, `rem3-b04-c-${randomUUID().slice(0, 8)}@test.proovra.local`),
+    });
+    expect(created.statusCode, created.body).toBe(200);
+    const createdId = (body(created).user as Json).id as string;
+    const createdBefore = (await prisma.user.findUniqueOrThrow({ where: { id: createdId } })).emailVerifiedAt!;
     const signIn = async (email: string, emailVerified: boolean) => {
       const r = await call("POST", "/v1/auth/google", undefined, {
-        idToken: await freshToken(sub, email, { email_verified: emailVerified }),
+        idToken: await freshToken(gSub, email, { email_verified: emailVerified }),
       });
       expect(r.statusCode, r.body).toBe(200);
-      expect((body(r).user as Json).id).toBe(owner.id);
-      return prisma.user.findUniqueOrThrow({ where: { id: owner.id }, select: { email: true, emailVerifiedAt: true } });
+      expect((body(r).user as Json).id).toBe(createdId);
+      return prisma.user.findUniqueOrThrow({ where: { id: createdId }, select: { email: true, emailVerifiedAt: true } });
     };
 
-    // Same address: the original verification stamp is kept.
-    expect((await signIn(owner.email, true)).emailVerifiedAt!.getTime()).toBe(verifiedBefore.getTime());
     // A new address the provider does NOT vouch for: no longer verified.
     const unvouched = `rem3-b04-unvouched-${randomUUID().slice(0, 8)}@test.proovra.local`;
     expect(await signIn(unvouched, false)).toEqual({ email: unvouched, emailVerifiedAt: null });
@@ -383,7 +398,7 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
     const after = await signIn(vouched, true);
     expect(after.email).toBe(vouched);
     expect(after.emailVerifiedAt).not.toBeNull();
-    expect(after.emailVerifiedAt!.getTime()).toBeGreaterThan(verifiedBefore.getTime());
+    expect(after.emailVerifiedAt!.getTime()).toBeGreaterThan(createdBefore.getTime());
   });
 
   it("B-05: an MFA sign-in still pending when the account closes never mints a session", async () => {
@@ -417,6 +432,10 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
   it("B-11: two concurrent uses of one verification link — exactly one succeeds, the other is already_used", async () => {
     const u = await emailUser("b11", "VerifyRacePass123");
     for (let round = 0; round < 3; round += 1) {
+      // PRO-A1-10 — a link verifies only an UNVERIFIED account (a leftover link
+      // of a verified account is refused), so each round starts unverified
+      // (and password-less, so the race is on the token alone).
+      await prisma.user.update({ where: { id: u.id }, data: { emailVerifiedAt: null, passwordHash: null } });
       const { rawToken } = await auth.createEmailVerificationToken(u.id);
       const results = await Promise.all([
         auth.consumeEmailVerificationToken(rawToken),
@@ -738,6 +757,14 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
         code_challenge_method: "S256",
         state: "rem3",
       });
+      // PRO-X1-01 — the explicit approval the web confirmation page obtains.
+      const approved = await call("POST", "/v1/oauth/extension/approve", token, {
+        client_id: "proovra-extension",
+        redirect_uri: REDIRECT,
+        code_challenge: challenge,
+      });
+      expect(approved.statusCode, approved.body).toBe(200);
+      q.set("approval", body(approved).approval as string);
       const r = await call("GET", `/v1/oauth/extension/authorize?${q.toString()}`, token);
       expect(r.statusCode, r.body).toBe(302);
       const code = new URL(r.headers.location as string).searchParams.get("code")!;
@@ -763,6 +790,14 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
       expect(ok.statusCode, ok.body).toBe(200);
       expect((await call("GET", "/v1/platform/context", body(ok).access_token as string)).statusCode).toBe(200);
       expect((await exchange(c1)).statusCode).toBe(400);
+
+      // PRO-X1-04 — signing out of the web session ends the extension session it
+      // authorized (and only that one).
+      const extToken = body(ok).access_token as string;
+      const other = await login(u.email, PW);
+      expect((await call("POST", "/v1/auth/logout", s1.token!)).statusCode).toBe(200);
+      expect((await call("GET", "/v1/platform/context", extToken)).statusCode).toBe(401);
+      expect((await call("GET", "/v1/auth/me", other.token!)).statusCode).toBe(200);
 
       // Sign-out before the exchange.
       const s2 = await login(u.email, PW);

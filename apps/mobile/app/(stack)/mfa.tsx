@@ -14,7 +14,7 @@ import { toSafeUserError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import { ProovraScreen, ProovraCard, ProovraText, ProovraButton, ProovraInput, ProovraFormField } from "../../src/ui";
 import { MfaEnrollmentAtSignIn } from "../../src/ui/mfa-enrollment-at-sign-in";
-import { MfaRecoveryRequestPanel } from "../../src/ui/mfa-recovery-request";
+import { takeConsentForMfa } from "../../src/auth/pending-sign-in-consent";
 import { AuthBrandHeader } from "../../src/ui/brand";
 import { AuthNote } from "../../src/ui/auth-form";
 
@@ -137,7 +137,13 @@ export default function MfaScreen() {
       setStatus("Verifying second factor...");
       try {
         const session = await verifyMfa(pendingToken, challenge);
-        await completeLogin({ kind: "session", token: session.token, user: session.user }, loginMode);
+        // PRO-NA-05 — the consent ticked on the sign-in screen for THIS sign-in.
+        const legalAcceptedSource = takeConsentForMfa(pendingToken);
+        await completeLogin(
+          { kind: "session", token: session.token, user: session.user },
+          loginMode,
+          legalAcceptedSource ? { legalAcceptedSource } : {},
+        );
       } catch (err) {
         const read = mfaFailure(err, method);
         if (read?.expired) setExpired(read.message);
@@ -383,7 +389,21 @@ export default function MfaScreen() {
         because this route refuses an MFA-pending token and a control that
         401s on tap is worse than one that says why it cannot be used.
       */}
-      <MfaRecoveryRequestPanel teamId={null} />
+      {/*
+        PRO-NA-01 / PRO-NA-12 — a recovery request is filed from a signed-in
+        session, and this challenge is not one. The panel used to probe
+        whatever session the API client still held (another account's, after
+        an SSO return) and file for THAT account, or answer only "needs a
+        session". Here the person is told how recovery works; the request
+        itself is filed on the web from a signed-in browser.
+      */}
+      <ProovraCard>
+        <ProovraText variant="body" testID="mfa-recovery-explainer">
+          Lost access to your second factor? Use a recovery code above. If you have none, file a recovery
+          request on the PROOVRA website from a browser where you are still signed in, or ask your workspace
+          administrator. PROOVRA cannot remove a second factor by email alone.
+        </ProovraText>
+      </ProovraCard>
       {support("Still stuck?")}
     </ProovraScreen>
   );

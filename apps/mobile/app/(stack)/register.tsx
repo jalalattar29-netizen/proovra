@@ -3,6 +3,7 @@ import { View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
 import { registerAccount, resendVerification } from "../../src/auth/auth-api";
+import { holdConsentForRegistration } from "../../src/auth/pending-sign-in-consent";
 import {
   EMAIL_AVAILABILITY_COPY,
   EMAIL_AVAILABILITY_DEBOUNCE_MS,
@@ -155,6 +156,9 @@ export default function RegisterScreen() {
     setBusy(true);
     try {
       const res = await registerAccount({ email: email.trim(), password, displayName: displayName.trim() || undefined });
+      // PRO-NA-05 — the box ticked here is recorded when this account's
+      // verification link signs it in on this device.
+      holdConsentForRegistration(email.trim());
       resend.reset();
       // B-13 — the server's cooldown holds Resend (web register/page.tsx holdResendFor).
       resend.holdFor(res.resendAfterSec);

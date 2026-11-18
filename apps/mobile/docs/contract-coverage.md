@@ -193,7 +193,7 @@ top level of it.
 | OK | `parseArchiveRestoreRequested` | `POST /v1/evidence/:id/archive-restore` | deduplicated, request | deduplicated |
 | OK | `parseEvidenceBulkResponse` | `POST /v1/evidence/bulk` | csv, failedCount, fileName, items, results, successCount | accepted, csv, failedCount, fileName, pendingCount, queued, results, successCount, updated |
 | OK | `parseIntakePartUpload` | `POST /v1/external-intake/:token/sessions/:sid/parts` | part, upload | headers, part, partId, upload |
-| OK | `parseEnrolmentStart` | `POST /v1/identity-security/contact-factors/enroll/start` | codeExpiresAtUtc, factor, verificationAttemptId | codeExpiresAtUtc, factor, verificationAttemptId |
+| OK | `parseEnrolmentStart` | `POST /v1/identity-security/contact-factors/enroll/start` | codeExpiresAtUtc, factor, replaceSupported, verificationAttemptId | codeExpiresAtUtc, factor, verificationAttemptId |
 | OK | `parseStartedChallenge` | `POST /v1/identity-security/step-up/start` | availableMethods, challenge, destinationMask, handoffUrl, method, passkeyOptions | availableMethods, challenge, destinationMask, handoffUrl, method |
 | OK | `parseRecoveryRequest` | `POST /v1/identity/mfa-admin/recovery-requests` | details, error, ok, request, retryAfter | expiresAt, id, request, status |
 | OK | `parseTotpEnrollment` | `POST /v1/identity/mfa/enroll/start` | factorId, otpauthUri, secretBase32 | factorId, otpauthUri, secretBase32 |

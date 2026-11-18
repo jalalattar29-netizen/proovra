@@ -209,6 +209,8 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
         // server's single denial shape.
         return reply.code(200).send({
           factor,
+          // PRO-A1Z-01 — capability: verify accepts `replacesFactorId`.
+          replaceSupported: true,
           verificationAttemptId: verification.attempt.id,
           codeExpiresAtUtc:
             verification.attempt.expiresAtUtc?.toISOString() ?? null,

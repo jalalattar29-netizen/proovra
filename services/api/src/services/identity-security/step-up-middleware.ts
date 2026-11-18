@@ -175,6 +175,9 @@ export async function requireStepUpForSensitiveAction(
           purpose: input.purpose,
           resourceKind: input.resourceKind ?? null,
           resourceId: input.resourceId ?? null,
+          // PRO-A1Z-02 / PRO-O1Z-04 — the workspace this action's challenge is
+          // consumed against (additive), so a client mints it there.
+          teamId: input.teamId ?? null,
         },
         // Retained at the top level for pre-existing consumers.
         purpose: input.purpose,

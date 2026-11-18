@@ -8,7 +8,7 @@
  * already accepts. The extension therefore never holds a long-lived credential,
  * no secret is embedded, and the server reauthorizes every capture call.
  */
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -181,6 +181,75 @@ export function verifyPkceS256(codeVerifier: string, codeChallenge: string): boo
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/**
+ * PRO-X1-01 (DEC-29) — EXPLICIT, SESSION-BOUND CONSENT.
+ *
+ * The redirect allow-list fixed WHERE a code goes, not WHO asked: any page or
+ * co-installed extension that could open a tab carrying the web session got a
+ * code for its own PKCE challenge, silently. Authorize now requires an
+ * approval the signed-in person produced on the web confirmation page
+ * ("Connect the PROOVRA extension as <account>"), minted by
+ * POST /v1/oauth/extension/approve. It is an HMAC over the account, the
+ * authorizing session, the client, the redirect and the PKCE challenge, and
+ * lives two minutes. One code per challenge (createExtensionAuthCode refuses a
+ * second), so a copied approval cannot mint again.
+ */
+export const EXTENSION_CONNECT_APPROVAL_TTL_SECONDS = 120;
+
+type ApprovalBinding = {
+  userId: string;
+  sessionIdHash: string;
+  clientId: string;
+  redirectUri: string;
+  codeChallenge: string;
+};
+
+function approvalMac(secret: string, body: string): string {
+  return createHmac("sha256", `extension-connect-approval:${secret}`).update(body, "utf8").digest("base64url");
+}
+
+export function signExtensionConnectApproval(
+  binding: ApprovalBinding,
+  secret: string,
+  nowMs: number = Date.now(),
+): { approval: string; expiresAt: number } {
+  const expiresAt = Math.floor(nowMs / 1000) + EXTENSION_CONNECT_APPROVAL_TTL_SECONDS;
+  const body = Buffer.from(
+    JSON.stringify({ u: binding.userId, h: binding.sessionIdHash, c: binding.clientId, r: binding.redirectUri, p: binding.codeChallenge, e: expiresAt }),
+    "utf8",
+  ).toString("base64url");
+  return { approval: `${body}.${approvalMac(secret, body)}`, expiresAt };
+}
+
+export function verifyExtensionConnectApproval(
+  approval: string | null | undefined,
+  expected: ApprovalBinding,
+  secret: string,
+  nowMs: number = Date.now(),
+): boolean {
+  if (typeof approval !== "string" || approval.length > 2048) return false;
+  const dot = approval.lastIndexOf(".");
+  if (dot < 1) return false;
+  const body = approval.slice(0, dot);
+  const mac = Buffer.from(approval.slice(dot + 1));
+  const want = Buffer.from(approvalMac(secret, body));
+  if (mac.length !== want.length || !timingSafeEqual(mac, want)) return false;
+  try {
+    const c = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as Record<string, unknown>;
+    return (
+      c.u === expected.userId &&
+      c.h === expected.sessionIdHash &&
+      c.c === expected.clientId &&
+      c.r === expected.redirectUri &&
+      c.p === expected.codeChallenge &&
+      typeof c.e === "number" &&
+      c.e > Math.floor(nowMs / 1000)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function createExtensionAuthCode(input: {
   prisma?: PrismaClient;
   userId: string;
@@ -204,6 +273,24 @@ export async function createExtensionAuthCode(input: {
   if (!isAllowedExtensionRedirect(input.clientId, input.redirectUri)) {
     throw new ExtensionOAuthError("INVALID_CLIENT_OR_REDIRECT", 400);
   }
+  // PRO-X1-03 — codes are not kept forever: this account's expired codes go
+  // whenever it asks for a new one (exchange deletes the one it spends).
+  await db.extensionAuthCode.deleteMany({
+    where: {
+      OR: [
+        { userId: input.userId, expiresAtUtc: { lt: now } },
+        // and anyone's code expired more than a day ago (indexed on expiry).
+        { expiresAtUtc: { lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
+      ],
+    },
+  });
+  // PRO-X1-01 — one code per PKCE challenge: an approval (bound to the
+  // challenge) cannot be replayed to mint a second code.
+  const already = await db.extensionAuthCode.findFirst({
+    where: { userId: input.userId, codeChallenge: input.codeChallenge },
+    select: { id: true },
+  });
+  if (already) throw new ExtensionOAuthError("CODE_CHALLENGE_ALREADY_USED", 400);
   const code = `${base64Url(randomBytes(32))}.${encodeProvenance(input.provenance)}`;
   await db.extensionAuthCode.create({
     data: {
@@ -252,6 +339,8 @@ export async function exchangeExtensionAuthCode(input: {
     select: { userId: true, clientId: true, redirectUri: true, codeChallenge: true, scope: true },
   });
   if (!row) throw new ExtensionOAuthError("CODE_INVALID_OR_USED", 400);
+  // PRO-X1-03 — the spent code is deleted, not kept.
+  await db.extensionAuthCode.deleteMany({ where: { codeHash } });
   if (row.clientId !== input.clientId || row.redirectUri !== input.redirectUri) {
     throw new ExtensionOAuthError("CLIENT_OR_REDIRECT_MISMATCH", 400);
   }

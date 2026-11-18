@@ -247,10 +247,15 @@ export function useStepUpAction({
           pendingActionRef.current = action as StepUpAction<unknown>;
           onSuccessRef.current = (value) => resolve(value as T);
           onFailureRef.current = (e) => reject(e);
+          // PRO-A1Z-02 / PRO-O1Z-04 — the challenge is minted in the workspace
+          // the server will consume it against: the caller's per-action
+          // workspace, else the one the refusal names, else the page's.
+          const refusalTeamId =
+            err.details && typeof err.details.teamId === "string" ? err.details.teamId : null;
           setState({
             kind: "starting",
             details: extractDetails(err.details),
-            teamId: options?.teamId ?? teamId,
+            teamId: options?.teamId ?? refusalTeamId ?? teamId,
           });
         });
       }
@@ -298,7 +303,9 @@ export function useStepUpAction({
             ? { details: previous.details, teamId: previous.teamId }
             : null;
       if (!from) return;
-      if (!teamId) {
+      // PRO-A1Z-02 — the stored per-action workspace, not the hook's.
+      const challengeTeamId = from.teamId ?? teamId;
+      if (!challengeTeamId) {
         setState({
           kind: "failed",
           reason: "Workspace context required.",
@@ -315,7 +322,7 @@ export function useStepUpAction({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              teamId,
+              teamId: challengeTeamId,
               purpose: from.details.purpose,
               resourceKind: from.details.resourceKind,
               resourceId: from.details.resourceId,
@@ -340,7 +347,7 @@ export function useStepUpAction({
         setState({
           kind: "verifying",
           details: from.details,
-          teamId,
+          teamId: challengeTeamId,
           challengeId: json.challenge.id,
           method: json.method ?? "SMS",
           destinationMask:

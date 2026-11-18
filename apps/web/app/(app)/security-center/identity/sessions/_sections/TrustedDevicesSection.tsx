@@ -121,9 +121,11 @@ export function TrustedDevicesSection() {
     if (!teamId) return;
     const ok = await confirm({
       title: "Trust the browser you are using now?",
-      description: `This browser will not be asked for your second factor again in this workspace for ${ttlDays} day${
+      // PRO-A1Z-03 — trust is recorded and listed; no sign-in or step-up
+      // decision reads it today, so the copy says only what it does.
+      description: `This browser is recorded as one you recognise for ${ttlDays} day${
         ttlDays === 1 ? "" : "s"
-      }. It applies to your own account only. Do not do this on a shared or public computer.`,
+      }. You will still be asked for your second factor as usual. It applies to your own account only.`,
       confirmLabel: "Trust this browser",
       tone: "warning",
       testId: "trusted-device-trust-self",
@@ -194,7 +196,7 @@ export function TrustedDevicesSection() {
   );
 
   const description =
-    "Devices that skip the second-factor prompt in this workspace, and for how long. Only network and browser PREVIEWS are stored — no device fingerprint, no raw address, no secret. Trusting a device applies to your own account and the browser you are using now; it can never be done on another member's behalf.";
+    "Browsers recorded as recognised in this workspace, and until when. Recording a browser does not skip any second-factor prompt. Only network and browser PREVIEWS are stored — no device fingerprint, no raw address, no secret. Trusting a device applies to your own account and the browser you are using now; it can never be done on another member's behalf.";
 
   if (!teamId) {
     return (
@@ -327,8 +329,7 @@ export function TrustedDevicesSection() {
           </Button>
         </div>
         <p style={{ ...sectionMuted, margin: "8px 0 0" }}>
-          The workspace policy caps how long trust can last, and the server
-          clamps whatever you enter here to that cap.
+          A browser can be recorded for at most 180 days.
         </p>
       </Card>
       )}

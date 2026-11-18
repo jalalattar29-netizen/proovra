@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -16,7 +16,12 @@ vi.mock("next/navigation", () => ({
 }));
 let auth: { user: unknown; authReady: boolean } = { user: null, authReady: true };
 vi.mock("../../app/providers", () => ({ useAuth: () => auth }));
-vi.mock("../../lib/api", () => ({ apiBaseUrl: () => "https://api.example.test" }));
+const apiFetch = vi.fn();
+vi.mock("../../lib/api", () => ({
+  apiBaseUrl: () => "https://api.example.test",
+  apiFetch: (...args: unknown[]) => apiFetch(...args),
+  isApiResponseError: (e: unknown) => typeof (e as { statusCode?: unknown })?.statusCode === "number",
+}));
 
 import ExtensionContinuePage from "../../app/auth/extension/continue/page";
 import { validateExtensionAuthorizeQuery } from "../../lib/extension/extension-authorize-request";
@@ -35,6 +40,7 @@ const qs = (o: Record<string, string>) => new URLSearchParams(o).toString();
 let locationReplace: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   replace.mockReset();
+  apiFetch.mockReset();
   locationReplace = vi.fn();
   Object.defineProperty(window, "location", {
     configurable: true,
@@ -87,16 +93,52 @@ describe("/auth/extension/continue", () => {
     expect(locationReplace).not.toHaveBeenCalled();
   });
 
-  it("signed in → the auth window goes to the API authorize endpoint on the API origin", async () => {
+  it("PRO-X1-01: signed in → nothing happens until the person confirms the account", async () => {
     query = qs(VALID);
-    auth = { user: { id: "u1" }, authReady: true };
-    render(<ExtensionContinuePage />);
+    auth = { user: { id: "u1", email: "me@example.test" }, authReady: true };
+    const { container, getByText } = render(<ExtensionContinuePage />);
+    expect(getByText(/me@example.test/, { selector: "strong" })).toBeTruthy();
+    expect(container.querySelector("[data-extension-continue-state='confirm']")).not.toBeNull();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(locationReplace).not.toHaveBeenCalled();
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  it("Connect → approval minted, then the auth window goes to the API authorize endpoint with it", async () => {
+    query = qs(VALID);
+    auth = { user: { id: "u1", email: "me@example.test" }, authReady: true };
+    apiFetch.mockResolvedValueOnce({ approval: "signed.approval" });
+    const { container } = render(<ExtensionContinuePage />);
+    fireEvent.click(container.querySelector("[data-extension-continue-action='connect']")!);
     await waitFor(() => expect(locationReplace).toHaveBeenCalledTimes(1));
+    expect(apiFetch.mock.calls[0][0]).toBe("/v1/oauth/extension/approve");
     const url = new URL(String(locationReplace.mock.calls[0][0]));
     expect(url.origin).toBe("https://api.example.test");
     expect(url.pathname).toBe("/v1/oauth/extension/authorize");
     expect(url.searchParams.get("redirect_uri")).toBe(VALID.redirect_uri);
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+    expect(url.searchParams.get("approval")).toBe("signed.approval");
+  });
+
+  it("an API without the approve route (404) keeps the previous hand-off", async () => {
+    query = qs(VALID);
+    auth = { user: { id: "u1", email: "me@example.test" }, authReady: true };
+    apiFetch.mockRejectedValueOnce(Object.assign(new Error("nf"), { statusCode: 404 }));
+    const { container } = render(<ExtensionContinuePage />);
+    fireEvent.click(container.querySelector("[data-extension-continue-action='connect']")!);
+    await waitFor(() => expect(locationReplace).toHaveBeenCalledTimes(1));
+    const url = new URL(String(locationReplace.mock.calls[0][0]));
+    expect(url.searchParams.get("approval")).toBeNull();
+  });
+
+  it("Cancel → not connected, no navigation", async () => {
+    query = qs(VALID);
+    auth = { user: { id: "u1", email: "me@example.test" }, authReady: true };
+    const { container } = render(<ExtensionContinuePage />);
+    fireEvent.click(container.querySelector("[data-extension-continue-action='cancel']")!);
+    await waitFor(() => expect(container.querySelector("[data-extension-continue-state='declined']")).not.toBeNull());
+    expect(locationReplace).not.toHaveBeenCalled();
+    expect(apiFetch).not.toHaveBeenCalled();
   });
 
   it("invalid parameters → error UI, no navigation at all", async () => {
@@ -120,7 +162,8 @@ describe("/auth/extension/continue", () => {
 
   it("never issues a relative /v1 navigation", () => {
     const src = readFileSync(resolve(__dirname, "../../app/auth/extension/continue/page.tsx"), "utf8");
-    expect(src).not.toMatch(/["'`]\/v1\//);
+    // API calls go through apiFetch; NAVIGATIONS never use a relative /v1 URL.
+    expect(src).not.toMatch(/location\.(replace|assign)\(\s*["'`]\/v1\//);
     expect(src).toMatch(/apiBaseUrl\(\)/);
   });
 });

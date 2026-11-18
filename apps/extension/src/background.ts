@@ -50,15 +50,34 @@ function serialized<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 function rememberStranded(captureSessionId: string): Promise<void> {
-  return serialized(() => rememberUnreleased(pendingReleaseStore, captureSessionId));
+  // PRO-X1-05 — stamped with the account the reservation was made under.
+  return serialized(async () =>
+    rememberUnreleased(pendingReleaseStore, captureSessionId, Date.now(), (await getStoredToken())?.account ?? null),
+  );
+}
+
+/**
+ * PRO-X1-05 — capture results are per account: they are dropped when the
+ * account signs out or another account signs in, so the next person never
+ * sees the previous account's outcome or a link to its record.
+ */
+async function clearCaptureStatuses(): Promise<void> {
+  await chrome.storage.session.remove(STATUS_KEY).catch(() => undefined);
 }
 
 /** Release remembered reservations with a working token; never throws. */
 function releaseStranded(): Promise<void> {
   return serialized(async () => {
-    const token = (await getStoredToken())?.accessToken;
+    const stored = await getStoredToken();
+    const token = stored?.accessToken;
     if (!token) return;
-    await releasePending(pendingReleaseStore, token, (t, id) => apiClient.discardSession(t, id)).catch(() => undefined);
+    await releasePending(
+      pendingReleaseStore,
+      token,
+      (t, id) => apiClient.discardSession(t, id),
+      Date.now(),
+      stored?.account ?? null,
+    ).catch(() => undefined);
   }).catch(() => undefined);
 }
 
@@ -229,7 +248,15 @@ chrome.runtime.onMessage.addListener((message: Msg, sender, sendResponse) => {
     return true;
   }
   if (message.kind === "SIGN_IN") {
-    signIn()
+    void getStoredToken()
+      .then((before) => before?.account ?? null)
+      .catch(() => null)
+      .then((previousAccount) =>
+        signIn().then(async (r) => {
+          if (r.account !== previousAccount) await clearCaptureStatuses();
+          return r;
+        }),
+      )
       .then((r) => {
         sendResponse({ ok: true, account: r.account });
         // F-12 — release what an ended sign-in left reserved.
@@ -243,6 +270,10 @@ chrome.runtime.onMessage.addListener((message: Msg, sender, sendResponse) => {
   }
   if (message.kind === "SIGN_OUT") {
     signOut((token) => apiClient.revokeExtensionToken(token))
+      .then(async (r) => {
+        await clearCaptureStatuses();
+        return r;
+      })
       .then((r) => sendResponse({ ok: true, revoked: r.revoked }))
       .catch(() => sendResponse({ ok: false }));
     return true;

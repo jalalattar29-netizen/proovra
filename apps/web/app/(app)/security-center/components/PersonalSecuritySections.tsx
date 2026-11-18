@@ -1386,6 +1386,13 @@ function MfaCard({
       <h2 style={sectionTitleStyle}>Two-factor authentication</h2>
 
       {mfaError ? <div style={errorBox}>{mfaError}</div> : null}
+      {/* PRO-A2U-01 — a refused Set up / Remove / Regenerate is announced in
+          the status phase too (the enrolling phase renders its own below). */}
+      {phase.kind !== "enrolling" && error ? (
+        <div style={errorBox} role="alert" data-cc-mfa-action-error>
+          {error}
+        </div>
+      ) : null}
 
       {phase.kind === "status" ? (
         mfa === null ? (

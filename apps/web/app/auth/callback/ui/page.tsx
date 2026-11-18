@@ -147,7 +147,10 @@ export default function AppleCallbackPage() {
     }
 
     // Only validate state for Apple (Google uses static state="google")
-    if (state && state !== "google" && storedState && state !== storedState) {
+    // PRO-A1-15 — the check RUNS: a callback that carries a state this browser
+    // never stored (no flow was started here) is refused like a mismatch,
+    // before any API call.
+    if (state && state !== "google" && state !== storedState) {
       authLogger.logError("callback_state_mismatch", `state=${state}, stored=${storedState}`);
       setError("OAuth state mismatch.");
       addToast("OAuth state mismatch. Please try again.", "error");

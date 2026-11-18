@@ -26,6 +26,9 @@ export const SIGNED_OUT_ROUTES: ReadonlySet<string> = new Set([
   "sso-complete",
   // Published documents.
   "legal",
+  // PRO-NA-01 — the static support page (no API call): a person stuck at the
+  // second-factor challenge is signed out and must still reach it.
+  "support",
   // Token-bearing public flows: the token is the authority, not a session.
   "intake",
   "invite",

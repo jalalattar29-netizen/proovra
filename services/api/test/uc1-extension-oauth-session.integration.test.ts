@@ -37,6 +37,7 @@ describe("UC-1 extension token session — live PostgreSQL 16", () => {
   let app: IntegrationHarness["app"];
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let hashSessionId: (sid: string) => string;
+  let jwtModule: typeof import("../src/services/jwt.js");
   const envBefore = {
     allow: process.env.EXTENSION_OAUTH_REDIRECT_ALLOW,
     web: process.env.WEB_BASE_URL,
@@ -50,6 +51,7 @@ describe("UC-1 extension token session — live PostgreSQL 16", () => {
     app = harness.app;
     ({ prisma } = await import("../src/db.js"));
     ({ hashSessionId } = await import("../src/services/identity-security/session-revocation.service.js"));
+    jwtModule = await import("../src/services/jwt.js");
     // A real Customer Organization always has its security policy provisioned
     // (requireAuth fails CLOSED without one); the harness seeds none.
     for (const t of [harness.fixtures.teamA, harness.fixtures.teamB]) {
@@ -87,12 +89,21 @@ describe("UC-1 extension token session — live PostgreSQL 16", () => {
 
   async function mint(parentToken = teamA().ownerToken): Promise<string> {
     const { verifier, challenge } = pkce();
+    // PRO-X1-01 — the explicit approval the web confirmation page obtains.
+    const approved = await app.inject({
+      method: "POST",
+      url: "/v1/oauth/extension/approve",
+      headers: { authorization: `Bearer ${parentToken}`, "content-type": "application/json" },
+      payload: JSON.stringify({ client_id: CLIENT, redirect_uri: REDIRECT, code_challenge: challenge }),
+    });
+    expect(approved.statusCode, approved.body).toBe(200);
     const authz = await app.inject({
       method: "GET",
       url:
         `/v1/oauth/extension/authorize?response_type=code&client_id=${CLIENT}` +
         `&redirect_uri=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}` +
-        `&code_challenge_method=S256&state=s&scope=${encodeURIComponent("capture.direct offline")}`,
+        `&code_challenge_method=S256&state=s&scope=${encodeURIComponent("capture.direct offline")}` +
+        `&approval=${encodeURIComponent(approved.json().approval as string)}`,
       headers: { authorization: `Bearer ${parentToken}` },
     });
     expect(authz.statusCode, authz.body).toBe(302);
@@ -234,6 +245,43 @@ describe("UC-1 extension token session — live PostgreSQL 16", () => {
     });
     expect(stale.statusCode).toBe(302);
     expect(String(stale.headers.location)).toContain("/login?next=");
+  });
+
+  it("PRO-X1-09: a cookie that verifies but whose session was revoked is sent to sign in, not shown JSON", async () => {
+    const { challenge } = pkce();
+    const qs =
+      `response_type=code&client_id=${CLIENT}&redirect_uri=${encodeURIComponent(REDIRECT)}` +
+      `&code_challenge=${challenge}&code_challenge_method=S256&state=revoked-state`;
+    const ownerToken = teamA().ownerToken;
+    const c = claims(ownerToken) as { sub: string };
+    // A second, separately revocable session of the same person.
+    const { signJwt } = jwtModule;
+    const token = signJwt(
+      { sub: c.sub, provider: "EMAIL", email: (claims(ownerToken) as { email?: string }).email ?? null, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) } as never,
+      process.env.AUTH_JWT_SECRET!,
+      3600,
+    );
+    const sid = (claims(token) as { sid: string }).sid;
+    await prisma.authenticatedSession.create({
+      data: { userId: c.sub, sessionIdHash: hashSessionId(sid), expiresAtUtc: new Date(Date.now() + 3_600_000), revokedAtUtc: new Date() },
+    });
+    await prisma.revokedSession.create({
+      data: { userId: c.sub, scope: "SINGLE_SESSION", sessionIdHash: hashSessionId(sid), reason: "USER_LOGGED_OUT" },
+    });
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/oauth/extension/authorize?${qs}`,
+      headers: { accept: "text/html", "sec-fetch-mode": "navigate", cookie: `proovra_session=${token}` },
+    });
+    expect(res.statusCode, res.body).toBe(302);
+    expect(String(res.headers.location)).toContain("/login?next=");
+    // An API caller with the same refused credential still gets the JSON 401.
+    const api = await app.inject({
+      method: "GET",
+      url: `/v1/oauth/extension/authorize?${qs}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(api.statusCode).toBe(401);
   });
 
   it("UC-EXT-006: an unregistered redirect is refused before any sign-in bounce", async () => {

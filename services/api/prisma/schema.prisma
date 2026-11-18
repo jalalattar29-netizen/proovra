@@ -9735,6 +9735,10 @@ model AuthenticatedSession {
   /// the same value → counted ONCE. (Migration 20271004000000, NOT applied.)
   organizationContextId String? @map("organization_context_id") @db.Uuid
 
+  /// PRO-X1-04 — for an extension session: the hashed id of the web session
+  /// that authorized it. Ending that session ends this one. Null otherwise.
+  parentSessionIdHash String? @map("parent_session_id_hash") @db.VarChar(64)
+
   team                Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
   organizationContext Organization? @relation("AuthenticatedSessionOrgContext", fields: [organizationContextId], references: [id], onDelete: SetNull)
   user                User          @relation("AuthenticatedSessionUser", fields: [userId], references: [id], onDelete: Cascade)
@@ -9744,6 +9748,7 @@ model AuthenticatedSession {
   @@index([userId, expiresAtUtc])
   // PHASE 10 §2 — org-scoped concurrent-session count (userId, org, still-active).
   @@index([userId, organizationContextId, revokedAtUtc, expiresAtUtc])
+  @@index([userId, parentSessionIdHash])
   @@index([ssoConnectionId])
   @@index([expiresAtUtc])
   // Phase 26.5 — stale-session sweep + adaptive auth risk lookup.

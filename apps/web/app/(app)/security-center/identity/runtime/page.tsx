@@ -34,6 +34,7 @@ import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import {
   StepUpModal,
+  isStepUpCancelled,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
@@ -398,21 +399,25 @@ export default function IdentityRuntimePage() {
       if (!ok) return;
       setBusy(sessionId);
       try {
-        await apiFetch(
-          `/v1/admin/identity/sessions/${encodeURIComponent(sessionId)}/quarantine`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              teamId,
-              reason,
-              releaseHours: QUARANTINE_RELEASE_HOURS,
-            }),
-          },
+        // PRO-A2-04 — quarantine is now stepped up server-side.
+        await stepUp.runStepUpAction(async (headers) =>
+          apiFetch(
+            `/v1/admin/identity/sessions/${encodeURIComponent(sessionId)}/quarantine`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+              body: JSON.stringify({
+                teamId,
+                reason,
+                releaseHours: QUARANTINE_RELEASE_HOURS,
+              }),
+            },
+          ),
         );
         setNotice("Session quarantined.");
         load();
       } catch (err) {
+        if (isStepUpCancelled(err)) return;
         setError(
           toSafeUserError(err, { message: "Quarantine failed." }).message,
         );
@@ -420,7 +425,7 @@ export default function IdentityRuntimePage() {
         setBusy(null);
       }
     },
-    [teamId, load, confirm, quarantineReason, sessions],
+    [teamId, load, confirm, quarantineReason, sessions, stepUp],
   );
 
   const release = useCallback(
@@ -495,7 +500,7 @@ export default function IdentityRuntimePage() {
     }
     const ok = await confirm({
       title: "Emergency org-wide session revoke?",
-      description: `EVERY active session in this workspace will be terminated. All users will be signed out. This action is logged with the incident reason "${reason.trim()}" and cannot be undone.`,
+      description: `Every session this workspace governs will be terminated: sessions started here or through this organization's single sign-on, and every session of identities the organization manages. This action is logged with the incident reason "${reason.trim()}" and cannot be undone.`,
       confirmLabel: "Revoke ALL sessions",
       cancelLabel: "Cancel emergency",
       tone: "danger",
@@ -505,11 +510,16 @@ export default function IdentityRuntimePage() {
     if (!ok) return;
     setBusy("emergency");
     try {
-      const res = await apiFetch("/v1/admin/identity/emergency-revoke", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId, reason: reason.trim() }),
-      });
+      // PRO-A2U-02 — the server always requires a step-up for this action;
+      // the page's step-up dialog obtains it (it never did, so the kill switch
+      // could not run).
+      const res = (await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/admin/identity/emergency-revoke", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({ teamId, reason: reason.trim() }),
+        }),
+      )) as { usersRevoked?: number; sessionsAffected?: number } | null;
       // Re-read the runtime BEFORE announcing: the notice describes the
       // state the operator is now looking at, not the one they left.
       await load();
@@ -517,8 +527,12 @@ export default function IdentityRuntimePage() {
         `Revoked ${res?.usersRevoked ?? 0} users (${res?.sessionsAffected ?? 0} sessions).`,
       );
     } catch (err) {
+      if (isStepUpCancelled(err)) {
+        setNotice("Emergency revoke was not run: the confirmation was cancelled. No session was revoked.");
+        return;
+      }
       setError(
-        toSafeUserError(err, { message: "Emergency revoke failed (step-up required?)." }).message,
+        toSafeUserError(err, { message: "Emergency revoke failed. No session was revoked." }).message,
       );
     } finally {
       setBusy(null);
@@ -526,7 +540,7 @@ export default function IdentityRuntimePage() {
     // `confirm` comes from the globally-mounted ConfirmActionProvider and is
     // memoised there with an empty dep array, so listing it is stable — it
     // cannot re-create this callback on every render.
-  }, [teamId, load, confirm, busy, emergencyReason]);
+  }, [teamId, load, confirm, busy, emergencyReason, stepUp]);
 
   /**
    * PHASE 12B — operator-triggered identity-security reconcile.

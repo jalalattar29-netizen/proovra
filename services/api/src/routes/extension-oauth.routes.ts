@@ -29,6 +29,8 @@ import {
 } from "../services/jwt.js";
 import { getSecret } from "../config/runtime-secrets.js";
 import { EXTENSION_CAPTURE_SCOPE } from "../services/auth/extension-scope.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
+import { trustedClientIpKey } from "../middleware/client-ip.js";
 import {
   endOwnSession,
   recordAuthenticatedSession,
@@ -41,6 +43,9 @@ import {
   exchangeExtensionAuthCode,
   isAllowedExtensionRedirect,
   normalizeExtensionScope,
+  signExtensionConnectApproval,
+  verifyExtensionConnectApproval,
+  EXTENSION_CONNECT_APPROVAL_TTL_SECONDS,
   type ExtensionAuthProvenance,
 } from "../services/auth/extension-oauth.service.js";
 
@@ -52,7 +57,19 @@ const AuthorizeQuery = z.object({
   code_challenge_method: z.literal("S256"),
   state: z.string().min(1).max(256),
   scope: z.string().max(120).optional(),
+  /** PRO-X1-01 — the person's explicit, session-bound approval (web confirmation page). */
+  approval: z.string().min(10).max(2048).optional(),
 });
+
+const ApproveBody = z.object({
+  client_id: z.string().min(1).max(64),
+  redirect_uri: z.string().min(1).max(512),
+  code_challenge: z.string().min(43).max(128),
+});
+
+/** PRO-X1-03 — per-account and per-address bounds on the OAuth routes. */
+const EXTENSION_AUTHORIZE_LIMIT_PER_MIN = 30;
+const EXTENSION_TOKEN_LIMIT_PER_MIN = 30;
 
 const TokenBody = z.object({
   grant_type: z.literal("authorization_code"),
@@ -75,6 +92,26 @@ function webBaseUrl(): string {
     /\/+$/,
     "",
   );
+}
+
+/**
+ * PRO-X1-01 — where a signed-in browser without an approval is sent: the web
+ * confirmation page ("Connect the PROOVRA extension as <account>"), which
+ * mints the approval and re-enters authorize with it.
+ */
+export function buildExtensionConsentRedirect(
+  q: z.infer<typeof AuthorizeQuery>,
+): string {
+  const params = new URLSearchParams({
+    response_type: q.response_type,
+    client_id: q.client_id,
+    redirect_uri: q.redirect_uri,
+    code_challenge: q.code_challenge,
+    code_challenge_method: q.code_challenge_method,
+    state: q.state,
+    ...(q.scope ? { scope: q.scope } : {}),
+  });
+  return `${webBaseUrl()}${EXTENSION_AUTHORIZE_CONTINUE_PATH}?${params.toString()}`;
 }
 
 export function buildExtensionSignInRedirect(
@@ -255,7 +292,24 @@ async function extensionSignInRedirect(
 export async function extensionOAuthRoutes(app: FastifyInstance) {
   app.get(
     "/v1/oauth/extension/authorize",
-    { preHandler: [extensionSignInRedirect, requireAuth] },
+    {
+      preHandler: [extensionSignInRedirect, requireAuth],
+      // PRO-X1-09 — a browser navigation (the extension's auth window) is never
+      // left on a JSON 401: a cookie that verifies but whose session is refused
+      // (ended, revoked, policy) goes to the web sign-in, which treats the
+      // visitor as signed out and returns here.
+      onSend: async (req, reply, payload) => {
+        if (reply.statusCode !== 401 || !isBrowserNavigation(req)) return payload;
+        const parsed = AuthorizeQuery.safeParse(req.query ?? {});
+        if (!parsed.success || !isAllowedExtensionRedirect(parsed.data.client_id, parsed.data.redirect_uri)) {
+          return payload;
+        }
+        reply.code(302);
+        reply.header("location", buildExtensionSignInRedirect(parsed.data));
+        reply.header("content-type", "text/plain; charset=utf-8");
+        return "";
+      },
+    },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const parsed = AuthorizeQuery.safeParse(req.query ?? {});
       if (!parsed.success) {
@@ -264,10 +318,42 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
       const q = parsed.data;
       const userId = getAuthUserId(req);
 
+      // PRO-X1-03 — bounded per account.
+      const rate = await enforceRateLimit({
+        key: `ratelimit:extension-oauth:authorize:${userId}`,
+        max: EXTENSION_AUTHORIZE_LIMIT_PER_MIN,
+        windowSec: 60,
+        bound: "global",
+      });
+      if (!rate.allowed) return reply.code(429).send({ error: "rate_limited" });
+
       try {
         const provenance = await authorizingProvenance(req, userId);
         if (!provenance) {
           return reply.code(401).send({ error: "reauthentication_required" });
+        }
+        // PRO-X1-01 (DEC-29) — no code without the person's explicit approval
+        // for THIS session, client, redirect and PKCE challenge.
+        const secret = getSecret("AUTH_JWT_SECRET");
+        const approved =
+          !!secret &&
+          !!provenance.sessionIdHash &&
+          verifyExtensionConnectApproval(
+            q.approval,
+            {
+              userId,
+              sessionIdHash: provenance.sessionIdHash,
+              clientId: q.client_id,
+              redirectUri: q.redirect_uri,
+              codeChallenge: q.code_challenge,
+            },
+            secret,
+          );
+        if (!approved) {
+          if (isBrowserNavigation(req)) {
+            return reply.code(302).redirect(buildExtensionConsentRedirect(q));
+          }
+          return reply.code(403).send({ error: "consent_required" });
         }
         const { code } = await createExtensionAuthCode({
           userId,
@@ -293,9 +379,60 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
     },
   );
 
+  // PRO-X1-01 (DEC-29) — the confirmation the web page posts when the signed-in
+  // person presses "Connect". Cookie session (the CSRF/origin guard applies to
+  // this POST); a restricted-scope token (extension, enrolment) is refused by
+  // requireAuth. The approval names this session, so it cannot be carried to
+  // another browser or account.
+  app.post(
+    "/v1/oauth/extension/approve",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const parsed = ApproveBody.safeParse(req.body ?? {});
+      if (!parsed.success) return reply.code(400).send({ error: "invalid_request" });
+      const b = parsed.data;
+      if (!isAllowedExtensionRedirect(b.client_id, b.redirect_uri)) {
+        return reply.code(400).send({ error: "INVALID_CLIENT_OR_REDIRECT" });
+      }
+      if (!/^[A-Za-z0-9._~-]{43,128}$/.test(b.code_challenge)) {
+        return reply.code(400).send({ error: "INVALID_CODE_CHALLENGE" });
+      }
+      const userId = getAuthUserId(req);
+      const rate = await enforceRateLimit({
+        key: `ratelimit:extension-oauth:approve:${userId}`,
+        max: EXTENSION_AUTHORIZE_LIMIT_PER_MIN,
+        windowSec: 60,
+        bound: "global",
+      });
+      if (!rate.allowed) return reply.code(429).send({ error: "rate_limited" });
+      const sessionIdHash = (req.user as { sessionIdHash?: string | null } | undefined)?.sessionIdHash ?? null;
+      const secret = getSecret("AUTH_JWT_SECRET");
+      if (!sessionIdHash) return reply.code(401).send({ error: "reauthentication_required" });
+      if (!secret) return reply.code(500).send({ error: "server_misconfigured" });
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+      const { approval } = signExtensionConnectApproval(
+        { userId, sessionIdHash, clientId: b.client_id, redirectUri: b.redirect_uri, codeChallenge: b.code_challenge },
+        secret,
+      );
+      return reply.code(200).send({
+        approval,
+        account: user?.email ?? null,
+        expiresIn: EXTENSION_CONNECT_APPROVAL_TTL_SECONDS,
+      });
+    },
+  );
+
   app.post(
     "/v1/oauth/extension/token",
     async (req: FastifyRequest, reply: FastifyReply) => {
+      // PRO-X1-03 — the public token endpoint is bounded per client address.
+      const rate = await enforceRateLimit({
+        key: `ratelimit:extension-oauth:token:${trustedClientIpKey(req).slice(0, 200)}`,
+        max: EXTENSION_TOKEN_LIMIT_PER_MIN,
+        windowSec: 60,
+        bound: "global",
+      });
+      if (!rate.allowed) return reply.code(429).send({ error: "rate_limited" });
       const parsed = TokenBody.safeParse(req.body ?? {});
       if (!parsed.success) {
         return reply.code(400).send({ error: "invalid_request" });
@@ -377,6 +514,8 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
             iat: claims.iat,
             exp: claims.exp,
             ssoConnectionId: provenance.ssoConnId,
+            // PRO-X1-04 — ending the authorizing web session ends this one.
+            parentSessionIdHash: provenance.sessionIdHash,
             ipPreview: ipPreview(req),
             uaPreview: uaPreview(req),
           });

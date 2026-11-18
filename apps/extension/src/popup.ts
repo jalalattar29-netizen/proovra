@@ -7,6 +7,7 @@
  */
 import { clearToken, getStoredToken } from "./lib/auth.js";
 import { CONFIG } from "./lib/config.js";
+import { CLIENT_ID_HEADER, clientIdHeaderValue } from "./lib/api-client.js";
 import {
   loadAllEligibleCases,
   classifyContextResponse,
@@ -24,7 +25,8 @@ import {
   parseStoredClientUpdate,
   type ClientUpdateNotice,
 } from "./lib/client-contract.js";
-import { followUpLink, retryOffered } from "./lib/popup-links.js";
+import { TERMS_DENIAL, followUpLink, retryOffered } from "./lib/popup-links.js";
+import { denialToMessage } from "./lib/denial-copy.js";
 import type { CaptureStatus } from "./lib/capture-registry.js";
 
 /** Shown when sign-in does not complete, for any reason. */
@@ -56,7 +58,8 @@ function showUpdateNotice(next: ClientUpdateNotice | null) {
 async function loadStoredUpdateNotice() {
   try {
     const out = await chrome.storage.local.get(CLIENT_UPDATE_STORAGE_KEY);
-    showUpdateNotice(parseStoredClientUpdate(out?.[CLIENT_UPDATE_STORAGE_KEY]));
+    // PRO-X1-07 — only a verdict this very build earned.
+    showUpdateNotice(parseStoredClientUpdate(out?.[CLIENT_UPDATE_STORAGE_KEY], CONFIG.extensionVersion));
   } catch {
     /* storage unavailable: the popup's own reads still decide */
   }
@@ -66,13 +69,17 @@ const params = new URLSearchParams(location.search);
 
 let workspaces: CaptureWorkspace[] = [];
 let lastStatus: CaptureStatus | null = null;
+/** PRO-X1-06 — the current terms must be accepted before any capture. */
+let termsRequired = false;
+/** PRO-X1-08 — the attempt whose access refusal already reloaded the list. */
+let reloadedForAttempt: string | null = null;
 let targetTabIdCache: number | null = null;
 
 /** Read an API resource with the stored bearer; `status` null = no HTTP answer. */
 async function apiGet(token: string, path: string): Promise<{ status: number | null; body: unknown }> {
   try {
     const res = await fetch(`${CONFIG.apiOrigin}${path}`, {
-      headers: { authorization: `Bearer ${token}` },
+      headers: { authorization: `Bearer ${token}`, [CLIENT_ID_HEADER]: clientIdHeaderValue() },
       credentials: "omit",
       signal: AbortSignal.timeout(20_000),
     });
@@ -154,7 +161,13 @@ function showSignedOut(note: string | null) {
 function applyStatus(s: CaptureStatus | null) {
   lastStatus = s;
   const running = s?.state === "RUNNING";
-  captureButtons(!running && workspaces.length > 0);
+  captureButtons(!running && workspaces.length > 0 && !termsRequired);
+  // PRO-X1-08 — the workspace refused this account (removed, demoted, gone):
+  // reload the list once so the stale workspace is no longer offered.
+  if (s?.state === "FAILED" && (s.denial === "not_found" || s.denial === "permission_denied") && s.attemptId !== reloadedForAttempt) {
+    reloadedForAttempt = s.attemptId;
+    void render();
+  }
   $("cancel").hidden = !running || Boolean(s?.cancelRequested);
   // Free audit F-27b — a plan / credit / storage refusal is not fixed by
   // trying again: no Retry, and a link to the plans page instead.
@@ -208,6 +221,25 @@ async function refreshCases(token: string) {
     showSignedOut(SESSION_ENDED);
     return;
   }
+  if (cases.kind === "terms_required") {
+    // PRO-X1-06 — every capture would be refused: say why now, offer the
+    // acceptance link, and keep Capture disabled (it used to say "You can
+    // still capture" and then photograph the page for a refusal).
+    termsRequired = true;
+    captureButtons(false);
+    note.textContent = denialToMessage(TERMS_DENIAL) ?? "Accept PROOVRA's updated terms, then capture again.";
+    note.hidden = false;
+    const link = followUpLink(
+      { state: "FAILED", reason: "DENIED", denial: TERMS_DENIAL } as unknown as CaptureStatus,
+      CONFIG.webOrigin,
+    );
+    const followUp = $("follow-up") as HTMLButtonElement;
+    followUp.hidden = !link;
+    followUp.textContent = link?.label ?? "";
+    followUp.dataset.url = link?.url ?? "";
+    return;
+  }
+  termsRequired = false;
   if (cases.kind === "error") {
     // Not blocking: a capture can still be filed later from PROOVRA.
     note.textContent = "Cases could not be loaded. You can still capture and file the record later.";

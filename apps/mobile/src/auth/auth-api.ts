@@ -132,6 +132,17 @@ export async function verifyEmail(token: string, password?: string): Promise<Aut
   return { token: String(data["token"] ?? ""), user: (data["user"] as AuthUser | null) ?? null };
 }
 
+/**
+ * PRO-A1-10 — the verification link is a sign-in like any other: it can answer
+ * with a second-factor challenge or the guided enrolment instead of a session.
+ */
+export async function verifyEmailSignIn(token: string, password?: string): Promise<LoginResult> {
+  return signInExchange("/v1/auth/email/verify", {
+    method: "POST",
+    body: JSON.stringify(password ? { token, password } : { token }),
+  });
+}
+
 export async function resendVerification(email: string): Promise<void> {
   await apiFetch("/v1/auth/email/resend-verification", {
     method: "POST",

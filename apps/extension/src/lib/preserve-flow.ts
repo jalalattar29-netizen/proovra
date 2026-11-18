@@ -23,7 +23,7 @@
 import { classifyStoragePutStatus, storagePutRetryDelayMs } from "@proovra/shared";
 import type { WebCaptureArtifactDescriptor, WebCaptureLimitationCode } from "@proovra/shared";
 
-import { ApiError, NetworkError, StoragePutError, isTransientFailure, type ApiClient } from "./api-client.js";
+import { ApiError, NetworkError, REAUTHENTICATION_DENIAL, StoragePutError, isTransientFailure, type ApiClient } from "./api-client.js";
 import {
   CaptureCancelledError,
   CaptureInterruptedError,
@@ -164,7 +164,10 @@ function describe(err: unknown): string {
 }
 
 function isAuthFailure(err: unknown): boolean {
-  return err instanceof ApiError && err.status === 401;
+  // PRO-X1-02 — 401 REAUTHENTICATION_REQUIRED is the target organization's
+  // sign-in policy refusing THIS workspace for this token; the token is still
+  // valid everywhere else. It is a refusal (DENIED), not an ended sign-in.
+  return err instanceof ApiError && err.status === 401 && err.denial !== REAUTHENTICATION_DENIAL;
 }
 
 /**

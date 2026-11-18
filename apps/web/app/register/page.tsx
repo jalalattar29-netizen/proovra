@@ -24,6 +24,7 @@ import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import {
   clearPendingOAuthLegalAcceptance,
   savePendingOAuthLegalAcceptance,
+  savePendingRegisterLegalAcceptance,
 } from "../../lib/legalAcceptance";
 import { evaluatePassword } from "../../lib/passwordRules";
 import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
@@ -547,6 +548,14 @@ function RegisterPageContent() {
       // succeeds — that endpoint mints the session JWT, and the
       // verify-email page records the acceptances + claim then.
       if (isEmailRegisterFlow) {
+        // PRO-A1-06 — the box this person ticked is recorded when THEIR
+        // verification link signs them in on this browser (never replayed
+        // for whoever opens a link elsewhere).
+        savePendingRegisterLegalAcceptance({
+          email: (data?.email as string | undefined) ?? email,
+          acceptances: getRequiredAcceptances(),
+          createdAt: new Date().toISOString(),
+        });
         setRegisterStep(4);
         setStatus(REGISTER_STEP_LABELS[4]);
         setRegisteredEmail((data?.email as string | undefined) ?? email);
@@ -595,6 +604,13 @@ function RegisterPageContent() {
 
       router.push(currentReturnUrl);
     } catch (err) {
+      // PRO-A1-16 (IDENT-007) — a Google/Apple sign-up that resolved to an
+      // account whose policy requires a factor: the API set the enrolment
+      // cookie; the next step is the guided setup, as on /login.
+      if (!isEmailRegisterFlow && (err as { code?: string }).code === "MFA_ENROLLMENT_REQUIRED") {
+        router.replace(`/auth/mfa-challenge?enroll=1&next=${encodeURIComponent(currentReturnUrl)}`);
+        return;
+      }
       const requestId = isApiResponseError(err) ? err.requestId : undefined;
       const errCode = isApiResponseError(err) ? err.code : undefined;
       // D24 — the server holds the same password policy the rules panel

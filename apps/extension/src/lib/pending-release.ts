@@ -13,14 +13,21 @@
  * account is refused and simply forgotten. Only server-issued session ids are
  * stored — no page content, no account data.
  */
-import { ApiError } from "./api-client.js";
+import { ApiError, REAUTHENTICATION_DENIAL } from "./api-client.js";
 
 export const PENDING_RELEASE_KEY = "proovra.capture.unreleased";
 /** The server sweep releases a reservation within 24 h; nothing older is kept. */
 export const PENDING_RELEASE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const PENDING_RELEASE_MAX_ENTRIES = 20;
 
-export type PendingRelease = { captureSessionId: string; atMs: number };
+/**
+ * PRO-X1-05 — `account` is the signed-in account the reservation was made
+ * under. A release is sent only with that account's token; another account's
+ * (or an unstamped, older) entry is kept for its own account and otherwise
+ * expires with the server sweep — never sent with the wrong token and
+ * forgotten.
+ */
+export type PendingRelease = { captureSessionId: string; atMs: number; account?: string | null };
 
 export type PendingReleaseStore = {
   read(): Promise<PendingRelease[]>;
@@ -41,9 +48,14 @@ function fresh(entries: PendingRelease[], nowMs: number): PendingRelease[] {
 }
 
 /** Remember a session whose reservation could not be released. */
-export async function rememberUnreleased(store: PendingReleaseStore, captureSessionId: string, nowMs = Date.now()): Promise<void> {
+export async function rememberUnreleased(
+  store: PendingReleaseStore,
+  captureSessionId: string,
+  nowMs = Date.now(),
+  account: string | null = null,
+): Promise<void> {
   const current = fresh(await store.read().catch(() => []), nowMs).filter((e) => e.captureSessionId !== captureSessionId);
-  await store.write(fresh([...current, { captureSessionId, atMs: nowMs }], nowMs));
+  await store.write(fresh([...current, { captureSessionId, atMs: nowMs, account }], nowMs));
 }
 
 /**
@@ -57,6 +69,7 @@ export async function releasePending(
   token: string,
   discard: (token: string, captureSessionId: string) => Promise<unknown>,
   nowMs = Date.now(),
+  account: string | null = null,
 ): Promise<number> {
   const entries = fresh(await store.read().catch(() => []), nowMs);
   if (entries.length === 0) {
@@ -66,11 +79,22 @@ export async function releasePending(
   const keep: PendingRelease[] = [];
   let settled = 0;
   for (const e of entries) {
+    // PRO-X1-05 — only this account's reservations are released with its token.
+    if (!e.account || e.account !== account) {
+      keep.push(e);
+      continue;
+    }
     try {
       await discard(token, e.captureSessionId);
       settled += 1;
     } catch (err) {
-      const definite = err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 401 && err.status !== 429 && err.denial !== "SESSION_BUSY";
+      // PRO-X1-02 — a 401 REAUTHENTICATION_REQUIRED is the organization's
+      // sign-in policy refusing THIS token for that workspace, not a dead
+      // token: a definite answer (the server sweep releases the slot).
+      const reauth = err instanceof ApiError && err.status === 401 && err.denial === REAUTHENTICATION_DENIAL;
+      const definite =
+        reauth ||
+        (err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 401 && err.status !== 429 && err.denial !== "SESSION_BUSY");
       if (definite) settled += 1;
       else keep.push(e);
     }

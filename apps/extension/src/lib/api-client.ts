@@ -14,8 +14,23 @@ import {
   CLIENT_UPDATE_STORAGE_KEY,
   clientUpdateVerdict,
   escalateClientUpdate,
+  headersSayCurrent,
+  storedClientUpdate,
   type ClientUpdateNotice,
 } from "./client-contract.js";
+
+/**
+ * PRO-X1-11 — every API request names the calling build, so the API can tell
+ * which installed extension is calling (and refuse a build below the minimum
+ * with a named answer). Additive; the server never trusts it for policy.
+ */
+export const CLIENT_ID_HEADER = "x-proovra-client";
+export function clientIdHeaderValue(): string {
+  return `extension/${CONFIG.extensionVersion}`;
+}
+
+/** PRO-X1-02 — the organization sign-in-policy refusal (401), not an ended sign-in. */
+export const REAUTHENTICATION_DENIAL = "REAUTHENTICATION_REQUIRED";
 
 /**
  * B8-F-402 — the strongest "update" verdict any API answer has given this
@@ -34,6 +49,23 @@ export function resetClientUpdateNoticeForTests(): void {
 }
 
 export function observeClientContract(headers: { get(name: string): string | null } | null | undefined): void {
+  // PRO-X1-07 — a current answer clears an earlier verdict (and its stored copy).
+  let current = false;
+  try {
+    current = headersSayCurrent(headers);
+  } catch {
+    current = false;
+  }
+  if (current) {
+    clientUpdateNotice = null;
+    try {
+      const storage = (globalThis as { chrome?: { storage?: { local?: { remove(k: string): Promise<void> } } } }).chrome?.storage?.local;
+      void storage?.remove(CLIENT_UPDATE_STORAGE_KEY)?.catch?.(() => undefined);
+    } catch {
+      /* no extension storage (tests) */
+    }
+    return;
+  }
   let next: ClientUpdateNotice | null;
   try {
     next = escalateClientUpdate(clientUpdateNotice, clientUpdateVerdict(headers));
@@ -44,7 +76,7 @@ export function observeClientContract(headers: { get(name: string): string | nul
   clientUpdateNotice = next;
   try {
     const storage = (globalThis as { chrome?: { storage?: { local?: { set(v: Record<string, unknown>): Promise<void> } } } }).chrome?.storage?.local;
-    void storage?.set({ [CLIENT_UPDATE_STORAGE_KEY]: next })?.catch?.(() => undefined);
+    if (next) void storage?.set({ [CLIENT_UPDATE_STORAGE_KEY]: storedClientUpdate(next, CONFIG.extensionVersion) })?.catch?.(() => undefined);
   } catch {
     /* no extension storage (tests) */
   }
@@ -106,8 +138,21 @@ function legalGateCodeOf(json: unknown): string | null {
   if (!json || typeof json !== "object") return null;
   const error = (json as { error?: unknown }).error;
   if (!error || typeof error !== "object") return null;
-  return (error as { code?: unknown }).code === "LEGAL_REACCEPT_REQUIRED" ? "LEGAL_REACCEPT_REQUIRED" : null;
+  const code = (error as { code?: unknown }).code;
+  if (code === "LEGAL_REACCEPT_REQUIRED") return "LEGAL_REACCEPT_REQUIRED";
+  // PRO-X1-08 — the canonical authorization refusal (authorizeOrFail /
+  // sendDenyResponse) is nested too; a bounded set of its codes is lifted so
+  // a removed or demoted member is told so instead of "please try again".
+  return typeof code === "string" && CANONICAL_AUTHZ_CODES.has(code) ? code : null;
 }
+
+/** PRO-X1-08 — the canonical nested authorization refusals the popup can name. */
+export const CANONICAL_AUTHZ_CODES: ReadonlySet<string> = new Set([
+  "not_found",
+  "permission_denied",
+  "unauthenticated",
+  "authorization_unavailable",
+]);
 
 /**
  * B4-F-100 — the refusal code an answer carries. The capture routes answer
@@ -155,6 +200,7 @@ async function apiRequest<T>(
       method,
       headers: {
         authorization: `Bearer ${token}`,
+        [CLIENT_ID_HEADER]: clientIdHeaderValue(),
         ...(body !== undefined ? { "content-type": "application/json" } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),

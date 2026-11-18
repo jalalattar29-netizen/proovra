@@ -149,3 +149,58 @@ export function clearPendingOAuthLegalAcceptance(): void {
     // ignore storage failures
   }
 }
+/**
+ * PRO-A1-06 — the consent a person gave by ticking the box on /register, held
+ * on THIS browser until their verification link signs them in. The verify page
+ * records the acceptance only when this hold exists for the same address (the
+ * person who ticked is the person verifying, on the same browser). A link
+ * opened anywhere else records nothing; the post-sign-in acceptance step then
+ * asks, showing the documents. Never a credential; expires after a day.
+ */
+const PENDING_REGISTER_KEY = "proovra_pending_register_legal_acceptance";
+const PENDING_REGISTER_TTL_MS = 24 * 60 * 60 * 1000;
+
+export type PendingRegisterLegalAcceptance = {
+  email: string;
+  acceptances: PendingOAuthLegalAcceptance["acceptances"];
+  createdAt: string;
+};
+
+export function savePendingRegisterLegalAcceptance(value: PendingRegisterLegalAcceptance): void {
+  if (!canUseStorage()) return;
+  try {
+    window.localStorage.setItem(
+      PENDING_REGISTER_KEY,
+      JSON.stringify({ ...value, email: value.email.trim().toLowerCase() }),
+    );
+  } catch {
+    // ignore storage failures
+  }
+}
+
+/** The hold for `email`, when one was made on this browser in the last day. */
+export function takePendingRegisterLegalAcceptance(
+  email: string | null | undefined,
+): PendingRegisterLegalAcceptance | null {
+  if (!canUseStorage() || !email) return null;
+  try {
+    const raw = window.localStorage.getItem(PENDING_REGISTER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingRegisterLegalAcceptance>;
+    const created = typeof parsed.createdAt === "string" ? Date.parse(parsed.createdAt) : NaN;
+    if (
+      typeof parsed.email !== "string" ||
+      parsed.email !== email.trim().toLowerCase() ||
+      !Number.isFinite(created) ||
+      Date.now() - created > PENDING_REGISTER_TTL_MS ||
+      !Array.isArray(parsed.acceptances) ||
+      parsed.acceptances.length === 0
+    ) {
+      return null;
+    }
+    window.localStorage.removeItem(PENDING_REGISTER_KEY);
+    return parsed as PendingRegisterLegalAcceptance;
+  } catch {
+    return null;
+  }
+}

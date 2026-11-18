@@ -46,8 +46,24 @@ describe("UC-1 extension OAuth (PKCE) — live PostgreSQL 16", () => {
 
   const owner = () => harness.fixtures.teamA;
 
-  async function authorize(params: Record<string, string>, token = owner().ownerToken) {
-    const qs = new URLSearchParams(params).toString();
+  /** PRO-X1-01 — the approval the web confirmation page mints for this session. */
+  async function approvalFor(params: Record<string, string>, token: string): Promise<string | null> {
+    const r = await app.inject({
+      method: "POST",
+      url: "/v1/oauth/extension/approve",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      payload: JSON.stringify({
+        client_id: params.client_id,
+        redirect_uri: params.redirect_uri,
+        code_challenge: params.code_challenge,
+      }),
+    });
+    return r.statusCode === 200 ? (r.json().approval as string) : null;
+  }
+
+  async function authorize(params: Record<string, string>, token = owner().ownerToken, opts: { approve?: boolean } = {}) {
+    const approval = opts.approve === false ? null : await approvalFor(params, token);
+    const qs = new URLSearchParams({ ...params, ...(approval ? { approval } : {}) }).toString();
     return app.inject({
       method: "GET",
       url: `/v1/oauth/extension/authorize?${qs}`,
@@ -159,6 +175,47 @@ describe("UC-1 extension OAuth (PKCE) — live PostgreSQL 16", () => {
       headers: { authorization: `Bearer ${owner().ownerToken}` },
     });
     expect(ordinary.statusCode).not.toBe(403);
+  });
+
+  it("PRO-X1-01: no code without the person's explicit, session-bound approval", async () => {
+    const { verifier, challenge } = pkce();
+    const params = {
+      response_type: "code", client_id: CLIENT, redirect_uri: REDIRECT,
+      code_challenge: challenge, code_challenge_method: "S256", state: "consent",
+    };
+    // An API call without approval: refused, no code row.
+    const bare = await authorize(params, owner().ownerToken, { approve: false });
+    expect(bare.statusCode, bare.body).toBe(403);
+    expect(bare.json().error).toBe("consent_required");
+    // A browser navigation without approval is sent to the web confirmation page.
+    const nav = await app.inject({
+      method: "GET",
+      url: `/v1/oauth/extension/authorize?${new URLSearchParams(params).toString()}`,
+      headers: { authorization: `Bearer ${owner().ownerToken}`, accept: "text/html", "sec-fetch-mode": "navigate" },
+    });
+    expect(nav.statusCode).toBe(302);
+    expect(String(nav.headers.location)).toContain("/auth/extension/continue?");
+    expect(String(nav.headers.location)).not.toContain("code=");
+    // An approval for ANOTHER challenge does not authorize this one.
+    const other = pkce();
+    const foreign = await approvalFor({ ...params, code_challenge: other.challenge }, owner().ownerToken);
+    const mismatched = await app.inject({
+      method: "GET",
+      url: `/v1/oauth/extension/authorize?${new URLSearchParams({ ...params, approval: foreign! }).toString()}`,
+      headers: { authorization: `Bearer ${owner().ownerToken}` },
+    });
+    expect(mismatched.statusCode).toBe(403);
+    // The real approval: a code, exchangeable once; the same approval cannot mint again.
+    const approval = await approvalFor(params, owner().ownerToken);
+    const url = `/v1/oauth/extension/authorize?${new URLSearchParams({ ...params, approval: approval! }).toString()}`;
+    const ok = await app.inject({ method: "GET", url, headers: { authorization: `Bearer ${owner().ownerToken}` } });
+    expect(ok.statusCode, ok.body).toBe(302);
+    const again = await app.inject({ method: "GET", url, headers: { authorization: `Bearer ${owner().ownerToken}` } });
+    expect(again.statusCode).toBe(400);
+    const tok = await tokenExchange({
+      grant_type: "authorization_code", code: codeFrom(ok), code_verifier: verifier, client_id: CLIENT, redirect_uri: REDIRECT,
+    });
+    expect(tok.statusCode, tok.body).toBe(200);
   });
 
   it("authorize requires authentication (an API call without a credential is 401)", async () => {

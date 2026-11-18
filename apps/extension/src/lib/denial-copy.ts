@@ -95,6 +95,30 @@ export function denialToMessage(denial: string | null | undefined): string | nul
     case "CAPTURE_WINDOW_INVALID":
       return "PROOVRA could not accept this capture's details, so nothing was saved. Check that your computer's date, time and time zone are set correctly, then capture again.";
 
+    // -- Organization contract (PRO-PWXZ-01) ----------------------------------
+    // The organization's contract is withheld or does not configure this:
+    // the organization's administrator resolves it, not a retry or a plan.
+    case "ENTERPRISE_CONTRACT_REQUIRED":
+      return "This organization's contract does not allow new records here right now. Ask your organization administrator. Nothing was saved.";
+
+    // -- Organization sign-in policy (PRO-X1-02) -------------------------------
+    // The workspace's organization requires its own sign-in method (for
+    // example SSO); the extension's token came from another one. The token
+    // still works for every other workspace.
+    case "REAUTHENTICATION_REQUIRED":
+      return "This workspace's organization requires its own sign-in method (for example SSO). Sign in to PROOVRA that way, then sign in to the extension again. Nothing was saved.";
+
+    // -- Workspace access (PRO-X1-08) -----------------------------------------
+    // The canonical authorization refusal: the account was removed, suspended,
+    // its access window ended, it was demoted, or the workspace is gone. The
+    // server does not say which (anti-enumeration); the popup does not guess.
+    case "not_found":
+    case "permission_denied":
+    case "unauthenticated":
+      return "You no longer have access to record evidence in this workspace, or it no longer exists. Nothing was saved. Choose another workspace.";
+    case "authorization_unavailable":
+      return "PROOVRA could not confirm your access to this workspace just now. Nothing was saved. Try again in a moment.";
+
     // -- Rate limiting --------------------------------------------------------
     case "RATE_LIMITED":
       return "Too many capture attempts just now. Wait a moment and try again.";

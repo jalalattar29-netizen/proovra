@@ -768,6 +768,20 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     actionHref: "/billing",
   },
   /**
+   * PRO-PWXZ-01 — the shared workspace's subscription lifecycle forbids new
+   * paid work (402 from assertCommercialLifecycleAllowsPaidMutation). Clients
+   * that did not name it (the extension) said "Nothing was saved. Please try
+   * again" with a Retry that could only fail.
+   */
+  COMMERCIAL_LIFECYCLE_RESTRICTED: {
+    title: "Billing needs attention",
+    message:
+      "This workspace's subscription does not allow new records right now (for example, a payment is overdue). Existing records remain available — manage billing in PROOVRA or ask the workspace owner.",
+    severity: "warning",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  /**
    * THE RECORD ALLOWANCE, AS THE ACCOUNT HOLDER SEES IT.
    *
    * `assertWorkspaceAllowsEvidenceCreation` refuses a new evidence record
