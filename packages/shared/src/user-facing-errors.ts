@@ -1570,6 +1570,37 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "This member's current state doesn't allow that change. Refresh the members list to see where they are now.",
     severity: "warning",
   },
+  // PRO-T2-11 / PRO-T2-02 — organization member and invitation refusals, by code.
+  MEMBERSHIP_ALREADY_REMOVED: {
+    title: "Already removed",
+    message: "This person is no longer a member of the organization. To bring them back, send a new invitation.",
+    severity: "info",
+  },
+  MEMBERSHIP_NOT_FOUND: {
+    title: "Member not found",
+    message: "This membership no longer exists. Refresh the members list.",
+    severity: "warning",
+  },
+  OWNER_ACTION_REQUIRES_OWNER: {
+    title: "Owner action",
+    message: "Only an organization owner can make this change to an owner.",
+    severity: "warning",
+  },
+  LAST_OWNER_PROTECTED: {
+    title: "The organization needs an owner",
+    message: "This is the last active owner. Make someone else an owner first.",
+    severity: "warning",
+  },
+  ROLE_CEILING_EXCEEDED: {
+    title: "Role above your own",
+    message: "You can't invite someone at a role higher than your own.",
+    severity: "warning",
+  },
+  INVITE_ALREADY_ACCEPTED: {
+    title: "Invitation already accepted",
+    message: "This invitation has already been accepted, so it can't be changed.",
+    severity: "info",
+  },
   INTERNAL_MEMBER: {
     title: "This person is a workspace member",
     message:

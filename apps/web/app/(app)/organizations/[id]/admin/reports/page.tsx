@@ -21,7 +21,7 @@
  * documented note CSV rather than fabricated rows).
  *
  * Constitutional checks satisfied:
- *   - Wrapped in <PageRouteGate routeId="account.organization-detail">.
+ *   - Wrapped in <PageRouteGate routeId="account.organization_admin_reports">.
  *   - orgId derives from the URL path param (useParams) — no envelope read.
  *   - No raw window.confirm (read-only downloads).
  *   - Errors surface via toSafeUserError / notifyApiError.
@@ -170,6 +170,8 @@ const API_BASE = apiBaseUrl();
 
 export default function OrganizationAdminReportsPage() {
   return (
+    // PRO-T2-08 — gated like the sibling admin leaves (membership; the server
+    // decides by organization role), not by the active workspace's plan.
     <PageRouteGate routeId="account.organization-detail">
       <ReportsTab />
     </PageRouteGate>

@@ -47,7 +47,7 @@
  *     never blanks the rest of the page.
  *
  * CONSTITUTIONAL CHECKS
- *   - Wrapped in <PageRouteGate routeId="account.organization-detail">.
+ *   - Wrapped in <PageRouteGate routeId="account.organization_admin_readiness">.
  *   - Read-only: no mutating apiFetch verbs, no window.confirm.
  *   - Only org/workspace-scoped endpoints; NO platform-internal surfaces
  *     (no raw-metrics counters, no schema-status probe, no queue internals).
@@ -167,6 +167,8 @@ interface IncidentRow {
 
 export default function OrganizationAdminReadinessPage() {
   return (
+    // PRO-T2-08 — gated like the sibling admin leaves (membership; the server
+    // decides by organization role), not by the active workspace's plan.
     <PageRouteGate routeId="account.organization-detail">
       <ReadinessTab />
     </PageRouteGate>

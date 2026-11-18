@@ -44,8 +44,8 @@ test("reports page exists", () => {
 
 const PAGE = readFileSync(REPORTS_PAGE_PATH, "utf8");
 
-test("page is wrapped in PageRouteGate routeId=account.organization_admin_reports", () => {
-  assert.match(PAGE, /<PageRouteGate\s+routeId="account\.organization_admin_reports">/);
+test("page is wrapped in PageRouteGate like its sibling admin leaves (PRO-T2-08)", () => {
+  assert.match(PAGE, /<PageRouteGate\s+routeId="account\.organization-detail">/);
 });
 
 test("orgId derives from the URL path param (useParams), not the envelope", () => {
@@ -78,8 +78,12 @@ test("no hard-coded literal org UUID (cross-org leak guard)", () => {
   assert.doesNotMatch(PAGE, UUID_RE);
 });
 
-test("role-filters the report cards via roleMeetsMin (backend still authoritative)", () => {
-  assert.match(PAGE, /roleMeetsMin\(/);
+test("role-filters the report cards by the export route's explicit role set (backend still authoritative)", () => {
+  // PRO-T2-08 — AUD-31: explicit role sets, never rank (the two rank-3
+  // specialists see different exports).
+  assert.match(PAGE, /REPORTS\.filter\(\(r\) => r\.roles\.includes\(callerRole\)\)/);
+  assert.match(PAGE, /SEATS_EXPORT_ROLES: ReadonlyArray<OrgRole> = \["ORG_OWNER", "ORG_ADMIN", "ORG_BILLING_ADMIN"\]/);
+  assert.match(PAGE, /OVERSIGHT_EXPORT_ROLES: ReadonlyArray<OrgRole> = \["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_AUDITOR"\]/);
   // seats.csv must require ORG_BILLING_ADMIN; the catalog encodes minRole.
   assert.match(PAGE, /minRole:\s*"ORG_BILLING_ADMIN"/);
   assert.match(PAGE, /minRole:\s*"ORG_AUDITOR"/);

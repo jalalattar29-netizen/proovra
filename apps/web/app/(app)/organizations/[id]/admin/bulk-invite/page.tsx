@@ -22,7 +22,7 @@
  * the admin shell + PageRouteGate.
  *
  * Constitutional checks satisfied:
- *   - Wrapped in <PageRouteGate routeId="account.organization-detail">.
+ *   - Wrapped in <PageRouteGate routeId="account.organization_admin_bulk_invite">.
  *   - toSafeUserError / notifyApiError is the ONLY error-display path.
  *   - Shared design system (PageSection / DataTable + Card / Button / Badge).
  *   - Strong TypeScript types throughout.
@@ -175,6 +175,8 @@ const WORKSPACE_ROLES: Array<{ value: WorkspaceRole; label: string }> = [
 
 export default function OrganizationAdminBulkInvitePage() {
   return (
+    // PRO-T2-08 — gated like the sibling admin leaves (membership; the server
+    // decides by organization role), not by the active workspace's plan.
     <PageRouteGate routeId="account.organization-detail">
       <BulkInviteTab />
     </PageRouteGate>
