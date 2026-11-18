@@ -37,7 +37,8 @@ function stub(row: Row, connOrgId: string | null = "org-A") {
   return {
     prisma: {
       user: {
-        findUnique: async () => ({ ...state }),
+        // PRO-A2-01 — an account org-A's directory created (self-serve is refused by default).
+        findUnique: async () => ({ providerUserId: "scim-org-A:s1", email: "jo@acme.com", createdAt: new Date(), ...state }),
         update: async ({ data }: { data: Row }) => {
           Object.assign(state, data);
           return { ...state };

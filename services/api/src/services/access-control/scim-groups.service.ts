@@ -738,22 +738,33 @@ async function isOrganizationIdentity(
   userId: string,
   client: PrismaClient,
 ): Promise<boolean> {
-  const links = await client.externalIdentityMapping.findMany({
-    where: { organizationId, userId, unlinkedAtUtc: null },
-    select: { id: true, provider: true, linkSource: true },
+  // PRO-A2-02 — a live link counts only when its provenance is honoured: one
+  // the directory/IdP made, or the owner consented to. An administrator's
+  // manual link never made the person a directory identity; a legacy link
+  // (no recorded source) is asked through the canonical predicate.
+  const link = await client.externalIdentityMapping.findFirst({
+    where: {
+      organizationId,
+      userId,
+      unlinkedAtUtc: null,
+      linkSource: { in: [...HONOURED_LINK_SOURCES] },
+    },
+    select: { id: true },
   });
-  // PRO-A2-02 — a live link counts only when its provenance is honoured
-  // (an administrator's manual link on a self-serve account never made the
-  // person a directory identity).
-  for (const link of links) {
-    const authority = await evaluateExternalLinkAuthority(
-      { userId, organizationId, provider: String(link.provider), linkSource: link.linkSource },
-      client,
-    );
-    if (authority.honoured) return true;
-  }
-  return false;
+  if (link) return true;
+  const legacy = await client.externalIdentityMapping.findFirst({
+    where: { organizationId, userId, unlinkedAtUtc: null, linkSource: null },
+    select: { id: true, provider: true },
+  });
+  if (!legacy) return false;
+  const authority = await evaluateExternalLinkAuthority(
+    { userId, organizationId, provider: String(legacy.provider), linkSource: null },
+    client,
+  );
+  return authority.honoured;
 }
+
+const HONOURED_LINK_SOURCES = ["SCIM", "OIDC_JIT", "SAML_JIT", "OWNER_CONSENT"] as const;
 
 /**
  * Apply group membership for `userIds` in every Workspace the group reaches,

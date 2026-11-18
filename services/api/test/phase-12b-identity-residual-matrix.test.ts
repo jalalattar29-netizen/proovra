@@ -802,9 +802,9 @@ function seed(): void {
     { id: "cccccccc-cccc-4ccc-8ccc-cccccccccc0b", teamId: OTHER_TEAM, eventType: "scim_token_created", severity: "HIGH", details: { action: "rotate" }, createdAt: D(8), updatedAt: D(8) },
   ];
   H.store["externalIdentityMapping"] = [
-    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01", teamId: TEAM, organizationId: ORG_A, userId: SUBJECT_USER, provider: "SCIM", externalSubjectId: "idp-sub-1", externalEmail: "member@acme.test", displayName: "Member", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
-    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee02", teamId: TEAM, organizationId: ORG_A, userId: STALE_USER, provider: "SCIM", externalSubjectId: "idp-sub-2", externalEmail: "stale@acme.test", displayName: "Stale", unlinkedAtUtc: null, linkedAtUtc: D(3), createdAt: D(3), updatedAt: D(3) },
-    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee09", teamId: OTHER_TEAM, organizationId: ORG_B, userId: FOREIGN_USER, provider: "SCIM", externalSubjectId: "idp-sub-9", externalEmail: "other@rival.test", displayName: "Other", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
+    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01", teamId: TEAM, organizationId: ORG_A, userId: SUBJECT_USER, provider: "SCIM", linkSource: "SCIM", externalSubjectId: "idp-sub-1", externalEmail: "member@acme.test", displayName: "Member", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
+    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee02", teamId: TEAM, organizationId: ORG_A, userId: STALE_USER, provider: "SCIM", linkSource: "SCIM", externalSubjectId: "idp-sub-2", externalEmail: "stale@acme.test", displayName: "Stale", unlinkedAtUtc: null, linkedAtUtc: D(3), createdAt: D(3), updatedAt: D(3) },
+    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee09", teamId: OTHER_TEAM, organizationId: ORG_B, userId: FOREIGN_USER, provider: "SCIM", linkSource: "SCIM", externalSubjectId: "idp-sub-9", externalEmail: "other@rival.test", displayName: "Other", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
   ];
   const tokenBase = {
     name: "okta", tokenPrefix: "scim_pat_aa", ipAllowlist: [] as string[],

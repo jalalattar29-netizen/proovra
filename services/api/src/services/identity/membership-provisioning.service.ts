@@ -1000,7 +1000,7 @@ export async function applyDirectoryRoleChange(
     return { changed: false };
   }
   if (input.currentRole === input.desiredRole) return { changed: false };
-  const target = await tx.teamMember.findUnique({
+  const target = await tx.teamMember.findFirst({
     where: { id: input.teamMemberId },
     select: { teamId: true, userId: true, role: true, status: true },
   });

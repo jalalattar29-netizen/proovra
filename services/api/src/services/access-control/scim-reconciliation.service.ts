@@ -61,7 +61,7 @@ import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 // PHASE 3 (2026-07-22) — canonical membership orchestrator.
 // PRO-A2Z-01 — reconciliation suspends through the canonical member lifecycle.
-import { RbacError, suspendMember } from "../identity/rbac.service.js";
+import { RbacError, suspendMember } from "../identity/membership-provisioning.service.js";
 import { archiveScimGroupProjection } from "./scim-groups.service.js";
 
 // ---------------------------------------------------------------------------

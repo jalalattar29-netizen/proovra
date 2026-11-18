@@ -308,7 +308,7 @@ export async function revokeOrganizationMembership(
  * noPersonalSpace policy their Personal Space was re-denied) with no
  * invitation and no consent. A removal is reversed only by a NEW invitation
  * the person accepts (`reviveRevokedOrganizationMembershipByInvitation`, used
- * by `grantOrganizationMembership`) — the promise the leave confirmation makes
+ * by the orchestrator's organization grant) — the promise the leave confirmation makes
  * ("an owner or admin must re-invite you to return"). A restore on a REVOKED
  * row answers `illegal_transition` and writes nothing.
  */

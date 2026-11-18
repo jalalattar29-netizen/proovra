@@ -23,7 +23,8 @@ function stub(opts: {
   const writes: string[] = [];
   const prisma = {
     user: {
-      findUnique: async () => ({ identityMode: "STANDARD", managingOrganizationId: null, managedIdentitySource: null, managedBySsoConnectionId: null }),
+      findUnique: async () => ({ identityMode: "STANDARD", managingOrganizationId: null, managedIdentitySource: null, managedBySsoConnectionId: null, // PRO-A2-01 — created by org-A's directory (a self-serve account is refused by default).
+        providerUserId: "scim-org-A:s1", email: "jo@acme.com", createdAt: new Date() }),
       update: async () => { writes.push("user.update"); return {}; },
     },
     ssoConnection: {
