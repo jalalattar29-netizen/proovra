@@ -13,18 +13,60 @@ import { presentationContractSkew } from "@proovra/shared";
  * does not help then: the user is told an update is finishing.
  */
 export const CONTRACT_SKEW_EVENT = "proovra:contract-skew";
-export type ContractSkewDetail = { direction: "CLIENT_OLDER" | "CLIENT_NEWER" };
+/**
+ * PRO-PW-08 — UPDATE_REQUIRED: the API states a minimum client contract above
+ * this build's (`x-proovra-min-client-contract`). It is BLOCKING — the page
+ * must be reloaded before it keeps writing — and it overrides the advisory
+ * directions.
+ */
+export type ContractSkewDirection = "CLIENT_OLDER" | "CLIENT_NEWER" | "UPDATE_REQUIRED";
+export type ContractSkewDetail = { direction: ContractSkewDirection };
 
-let announced = false;
+/**
+ * The last direction announced. PRO-PW-08: a DIFFERENT later direction is
+ * announced too (the latch used to show only the first skew ever seen), while
+ * the same direction is announced once, and nothing replaces UPDATE_REQUIRED.
+ */
+let announced: ContractSkewDirection | null = null;
+
+function announce(direction: ContractSkewDirection): void {
+  if (typeof window === "undefined") return;
+  if (announced === direction || announced === "UPDATE_REQUIRED") return;
+  announced = direction;
+  window.dispatchEvent(new CustomEvent<ContractSkewDetail>(CONTRACT_SKEW_EVENT, { detail: { direction } }));
+}
 
 export function observeContractHeader(served: string | null | undefined): void {
-  if (announced || typeof window === "undefined") return;
   const skew = presentationContractSkew(served);
   if (skew !== "CLIENT_OLDER" && skew !== "CLIENT_NEWER") return;
-  announced = true;
-  window.dispatchEvent(
-    new CustomEvent<ContractSkewDetail>(CONTRACT_SKEW_EVENT, { detail: { direction: skew } }),
-  );
+  announce(skew);
+}
+
+/** PRO-PW-08 — the minimum client contract the API serves. */
+export const MIN_CLIENT_CONTRACT_HEADER = "x-proovra-min-client-contract";
+
+function webPresentationContract(): number {
+  let value: unknown;
+  try {
+    value = (shared as Record<string, unknown>).PRESENTATION_CONTRACT_VERSION;
+  } catch {
+    value = undefined;
+  }
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 ? value : 1;
+}
+
+/**
+ * PRO-PW-08 — read the minimum-client header the API already sends. Below it,
+ * the page raises the BLOCKING update state. An absent or malformed header (an
+ * older API) changes nothing.
+ */
+export function observeMinClientHeader(
+  served: string | null | undefined,
+  own: number = webPresentationContract(),
+): void {
+  const n = positiveIntegerHeader(served);
+  if (n === null || own >= n) return;
+  announce("UPDATE_REQUIRED");
 }
 
 /**
@@ -76,17 +118,11 @@ export function observeRouteEpochHeader(
   served: string | null | undefined,
   own: number = webRouteEpoch(),
 ): void {
-  if (announced || typeof window === "undefined") return;
   if (routeEpochSkew(served, own) !== "CLIENT_NEWER") return;
-  announced = true;
-  window.dispatchEvent(
-    new CustomEvent<ContractSkewDetail>(CONTRACT_SKEW_EVENT, {
-      detail: { direction: "CLIENT_NEWER" },
-    }),
-  );
+  announce("CLIENT_NEWER");
 }
 
 /** Tests only. */
 export function resetContractSkewForTests(): void {
-  announced = false;
+  announced = null;
 }

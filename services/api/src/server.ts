@@ -6,6 +6,9 @@ import {
   PRESENTATION_CONTRACT_HEADER,
   PRESENTATION_CONTRACT_MIN_CLIENT,
   PRESENTATION_CONTRACT_MIN_CLIENT_HEADER,
+  CLIENT_CAPABILITIES_HEADER,
+  CLIENT_REPORT_ACCEPTED_HEADER,
+  CLIENT_REPORTED_CONTRACT_HEADER,
   PRESENTATION_CONTRACT_ROUTE_EPOCH,
   PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER,
   PRESENTATION_CONTRACT_VERSION,
@@ -693,6 +696,10 @@ allowedHeaders: [
   // reload does not spend another use of a use-limited reviewer link. It grants
   // nothing by itself; the share authority hashes it and compares.
   "x-proovra-verify-session",
+  // PRO-PSZ-05 — the client's own contract and declared capabilities
+  // (reporting only; http/client-contract-report.ts).
+  CLIENT_REPORTED_CONTRACT_HEADER,
+  CLIENT_CAPABILITIES_HEADER,
 ],
     origin: (origin, cb) => cb(null, isCorsOriginAllowed(origin)),
     // AUD-32 (2026-10-20) — the browser may READ the contract version (a
@@ -702,6 +709,7 @@ allowedHeaders: [
       PRESENTATION_CONTRACT_HEADER,
       PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER,
       PRESENTATION_CONTRACT_MIN_CLIENT_HEADER,
+      CLIENT_REPORT_ACCEPTED_HEADER,
     ],
   });
 
@@ -713,6 +721,9 @@ allowedHeaders: [
     // B8-F-401/402 — additive: older clients ignore both (release-contract.ts).
     reply.header(PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER, String(PRESENTATION_CONTRACT_ROUTE_EPOCH));
     reply.header(PRESENTATION_CONTRACT_MIN_CLIENT_HEADER, String(PRESENTATION_CONTRACT_MIN_CLIENT));
+    // PRO-PSZ-05 — this API allow-lists the client report headers, so a
+    // browser client may start sending them (an older API never says so).
+    reply.header(CLIENT_REPORT_ACCEPTED_HEADER, "1");
     return payload;
   });
 

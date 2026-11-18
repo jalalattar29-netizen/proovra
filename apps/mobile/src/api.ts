@@ -1,7 +1,7 @@
 import { triggerLegalGate } from "./auth/legal-gate";
 import { sessionEndReason, type SessionEndReason } from "./auth/session-end";
 import { reportNetworkOffline, reportNetworkOnline } from "./network/network-state";
-import { observeClientContractHeaders } from "./network/client-contract";
+import { applyClientContractReport, observeClientContractHeaders } from "./network/client-contract";
 
 /** Canonical API origin — the ONE place the base URL is resolved. */
 export function apiBaseUrl(): string {
@@ -77,6 +77,8 @@ function asObject(value: unknown): Record<string, unknown> | null {
 async function apiRequest(path: string, init: RequestInit = {}): Promise<Response> {
   const base = apiBaseUrl();
   const headers = new Headers(init.headers);
+  // PRO-PSZ-05 — this build reports its contract and capabilities.
+  applyClientContractReport(headers);
 
   if (!headers.has("content-type") && init.body) {
     headers.set("content-type", "application/json");
@@ -237,6 +239,8 @@ export async function publicFetch(
   credential?: { bearer?: string | null; headers?: Record<string, string> },
 ) {
   const headers = new Headers(init.headers);
+  // PRO-PSZ-05 — this build reports its contract and capabilities.
+  applyClientContractReport(headers);
 
   if (!headers.has("content-type") && init.body) {
     headers.set("content-type", "application/json");

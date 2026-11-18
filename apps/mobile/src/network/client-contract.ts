@@ -97,3 +97,28 @@ export function resetClientUpdateNoticeForTests(): void {
   current = null;
   for (const l of listeners) l();
 }
+
+/* ------------------------------------------- PRO-PSZ-05: reporting (request) */
+
+/**
+ * What this build tells the API about itself on every request: its own
+ * presentation contract and the capabilities it truthfully implements (it reads
+ * the minimum-client header and shows UPDATE_REQUIRED). Reporting only; the
+ * API never refuses a request for lacking these. Mirrors `@proovra/shared`
+ * release-contract (CLIENT_REPORTED_CONTRACT_HEADER / CLIENT_CAPABILITIES_HEADER),
+ * which this build's shared package may predate. Not sent from a browser
+ * runtime, where an API that predates them would refuse the CORS preflight.
+ */
+export const CLIENT_REPORTED_CONTRACT_HEADER = "x-proovra-client-contract";
+export const CLIENT_CAPABILITIES_HEADER = "x-proovra-client-capabilities";
+export const NATIVE_CLIENT_CAPABILITIES: ReadonlyArray<string> = ["update-required-notice"];
+
+export function applyClientContractReport(headers: Headers): void {
+  if (typeof document !== "undefined") return;
+  if (!headers.has(CLIENT_REPORTED_CONTRACT_HEADER)) {
+    headers.set(CLIENT_REPORTED_CONTRACT_HEADER, String(PRESENTATION_CONTRACT_VERSION));
+  }
+  if (!headers.has(CLIENT_CAPABILITIES_HEADER)) {
+    headers.set(CLIENT_CAPABILITIES_HEADER, NATIVE_CLIENT_CAPABILITIES.join(","));
+  }
+}

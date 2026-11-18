@@ -18,6 +18,7 @@ import {
   SIGN_OUT_INCOMPLETE_TITLE,
   type ServerSignOutFailure,
 } from "../../lib/auth/server-sign-out";
+import BottomOverlay from "../../components/BottomOverlay";
 
 /**
  * Phase 32.8 Foundation — (app)/layout wraps every operator surface
@@ -122,28 +123,31 @@ export default function AppLayout({
     router.push("/login");
   };
 
+  // PRO-PW-08 — in the shared bottom stack, never on top of another notice.
   const signOutNotice = signOutFailure ? (
-    <div
-      role="alertdialog"
-      aria-modal="false"
-      aria-labelledby="signout-incomplete-title"
-      aria-describedby="signout-incomplete-body"
-      className="app-alert"
-      data-tone="danger"
-      data-signout-incomplete={signOutFailure}
-      style={{ position: "fixed", insetInline: 16, bottom: 16, zIndex: 1000, maxWidth: 520, marginInline: "auto" }}
-    >
-      <strong id="signout-incomplete-title">{SIGN_OUT_INCOMPLETE_TITLE}</strong>
-      <p id="signout-incomplete-body">{signOutIncompleteMessage(signOutFailure)}</p>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" className="app-primary-action" onClick={() => void handleLogout()} disabled={signingOut}>
-          {signingOut ? "Signing out…" : "Retry sign-out"}
-        </button>
-        <button type="button" className="app-secondary-action" onClick={() => setSignOutFailure(null)} disabled={signingOut}>
-          Stay signed in
-        </button>
+    <BottomOverlay>
+      <div
+        role="alertdialog"
+        aria-modal="false"
+        aria-labelledby="signout-incomplete-title"
+        aria-describedby="signout-incomplete-body"
+        className="app-alert"
+        data-tone="danger"
+        data-signout-incomplete={signOutFailure}
+        style={{ maxWidth: 520, marginInline: "auto" }}
+      >
+        <strong id="signout-incomplete-title">{SIGN_OUT_INCOMPLETE_TITLE}</strong>
+        <p id="signout-incomplete-body">{signOutIncompleteMessage(signOutFailure)}</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" className="app-primary-action" onClick={() => void handleLogout()} disabled={signingOut}>
+            {signingOut ? "Signing out…" : "Retry sign-out"}
+          </button>
+          <button type="button" className="app-secondary-action" onClick={() => setSignOutFailure(null)} disabled={signingOut}>
+            Stay signed in
+          </button>
+        </div>
       </div>
-    </div>
+    </BottomOverlay>
   ) : null;
 
   /*

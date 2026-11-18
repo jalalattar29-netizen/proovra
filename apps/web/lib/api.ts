@@ -1,4 +1,10 @@
-import { ROUTE_EPOCH_HEADER, observeContractHeader, observeRouteEpochHeader } from "./contract-skew";
+import {
+  MIN_CLIENT_CONTRACT_HEADER,
+  ROUTE_EPOCH_HEADER,
+  observeContractHeader,
+  observeMinClientHeader,
+  observeRouteEpochHeader,
+} from "./contract-skew";
 import { LEGAL_REACCEPT_REQUIRED_EVENT, SESSION_EXPIRED_EVENT } from "./session-events";
 
 const DEFAULT_API_BASE = "https://api.proovra.com";
@@ -480,6 +486,12 @@ async function runApiFetch(
     res = await fetchWithAuthRetry(url, withDefaultReadTimeout(init, opts), finalOpts);
     // AUD-32 — a response from a newer API contract than this build.
     observeContractHeader(res.headers?.get?.("x-proovra-contract") ?? null);
+    // PRO-PW-08 — the minimum client contract: below it, a blocking reload.
+    try {
+      observeMinClientHeader(res.headers?.get?.(MIN_CLIENT_CONTRACT_HEADER) ?? null);
+    } catch {
+      /* advisory */
+    }
     // B8-F-402 — a page ahead of the API's route table. Advisory only: it
     // must never turn a delivered response into a network error.
     try {
