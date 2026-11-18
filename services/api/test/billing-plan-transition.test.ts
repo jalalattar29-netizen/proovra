@@ -43,6 +43,10 @@ const H = vi.hoisted(() => ({
    * customer be resolved into a period-end plan change.
    */
   entitledPlan: null as string | null,
+  /** PRO-BL1-01 — every idempotency key a keyed provider call carried. */
+  keys: [] as string[],
+  /** Status Stripe reports for a recorded schedule read back by id. */
+  scheduleStatus: "active" as string,
 }));
 
 vi.mock("../src/db.js", () => {
@@ -110,6 +114,8 @@ vi.mock("../src/db.js", () => {
                   return H.subscription;
                 }
                 if (call === "subscription.findUnique") return { userId: "user-1" };
+                // PRO-BL1-01 — the provider-intent CAS (one row, swapped).
+                if (method === "updateMany") return { count: 1 };
                 if (method === "findMany") return [];
                 if (method === "count") return 0;
                 return {};
@@ -143,11 +149,15 @@ vi.mock("../src/services/stripe.service.js", () => ({
   stripeGet: async (path: string) => {
     H.providerCalls.push(`stripeGet ${path}`);
     if (H.providerFails) throw new Error("stripe unavailable");
+    if (path.startsWith("/subscription_schedules/")) {
+      return { id: path.split("/")[2], status: H.scheduleStatus, phases: [{ start_date: 1790000000 }] };
+    }
     return { items: { data: [{ id: "si_1", price: { id: "price_current" } }] }, currency: "eur" };
   },
-  stripeRequest: async (path: string, body: URLSearchParams) => {
+  stripeRequest: async (path: string, body: URLSearchParams, options: { idempotencyKey?: string | null } = {}) => {
     H.providerCalls.push(`stripePost ${path}`);
     H.stripeBodies.push(new URLSearchParams(body));
+    if (options.idempotencyKey) H.keys.push(options.idempotencyKey);
     if (H.providerFails) throw new Error("stripe unavailable");
     if (path === "/subscription_schedules") return { id: "sched_1", phases: [{ start_date: 1790000000 }] };
     return {
@@ -261,6 +271,8 @@ beforeEach(() => {
   H.paypalLinks = [];
   H.planApplied = null;
   H.entitledPlan = null;
+  H.keys.length = 0;
+  H.scheduleStatus = "active";
 });
 
 // ===========================================================================
@@ -663,6 +675,40 @@ describe("applyPersonalPlanChange — DOWNGRADE (Stripe)", () => {
       },
       currency: "EUR",
     });
+
+  // PRO-BL1-01 variant B — downgrade -> withdraw -> downgrade inside one UTC
+  // hour re-sent the first schedule update's key and body, so Stripe replayed
+  // its stored answer and nothing was scheduled.
+  it("PRO-BL1-01 — two downgrade intents never share an idempotency key", async () => {
+    await downgrade();
+    const first = [...H.keys];
+    H.keys.length = 0;
+    await downgrade();
+    const second = [...H.keys];
+    expect(first.length).toBeGreaterThan(0);
+    expect(second.length).toBe(first.length);
+    for (const k of second) expect(first).not.toContain(k);
+    // Never an hour bucket.
+    for (const k of [...first, ...second]) expect(k).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}/);
+  });
+
+  it("PRO-BL1-01 — withdrawing a scheduled downgrade forgets the released schedule", async () => {
+    H.subscription = live({ plan: "TEAM", pendingPlan: "PRO", providerScheduleId: "sched_old" });
+    await applyPersonalPlanChange({
+      transition: { kind: "UPGRADE", targetPlan: "TEAM" as never, subscription: H.subscription as never },
+      currency: "EUR",
+    });
+    expect(H.providerCalls).toContain("stripePost /subscription_schedules/sched_old/release");
+    expect(H.writes).toContain("subscription.updateMany:providerScheduleId");
+  });
+
+  it("PRO-BL1-01 — a recorded schedule that Stripe has released is never edited again", async () => {
+    H.scheduleStatus = "released";
+    await downgrade(live({ plan: "TEAM", providerScheduleId: "sched_old" }));
+    expect(H.providerCalls).not.toContain("stripePost /subscription_schedules/sched_old");
+    expect(H.providerCalls).toContain("stripePost /subscription_schedules");
+    expect(H.providerCalls).toContain("stripePost /subscription_schedules/sched_1");
+  });
 
   it("schedules at the provider — it does not update the live subscription", async () => {
     await downgrade();

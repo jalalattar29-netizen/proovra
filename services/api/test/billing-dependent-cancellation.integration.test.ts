@@ -37,6 +37,8 @@ vi.mock("../src/services/stripe.service.js", async (importOriginal) => {
   return {
     ...actual,
     stripeRequest: (...args: unknown[]) => stripeRequestMock(...(args as [])),
+    // PRO-BL1-01 — a cancel is verified by reading the live subscription back.
+    stripeGet: async () => ({ cancel_at_period_end: true }),
     stripeRequestRaw: async () => ({}),
   };
 });

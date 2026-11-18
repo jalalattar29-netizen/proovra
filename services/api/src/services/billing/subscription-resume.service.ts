@@ -9,7 +9,8 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
-import { stripeRequest } from "../stripe.service.js";
+import { StripeHttpError, stripeRequest } from "../stripe.service.js";
+import { beginProviderIntent, settleProviderIntent } from "./provider-intent.service.js";
 import { withdrawUnsupportedObligations } from "./dependent-cancellation.service.js";
 import { stripeSubscriptionPeriodEnd, type StripeSubscriptionLike } from "./stripe-object-shapes.js";
 
@@ -107,13 +108,19 @@ export async function requestSubscriptionResume(input: {
   }
 
   let response: Record<string, unknown>;
+  // PRO-BL1-01 — the key is this restart INTENT's, persisted before the call,
+  // not derived from a column a webhook may leave unset.
+  const intentKey = await beginProviderIntent({ subscriptionId: subscription.id, kind: "resume" });
   try {
     const body = new URLSearchParams();
     body.append("cancel_at_period_end", "false");
     response = await stripeRequest(`/subscriptions/${subscription.providerSubId}`, body, {
-      idempotencyKey: `proovra-resume-${subscription.id}-${subscription.canceledAtUtc?.getTime() ?? 0}`,
+      idempotencyKey: intentKey,
     });
   } catch (cause) {
+    if (cause instanceof StripeHttpError && cause.status >= 400 && cause.status < 500) {
+      await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
+    }
     throw Object.assign(
       new DomainError("Provider restart failed", {
         httpStatus: 502,
@@ -127,6 +134,7 @@ export async function requestSubscriptionResume(input: {
     );
   }
   if (response["cancel_at_period_end"] !== false || response["id"] !== subscription.providerSubId) {
+    await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
     throw new DomainError("Provider did not confirm restart", {
       httpStatus: 502,
       publicCode: "PROVIDER_RESTART_FAILED",
@@ -147,6 +155,7 @@ export async function requestSubscriptionResume(input: {
       ...(confirmedPeriodEnd ? { currentPeriodEnd: confirmedPeriodEnd } : {}),
     },
   });
+  await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
 
   // BILLING REMEDIATION (2026-10-30, AUD-09) — an obligation not yet carried out
   // is no longer owed: the plan is back, so that add-on simply keeps running.

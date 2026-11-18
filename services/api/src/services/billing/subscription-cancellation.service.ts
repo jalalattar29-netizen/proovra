@@ -56,6 +56,7 @@ import {
   recordDependentCancellationIntent,
 } from "./storage-addon-dependency.service.js";
 import type { StorageAddonProviderCanceller } from "./storage-addon-cancellation.service.js";
+import { beginProviderIntent, settleProviderIntent } from "./provider-intent.service.js";
 
 /**
  * What a provider can actually do, stated per provider rather than assumed.
@@ -104,11 +105,19 @@ export type CancellationOutcome = {
   dependentAddonsFailed: number;
 };
 
-function providerFailure(provider: prismaPkg.PaymentProvider, cause?: unknown): DomainError {
+/** The provider said no (a 4xx): its answer is known, nothing happened. */
+function providerRefused(cause: unknown): boolean {
+  return (cause instanceof StripeHttpError || cause instanceof PayPalHttpError) && cause.status >= 400 && cause.status < 500;
+}
+
+function providerFailure(
+  provider: prismaPkg.PaymentProvider,
+  cause?: unknown,
+  knownRefused = false,
+): DomainError {
   // BILLING REMEDIATION (2026-10-30, AUD-13) — "nothing has changed" only when
   // the provider said no. A timeout can follow a cancellation it accepted.
-  const refused =
-    (cause instanceof StripeHttpError || cause instanceof PayPalHttpError) && cause.status >= 400 && cause.status < 500;
+  const refused = knownRefused || providerRefused(cause);
   return new DomainError(`Provider cancellation failed for ${provider}`, {
     httpStatus: 502,
     publicCode: refused ? "PROVIDER_CANCELLATION_FAILED" : "PROVIDER_CANCELLATION_OUTCOME_UNKNOWN",
@@ -252,12 +261,22 @@ export async function requestSubscriptionCancellation(input: {
 
   // ---- Ask the provider FIRST -------------------------------------------
   let confirmedPeriodEnd: Date | null = subscription.currentPeriodEnd ?? null;
+  // PRO-BL1-01 — the durable identity of THIS cancel intent (Stripe only; a
+  // PayPal cancel is terminal and sends no key).
+  let intentKey: string | null = null;
 
   if (subscription.provider === prismaPkg.PaymentProvider.STRIPE) {
     // `POST /subscriptions/{id}` with `cancel_at_period_end=true`, NOT
     // `DELETE`. The previous implementation used DELETE — immediate
     // termination — while the confirmation dialog promised the period end.
     let response: Record<string, unknown>;
+    // PRO-BL1-01 — the key is this cancel INTENT's, persisted before the call.
+    // It used to be `proovra-cancel-<id>-<UTC hour>`: a cancel after a restart
+    // inside the same hour re-sent the first cancel's key and body, Stripe
+    // replayed the stored first answer without executing, and the second
+    // cancel was recorded while the subscription kept renewing.
+    const key = await beginProviderIntent({ subscriptionId: subscription.id, kind: "cancel" });
+    intentKey = key;
     try {
       // BILLING REMEDIATION (2026-10-30, AUD-09) — a schedule would run its next
       // phase regardless, so a scheduled downgrade is withdrawn first. A change
@@ -275,10 +294,13 @@ export async function requestSubscriptionCancellation(input: {
       response = await stripeRequest(
         `/subscriptions/${subscription.providerSubId}`,
         body,
-        { idempotencyKey: `proovra-cancel-${subscription.id}-${new Date().toISOString().slice(0, 13)}` },
+        { idempotencyKey: key },
       );
     } catch (cause) {
-      // NO local write. The subscription stays exactly as it was.
+      // NO local write. The subscription stays exactly as it was. A definite
+      // refusal closes the intent (the next attempt is a new one); an unknown
+      // outcome keeps it, so the retry reuses the key and gets the answer.
+      if (providerRefused(cause)) await settleProviderIntent({ subscriptionId: subscription.id, key });
       throw Object.assign(providerFailure(subscription.provider, cause), { cause });
     }
 
@@ -289,7 +311,26 @@ export async function requestSubscriptionCancellation(input: {
     if (confirmedFlag !== true) {
       // The call succeeded but the provider did not agree to the thing we
       // asked for. Refuse to record a cancellation that is not real.
-      throw providerFailure(subscription.provider);
+      await settleProviderIntent({ subscriptionId: subscription.id, key });
+      throw providerFailure(subscription.provider, undefined, true);
+    }
+
+    // PRO-BL1-01 — the reply alone is not proof: an idempotent replay returns a
+    // STORED answer. The live subscription must say it stops renewing before
+    // anything local is written (and before any dependent add-on is touched).
+    let liveFlag: unknown;
+    try {
+      const live = (await stripeGet(`/subscriptions/${subscription.providerSubId}`)) as Record<string, unknown>;
+      liveFlag = live["cancel_at_period_end"];
+      confirmedPeriodEnd =
+        stripeSubscriptionPeriodEnd(live as unknown as StripeSubscriptionLike) ?? confirmedPeriodEnd;
+    } catch (cause) {
+      // Unknown: keep the intent so the retry reuses its key.
+      throw Object.assign(providerFailure(subscription.provider, new Error("read-back failed")), { cause });
+    }
+    if (liveFlag !== true) {
+      await settleProviderIntent({ subscriptionId: subscription.id, key });
+      throw providerFailure(subscription.provider, undefined, true);
     }
   } else if (subscription.provider === prismaPkg.PaymentProvider.PAYPAL) {
     try {
@@ -374,6 +415,10 @@ export async function requestSubscriptionCancellation(input: {
       },
       select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true },
     });
+
+    // PRO-BL1-01 — the intent is answered and recorded: the next cancel (after
+    // a restart) is a new intent with a new key.
+    if (intentKey) await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey }, tx);
 
     await recordDependentCancellationIntent(
       {

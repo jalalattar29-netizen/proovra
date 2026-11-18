@@ -58,7 +58,13 @@ export type BillingReviewReason =
    * that no durable local binding confirms (none, more than one, or one naming
    * another payer, workspace or size). Money may have moved; nothing is granted.
    */
-  | "LEGACY_STORAGE_CAPTURE_UNMATCHED";
+  | "LEGACY_STORAGE_CAPTURE_UNMATCHED"
+  /**
+   * PRO-BL1-01 (2026-11-18) — the provider says a subscription renews although
+   * a customer cancellation it confirmed was recorded. The row follows the
+   * provider (it is the truth about billing), but never silently.
+   */
+  | "CANCELLATION_REVERSED_AT_PROVIDER";
 
 export type BillingReviewProduct = "PLAN" | "STORAGE_ADDON" | "EVIDENCE_CREDIT";
 
