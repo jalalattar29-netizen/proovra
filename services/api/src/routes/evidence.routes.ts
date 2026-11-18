@@ -9118,7 +9118,7 @@ return {
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const commentId = z.string().uuid().parse((req.params as { commentId: string }).commentId);
       const body = ReviewerCommentUpdateBody.parse(req.body);
-      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
+      await getEvidenceForCollaborativeWrite(userId, id);
       const comment = await prisma.evidenceReviewerComment.findUnique({ where: { id: commentId } });
 
       if (!comment || comment.evidenceId !== id || comment.deletedAt) {
@@ -9302,7 +9302,7 @@ return {
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const noteId = z.string().uuid().parse((req.params as { noteId: string }).noteId);
       const body = LegalNoteUpdateBody.parse(req.body);
-      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
+      await getEvidenceForCollaborativeWrite(userId, id);
       const note = await prisma.evidenceLegalNote.findUnique({ where: { id: noteId } });
 
       if (!note || note.evidenceId !== id || note.deletedAt) {
@@ -9507,7 +9507,7 @@ return {
         .uuid()
         .parse((req.params as { annotationId: string }).annotationId);
       const body = AnnotationUpdateBody.parse(req.body);
-      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
+      await getEvidenceForCollaborativeWrite(userId, id);
       const annotation = await prisma.evidenceAnnotation.findUnique({ where: { id: annotationId } });
 
       if (!annotation || annotation.evidenceId !== id || annotation.deletedAt) {
