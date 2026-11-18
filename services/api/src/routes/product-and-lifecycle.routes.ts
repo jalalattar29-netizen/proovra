@@ -509,6 +509,13 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         scopeNote: body.scopeNote ?? null,
         createdByUserId: ctx.userId,
       });
+      if (!res.ok && res.denial === "QUOTA_EXCEEDED") {
+        // PRO-BL2-02 — the reservation, not the read above, is the gate.
+        return reply.code(429).send({
+          denial: "QUOTA_EXCEEDED",
+          key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
+        });
+      }
       if (!res.ok) return reply.code(409).send({ denial: res.denial });
       return reply.code(201).send({ packageId: res.packageId });
     },
@@ -569,6 +576,12 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       });
       if (!res.ok && res.reason === "NOT_FOUND") {
         return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
+      if (!res.ok && res.reason === "QUOTA_EXCEEDED") {
+        return reply.code(429).send({
+          denial: "QUOTA_EXCEEDED",
+          key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
+        });
       }
       if (!res.ok) {
         await emitTenantAudit({

@@ -31,7 +31,13 @@ import {
   type ExchangePackageState,
   type WebhookEventKind,
 } from "@proovra/shared";
-import { workspaceCaseWhere, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import {
+  releaseExportPackageUnit,
+  reserveExportPackageUnit,
+  workspaceCaseWhere,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
+import { resolveEntitlement } from "../packaging/entitlement.service.js";
 import { allOpen, hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
 
 import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
@@ -90,7 +96,23 @@ export type CreateExchangePackageInput = {
 
 export type CreateExchangePackageResult =
   | { ok: true; packageId: string }
-  | { ok: false; denial: "INVALID_KIND" | "INVALID_EVIDENCE" | "INVALID_CASE" };
+  | { ok: false; denial: "INVALID_KIND" | "INVALID_EVIDENCE" | "INVALID_CASE" | "QUOTA_EXCEEDED" };
+
+/**
+ * WS-SCHED / PRO-BL2-02 — reserve one unit of the workspace's monthly
+ * export-package allowance (the conditional upsert in shared-runtime), against
+ * the limit the canonical entitlement resolver answers. Null = refused.
+ */
+async function reserveExportUnit(prisma: PrismaClient, teamId: string): Promise<Date | null> {
+  const projection = await resolveEntitlement({
+    prisma,
+    teamId,
+    key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
+  });
+  const limit = typeof projection.value === "number" ? projection.value : 0;
+  const res = await reserveExportPackageUnit({ prisma, teamId, limit });
+  return res.reserved ? res.periodStartUtc : null;
+}
 
 /**
  * May this caller act on this package? It holds records, so it is open only if
@@ -155,18 +177,30 @@ export async function createExchangePackage(
     });
     if (visible !== 1) return { ok: false, denial: "INVALID_CASE" };
   }
-  const row = await prisma.evidenceExchangePackage.create({
-    data: {
-      teamId: input.teamId,
-      kind: input.kind,
-      state: "DRAFT",
-      evidenceIds: input.evidenceIds as unknown as object,
-      caseId: input.caseId ?? null,
-      scopeNote: input.scopeNote?.slice(0, 400) ?? null,
-      createdByUserId: input.createdByUserId,
-    },
-    select: { id: true },
-  });
+  // PRO-BL2-02 — the allowance is RESERVED here, before anything is written;
+  // the worker's READY step does not meter a reserved package again, and a
+  // failed build gives the unit back.
+  const reservedPeriod = await reserveExportUnit(prisma, input.teamId);
+  if (!reservedPeriod) return { ok: false, denial: "QUOTA_EXCEEDED" };
+  let row: { id: string };
+  try {
+    row = await prisma.evidenceExchangePackage.create({
+      data: {
+        teamId: input.teamId,
+        kind: input.kind,
+        state: "DRAFT",
+        evidenceIds: input.evidenceIds as unknown as object,
+        caseId: input.caseId ?? null,
+        scopeNote: input.scopeNote?.slice(0, 400) ?? null,
+        createdByUserId: input.createdByUserId,
+        quotaReservedPeriodStartUtc: reservedPeriod,
+      },
+      select: { id: true },
+    });
+  } catch (err) {
+    await releaseExportPackageUnit({ prisma, teamId: input.teamId, periodStartUtc: reservedPeriod });
+    throw err;
+  }
 
   // Seed the build tracker row so the worker can pick it up immediately.
   // EvidenceExchangePackageBuild is in the schema but the Prisma client has
@@ -220,11 +254,15 @@ export async function requestExchangePackageBuild(input: {
   prisma?: PrismaClient;
   teamId: string;
   packageId: string;
+  /** PRO-BL2-02 — a reservation taken for THIS build (rebuild path). */
+  reservedPeriodStartUtc?: Date;
 }): Promise<{ requested: boolean }> {
   const prisma = input.prisma ?? defaultPrisma;
   const moved = await prisma.evidenceExchangePackage.updateMany({
     where: { id: input.packageId, teamId: input.teamId, state: "DRAFT" },
-    data: { state: "BUILDING" },
+    data: input.reservedPeriodStartUtc
+      ? { state: "BUILDING", quotaReservedPeriodStartUtc: input.reservedPeriodStartUtc }
+      : { state: "BUILDING" },
   });
   return { requested: moved.count === 1 };
 }
@@ -236,6 +274,7 @@ export async function requestExchangePackageBuild(input: {
 export type RequestExchangePackageRebuildResult =
   | { ok: true; previousState: "DRAFT" }
   | { ok: false; reason: "NOT_FOUND" }
+  | { ok: false; reason: "QUOTA_EXCEEDED" }
   | { ok: false; reason: "NOT_DRAFT"; state: ExchangePackageState };
 
 /**
@@ -255,14 +294,23 @@ export async function requestExchangePackageRebuild(input: {
   const prisma = input.prisma ?? defaultPrisma;
   const current = await prisma.evidenceExchangePackage.findFirst({
     where: { id: input.packageId, teamId: input.teamId },
-    select: { state: true },
+    select: { state: true, quotaReservedPeriodStartUtc: true },
   });
   if (!current) return { ok: false, reason: "NOT_FOUND" };
   if (current.state !== "DRAFT") {
     return { ok: false, reason: "NOT_DRAFT", state: current.state as ExchangePackageState };
   }
-  const { requested } = await requestExchangePackageBuild(input);
+  // PRO-BL2-02 — "Build again" re-reserves the unit the failed build gave back.
+  // A DRAFT that still holds its reservation (a failure recorded by an older
+  // worker image) keeps it rather than taking a second unit.
+  const held = current.quotaReservedPeriodStartUtc ?? null;
+  const reservedPeriodStartUtc = held ?? (await reserveExportUnit(prisma, input.teamId));
+  if (!reservedPeriodStartUtc) return { ok: false, reason: "QUOTA_EXCEEDED" };
+  const { requested } = await requestExchangePackageBuild({ ...input, reservedPeriodStartUtc });
   if (requested) return { ok: true, previousState: "DRAFT" };
+  if (!held) {
+    await releaseExportPackageUnit({ prisma, teamId: input.teamId, periodStartUtc: reservedPeriodStartUtc });
+  }
   const now = await prisma.evidenceExchangePackage.findFirst({
     where: { id: input.packageId, teamId: input.teamId },
     select: { state: true },
@@ -543,21 +591,39 @@ export async function revokePackage(
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.evidenceExchangePackage.findFirst({
     where: { id: input.packageId, teamId: input.teamId },
-    select: { id: true, state: true },
+    select: { id: true, state: true, quotaReservedPeriodStartUtc: true },
   });
   if (!row) return { ok: false };
   if (row.state === "REVOKED") {
     return { ok: true, revoked: false, previousState: row.state };
   }
+  // PRO-BL2-02 — a package revoked before READY never consumed its reserved
+  // unit; the move that revokes it gives the unit back (once: the update is
+  // conditional on the state and reservation it read).
+  const releases =
+    (row.state === "DRAFT" || row.state === "BUILDING") && row.quotaReservedPeriodStartUtc !== null;
   const moved = await prisma.evidenceExchangePackage.updateMany({
-    where: { id: row.id, teamId: input.teamId, state: row.state },
+    where: {
+      id: row.id,
+      teamId: input.teamId,
+      state: row.state,
+      ...(releases ? { quotaReservedPeriodStartUtc: row.quotaReservedPeriodStartUtc } : {}),
+    },
     data: {
       state: "REVOKED",
       revokedAtUtc: new Date(),
       signedUrl: null,
       signedUrlExpiresAtUtc: null,
+      ...(releases ? { quotaReservedPeriodStartUtc: null } : {}),
     },
   });
+  if (releases && moved.count === 1 && row.quotaReservedPeriodStartUtc) {
+    await releaseExportPackageUnit({
+      prisma,
+      teamId: input.teamId,
+      periodStartUtc: row.quotaReservedPeriodStartUtc,
+    });
+  }
   return { ok: true, revoked: moved.count === 1, previousState: row.state };
 }
 

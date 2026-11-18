@@ -1419,6 +1419,15 @@ describe("15. Evidence exchange package lifecycle", () => {
         update: async () => ({}),
       },
     });
+    // PRO-BL2-02 — creation reserves one export unit (conditional upsert)
+    // before writing; the double admits it.
+    const reserveCalls: unknown[] = [];
+    Object.assign(prisma as object, {
+      $queryRaw: async (...args: unknown[]) => {
+        reserveCalls.push(args);
+        return [{ consumed: 1n }];
+      },
+    });
     const result = await createExchangePackage({
       prisma: prisma as never,
       teamId: "team-1",
@@ -1426,7 +1435,8 @@ describe("15. Evidence exchange package lifecycle", () => {
       evidenceIds: ["ev-1"],
       createdByUserId: "user-1",
     });
-    expect(result.ok).toBe(true);
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    expect(reserveCalls.length).toBeGreaterThanOrEqual(1);
     expect(storedState).toBe("DRAFT");
     expect(transitions).toEqual([
       {

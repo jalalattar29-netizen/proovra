@@ -12567,6 +12567,9 @@ model EvidenceExchangePackage {
   deliveredAtUtc        DateTime? @map("delivered_at_utc") @db.Timestamptz(6)
   expiredAtUtc          DateTime? @map("expired_at_utc") @db.Timestamptz(6)
   revokedAtUtc          DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  // PRO-BL2-02 — the entitlement_usage period holding this package's reserved
+  // export unit; NULL = no reservation held (legacy, released or revoked).
+  quotaReservedPeriodStartUtc DateTime? @map("quota_reserved_period_start_utc") @db.Timestamptz(6)
   createdByUserId       String    @map("created_by_user_id") @db.Uuid
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
