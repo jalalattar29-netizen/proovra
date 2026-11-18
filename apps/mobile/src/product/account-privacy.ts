@@ -256,14 +256,23 @@ export function confirmationMatches(typed: string, view: ClosureView): boolean {
 
 /**
  * A request that is still open — shown instead of the form. The server's own
- * sets (account-closure.service.ts ACTIVE_CLOSURE_STATUSES plus a BLOCKED
- * request, which stays cancellable), as the web's AccountClosureCard reads them.
+ * set (account-closure.service.ts ACTIVE_CLOSURE_STATUSES), as the web's
+ * AccountClosureCard reads it.
+ *
+ * PRO-N1-12 — a BLOCKED request is NOT open: the server accepts a new request,
+ * so the screen shows the live blockers and the form again (with a note that
+ * the last request did not go ahead) instead of a stale snapshot.
  */
 export function isClosureActive(request: ClosureRequest | null): boolean {
   if (!request) return false;
-  return ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED", "PROCESSING"].includes(
+  return ["REQUESTED", "COOLING_OFF", "SCHEDULED", "PROCESSING"].includes(
     request.status.toUpperCase(),
   );
+}
+
+/** PRO-N1-12 — the latest request was refused at execution; the account is unchanged. */
+export function lastClosureWasBlocked(request: ClosureRequest | null): boolean {
+  return request !== null && request.status.toUpperCase() === "BLOCKED";
 }
 
 /** Statuses the cancel route accepts (CANCELLABLE_CLOSURE_STATUSES); PROCESSING is past it. */

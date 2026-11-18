@@ -65,6 +65,7 @@ import {
   hasExportInFlight,
   isClosureActive,
   isClosureCancellable,
+  lastClosureWasBlocked,
   isExportDownloadable,
   parseClosure,
   parseDataExports,
@@ -359,6 +360,14 @@ export default function PrivacyScreen() {
               The server's blockers, shown before the form. A closure form that
               submits into a blocker produces a refusal the user cannot act on.
             */}
+            {/* PRO-N1-12 — the last request was refused at execution: say so. */}
+            {lastClosureWasBlocked(closure.request) ? (
+              <ProovraText variant="body" color={theme.color.status.pending.fg}>
+                {closure.blockers.length > 0
+                  ? "Your last closure request did not go ahead, so your account was not closed. Resolve the items below, then request closure again."
+                  : "Your last closure request did not go ahead, so your account was not closed. Nothing blocks closure now; you can request it again."}
+              </ProovraText>
+            ) : null}
             {/* What closure does, and what it never does (PrivacySection :556). */}
             <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
               {`Closing your account signs you out everywhere, removes your login methods, and anonymizes your personal details after a ${closure.coolingOffDays ?? 7}-day cancellation window. Evidence is never deleted by account closure — it stays governed by retention and legal-hold rules.`}

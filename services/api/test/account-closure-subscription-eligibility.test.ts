@@ -1,23 +1,18 @@
 /**
- * Account closure vs. the commercial authority — they must agree.
+ * Account closure vs. open provider billing relationships (PRO-N1-01, DEC-21).
  *
- * REPORTED: an account Billing showed as FREE opened Settings → Privacy & data
- * → Close account and was told "You have an active subscription. Cancel it
- * before closing your account", with a "Go to Billing" action that led to a
- * page offering nothing to cancel.
+ * Closure anonymises the payer irreversibly. It used to judge each candidate
+ * subscription by the ENTITLEMENT verdict (`lifecycle.paidActive`), which
+ * short-circuits a FREE entitlement, reads two live rows as CANCELLED and
+ * PAST_DUE beyond grace as unpaid, and never looked at recurring storage
+ * add-ons — every one of which the provider can still charge. The question is
+ * now the RELATIONSHIP: does anything still renew (block), or has its end been
+ * confirmed but not reached (closure is SCHEDULED and waits)?
  *
- * The preflight was asking the database for any row belonging to the user with
- * a status in (ACTIVE, TRIALING, PAST_DUE) and treating a hit as proof of a
- * live billing relationship. That query is not the canonical question. It has
- * no `teamId` scope, so a WORKSPACE subscription counted against its
- * purchaser's personal closure; it never consults lifecycle, so a stale row a
- * webhook never closed counted forever; and it never asks the authority that
- * `/billing` itself renders, which short-circuits a FREE scope before it looks
- * at a subscription row at all.
- *
- * The verdict now comes from `resolveCommercialContext(...).lifecycle
- * .paidActive`. These tests drive the decision over every state the brief
- * names, and the last one pins the consistency invariant itself.
+ * The earlier report this suite was written for — Billing showing nothing to
+ * cancel while closure said "active subscription" — is answered by the
+ * reconciliation sweep and Billing's re-check converging a stale row, not by
+ * ignoring a row the provider may still bill.
  */
 
 import { readFileSync } from "node:fs";
@@ -26,165 +21,97 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
-  buildSubscriptionClosureBlocker,
-  type ClosureSubscriptionCandidate,
+  closureWaitsForBillingMessage,
+  judgeClosureBillingRelationships,
+  type ClosureBillingRelationship,
 } from "../src/services/identity/account-closure-subscription-policy.js";
 
 const PREFLIGHT = readFileSync(
-  fileURLToPath(
-    new URL(
-      "../src/services/identity/account-lifecycle-preflight.service.ts",
-      import.meta.url,
-    ),
-  ),
+  fileURLToPath(new URL("../src/services/identity/account-lifecycle-preflight.service.ts", import.meta.url)),
+  "utf8",
+);
+const RELATIONSHIPS = readFileSync(
+  fileURLToPath(new URL("../src/services/billing/open-provider-relationships.service.ts", import.meta.url)),
   "utf8",
 );
 
 const IN_30_DAYS = new Date(Date.now() + 30 * 86_400_000);
+const IN_60_DAYS = new Date(Date.now() + 60 * 86_400_000);
 
-/** A row the canonical authority scored as NOT live for its subject. */
-function dead(
-  over: Partial<ClosureSubscriptionCandidate> = {},
-): ClosureSubscriptionCandidate {
-  return {
-    cancelAtPeriodEnd: false,
-    currentPeriodEnd: null,
-    paidActiveForSubject: false,
-    ...over,
-  };
-}
+const sub = (over: Partial<ClosureBillingRelationship> = {}): ClosureBillingRelationship => ({
+  kind: "SUBSCRIPTION",
+  state: "RENEWING",
+  endsAtUtc: IN_30_DAYS,
+  ...over,
+});
+const addon = (over: Partial<ClosureBillingRelationship> = {}): ClosureBillingRelationship => ({
+  ...sub(over),
+  kind: "STORAGE_ADDON",
+});
 
-/** A row the canonical authority scored as LIVE for its subject. */
-function live(
-  over: Partial<ClosureSubscriptionCandidate> = {},
-): ClosureSubscriptionCandidate {
-  return { ...dead(over), paidActiveForSubject: true };
-}
-
-describe("a FREE account has nothing to cancel", () => {
-  it("A. FREE, never subscribed — no candidate rows, no blocker", () => {
-    expect(buildSubscriptionClosureBlocker([])).toBeNull();
-  });
-
-  it("B. FREE with a historical cancelled subscription — no blocker", () => {
-    // The row still exists and may still read ACTIVE in the table; the
-    // canonical authority scores the FREE scope as INACTIVE, and that is what
-    // decides. This is the reported bug.
-    expect(buildSubscriptionClosureBlocker([dead()])).toBeNull();
-  });
-
-  it("E. an expired subscription does not block", () => {
-    expect(
-      buildSubscriptionClosureBlocker([
-        dead({ currentPeriodEnd: new Date("2020-01-01T00:00:00.000Z") }),
-      ]),
-    ).toBeNull();
-  });
-
-  it("a stale row whose grace has elapsed does not block", () => {
-    // PAST_DUE beyond its bounded grace is PAST_DUE_EXPIRED to the canonical
-    // policy: not paid, not active. The old query counted it as active.
-    expect(buildSubscriptionClosureBlocker([dead(), dead()])).toBeNull();
-  });
-
-  it("F. PAYG with no recurring subscription — a wallet is not a subscription", () => {
-    // Credits are not a recurring relationship, so PAYG reaches closure with
-    // no candidate row at all and nothing to cancel.
-    expect(buildSubscriptionClosureBlocker([])).toBeNull();
+describe("nothing open — closure proceeds", () => {
+  it("no relationship at all (FREE never subscribed, PAYG wallet) — no blocker, nothing pending", () => {
+    expect(judgeClosureBillingRelationships([])).toEqual({ blockers: [], pending: null });
   });
 });
 
-describe("a live subscription still blocks", () => {
-  it("C. an active paid subscription blocks, and says to cancel it", () => {
-    const blocker = buildSubscriptionClosureBlocker([live()]);
-    expect(blocker?.code).toBe("BILLING_SUBSCRIPTION_ACTIVE");
-    expect(blocker?.message).toBe(
-      "You have an active subscription. Cancel it before closing your account.",
-    );
-    expect(blocker?.count).toBe(1);
-  });
-
-  it("D. cancel-at-period-end blocks until the period ends, and does not ask again", () => {
-    // Access runs to the paid period's end, so it blocks — but telling someone
-    // to cancel what they have already cancelled is the most frustrating kind
-    // of wrong, so the copy changes instead.
-    const blocker = buildSubscriptionClosureBlocker([
-      live({ cancelAtPeriodEnd: true, currentPeriodEnd: IN_30_DAYS }),
+describe("anything that still renews blocks", () => {
+  it("a renewing subscription blocks and says to cancel it", () => {
+    const { blockers } = judgeClosureBillingRelationships([sub()]);
+    expect(blockers).toEqual([
+      {
+        code: "BILLING_SUBSCRIPTION_ACTIVE",
+        message: "You have an active subscription. Cancel it before closing your account.",
+        count: 1,
+      },
     ]);
-    expect(blocker?.code).toBe("BILLING_SUBSCRIPTION_ACTIVE");
-    expect(blocker?.message).toContain("already cancelled and ends on");
-    expect(blocker?.message).toContain(IN_30_DAYS.toISOString().slice(0, 10));
-    expect(blocker?.message).not.toContain("Cancel it before");
   });
 
-  it("D. cancel-at-period-end with no known end date still says to wait", () => {
-    const blocker = buildSubscriptionClosureBlocker([
-      live({ cancelAtPeriodEnd: true, currentPeriodEnd: null }),
-    ]);
-    expect(blocker?.message).toContain("ends at the end of the paid period");
+  it("two renewing rows (a true multiple-live anomaly) both count", () => {
+    expect(judgeClosureBillingRelationships([sub(), sub()]).blockers[0]?.count).toBe(2);
   });
 
-  it("G. a live workspace subscription blocks, and is counted once per live row", () => {
-    const blocker = buildSubscriptionClosureBlocker([live(), live()]);
-    expect(blocker?.count).toBe(2);
+  it("a recurring storage add-on with no live base still blocks, with its own code", () => {
+    const { blockers } = judgeClosureBillingRelationships([addon()]);
+    expect(blockers.map((b) => b.code)).toEqual(["BILLING_ADDON_ACTIVE"]);
   });
 
-  it("one live row among dead ones still blocks, and the dead ones are not counted", () => {
-    const blocker = buildSubscriptionClosureBlocker([dead(), live(), dead()]);
-    expect(blocker?.count).toBe(1);
-    expect(blocker?.message).toBe(
-      "You have an active subscription. Cancel it before closing your account.",
-    );
-  });
-
-  it("a mix of cancelling and not-cancelling asks for the cancellation", () => {
-    // "All of them are already cancelled" is the only case that may say so.
-    const blocker = buildSubscriptionClosureBlocker([
-      live({ cancelAtPeriodEnd: true, currentPeriodEnd: IN_30_DAYS }),
-      live({ cancelAtPeriodEnd: false }),
-    ]);
-    expect(blocker?.message).toBe(
-      "You have an active subscription. Cancel it before closing your account.",
-    );
+  it("a renewing relationship blocks even beside one that is already ending", () => {
+    const res = judgeClosureBillingRelationships([sub({ state: "STOPPING" }), addon()]);
+    expect(res.blockers.map((b) => b.code)).toEqual(["BILLING_ADDON_ACTIVE"]);
   });
 });
 
-describe("closure and Billing read ONE commercial authority", () => {
-  it("the verdict comes from resolveCommercialContext, not a second calculator", () => {
-    expect(PREFLIGHT).toContain("resolveCommercialContext");
-    expect(PREFLIGHT).toContain("lifecycle.paidActive");
+describe("a cancelled relationship that has not ended makes closure wait (DEC-21)", () => {
+  it("is not a blocker; the latest end is reported", () => {
+    const res = judgeClosureBillingRelationships([
+      sub({ state: "STOPPING", endsAtUtc: IN_30_DAYS }),
+      addon({ state: "STOPPING", endsAtUtc: IN_60_DAYS }),
+    ]);
+    expect(res.blockers).toEqual([]);
+    expect(res.pending).toEqual({ count: 2, endsAtUtc: IN_60_DAYS });
+    expect(closureWaitsForBillingMessage(res.pending!)).toContain(IN_60_DAYS.toISOString().slice(0, 10));
   });
 
-  it("the preflight derives no commercial state of its own", () => {
-    // A second calculator is how the two drifted apart in the first place.
-    expect(PREFLIGHT).not.toMatch(/getPlanCapabilities\(/);
-    expect(PREFLIGHT).not.toMatch(/isWorkspaceSubscriptionActive\(/);
-    expect(PREFLIGHT).not.toMatch(/resolvePaidLifecycle\(/);
-    // …and it does not re-implement grace or period arithmetic. The only date
-    // it touches is the one it PRINTS in the message.
-    expect(PREFLIGHT).not.toMatch(/GRACE|graceEndsAtUtc/);
+  it("an unknown end (e.g. a PayPal cancel awaiting its event) waits without a date", () => {
+    const res = judgeClosureBillingRelationships([sub({ state: "STOPPING", endsAtUtc: null })]);
+    expect(res.pending).toEqual({ count: 1, endsAtUtc: null });
+    expect(closureWaitsForBillingMessage(res.pending!)).toContain("once the payment provider confirms the end");
+  });
+});
+
+describe("the preflight judges relationships, not the entitlement verdict", () => {
+  it("does not consult the paid-access verdict any more", () => {
+    expect(PREFLIGHT).not.toContain("lifecycle.paidActive");
+    expect(PREFLIGHT).toContain("listOpenProviderRelationships");
   });
 
-  it("a subscription row alone never decides — the subject's verdict does", () => {
-    // The guard against the exact regression: were `paidActiveForSubject`
-    // ignored and row presence used again, this would emit a blocker.
-    const rowsThatLookLive = [
-      dead({ cancelAtPeriodEnd: false, currentPeriodEnd: IN_30_DAYS }),
-      dead({ cancelAtPeriodEnd: true, currentPeriodEnd: IN_30_DAYS }),
-    ];
-    expect(buildSubscriptionClosureBlocker(rowsThatLookLive)).toBeNull();
-  });
-
-  it("the candidate query carries the row's SUBJECT", () => {
-    // Without `teamId` a workspace's subscription is charged against its
-    // purchaser's personal closure — the canonical Billing projection reads a
-    // PERSONAL subscription as `{ userId, teamId: null }`.
-    expect(PREFLIGHT).toMatch(/select:\s*\{[\s\S]*?teamId:\s*true/);
+  it("reads recurring storage add-ons and the workspaces being closed", () => {
+    expect(RELATIONSHIPS).toContain("workspaceStorageAddon.findMany");
+    expect(RELATIONSHIPS).toMatch(/teamId:\s*\{\s*in:\s*teamIds\s*\}/);
   });
 
   it("closure stays universal — no plan or entitlement gates it", () => {
-    // Unchanged invariant: closure is not a paid feature. The fix makes it
-    // MORE available, never less.
     expect(PREFLIGHT).not.toMatch(/prisma\.entitlement\b/);
   });
 });

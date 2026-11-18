@@ -32,6 +32,7 @@ import {
   ACTIVE_CLOSURE_STATUSES,
   CANCELLABLE_CLOSURE_STATUSES,
   COOLING_OFF_MS,
+  closureDueAt,
 } from "../services/identity/account-closure.service.js";
 import {
   evaluateAccountClosurePreflight,
@@ -92,6 +93,13 @@ export async function accountClosureRoutes(app: FastifyInstance) {
       return {
         request: latest,
         blockers: preflight.blockers,
+        // PRO-N1-01 / DEC-21 (additive) — closure waits for cancelled billing to end.
+        billingPending: preflight.billingPending
+          ? {
+              count: preflight.billingPending.count,
+              endsAtUtc: preflight.billingPending.endsAtUtc?.toISOString() ?? null,
+            }
+          : null,
         consequences: [
           ...preflight.consequences,
           ...(publicVerification ? [publicVerification] : []),
@@ -134,8 +142,12 @@ export async function accountClosureRoutes(app: FastifyInstance) {
         return reply.code(stepUp.denial.status).send(stepUp.denial.body);
       }
 
-      const { blockers } = await evaluateAccountClosurePreflight(userId);
-      const coolingOffEndsAtUtc = new Date(Date.now() + COOLING_OFF_MS);
+      const { blockers, billingPending } = await evaluateAccountClosurePreflight(userId);
+      // PRO-N1-01 / DEC-21 — a cancelled subscription or add-on that has not
+      // ended yet: the request is SCHEDULED, never before that end, and the
+      // execution waits until the relationship has actually ended.
+      const coolingOffEndsAtUtc = closureDueAt(new Date(), billingPending);
+      const initialStatus = billingPending ? "SCHEDULED" : "COOLING_OFF";
 
       /*
        * PRO-035 (AUTH-29) — ONE OPEN REQUEST PER ACCOUNT, UNDER CONCURRENCY.
@@ -171,7 +183,7 @@ export async function accountClosureRoutes(app: FastifyInstance) {
         const created = await tx.accountClosureRequest.create({
           data: {
             userId,
-            status: "COOLING_OFF",
+            status: initialStatus,
             reason: body.reason ?? null,
             coolingOffEndsAtUtc,
           },
@@ -215,7 +227,10 @@ export async function accountClosureRoutes(app: FastifyInstance) {
         resourceType: "account_closure_request",
         resourceId: created.id,
         correlationId: req.id,
-        metadata: { coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString() },
+        metadata: {
+          coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString(),
+          waitsForBillingEnd: billingPending !== null,
+        },
       }).catch(() => null);
       return reply.code(201).send({ request: created });
     },

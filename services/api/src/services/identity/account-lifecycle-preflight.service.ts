@@ -16,10 +16,12 @@
  *   - LEGAL_HOLD_ACTIVE — a workspace the caller owns carries an ACTIVE
  *     evidence legal hold. Custodial accountability cannot be dissolved
  *     while a hold is in force.
- *   - BILLING_SUBSCRIPTION_ACTIVE — the caller still holds a LIVE paid
- *     subscription, as judged by the canonical commercial authority. It must
- *     be cancelled first so closure never silently abandons a billing
- *     relationship.
+ *   - BILLING_SUBSCRIPTION_ACTIVE / BILLING_ADDON_ACTIVE — a provider billing
+ *     relationship (base subscription or recurring storage add-on, bought by
+ *     the caller or billing a workspace this closure closes) still RENEWS. It
+ *     must be cancelled first so closure never silently abandons a billing
+ *     relationship (PRO-N1-01). One already cancelled but not yet ended does
+ *     not block the request; it makes the closure SCHEDULED until it ends.
  *
  * Closure is UNIVERSAL — no plan/entitlement is consulted anywhere here;
  * blockers protect other people and legal duties, never revenue.
@@ -52,13 +54,16 @@
 import { prisma } from "../../db.js";
 import { resolveWorkspaceKind } from "./workspace-kind.js";
 import {
-  buildSubscriptionClosureBlocker,
-  type ClosureSubscriptionCandidate,
+  closureWaitsForBillingMessage,
+  judgeClosureBillingRelationships,
+  type ClosureBillingPending,
 } from "./account-closure-subscription-policy.js";
+import { listOpenProviderRelationships } from "../billing/open-provider-relationships.service.js";
 
 export {
-  buildSubscriptionClosureBlocker,
-  type ClosureSubscriptionCandidate,
+  judgeClosureBillingRelationships,
+  type ClosureBillingRelationship,
+  type ClosureBillingPending,
 } from "./account-closure-subscription-policy.js";
 
 export type AccountClosureBlockerCode =
@@ -66,7 +71,9 @@ export type AccountClosureBlockerCode =
   | "WORKSPACE_MEMBERS_ACTIVE"
   | "ORGANIZATION_OFFBOARDING_REQUIRED"
   | "LEGAL_HOLD_ACTIVE"
-  | "BILLING_SUBSCRIPTION_ACTIVE";
+  | "BILLING_SUBSCRIPTION_ACTIVE"
+  /** PRO-N1-01 — a recurring storage add-on that still renews. */
+  | "BILLING_ADDON_ACTIVE";
 
 export type AccountClosureBlocker = {
   code: AccountClosureBlockerCode;
@@ -76,7 +83,12 @@ export type AccountClosureBlocker = {
 
 /** What closure WILL do to other people — shown, never blocking (LIFE-13). */
 export type AccountClosureConsequence = {
-  code: "WORKSPACE_MEMBERS_LOSE_ACCESS" | "PUBLIC_VERIFICATION_REMAINS" | "RECORDS_NOT_IN_ACCOUNT_EXPORT";
+  code:
+    | "WORKSPACE_MEMBERS_LOSE_ACCESS"
+    | "PUBLIC_VERIFICATION_REMAINS"
+    | "RECORDS_NOT_IN_ACCOUNT_EXPORT"
+    /** PRO-N1-01 / DEC-21 — closure is scheduled until cancelled billing ends. */
+    | "CLOSURE_WAITS_FOR_BILLING_END";
   message: string;
   /**
    * WORKSPACE_MEMBERS_LOSE_ACCESS: other ACTIVE or SUSPENDED members across
@@ -154,66 +166,16 @@ export async function recordsNotInAccountExportConsequence(
   };
 }
 
-/**
- * Ask the canonical authority whether each candidate row's SUBJECT is really
- * paying right now.
- *
- * Resolution is per SUBJECT and memoised, so an account with several rows on
- * one workspace costs one read. A subject that cannot be resolved FAILS
- * CLOSED — closure is irreversible, so an unreadable billing state must stop
- * it rather than be assumed harmless.
- */
 /** The connection the preflight reads on: the module client, or the closure's transaction. */
 type PreflightClient = Pick<
   typeof prisma,
-  "organizationMembership" | "team" | "subscription" | "teamMember" | "evidenceLegalHold"
+  | "organizationMembership"
+  | "team"
+  | "subscription"
+  | "teamMember"
+  | "evidenceLegalHold"
+  | "workspaceStorageAddon"
 >;
-
-async function judgeSubscriptionCandidates(
-  userId: string,
-  rows: ReadonlyArray<{
-    teamId: string | null;
-    cancelAtPeriodEnd: boolean;
-    currentPeriodEnd: Date | null;
-  }>,
-  client: PreflightClient,
-): Promise<ClosureSubscriptionCandidate[]> {
-  const verdicts = new Map<string, boolean>();
-
-  const paidActiveFor = async (teamId: string | null): Promise<boolean> => {
-    const key = teamId ?? "__personal__";
-    const known = verdicts.get(key);
-    if (known !== undefined) return known;
-    let verdict: boolean;
-    try {
-      // Loaded ON DEMAND: the commercial authority pulls in the whole billing
-      // graph, and most callers of this preflight never reach a candidate row.
-      // Same authority, same verdict, loaded only when there is one to judge.
-      const { resolveCommercialContext } = await import(
-        "../billing/commercial-context.service.js"
-      );
-      const ctx = await resolveCommercialContext(
-        { ownerUserId: userId, teamId },
-        client === prisma ? {} : { client: client as never },
-      );
-      verdict = ctx.lifecycle.paidActive;
-    } catch {
-      verdict = true;
-    }
-    verdicts.set(key, verdict);
-    return verdict;
-  };
-
-  const judged: ClosureSubscriptionCandidate[] = [];
-  for (const row of rows) {
-    judged.push({
-      cancelAtPeriodEnd: row.cancelAtPeriodEnd,
-      currentPeriodEnd: row.currentPeriodEnd,
-      paidActiveForSubject: await paidActiveFor(row.teamId),
-    });
-  }
-  return judged;
-}
 
 /**
  * PHASE 12B CLUSTER 8 — ACTIVE hold count across ALL THREE legal-hold stores,
@@ -260,11 +222,20 @@ export async function evaluateAccountClosurePreflight(
    * snapshot) instead of asking the pool for more.
    */
   client: PreflightClient = prisma,
-): Promise<{ blockers: AccountClosureBlocker[]; consequences: AccountClosureConsequence[] }> {
+): Promise<{
+  blockers: AccountClosureBlocker[];
+  consequences: AccountClosureConsequence[];
+  /**
+   * PRO-N1-01 / DEC-21 — cancelled billing relationships that have not ended
+   * yet. Not a blocker: the request is SCHEDULED and completes only once this
+   * is null.
+   */
+  billingPending: ClosureBillingPending | null;
+}> {
   const blockers: AccountClosureBlocker[] = [];
   const consequences: AccountClosureConsequence[] = [];
 
-  const [ownedOrgMemberships, ownedTeams, activeHoldCount, activeSubs] =
+  const [ownedOrgMemberships, ownedTeams, activeHoldCount] =
     await Promise.all([
       client.organizationMembership.findMany({
         where: { userId, role: "ORG_OWNER" },
@@ -284,23 +255,6 @@ export async function evaluateAccountClosurePreflight(
       // stores. Closing an account is irreversible, so a hold sitting in a
       // not-yet-converted legacy store has to block it too.
       countActiveHoldsAllStores({ team: { ownerUserId: userId } }, client),
-      // The subscriptions themselves, not just a count: one that is already
-      // CANCELLING (cancelAtPeriodEnd) needs different words from one that is
-      // not. Telling somebody to cancel a subscription they have already
-      // cancelled is the most frustrating kind of wrong.
-      // CANDIDATES, not a verdict. These statuses are the rows that COULD be
-      // live; `judgeSubscriptionCandidates` asks the canonical commercial
-      // authority which of them actually are. `teamId` is selected because it
-      // is the row's SUBJECT, and a workspace's subscription is not its
-      // purchaser's personal one.
-      client.subscription.findMany({
-        where: { userId, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
-        select: {
-          teamId: true,
-          cancelAtPeriodEnd: true,
-          currentPeriodEnd: true,
-        },
-      }),
     ]);
 
   // ORG_OWNER of an org with other members → transfer required. A solo
@@ -415,13 +369,25 @@ export async function evaluateAccountClosurePreflight(
     });
   }
 
-  if (activeSubs.length > 0) {
-    const subscriptionBlocker = buildSubscriptionClosureBlocker(
-      await judgeSubscriptionCandidates(userId, activeSubs, client),
-    );
-    if (subscriptionBlocker) blockers.push(subscriptionBlocker);
+  // PRO-N1-01 — every provider relationship the closure would abandon: the
+  // caller's own purchases (any subject) and whatever bills a workspace the
+  // closure closes (a transferred workspace's subscription included), base
+  // subscriptions and recurring storage add-ons alike. A renewing one blocks;
+  // a confirmed-ending one makes the closure wait (DEC-21).
+  const relationships = await listOpenProviderRelationships(
+    { userId, teamIds: ownedTeams.filter((t) => t.closedAtUtc === null).map((t) => t.id) },
+    client,
+  );
+  const billing = judgeClosureBillingRelationships(relationships);
+  blockers.push(...billing.blockers);
+  if (billing.pending && billing.blockers.length === 0) {
+    consequences.push({
+      code: "CLOSURE_WAITS_FOR_BILLING_END",
+      message: closureWaitsForBillingMessage(billing.pending),
+      count: billing.pending.count,
+    });
   }
-  return { blockers, consequences };
+  return { blockers, consequences, billingPending: billing.pending };
 }
 
 // -----------------------------------------------------------------------------
@@ -562,7 +528,7 @@ export async function evaluateWorkspaceClosurePreflight(
 ): Promise<{ blockers: WorkspaceClosureBlocker[] }> {
   const blockers: WorkspaceClosureBlocker[] = [];
 
-  const [team, activeHolds, activeSubCount, pendingDestruction] =
+  const [team, activeHolds, openRelationships, pendingDestruction] =
     await Promise.all([
       prisma.team.findUnique({
         where: { id: teamId },
@@ -570,9 +536,9 @@ export async function evaluateWorkspaceClosurePreflight(
       }),
       // PHASE 12B CLUSTER 8 — all scopes, all stores.
       countActiveHoldsAllStores({ teamId }),
-      prisma.subscription.count({
-        where: { teamId, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
-      }),
+      // PRO-N1-01 — the ONE billing predicate account closure also uses: base
+      // subscriptions AND recurring storage add-ons billed to this workspace.
+      listOpenProviderRelationships({ teamIds: [teamId] }),
       prisma.destructionReview.count({
         where: { teamId, status: "PENDING" },
       }),
@@ -598,6 +564,7 @@ export async function evaluateWorkspaceClosurePreflight(
 
   const billingActive =
     team?.billingStatus === "ACTIVE" || team?.billingStatus === "PAST_DUE";
+  const activeSubCount = openRelationships.length;
   if (billingActive || activeSubCount > 0) {
     blockers.push({
       code: "BILLING_SUBSCRIPTION_ACTIVE",

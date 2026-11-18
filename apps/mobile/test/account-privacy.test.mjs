@@ -193,9 +193,14 @@ test("PRO-114: the server's export statuses — READY downloads, REQUESTED/PROCE
   assert.equal(A.exportStatusLabel(A.parseDataExports({ requests: [{ id: "r", status: "REQUESTED" }] })[0], NOW), "Requested — queued for generation");
 });
 
-test("PRO-114: a BLOCKED closure request is open and cancellable; PROCESSING is open but past cancelling", () => {
-  assert.equal(A.isClosureActive({ status: "BLOCKED" }), true);
+test("PRO-N1-12: a BLOCKED request is not open (live blockers + form), stays cancellable; PROCESSING is open but past cancelling", () => {
+  // The server accepts a new request after BLOCKED; a stale snapshot with only
+  // "Cancel" left the person stuck.
+  assert.equal(A.isClosureActive({ status: "BLOCKED" }), false);
+  assert.equal(A.lastClosureWasBlocked({ status: "BLOCKED" }), true);
+  assert.equal(A.lastClosureWasBlocked({ status: "COOLING_OFF" }), false);
   assert.equal(A.isClosureCancellable({ status: "BLOCKED" }), true);
+  assert.equal(A.isClosureActive({ status: "SCHEDULED" }), true);
   assert.equal(A.isClosureActive({ status: "PROCESSING" }), true);
   assert.equal(A.isClosureCancellable({ status: "PROCESSING" }), false);
   assert.equal(A.closureStatusLabel("COOLING_OFF"), "Scheduled — cancellation window open");

@@ -35,6 +35,7 @@ export type MembershipLifecycleNoticeEvent = Extract<
   | "WORKSPACE_CLOSED"
   | "ORGANIZATION_TERMINATION_SCHEDULED"
   | "ACCOUNT_CLOSED"
+  | "ACCOUNT_CLOSURE_BLOCKED"
 >;
 
 function roleLabel(role: string | null | undefined): string | null {
@@ -69,7 +70,9 @@ export async function enqueueMembershipLifecycleNoticeTx(
     ? await tx.team.findUnique({ where: { id: input.teamId }, select: { name: true } })
     : null;
   const actionUrl =
-    input.eventType === "ACCOUNT_CLOSED" || input.eventType === "WORKSPACE_CLOSED"
+    input.eventType === "ACCOUNT_CLOSED" ||
+    input.eventType === "WORKSPACE_CLOSED" ||
+    input.eventType === "ACCOUNT_CLOSURE_BLOCKED"
       ? null
       : absoluteInternalUrl(getEmailWebBaseUrl(), internalNavPath("/workspaces"));
   return enqueueEmailNotificationTx(tx, {

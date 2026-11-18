@@ -114,6 +114,39 @@ export const CANCELLABLE_CLOSURE_STATUSES = [
 ] as const;
 
 /**
+ * PRO-N1-01 / DEC-21 — how long a SCHEDULED closure waiting for a cancelled
+ * subscription or add-on to end waits before it looks again. The provider's
+ * end arrives by webhook or the hourly reconciliation sweep.
+ */
+export const CLOSURE_BILLING_RECHECK_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * When a new closure request becomes due: the cooling-off window, and never
+ * before a cancelled billing relationship's known end.
+ */
+export function closureDueAt(
+  now: Date,
+  billingPending: { endsAtUtc: Date | null } | null,
+): Date {
+  const coolingOff = now.getTime() + COOLING_OFF_MS;
+  const end = billingPending?.endsAtUtc?.getTime() ?? 0;
+  return new Date(Math.max(coolingOff, end));
+}
+
+/**
+ * PRO-N1-01 — the closure is due, but a cancelled billing relationship has
+ * not ended yet (or its end is not yet recorded). Nothing was closed: the
+ * request stays SCHEDULED and is looked at again later. Anonymising a payer
+ * the provider can still charge is exactly what this prevents.
+ */
+export class AccountClosureBillingPendingError extends Error {
+  constructor(readonly endsAtUtc: Date | null) {
+    super("account_closure_waits_for_billing_end");
+    this.name = "AccountClosureBillingPendingError";
+  }
+}
+
+/**
  * MEMBERS RE-AUDIT (second round, defect 7) — a blocker found at EXECUTION
  * time, inside the closure transaction. Nothing was closed: the transaction
  * rolled back. The request records BLOCKED with these blockers.
@@ -192,8 +225,10 @@ export async function executeAccountClosure(
     });
     const accessAlreadyEnded = user?.providerUserId === `closed:${userId}`;
     if (opts.closureRequestId && !accessAlreadyEnded) {
-      const { blockers } = await evaluateAccountClosurePreflight(userId, tx as never); // AUD-0017 (TXP-025)
+      const { blockers, billingPending } = await evaluateAccountClosurePreflight(userId, tx as never); // AUD-0017 (TXP-025)
       if (blockers.length > 0) throw new AccountClosureBlockedError(blockers);
+      // PRO-N1-01 — a cancelled relationship that has not ended: wait.
+      if (billingPending) throw new AccountClosureBillingPendingError(billingPending.endsAtUtc);
     }
 
     // Solo implicit organizations go first, so their workspaces close with
@@ -446,7 +481,7 @@ async function recordAccountClosureOutcome(input: {
   outcome: "BLOCKED" | "FAILED";
   blockers?: Array<{ code: string }>;
 }): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  const noticeId = await prisma.$transaction(async (tx) => {
     const moved = await tx.accountClosureRequest.updateMany({
       where: { id: input.requestId, status: input.fromStatus },
       data:
@@ -454,7 +489,7 @@ async function recordAccountClosureOutcome(input: {
           ? { status: "BLOCKED", blockersJson: JSON.stringify(input.blockers ?? []) }
           : { status: "FAILED", failureCode: "closure_failed" },
     });
-    if (moved.count === 0) return;
+    if (moved.count === 0) return null;
     await emitPlatformAudit(
       {
         action:
@@ -478,7 +513,17 @@ async function recordAccountClosureOutcome(input: {
       },
       tx as never,
     );
+    // PRO-N1-12 — the person is told the account was NOT closed (it used to
+    // be an audit row only, so they believed it had closed). Written in the
+    // same transaction as the outcome; dispatched after commit.
+    return enqueueMembershipLifecycleNoticeTx(tx as never, {
+      eventType: "ACCOUNT_CLOSURE_BLOCKED",
+      teamId: null,
+      recipientUserId: input.userId,
+      actorUserId: null,
+    });
   });
+  if (noticeId) await dispatchEnqueuedEmailNotifications([noticeId]).catch(() => null);
 }
 
 /**
@@ -520,7 +565,7 @@ export async function processAccountClosures(now: Date): Promise<void> {
   for (const req of due) {
     // Execution-time preflight — a blocker acquired during cooling-off
     // stops execution cold.
-    const { blockers } = await evaluateAccountClosurePreflight(req.userId);
+    const { blockers, billingPending } = await evaluateAccountClosurePreflight(req.userId);
     if (blockers.length > 0) {
       await recordAccountClosureOutcome({
         requestId: req.id,
@@ -529,6 +574,12 @@ export async function processAccountClosures(now: Date): Promise<void> {
         outcome: "BLOCKED",
         blockers,
       });
+      continue;
+    }
+    // PRO-N1-01 / DEC-21 — cancelled billing that has not ended yet: the
+    // request stays SCHEDULED and is looked at again, never executed early.
+    if (billingPending) {
+      await rescheduleForBillingEnd({ requestId: req.id, fromStatus: req.status, now, endsAtUtc: billingPending.endsAtUtc });
       continue;
     }
 
@@ -541,11 +592,39 @@ export async function processAccountClosures(now: Date): Promise<void> {
   }
 }
 
+/**
+ * PRO-N1-01 — move a due request (or one claimed for execution) back to
+ * SCHEDULED, due again no earlier than the billing end and the recheck delay.
+ */
+async function rescheduleForBillingEnd(input: {
+  requestId: string;
+  fromStatus: string;
+  now: Date;
+  endsAtUtc: Date | null;
+}): Promise<void> {
+  const next = Math.max(input.now.getTime() + CLOSURE_BILLING_RECHECK_MS, input.endsAtUtc?.getTime() ?? 0);
+  await prisma.accountClosureRequest.updateMany({
+    where: { id: input.requestId, status: input.fromStatus },
+    data: { status: "SCHEDULED", coolingOffEndsAtUtc: new Date(next), startedAtUtc: null },
+  });
+}
+
 /** Execute one claimed request and record its outcome. */
 async function runClaimedClosure(req: { id: string; userId: string }): Promise<void> {
   try {
     await executeAccountClosure(req.userId, { closureRequestId: req.id });
   } catch (err) {
+    // PRO-N1-01 — nothing closed (the transaction rolled back); the request
+    // waits for the cancelled billing relationship to end.
+    if (err instanceof AccountClosureBillingPendingError) {
+      await rescheduleForBillingEnd({
+        requestId: req.id,
+        fromStatus: "PROCESSING",
+        now: new Date(),
+        endsAtUtc: err.endsAtUtc,
+      }).catch(() => null);
+      return;
+    }
     // A blocker found inside the closure transaction: nothing closed, and
     // the request is BLOCKED (with its audit), exactly as a blocker found
     // before the claim — on the reaper path too.
