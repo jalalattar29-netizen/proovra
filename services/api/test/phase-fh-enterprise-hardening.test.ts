@@ -157,8 +157,9 @@ describe("F-1/F-2 — every provider-calling AI route reserves on the durable le
           new RegExp(`feature: [A-Z_]*${feature}[A-Z_]*\\b`).test(src),
         `${file} must reserve under ${feature}`,
       ).toBe(true);
-      expect(src).toContain("reconcileAiUsage");
-      expect(src).toContain("releaseAiReservation");
+      // RG-05 — commit/release is decided once, from the transport outcome,
+      // by the canonical settle helper (which reconciles or releases).
+      expect(src).toContain("settleAiSpend");
     });
   }
 

@@ -15,6 +15,14 @@ export const COPILOT_PROMPT_VERSION = "1.0.0";
 export const SYSTEM_POLICY_VERSION = "1.0.0";
 export const CONTEXT_SCHEMA_VERSION = "1.0.0";
 
+/** `run:` + sha256(workspace, user, request id) — fits the 120-char column. */
+export function scopeCopilotRequestId(input: { workspaceId: string; userId: string; requestId: string }): string {
+  const digest = createHash("sha256")
+    .update(`${input.workspaceId}|${input.userId}|${input.requestId}`)
+    .digest("hex");
+  return `run:${digest}`;
+}
+
 export async function persistCopilotRun(input: {
   workspaceId: string;
   userId: string;
@@ -41,9 +49,15 @@ export async function persistCopilotRun(input: {
   boundedResult?: unknown;
   validatedCitations?: unknown;
 }) {
+  // PRO-AI1-07 — the idempotency key is bound to the workspace AND the user.
+  // A bare request id let a second user (or, with a known id, another
+  // workspace) overwrite an existing run's result and citations while the row
+  // kept the first run's owner. The stored key is a digest of all three, so a
+  // re-run by the same user updates their row and anyone else gets their own.
+  const scopedRequestId = scopeCopilotRequestId(input);
   try {
     return await prisma.aiCopilotRun.upsert({
-      where: { requestId: input.requestId },
+      where: { requestId: scopedRequestId },
       update: {
         status: input.status,
         boundedResultJson: (input.boundedResult ?? undefined) as never,
@@ -55,7 +69,7 @@ export async function persistCopilotRun(input: {
         feature: input.feature,
         caseId: input.caseId ?? null,
         reviewId: input.reviewId ?? null,
-        requestId: input.requestId,
+        requestId: scopedRequestId,
         provider: "openai",
         model: input.model,
         promptVersion: COPILOT_PROMPT_VERSION,

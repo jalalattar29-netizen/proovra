@@ -44,7 +44,8 @@ import { persistCopilotRun } from "../services/ai/ai-copilot-run-store.service.j
 import { evaluateWorkspaceAiOperation, workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
 import { copilotMayOfferReviewerAssignment } from "../services/ai/copilot-reviewer-assignment.service.js";
 import { AiPlanAllowanceRefused, meterAiPlanOperation } from "../services/ai/ai-plan-operation-meter.js";
-import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
+import { buildPrismaLedgerStore, releaseAiReservation, ledgerRefusalStatus, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
+import { settleAiSpend } from "../services/ai/ai-provider-outcome.js";
 import { sanitizeUntrustedField } from "../services/ai/prompt-context-sanitizer.service.js";
 import {
   policyFeatureForOperation,
@@ -220,7 +221,7 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       estimatedCostUsdMicros: 250_000n,
     });
     if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
-      return reply.code(429).send({ code: `AI_BUDGET_${ledger.decision.code}`, message: "The workspace AI budget or operation limit has been reached." });
+      return reply.code(ledgerRefusalStatus(ledger.decision.code)).send({ code: `AI_BUDGET_${ledger.decision.code}`, message: "The workspace AI budget or operation limit has been reached." });
     }
 
     // C3 — allowlisted sanitized context (deterministic signals included).
@@ -315,12 +316,19 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
         summaryField: "operationalSummary",
       });
     } catch (err) {
-      if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+      // RG-05 (PRO-AI1-03) — settle from what the provider DID across every
+      // attempt in this request: an attempt that was answered or may have
+      // been generated keeps the operation even when a later attempt threw.
+      await settleAiSpend({
+        outcome: err instanceof AiPlanAllowanceRefused ? "NOT_SENT" : callProvider.spend.outcome,
+        ledgerReservationId: ledger.reservationId,
+        actualCostUsdMicros: callProvider.spend.actualCostUsdMicros,
+        releasePlanOperation: () => planMeter.refund(),
+      });
       if (err instanceof AiPlanAllowanceRefused) {
         await audit("blocked", { status: err.denial });
         return reply.code(err.statusCode).send({ code: err.denial, message: err.message });
       }
-      await planMeter.refund();
       if (err instanceof CopilotProviderUnavailable) {
         await audit("failure", { status: "provider_unavailable" });
         return reply.code(200).send({ status: "provider_unavailable", advisoryBoundary: "AI assistance is advisory only." });
@@ -331,10 +339,13 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
     // reconciled only when the provider was actually reached (the plan meter
     // took its operation). A policy-denied or no-selection run released the
     // reservation, and with it the rollups it had incremented.
-    if (ledger.reservationId) {
-      if (planMeter.taken) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
-      else await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
-    }
+    // RG-05 (PRO-AI1-12) — the ledger records the provider-reported cost.
+    await settleAiSpend({
+      outcome: planMeter.taken ? callProvider.spend.outcome : "NOT_SENT",
+      ledgerReservationId: ledger.reservationId,
+      actualCostUsdMicros: callProvider.spend.actualCostUsdMicros,
+      releasePlanOperation: () => planMeter.refund(),
+    });
 
     await audit(result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", {
       status: result.status, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision,

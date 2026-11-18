@@ -41,7 +41,8 @@ import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPris
 import { persistCopilotRun, recordObservationInteraction } from "../services/ai/ai-copilot-run-store.service.js";
 import { evaluateWorkspaceAiOperation, workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
 import { AiPlanAllowanceRefused, meterAiPlanOperation } from "../services/ai/ai-plan-operation-meter.js";
-import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
+import { buildPrismaLedgerStore, releaseAiReservation, ledgerRefusalStatus, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
+import { settleAiSpend } from "../services/ai/ai-provider-outcome.js";
 import { loadPublishedCriteria } from "./reviewer-criteria.routes.js";
 import { selectQcSample } from "../services/ai/ai-qc-sampling.service.js";
 
@@ -233,6 +234,31 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       });
     };
 
+    // Phase P6 — SERVER-side criteria resolution. Client-supplied version
+    // strings are never trusted when a catalog set is referenced: forged /
+    // unpublished / cross-tenant versions are rejected here.
+    //
+    // RG-05 (PRO-AI1-06) — resolved BEFORE the budget reservation, so a
+    // refused criteria set never holds (and leaks) a ledger reservation; and
+    // an unreadable catalog fails closed (retryable 503) instead of running
+    // under the client-supplied version label.
+    let criteriaVersionLabel = body.criteriaVersion;
+    let criteriaList: Array<{ key: string; title: string; required: boolean; reviewGuidance: string | null }> = [];
+    if (body.criteriaSetId) {
+      const loaded = await loadPublishedCriteria({
+        teamId, criteriaSetId: body.criteriaSetId, criteriaVersionId: body.criteriaVersionId ?? null,
+      });
+      if (loaded === null) {
+        reply.header("Retry-After", "30");
+        return reply.code(503).send({ error: { code: "criteria_unavailable" } });
+      }
+      if (!loaded.ok) {
+        return reply.code(loaded.code === "CROSS_TENANT" ? 403 : 409).send({ error: { code: `criteria_${loaded.code.toLowerCase()}` } });
+      }
+      criteriaVersionLabel = loaded.versionLabel;
+      criteriaList = loaded.criteria;
+    }
+
     // Phase A7 — durable budget reservation.
     const ledger = await tryReserveAiBudget({
       teamId, userId, feature: "REVIEWER_COPILOT",
@@ -241,25 +267,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       estimatedCostUsdMicros: 250_000n,
     });
     if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
-      return reply.code(429).send({ code: `AI_BUDGET_${ledger.decision.code}`, message: "The workspace AI budget or operation limit has been reached." });
-    }
-
-    // Phase P6 — SERVER-side criteria resolution. Client-supplied version
-    // strings are never trusted when a catalog set is referenced: forged /
-    // unpublished / cross-tenant versions are rejected here.
-    let criteriaVersionLabel = body.criteriaVersion;
-    let criteriaList: Array<{ key: string; title: string; required: boolean; reviewGuidance: string | null }> = [];
-    if (body.criteriaSetId) {
-      const loaded = await loadPublishedCriteria({
-        teamId, criteriaSetId: body.criteriaSetId, criteriaVersionId: body.criteriaVersionId ?? null,
-      });
-      if (loaded && !loaded.ok) {
-        return reply.code(loaded.code === "CROSS_TENANT" ? 403 : 409).send({ error: { code: `criteria_${loaded.code.toLowerCase()}` } });
-      }
-      if (loaded?.ok) {
-        criteriaVersionLabel = loaded.versionLabel;
-        criteriaList = loaded.criteria;
-      }
+      return reply.code(ledgerRefusalStatus(ledger.decision.code)).send({ code: `AI_BUDGET_${ledger.decision.code}`, message: "The workspace AI budget or operation limit has been reached." });
     }
 
     // TOCTOU CLOSE — the reservation and the criteria load are both round
@@ -304,12 +312,17 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
         resolveCitation,
       });
     } catch (err) {
-      if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
+      // RG-05 (PRO-AI1-03) — settled from what the provider did.
+      await settleAiSpend({
+        outcome: err instanceof AiPlanAllowanceRefused ? "NOT_SENT" : reviewerProvider.spend.outcome,
+        ledgerReservationId: ledger.reservationId,
+        actualCostUsdMicros: reviewerProvider.spend.actualCostUsdMicros,
+        releasePlanOperation: () => planMeter.refund(),
+      });
       if (err instanceof AiPlanAllowanceRefused) {
         await audit("blocked", { status: err.denial });
         return reply.code(err.statusCode).send({ code: err.denial, message: err.message });
       }
-      await planMeter.refund();
       if (err instanceof ReviewerCopilotProviderUnavailable) {
         await audit("failure", { status: "provider_unavailable" });
         return reply.code(200).send({ status: "provider_unavailable", advisoryBoundary: "AI assistance is advisory only." });
@@ -320,16 +333,19 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     // reconciled only when the provider was actually reached (the plan meter
     // took its operation). A policy-denied or no-selection run released the
     // reservation, and with it the rollups it had incremented.
-    if (ledger.reservationId) {
-      if (planMeter.taken) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
-      else await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
-    }
+    await settleAiSpend({
+      outcome: planMeter.taken ? reviewerProvider.spend.outcome : "NOT_SENT",
+      ledgerReservationId: ledger.reservationId,
+      actualCostUsdMicros: reviewerProvider.spend.actualCostUsdMicros,
+      releasePlanOperation: () => planMeter.refund(),
+    });
     await audit(result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", { status: result.status, criteriaVersion: criteriaVersionLabel, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision });
 
     // Phase D4 — bounded defensibility record (never blocks the response).
     const run = await persistCopilotRun({
       workspaceId: teamId, userId, feature: "REVIEWER_COPILOT", reviewId,
-      requestId: body.idempotencyKey ?? `review:${reviewId}:${body.criteriaVersion}:${ids.sort().join(",")}`,
+      // PRO-AI1-07 — the server-built identity, never a client string.
+      requestId: requestIdentity,
       model: process.env.OPENAI_REVIEWER_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
       workspacePolicyVersion: policyDecision.policyVersion,
       criteriaVersion: criteriaVersionLabel,

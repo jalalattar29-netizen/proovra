@@ -2,7 +2,7 @@
  * FINAL ENTERPRISE COMPLETION — Phase 4: canonical provider factory
  * retry policy + bounded telemetry.
  *
- *   - 429 / 5xx transport errors → exactly ONE retry.
+ *   - 429 → exactly ONE retry. 5xx → no retry (RG-05: may have been billed).
  *   - 4xx (non-429) → NO retry, error propagates.
  *   - Malformed model output → NO retry (model failure, not transport),
  *     safe { _malformed: true } fallback.
@@ -73,12 +73,14 @@ describe("Phase 4 — provider factory retry policy + telemetry", () => {
     expect(H.calls).toBe(2);
   });
 
-  it("5xx → exactly one retry; a second 5xx propagates (bounded, never a loop)", async () => {
+  it("5xx → NOT re-sent: the call may have been generated and billed (RG-05 / PRO-AI1-03)", async () => {
+    // A 5xx is SENT_UNKNOWN: re-sending it is a second provider charge for
+    // one user action. Only a refusal proven pre-generation (429) is retried.
     H.impl = async () => {
       throw providerError(503);
     };
     await expect(call({})).rejects.toThrow("provider 503");
-    expect(H.calls).toBe(2);
+    expect(H.calls).toBe(1);
   });
 
   it("non-429 4xx → NO retry, error propagates immediately", async () => {

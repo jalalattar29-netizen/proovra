@@ -1,3 +1,4 @@
+import { aiResultSpends, providerCostOf, providerOutcomeOf, type MeteredAiResult } from "./ai-provider-outcome.js";
 import type { AiProvider } from "./ai-provider.js";
 import { AiResult, AiSeverity, AiTask } from "./ai-types.js";
 import { AiCostGuard } from "./ai-cost-guard.js";
@@ -365,7 +366,7 @@ export class AiCaptureService {
   async analyzeSession(
     userId: string,
     payload: CaptureSessionReviewPayload
-  ): Promise<AiResult> {
+  ): Promise<MeteredAiResult> {
     const deterministic = buildDeterministicSessionReview(payload);
     const guard = this.costGuard.canAnalyzeCapture(userId, payload.collectionPlan.id);
 
@@ -391,13 +392,20 @@ const providerResult = await this.provider.run(
   redactSessionPayloadForProvider(payload)
 );
 
-if (providerResult.status === "ok") {
+// RG-05 — the transport fact travels with whatever this method returns.
+const providerOutcome = providerOutcomeOf(providerResult);
+const providerCostUsdMicros = providerCostOf(providerResult);
+if (aiResultSpends(providerResult)) {
   this.costGuard.recordCaptureAnalysis(userId, payload.collectionPlan.id);
-  return compareFlags(providerResult, deterministic);
+}
+if (providerResult.status === "ok") {
+  return { ...compareFlags(providerResult, deterministic), providerOutcome, providerCostUsdMicros };
 }
 
 return {
   ...deterministic,
+  providerOutcome,
+  providerCostUsdMicros,
   // B6-F-21 (Free-user audit 0ea0) — the deterministic review is still
   // returned, but under the PROVIDER's non-ok status. It inherited `ok` from
   // the deterministic object, so the route's spend rule (release unless ok)

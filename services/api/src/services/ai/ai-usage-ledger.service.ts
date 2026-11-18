@@ -32,7 +32,8 @@ export type LedgerDecision =
         | "DAILY_COST_LIMIT"
         | "MONTHLY_COST_LIMIT"
         | "PLATFORM_MONTHLY_COST_LIMIT"
-        | "DUPLICATE_REQUEST";
+        | "DUPLICATE_REQUEST"
+        | "LEDGER_UNAVAILABLE";
     };
 
 export type LedgerStore = {
@@ -49,6 +50,16 @@ export type LedgerStore = {
   incrementRollups: (workspaceId: string, dayUtc: string, monthUtc: string, costUsdMicros: bigint) => Promise<void>;
   markCompleted: (reservationId: string, actualCostUsdMicros: bigint | null) => Promise<void>;
   markFailed: (reservationId: string) => Promise<void>;
+  /**
+   * PRO-AI1-12 — reserve and increment atomically, refusing at the operation
+   * limits inside the write. Optional so simple stores keep working.
+   */
+  reserveBounded?: (
+    input: LedgerReserveInput,
+    dayUtc: string,
+    monthUtc: string,
+    limits: { dailyOperationLimit: number | null; monthlyOperationLimit: number | null },
+  ) => Promise<{ reservationId: string } | "DUPLICATE_REQUEST" | "DAILY_OP_LIMIT" | "MONTHLY_OP_LIMIT">;
 };
 
 export function dayUtcOf(now: Date): string {
@@ -132,10 +143,31 @@ export async function reserveAiBudget(
     }
   }
 
+  // PRO-AI1-12 — the operation limits are enforced by the WRITE, not only by
+  // the read above: N concurrent requests at limit - 1 all passed the read.
+  // A store that can do it reserves and increments in one transaction whose
+  // rollup upserts only increment below the limit.
+  if (store.reserveBounded) {
+    const bounded = await store.reserveBounded(input, day, month, {
+      dailyOperationLimit: limits.dailyOperationLimit,
+      monthlyOperationLimit: limits.monthlyOperationLimit,
+    });
+    if (bounded === "DUPLICATE_REQUEST" || bounded === "DAILY_OP_LIMIT" || bounded === "MONTHLY_OP_LIMIT") {
+      return { allowed: false, code: bounded };
+    }
+    return { allowed: true, reservationId: bounded.reservationId };
+  }
+
   const reservationId = await store.createReservation(input);
   if (reservationId === null) return { allowed: false, code: "DUPLICATE_REQUEST" };
   await store.incrementRollups(input.workspaceId, day, month, input.estimatedCostUsdMicros);
   return { allowed: true, reservationId };
+}
+
+class LedgerBoundRefused extends Error {
+  constructor(readonly code: "DAILY_OP_LIMIT" | "MONTHLY_OP_LIMIT" | "DUPLICATE_REQUEST") {
+    super(code);
+  }
 }
 
 /** Reconcile after a successful provider call (records actual cost). */
@@ -225,10 +257,82 @@ export function buildPrismaLedgerStore(): LedgerStore {
         }),
       ]);
     },
+    async reserveBounded(input, dayUtc, monthUtc, limits) {
+      const cost = input.estimatedCostUsdMicros;
+      const dailyLimit = limits.dailyOperationLimit;
+      const monthlyLimit = limits.monthlyOperationLimit;
+      try {
+        return await prisma.$transaction(async (tx) => {
+          const daily = await tx.$queryRaw<Array<{ operations: number }>>`
+            INSERT INTO ai_usage_daily (id, workspace_id, day_utc, operations, cost_usd_micros)
+            VALUES (gen_random_uuid(), ${input.workspaceId}::uuid, ${dayUtc}, 1, ${cost})
+            ON CONFLICT (workspace_id, day_utc)
+            DO UPDATE SET operations = ai_usage_daily.operations + 1,
+                          cost_usd_micros = ai_usage_daily.cost_usd_micros + EXCLUDED.cost_usd_micros
+            WHERE ${dailyLimit}::int IS NULL OR ai_usage_daily.operations < ${dailyLimit}::int
+            RETURNING operations`;
+          if (daily.length === 0) throw new LedgerBoundRefused("DAILY_OP_LIMIT");
+          const monthly = await tx.$queryRaw<Array<{ operations: number }>>`
+            INSERT INTO ai_usage_monthly (id, workspace_id, month_utc, operations, cost_usd_micros)
+            VALUES (gen_random_uuid(), ${input.workspaceId}::uuid, ${monthUtc}, 1, ${cost})
+            ON CONFLICT (workspace_id, month_utc)
+            DO UPDATE SET operations = ai_usage_monthly.operations + 1,
+                          cost_usd_micros = ai_usage_monthly.cost_usd_micros + EXCLUDED.cost_usd_micros
+            WHERE ${monthlyLimit}::int IS NULL OR ai_usage_monthly.operations < ${monthlyLimit}::int
+            RETURNING operations`;
+          if (monthly.length === 0) throw new LedgerBoundRefused("MONTHLY_OP_LIMIT");
+          const existing = await tx.aiUsageEvent.findUnique({
+            where: { requestId: input.requestId },
+            select: { id: true },
+          });
+          if (existing) throw new LedgerBoundRefused("DUPLICATE_REQUEST");
+          const row = await tx.aiUsageEvent.create({
+            data: {
+              workspaceId: input.workspaceId,
+              userId: input.userId,
+              feature: input.feature,
+              provider: input.provider,
+              model: input.model,
+              requestId: input.requestId,
+              estimatedCostUsdMicros: cost,
+              status: "reserved",
+            },
+            select: { id: true },
+          });
+          return { reservationId: row.id };
+        });
+      } catch (err) {
+        if (err instanceof LedgerBoundRefused) return err.code;
+        // A concurrent duplicate request id collides at the unique index.
+        if ((err as { code?: string }).code === "P2002") return "DUPLICATE_REQUEST";
+        throw err;
+      }
+    },
     async markCompleted(reservationId, actual) {
-      await prisma.aiUsageEvent.update({
-        where: { id: reservationId },
-        data: { status: "completed", completedAt: new Date(), actualCostUsdMicros: actual },
+      // PRO-AI1-12 — when the provider reported its usage, the rollups the
+      // owner's AI usage page reads move from the flat reserve-time estimate
+      // to the actual cost (the delta is applied once, with the status move).
+      await prisma.$transaction(async (tx) => {
+        const moved = await tx.aiUsageEvent.updateMany({
+          where: { id: reservationId, status: "reserved" },
+          data: { status: "completed", completedAt: new Date(), actualCostUsdMicros: actual },
+        });
+        if (moved.count !== 1 || actual === null) return;
+        const event = await tx.aiUsageEvent.findUnique({
+          where: { id: reservationId },
+          select: { workspaceId: true, reservedAt: true, estimatedCostUsdMicros: true },
+        });
+        if (!event) return;
+        const delta = actual - event.estimatedCostUsdMicros;
+        if (delta === 0n) return;
+        await tx.aiUsageDaily.updateMany({
+          where: { workspaceId: event.workspaceId, dayUtc: dayUtcOf(event.reservedAt) },
+          data: { costUsdMicros: { increment: delta } },
+        });
+        await tx.aiUsageMonthly.updateMany({
+          where: { workspaceId: event.workspaceId, monthUtc: monthUtcOf(event.reservedAt) },
+          data: { costUsdMicros: { increment: delta } },
+        });
       });
     },
     async markFailed(reservationId) {
@@ -319,6 +423,14 @@ export async function tryReserveAiBudget(input: {
     );
     return { decision, reservationId: decision.allowed ? decision.reservationId : null };
   } catch {
-    return { decision: null, reservationId: null };
+    // PRO-AI1-12 — an unreadable/unwritable ledger is not permission to skip
+    // the owner's limits. Refused (nothing spent); routes answer a retryable
+    // 503 for this code.
+    return { decision: { allowed: false, code: "LEDGER_UNAVAILABLE" }, reservationId: null };
   }
+}
+
+/** HTTP status for a ledger refusal: an unavailable ledger is retryable. */
+export function ledgerRefusalStatus(code: string): number {
+  return code === "LEDGER_UNAVAILABLE" ? 503 : 429;
 }

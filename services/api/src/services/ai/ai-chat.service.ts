@@ -1,3 +1,4 @@
+import { aiResultSpends, type MeteredAiResult } from "./ai-provider-outcome.js";
 import type { AiProvider } from "./ai-provider.js";
 import { AiResult, AiTask } from "./ai-types.js";
 import { AiCostGuard } from "./ai-cost-guard.js";
@@ -133,7 +134,7 @@ export class AiChatService {
   async analyzeChat(
     userId: string,
     payload: SupportChatPayload
-  ): Promise<AiResult> {
+  ): Promise<MeteredAiResult> {
     return this.preflight(userId, payload) ?? this.runProviderChat(userId, payload);
   }
 
@@ -141,7 +142,7 @@ export class AiChatService {
   async runProviderChat(
     userId: string,
     payload: SupportChatPayload
-  ): Promise<AiResult> {
+  ): Promise<MeteredAiResult> {
 // Phase O1.5E — bounded ai.chat + ai.support.response spans. NEVER
 // the prompts, messages, or responses in attributes.
 await withProovraSpan(PROOVRA_SPAN_NAMES.AI_CHAT, { "proovra.operation": "ai_chat", "proovra.provider": "openai" }, () => undefined);
@@ -152,7 +153,7 @@ const result = await this.provider.run(
   sanitizeChatPayload(payload)
 );
 
-const cleanedResult: AiResult = {
+const cleanedResult: MeteredAiResult = {
   ...result,
   warnings:
     result.status === "ok"
@@ -168,7 +169,10 @@ const cleanedResult: AiResult = {
       : result.flags,
 };
 
-if (cleanedResult.status === "ok") {
+// RG-05 (PRO-AI1-02) — the in-process daily guard counts every call the
+// provider answered or may have answered, not only the ones whose (formerly
+// model-authored) status was ok.
+if (aiResultSpends(cleanedResult)) {
   this.costGuard.recordChatMessage(userId);
 }
 
