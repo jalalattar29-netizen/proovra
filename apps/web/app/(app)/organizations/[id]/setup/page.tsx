@@ -270,13 +270,22 @@ function OrganizationSetupInner() {
   const step = WIZARD_STEPS[machine.stepIndex]!;
 
   // Resume at a step from a `#stepId` hash (checklist deep-links).
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const hash = window.location.hash.replace(/^#/, "");
-    if (!hash) return;
-    const idx = WIZARD_STEPS.findIndex((s) => s.id === hash);
+  // PRO-T1C-07 — and on every later hash change (back/forward, a typed hash),
+  // not only on mount.
+  const goToStepId = useCallback((stepId: string) => {
+    const idx = WIZARD_STEPS.findIndex((s) => s.id === stepId);
     if (idx >= 0) setMachine((m) => goToStep(m, idx));
   }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fromHash = () => {
+      const hash = window.location.hash.replace(/^#/, "");
+      if (hash) goToStepId(hash);
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  }, [goToStepId]);
 
   // -------- reads --------
   const [org, setOrg] = useState<Loadable<OrgResponse>>({ kind: "loading" });
@@ -1345,6 +1354,7 @@ function OrganizationSetupInner() {
             orgName={org.kind === "ready" ? org.data.name : "your organization"}
             criteria={criteria}
             setupHref={setupHref}
+            onGoToStep={goToStepId}
           />
         )}
       </Card>
@@ -1501,10 +1511,12 @@ function SuccessScreen({
   orgName,
   criteria,
   setupHref,
+  onGoToStep,
 }: {
   orgName: string;
   criteria: ReadonlyArray<ReturnType<typeof deriveChecklist>[number]>;
   setupHref: string;
+  onGoToStep?: (stepId: string) => void;
 }) {
   const done = criteria.filter((c) => c.done === true).length;
   return (
@@ -1538,7 +1550,7 @@ function SuccessScreen({
         back to any step below at any time.
       </p>
       <div style={{ maxWidth: 480, margin: "0 auto 1rem", textAlign: "left" }}>
-        <SetupChecklist criteria={criteria} setupHref={setupHref} compact />
+        <SetupChecklist criteria={criteria} setupHref={setupHref} compact onGoToStep={onGoToStep} />
       </div>
       <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
         <Link href="/home" data-action="success-go-to-workspace" style={linkReset}>

@@ -58,6 +58,7 @@ import {
   workspaceRoleLabel,
   type WorkspaceMembersPanelHandle,
 } from "./components/WorkspaceMembersPanel";
+import { OwnershipOffers } from "./components/OwnershipOffers";
 // Closure verification Part C — the per-team detail page (workspace
 // admin: members, invites, danger actions) must use the canonical
 // PageRouteGate, matching the gated list page at /teams (routeId
@@ -1473,6 +1474,8 @@ function TeamDetailPageBody() {
         <div className="app-main-column">
         {/* MEMBERS — the primary object on the page. Server-paged and
             server-searched; see ./components/WorkspaceMembersPanel. */}
+        {/* PRO-T1-06 — an ownership offer addressed to the viewer. */}
+        <OwnershipOffers />
         {teamId ? (
           <WorkspaceMembersPanel
             ref={membersPanel}
@@ -2076,7 +2079,9 @@ function TeamDetailPageBody() {
               </label>
               <AppListbox
                 value={inviteRole}
-                options={INVITE_ROLE_OPTIONS.map((r) => ({
+                // PRO-T1-04 — the same ceiling the server enforces: only the
+                // owner may invite an ADMIN; an ADMIN invites below its rank.
+                options={INVITE_ROLE_OPTIONS.filter((r) => r !== "ADMIN" || currentRole === "OWNER").map((r) => ({
                   value: r,
                   label: workspaceRoleLabel(r),
                 }))}

@@ -53,6 +53,11 @@ export interface ClosureState {
   /** The exact phrase the ROUTE checks. Never restated by the client. */
   confirmationPhrase: string | null;
   coolingOffDays: number | null;
+  /**
+   * PRO-T1-01 — closed NOW (Team.closedAtUtc). A reopened workspace keeps its
+   * COMPLETED request as history; null from an older API (status fallback).
+   */
+  workspaceClosed?: boolean | null;
 }
 
 export function parseClosureState(payload: unknown): ClosureState {
@@ -80,6 +85,7 @@ export function parseClosureState(payload: unknown): ClosureState {
       .filter((b): b is ClosureBlocker => b !== null),
     confirmationPhrase: str(d.confirmationPhrase),
     coolingOffDays: num(d.coolingOffDays),
+    workspaceClosed: typeof d.workspaceClosed === "boolean" ? d.workspaceClosed : null,
   };
 }
 
@@ -101,7 +107,8 @@ export function hasOpenClosure(state: ClosureState): boolean {
 export function canRequestClosure(state: ClosureState): boolean {
   const s = (state.requestStatus ?? "").toUpperCase();
   const active = state.requestId !== null && ACTIVE_CLOSURE.includes(s);
-  return !hasOpenClosure(state) && !active && state.blockers.length === 0;
+  // PRO-T1-01 — a workspace closed now is reopened, never closed again.
+  return !hasOpenClosure(state) && !active && state.blockers.length === 0 && state.workspaceClosed !== true;
 }
 
 /**
@@ -181,7 +188,9 @@ export function isClosureInFlight(state: ClosureState): boolean {
 
 /** Reopen is offered only where it can work: the latest request COMPLETED. */
 export function canReopenWorkspace(state: ClosureState): boolean {
-  return !isClosureInFlight(state) && (state.requestStatus ?? "").toUpperCase() === "COMPLETED";
+  if (isClosureInFlight(state)) return false;
+  if (typeof state.workspaceClosed === "boolean") return state.workspaceClosed;
+  return (state.requestStatus ?? "").toUpperCase() === "COMPLETED";
 }
 
 export function buildWorkspaceReopenPath(teamId: string): string {
@@ -210,3 +219,23 @@ export function reopenFailureCopy(err: unknown, fallback: string | null): string
 
 export const WORKSPACE_REOPENED_NOTICE =
   "Workspace reopened. Your owner access is back; other members, API credentials and webhooks stay revoked until you restore them explicitly.";
+
+/**
+ * PRO-NA-02 — `GET /v1/teams` lists `closedOwned`: workspaces the caller owns of
+ * record that are closed now (they leave the switcher once closure revokes the
+ * owner's membership). An older API omits it → [].
+ */
+export interface ClosedOwnedWorkspace {
+  id: string;
+  name: string | null;
+  closedAtIso: string | null;
+}
+export function parseClosedOwnedWorkspaces(payload: unknown): ClosedOwnedWorkspace[] {
+  return rows(obj(payload).closedOwned)
+    .map((raw) => {
+      const r = obj(raw);
+      const id = str(r.id);
+      return id ? { id, name: str(r.name), closedAtIso: str(r.closedAtUtc) } : null;
+    })
+    .filter((r): r is ClosedOwnedWorkspace => r !== null);
+}

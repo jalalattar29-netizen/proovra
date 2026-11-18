@@ -9,7 +9,7 @@
  * offboarding, and a legacy owned one through the canonical closure request.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 
 import { describeWorkspaceLifecycle } from "@proovra/shared";
@@ -37,6 +37,7 @@ import {
   parseWorkspaceOverview,
   type WorkspaceOverview,
 } from "../../../src/product/workspace-people";
+import { parseClosedOwnedWorkspaces, type ClosedOwnedWorkspace } from "../../../src/product/closure";
 
 export default function WorkspaceLifecycleScreen() {
   const router = useRouter();
@@ -63,13 +64,50 @@ export default function WorkspaceLifecycleScreen() {
     void load();
   }, [load]);
 
+  // PRO-NA-02 — closed workspaces this account owns of record: the only door
+  // back to Reopen once closure has revoked the owner's own membership.
+  const [closedOwned, setClosedOwned] = useState<ClosedOwnedWorkspace[]>([]);
+  const [closedLoaded, setClosedLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/v1/teams")
+      .then((d) => {
+        if (!cancelled) setClosedOwned(parseClosedOwnedWorkspaces(d));
+      })
+      .catch(() => {
+        if (!cancelled) setClosedOwned([]);
+      })
+      .finally(() => {
+        if (!cancelled) setClosedLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const closedSection =
+    closedOwned.length > 0 ? (
+      <ProovraPageSection title="Closed workspaces you own">
+        {closedOwned.map((w) => (
+          <Fragment key={w.id}>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              {w.name ?? "Workspace"}
+            </ProovraText>
+            <WorkspaceClosureCard teamId={w.id} />
+          </Fragment>
+        ))}
+      </ProovraPageSection>
+    ) : null;
+
   const policy = overview?.lifecycle ?? null;
   const viewerIsOwner = overview ? isWorkspaceOwner(overview) : false;
   const copy = policy ? describeWorkspaceLifecycle(policy, { isOwner: viewerIsOwner }) : null;
   // Members experience D — a Personal Workspace has no lifecycle of its own.
   // Its owner is taken straight to account closure instead of a screen that
   // only forwards there; the history entry is replaced so Back does not bounce.
-  const redirectsPersonalOwner = policy?.kind === "PERSONAL" && viewerIsOwner;
+  // PRO-NA-02 — not while this account owns a closed workspace: this screen is
+  // then the door to its Reopen.
+  const redirectsPersonalOwner =
+    policy?.kind === "PERSONAL" && viewerIsOwner && closedLoaded && closedOwned.length === 0;
   useEffect(() => {
     if (redirectsPersonalOwner) router.replace("/settings/privacy" as never);
   }, [redirectsPersonalOwner, router]);
@@ -85,9 +123,10 @@ export default function WorkspaceLifecycleScreen() {
         }
       />
 
+      {closedSection}
       {error ? (
         <ProovraErrorState message={error.message} requestId={error.requestId} onRetry={() => void load()} />
-      ) : !overview || redirectsPersonalOwner ? (
+      ) : !overview || redirectsPersonalOwner || (policy?.kind === "PERSONAL" && viewerIsOwner && !closedLoaded) ? (
         <ProovraLoadingState />
       ) : !policy || !copy ? (
         <ProovraCard testID="workspace-lifecycle-unknown">

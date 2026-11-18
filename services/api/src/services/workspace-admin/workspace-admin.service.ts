@@ -253,6 +253,8 @@ export async function buildWorkspaceAdmin(input: {
       where: {
         teamId: input.teamId,
         acceptedAt: null,
+        // PRO-T1C-01 — a revoked (or closure-revoked) invitation is not pending.
+        revokedAt: null,
         expiresAt: { gt: new Date() },
       },
     }),
@@ -328,6 +330,8 @@ export async function buildWorkspaceAdmin(input: {
         // ADMIN only. Everyone else reads an empty list.
         teamId: input.canSeeContact ? input.teamId : { in: [] },
         acceptedAt: null,
+        // PRO-T1C-01 — a revoked (or closure-revoked) invitation is not pending.
+        revokedAt: null,
         expiresAt: { gt: new Date() },
       },
       orderBy: { createdAt: "desc" },

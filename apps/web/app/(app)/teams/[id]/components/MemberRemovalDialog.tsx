@@ -217,6 +217,13 @@ export function MemberRemovalDialog({
       // Backend is authoritative — surface its codes verbatim so the
       // operator sees what the server told us, not a generic toast.
       if (e.code === "TRANSFER_TARGET_REQUIRED") {
+        // PRO-T1-03 — the server is the rule: records reached this member
+        // after the preview (or an older API counted differently), so the
+        // transfer selector is shown now instead of a sentence pointing at a
+        // control that is not there.
+        setImpact((prev) =>
+          prev ? { ...prev, impact: { ...prev.impact, requiresTransfer: true } } : prev,
+        );
         setSubmitError(
           "This member still owns active records. Pick a transfer target above before removing.",
         );

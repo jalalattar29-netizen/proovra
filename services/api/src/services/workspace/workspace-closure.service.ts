@@ -60,6 +60,19 @@ export const CANCELLABLE_WORKSPACE_CLOSURE_STATUSES = [
 type ClosureTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 /**
+ * PRO-PSZ-01 — a blocker that appeared between the processor's preflight and
+ * the closure transaction (a legal hold placed, a subscription activated). The
+ * closure re-judges under the workspace row lock and refuses; nothing is
+ * closed and the request becomes BLOCKED.
+ */
+export class WorkspaceClosureBlockedError extends Error {
+  constructor(readonly blockers: Array<{ code: string; message: string; count: number }>) {
+    super("workspace closure blocked at execution");
+    this.name = "WorkspaceClosureBlockedError";
+  }
+}
+
+/**
  * THE closure legs (members audit LIFE-09 / LIFE-10 / LIFE-12, 2026-10-25).
  *
  * Workspace closure, organization closure and account closure each carried
@@ -191,10 +204,21 @@ export async function executeWorkspaceClosure(input: {
   teamId: string;
   requestedByUserId: string;
   closureRequestId?: string;
+  /**
+   * PRO-PSZ-01 — re-run the canonical preflight INSIDE this transaction, under
+   * a FOR UPDATE lock on the workspace row (the rule account closure follows).
+   * The scheduled processor always sets it.
+   */
+  rejudgeInTransaction?: boolean;
 }): Promise<void> {
   const { teamId, requestedByUserId } = input;
 
   const noticeIds = await prisma.$transaction(async (tx) => {
+    if (input.rejudgeInTransaction) {
+      await tx.$queryRaw`SELECT "id" FROM "teams" WHERE "id" = ${teamId}::uuid FOR UPDATE`;
+      const { blockers } = await evaluateWorkspaceClosurePreflight(teamId, tx as never);
+      if (blockers.length > 0) throw new WorkspaceClosureBlockedError(blockers);
+    }
     const closed = await closeWorkspacesTx(tx, {
       teamIds: [teamId],
       actorUserId: requestedByUserId,
@@ -336,8 +360,20 @@ export async function processWorkspaceClosures(now: Date): Promise<void> {
         teamId: req.teamId,
         requestedByUserId: req.requestedByUserId,
         closureRequestId: req.id,
+        rejudgeInTransaction: true,
       });
-    } catch {
+    } catch (err) {
+      if (err instanceof WorkspaceClosureBlockedError) {
+        await recordWorkspaceClosureOutcome({
+          requestId: req.id,
+          teamId: req.teamId,
+          requestedByUserId: req.requestedByUserId,
+          fromStatus: "PROCESSING",
+          outcome: "BLOCKED",
+          blockers: err.blockers,
+        }).catch(() => null);
+        continue;
+      }
       // The closure rolled back as a unit. If recording the failure fails
       // too, the request stays PROCESSING and the reaper resumes it.
       await recordWorkspaceClosureOutcome({

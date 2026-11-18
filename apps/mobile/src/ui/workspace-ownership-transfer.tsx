@@ -117,13 +117,19 @@ export function WorkspaceOwnershipTransferCard({
     setError(null);
     setBusy(true);
     await stepUp.start(async (proof) => {
-      await apiFetch(buildWorkspaceTransferPath(teamId), {
+      const res = (await apiFetch(buildWorkspaceTransferPath(teamId), {
         method: "POST",
         body: JSON.stringify(withStepUp(buildWorkspaceTransferBody(chosen.userId), proof)),
-      });
+      })) as { pendingAcceptance?: boolean } | null;
       setConfirming(false);
       setTarget(null);
-      await onTransferred(transferOutcome(chosen.label, teamName));
+      // PRO-T1-06 — an API with offer/accept answers `pendingAcceptance`:
+      // nothing moved yet; the recipient accepts on the web.
+      await onTransferred(
+        res?.pendingAcceptance === true
+          ? `Ownership offered to ${chosen.label}. Nothing changes until they accept.`
+          : transferOutcome(chosen.label, teamName),
+      );
     }, fail);
     setBusy(false);
   }, [target, stepUp, teamId, teamName, onTransferred, fail]);

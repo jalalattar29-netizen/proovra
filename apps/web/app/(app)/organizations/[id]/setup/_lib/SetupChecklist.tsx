@@ -24,12 +24,19 @@ export function SetupChecklist({
   criteria,
   setupHref,
   compact = false,
+  onGoToStep,
 }: {
   criteria: ReadonlyArray<ChecklistCriterion>;
   /** Base href of the wizard, e.g. `/organizations/:id/setup`. Rows link
    * to `${setupHref}#${stepId}` so a click resumes at the right step. */
   setupHref?: string;
   compact?: boolean;
+  /**
+   * PRO-T1C-07 — inside the wizard itself a `#stepId` link is a same-route
+   * hash change, which the App Router does not remount for and which fires no
+   * `hashchange` (pushState). The wizard passes its own step change instead.
+   */
+  onGoToStep?: (stepId: string) => void;
 }) {
   const { done, total } = checklistProgress(criteria);
 
@@ -101,6 +108,14 @@ export function SetupChecklist({
                 href={`${setupHref}#${c.stepId}`}
                 data-action="checklist-goto-step"
                 data-checklist-goto={c.stepId}
+                onClick={
+                  onGoToStep
+                    ? (e) => {
+                        e.preventDefault();
+                        onGoToStep(c.stepId);
+                      }
+                    : undefined
+                }
                 style={{
                   fontSize: 12,
                   whiteSpace: "nowrap",

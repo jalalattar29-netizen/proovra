@@ -224,6 +224,335 @@ export async function transferWorkspaceOwnership(input: {
   return result;
 }
 
+// -----------------------------------------------------------------------------
+// PRO-T1-06 / DEC-18 — ownership moves by OFFER and recipient ACCEPTANCE.
+//
+// `transferWorkspaceOwnership` above swapped owner and billing owner on the
+// owner's unilateral act; the recipient learnt of it by email, including any
+// closure already ticking. The owner now OFFERS (owner of record + step-up);
+// nothing moves until the named recipient ACCEPTS with their own step-up, and
+// the accept runs the same transfer legs (rank swap, Team.ownerUserId,
+// billingOwnerUserId, activity, audit, notice) under the workspace row lock.
+// The recipient may decline; the owner may cancel. One pending offer per
+// workspace (a new offer supersedes the previous one). Offers expire.
+// -----------------------------------------------------------------------------
+
+export const WORKSPACE_OWNERSHIP_OFFER_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type WorkspaceOwnershipOfferView = {
+  id: string;
+  teamId: string;
+  fromUserId: string;
+  toUserId: string;
+  status: string;
+  createdAt: Date;
+  expiresAtUtc: Date;
+  decidedAtUtc: Date | null;
+};
+
+const OFFER_SELECT = {
+  id: true,
+  teamId: true,
+  fromUserId: true,
+  toUserId: true,
+  status: true,
+  createdAt: true,
+  expiresAtUtc: true,
+  decidedAtUtc: true,
+} as const;
+
+async function assertOwnedTransferable(
+  tx: Prisma.TransactionClient,
+  teamId: string,
+): Promise<{ ownerUserId: string }> {
+  const team = await tx.team.findUnique({ where: { id: teamId }, select: TEAM_LIFECYCLE_SELECT });
+  if (!team) throw lifecycleError(404, "TEAM_NOT_FOUND", "Workspace not found");
+  const kind = resolveWorkspaceKind({
+    teamLoaded: true,
+    workspaceKind: team.workspaceKind,
+    isPersonal: team.isPersonal,
+    billingPlan: team.billingPlan,
+  });
+  if (kind === "PERSONAL") {
+    throw lifecycleError(409, "PERSONAL_WORKSPACE_NOT_TRANSFERABLE", "A personal workspace cannot change owners");
+  }
+  if (kind === "ORGANIZATION") {
+    throw lifecycleError(
+      409,
+      "ORG_WORKSPACE_OWNERSHIP_IS_ORG_GOVERNED",
+      "Organization workspace ownership is governed at the organization level",
+    );
+  }
+  if (kind !== "OWNED") {
+    throw lifecycleError(409, "WORKSPACE_KIND_UNKNOWN", "Workspace kind could not be classified; transfer refused");
+  }
+  // PRO-T1-06 — a closure in progress is not handed to someone else.
+  const closing = await tx.workspaceClosureRequest.findFirst({
+    where: { teamId, status: { in: [...ACTIVE_WORKSPACE_CLOSURE_STATUSES] } },
+    select: { id: true },
+  });
+  if (closing) {
+    throw lifecycleError(
+      409,
+      "CLOSURE_IN_PROGRESS",
+      "A closure request for this workspace is open; cancel it before transferring ownership",
+    );
+  }
+  return { ownerUserId: team.ownerUserId };
+}
+
+/** The owner OFFERS ownership to an ACTIVE member. Nothing moves yet. */
+export async function offerWorkspaceOwnership(input: {
+  teamId: string;
+  actorUserId: string;
+  newOwnerUserId: string;
+  correlationId?: string | null;
+}): Promise<WorkspaceOwnershipOfferView> {
+  const { teamId, actorUserId, newOwnerUserId } = input;
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "teams" WHERE "id" = ${teamId}::uuid FOR UPDATE`;
+    const { ownerUserId } = await assertOwnedTransferable(tx, teamId);
+    if (ownerUserId !== actorUserId) {
+      throw lifecycleError(403, "NOT_WORKSPACE_OWNER", "Only the workspace owner can transfer ownership");
+    }
+    if (newOwnerUserId === actorUserId) {
+      throw lifecycleError(409, "TRANSFER_TARGET_IS_OWNER", "The target user already owns this workspace");
+    }
+    const target = await tx.teamMember.findUnique({
+      where: { teamId_userId: { teamId, userId: newOwnerUserId } },
+      select: { status: true },
+    });
+    if (target?.status !== "ACTIVE") {
+      throw lifecycleError(
+        409,
+        "TRANSFER_TARGET_NOT_ACTIVE_MEMBER",
+        "Ownership can only be transferred to an active workspace member",
+      );
+    }
+    const now = new Date();
+    await tx.workspaceOwnershipOffer.updateMany({
+      where: { teamId, status: "PENDING" },
+      data: { status: "SUPERSEDED", decidedAtUtc: now },
+    });
+    const offer = await tx.workspaceOwnershipOffer.create({
+      data: {
+        teamId,
+        fromUserId: actorUserId,
+        toUserId: newOwnerUserId,
+        status: "PENDING",
+        expiresAtUtc: new Date(now.getTime() + WORKSPACE_OWNERSHIP_OFFER_TTL_MS),
+      },
+      select: OFFER_SELECT,
+    });
+    await tx.teamActivity.create({
+      data: {
+        teamId,
+        actorUserId,
+        eventType: "workspace_ownership_offered",
+        targetType: "team",
+        targetId: teamId,
+        metadata: { offerId: offer.id, toUserId: newOwnerUserId },
+      },
+    });
+    await emitTenantAudit(
+      {
+        action: "identity.workspace_ownership_offered",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId,
+        workspaceId: teamId,
+        resourceType: "team",
+        resourceId: teamId,
+        correlationId: input.correlationId ?? null,
+        metadata: { offerId: offer.id, fromUserId: actorUserId, toUserId: newOwnerUserId },
+      },
+      tx as never,
+    );
+    return offer;
+  });
+}
+
+/** The pending offer of a workspace, for its owner or its named recipient. */
+export async function readPendingOwnershipOffer(input: {
+  teamId: string;
+  userId: string;
+}): Promise<WorkspaceOwnershipOfferView | null> {
+  const offer = await prisma.workspaceOwnershipOffer.findFirst({
+    where: { teamId: input.teamId, status: "PENDING", expiresAtUtc: { gt: new Date() } },
+    orderBy: { createdAt: "desc" },
+    select: OFFER_SELECT,
+  });
+  if (!offer) return null;
+  return offer.fromUserId === input.userId || offer.toUserId === input.userId ? offer : null;
+}
+
+/** Pending offers addressed to this person (the recipient's inbox of offers). */
+export async function listOwnershipOffersFor(userId: string): Promise<
+  Array<WorkspaceOwnershipOfferView & { teamName: string | null }>
+> {
+  const offers = await prisma.workspaceOwnershipOffer.findMany({
+    where: { toUserId: userId, status: "PENDING", expiresAtUtc: { gt: new Date() } },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: OFFER_SELECT,
+  });
+  if (offers.length === 0) return [];
+  const teams = await prisma.team.findMany({
+    where: { id: { in: offers.map((o) => o.teamId) } },
+    select: { id: true, name: true },
+  });
+  const nameById = new Map(teams.map((t) => [t.id, t.name]));
+  return offers.map((o) => ({ ...o, teamName: nameById.get(o.teamId) ?? null }));
+}
+
+async function claimPendingOffer(
+  tx: Prisma.TransactionClient,
+  input: { teamId: string; offerId: string },
+): Promise<WorkspaceOwnershipOfferView> {
+  const offer = await tx.workspaceOwnershipOffer.findFirst({
+    where: { id: input.offerId, teamId: input.teamId },
+    select: OFFER_SELECT,
+  });
+  if (!offer) throw lifecycleError(404, "OWNERSHIP_OFFER_NOT_FOUND", "Ownership offer not found");
+  if (offer.status !== "PENDING") {
+    throw lifecycleError(409, "OWNERSHIP_OFFER_NOT_PENDING", "This ownership offer is no longer open");
+  }
+  if (offer.expiresAtUtc.getTime() <= Date.now()) {
+    await tx.workspaceOwnershipOffer.updateMany({
+      where: { id: offer.id, status: "PENDING" },
+      data: { status: "EXPIRED", decidedAtUtc: new Date() },
+    });
+    throw lifecycleError(410, "OWNERSHIP_OFFER_EXPIRED", "This ownership offer has expired");
+  }
+  return offer;
+}
+
+/**
+ * The named recipient ACCEPTS (the route has verified their step-up). The
+ * transfer legs run now, under the same row lock the offer, cancel and decline
+ * take, so exactly one of accept / cancel / decline / supersede wins.
+ */
+export async function acceptWorkspaceOwnershipOffer(input: {
+  teamId: string;
+  offerId: string;
+  actorUserId: string;
+  correlationId?: string | null;
+}): Promise<{ teamId: string; fromUserId: string; toUserId: string }> {
+  const { teamId, actorUserId } = input;
+  let noticeId: string | null = null;
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "teams" WHERE "id" = ${teamId}::uuid FOR UPDATE`;
+    const offer = await claimPendingOffer(tx, input);
+    // Not an oracle: someone other than the recipient is told "not found".
+    if (offer.toUserId !== actorUserId) {
+      throw lifecycleError(404, "OWNERSHIP_OFFER_NOT_FOUND", "Ownership offer not found");
+    }
+    const { ownerUserId } = await assertOwnedTransferable(tx, teamId);
+    if (ownerUserId !== offer.fromUserId) {
+      await tx.workspaceOwnershipOffer.update({
+        where: { id: offer.id },
+        data: { status: "SUPERSEDED", decidedAtUtc: new Date() },
+      });
+      throw lifecycleError(409, "OWNERSHIP_OFFER_NOT_PENDING", "The person who offered ownership no longer owns this workspace");
+    }
+    const roles = await transferWorkspaceOwnerRoles(tx, {
+      teamId,
+      fromUserId: offer.fromUserId,
+      toUserId: actorUserId,
+      actorUserId,
+    });
+    if (!roles.ok) {
+      throw lifecycleError(
+        409,
+        "TRANSFER_TARGET_NOT_ACTIVE_MEMBER",
+        "Ownership can only be transferred to an active workspace member",
+      );
+    }
+    await tx.team.update({
+      where: { id: teamId },
+      data: { ownerUserId: actorUserId, billingOwnerUserId: actorUserId },
+    });
+    await tx.workspaceOwnershipOffer.update({
+      where: { id: offer.id },
+      data: { status: "ACCEPTED", decidedAtUtc: new Date() },
+    });
+    await tx.teamActivity.create({
+      data: {
+        teamId,
+        actorUserId,
+        eventType: "workspace_ownership_transferred",
+        targetType: "team",
+        targetId: teamId,
+        metadata: { fromUserId: offer.fromUserId, toUserId: actorUserId, offerId: offer.id },
+      },
+    });
+    await emitTenantAudit(
+      {
+        action: "identity.workspace_ownership_transferred",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId,
+        workspaceId: teamId,
+        resourceType: "team",
+        resourceId: teamId,
+        correlationId: input.correlationId ?? null,
+        causationId: offer.id,
+        metadata: { fromUserId: offer.fromUserId, toUserId: actorUserId, offerId: offer.id },
+      },
+      tx as never,
+    );
+    noticeId = await enqueueMembershipLifecycleNoticeTx(tx, {
+      eventType: "WORKSPACE_OWNERSHIP_RECEIVED",
+      teamId,
+      recipientUserId: actorUserId,
+      actorUserId: offer.fromUserId,
+    });
+    return { teamId, fromUserId: offer.fromUserId, toUserId: actorUserId };
+  });
+  await dispatchEnqueuedEmailNotifications([noticeId]);
+  return result;
+}
+
+/** The recipient declines, or the owner withdraws, a pending offer. */
+export async function settleWorkspaceOwnershipOffer(input: {
+  teamId: string;
+  offerId: string;
+  actorUserId: string;
+  outcome: "DECLINED" | "CANCELLED";
+  correlationId?: string | null;
+}): Promise<WorkspaceOwnershipOfferView> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "teams" WHERE "id" = ${input.teamId}::uuid FOR UPDATE`;
+    const offer = await tx.workspaceOwnershipOffer.findFirst({
+      where: { id: input.offerId, teamId: input.teamId },
+      select: OFFER_SELECT,
+    });
+    const party = input.outcome === "DECLINED" ? offer?.toUserId : offer?.fromUserId;
+    if (!offer || party !== input.actorUserId) {
+      throw lifecycleError(404, "OWNERSHIP_OFFER_NOT_FOUND", "Ownership offer not found");
+    }
+    if (offer.status !== "PENDING") {
+      throw lifecycleError(409, "OWNERSHIP_OFFER_NOT_PENDING", "This ownership offer is no longer open");
+    }
+    const settled = await tx.workspaceOwnershipOffer.update({
+      where: { id: offer.id },
+      data: { status: input.outcome, decidedAtUtc: new Date() },
+      select: OFFER_SELECT,
+    });
+    await tx.teamActivity.create({
+      data: {
+        teamId: input.teamId,
+        actorUserId: input.actorUserId,
+        eventType: input.outcome === "DECLINED" ? "workspace_ownership_declined" : "workspace_ownership_offer_cancelled",
+        targetType: "team",
+        targetId: input.teamId,
+        metadata: { offerId: offer.id },
+      },
+    });
+    return settled;
+  });
+}
+
 /**
  * §7.4 — reopen a workspace whose closure COMPLETED. Owner-only.
  * Restores ONLY the owner's membership; everything else stays dark.
@@ -236,9 +565,12 @@ export async function reopenClosedWorkspace(input: {
   const { teamId, actorUserId } = input;
 
   await prisma.$transaction(async (tx) => {
+    // PRO-T1-11 — serialised: two concurrent reopens must not both pass the
+    // "is closed now" check below.
+    await tx.$queryRaw`SELECT "id" FROM "teams" WHERE "id" = ${teamId}::uuid FOR UPDATE`;
     const team = await tx.team.findUnique({
       where: { id: teamId },
-      select: TEAM_LIFECYCLE_SELECT,
+      select: { ...TEAM_LIFECYCLE_SELECT, closedAtUtc: true },
     });
     // B3A-F-008 (free-audit 0ea0) — NOT AN EXISTENCE ORACLE. An absent
     // workspace answered 404 and somebody else's 403, so any signed-in account
@@ -266,7 +598,10 @@ export async function reopenClosedWorkspace(input: {
       orderBy: { completedAtUtc: "desc" },
       select: { id: true },
     });
-    if (!completed) {
+    // PRO-T1-11 — a historical COMPLETED closure is not "closed now": a
+    // workspace already reopened carries one too, and reopening it again wrote
+    // a false CLOSED→ACTIVE audit row. Liveness lives on Team.closedAtUtc.
+    if (!completed || team.closedAtUtc === null) {
       throw lifecycleError(
         409,
         "WORKSPACE_NOT_CLOSED",
