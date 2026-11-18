@@ -34,6 +34,7 @@
  *   * Polling bounded at 60 s; paused when tab is hidden.
  */
 
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -242,6 +243,11 @@ function InvestigationOverviewPageInner() {
   // Wave 2 Phase 4 — capture the underlying fetch error so the classifier
   // can resolve API_ERROR instead of misclassifying as TRUE_EMPTY.
   const [fetchError, setFetchError] = useState<Error | null>(null);
+  // PRO-K1C-07 — each independent read keeps its own error, so a failure is
+  // classified as API_ERROR instead of "Loading…" or a genuine empty state.
+  const [reviewerActivityError, setReviewerActivityError] = useState<Error | null>(null);
+  const [crossEvidenceError, setCrossEvidenceError] = useState<Error | null>(null);
+  const [signalActionError, setSignalActionError] = useState<string | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
   // Wave 2 Phase 6 — refresh + per-signal action state.
   const [refreshBusy, setRefreshBusy] = useState(false);
@@ -338,17 +344,29 @@ function InvestigationOverviewPageInner() {
           `/v1/investigation/reviewers?teamId=${encodeURIComponent(teamId)}`,
           { method: "GET" },
         )) as ReviewerActivitySummary;
-        if (!cancelled) setReviewerActivity(reviewers ?? null);
-      } catch {
-        if (!cancelled) setReviewerActivity(null);
+        if (!cancelled) {
+          setReviewerActivity(reviewers ?? null);
+          setReviewerActivityError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setReviewerActivity(null);
+          setReviewerActivityError(err instanceof Error ? err : new Error("request_failed"));
+        }
       }
       // Phase 13 — cross-evidence findings via the typed client.
       // Third independent fetch; null on any failure → empty state.
       try {
         const ce = await getCrossEvidenceFindings(teamId, 20);
-        if (!cancelled) setCrossEvidence(ce?.findings ?? null);
-      } catch {
-        if (!cancelled) setCrossEvidence(null);
+        if (!cancelled) {
+          setCrossEvidence(ce?.findings ?? null);
+          setCrossEvidenceError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setCrossEvidence(null);
+          setCrossEvidenceError(err instanceof Error ? err : new Error("request_failed"));
+        }
       }
     };
 
@@ -411,6 +429,7 @@ function InvestigationOverviewPageInner() {
   ) => {
     if (!teamId) return;
     setSignalBusy((m) => ({ ...m, [signalId]: action }));
+    setSignalActionError(null);
     try {
       await apiFetch(
         `/v1/media-intelligence/signals/${encodeURIComponent(signalId)}/action`,
@@ -429,8 +448,14 @@ function InvestigationOverviewPageInner() {
             }
           : prev,
       );
-    } catch {
-      /* best-effort UI; next poll cycle reconciles state */
+    } catch (err) {
+      // PRO-K1C-07 — a refused or failed action is said; the row stays.
+      const status = (err as { statusCode?: number } | null)?.statusCode;
+      setSignalActionError(
+        status === 401 || status === 403
+          ? "You are not permitted to change this signal."
+          : toSafeUserError(err, { message: "The signal could not be updated. Try again." }).message,
+      );
     } finally {
       setSignalBusy((m) => {
         const next = { ...m };
@@ -510,6 +535,11 @@ function InvestigationOverviewPageInner() {
       </PageSection>
 
       <PageSection title="Recent observations">
+        {signalActionError ? (
+          <p role="alert" data-investigation-signal-action-error style={emptyStyle}>
+            {signalActionError}
+          </p>
+        ) : null}
         <RecentSignalsList
           signals={overview?.recentSignals ?? null}
           fetchError={fetchError}
@@ -533,7 +563,7 @@ function InvestigationOverviewPageInner() {
           the existing /v1/investigation/reviewers endpoint returns,
           with a deep-link to the dedicated console. */}
       <PageSection title="Reviewer activity">
-        <ReviewerActivityGrid activity={reviewerActivity} />
+        <ReviewerActivityGrid activity={reviewerActivity} fetchError={reviewerActivityError} />
         <div style={pivotsStyle}>
           <Link href="/investigation/reviewers" style={pivotLinkStyle}>
             Open reviewer console →
@@ -553,7 +583,7 @@ function InvestigationOverviewPageInner() {
           existing /search surface so the operator can pivot to the
           full result set without leaving the page. */}
       <PageSection title="Cross-Evidence Findings">
-        <CrossEvidenceFindingsCard findings={crossEvidence} />
+        <CrossEvidenceFindingsCard findings={crossEvidence} fetchError={crossEvidenceError} />
       </PageSection>
 
       <PageSection title="Queue health">
@@ -809,8 +839,10 @@ function GraphActivityList({
 // /v1/investigation/reviewers; never fabricates a value.
 function ReviewerActivityGrid({
   activity,
+  fetchError,
 }: {
   activity: ReviewerActivitySummary | null;
+  fetchError: Error | null;
 }) {
   if (activity == null) {
     // Wave 2 Phase 4 — classifier-driven empty state. The reviewer
@@ -819,7 +851,7 @@ function ReviewerActivityGrid({
     // on the page with no reviewer assignments). The admin link
     // surfaces the dedicated reviewer console.
     const { classification, reason } = classifyInvestigationEmptyState(
-      { data: activity, fetchError: null, permission: "allowed" },
+      { data: activity, fetchError, permission: "allowed" },
       "reviewers",
     );
     return (
@@ -971,9 +1003,18 @@ function IndexingProgressGrid({
 // entity normalizedValue chunks added in Phase 13).
 function CrossEvidenceFindingsCard({
   findings,
+  fetchError,
 }: {
   findings: CrossEvidenceFinding[] | null;
+  fetchError: Error | null;
 }) {
+  if (fetchError) {
+    const { classification, reason } = classifyInvestigationEmptyState(
+      { data: null, fetchError, permission: "allowed" },
+      "overview",
+    );
+    return <OperationalEmptyState classification={classification} reason={reason} />;
+  }
   if (findings == null) {
     return <p style={emptyStyle}>Loading…</p>;
   }

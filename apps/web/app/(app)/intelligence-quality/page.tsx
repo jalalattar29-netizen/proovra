@@ -7,7 +7,7 @@
  * counts + bands + rank only — never raw extraction text.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   EXECUTIVE_METRICS_RANGES,
@@ -40,8 +40,14 @@ function Shell() {
   const [reviewers, setReviewers] = useState<ReviewerQualityProjection | null>(null);
   const [teams, setTeams] = useState<TeamQualityProjection | null>(null);
   const [busy, setBusy] = useState(false);
+  // PRO-AI1Z-05 — a refused or failed read is said as such (the jobs table's
+  // denied/failed convention, B6-F-48), never "no activity"; a slow response
+  // for an earlier range cannot overwrite a newer one.
+  const [failure, setFailure] = useState<"denied" | "failed" | null>(null);
+  const generation = useRef(0);
 
   const refresh = useCallback(async () => {
+    const mine = ++generation.current;
     setBusy(true);
     try {
       const [p, r, t] = await Promise.all([
@@ -49,15 +55,20 @@ function Shell() {
         apiFetch(`/v1/intelligence/quality/reviewers?range=${range}`, { method: "GET" }),
         apiFetch(`/v1/intelligence/quality/teams?range=${range}`, { method: "GET" }),
       ]);
+      if (mine !== generation.current) return;
       setProviders((p?.projection ?? null) as ProviderQualityProjection | null);
       setReviewers((r?.projection ?? null) as ReviewerQualityProjection | null);
       setTeams((t?.projection ?? null) as TeamQualityProjection | null);
-    } catch {
+      setFailure(null);
+    } catch (err) {
+      if (mine !== generation.current) return;
       setProviders(null);
       setReviewers(null);
       setTeams(null);
+      const status = (err as { statusCode?: number } | null)?.statusCode;
+      setFailure(status === 401 || status === 403 || status === 404 ? "denied" : "failed");
     } finally {
-      setBusy(false);
+      if (mine === generation.current) setBusy(false);
     }
   }, [range]);
 
@@ -133,6 +144,14 @@ function Shell() {
           {busy ? "Loading…" : "Refresh"}
         </button>
       </div>
+
+      {failure ? (
+        <p role="alert" data-intelligence-quality-failure={failure} style={{ color: "#b91c1c", fontSize: 13 }}>
+          {failure === "denied"
+            ? "Your role cannot read intelligence quality in this workspace."
+            : "Intelligence quality could not be loaded. The tables below are empty because of that, not because there was no activity. Use Refresh to try again."}
+        </p>
+      ) : null}
 
       <section data-intelligence-quality-providers style={section}>
         <h2 style={{ fontSize: 14, marginTop: 0 }}>Provider quality ranking</h2>

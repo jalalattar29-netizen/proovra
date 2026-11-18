@@ -1,4 +1,5 @@
 "use client";
+import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../lib/feedback/plan-refusal";
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
@@ -1168,7 +1169,10 @@ function ReviewerNotesPanel({
         typeof (err as { statusCode?: number }).statusCode === "number"
           ? ((err as { statusCode: number }).statusCode)
           : 0;
-      if (status === 403) {
+      if (isPlanRefusal(err)) {
+        // PRO-R2-14 — the plan, not a membership problem.
+        setComposeError(PLAN_REFUSAL_COPY);
+      } else if (status === 403) {
         setComposeError(
           "Permission denied. Reviewer note creation requires workspace membership.",
         );

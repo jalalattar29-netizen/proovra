@@ -30,7 +30,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { isSafeRedirectAfter } from "@proovra/shared";
+import { safeReturnPath } from "../../../lib/navigation/safe-return-path";
 
 import { Button } from "../../../components/ui";
 import { MfaEnrollmentAtSignIn } from "../../../components/identity-security/MfaEnrollmentAtSignIn";
@@ -58,10 +58,13 @@ const SWITCH_LABEL: Record<ChallengeMode, string> = {
 
 const SAFE_NEXT_FALLBACK = "/home";
 
+/**
+ * PRO-PW-11 — the ONE return-path rule (safeReturnPath: same cap, same
+ * extension-continuation allowance, same isSafeRedirectAfter contract) instead
+ * of a private copy with its own 400-character cap.
+ */
 function isSafeNext(value: string | null): value is string {
-  if (!value || !value.startsWith("/") || value.length > 400) return false;
-  // The one safety contract, shared with the API (IDENT-012).
-  return isSafeRedirectAfter(value);
+  return typeof value === "string" && safeReturnPath(value, "") === value;
 }
 
 function MfaChallengeBody() {

@@ -1,4 +1,5 @@
 "use client";
+import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../lib/feedback/plan-refusal";
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { formatUserDate } from "../../../../lib/date";
 
@@ -48,7 +49,7 @@ function ReviewerCriteriaPageInner() {
       setSets(res.sets);
       setError(null);
     } catch (err) {
-      setError(isApiResponseError(err) && err.statusCode === 403 ? "Your role in this workspace does not include reviewer criteria." : "The criteria catalog is unavailable right now.");
+      setError(isPlanRefusal(err) ? PLAN_REFUSAL_COPY : isApiResponseError(err) && err.statusCode === 403 ? "Your role in this workspace does not include reviewer criteria." : "The criteria catalog is unavailable right now.");
       setSets([]);
     }
   }, [teamId]);
@@ -66,7 +67,9 @@ function ReviewerCriteriaPageInner() {
       await load();
     } catch (err) {
       setError(
-        isApiResponseError(err) && err.statusCode === 403
+        isPlanRefusal(err)
+          ? PLAN_REFUSAL_COPY
+          : isApiResponseError(err) && err.statusCode === 403
           ? "Only workspace owners/admins can manage criteria."
           : isApiResponseError(err) && err.statusCode === 409
             ? "That action conflicts with the set's current state (e.g. a draft already exists, or the version is already published)."
@@ -507,7 +510,7 @@ function CreateForm({ teamId, onCreated }: { teamId: string; onCreated: () => vo
       });
       onCreated();
     } catch (e) {
-      setErr(isApiResponseError(e) && e.statusCode === 403 ? "Only workspace owners/admins can author criteria." : "Could not create the criteria set.");
+      setErr(isPlanRefusal(e) ? PLAN_REFUSAL_COPY : isApiResponseError(e) && e.statusCode === 403 ? "Only workspace owners/admins can author criteria." : "Could not create the criteria set.");
     } finally {
       setBusy(false);
     }

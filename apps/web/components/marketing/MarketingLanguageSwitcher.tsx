@@ -18,6 +18,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { usePathname } from "next/navigation";
+
+import { isEnglishOnlyPublicPath } from "../../lib/i18n-english-only";
 
 import { useLocale } from "../../app/providers";
 import type { Locale } from "@proovra/shared";
@@ -38,6 +41,7 @@ export function MarketingLanguageSwitcher({
   variant?: "desktop" | "mobile";
 }) {
   const { locale, setLocale, setLocaleMode } = useLocale();
+  const englishOnlyPage = isEnglishOnlyPublicPath(usePathname());
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -131,7 +135,10 @@ export function MarketingLanguageSwitcher({
             );
           })}
           <p className="px-3 pb-1.5 pt-2 text-[11px] leading-snug text-[#64748B]" data-language-scope>
-            Parts of PROOVRA, including reports and legal documents, are in English only.
+            {/* PRO-PW-10 — said honestly where the page itself is English-only. */}
+            {englishOnlyPage
+              ? "This page is in English only. Your choice applies to the parts of PROOVRA that are translated."
+              : "Parts of PROOVRA, including reports and legal documents, are in English only."}
           </p>
         </div>
       ) : null}

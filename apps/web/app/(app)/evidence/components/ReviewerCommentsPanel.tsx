@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import type { ReviewerComment, ReviewerCommentsResponse } from "../lib/evidence-library-types";
+import { PANEL_LOAD_FAILED, panelWriteError } from "./panelFeedback";
 
 export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
   const [open, setOpen] = useState(false);
@@ -13,6 +14,10 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
+  // PRO-E1C-01 — a failed read is not "none yet"; a refused write is said.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [writeError, setWriteError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -24,7 +29,10 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
         if (!cancelled) {
           setItems(Array.isArray(data.items) ? data.items : []);
           setCanWrite(data.canWrite === true);
+          setLoadFailed(false);
         }
+      } catch {
+        if (!cancelled) setLoadFailed(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -33,35 +41,50 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [evidenceId, open]);
+  }, [evidenceId, open, reloadKey]);
 
   const createComment = async () => {
-    const data = (await apiFetch(`/v1/evidence/${evidenceId}/comments`, {
-      method: "POST",
-      body: JSON.stringify({ body: draft, visibility: "INTERNAL" }),
-    })) as ReviewerCommentsResponse;
-    if (data.comment) {
-      setItems((current) => [data.comment!, ...current]);
-      setDraft("");
+    setWriteError(null);
+    try {
+      const data = (await apiFetch(`/v1/evidence/${evidenceId}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ body: draft, visibility: "INTERNAL" }),
+      })) as ReviewerCommentsResponse;
+      if (data.comment) {
+        setItems((current) => [data.comment!, ...current]);
+        setDraft("");
+      }
+    } catch (err) {
+      setWriteError(panelWriteError(err, "The comment was not saved."));
     }
   };
 
   const saveEdit = async () => {
     if (!editingId) return;
-    const data = (await apiFetch(`/v1/evidence/${evidenceId}/comments/${editingId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ body: editingBody }),
-    })) as ReviewerCommentsResponse;
-    if (data.comment) {
-      setItems((current) => current.map((item) => (item.id === editingId ? data.comment! : item)));
-      setEditingId(null);
-      setEditingBody("");
+    setWriteError(null);
+    try {
+      const data = (await apiFetch(`/v1/evidence/${evidenceId}/comments/${editingId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ body: editingBody }),
+      })) as ReviewerCommentsResponse;
+      if (data.comment) {
+        setItems((current) => current.map((item) => (item.id === editingId ? data.comment! : item)));
+        setEditingId(null);
+        setEditingBody("");
+      }
+    } catch (err) {
+      setWriteError(panelWriteError(err, "The edit was not saved."));
     }
   };
 
   const deleteComment = async (commentId: string) => {
-    await apiFetch(`/v1/evidence/${evidenceId}/comments/${commentId}`, { method: "DELETE" });
-    setItems((current) => current.filter((item) => item.id !== commentId));
+    setWriteError(null);
+    try {
+      await apiFetch(`/v1/evidence/${evidenceId}/comments/${commentId}`, { method: "DELETE" });
+      setItems((current) => current.filter((item) => item.id !== commentId));
+    } catch (err) {
+      setWriteError(panelWriteError(err, "The comment was not deleted."));
+    }
   };
 
   return (
@@ -88,8 +111,21 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
           </div>
         ) : null}
 
+        {writeError ? (
+          <p role="alert" className="evidence-library-muted" data-panel-write-error>
+            {writeError}
+          </p>
+        ) : null}
         {loading ? <p className="evidence-library-muted">Loading comments...</p> : null}
-        {!loading && items.length === 0 ? (
+        {!loading && loadFailed ? (
+          <p role="alert" className="evidence-library-muted" data-panel-load-failed>
+            {PANEL_LOAD_FAILED}{" "}
+            <button type="button" className="app-secondary-action" onClick={() => setReloadKey((n) => n + 1)}>
+              Try again
+            </button>
+          </p>
+        ) : null}
+        {!loading && !loadFailed && items.length === 0 ? (
           <p className="evidence-library-muted">No reviewer comments yet.</p>
         ) : null}
 

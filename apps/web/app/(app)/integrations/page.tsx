@@ -162,9 +162,11 @@ const ALL_EVENT_TYPES = [
   "governance.export_blocked",
 ] as const;
 
+// PRO-G1-12 — only scopes a live integration route honours. The upload routes
+// answer 410, so `integration.evidence.create` authorises nothing; it stays in
+// the permission catalog so keys that already carry it still display it.
 const COMMON_SCOPES = [
   "integration.evidence.read",
-  "integration.evidence.create",
   "integration.intake_link.create",
   "integration.evidence_request.create",
   "integration.evidence_request.read",

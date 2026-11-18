@@ -342,6 +342,11 @@ type FilterState = {
   incidentLinked?: boolean;
   workflowLinked?: boolean;
   contributorScoped?: boolean;
+  /**
+   * PRO-KZ-01 — case scope, from the case page's `/search?caseId=` pivot. The
+   * API has always applied it (reach-bound); the page used to drop it.
+   */
+  caseId?: string;
   updatedSinceUtc?: string;
   updatedUntilUtc?: string;
   sort?: SortMode;
@@ -713,9 +718,15 @@ function SearchInner() {
   useEffect(() => {
     if (!teamId) return;
     let initialQ = "";
+    let initialCaseId = "";
     try {
       initialQ =
         new URLSearchParams(window.location.search).get("q")?.trim() ?? "";
+      const params = new URLSearchParams(window.location.search);
+      // PRO-KZ-01 — the case pivot's scope. A malformed id is ignored rather
+      // than sent (the API would refuse the whole query).
+      const rawCase = params.get("caseId")?.trim() ?? "";
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawCase)) initialCaseId = rawCase;
     } catch {
       // Non-browser environment — fall through to an empty query.
     }
@@ -725,6 +736,7 @@ function SearchInner() {
       sort: "UPDATED_DESC",
       limit: DEFAULT_LIMIT,
       ...(initialQ ? { q: initialQ } : {}),
+      ...(initialCaseId ? { caseId: initialCaseId } : {}),
     });
   }, [teamId]);
 
@@ -1283,6 +1295,7 @@ function SearchInner() {
       incidentLinked: undefined,
       workflowLinked: undefined,
       contributorScoped: undefined,
+      caseId: undefined,
       updatedSinceUtc: undefined,
       updatedUntilUtc: undefined,
     });
@@ -2076,6 +2089,20 @@ function SearchInner() {
               })}
             </div>
           </FilterSection>
+
+          {filter.caseId ? (
+            // PRO-KZ-01 — the case pivot's scope, shown and removable; turning
+            // it off returns to the whole workspace's search.
+            <FilterSection label="Case">
+              <Toggle
+                label="Only records in the case you came from"
+                value={true}
+                onChange={(v) => {
+                  if (!v) updateFilter({ caseId: undefined });
+                }}
+              />
+            </FilterSection>
+          ) : null}
 
           <FilterSection label={t("searchFilterLifecycle")}>
             <Toggle
@@ -3355,6 +3382,7 @@ function hasNarrowingFilters(filter: FilterState | null): boolean {
   if (filter.incidentLinked !== undefined) return true;
   if (filter.workflowLinked !== undefined) return true;
   if (filter.contributorScoped !== undefined) return true;
+  if (filter.caseId) return true;
   if (filter.updatedSinceUtc) return true;
   if (filter.updatedUntilUtc) return true;
   return false;
@@ -3489,6 +3517,7 @@ async function runSearch(filter: FilterState): Promise<SearchResponse> {
     qs.set("workflowLinked", String(filter.workflowLinked));
   if (filter.contributorScoped !== undefined)
     qs.set("contributorScoped", String(filter.contributorScoped));
+  if (filter.caseId) qs.set("caseId", filter.caseId);
   if (filter.updatedSinceUtc) qs.set("updatedSinceUtc", filter.updatedSinceUtc);
   if (filter.updatedUntilUtc) qs.set("updatedUntilUtc", filter.updatedUntilUtc);
   if (filter.sort) qs.set("sort", filter.sort);

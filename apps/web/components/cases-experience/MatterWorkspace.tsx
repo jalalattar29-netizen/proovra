@@ -1300,7 +1300,14 @@ function EvidenceTab({
       )}
 
       {/* Existing C1 linked-evidence table. */}
-      <h3>Linked evidence ({ev.items.length})</h3>
+      <h3>Linked evidence ({typeof (ev as { totalCount?: number }).totalCount === "number" ? (ev as { totalCount?: number }).totalCount : ev.items.length})</h3>
+      {(ev as { truncated?: boolean }).truncated ? (
+        // PRO-K1-07 — the board shows the newest records; the count above is
+        // the case's, and the rest are reachable through Search.
+        <p className="app-hint" role="status" data-matter-evidence-truncated>
+          Showing the newest {ev.items.length}. <Link href={`/search?caseId=${encodeURIComponent(envelope.case.id)}`}>See every record of this case in Search</Link>
+        </p>
+      ) : null}
       <LinkEvidenceButton links={links} />
       {ev.items.length === 0 ? (
         <p className="app-hint">
@@ -1332,7 +1339,18 @@ function EvidenceTab({
                 `${evidenceRowTitle(it)} ${it.type ?? ""} ${it.status ?? ""} ${it.verificationStatus ?? ""} ${it.lifecycleState ?? ""} ${it.linkRole ?? ""}`,
             ).map((it) => (
               <tr key={it.id} onClick={() => onOpenEvidence?.(it.id)}>
-                <td>{evidenceRowTitle(it)}</td>
+                {/* PRO-K1C-08 — a real link, so a keyboard or screen-reader
+                    user can open the record; the row click stays a pointer
+                    convenience. */}
+                <td>
+                  <Link
+                    href={`/evidence/${encodeURIComponent(it.id)}`}
+                    onClick={(event) => event.stopPropagation()}
+                    data-matter-evidence-open={it.id}
+                  >
+                    {evidenceRowTitle(it)}
+                  </Link>
+                </td>
                 <td>{identifierLabel(it.type)}</td>
                 <td>{identifierLabel(it.status)}</td>
                 <td>{it.verificationStatus ? identifierLabel(it.verificationStatus) : "—"}</td>

@@ -42,6 +42,8 @@ export function LegalRecordsSection() {
   const [showAll, setShowAll] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // PRO-NAZ-02 — a failed history read is not "no acceptance records".
+  const [recordsFailed, setRecordsFailed] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setStatus({ kind: "loading" });
@@ -54,8 +56,10 @@ export function LegalRecordsSection() {
   const loadRecords = useCallback(async () => {
     try {
       setRecords(parseLegalAcceptances(await apiFetch(LEGAL_ACCEPTANCE_PATH)));
+      setRecordsFailed(false);
     } catch {
-      setRecords([]);
+      setRecords(null);
+      setRecordsFailed(true);
     }
   }, []);
   useEffect(() => {
@@ -130,6 +134,12 @@ export function LegalRecordsSection() {
         {historyOpen ? (
           <View style={{ gap: theme.space.s2 }}>
             <ProovraText variant="label" color={theme.color.ink.muted}>{C.explicitOnly}</ProovraText>
+            {recordsFailed ? (
+              <View style={{ gap: theme.space.s1 }} testID="legal-records-failed">
+                <ProovraText variant="label" color={theme.color.status.risk.fg}>{LOAD_FAILED.history}</ProovraText>
+                <ProovraButton label={C.checkAgain} variant="secondary" fullWidth={false} onPress={() => void loadRecords()} />
+              </View>
+            ) : null}
             {records && records.length === 0 ? <ProovraText variant="label" color={theme.color.ink.muted}>{C.noRecords}</ProovraText> : null}
             {shown.map((r) => (
               <View key={r.id} style={{ gap: 2 }}>
@@ -149,14 +159,34 @@ export function LegalRecordsSection() {
   );
 }
 
+/** PRO-NAZ-02 — what a failed read says (an unknown is not an empty record). */
+const LOAD_FAILED = {
+  history: "Your acceptance history could not be loaded. This is not the same as having none.",
+  cookie: "Your cookie consent record could not be loaded. This is not the same as having none.",
+} as const;
+
 /** The account's recorded cookie consent, read-only (web PrivacySection A). */
 export function CookieConsentRecord() {
   const [consent, setConsent] = useState<CookieConsentView | null | undefined>(undefined);
-  useEffect(() => {
+  // PRO-NAZ-02 — a failed read is said and retryable, never "no cookie consent recorded".
+  const [failed, setFailed] = useState(false);
+  const load = useCallback(() => {
+    setFailed(false);
     apiFetch(COOKIE_CONSENT_PATH)
       .then((d) => setConsent(parseCookieConsent(d)))
-      .catch(() => setConsent(null));
+      .catch(() => setFailed(true));
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  if (failed) {
+    return (
+      <ProovraCard testID="cookie-consent-record-failed">
+        <ProovraText variant="label" color={theme.color.status.risk.fg}>{LOAD_FAILED.cookie}</ProovraText>
+        <ProovraButton label={C.checkAgain} variant="secondary" fullWidth={false} onPress={load} />
+      </ProovraCard>
+    );
+  }
   if (consent === undefined) return null;
   return (
     <ProovraCard testID="cookie-consent-record">

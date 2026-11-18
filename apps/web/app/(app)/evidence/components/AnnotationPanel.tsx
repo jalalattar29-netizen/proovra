@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import type { EvidenceAnnotationsResponse, EvidenceAnnotation } from "../lib/evidence-library-types";
+import { PANEL_LOAD_FAILED, panelWriteError } from "./panelFeedback";
 
 export function AnnotationPanel({
   evidenceId,
@@ -17,6 +18,10 @@ export function AnnotationPanel({
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
   const [canWrite, setCanWrite] = useState(false);
+  // PRO-E1C-01 — a failed read is not "no annotations"; a refused write is said.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [writeError, setWriteError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -28,7 +33,10 @@ export function AnnotationPanel({
         if (!cancelled) {
           setItems(Array.isArray(data.items) ? data.items : []);
           setCanWrite(data.canWrite === true);
+          setLoadFailed(false);
         }
+      } catch {
+        if (!cancelled) setLoadFailed(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -37,27 +45,37 @@ export function AnnotationPanel({
     return () => {
       cancelled = true;
     };
-  }, [evidenceId, open]);
+  }, [evidenceId, open, reloadKey]);
 
   const createAnnotation = async () => {
-    const data = (await apiFetch(`/v1/evidence/${evidenceId}/annotations`, {
-      method: "POST",
-      body: JSON.stringify({
-        evidencePartId: defaultPartId ?? null,
-        annotationType: "TEXT",
-        body,
-        coordinateSpace: "NORMALIZED",
-      }),
-    })) as EvidenceAnnotationsResponse;
-    if (data.annotation) {
-      setItems((current) => [data.annotation!, ...current]);
-      setBody("");
+    setWriteError(null);
+    try {
+      const data = (await apiFetch(`/v1/evidence/${evidenceId}/annotations`, {
+        method: "POST",
+        body: JSON.stringify({
+          evidencePartId: defaultPartId ?? null,
+          annotationType: "TEXT",
+          body,
+          coordinateSpace: "NORMALIZED",
+        }),
+      })) as EvidenceAnnotationsResponse;
+      if (data.annotation) {
+        setItems((current) => [data.annotation!, ...current]);
+        setBody("");
+      }
+    } catch (err) {
+      setWriteError(panelWriteError(err, "The annotation was not saved."));
     }
   };
 
   const deleteAnnotation = async (annotationId: string) => {
-    await apiFetch(`/v1/evidence/${evidenceId}/annotations/${annotationId}`, { method: "DELETE" });
-    setItems((current) => current.filter((item) => item.id !== annotationId));
+    setWriteError(null);
+    try {
+      await apiFetch(`/v1/evidence/${evidenceId}/annotations/${annotationId}`, { method: "DELETE" });
+      setItems((current) => current.filter((item) => item.id !== annotationId));
+    } catch (err) {
+      setWriteError(panelWriteError(err, "The annotation was not deleted."));
+    }
   };
 
   return (
@@ -82,8 +100,21 @@ export function AnnotationPanel({
             </div>
           </>
         ) : null}
+        {writeError ? (
+          <p role="alert" className="evidence-library-muted" data-panel-write-error>
+            {writeError}
+          </p>
+        ) : null}
         {loading ? <p className="evidence-library-muted">Loading annotations...</p> : null}
-        {!loading && items.length === 0 ? <p className="evidence-library-muted">No annotations yet.</p> : null}
+        {!loading && loadFailed ? (
+          <p role="alert" className="evidence-library-muted" data-panel-load-failed>
+            {PANEL_LOAD_FAILED}{" "}
+            <button type="button" className="app-secondary-action" onClick={() => setReloadKey((n) => n + 1)}>
+              Try again
+            </button>
+          </p>
+        ) : null}
+        {!loading && !loadFailed && items.length === 0 ? <p className="evidence-library-muted">No annotations yet.</p> : null}
         <div className="evidence-library-note-grid">
           {items.map((item) => (
             <div key={item.id} className="evidence-library-note-card">

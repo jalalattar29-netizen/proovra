@@ -40,6 +40,7 @@
  * nothing about existence, membership, lifecycle, or capability leaks.
  */
 
+import { isSafeRedirectAfter } from "@proovra/shared";
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -72,7 +73,9 @@ function isExternalDestination(href: string): boolean {
   // destinations are refused outright — this chokepoint never leaves the app.
   if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) return true;
   if (trimmed.startsWith("//")) return true;
-  return !trimmed.startsWith("/");
+  // PRO-PW-11 — and the ONE return-path contract: `/\host`, control
+  // characters and anything a browser would resolve to another origin.
+  return !trimmed.startsWith("/") || !isSafeRedirectAfter(trimmed);
 }
 
 export function useDeepLinkNavigation() {

@@ -15,6 +15,7 @@
  * authenticity, admissibility, or proven truth.
  */
 
+import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../lib/feedback/plan-refusal";
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
@@ -139,7 +140,8 @@ useEffect(() => {
       )
       .catch((err: { message?: string }) => {
         if (cancelled) return;
-        setError(toSafeUserError(err, { message: "Could not load review queue." }).message);
+        // PRO-R2-14 — a plan refusal is said as such, not as a load failure.
+        setError(isPlanRefusal(err) ? PLAN_REFUSAL_COPY : toSafeUserError(err, { message: "Could not load review queue." }).message);
       });
     return () => {
       cancelled = true;

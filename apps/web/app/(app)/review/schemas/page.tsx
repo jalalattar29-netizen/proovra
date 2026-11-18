@@ -18,6 +18,7 @@
  * never shown as "no schemas".
  */
 
+import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../lib/feedback/plan-refusal";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { identifierLabel, type ReviewerCapability } from "@proovra/shared";
@@ -158,10 +159,13 @@ function SchemasWorkspace({ teamId }: { teamId: string }) {
         });
       }
       await refresh();
-    } catch {
+    } catch (err) {
       setBanner({
         tone: "error",
-        text: "Schema seed could not be completed. Retry after checking reviewer schema permissions.",
+        // PRO-R2-14 — a plan refusal is said as such.
+        text: isPlanRefusal(err)
+          ? PLAN_REFUSAL_COPY
+          : "Schema seed could not be completed. Retry after checking reviewer schema permissions.",
       });
     } finally {
       if (alive.current) setSeeding(false);

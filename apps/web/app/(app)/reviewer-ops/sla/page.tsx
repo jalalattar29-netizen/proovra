@@ -126,6 +126,10 @@ function SlaDashboardPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<EscalationAnalytics | null>(null);
   const [reviewers, setReviewers] = useState<ReviewerPerformance | null>(null);
+  // PRO-R2-15 — a failed analytics read is a stated failure with Retry, not
+  // "Loading…" forever.
+  const [analyticsFailed, setAnalyticsFailed] = useState(false);
+  const [analyticsAttempt, setAnalyticsAttempt] = useState(0);
   const [rangeDays, setRangeDays] = useState<number>(14);
   const [reminders, setReminders] = useState<ReviewReminder[] | null>(null);
 
@@ -185,16 +189,18 @@ function SlaDashboardPageInner() {
         if (cancelled) return;
         setAnalytics(a);
         setReviewers(r);
+        setAnalyticsFailed(false);
       })
       .catch(() => {
         if (cancelled) return;
         setAnalytics(null);
         setReviewers(null);
+        setAnalyticsFailed(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [teamId, rangeDays]);
+  }, [teamId, rangeDays, analyticsAttempt]);
 
   // PageRouteGate already guaranteed ALLOWED. If the canonical
   // envelope is still hydrating we render the bounded loading shell.
@@ -487,7 +493,14 @@ function SlaDashboardPageInner() {
             onChange={(next) => setRangeDays(Number(next))}
           />
         </div>
-        {!analytics ? (
+        {analyticsFailed ? (
+          <p className="app-field-help" role="alert" data-sla-analytics-failed>
+            Analytics could not be loaded.{" "}
+            <button type="button" onClick={() => setAnalyticsAttempt((n) => n + 1)}>
+              Retry
+            </button>
+          </p>
+        ) : !analytics ? (
           <p className="app-field-help">Loading analytics…</p>
         ) : (
           <>
@@ -562,7 +575,14 @@ function SlaDashboardPageInner() {
       <PageSection>
         <Card padding="comfortable">
         <h3 className="app-panel__title">Reviewer performance</h3>
-        {!reviewers ? (
+        {analyticsFailed ? (
+          <p className="app-field-help" role="alert" data-sla-reviewers-failed>
+            Reviewer performance could not be loaded.{" "}
+            <button type="button" onClick={() => setAnalyticsAttempt((n) => n + 1)}>
+              Retry
+            </button>
+          </p>
+        ) : !reviewers ? (
           <p className="app-field-help">Loading…</p>
         ) : reviewers.rows.length === 0 ? (
           <div style={{ marginTop: 8 }}>

@@ -14,6 +14,8 @@
  * No deep links to a separate annotation page.
  */
 
+import { identifierLabel } from "@proovra/shared";
+import { reviewerDenialFromError } from "../../lib/reviewer-workspace/reviewer-denial";
 import { useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -69,8 +71,7 @@ export function AnnotationPanel({
       setReplyDraft((d) => ({ ...d, [rootId]: "" }));
       onChange();
     } catch (e) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setBanner(`Reply refused: ${((e as any)?.body?.denial ?? "unknown")}`);
+      setBanner(`Reply refused: ${identifierLabel(reviewerDenialFromError(e))}`);
     }
   }
 
@@ -82,8 +83,7 @@ export function AnnotationPanel({
       });
       onChange();
     } catch (e) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setBanner(`Resolve refused: ${((e as any)?.body?.denial ?? "unknown")}`);
+      setBanner(`Resolve refused: ${identifierLabel(reviewerDenialFromError(e))}`);
     }
   }
 
@@ -102,8 +102,7 @@ export function AnnotationPanel({
       setSelected(new Set());
       onChange();
     } catch (e) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setBanner(`Bulk refused: ${((e as any)?.body?.denial ?? "unknown")}`);
+      setBanner(`Bulk refused: ${identifierLabel(reviewerDenialFromError(e))}`);
     }
   }
 

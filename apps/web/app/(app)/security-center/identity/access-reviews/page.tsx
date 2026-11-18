@@ -133,6 +133,13 @@ function reviewStatusTone(status: string): BadgeTone {
   return "info";
 }
 
+/** PRO-N1Z-04 — the notification's review first; the rest in the server's order. */
+function orderLinkedFirst(rows: AccessReview[], linkedId: string | null): AccessReview[] {
+  if (!linkedId) return rows;
+  const hit = rows.find((r) => r.id === linkedId);
+  return hit ? [hit, ...rows.filter((r) => r.id !== linkedId)] : rows;
+}
+
 export default function AccessReviewsPage() {
   const teamId = useTeamId();
   const { stamp, isStale } = useTenantGuard();
@@ -154,6 +161,17 @@ export default function AccessReviewsPage() {
   const [regenBusy, setRegenBusy] = useState(false);
   const [regenNotice, setRegenNotice] = useState<string | null>(null);
   const [regenFailure, setRegenFailure] = useState<SurfaceFailure | null>(null);
+  // PRO-N1Z-04 — an access-review notification links here as `?reviewId=<id>`.
+  // The queue is opened on every status (the review may no longer be pending)
+  // and that review is listed first and marked; an id not in the list says so.
+  const [linkedReviewId, setLinkedReviewId] = useState<string | null>(null);
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("reviewId");
+    if (raw && /^[0-9a-f-]{36}$/i.test(raw)) {
+      setLinkedReviewId(raw);
+      setStatusFilter("");
+    }
+  }, []);
 
   const load = useCallback(async () => {
     const captured = stamp();
@@ -314,7 +332,12 @@ export default function AccessReviewsPage() {
       key: "kind",
       header: "Kind",
       render: (r) => (
-        <div data-access-review-row={r.id}>
+        <div data-access-review-row={r.id} data-access-review-linked={r.id === linkedReviewId ? "true" : undefined}>
+          {r.id === linkedReviewId ? (
+            <span className="adm-help" style={{ fontSize: 11, fontWeight: 600, display: "block" }}>
+              Opened from your notification
+            </span>
+          ) : null}
           <span className="adm-help" style={{ fontSize: 11 }}>
             {accessReviewKindLabel(r.kind)}
           </span>
@@ -522,9 +545,14 @@ export default function AccessReviewsPage() {
         </Card>
 
         <div style={{ marginTop: 12 }} data-access-reviews-table>
+          {reviews !== null && linkedReviewId && !reviews.some((r) => r.id === linkedReviewId) ? (
+            <p className="adm-help" data-access-review-linked-missing="true">
+              The review your notification pointed to is not in this queue. It may already be decided, or it belongs to another workspace.
+            </p>
+          ) : null}
           <DataTable<AccessReview>
             columns={columns}
-            rows={(reviews ?? []) as AccessReview[]}
+            rows={orderLinkedFirst((reviews ?? []) as AccessReview[], linkedReviewId)}
             getRowId={(r) => r.id}
             loading={reviews === null}
             ariaLabel="Access reviews"

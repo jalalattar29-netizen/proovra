@@ -314,6 +314,16 @@ function MfaRecoveryAdminBody() {
     }
   };
 
+  // PRO-N1Z-04 — an MFA-recovery notification links here as
+  // `?requestId=<id>`: that request's detail opens (an unknown or foreign id
+  // answers through the detail read's own refusal, shown as its error line).
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("requestId");
+    if (raw && /^[0-9a-f-]{36}$/i.test(raw)) void openDetail(raw);
+    // Once, at mount: the link names one request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const doApprove = async (requestId: string) => {
     setBusy(true);
     try {

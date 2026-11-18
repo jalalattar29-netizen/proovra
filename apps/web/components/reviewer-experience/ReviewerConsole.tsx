@@ -56,6 +56,7 @@
  *     are explicitly absent.
  */
 
+import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../lib/feedback/plan-refusal";
 import { recordReference } from "../../lib/short-id";
 import { AppListbox } from "../app-primitives/AppListbox";
 import { identifierLabel } from "@proovra/shared";
@@ -366,10 +367,12 @@ export function ReviewerConsole({
       // it, and a stale workflow id must never be re-submitted.
       setBulkSelection(new Set<string>());
     } catch (err) {
+      // PRO-R2-14 — the plan refusal in words; otherwise the safe mapped
+      // message, never the raw client error string.
       setError(
-        err instanceof Error
-          ? err.message.slice(0, 200)
-          : "Reviewer console failed to load.",
+        isPlanRefusal(err)
+          ? PLAN_REFUSAL_COPY
+          : toSafeUserError(err, { message: "Reviewer console failed to load." }).message,
       );
     } finally {
       setLoading(false);

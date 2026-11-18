@@ -58,6 +58,7 @@
  *     at the server-side 100-row bulk cap).
  */
 
+import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../lib/feedback/plan-refusal";
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -312,7 +313,10 @@ function QueuesShell() {
           // clear the cursor so the user can retry by reloading.
           setNextCursor(null);
         }
-        if (code === "INVALID_CURSOR") {
+        if (isPlanRefusal(err)) {
+          // PRO-R2-14 — the plan, not an outage.
+          setRefreshError(PLAN_REFUSAL_COPY);
+        } else if (code === "INVALID_CURSOR") {
           setRefreshError(
             "Pagination cursor was rejected. Reload the queue to start over.",
           );

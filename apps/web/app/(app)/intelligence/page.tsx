@@ -232,9 +232,15 @@ useEffect(() => {
                   </Button>
                 </Link>
               </div>
-              <p style={{ ...mutedStyle, marginTop: 12 }}>
-                Semantic search is not enabled in this deployment.
-              </p>
+              {/* PRO-AI1Z-05 — the same fact the Providers card states, from the
+                  same read; nothing is claimed while it is unknown. */}
+              {providers ? (
+                <p style={{ ...mutedStyle, marginTop: 12 }} data-intelligence-semantic-note={providers.semanticEnabled ? "enabled" : "disabled"}>
+                  {providers.semanticEnabled
+                    ? "Semantic search is enabled in this deployment; Search can also match by meaning."
+                    : "Semantic search is not enabled in this deployment."}
+                </p>
+              ) : null}
             </Card>
           </PageSection>
 

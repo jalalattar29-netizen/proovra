@@ -171,6 +171,7 @@ function EvidenceDetailPageInner() {
       case "review":
       case "artifacts":
       case "discussion":
+      case "derived":
       case "technical":
         return raw as EvidenceDetailTab;
       default:
@@ -816,6 +817,31 @@ function EvidenceDetailPageInner() {
     }
   };
 
+  // PRO-E2-08 — the `?tab=` deep link is honoured AFTER mount too: a link that
+  // arrives while the record is open (a notification to the same record, a
+  // query-only push) switches the tab. A tab this record or role does not show
+  // falls back to Overview once the record is known. (Declared before the
+  // loading/error returns: hooks run on every render.)
+  const isTabVisible = (id: EvidenceDetailTab): boolean =>
+    id === "discussion"
+      ? workspaceCaps?.discussionEnabled === true || workspaceCaps?.discussionReadOnly === true
+      : id === "derived"
+        ? workspace?.sourceContext?.acquisition?.category === "DIRECT_SCREEN_CAPTURE"
+        : true;
+  const tabParam = searchParams?.get("tab") ?? null;
+  const lastAppliedTab = useRef<string | null>(tabParam);
+  useEffect(() => {
+    if (tabParam === lastAppliedTab.current) return;
+    lastAppliedTab.current = tabParam;
+    const wanted = DETAIL_TABS.find((t) => t.id === tabParam);
+    if (wanted && isTabVisible(wanted.id)) setActiveTab(wanted.id);
+    // The param change is the trigger; visibility is read as of now.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabParam]);
+  const activeTabVisible = isTabVisible(activeTab);
+  useEffect(() => {
+    if (workspace && workspaceCaps && !activeTabVisible) setActiveTab("overview");
+  }, [workspace, workspaceCaps, activeTabVisible]);
   /**
    * PHASE 13 (NEW-078) — THE FULL-PAGE LOADING STATE IS FOR THE FIRST LOAD ONLY.
    *

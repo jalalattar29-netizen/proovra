@@ -247,7 +247,12 @@ function CaseGraphExplorerPageBody() {
 
       <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>Nodes</h2>
-        {data == null ? (
+        {data == null && error ? (
+          // PRO-K1C-07 — a failed load is said, not shown as "Loading…" forever.
+          <p style={emptyStyle} role="alert" data-case-graph-load-failed>
+            The case graph could not be loaded. It is retried automatically every minute.
+          </p>
+        ) : data == null ? (
           <p style={emptyStyle}>Loading…</p>
         ) : filteredNodesByKind.size === 0 ? (
           <p style={emptyStyle}>
@@ -289,7 +294,12 @@ function CaseGraphExplorerPageBody() {
 
       <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>Relationships</h2>
-        {data == null ? (
+        {data == null && error ? (
+          // PRO-K1C-07 — a failed load is said, not shown as "Loading…" forever.
+          <p style={emptyStyle} role="alert" data-case-graph-load-failed>
+            The case graph could not be loaded. It is retried automatically every minute.
+          </p>
+        ) : data == null ? (
           <p style={emptyStyle}>Loading…</p>
         ) : filteredEdges.length === 0 ? (
           <p style={emptyStyle}>

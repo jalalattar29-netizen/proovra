@@ -27,6 +27,7 @@
  *     submit without a note.
  */
 
+import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../lib/feedback/plan-refusal";
 import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useState } from "react";
 
@@ -168,6 +169,9 @@ export function ReviewerBulkOpsBar({
               message: "Bulk request was rejected. Check the action + note.",
             }).message,
           );
+        } else if (isPlanRefusal(e)) {
+          // PRO-R2-14 — the plan, not a permission.
+          setError(PLAN_REFUSAL_COPY);
         } else if (e.statusCode === 403) {
           setError(
             "Permission denied. Bulk mutation requires REVIEWER_OPS_ACT in this team.",

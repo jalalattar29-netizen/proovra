@@ -320,6 +320,12 @@ export function SimpleCaseDetail({
 
   const { caseDetail, workspace, isReloading } = state;
   const evidenceItems = workspace.sections.evidence.items ?? [];
+  // PRO-K1-07 — the case's record count is the server's, not the length of the
+  // board (which stops at the newest 50). An API older than this change sends
+  // no total; the board length is then all there is.
+  const evidenceSection = workspace.sections.evidence as { totalCount?: number; truncated?: boolean };
+  const evidenceTotal =
+    typeof evidenceSection.totalCount === "number" ? evidenceSection.totalCount : evidenceItems.length;
   const caseComments = workspace.sections.notes?.caseComments ?? [];
   const deliverables = summariseDeliverables(workspace);
   const needsAttention = deriveNeedsAttention(workspace);
@@ -336,7 +342,7 @@ export function SimpleCaseDetail({
         caseDetail={caseDetail}
         // AUD-0062 — the workspace that owns the case, not a default.
         scopeLabel={scopeLabel}
-        evidenceCount={evidenceItems.length}
+        evidenceCount={evidenceTotal}
         isReloading={Boolean(isReloading)}
         canLinkEvidence={viewer.canLinkEvidence}
         linkEvidenceDisabledReason={viewer.disabledReasons.linkEvidence}
@@ -372,7 +378,7 @@ export function SimpleCaseDetail({
         <>
           <OverviewTab
             caseDetail={caseDetail}
-            evidenceCount={evidenceItems.length}
+            evidenceCount={evidenceTotal}
             deliverables={deliverables}
             needsAttention={needsAttention}
             viewer={viewer}
@@ -401,6 +407,13 @@ export function SimpleCaseDetail({
         // own aiEnabled/policy_denied/provider_unavailable states).
         <div className="case-detail-split case-detail-split--wide-rail">
           <div className="case-detail-split-main">
+            {evidenceSection.truncated ? (
+              // PRO-K1-07 — the board shows the newest records; the rest are reachable.
+              <p className="app-hint" role="status" data-case-evidence-truncated>
+                Showing the newest {evidenceItems.length} of {evidenceTotal} records.{" "}
+                <Link href={`/search?caseId=${encodeURIComponent(caseId)}`}>See every record of this case in Search</Link>
+              </p>
+            ) : null}
             <EvidenceTab
               caseId={caseId}
               items={evidenceItems}
@@ -477,7 +490,7 @@ export function SimpleCaseDetail({
         <SettingsTab
           caseId={caseId}
           caseDetail={caseDetail}
-          evidenceCount={evidenceItems.length}
+          evidenceCount={evidenceTotal}
           viewer={viewer}
           onReload={reload}
           onDeleted={() => router.push("/cases")}
@@ -1422,7 +1435,9 @@ function AttachEvidenceModal({
         // the same. The previous handler set `candidates = []` for both, so a
         // workspace the actor may not read announced "no available evidence
         // to link" — a confident statement about a population it never saw.
-        const status = (err as { status?: number } | null)?.status;
+        // PRO-K1C-04 — apiFetch errors carry `statusCode` (never `status`), so
+        // reading `status` made this branch unreachable.
+        const status = (err as { statusCode?: number } | null)?.statusCode;
         const restricted = status === 401 || status === 403;
         setCandidates([]);
         setLoadState({ kind: restricted ? "restricted" : "error" });
