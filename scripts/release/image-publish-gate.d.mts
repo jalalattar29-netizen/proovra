@@ -25,4 +25,6 @@ export function decidePublication(input: {
   mainSha: string;
   runs: Record<string, WorkflowRunFact[]>;
   required?: ReadonlyArray<RequiredWorkflow>;
+  /** PRO-S1-11 — a workflow_dispatch: a superseded green SHA gets its sha tag only. */
+  manual?: boolean;
 }): PublicationDecision;

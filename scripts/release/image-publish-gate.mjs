@@ -36,10 +36,11 @@ const SHA = /^[0-9a-f]{40}$/;
  *   runs: Record<string, Array<{ head_sha: string, event: string, status: string,
  *     conclusion: string | null, run_attempt?: number, created_at?: string }>>,
  *   required?: ReadonlyArray<{ file: string, name: string }>,
+ *   manual?: boolean,
  * }} input
  * @returns {{ publish: boolean, tagLatest: boolean, reason: string }}
  */
-export function decidePublication({ headSha, mainSha, runs, required = REQUIRED_WORKFLOWS }) {
+export function decidePublication({ headSha, mainSha, runs, required = REQUIRED_WORKFLOWS, manual = false }) {
   if (!SHA.test(String(headSha))) return refuse(`INVALID_HEAD_SHA`);
   if (!SHA.test(String(mainSha))) return refuse(`INVALID_MAIN_SHA`);
   if (required.length === 0) return refuse("NO_REQUIRED_WORKFLOWS");
@@ -60,7 +61,14 @@ export function decidePublication({ headSha, mainSha, runs, required = REQUIRED_
     if (latest.conclusion !== "success") return refuse(`FAILED:${wf.name}:${latest.conclusion}`);
   }
 
-  if (headSha !== mainSha) return refuse("SUPERSEDED_BY_NEWER_MAIN");
+  if (headSha !== mainSha) {
+    // PRO-S1-11 — fast successive merges left green commits with no image, so
+    // they could never be rollback targets. A MANUAL dispatch for such a
+    // commit publishes its immutable sha tag only; latest/main never move
+    // backwards. An automatic completion for it still publishes nothing.
+    if (manual) return { publish: true, tagLatest: false, reason: "MANUAL_SUPERSEDED_SHA_TAG_ONLY" };
+    return refuse("SUPERSEDED_BY_NEWER_MAIN");
+  }
   return { publish: true, tagLatest: true, reason: "ALL_REQUIRED_WORKFLOWS_SUCCEEDED_ON_MAIN_HEAD" };
 }
 
@@ -96,8 +104,18 @@ async function main() {
     );
     runs[wf.file] = page.workflow_runs ?? [];
   }
-  const decision = decidePublication({ headSha: HEAD_SHA, mainSha: main.sha, runs });
+  const manual = process.env.GATE_TRIGGER === "workflow_dispatch";
+  const decision = decidePublication({ headSha: HEAD_SHA, mainSha: main.sha, runs, manual });
   console.log(`image-publish-gate: ${HEAD_SHA} → ${JSON.stringify(decision)}`);
+  // PRO-S1-11 — a refusal leaves the run green (it is a decision, not a
+  // failure), so it must be VISIBLE: an annotation and a job summary saying no
+  // image was published for this SHA, and why.
+  const summary = decision.publish
+    ? `Images WILL be published for ${HEAD_SHA} (${decision.reason}; latest moves: ${decision.tagLatest}).`
+    : `NO image published for ${HEAD_SHA}: ${decision.reason}. A green run of this workflow is not evidence that an image exists.`;
+  console.log(decision.publish ? `::notice title=Images published::${summary}` : `::warning title=Images NOT published::${summary}`);
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}
+`);
   if (GITHUB_OUTPUT) {
     appendFileSync(
       GITHUB_OUTPUT,
