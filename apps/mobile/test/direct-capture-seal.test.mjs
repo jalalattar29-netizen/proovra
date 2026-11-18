@@ -261,3 +261,38 @@ test("PRO-NB-04: a terminal seal refusal is not repeated", async () => {
     globalThis.__record = prev;
   }
 });
+
+// PRO-NB-09 — the draft is bound at reservation; an API that does not know the
+// field (strict body → 400) still reserves, unbound.
+test("PRO-NB-09: the reservation names the draft; an older API's 400 falls back to an unbound reservation", async () => {
+  const bodies = [];
+  const bound = await mod.reserveDirectCaptureEvidenceForDraft(SESSION, { type: "PHOTO", mimeType: "image/jpeg", deviceTimeIso: "x" }, "draft-1", async (path, init) => {
+    bodies.push(JSON.parse(init.body));
+    return { evidence: { evidenceId: "ev-1", draftBound: true } };
+  });
+  assert.deepEqual(bound, { evidenceId: "ev-1", draftBound: true });
+  assert.equal(bodies[0].captureDraftId, "draft-1");
+
+  bodies.length = 0;
+  const old = await mod.reserveDirectCaptureEvidenceForDraft(SESSION, { type: "PHOTO", mimeType: "image/jpeg", deviceTimeIso: "x" }, "draft-1", async (path, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    if (body.captureDraftId) throw Object.assign(new Error("Validation failed"), { statusCode: 400 });
+    return { evidence: { evidenceId: "ev-2" } };
+  });
+  assert.deepEqual(old, { evidenceId: "ev-2", draftBound: false });
+  assert.equal(bodies.length, 2);
+  assert.equal(bodies[1].captureDraftId, undefined);
+});
+
+// PRO-NBC-02 — the keep-alive adopts the server's slid expiry and is never fatal.
+test("PRO-NBC-02: the heartbeat adopts the server expiry; an API without the route is not an error", async () => {
+  const session = { ...SESSION, expiresAtUtc: "2026-01-01T00:00:00.000Z" };
+  const ok = await mod.touchDirectCaptureSession(session, async () => ({ session: { expiresAtUtc: "2026-01-01T01:00:00.000Z" } }));
+  assert.equal(ok, true);
+  assert.equal(session.expiresAtUtc, "2026-01-01T01:00:00.000Z");
+  const missing = await mod.touchDirectCaptureSession(session, async () => {
+    throw Object.assign(new Error("not found"), { statusCode: 404 });
+  });
+  assert.equal(missing, false);
+});

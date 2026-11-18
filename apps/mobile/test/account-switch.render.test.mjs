@@ -126,7 +126,7 @@ test("PRO-113: Stay signed in revokes the session the link created and keeps the
   assert.equal(Verify.calls.replace.at(-1), "/(tabs)");
 });
 
-test("PRO-113 / PRO-116: Switch ends the current account first — capture torn down, old session revoked, residue gone", async () => {
+test("PRO-113 / PRO-116 / PRO-NBC-03: Switch ends the current account first — capture stopped (staged evidence kept for its owner), old session revoked, residue gone", async () => {
   answer = server({ sessions: { "sess-victim": VICTIM }, linkUser: OWNER });
   const r = await openLink({ signedInAs: "sess-victim" });
   // The victim's own staged capture and its link group, bound to the victim.
@@ -140,13 +140,12 @@ test("PRO-113 / PRO-116: Switch ends the current account first — capture torn 
   await r.press("Switch to this account");
   await settle(20);
 
-  const discard = requests.find((q) => q.path === "/v1/capture/direct-sessions/cs-victim/discard");
-  assert.ok(discard, "the victim's open capture session was not released");
-  assert.equal(discard.auth, "Bearer sess-victim", "capture was released under the wrong session");
+  // PRO-NBC-03 / DEC-24 — ending the session is not consent to destroy the
+  // victim's staged evidence: no server discard, the owner-keyed records and
+  // their link groups stay for the victim (unreadable by the new account).
+  assert.equal(requests.filter((q) => q.path.endsWith("/discard")).length, 0, "the switch discarded staged evidence");
   assert.ok(logouts().includes("Bearer sess-victim"), "the replaced session was not revoked");
-  const revokeAt = requests.findIndex((q) => q.path === "/v1/auth/logout" && q.auth === "Bearer sess-victim");
-  assert.ok(requests.indexOf(discard) < revokeAt, "capture must be released while the old token is still valid");
-  assert.equal(await Verify.AsyncStorage.getItem("proovra.capture.links.v1:u-victim"), null, "capture-link groups survived the switch");
+  assert.notEqual(await Verify.AsyncStorage.getItem("proovra.capture.links.v1:u-victim"), null, "the victim's link groups were destroyed");
   assert.equal(await Verify.AsyncStorage.getItem("proovra:user:u-victim:tenant:t1:search:recent"), null);
   assert.equal(await Verify.getItemAsync("proovra-token"), "sess-link");
   assert.equal(Verify.calls.replace.at(-1), "/(tabs)");
@@ -174,7 +173,7 @@ test("control: the account's own link, while signed in to it, needs no question 
   assert.equal(requests.filter((q) => q.path.endsWith("/discard")).length, 0, "the same account's capture was torn down");
 });
 
-test("PRO-116: Settings sign-out removes the capture-link groups with the rest of the account's residue", async () => {
+test("PRO-116 / PRO-NBC-03: Settings sign-out keeps the account's owner-keyed capture-link groups (its staged records are kept too)", async () => {
   const A = Settings.AsyncStorage;
   A.__reset();
   await Settings.setItemAsync("proovra-token", "sess-user1");
@@ -189,7 +188,7 @@ test("PRO-116: Settings sign-out removes the capture-link groups with the rest o
   await r.press("Sign out");
   await settle(12);
   assert.ok(logouts().includes("Bearer sess-user1"), "positive control: server sign-out");
-  assert.equal(await A.getItem("proovra.capture.links.v1:u-user1"), null, "the signed-out account's link groups stayed");
+  assert.notEqual(await A.getItem("proovra.capture.links.v1:u-user1"), null, "the signed-out account's link groups were destroyed with its staged records' context");
   // Another account's groups (whose records a server-ended session kept) are not this sign-out's to remove.
   assert.notEqual(await A.getItem("proovra.capture.links.v1:u-other"), null);
 });
