@@ -574,6 +574,118 @@ export async function releaseExpiredReservations(
 }
 
 // =============================================================================
+// PRO-C1C-01 / PRO-C1-03 — RELEASED RESERVATIONS GIVE THEIR BYTES BACK.
+// =============================================================================
+
+/** A released reservation is swept only after this grace: a presigned PUT issued just before the release may still land. */
+export const RELEASED_OBJECTS_GRACE_MS = 60 * 60 * 1000;
+
+export type ReleasedObjectSweepResult = {
+  scanned: number;
+  swept: number;
+  objectDeletesRequested: number;
+  objectVersionsDeleted: number;
+  objectsRetained: number;
+  objectDeletesFailed: number;
+  failed: number;
+  pendingObjectDeletes: Array<{ bucket: string; key: string }>;
+};
+
+/**
+ * A reservation released by the API (a discard, a changed selection, a
+ * workspace change, a direct-capture discard) is a soft delete: its record
+ * keeps lifecycleState ACTIVE, so neither trash-grace nor the destruction
+ * prefix sweep ever reaches it, and the reservation sweep above deleted only
+ * the objects of records IT released. Their uploaded bytes stayed, unmetered.
+ *
+ * Object removal is now a property of the released record, whoever released
+ * it: every unsealed record with deletedAt set (older than the grace) whose
+ * objects were not yet removed has its part objects, its own object and every
+ * key under its own evidence/<id>/ prefix (the resumable door's assembled
+ * session object included, PRO-C1-03) deleted through the version-aware
+ * deleter. A key a live or sealed record references is never touched; a
+ * version under retention or a legal hold is retained and reported. The record
+ * is stamped releasedObjectsRemovedAtUtc once; a failed delete is carried
+ * forward by the existing pendingObjectDeletes carrier.
+ */
+export async function removeReleasedReservationObjects(options: {
+  deleteObject: ReservationObjectDeleter;
+  listKeys?: (p: { bucket: string; prefix: string }) => Promise<string[]>;
+  bucket?: string | null;
+  batchSize?: number;
+  now?: Date;
+}): Promise<ReleasedObjectSweepResult> {
+  const now = options.now ?? new Date();
+  const batchSize = Math.max(1, Math.min(options.batchSize ?? DEFAULT_BATCH_SIZE, MAX_BATCH_SIZE));
+  const result: ReleasedObjectSweepResult = {
+    scanned: 0,
+    swept: 0,
+    objectDeletesRequested: 0,
+    objectVersionsDeleted: 0,
+    objectsRetained: 0,
+    objectDeletesFailed: 0,
+    failed: 0,
+    pendingObjectDeletes: [],
+  };
+  const UNSEALED = [prismaPkg.EvidenceStatus.CREATED, prismaPkg.EvidenceStatus.UPLOADING];
+  const records = await prisma.evidence.findMany({
+    where: {
+      status: { in: UNSEALED },
+      deletedAt: { not: null, lt: new Date(now.getTime() - RELEASED_OBJECTS_GRACE_MS) },
+      lifecycleState: "ACTIVE",
+      releasedObjectsRemovedAtUtc: null,
+    },
+    orderBy: { deletedAt: "asc" },
+    take: batchSize,
+    select: { id: true, storageBucket: true, storageKey: true },
+  });
+  result.scanned = records.length;
+  for (const record of records) {
+    try {
+      const keys = new Map<string, { bucket: string; key: string }>();
+      const add = (bucket: string | null | undefined, key: string | null | undefined) => {
+        if (bucket && key) keys.set(`${bucket}/${key}`, { bucket, key });
+      };
+      add(record.storageBucket, record.storageKey);
+      const parts = await prisma.evidencePart.findMany({
+        where: { evidenceId: record.id },
+        select: { storageBucket: true, storageKey: true },
+      });
+      for (const p of parts) add(p.storageBucket, p.storageKey);
+      const bucket = record.storageBucket ?? options.bucket ?? null;
+      if (options.listKeys && bucket) {
+        for (const key of await options.listKeys({ bucket, prefix: `evidence/${record.id}/` })) add(bucket, key);
+      }
+      for (const o of await releasedObjectKeysOnly([...keys.values()])) {
+        result.objectDeletesRequested++;
+        try {
+          const removal = await options.deleteObject(o);
+          result.objectVersionsDeleted += removal.deletedVersions;
+          if (removal.retainedVersions > 0) result.objectsRetained++;
+          if (removal.failed > 0) {
+            result.objectDeletesFailed++;
+            result.pendingObjectDeletes.push(o);
+          }
+        } catch {
+          result.objectDeletesFailed++;
+          result.pendingObjectDeletes.push(o);
+        }
+      }
+      // Stamped once; anything that failed is carried forward, not re-listed.
+      const stamped = await prisma.evidence.updateMany({
+        where: { id: record.id, deletedAt: { not: null }, status: { in: UNSEALED }, releasedObjectsRemovedAtUtc: null },
+        data: { releasedObjectsRemovedAtUtc: now },
+      });
+      if (stamped.count === 1) result.swept++;
+    } catch (err) {
+      result.failed++;
+      logger.warn({ evidenceId: record.id, err }, "capture.reaper.released_objects_failed");
+    }
+  }
+  return result;
+}
+
+// =============================================================================
 // THE ONE REAPER RUN (2026-09-30) — recorded, paged, observable.
 // =============================================================================
 
@@ -633,7 +745,15 @@ async function readPendingObjectDeletes(currentRunId: string): Promise<Array<{ b
 }
 
 export async function runCaptureReaperSweep(
-  options: { trigger?: string; batchSize?: number; deleteObject?: ReservationObjectDeleter; now?: Date } = {},
+  options: {
+    trigger?: string;
+    batchSize?: number;
+    deleteObject?: ReservationObjectDeleter;
+    /** PRO-C1C-01 — lists a released record's own prefix (the multipart session key included). */
+    listKeys?: (p: { bucket: string; prefix: string }) => Promise<string[]>;
+    bucket?: string | null;
+    now?: Date;
+  } = {},
 ): Promise<CaptureReaperSweepResult> {
   const trigger = options.trigger ?? "manual";
   const batchSize = Math.max(1, Math.min(options.batchSize ?? DEFAULT_BATCH_SIZE, MAX_BATCH_SIZE));
@@ -688,6 +808,20 @@ export async function runCaptureReaperSweep(
         });
         // Two populations share the page size; stop only when neither filled it.
         if (res.scanned < batchSize) break;
+      }
+      // PRO-C1C-01 — the objects of every released, never-sealed reservation.
+      if (options.deleteObject) {
+        const swept = await removeReleasedReservationObjects({
+          deleteObject: options.deleteObject,
+          listKeys: options.listKeys,
+          bucket: options.bucket ?? null,
+          batchSize,
+          now: options.now,
+        });
+        pending.push(...swept.pendingObjectDeletes);
+        ctx.setMetadata(PENDING_OBJECT_DELETES_METADATA_KEY, pending.slice(0, MAX_PENDING_OBJECT_DELETES));
+        ctx.setMetadata("releasedObjectsSwept", swept.swept);
+        tally.failed += swept.failed;
       }
       ctx.setMetadata("pages", tally.pages);
       ctx.setMetadata("draftsExpired", tally.draftsExpired);

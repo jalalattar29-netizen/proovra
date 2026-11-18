@@ -27,6 +27,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { MAX_EVIDENCE_PARTS } from "@proovra/shared";
+import { EVIDENCE_RESERVATION_TTL_MS } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 
@@ -207,6 +208,28 @@ export async function updateEvidencePartMetadata(
   });
 }
 
+/**
+ * PRO-C1C-02 — "LAST WRITE" MEANS THE LAST BYTE WRITE. The reservation
+ * authority measures a live reservation from the record's last write
+ * (Evidence.updatedAt), but no byte-write door touched the record, so an upload
+ * still running a day after creation was released under it. Every part write
+ * (and the resumable door's part acknowledgement) now touches the record —
+ * only while its reservation is still live, so a write never revives a
+ * reservation that already expired (and stopped counting) before the sweep.
+ */
+export async function touchLiveReservationTx(tx: Tx, evidenceId: string, now: Date = new Date()): Promise<void> {
+  const cutoff = new Date(now.getTime() - EVIDENCE_RESERVATION_TTL_MS);
+  await tx.evidence.updateMany({
+    where: {
+      id: evidenceId,
+      deletedAt: null,
+      status: { in: ["CREATED", "UPLOADING"] },
+      OR: [{ createdAt: { gte: cutoff } }, { updatedAt: { gte: cutoff } }],
+    },
+    data: { updatedAt: now },
+  });
+}
+
 /** THE only EvidencePart insert in production code. */
 export async function writeEvidencePart(
   input: EvidencePartWriteInput,
@@ -214,6 +237,7 @@ export async function writeEvidencePart(
 ): Promise<EvidencePartWriteResult> {
   return inTx(client, async (tx) => {
     const evidence = await lockEvidenceForByteWrite(tx, input.evidenceId, input.principal);
+    await touchLiveReservationTx(tx, input.evidenceId);
     const existing = await tx.evidencePart.findFirst({ where: { evidenceId: input.evidenceId, partIndex: input.partIndex } });
     if (existing) {
       if (input.onExistingIndex === "REFUSE") throw new EvidencePartWriteRefused("PART_INDEX_TAKEN");

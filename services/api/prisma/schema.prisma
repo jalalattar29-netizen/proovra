@@ -175,6 +175,8 @@ model Evidence {
   signatureBase64          String?   @map("signature_base64") @db.VarChar(4096)
   signingKeyId             String?   @map("signing_key_id") @db.VarChar(64)
   deletedAt                DateTime? @map("deleted_at") @db.Timestamptz(6)
+  /// PRO-C1C-01 — when the capture reaper removed the objects of this released, never-sealed reservation (null = not yet swept).
+  releasedObjectsRemovedAtUtc DateTime? @map("released_objects_removed_at_utc") @db.Timestamptz(6)
   createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAtUtc             DateTime? @map("deleted_at_utc") @db.Timestamptz(6)

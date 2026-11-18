@@ -32,6 +32,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { MULTIPART_PART_SIZE_MAX_BYTES } from "@proovra/shared";
+import { EVIDENCE_RESERVATION_TTL_MS } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { getUploadSizeLimits } from "../reliability/upload-limits.service.js";
@@ -44,6 +45,7 @@ import {
 import { bump } from "../ops/metrics.service.js";
 import { withPartBinding, type DeclaredPartFile } from "../evidence/evidence-part-binding.service.js";
 import { sanitizeFileName } from "./upload-door-facts.service.js";
+import { discardUnboundSessionObject } from "../evidence/refused-upload-cleanup.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { error as logError } from "../../utils/logger.js";
 import {
@@ -731,6 +733,18 @@ export async function markPartUploaded(
         ? new Date(input.clientUploadedAtUtc)
         : null;
   try {
+    // PRO-C1-09 — a session past its declared lifetime accepts no further part.
+    const live = (await client.$queryRawUnsafe(
+      `SELECT ("expires_at_utc" <= NOW()) AS "lifetime_expired", "state"
+         FROM "evidence_upload_sessions"
+        WHERE "id" = $1 AND "team_id" = $2
+        LIMIT 1`,
+      input.sessionId,
+      input.teamId,
+    )) as Array<{ lifetime_expired: boolean; state: string }>;
+    if (live[0]?.lifetime_expired && live[0].state !== "COMPLETED") {
+      return { ok: false, reason: "session_already_terminal" };
+    }
     const rows = (await client.$queryRawUnsafe(
       `UPDATE "evidence_upload_session_parts"
          SET "state" = CASE
@@ -757,6 +771,21 @@ export async function markPartUploaded(
     if (rows.length === 0) {
       return { ok: false, reason: "invalid_part_index" };
     }
+    // PRO-C1C-02 — a byte write keeps the record's live reservation live (the
+    // same rule as touchLiveReservationTx: never revives an expired one).
+    await client
+      .$executeRawUnsafe(
+        `UPDATE "evidence" SET "updated_at" = NOW()
+          WHERE "id" = (SELECT "evidence_id" FROM "evidence_upload_sessions" WHERE "id" = $1 AND "team_id" = $2)
+            AND "deleted_at" IS NULL
+            AND "status" IN ('CREATED', 'UPLOADING')
+            AND ("created_at" >= NOW() - ($3::int * interval '1 millisecond')
+                 OR "updated_at" >= NOW() - ($3::int * interval '1 millisecond'))`,
+        input.sessionId,
+        input.teamId,
+        EVIDENCE_RESERVATION_TTL_MS,
+      )
+      .catch(() => undefined);
     bump("upload_part_marked_uploaded_total");
     return { ok: true, part: projectPart(rows[0]!) };
   } catch {
@@ -1574,6 +1603,16 @@ type SessionWithMultipart = {
   lifetime_expired: boolean;
 };
 
+/** PRO-C1-03 — best effort: a failed removal is reported by the port and swept with the record. */
+async function discardAssembledSessionObject(session: SessionWithMultipart, client: PrismaClient): Promise<void> {
+  if (!session.storage_bucket || !session.storage_key) return;
+  await discardUnboundSessionObject(
+    session.evidence_id,
+    { bucket: session.storage_bucket, key: session.storage_key },
+    { client },
+  ).catch(() => null);
+}
+
 async function loadSessionWithMultipart(
   client: PrismaClient,
   teamId: string,
@@ -2001,6 +2040,20 @@ export async function completeStorageMultipart(
       return { ok: false, reason: result.reason };
     }
     completedEtag = result.etag;
+    // PRO-C1-04 — storage has assembled the object and its upload id is gone:
+    // record that NOW, so a HEAD or hash failure below leaves a session whose
+    // retry takes the INGEST-005 re-check path instead of re-sending an upload
+    // id storage no longer has (NoSuchUpload → multipart_not_found, forever).
+    await client.$executeRawUnsafe(
+      `UPDATE "evidence_upload_sessions"
+         SET "completed_object_etag" = COALESCE("completed_object_etag", $3),
+             "completed_at_storage_utc" = COALESCE("completed_at_storage_utc", NOW()),
+             "updated_at_utc" = NOW()
+         WHERE "id" = $1 AND "team_id" = $2`,
+      input.sessionId,
+      input.teamId,
+      completedEtag,
+    );
   }
   // HEAD the final object to confirm it exists + capture size.
   const head = await headCompletedObject({
@@ -2035,6 +2088,7 @@ export async function completeStorageMultipart(
         input.teamId,
       )
       .catch(() => null);
+    await discardAssembledSessionObject(session, client); // PRO-C1-03
     return { ok: false, reason: "size_mismatch" };
   }
   let serverSha256: string | null = null;
@@ -2064,6 +2118,7 @@ export async function completeStorageMultipart(
             input.teamId,
           )
           .catch(() => null);
+        await discardAssembledSessionObject(session, client); // PRO-C1-03
       }
       return { ok: false, reason: verify.reason };
     }
@@ -2207,6 +2262,8 @@ export async function completeStorageMultipart(
       // best-effort miss: the record is sealed or not the actor's.
       if (err instanceof EvidencePartWriteRefused) {
         bump("multipart_bridge_refused_total");
+        // PRO-C1-03 — refused bytes can never become this record's evidence.
+        await discardAssembledSessionObject(session, client);
         return {
           ok: false,
           reason: err.code === "EVIDENCE_NOT_FOUND" ? "evidence_not_found" : "evidence_not_writable",
@@ -2375,6 +2432,12 @@ export async function abortStorageMultipart(
     input.reason.slice(0, 120),
   )) as Array<{ id: string }>;
 
+  // PRO-C1-03 — a file cancelled after storage assembled it leaves nothing
+  // behind: AbortMultipartUpload is a no-op once assembled, so the object goes
+  // here (only when no part row references it; a sealed object never does go).
+  if (session.completed_at_storage_utc || session.bridged_evidence_part_id) {
+    await discardAssembledSessionObject(session, client);
+  }
   if (claimed.length > 0) {
     bump("upload_session_aborted_total");
     safeEmitSecurityEvent({

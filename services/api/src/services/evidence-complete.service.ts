@@ -674,6 +674,57 @@ function buildFingerprint(params: {
   };
 }
 
+/** PRO-S1-04 — object metadata read before the sealing transaction, by bucket and key. */
+type PreReadHeads = Map<string, Awaited<ReturnType<typeof safeHead>>>;
+
+function preReadKey(bucket: string, key: string): string {
+  return `${bucket}
+${key}`;
+}
+
+/**
+ * PRO-S1-04 — HEAD every object the completion will read, outside any
+ * transaction. A HEAD that fails is simply not pre-read: the transaction then
+ * HEADs that object itself and refuses exactly as before (404 / 502).
+ */
+async function headCompletionObjects(input: { evidenceId: string; ownerUserId: string }): Promise<PreReadHeads> {
+  const out: PreReadHeads = new Map();
+  const evidence = await prisma.evidence.findFirst({
+    where: { id: input.evidenceId, ownerUserId: input.ownerUserId, deletedAt: null },
+    select: { status: true, storageBucket: true, storageKey: true },
+  });
+  if (!evidence) return out;
+  if (evidence.status !== EvidenceStatus.CREATED && evidence.status !== EvidenceStatus.UPLOADING) return out;
+  const parts = await prisma.evidencePart.findMany({
+    where: { evidenceId: input.evidenceId },
+    orderBy: { partIndex: "asc" },
+    select: { storageBucket: true, storageKey: true },
+  });
+  const objects =
+    parts.length > 0
+      ? parts.map((p) => ({ bucket: clean(p.storageBucket), key: clean(p.storageKey) }))
+      : [{ bucket: clean(evidence.storageBucket), key: clean(evidence.storageKey) }];
+  const HEAD_CONCURRENCY = 8;
+  for (let i = 0; i < objects.length; i += HEAD_CONCURRENCY) {
+    await Promise.all(
+      objects.slice(i, i + HEAD_CONCURRENCY).map(async (o) => {
+        if (!o.bucket || !o.key) return;
+        try {
+          out.set(preReadKey(o.bucket, o.key), await safeHead(o.bucket, o.key));
+        } catch {
+          /* not pre-read: the transaction HEADs it and refuses as before */
+        }
+      }),
+    );
+  }
+  return out;
+}
+
+/** PRO-S1-04 — the pre-read metadata of this object, or (not pre-read) a HEAD now. */
+async function headBeforeTransaction(preHeads: PreReadHeads, bucket: string, key: string) {
+  return preHeads.get(preReadKey(bucket, key)) ?? (await safeHead(bucket, key));
+}
+
 /**
  * ET-ACQ-04 — a pre-computed digest is bound to the exact object it was read
  * from: bucket, key, version, ETag and size. An object with neither a version
@@ -921,7 +972,18 @@ export async function completeEvidence(params: {
   // the fingerprint, and rolls back with the attestation request. Called with
   // one, it runs every check again under the record (and later the capacity)
   // lock and persists only an attestation for exactly what it derived.
-  const sealTransaction = (attestation: CompletionAttestation | null) => prisma.$transaction(
+  // PRO-S1-04 — the object HEADs each pass needs are taken immediately BEFORE
+  // its transaction opens (refreshed for every pass), so the transaction and
+  // the per-record advisory lock hold a pooled connection for database work
+  // only. The version/ETag/size a HEAD reports still binds the pre-hash and the
+  // attestation exactly as the in-transaction HEAD did (CompletionAttestationStale
+  // on a moved object); an object the pre-read did not cover is HEADed in place.
+  let preHeads: PreReadHeads = new Map();
+  const sealTransaction = async (attestation: CompletionAttestation | null) => {
+    preHeads = await headCompletionObjects({ evidenceId: params.evidenceId, ownerUserId: params.ownerUserId });
+    return sealTransactionOnce(attestation);
+  };
+  const sealTransactionOnce = (attestation: CompletionAttestation | null) => prisma.$transaction(
     async (tx): Promise<CompleteEvidenceTransactionResult> => {
       await tx.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtext(${params.evidenceId}))
@@ -1386,7 +1448,7 @@ export async function completeEvidence(params: {
             throw err;
           }
 
-          const meta = await safeHead(bucket, key);
+          const meta = await headBeforeTransaction(preHeads, bucket, key);
           const size = meta.sizeBytes;
 
           if (!size || size <= 0) {
@@ -1564,7 +1626,7 @@ const fingerprint = buildFingerprint({
         const bucket = evidenceBucket!;
         const key = evidenceKey!;
 
-        const meta = await safeHead(bucket, key);
+        const meta = await headBeforeTransaction(preHeads, bucket, key);
         const size = meta.sizeBytes;
 
         if (!size || size <= 0) {
