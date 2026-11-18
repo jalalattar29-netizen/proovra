@@ -1399,8 +1399,20 @@ function AttachEvidenceModal({
 
   const selectedCount = selectedIds.size;
 
+  // PRO-K1C-03 — the list is loaded ONCE per opening (and on an explicit
+  // Retry), keyed on the case only. The parent passes a new Set and a new
+  // onError on every render, and any toast re-rendered it, so the effect
+  // re-requested on every toast — and, failing, its own error toast drove the
+  // next request. Both are read through refs now; the error stays in the dialog.
+  const existingIdsRef = useRef(existingEvidenceIds);
+  existingIdsRef.current = existingEvidenceIds;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
+    setLoadState({ kind: "loading" });
     void (async () => {
       try {
         const res = (await apiFetch(
@@ -1412,7 +1424,7 @@ function AttachEvidenceModal({
         // client-side dedupe in case stale state lingers — backend
         // stays the authority for security.
         const filtered = (res.items ?? []).filter(
-          (i) => !existingEvidenceIds.has(i.id),
+          (i) => !existingIdsRef.current.has(i.id),
         );
         setCandidates(filtered);
         setLoadState({ kind: "ready" });
@@ -1426,7 +1438,8 @@ function AttachEvidenceModal({
         const restricted = status === 401 || status === 403;
         setCandidates([]);
         setLoadState({ kind: restricted ? "restricted" : "error" });
-        onError(
+        // Said once per failed attempt (not re-driven by its own toast).
+        onErrorRef.current(
           restricted
             ? "You do not have access to this workspace's evidence."
             : "Could not load available evidence.",
@@ -1436,7 +1449,7 @@ function AttachEvidenceModal({
     return () => {
       cancelled = true;
     };
-  }, [caseId, existingEvidenceIds, onError]);
+  }, [caseId, loadAttempt]);
 
   const trimmedQuery = query.trim().toLowerCase();
   const visibleCandidates = (candidates ?? []).filter((c) => {
@@ -1621,7 +1634,14 @@ function AttachEvidenceModal({
             data-simple-case-attach-error
             role="status"
           >
-            Could not load available evidence. Close this dialog and try again.
+            Could not load available evidence.{" "}
+            <button
+              type="button"
+              data-simple-case-attach-retry
+              onClick={() => setLoadAttempt((n) => n + 1)}
+            >
+              Retry
+            </button>
           </p>
         ) : (candidates ?? []).length === 0 ? (
           <p

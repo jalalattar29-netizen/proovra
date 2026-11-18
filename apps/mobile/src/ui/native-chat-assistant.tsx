@@ -136,6 +136,27 @@ export function assistantAvailability(payload: Availability | null | undefined):
   return { canSend: false, notice: "AI assistance is disabled or unavailable for this workspace." };
 }
 
+/**
+ * PRO-NC-11 — the conversation belongs to an IDENTITY in a WORKSPACE. The whole
+ * envelope changed on every re-read (its generatedAt / requestId), so every
+ * foreground and every screen mount wiped the chat and dropped an answer the
+ * server had already metered. Only a real account, workspace or plan change
+ * (or signing out) changes this key.
+ */
+export function assistantConversationBoundary(
+  envelope: unknown,
+  context: { activeTeamId?: string | null; activeSpaceType?: string | null; activeSpacePlan?: string | null } | null | undefined,
+): string {
+  const env = envelope as { account?: { userId?: unknown } } | null | undefined;
+  return JSON.stringify([
+    typeof env?.account?.userId === "string" ? env.account.userId : null,
+    context?.activeTeamId ?? null,
+    context?.activeSpaceType ?? null,
+    context?.activeSpacePlan ?? null,
+    Boolean(envelope),
+  ]);
+}
+
 export function NativeChatAssistant() {
   const path = usePathname();
   const platform = usePlatformContext();
@@ -153,7 +174,8 @@ export function NativeChatAssistant() {
   const requestId = useRef(0);
   const logRef = useRef<ScrollView>(null);
 
-  const boundary = JSON.stringify(platform.envelope ?? null);
+  // PRO-NC-11 — see assistantConversationBoundary.
+  const boundary = assistantConversationBoundary(platform.envelope, platform.context);
 
   const permitted =
     allowedRoute(path) &&

@@ -238,8 +238,14 @@ export function CasesIndex() {
     return qs.toString();
   }, [workspaceId, appliedSearch, filters, viewerUserId]);
 
+  // PRO-K1C-02 — the query a response answers. A slower response for an
+  // earlier workspace or query never replaces the newer one.
+  const liveQueryRef = useRef(queryString);
+  liveQueryRef.current = queryString;
+
   const reload = useCallback(async () => {
     if (!workspaceId) return;
+    const asked = queryString;
     // Phase CASES-PERSONAL-UX — persist the previous successful
     // envelope across reloads so the page chrome (header + filters
     // + input) stays mounted with stable React identity. Previously
@@ -254,8 +260,10 @@ export function CasesIndex() {
       const envelope = (await apiFetch(`/v1/cases/matter-queue?${queryString}`, {
         method: "GET",
       })) as MatterQueueEnvelope;
+      if (liveQueryRef.current !== asked) return;
       setState({ status: "ready", envelope });
     } catch (err) {
+      if (liveQueryRef.current !== asked) return;
       const e = err as { message?: string; statusCode?: number };
       if (e.statusCode === 401) {
         setState({ status: "auth_error", code: "auth_required" });
@@ -792,6 +800,11 @@ function MatterQueueTable({
   const [bulkOutcomes, setBulkOutcomes] = useState<ReadonlyArray<BulkOutcome>>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  // PRO-K1C-02 — the CURRENT workspace generation, read after the await. The
+  // captured value was compared with the same closure binding, so the guard
+  // could never fire.
+  const liveGenerationRef = useRef(workspaceGeneration);
+  liveGenerationRef.current = workspaceGeneration;
 
   // Only ids the server currently returns for THIS workspace can be selected.
   const visibleIds = useMemo(() => items.map((i) => i.id), [items]);
@@ -849,7 +862,7 @@ function MatterQueueTable({
           }),
         })) as { results?: ReadonlyArray<BulkOutcome> } | null;
         // Discard a response that outlived its workspace context.
-        if (submittedGeneration !== workspaceGeneration) return;
+        if (submittedGeneration !== liveGenerationRef.current) return;
         const results = data?.results ?? [];
         setBulkOutcomes(results);
         // Keep only the cases the server did NOT complete selected, so a
@@ -861,7 +874,7 @@ function MatterQueueTable({
         setSelectedIds(unfinished);
         await onReload();
       } catch (err) {
-        if (submittedGeneration !== workspaceGeneration) return;
+        if (submittedGeneration !== liveGenerationRef.current) return;
         setBulkError(
           toSafeUserError(err as { message?: string }, {
             message: "Could not apply the bulk action.",

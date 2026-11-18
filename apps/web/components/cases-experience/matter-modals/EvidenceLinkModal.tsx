@@ -20,7 +20,7 @@
 
 import { AppListbox } from "../../app-primitives/AppListbox";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 
 import { identifierLabel } from "@proovra/shared";
 import { apiFetch } from "../../../lib/api";
@@ -120,8 +120,12 @@ export function EvidenceLinkModal({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // PRO-K1C-02 — only the newest search's answer is applied: a slower answer
+  // to an earlier query never replaces it.
+  const reloadSeqRef = useRef(0);
   const reload = useCallback(
     async (q: string) => {
+      const mine = ++reloadSeqRef.current;
       setState({ status: "loading" });
       try {
         const qs = new URLSearchParams();
@@ -131,6 +135,7 @@ export function EvidenceLinkModal({
           `/v1/cases/${encodeURIComponent(caseId)}/linkable-evidence?${qs.toString()}`,
           { method: "GET" },
         )) as LinkableEnvelope;
+        if (mine !== reloadSeqRef.current) return;
         setState({
           status: "ready",
           items: envelope.items,
@@ -138,6 +143,7 @@ export function EvidenceLinkModal({
           loadingMore: false,
         });
       } catch (err) {
+        if (mine !== reloadSeqRef.current) return;
         const e = err as { message?: string };
         setState({
           status: "error",

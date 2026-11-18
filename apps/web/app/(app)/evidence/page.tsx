@@ -639,6 +639,11 @@ function EvidenceLibraryPageInner() {
     setWorkspaceSummary(null);
     setLibrary({ cases: [], savedViews: [], items: [], pageInfo: null });
     setSupportLoaded(false);
+    // PRO-E1-07 — the filters (or an applied team view) of the workspace that
+    // was left do not stay in force: the new workspace starts from the
+    // defaults, so its own default view applies.
+    setFilters(DEFAULT_FILTERS);
+    setDebouncedSearch(DEFAULT_FILTERS.search);
   }, [contextGeneration]);
 
   useEffect(() => {
@@ -1303,7 +1308,8 @@ function EvidenceLibraryPageInner() {
           onChange={updateFilters}
           headerActions={
             <SavedViewsMenu
-              views={library.savedViews}
+              // PRO-E1-07 — personal views everywhere; team views only in their workspace.
+              views={library.savedViews.filter((view) => view.teamId === null || view.teamId === activeSpaceId)}
               teamOptions={teamOptions}
               currentUserId={envelope?.user?.id ?? null}
               onApplyView={applySavedView}

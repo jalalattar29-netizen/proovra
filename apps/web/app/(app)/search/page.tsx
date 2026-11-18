@@ -623,6 +623,9 @@ function SearchInner() {
   // really matches. Collapsed by default so results stay primary.
   const [helpOpen, setHelpOpen] = useState(false);
   const [filter, setFilter] = useState<FilterState | null>(null);
+  // PRO-E1-03 — the live filter, read by a late page to know it is stale.
+  const liveFilterRef = useRef<FilterState | null>(null);
+  liveFilterRef.current = filter;
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   // Why the SEARCH failed, if it did. Never written by anything else.
@@ -720,6 +723,9 @@ function SearchInner() {
       // Non-browser environment — fall through to an empty query.
     }
     if (initialQ) setQDraft(initialQ);
+    // PRO-E1-03 — what was listed belongs to the workspace that was left.
+    setResults(null);
+    setSelected(null);
     setFilter({
       teamId,
       sort: "UPDATED_DESC",
@@ -1355,9 +1361,13 @@ function SearchInner() {
 
   const loadMore = useCallback(() => {
     if (!filter || !results?.nextCursor) return;
+    const asked = filter;
     setLoading(true);
     runSearch({ ...filter, cursor: results.nextCursor })
       .then((r) => {
+        // PRO-E1-03 — a page asked under another filter or workspace is dropped,
+        // never appended to the result set that replaced it.
+        if (liveFilterRef.current !== asked) return;
         setResults((prev) =>
           prev
             ? {

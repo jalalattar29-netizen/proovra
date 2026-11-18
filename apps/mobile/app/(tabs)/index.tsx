@@ -21,7 +21,7 @@
  * SOURCES and live in Capture's source chooser, not on Home.
  */
 import { View } from "react-native";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { useLocale } from "../../src/locale-context";
 import { apiFetch } from "../../src/api";
@@ -161,7 +161,12 @@ export default function HomeScreen() {
    * degradable; recent evidence alone decides the page's own loading/error
    * state, because it is the content a user came for.
    */
+  // PRO-NC-01 — the workspace + sequence a load was started for. A load whose
+  // answers settle after a newer one started (a workspace switch mid-read) is
+  // dropped, never applied under the new workspace's name.
+  const loadSeqRef = useRef(0);
   const load = useCallback(async () => {
+    const mine = ++loadSeqRef.current;
     setState("loading");
     setError(null);
     const scoped = (path: string) =>
@@ -187,7 +192,8 @@ export default function HomeScreen() {
       apiFetch("/v1/billing/overview"),
       teamId ? apiFetch(scoped("/v1/reports")) : Promise.resolve(null),
       teamId ? apiFetch(scoped("/v1/workflow/intake-links")) : Promise.resolve(null),
-      apiFetch("/v1/me/inbox?pageSize=50"),
+      // PRO-N1-09 — the active workspace's page of 50, not the first 50 of all.
+      apiFetch(teamId ? `/v1/me/inbox?pageSize=50&workspaceId=${encodeURIComponent(teamId)}` : "/v1/me/inbox?pageSize=50"),
       // The SERVER's aggregate over every active record in scope.
       teamId ? apiFetch(scoped(RECORDS_BY_TYPE_PATH)) : Promise.resolve(null),
       apiFetch("/v1/evidence?scope=active&limit=100"),
@@ -207,6 +213,7 @@ export default function HomeScreen() {
         : Promise.resolve(null),
     ]);
 
+    if (mine !== loadSeqRef.current) return;
     const problems: Record<string, SafeError> = {};
     /** Unwrap a settled result, RECORDING a rejection rather than erasing it. */
     const ok = <T,>(r: PromiseSettledResult<T>, key: string): T | undefined => {
@@ -371,6 +378,7 @@ export default function HomeScreen() {
     commandCenter: sources.commandCenter,
     communications: sources.intakeMessages,
     inbox: sources.inbox,
+    workspaceId: teamId ?? null,
   });
 
   const recentRows = items.map((item) => {

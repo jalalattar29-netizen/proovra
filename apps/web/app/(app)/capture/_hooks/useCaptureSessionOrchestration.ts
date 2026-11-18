@@ -225,7 +225,13 @@ async function runResumableItemUpload(input: {
   try {
     await driveResumableSession({ sessionId, evidenceId, evidenceTeamId, item, resumable, setSessionItems, bridgeContract });
   } catch (err) {
-    resumable.forget?.(sessionId, { abort: true });
+    // PRO-C1-13 — a RETRYABLE failure (the uploader's own retries ran out on a
+    // longer interruption) keeps the server session: the next Finish re-enters
+    // it (the idempotent create returns the live session for the same file and
+    // initiate returns its multipart) instead of restarting from byte 0. Only a
+    // terminal failure, a cancel or a conflict aborts it.
+    const retryable = (err as { resumableRetryable?: boolean } | null)?.resumableRetryable === true;
+    resumable.forget?.(sessionId, { abort: !retryable });
     throw err;
   }
   resumable.forget?.(sessionId);
@@ -330,10 +336,13 @@ async function driveResumableSession(input: {
       ) {
         unsub();
         reject(
-          new Error(
-            snap.failureReason
-              ? `resumable_upload_failed:${snap.failureReason}`
-              : `resumable_upload_failed:${snap.state.toLowerCase()}`,
+          Object.assign(
+            new Error(
+              snap.failureReason
+                ? `resumable_upload_failed:${snap.failureReason}`
+                : `resumable_upload_failed:${snap.state.toLowerCase()}`,
+            ),
+            { resumableRetryable: snap.state === "FAILED_RETRYABLE" },
           ),
         );
       }

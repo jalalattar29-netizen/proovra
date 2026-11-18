@@ -1783,6 +1783,8 @@ function buildActivity(args: {
   inbox: HomeInboxInput | null;
   submissions: SubmissionRow[];
   nowMs: number;
+  /** PRO-N1-09 — the active workspace: the inbox aggregates every workspace. */
+  workspaceId?: string | null;
 }): ActivityGroup[] {
   const events: ActivityEvent[] = [];
   const linkLabelById = new Map<string, string>();
@@ -1812,6 +1814,10 @@ function buildActivity(args: {
       item.category !== "intake_required_items_missing" ||
       !item.occurredAt
     ) {
+      continue;
+    }
+    // PRO-N1-09 — scoped to the active workspace, as the submissions are.
+    if (args.workspaceId && item.context?.teamId && String(item.context.teamId) !== args.workspaceId) {
       continue;
     }
     events.push({
@@ -3908,6 +3914,7 @@ export function normalizeHomeViewModel(
     inbox: inputs.inbox,
     submissions,
     nowMs,
+    workspaceId: inputs.workspaceId,
   });
 
   // Operational surfaces — all composed from the slices above + the real

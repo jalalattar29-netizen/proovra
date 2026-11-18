@@ -261,7 +261,10 @@ export default function BatchAnalysisScreen() {
     };
   }, []);
 
+  // PRO-NC-01 — the list is the active workspace's: a switch re-reads it (the
+  // ticket drops any answer for the workspace that was left).
   const readJobs = useCallback(async (silent: boolean) => {
+    void teamId;
     const ticket = ++readSeq.current;
     inFlight.current += 1;
     if (!silent) setState({ phase: "loading" });
@@ -285,7 +288,7 @@ export default function BatchAnalysisScreen() {
     } finally {
       inFlight.current -= 1;
     }
-  }, []);
+  }, [teamId]);
 
   const load = useCallback(() => readJobs(false), [readJobs]);
 
