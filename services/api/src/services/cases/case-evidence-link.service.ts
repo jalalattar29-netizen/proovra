@@ -347,12 +347,14 @@ export async function assertMayCloseRecordsIntoRestrictedCaseTx(
         select: { role: true, status: true },
       })
     : null;
+  // When restricting (assumeRestricted), the caller's sight of the case was
+  // proven by the access-manager decision before this grant; the row read here
+  // may already carry the new restriction that is about to name them.
+  const sees = opts.assumeRestricted === true || caseRowVisibleTo(row, actorUserId);
   const workspaceManager =
-    member?.status === "ACTIVE" &&
-    (member.role === "OWNER" || member.role === "ADMIN") &&
-    caseRowVisibleTo(row, actorUserId);
+    member?.status === "ACTIVE" && (member.role === "OWNER" || member.role === "ADMIN") && sees;
   if (workspaceManager) return;
-  if (caseRowVisibleTo(row, actorUserId)) {
+  if (sees) {
     const foreign = await tx.evidence.count({
       where: { id: { in: [...evidenceIds] }, NOT: { ownerUserId: actorUserId } },
     });

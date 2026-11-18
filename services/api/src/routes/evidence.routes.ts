@@ -1502,6 +1502,22 @@ function primaryCaseIdOf(e: {
   return e.caseLinks?.[0]?.caseId ?? null;
 }
 
+/**
+ * PRO-C1-08 / DEC-14 (POL-C1-01) — the per-file note is captured under the
+ * label "private to you": its author (the part's uploader; the record's owner
+ * for a part written before uploaders were recorded) reads it, and no other
+ * reader of the record does, on every projection that carries it.
+ */
+function privatePartNoteFor(
+  part: { privateRole: string | null; privateNote: string | null; uploadedByUserId: string | null },
+  recordOwnerUserId: string | null,
+  viewerUserId: string,
+): { privateRole: string | null; privateNote: string | null } {
+  const author = part.uploadedByUserId ?? recordOwnerUserId;
+  const mine = author !== null && author === viewerUserId;
+  return { privateRole: mine ? part.privateRole ?? null : null, privateNote: mine ? part.privateNote ?? null : null };
+}
+
 type SelectedEvidence = prismaPkg.Prisma.EvidenceGetPayload<{
   select: typeof SAFE_EVIDENCE_SELECT;
 }>;
@@ -7630,8 +7646,7 @@ const previewable = isPreviewableEvidenceKind(kind);
 
 return {
   ...toJsonSafe(part),
-  privateRole: part.privateRole ?? null,
-  privateNote: part.privateNote ?? null,
+  ...privatePartNoteFor(part, evidence.ownerUserId, ownerUserId),
   checklistStepId: part.checklistStepId ?? null,
   sourceLabel: part.sourceLabel ?? null,
   clientSignals: part.clientSignals ?? null,
@@ -10991,8 +11006,9 @@ return {
           const part = partLookup.get(item.id);
           return {
             ...item,
-            privateNote: part?.privateNote ?? null,
-            privateRole: part?.privateRole ?? null,
+            ...(part
+              ? privatePartNoteFor(part, evidence.ownerUserId, ownerUserId)
+              : { privateNote: null, privateRole: null }),
             sourceLabel: part?.sourceLabel ?? null,
             clientSignals: part?.clientSignals ?? null,
           };
@@ -11886,8 +11902,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               sizeBytes: part.sizeBytes?.toString() ?? null,
               sha256: part.sha256 ?? null,
               durationMs: part.durationMs ?? null,
-              privateRole: part.privateRole ?? null,
-              privateNote: part.privateNote ?? null,
+              ...privatePartNoteFor(part, evidence.ownerUserId, ownerUserId),
               checklistStepId: part.checklistStepId ?? null,
               sourceLabel: part.sourceLabel ?? null,
               clientSignals: toJsonSafe(part.clientSignals ?? null),
