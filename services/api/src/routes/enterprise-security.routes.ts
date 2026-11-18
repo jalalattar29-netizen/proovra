@@ -737,6 +737,9 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
         orgId: body.organizationId,
         userId: body.approvedByUserId,
         minRole: "ORG_ADMIN",
+        // PRO-PSZ-04 — a SYSTEM organization's approver is its account holder;
+        // startSupportAccess enforces that rule.
+        requireKind: "ANY",
       });
       if (approverAccess.kind !== "ok") {
         return reply.code(400).send({

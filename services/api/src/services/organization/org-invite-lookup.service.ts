@@ -73,6 +73,13 @@ export async function lookupOrganizationInvitation(
     }
   }
 
+  // PRO-T2-05 — the policies that apply after accepting, read from the one
+  // organization security-policy row (booleans only). No row → no claim.
+  const policyRow = await client.organizationSecurityPolicy.findUnique({
+    where: { organizationId: invite.organizationId },
+    select: { ssoRequired: true, noPersonalSpace: true, managedIdentityRequired: true },
+  });
+
   return {
     state: "PENDING",
     context: {
@@ -81,6 +88,15 @@ export async function lookupOrganizationInvitation(
       invitedEmailMasked: maskInvitedEmail(invite.email),
       expiresAtUtc: invite.expiresAt.toISOString(),
       workspaces,
+      ...(policyRow
+        ? {
+            policy: {
+              ssoRequired: policyRow.ssoRequired === true,
+              noPersonalSpace: policyRow.noPersonalSpace === true,
+              managedIdentityRequired: policyRow.managedIdentityRequired === true,
+            },
+          }
+        : {}),
     },
   };
 }

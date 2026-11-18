@@ -217,6 +217,7 @@ export type {
   OrganizationInvitationLookup,
   OrganizationInvitationContext,
   OrganizationInvitationWorkspaceGrant,
+  OrganizationInvitationPolicyFacts,
 } from "./organization-invitation-contract.js";
 export {
   resolveInvitationView,

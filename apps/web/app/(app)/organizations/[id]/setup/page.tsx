@@ -106,6 +106,8 @@ type OrgResponse = {
     workspaceCount: number;
     pendingInviteCount: number;
   };
+  // PRO-T2-07 — SYSTEM is the container behind a personal workspace.
+  organizationKind?: "SYSTEM" | "CUSTOMER";
 };
 
 type MembersResponse = {
@@ -669,6 +671,20 @@ function OrganizationSetupInner() {
   // ---------------------------------------------------------------------------
   // Render.
   // ---------------------------------------------------------------------------
+
+  // PRO-T2-07 — the Enterprise setup wizard never runs on a SYSTEM container
+  // (a personal workspace's organization): the server refuses its Enterprise
+  // surfaces, and the wizard would only show their refusals.
+  if (org.kind === "ready" && org.data.organizationKind === "SYSTEM") {
+    return (
+      <PageShell data-page="organization-setup-wizard" data-org-id={orgId} data-state="system-organization">
+        <p style={{ fontSize: 14 }}>
+          Organization setup is part of PROOVRA Enterprise and is not available for a personal workspace.
+        </p>
+        <Link href="/home">Return to dashboard</Link>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell

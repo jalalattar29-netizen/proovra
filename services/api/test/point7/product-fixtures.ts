@@ -408,6 +408,15 @@ export async function seedOrganizationTenant(
   const members: SeededUser[] = [];
   for (let i = 0; i < (opts.memberCount ?? 0); i += 1) {
     const m = await seedUser(deps, `ent-member-${i}`);
+    // PRO-A2-03 / DEC-07 — an Enterprise tenant's seeded members are people its
+    // own directory provisioned (the synthetic provider id the SCIM create site
+    // writes), so Organization policy (noPersonalSpace) governs them. A
+    // pre-existing self-serve member keeps its Personal Space; suites that need
+    // one seed it explicitly.
+    await deps.prisma.user.update({
+      where: { id: m.userId },
+      data: { providerUserId: `scim-${org.id}:ent-member-${i}-${m.userId}` },
+    });
     await deps.prisma.organizationMembership.create({
       data: { organizationId: org.id, userId: m.userId, role: "ORG_MEMBER" },
     });

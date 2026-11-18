@@ -109,9 +109,19 @@ export async function checkOrgAccess(
      * concealed). Customer organizations are created only by Enterprise
      * provisioning; `/v1/me/orgs` already lists only them.
      */
-    requireKind?: "CUSTOMER";
+    requireKind?: "CUSTOMER" | "ANY";
   },
 ): Promise<OrgAccessOutcome> {
+  // PRO-T2-07 (WS-ORG RG-07) — CUSTOMER is now the DEFAULT. Only four call
+  // sites used to pass it, so the owner of any personal workspace reached the
+  // Enterprise organization API on its SYSTEM container by role alone (data
+  // export with presigned originals of every record in the workspace,
+  // retention template, governance centre, closure, profile). A surface that
+  // legitimately serves a SYSTEM organization says so with `requireKind:
+  // "ANY"` (the organization read the web uses to learn the kind, and the
+  // support-access approver check, whose SYSTEM rule lives in
+  // startSupportAccess).
+  const requiredKind = input.requireKind === "ANY" ? null : "CUSTOMER";
   const minRole: OrgRole = input.minRole ?? "ORG_MEMBER";
   const requiredRank = ORG_ROLE_PRECEDENCE[minRole];
 
@@ -166,7 +176,7 @@ export async function checkOrgAccess(
   if (org.status === "ARCHIVED" || org.status === "SUSPENDED") {
     return { kind: "forbidden" };
   }
-  if (input.requireKind && org.kind !== input.requireKind) {
+  if (requiredKind && org.kind !== requiredKind) {
     return { kind: "forbidden" };
   }
 

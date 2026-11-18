@@ -210,6 +210,38 @@ export async function startSupportAccess(
   if (accessLevel === "ELEVATED" && !input.approvedByUserId) {
     throw saError("SUPPORT_APPROVAL_REQUIRED", "Elevated support access requires explicit customer/admin approval.");
   }
+  // PRO-PSZ-04 / DEC-30 (WS-ORG RG-07) — a SYSTEM organization is the
+  // container of ONE person's own (personal or self-owned) workspace. There is
+  // no customer-side administrator outage to excuse: support enters it only
+  // with that account holder named as the approver, and the OWN-2
+  // "approver unavailable" exception does not apply. Fails closed when the
+  // organization cannot be read.
+  const target = await client.organization.findUnique({
+    where: { id: input.organizationId },
+    select: { kind: true },
+  });
+  if (!target) {
+    throw saError("SUPPORT_ACCESS_SCOPE_INVALID", "The organization does not exist.");
+  }
+  if (target.kind === "SYSTEM") {
+    const holder = input.approvedByUserId
+      ? await client.organizationMembership.findFirst({
+          where: {
+            organizationId: input.organizationId,
+            userId: input.approvedByUserId,
+            role: "ORG_OWNER",
+            status: "ACTIVE",
+          },
+          select: { id: true },
+        })
+      : null;
+    if (!holder || input.approvedByUserId === input.supportUserId) {
+      throw saError(
+        "SUPPORT_ACCESS_ACCOUNT_HOLDER_APPROVAL_REQUIRED",
+        "Support access to a personal account requires the account holder's approval.",
+      );
+    }
+  }
   const now = input.nowMs ?? Date.now();
   const durationMs = Math.min(input.durationMs ?? SUPPORT_ACCESS_MAX_DURATION_MS, SUPPORT_ACCESS_MAX_DURATION_MS);
   const expiresAtUtc = new Date(now + durationMs);

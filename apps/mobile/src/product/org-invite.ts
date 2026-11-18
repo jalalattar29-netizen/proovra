@@ -196,6 +196,8 @@ export interface OrgInviteLookupView {
   role: string | null;
   invitedEmailMasked: string | null;
   workspaces: Array<{ workspaceName: string; role: string }>;
+  /** PRO-T2-05 — organization policy facts; null when the API sent none. */
+  policy: { ssoRequired: boolean; noPersonalSpace: boolean; managedIdentityRequired: boolean } | null;
 }
 
 /** The lookup body, or null when it is not one (the screen then makes no claim). */
@@ -213,6 +215,14 @@ export function parseOrgInviteLookup(payload: unknown): OrgInviteLookupView | nu
     workspaces: list
       .map((w) => ({ workspaceName: str(obj(w).workspaceName), role: str(obj(w).role) }))
       .filter((w): w is { workspaceName: string; role: string } => Boolean(w.workspaceName && w.role)),
+    policy:
+      typeof c.policy === "object" && c.policy !== null
+        ? {
+            ssoRequired: obj(c.policy).ssoRequired === true,
+            noPersonalSpace: obj(c.policy).noPersonalSpace === true,
+            managedIdentityRequired: obj(c.policy).managedIdentityRequired === true,
+          }
+        : null,
   };
 }
 
@@ -269,6 +279,22 @@ export function orgInviteGrantLines(view: OrgInviteLookupView | null): { lines: 
     lines.push(view.workspaces.length === 1 ? "It also gives you access to this workspace:" : `It also gives you access to these ${view.workspaces.length} workspaces:`);
     for (const w of view.workspaces) lines.push(`${w.workspaceName}: ${WORKSPACE_ROLE_WORDS[w.role] ?? w.role}`);
     lines.push("A workspace with no free seat cannot be granted; you will be told after accepting if that happens.");
+  }
+  // PRO-T2-05 — the organization's policies, stated before Accept (same copy
+  // as the web OrgInvitationPolicyNotice). Nothing when the API sent none.
+  if (view.policy) {
+    lines.push(
+      "Your own account stays yours: accepting does not convert it, and your Personal Space, personal billing and personal data export are not affected.",
+    );
+    if (view.policy.ssoRequired) {
+      lines.push("This organization requires signing in through its identity provider to open its workspaces.");
+    }
+    if (view.policy.noPersonalSpace || view.policy.managedIdentityRequired) {
+      lines.push(
+        `This organization manages the accounts it creates itself${view.policy.noPersonalSpace ? " and does not give those accounts a Personal Space" : ""}. That does not apply to an account you opened yourself.`,
+      );
+    }
+    lines.push("Organization administrators can suspend or end your access to the organization and its workspaces.");
   }
   return { lines, canAccept: true };
 }

@@ -570,7 +570,10 @@ function OrganizationDetailInner() {
           primaryAction={
             org.kind === "ready" ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {(org.data.callerRole === "ORG_OWNER" ||
+                {/* PRO-T2-07 / PRO-T2-10 — never on a SYSTEM container (the server
+                    refuses its Enterprise surfaces). */}
+                {!isSystemOrganization &&
+                  (org.data.callerRole === "ORG_OWNER" ||
                   org.data.callerRole === "ORG_ADMIN") && (
                   <Link
                     href={`/organizations/${org.data.organizationId}/setup`}
@@ -638,13 +641,14 @@ function OrganizationDetailInner() {
 
       {/* ====================== ONBOARDING NEXT STEPS ====================== */}
       {org.kind === "ready" &&
+        !isSystemOrganization &&
         org.data.callerRole === "ORG_OWNER" &&
         org.data.summary.memberCount === 1 && (
           <Card
             variant="status"
             tone="governance"
             data-section="org-onboarding-next-steps"
-            title="You just created this organization — next steps"
+            title="Next steps for this organization"
             subtitle="Three steps that turn a single-owner organization into a shared one. Each one is recorded in the audit log."
           >
             <ol
@@ -773,7 +777,8 @@ function OrganizationDetailInner() {
           title="Audit"
           primary={
             audit.kind === "ready"
-              ? `${audit.data.summary.totalEvents} event${audit.data.summary.totalEvents === 1 ? "" : "s"}`
+              ? // PRO-T2-10 — `totalEvents` is the length of the returned page, not a total.
+                `Latest ${audit.data.summary.totalEvents} event${audit.data.summary.totalEvents === 1 ? "" : "s"}`
               : audit.kind === "error" && audit.status === 403
                 ? "Auditor-only"
                 : "—"
@@ -1155,7 +1160,7 @@ function OrganizationDetailInner() {
         <div style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
           {audit.kind === "ready" ? (
             <>
-              {audit.data.summary.totalEvents} event
+              Latest {audit.data.summary.totalEvents} event
               {audit.data.summary.totalEvents === 1 ? "" : "s"}
               {lastAuditAt
                 ? ` · latest ${formatUtcAuditDateTime(lastAuditAt)}`

@@ -58,6 +58,14 @@ function denialCopy(err: unknown, action: Action): string {
     return "This workspace is no longer bound to this organization. The list has been reloaded.";
   }
   if (status === 409) {
+    // PRO-NAZ-03 / PRO-TZ-03 — the server now refuses a resume of a running
+    // workspace, a second suspend, and a resume that exceeds capacity.
+    const code = String((err as { code?: unknown }).code ?? "").toLowerCase();
+    if (code === "workspace_not_suspended") return "This workspace is not suspended, so there is nothing to resume.";
+    if (code === "workspace_already_suspended") return "This workspace is already suspended.";
+    if (code.includes("seat") || code.includes("capacity")) {
+      return "Resuming would exceed the workspace's seats or a Collaboration Team's member limit. Free a seat first; nobody was reactivated.";
+    }
     return "Only organization workspaces can be suspended here. Personal spaces and individually owned workspaces are governed by their owner.";
   }
   return toSafeUserError(err, {

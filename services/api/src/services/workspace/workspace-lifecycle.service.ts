@@ -377,6 +377,13 @@ export async function suspendOrganizationWorkspace(input: {
       );
     }
 
+    // PRO-NAZ-03 — a workspace already suspended by this action is not
+    // suspended again (no second SUSPENDED event for a transition that did
+    // not happen).
+    if (await hasMarkerSuspendedMembers(tx, teamId)) {
+      throw lifecycleError(409, "WORKSPACE_ALREADY_SUSPENDED", "This workspace is already suspended");
+    }
+
     const suspended = await massSuspendActiveMembers(tx, {
       teamId,
       actorUserId,
@@ -556,6 +563,26 @@ export async function resumeOrganizationWorkspace(input: {
       );
     }
 
+    // PRO-TZ-03 / PRO-NAZ-03 — the same kind precondition as suspend, and a
+    // resume needs a suspension to undo: a running workspace answers 409 and
+    // writes no SUSPENDED->ACTIVE event that did not happen.
+    const kind = resolveWorkspaceKind({
+      teamLoaded: true,
+      workspaceKind: team.workspaceKind,
+      isPersonal: team.isPersonal,
+      billingPlan: team.billingPlan,
+    });
+    if (kind !== "ORGANIZATION") {
+      throw lifecycleError(
+        409,
+        "NOT_ORGANIZATION_WORKSPACE",
+        "Workspace-level suspension applies only to organization workspaces",
+      );
+    }
+    if (!(await hasMarkerSuspendedMembers(tx, teamId))) {
+      throw lifecycleError(409, "WORKSPACE_NOT_SUSPENDED", "This workspace is not suspended");
+    }
+
     const reactivated = await massReactivateSuspendedMembers(tx, {
       teamId,
       actorUserId,
@@ -615,5 +642,17 @@ async function massReactivateSuspendedMembers(
     teamId: input.teamId,
     actorUserId: input.actorUserId,
     matchReason: ORG_WORKSPACE_SUSPENSION_REASON,
+    // PRO-TZ-03 — a resume is a join: every member claims its seat and group
+    // places (rbac assertReinstatementFitsCapacityTx) or nothing is reactivated.
+    enforceCapacity: true,
   });
+}
+
+/** PRO-NAZ-03 — members this workspace-level suspension paused (its marker). */
+async function hasMarkerSuspendedMembers(tx: TxClient, teamId: string): Promise<boolean> {
+  const row = await tx.teamMember.findFirst({
+    where: { teamId, status: "SUSPENDED", suspensionReason: ORG_WORKSPACE_SUSPENSION_REASON },
+    select: { id: true },
+  });
+  return row !== null;
 }

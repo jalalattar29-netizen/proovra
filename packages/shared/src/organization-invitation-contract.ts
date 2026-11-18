@@ -37,6 +37,27 @@ export type OrganizationInvitationContext = {
   expiresAtUtc: string;
   /** Empty for a governance-only invitation. */
   workspaces: OrganizationInvitationWorkspaceGrant[];
+  /**
+   * PRO-T2-05 — the organization policies that apply after accepting, so the
+   * page states them BEFORE acceptance. Absent when the API predates this
+   * field or the organization has no provisioned policy (clients render
+   * nothing then). Booleans only; no policy ids, no other settings.
+   *
+   *   ssoRequired              its workspaces are entered through its IdP
+   *   noPersonalSpace          restricts Personal Space for accounts the
+   *                            organization itself created; an existing
+   *                            self-serve account keeps its own (DEC-07)
+   *   managedIdentityRequired  accounts its directory or IdP created are
+   *                            managed by it; an existing self-serve account
+   *                            is never converted by accepting
+   */
+  policy?: OrganizationInvitationPolicyFacts;
+};
+
+export type OrganizationInvitationPolicyFacts = {
+  ssoRequired: boolean;
+  noPersonalSpace: boolean;
+  managedIdentityRequired: boolean;
 };
 
 export type OrganizationInvitationLookup = {

@@ -72,6 +72,8 @@ import {
   RbacError,
   restoreOrganizationWorkspaceAccessTx,
   suspendOrganizationWorkspaceAccessTx,
+  // PRO-TZ-02 — invitation workspace-assignment role ceiling.
+  workspaceAssignmentCeilingRefusal,
 } from "../services/identity/membership-provisioning.service.js";
 // Phase 2.7X Stage 4 — audit emitter (writes inside the mutation tx).
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
@@ -452,7 +454,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
       const orgId = UuidParam.parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const access = await checkOrgAccess(prisma, { orgId, userId });
+      // PRO-T2-07 — the organization read stays open for a SYSTEM container so
+      // the web can learn `organizationKind` and render no Enterprise surface.
+      const access = await checkOrgAccess(prisma, { orgId, userId, requireKind: "ANY" });
       if (access.kind !== "ok") {
         // PV-ORG-001 — the one org-denial convention for the /v1/orgs
         // family: a non-member is told exactly what a caller asking about a missing
@@ -1090,6 +1094,23 @@ export async function organizationsRoutes(app: FastifyInstance) {
           return reply.code(400).send({
             message:
               "Every assigned workspace must belong to this organization.",
+            code: "invalid_workspace_assignment",
+          });
+        }
+        // PRO-TZ-02 — one role ceiling: no workspace OWNER by invitation, and
+        // ADMIN only from an inviter who outranks it in that workspace.
+        const ceiling = await workspaceAssignmentCeilingRefusal(prisma, {
+          inviterUserId: userId,
+          inviterOrgRole: access.role,
+          assignments: body.workspaceAssignments,
+        });
+        if (ceiling) {
+          return reply.code(ceiling === "workspace_owner_assignment_forbidden" ? 400 : 403).send({
+            error: { code: ceiling },
+            message:
+              ceiling === "workspace_owner_assignment_forbidden"
+                ? "An invitation cannot make someone a workspace owner. Use an ownership transfer."
+                : "Only an organization owner or the workspace's owner can invite someone as a workspace administrator.",
             code: "invalid_workspace_assignment",
           });
         }
@@ -2942,6 +2963,16 @@ export async function organizationsRoutes(app: FastifyInstance) {
           });
           return reply.code(200).send({ [leg]: result });
         } catch (err) {
+          // PRO-TZ-03 — a resume that does not fit the workspace's seats or a
+          // Collaboration Team's places reactivates nobody.
+          if (
+            err instanceof RbacError &&
+            (err.code === "workspace_seat_limit_reached" ||
+              err.code === "collaboration_team_capacity_reached" ||
+              err.code === "workspace_seat_contention")
+          ) {
+            return reply.code(409).send({ error: { code: err.code.toUpperCase() } });
+          }
           const e = err as Error & { statusCode?: number; code?: string };
           if (typeof e.statusCode === "number" && typeof e.code === "string") {
             return reply

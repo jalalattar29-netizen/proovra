@@ -102,6 +102,9 @@ export {
 // organization routes reach these through the orchestrator. A separate,
 // short statement so the reachability verifier's bounded lookahead holds.
 export { suspendOrganizationWorkspaceAccessTx, restoreOrganizationWorkspaceAccessTx } from "./rbac.service.js";
+// PRO-TZ-03 — a workspace resume is a reinstatement: each member claims a seat
+// and group place through the same capacity authority as a member restore.
+import { assertReinstatementFitsCapacityTx } from "./rbac.service.js";
 
 // =============================================================================
 // PHASE 3 (2026-07-21) — canonical provisioning intents + grant sources.
@@ -294,6 +297,39 @@ export function parseWorkspaceAssignments(
     out.push({ teamId, role: role as WorkspaceAssignmentRole });
   }
   return { ok: true, assignments: out };
+}
+
+/**
+ * PRO-TZ-02 (WS-ORG RG-07) — THE ROLE CEILING FOR INVITATION WORKSPACE
+ * ASSIGNMENTS (single and bulk invite create; acceptance re-applies the
+ * owner-tier rule through `resolveRolePrecedence`).
+ *
+ *   OWNER  never: workspace ownership moves only through the transfer flow.
+ *   ADMIN  only by an inviter who outranks it in that workspace — an
+ *          ORG_OWNER, or the workspace's live OWNER (rbac assertActorOutranks:
+ *          OWNER may appoint at most ADMIN).
+ *
+ * Returns null when every assignment is within the inviter's ceiling.
+ */
+export async function workspaceAssignmentCeilingRefusal(
+  tx: TxClient,
+  input: {
+    inviterUserId: string;
+    inviterOrgRole: string;
+    assignments: ReadonlyArray<{ teamId: string; role: string }> | null | undefined;
+  },
+): Promise<"workspace_owner_assignment_forbidden" | "workspace_assignment_above_inviter" | null> {
+  for (const a of input.assignments ?? []) {
+    if (a.role === "OWNER") return "workspace_owner_assignment_forbidden";
+    if (a.role === "ADMIN" && input.inviterOrgRole !== "ORG_OWNER") {
+      const own = await tx.teamMember.findFirst({
+        where: { teamId: a.teamId, userId: input.inviterUserId, status: "ACTIVE", role: "OWNER" },
+        select: { id: true },
+      });
+      if (!own) return "workspace_assignment_above_inviter";
+    }
+  }
+  return null;
 }
 
 /**
@@ -549,7 +585,17 @@ export async function grantWorkspaceMembership(
     create: {
       teamId: input.assignment.teamId,
       userId: input.userId,
-      role: input.assignment.role as never,
+      // PRO-TZ-02 (WS-ORG RG-07) — a NEW membership takes the same precedence
+      // rule as a revived one: an automated source (an invitation, SCIM, an IdP
+      // group, SSO JIT) never mints workspace OWNER. It used to store any
+      // assignment role as given, so an invitation could create an OWNER row
+      // that every member action then refused to touch.
+      role: resolveRolePrecedence({
+        existingRole: null,
+        incomingRole: input.assignment.role,
+        source: input.source ?? "INVITATION",
+        ownerRoleName: "OWNER",
+      }) as never,
       status: "ACTIVE",
       accessReason: input.accessReason,
       ...(input.grantedByUserId
@@ -1532,7 +1578,18 @@ export async function massSuspendWorkspaceMemberships(
  */
 export async function massReactivateSuspendedWorkspaceMemberships(
   tx: TxClient,
-  input: { teamId: string; actorUserId?: string | null; matchReason: string },
+  input: {
+    teamId: string;
+    actorUserId?: string | null;
+    matchReason: string;
+    /**
+     * PRO-TZ-03 — claim each member's seat and Collaboration-Team places
+     * before reactivating it (throws RbacError workspace_seat_limit_reached /
+     * collaboration_team_capacity_reached / workspace_seat_contention; the
+     * caller's transaction rolls everything back).
+     */
+    enforceCapacity?: boolean;
+  },
 ): Promise<{ count: number }> {
   const affected = await tx.teamMember.findMany({
     where: {
@@ -1540,18 +1597,27 @@ export async function massReactivateSuspendedWorkspaceMemberships(
       status: "SUSPENDED",
       suspensionReason: input.matchReason,
     },
-    select: { id: true },
+    select: { id: true, userId: true },
+    orderBy: { id: "asc" },
   });
   if (affected.length === 0) return { count: 0 };
-  await tx.teamMember.updateMany({
-    where: { id: { in: affected.map((m) => m.id) } },
-    data: {
-      status: "ACTIVE",
-      suspendedAtUtc: null,
-      suspendedByUserId: null,
-      suspensionReason: null,
-    },
-  });
+  const data = {
+    status: "ACTIVE" as const,
+    suspendedAtUtc: null,
+    suspendedByUserId: null,
+    suspensionReason: null,
+  };
+  if (input.enforceCapacity) {
+    for (const m of affected) {
+      await assertReinstatementFitsCapacityTx(tx as PrismaClient, input.teamId, m.userId);
+      await tx.teamMember.update({ where: { id: m.id }, data });
+    }
+  } else {
+    await tx.teamMember.updateMany({
+      where: { id: { in: affected.map((m) => m.id) } },
+      data,
+    });
+  }
   for (const m of affected) {
     await recordMembershipGrant(tx, {
       teamMemberId: m.id,

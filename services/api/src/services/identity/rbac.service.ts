@@ -768,7 +768,7 @@ export async function restoreOrganizationWorkspaceAccessTx(
  * of `lockAndAssertCollaborationTeamMemberCapacity` — before the status
  * changes, while the member is still uncounted.
  */
-async function assertReinstatementFitsCapacityTx(
+export async function assertReinstatementFitsCapacityTx(
   tx: PrismaClient,
   workspaceId: string,
   userId: string,
