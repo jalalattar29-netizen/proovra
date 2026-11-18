@@ -71,8 +71,9 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Crypto from "expo-crypto";
 import { apiFetch, getAuthToken } from "../../src/api";
-import { DEFAULT_CAPTURE_RETRY } from "../../src/capture/capture-retry";
-import { releaseStaleCaptureRecord } from "../../src/capture/stale-capture-release";
+import { DEFAULT_CAPTURE_RETRY, isSessionGone } from "../../src/capture/capture-retry";
+import { deleteCaptureFiles, sweepUploadCopies } from "../../src/capture/capture-files";
+import { releaseDirectSessionOrKeep, releaseStaleCaptureRecord } from "../../src/capture/stale-capture-release";
 import { clearSessionConsequence } from "../../src/capture/clear-session-copy";
 import {
   VIDEO_WITHOUT_AUDIO_NOTICE,
@@ -98,7 +99,7 @@ import {
 import {
   completeAcquisition,
   openDirectCaptureSession,
-  reserveDirectCaptureEvidence,
+  reserveDirectCaptureEvidenceForDraft,
   discardDirectCaptureSession,
   uploadDirectCaptureItemAllocated,
   type DirectCaptureItemSource,
@@ -162,6 +163,8 @@ import {
   clearCaptureSession,
   captureRecordKey,
   isSessionResumable,
+  isLocalOnlyRecord,
+  LOCAL_RECORD_PREFIX,
   type PersistedCaptureSession,
   type PersistedCaptureWorkspace,
 } from "../../src/capture/capture-session-store";
@@ -473,6 +476,15 @@ export default function CaptureScreen() {
   const captureAttemptRef = useRef<{ id: string; teamId: string | null } | null>(null);
   const draftIdRef = useRef<string | null>(null);
   /**
+   * PRO-NB-02 — the device-only identity of a session staged before any draft
+   * or direct session existed (offline, refused, workspace unresolved), so its
+   * items are persisted and offered after a restart. Dropped once a draft or
+   * session exists (the record moves to that identity).
+   */
+  const localRecordIdRef = useRef<string | null>(null);
+  /** PRO-NB-09 — the reservation bound this Finish's draft (the seal finalizes it). */
+  const draftBoundRef = useRef(false);
+  /**
    * What acquired the live session, when a screen engine did.
    *
    * Null for an ordinary phone capture. It decides which completion route
@@ -581,11 +593,21 @@ hasActiveDraft: isSessionActive || isRecording,
     }
 
     const session = captureSessionRef.current;
-    if (!session && !draft) return Promise.resolve();
+    // PRO-NB-02 — "kept on this device" is true now: with neither a draft nor a
+    // session yet, the record is persisted under a device-only id.
+    let localId: string | null = null;
+    if (!session && !draft) {
+      localRecordIdRef.current ??= `${LOCAL_RECORD_PREFIX}${Crypto.randomUUID()}`;
+      localId = localRecordIdRef.current;
+    } else if (localRecordIdRef.current) {
+      const superseded = localRecordIdRef.current;
+      localRecordIdRef.current = null;
+      void clearCaptureSession({ captureSessionId: superseded });
+    }
     return saveCaptureSession({
-      captureSessionId: session?.captureSessionId ?? draft ?? "",
+      captureSessionId: session?.captureSessionId ?? draft ?? localId ?? "",
       expiresAtUtc: session?.expiresAtUtc ?? "",
-      evidenceId: sessionEvidenceIdRef.current ?? draft ?? "",
+      evidenceId: sessionEvidenceIdRef.current ?? draft ?? localId ?? "",
       draftId: draft,
       type: deriveBatchEvidenceType(items.map((i) => i.mimeType)),
       items: items.map((it) => ({
@@ -600,6 +622,8 @@ hasActiveDraft: isSessionActive || isRecording,
         uploaded: it.uploaded,
         itemSourceLabel: it.itemSourceLabel ?? null,
         ...(it.audioRecorded === false ? { audioRecorded: false } : {}),
+        // PRO-NB-06 — the operator's Source note survives a restart.
+        ...(it.sourceNote ? { sourceNote: it.sourceNote } : {}),
       })),
       // The acquisition is part of the record. Persisting without it wiped a
       // staged recording's manifest on the resume re-save, and after a restart
@@ -635,7 +659,8 @@ hasActiveDraft: isSessionActive || isRecording,
   const isLiveRecord = useCallback((r: PersistedCaptureSession) => {
     const draft = draftIdRef.current;
     const live = captureSessionRef.current?.captureSessionId ?? null;
-    return (!!draft && r.draftId === draft) || (!!live && r.captureSessionId === live);
+    const local = localRecordIdRef.current;
+    return (!!draft && r.draftId === draft) || (!!live && r.captureSessionId === live) || (!!local && r.captureSessionId === local);
   }, []);
 
   // M5 — recover interrupted sessions, on mount AND whenever Capture regains
@@ -654,11 +679,34 @@ hasActiveDraft: isSessionActive || isRecording,
         // B4-F-101 — release the server session (and its reserved record, one
         // of the Free slots) BEFORE the device forgets it; a release that
         // could not be answered keeps the record for the next visit.
+        // PRO-NB-01 — only a record whose content is still on the DEVICE gets
+        // here (a staged one is never stale by the device clock): once its
+        // server session is released, its files stay offered as a device-only
+        // record instead of being forgotten.
+        const localItems = r.items.filter((it) => !it.uploaded);
         const outcome = await releaseStaleCaptureRecord(r, {
           discard: discardDirectCaptureSession,
-          clear: clearCaptureSession,
+          clear: async (key) => {
+            await clearCaptureSession(key);
+            if (localItems.length > 0) {
+              const localId = `${LOCAL_RECORD_PREFIX}${Crypto.randomUUID()}`;
+              const draftOnly = r.captureSessionId === r.evidenceId;
+              await saveCaptureSession({
+                captureSessionId: localId,
+                expiresAtUtc: "",
+                evidenceId: localId,
+                type: r.type,
+                items: localItems.map((it, i) => ({ ...it, partIndex: i, uploaded: false })),
+                acquisition: null,
+                draftId: r.draftId ?? (draftOnly && !isLocalOnlyRecord(r) ? r.captureSessionId : null),
+                location: r.location ?? null,
+                linkGroupId: r.linkGroupId ?? null,
+                workspace: r.workspace ?? null,
+              });
+            }
+          },
         });
-        if (outcome !== "kept") stale += 1;
+        if (outcome !== "kept" && localItems.length === 0) stale += 1;
       }
     }
     if (stale > 0) setStaleRecovered(true);
@@ -702,6 +750,8 @@ hasActiveDraft: isSessionActive || isRecording,
             // origin is restored from its acquisition — never lost on resume.
             itemSourceLabel: it.itemSourceLabel ?? originOf(persisted.acquisition?.mode),
             ...(it.audioRecorded === false ? { audioRecorded: false } : {}),
+            // PRO-NB-06 — restored, so it reaches the sealed part's sourceLabel.
+            ...(it.sourceNote ? { sourceNote: it.sourceNote } : {}),
           });
         }
         const dropped = persisted.items.length - kept.length;
@@ -713,7 +763,10 @@ hasActiveDraft: isSessionActive || isRecording,
          * declare parts against an id the acquisition routes do not know.
          */
         const draftOnly = persisted.captureSessionId === persisted.evidenceId;
-        const draftId = persisted.draftId ?? (draftOnly ? persisted.captureSessionId : null);
+        // PRO-NB-02 — a device-only record names no draft; it keeps its own id.
+        const localOnly = isLocalOnlyRecord(persisted);
+        localRecordIdRef.current = localOnly ? persisted.captureSessionId : null;
+        const draftId = persisted.draftId ?? (draftOnly && !localOnly ? persisted.captureSessionId : null);
         draftIdRef.current = draftId;
         let resumedInto = persisted.workspace ?? null;
         if (draftId) {
@@ -864,7 +917,8 @@ hasActiveDraft: isSessionActive || isRecording,
     // A session that never reached finalize holds only a DRAFT (both slots
     // carry its id); discarding it is a draft transition, not a direct one.
     const draftOnly = !!recovered && recovered.captureSessionId === recovered.evidenceId;
-    const draftId = recovered?.draftId ?? (draftOnly ? recovered?.captureSessionId ?? null : null);
+    const draftId =
+      recovered?.draftId ?? (draftOnly && !isLocalOnlyRecord(recovered) ? recovered?.captureSessionId ?? null : null);
     if (draftId) {
       await discardCaptureDraft(draftId).catch(() => undefined);
       setServerDrafts((prev) => prev.filter((d) => d.id !== draftId));
@@ -885,6 +939,8 @@ hasActiveDraft: isSessionActive || isRecording,
     }
     if (recovered.linkGroupId) await forgetLinkedRecord(recovered.linkGroupId, captureRecordKey(recovered)).catch(() => undefined);
     await clearCaptureSession({ captureSessionId: recovered.captureSessionId, draftId: recovered.draftId });
+    // PRO-NB-05 — an explicit discard: its device copies go too.
+    await deleteCaptureFiles(recovered.items.map((it) => it.uri));
     setPendingRecords((prev) => prev.filter((r) => captureRecordKey(r) !== captureRecordKey(recovered)));
     setResumingKey(null);
     addToast("Interrupted capture discarded", "info");
@@ -1259,7 +1315,11 @@ hasActiveDraft: isSessionActive || isRecording,
     (itemId: string) => {
       if (sessionCompletingEvidence || isRecording) return;
 
-      recordActivity(removedActivity(sessionItemsRef.current.find((item) => item.id === itemId)?.originalFilename));
+      const removedItem = sessionItemsRef.current.find((item) => item.id === itemId);
+      recordActivity(removedActivity(removedItem?.originalFilename));
+      // PRO-NB-05 — the person removed it: its device copy goes (never one the
+      // server already holds as a part — that is released with the session).
+      if (removedItem && !removedItem.uploaded) void deleteCaptureFiles([removedItem.uri]);
       // Renumber ONLY the items not yet declared: an uploaded item's part is
       // fixed on the server, and moving it would declare a second part.
       const remaining = sessionItemsRef.current.filter((item) => item.id !== itemId);
@@ -1276,6 +1336,9 @@ hasActiveDraft: isSessionActive || isRecording,
         const session = captureSessionRef.current;
         const draft = draftIdRef.current;
         const group = linkGroupRef.current;
+        const reservedEvidenceId = sessionEvidenceIdRef.current;
+        const local = localRecordIdRef.current;
+        localRecordIdRef.current = null;
         sessionEvidenceIdRef.current = null;
         captureSessionRef.current = null;
         acquisitionRef.current = null;
@@ -1287,11 +1350,22 @@ hasActiveDraft: isSessionActive || isRecording,
         bindDestination(null);
         setSessionEvidenceId(null);
         if (draft) void discardCaptureDraft(draft).catch(() => undefined);
-        if (session) void discardDirectCaptureSession(session).catch(() => undefined);
         if (group && (draft ?? session?.captureSessionId)) {
           void forgetLinkedRecord(group, (draft ?? session?.captureSessionId) as string).catch(() => undefined);
         }
-        void clearCaptureSession({ captureSessionId: session?.captureSessionId ?? null, draftId: draft });
+        if (local) void clearCaptureSession({ captureSessionId: local });
+        // PRO-NB-03 — the local record is dropped, but a reservation whose
+        // release got no answer is KEPT as a record the next Capture visit
+        // releases, instead of being forgotten until the reaper.
+        void clearCaptureSession({ captureSessionId: session?.captureSessionId ?? null, draftId: draft }).then(() =>
+          session
+            ? releaseDirectSessionOrKeep(session, reservedEvidenceId, {
+                discard: discardDirectCaptureSession,
+                keep: (r) =>
+                  saveCaptureSession({ ...r, type: "PHOTO", items: [], draftId: null, acquisition: null }),
+              })
+            : undefined,
+        );
       } else {
         persistSession();
       }
@@ -1362,11 +1436,19 @@ hasActiveDraft: isSessionActive || isRecording,
       await forgetLinkedRecord(group, (recordKey.draftId ?? recordKey.captureSessionId) as string).catch(() => undefined);
     }
     setSessionEvidenceId(null);
+    // PRO-NB-05 — an explicit discard: the device copies go with it.
+    const discardedUris = sessionItemsRef.current.map((it) => it.uri);
     setSessionState([]);
     setInfo(null);
     setUploadProgress(0);
     // M5 — drop THIS durable record on explicit discard; every other pending record stays.
     await clearCaptureSession(recordKey);
+    if (localRecordIdRef.current) {
+      await clearCaptureSession({ captureSessionId: localRecordIdRef.current });
+      localRecordIdRef.current = null;
+    }
+    await deleteCaptureFiles(discardedUris);
+    void sweepUploadCopies();
     setDiscarding(false);
     addToast("Session discarded", "info");
   }, [sessionCompletingEvidence, isRecording, discarding, setSessionState, addToast]);
@@ -1811,16 +1893,28 @@ if (!isRecording || busy) return;
         captureSession = { captureSessionId: opened.captureSessionId, expiresAtUtc: opened.expiresAtUtc };
         captureSessionRef.current = captureSession;
         bindDestination(target);
-        evidenceId =
-          opened.reservedEvidenceId ??
-          (await reserveDirectCaptureEvidence(captureSession, {
-            type: rootType,
-            mimeType: primary?.mimeType ?? "application/octet-stream",
-            deviceTimeIso: new Date().toISOString(),
-            // AUD-0035 — a picked file keeps its own name on the record.
-            originalFileName: reservedOriginalFileName(primary),
-            ...location.fields,
-          }));
+        draftBoundRef.current = false;
+        if (opened.reservedEvidenceId) {
+          evidenceId = opened.reservedEvidenceId;
+        } else {
+          // PRO-NB-09 — the draft is bound to the record, as the web Finish binds
+          // it: its plan rides on the record (the server checklist gate reads
+          // it) and the seal FINALIZES the draft.
+          const reservation = await reserveDirectCaptureEvidenceForDraft(
+            captureSession,
+            {
+              type: rootType,
+              mimeType: primary?.mimeType ?? "application/octet-stream",
+              deviceTimeIso: new Date().toISOString(),
+              // AUD-0035 — a picked file keeps its own name on the record.
+              originalFileName: reservedOriginalFileName(primary),
+              ...location.fields,
+            },
+            draftIdRef.current,
+          );
+          evidenceId = reservation.evidenceId;
+          draftBoundRef.current = reservation.draftBound;
+        }
         sessionEvidenceIdRef.current = evidenceId;
         setSessionEvidenceId(evidenceId);
       }
@@ -1902,6 +1996,13 @@ if (!isRecording || busy) return;
       // that is what made the product have two endings.
       await completeAcquisition(activeSession, acquisitionRef.current);
 
+      // PRO-NB-04 — sealed: the durable record goes NOW, not after the report
+      // wait, so an app killed while waiting never offers a sealed capture again.
+      await clearCaptureSession({ captureSessionId: activeSession.captureSessionId, draftId: draftIdRef.current });
+      // PRO-NB-05 — the server holds every part: the device copies go.
+      const sealedUris = sessionItemsRef.current.map((it) => it.uri);
+      void deleteCaptureFiles(sealedUris).then(() => sweepUploadCopies());
+
       setUploadProgress(96);
       await pollReport(activeEvidenceId);
       setUploadProgress(100);
@@ -1938,9 +2039,12 @@ if (!isRecording || busy) return;
       // finalized rather than leaving an orphan DRAFT behind.
       const finishedKey = { captureSessionId: activeSession.captureSessionId, draftId: draftIdRef.current };
       if (draftIdRef.current) {
-        await discardCaptureDraft(draftIdRef.current).catch(() => undefined);
+        // PRO-NB-09 — a draft bound at reservation was FINALIZED by the seal;
+        // only an unbound one (an older API) is still closed the old way.
+        if (!draftBoundRef.current) await discardCaptureDraft(draftIdRef.current).catch(() => undefined);
         draftIdRef.current = null;
       }
+      draftBoundRef.current = false;
       await clearCaptureSession(finishedKey);
       sessionEvidenceIdRef.current = null;
       captureSessionRef.current = null;
@@ -1960,6 +2064,33 @@ if (!isRecording || busy) return;
 
       router.push(`/evidence/${activeEvidenceId}`);
     } catch (err) {
+      // PRO-NB-01 — an ordinary capture whose server session closed (its window
+      // passed, it was reaped): the files are still on this device, so the
+      // session is re-opened by the next Finish with a new attempt, as the
+      // screen surface does for a gone session. Nothing is deleted.
+      if (isSessionGone(err) && !acquisitionRef.current) {
+        captureSessionRef.current = null;
+        sessionEvidenceIdRef.current = null;
+        captureAttemptRef.current = null;
+        draftBoundRef.current = false;
+        setSessionEvidenceId(null);
+        const reopened = sessionItemsRef.current.map((it, i) => ({
+          ...it,
+          partIndex: i,
+          uploaded: false,
+          uploading: false,
+          uploadProgress: 0,
+          error: null,
+        }));
+        setSessionState(reopened);
+        if (recordKey) await clearCaptureSession({ captureSessionId: recordKey, draftId: draftIdRef.current });
+        void persistSession();
+        const reopenMsg =
+          "The capture window closed before it was finished. Nothing was lost: your items are still here — tap Finish & Sign again to file them.";
+        setError(reopenMsg);
+        addToast(reopenMsg, "warning");
+        return;
+      }
       const safe = toSafeUserError(err, { message: "Failed to finish session" });
       const msg = safe.message;
       setError(msg);
