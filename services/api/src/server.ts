@@ -297,6 +297,7 @@ import {
   readServerTimeouts,
   sendServerBusy,
 } from "./middleware/overload-gate.js";
+import { cachedHealthDbProbe } from "./http/health-db-probe.js";
 
 // UC-SEC-002 / UC-SEC-005 — the CORS origin decision lives in ONE module.
 
@@ -1273,15 +1274,14 @@ allowedHeaders: [
       // preflight refuses. A deployed process never reaches this (null above).
       isolation = null;
     }
-    try {
-      await prisma.$queryRaw`SELECT 1`;
+    // PRO-S1-09 — one shared, short-lived probe result, not a query per call.
+    if (await cachedHealthDbProbe(() => prisma.$queryRaw`SELECT 1`)) {
       // OPS-015 — the commit this process runs, so web and API versions can be
       // compared from outside. The web's own /api/health already states its own.
       const revision = (process.env.APP_RELEASE_SHA ?? "").trim() || null;
       return reply.code(200).send({ ok: true, db: "up", revision, ...(isolation ? { isolation } : {}) });
-    } catch {
-      return reply.code(503).send({ ok: false, db: "down", ...(isolation ? { isolation } : {}) });
     }
+    return reply.code(503).send({ ok: false, db: "down", ...(isolation ? { isolation } : {}) });
   });
 
   // Phase P2.0 — AWS Secrets Manager hydration. Runs ONCE at boot.

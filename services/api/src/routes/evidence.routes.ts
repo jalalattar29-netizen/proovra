@@ -16745,6 +16745,8 @@ await recordOriginalRelease({
   originalUrlsIssued,
   ip: req.ip,
   userAgent: req.headers["user-agent"],
+  // PRO-O1-03 — one release event per link per window, not per answer.
+  coalesceKey: shareLink?.id ?? null,
 });
     const evidenceStatusForGate = evidence.status as
       | prismaPkg.EvidenceStatus
