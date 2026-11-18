@@ -71,6 +71,13 @@ import {
   logEmbeddingFailure,
   resolveEmbeddingProviderFromEnv,
 } from "./embedding-provider.js";
+import { evaluateSemanticEgress } from "../ai/workspace-ai-policy.service.js";
+import {
+  canEmbedMore,
+  estimateEurFromTokens,
+  estimateTokensFromChars,
+  recordSemanticChunkEmbedded,
+} from "./semantic-budget.service.js";
 
 // -----------------------------------------------------------------------------
 // Result
@@ -114,6 +121,12 @@ export type ExecuteSearchInput = {
    * not show the number to must not be able to ask.
    */
   matchRecipientContact?: boolean;
+  /**
+   * RG-04 (PRO-E1-01) — the caller's canonical workspace role, for the
+   * semantic-egress gate's role step. Omitted = no role (a workspace with an
+   * allowed-roles list then refuses the semantic pass: fail closed).
+   */
+  actorRole?: string | null;
   filter: SearchFilterInput;
   /** Phase 24-B — bounded surface label written to the dedicated audit
    *  log so compliance can answer "who searched where". Defaults to
@@ -561,6 +574,32 @@ export async function executeSearch(
     filter.q &&
     finalRows.length > 0
   ) {
+    // RG-04 (PRO-E1-01 / PRO-AI1C-01 path E) — the query text is sent to
+    // the embedding vendor only when THE semantic-egress gate allows it for
+    // this workspace and actor (policy, embeddings switch, plan, lifecycle)
+    // and the workspace's semantic spend caps have room. Otherwise the search
+    // degrades to keyword with an honest fallback reason; nothing is sent.
+    const egress = await evaluateSemanticEgress({
+      teamId: filter.teamId,
+      dataClass: "DERIVED_CONTENT",
+      actorRole: input.actorRole ?? null,
+    });
+    const budget = egress.allowed
+      ? await canEmbedMore(client, { workspaceId: filter.teamId, additionalChunks: 1 })
+      : null;
+    if (!egress.allowed || !budget?.allowed) {
+      modeUsed = "KEYWORD";
+      fallbackReason =
+        egress.unavailable || (egress.allowed && budget && !budget.allowed)
+          ? "PROVIDER_UNAVAILABLE"
+          : "SEMANTIC_FEATURE_DISABLED";
+    }
+  }
+  if (
+    (modeUsed === "SEMANTIC" || modeUsed === "HYBRID") &&
+    filter.q &&
+    finalRows.length > 0
+  ) {
     try {
       const provider = resolveEmbeddingProviderFromEnv();
       const rankerOutcome = await rerankWithSemantic({
@@ -572,6 +611,13 @@ export async function executeSearch(
         mode: modeUsed,
       });
       if (rankerOutcome.ok) {
+        // The query embed happened: it is semantic spend and is recorded.
+        const tokens = estimateTokensFromChars(filter.q.length);
+        await recordSemanticChunkEmbedded(client, {
+          workspaceId: filter.teamId,
+          tokens,
+          eur: estimateEurFromTokens(tokens),
+        });
         finalRows = rankerOutcome.rows;
         if (rankerOutcome.rows.length === 0) {
           // Semantic returned a non-error empty set — flag it so the UI

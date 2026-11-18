@@ -33,6 +33,7 @@ import {
   MEDIA_INTELLIGENCE_RUN_LEASE_MS,
 } from "@proovra/shared-runtime";
 
+import { workspaceSemanticEgressAllowed } from "./embedding-egress-gate.js";
 import { logger } from "./logger.js";
 import { prisma } from "./db.js";
 
@@ -287,8 +288,24 @@ export async function runIntelligenceRunReconciler(
 
     if (owed.length > 0) {
       const { enqueueMiEmbedJob } = await import("./queue.js");
+      // RG-04 (PRO-W2-03) - the reconciler used to supply exactly the enqueue
+      // the API withheld for a lapsed or downgraded workspace (it joined the
+      // policy row only). Each workspace is now asked the ONE semantic-egress
+      // gate - policy, plan eligibility, lifecycle, contract - once per tick;
+      // a denied or unreadable workspace is stepped over, not enqueued.
+      const egressByTeam = new Map<string, boolean>();
       for (const chunk of owed) {
         try {
+          let mayEmbed = egressByTeam.get(chunk.teamId);
+          if (mayEmbed === undefined) {
+            try {
+              mayEmbed = (await workspaceSemanticEgressAllowed(chunk.teamId)).allowed;
+            } catch {
+              mayEmbed = false;
+            }
+            egressByTeam.set(chunk.teamId, mayEmbed);
+          }
+          if (!mayEmbed) continue;
           const outcome = await enqueueMiEmbedJob(chunk.id, { reason: "reconciler" });
           if (outcome.enqueued) result.embedChunksReEnqueued += 1;
         } catch {
@@ -347,10 +364,10 @@ export async function selectChunksOwingEmbedding(input: {
   floor: Date;
   ceiling: Date;
   limit: number;
-}): Promise<Array<{ id: string }>> {
+}): Promise<Array<{ id: string; teamId: string }>> {
   try {
-    return await prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT c.id::text AS id
+    return await prisma.$queryRaw<Array<{ id: string; teamId: string }>>`
+      SELECT c.id::text AS id, c.team_id::text AS "teamId"
         FROM evidence_semantic_chunks c
         JOIN workspace_ai_policies p ON p.team_id = c.team_id
        WHERE c.embedding_vector IS NULL
@@ -359,6 +376,7 @@ export async function selectChunksOwingEmbedding(input: {
          AND p.ai_enabled
          AND p.semantic_search_enabled
          AND p.embeddings_allowed
+         AND p.content_intelligence_enabled
        ORDER BY c.created_at ASC
        LIMIT ${input.limit}
     `;

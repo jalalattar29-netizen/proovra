@@ -23,8 +23,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 // below still writes the Bytes column for back-compat with the
 // keyword-fallback ranker; the queue handles the pgvector side.
 import { enqueueEmbedChunks } from "../../queue/mi-embed-queue.js";
-import { evaluateWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
-import { workspaceIncludesAiOperations } from "../billing-enforcement.service.js";
+import { evaluateSemanticEgress } from "../ai/workspace-ai-policy.service.js";
 
 export function isSemanticSearchEnabled(): boolean {
   return process.env.SEMANTIC_SEARCH_ENABLED === "true";
@@ -72,6 +71,26 @@ export async function indexEvidenceText(
   }
   const chunks = chunkText(input.text);
   const newChunkIds: string[] = [];
+  // RG-04 (PRO-AI1-01) — the semantic-egress decision comes BEFORE any chunk
+  // row is written. A chunk row is text waiting to be sent: creating it for a
+  // workspace that may not embed handed every downstream path (search-index
+  // safety net, reconciler, backfill) material it should never have had. A
+  // denied or unreadable decision re-indexes to NO chunks for this record
+  // (the same delete-then-create this function always did), so a workspace
+  // that turned semantic search off stops carrying chunk text forward.
+  const egress = input.teamId
+    ? await evaluateSemanticEgress({ teamId: input.teamId, dataClass: "DERIVED_CONTENT" })
+    : null;
+  if (!egress?.allowed) {
+    try {
+      await client.evidenceSemanticChunk.deleteMany({
+        where: { evidenceId: input.evidenceId },
+      });
+    } catch {
+      /* best-effort: a stale row is still refused by every egress gate */
+    }
+    return { chunks: 0, embedded: 0 };
+  }
   try {
     await client.evidenceSemanticChunk.deleteMany({
       where: { evidenceId: input.evidenceId },
@@ -108,17 +127,8 @@ export async function indexEvidenceText(
     // any drift on the next reindex pass).
     if (input.teamId && newChunkIds.length > 0) {
       try {
-        // Phase A2 — workspace AI policy gate: a workspace that disabled
-        // semantic search must not have its chunks embedded/sent outbound.
-        const semPolicy = await evaluateWorkspaceAiPolicy({
-          teamId: input.teamId,
-          feature: "SEMANTIC_SEARCH",
-          dataClass: "DERIVED_CONTENT",
-          planAllowed: await workspaceIncludesAiOperations(input.teamId),
-        });
-        if (!semPolicy.allowed) {
-          return { chunks: chunks.length, embedded };
-        }
+        // The egress decision above already allowed this workspace; mi-embed
+        // re-decides it in the worker at execution time.
         await enqueueEmbedChunks({
           teamId: input.teamId,
           chunkIds: newChunkIds,

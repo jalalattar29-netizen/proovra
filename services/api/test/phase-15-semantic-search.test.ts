@@ -279,15 +279,16 @@ describe("Phase 15 backend — hybrid ranker + /v1/search wiring", () => {
     expect(body).toMatch(/fallbackReason/);
   });
 
-  it("13. Search indexer worker calls the provider behind try/catch (failure must not block keyword index write)", () => {
+  it("13. Search indexer worker never calls the provider itself; its semantic hand-off is behind try/catch (failure must not block keyword index write)", () => {
     const body = readUtf8(WORKER_SEARCH_INDEXER_SRC);
-    // The provider call (embedText / embedBatch) MUST be wrapped in
-    // a try/catch so an embedding failure is logged + skipped without
-    // failing the surrounding keyword index write.
-    const wrapped =
-      /try\s*\{[\s\S]{0,400}embedText\(/.test(body) ||
-      /try\s*\{[\s\S]{0,400}embedBatch\(/.test(body);
-    expect(wrapped).toBe(true);
+    // RG-04 (PRO-W2-01) — the indexer used to embed chunk text itself with no
+    // workspace policy, plan or budget. It now only hands an owed chunk to the
+    // one gated producer (mi-embed), and that hand-off stays wrapped so a
+    // semantic failure never fails the keyword index write.
+    expect(body).not.toMatch(/embedText\(|embedBatch\(|embeddings\.create/);
+    expect(/try\s*\{[\s\S]{0,200}backfillSemanticEmbeddings\(/.test(body)).toBe(true);
+    expect(body).toMatch(/enqueueMiEmbedJob\(/);
+    expect(body).toMatch(/workspaceSemanticEgressAllowed\(/);
   });
 
   it("14. /v1/intelligence/search alias still forwards to /v1/search (Phase 14 contract preserved)", () => {

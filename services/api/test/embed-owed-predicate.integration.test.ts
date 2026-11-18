@@ -52,8 +52,10 @@ describe("embed-owed predicate (live PostgreSQL 16)", () => {
     const B = h.fixtures.teamB;
     await prisma.workspaceAiPolicy.upsert({
       where: { teamId: A.teamId },
-      create: { teamId: A.teamId, aiEnabled: true, semanticSearchEnabled: true, embeddingsAllowed: true } as never,
-      update: { aiEnabled: true, semanticSearchEnabled: true, embeddingsAllowed: true },
+      // RG-04 — chunk text is DERIVED_CONTENT: the owed predicate also needs
+      // content intelligence, as the canonical evaluator does.
+      create: { teamId: A.teamId, aiEnabled: true, semanticSearchEnabled: true, embeddingsAllowed: true, contentIntelligenceEnabled: true } as never,
+      update: { aiEnabled: true, semanticSearchEnabled: true, embeddingsAllowed: true, contentIntelligenceEnabled: true },
     });
     await prisma.workspaceAiPolicy.deleteMany({ where: { teamId: B.teamId } });
     const evA = await evidence(A.teamId, A.ownerUserId);

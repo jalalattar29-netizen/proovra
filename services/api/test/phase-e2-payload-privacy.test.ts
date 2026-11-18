@@ -22,8 +22,10 @@ describe("E2 — free-text fields are sanitized before the provider", () => {
     expect(CHAT).toMatch(/sanitizeUntrustedField\(m\.content/);
   });
   it("semantic enqueue is gated by workspace AI policy", () => {
-    expect(SEMANTIC).toMatch(/evaluateWorkspaceAiPolicy/);
-    expect(SEMANTIC).toMatch(/SEMANTIC_SEARCH/);
+    // RG-04 — through the one semantic-egress gate (which wraps
+    // evaluateWorkspaceAiPolicy for SEMANTIC_SEARCH), asked before any chunk.
+    expect(SEMANTIC).toMatch(/evaluateSemanticEgress/);
+    expect(SEMANTIC).toMatch(/DERIVED_CONTENT/);
   });
   it("sanitizer removes secrets/signed URLs/GPS from a hostile sourceLabel", () => {
     const out = sanitizeUntrustedField(

@@ -11,7 +11,9 @@ function src(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
 const MEDIA = src("../../../services/api/src/services/intelligence/media-intelligence.service.ts");
-const WORKER = src("../../../services/worker/src/mi-embed.processor.ts");
+// RG-04 — the worker's toggle consumer is the one embedding-egress gate that
+// mi-embed, the search-index safety net and the reconciler all ask.
+const WORKER = src("../../../services/worker/src/embedding-egress-gate.ts");
 const EVALUATOR = src("../../../services/api/src/services/ai/workspace-ai-policy.service.ts");
 const AI_ROUTES = src("../../../services/api/src/routes/ai.routes.ts");
 const EV_ROUTES = src("../../../services/api/src/routes/evidence.routes.ts");
@@ -32,7 +34,7 @@ describe("P3 — toggle → consumer matrix", () => {
     { toggle: "rawContentProcessingAllowed", consumers: [["media", MEDIA]] },
     { toggle: "ocrAllowed", consumers: [["media", MEDIA]] },
     { toggle: "transcriptionAllowed", consumers: [["media", MEDIA]] },
-    { toggle: "embeddingsAllowed", consumers: [["worker", WORKER]] },
+    { toggle: "embeddingsAllowed", consumers: [["evaluator", EVALUATOR], ["worker", WORKER]] },
   ];
   for (const { toggle, consumers } of MATRIX) {
     it(`${toggle} is consumed by ${consumers.map(([n]) => n).join("+")}`, () => {
@@ -42,9 +44,13 @@ describe("P3 — toggle → consumer matrix", () => {
     });
   }
   it("route features call the canonical evaluator", () => {
-    for (const [name, source] of [["ai", AI_ROUTES], ["evidence", EV_ROUTES], ["case", CASE_ROUTES], ["reviewer", REV_ROUTES], ["semantic", SEM]] as const) {
+    for (const [name, source] of [["ai", AI_ROUTES], ["evidence", EV_ROUTES], ["case", CASE_ROUTES], ["reviewer", REV_ROUTES]] as const) {
       expect(source, name).toContain("evaluateWorkspaceAiPolicy");
     }
+    // RG-04 — semantic indexing asks the semantic-egress wrapper of the
+    // canonical evaluator (same file, evaluateWorkspaceAiPolicy underneath).
+    expect(SEM, "semantic").toContain("evaluateSemanticEgress");
+    expect(EVALUATOR).toMatch(/export async function evaluateSemanticEgress[\s\S]{0,1600}evaluateWorkspaceAiPolicy\(/);
   });
   it("media path denies OCR/transcription/raw-content via bounded codes", () => {
     for (const code of ["CONTENT_INTELLIGENCE_DISABLED", "RAW_CONTENT_NOT_ALLOWED", "OCR_NOT_ALLOWED", "TRANSCRIPTION_NOT_ALLOWED", "WORKSPACE_DISABLED"]) {

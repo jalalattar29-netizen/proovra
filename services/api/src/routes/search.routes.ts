@@ -380,6 +380,8 @@ export async function searchRoutes(app: FastifyInstance) {
         actorUserId: actor.userId,
         isReviewerCapable: actor.isReviewerCapable,
         matchRecipientContact: disclosure === "REVEALED",
+        // RG-04 — the semantic-egress gate's role step.
+        actorRole: actor.role,
         filter,
         // Phase 24-B — propagate request context so the dedicated
         // audit row carries surface + requestId + hashed ip.
