@@ -412,6 +412,26 @@ export async function applyStorageSubscriptionObservation(
   }
 
   if (!row) {
+    // PRO-LEAD-04 — the sweep's automatic cancel of a record-less provider
+    // subscription is held behind the switch too: reviewed, not cancelled.
+    if (
+      obs.status === prismaPkg.SubscriptionStatus.ACTIVE &&
+      obs.claimed &&
+      obs.source === "billing_reconciliation" &&
+      !automaticAddonCancellationEnabled()
+    ) {
+      await recordBillingReviewItem({
+        userId: obs.claimed.userId,
+        provider: obs.provider,
+        providerResourceId: obs.subscriptionId,
+        product: "STORAGE_ADDON",
+        reason: "STORAGE_SUBSCRIPTION_WITHOUT_RECORD",
+        providerAction: "NONE",
+        refundReviewRequired: true,
+        detail: { addonKey: obs.claimed.addonKey, refusal: "NO_LOCAL_RECORD", held: "AUTOMATIC_ADDON_CANCELLATION" },
+      });
+      return { outcome: "REFUSED", addonId: null, reason: "NO_LOCAL_RECORD", canceledAtProvider: false };
+    }
     if (obs.status === prismaPkg.SubscriptionStatus.ACTIVE && obs.claimed) {
       const refused = await refuseActiveSubscription({
         row: null,
@@ -472,26 +492,27 @@ export async function applyStorageSubscriptionObservation(
       ? null
       : ((await refusalReason(row, obs)) ??
         ((await isDuplicateActivation(row, obs)) ? "DUPLICATE_PURCHASE" : null));
-    if (
-      refusal === "DUPLICATE_PURCHASE" &&
-      obs.source === "billing_reconciliation" &&
-      !automaticAddonCancellationEnabled()
-    ) {
+    if (refusal && obs.source === "billing_reconciliation" && !automaticAddonCancellationEnabled()) {
       // BILLING ACCEPTANCE hold — the sweep does not stop a subscription at the
       // provider until an operator enables it. Nothing is granted and nothing is
       // cancelled; the review item says what was held and that a refund review is
       // owed. A provider webhook or the customer's own return still applies the
       // refusal in full (PayPal confirm: `checkout_return`; Stripe success
       // return / Check status: `checkout_attempt_recheck` — AUDIT E-06).
+      //
+      // PRO-LEAD-04 (WS-BILL, 2026-11-18) — EVERY refusal kind, not only a
+      // duplicate: PLAN_ID_MISMATCH, NOT_ELIGIBLE_FOR_PLAN and
+      // WORKSPACE_STORAGE_NOT_SUPPORTED used to reach the provider cancel from
+      // the sweep with the switch off.
       await recordBillingReviewItem({
         userId: row.ownerUserId,
         provider: obs.provider,
         providerResourceId: obs.subscriptionId,
         product: "STORAGE_ADDON",
-        reason: "DUPLICATE_STORAGE_PURCHASE",
+        reason: refusal === "DUPLICATE_PURCHASE" ? "DUPLICATE_STORAGE_PURCHASE" : "STORAGE_ACTIVATION_REFUSED",
         providerAction: "NONE",
         refundReviewRequired: true,
-        detail: { addonKey: row.addonKey, addonId: row.id, held: "AUTOMATIC_ADDON_CANCELLATION" },
+        detail: { addonKey: row.addonKey, addonId: row.id, refusal, held: "AUTOMATIC_ADDON_CANCELLATION" },
       });
       return { outcome: "REFUSED", addonId: row.id, reason: refusal, canceledAtProvider: false };
     }

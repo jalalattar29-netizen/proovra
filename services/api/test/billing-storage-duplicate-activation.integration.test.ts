@@ -215,6 +215,37 @@ describe("personal storage duplicate activation (live PostgreSQL)", () => {
     }
   });
 
+  it("PRO-LEAD-04 — every sweep refusal (PLAN_ID_MISMATCH here) is held while the switch is off, and applied once it is on", async () => {
+    const previous = process.env.BILLING_AUTO_ADDON_CANCELLATION;
+    delete process.env.BILLING_AUTO_ADDON_CANCELLATION;
+    try {
+      const userId = await freeUser();
+      const paypal = await paypalPurchase(userId, ago(10 * 60_000));
+      const cancelAtProvider = vi.fn(async () => ({ ok: true }));
+      const mismatched = { ...paypalActivated(paypal, "billing_reconciliation"), planId: "P-NOT-THE-SOLD-PLAN" };
+
+      const held = await applyStorageSubscriptionObservation(mismatched, { cancelAtProvider: cancelAtProvider as never });
+      expect(held).toMatchObject({ outcome: "REFUSED", reason: "PLAN_ID_MISMATCH", canceledAtProvider: false });
+      // At the base the sweep cancelled at the provider with the switch off.
+      expect(cancelAtProvider).not.toHaveBeenCalled();
+      expect((await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: paypal.id } })).status).toBe("PENDING");
+      expect(
+        await prisma.billingReviewItem.findFirstOrThrow({ where: { userId, providerResourceId: paypal.externalSubscriptionId! } }),
+      ).toMatchObject({ reason: "STORAGE_ACTIVATION_REFUSED", providerAction: "NONE", refundReviewRequired: true });
+
+      process.env.BILLING_AUTO_ADDON_CANCELLATION = "on";
+      const applied = await applyStorageSubscriptionObservation(mismatched, { cancelAtProvider: cancelAtProvider as never });
+      expect(applied).toMatchObject({ outcome: "REFUSED", reason: "PLAN_ID_MISMATCH", canceledAtProvider: true });
+      expect(cancelAtProvider).toHaveBeenCalledTimes(1);
+      expect(
+        (await prisma.billingReviewItem.findFirstOrThrow({ where: { userId, providerResourceId: paypal.externalSubscriptionId! } })).providerAction,
+      ).toBe("CANCELED_AT_PROVIDER");
+    } finally {
+      if (previous === undefined) delete process.env.BILLING_AUTO_ADDON_CANCELLATION;
+      else process.env.BILLING_AUTO_ADDON_CANCELLATION = previous;
+    }
+  });
+
   it("two activations at the same moment: exactly one is granted, every time", async () => {
     for (let round = 0; round < 4; round++) {
       const userId = await freeUser();

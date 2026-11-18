@@ -219,7 +219,9 @@ async function main(): Promise<number> {
       addonId: row.id,
       addonKey: row.addonKey,
       createdAtUtc: row.createdAt.toISOString(),
-      held: false,
+      // PRO-LEAD-04 — the sweep's refusal cancels at the provider only with the
+      // switch on (a webhook or the customer's return still applies it).
+      held: !automaticAddonCancellationEnabled(),
     });
   }
 
