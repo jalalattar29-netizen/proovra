@@ -290,10 +290,7 @@ export async function uploadDirectCaptureItem(
 export async function completeDirectCapture(
   session: DirectCaptureSession,
 ): Promise<{ evidenceId: string }> {
-  const res = await apiFetch(
-    `/v1/capture/direct-sessions/${session.captureSessionId}/complete`,
-    { method: "POST", body: JSON.stringify({}) },
-  );
+  const res = await sealRequest(`/v1/capture/direct-sessions/${session.captureSessionId}/complete`, {});
   const evidenceId = res?.result?.evidenceId as string | undefined;
   if (!evidenceId) throw new Error("Could not complete the capture session.");
   return { evidenceId };
@@ -335,10 +332,7 @@ async function sealScreenFrames(
   session: DirectCaptureSession,
   manifestJson: string,
 ): Promise<{ evidenceId: string }> {
-  const res = await apiFetch(buildScreenCompletePath(session.captureSessionId), {
-    method: "POST",
-    body: JSON.stringify({ manifestJson }),
-  });
+  const res = await sealRequest(buildScreenCompletePath(session.captureSessionId), { manifestJson });
   return readSealedEvidence(res);
 }
 
@@ -350,11 +344,36 @@ async function sealContinuousRecording(
   session: DirectCaptureSession,
   manifestJson: string,
 ): Promise<{ evidenceId: string }> {
-  const res = await apiFetch(buildContinuousCompletePath(session.captureSessionId), {
-    method: "POST",
-    body: JSON.stringify({ manifestJson }),
-  });
+  const res = await sealRequest(buildContinuousCompletePath(session.captureSessionId), { manifestJson });
   return readSealedEvidence(res);
+}
+
+/**
+ * PRO-NB-04 — THE SEAL IS A CAPTURE REQUEST TOO: time-bounded and retried.
+ * The three seal calls were the only capture requests with no deadline, so a
+ * stalled answer left "Finishing… 92%" forever, and a lost one reported a
+ * failure for a record the server had sealed. The deadline is sized for the
+ * server re-hashing every stored part; a dropped connection, a timeout or a
+ * live seal claim (SESSION_BUSY) is retried, and the server answers a repeat
+ * of a bound session idempotently (alreadyBound), so a retry never seals twice.
+ */
+export const CAPTURE_SEAL_TIMEOUT_MS = 180_000;
+
+export function sealRequest(
+  path: string,
+  body: Record<string, unknown>,
+  policy?: RetryPolicy,
+  request: typeof apiFetch = apiFetch,
+): Promise<{ result?: { evidenceId?: string } }> {
+  return retryCapture(
+    () =>
+      withTimeout(
+        (signal) => request(path, { method: "POST", body: JSON.stringify(body), signal }),
+        CAPTURE_SEAL_TIMEOUT_MS,
+        "Sealing the capture",
+      ),
+    policy,
+  );
 }
 
 function readSealedEvidence(res: { result?: { evidenceId?: string } }): { evidenceId: string } {

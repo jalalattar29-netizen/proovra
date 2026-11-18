@@ -224,3 +224,40 @@ test("only the canonical surface finalizes — the screens stage", () => {
     assert.match(read(file), /label="Capture another"/);
   }
 });
+
+// PRO-NB-04 — the seal request is time-bounded and retried: a lost answer is
+// asked again (the server answers a bound session idempotently), and a terminal
+// refusal is not repeated.
+test("PRO-NB-04: a seal whose first answer is lost is retried and returns the sealed record", async () => {
+  let lost = 1;
+  const prev = globalThis.__record;
+  globalThis.__record = (path, init) => {
+    requests.push({ path, method: init?.method ?? "GET" });
+    if (path.endsWith("/complete") && lost > 0) {
+      lost -= 1;
+      throw new Error("the connection dropped");
+    }
+    return { result: { evidenceId: "ev-sealed", alreadyBound: true } };
+  };
+  try {
+    const out = await mod.completeAcquisition(SESSION, null);
+    assert.equal(out.evidenceId, "ev-sealed");
+    assert.equal(requests.filter((r) => r.path === "/v1/capture/direct-sessions/cs-1/complete").length, 2);
+  } finally {
+    globalThis.__record = prev;
+  }
+});
+
+test("PRO-NB-04: a terminal seal refusal is not repeated", async () => {
+  const prev = globalThis.__record;
+  globalThis.__record = (path, init) => {
+    requests.push({ path, method: init?.method ?? "GET" });
+    throw Object.assign(new Error("refused"), { statusCode: 409, code: "CAPTURE_DIGEST_MISMATCH" });
+  };
+  try {
+    await assert.rejects(() => mod.sealRequest("/v1/capture/direct-sessions/cs-1/complete", {}, { attempts: 4, baseDelayMs: 1, maxDelayMs: 1, maxRetryAfterMs: 1, sleep: async () => {} }));
+    assert.equal(requests.length, 1);
+  } finally {
+    globalThis.__record = prev;
+  }
+});
