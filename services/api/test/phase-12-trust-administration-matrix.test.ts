@@ -354,7 +354,7 @@ const stepUpJson = {
 // ---------------------------------------------------------------------------
 
 describe("Trust authoring console", () => {
-  it("a draft re-seed needs only membership and publishes NOTHING", async () => {
+  it("a draft re-seed needs the article authoring capability (PRO-G2-04) and publishes NOTHING", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/v1/trust/articles/seed",
@@ -368,10 +368,10 @@ describe("Trust authoring console", () => {
     expect(H.seedPublishSeen).toBe(false);
     // A draft re-seed is not a publication — no step-up gate fires.
     expect(H.stepUpCalls).toEqual([]);
-    expect(H.seenPermissions).toContain("governance.policy.read");
+    expect(H.seenPermissions).toContain("trust.article.publish");
   });
 
-  it("a PUBLISHING re-seed escalates to the manage capability + target-bound step-up", async () => {
+  it("a PUBLISHING re-seed asks the authoring capability + target-bound step-up", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/v1/trust/articles/seed",
@@ -381,7 +381,7 @@ describe("Trust authoring console", () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).published).toBe(true);
     expect(H.seedPublishSeen).toBe(true);
-    expect(H.seenPermissions).toContain("governance.policy.manage");
+    expect(H.seenPermissions).toContain("trust.article.publish");
     // Bound to (TRUST_ARTICLE_SEED, workspace) — an approval for any other
     // resource cannot be spent here.
     expect(H.stepUpCalls).toEqual([
@@ -456,10 +456,11 @@ describe("Trust authoring console", () => {
   it("the stale read requires a capability, not just authentication", async () => {
     const res = await app.inject({ method: "GET", url: "/v1/trust/drift/stale" });
     expect(res.statusCode).toBe(200);
-    expect(H.seenPermissions).toContain("governance.policy.read");
+    // PRO-T1C-09 — the paths are read under the scan authority.
+    expect(H.seenPermissions).toContain("governance.trust_scan.run");
   });
 
-  it("security-claim scan requires manage; the register read requires only read", async () => {
+  it("security-claim scan requires manage; the register read requires the scan authority (PRO-T1C-09)", async () => {
     const scan = await app.inject({
       method: "POST",
       url: "/v1/trust/security-claims/scan",
@@ -473,7 +474,7 @@ describe("Trust authoring console", () => {
     H.seenPermissions.length = 0;
     const read = await app.inject({ method: "GET", url: "/v1/trust/security-claims" });
     expect(read.statusCode).toBe(200);
-    expect(H.seenPermissions).toEqual(["governance.policy.read"]);
+    expect(H.seenPermissions).toEqual(["governance.trust_scan.run"]);
   });
 
   it("security-claim register denial returns no control data", async () => {

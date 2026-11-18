@@ -26,7 +26,9 @@ function routeBody(method: string, path: string): string {
 describe("B7B-F06 — Trust Center article authoring never fails open", () => {
   it("POST /v1/trust/articles asks the shared refusal helper, outside any catch", () => {
     const body = routeBody("post", "/v1/trust/articles");
-    expect(body).toContain("await refuseTrustAuthoring(reply, ctx)");
+    // PRO-G2-13 — through the one trust write rule, which asks refuseTrustAuthoring.
+    expect(body).toContain("await refuseTrustWrite(req, reply, ctx, {");
+    expect(SOURCE).toContain("spec.customerAuthored && (await refuseTrustAuthoring(reply, ctx))");
     expect(body).not.toMatch(/catch\s*\{[^}]*engine failure must not break route/);
   });
 

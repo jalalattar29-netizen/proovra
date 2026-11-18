@@ -971,8 +971,12 @@ describe("Phase 4A Closure — verification package wires manifests", () => {
   });
 
   it("verification-package-trust-and-governance.ts produces the five Phase 4A manifest paths", () => {
+    // PRO-G2-01 — the worker delegates to the ONE shared builder.
+    expect(
+      readSrc("../../worker/src/verification-package-trust-and-governance.ts"),
+    ).toContain("buildTrustVerificationManifests");
     const src = readSrc(
-      "../../worker/src/verification-package-trust-and-governance.ts",
+      "../../../packages/shared-runtime/src/trust-verification-manifests.ts",
     );
     expect(src).toContain("intelligence/trust-manifest.json");
     expect(src).toContain("intelligence/governance-manifest.json");
