@@ -630,6 +630,18 @@ export function validateSamlResponse(
         "InResponseTo does not match the stored AuthnRequest ID.",
       );
     }
+    // PRO-A2-08 — the Response element is outside an assertion-only
+    // signature, so its InResponseTo can be rewritten around a captured
+    // assertion. The assertion's own SubjectConfirmationData@InResponseTo IS
+    // signed: when the IdP states it, it must name THIS AuthnRequest (an IdP
+    // that omits it keeps working; the Response value above still applies).
+    const scdInResponseTo = scdEls[0]?.getAttribute("InResponseTo") ?? null;
+    if (scdInResponseTo !== null && scdInResponseTo !== input.expectedInResponseTo) {
+      throw new SamlAssertionError(
+        "SAML_IN_RESPONSE_TO_MISMATCH",
+        "The assertion's SubjectConfirmationData InResponseTo does not match the stored AuthnRequest ID.",
+      );
+    }
   }
 
   // -------------------------------------------------------------------------

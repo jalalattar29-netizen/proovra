@@ -45,6 +45,8 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
+// PRO-A2Z-04 — group membership by provenance, one definition.
+import { groupGrantedTeamMemberIds } from "./scim-groups.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // PHASE 10 §3 — atomic managed-identity binding (persistence-verified SCIM token).
@@ -588,6 +590,7 @@ export async function projectScimManagedMembership(
       displayName: true,
       externalEmail: true,
       unlinkedAtUtc: true,
+      linkSource: true,
     },
   });
   const truncated = mappings.length > limit;
@@ -643,10 +646,12 @@ export async function projectScimManagedMembership(
     const member = memberByUserId.get(row.userId);
     const directoryLink: ScimManagedMemberProjection["directoryLink"] =
       row.unlinkedAtUtc === null ? "LINKED" : "RELEASED";
+    // PRO-A2Z-04 — an owner-approved link to a self-serve account is STANDARD
+    // by design (B5B-F-302): not a conflict.
     const conflict =
       ownership === "MANAGED_BY_ANOTHER_ORGANIZATION" ||
       ownership === "UNRESOLVED" ||
-      (managedIdentityRequired && ownership === "STANDARD");
+      (managedIdentityRequired && ownership === "STANDARD" && row.linkSource !== "OWNER_CONSENT");
 
     summary.total += 1;
     if (ownership === "MANAGED_BY_THIS_ORGANIZATION") summary.managedByThisOrganization += 1;
@@ -685,9 +690,9 @@ export async function projectScimManagedMembership(
   const groups = await Promise.all(
     groupRows.map(async (g) => ({
       ...g,
-      memberCount: await client.teamMember.count({
-        where: { teamId: input.teamId, status: "ACTIVE", role: g.mappedRole as never },
-      }),
+      // PRO-A2Z-04 — the people THIS group granted (provenance), not every
+      // holder of its mapped role.
+      memberCount: (await groupGrantedTeamMemberIds(g.id, [input.teamId], client)).length,
     })),
   );
 
@@ -1773,11 +1778,24 @@ export async function scimUpdateUserAttributes(
   if (!member) {
     return { ok: false, status: 404, detail: "user_not_found" };
   }
-
   // No supported attribute target at all → 400 BEFORE any work (zero mutation,
   // no reconciliation for a no-op PATCH).
   if (update.displayName === undefined && update.role === undefined) {
     return { ok: false, status: 400, detail: "no_supported_attribute_target", scimType: "noTarget" };
+  }
+
+  // PRO-A2-07 (WS-ORG RG-07) — the directory's reach is the people it linked
+  // (PRO-014, the same answer GET and DELETE give): an invited member with no
+  // directory link (or only an administrator's manual link) is not found here,
+  // so the directory cannot flip their role. A deactivated (unlinked) directory
+  // identity is still the directory's, so a reactivate+rename PATCH works.
+  const directoryLink = await client.externalIdentityMapping.findFirst({
+    where: { ...scimDirectoryUserScope(ctx.teamId), userId },
+    orderBy: { linkedAtUtc: "asc" },
+    select: { id: true, linkSource: true },
+  });
+  if (!directoryLink || directoryLink.linkSource === "ADMIN_MANUAL") {
+    return { ok: false, status: 404, detail: "user_not_found" };
   }
 
   // PATH 2/9 — ATOMIC: managed-ownership reconciliation + attribute/role

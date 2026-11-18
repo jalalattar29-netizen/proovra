@@ -189,7 +189,9 @@ export async function buildSsoHealthSnapshot(
     if (conn.status === "DISABLED" || conn.status === "REVOKED") {
       health = "DISABLED";
     } else if (
-      !conn.samlCertFingerprint ||
+      // PRO-A2Z-03 — a certificate is a SAML requirement; an OIDC connection
+      // has none and is classified by its failures and outages like any other.
+      (conn.provider === "GENERIC_SAML" && !conn.samlCertFingerprint) ||
       conn.status === "PENDING"
     ) {
       health = "UNCONFIGURED";

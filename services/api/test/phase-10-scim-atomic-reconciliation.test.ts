@@ -90,6 +90,8 @@ function makeClient(members: Record<string, { id: string; role: string; status: 
       findFirst: async () => ({ id: "grp-1", teamId: "team-1", status: "ACTIVE", mappedRole: "MEMBER", displayName: "G", externalId: null, createdAt: new Date(0), updatedAt: new Date(0) }),
       findUnique: async () => ({ id: "grp-1", teamId: "team-1", status: "ACTIVE", mappedRole: "MEMBER", displayName: "G", externalId: null, createdAt: new Date(0), updatedAt: new Date(0) }),
       update: async () => { writes.push("group.update"); return {}; },
+      // PRO-A2Z-04 — groups merged into this one (provenance refs): none here.
+      findMany: async () => [],
     },
     // DOM-13 — the group's reach: one ACTIVE projection into the token's
     // default workspace (membership is applied per projection).

@@ -1053,7 +1053,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
       if (ORG_ROLE_PRECEDENCE[inviteRole] > ORG_ROLE_PRECEDENCE[access.role]) {
         return reply
           .code(403)
-          .send({ message: "Cannot invite at a role greater than your own." });
+          .send({ error: { code: "ROLE_CEILING_EXCEEDED" }, message: "Cannot invite at a role greater than your own." });
       }
 
       /*
@@ -1233,6 +1233,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       if (result.kind === "conflict") {
         return reply.code(409).send({
+          // PRO-T2-11 — a stable code beside the legacy message.
+          error: { code: result.reason === "already_member" ? "ALREADY_MEMBER" : "INVITE_ALREADY_PENDING" },
           message:
             result.reason === "already_member"
               ? "User with that email is already a member."
@@ -1715,12 +1717,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
       });
 
       if (result.kind === "not_found") {
-        return reply.code(404).send({ message: "Invite not found." });
+        return reply.code(404).send({ error: { code: "INVITE_NOT_FOUND" }, message: "Invite not found." });
       }
       if (result.kind === "already_accepted") {
         return reply
           .code(409)
-          .send({ message: "Cannot revoke an already-accepted invite." });
+          .send({ error: { code: "INVITE_ALREADY_ACCEPTED" }, message: "Cannot revoke an already-accepted invite." });
       }
 
       return reply.code(200).send({
@@ -1824,22 +1826,22 @@ export async function organizationsRoutes(app: FastifyInstance) {
       });
 
       if (result.kind === "not_found") {
-        return reply.code(404).send({ message: "Invite not found." });
+        return reply.code(404).send({ error: { code: "INVITE_NOT_FOUND" }, message: "Invite not found." });
       }
       if (result.kind === "already_accepted") {
         return reply
           .code(409)
-          .send({ message: "Cannot resend an accepted invite." });
+          .send({ error: { code: "INVITE_ALREADY_ACCEPTED" }, message: "Cannot resend an accepted invite." });
       }
       if (result.kind === "revoked") {
         return reply
           .code(410)
-          .send({ message: "Cannot resend a revoked invite." });
+          .send({ error: { code: "INVITE_REVOKED" }, message: "Cannot resend a revoked invite." });
       }
       if (result.kind === "expired") {
         return reply
           .code(410)
-          .send({ message: "Cannot resend an expired invite. Send a fresh one." });
+          .send({ error: { code: "INVITE_EXPIRED" }, message: "Cannot resend an expired invite. Send a fresh one." });
       }
 
       // Macro-Wave A2 — an operator resend now ACTUALLY re-delivers: the
@@ -2020,13 +2022,14 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       switch (result.kind) {
         case "not_found":
-          return reply.code(404).send({ message: "Membership not found." });
+          return reply.code(404).send({ error: { code: "MEMBERSHIP_NOT_FOUND" }, message: "Membership not found." });
         case "self_modify_blocked":
           return reply
             .code(409)
-            .send({ message: "Cannot modify your own role." });
+            .send({ error: { code: "SELF_ACTION_FORBIDDEN" }, message: "Cannot modify your own role." });
         case "owner_change_requires_owner":
           return reply.code(403).send({
+            error: { code: "OWNER_ACTION_REQUIRES_OWNER" },
             message:
               "Only ORG_OWNER can change a membership to or from ORG_OWNER.",
           });
@@ -2038,7 +2041,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
         case "last_owner_protected":
           return reply
             .code(409)
-            .send({ message: "Cannot demote the last ORG_OWNER." });
+            .send({ error: { code: "LAST_OWNER_PROTECTED" }, message: "Cannot demote the last ORG_OWNER." });
         case "noop":
           return reply
             .code(200)
@@ -2218,7 +2221,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       switch (result.kind) {
         case "not_found":
-          return reply.code(404).send({ message: "Membership not found." });
+          return reply.code(404).send({ error: { code: "MEMBERSHIP_NOT_FOUND" }, message: "Membership not found." });
         case "already_removed":
           return reply.code(409).send({
             error: { code: "MEMBERSHIP_ALREADY_REMOVED" },
@@ -2316,7 +2319,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
           select: { id: true, userId: true, role: true, status: true },
         });
         if (!target) {
-          return reply.code(404).send({ message: "Membership not found." });
+          return reply.code(404).send({ error: { code: "MEMBERSHIP_NOT_FOUND" }, message: "Membership not found." });
         }
         if (target.userId === userId) {
           return reply
@@ -2455,7 +2458,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (!outcome.ok) {
           switch (outcome.reason) {
             case "not_found":
-              return reply.code(404).send({ message: "Membership not found." });
+              return reply.code(404).send({ error: { code: "MEMBERSHIP_NOT_FOUND" }, message: "Membership not found." });
             case "stale_generation":
               return reply.code(409).send({
                 error: { code: "STALE_MEMBERSHIP_GENERATION" },

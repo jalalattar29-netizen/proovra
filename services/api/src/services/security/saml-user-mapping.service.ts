@@ -753,9 +753,14 @@ export async function handleSamlAssertion(
     });
   }
 
+  // PRO-A2-10 — the session names the ACCOUNT's stored address, never the
+  // asserted one (a mapped account's address can differ from it).
+  const accountEmail = (
+    await client.user.findUnique({ where: { id: userId }, select: { email: true } })
+  )?.email;
   return {
     userId,
-    email,
+    email: accountEmail ?? email,
     displayName: displayName ?? null,
     isNewlyProvisioned,
     role,

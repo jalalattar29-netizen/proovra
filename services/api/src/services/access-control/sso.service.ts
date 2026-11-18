@@ -1602,12 +1602,18 @@ export async function handleOidcCallback(
     details: { connectionId: conn.id, userId, provider: conn.provider },
   });
 
+  // PRO-A2-10 — the session names the ACCOUNT's stored address, never the
+  // IdP-asserted one (a mapped account's address can differ from it).
+  const accountEmail = (
+    await client.user.findUnique({ where: { id: userId }, select: { email: true } })
+  )?.email;
+
   return {
     connectionId: conn.id,
     teamId: conn.teamId,
     user: {
       id: userId,
-      email: userinfo.email.toLowerCase(),
+      email: (accountEmail ?? userinfo.email).toLowerCase(),
       displayName: userinfo.name ?? null,
       isNewlyProvisioned,
       role,

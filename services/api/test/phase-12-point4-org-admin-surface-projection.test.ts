@@ -137,7 +137,9 @@ describe("org-admin surface projection — per-role matrix", () => {
     }
     expect(ids).toContain("overview");
     expect(ids).toContain("roles");
-    expect(ids).toContain("audit");
+    // PRO-T2-08 — the audit tab follows its read (ORG_OVERSIGHT_ROLES): a plain
+    // member's only read of it answers 403, so it is not offered.
+    expect(ids).not.toContain("audit");
     expect(ids).toContain("trust");
   });
 });

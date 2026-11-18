@@ -348,6 +348,8 @@ function makeGroupDb(seed: { members: string[] }) {
 
   const tx = {
     scimGroup: {
+      // PRO-A2Z-04 — groups merged into this one (provenance refs): none here.
+      findMany: async () => [],
       // DOM-13 — a group is addressed within its Organization.
       findFirst: async (args: { where: { id: string; organizationId: string } }) =>
         args.where.id === state.group.id &&

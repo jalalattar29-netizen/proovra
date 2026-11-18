@@ -345,8 +345,10 @@ export const ORG_ADMIN_SURFACE_ACCESS: ReadonlyArray<{
     roles: ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_BILLING_ADMIN", "ORG_AUDITOR"],
   },
   { id: "readiness", roles: SECURITY_TIER },
-  // Org audit timeline + Trust Center summary — any org member.
-  { id: "audit", roles: EVERY_ORG_ROLE },
+  // Org audit timeline — the oversight roles; Trust Center summary — any member.
+  // PRO-T2-08 — the same set GET /v1/orgs/:id/audit-events admits
+  // (ORG_OVERSIGHT_ROLES): a tab whose only read answers 403 is not offered.
+  { id: "audit", roles: ORG_OVERSIGHT_ROLES },
   { id: "trust", roles: EVERY_ORG_ROLE },
 ];
 

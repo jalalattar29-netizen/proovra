@@ -582,6 +582,10 @@ vi.mock("../src/services/identity/membership-provisioning.service.js", () => {
       rec("applyDirectoryRoleChange", { ...i });
       if (i.currentRole === i.desiredRole) return { changed: false };
       await tx.teamMember.update({ where: { id: i.teamMemberId }, data: { role: i.desiredRole } });
+      // Provenance, as the real orchestrator writes it (PRO-A2Z-04 reads it).
+      await (tx as unknown as { membershipGrant: { create: (a: unknown) => Promise<unknown> } }).membershipGrant.create({
+        data: { teamMemberId: i.teamMemberId, source: "IDP_GROUP", intent: "GROUP_MAPPING", externalRef: (i as { externalRef?: string | null }).externalRef ?? null, grantedRole: i.desiredRole, revokedAtUtc: null, createdAt: new Date() },
+      });
       return { changed: true };
     },
     // The demotion leg of the atomic group archive. When it fails the whole
@@ -830,6 +834,10 @@ function seed(): void {
   H.store["scimGroupWorkspaceProjection"] = [
     { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbc01", scimGroupId: GROUP, organizationId: ORG_A, workspaceId: TEAM, mappedRole: "ADMIN", status: "ACTIVE", createdByUserId: null, createdAt: D(2), updatedAt: D(2) },
     { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbc09", scimGroupId: FOREIGN_GROUP, organizationId: ORG_B, workspaceId: OTHER_TEAM, mappedRole: "ADMIN", status: "ACTIVE", createdByUserId: null, createdAt: D(2), updatedAt: D(2) },
+  ];
+  // PRO-A2Z-04 — a group's members are the people it granted (live provenance).
+  H.store["membershipGrant"] = [
+    { id: "cccccccc-cccc-4ccc-8ccc-cccccccccd01", teamMemberId: TARGET_MEMBER, organizationMembershipId: null, source: "IDP_GROUP", intent: "GROUP_MAPPING", grantedByUserId: null, externalRef: `scim-group:${GROUP}`, grantedRole: "ADMIN", revokedAtUtc: null, revokedByUserId: null, createdAt: D(2) },
   ];
   H.store["organization"] = [
     { id: ORG_A, kind: "CUSTOMER", status: "ACTIVE", createdAt: D(1), updatedAt: D(1) },

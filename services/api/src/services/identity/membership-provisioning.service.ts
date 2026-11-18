@@ -300,6 +300,30 @@ export function parseWorkspaceAssignments(
 }
 
 /**
+ * PRO-A2Z-04 — a person leaves a directory group: the live grants that group
+ * (or a group merged into it) wrote for this membership end. Same
+ * migration-window posture as `revokeAllMembershipGrants`.
+ */
+export async function closeMembershipGrantsByRef(
+  tx: TxClient,
+  input: { teamMemberId: string; externalRefs: ReadonlyArray<string>; actorUserId?: string | null },
+): Promise<number> {
+  const delegate = (tx as { membershipGrant?: { updateMany?: unknown } }).membershipGrant;
+  if (!delegate || typeof delegate.updateMany !== "function" || input.externalRefs.length === 0) return 0;
+  try {
+    const r = await tx.membershipGrant.updateMany({
+      where: { teamMemberId: input.teamMemberId, externalRef: { in: [...input.externalRefs] }, revokedAtUtc: null },
+      data: { revokedAtUtc: new Date(), revokedByUserId: input.actorUserId ?? null },
+    });
+    return r.count;
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code !== "P2021" && code !== "P2022") throw err;
+    return 0;
+  }
+}
+
+/**
  * PRO-TZ-02 (WS-ORG RG-07) — THE ROLE CEILING FOR INVITATION WORKSPACE
  * ASSIGNMENTS (single and bulk invite create; acceptance re-applies the
  * owner-tier rule through `resolveRolePrecedence`).

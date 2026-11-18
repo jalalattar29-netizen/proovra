@@ -47,7 +47,7 @@
  *     never blanks the rest of the page.
  *
  * CONSTITUTIONAL CHECKS
- *   - Wrapped in <PageRouteGate routeId="account.organization_admin_readiness">.
+ *   - Wrapped in <PageRouteGate routeId="account.organization-detail">.
  *   - Read-only: no mutating apiFetch verbs, no window.confirm.
  *   - Only org/workspace-scoped endpoints; NO platform-internal surfaces
  *     (no raw-metrics counters, no schema-status probe, no queue internals).
@@ -167,7 +167,7 @@ interface IncidentRow {
 
 export default function OrganizationAdminReadinessPage() {
   return (
-    <PageRouteGate routeId="account.organization_admin_readiness">
+    <PageRouteGate routeId="account.organization-detail">
       <ReadinessTab />
     </PageRouteGate>
   );
