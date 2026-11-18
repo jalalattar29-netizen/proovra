@@ -490,7 +490,10 @@ describe("Phase R16 — service module", () => {
     // rather than an inline role comparison of its own. (The access-review
     // writers that also gated on it were removed with their retired routes,
     // 2026-09-17; comment moderation is what remains.)
-    for (const fn of ["editComment", "deleteComment"]) {
+    // PRO-K2-21 / DEC-15: editComment is author-only now (no moderator edit); deletion stays moderated.
+    expect(svc).toMatch(/export async function editComment\b[\s\S]{0,2500}if \(!isAuthor\)\s*throw/);
+    expect(svc).not.toMatch(/export async function editComment\b[\s\S]{0,1600}isCollaborationTeamModerator\(role\)/);
+    for (const fn of ["deleteComment"]) {
       expect(
         svc,
         `${fn} must gate through isCollaborationTeamModerator`,

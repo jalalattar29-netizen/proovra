@@ -102,6 +102,7 @@ import {
   projectRecipientContact,
   resolveRecipientContactDisclosure,
 } from "../services/privacy/recipient-contact-disclosure.js";
+import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -489,8 +490,21 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         permission: "review.queue.read",
       });
       if (!ctx) return reply;
-      const rows = await listInvitationsForTeam({ teamId: ctx.workspaceId });
-      return reply.code(200).send({ invitations: rows });
+      // PRO-R1-11 / A2-08 — the grant list's reach rule: an invitation on a
+      // record or case closed to this reader is not listed.
+      const rows = await listInvitationsForTeam({
+        teamId: ctx.workspaceId,
+        hidden: await hiddenRecordIdsInWorkspace(ctx.workspaceId, ctx.userId),
+      });
+      // PRO-R1-11 / A2-07 — the reviewer's address follows the one disclosure
+      // decision the delivery read applies: masked unless the caller may reveal it.
+      const disclosure = await resolveRecipientContactDisclosure(req, { teamId: ctx.workspaceId });
+      return reply.code(200).send({
+        invitations: rows.map((r) => {
+          const contact = projectRecipientContact({ recipientEmail: r.inviteEmail ?? null, recipientPhone: null }, disclosure);
+          return { ...r, inviteEmail: contact.recipientEmail ?? contact.recipientEmailMasked };
+        }),
+      });
     },
   );
 
@@ -580,6 +594,10 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       if (!isAdministrativeTier(ctx, ctx.workspaceId)) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // PRO-R1-11 — an invitation on a matter closed to this caller is, to them, not there.
+      if (!(await externalReviewGrantSubjectInReach({ grantId: id, teamId: ctx.workspaceId, actorUserId: ctx.userId }))) {
+        return reply.code(404).send({ denial: "GRANT_NOT_FOUND" });
+      }
       const res = await revokeInvitation({
         teamId: ctx.workspaceId,
         grantId: id,
@@ -601,6 +619,10 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       });
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // PRO-R1-11 — the same reach rule as the list.
+      if (!(await externalReviewGrantSubjectInReach({ grantId: id, teamId: ctx.workspaceId, actorUserId: ctx.userId }))) {
+        return reply.code(404).send({ denial: "GRANT_NOT_FOUND" });
+      }
       const rows = await listPortalActivity({
         teamId: ctx.workspaceId,
         grantId: id,
@@ -825,6 +847,10 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       });
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      // PRO-R1-11 — the same reach rule as the list.
+      if (!(await externalReviewGrantSubjectInReach({ grantId: id, teamId: ctx.workspaceId, actorUserId: ctx.userId }))) {
+        return reply.code(404).send({ denial: "GRANT_NOT_FOUND" });
+      }
       const rows = await listDeliveriesForGrant({
         teamId: ctx.workspaceId,
         grantId: id,

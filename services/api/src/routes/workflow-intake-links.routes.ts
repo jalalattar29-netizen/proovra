@@ -40,6 +40,7 @@ import {
 } from "../services/privacy/recipient-contact-disclosure.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { prisma } from "../db.js";
+import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
   archiveWorkflowIntakeLink,
@@ -892,6 +893,64 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
           recipientPhone: revealed.recipientPhone,
         },
       });
+    },
+  );
+
+  // -- Submitter contact reveal (PRO-E2-02 / DEC-14) -------------------
+  /*
+   * THE ONLY PLACE AN EXTERNAL SUBMITTER'S RAW CONTACT LEAVES THE API. Every
+   * record projection masks it for every reader (recipient-contact-disclosure
+   * `projectSubmitterEmail` / `maskSubmitterContact`). The same authority as
+   * the recipient reveal, the same order of gates (the record first, as a 404;
+   * then the disclosure permission, as a 403), and the disclosure is recorded
+   * without the values.
+   */
+  app.post(
+    "/v1/evidence/:id/submitter-contact",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsId.parse(req.params);
+      const ev = await prisma.evidence.findUnique({
+        where: { id },
+        select: { id: true, teamId: true, acquisitionMode: true, submittedByEmail: true, deletedAt: true },
+      });
+      if (!ev || !ev.teamId || ev.deletedAt || ev.acquisitionMode !== "SECURE_INTAKE_LINK") {
+        return reply.code(404).send({ message: "Evidence not found" });
+      }
+      const member = await requireMember(req, reply, ev.teamId);
+      if (!member) return;
+      const access = await resolveEvidenceRecordAccess({ userId: member.userId, evidenceId: ev.id, permission: "evidence.read" });
+      if (!access.allowed) return reply.code(404).send({ message: "Evidence not found" });
+      const disclosure = await resolveRecipientContactDisclosure(req, { teamId: ev.teamId });
+      if (disclosure !== "REVEALED") {
+        return reply.code(403).send({
+          error: {
+            code: "FORBIDDEN",
+            message: "You do not have permission to view the submitter's full contact for this record.",
+          },
+        });
+      }
+      const session = await prisma.workflowIntakeSession.findFirst({
+        where: { evidenceId: ev.id },
+        select: { submitterEmail: true, submitterPhone: true, intakeLink: { select: { intakeMode: true } } },
+      });
+      const anonymous =
+        session?.intakeLink?.intakeMode === "EXTERNAL_ANONYMOUS" || session?.intakeLink?.intakeMode === "EXTERNAL_PSEUDONYMOUS";
+      const submitterEmail = anonymous ? null : session?.submitterEmail ?? ev.submittedByEmail ?? null;
+      const submitterPhone = anonymous ? null : session?.submitterPhone ?? null;
+      safeEmitSecurityEvent({
+        teamId: ev.teamId,
+        eventType: "workflow_intake_recipient_contact_revealed",
+        severity: "WARNING",
+        details: {
+          actorUserId: member.userId,
+          evidenceId: ev.id,
+          disclosureType: "submitter_contact",
+          revealedEmail: Boolean(submitterEmail),
+          revealedPhone: Boolean(submitterPhone),
+        },
+      });
+      return reply.code(200).send({ submitterContact: { submitterEmail, submitterPhone } });
     },
   );
 

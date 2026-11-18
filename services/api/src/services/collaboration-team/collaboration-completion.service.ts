@@ -741,10 +741,11 @@ export async function editComment(
       "Cannot edit a deleted comment.",
       409,
     );
-  // Authors edit their own; LEAD/ADMIN can edit anyone (moderation).
+  // PRO-K2-21 / DEC-15 — only the author rewrites their own words. A
+  // LEAD/ADMIN moderates by (attributed, soft) deletion, never by editing text
+  // that stays shown under someone else's name.
   const isAuthor = comment.authorUserId === input.actorUserId;
-  const isModerator = isCollaborationTeamModerator(role);
-  if (!isAuthor && !isModerator)
+  if (!isAuthor)
     throw new CollaborationTeamError(
       "team_forbidden",
       "You can only edit your own comments.",

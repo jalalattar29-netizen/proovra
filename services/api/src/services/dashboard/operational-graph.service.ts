@@ -19,6 +19,7 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import type { HiddenRecordIds } from "../access/record-reach.js";
 
 type NodeType =
   | "INCIDENT"
@@ -414,6 +415,12 @@ export async function projectOperationalGraphForWorkspace(input: {
  */
 export async function getOperationalGraphSummary(input: {
   teamId: string;
+  /**
+   * PRO-N1-08 / B7B-F03 — the reader's closed records (required). A root cause
+   * that is, or names, a record or case closed to the reader is not listed,
+   * and closed records and cases do not move the impact counts.
+   */
+  hidden: HiddenRecordIds;
 }): Promise<{
   nodeCountsByType: Array<{ nodeType: string; count: number }>;
   edgeCountsByType: Array<{ edgeType: string; count: number }>;
@@ -500,6 +507,30 @@ export async function getOperationalGraphSummary(input: {
         })
       : [];
     const byId = new Map(sourceNodes.map((n) => [n.id, n]));
+    // PRO-N1-08 — the same predicate as incidentInReach / workflowInReach.
+    const hiddenEv = new Set(input.hidden.evidenceIds);
+    const hiddenCase = new Set(input.hidden.caseIds);
+    const closedEntity = new Set<string>();
+    if (hiddenEv.size > 0 || hiddenCase.size > 0) {
+      const incidentIds = sourceNodes.filter((n) => String(n.nodeType) === "INCIDENT").map((n) => n.entityId);
+      const workflowIds = sourceNodes.filter((n) => String(n.nodeType) === "WORKFLOW").map((n) => n.entityId);
+      const [incidents, workflows] = await Promise.all([
+        incidentIds.length
+          ? prisma.operationalIncident.findMany({ where: { id: { in: incidentIds } }, select: { id: true, relatedEvidenceId: true } })
+          : [],
+        workflowIds.length
+          ? prisma.operationalWorkflow.findMany({ where: { id: { in: workflowIds } }, select: { id: true, evidenceId: true, caseId: true } })
+          : [],
+      ]);
+      for (const i of incidents) if (i.relatedEvidenceId && hiddenEv.has(i.relatedEvidenceId)) closedEntity.add(i.id);
+      for (const w of workflows) {
+        if ((w.evidenceId && hiddenEv.has(w.evidenceId)) || (w.caseId && hiddenCase.has(w.caseId))) closedEntity.add(w.id);
+      }
+      for (const n of sourceNodes) {
+        if (String(n.nodeType) === "EVIDENCE" && hiddenEv.has(n.entityId)) closedEntity.add(n.entityId);
+        if (String(n.nodeType) === "CASE" && hiddenCase.has(n.entityId)) closedEntity.add(n.entityId);
+      }
+    }
     type TopRoot = {
       nodeId: string;
       nodeType: string;
@@ -512,7 +543,7 @@ export async function getOperationalGraphSummary(input: {
     const topRootCauses: TopRoot[] = [];
     for (const e of edgeOut) {
       const n = byId.get(e.sourceNodeId);
-      if (!n) continue;
+      if (!n || closedEntity.has(n.entityId)) continue;
       topRootCauses.push({
         nodeId: n.id,
         nodeType: String(n.nodeType),
@@ -524,6 +555,16 @@ export async function getOperationalGraphSummary(input: {
       });
     }
 
+    // Closed records and cases do not move the impact counts (PRO-N1-08).
+    const [closedEvidenceNodes, closedCaseNodes] = await Promise.all([
+      hiddenEv.size
+        ? prisma.operationalGraphNode.count({ where: { teamId: input.teamId, nodeType: "EVIDENCE", entityId: { in: [...hiddenEv] } } })
+        : 0,
+      hiddenCase.size
+        ? prisma.operationalGraphNode.count({ where: { teamId: input.teamId, nodeType: "CASE", entityId: { in: [...hiddenCase] } } })
+        : 0,
+    ]);
+    const closedNodeCounts = { evidence: closedEvidenceNodes, cases: closedCaseNodes };
     return {
       nodeCountsByType: nodeGroups.map((g) => ({
         nodeType: String(g.nodeType),
@@ -535,8 +576,8 @@ export async function getOperationalGraphSummary(input: {
       })),
       topRootCauses,
       blastRadius: {
-        impactedEvidenceCount: evCount,
-        impactedCaseCount: caseCount,
+        impactedEvidenceCount: Math.max(0, evCount - closedNodeCounts.evidence),
+        impactedCaseCount: Math.max(0, caseCount - closedNodeCounts.cases),
         impactedReviewerCount: reviewerCount,
       },
     };

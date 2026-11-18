@@ -521,6 +521,12 @@ export type TenantAuditQuery = {
   occurredUntilUtc?: Date | null;
   limit?: number;
   cursorId?: string | null;
+  /**
+   * PRO-BLZ-01 — resources closed to the reader by record reach. A row about a
+   * record, case or report the reader cannot open is not listed (as the policy
+   * violation list drops them). Omitted = no narrowing (machine/organization).
+   */
+  hiddenResources?: { evidenceIds: string[]; caseIds: string[]; reportIds: string[] } | null;
 };
 
 export type TenantAuditRow = {
@@ -566,6 +572,16 @@ export async function queryTenantAudit(
         }
       : {}),
   };
+
+  const hiddenRes = input.hiddenResources;
+  const hiddenClauses: Prisma.AdminAuditLogWhereInput[] = hiddenRes
+    ? [
+        ...(hiddenRes.evidenceIds.length ? [{ NOT: { resourceType: "evidence", resourceId: { in: hiddenRes.evidenceIds } } }] : []),
+        ...(hiddenRes.caseIds.length ? [{ NOT: { resourceType: "case", resourceId: { in: hiddenRes.caseIds } } }] : []),
+        ...(hiddenRes.reportIds.length ? [{ NOT: { resourceType: "report", resourceId: { in: hiddenRes.reportIds } } }] : []),
+      ]
+    : [];
+  if (hiddenClauses.length > 0) where.AND = hiddenClauses;
 
   let cursor: { id: string; createdAt: Date } | null = null;
   if (input.cursorId) {

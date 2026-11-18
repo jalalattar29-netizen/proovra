@@ -50,7 +50,7 @@ import {
 } from "./search/intake-identity-search.js";
 import { error as logError } from "../utils/logger.js";
 import {
-  projectRecipientContact,
+  projectRecipientContactMasked,
   type RecipientContactDisclosure,
 } from "./privacy/recipient-contact-disclosure.js";
 import { issueIntakeToken } from "./workflow-intake-token.service.js";
@@ -1004,7 +1004,7 @@ export function projectWorkflowIntakeLink(
     intakeMode: link.intakeMode,
     caseId: link.caseId,
     recipientLabel: link.recipientLabel,
-    ...projectRecipientContact(link, disclosure),
+    ...projectRecipientContactMasked(link, disclosure),
     // Customer ID is a DIFFERENT data class — organization-supplied business
     // metadata, governed by its own decision — and is deliberately not routed
     // through the recipient-contact policy.

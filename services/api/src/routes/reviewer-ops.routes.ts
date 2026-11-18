@@ -1337,6 +1337,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const reminders = await listReminders({
         teamId: q.teamId,
         limit: 25,
+        viewerUserId: ctx.actorUserId, // PRO-R2-12
         ...(ctx.mayActOnOthersReviews ? {} : { reviewerUserId: ctx.actorUserId }),
       });
       return reply.code(200).send({ reminders });

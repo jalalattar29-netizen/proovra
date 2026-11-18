@@ -194,3 +194,52 @@ export function revealRecipientContact(
     recipientPhone: source.recipientPhone,
   };
 }
+
+/**
+ * PRO-E2-02 / DEC-14 (POL-EZ-01) — THE EXTERNAL SUBMITTER'S OWN CONTACT.
+ *
+ * The person who answered an intake link is a third party exactly as the
+ * recipient is: their address and number are masked on every projection a
+ * record reader receives (detail, list, bulk/CSV, intelligence provenance, the
+ * intake summary), for every role. The raw values leave only through the
+ * audited reveal route (`POST /v1/evidence/:id/submitter-contact`), under the
+ * same `workflow.intake_recipient_contact.reveal` authority. A record captured
+ * by a workspace member is not an external submission and is unchanged.
+ */
+export function isExternalSubmitterRecord(row: { acquisitionMode?: string | null }): boolean {
+  return row.acquisitionMode === "SECURE_INTAKE_LINK";
+}
+
+export function projectSubmitterEmail(
+  email: string | null | undefined,
+  row: { acquisitionMode?: string | null },
+): string | null {
+  if (!email) return null;
+  return isExternalSubmitterRecord(row) ? maskEmail(email) : email;
+}
+
+/** The intake session's submitter contact, masked for every reader. */
+export function maskSubmitterContact(source: { email: string | null; phone: string | null }): {
+  email: string | null;
+  phone: string | null;
+} {
+  return {
+    email: source.email ? maskEmail(source.email) : null,
+    phone: source.phone ? maskPhonePreview(source.phone) : null,
+  };
+}
+
+/**
+ * PRO-I1-08 / POL-I1-04 — the intake-link projections (list, get, create,
+ * revoke, the Evidence intake summary). THE canonical rule the reveal route
+ * states: every projection ships the masked form and nothing else, for
+ * everybody; a holder of the reveal authority is told so
+ * (`recipientContactRevealAuthorized`) and asks the audited reveal route for
+ * the raw values, so every disclosure of a raw address is recorded.
+ */
+export function projectRecipientContactMasked(
+  source: RecipientContactSource,
+  disclosure: RecipientContactDisclosure,
+): RecipientContactProjection {
+  return { ...projectRecipientContact(source, disclosure), recipientEmail: null, recipientPhone: null };
+}

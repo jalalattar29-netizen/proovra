@@ -47,6 +47,8 @@ import * as React from "react";
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
 import type { IntakeLinkListItem } from "../_lib/types";
 import { buildRowModel, type IntakeRowModel } from "../_lib/rowModel";
+import { apiFetch } from "../../../../lib/api";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { DeliveryChannelIcon, IconDots, IconSpinner } from "./icons";
 import {
   AppRowMenu,
@@ -158,11 +160,41 @@ function RequestCell({
  * Absence omits a line. It does not print a dash, and it never substitutes.
  */
 function IdentityCell({ row }: { row: IntakeRowModel }) {
-  const maskedEmailTitle = row.recipientContactIsMasked
-    ? "Masked — you do not have permission to view the full address"
-    : row.recipientEmail ?? undefined;
-  const maskedPhoneTitle = row.recipientContactIsMasked
-    ? "Masked — you do not have permission to view the full number"
+  // PRO-I1-08 — the list is masked for everybody; a reader holding the reveal
+  // authority asks the audited reveal route, one row at a time.
+  const [raw, setRaw] = React.useState<{ recipientEmail: string | null; recipientPhone: string | null } | null>(null);
+  const [revealBusy, setRevealBusy] = React.useState(false);
+  const [revealError, setRevealError] = React.useState<string | null>(null);
+  async function toggleReveal() {
+    if (raw) {
+      setRaw(null);
+      return;
+    }
+    setRevealBusy(true);
+    setRevealError(null);
+    try {
+      const body = (await apiFetch(`/v1/workflow/intake-links/${encodeURIComponent(row.id)}/recipient-contact`, {
+        method: "POST",
+      })) as { recipientContact: { recipientEmail: string | null; recipientPhone: string | null } };
+      setRaw(body.recipientContact);
+    } catch (err) {
+      setRevealError(toSafeUserError(err, { message: "Could not show the full recipient contact." }).message);
+    } finally {
+      setRevealBusy(false);
+    }
+  }
+  const shownEmail = raw?.recipientEmail ?? row.recipientEmail;
+  const shownPhone = raw?.recipientPhone ?? row.recipientPhone;
+  const masked = row.recipientContactIsMasked && !raw;
+  const maskedEmailTitle = masked
+    ? row.recipientContactRevealable
+      ? "Masked — use Show full contact to see it (the reveal is recorded)"
+      : "Masked — you do not have permission to view the full address"
+    : shownEmail ?? undefined;
+  const maskedPhoneTitle = masked
+    ? row.recipientContactRevealable
+      ? "Masked — use Show full contact to see it (the reveal is recorded)"
+      : "Masked — you do not have permission to view the full number"
     : undefined;
 
   return (
@@ -189,7 +221,7 @@ function IdentityCell({ row }: { row: IntakeRowModel }) {
               {row.recipientName}
             </span>
           ) : null}
-          {row.recipientEmail ? (
+          {shownEmail ? (
             /*
              * An address may be long and is the one identifier here that can
              * lose its tail without losing its meaning, so it is the one
@@ -201,16 +233,32 @@ function IdentityCell({ row }: { row: IntakeRowModel }) {
               data-intake-links-recipient-email
               title={maskedEmailTitle}
             >
-              {row.recipientEmail}
+              {shownEmail}
             </span>
           ) : null}
-          {row.recipientPhone ? (
+          {shownPhone ? (
             <span
               className="ilk-identity__phone ilk-ltr"
               data-intake-links-recipient-phone
               title={maskedPhoneTitle}
             >
-              {row.recipientPhone}
+              {shownPhone}
+            </span>
+          ) : null}
+          {row.recipientContactRevealable && (row.recipientEmail || row.recipientPhone) ? (
+            <button
+              type="button"
+              className="ilk-identity__reveal"
+              onClick={() => void toggleReveal()}
+              disabled={revealBusy}
+              data-intake-links-recipient-reveal
+            >
+              {revealBusy ? "Loading…" : raw ? "Hide full contact" : "Show full contact"}
+            </button>
+          ) : null}
+          {revealError ? (
+            <span className="ilk-identity__reveal-error" role="alert">
+              {revealError}
             </span>
           ) : null}
         </div>

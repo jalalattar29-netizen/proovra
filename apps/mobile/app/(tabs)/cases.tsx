@@ -27,6 +27,7 @@ import {
 import { caseStatusDisplay } from "../../src/product/domain-display";
 import { usePlatformContext } from "../../src/product/platform-context";
 import { ChallengeStepUpSheet, useChallengeStepUp } from "../../src/ui/challenge-step-up";
+import { STEP_UP_CANCEL } from "../../src/product/challenge-step-up";
 import {
   CASES_PLAN_LOCKED_COPY,
   CREATE_CASE_COPY,
@@ -197,6 +198,8 @@ export default function CasesScreen() {
       }
       await load();
     } catch (err) {
+      // PRO-NC-02 — the person closed the step-up: nothing was deleted and nothing failed.
+      if ((err as { code?: string } | null)?.code === STEP_UP_CANCEL) return;
       addToast(toSafeUserError(err, { message: c.kind === "archive" ? "Could not archive case." : "Could not delete case." }).message, "error");
     } finally {
       setRowBusy(null);

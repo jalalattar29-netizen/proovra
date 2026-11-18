@@ -379,14 +379,17 @@ function CommentRow({
           )}
           {!editing && writable && (canModerate || isAuthor) ? (
             <div style={{ display: "flex", gap: 4, marginLeft: -6 }}>
-              <button
-                type="button"
-                onClick={() => setEditing(true)}
-                className="app-ghost-action"
-                data-testid={`comment-edit-${comment.id}`}
-              >
-                Edit
-              </button>
+              {/* PRO-K2-21 / DEC-15 — only the author edits; a moderator deletes. */}
+              {isAuthor ? (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="app-ghost-action"
+                  data-testid={`comment-edit-${comment.id}`}
+                >
+                  Edit
+                </button>
+              ) : null}
               {canModerate || isAuthor ? (
                 <button
                   type="button"

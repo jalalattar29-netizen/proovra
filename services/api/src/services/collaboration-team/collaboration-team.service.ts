@@ -56,6 +56,8 @@ import {
   accessibleWorkspaceIdsFor,
   caseReachWhere,
   evidenceReachWhere,
+  hiddenRecordIdsInWorkspace,
+  hiddenWorkflowIdsInWorkspace,
 } from "../access/record-reach.js";
 import { workspaceIncludesReviewCapability } from "../billing-enforcement.service.js";
 /**
@@ -3314,6 +3316,31 @@ export async function listCollaborationTeamMembers(
   };
 }
 
+/**
+ * PRO-K2-22 — the ids of the records, cases and review workflows a restricted
+ * case closes to this viewer inside the group's workspace (case-visibility.ts
+ * through record-reach.ts). A group row that names one of them keeps its
+ * existence but not the closed record's id, note or metadata.
+ */
+async function closedTargetIdsFor(
+  client: PrismaClient,
+  workspaceId: string,
+  viewerUserId: string,
+): Promise<Set<string>> {
+  const [hidden, workflows] = await Promise.all([
+    hiddenRecordIdsInWorkspace(workspaceId, viewerUserId, client),
+    hiddenWorkflowIdsInWorkspace(workspaceId, viewerUserId, client),
+  ]);
+  return new Set([...hidden.evidenceIds, ...hidden.caseIds, ...workflows]);
+}
+
+function withoutClosedIds(metadata: unknown, closed: Set<string>): unknown {
+  if (closed.size === 0 || !metadata || typeof metadata !== "object" || Array.isArray(metadata)) return metadata;
+  return Object.fromEntries(
+    Object.entries(metadata as Record<string, unknown>).filter(([, v]) => !(typeof v === "string" && closed.has(v))),
+  );
+}
+
 export async function listTeamActivity(
   input: {
     teamId: string;
@@ -3357,14 +3384,17 @@ export async function listTeamActivity(
   });
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
+  // PRO-K2-22 — target ids and metadata naming a closed record are withheld.
+  const groupRow = await client.collaborationTeam.findUnique({ where: { id: input.teamId }, select: { workspaceId: true } });
+  const closed = groupRow ? await closedTargetIdsFor(client, groupRow.workspaceId, input.actorUserId) : new Set<string>();
   return {
     items: items.map((r) => ({
       id: r.id,
       eventType: r.eventType as CollaborationTeamActivityEventType,
       actorUserId: r.actorUserId,
       targetType: r.targetType,
-      targetId: r.targetId,
-      metadata: r.metadata,
+      targetId: r.targetId && closed.has(r.targetId) ? null : r.targetId,
+      metadata: withoutClosedIds(r.metadata, closed),
       createdAt: r.createdAt,
     })),
     nextCursor: hasMore ? items[items.length - 1]!.id : null,
@@ -4126,10 +4156,13 @@ export async function listAssignments(
     input.actorUserId,
   );
 
+  // PRO-K2-22 — a task on a record closed to the viewer keeps its row (CT-04)
+  // but not the record's id or the free-text note about it.
+  const closedTargets = await closedTargetIdsFor(client, team.workspaceId, input.actorUserId);
   const items = rows.map((a) => ({
     id: a.id,
     targetType: a.targetType as CollaborationTeamAssignmentTarget,
-    targetId: a.targetId,
+    targetId: closedTargets.has(a.targetId) ? null : a.targetId,
     // The record this assignment is ABOUT — resolved, never stored.
     target: targets.get(targetKey(a.targetType, a.targetId)) ?? UNRESOLVED_TARGET,
     assigneeUserId: a.assigneeUserId,
@@ -4144,7 +4177,7 @@ export async function listAssignments(
       a.dueAtUtc !== null &&
       a.dueAtUtc < now &&
       (OPEN_ASSIGNMENT_STATUSES as ReadonlyArray<string>).includes(a.status),
-    note: a.note,
+    note: closedTargets.has(a.targetId) ? null : a.note,
     createdAt: a.createdAt,
     updatedAt: a.updatedAt,
     completedAtUtc: a.completedAtUtc,

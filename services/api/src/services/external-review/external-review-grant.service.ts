@@ -669,6 +669,31 @@ export async function externalReviewGrantSubjectInReach(
 }
 
 /**
+ * PRO-R1-11 — of these grant ids, the ones whose subject (record, case, or the
+ * record a package was issued for) is closed to the reader: the grant list's
+ * A2-08 rule, for the invitation surfaces that read the same rows.
+ */
+export async function closedExternalReviewGrantIds(
+  input: { teamId: string; grantIds: readonly string[]; hidden: { evidenceIds: readonly string[]; caseIds: readonly string[] } },
+  client: PrismaClient = defaultPrisma,
+): Promise<Set<string>> {
+  if (input.grantIds.length === 0 || (input.hidden.evidenceIds.length === 0 && input.hidden.caseIds.length === 0)) {
+    return new Set();
+  }
+  const rows = await client.$queryRaw<Array<{ id: string }>>`
+    SELECT g."id" FROM "external_review_grants" g
+     WHERE g."team_id" = ${input.teamId}::uuid
+       AND g."id" = ANY(${[...input.grantIds]}::uuid[])
+       AND (
+         g."evidence_id" = ANY(${[...input.hidden.evidenceIds]}::uuid[])
+         OR g."case_id" = ANY(${[...input.hidden.caseIds]}::uuid[])
+         OR g."package_id" IN (SELECT "id" FROM "verification_packages" WHERE "evidence_id" = ANY(${[...input.hidden.evidenceIds]}::uuid[]))
+       )
+  `;
+  return new Set(rows.map((r) => r.id));
+}
+
+/**
  * D33 (2026-09-17) — true when the grant is a portal invitation that requires
  * the emailed one-time code (`external_reviewer_role_assignments.mfa_required`).
  * Callers that cannot run that step refuse the grant. A read failure answers
@@ -926,7 +951,12 @@ export async function listExternalReviewGrants(
   }
   if (input.hidden && input.hidden.evidenceIds.length > 0) {
     params.push([...input.hidden.evidenceIds]);
-    where.push(`("evidence_id" IS NULL OR "evidence_id" <> ALL($${params.length}::uuid[]))`);
+    where.push(`("evidence_id" IS NULL OR "evidence_id" <> ALL(${params.length}::uuid[]))`);
+    // PRO-AI1Z-02 — a PACKAGE grant stores only its package: resolved to the
+    // record it was issued for, by the same closed-record list.
+    where.push(
+      `("package_id" IS NULL OR "package_id" NOT IN (SELECT "id" FROM "verification_packages" WHERE "evidence_id" = ANY(${params.length}::uuid[])))`,
+    );
   }
   if (input.hidden && input.hidden.caseIds.length > 0) {
     params.push([...input.hidden.caseIds]);

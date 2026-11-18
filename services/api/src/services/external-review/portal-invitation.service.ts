@@ -35,6 +35,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
+  closedExternalReviewGrantIds,
   issueExternalReviewGrant,
   transitionExternalReviewGrant,
 } from "./external-review-grant.service.js";
@@ -252,13 +253,25 @@ export async function listInvitationsForTeam(input: {
   prisma?: PrismaClient;
   teamId: string;
   limit?: number;
+  /**
+   * PRO-R1-11 — the reader's closed records (A2-08). An invitation whose grant
+   * names a record or case closed to the reader is not listed.
+   */
+  hidden?: { evidenceIds: readonly string[]; caseIds: readonly string[] } | null;
 }) {
   const prisma = input.prisma ?? defaultPrisma;
-  const assignments = await prisma.externalReviewerRoleAssignment.findMany({
+  const allAssignments = await prisma.externalReviewerRoleAssignment.findMany({
     where: { teamId: input.teamId },
     orderBy: { inviteSentAtUtc: "desc" },
     take: Math.min(input.limit ?? 100, 500),
   });
+  const closed = input.hidden
+    ? await closedExternalReviewGrantIds(
+        { teamId: input.teamId, grantIds: allAssignments.map((a) => a.id), hidden: input.hidden },
+        prisma,
+      )
+    : new Set<string>();
+  const assignments = allAssignments.filter((a) => !closed.has(a.id));
   // Activity counts (open & total) via aggregate.
   const totals = await prisma.externalReviewActivity.groupBy({
     by: ["grantId"],

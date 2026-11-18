@@ -35,7 +35,7 @@ import { maskEmail, maskPhonePreview } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../db.js";
 import {
-  projectRecipientContact,
+  projectRecipientContactMasked,
   type RecipientContactDisclosure,
 } from "./privacy/recipient-contact-disclosure.js";
 
@@ -547,7 +547,7 @@ export async function projectIntakeLinkList(
         ? snapshot.name
         : link.workflowTemplateSlug;
 
-    const recipientContact = projectRecipientContact(link, disclosure);
+    const recipientContact = projectRecipientContactMasked(link, disclosure);
 
     return {
       link: {
