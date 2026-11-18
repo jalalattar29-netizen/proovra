@@ -77,6 +77,11 @@ export interface PersistedCapturedItem {
    * (absent otherwise). Persisted so a resumed upload still states it.
    */
   audioRecorded?: boolean;
+  /**
+   * PRO-NB-06 — the operator's per-item "Source (optional)" note. It reaches
+   * the sealed part as its sourceLabel, so it survives a restart or resume.
+   */
+  sourceNote?: string;
 }
 
 /**
@@ -181,6 +186,7 @@ export function serializeSession(input: CaptureSessionInput): PersistedCaptureSe
       uploaded: !!it.uploaded,
       ...(it.itemSourceLabel ? { itemSourceLabel: it.itemSourceLabel } : {}),
       ...(it.audioRecorded === false ? { audioRecorded: false } : {}),
+      ...(typeof it.sourceNote === "string" && it.sourceNote.trim() ? { sourceNote: it.sourceNote.trim().slice(0, 120) } : {}),
     })),
     acquisition: input.acquisition ?? null,
     draftId: input.draftId ?? null,
@@ -192,11 +198,40 @@ export function serializeSession(input: CaptureSessionInput): PersistedCaptureSe
 }
 
 /**
+ * PRO-NB-02 — a record staged while no draft or direct session exists yet
+ * (offline, refused, workspace not resolved) is kept under a client-generated
+ * id with this prefix. It names nothing on the server.
+ */
+export const LOCAL_RECORD_PREFIX = "local:";
+
+/** PURE — a record that exists only on this device (no draft, no server session). */
+export function isLocalOnlyRecord(s: Pick<PersistedCaptureSession, "captureSessionId">): boolean {
+  return s.captureSessionId.startsWith(LOCAL_RECORD_PREFIX);
+}
+
+/**
+ * PRO-NB-01 — does the SERVER hold this record's staged content? A screen
+ * acquisition stages its parts (and deletes the device copies) before Finish;
+ * an ordinary capture whose Finish uploaded some parts holds those. The
+ * server keeps such a session to its 24 h lifetime (C-02), so the device clock
+ * never decides it is gone.
+ */
+export function holdsStagedContent(s: Pick<PersistedCaptureSession, "acquisition" | "items">): boolean {
+  return !!s.acquisition || s.items.some((it) => it.uploaded);
+}
+
+/**
  * Stale = the server session expired (expiresAtUtc in the past) OR the local
  * record hasn't been touched within the max age. A stale session can only be
  * discarded — it cannot be completed against an expired server session.
+ *
+ * PRO-NB-01 — never for a record whose content the server holds (the server is
+ * the only authority that expires it: Finish asks, and a session past its
+ * lifetime answers CAPTURE_WINDOW_EXPIRED), and never for a device-only record
+ * (nothing on the server can expire it; its files are the only copy).
  */
 export function isSessionStale(s: PersistedCaptureSession, nowMs: number = Date.now()): boolean {
+  if (isLocalOnlyRecord(s) || holdsStagedContent(s)) return false;
   if (s.expiresAtUtc) {
     const exp = Date.parse(s.expiresAtUtc);
     if (Number.isFinite(exp) && exp <= nowMs) return true;
@@ -247,6 +282,7 @@ export function validatePersisted(raw: unknown): PersistedCaptureSession | null 
       uploaded: !!it.uploaded,
       ...(typeof it.itemSourceLabel === "string" && it.itemSourceLabel ? { itemSourceLabel: it.itemSourceLabel } : {}),
       ...(it.audioRecorded === false ? { audioRecorded: false } : {}),
+      ...(typeof it.sourceNote === "string" && it.sourceNote ? { sourceNote: it.sourceNote.slice(0, 120) } : {}),
     });
   }
   // An acquisition that does not name a mode this build knows is dropped

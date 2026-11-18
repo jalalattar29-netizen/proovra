@@ -776,12 +776,52 @@ export type ReserveDirectCaptureEvidenceInput = {
   deviceTimeIso?: string;
   gps?: { lat: number; lng: number; accuracyMeters?: number; providerReportedMock?: boolean };
   locationRequestOutcome?: "DENIED" | "UNAVAILABLE" | "TIMEOUT" | "NOT_REQUESTED";
+  /** PRO-NB-09 — the caller's capture DRAFT to bind to the reserved record. */
+  captureDraftId?: string | null;
   now?: Date;
 };
 
+/**
+ * PRO-NB-09 — the plan a capture DRAFT carries, in the intakePlanJson shape the
+ * web finalize writes and the server checklist gate reads
+ * (validateRequiredChecklistMapping). Null when the draft holds no plan.
+ */
+function intakePlanFromDraft(draft: {
+  templateSnapshot: unknown;
+  planMode: string | null;
+}): prismaPkg.Prisma.InputJsonValue | null {
+  const snap = draft.templateSnapshot as
+    | {
+        templateId?: unknown;
+        templateName?: unknown;
+        templateVersion?: unknown;
+        locationRequirement?: unknown;
+        steps?: Array<Record<string, unknown>>;
+      }
+    | null;
+  if (!snap || typeof snap !== "object" || !Array.isArray(snap.steps)) return null;
+  const step = (s: Record<string, unknown>) => ({
+    id: s.id,
+    title: s.title,
+    description: s.description ?? null,
+    purposeLabel: s.purposeLabel ?? null,
+    acceptedKinds: Array.isArray(s.acceptedKinds) ? s.acceptedKinds : [],
+  });
+  return {
+    templateId: snap.templateId ?? null,
+    templateName: snap.templateName ?? null,
+    templateVersion: snap.templateVersion ?? null,
+    mode: draft.planMode ?? "FLEXIBLE",
+    locationRequirement: snap.locationRequirement ?? null,
+    requiredSteps: snap.steps.filter((s) => s.required === true).map(step),
+    optionalSteps: snap.steps.filter((s) => s.required !== true).map(step),
+    source: "CAPTURE_DRAFT",
+  } as prismaPkg.Prisma.InputJsonValue;
+}
+
 export async function reserveDirectCaptureEvidence(
   input: ReserveDirectCaptureEvidenceInput,
-): Promise<{ evidenceId: string; teamId: string; acquisitionMode: EvidenceAcquisitionMode }> {
+): Promise<{ evidenceId: string; teamId: string; acquisitionMode: EvidenceAcquisitionMode; draftBound?: boolean }> {
   const db = input.prisma ?? defaultPrisma;
   const now = input.now ?? new Date();
 
@@ -824,6 +864,23 @@ export async function reserveDirectCaptureEvidence(
         throw new DirectCaptureError("UNSUPPORTED_MODE");
       }
 
+      // PRO-NB-09 — the caller's own DRAFT in the same workspace, still open.
+      // Anything else (another owner, another workspace, a finished draft) is
+      // simply not bound: the reservation never fails because of it.
+      const draft = input.captureDraftId
+        ? await tx.captureSession.findFirst({
+            where: {
+              id: input.captureDraftId,
+              ownerUserId: input.ownerUserId,
+              teamId: session.teamId,
+              status: prismaPkg.CaptureSessionStatus.DRAFT,
+              acquisitionMode: null,
+            },
+            select: { id: true, templateSnapshot: true, planMode: true },
+          })
+        : null;
+      const intakePlanJson = draft ? intakePlanFromDraft(draft) : null;
+
       const created = await createEvidence({
         ownerUserId: input.ownerUserId,
         teamId: session.teamId,
@@ -836,6 +893,7 @@ export async function reserveDirectCaptureEvidence(
         locationRequestOutcome: input.locationRequestOutcome,
         acquisitionMode: session.acquisitionMode,
         captureSessionId: session.id,
+        ...(intakePlanJson ? { intakePlanJson } : {}),
         transaction: tx,
       });
 
@@ -843,6 +901,15 @@ export async function reserveDirectCaptureEvidence(
         where: { id: session.id },
         data: { finalizedEvidenceId: created.id },
       });
+      if (draft) {
+        // Bound as POST /v1/evidence binds it: the seal FINALIZES the draft
+        // (completeEvidence), so a sealed native capture's draft is no longer
+        // recorded as DISCARDED.
+        await tx.captureSession.update({
+          where: { id: draft.id },
+          data: { finalizedEvidenceId: created.id },
+        });
+      }
       await extendDirectCaptureSessionOnActivity(tx as unknown as PrismaClient, session, now);
 
       return {
@@ -850,6 +917,7 @@ export async function reserveDirectCaptureEvidence(
         teamId: created.teamId,
         acquisitionMode: session.acquisitionMode,
         afterCommit: created.afterCommit,
+        draftBound: Boolean(draft),
       };
     },
     { timeout: 30_000, maxWait: 10_000 },
@@ -863,6 +931,9 @@ export async function reserveDirectCaptureEvidence(
     evidenceId: reserved.evidenceId,
     teamId: reserved.teamId,
     acquisitionMode: reserved.acquisitionMode,
+    // PRO-NB-09 — additive: the draft named in the request is bound (an older
+    // app never asks, and ignores the field).
+    ...(reserved.draftBound ? { draftBound: true } : {}),
   };
 }
 

@@ -67,15 +67,64 @@ test("pendingItems returns only not-yet-uploaded items (resume never re-uploads)
   assert.deepEqual(pending.map((i) => i.id), ["b"]);
 });
 
-test("a session with an expired server session is stale (cannot complete)", () => {
-  const s = mod.serializeSession(baseInput({ expiresAtUtc: past }));
+// A record whose items are all still on the device (nothing staged server-side).
+const unstaged = (o = {}) =>
+  baseInput({
+    items: [{ id: "b", uri: "file:///b.jpg", mimeType: "image/jpeg", partIndex: 0, source: "CAMERA", uploaded: false }],
+    ...o,
+  });
+
+test("an UNSTAGED session with an expired server session is stale (cannot complete)", () => {
+  const s = mod.serializeSession(unstaged({ expiresAtUtc: past }));
   assert.equal(mod.isSessionStale(s, NOW), true);
   assert.equal(mod.isSessionResumable(s, NOW), false);
 });
 
-test("a session untouched past the max age is stale", () => {
-  const s = mod.serializeSession(baseInput({ now: NOW - (mod.CAPTURE_SESSION_MAX_AGE_MS + 1000) }));
+test("an UNSTAGED session untouched past the max age is stale", () => {
+  const s = mod.serializeSession(unstaged({ now: NOW - (mod.CAPTURE_SESSION_MAX_AGE_MS + 1000) }));
   assert.equal(mod.isSessionStale(s, NOW), true);
+});
+
+// PRO-NB-01 — the device clock never discards what the server holds.
+test("PRO-NB-01: a record whose parts are staged on the server is never stale by the device clock", () => {
+  const twoHoursLater = NOW + 2 * 60 * 60 * 1000;
+  const uploadedPart = mod.serializeSession(baseInput({ expiresAtUtc: past }));
+  assert.equal(mod.holdsStagedContent(uploadedPart), true);
+  assert.equal(mod.isSessionStale(uploadedPart, twoHoursLater), false);
+  assert.equal(mod.isSessionResumable(uploadedPart, twoHoursLater), true);
+  const screen = mod.serializeSession(
+    unstaged({
+      expiresAtUtc: past,
+      acquisition: { mode: "DIRECT_SCREEN_CAPTURE_ANDROID", manifestJson: "{}" },
+    }),
+  );
+  // Device clock 3 h ahead: still offered.
+  assert.equal(mod.isSessionResumable(screen, NOW + 3 * 60 * 60 * 1000), true);
+});
+
+// PRO-NB-02 — a device-only record (no draft, no session yet) is kept and offered.
+test("PRO-NB-02: a device-only record is resumable, never stale, and holds no server session", () => {
+  const local = mod.serializeSession(
+    unstaged({ captureSessionId: "local:abc", evidenceId: "local:abc", expiresAtUtc: "", now: NOW - 3 * mod.CAPTURE_SESSION_MAX_AGE_MS }),
+  );
+  assert.equal(mod.isLocalOnlyRecord(local), true);
+  assert.equal(mod.isSessionStale(local, NOW), false);
+  assert.equal(mod.isSessionResumable(local, NOW), true);
+  assert.ok(mod.validatePersisted(local));
+});
+
+// PRO-NB-06 — the per-item Source note survives the durable record.
+test("PRO-NB-06: the per-item Source note is persisted, trimmed and bounded", () => {
+  const s = mod.serializeSession(
+    unstaged({
+      items: [{ id: "b", uri: "file:///b.jpg", mimeType: "image/jpeg", partIndex: 0, source: "CAMERA", uploaded: false, sourceNote: "  shop CCTV  " }],
+    }),
+  );
+  assert.equal(s.items[0].sourceNote, "shop CCTV");
+  const back = mod.validatePersisted(JSON.parse(JSON.stringify(s)));
+  assert.equal(back.items[0].sourceNote, "shop CCTV");
+  const long = mod.serializeSession(unstaged({ items: [{ ...s.items[0], sourceNote: "x".repeat(500) }] }));
+  assert.equal(long.items[0].sourceNote.length, 120);
 });
 
 test("a fresh non-empty session is resumable; an empty one is not", () => {

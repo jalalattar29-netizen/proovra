@@ -209,6 +209,10 @@ const ReserveDirectEvidenceBody = z
     // The outcome of a location request that produced no coordinates; recorded
     // in the creation custody event (canonical location state). Optional.
     locationRequestOutcome: z.enum(["DENIED", "UNAVAILABLE", "TIMEOUT", "NOT_REQUESTED"]).optional(),
+    // PRO-NB-09 — the caller's own capture DRAFT, bound to the record exactly as
+    // POST /v1/evidence binds captureSessionId (plan snapshot; FINALIZED at the
+    // seal). Optional: an older app sends none and keeps today's behaviour.
+    captureDraftId: z.string().uuid().optional(),
   })
   .strict();
 
@@ -494,6 +498,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
           deviceTimeIso: body.deviceTimeIso,
           gps: body.gps,
           locationRequestOutcome: body.locationRequestOutcome,
+          captureDraftId: body.captureDraftId ?? null,
         });
         return reply.code(201).send({ evidence: reserved });
       } catch (err) {
