@@ -32,7 +32,7 @@ import { WORKSPACE_SWITCH_BLOCKED_BODY, WORKSPACE_SWITCH_BLOCKED_TITLE, workspac
 import { apiFetch } from "../../src/api";
 import { workspaceSwitchRefusal } from "../../src/auth/session-end";
 import { toSafeUserError } from "../../src/errors/safe-error";
-import { usePlatformContext } from "../../src/product/platform-context";
+import { adoptSwitchedWorkspace, usePlatformContext } from "../../src/product/platform-context";
 import { canViewWorkspaceAudit } from "../../src/product/workspace-audit";
 import { WorkspaceAuditSection } from "../../src/ui/workspace-audit-section";
 import { useToast } from "../../src/toast-context";
@@ -123,13 +123,14 @@ export default function SpacesScreen() {
       }
       setBusy(true);
       try {
-        await apiFetch(SWITCH_WORKSPACE_PATH, {
+        const switched = await apiFetch(SWITCH_WORKSPACE_PATH, {
           method: "POST",
           body: JSON.stringify(buildSwitchWorkspaceBody(space.id)),
         });
-        // The pointer lives on the server. Rereading the envelope is what makes
-        // it true here, rather than assuming the switch landed.
-        refresh();
+        // PRO-NA-06 — the request header follows the accepted switch at once;
+        // the envelope re-read (which adoptSwitchedWorkspace starts) confirms it.
+        adoptSwitchedWorkspace(switched, space.id);
+        void refresh;
         addToast(`You are now working in ${space.name}.`, "success");
       } catch (err) {
         addToast(workspaceSwitchRefusal(err) ?? toSafeUserError(err).message, "error");

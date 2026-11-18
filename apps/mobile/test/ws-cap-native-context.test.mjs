@@ -45,3 +45,13 @@ test("PRO-N1-09: Home activity drops another workspace's 'request more' entries"
   assert.ok(titles.some((t) => t.includes("Mine")), JSON.stringify(groups));
   assert.ok(!titles.some((t) => t.includes("Other")));
 });
+
+test("PRO-NA-04: a signed-out record link keeps its original URL for the post-sign-in replay", async () => {
+  const PI = await loadModule("src/deep-link/pending-intent.ts", ["test/support/expo-stub.mjs"]);
+  PI.setPendingRoute("/evidence/E-1", "proovra://evidence/E-1");
+  assert.deepEqual(PI.takePendingIntent(), { route: "/evidence/E-1", url: "proovra://evidence/E-1" });
+  assert.equal(PI.takePendingIntent(), null);
+  // A plain destination (no record link) is still a route only.
+  PI.setPendingRoute("/(tabs)/notifications");
+  assert.deepEqual(PI.takePendingIntent(), { route: "/(tabs)/notifications", url: null });
+});

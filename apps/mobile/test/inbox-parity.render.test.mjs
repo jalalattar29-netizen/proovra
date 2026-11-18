@@ -292,7 +292,8 @@ test("inbox hrefs the route emits map onto the native screens that exist", async
   assert.equal(resolveInboxRoute("/organizations/o1"), "/organizations/o1");
   assert.equal(resolveInboxRoute("/organizations"), "/organizations");
   assert.equal(resolveInboxRoute("/settings/security"), "/settings/security");
-  assert.equal(resolveInboxRoute("/intake-links?linkId=l1"), "/intake-links");
+  // PRO-NC-04 — the query naming the link is kept.
+  assert.equal(resolveInboxRoute("/intake-links?linkId=l1"), "/intake-links?linkId=l1");
   assert.equal(resolveInboxRoute("/reviewer-ops/w1"), null);
   assert.equal(resolveInboxRoute("/security-center/mfa-recovery?requestId=1"), null);
 });

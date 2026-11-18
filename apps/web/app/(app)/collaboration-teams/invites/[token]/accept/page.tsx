@@ -32,6 +32,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { ProovraSystemState } from "../../../../../../components/feedback/ProovraSystemState";
 import { useToast } from "../../../../../../components/ui";
+import { useOptionalPlatformContext } from "../../../../../../lib/platform-context/PlatformContextProvider";
 import { isApiResponseError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { acceptInvite } from "../../../../../../lib/api/collaboration-teams";
@@ -85,6 +86,7 @@ function AcceptTeamInvite() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const { addToast } = useToast();
+  const platform = useOptionalPlatformContext();
   const rawToken = decodeURIComponent(params?.token ?? "");
   const [status, setStatus] = useState<Status>("checking");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -123,6 +125,14 @@ function AcceptTeamInvite() {
       }
       setStatus("success");
       addToast("You've joined the team.", "success");
+      // PRO-KZ-02 — open the team IN its workspace: switch first when it is not
+      // the active one (an older API sends no workspaceId: unchanged behaviour).
+      const teamWorkspaceId = (result as { workspaceId?: string | null }).workspaceId ?? null;
+      if (platform && teamWorkspaceId && teamWorkspaceId !== platform.activeWorkspaceId) {
+        const personalId =
+          platform.envelope?.contextOptions?.personalSpace?.workspaceId ?? platform.envelope?.personalSpace?.id ?? null;
+        await platform.switchWorkspace(teamWorkspaceId === personalId ? null : teamWorkspaceId);
+      }
       setTimeout(() => {
         router.replace(`/collaboration-teams/${result.teamId}`);
       }, 700);
@@ -158,7 +168,7 @@ function AcceptTeamInvite() {
         setErrorMessage("We couldn't complete that action. Please try again.");
       }
     }
-  }, [rawToken, router, addToast]);
+  }, [rawToken, router, addToast, platform]);
 
   // Acceptance is a ONE-SHOT mutation: `startedRef` makes it idempotent, so
   // listing `run` cannot produce a second accept even if its identity changes.

@@ -230,6 +230,11 @@ export interface InboxViewItem extends InboxItem {
   dueAt: string | null;
   /** Absent reads as true — the route sets it on every item it emits. */
   canMarkRead: boolean;
+  /**
+   * PRO-NC-04 / PRO-N1-02 — the workspace the item belongs to (the server's
+   * context.teamId); null for an account-tier item or an older envelope.
+   */
+  workspaceId?: string | null;
 }
 
 type ToneCounts = Record<InboxTone, number>;
@@ -306,6 +311,7 @@ export function parseInboxEnvelope(raw: unknown): InboxEnvelope {
       dueAt: str(i.dueAt),
       canMarkRead: i.canMarkRead !== false,
       canDismiss: i.canDismiss !== false,
+      workspaceId: str(obj(i.context).teamId),
     };
   });
   const byCategory: Record<string, number> = {};

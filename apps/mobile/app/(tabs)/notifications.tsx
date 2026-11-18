@@ -37,7 +37,7 @@ import {
   type InboxViewItem,
   type PrimaryView,
 } from "../../src/product/inbox-view";
-import { refreshPlatformContext, usePlatformContext } from "../../src/product/platform-context";
+import { adoptSwitchedWorkspace, usePlatformContext } from "../../src/product/platform-context";
 import { parseCanonicalMobileDeepLink, resolveMobileDeepLink } from "../../src/deep-link";
 import { SWITCH_WORKSPACE_PATH, buildSwitchWorkspaceBody } from "../../src/product/spaces";
 import { WORKSPACE_SWITCH_BLOCKED_BODY, workspaceSwitchBlocked } from "../../src/product/workspace-switch-guard";
@@ -208,6 +208,8 @@ export default function NotificationsScreen() {
    * (organizations, settings, intake links) open as before.
    */
   const activeTeamId = platform.context?.activeTeamId ?? null;
+  /** Account-tier destinations are the same in every workspace. */
+  const accountTierRoute = (r: string) => r === "/organizations" || r.startsWith("/organizations/") || r.startsWith("/settings");
   const open = useCallback(
     async (item: InboxViewItem, route: string) => {
       const markRead = () => {
@@ -215,7 +217,29 @@ export default function NotificationsScreen() {
       };
       const href = item.href ?? "";
       const url = href.startsWith("/") ? `https://app.proovra.com${href}` : "";
+      // PRO-NC-04 / PRO-N1-02 — a workspace-owned destination opens IN the
+      // item's workspace: switched to first (the header follows at once), and a
+      // refused switch opens nothing and leaves the item unread.
+      const switchToItemWorkspace = async (target: string | null | undefined): Promise<boolean> => {
+        if (!target || target === activeTeamId || accountTierRoute(route)) return true;
+        if (workspaceSwitchBlocked()) {
+          addToast(WORKSPACE_SWITCH_BLOCKED_BODY, "error");
+          return false;
+        }
+        try {
+          const switched = await apiFetch(SWITCH_WORKSPACE_PATH, {
+            method: "POST",
+            body: JSON.stringify(buildSwitchWorkspaceBody(target)),
+          });
+          adoptSwitchedWorkspace(switched, target);
+          return true;
+        } catch {
+          addToast("This item is not available.", "error");
+          return false;
+        }
+      };
       if (!url || !parseCanonicalMobileDeepLink(url)) {
+        if (!(await switchToItemWorkspace(item.workspaceId))) return;
         markRead();
         router.push(route as never);
         return;
@@ -229,18 +253,9 @@ export default function NotificationsScreen() {
         hasActiveWork: workspaceSwitchBlocked,
       });
       if (outcome.status === "navigate") {
-        try {
-          if (outcome.workspaceId && outcome.workspaceId !== activeTeamId) {
-            await apiFetch(SWITCH_WORKSPACE_PATH, {
-              method: "POST",
-              body: JSON.stringify(buildSwitchWorkspaceBody(outcome.workspaceId)),
-            });
-            refreshPlatformContext();
-          }
-        } catch {
-          addToast("This item is not available.", "error");
-          return;
-        }
+        // The server's answer decides; a family it cannot resolve yet (cases)
+        // falls back to the item's own workspace.
+        if (!(await switchToItemWorkspace(outcome.workspaceId ?? item.workspaceId))) return;
         markRead();
         router.push(outcome.route as never);
       } else if (outcome.status === "denied") {

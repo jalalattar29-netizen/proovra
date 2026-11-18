@@ -16,7 +16,9 @@ import { endSessionReplacedBy } from "./account-switch";
 import { fetchMe, getLegalStatus, recordLegalAcceptance, type LoginResult } from "./auth-api";
 import { endMfaEnrollment, holdMfaEnrollment } from "./mfa-enrollment-session";
 import type { OAuthMode } from "./use-oauth";
-import { takePendingRoute } from "../deep-link/pending-intent";
+import { takePendingIntent } from "../deep-link/pending-intent";
+import { openRecordLinkInItsWorkspace } from "../deep-link/open-record-link";
+import { workspaceSwitchBlocked } from "../product/workspace-switch-guard";
 
 export type LoginMode = OAuthMode | "email" | "sso";
 
@@ -83,8 +85,12 @@ export function useCompleteLogin() {
       // legal). The destination screen still authorizes via its own fetch. Taken
       // before a switch clears the old account's residue: the link was opened
       // for the sign-in happening now.
-      const pending = takePendingRoute();
-      const destination = pending ?? "/(tabs)";
+      const intent = takePendingIntent();
+      // PRO-NA-04 — a record link opened while signed out is replayed through
+      // the same server resolve + workspace switch a signed-in tap uses; only a
+      // non-record destination is opened as a plain route.
+      const replayUrl = intent?.url ?? null;
+      const destination = replayUrl ? "/(tabs)" : (intent?.route ?? "/(tabs)");
 
       if (previousToken && previousToken !== result.token) {
         const sameAccount = Boolean(previousUserId && user?.id && user.id === previousUserId);
@@ -111,7 +117,7 @@ export function useCompleteLogin() {
           }
         }
         if (!legal.ok && legal.missingPolicies.length > 0) {
-          router.replace({ pathname: "/legal-acceptance", params: { policies: legal.missingPolicies.join(","), next: destination } });
+          router.replace({ pathname: "/legal-acceptance", params: { policies: legal.missingPolicies.join(","), next: intent?.route ?? destination } });
           return;
         }
       } catch {
@@ -119,6 +125,14 @@ export function useCompleteLogin() {
       }
       if (getAuthToken() !== result.token) return;
       router.replace(destination as never);
+      if (replayUrl) {
+        void openRecordLinkInItsWorkspace(replayUrl, {
+          navigate: (route) => router.push(route as never),
+          hasActiveWork: workspaceSwitchBlocked,
+          // Unknown right after sign-in: a returned workspace is switched to.
+          activeTeamId: null,
+        });
+      }
     },
     [router, setSession, currentToken, currentUser],
   );

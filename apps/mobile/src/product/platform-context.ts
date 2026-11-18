@@ -307,3 +307,22 @@ export function useWorkspaceChangeCount(): number {
   }, [activeTeamId]);
   return changes;
 }
+
+/**
+ * PRO-NA-06 — A SUCCESSFUL SWITCH IS APPLIED AT ONCE. The request header used to
+ * change only when the follow-up context read landed, so every request in that
+ * window — or indefinitely, when the read failed — still named the workspace
+ * that was left while the screen said "You are now working in …". The header
+ * now follows the switch answer itself (its envelope when it carries one, else
+ * the workspace the server accepted), and the re-read only confirms it.
+ */
+export function adoptSwitchedWorkspace(response: unknown, requestedWorkspaceId: string): void {
+  const projected = response && typeof response === "object" ? projectPlatformContext(response) : null;
+  const switchedTo = projected?.activeTeamId ?? requestedWorkspaceId;
+  setActiveWorkspaceId(switchedTo);
+  if (!snapshot.owner) return;
+  if (projected?.activeTeamId === requestedWorkspaceId) {
+    publish({ owner: snapshot.owner, loading: false, error: false, context: projected, envelope: response });
+  }
+  readContext(snapshot.owner, true);
+}

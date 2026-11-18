@@ -28,7 +28,8 @@ import { stepUpReturnRoute } from "./product/challenge-step-up";
 import { isSignInPasskeyReturn } from "./auth/auth-api";
 import { ssoReturnRoute } from "./auth/sso-native";
 import { setPendingRoute, hydratePendingRoute } from "./deep-link/pending-intent";
-import { refreshPlatformContext, usePlatformContext } from "./product/platform-context";
+import { adoptSwitchedWorkspace, usePlatformContext } from "./product/platform-context";
+import { useToast } from "./toast-context";
 import { SWITCH_WORKSPACE_PATH, buildSwitchWorkspaceBody } from "./product/spaces";
 import { workspaceSwitchBlocked } from "./product/workspace-switch-guard";
 
@@ -39,6 +40,9 @@ function hasActiveWork(): boolean {
   return workspaceSwitchBlocked();
 }
 
+/** PRO-NA-07 — what a record link that moved the current workspace says. */
+export const WORKSPACE_SWITCHED_BY_LINK_MESSAGE = "Opened in the record's workspace — you are now working there.";
+
 export function DeepLinkGate() {
   const url = Linking.useURL();
   const router = useRouter();
@@ -47,6 +51,10 @@ export function DeepLinkGate() {
   const activeTeamId = usePlatformContext().context?.activeTeamId ?? null;
   const activeTeamRef = useRef(activeTeamId);
   activeTeamRef.current = activeTeamId;
+  // PRO-NA-07 — a link-driven switch is announced like a manual one.
+  const { addToast } = useToast();
+  const addToastRef = useRef<typeof addToast | null>(addToast);
+  addToastRef.current = addToast;
   // The effect runs again when the session has been restored. A link is acted on once.
   const handled = useRef<string | null>(null);
 
@@ -133,7 +141,9 @@ export function DeepLinkGate() {
       const parsed = parseCanonicalMobileDeepLink(url);
       const route = parsed?.route ?? workspacePage;
       if (route) {
-        setPendingRoute(route);
+        // PRO-NA-04 — the record link itself is kept, so the post-sign-in
+        // replay resolves and switches like a signed-in tap.
+        setPendingRoute(route, parsed ? url : null);
         router.replace("/(stack)/auth");
       }
       return;
@@ -167,9 +177,13 @@ export function DeepLinkGate() {
             method: "POST",
             body: JSON.stringify(buildSwitchWorkspaceBody(target)),
           })
-            .then(() => {
+            .then((switched) => {
               if (disposed) return;
-              refreshPlatformContext();
+              // PRO-NA-06 — the header follows the switch at once.
+              adoptSwitchedWorkspace(switched, target);
+              // PRO-NA-07 — the person's current workspace moved: say so, as the
+              // manual switcher does.
+              addToastRef.current?.(WORKSPACE_SWITCHED_BY_LINK_MESSAGE, "info");
               router.push(outcome.route as never);
             })
             .catch(() => {

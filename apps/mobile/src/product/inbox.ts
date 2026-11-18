@@ -110,7 +110,8 @@ export function resolveInboxRoute(href: string | null | undefined): string | nul
   if (href.startsWith("/evidence-requests/")) return href.replace("/evidence-requests/", "/evidence-request/");
   if (href === "/organizations" || href.startsWith("/organizations/")) return href;
   if (href === "/settings/security") return href;
-  if (href === "/intake-links" || href.startsWith("/intake-links?")) return "/intake-links";
+  // PRO-NC-04 — the query names the link the item is about; it is kept.
+  if (href === "/intake-links" || href.startsWith("/intake-links?")) return href;
   return null;
 }
 
