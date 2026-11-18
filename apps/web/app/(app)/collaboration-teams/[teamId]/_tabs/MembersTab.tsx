@@ -23,6 +23,7 @@ import {
   type EligibleWorkspaceMember,
   listEligibleMembers,
   removeMember,
+  revokeInvite,
   updateMember,
 } from "../../../../../lib/api/collaboration-teams";
 import {
@@ -177,6 +178,17 @@ function MembersTab({
     await onRefresh();
     await loadRoster();
   }, [onRefresh, loadRoster]);
+
+  const pendingLegacyInvites = (team.invites ?? []).filter((inv) => inv.status === "PENDING");
+  const withdrawLegacyInvite = async (inviteId: string) => {
+    try {
+      await revokeInvite(team.id, inviteId);
+      addToast("Invitation revoked.", "success");
+      await onRefresh();
+    } catch (err) {
+      notifyApiError(addToast, err, { message: "Couldn't revoke this invitation." });
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -348,6 +360,31 @@ function MembersTab({
               placeholder="Search members by name or email"
               data-testid="members-search"
             />
+          </div>
+        ) : null}
+
+        {/* PRO-K2-19 — legacy link invitations still pending had no revoke
+            control anywhere; a manager can withdraw them here. */}
+        {canManage && pendingLegacyInvites.length > 0 ? (
+          <div data-testid="members-legacy-invites" style={{ marginBottom: "0.9rem" }}>
+            <p className="app-table__muted" style={{ margin: "0 0 6px" }}>
+              Pending invitation links (older invitations)
+            </p>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {pendingLegacyInvites.map((inv) => (
+                <li key={inv.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span className="app-table__muted app-identity">{inv.email ?? "Invitation"}</span>
+                  <button
+                    type="button"
+                    className="app-danger-link"
+                    data-testid={`legacy-invite-revoke-${inv.id}`}
+                    onClick={() => void withdrawLegacyInvite(inv.id)}
+                  >
+                    Revoke
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 

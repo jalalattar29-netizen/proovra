@@ -666,11 +666,30 @@ export async function listMessagesForThread(
   threadId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<DbMessage[]> {
-  return client.discussionMessage.findMany({
-    where: { threadId, deletedAtUtc: null },
-    orderBy: { createdAt: "asc" },
-    take: 500,
+  return (await listMessagesPageForThread({ threadId }, client)).messages;
+}
+
+/**
+ * PRO-K2-16 — a page of a thread, oldest-first for display, ending at the
+ * NEWEST message. The previous read kept the OLDEST 500 (`createdAt asc`,
+ * `take 500`), so in a long thread every newer message — including one just
+ * posted — was never returned. `before` is the id of the oldest message
+ * already shown; `olderCursor` names the next page back, or null.
+ */
+export async function listMessagesPageForThread(
+  input: { threadId: string; before?: string | null; limit?: number },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ messages: DbMessage[]; olderCursor: string | null }> {
+  const pageSize = Math.min(Math.max(input.limit ?? 500, 1), 500);
+  const newestFirst = await client.discussionMessage.findMany({
+    where: { threadId: input.threadId, deletedAtUtc: null },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    ...(input.before ? { cursor: { id: input.before }, skip: 1 } : {}),
+    take: pageSize + 1,
   });
+  const page = newestFirst.slice(0, pageSize);
+  const olderCursor = newestFirst.length > pageSize ? page[page.length - 1]!.id : null;
+  return { messages: page.reverse(), olderCursor };
 }
 
 // -----------------------------------------------------------------------------

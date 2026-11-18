@@ -35,12 +35,17 @@ import { useToast } from "../../../../../../components/ui";
 import { isApiResponseError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { acceptInvite } from "../../../../../../lib/api/collaboration-teams";
+import { requestWorkspaceSwitch } from "../../../../../../lib/platform-context";
 import {
-  COLLABORATION_TEAM_BILLING_UPGRADE_CTA,
   isWellFormedCollaborationTeamInviteToken,
 } from "@proovra/shared";
 
 type Status =
+  // PRO-K2-15 — opening the link no longer joins: the invitee presses Accept.
+  | "ready"
+  | "wrong_account"
+  | "already_used"
+  | "archived"
   | "checking"
   | "accepting"
   | "success"
@@ -123,9 +128,16 @@ function AcceptTeamInvite() {
       }
       setStatus("success");
       addToast("You've joined the team.", "success");
-      setTimeout(() => {
-        router.replace(`/collaboration-teams/${result.teamId}`);
-      }, 700);
+      // PRO-K2-15 — open the team IN its workspace: the team read is scoped to
+      // the active workspace, so landing there from another one answered 404.
+      if (result.workspaceId) {
+        try {
+          await requestWorkspaceSwitch(result.workspaceId);
+        } catch {
+          // The team link still works once the reader switches themselves.
+        }
+      }
+      router.replace(`/collaboration-teams/${result.teamId}`);
     } catch (err) {
       if (isApiResponseError(err)) {
         setRequestId(err.requestId);
@@ -146,6 +158,9 @@ function AcceptTeamInvite() {
           // Entitlement Alignment — the Team is grandfathered on a plan
           // with zero Teams; all membership growth is locked.
           setStatus("plan_restricted");
+        else if (err.code === "INVITE_EMAIL_MISMATCH") setStatus("wrong_account");
+        else if (err.code === "INVITE_ALREADY_USED") setStatus("already_used");
+        else if (err.code === "collaboration_team_archived") setStatus("archived");
         else if (err.code === "INVITE_EXPIRED") setStatus("expired");
         else if (err.code === "INVITE_REVOKED") setStatus("revoked");
         else if (err.code === "WORKSPACE_MEMBERSHIP_REQUIRED")
@@ -160,9 +175,13 @@ function AcceptTeamInvite() {
     }
   }, [rawToken, router, addToast]);
 
-  // Acceptance is a ONE-SHOT mutation: `startedRef` makes it idempotent, so
-  // listing `run` cannot produce a second accept even if its identity changes.
+  // PRO-K2-15 — nothing is written on page load. The shape check runs; the
+  // ONE-SHOT accept runs only when the invitee presses Accept (`startedRef`
+  // keeps a double click to one request).
   useEffect(() => {
+    setStatus(isWellFormedCollaborationTeamInviteToken(rawToken) ? "ready" : "invalid");
+  }, [rawToken]);
+  const onAccept = useCallback(() => {
     if (startedRef.current) return;
     startedRef.current = true;
     void run();
@@ -181,6 +200,7 @@ function AcceptTeamInvite() {
         requestId,
         capacityProbe,
         teamId,
+        onAccept,
         onSignIn: () => {
           // Send the user to sign-in and bounce back here after auth.
           // PHASE 5 §8 (2026-07-22) — the sign-in page is /login (there
@@ -229,8 +249,10 @@ function renderStateContent({
   requestId,
   capacityProbe,
   teamId,
+  onAccept,
   onSignIn,
 }: {
+  onAccept: () => void;
   status: Status;
   errorMessage: string;
   requestId?: string;
@@ -239,6 +261,55 @@ function renderStateContent({
   onSignIn: () => void;
 }) {
   switch (status) {
+    case "ready":
+      return (
+        <Panel
+          kicker="Team invite"
+          title="Join this team?"
+          body="You were invited to a Collaboration Team. Accepting adds you to it with the role the invitation names. If this was not meant for you, simply leave this page."
+          tone="neutral"
+          actions={
+            <button type="button" className="app-primary-action" onClick={onAccept} data-testid="accept-invite-accept">
+              Accept invitation
+            </button>
+          }
+        />
+      );
+    case "wrong_account":
+      return (
+        <Panel
+          kicker="Team invite"
+          title="This invitation is for another address"
+          body="Sign in with the address this invitation was sent to, then open the link again."
+          tone="warn"
+          requestId={requestId}
+          actions={
+            <button type="button" className="app-secondary-action" onClick={onSignIn} data-testid="accept-invite-switch-account">
+              Sign in with another account
+            </button>
+          }
+        />
+      );
+    case "already_used":
+      return (
+        <Panel
+          kicker="Team invite"
+          title="This invitation was already used"
+          body="Invitations work once. Ask the team lead for a new one if you still need access."
+          tone="warn"
+          requestId={requestId}
+        />
+      );
+    case "archived":
+      return (
+        <Panel
+          kicker="Team invite"
+          title="This team is archived"
+          body="An archived team does not accept new members."
+          tone="warn"
+          requestId={requestId}
+        />
+      );
     case "checking":
     case "accepting":
       return (
@@ -403,15 +474,6 @@ function renderStateContent({
           actions={
             <>
               <Link
-                href={COLLABORATION_TEAM_BILLING_UPGRADE_CTA}
-                className="app-primary-action"
-                data-testid="accept-invite-billing-cta"
-                aria-label="View billing and upgrade options"
-                title="Owner can upgrade to add more seats"
-              >
-                View billing
-              </Link>
-              <Link
                 href="/collaboration-teams"
                 className="app-secondary-action"
               >
@@ -437,14 +499,6 @@ function renderStateContent({
           requestId={requestId}
           actions={
             <>
-              <Link
-                href={COLLABORATION_TEAM_BILLING_UPGRADE_CTA}
-                className="app-primary-action"
-                data-testid="accept-invite-plan-restricted-billing-cta"
-                aria-label="View billing and upgrade options"
-              >
-                View billing
-              </Link>
               <Link
                 href="/collaboration-teams"
                 className="app-secondary-action"

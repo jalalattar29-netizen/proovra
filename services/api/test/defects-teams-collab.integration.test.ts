@@ -454,11 +454,14 @@ describe("defects — teams, collaboration, saved views (live PostgreSQL 16)", (
             stepUp: { method: "password", currentPassword: password },
           },
         });
-        expect(res.statusCode, res.body).toBe(200);
+        // PRO-T1-06 / DEC-18 — ownership is OFFERED; it moves only when the
+        // recipient accepts. The offer names the member the old picker missed.
+        expect(res.statusCode, res.body).toBe(202);
+        expect((res.json() as { offer: { toUserId: string } }).offer.toUserId).toBe(heirs[60]);
         expect(
           (await prisma.team.findUniqueOrThrow({ where: { id: team.id }, select: { ownerUserId: true } }))
             .ownerUserId,
-        ).toBe(heirs[60]);
+        ).toBe(owner);
       } finally {
         await prisma.user.update({ where: { id: owner }, data: { passwordHash: prior.passwordHash } });
       }

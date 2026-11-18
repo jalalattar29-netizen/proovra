@@ -215,6 +215,11 @@ export default function EvidenceDiscussionPanel({
   const [messagesFailed, setMessagesFailed] = useState(false);
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
+  // PRO-E1C-03 — the panel could not start a thread: no client called
+  // POST /v1/collaboration/threads. A general internal thread on this record.
+  const [newThreadTitle, setNewThreadTitle] = useState("");
+  const [startingThread, setStartingThread] = useState(false);
+  const [startThreadError, setStartThreadError] = useState<string | null>(null);
   // Phase G2 (C2.5) — operational discussion filters. The bounded
   // thread list (≤200 rows) is client-filterable; no realtime, no
   // social features, no AI summarisation.
@@ -428,6 +433,26 @@ export default function EvidenceDiscussionPanel({
 
   const composerDisabled = posting || draft.trim().length === 0;
 
+  const startThread = async () => {
+    const title = newThreadTitle.trim();
+    if (!teamId || !title || startingThread) return;
+    setStartingThread(true);
+    setStartThreadError(null);
+    try {
+      const res = (await apiFetch("/v1/collaboration/threads", {
+        method: "POST",
+        body: JSON.stringify({ teamId, evidenceId, kind: "EVIDENCE_GENERAL", visibility: "INTERNAL", title }),
+      })) as { thread?: { id?: string } };
+      setNewThreadTitle("");
+      await loadThreads();
+      if (res.thread?.id) setSelectedThreadId(res.thread.id);
+    } catch (err) {
+      setStartThreadError(toSafeUserError(err, { message: "The thread could not be started." }).message);
+    } finally {
+      setStartingThread(false);
+    }
+  };
+
   return (
     <div
       className="evidence-discussion"
@@ -487,6 +512,40 @@ export default function EvidenceDiscussionPanel({
               resourceId={selectedThreadId ?? evidenceId}
             />
           </div>
+
+          {!readOnly && teamId ? (
+            <form
+              className="evidence-discussion__start"
+              data-evidence-discussion-start
+              onSubmit={(e) => {
+                e.preventDefault();
+                void startThread();
+              }}
+            >
+              <input
+                className="app-form-input"
+                value={newThreadTitle}
+                onChange={(e) => setNewThreadTitle(e.target.value)}
+                maxLength={180}
+                placeholder="New thread title"
+                aria-label="New thread title"
+                data-evidence-discussion-start-title
+              />
+              <button
+                type="submit"
+                className="app-secondary-action"
+                disabled={startingThread || !newThreadTitle.trim()}
+                data-evidence-discussion-start-submit
+              >
+                {startingThread ? "Starting…" : "Start thread"}
+              </button>
+              {startThreadError ? (
+                <p role="alert" className="evidence-discussion__muted" data-evidence-discussion-start-error>
+                  {startThreadError}
+                </p>
+              ) : null}
+            </form>
+          ) : null}
 
           {/* Phase G2 (C2.5) — discussion advanced filters/search.
               Client-side, bounded, operational. No realtime, no social,
@@ -594,8 +653,7 @@ export default function EvidenceDiscussionPanel({
               className="evidence-discussion__muted"
               data-evidence-discussion-empty="no-threads"
             >
-              No discussion threads yet. Threads created from the classic
-              reviewer surfaces appear here. Operational coordination on this
+              No discussion threads yet. Operational coordination on this
               evidence should be recorded as a thread so the audit trail
               remains complete.
             </p>

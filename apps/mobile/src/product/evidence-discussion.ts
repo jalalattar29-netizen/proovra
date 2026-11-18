@@ -37,7 +37,10 @@ export const EVIDENCE_DISCUSSION_COPY = {
   threadsFailed: "Threads could not be loaded, so none are listed. Reload the tab to try again.",
   noMatch: "No threads match the current filter.",
   empty:
-    "No discussion threads yet. Threads created from the classic reviewer surfaces appear here. Operational coordination on this evidence should be recorded as a thread so the audit trail remains complete.",
+    "No discussion threads yet. Operational coordination on this evidence should be recorded as a thread so the audit trail remains complete.",
+  // PRO-E1C-03 — the panel now starts a thread itself.
+  startThreadPlaceholder: "New thread title",
+  startThreadFailed: "The thread could not be started.",
   messagesFailed: "Messages could not be loaded. Select the thread again to retry.",
   noMessages: "No messages in this thread yet. Post one below — it will be attributed to your account in the workspace audit trail.",
   readOnlyComposer: "This workspace is in read-only mode for discussion. History above is preserved; new messages cannot be posted.",
@@ -77,6 +80,11 @@ function s(v: unknown): string | null {
 
 export function buildEvidenceThreadsPath(teamId: string, evidenceId: string): string {
   return `/v1/collaboration/threads?teamId=${encodeURIComponent(teamId)}&evidenceId=${encodeURIComponent(evidenceId)}`;
+}
+/** PRO-E1C-03 — POST /v1/collaboration/threads (a general internal thread on the record). */
+export const START_THREAD_PATH = "/v1/collaboration/threads";
+export function buildStartThreadBody(teamId: string, evidenceId: string, title: string) {
+  return { teamId, evidenceId, kind: "EVIDENCE_GENERAL", visibility: "INTERNAL", title: title.trim().slice(0, 180) };
 }
 export function buildThreadDetailPath(threadId: string, teamId: string): string {
   return `/v1/collaboration/threads/${encodeURIComponent(threadId)}?teamId=${encodeURIComponent(teamId)}`;

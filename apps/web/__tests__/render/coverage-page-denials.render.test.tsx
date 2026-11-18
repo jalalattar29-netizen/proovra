@@ -99,9 +99,11 @@ describe("team invitation accept: each refusal is its own state", () => {
     status,
     body: { error: { code, message, requestId: "req-1" } },
   });
-  const accepting = (reply: Reply) => {
+  // PRO-K2-15 — opening the link writes nothing; the invitee presses Accept.
+  const accepting = async (reply: Reply) => {
     replies = [[/\/v1\/collaboration-team-invites\/accept$/, "POST", reply]];
     render(<AcceptTeamInvitePage />);
+    fireEvent.click(await screen.findByTestId("accept-invite-accept"));
   };
   const state = async (status: string) =>
     waitFor(() => expect(screen.getByTestId("accept-invite-page").getAttribute("data-status")).toBe(status));
@@ -111,31 +113,41 @@ describe("team invitation accept: each refusal is its own state", () => {
     ["revoked", refused(410, "INVITE_REVOKED", "This invite has been revoked."), "team-invite-revoked"],
     ["invalid", refused(404, "INVITE_NOT_FOUND", "This invite does not exist."), "team-invite-invalid"],
   ])("%s shows its own notice", async (status, reply, testId) => {
-    accepting(reply);
+    await accepting(reply);
     await state(status);
     expect(screen.getByTestId(testId)).toBeTruthy();
     expect(nav.replace).not.toHaveBeenCalled();
   });
 
   it("the wrong person is told to use the invited address, with no team detail", async () => {
-    accepting(refused(403, "INVITE_EMAIL_MISMATCH", "Sign in with the address this invitation was sent to."));
-    await state("error");
+    await accepting(refused(403, "INVITE_EMAIL_MISMATCH", "Sign in with the address this invitation was sent to."));
+    // PRO-K2-15 — its own state now, with a way to switch account.
+    await state("wrong_account");
     expect(screen.getByTestId("accept-invite-body").textContent).toContain("the address this invitation was sent to");
   });
 
   it("a person outside the workspace is sent to join it first", async () => {
-    accepting(refused(403, "WORKSPACE_MEMBERSHIP_REQUIRED", "Join the workspace first."));
+    await accepting(refused(403, "WORKSPACE_MEMBERSHIP_REQUIRED", "Join the workspace first."));
     await state("workspace_required");
   });
 
   it("no session asks for sign-in and keeps the invitation in the return path", async () => {
-    accepting(refused(401, "auth_required", "Sign in to accept this invitation."));
+    await accepting(refused(401, "auth_required", "Sign in to accept this invitation."));
     await state("auth_required");
     fireEvent.click(screen.getByTestId("accept-invite-signin"));
     expect(nav.push.mock.calls.at(-1)?.[0]).toContain(encodeURIComponent(`/collaboration-teams/invites/`));
   });
 });
 
+describe("PRO-K2-15 — team invitation accept is an explicit act", () => {
+  it("opening the link sends nothing until Accept is pressed", async () => {
+    replies = [[/\/v1\/collaboration-team-invites\/accept$/, "POST", { status: 200, body: { teamId: "t1", workspaceId: "w1" } }]];
+    render(<AcceptTeamInvitePage />);
+    await screen.findByTestId("accept-invite-accept");
+    expect(screen.getByTestId("accept-invite-page").getAttribute("data-status")).toBe("ready");
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+});
 describe("access review campaign: a refusal never reads as an empty campaign or a dead button", () => {
   const items: Reply = {
     status: 200,

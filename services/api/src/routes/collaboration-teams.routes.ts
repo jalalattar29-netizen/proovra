@@ -48,6 +48,7 @@ import {
   assertArchiveConfirmation,
   recoverCollaborationTeamLead,
   assessCollaborationTeamArchiveImpact,
+  isCollaborationTeamWorkspaceOwner,
   changeMemberRole,
   createAssignment,
   createCollaborationTeam,
@@ -701,10 +702,15 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
+        // PRO-K2-11 / DEC-17 — the workspace OWNER of record may archive (and
+        // preview the archive of) a group they do not lead; everyone else needs
+        // the group's `team.archive`. The service re-checks the same rule.
+        const ownerOverride = await isCollaborationTeamWorkspaceOwner(req.params.teamId, await getAuthUserId(req));
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.create",
-          groupPermission: "team.archive",
+          ...(ownerOverride
+            ? { permission: "identity.member.role.change" as const, requireGroupMembership: false }
+            : { permission: "collaboration.thread.create" as const, groupPermission: "team.archive" as const }),
           requireActiveTeam: true,
         });
         if (!binding) return;
@@ -750,10 +756,15 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
+        // PRO-K2-11 / DEC-17 — the workspace OWNER of record may archive (and
+        // preview the archive of) a group they do not lead; everyone else needs
+        // the group's `team.archive`. The service re-checks the same rule.
+        const ownerOverride = await isCollaborationTeamWorkspaceOwner(req.params.teamId, await getAuthUserId(req));
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.create",
-          groupPermission: "team.archive",
+          ...(ownerOverride
+            ? { permission: "identity.member.role.change" as const, requireGroupMembership: false }
+            : { permission: "collaboration.thread.create" as const, groupPermission: "team.archive" as const }),
           requireActiveTeam: true,
         });
         if (!binding) return;
@@ -920,10 +931,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
+        // PRO-K2-11 — restoring is the inverse of archiving: the same authority.
+        const ownerOverride = await isCollaborationTeamWorkspaceOwner(req.params.teamId, await getAuthUserId(req));
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.create",
-          groupPermission: "team.archive",
+          ...(ownerOverride
+            ? { permission: "identity.member.role.change" as const, requireGroupMembership: false }
+            : { permission: "collaboration.thread.create" as const, groupPermission: "team.archive" as const }),
           requireActiveTeam: false,
         });
         if (!binding) return;
@@ -1543,6 +1557,9 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.send({
             teamId: result.teamId,
+            // PRO-K2-15 — additive: the workspace the team lives in, so the
+            // client can switch into it before opening the team.
+            workspaceId: result.workspaceId,
             memberId: result.memberId,
             alreadyMember: result.alreadyMember,
           });

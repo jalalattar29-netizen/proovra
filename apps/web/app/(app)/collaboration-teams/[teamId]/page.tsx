@@ -482,10 +482,11 @@ function TeamDetail() {
     !isArchived &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.assignment.reassign");
   /** Archive, and Restore — the one write an archived team still accepts. */
-  const canArchive = collaborationTeamRoleHasPermission(
-    team.viewerRole,
-    "team.archive",
-  );
+  // PRO-K2-11 — the server's projection (group LEAD or workspace owner);
+  // an older API falls back to the group role.
+  const canArchive =
+    team.viewerCapabilities?.canArchive ??
+    collaborationTeamRoleHasPermission(team.viewerRole, "team.archive");
   const canTransferLead =
     !isArchived &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.transfer_lead");

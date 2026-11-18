@@ -26,6 +26,8 @@ import {
   RESOLUTION_NOTE_MAX,
   THREAD_ACTION_LABEL,
   THREAD_FILTER_OPTIONS,
+  START_THREAD_PATH,
+  buildStartThreadBody,
   buildEvidenceThreadMessagesPath,
   buildEvidenceThreadsPath,
   buildThreadActionPath,
@@ -72,6 +74,10 @@ export function EvidenceDiscussion({
   const [preset, setPreset] = useState<ThreadFilterPreset>("all");
   const [filterText, setFilterText] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // PRO-E1C-03 — start a thread from the record.
+  const [newTitle, setNewTitle] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   // Server-projected thread-kind vocabulary, read once per mount.
   const [catalogKinds, setCatalogKinds] = useState<string[]>([]);
   useEffect(() => {
@@ -126,6 +132,26 @@ export function EvidenceDiscussion({
   }
 
   const visible = filterEvidenceThreads(threads ?? [], preset, filterText);
+
+  const startThread = async () => {
+    const title = newTitle.trim();
+    if (!title || starting) return;
+    setStarting(true);
+    setStartError(null);
+    try {
+      const res = (await apiFetch(START_THREAD_PATH, {
+        method: "POST",
+        body: JSON.stringify(buildStartThreadBody(teamId, evidenceId, title)),
+      })) as { thread?: { id?: string } };
+      setNewTitle("");
+      await loadThreads();
+      if (res?.thread?.id) setSelectedId(res.thread.id);
+    } catch (err) {
+      setStartError(toSafeUserError(err, { message: COPY.startThreadFailed }).message);
+    } finally {
+      setStarting(false);
+    }
+  };
   const selected = (threads ?? []).find((t) => t.id === selectedId) ?? null;
 
   return (
@@ -148,6 +174,13 @@ export function EvidenceDiscussion({
         ) : null}
 
         <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>Threads</ProovraText>
+        {!readOnly ? (
+          <View style={{ gap: theme.space.s1 }} testID="evidence-discussion-start">
+            <ProovraInput value={newTitle} onChangeText={(v) => setNewTitle(v.slice(0, 180))} placeholder={COPY.startThreadPlaceholder} accessibilityLabel="New thread title" />
+            <ProovraButton label="Start thread" variant="secondary" fullWidth={false} loading={starting} disabled={!newTitle.trim() || starting} onPress={() => void startThread()} />
+            {startError ? <ProovraText variant="label" color={theme.color.status.risk.fg}>{startError}</ProovraText> : null}
+          </View>
+        ) : null}
         <ProovraInput value={filterText} onChangeText={setFilterText} placeholder="Filter threads by title…" accessibilityLabel="Filter threads by title" />
         <ProovraFilterChips<ThreadFilterPreset> label="Thread filter" options={THREAD_FILTER_OPTIONS} value={preset} onChange={setPreset} />
 
