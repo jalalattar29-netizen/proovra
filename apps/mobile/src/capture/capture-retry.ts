@@ -414,7 +414,20 @@ const SESSION_GONE_CODES = new Set([
   "EVIDENCE_NOT_OPEN",
 ]);
 
+/**
+ * PURE — PRO-NB-01 (review gap 2): the refusal says the session's record is
+ * already SEALED (EVIDENCE_NOT_OPEN with the server's RECORD_SEALED detail).
+ * That is not a gone session: the record exists as evidence, so the capture is
+ * never re-opened and re-uploaded into a second record. An older API sends no
+ * detail; its EVIDENCE_NOT_OPEN is read as before (the session is gone).
+ */
+export function isRecordSealed(err: unknown): boolean {
+  const e = err as { code?: unknown; body?: { detail?: unknown } | null } | null;
+  return e?.code === "EVIDENCE_NOT_OPEN" && e?.body?.detail === "RECORD_SEALED";
+}
+
 /** PURE — the server closed the session the upload belongs to. */
+
 export function isSessionGone(err: unknown): boolean {
   const code = (err as { code?: unknown } | null)?.code;
   return typeof code === "string" && SESSION_GONE_CODES.has(code);

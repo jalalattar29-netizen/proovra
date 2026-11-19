@@ -484,27 +484,37 @@ export async function sealDirectCapture<T>(
  * lifecycle transition, not a client state reset.
  *
  * Idempotent server-side; a session that is already terminal answers 200.
+ *
+ * PRO-NB-01 — the server decides (DEC-24). A release that the person did not
+ * explicitly confirm never takes a session whose record holds staged content:
+ * the server keeps it to its 24 h lifetime and answers `keptStagedContent`.
+ * Only the person's own Discard passes `confirmedByPerson`. An older API
+ * ignores the field and never answers `keptStagedContent`.
  */
 export async function discardDirectCaptureSession(
-  session: DirectCaptureSession,
-): Promise<{ releasedEvidenceId: string | null; discarded: boolean }> {
+  session: Pick<DirectCaptureSession, "captureSessionId">,
+  options: { confirmedByPerson?: boolean } = {},
+): Promise<{ releasedEvidenceId: string | null; discarded: boolean; keptStagedContent: boolean; keptUntilUtc: string | null }> {
   const res = await withTimeout(
     (signal) =>
       apiFetch(`/v1/capture/direct-sessions/${session.captureSessionId}/discard`, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify(options.confirmedByPerson ? { confirmStagedContentDiscard: true } : {}),
         signal,
       }),
     CAPTURE_REQUEST_TIMEOUT_MS,
     "Releasing the capture session",
   );
   const result = res?.result as
-    | { releasedEvidenceId?: string | null; discarded?: boolean }
+    | { releasedEvidenceId?: string | null; discarded?: boolean; keptStagedContent?: boolean; keptUntilUtc?: string | null }
     | undefined;
   return {
     releasedEvidenceId: result?.releasedEvidenceId ?? null,
     discarded: Boolean(result?.discarded),
+    keptStagedContent: result?.keptStagedContent === true,
+    keptUntilUtc: typeof result?.keptUntilUtc === "string" ? result.keptUntilUtc : null,
   };
+
 }
 
 

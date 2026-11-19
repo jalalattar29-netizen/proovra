@@ -110,3 +110,28 @@ test("PRO-NB-03: an unanswered release keeps a releasable record; an answered on
   assert.equal(online, "released");
   assert.deepEqual(kept, []);
 });
+
+test("PRO-NB-01: a discard the server answered with keptStagedContent keeps the device record (never forgotten)", async () => {
+  const calls = { discard: [], clear: [], keep: [] };
+  const d = {
+    discard: async (s) => {
+      calls.discard.push(s.captureSessionId);
+      return { discarded: false, releasedEvidenceId: null, keptStagedContent: true, keptUntilUtc: "2026-11-02T00:00:00.000Z" };
+    },
+    clear: async (k) => {
+      calls.clear.push(k.captureSessionId);
+    },
+    keep: async (r) => {
+      calls.keep.push(r);
+    },
+  };
+  assert.equal(await M.releaseStaleCaptureRecord(STALE, d), "kept");
+  assert.deepEqual(calls.clear, [], "the device does not forget a session the server still holds");
+
+  assert.equal(await M.releaseDirectSessionOrKeep({ captureSessionId: "cs-2", expiresAtUtc: "" }, "ev-2", d), "kept");
+  assert.deepEqual(calls.keep.map((r) => [r.captureSessionId, r.evidenceId]), [["cs-2", "ev-2"]]);
+
+  // An older API never answers the field: behaviour unchanged.
+  assert.equal(M.serverKeptStagedContent({ discarded: true }), false);
+  assert.equal(M.serverKeptStagedContent(undefined), false);
+});

@@ -71,7 +71,8 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Crypto from "expo-crypto";
 import { apiFetch, getAuthToken } from "../../src/api";
-import { DEFAULT_CAPTURE_RETRY, isSessionGone } from "../../src/capture/capture-retry";
+import { DEFAULT_CAPTURE_RETRY, isRecordSealed, isSessionGone } from "../../src/capture/capture-retry";
+
 import { deleteCaptureFiles, sweepUploadCopies } from "../../src/capture/capture-files";
 import { releaseDirectSessionOrKeep, releaseStaleCaptureRecord } from "../../src/capture/stale-capture-release";
 import { clearSessionConsequence } from "../../src/capture/clear-session-copy";
@@ -925,10 +926,11 @@ hasActiveDraft: isSessionActive || isRecording,
     }
     if (recovered?.captureSessionId && !draftOnly) {
       try {
-        await discardDirectCaptureSession({
-          captureSessionId: recovered.captureSessionId,
-          expiresAtUtc: recovered.expiresAtUtc,
-        });
+        // PRO-NB-01 — the person's own Discard: the only release that may take staged content.
+        await discardDirectCaptureSession(
+          { captureSessionId: recovered.captureSessionId },
+          { confirmedByPerson: true },
+        );
       } catch (err) {
         // The reservation is still open on the server: the record is KEPT so
         // it can still be released (or finished) — never orphaned.
@@ -1360,7 +1362,8 @@ hasActiveDraft: isSessionActive || isRecording,
         void clearCaptureSession({ captureSessionId: session?.captureSessionId ?? null, draftId: draft }).then(() =>
           session
             ? releaseDirectSessionOrKeep(session, reservedEvidenceId, {
-                discard: discardDirectCaptureSession,
+                // The person removed the last item themselves.
+                discard: (s) => discardDirectCaptureSession(s, { confirmedByPerson: true }),
                 keep: (r) =>
                   saveCaptureSession({ ...r, type: "PHOTO", items: [], draftId: null, acquisition: null }),
               })
@@ -1412,8 +1415,10 @@ hasActiveDraft: isSessionActive || isRecording,
         draftIdRef.current = null;
       }
       if (session) {
-        await discardDirectCaptureSession(session);
+        // PRO-NB-01 — the person's own Discard.
+        await discardDirectCaptureSession(session, { confirmedByPerson: true });
       }
+
     } catch (err) {
       // Keep the session: the operator can retry the discard or finish it.
       const msg = toSafeUserError(err, { message: "Could not discard the session" }).message;
@@ -2068,6 +2073,31 @@ if (!isRecording || busy) return;
       // passed, it was reaped): the files are still on this device, so the
       // session is re-opened by the next Finish with a new attempt, as the
       // screen surface does for a gone session. Nothing is deleted.
+      // Review gap 2 — NOT when the record was already SEALED: it exists as
+      // evidence, so what it holds is never uploaded again into a second
+      // record. Only items it does not hold stay here, as a separate capture.
+      if (isRecordSealed(err) && !acquisitionRef.current) {
+        const remaining = sessionItemsRef.current
+          .filter((it) => !it.uploaded)
+          .map((it, i) => ({ ...it, partIndex: i, uploading: false, uploadProgress: 0, error: null }));
+        captureSessionRef.current = null;
+        sessionEvidenceIdRef.current = null;
+        captureAttemptRef.current = null;
+        draftBoundRef.current = false;
+        setSessionEvidenceId(null);
+        setSessionState(remaining);
+        if (recordKey) await clearCaptureSession({ captureSessionId: recordKey, draftId: draftIdRef.current });
+        // The draft was consumed by the seal: what remains starts its own.
+        draftIdRef.current = null;
+        if (remaining.length > 0) void persistSession();
+        const sealedMsg =
+          remaining.length > 0
+            ? "This capture was already sealed and is in your library. What you added afterwards is not part of it and is still here — tap Finish & Sign to file it as a separate record."
+            : "This capture was already sealed and is in your library. Nothing was uploaded again.";
+        setError(sealedMsg);
+        addToast(sealedMsg, "warning");
+        return;
+      }
       if (isSessionGone(err) && !acquisitionRef.current) {
         captureSessionRef.current = null;
         sessionEvidenceIdRef.current = null;
