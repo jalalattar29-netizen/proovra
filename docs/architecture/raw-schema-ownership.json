@@ -94,12 +94,12 @@
     "INDEX_NAME_CONVENTION": 266,
     "UNIQUE_DECLARATION": 5,
     "PARTIAL_INDEX_DECLARATION": 5,
-    "PARTIAL_UNIQUE_DECLARATION": 14,
+    "PARTIAL_UNIQUE_DECLARATION": 15,
     "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1
   },
-  "totalRegisteredObjects": 889,
+  "totalRegisteredObjects": 890,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -5704,6 +5704,25 @@
       "createdBy": "20281026000700_organization_scoped_identity",
       "prismaExpressible": false,
       "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional unique key would refuse a second retired row of the same name."
+    },
+    {
+      "table": "evidence_extracted_texts",
+      "sign": "-",
+      "object": "Removed unique index on columns (evidence_id, source_part_id, provider)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "evidence_extracted_texts_part_claim_uniq",
+      "columns": [
+        "evidence_id",
+        "source_part_id",
+        "provider"
+      ],
+      "unique": true,
+      "predicate": "source_part_id IS NOT NULL AND status IN ('PENDING', 'COMPLETED')",
+      "owningMigration": "services/api/prisma/migrations/20281121050000_extracted_text_source_part/migration.sql",
+      "reason": "RG-05 (PRO-AI1-04 / PRO-AI1Z-01) — the paid cloud OCR / transcription of one evidence part by one provider happens ONCE: the PENDING row (later the COMPLETED row) for (evidence, part, provider) is the claim, and a retried or concurrent execution hits this index, finds the winner and makes no provider call and spends no plan operation. The runtime relies on the DATABASE to enforce it (extraction.service.ts). PARTIAL so rows without a source part (every pre-existing row) are outside the key and a FAILED row leaves it, which is what lets a genuine failure be retried. Prisma cannot express a partial unique index.",
+      "createdBy": "20281121050000_extracted_text_source_part",
+      "prismaExpressible": false,
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional unique key would refuse the retry of a FAILED extraction of the same part by the same provider."
     }
   ]
 }

@@ -779,3 +779,48 @@ describe("raw-schema ownership — the archive-restore one-open partial UNIQUE i
     expect(body).not.toMatch(/evidenceId\s+String[^\n]*@unique/);
   });
 });
+
+// RG-05 (PRO-AI1-04 / PRO-AI1Z-01) — one paid extraction per evidence part and
+// provider. The predicate keeps rows without a source part outside the key and
+// lets a FAILED row leave it, so a genuine failure can be retried; `migrate
+// diff` cannot see it, so these assertions hold it.
+describe("raw-schema ownership — the extracted-text part-claim partial UNIQUE index", () => {
+  const MIGRATION = resolve(
+    API_ROOT,
+    "prisma/migrations/20281121050000_extracted_text_source_part/migration.sql",
+  );
+
+  it("is registered exactly once as a partial unique with its predicate", () => {
+    const matches = manifest.objects.filter(
+      (o) =>
+        o.table === "evidence_extracted_texts" &&
+        o.sign === "-" &&
+        o.object ===
+          "Removed unique index on columns (evidence_id, source_part_id, provider)",
+    );
+    expect(matches).toHaveLength(1);
+    const entry = matches[0]!;
+    expect(entry.category).toBe("PARTIAL_UNIQUE_DECLARATION");
+    expect(entry.indexName).toBe("evidence_extracted_texts_part_claim_uniq");
+    expect(entry.columns).toEqual(["evidence_id", "source_part_id", "provider"]);
+    expect(entry.predicate).toBe(
+      "source_part_id IS NOT NULL AND status IN ('PENDING', 'COMPLETED')",
+    );
+    expect(entry.createdBy).toBe("20281121050000_extracted_text_source_part");
+    expect(entry.prismaExpressible).toBe(false);
+  });
+
+  it("the creating migration still declares that exact index, name and predicate", () => {
+    const sql = readFileSync(MIGRATION, "utf8");
+    expect(sql).toMatch(
+      /CREATE UNIQUE INDEX "evidence_extracted_texts_part_claim_uniq"\s+ON "evidence_extracted_texts" \("evidence_id", "source_part_id", "provider"\)\s+WHERE "source_part_id" IS NOT NULL AND "status" IN \('PENDING', 'COMPLETED'\);/,
+    );
+  });
+
+  it("the datamodel does NOT declare an unconditional unique on the claim columns", () => {
+    const start = SCHEMA.indexOf("model EvidenceExtractedText {");
+    expect(start).toBeGreaterThan(-1);
+    const body = SCHEMA.slice(start, SCHEMA.indexOf("\n}", start));
+    expect(body).not.toMatch(/@@unique\(\[evidenceId,\s*sourcePartId,\s*provider\]/);
+  });
+});
