@@ -651,6 +651,26 @@ export function VerificationLinksHandoffCard({ handoff }: { handoff: Verificatio
   );
 }
 
+/**
+ * PRO-R1-01 / DEC-01 — External Review (invite an outside reviewer, see and
+ * revoke invitations, read their feedback) is managed on the web record page.
+ * The phone says so and hands off there; it is never an unexplained dead end.
+ */
+export const MANAGE_EXTERNAL_REVIEW_ON_WEB = "Manage external review on the web";
+export function ExternalReviewHandoffCard({ manageUrl }: { manageUrl: string | null }) {
+  return (
+    <ProovraCard testID="external-review-handoff">
+      <ProovraText variant="h3" weight="semibold">External review</ProovraText>
+      <ProovraText variant="label" color={theme.color.ink.muted}>
+        Inviting someone outside the workspace to review this record, and seeing or revoking those invitations, is done on the web record page, on plans that include External Review. Sign in there with the same account.
+      </ProovraText>
+      {manageUrl ? (
+        <ProovraButton label={MANAGE_EXTERNAL_REVIEW_ON_WEB} variant="secondary" fullWidth={false} onPress={() => void Linking.openURL(manageUrl)} />
+      ) : null}
+    </ProovraCard>
+  );
+}
+
 /* ------------------------------------------------------------------ review */
 
 /** EvidenceReviewTab.tsx:164-234 — the review hero. Identical layout for every status. */

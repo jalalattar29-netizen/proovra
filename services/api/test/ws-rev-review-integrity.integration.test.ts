@@ -28,6 +28,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { roleHasPermission } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { createStepUpCeremony } from "./support/step-up-ceremony.js";
@@ -288,6 +289,72 @@ describe("WS-REV — external review and decision integrity (live PostgreSQL)", 
     expect(await prisma.externalReviewGrant.count({ where: { evidenceId: rec.id } })).toBe(before);
   });
 
+  it("PRO-R1-01: a Pro workspace issues (with step-up), lists and revokes through the existing routes; Free is refused", async () => {
+    // A genuine PRO Personal workspace: the plan is its owner's entitlement.
+    const P = h.fixtures.personal;
+    const B = { teamId: P.teamId, ownerUserId: P.userId, ownerToken: P.token };
+    const setPlan = async (plan: "PRO" | "FREE") => {
+      await prisma.team.updateMany({ where: { id: B.teamId }, data: { billingPlan: plan, billingStatus: "ACTIVE" } });
+      const ent = await prisma.entitlement.findFirst({ where: { userId: B.ownerUserId }, select: { id: true } });
+      if (ent) await prisma.entitlement.update({ where: { id: ent.id }, data: { plan, active: true } });
+      else await prisma.entitlement.create({ data: { userId: B.ownerUserId, plan } });
+    };
+    await setPlan("PRO");
+    // The Personal workspace's own sealed record (a personal record carries no organization).
+    const rec = { id: P.evidenceId };
+    await prisma.externalReviewGrant.deleteMany({ where: { evidenceId: rec.id } });
+    const email = `pro-${tag()}@outside.test`;
+    const payload = {
+      expiresAtUtc: new Date(Date.now() + 3 * DAY).toISOString(),
+      defaultScope: { kind: "EVIDENCE", evidenceId: rec.id },
+      rows: [{ inviteEmail: email }],
+    };
+    const base = { ...bearer(B.ownerToken), "x-proovra-workspace-id": B.teamId };
+    const issueUrl = "/v1/external-review/invitations/bulk";
+
+    // Issue needs a fresh step-up: without one nothing is issued.
+    const bare = await h.app.inject({ method: "POST", url: issueUrl, headers: base, payload });
+    expect(bare.statusCode, bare.body).toBe(401);
+    expect(await prisma.externalReviewGrant.count({ where: { evidenceId: rec.id } })).toBe(0);
+
+    const stepUpHeader = async () =>
+      stepUp.approvedHeader({
+        token: B.ownerToken,
+        userId: B.ownerUserId,
+        teamId: B.teamId,
+        purpose: "EXTERNAL_REVIEW_GRANT_ISSUE",
+        resourceKind: "external_review_grant_bulk",
+        resourceId: null as never,
+      });
+    const issued = await h.app.inject({ method: "POST", url: issueUrl, headers: { ...base, ...(await stepUpHeader()) }, payload });
+    expect(issued.statusCode, issued.body).toBe(201);
+    const grantId = (issued.json().rows as Array<{ grantId: string | null }>)[0]?.grantId as string;
+    expect(grantId).toBeTruthy();
+
+    // List (what the record panel reads) and inspect.
+    const list = await h.app.inject({
+      method: "GET",
+      url: `/v1/external-review/grants?teamId=${B.teamId}&evidenceId=${rec.id}`,
+      headers: bearer(B.ownerToken),
+    });
+    expect(list.statusCode, list.body).toBe(200);
+    expect((list.json().grants as Array<{ id: string; reviewerEmail: string }>).map((g) => [g.id, g.reviewerEmail])).toEqual([[grantId, email]]);
+    const feedback = await h.app.inject({ method: "GET", url: `/v1/external-review/invitations/${grantId}/feedback`, headers: base });
+    expect(feedback.statusCode, feedback.body).toBe(200);
+
+    // Revoke.
+    const revoked = await h.app.inject({ method: "POST", url: `/v1/external-review/invitations/${grantId}/revoke`, headers: base, payload: {} });
+    expect(revoked.statusCode, revoked.body).toBe(200);
+    expect((await prisma.externalReviewGrant.findUniqueOrThrow({ where: { id: grantId } })).state).toBe("REVOKED");
+
+    // Free: not entitled, even with a valid step-up; nothing is issued.
+    await setPlan("FREE");
+    const free = await h.app.inject({ method: "POST", url: issueUrl, headers: { ...base, ...(await stepUpHeader()) }, payload: { ...payload, rows: [{ inviteEmail: `free-${tag()}@outside.test` }] } });
+    expect(free.statusCode, free.body).toBe(403);
+    expect(JSON.stringify(free.json())).toContain("ENTITLEMENT_REQUIRED");
+    expect(await prisma.externalReviewGrant.count({ where: { evidenceId: rec.id } })).toBe(1);
+  });
+
   // ---------------------------------------------------------------------------
   // RG-28
   // ---------------------------------------------------------------------------
@@ -384,6 +451,33 @@ describe("WS-REV — external review and decision integrity (live PostgreSQL)", 
     expect(viewerQc.statusCode, viewerQc.body).toBe(403);
     const member = await h.app.inject({ method: "GET", url: url("/v1/reviewer/disagreements"), headers: bearer(A().memberToken) });
     expect(member.statusCode, member.body).toBe(200);
+  });
+
+  it("PRO-R2-03: a plain MEMBER cannot hand work to others on either route family; an ADMIN can (DEC-17)", async () => {
+    const wf = await workflow("IN_REVIEW");
+    const colleague = await person(A().teamId, "MEMBER");
+    const assign = (token: string) =>
+      h.app.inject({
+        method: "POST",
+        url: `/v1/reviewer-ops/reviews/${wf.id}/assign`,
+        headers: bearer(token),
+        payload: { teamId: A().teamId, assignedToUserId: colleague.id },
+      });
+    // Family 1 — /v1/reviewer-ops/* (canonical capability).
+    const memberAssign = await assign(A().memberToken);
+    expect(memberAssign.statusCode, memberAssign.body).toBe(403);
+    expect(memberAssign.json().error).toMatchObject({ code: "REVIEW_PERMISSION_DENIED", reason: "review_assign_required" });
+    expect((await prisma.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: wf.id } })).assignedToUserId).toBe(A().ownerUserId);
+    const adminAssign = await assign(A().adminToken);
+    expect(adminAssign.statusCode, adminAssign.body).not.toBe(403);
+    // Family 2 — /v1/reviewer/* (reviewer-role table, now derived from the same rule).
+    const metrics = (token: string) =>
+      h.app.inject({ method: "GET", url: `/v1/reviewer/metrics?teamId=${A().teamId}`, headers: bearer(token) });
+    expect((await metrics(A().memberToken)).statusCode).toBe(403);
+    expect((await metrics(A().adminToken)).statusCode).toBe(200);
+    // The same answer from the one definition, for both vocabularies.
+    expect(roleHasPermission("REVIEWER", "review.assign")).toBe(false);
+    expect(roleHasPermission("ADMIN", "review.assign")).toBe(true);
   });
 
   it("PRO-R2Z-03: a reviewer-workspace reply on a trashed record is refused; on an open record it is audited", async () => {
