@@ -21,6 +21,7 @@
 import { identifierLabel, SIU_CLAIM_TYPES } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import {
@@ -476,21 +477,15 @@ export function SiuPanel({ caseId, teamId }: SiuPanelProps) {
               through the existing route (the server decides who may: case
               mutation matrix, plan gate; claimant PII is edited separately). */}
           <div data-testid="siu-create">
-            <label style={mutedText}>
-              Claim type{" "}
-              <select
-                value={newClaimType}
-                onChange={(e) => setNewClaimType(e.target.value)}
-                disabled={busy}
-                data-testid="siu-create-claim-type"
-              >
-                {SIU_CLAIM_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t.replace(/_/g, " ")}
-                  </option>
-                ))}
-              </select>
-            </label>{" "}
+            <span style={mutedText}>Claim type</span>{" "}
+            <AppListbox
+              value={newClaimType}
+              options={SIU_CLAIM_TYPES.map((t) => ({ value: t, label: t.replace(/_/g, " ") }))}
+              onChange={(v) => setNewClaimType(v)}
+              disabled={busy}
+              ariaLabel="Claim type"
+              triggerProps={{ "data-testid": "siu-create-claim-type" }}
+            />{" "}
             <button
               type="button"
               className="app-secondary-action"
