@@ -227,6 +227,22 @@ export type EnsureFreshOutcome = {
  */
 export const OPERATIONS_EXPLICIT_RECHECK_MIN_MS = 2_000;
 
+/**
+ * WS-SCHED / PRO-P1C-03 — how many EXPLICIT re-examinations are honoured.
+ *
+ * The 2 s floor above collapses a double click; it does not bound a loop. Any
+ * operations.view member (a VIEWER, or a script) could keep the whole
+ * discovery plus its derived generators running back to back inside HTTP
+ * requests. An explicit request beyond these allowances is answered like an
+ * ordinary page load: the current picture, re-run only when it is not READY.
+ * The allowance is generous for the real journey (repair, press "Check
+ * again") and is per person, with a workspace ceiling so several people
+ * cannot add up to a continuous sweep.
+ */
+export const OPERATIONS_EXPLICIT_RECHECK_WINDOW_SEC = 300;
+export const OPERATIONS_EXPLICIT_RECHECK_MAX_PER_ACTOR = 6;
+export const OPERATIONS_EXPLICIT_RECHECK_MAX_PER_WORKSPACE = 20;
+
 export async function ensureWorkspaceOperationsFresh(input: {
   workspaceId: string;
   now?: Date;

@@ -44,7 +44,12 @@ import {
 import { prisma } from "../db.js";
 import { evidenceClosedTo, incidentInReach, viewerReachInWorkspace } from "../services/access/record-reach.js";
 import { buildOperationsSummary } from "../services/operations/operations-summary.service.js";
-import { ensureWorkspaceOperationsFresh } from "../services/operations/operations-reconciliation.service.js";
+import {
+  OPERATIONS_EXPLICIT_RECHECK_MAX_PER_ACTOR,
+  OPERATIONS_EXPLICIT_RECHECK_MAX_PER_WORKSPACE,
+  OPERATIONS_EXPLICIT_RECHECK_WINDOW_SEC,
+  ensureWorkspaceOperationsFresh,
+} from "../services/operations/operations-reconciliation.service.js";
 import { checkWriterSchemaContract } from "../services/operations/operations-writer-readiness.js";
 import {
   isAssignableOperator,
@@ -1429,12 +1434,45 @@ export async function opsRoutes(app: FastifyInstance) {
         });
       }
 
+      // WS-SCHED / PRO-P1C-03 — an explicit "Check again" is honoured a
+      // bounded number of times per person and per workspace. Beyond that the
+      // request is treated as a page load (current picture; a run only when
+      // the picture is not READY), so a loop cannot keep discovery running
+      // inline. Not a 429: the client still gets the truthful run state.
+      let explicit = body.explicit === true;
+      let explicitThrottled = false;
+      if (explicit) {
+        const [perActor, perWorkspace] = await Promise.all([
+          enforceRateLimit({
+            key: `ops:workspace-reconcile:explicit:${body.teamId}:${actor.userId}`,
+            max: OPERATIONS_EXPLICIT_RECHECK_MAX_PER_ACTOR,
+            windowSec: OPERATIONS_EXPLICIT_RECHECK_WINDOW_SEC,
+          }),
+          enforceRateLimit({
+            key: `ops:workspace-reconcile:explicit:${body.teamId}`,
+            max: OPERATIONS_EXPLICIT_RECHECK_MAX_PER_WORKSPACE,
+            windowSec: OPERATIONS_EXPLICIT_RECHECK_WINDOW_SEC,
+          }),
+        ]);
+        if (!perActor.allowed || !perWorkspace.allowed) {
+          explicit = false;
+          explicitThrottled = true;
+          const resetAtMs = Math.max(
+            perActor.allowed ? 0 : perActor.resetAtMs,
+            perWorkspace.allowed ? 0 : perWorkspace.resetAtMs,
+          );
+          reply.header("retry-after", String(Math.max(1, Math.ceil((resetAtMs - Date.now()) / 1000))));
+        }
+      }
       const outcome = await ensureWorkspaceOperationsFresh({
         workspaceId: body.teamId,
         triggeredByUserId: actor.userId,
-        explicit: body.explicit === true,
+        explicit,
       });
       return reply.code(202).send({
+        // PRO-P1C-03 — additive: true when an explicit request was answered
+        // as an ordinary one because the allowance is spent.
+        explicitThrottled,
         // OPS-032 — the request that RAN the reconciliation says so. It is
         // awaited inline, so `refreshing` was false for exactly that request.
         started: outcome.ran || outcome.refreshing,
