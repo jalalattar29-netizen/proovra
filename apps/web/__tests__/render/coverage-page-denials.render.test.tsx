@@ -44,9 +44,15 @@ vi.mock("../../lib/platform-context", async (importOriginal) => ({
   useTeamId: () => "11111111-1111-4111-8111-111111111111",
   useTenantGuard: () => ({ stamp: () => 0, isStale: () => false, generation: 0 }),
 }));
+// PRO-G2-17 — the access-review page asks the step-up for the active space.
+vi.mock("../../lib/platform-context/useTenantModel", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/platform-context/useTenantModel")>()),
+  useActiveSpaceId: () => "11111111-1111-4111-8111-111111111111",
+}));
 vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () => ({ confirm: async () => true }) }));
 vi.mock("../../components/identity-security/StepUpModal", () => ({
   useStepUpAction: () => ({ runStepUpAction: async (fn: (h?: Record<string, string>) => Promise<unknown>) => fn() }),
+  isStepUpCancelled: () => false,
   StepUpModal: () => null,
 }));
 vi.mock("../../components/redaction/ImageRedactionViewer", () => ({ ImageRedactionViewer: () => null }));

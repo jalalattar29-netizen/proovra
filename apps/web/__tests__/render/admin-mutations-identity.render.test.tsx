@@ -166,6 +166,9 @@ vi.mock("../../components/identity-security/StepUpModal", () => {
   };
   return {
     useStepUpAction: () => control,
+    // PRO-A2U-02 — the runtime page tells a cancelled step-up from a failure.
+    isStepUpCancelled: (err: unknown) =>
+      Boolean(err && typeof err === "object" && (err as { code?: string }).code === "STEP_UP_CANCEL"),
     StepUpModal: () => null,
     StepUpModalProvider: ({ children }: { children: React.ReactNode }) => (
       <>{children}</>
@@ -332,7 +335,8 @@ describe("Identity runtime — POST /v1/admin/identity/emergency-revoke", () => 
     expect(dialog!.getAttribute("aria-modal")).toBe("true");
     const words = descriptionOf(dialog!);
     expect(words).toContain(REASON);
-    expect(words).toContain("EVERY active session in this workspace");
+    // PRO-T1-05 / PRO-A2-04 — the scope the server now applies, in words.
+    expect(words).toContain("Every session this workspace governs will be terminated");
     // Nothing has been sent — the dialog comes first.
     expect(posts("/v1/admin/identity/emergency-revoke")).toHaveLength(0);
     // The typed-confirm gate holds the confirm button shut.
