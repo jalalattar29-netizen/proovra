@@ -154,7 +154,8 @@ function fakePrisma() {
                   return dbState.mapping;
                 }
                 if (model === "user" && method === "findUnique")
-                  return { id: "user-1", email: "user@enterprise.com", displayName: "U" };
+                  // PRO-A2-02 — created by org-1's IdP (a self-serve account needs owner consent).
+                  return { id: "user-1", email: "user@enterprise.com", displayName: "U", providerUserId: "sso-org-1:idp-sub-1", createdAt: new Date() };
                 if (method === "findFirst" || method === "findUnique") return null;
                 if (method === "findMany") return [];
                 if (method === "count") return 0;

@@ -336,6 +336,9 @@ describe("Phase 8 §11.1 — repeat-login mapping revalidation", () => {
         unlinkedAtUtc: null,
       }),
       "team.findUnique": () => ({ organizationId: ORG_ID }),
+      // PRO-A2-02 — the linked account was created by this Organization's IdP
+      // (a self-serve account needs owner consent, ws-org regression).
+      "user.findUnique": () => ({ providerUserId: `saml-${ORG_ID}:subject`, email: "jalal@company.com", createdAt: new Date() }),
     });
     const result = await handleSamlAssertion(
       {
@@ -419,6 +422,9 @@ describe("Phase 8 §11.1 — repeat-login mapping revalidation", () => {
         unlinkedAtUtc: null,
       }),
       "team.findUnique": () => ({ organizationId: ORG_ID }),
+      // PRO-A2-02 — the linked account was created by this Organization's IdP
+      // (a self-serve account needs owner consent, ws-org regression).
+      "user.findUnique": () => ({ providerUserId: `saml-${ORG_ID}:subject`, email: "jalal@company.com", createdAt: new Date() }),
     });
     const result = await handleSamlAssertion(
       {

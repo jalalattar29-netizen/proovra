@@ -60,6 +60,8 @@ import {
 } from "../services/organization/org-access.js";
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
+// PRO-TZ-02 — the one invitation workspace-assignment role ceiling.
+import { workspaceAssignmentCeilingRefusal } from "../services/identity/membership-provisioning.service.js";
 import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
 // Macro-Wave A2 — durable invite delivery: outbox row committed in the
 // SAME per-row transaction as the invite, inline first email attempt
@@ -825,19 +827,36 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
    * any row is planned. Accept re-validates, because teams can move.
    */
   async function assignmentsValid(
-    orgId: string,
+    ctx: { orgId: string; userId: string; role: OrgRole },
     assignments: WorkspaceAssignmentsValue,
     reply: FastifyReply,
   ): Promise<boolean> {
     if (!assignments || assignments.length === 0) return true;
     const teamIds = assignments.map((a) => a.teamId);
     const orgTeams = await prisma.team.findMany({
-      where: { id: { in: teamIds }, organizationId: orgId, isPersonal: false },
+      where: { id: { in: teamIds }, organizationId: ctx.orgId, isPersonal: false },
       select: { id: true },
     });
-    if (orgTeams.length === new Set(teamIds).size) return true;
-    reply.code(400).send({
-      message: "Every assigned workspace must belong to this organization.",
+    if (orgTeams.length !== new Set(teamIds).size) {
+      reply.code(400).send({
+        message: "Every assigned workspace must belong to this organization.",
+        code: "invalid_workspace_assignment",
+      });
+      return false;
+    }
+    // PRO-TZ-02 — the same role ceiling as the single invite.
+    const ceiling = await workspaceAssignmentCeilingRefusal(prisma, {
+      inviterUserId: ctx.userId,
+      inviterOrgRole: ctx.role,
+      assignments,
+    });
+    if (!ceiling) return true;
+    reply.code(ceiling === "workspace_owner_assignment_forbidden" ? 400 : 403).send({
+      error: { code: ceiling },
+      message:
+        ceiling === "workspace_owner_assignment_forbidden"
+          ? "An invitation cannot make someone a workspace owner. Use an ownership transfer."
+          : "Only an organization owner or the workspace's owner can invite someone as a workspace administrator.",
       code: "invalid_workspace_assignment",
     });
     return false;
@@ -908,7 +927,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     if (!ctx) return;
     const body = BulkBody.parse(req.body);
     const defaultRole: OrgRoleValue = body.defaultRole ?? "ORG_MEMBER";
-    if (!(await assignmentsValid(ctx.orgId, body.workspaceAssignments, reply))) return;
+    if (!(await assignmentsValid(ctx, body.workspaceAssignments, reply))) return;
 
     const bounded = boundRows(
       body.rows.map((r, idx) => ({ line: idx + 1, email: r.email, role: r.role } as RawRow)),
@@ -939,7 +958,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     if (!ctx) return;
     const body = BulkBody.parse(req.body);
     const defaultRole: OrgRoleValue = body.defaultRole ?? "ORG_MEMBER";
-    if (!(await assignmentsValid(ctx.orgId, body.workspaceAssignments, reply))) return;
+    if (!(await assignmentsValid(ctx, body.workspaceAssignments, reply))) return;
 
     const bounded = boundRows(
       body.rows.map((r, idx) => ({ line: idx + 1, email: r.email, role: r.role } as RawRow)),
@@ -1148,7 +1167,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
       });
     }
 
-    if (!(await assignmentsValid(ctx.orgId, workspaceAssignments, reply))) return;
+    if (!(await assignmentsValid(ctx, workspaceAssignments, reply))) return;
 
     const parsed = csvToRows(csvText);
     if (!parsed.ok) {

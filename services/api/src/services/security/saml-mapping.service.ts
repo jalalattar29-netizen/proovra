@@ -387,11 +387,11 @@ export async function previewSamlMapping(
     });
   }
 
-  // External ID override (changing this can effectively re-identify a user)
-  if (
-    input.mapping.externalId &&
-    input.mapping.externalId !== current.mapping.externalId
-  ) {
+  // External ID override (changing this can effectively re-identify a user).
+  // PRO-A2C-03 — CLEARING a stored override re-identifies every subject too
+  // (they fall back to NameID), so any change — set, replace or clear — is
+  // privilege-affecting. Unchanged (including null → null) is not.
+  if ((input.mapping.externalId || null) !== (current.mapping.externalId || null)) {
     privilegeAffecting = true;
     warnings.push({
       code: "EXTERNAL_ID_OVERRIDE_RISKY",

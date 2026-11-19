@@ -52,6 +52,11 @@ import {
 } from "../../observability/otel.js";
 import { isIntegrationsFeatureEnabled } from "./api-keys.service.js";
 import {
+  CREATOR_LOST_AUTHORITY_REASON,
+  STANDING_CREDENTIAL_PERMISSION,
+  evaluateCreatorAuthority,
+} from "../sharing/standing-credential-authority.js";
+import {
   clearExpiredPreviousWebhookSecret,
   decryptWebhookSecret,
   integrationWebhookOutboundPolicy,
@@ -468,6 +473,52 @@ async function attemptDeliveryInner(
       .catch(() => null);
     await recordWebhookEndpointFailure(endpoint.id, client);
     return "permanent";
+  }
+
+  // PRO-G1Z-01 / PRO-LEAD-01 — the endpoint acts in its creator's name: it
+  // sends only while the creator still holds integration.webhook.manage by
+  // the canonical decision (a role, capability grant or delegated scope;
+  // access-window expiry set aside, A2-26). LOST — e.g. a capability or scope
+  // that expired, which no transition revokes — disables the endpoint and
+  // sends nothing; an unreadable answer defers the attempt without sending.
+  const creator = await evaluateCreatorAuthority(
+    {
+      teamId: endpoint.teamId,
+      userId: endpoint.createdByUserId,
+      permission: STANDING_CREDENTIAL_PERMISSION.webhook,
+    },
+    client,
+  );
+  if (creator.verdict === "LOST") {
+    await client.webhookEndpoint
+      .updateMany({ where: { id: endpoint.id, status: "ACTIVE" }, data: { status: "DISABLED" } })
+      .catch(() => null);
+    await client.integrationWebhookDelivery
+      .update({
+        where: { id: row.id },
+        data: {
+          status: "FAILED",
+          attemptCount: nextAttemptCount,
+          errorMessage: CREATOR_LOST_AUTHORITY_REASON,
+          failedAtUtc: new Date(),
+          nextAttemptAtUtc: null,
+        },
+      })
+      .catch(() => null);
+    return "permanent";
+  }
+  if (creator.verdict !== "HOLDS") {
+    await client.integrationWebhookDelivery
+      .update({
+        where: { id: row.id },
+        data: {
+          status: "RETRY_SCHEDULED",
+          errorMessage: `creator_authority_${creator.verdict.toLowerCase()}`,
+          nextAttemptAtUtc: new Date(Date.now() + webhookRetryDelaySeconds(nextAttemptCount + 1) * 1000),
+        },
+      })
+      .catch(() => null);
+    return "transient";
   }
 
   const rawSecret = decryptWebhookSecret(endpoint.secretCiphertext);

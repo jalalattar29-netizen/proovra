@@ -271,13 +271,15 @@ export async function approveOrganizationLink(
         if (existing && existing.userId !== userId) throw new LinkedElsewhereError();
         if (existing) {
           alreadyLinked = existing.unlinkedAtUtc === null;
-          if (!alreadyLinked) {
-            // The owner re-approves a link that was ended: re-link it.
-            await tx.externalIdentityMapping.update({
-              where: { id: existing.id },
-              data: { unlinkedAtUtc: null, externalEmail: pending.email },
-            });
-          }
+          // The owner re-approves a link that was ended (re-link it), or
+          // confirms one that exists: either way it now carries the owner's
+          // consent (PRO-A2-02 — readers honour a self-serve link only so).
+          await tx.externalIdentityMapping.update({
+            where: { id: existing.id },
+            data: alreadyLinked
+              ? { linkSource: "OWNER_CONSENT" }
+              : { unlinkedAtUtc: null, externalEmail: pending.email, linkSource: "OWNER_CONSENT" },
+          });
         } else {
           await tx.externalIdentityMapping.create({
             data: {
@@ -288,6 +290,7 @@ export async function approveOrganizationLink(
               externalSubjectId: pending.subject,
               displayName: pending.displayName,
               externalEmail: pending.email,
+              linkSource: "OWNER_CONSENT",
             },
           });
         }

@@ -80,6 +80,9 @@ type SsoProvider = {
   samlNameIdFormat?: string | null;
   samlScimManaged?: boolean;
   jitDefaultRole?: string | null;
+  // PRO-A2U-07 — request-signing facts (same projection the provider section reads).
+  samlSignRequests?: boolean;
+  samlSpSigningKeySource?: "stored" | "env" | "none";
 };
 
 type TestConnectionResult = {
@@ -539,11 +542,17 @@ function SsoAdminContent() {
                     </div>
                   </div>
 
-                  {/* R8.2.2 — Honest request signing status. Unsigned until R8.3 wires
-                      SP private key and signing. Never claim signed if it is not. */}
-                  <p style={{ ...mutedStyle, marginTop: 8 }}>
-                    Request signing: unsigned AuthnRequests (signed requests not yet enabled —
-                    planned for a future release). Assertions must be signed by the IdP.
+                  {/* PRO-A2U-07 — request signing as it is configured: signed only when
+                      signing is on AND a key resolves (stored or environment), as the
+                      SAML login path signs. Never claim signed if it is not. */}
+                  <p style={{ ...mutedStyle, marginTop: 8 }} data-request-signing>
+                    {p.samlSignRequests === true &&
+                    (p.samlSpSigningKeySource === "stored" || p.samlSpSigningKeySource === "env")
+                      ? "Request signing: AuthnRequests are signed with the connection's signing key."
+                      : p.samlSignRequests === true
+                        ? "Request signing is on, but no signing key is installed: AuthnRequests go out unsigned until one is."
+                        : "Request signing: off — AuthnRequests are sent unsigned."}{" "}
+                    Assertions must be signed by the IdP.
                   </p>
                 </div>
 

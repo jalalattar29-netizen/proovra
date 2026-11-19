@@ -72,6 +72,8 @@ import {
   RbacError,
   restoreOrganizationWorkspaceAccessTx,
   suspendOrganizationWorkspaceAccessTx,
+  // PRO-TZ-02 — invitation workspace-assignment role ceiling.
+  workspaceAssignmentCeilingRefusal,
 } from "../services/identity/membership-provisioning.service.js";
 // Phase 2.7X Stage 4 — audit emitter (writes inside the mutation tx).
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
@@ -452,7 +454,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
       const orgId = UuidParam.parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
 
-      const access = await checkOrgAccess(prisma, { orgId, userId });
+      // PRO-T2-07 — the organization read stays open for a SYSTEM container so
+      // the web can learn `organizationKind` and render no Enterprise surface.
+      const access = await checkOrgAccess(prisma, { orgId, userId, requireKind: "ANY" });
       if (access.kind !== "ok") {
         // PV-ORG-001 — the one org-denial convention for the /v1/orgs
         // family: a non-member is told exactly what a caller asking about a missing
@@ -1049,7 +1053,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
       if (ORG_ROLE_PRECEDENCE[inviteRole] > ORG_ROLE_PRECEDENCE[access.role]) {
         return reply
           .code(403)
-          .send({ message: "Cannot invite at a role greater than your own." });
+          .send({ error: { code: "ROLE_CEILING_EXCEEDED" }, message: "Cannot invite at a role greater than your own." });
       }
 
       /*
@@ -1090,6 +1094,23 @@ export async function organizationsRoutes(app: FastifyInstance) {
           return reply.code(400).send({
             message:
               "Every assigned workspace must belong to this organization.",
+            code: "invalid_workspace_assignment",
+          });
+        }
+        // PRO-TZ-02 — one role ceiling: no workspace OWNER by invitation, and
+        // ADMIN only from an inviter who outranks it in that workspace.
+        const ceiling = await workspaceAssignmentCeilingRefusal(prisma, {
+          inviterUserId: userId,
+          inviterOrgRole: access.role,
+          assignments: body.workspaceAssignments,
+        });
+        if (ceiling) {
+          return reply.code(ceiling === "workspace_owner_assignment_forbidden" ? 400 : 403).send({
+            error: { code: ceiling },
+            message:
+              ceiling === "workspace_owner_assignment_forbidden"
+                ? "An invitation cannot make someone a workspace owner. Use an ownership transfer."
+                : "Only an organization owner or the workspace's owner can invite someone as a workspace administrator.",
             code: "invalid_workspace_assignment",
           });
         }
@@ -1212,6 +1233,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       if (result.kind === "conflict") {
         return reply.code(409).send({
+          // PRO-T2-11 — a stable code beside the legacy message.
+          error: { code: result.reason === "already_member" ? "ALREADY_MEMBER" : "INVITE_ALREADY_PENDING" },
           message:
             result.reason === "already_member"
               ? "User with that email is already a member."
@@ -1694,12 +1717,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
       });
 
       if (result.kind === "not_found") {
-        return reply.code(404).send({ message: "Invite not found." });
+        return reply.code(404).send({ error: { code: "INVITE_NOT_FOUND" }, message: "Invite not found." });
       }
       if (result.kind === "already_accepted") {
         return reply
           .code(409)
-          .send({ message: "Cannot revoke an already-accepted invite." });
+          .send({ error: { code: "INVITE_ALREADY_ACCEPTED" }, message: "Cannot revoke an already-accepted invite." });
       }
 
       return reply.code(200).send({
@@ -1803,22 +1826,22 @@ export async function organizationsRoutes(app: FastifyInstance) {
       });
 
       if (result.kind === "not_found") {
-        return reply.code(404).send({ message: "Invite not found." });
+        return reply.code(404).send({ error: { code: "INVITE_NOT_FOUND" }, message: "Invite not found." });
       }
       if (result.kind === "already_accepted") {
         return reply
           .code(409)
-          .send({ message: "Cannot resend an accepted invite." });
+          .send({ error: { code: "INVITE_ALREADY_ACCEPTED" }, message: "Cannot resend an accepted invite." });
       }
       if (result.kind === "revoked") {
         return reply
           .code(410)
-          .send({ message: "Cannot resend a revoked invite." });
+          .send({ error: { code: "INVITE_REVOKED" }, message: "Cannot resend a revoked invite." });
       }
       if (result.kind === "expired") {
         return reply
           .code(410)
-          .send({ message: "Cannot resend an expired invite. Send a fresh one." });
+          .send({ error: { code: "INVITE_EXPIRED" }, message: "Cannot resend an expired invite. Send a fresh one." });
       }
 
       // Macro-Wave A2 — an operator resend now ACTUALLY re-delivers: the
@@ -1999,13 +2022,14 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       switch (result.kind) {
         case "not_found":
-          return reply.code(404).send({ message: "Membership not found." });
+          return reply.code(404).send({ error: { code: "MEMBERSHIP_NOT_FOUND" }, message: "Membership not found." });
         case "self_modify_blocked":
           return reply
             .code(409)
-            .send({ message: "Cannot modify your own role." });
+            .send({ error: { code: "SELF_ACTION_FORBIDDEN" }, message: "Cannot modify your own role." });
         case "owner_change_requires_owner":
           return reply.code(403).send({
+            error: { code: "OWNER_ACTION_REQUIRES_OWNER" },
             message:
               "Only ORG_OWNER can change a membership to or from ORG_OWNER.",
           });
@@ -2017,7 +2041,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
         case "last_owner_protected":
           return reply
             .code(409)
-            .send({ message: "Cannot demote the last ORG_OWNER." });
+            .send({ error: { code: "LAST_OWNER_PROTECTED" }, message: "Cannot demote the last ORG_OWNER." });
         case "noop":
           return reply
             .code(200)
@@ -2067,13 +2091,21 @@ export async function organizationsRoutes(app: FastifyInstance) {
         await lockOrganizationOwnersTx(tx, orgId);
         const target = await tx.organizationMembership.findFirst({
           where: { id: memberId, organizationId: orgId },
-          select: { id: true, userId: true, role: true },
+          select: { id: true, userId: true, role: true, status: true },
         });
         if (!target) {
           return { kind: "not_found" as const };
         }
         if (target.userId === userId) {
           return { kind: "self_remove_blocked" as const };
+        }
+        // PRO-T2-02 — an organization's authority over a person ends with the
+        // membership. A REVOKED row (removed earlier, or the person left) is
+        // history: removing it again used to re-run the workspace revocation,
+        // write another ORG_MEMBER_REMOVED event and sign the person out of
+        // every session, as often as an admin liked. Nothing moves now.
+        if (target.status === "REVOKED") {
+          return { kind: "already_removed" as const };
         }
         if (
           target.role === "ORG_OWNER" &&
@@ -2098,10 +2130,15 @@ export async function organizationsRoutes(app: FastifyInstance) {
         }
 
         // PHASE 3 — canonical orchestrator: governance removal (provenance closed).
-        await removeOrganizationMembership(tx, {
+        const removal = await removeOrganizationMembership(tx, {
           organizationMembershipId: target.id,
           actorUserId: userId,
         });
+        // PRO-T2-02 — a concurrent removal/leave won the fence: nothing below
+        // runs (closing the provenance of an ended membership is a no-op).
+        if (!removal || !removal.ok || !removal.changed) {
+          return { kind: "already_removed" as const };
+        }
 
         // -------------------------------------------------------------------
         // P0 remediation (2026-07-21) — admin removal must be at least as
@@ -2184,19 +2221,24 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
       switch (result.kind) {
         case "not_found":
-          return reply.code(404).send({ message: "Membership not found." });
+          return reply.code(404).send({ error: { code: "MEMBERSHIP_NOT_FOUND" }, message: "Membership not found." });
+        case "already_removed":
+          return reply.code(409).send({
+            error: { code: "MEMBERSHIP_ALREADY_REMOVED" },
+            message: "This person is no longer a member of the organization.",
+          });
         case "self_remove_blocked":
           return reply
             .code(409)
-            .send({ message: "Cannot remove your own membership." });
+            .send({ error: { code: "SELF_ACTION_FORBIDDEN" }, message: "Cannot remove your own membership." });
         case "owner_remove_requires_owner":
           return reply
             .code(403)
-            .send({ message: "Only ORG_OWNER can remove an ORG_OWNER." });
+            .send({ error: { code: "OWNER_ACTION_REQUIRES_OWNER" }, message: "Only ORG_OWNER can remove an ORG_OWNER." });
         case "last_owner_protected":
           return reply
             .code(409)
-            .send({ message: "Cannot remove the last ORG_OWNER." });
+            .send({ error: { code: "LAST_OWNER_PROTECTED" }, message: "Cannot remove the last ORG_OWNER." });
         case "workspace_owner_protected":
           return reply.code(409).send({
             error: { code: "OWNERSHIP_TRANSFER_REQUIRED" },
@@ -2277,17 +2319,27 @@ export async function organizationsRoutes(app: FastifyInstance) {
           select: { id: true, userId: true, role: true, status: true },
         });
         if (!target) {
-          return reply.code(404).send({ message: "Membership not found." });
+          return reply.code(404).send({ error: { code: "MEMBERSHIP_NOT_FOUND" }, message: "Membership not found." });
         }
         if (target.userId === userId) {
           return reply
             .code(409)
-            .send({ message: "Cannot change your own membership status." });
+            .send({ error: { code: "SELF_ACTION_FORBIDDEN" }, message: "Cannot change your own membership status." });
         }
         if (target.role === "ORG_OWNER" && access.role !== "ORG_OWNER") {
           return reply
             .code(403)
-            .send({ message: "Only ORG_OWNER can act on an ORG_OWNER." });
+            .send({ error: { code: "OWNER_ACTION_REQUIRES_OWNER" }, message: "Only ORG_OWNER can act on an ORG_OWNER." });
+        }
+        // PRO-T2-03 — restore reverses a SUSPENSION only. A removed or
+        // self-departed membership (REVOKED) returns only through a new
+        // invitation the person accepts; nothing is written here.
+        if (action === "restore" && target.status === "REVOKED") {
+          return reply.code(409).send({
+            error: { code: "ILLEGAL_MEMBERSHIP_TRANSITION" },
+            message: "A removed membership cannot be restored. Invite the person again; they rejoin when they accept.",
+            code: "ILLEGAL_MEMBERSHIP_TRANSITION",
+          });
         }
         // IDENT-019 — a quarantined session keeps reads; suspending is refused.
         // (Restore is not a declared privileged action.) Organization-level
@@ -2378,12 +2430,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (decided.kind === "owner_required") {
           return reply
             .code(403)
-            .send({ message: "Only ORG_OWNER can act on an ORG_OWNER." });
+            .send({ error: { code: "OWNER_ACTION_REQUIRES_OWNER" }, message: "Only ORG_OWNER can act on an ORG_OWNER." });
         }
         if (decided.kind === "last_owner") {
           return reply
             .code(409)
-            .send({ message: "Cannot suspend the last ORG_OWNER." });
+            .send({ error: { code: "LAST_OWNER_PROTECTED" }, message: "Cannot suspend the last ORG_OWNER." });
         }
         if (decided.kind === "workspace_owner") {
           return reply.code(409).send({
@@ -2406,9 +2458,10 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (!outcome.ok) {
           switch (outcome.reason) {
             case "not_found":
-              return reply.code(404).send({ message: "Membership not found." });
+              return reply.code(404).send({ error: { code: "MEMBERSHIP_NOT_FOUND" }, message: "Membership not found." });
             case "stale_generation":
               return reply.code(409).send({
+                error: { code: "STALE_MEMBERSHIP_GENERATION" },
                 message:
                   "This membership changed while you were looking at it. Reload and try again.",
                 code: "STALE_MEMBERSHIP_GENERATION",
@@ -2416,6 +2469,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
               });
             case "illegal_transition":
               return reply.code(409).send({
+                error: { code: "ILLEGAL_MEMBERSHIP_TRANSITION" },
                 message: `A ${outcome.from.toLowerCase()} membership cannot be ${action}d.`,
                 code: "ILLEGAL_MEMBERSHIP_TRANSITION",
               });
@@ -2425,7 +2479,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
         // A SUSPENDED member's live sessions must stop being useful now, not
         // at token expiry. Best-effort AFTER the durable transition — access is
         // already denied server-side even if this write fails.
-        if (action === "suspend") {
+        // PRO-T2-02 — only when the suspension actually happened: a repeated
+        // suspend of an already-SUSPENDED row (changed:false) signs nobody out.
+        if (action === "suspend" && outcome.changed) {
           try {
             await revokeAllSessionsForUser(
               {
@@ -2910,6 +2966,16 @@ export async function organizationsRoutes(app: FastifyInstance) {
           });
           return reply.code(200).send({ [leg]: result });
         } catch (err) {
+          // PRO-TZ-03 — a resume that does not fit the workspace's seats or a
+          // Collaboration Team's places reactivates nobody.
+          if (
+            err instanceof RbacError &&
+            (err.code === "workspace_seat_limit_reached" ||
+              err.code === "collaboration_team_capacity_reached" ||
+              err.code === "workspace_seat_contention")
+          ) {
+            return reply.code(409).send({ error: { code: err.code.toUpperCase() } });
+          }
           const e = err as Error & { statusCode?: number; code?: string };
           if (typeof e.statusCode === "number" && typeof e.code === "string") {
             return reply

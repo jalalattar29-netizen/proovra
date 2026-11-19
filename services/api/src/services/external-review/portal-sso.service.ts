@@ -48,6 +48,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { buildSamlAuthnRequest } from "../security/saml-authn-request.service.js";
+import { recordSamlAssertionUse } from "../access-control/sso-hardening.service.js";
 import {
   SamlAssertionError,
   validateSamlResponse,
@@ -255,6 +256,20 @@ export async function completePortalSsoFlow(
       spEntityId: conn.samlEntityId,
       expectedInResponseTo: input.expectedInResponseTo,
     });
+    // PRO-A2-08 — the same one-time assertion rule as workspace sign-in.
+    if (
+      (await recordSamlAssertionUse(
+        {
+          teamId: input.teamId,
+          ssoConnectionId: conn.id,
+          assertionId: assertion.replayGuardAssertionId,
+          notOnOrAfter: assertion.notOnOrAfter,
+        },
+        prisma,
+      )) === "REPLAYED"
+    ) {
+      throw new SamlAssertionError("SAML_ASSERTION_REPLAYED", "This assertion was already used.");
+    }
   } catch (err) {
     const code =
       err instanceof SamlAssertionError ? err.code : "SAML_PARSE_FAILED";

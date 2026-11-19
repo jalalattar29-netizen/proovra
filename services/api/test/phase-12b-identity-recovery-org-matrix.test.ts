@@ -653,6 +653,8 @@ vi.mock("../src/services/identity/membership-provisioning.service.js", () => ({
     await H.db.organizationMembership.delete({
       where: { id: i.organizationMembershipId },
     });
+    // PRO-T2-02 — the orchestrator reports the transition it made.
+    return { ok: true, status: "REVOKED", generation: 1, changed: true };
   },
   updateOrganizationMembershipRole: async (
     _tx: unknown,

@@ -759,6 +759,8 @@ function PolicyPanel({
 }) {
   const isSaml = SAML_PROVIDERS.includes(connection.provider);
   const noVerifiedDomains = verifiedDomainCount === 0;
+  // PRO-A2U-05 — removing the request-signing key is destructive: confirm first.
+  const { confirm } = useConfirmAction();
   const [keyDraft, setKeyDraft] = useState("");
   const [certDraft, setCertDraft] = useState("");
   const [secretDraft, setSecretDraft] = useState("");
@@ -859,7 +861,20 @@ function PolicyPanel({
                 variant="secondary"
                 size="sm"
                 disabled={busy}
-                onClick={() => onUpdate({ samlSpPrivateKey: "" })}
+                onClick={() =>
+                  void (async () => {
+                    const ok = await confirm({
+                      title: "Clear the stored signing key?",
+                      description: connection.samlSignRequests
+                        ? "Request signing is on. Without a stored key, sign-in requests go out unsigned, and an identity provider that requires signed requests will refuse every sign-in until a key is installed again."
+                        : "The per-connection request-signing key is removed. Install a key again before turning request signing on.",
+                      confirmLabel: "Clear key",
+                      tone: "danger",
+                      testId: `provider-clear-key-${connection.id}`,
+                    });
+                    if (ok) onUpdate({ samlSpPrivateKey: "" });
+                  })()
+                }
               >
                 Clear stored key
               </Button>

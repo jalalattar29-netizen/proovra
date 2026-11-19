@@ -181,6 +181,27 @@ async function assertNotLastAdministrator(
   if (remaining === 0) throw new RbacError("last_administrator_protected");
 }
 
+/**
+ * PRO-G1Z-01 / PRO-LEAD-01 — after a capability grant or a delegated scope is
+ * revoked (inside that transaction): the member's standing credentials answer
+ * to what they still hold, through the canonical rule.
+ */
+async function endStandingCredentialsForMemberTx(
+  tx: PrismaClient,
+  input: { teamId: string; teamMemberId: string; actorUserId: string },
+): Promise<void> {
+  const member = await tx.teamMember.findUnique({
+    where: { id: input.teamMemberId },
+    select: { userId: true },
+  });
+  if (!member) return;
+  await endStandingCredentialsOnLostAuthorityTx(tx as never, {
+    teamId: input.teamId,
+    userId: member.userId,
+    actorUserId: input.actorUserId,
+  });
+}
+
 // -----------------------------------------------------------------------------
 // Lifecycle: suspend / revoke / restore / role change
 // -----------------------------------------------------------------------------
@@ -747,7 +768,7 @@ export async function restoreOrganizationWorkspaceAccessTx(
  * of `lockAndAssertCollaborationTeamMemberCapacity` — before the status
  * changes, while the member is still uncounted.
  */
-async function assertReinstatementFitsCapacityTx(
+export async function assertReinstatementFitsCapacityTx(
   tx: PrismaClient,
   workspaceId: string,
   userId: string,
@@ -1209,6 +1230,10 @@ export async function revokeCapability(
       revokedReason: input.reason ?? null,
     },
   });
+  // PRO-G1Z-01 / PRO-LEAD-01 — a creator whose permission came from this
+  // grant loses the standing credentials it let them create (webhooks, keys,
+  // intake links), unless another role/grant/scope still carries it.
+  await endStandingCredentialsForMemberTx(tx, { teamId: input.teamId, teamMemberId: grant.teamMemberId, actorUserId: input.actorUserId });
   safeEmitSecurityEvent(
     {
       teamId: input.teamId,
@@ -1477,6 +1502,9 @@ export async function revokeDelegatedAdminScope(
       revokedReason: input.reason ?? null,
     },
   });
+  // PRO-G1Z-01 — as for a capability grant (INTEGRATION_ADMIN carries
+  // integration.webhook.manage).
+  await endStandingCredentialsForMemberTx(tx, { teamId: input.teamId, teamMemberId: scope.teamMemberId, actorUserId: input.actorUserId });
   safeEmitSecurityEvent(
     {
       teamId: input.teamId,

@@ -38,9 +38,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { apiFetch } from "../../../lib/api";
-import { withLegacyRouteFallback } from "../../../lib/api/legacy-route-fallback";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { usePlatformContext } from "../../../lib/platform-context";
 import { formatUserDate } from "../../../lib/date";
 import { organizationStatusLabel } from "@proovra/shared";
 
@@ -107,7 +105,6 @@ export default function OrganizationsListPage() {
 
 function OrganizationsListPageInner() {
   const router = useRouter();
-  const { refresh } = usePlatformContext();
 
   const [state, setState] = useState<LoadState>({ kind: "loading" });
 
@@ -143,6 +140,11 @@ function OrganizationsListPageInner() {
     void load();
   }, [load]);
 
+  // PRO-T2-05 — never accept blind. The modal used to accept the pasted token
+  // directly, under copy that denied any workspace access while the invitation
+  // could grant some. It now opens the acceptance page, which reads the
+  // invitation (POST /v1/org-invites/lookup) and states what accepting grants
+  // and which organization policies apply, before the Accept button.
   const submitJoin = useCallback(async () => {
     const token = joinToken.trim();
     if (!token) {
@@ -151,43 +153,11 @@ function OrganizationsListPageInner() {
     }
     setJoinBusy(true);
     setJoinError(null);
-    try {
-      // Phase O-blockers / D-1 — apiFetch already returns parsed JSON.
-      // B-15 — the token travels in the body, never in the request path.
-      // COMPAT — an API older than this build has only the path form.
-      const data = (await withLegacyRouteFallback(
-        () => apiFetch("/v1/org-invites/accept", { method: "POST", body: JSON.stringify({ token }) }),
-        () => apiFetch(`/v1/org-invites/${encodeURIComponent(token)}/accept`, { method: "POST" }),
-      )) as { organizationId: string };
-      setJoinOpen(false);
-      setJoinToken("");
-      await load();
-      // Phase 5 (account-menu refactor, 2026-07-21) — refresh the canonical
-      // platform-context envelope so the newly-joined organization appears in
-      // the account-menu Workspace Switcher immediately. Personal Space
-      // remains; the account is never merged or converted.
-      void refresh();
-      if (data.organizationId) {
-        router.push(`/organizations/${data.organizationId}`);
-      }
-    } catch (err: unknown) {
-      const status =
-        typeof (err as { statusCode?: number }).statusCode === "number"
-          ? ((err as { statusCode: number }).statusCode)
-          : 0;
-      const baseMsg =
-        toSafeUserError(err, { message: "Failed to accept invite." }).message;
-      const friendly =
-        status === 410
-          ? "This invite is expired, revoked, or already accepted."
-          : status === 404
-            ? "Invite not found — check the token."
-            : baseMsg;
-      setJoinError(friendly);
-    } finally {
-      setJoinBusy(false);
-    }
-  }, [joinToken, load, router, refresh]);
+    setJoinOpen(false);
+    setJoinToken("");
+    setJoinBusy(false);
+    router.push(`/org-invites/${encodeURIComponent(token)}/accept`);
+  }, [joinToken, router]);
 
   const totalOrgs = state.kind === "ready" ? state.data.summary.totalOrgs : 0;
 
@@ -320,10 +290,9 @@ function OrganizationsListPageInner() {
             <h2 style={{ margin: "0 0 0.5rem" }}>Accept invite token</h2>
             <p style={{ fontSize: 13, opacity: 0.85, marginTop: 0 }}>
               Paste the invite token an organization administrator
-              shared with you. Accepting binds your account to the
-              organization at the role chosen by the inviter. This does
-              NOT grant you access to workspace evidence, cases, or
-              reviewer queues — those remain workspace-scoped.
+              shared with you. The next page shows what the invitation
+              gives you (the organization role, any workspaces and their
+              roles, and the organization's policies) before you accept.
             </p>
             <label style={{ display: "block", fontSize: 13, marginBottom: 4 }}>
               Invite token
@@ -365,7 +334,7 @@ function OrganizationsListPageInner() {
                 data-action="submit-join-org"
                 style={toolbarBtn(true)}
               >
-                {joinBusy ? "Accepting…" : "Accept invite"}
+                {joinBusy ? "Opening…" : "Review invitation"}
               </button>
             </div>
           </form>
@@ -408,8 +377,9 @@ function OrganizationsListPageInner() {
           </div>
           <ul style={{ margin: "0.6rem 0 0", paddingLeft: "1.1rem", fontSize: 13, opacity: 0.85 }}>
             <li>
-              <strong>Create an organization</strong> to become its
-              Owner. You can then invite members and bind workspaces.
+              <strong>Organizations are part of PROOVRA Enterprise.</strong>{" "}
+              They are provisioned with an Enterprise agreement and cannot be
+              created here.
             </li>
             <li>
               <strong>Accept an invite token</strong> if an organization

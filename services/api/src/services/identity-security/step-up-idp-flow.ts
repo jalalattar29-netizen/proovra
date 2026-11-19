@@ -44,6 +44,7 @@ import {
   consumeCallbackAttempt,
   hashStateToken,
   markCallbackFailed,
+  recordSamlAssertionUse,
 } from "../access-control/sso-hardening.service.js";
 import {
   buildOidcStepUpAuthorizationUrl,
@@ -429,6 +430,20 @@ export async function completeSamlIdpStepUp(
       });
       if (!attempt.samlAuthnRequestId || assertion.inResponseTo !== attempt.samlAuthnRequestId) {
         throw new Error("in_response_to_mismatch");
+      }
+      // PRO-A2-08 — the same one-time assertion rule as sign-in.
+      if (
+        (await recordSamlAssertionUse(
+          {
+            teamId: conn.teamId,
+            ssoConnectionId: conn.id,
+            assertionId: assertion.replayGuardAssertionId,
+            notOnOrAfter: assertion.notOnOrAfter,
+          },
+          client,
+        )) === "REPLAYED"
+      ) {
+        throw new Error("assertion_replayed");
       }
     } catch {
       return await deny(client, { attempt, challengeId, reason: "IDP_RESPONSE_INVALID" });

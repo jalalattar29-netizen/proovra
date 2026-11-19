@@ -1103,6 +1103,14 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const params = TeamParams.parse(req.params);
       const body = PatchPolicyBody.parse(req.body ?? {});
+      // PRO-A2C-05 — AUTHORIZATION BEFORE ENTITLEMENT (the SAML operator
+      // routes' order): an outsider gets the concealed refusal for every
+      // workspace id and learns neither its existence nor its plan.
+      const scope = await authorizeMfaAdminScope(req, reply, {
+        teamId: params.teamId,
+        permission: "identity.org_policy.manage",
+      });
+      if (!scope) return;
       // Pricing-hardening: MFA enforcement administration is Enterprise-only.
       try {
         await assertTeamAllowsEnterpriseFeature(params.teamId, "mfaEnforcement");
@@ -1117,11 +1125,6 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           },
         });
       }
-      const scope = await authorizeMfaAdminScope(req, reply, {
-        teamId: params.teamId,
-        permission: "identity.org_policy.manage",
-      });
-      if (!scope) return;
       // Changing the org MFA posture is itself a sensitive action, bound to
       // the workspace whose posture is being rewritten.
       const gate = await requireStepUpForSensitiveAction({

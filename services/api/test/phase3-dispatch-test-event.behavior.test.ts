@@ -17,7 +17,15 @@
  *     connectivity signal is preserved.
  */
 
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach, vi } from "vitest";
+
+// PRO-G1Z-01 — the dispatcher re-asks the endpoint creator's authority at every
+// send (proven against PostgreSQL in ws-org-identity-membership); this suite is
+// about transport, so the creator still holds it.
+vi.mock("../src/services/sharing/standing-credential-authority.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  evaluateCreatorAuthority: async () => ({ verdict: "HOLDS" }),
+}));
 
 import type { PrismaClient } from "@prisma/client";
 

@@ -167,7 +167,9 @@ interface IncidentRow {
 
 export default function OrganizationAdminReadinessPage() {
   return (
-    <PageRouteGate routeId="account.organization_admin_readiness">
+    // PRO-T2-08 — gated like the sibling admin leaves (membership; the server
+    // decides by organization role), not by the active workspace's plan.
+    <PageRouteGate routeId="account.organization-detail">
       <ReadinessTab />
     </PageRouteGate>
   );

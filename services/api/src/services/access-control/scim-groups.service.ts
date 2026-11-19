@@ -60,11 +60,16 @@ import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   applyDirectoryRoleChange,
   demoteGroupMappedRoleOnArchive,
+  closeMembershipGrantsByRef,
   provisionManagedMembership,
   provisionMembership,
+  recordMembershipGrant,
 } from "../identity/membership-provisioning.service.js";
 import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
-import { isSelfServeAccountForOrganization } from "../security/enterprise-account-linking.service.js";
+import {
+  evaluateExternalLinkAuthority,
+  isSelfServeAccountForOrganization,
+} from "../security/enterprise-account-linking.service.js";
 import {
   enforceScimManagedOwnership,
   ScimManagedOwnershipError,
@@ -122,17 +127,55 @@ export async function liveGroupProjections(
   return rows.map((r) => ({ ...r, mappedRole: r.mappedRole as ScimGroupMappedRole }));
 }
 
+/**
+ * PRO-A2Z-04 (WS-ORG RG-07) — WHO IS IN A GROUP: the ACTIVE members of the
+ * given workspaces holding a LIVE grant this group (or a group merged into it)
+ * wrote. Membership used to be inferred from role equality, so every holder of
+ * the mapped role (invited people the directory never provisioned included)
+ * was listed to the directory and counted in the console.
+ */
+export async function groupGrantedTeamMemberIds(
+  groupId: string,
+  workspaceIds: ReadonlyArray<string>,
+  client: PrismaClient,
+): Promise<string[]> {
+  if (workspaceIds.length === 0) return [];
+  // Migration-window safe (as recordMembershipGrant): no grants table, no members.
+  const grants = (client as { membershipGrant?: { findMany?: unknown } }).membershipGrant;
+  if (!grants || typeof grants.findMany !== "function") return [];
+  const refs = await groupProvenanceRefs({ id: groupId }, client);
+  const granted = await client.membershipGrant.findMany({
+    where: { externalRef: { in: refs }, revokedAtUtc: null, teamMemberId: { not: null } },
+    select: { teamMemberId: true },
+    distinct: ["teamMemberId"],
+  });
+  const ids = granted.map((g) => g.teamMemberId).filter((id): id is string => Boolean(id));
+  if (ids.length === 0) return [];
+  const live = await client.teamMember.findMany({
+    where: { id: { in: ids }, teamId: { in: [...workspaceIds] }, status: "ACTIVE" },
+    select: { id: true },
+  });
+  return live.map((m) => m.id);
+}
+
 async function loadGroupMembers(
   group: DbGroup,
   client: PrismaClient,
 ): Promise<ScimGroupMember[]> {
-  // A member of the group holds the projected role in a projected Workspace.
+  // PRO-A2Z-04 — a member of the group is someone the group granted (live
+  // provenance) in a projected Workspace.
   const projections = await liveGroupProjections(group.id, client);
   if (projections.length === 0) return [];
+  const grantedIds = await groupGrantedTeamMemberIds(
+    group.id,
+    projections.map((pr) => pr.workspaceId),
+    client,
+  );
+  if (grantedIds.length === 0) return [];
   const members = await client.teamMember.findMany({
     where: {
       status: "ACTIVE",
-      OR: projections.map((pr) => ({ teamId: pr.workspaceId, role: pr.mappedRole as TeamRole })),
+      id: { in: grantedIds },
     },
     select: {
       userId: true,
@@ -204,7 +247,7 @@ async function resolveDirectoryGroup(
  * of every duplicate merged into it (N-4 — a removal through the survivor also
  * undoes the role an archived duplicate had granted).
  */
-async function groupProvenanceRefs(group: DbGroup, client: PrismaClient): Promise<string[]> {
+async function groupProvenanceRefs(group: Pick<DbGroup, "id">, client: PrismaClient): Promise<string[]> {
   const merged = await client.scimGroup.findMany({
     where: { mergedIntoGroupId: group.id },
     select: { id: true },
@@ -578,8 +621,9 @@ export async function scimDeleteGroup(
   // archive committed first, so a demotion failure left an ARCHIVED group whose
   // members kept the elevated role it had granted.
   //
-  // Demotion targets MEMBER (the conservative default) so we never silently
-  // revoke privileged access (OWNER/ADMIN rows) or hard-delete users.
+  // PRO-A2Z-02 — only what THIS group granted is undone (provenance, never
+  // role equality): an ADMIN the group made returns to MEMBER, a hand-appointed
+  // ADMIN and every VIEWER are untouched. Nobody is hard-deleted.
   const demoted = await client.$transaction(async (tx) => {
     const txc = tx as unknown as PrismaClient;
     const projections = await liveGroupProjections(row.id, txc);
@@ -599,6 +643,7 @@ export async function scimDeleteGroup(
       const affected = await demoteGroupMappedRoleOnArchive(txc, {
         teamId: pr.workspaceId,
         mappedRole: pr.mappedRole,
+        provenanceRefs: await groupProvenanceRefs(row, txc),
         externalRef: `scim-group:${row.id}`,
       });
       count += affected.count;
@@ -733,12 +778,33 @@ async function isOrganizationIdentity(
   userId: string,
   client: PrismaClient,
 ): Promise<boolean> {
+  // PRO-A2-02 — a live link counts only when its provenance is honoured: one
+  // the directory/IdP made, or the owner consented to. An administrator's
+  // manual link never made the person a directory identity; a legacy link
+  // (no recorded source) is asked through the canonical predicate.
   const link = await client.externalIdentityMapping.findFirst({
-    where: { organizationId, userId, unlinkedAtUtc: null },
+    where: {
+      organizationId,
+      userId,
+      unlinkedAtUtc: null,
+      linkSource: { in: [...HONOURED_LINK_SOURCES] },
+    },
     select: { id: true },
   });
-  return Boolean(link);
+  if (link) return true;
+  const legacy = await client.externalIdentityMapping.findFirst({
+    where: { organizationId, userId, unlinkedAtUtc: null, linkSource: null },
+    select: { id: true, provider: true },
+  });
+  if (!legacy) return false;
+  const authority = await evaluateExternalLinkAuthority(
+    { userId, organizationId, provider: String(legacy.provider), linkSource: null },
+    client,
+  );
+  return authority.honoured;
 }
+
+const HONOURED_LINK_SOURCES = ["SCIM", "OIDC_JIT", "SAML_JIT", "OWNER_CONSENT"] as const;
 
 /**
  * Apply group membership for `userIds` in every Workspace the group reaches,
@@ -797,20 +863,56 @@ export async function applyGroupMembership(
       // VIEWER or MEMBER grant leaves the role as it is (a removal must never
       // ELEVATE a VIEWER), and an ADMIN granted by anyone else is untouched.
       if (op === "remove") {
-        if (pr.mappedRole !== "ADMIN" || member.role !== "ADMIN") continue;
-        const grant = await client.membershipGrant.findFirst({
-          where: { teamMemberId: member.id, externalRef: { in: provenanceRefs }, revokedAtUtc: null },
-          orderBy: { createdAt: "desc" },
-          select: { grantedRole: true },
-        });
-        if (grant?.grantedRole !== "ADMIN") continue;
+        if (pr.mappedRole === "ADMIN" && member.role === "ADMIN") {
+          const grant = await client.membershipGrant.findFirst({
+            where: { teamMemberId: member.id, externalRef: { in: provenanceRefs }, revokedAtUtc: null },
+            orderBy: { createdAt: "desc" },
+            select: { grantedRole: true },
+          });
+          if (grant?.grantedRole === "ADMIN") {
+            const applied = await applyDirectoryRoleChange(client, {
+              teamMemberId: member.id,
+              currentRole: member.role,
+              desiredRole: "MEMBER",
+              source: "IDP_GROUP",
+              externalRef: `scim-group:${group.id}`,
+              allowPrivilegedChange: true,
+            });
+            if (applied.changed) changed += 1;
+          }
+        }
+        // PRO-A2Z-04 — the person leaves the group: its live grants end, so
+        // the directory and the console stop listing them as a member.
+        await closeMembershipGrantsByRef(client, { teamMemberId: member.id, externalRefs: provenanceRefs });
+        continue;
       }
-      const desiredRole =
-        op === "add" ? (pr.mappedRole as TeamRole) : ("MEMBER" as TeamRole);
-      if (member.role === desiredRole) continue;
-      // Never silently revoke OWNER/ADMIN via group remove — those need
-      // explicit operator action. An OWNER row is never changed by a group.
+      const desiredRole = pr.mappedRole as TeamRole;
       if (member.role === "OWNER") continue;
+      if (member.role === desiredRole) {
+        // PRO-A2Z-04 — already holds the role (from elsewhere): record the
+        // group membership without claiming the role (grantedRole null), so a
+        // later archive never undoes a role this group did not give.
+        // Migration-window safe, like recordMembershipGrant: no grants table, no record.
+        const grants = (client as { membershipGrant?: { findFirst?: unknown } }).membershipGrant;
+        const live =
+          grants && typeof grants.findFirst === "function"
+            ? await client.membershipGrant.findFirst({
+                where: { teamMemberId: member.id, externalRef: `scim-group:${group.id}`, revokedAtUtc: null },
+                select: { id: true },
+              })
+            : true;
+        if (!live) {
+          await recordMembershipGrant(client, {
+            teamMemberId: member.id,
+            source: "IDP_GROUP",
+            intent: "GROUP_MAPPING",
+            externalRef: `scim-group:${group.id}`,
+            grantedRole: null,
+          });
+        }
+        continue;
+      }
+      // An OWNER row is never changed by a group (skipped above).
       // PHASE 3 — canonical orchestrator: directory role change.
       const applied = await applyDirectoryRoleChange(client, {
         teamMemberId: member.id,
@@ -1057,6 +1159,7 @@ export async function archiveScimGroupProjection(
       const affected = await demoteGroupMappedRoleOnArchive(txc, {
         teamId: projection.workspaceId,
         mappedRole: projection.mappedRole,
+        provenanceRefs: await groupProvenanceRefs({ id: projection.scimGroupId }, txc),
         externalRef: `scim-group:${projection.scimGroupId}`,
       });
       demoted = affected.count;

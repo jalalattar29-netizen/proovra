@@ -48,10 +48,11 @@ test("Phase 8 — Bulk-invite page exists on disk", () => {
 test("Phase 8 — Bulk-invite page is gated via PageRouteGate on the bulk-invite route id", () => {
   const src = readFileSync(BULK_INVITE_PAGE, "utf8");
   assert.match(src, /PageRouteGate/, "must wrap in PageRouteGate");
+  // PRO-T2-08 — membership-gated like the sibling admin leaves.
   assert.match(
     src,
-    /routeId="account\.organization_admin_bulk_invite"/,
-    "must gate on the bulk-invite route id",
+    /<PageRouteGate routeId="account.organization-detail">/,
+    "must gate on the organization-detail route id",
   );
 });
 

@@ -419,7 +419,7 @@ vi.mock("../src/db.js", () => ({
     // DOM-13 — the Organization identity authority (checkOrgAccess) reads.
     organization: {
       findUnique: async (a: { where: { id: string } }) =>
-        a.where.id === "44444444-4444-4444-8444-444444444444" ? { id: a.where.id, status: "ACTIVE" } : null,
+        a.where.id === "44444444-4444-4444-8444-444444444444" ? { id: a.where.id, status: "ACTIVE", kind: H.orgKind } : null,
     },
     organizationMembership: {
       findFirst: async (a: { where: { organizationId: string; userId: string } }) =>

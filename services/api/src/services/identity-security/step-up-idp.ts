@@ -29,6 +29,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
+import { evaluateExternalLinkAuthority } from "../security/enterprise-account-linking.service.js";
 
 export type IdpStepUpPolicy = {
   acceptedContexts: ReadonlyArray<string>;
@@ -109,9 +110,22 @@ export async function resolveLinkedUserForSubject(
         externalSubjectId: input.externalSubjectId,
       },
     },
-    select: { userId: true, unlinkedAtUtc: true },
+    select: { userId: true, unlinkedAtUtc: true, linkSource: true },
   });
   if (!mapping || mapping.unlinkedAtUtc !== null) return null;
+  // PRO-A2-02 — the same provenance rule the sign-in paths apply: an
+  // administrator's manual link on a self-serve account never lets the IdP
+  // approve that account's step-up.
+  const authority = await evaluateExternalLinkAuthority(
+    {
+      userId: mapping.userId,
+      organizationId: input.organizationId,
+      provider: input.provider,
+      linkSource: mapping.linkSource,
+    },
+    client,
+  );
+  if (!authority.honoured) return null;
   return mapping.userId;
 }
 

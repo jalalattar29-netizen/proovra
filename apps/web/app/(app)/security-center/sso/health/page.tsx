@@ -115,7 +115,7 @@ function certTone(band: CertExpiryBand): BadgeTone {
 
 export default function SsoHealthPage() {
   return (
-    <PageRouteGate routeId="workspace.security_center">
+    <PageRouteGate routeId="security_center.sso">
       <SsoHealthContent />
     </PageRouteGate>
   );

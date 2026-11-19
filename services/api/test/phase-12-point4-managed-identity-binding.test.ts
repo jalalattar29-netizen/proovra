@@ -62,6 +62,12 @@ const prismaFake = {
         managingOrganizationId: state.managingOrganizationId,
         managedIdentitySource: state.identityMode === "MANAGED_ENTERPRISE" ? "SCIM" : null,
         managedBySsoConnectionId: null,
+        // PRO-A2-02 — an account the Organization's directory created (a
+        // self-serve account is refused owner_consent_required, proven in
+        // ws-org-identity-membership.integration.test.ts).
+        providerUserId: "scim-org-of-t1:subject-1",
+        email: "person@example.test",
+        createdAt: new Date(),
       };
     },
   },

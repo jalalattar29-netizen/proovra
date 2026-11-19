@@ -42,6 +42,7 @@ import {
   parseWorkspaceAssignments,
 } from "../identity/membership-provisioning.service.js";
 import { setManagedIdentity } from "../identity/identity-mode.service.js";
+import { isSelfServeAccountForOrganization } from "../security/enterprise-account-linking.service.js";
 import { resolveOrganizationPolicy } from "../identity/org-security-policy.service.js";
 import { domainFromEmail } from "./organization-domain.service.js";
 import { emitOrgAuditEvent } from "./org-audit.service.js";
@@ -474,7 +475,20 @@ async function runAcceptance(
           },
           select: { id: true },
         });
-        if (verifiedDomain) {
+        // PRO-A2-01 / B5B-F-302 — a verified domain is not the owner's
+        // consent. Only an account THIS Organization's directory or IdP
+        // created is bound; a pre-existing self-serve account joins as an
+        // ordinary member (membership granted, not bound) and keeps its
+        // Personal Space, personal billing and personal export. The origin
+        // check is a pure read that runs before any identity write, so the
+        // refusal leaves the acceptance transaction usable.
+        if (
+          verifiedDomain &&
+          !(await isSelfServeAccountForOrganization(
+            { userId, organizationId: invite.organizationId },
+            tx as never,
+          ))
+        ) {
           await setManagedIdentity(
             {
               userId,
@@ -484,6 +498,7 @@ async function runAcceptance(
                 organizationDomainId: verifiedDomain.id,
                 userEmail: callerEmail,
               },
+              originPolicy: "ORGANIZATION_ORIGINATED_ONLY",
             },
             tx as never,
           );

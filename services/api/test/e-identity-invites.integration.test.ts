@@ -727,6 +727,9 @@ describe("slice E — identity & invitations (live PostgreSQL)", () => {
 
     async function memberOfB(status: "ACTIVE" | "SUSPENDED" | "REVOKED", validUntilUtc: Date | null = null) {
       const person = await user(`f20-${status.toLowerCase()}-${tag()}@invitee.test`);
+      // PRO-A2-03 / DEC-07 — the policy governs accounts the Organization
+      // originated; these people were created by its directory.
+      await prisma.user.update({ where: { id: person.id }, data: { providerUserId: `scim-${orgBId}:${person.id}` } });
       await prisma.organizationMembership.create({
         data: {
           organizationId: orgBId,

@@ -393,13 +393,10 @@ export async function organizationDomainsRoutes(app: FastifyInstance) {
         return reply.code(denial.status).send(denial.body);
       }
 
-      const gate = await resolveOrgEnterpriseFeatureGate(orgId, "ssoScim");
-      if (!gate.ok) {
-        return reply
-          .code(gate.statusCode)
-          .send({ error: { code: gate.reason, upgradeCta: "/contact-sales" } });
-      }
-
+      // PRO-T2-12 — withdrawing a claim is a REVOCATION (legal-acceptance
+      // route policy): it is never gated on the plan, so a lapsed organization
+      // can still remove a stale verified claim that blocks everybody else.
+      // Role, CUSTOMER kind and step-up still apply.
       const row = await prisma.organizationDomain.findFirst({
         where: { id: domainId, organizationId: orgId },
         select: { id: true, domain: true },

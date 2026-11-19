@@ -45,13 +45,15 @@ test("Readiness page exists on disk", () => {
   );
 });
 
-test("Readiness is gated via PageRouteGate routeId=account.organization_admin_readiness", () => {
+test("Readiness is gated via PageRouteGate like its sibling admin leaves (PRO-T2-08)", () => {
   const s = src();
   assert.match(s, /PageRouteGate/, "must wrap in PageRouteGate");
+  // PRO-T2-08 — membership-gated (account.organization-detail), not by the
+  // active workspace's plan; the server decides by organization role.
   assert.match(
     s,
-    /routeId="account\.organization_admin_readiness"/,
-    "must gate on the readiness route id",
+    /<PageRouteGate routeId="account.organization-detail">/,
+    "must gate on the organization-detail route id",
   );
 });
 

@@ -71,6 +71,13 @@ export type SamlAssertion = {
    * Never log the raw NameID.
    */
   nameIdHash: string;
+  /**
+   * PRO-A2-08 — Assertion/@ID when the VERIFIED signature references the
+   * assertion alone (the enclosing Response, and so its InResponseTo, is then
+   * unsigned). The caller records it once until NotOnOrAfter
+   * (recordSamlAssertionUse). Null when the signature covers the Response.
+   */
+  replayGuardAssertionId: string | null;
 };
 
 /** Input to the SAML response validator. */
@@ -162,7 +169,9 @@ export type SamlAssertionErrorCode =
   // pinned IdP entityID; login fails closed pending metadata ingestion.
   | "SAML_ISSUER_UNPINNED"
   // PHASE 8 §11.2 — Destination/Recipient not bound to this SP's ACS URL.
-  | "SAML_RECIPIENT_DESTINATION_MISMATCH";
+  | "SAML_RECIPIENT_DESTINATION_MISMATCH"
+  // PRO-A2-08 — an assertion ID already used once within its validity.
+  | "SAML_ASSERTION_REPLAYED";
 
 /**
  * PHASE 8 §11.2 (2026-07-22) — pure audience decision (mandatory-audience
@@ -571,6 +580,7 @@ export function validateSamlResponse(
   // element (a response-level signature covers the whole document). Any
   // other target means the verified bytes are not the bytes we consume.
   // -------------------------------------------------------------------------
+  let replayGuardAssertionId: string | null = null;
   {
     const assertionId = assertion.getAttribute("ID") ?? "";
     const responseId = doc.documentElement.getAttribute("ID") ?? "";
@@ -596,6 +606,9 @@ export function validateSamlResponse(
         "SAML_SIGNATURE_NOT_BOUND",
         "Verified signature does not reference the consumed Assertion or its enclosing Response.",
       );
+    }
+    if (boundToAssertion && !boundToResponse && !boundToDocumentRoot) {
+      replayGuardAssertionId = assertionId;
     }
   }
 
@@ -628,6 +641,18 @@ export function validateSamlResponse(
       throw new SamlAssertionError(
         "SAML_IN_RESPONSE_TO_MISMATCH",
         "InResponseTo does not match the stored AuthnRequest ID.",
+      );
+    }
+    // PRO-A2-08 — the Response element is outside an assertion-only
+    // signature, so its InResponseTo can be rewritten around a captured
+    // assertion. The assertion's own SubjectConfirmationData@InResponseTo IS
+    // signed: when the IdP states it, it must name THIS AuthnRequest (an IdP
+    // that omits it keeps working; the Response value above still applies).
+    const scdInResponseTo = scdEls[0]?.getAttribute("InResponseTo") ?? null;
+    if (scdInResponseTo !== null && scdInResponseTo !== input.expectedInResponseTo) {
+      throw new SamlAssertionError(
+        "SAML_IN_RESPONSE_TO_MISMATCH",
+        "The assertion's SubjectConfirmationData InResponseTo does not match the stored AuthnRequest ID.",
       );
     }
   }
@@ -797,6 +822,7 @@ export function validateSamlResponse(
     notOnOrAfter,
     audienceRestriction,
     nameIdHash: hashValue(nameId),
+    replayGuardAssertionId,
   };
 }
 

@@ -64,6 +64,11 @@ function makeTx() {
                   if (where.suspensionReason) return H.markedSuspended;
                   return [];
                 }
+                // PRO-NAZ-03 — resume asks whether marker-suspended rows exist.
+                if (model === "teamMember" && method === "findFirst") {
+                  const where = (args[0] as { where: Record<string, unknown> }).where;
+                  if (where.suspensionReason) return (H.markedSuspended as unknown[])[0] ?? null;
+                }
                 if (
                   model === "workspaceClosureRequest" &&
                   method === "findFirst"
@@ -106,6 +111,14 @@ vi.mock("../src/db.js", () => {
 
 vi.mock("../src/services/platform-audit-log.service.js", () => ({
   appendPlatformAuditLog: async () => ({}),
+}));
+
+// PRO-TZ-03 — resume claims each member's seat through the rbac capacity
+// authority (proven against PostgreSQL in ws-org-identity-membership); this
+// suite pins the marker scoping, so capacity is available here.
+vi.mock("../src/services/identity/rbac.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  assertReinstatementFitsCapacityTx: async () => undefined,
 }));
 
 import {
@@ -331,6 +344,8 @@ describe("Phase 4 §7.5 — organization-workspace suspend/resume", () => {
 
   it("suspend: memberships → SUSPENDED with marker, switcher cleared, webhooks paused", async () => {
     H.team = { ...ORG_TEAM };
+    // PRO-NAZ-03 — a running workspace (nothing marker-suspended yet).
+    H.markedSuspended = [];
     const result = await suspendOrganizationWorkspace({
       teamId: "t1",
       actorUserId: "admin-1",

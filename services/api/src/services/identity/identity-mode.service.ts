@@ -340,6 +340,11 @@ export async function setManagedIdentity(
      * (the identity is not already managed by this Organization) is allowed only
      * for an account this Organization's own directory or IdP created. A
      * verified domain or a matching email never converts a self-serve account.
+     *
+     * PRO-A2-01 (WS-ORG RG-06) — this is now the SECURE DEFAULT for every
+     * caller: the parameter is kept for call-site readability only. The
+     * invitation path used to omit it and converted a domain-matching
+     * self-serve account on DOMAIN evidence alone.
      */
     originPolicy?: "ORGANIZATION_ORIGINATED_ONLY";
   },
@@ -365,7 +370,6 @@ export async function setManagedIdentity(
     );
   }
   if (
-    input.originPolicy === "ORGANIZATION_ORIGINATED_ONLY" &&
     current.managingOrganizationId !== input.managingOrganizationId &&
     (await isSelfServeAccountForOrganization(
       { userId: input.userId, organizationId: input.managingOrganizationId },
@@ -489,6 +493,9 @@ export async function resolvePersonalSpaceEligibility(
         noPersonalSpace: true,
         organization: {
           kind: "CUSTOMER",
+          // PRO-T2-04 — a closed (ARCHIVED) or suspended organization is dark
+          // for every org surface (org-access.ts); it imposes nothing either.
+          status: "ACTIVE",
           memberships: {
             some: {
               userId,
@@ -509,12 +516,27 @@ export async function resolvePersonalSpaceEligibility(
     throw err;
   }
 
-  const denying = rows.find((r) => r.noPersonalSpace === true);
-  if (denying) {
+  // PRO-A2-03 / DEC-07 (WS-ORG RG-06) — the noPersonalSpace policy governs
+  // accounts the Organization genuinely originated (its directory or IdP
+  // created them). A PRE-EXISTING SELF-SERVE account that joined keeps its
+  // Personal Space, personal billing and export: an organization's policy
+  // flip never locks a paying person out of their own space. Provenance is
+  // read through the one account-origin authority (fails closed to
+  // "self-serve", i.e. to the person keeping their own space).
+  for (const r of rows) {
+    if (r.noPersonalSpace !== true) continue;
+    if (
+      await isSelfServeAccountForOrganization(
+        { userId, organizationId: r.organizationId },
+        client,
+      )
+    ) {
+      continue;
+    }
     return {
       allowed: false,
       reason: "ORG_POLICY",
-      organizationId: denying.organizationId,
+      organizationId: r.organizationId,
     };
   }
   return { allowed: true };

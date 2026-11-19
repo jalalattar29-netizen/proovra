@@ -42,7 +42,6 @@ import { Button } from "../../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../../components/ui/EmptyState";
 import {
   ORG_ROLE_LABEL,
-  roleMeetsMin,
   type OrgRole,
 } from "../_lib/orgRoles";
 
@@ -62,11 +61,21 @@ interface ReportDef {
   filename: string;
   /** Minimum org role the backend requires (visibility mirror). */
   minRole: OrgRole;
+  /**
+   * PRO-T2-08 — the EXPLICIT role set the export route admits
+   * (organizations-reports.routes.ts, AUD-31: never rank — the two rank-3
+   * specialists see different exports).
+   */
+  roles: ReadonlyArray<OrgRole>;
   /** The real backing data source, shown as an honest provenance note. */
   source: string;
   /** When false, the report has no data at the org tier (honest unavailable). */
   available: boolean;
 }
+
+const MEMBERS_EXPORT_ROLES: ReadonlyArray<OrgRole> = ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_BILLING_ADMIN", "ORG_AUDITOR"];
+const SEATS_EXPORT_ROLES: ReadonlyArray<OrgRole> = ["ORG_OWNER", "ORG_ADMIN", "ORG_BILLING_ADMIN"];
+const OVERSIGHT_EXPORT_ROLES: ReadonlyArray<OrgRole> = ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_AUDITOR"];
 
 const REPORTS: ReadonlyArray<ReportDef> = [
   {
@@ -77,6 +86,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "members.csv",
     filename: "org-members.csv",
     minRole: "ORG_AUDITOR",
+    roles: MEMBERS_EXPORT_ROLES,
     source: "Organization members",
     available: true,
   },
@@ -88,6 +98,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "seats.csv",
     filename: "org-seats.csv",
     minRole: "ORG_BILLING_ADMIN",
+    roles: SEATS_EXPORT_ROLES,
     source: "Organization billing summary",
     available: true,
   },
@@ -99,6 +110,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "audit.csv",
     filename: "org-audit.csv",
     minRole: "ORG_AUDITOR",
+    roles: OVERSIGHT_EXPORT_ROLES,
     source: "Organization audit events",
     available: true,
   },
@@ -110,6 +122,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "governance.csv",
     filename: "org-governance.csv",
     minRole: "ORG_AUDITOR",
+    roles: OVERSIGHT_EXPORT_ROLES,
     source: "Retention policies",
     available: true,
   },
@@ -121,6 +134,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "external-access.csv",
     filename: "org-external-access.csv",
     minRole: "ORG_AUDITOR",
+    roles: OVERSIGHT_EXPORT_ROLES,
     source: "External reviewer assignments in this organization’s workspaces",
     available: true,
   },
@@ -132,6 +146,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "download-audit.csv",
     filename: "org-download-audit.csv",
     minRole: "ORG_AUDITOR",
+    roles: OVERSIGHT_EXPORT_ROLES,
     source: "Evidence events in the audit log",
     available: false,
   },
@@ -155,7 +170,9 @@ const API_BASE = apiBaseUrl();
 
 export default function OrganizationAdminReportsPage() {
   return (
-    <PageRouteGate routeId="account.organization_admin_reports">
+    // PRO-T2-08 — gated like the sibling admin leaves (membership; the server
+    // decides by organization role), not by the active workspace's plan.
+    <PageRouteGate routeId="account.organization-detail">
       <ReportsTab />
     </PageRouteGate>
   );
@@ -258,7 +275,7 @@ function ReportsTab() {
   // Role-filter the report cards. Until the role resolves, render nothing
   // sensitive; the backend still gates each endpoint.
   const visibleReports = callerRole
-    ? REPORTS.filter((r) => roleMeetsMin(callerRole, r.minRole))
+    ? REPORTS.filter((r) => r.roles.includes(callerRole))
     : [];
 
   return (

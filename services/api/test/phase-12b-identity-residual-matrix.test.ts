@@ -582,6 +582,10 @@ vi.mock("../src/services/identity/membership-provisioning.service.js", () => {
       rec("applyDirectoryRoleChange", { ...i });
       if (i.currentRole === i.desiredRole) return { changed: false };
       await tx.teamMember.update({ where: { id: i.teamMemberId }, data: { role: i.desiredRole } });
+      // Provenance, as the real orchestrator writes it (PRO-A2Z-04 reads it).
+      await (tx as unknown as { membershipGrant: { create: (a: unknown) => Promise<unknown> } }).membershipGrant.create({
+        data: { teamMemberId: i.teamMemberId, source: "IDP_GROUP", intent: "GROUP_MAPPING", externalRef: (i as { externalRef?: string | null }).externalRef ?? null, grantedRole: i.desiredRole, revokedAtUtc: null, createdAt: new Date() },
+      });
       return { changed: true };
     },
     // The demotion leg of the atomic group archive. When it fails the whole
@@ -802,9 +806,9 @@ function seed(): void {
     { id: "cccccccc-cccc-4ccc-8ccc-cccccccccc0b", teamId: OTHER_TEAM, eventType: "scim_token_created", severity: "HIGH", details: { action: "rotate" }, createdAt: D(8), updatedAt: D(8) },
   ];
   H.store["externalIdentityMapping"] = [
-    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01", teamId: TEAM, organizationId: ORG_A, userId: SUBJECT_USER, provider: "SCIM", externalSubjectId: "idp-sub-1", externalEmail: "member@acme.test", displayName: "Member", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
-    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee02", teamId: TEAM, organizationId: ORG_A, userId: STALE_USER, provider: "SCIM", externalSubjectId: "idp-sub-2", externalEmail: "stale@acme.test", displayName: "Stale", unlinkedAtUtc: null, linkedAtUtc: D(3), createdAt: D(3), updatedAt: D(3) },
-    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee09", teamId: OTHER_TEAM, organizationId: ORG_B, userId: FOREIGN_USER, provider: "SCIM", externalSubjectId: "idp-sub-9", externalEmail: "other@rival.test", displayName: "Other", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
+    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01", teamId: TEAM, organizationId: ORG_A, userId: SUBJECT_USER, provider: "SCIM", linkSource: "SCIM", externalSubjectId: "idp-sub-1", externalEmail: "member@acme.test", displayName: "Member", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
+    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee02", teamId: TEAM, organizationId: ORG_A, userId: STALE_USER, provider: "SCIM", linkSource: "SCIM", externalSubjectId: "idp-sub-2", externalEmail: "stale@acme.test", displayName: "Stale", unlinkedAtUtc: null, linkedAtUtc: D(3), createdAt: D(3), updatedAt: D(3) },
+    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee09", teamId: OTHER_TEAM, organizationId: ORG_B, userId: FOREIGN_USER, provider: "SCIM", linkSource: "SCIM", externalSubjectId: "idp-sub-9", externalEmail: "other@rival.test", displayName: "Other", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
   ];
   const tokenBase = {
     name: "okta", tokenPrefix: "scim_pat_aa", ipAllowlist: [] as string[],
@@ -830,6 +834,10 @@ function seed(): void {
   H.store["scimGroupWorkspaceProjection"] = [
     { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbc01", scimGroupId: GROUP, organizationId: ORG_A, workspaceId: TEAM, mappedRole: "ADMIN", status: "ACTIVE", createdByUserId: null, createdAt: D(2), updatedAt: D(2) },
     { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbc09", scimGroupId: FOREIGN_GROUP, organizationId: ORG_B, workspaceId: OTHER_TEAM, mappedRole: "ADMIN", status: "ACTIVE", createdByUserId: null, createdAt: D(2), updatedAt: D(2) },
+  ];
+  // PRO-A2Z-04 — a group's members are the people it granted (live provenance).
+  H.store["membershipGrant"] = [
+    { id: "cccccccc-cccc-4ccc-8ccc-cccccccccd01", teamMemberId: TARGET_MEMBER, organizationMembershipId: null, source: "IDP_GROUP", intent: "GROUP_MAPPING", grantedByUserId: null, externalRef: `scim-group:${GROUP}`, grantedRole: "ADMIN", revokedAtUtc: null, revokedByUserId: null, createdAt: D(2) },
   ];
   H.store["organization"] = [
     { id: ORG_A, kind: "CUSTOMER", status: "ACTIVE", createdAt: D(1), updatedAt: D(1) },

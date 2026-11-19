@@ -175,7 +175,9 @@ const WORKSPACE_ROLES: Array<{ value: WorkspaceRole; label: string }> = [
 
 export default function OrganizationAdminBulkInvitePage() {
   return (
-    <PageRouteGate routeId="account.organization_admin_bulk_invite">
+    // PRO-T2-08 — gated like the sibling admin leaves (membership; the server
+    // decides by organization role), not by the active workspace's plan.
+    <PageRouteGate routeId="account.organization-detail">
       <BulkInviteTab />
     </PageRouteGate>
   );

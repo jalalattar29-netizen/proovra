@@ -42,6 +42,15 @@ const STANDARD_ROW = {
   managedIdentitySource: null,
   managedBySsoConnectionId: null,
 };
+// PRO-A2-03 / DEC-07 — a STANDARD account org-A's own directory created: the
+// noPersonalSpace policy governs it. A pre-existing self-serve account
+// (STANDARD_ROW, provider id = its own address) keeps its Personal Space.
+const ORG_ORIGINATED_ROW = {
+  ...STANDARD_ROW,
+  providerUserId: "scim-org-A:s1",
+  email: "jo@acme.test",
+  createdAt: new Date(),
+};
 
 /** MANAGED — org-owned via a SCIM/DOMAIN source (valid without a connection). */
 const MANAGED_ROW = {
@@ -150,8 +159,16 @@ describe("canonical no-personal decision (personalSpaceAllowed)", () => {
     code: "ORG_POLICY_NO_PERSONAL_SPACE",
   };
 
-  it("STANDARD identity + org policy noPersonalSpace → personal space DENIED", async () => {
-    const { prisma, writes } = identityStub(STANDARD_ROW, [
+  it("DEC-07 — a SELF-SERVE member keeps Personal Space whatever the organization's noPersonalSpace policy", async () => {
+    const { prisma } = identityStub(
+      { ...STANDARD_ROW, providerUserId: "jo@acme.test", email: "jo@acme.test", createdAt: new Date() },
+      [{ organizationId: "org-A", noPersonalSpace: true }],
+    );
+    expect(await personalSpaceAllowed("u1", prisma)).toBe(true);
+  });
+
+  it("Organization-originated STANDARD identity + org policy noPersonalSpace → personal space DENIED", async () => {
+    const { prisma, writes } = identityStub(ORG_ORIGINATED_ROW, [
       { organizationId: "org-A", noPersonalSpace: true },
     ]);
     expect(await personalSpaceAllowed("u1", prisma)).toBe(false);
@@ -174,7 +191,7 @@ describe("canonical no-personal decision (personalSpaceAllowed)", () => {
   });
 
   it("org policy denies the BOOTSTRAP with zero workspace/org/membership mutation", async () => {
-    const { prisma, writes } = identityStub(STANDARD_ROW, [
+    const { prisma, writes } = identityStub(ORG_ORIGINATED_ROW, [
       { organizationId: "org-A", noPersonalSpace: true },
     ]);
     await expect(

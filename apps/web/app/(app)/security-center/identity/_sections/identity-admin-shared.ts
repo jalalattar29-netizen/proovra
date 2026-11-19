@@ -45,6 +45,8 @@ const CODE_COPY: Record<string, string> = {
     "This organization is suspended. Identity administration is unavailable until it is reactivated.",
   managed_identity_readonly:
     "This identity is provisioned by your directory (SCIM/SSO). Change it in the identity provider — a change made here would be reverted on the next sync.",
+  owner_consent_required:
+    "This person opened their own account before joining. Only they can link it to your identity provider: ask them to sign in through your organization's SSO and approve the link from their own account.",
   identity_mode_unavailable:
     "The identity-ownership check could not run, so the change was refused. Retry shortly.",
   last_administrator_protected:
@@ -98,6 +100,7 @@ const CODE_COPY: Record<string, string> = {
 
 const BLOCKED_CODES = new Set([
   "managed_identity_readonly",
+  "owner_consent_required",
   "last_administrator_protected",
   "workspace_seat_limit_reached",
   "collaboration_team_capacity_reached",

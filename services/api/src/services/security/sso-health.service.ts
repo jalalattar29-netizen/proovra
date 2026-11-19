@@ -159,6 +159,8 @@ export async function buildSsoHealthSnapshot(
     const reason7 = new Map<SsoFailureReason, number>();
 
     for (const a of attempts) {
+      // PRO-A2-08 — assertion-use ledger rows are not sign-in attempts.
+      if (a.failureReason === "saml_assertion_use") continue;
       total7++;
       const recent24 = a.issuedAtUtc >= since24h;
       if (recent24) total24++;
@@ -189,7 +191,9 @@ export async function buildSsoHealthSnapshot(
     if (conn.status === "DISABLED" || conn.status === "REVOKED") {
       health = "DISABLED";
     } else if (
-      !conn.samlCertFingerprint ||
+      // PRO-A2Z-03 — a certificate is a SAML requirement; an OIDC connection
+      // has none and is classified by its failures and outages like any other.
+      (conn.provider === "GENERIC_SAML" && !conn.samlCertFingerprint) ||
       conn.status === "PENDING"
     ) {
       health = "UNCONFIGURED";

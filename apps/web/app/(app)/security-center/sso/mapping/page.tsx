@@ -118,7 +118,7 @@ type SsoProvider = {
 
 export default function SamlMappingPage() {
   return (
-    <PageRouteGate routeId="workspace.security_center">
+    <PageRouteGate routeId="security_center.sso">
       <SamlMappingContent />
     </PageRouteGate>
   );
@@ -291,6 +291,12 @@ function SamlMappingContent() {
       setSaving(false);
     }
   }, [teamId, connectionId, mapping, preview, stepUp, loadCurrent]);
+
+  // PRO-A2U-06 — the preview describes ONE mapping: any edit invalidates it,
+  // so Save is not offered until the edited mapping is previewed again.
+  useEffect(() => {
+    setPreview(null);
+  }, [mapping]);
 
   const updateField = (key: keyof MappingPayload, value: unknown) =>
     setMapping((prev) => ({ ...prev, [key]: value }));

@@ -299,12 +299,18 @@ export async function revokeOrganizationMembership(
 }
 
 /**
- * Explicit, audited reinstatement. SUSPENDED or REVOKED → ACTIVE.
+ * Explicit, audited reinstatement of a PAUSE. SUSPENDED → ACTIVE.
  *
- * Restoring from REVOKED is permitted and deliberately noisy: it is a real
- * administrative need (a mistaken removal), and forcing an administrator to
- * delete-and-recreate instead would destroy exactly the history this change
- * exists to keep.
+ * PRO-T2-03 (WS-ORG RG-07) — a REVOKED membership (an administrator's removal
+ * OR the person's own departure — the two share the status) is NOT restorable
+ * by an administrator: it used to be, and an ORG_ADMIN could make a person who
+ * had left an ACTIVE member again (former role, ORG_ADMIN included; with a
+ * noPersonalSpace policy their Personal Space was re-denied) with no
+ * invitation and no consent. A removal is reversed only by a NEW invitation
+ * the person accepts (`reviveRevokedOrganizationMembershipByInvitation`, used
+ * by the orchestrator's organization grant) — the promise the leave confirmation makes
+ * ("an owner or admin must re-invite you to return"). A restore on a REVOKED
+ * row answers `illegal_transition` and writes nothing.
  */
 export async function restoreOrganizationMembership(
   input: TransitionInput,
@@ -312,7 +318,22 @@ export async function restoreOrganizationMembership(
   return transition({
     ...input,
     to: "ACTIVE",
-    allowedFrom: ["SUSPENDED", "REVOKED"],
+    allowedFrom: ["SUSPENDED"],
+  });
+}
+
+/**
+ * REVOKED → ACTIVE, only for the person's own acceptance of an invitation
+ * issued AFTER the removal (`invitationCannotReviveMembership` has already
+ * been asked). Never reachable from an administrator route.
+ */
+export async function reviveRevokedOrganizationMembershipByInvitation(
+  input: TransitionInput,
+): Promise<LifecycleOutcome> {
+  return transition({
+    ...input,
+    to: "ACTIVE",
+    allowedFrom: ["REVOKED"],
   });
 }
 

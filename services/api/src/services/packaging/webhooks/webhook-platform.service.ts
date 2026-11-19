@@ -42,6 +42,10 @@ import {
 
 import { prisma as defaultPrisma } from "../../../db.js";
 import { isLiveOperatingWorkspace } from "../../workspace/operating-workspace.js";
+import {
+  STANDING_CREDENTIAL_PERMISSION,
+  evaluateCreatorAuthority,
+} from "../../sharing/standing-credential-authority.js";
 import { inputRefusal } from "../../../errors.js";
 import { assertLimitEntitlementTx, resolveEntitlement } from "../entitlement.service.js";
 
@@ -321,6 +325,7 @@ export async function emitWebhookEvent(
       id: true,
       secret: true,
       subscribedEvents: true,
+      createdByUserId: true,
     },
   });
 
@@ -336,6 +341,31 @@ export async function emitWebhookEvent(
   for (const ep of endpoints) {
     const subs = normalizeSubscribedEvents(ep.subscribedEvents);
     if (!subs.includes(input.eventKind)) continue;
+    // PRO-LEAD-01 / PRO-G1Z-01 — the endpoint acts in its creator's name. This
+    // is the one place a lifecycle delivery is queued (the worker only sends
+    // queued rows), so the creator's standing is asked here by the canonical
+    // decision (access-window expiry set aside, A2-26). LOST — e.g. a
+    // capability or delegated scope that expired, which no transition ends —
+    // deactivates the endpoint and queues nothing; an unreadable or
+    // workspace-blocked answer queues nothing and ends nothing.
+    const creator = await evaluateCreatorAuthority(
+      {
+        teamId: input.teamId,
+        userId: ep.createdByUserId,
+        permission: STANDING_CREDENTIAL_PERMISSION.lifecycleWebhook,
+      },
+      prisma,
+    );
+    if (creator.verdict === "LOST") {
+      await prisma.lifecycleWebhookEndpoint
+        .updateMany({
+          where: { id: ep.id, teamId: input.teamId, state: "ACTIVE" },
+          data: { state: "DEACTIVATED", deactivatedAtUtc: new Date() },
+        })
+        .catch(() => null);
+      continue;
+    }
+    if (creator.verdict !== "HOLDS") continue;
     const signature = signPayload(ep.secret, canonical);
     const row = await prisma.lifecycleWebhookDelivery
       .create({

@@ -33,6 +33,7 @@ import { withLegacyRouteFallback } from "../../../../../lib/api/legacy-route-fal
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { usePlatformContext } from "../../../../../lib/platform-context";
 import type { OrganizationInvitationLookup } from "@proovra/shared";
+import { OrgInvitationPolicyNotice } from "../../../../../components/organizations/OrgInvitationPolicyNotice";
 
 type State =
   | { kind: "idle" }
@@ -602,6 +603,7 @@ function InvitationGrants({ lookup }: { lookup: Lookup }) {
           administrator can add you to one later.
         </p>
       )}
+      <OrgInvitationPolicyNotice policy={ctx.policy} />
     </div>
   );
 }
