@@ -348,6 +348,13 @@ function orchestrationErrorToReply(
         error: { code: "PART_NOT_UPLOADED", message: friendly("PART_NOT_UPLOADED") },
       });
       return;
+    case "reservation_expired":
+      // PRO-I1-02 — the files were staged and then left for more than the
+      // 24 h reservation window. Recoverable by the contributor on this link.
+      reply.code(409).send({
+        error: { code: "SUBMISSION_EXPIRED", message: friendly("SUBMISSION_EXPIRED") },
+      });
+      return;
     case "session_not_open_for_upload":
       reply.code(409).send({
         error: {
@@ -434,6 +441,8 @@ function friendlyPublicIntakeMessage(code: string): string {
       return "We couldn't find what you were trying to access. Try refreshing the page.";
     case "PART_NOT_UPLOADED":
       return "One of your files did not finish uploading. Upload it again, then submit.";
+    case "SUBMISSION_EXPIRED":
+      return "These files were added more than 24 hours ago and were not submitted in time, so they are no longer held and nothing was submitted. Please add your files again, then submit.";
     case "PART_INDEX_TAKEN":
       return "A file with that position already exists. Please try the upload again.";
     case "SESSION_NOT_OPEN_FOR_UPLOAD":

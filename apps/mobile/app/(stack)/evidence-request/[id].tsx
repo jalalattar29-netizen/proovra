@@ -47,6 +47,7 @@ import {
   deliveryAttemptLine,
   buildRequestDeliveryRetryPath,
   parseEvidenceRequestDetail,
+  rerequestCopy,
   parseRequestDeliveries,
   parseRequestEvents,
   requestStatusDisplay,
@@ -444,6 +445,8 @@ export default function EvidenceRequestDetailScreen() {
   const internal = r.recipientMode === "INTERNAL_USER";
   const transitions = availableRequestTransitions(r.status ?? "");
   const canAskForMore = transitions.includes("needs-more-info");
+  // PRO-I1-01 — "workspace-internal" only when the API confirmed it.
+  const rerequest = rerequestCopy(r.reviewerNoteStaysInternal);
   // "needs-more-info" has its own section (page.tsx:428); an internal
   // request is sent from the assignment block (EvidenceRequestAssignment:259).
   const actionTransitions = transitions.filter((t) => t !== "needs-more-info" && !(t === "send" && internal));
@@ -543,12 +546,12 @@ export default function EvidenceRequestDetailScreen() {
       {canAskForMore ? (
         <ProovraSection title={REQUEST_DETAIL_COPY.rerequestTitle}>
           <ProovraCard style={styles.stack} testID="request-rerequest">
-            <ProovraText variant="label" color={theme.color.ink.secondary}>{REQUEST_DETAIL_COPY.rerequestBody}</ProovraText>
+            <ProovraText variant="label" color={theme.color.ink.secondary}>{rerequest.body}</ProovraText>
             <ProovraInput
               value={rerequestNote}
               onChangeText={setRerequestNote}
-              placeholder={REQUEST_DETAIL_COPY.rerequestPlaceholder}
-              accessibilityLabel={REQUEST_DETAIL_COPY.rerequestPlaceholder}
+              placeholder={rerequest.placeholder}
+              accessibilityLabel={rerequest.placeholder}
               multiline
               autoCapitalize="sentences"
             />

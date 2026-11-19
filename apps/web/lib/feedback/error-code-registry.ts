@@ -502,6 +502,8 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     why: "Answered only to the Capture draft discard, which never displays its error; a later discard retries.",
   },
   PART_NOT_UPLOADED: { disposition: "customer", where: PUBLIC_INTAKE },
+  // PRO-I1-02 — files staged and left past the 24 h reservation window.
+  SUBMISSION_EXPIRED: { disposition: "customer", where: PUBLIC_INTAKE },
   SUBMITTER_IDENTITY_INVALID: { disposition: "customer", where: PUBLIC_INTAKE },
   SUBMISSION_NOT_READY: { disposition: "customer", where: PUBLIC_INTAKE },
   SUBMIT_FAILED: { disposition: "customer", where: PUBLIC_INTAKE },

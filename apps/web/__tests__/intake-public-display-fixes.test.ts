@@ -104,9 +104,19 @@ test("submit failure does NOT clear uploads — stays on the `upload` phase so f
   assert.match(onSubmitBody, /setPhase\("upload"\);/);
   // No code path inside the catch must clear `parts` or reset
   // session — pin the absence.
-  assert.ok(
-    !/setParts\(\[\]\)/.test(onSubmitBody),
-    "onSubmit catch must not clear uploaded parts",
+  //
+  // PRO-I1-02 — the ONE exception: SUBMISSION_EXPIRED means the server no
+  // longer holds the staged files (their 24 h reservation ran out), so the
+  // list is cleared to show what is true. It is the only clear, and it sits
+  // inside that code's own branch (behaviour:
+  // render/intake-submission-expired.render.test.tsx, which also proves a
+  // genuine fault still keeps the files).
+  const clears = onSubmitBody.match(/setParts\(\[\]\)/g) ?? [];
+  assert.equal(clears.length, 1, "onSubmit clears uploaded parts only for SUBMISSION_EXPIRED");
+  assert.match(
+    onSubmitBody,
+    /if \(e\?\.code === "SUBMISSION_EXPIRED"\) \{\s*setParts\(\[\]\);/,
+    "the one clear is guarded by SUBMISSION_EXPIRED",
   );
   assert.ok(
     !/setSession\(null\)/.test(onSubmitBody),

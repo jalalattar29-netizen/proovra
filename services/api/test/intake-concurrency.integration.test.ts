@@ -17,6 +17,7 @@ import { Readable } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { intakeConsentDisclosureText } from "@proovra/shared";
 import * as recorder from "@proovra/shared-runtime";
+import { expiredEvidenceReservationWhere, releaseEvidenceReservationTx } from "@proovra/shared-runtime";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -231,6 +232,131 @@ describe("ET-INT-09 — intake races (live PostgreSQL 16)", () => {
     const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: session.evidenceId! }, select: { status: true } });
     expect(["SIGNED", "REPORTED"]).not.toContain(ev.status);
     expect(await linkRow()).toMatchObject({ usedCount: 0, status: "REVOKED" });
+  }, 120_000);
+
+  // ---------------------------------------------------------------------------
+  // PRO-I1-02 acceptance — "race: revoke during an in-flight submit still yields
+  // exactly one outcome". PRO-050 (b) above lands the revoke BEFORE the use is
+  // reserved. This one lands it AFTER: the use is already counted and the seal
+  // is running (paused in its own first HEAD; the link has no byte cap, so the
+  // submit makes no HEAD before the seal).
+  // ---------------------------------------------------------------------------
+  it("PRO-I1-02: a revoke that lands after the use is reserved, during the seal, yields exactly one outcome", async () => {
+    freshIp();
+    const t = await mintLink({ intakeMode: "EXTERNAL_REUSABLE", maxUses: 3 });
+    const sid = await staged(t);
+    const link = await linkRow();
+    headPause.ms = 1500;
+    const inflight = submit(t, sid);
+    // Wait until the submit has reserved its use (it is now inside the seal).
+    for (let i = 0; i < 100 && (await linkRow()).usedCount === 0; i++) await new Promise((r) => setTimeout(r, 20));
+    expect((await linkRow()).usedCount, "the submit reserved its use before the revoke").toBe(1);
+    expect(headPause.ms, "the seal's HEAD took the pause").toBe(0);
+    const [res, revoke] = await Promise.all([
+      inflight,
+      h.app.inject({
+        method: "POST",
+        url: `/v1/workflow/intake-links/${link.id}/revoke`,
+        headers: { authorization: `Bearer ${h.fixtures.teamA.ownerToken}` },
+        payload: { reason: "revoked during the seal" },
+      }),
+    ]);
+    expect(revoke.statusCode, revoke.body).toBe(200);
+    const session = await prisma.workflowIntakeSession.findUniqueOrThrow({ where: { id: sid }, select: { evidenceId: true, status: true } });
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: session.evidenceId! }, select: { status: true, deletedAt: true } });
+    const after = await linkRow();
+    const sealed = ev.status === "SIGNED" || ev.status === "REPORTED";
+    expect(after.status).toBe("REVOKED");
+    // Exactly one of the two consistent outcomes, never a mixture.
+    if (res.statusCode === 200) {
+      // The seal committed first; the revoke waited for it and closed the link after.
+      expect(sealed, res.body).toBe(true);
+      expect(session.status).toBe("SUBMITTED");
+      expect(after.usedCount).toBe(1);
+    } else {
+      // The revoke won: nothing sealed, the use given back, said as "no longer available".
+      expect(res.statusCode, res.body).toBe(410);
+      expect(res.json()).toMatchObject({ error: { code: "LINK_NO_LONGER_AVAILABLE" } });
+      expect(sealed).toBe(false);
+      expect(session.status).not.toBe("SUBMITTED");
+      expect(after.usedCount).toBe(0);
+    }
+    // Either way the link takes nothing more: a second submit is refused and changes nothing.
+    const again = await submit(t, sid);
+    expect(again.statusCode, again.body).toBeGreaterThanOrEqual(400);
+    expect((await linkRow()).usedCount).toBe(after.usedCount);
+  }, 120_000);
+
+  // ---------------------------------------------------------------------------
+  // PRO-I1-02 — the contributor who staged files and came back after the 24 h
+  // reservation window. Completion refuses the expired reservation; that used
+  // to reach the contributor as INTAKE_NOT_ACCEPTING_EVIDENCE ("contact the
+  // sender"), which is untrue and not recoverable.
+  // ---------------------------------------------------------------------------
+  const ageStaged = async (sid: string, hours: number) => {
+    const s = await prisma.workflowIntakeSession.findUniqueOrThrow({ where: { id: sid }, select: { evidenceId: true } });
+    const aged = new Date(Date.now() - hours * 3_600_000);
+    await prisma.$executeRaw`UPDATE "evidence" SET "created_at" = ${aged}, "updated_at" = ${aged} WHERE "id" = ${s.evidenceId!}::uuid`;
+    await prisma.$executeRaw`UPDATE "upload_sessions" SET "last_activity_at_utc" = ${aged} WHERE "evidence_id" = ${s.evidenceId!}::uuid`;
+    await prisma.$executeRaw`UPDATE "workflow_intake_sessions" SET "updated_at" = ${aged}, "last_seen_at_utc" = ${aged} WHERE "id" = ${sid}::uuid`;
+    return s.evidenceId!;
+  };
+
+  it("PRO-I1-02: a submit after the staged files' window says so (SUBMISSION_EXPIRED) and the same link takes the files again", async () => {
+    freshIp();
+    const t = await mintLink({ intakeMode: "EXTERNAL_REUSABLE", maxUses: 3 });
+    const sid = await staged(t);
+    const staleEvidenceId = await ageStaged(sid, 25);
+    const res = await submit(t, sid);
+    expect(res.statusCode, res.body).toBe(409);
+    const body = res.json() as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("SUBMISSION_EXPIRED");
+    expect(body.error.message).toMatch(/more than 24 hours ago/);
+    expect(body.error.message).toMatch(/add your files again/i);
+    // Nothing sealed, no use taken, and the session let go of the expired record...
+    expect((await linkRow()).usedCount).toBe(0);
+    const stale = await prisma.evidence.findUniqueOrThrow({ where: { id: staleEvidenceId }, select: { status: true } });
+    expect(["SIGNED", "REPORTED"]).not.toContain(stale.status);
+    const detached = await prisma.workflowIntakeSession.findUniqueOrThrow({ where: { id: sid }, select: { evidenceId: true, status: true } });
+    expect(detached.evidenceId).toBeNull();
+    expect(["EXPIRED", "REVOKED", "ABANDONED", "SUBMITTED"]).not.toContain(detached.status);
+    // ...which the reservation sweep can now release (and delete the objects of).
+    expect(await prisma.evidence.count({ where: { AND: [{ id: staleEvidenceId }, expiredEvidenceReservationWhere()] } })).toBe(1);
+    // Recovery on the same session: the file is added again into a FRESH record and submits.
+    const part = await postPart(t, sid, 0);
+    expect(part.statusCode, part.body).toBe(201);
+    await upload((part.json() as { part: { id: string } }).part.id);
+    const rebound = await prisma.workflowIntakeSession.findUniqueOrThrow({ where: { id: sid }, select: { evidenceId: true } });
+    expect(rebound.evidenceId).toBeTruthy();
+    expect(rebound.evidenceId).not.toBe(staleEvidenceId);
+    const done = await submit(t, sid);
+    expect(done.statusCode, done.body).toBe(200);
+    expect((await linkRow()).usedCount).toBe(1);
+  }, 120_000);
+
+  it("PRO-I1-02: a record the sweep already released answers the same, not NOT_FOUND or 'contact the sender'", async () => {
+    freshIp();
+    const t = await mintLink({ intakeMode: "EXTERNAL_REUSABLE", maxUses: 3 });
+    const sid = await staged(t);
+    const staleEvidenceId = await ageStaged(sid, 25);
+    const released = await prisma.$transaction((tx) =>
+      releaseEvidenceReservationTx(tx, { evidenceId: staleEvidenceId, reason: "RESERVATION_EXPIRED", now: new Date() }),
+    );
+    expect(released).toBe(true);
+    const res = await submit(t, sid);
+    expect(res.statusCode, res.body).toBe(409);
+    expect(res.json()).toMatchObject({ error: { code: "SUBMISSION_EXPIRED" } });
+    expect((await linkRow()).usedCount).toBe(0);
+  }, 120_000);
+
+  it("PRO-I1-02 (positive): staged files submitted after a pause shorter than the window still submit", async () => {
+    freshIp();
+    const t = await mintLink({ intakeMode: "EXTERNAL_REUSABLE", maxUses: 3 });
+    const sid = await staged(t);
+    await ageStaged(sid, 23);
+    const res = await submit(t, sid);
+    expect(res.statusCode, res.body).toBe(200);
+    expect((await linkRow()).usedCount).toBe(1);
   }, 120_000);
 
   it("PRO-050 (c): staged sessions untouched past the reservation window no longer lock a reusable link", async () => {

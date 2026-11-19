@@ -695,6 +695,20 @@ const REQUIRE_REVIEWER_NOTE_ON_TRANSITION: ReadonlyArray<EvidenceRequestStatus> 
 export const NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX = 1000;
 
 /**
+ * PRO-I1-01 (release order) — what THIS API does with a needs-more-info
+ * transition, stated on every authenticated request projection. The web
+ * deploys before the API: a client shows "the reviewer note stays internal"
+ * and the separate contributor-message field only when it reads
+ * `reviewerNote: "INTERNAL"` here. An API without this field still emails
+ * the reviewer note and drops `contributorMessage`.
+ */
+export const NEEDS_MORE_INFO_DELIVERY = {
+  reviewerNote: "INTERNAL",
+  contributorMessage: true,
+  contributorMessageMax: NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX,
+} as const;
+
+/**
  * PRO-I1-01 — the sentence the contributor reads when the operator wrote no
  * explicit message. Never the reviewer note: that note is workspace-internal.
  */

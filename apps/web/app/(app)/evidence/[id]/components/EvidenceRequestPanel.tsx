@@ -35,6 +35,11 @@ import {
   useWorkspaceContextSafety,
 } from "../../../../../lib/platform-context";
 import { formatUserDateTime } from "../../../../../lib/date";
+import {
+  LEGACY_NEEDS_MORE_INFO_COPY,
+  reviewerNoteStaysInternal,
+  type NeedsMoreInfoDelivery,
+} from "../../../../../lib/evidence/needs-more-info-delivery";
 
 type RequestRow = {
   id: string;
@@ -70,6 +75,8 @@ type RequestRow = {
     submittedByExternalLabel: string | null;
     reviewerNote: string | null;
   }>;
+  /** PRO-I1-01 — absent on an older API, which still emails the reviewer note. */
+  needsMoreInfoDelivery?: NeedsMoreInfoDelivery;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -150,6 +157,8 @@ export default function EvidenceRequestPanel({
     responseId?: string;
     status?: string;
     label: string;
+    /** PRO-I1-01 — needs-more-info only: the API confirmed the note is not emailed. */
+    noteStaysInternal?: boolean;
   } | null>(null);
   const [timelineFor, setTimelineFor] = useState<string | null>(null);
 
@@ -297,9 +306,10 @@ export default function EvidenceRequestPanel({
           {
             method: "POST",
             headers: { "content-type": "application/json" },
-            // PRO-I1-01 — the note stays internal; only contributorMessage is emailed.
+            // PRO-I1-01 — the note stays internal; only contributorMessage is
+            // emailed. An older API emails the note and is sent the note alone.
             body: JSON.stringify(
-              contributorMessage
+              contributorMessage && noteDialog.noteStaysInternal === true
                 ? { reviewerNote: note, contributorMessage }
                 : { reviewerNote: note },
             ),
@@ -479,6 +489,7 @@ export default function EvidenceRequestPanel({
                     action: "needs-more-info",
                     requestId: req.id,
                     label: "Mark as needs additional context",
+                    noteStaysInternal: reviewerNoteStaysInternal(req),
                   })
                 }
               >
@@ -536,7 +547,12 @@ export default function EvidenceRequestPanel({
           label={noteDialog.label}
           onCancel={() => setNoteDialog(null)}
           onConfirm={executeNoteAction}
-          withContributorMessage={noteDialog.action === "needs-more-info"}
+          withContributorMessage={
+            noteDialog.action === "needs-more-info" && noteDialog.noteStaysInternal === true
+          }
+          noteIsEmailed={
+            noteDialog.action === "needs-more-info" && noteDialog.noteStaysInternal !== true
+          }
         />
       ) : null}
 
@@ -951,12 +967,18 @@ function NoteDialog({
   onCancel,
   onConfirm,
   withContributorMessage = false,
+  noteIsEmailed = false,
 }: {
   label: string;
   onCancel: () => void;
   onConfirm: (note: string, contributorMessage: string) => void | Promise<void>;
   /** PRO-I1-01 — needs-more-info only: an optional message the contributor IS emailed. */
   withContributorMessage?: boolean;
+  /**
+   * PRO-I1-01 (release order) — needs-more-info against an API that still
+   * emails the note: the dialog says so instead of "internal".
+   */
+  noteIsEmailed?: boolean;
 }) {
   const [note, setNote] = useState("");
   const [contributorMessage, setContributorMessage] = useState("");
@@ -967,16 +989,23 @@ function NoteDialog({
     <div className="evd-dialog-backdrop" role="dialog" aria-modal="true">
       <div className="evd-dialog">
         <h3 className="evd-title">{label}</h3>
-        <p className="evd-paragraph">
-          Please add a short reviewer note explaining the decision. The note
-          is internal — it is not shared with the contributor or any public
-          surface.
-        </p>
+        {noteIsEmailed ? (
+          <p className="evd-paragraph" data-note-delivery="emailed">
+            Please add a short note explaining what more is needed.{" "}
+            {LEGACY_NEEDS_MORE_INFO_COPY.explanation}
+          </p>
+        ) : (
+          <p className="evd-paragraph" data-note-delivery="internal">
+            Please add a short reviewer note explaining the decision. The note
+            is internal — it is not shared with the contributor or any public
+            surface.
+          </p>
+        )}
         <textarea
           className="app-form-input evd-input evd-textarea evd-textarea--tall"
           value={note}
           onChange={(e) => setNote(e.target.value.slice(0, 4000))}
-          aria-label="Reviewer note (internal)"
+          aria-label={noteIsEmailed ? LEGACY_NEEDS_MORE_INFO_COPY.noteLabel : "Reviewer note (internal)"}
           autoFocus
         />
         {withContributorMessage ? (

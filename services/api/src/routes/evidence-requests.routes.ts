@@ -60,6 +60,7 @@ import {
   listEvidenceRequestEvents,
   listEvidenceRequests,
   NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX,
+  NEEDS_MORE_INFO_DELIVERY,
   projectRequestForAuthenticatedView,
   requestMoreEvidenceForResponse,
   reviewEvidenceRequestResponse,
@@ -145,7 +146,12 @@ async function projectRequestsForCaller(
   rows: readonly ProjectableRequest[],
 ) {
   const disclosure = await resolveRecipientContactDisclosure(req, { teamId });
-  return rows.map((row) => projectRequestForAuthenticatedView(row, disclosure));
+  // PRO-I1-01 — additive: tells a client deployed ahead of this API that the
+  // needs-more-info reviewer note is no longer emailed (see the constant).
+  return rows.map((row) => ({
+    ...projectRequestForAuthenticatedView(row, disclosure),
+    needsMoreInfoDelivery: NEEDS_MORE_INFO_DELIVERY,
+  }));
 }
 
 async function projectRequestForCaller(
