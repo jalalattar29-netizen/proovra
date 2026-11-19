@@ -1297,6 +1297,7 @@ export async function handleOidcCallback(
         userId: externalMapping.userId,
         organizationId: conn.organizationId,
         provider: String(conn.provider),
+        externalSubjectId: externalMapping.externalSubjectId,
         linkSource: (externalMapping as { linkSource?: string | null }).linkSource,
       },
       client,
@@ -1313,7 +1314,10 @@ export async function handleOidcCallback(
         where: { id: externalMapping.userId },
         select: { email: true, emailVerifiedAt: true },
       });
+      // A membership that ended is not repaired by approving again (approval
+      // never revives one): no ticket, the person is invited back first.
       if (
+        linkAuthority.reason === "self_serve_link_without_owner_consent" &&
         owner?.email &&
         owner.emailVerifiedAt &&
         owner.email.trim().toLowerCase() === userinfo.email.trim().toLowerCase()

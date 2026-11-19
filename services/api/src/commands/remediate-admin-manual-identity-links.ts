@@ -6,38 +6,54 @@
  * identity administrator could bind an IdP subject to a pre-existing
  * self-serve member through POST /v1/identity/external-mappings and then sign
  * in AS that account. New links carry their provenance and the manual route
- * refuses self-serve accounts; sign-in, IdP step-up and SCIM group resolution
- * honour a legacy (NULL-source) link on a self-serve account only with
- * owner-consent evidence. This command inventories the remaining legacy and
- * ADMIN_MANUAL links on self-serve accounts:
+ * refuses self-serve accounts; sign-in, IdP step-up and the directory honour a
+ * legacy (NULL-source) link on a self-serve account only with owner-consent
+ * evidence BOUND TO THAT LINK'S PROVIDER AND SUBJECT (the canonical rule,
+ * evaluateExternalLinkAuthority). This command inventories the remaining
+ * legacy and ADMIN_MANUAL links on self-serve accounts, in this order:
  *
- *   OWNER_CONSENT_EVIDENCE  a membership grant `org-link:<provider>:…` (written
- *                           by the owner's consent flow) exists for the person
- *                           in a workspace of the Organization
- *                           → apply records link_source = OWNER_CONSENT
  *   ADMIN_MANUAL_EVIDENCE   link_source ADMIN_MANUAL, or a tenant audit row
- *                           `identity.external_mapping.link` names the mapping
+ *                           `identity.external_mapping.link` names the mapping.
+ *                           The audit row identifies an administrator-made
+ *                           link exactly, so it WINS over any consent grant.
  *                           → apply soft-unlinks it and revokes the account's
  *                             sessions (sessions the IdP may have minted as it)
- *   NO_EVIDENCE             reported only; never changed (it no longer signs
- *                           anyone in; the owner may re-approve it)
+ *   OWNER_CONSENT_EVIDENCE  a live membership grant
+ *                           `org-link:<provider>:<connection>:sub-<digest>`
+ *                           naming THIS link's subject exists for the person
+ *                           → apply records link_source = OWNER_CONSENT
+ *   UNBOUND_CONSENT_GRANT   only a pre-rule grant `org-link:<provider>:<connection>`
+ *                           exists. It names no subject, so it cannot tell the
+ *                           subject the owner approved from one an administrator
+ *                           linked afterwards: it is NEVER recorded as consent.
+ *                           Reported only; never changed.
+ *   NO_EVIDENCE             reported only; never changed.
+ *
+ * An UNBOUND_CONSENT_GRANT or NO_EVIDENCE link no longer signs anyone in: the
+ * sign-in answers the owner-consent path and the owner approves it again.
  *
  * Never a guess: provenance is the account-origin authority; an account the
  * Organization created is never listed. DRY RUN BY DEFAULT; idempotent.
+ * Run it only after migration 20281121010000_external_identity_link_source is
+ * applied (it reads and writes link_source).
  */
 import type { PrismaClient } from "@prisma/client";
 
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { revokeAllSessionsForUser } from "../services/identity-security/session-revocation.service.js";
 import {
-  ORGANIZATION_LINK_GRANT_PREFIX,
   OWNER_CONSENT_LINK_SOURCE,
+  findOwnerConsentEvidence,
   isSelfServeAccountForOrganization,
 } from "../services/security/enterprise-account-linking.service.js";
 
 const PAGE = 500;
 
-export type LegacyLinkEvidence = "OWNER_CONSENT_EVIDENCE" | "ADMIN_MANUAL_EVIDENCE" | "NO_EVIDENCE";
+export type LegacyLinkEvidence =
+  | "OWNER_CONSENT_EVIDENCE"
+  | "ADMIN_MANUAL_EVIDENCE"
+  | "UNBOUND_CONSENT_GRANT"
+  | "NO_EVIDENCE";
 
 export type LegacyIdentityLink = {
   mappingId: string;
@@ -57,32 +73,38 @@ export type LegacyIdentityLinkReport = {
   skipped: number;
 };
 
-async function classify(
-  client: PrismaClient,
-  row: { id: string; userId: string; organizationId: string; provider: string; linkSource: string | null },
-): Promise<LegacyLinkEvidence> {
-  const memberships = await client.teamMember.findMany({
-    where: { userId: row.userId, team: { organizationId: row.organizationId } },
-    select: { id: true },
-  });
-  if (memberships.length > 0) {
-    const consent = await client.membershipGrant.findFirst({
-      where: {
-        teamMemberId: { in: memberships.map((m) => m.id) },
-        externalRef: { startsWith: `${ORGANIZATION_LINK_GRANT_PREFIX}${row.provider}:` },
-      },
-      select: { id: true },
-    });
-    if (consent && row.linkSource === null) return "OWNER_CONSENT_EVIDENCE";
-  }
+type LinkRow = {
+  id: string;
+  userId: string;
+  organizationId: string;
+  provider: string;
+  externalSubjectId: string;
+  linkSource: string | null;
+};
+
+async function classify(client: PrismaClient, row: LinkRow): Promise<LegacyLinkEvidence> {
   if (row.linkSource === "ADMIN_MANUAL") return "ADMIN_MANUAL_EVIDENCE";
   // The manual route's tenant audit row lands in the hash-chained platform
-  // audit log (emitTenantAudit -> appendPlatformAuditLog).
+  // audit log (emitTenantAudit -> appendPlatformAuditLog). It names the
+  // mapping, so it is asked FIRST: an administrator-made link is never
+  // recorded as the owner's consent, whatever grants the person holds.
   const audited = await client.adminAuditLog.findFirst({
     where: { action: "identity.external_mapping.link", resourceId: row.id },
     select: { id: true },
   });
-  return audited ? "ADMIN_MANUAL_EVIDENCE" : "NO_EVIDENCE";
+  if (audited) return "ADMIN_MANUAL_EVIDENCE";
+  // The same subject-bound evidence the sign-in rule reads.
+  const consent = await findOwnerConsentEvidence(
+    {
+      userId: row.userId,
+      organizationId: row.organizationId,
+      provider: row.provider,
+      externalSubjectId: row.externalSubjectId,
+    },
+    client,
+  );
+  if (consent.bound) return "OWNER_CONSENT_EVIDENCE";
+  return consent.unbound ? "UNBOUND_CONSENT_GRANT" : "NO_EVIDENCE";
 }
 
 /** READ-ONLY: every live legacy / admin-made link on a self-serve account. */
@@ -93,7 +115,7 @@ export async function findLegacyIdentityLinks(
   let scanned = 0;
   let cursor: string | null = null;
   for (;;) {
-    const page: Array<{ id: string; userId: string; organizationId: string; provider: string; linkSource: string | null }> =
+    const page: LinkRow[] =
       (await client.externalIdentityMapping.findMany({
         where: {
           unlinkedAtUtc: null,
@@ -102,7 +124,7 @@ export async function findLegacyIdentityLinks(
         orderBy: { id: "asc" },
         take: PAGE,
         ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-        select: { id: true, userId: true, organizationId: true, provider: true, linkSource: true },
+        select: { id: true, userId: true, organizationId: true, provider: true, externalSubjectId: true, linkSource: true },
       })) as never;
     if (page.length === 0) break;
     cursor = page[page.length - 1]!.id;
@@ -187,5 +209,6 @@ export function formatLegacyIdentityLinkReport(report: LegacyIdentityLinkReport)
       (a) => `    mapping=${a.mappingId} user=${a.userId} org=${a.organizationId} provider=${a.provider} source=${a.linkSource ?? "NULL"} evidence=${a.evidence}`,
     ),
     `  consentRecorded=${report.consentRecorded} unlinked=${report.unlinked} skipped=${report.skipped}`,
+    "  UNBOUND_CONSENT_GRANT and NO_EVIDENCE links are never changed: they no longer sign anyone in, and the owner approves the link again.",
   ];
 }

@@ -77,6 +77,7 @@ export const SCIM_DEACTIVATION_MEMBERSHIP_MARKER =
 import {
   evaluateExistingAccountLink,
   isSelfServeAccountForOrganization,
+  isWithinDirectoryReach,
   resolveAccountOriginForOrganization,
 } from "../security/enterprise-account-linking.service.js";
 
@@ -1371,11 +1372,18 @@ export async function scimDeactivateUser(
    * already have — a person this Organization's directory or IdP linked (the
    * link may be one this directory already ended: a repeated DELETE stays
    * harmless). Anyone else is 404, exactly as GET says.
+   *
+   * PRO-A2-02 — an ALLOW-LIST asked of the canonical authority, not "any link
+   * counts": an account this Organization's directory or IdP created (holding
+   * a link here, live or already ended), or a self-serve account whose live
+   * link is honoured (the owner's subject-bound consent, active member). A
+   * pre-column or administrator-made link on a self-serve account gives the
+   * directory no reach over that person's status.
    */
-  const managed = await client.externalIdentityMapping.findFirst({
-    where: { organizationId: ctx.organizationId, userId },
-    select: { id: true },
-  });
+  const managed = await isWithinDirectoryReach(
+    { organizationId: ctx.organizationId, userId, includeEnded: true },
+    client,
+  );
   if (!managed) return { ok: false };
   // PHASE 12B — the membership suspension and the directory-mapping unlink are
   // ONE atomic deprovisioning outcome. Previously they were two top-level
@@ -1786,15 +1794,22 @@ export async function scimUpdateUserAttributes(
 
   // PRO-A2-07 (WS-ORG RG-07) — the directory's reach is the people it linked
   // (PRO-014, the same answer GET and DELETE give): an invited member with no
-  // directory link (or only an administrator's manual link) is not found here,
-  // so the directory cannot flip their role. A deactivated (unlinked) directory
-  // identity is still the directory's, so a reactivate+rename PATCH works.
-  const directoryLink = await client.externalIdentityMapping.findFirst({
-    where: { ...scimDirectoryUserScope(ctx.teamId), userId },
-    orderBy: { linkedAtUtc: "asc" },
-    select: { id: true, linkSource: true },
-  });
-  if (!directoryLink || directoryLink.linkSource === "ADMIN_MANUAL") {
+  // directory link is not found here, so the directory cannot flip their role.
+  // A deactivated (unlinked) directory identity is still the directory's, so a
+  // reactivate+rename PATCH works.
+  //
+  // PRO-A2-02 — an ALLOW-LIST asked of the canonical authority (it used to
+  // refuse only the literal ADMIN_MANUAL source, so a pre-column administrator
+  // link on a self-serve member still let the directory change that member's
+  // role): an account this Organization's directory or IdP created, or a
+  // self-serve account whose live link is honoured (the owner's subject-bound
+  // consent, active member).
+  if (
+    !(await isWithinDirectoryReach(
+      { organizationId: ctx.organizationId, userId, includeEnded: true },
+      client,
+    ))
+  ) {
     return { ok: false, status: 404, detail: "user_not_found" };
   }
 

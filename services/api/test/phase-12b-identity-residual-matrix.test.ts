@@ -501,7 +501,9 @@ vi.mock("../src/services/access-control/scim-managed-ownership.service.js", () =
   return { ScimManagedOwnershipError, enforceScimManagedOwnership: async () => undefined };
 });
 
-vi.mock("../src/services/security/enterprise-account-linking.service.js", () => ({
+// The directory-reach rule (PRO-A2-02) is the real one, read from the store.
+vi.mock("../src/services/security/enterprise-account-linking.service.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/services/security/enterprise-account-linking.service.js")>()),
   evaluateExistingAccountLink: async () => ({ ok: true }),
 }));
 
@@ -756,8 +758,8 @@ function seed(): void {
 
   H.store["user"] = [
     { id: ACTOR, email: "admin@acme.test", displayName: "Admin", currentWorkspaceId: TEAM, createdAt: D(1), updatedAt: D(1) },
-    { id: SUBJECT_USER, email: "member@acme.test", displayName: "Member", currentWorkspaceId: TEAM, createdAt: D(1), updatedAt: D(2) },
-    { id: STALE_USER, email: "stale@acme.test", displayName: "Stale", currentWorkspaceId: TEAM, createdAt: D(1), updatedAt: D(1) },
+    { id: SUBJECT_USER, email: "member@acme.test", providerUserId: `scim-${ORG_A}:idp-sub-1`, displayName: "Member", currentWorkspaceId: TEAM, createdAt: D(1), updatedAt: D(2) },
+    { id: STALE_USER, email: "stale@acme.test", providerUserId: `scim-${ORG_A}:idp-sub-2`, displayName: "Stale", currentWorkspaceId: TEAM, createdAt: D(1), updatedAt: D(1) },
     { id: FOREIGN_USER, email: "other@rival.test", displayName: "Other", currentWorkspaceId: OTHER_TEAM, createdAt: D(1), updatedAt: D(1) },
   ];
   H.store["teamMember"] = [

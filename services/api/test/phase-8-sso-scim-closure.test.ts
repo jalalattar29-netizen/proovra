@@ -140,6 +140,9 @@ describe("Phase 8 §11.6/§11.16 — SCIM deprovisioning end-to-end (behavioral)
                   if (model === "teamMember" && method === "findFirst")
                     return { id: "m1" };
                   // PRO-014 — the directory linked this person in the Organization.
+                  // PRO-A2-02 — an account this Organization's directory created.
+                  if (model === "user" && method === "findUnique")
+                    return { providerUserId: "scim-org-1:ext-1", email: "person@acme.test", createdAt: new Date(0) };
                   if (model === "externalIdentityMapping" && method === "findFirst")
                     return { id: "map-1" };
                   if (method === "updateMany") return { count: 1 };

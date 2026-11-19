@@ -67,7 +67,7 @@ import {
 } from "../identity/membership-provisioning.service.js";
 import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
 import {
-  evaluateExternalLinkAuthority,
+  isWithinDirectoryReach,
   isSelfServeAccountForOrganization,
 } from "../security/enterprise-account-linking.service.js";
 import {
@@ -778,33 +778,13 @@ async function isOrganizationIdentity(
   userId: string,
   client: PrismaClient,
 ): Promise<boolean> {
-  // PRO-A2-02 — a live link counts only when its provenance is honoured: one
-  // the directory/IdP made, or the owner consented to. An administrator's
-  // manual link never made the person a directory identity; a legacy link
-  // (no recorded source) is asked through the canonical predicate.
-  const link = await client.externalIdentityMapping.findFirst({
-    where: {
-      organizationId,
-      userId,
-      unlinkedAtUtc: null,
-      linkSource: { in: [...HONOURED_LINK_SOURCES] },
-    },
-    select: { id: true },
-  });
-  if (link) return true;
-  const legacy = await client.externalIdentityMapping.findFirst({
-    where: { organizationId, userId, unlinkedAtUtc: null, linkSource: null },
-    select: { id: true, provider: true },
-  });
-  if (!legacy) return false;
-  const authority = await evaluateExternalLinkAuthority(
-    { userId, organizationId, provider: String(legacy.provider), linkSource: null },
-    client,
-  );
-  return authority.honoured;
+  // PRO-A2-02 — a live link counts only when the canonical predicate honours
+  // it: one on an account the directory/IdP created, or one the owner
+  // consented to (subject-bound) while still an active member. The recorded
+  // source alone is never trusted here; a pre-column or administrator-made
+  // link on a self-serve account never made the person a directory identity.
+  return isWithinDirectoryReach({ organizationId, userId }, client);
 }
-
-const HONOURED_LINK_SOURCES = ["SCIM", "OIDC_JIT", "SAML_JIT", "OWNER_CONSENT"] as const;
 
 /**
  * Apply group membership for `userIds` in every Workspace the group reaches,

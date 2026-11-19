@@ -121,6 +121,7 @@ export async function resolveLinkedUserForSubject(
       userId: mapping.userId,
       organizationId: input.organizationId,
       provider: input.provider,
+      externalSubjectId: input.externalSubjectId,
       linkSource: mapping.linkSource,
     },
     client,
