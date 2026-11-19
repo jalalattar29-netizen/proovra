@@ -257,6 +257,9 @@ describe("IDP_REAUTH step-up — Enterprise SAML / OIDC reauthentication", () =>
   }
 
   async function link(userId: string, provider: string, subject: string): Promise<void> {
+    // PRO-A2-02 — an enterprise identity: an account this Organization's IdP
+    // created. (A link on a self-serve account needs the owner's consent.)
+    await prisma.user.update({ where: { id: userId }, data: { providerUserId: `sso-${orgId}:${subject}`.slice(0, 128) } });
     await prisma.externalIdentityMapping.create({
       data: { teamId, organizationId: orgId, userId, provider: provider as never, externalSubjectId: subject },
     });

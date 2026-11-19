@@ -22,7 +22,7 @@
 
 import { randomUUID } from "node:crypto";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 
 import {
   bootIntegrationHarness,
@@ -151,7 +151,13 @@ describe("§2 — ARCH-004: Organization membership has an auditable lifecycle",
       select: { status: true },
     });
     if (row && row.status !== "ACTIVE") {
-      await lifecycle.restoreOrganizationMembership({
+      // PRO-T2-03 — an administrator restores only a SUSPENDED membership; a
+      // REVOKED one comes back only as the person's accepted re-invitation.
+      const reinstate =
+        row.status === "REVOKED"
+          ? lifecycle.reviveRevokedOrganizationMembershipByInvitation
+          : lifecycle.restoreOrganizationMembership;
+      await reinstate({
         organizationId,
         membershipId: subjectMembershipId,
         actorUserId: ownerUserId,
@@ -402,6 +408,22 @@ describe("§2 — ARCH-004: Organization membership has an auditable lifecycle",
     });
     // PRO-014 — a directory deprovisions only people it provisioned: the
     // subject carries this Organization's directory link.
+    // PRO-A2-02 — and is an account this Organization's directory created (a
+    // link alone on a self-serve account gives the directory no reach).
+    const subjectBefore = await prisma.user.findUniqueOrThrow({
+      where: { id: subjectUserId },
+      select: { providerUserId: true },
+    });
+    await prisma.user.update({
+      where: { id: subjectUserId },
+      data: { providerUserId: `scim-${organizationId}:arch004-${randomUUID()}` },
+    });
+    onTestFinished(async () => {
+      await prisma.user.update({
+        where: { id: subjectUserId },
+        data: { providerUserId: subjectBefore.providerUserId },
+      });
+    });
     await prisma.externalIdentityMapping.create({
       data: {
         teamId: workspaceA,

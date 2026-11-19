@@ -24,6 +24,7 @@
  */
 
 import { Buffer } from "node:buffer";
+import { randomUUID } from "node:crypto";
 
 import { SignedXml } from "xml-crypto";
 
@@ -102,7 +103,9 @@ export function buildSignedSamlResponse(o: SignedSamlOpts = {}): string {
     o.authnContextClassRef === null
       ? ""
       : `<saml:AuthnContext><saml:AuthnContextClassRef>${o.authnContextClassRef ?? "urn:oasis:names:tc:SAML:2.0:ac:classes:Password"}</saml:AuthnContextClassRef></saml:AuthnContext>`;
-  const assertionId = "_assertion1";
+  // A real IdP issues a new assertion ID every time; a repeated one is a
+  // replay (PRO-A2-08), so the fixture must not reuse one across sign-ins.
+  const assertionId = `_assertion-${randomUUID()}`;
   const responseXml = `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_response1"${destination} InResponseTo="${inResponseTo}" Version="2.0" IssueInstant="${new Date(now).toISOString()}"><saml:Issuer>${issuer}</saml:Issuer><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status><saml:Assertion ID="${assertionId}" Version="2.0" IssueInstant="${new Date(now).toISOString()}"><saml:Issuer>${issuer}</saml:Issuer><saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${nameId}</saml:NameID>${scdXml}</saml:Subject><saml:Conditions NotBefore="${nb}" NotOnOrAfter="${noa}">${audienceXml}</saml:Conditions><saml:AuthnStatement${authnInstantAttr}>${authnContextXml}</saml:AuthnStatement></saml:Assertion></samlp:Response>`;
 
   const sig = new SignedXml({

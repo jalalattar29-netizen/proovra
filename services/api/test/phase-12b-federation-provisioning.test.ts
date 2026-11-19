@@ -384,6 +384,10 @@ function makeGroupDb(seed: { members: string[] }) {
           ? { id: `link-${args.where.userId}` }
           : null,
     },
+    // PRO-A2-02 — the seeded members are accounts this Organization's directory created.
+    user: {
+      findUnique: async () => ({ providerUserId: `scim-${ORG_ID}:ext-1`, email: "person@x.test", createdAt: new Date(0) }),
+    },
     teamMember: {
       findFirst: async (args: {
         where: { teamId?: string; userId: string; team?: { organizationId: string } };
