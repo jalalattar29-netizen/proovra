@@ -126,6 +126,8 @@ export type ExternalIntakeOrchestrationErrorCode =
   | "max_files_reached"
   // ET-INT-06 — the stored parts exceed the link's maxBytesPerSession.
   | "session_bytes_exceeded"
+  // PRO-I1-02 — the staged record's 24 h reservation ran out before submit.
+  | "reservation_expired"
   | "internal_error";
 
 export class ExternalIntakeOrchestrationError extends Error {
@@ -330,9 +332,15 @@ export async function createOrLoadExternalEvidence(
     // record is active: created or touched within the reservation window (24 h,
     // the window the reaper and the allowance use). Sessions expire with their
     // link (up to 90 days), so two contributors who each staged a file and left
-    // locked a reusable link against everyone else for that long. A stale
-    // session can still submit; the use itself is reserved atomically at submit
-    // (reserveIntakeLinkUse), so the link is never over-used.
+    // locked a reusable link against everyone else for that long. The use
+    // itself is reserved atomically at submit (reserveIntakeLinkUse), so the
+    // link is never over-used.
+    // PRO-I1-02 — a stale session can NOT submit what it staged: once the
+    // window passes with no write, the reservation is expired (completion
+    // refuses it and the sweep releases it and its objects). Its submit is
+    // answered `reservation_expired` (SUBMISSION_EXPIRED) and the session is
+    // detached from that record, so the contributor adds the files again into
+    // a fresh record that is admitted afresh.
     const holdCutoff = new Date(Date.now() - EVIDENCE_RESERVATION_TTL_MS);
     const pending = await client.workflowIntakeSession.count({
       where: {
@@ -968,6 +976,26 @@ function accuracyBand(meters: number | null): string {
   return ">2km";
 }
 
+function isUnsealedStatus(status: string): boolean {
+  return status === "CREATED" || status === "UPLOADING";
+}
+
+/**
+ * PRO-I1-02 — an intake session lets go of a staged record whose reservation
+ * expired. The record itself is not touched here: the reservation sweep
+ * releases it (EVIDENCE_DELETED custody event) and deletes its staged objects.
+ * Conditional on the binding, so a session already re-bound is left alone.
+ */
+async function detachExpiredIntakeReservation(
+  sessionId: string,
+  evidenceId: string,
+  client: PrismaClient,
+): Promise<void> {
+  await client.workflowIntakeSession
+    .updateMany({ where: { id: sessionId, evidenceId }, data: { evidenceId: null } })
+    .catch(() => undefined);
+}
+
 export async function submitExternalIntake(
   input: SubmitExternalIntakeInput,
   client: PrismaClient = defaultPrisma,
@@ -1007,6 +1035,14 @@ export async function submitExternalIntake(
   });
   if (!evidence) {
     throw new ExternalIntakeOrchestrationError("evidence_not_found");
+  }
+  // PRO-I1-02 — the sweep already released this staged record (unsealed and
+  // soft-deleted): nothing of it can be submitted. Said as what it is, and the
+  // session is freed to stage again, instead of the seal's bare NOT_FOUND
+  // reaching the contributor as "this intake can't accept evidence".
+  if (evidence.deletedAt && isUnsealedStatus(evidence.status)) {
+    await detachExpiredIntakeReservation(input.session.id, evidence.id, client);
+    throw new ExternalIntakeOrchestrationError("reservation_expired");
   }
 
   const parts = await client.evidencePart.findMany({
@@ -1206,6 +1242,23 @@ export async function submitExternalIntake(
     // PRO-050 — the link was revoked (or closed) while this submit was in flight.
     if (err instanceof Error && err.message === "INTAKE_LINK_NOT_ACTIVE") {
       throw new ExternalIntakeOrchestrationError("link_revoked");
+    }
+    // PRO-I1-02 — the reservation ran out (no write for the whole window), or
+    // the sweep released the record while this submit was in flight. Nothing
+    // was sealed and the use was given back above. The session lets go of the
+    // record (the sweep releases it and removes its objects) so the
+    // contributor can add the files again; the answer says exactly that.
+    if (!sealed && err instanceof Error) {
+      const releasedMeanwhile =
+        err.message === "NOT_FOUND" &&
+        (await client.evidence
+          .findUnique({ where: { id: evidence.id }, select: { deletedAt: true, status: true } })
+          .then((row) => Boolean(row?.deletedAt) && isUnsealedStatus(row!.status))
+          .catch(() => false));
+      if (err.message === "EVIDENCE_RESERVATION_EXPIRED" || releasedMeanwhile) {
+        await detachExpiredIntakeReservation(input.session.id, evidence.id, client);
+        throw new ExternalIntakeOrchestrationError("reservation_expired");
+      }
     }
     // ET-INT-02 — a part whose object was never written is the contributor's
     // to fix (upload it again), not "this intake can't accept evidence".

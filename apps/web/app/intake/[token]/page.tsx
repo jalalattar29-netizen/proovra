@@ -133,6 +133,8 @@ const PUBLIC_DENIAL_CODES = new Set([
   "CONSENT_REQUIRED",
   "CONSENT_INVALID",
   "SUBMISSION_NOT_READY",
+  // PRO-I1-02 — staged files left past the reservation window; add them again.
+  "SUBMISSION_EXPIRED",
   "LOCATION_REQUIRED",
   "INVALID_LOCATION_BODY",
   "INTAKE_MODE_MISMATCH",
@@ -181,6 +183,10 @@ function friendlyIntakeError(err: {
     // A file whose upload never finished (the API refuses to finalize it).
     PART_NOT_UPLOADED:
       "One of your files did not finish uploading. Upload it again, then submit.",
+    // PRO-I1-02 — the files were staged more than 24 hours before the submit.
+    // The server no longer holds them; the same link takes them again.
+    SUBMISSION_EXPIRED:
+      "These files were added more than 24 hours ago and were not submitted in time, so they are no longer held and nothing was submitted. Please add your files again, then submit.",
     NOT_FOUND:
       "We couldn't find what you were trying to access. Try refreshing the page.",
     SUBMISSION_NOT_READY:
@@ -1066,6 +1072,18 @@ export default function ExternalIntakePage({
         writeStoredIntakeSession(token, null);
         setErrorMessage(null);
         setPhase("already_submitted");
+        return;
+      }
+      // PRO-I1-02 — the staged files' 24 h reservation ran out: the server no
+      // longer holds them and has freed this session to stage again. The list
+      // is cleared so the page shows what is true (nothing staged) and the
+      // contributor adds the files again here, on the same link.
+      if (e?.code === "SUBMISSION_EXPIRED") {
+        setParts([]);
+        setErrorIsDenial(true);
+        setErrorSupportId(null);
+        setErrorMessage(friendlyIntakeError(e));
+        setPhase("upload");
         return;
       }
       // SUBMISSION_NOT_READY keeps its bespoke composition since it
