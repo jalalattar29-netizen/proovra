@@ -131,11 +131,36 @@ describe("team invitation accept: each refusal is its own state", () => {
     await state("workspace_required");
   });
 
-  it("no session asks for sign-in and keeps the invitation in the return path", async () => {
+  it("no session asks for sign-in; the return path names no token and the invitation resumes after it", async () => {
+    window.sessionStorage.clear();
     await accepting(refused(401, "auth_required", "Sign in to accept this invitation."));
     await state("auth_required");
     fireEvent.click(screen.getByTestId("accept-invite-signin"));
-    expect(nav.push.mock.calls.at(-1)?.[0]).toContain(encodeURIComponent(`/collaboration-teams/invites/`));
+    // PRO-K2-15 — the token never travels in /login?next=.
+    const pushed = String(nav.push.mock.calls.at(-1)?.[0]);
+    expect(pushed).toBe(`/login?next=${encodeURIComponent("/collaboration-teams/invites/resume/accept")}`);
+    expect(pushed).not.toContain(TOKEN);
+    cleanup();
+
+    // Back from sign-in on the token-less path: the held invitation is accepted.
+    nav.params = { token: "resume", campaignId };
+    replies = [[/\/v1\/collaboration-team-invites\/accept$/, "POST", { status: 200, body: { teamId: "t1", alreadyMember: true } }]];
+    render(<AcceptTeamInvitePage />);
+    fireEvent.click(await screen.findByTestId("accept-invite-accept"));
+    await state("already_member");
+    const sent = fetchMock.mock.calls.find(([u]) => /collaboration-team-invites\/accept$/.test(String(u)));
+    expect(String((sent?.[1] as RequestInit).body)).toContain(TOKEN);
+    // An answered accept ends the hand-off.
+    expect(Object.keys(window.sessionStorage).length).toBe(0);
+  });
+
+  it("the resume path without a held invitation asks for the e-mailed link, and sends nothing", async () => {
+    window.sessionStorage.clear();
+    nav.params = { token: "resume", campaignId };
+    render(<AcceptTeamInvitePage />);
+    await state("resume_missing");
+    expect(screen.queryByTestId("accept-invite-accept")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

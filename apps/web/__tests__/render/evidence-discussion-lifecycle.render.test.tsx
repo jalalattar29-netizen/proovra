@@ -22,7 +22,7 @@ const memberId = "22222222-2222-4222-8222-222222222222";
 const otherId = "33333333-3333-4333-8333-333333333333";
 
 type Thread = Record<string, unknown> & { status: string; assignedToUserId: string | null; escalatedAtUtc: string | null };
-let server: { thread: Thread; resolutionNote: string | null; escalationReason: string | null; failDetail: boolean; failList: boolean; failRereadAfterWrite: boolean; wrote: boolean; applyWrites: boolean };
+let server: { thread: Thread; resolutionNote: string | null; escalationReason: string | null; failDetail: boolean; failList: boolean; failRereadAfterWrite: boolean; wrote: boolean; applyWrites: boolean; paged?: boolean };
 
 function baseThread(over: Partial<Thread> = {}): Thread {
   return {
@@ -47,7 +47,13 @@ async function route(path: string, init?: RequestInit): Promise<unknown> {
     if (server.failList) throw { statusCode: 403, code: "FORBIDDEN" };
     return { threads: [server.thread] };
   }
-  if (path.includes("/messages")) return { messages: [] };
+  if (path.includes("/messages")) {
+    if (!server.paged) return { messages: [] };
+    const msg = (id: string, body: string) => ({ id, threadId, authorKind: "USER", authorUserId: memberId, body, createdAt: "2026-09-01T00:00:00.000Z", editedAtUtc: null });
+    return path.includes("before=m-2")
+      ? { messages: [msg("m-1", "The first message")], olderCursor: null }
+      : { messages: [msg("m-2", "A newer message")], olderCursor: "m-2" };
+  }
   if (path.includes("/mark-mentions-read")) return { ok: true };
   if (method === "POST") {
     server.wrote = true;
@@ -83,6 +89,28 @@ async function action(name: string) {
   fireEvent.click(button);
   return button;
 }
+
+describe("PRO-K2-16 — earlier messages of a long thread", () => {
+  it("offers Load earlier messages while a cursor remains and places the page above", async () => {
+    server.paged = true;
+    mount();
+    await screen.findByText("A newer message");
+    expect(screen.queryByText("The first message")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Load earlier messages" }));
+    await screen.findByText("The first message");
+    const bodies = Array.from(document.querySelectorAll("[data-evidence-discussion-message]")).map((n) => n.getAttribute("data-evidence-discussion-message"));
+    expect(bodies).toEqual(["m-1", "m-2"]);
+    expect(mocks.fetch.mock.calls.some(([p]) => String(p).includes("&before=m-2"))).toBe(true);
+    // The last page has no cursor: the control goes away.
+    expect(screen.queryByRole("button", { name: "Load earlier messages" })).toBeNull();
+  });
+
+  it("an API without olderCursor shows no control", async () => {
+    mount();
+    await screen.findByText("Unassigned");
+    expect(screen.queryByRole("button", { name: "Load earlier messages" })).toBeNull();
+  });
+});
 
 describe("evidence discussion thread lifecycle", () => {
   it("resolves after confirmation and announces success only after rereading the thread", async () => {

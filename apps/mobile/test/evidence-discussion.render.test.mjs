@@ -243,3 +243,20 @@ test("B3C-F-008 — control: with reviewer operations Assign and Escalate are of
   assert.ok(r.hasText("Assign thread"));
   assert.ok(r.hasText("Escalate thread"));
 });
+
+test("PRO-K2-16 — a longer thread offers Load earlier messages and places the page above", async () => {
+  const MSGS = `/v1/collaboration/threads/th-1/messages?teamId=${WS}`;
+  routes[MSGS] = () => ({ messages: [{ id: "m-9", body: "The newest message.", authorKind: "SYSTEM", createdAt: "2026-09-24T09:00:00Z" }], olderCursor: "m-9" });
+  routes[`${MSGS}&before=m-9`] = () => ({ messages: [{ id: "m-1", body: "The first message.", authorKind: "SYSTEM", createdAt: "2026-09-23T09:00:00Z" }], olderCursor: null });
+  const r = await openThread();
+  await selectThread(r);
+  assert.ok(r.hasText("The newest message."));
+  assert.ok(!r.hasText("The first message."));
+  await r.press("Load earlier messages");
+  await settle();
+  assert.ok(requests.some((q) => q.path === `${MSGS}&before=m-9`), "the cursor was never sent");
+  const texts = r.texts();
+  assert.ok(texts.indexOf("The first message.") >= 0 && texts.indexOf("The first message.") < texts.indexOf("The newest message."), texts.join(" | "));
+  // The last page names no cursor: the control goes away.
+  assert.ok(!r.hasText("Load earlier messages"));
+});

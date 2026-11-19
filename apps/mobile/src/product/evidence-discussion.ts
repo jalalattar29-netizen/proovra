@@ -89,8 +89,22 @@ export function buildStartThreadBody(teamId: string, evidenceId: string, title: 
 export function buildThreadDetailPath(threadId: string, teamId: string): string {
   return `/v1/collaboration/threads/${encodeURIComponent(threadId)}?teamId=${encodeURIComponent(teamId)}`;
 }
-export function buildEvidenceThreadMessagesPath(threadId: string, teamId: string): string {
-  return `/v1/collaboration/threads/${encodeURIComponent(threadId)}/messages?teamId=${encodeURIComponent(teamId)}`;
+export function buildEvidenceThreadMessagesPath(threadId: string, teamId: string, before?: string | null): string {
+  const base = `/v1/collaboration/threads/${encodeURIComponent(threadId)}/messages?teamId=${encodeURIComponent(teamId)}`;
+  // PRO-K2-16 — `before`: the cursor the last read returned (one page further back).
+  return before ? `${base}&before=${encodeURIComponent(before)}` : base;
+}
+/** PRO-K2-16 — the next page back, or null (also null on an API that predates paging). */
+export function parseThreadOlderCursor(payload: unknown): string | null {
+  return s(o(payload)["olderCursor"]);
+}
+/** Earlier messages go above what is shown; a repeated id is kept once. */
+export function prependEarlierMessages(
+  earlier: ReadonlyArray<EvidenceThreadMessage>,
+  shown: ReadonlyArray<EvidenceThreadMessage>,
+): EvidenceThreadMessage[] {
+  const have = new Set(shown.map((m) => m.id));
+  return [...earlier.filter((m) => !have.has(m.id)), ...shown];
 }
 export function buildThreadMentionsReadPath(threadId: string, teamId: string): string {
   return `/v1/collaboration/threads/${encodeURIComponent(threadId)}/mark-mentions-read?teamId=${encodeURIComponent(teamId)}`;

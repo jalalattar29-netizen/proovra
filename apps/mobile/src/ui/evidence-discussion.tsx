@@ -40,6 +40,8 @@ import {
   offeredThreadActions,
   reviewerOperationsFromEnvelope,
   parseEvidenceThreadMessages,
+  parseThreadOlderCursor,
+  prependEarlierMessages,
   parseEvidenceThreads,
   parseThreadDetail,
   threadActionBlocked,
@@ -229,6 +231,10 @@ function SelectedThread({
 }) {
   const [messages, setMessages] = useState<EvidenceThreadMessage[] | null>(null);
   const [messagesFailed, setMessagesFailed] = useState(false);
+  // PRO-K2-16 — the read returns the newest page; earlier pages on request.
+  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [olderFailed, setOlderFailed] = useState(false);
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
@@ -257,9 +263,13 @@ function SelectedThread({
   const loadMessages = useCallback(async () => {
     setMessagesFailed(false);
     try {
-      setMessages(parseEvidenceThreadMessages(await apiFetch(buildEvidenceThreadMessagesPath(thread.id, teamId))));
+      const page = await apiFetch(buildEvidenceThreadMessagesPath(thread.id, teamId));
+      setMessages(parseEvidenceThreadMessages(page));
+      setOlderCursor(parseThreadOlderCursor(page));
+      setOlderFailed(false);
     } catch {
       setMessages([]);
+      setOlderCursor(null);
       setMessagesFailed(true);
     }
     // Best-effort: clear the caller's unread mentions in this thread.
@@ -273,6 +283,22 @@ function SelectedThread({
   useEffect(() => {
     void loadMessages();
   }, [loadMessages]);
+
+  const loadEarlier = async () => {
+    if (!olderCursor || loadingOlder) return;
+    setLoadingOlder(true);
+    setOlderFailed(false);
+    try {
+      const page = await apiFetch(buildEvidenceThreadMessagesPath(thread.id, teamId, olderCursor));
+      const earlier = parseEvidenceThreadMessages(page);
+      setMessages((shown) => prependEarlierMessages(earlier, shown ?? []));
+      setOlderCursor(parseThreadOlderCursor(page));
+    } catch {
+      setOlderFailed(true);
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   const post = async () => {
     if (posting || !canPostMessage(draft)) return;
@@ -314,7 +340,24 @@ function SelectedThread({
         ) : messages.length === 0 ? (
           <ProovraText variant="bodySm" color={theme.color.ink.muted}>{COPY.noMessages}</ProovraText>
         ) : (
-          messages.map((m) => (
+          <>
+          {olderCursor ? (
+            <View style={{ gap: theme.space.s1 }}>
+              <ProovraButton
+                label="Load earlier messages"
+                variant="ghost"
+                fullWidth={false}
+                loading={loadingOlder}
+                disabled={loadingOlder}
+                testID="thread-load-earlier"
+                onPress={() => void loadEarlier()}
+              />
+              {olderFailed ? (
+                <ProovraText variant="label" color={theme.color.ink.muted}>Earlier messages could not be loaded. Try again.</ProovraText>
+              ) : null}
+            </View>
+          ) : null}
+          {messages.map((m) => (
             <View key={m.id} style={{ gap: 2 }}>
               <ProovraText variant="label" color={theme.color.ink.muted}>
                 {[
@@ -329,7 +372,8 @@ function SelectedThread({
               {/* Rendered as text — a message cannot inject markup. */}
               <ProovraText variant="bodySm" selectable>{m.body}</ProovraText>
             </View>
-          ))
+          ))}
+          </>
         )}
 
         {readOnly ? (

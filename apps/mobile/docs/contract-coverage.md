@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**176 bindings — OK 176, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**179 bindings — OK 179, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -75,6 +75,7 @@ top level of it.
 | OK | `parseEvidenceThreads` | `GET /v1/collaboration/threads` | threads | threads |
 | OK | `parseThreadDetail` | `GET /v1/collaboration/threads/:id` | escalationReason, resolutionNote, thread | escalationReason, resolutionNote, thread |
 | OK | `parseEvidenceThreadMessages` | `GET /v1/collaboration/threads/:id/messages` | messages, olderCursor | messages |
+| OK | `parseThreadOlderCursor` | `GET /v1/collaboration/threads/:id/messages` | messages, olderCursor | olderCursor |
 | OK | `parseDeliveryMessages` | `GET /v1/communications/messages` | messages | messages |
 | OK | `parseEvidencePickerRows` | `GET /v1/evidence` | items, pageInfo, scope | data, items |
 | OK | `parseEvidenceRequestList` | `GET /v1/evidence-requests` | requests | map, requests |
@@ -149,6 +150,7 @@ top level of it.
 | OK | `parseSuggestionRows` | `GET /v1/search/suggest` | suggestions | suggestions |
 | OK | `parseClosedOwnedWorkspaces` | `GET /v1/teams` | closedOwned, items, ownershipOffers, teams | closedOwned |
 | OK | `parseRecoveryWorkspaces` | `GET /v1/teams` | closedOwned, items, ownershipOffers, teams | teams |
+| OK | `parseOwnershipOffersForMe` | `GET /v1/teams` | closedOwned, items, ownershipOffers, teams | ownershipOffers |
 | OK | `parseWorkspaceOverview` | `GET /v1/teams/:id` | <SPREAD>, address, billingOwnerUserId, canManageMembers, canManageWorkspace, currentUser… | canManageMembers, canManageWorkspace, currentUserRole, effectivePlan, id, lifecycle, mem… |
 | OK | `parseExternalCollaborators` | `GET /v1/teams/:id/access-review` | externalCollaborators, members, pendingInvites, summary, teamId | externalCollaborators |
 | OK | `parseWorkspaceActivity` | `GET /v1/teams/:id/activity` | activities | activities |
@@ -159,6 +161,7 @@ top level of it.
 | OK | `parseWorkspaceMembers` | `GET /v1/teams/:id/members` | members, nextCursor, total | members, nextCursor, total |
 | OK | `parseTransferCandidates` | `GET /v1/teams/:id/members` | members, nextCursor, total | members, nextCursor, total |
 | OK | `parseRemovalImpact` | `GET /v1/teams/:id/members/:memberId/removal-impact` | eligibleTransferTargets, impact, member | eligibleTransferTargets, impact |
+| OK | `parsePendingOwnershipOffer` | `GET /v1/teams/:id/ownership-offer` | offer | offer |
 | OK | `parseAlerts` | `GET /v1/teams/:workspaceId/operations/alerts` | complete, counts, evaluatedAtUtc, items, scope, workspaceId | complete, counts, evaluatedAtUtc, items |
 | OK | `parseHealth` | `GET /v1/teams/:workspaceId/operations/health` | evaluatedAtUtc, lastIncidentActivityUtc, openIncidents, readiness, scope, state, unknown… | evaluatedAtUtc, lastIncidentActivityUtc, openIncidents, readiness, state, unknownReason,… |
 | OK | `parseAiAssistanceSettings` | `GET /v1/teams/ai-assistance-status` | available, enabled, features, processing, status | available, enabled, features, processing, status |

@@ -31,6 +31,7 @@ import {
 } from "../../../src/ui";
 import { WorkspaceOwnershipTransferCard } from "../../../src/ui/workspace-ownership-transfer";
 import { WorkspaceClosureCard } from "../../../src/ui/workspace-closure-card";
+import { OwnershipOffers } from "../../../src/ui/ownership-offers";
 import {
   buildWorkspacePath,
   isWorkspaceOwner,
@@ -123,6 +124,8 @@ export default function WorkspaceLifecycleScreen() {
         }
       />
 
+      {/* PRO-T1-06 - ownership offers addressed to this account. */}
+      <OwnershipOffers onAccepted={() => load()} />
       {closedSection}
       {error ? (
         <ProovraErrorState message={error.message} requestId={error.requestId} onRetry={() => void load()} />

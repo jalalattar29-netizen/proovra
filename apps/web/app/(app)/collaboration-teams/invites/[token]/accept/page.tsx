@@ -17,6 +17,10 @@
  * Security:
  *   - The token is in the URL path; we POST it to the accept endpoint
  *     and immediately drop the token reference after the response.
+ *   - PRO-K2-15 — the sign-in bounce never puts the token in a query string:
+ *     it is held in this tab's sessionStorage and `/login?next=` names the
+ *     token-less `/collaboration-teams/invites/resume/accept`, which reads
+ *     it back. The hand-off is cleared once an accept is answered.
  *   - We never log the token to console or analytics.
  *   - Invalid / expired / revoked tokens produce a safe generic error
  *     ("This invite is no longer valid") — we never leak team or
@@ -40,9 +44,38 @@ import {
   isWellFormedCollaborationTeamInviteToken,
 } from "@proovra/shared";
 
+/** The path segment that stands in for the token after a sign-in bounce. */
+const RESUME_SEGMENT = "resume";
+const RESUME_PATH = `/collaboration-teams/invites/${RESUME_SEGMENT}/accept`;
+const HANDOFF_KEY = "proovra-collab-invite-handoff";
+
+function readHandoff(): string {
+  try {
+    return window.sessionStorage.getItem(HANDOFF_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+function writeHandoff(token: string): void {
+  try {
+    window.sessionStorage.setItem(HANDOFF_KEY, token);
+  } catch {
+    // No storage: the reader opens the e-mailed link again after signing in.
+  }
+}
+function clearHandoff(): void {
+  try {
+    window.sessionStorage.removeItem(HANDOFF_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 type Status =
   // PRO-K2-15 — opening the link no longer joins: the invitee presses Accept.
   | "ready"
+  // Returned from sign-in without the held invitation (another tab or browser).
+  | "resume_missing"
   | "wrong_account"
   | "already_used"
   | "archived"
@@ -90,7 +123,15 @@ function AcceptTeamInvite() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const { addToast } = useToast();
-  const rawToken = decodeURIComponent(params?.token ?? "");
+  const pathToken = decodeURIComponent(params?.token ?? "");
+  const resuming = pathToken === RESUME_SEGMENT;
+  // After a sign-in bounce the token comes from this tab's hand-off, read on
+  // the client only; otherwise it is the path segment.
+  const [heldToken, setHeldToken] = useState<string | null>(null);
+  useEffect(() => {
+    if (resuming) setHeldToken(readHandoff());
+  }, [resuming]);
+  const rawToken = resuming ? (heldToken ?? "") : pathToken;
   const [status, setStatus] = useState<Status>("checking");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [requestId, setRequestId] = useState<string | undefined>();
@@ -116,6 +157,7 @@ function AcceptTeamInvite() {
     setStatus("accepting");
     try {
       const result = await acceptInvite(rawToken);
+      clearHandoff();
       // We never keep the raw token in component state — accept() takes
       // it once and returns the team id.
       setTeamId(result.teamId ?? null);
@@ -145,6 +187,8 @@ function AcceptTeamInvite() {
         // Map STABLE backend codes to safe surface states — never regex
         // over the error message. We DO NOT show team metadata for
         // invalid tokens — only a generic safe message.
+        // An answered accept ends the hand-off; a 401 still needs it.
+        if (err.statusCode !== 401) clearHandoff();
         if (err.statusCode === 401) setStatus("auth_required");
         else if (err.code === "TEAM_MEMBER_LIMIT_REACHED") {
           // Pre-acceptance capacity gate. The server's billing guard
@@ -179,8 +223,13 @@ function AcceptTeamInvite() {
   // ONE-SHOT accept runs only when the invitee presses Accept (`startedRef`
   // keeps a double click to one request).
   useEffect(() => {
+    if (resuming && heldToken === null) return; // hand-off not read yet
+    if (resuming && heldToken === "") {
+      setStatus("resume_missing");
+      return;
+    }
     setStatus(isWellFormedCollaborationTeamInviteToken(rawToken) ? "ready" : "invalid");
-  }, [rawToken]);
+  }, [rawToken, resuming, heldToken]);
   const onAccept = useCallback(() => {
     if (startedRef.current) return;
     startedRef.current = true;
@@ -207,8 +256,10 @@ function AcceptTeamInvite() {
           // is no /signin route; the old target 404'd and DROPPED the
           // invite token). /login honours `next` for both the password
           // flow and the OAuth return-url handoff.
-          const here = `/collaboration-teams/invites/${encodeURIComponent(rawToken)}/accept`;
-          router.push(`/login?next=${encodeURIComponent(here)}`);
+          // PRO-K2-15 — the token is NOT in `next`: it waits in this tab and
+          // the token-less resume path reads it back after sign-in.
+          writeHandoff(rawToken);
+          router.push(`/login?next=${encodeURIComponent(RESUME_PATH)}`);
         },
       })}
     </div>
@@ -273,6 +324,15 @@ function renderStateContent({
               Accept invitation
             </button>
           }
+        />
+      );
+    case "resume_missing":
+      return (
+        <Panel
+          kicker="Team invite"
+          title="Open your invitation link again"
+          body="You are signed in. To finish joining, open the link in your invitation e-mail again in this browser."
+          tone="neutral"
         />
       );
     case "wrong_account":

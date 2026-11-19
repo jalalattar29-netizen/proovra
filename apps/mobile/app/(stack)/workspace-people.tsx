@@ -55,6 +55,7 @@ import { RolePermissionsSheet } from "../../src/ui/role-permissions-sheet";
 import { useAuth } from "../../src/auth-context";
 import { MemberRemovalSheet } from "../../src/ui/member-removal";
 import { ExternalCollaboratorsCard } from "../../src/ui/external-collaborators";
+import { OwnershipOffers } from "../../src/ui/ownership-offers";
 import { describeCollaborationTeamsKpi, describeWorkspaceLifecycle } from "@proovra/shared";
 import { ChallengeStepUpSheet, useChallengeStepUp } from "../../src/ui/challenge-step-up";
 import {
@@ -68,6 +69,10 @@ import {
   buildWorkspaceMemberPath,
   canChangeRole,
   canRemoveMember,
+  canLeaveWorkspace,
+  buildWorkspaceLeavePath,
+  leaveFailureCopy,
+  LEAVE_WORKSPACE_CONSEQUENCE,
   describeActivity,
   describeRoleChange,
   invitesReadFailure,
@@ -109,7 +114,7 @@ type RosterState = "loading" | "ready" | "failed";
 export default function WorkspacePeopleScreen() {
   const router = useRouter();
   const { addToast } = useToast();
-  const { context } = usePlatformContext();
+  const { context, refresh: refreshContext } = usePlatformContext();
   const teamId = context?.activeTeamId ?? null;
   const stepUp = useChallengeStepUp(teamId);
 
@@ -144,6 +149,9 @@ export default function WorkspacePeopleScreen() {
   const [roleFor, setRoleFor] = useState<WorkspaceMember | null>(null);
   // T-14 — member removal (web MemberRemovalDialog) and the roster total.
   const [removing, setRemoving] = useState<WorkspaceMember | null>(null);
+  // PRO-T1-02 — the caller ends their own membership (step-up, server checks).
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [memberTotal, setMemberTotal] = useState<number | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -373,6 +381,29 @@ export default function WorkspacePeopleScreen() {
     [teamId, addToast, reloadRoster, stepUp],
   );
 
+  const leaveWorkspace = useCallback(async () => {
+    if (!teamId) return;
+    setLeaving(true);
+    try {
+      await stepUp.run((headers) =>
+        apiFetch(buildWorkspaceLeavePath(teamId), {
+          method: "POST",
+          ...(headers ? { headers } : {}),
+          body: JSON.stringify({}),
+        }),
+      );
+      setLeaveOpen(false);
+      addToast("You left this workspace.", "success");
+      refreshContext();
+      router.replace("/spaces" as never);
+    } catch (err) {
+      setLeaveOpen(false);
+      addToast(leaveFailureCopy(err, toSafeUserError(err).message || null), "error");
+    } finally {
+      setLeaving(false);
+    }
+  }, [teamId, stepUp, addToast, refreshContext, router]);
+
   const rename = useCallback(async () => {
     if (!teamId) return;
     const invalid = validateWorkspaceName(draftName);
@@ -520,6 +551,8 @@ export default function WorkspacePeopleScreen() {
             </ProovraCard>
           ) : null}
 
+          {/* PRO-T1-06 - an ownership offer addressed to the viewer. */}
+          <OwnershipOffers onAccepted={() => load()} />
           <ProovraPageSection title="Members">
             <ProovraFilterSearch
               value={memberQuery}
@@ -580,6 +613,16 @@ export default function WorkspacePeopleScreen() {
                         <View style={{ flexDirection: "row", gap: theme.space.s1, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                           <ProovraBadge label={roleLabel(m.role)} tone={m.role.toUpperCase() === "OWNER" ? "governance" : "neutral"} />
                           <ProovraBadge label={memberStatusLabel(m.status)} tone={memberStatusTone(m.status)} />
+                          {canLeaveWorkspace(m, selfId) ? (
+                            <ProovraButton
+                              label="Leave workspace"
+                              accessibilityLabel="Leave this workspace"
+                              variant="ghost"
+                              fullWidth={false}
+                              testID="workspace-leave"
+                              onPress={() => setLeaveOpen(true)}
+                            />
+                          ) : null}
                           {canRemoveMember(m, canManage, selfId) ? (
                             <ProovraButton
                               label="Remove"
@@ -951,6 +994,17 @@ export default function WorkspacePeopleScreen() {
         busy={busy}
         onConfirm={() => void revoke()}
         onCancel={() => setRevoking(null)}
+      />
+
+      <ProovraConfirmSheet
+        visible={leaveOpen}
+        title="Leave this workspace?"
+        consequence={LEAVE_WORKSPACE_CONSEQUENCE}
+        confirmLabel="Leave workspace"
+        tone="danger"
+        busy={leaving}
+        onConfirm={() => void leaveWorkspace()}
+        onCancel={() => setLeaveOpen(false)}
       />
 
       <ChallengeStepUpSheet stepUp={stepUp} />

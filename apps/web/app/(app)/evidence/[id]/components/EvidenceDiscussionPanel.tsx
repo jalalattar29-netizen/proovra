@@ -84,7 +84,8 @@ type Message = {
 };
 
 type ThreadsResponse = { threads: Thread[] };
-type MessagesResponse = { messages: Message[] };
+// PRO-K2-16 — `olderCursor` names the next page back; an older API omits it.
+type MessagesResponse = { messages: Message[]; olderCursor?: string | null };
 
 // PHASE 12B — the SERVER owns the collaboration vocabulary
 // (GET /v1/collaboration/catalogs). These maps are presentation only:
@@ -213,6 +214,10 @@ export default function EvidenceDiscussionPanel({
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messagesFailed, setMessagesFailed] = useState(false);
+  // PRO-K2-16 — the read returns the NEWEST page; earlier pages on request.
+  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [olderFailed, setOlderFailed] = useState(false);
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
   // PRO-E1C-03 — the panel could not start a thread: no client called
@@ -311,6 +316,8 @@ export default function EvidenceDiscussionPanel({
           )}/messages?teamId=${encodeURIComponent(teamId)}`,
         )) as MessagesResponse;
         setMessages(data.messages ?? []);
+        setOlderCursor(typeof data.olderCursor === "string" ? data.olderCursor : null);
+        setOlderFailed(false);
       } catch (err) {
         const e = err as { message?: string };
         setError(toSafeUserError(e, { message: "Could not load messages." }).message);
@@ -341,8 +348,33 @@ export default function EvidenceDiscussionPanel({
       void loadMessages(selectedThreadId);
     } else {
       setMessages([]);
+      setOlderCursor(null);
     }
   }, [selectedThreadId, loadMessages]);
+
+  // PRO-K2-16 — one page further back, placed above what is already shown.
+  const loadEarlier = useCallback(async () => {
+    if (!teamId || !selectedThreadId || !olderCursor || loadingOlder) return;
+    setLoadingOlder(true);
+    setOlderFailed(false);
+    try {
+      const data = (await apiFetch(
+        `/v1/collaboration/threads/${encodeURIComponent(
+          selectedThreadId,
+        )}/messages?teamId=${encodeURIComponent(teamId)}&before=${encodeURIComponent(olderCursor)}`,
+      )) as MessagesResponse;
+      const earlier = data.messages ?? [];
+      setMessages((shown) => {
+        const have = new Set(shown.map((m) => m.id));
+        return [...earlier.filter((m) => !have.has(m.id)), ...shown];
+      });
+      setOlderCursor(typeof data.olderCursor === "string" ? data.olderCursor : null);
+    } catch {
+      setOlderFailed(true);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [teamId, selectedThreadId, olderCursor, loadingOlder]);
 
   const selectedThread = useMemo(
     () => threads?.find((t) => t.id === selectedThreadId) ?? null,
@@ -716,6 +748,25 @@ export default function EvidenceDiscussionPanel({
                   attributed to your account in the workspace audit trail.
                 </p>
               ) : (
+                <>
+                {olderCursor ? (
+                  <div>
+                    <button
+                      type="button"
+                      className="app-secondary-action"
+                      data-evidence-discussion-load-earlier
+                      disabled={loadingOlder}
+                      onClick={() => void loadEarlier()}
+                    >
+                      {loadingOlder ? "Loading earlier messages…" : "Load earlier messages"}
+                    </button>
+                    {olderFailed ? (
+                      <p className="evidence-discussion__muted" role="status">
+                        Earlier messages could not be loaded. Try again.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <ol
                   className="evidence-discussion__messages"
                   data-evidence-discussion-messages
@@ -758,6 +809,7 @@ export default function EvidenceDiscussionPanel({
                     </li>
                   ))}
                 </ol>
+                </>
               )}
 
               {readOnly ? (

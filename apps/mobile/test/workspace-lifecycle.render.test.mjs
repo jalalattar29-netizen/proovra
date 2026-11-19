@@ -168,3 +168,39 @@ test("OWNED non-owner: the explanation only", async () => {
   noDelete(r);
   r.unmount();
 });
+
+test("PRO-T1-06 — a 202 offer says it is waiting for acceptance, and the owner can withdraw it", async () => {
+  let offered = false;
+  routes["/v1/teams/team-1/transfer-ownership"] = () => {
+    offered = true;
+    return { __status: 202, body: { offer: { id: "o1", teamId: "team-1", toUserId: "u-dana" }, pendingAcceptance: true, transfer: { pending: true } } };
+  };
+  routes["/v1/teams/team-1/ownership-offer"] = (path, method) =>
+    method === "POST" ? { offer: { id: "o1", teamId: "team-1", status: "CANCELLED" } } : { offer: offered ? { id: "o1", teamId: "team-1", toUserId: "u-dana" } : null };
+  const r = await render();
+  await r.press("Dana");
+  await r.press("Transfer ownership…");
+  await r.press("Confirm transfer");
+  await settle();
+  assert.ok(r.texts().some((t) => t.includes("Offer sent to Dana, waiting for acceptance")), r.texts().join(" | "));
+  assert.ok(!r.texts().some((t) => t.includes("Dana now owns Acme")));
+  await r.press("Withdraw offer");
+  await settle();
+  assert.ok(requests.some((q) => q.path === "/v1/teams/team-1/ownership-offer/o1/cancel" && q.method === "POST"));
+  r.unmount();
+});
+
+test("PRO-T1-06 — an offer addressed to me can be accepted or declined in the app", async () => {
+  routes["/v1/teams"] = (path) =>
+    path === "/v1/teams" ? { teams: [], items: [], closedOwned: [], ownershipOffers: [{ id: "o9", teamId: "team-9", teamName: "Northgate", expiresAtUtc: null }] } : undefined;
+  routes["/v1/teams/team-9/ownership-offer"] = () => ({ transfer: { teamId: "team-9" }, offer: { id: "o9", status: "DECLINED" } });
+  const r = await render();
+  assert.ok(r.texts().some((t) => t.includes("offered ownership of Northgate")), r.texts().join(" | "));
+  await r.press("Accept ownership");
+  await settle();
+  assert.ok(requests.some((q) => q.path === "/v1/teams/team-9/ownership-offer/o9/accept" && q.method === "POST"));
+  await r.press("Decline");
+  await settle();
+  assert.ok(requests.some((q) => q.path === "/v1/teams/team-9/ownership-offer/o9/decline" && q.method === "POST"));
+  r.unmount();
+});
