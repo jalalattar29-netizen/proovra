@@ -686,11 +686,32 @@ describe("slice E — identity & invitations (live PostgreSQL)", () => {
       });
       expect(okBefore.statusCode, okBefore.body).toBe(200);
 
-      await rbac.revokeMember({ teamId: A().teamId, teamMemberId: row.id, actorUserId: A().ownerUserId, reason: "test" });
+      // PRO-T1-05 (DEC-08) — the removal ends EVERY session only for an identity the
+      // Organization's directory originated; that person is seeded beside the independent one.
+      const dirEmail = `f16-dir-${tag()}@invitee.test`;
+      const dirPerson = await user(dirEmail);
+      await prisma.user.update({ where: { id: dirPerson.id }, data: { providerUserId: `scim-${orgAId}:${dirEmail}` } });
+      const dirRow = await prisma.teamMember.create({ data: { teamId: A().teamId, userId: dirPerson.id, role: "MEMBER", status: "ACTIVE" } });
+      const dirBefore = await h.app.inject({ method: "GET", url: "/v1/platform/context", headers: bearer(dirPerson.token) });
+      expect(dirBefore.statusCode, dirBefore.body).toBe(200);
 
-      // The preserved security decision: every session of the account ended.
-      const old = await h.app.inject({ method: "GET", url: "/v1/platform/context", headers: bearer(person.token) });
+      await rbac.revokeMember({ teamId: A().teamId, teamMemberId: row.id, actorUserId: A().ownerUserId, reason: "test" });
+      await rbac.revokeMember({ teamId: A().teamId, teamMemberId: dirRow.id, actorUserId: A().ownerUserId, reason: "test" });
+
+      // The preserved security decision: every session of the Organization-originated account ended.
+      const old = await h.app.inject({ method: "GET", url: "/v1/platform/context", headers: bearer(dirPerson.token) });
       expect(old.statusCode, old.body).toBe(401);
+      // PRO-T1-05 (DEC-08) — the independent account keeps its own session, and that
+      // session is refused the workspace at the per-request membership evaluation.
+      const kept = await h.app.inject({ method: "GET", url: "/v1/platform/context", headers: bearer(person.token) });
+      expect(kept.statusCode, kept.body).toBe(200);
+      expect((kept.json() as { workspace: { workspaceKind: string } }).workspace.workspaceKind).toBe("PERSONAL");
+      const keptDenied = await h.app.inject({
+        method: "GET",
+        url: `/v1/evidence/${A().evidenceId}`,
+        headers: { ...bearer(person.token), "x-proovra-workspace-id": A().teamId },
+      });
+      expect([403, 404]).toContain(keptDenied.statusCode);
 
       await new Promise((r) => setTimeout(r, 1100));
       const fresh = token(person.id, email);

@@ -505,6 +505,9 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       expect((await call({ method: "POST", url, token: a.viewerToken, payload })).statusCode).toBe(403);
       const foreignTeam = await call({ method: "POST", url, token: b.ownerToken, payload });
       expect(foreignTeam.statusCode).toBe(404);
+      // PRO-K1-03 (WS-ENT) — the graph is an Enterprise organization tool, so B's
+      // own workspace must be one before the node rule is what answers.
+      await makeEnterpriseOrganizationWorkspace(prisma, b.teamId);
       // B's own workspace, naming A's nodes: indistinguishable from missing nodes.
       const foreignNodes = await call({ method: "POST", url, token: b.ownerToken, payload: { ...payload, teamId: b.teamId, targetNodeId: foreignNode.id } });
       expect(foreignNodes.statusCode).toBe(404);

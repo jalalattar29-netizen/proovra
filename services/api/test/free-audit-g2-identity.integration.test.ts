@@ -391,6 +391,12 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
         data: { workspaceId: A().teamId, name: `g2-group-${tag()}`, createdByUserId: A().ownerUserId },
         select: { id: true },
       });
+      // PRO-K2-14 / DEC-28: an invitation is honoured only while its inviter is
+      // still an effective member of the group allowed to invite (else
+      // INVITE_REVOKED) — the inviter is the group's LEAD.
+      await prisma.collaborationTeamMember.create({
+        data: { teamId: group.id, userId: A().ownerUserId, role: "LEAD", status: "ACTIVE" } as never,
+      });
       const invite = async () => {
         const raw = `g2-invite-${randomUUID()}`;
         await prisma.collaborationTeamInvite.create({
