@@ -451,7 +451,9 @@ describe("ADMIN CONTROL PLANE — reliability operator actions (live PostgreSQL 
       expect(after.abandonedAtUtc!.getTime()).toBeGreaterThanOrEqual(
         before.lastActivityAtUtc.getTime(),
       );
-      expect(after.lastActivityAtUtc.getTime()).toBeGreaterThan(
+      // PRO-C1C-02 — abandoning is bookkeeping, not upload activity: it stamps
+      // abandonedAtUtc and leaves lastActivityAtUtc where the upload left it.
+      expect(after.lastActivityAtUtc.getTime()).toBe(
         before.lastActivityAtUtc.getTime(),
       );
       expect(after.failureReason).toBe(
@@ -744,7 +746,9 @@ describe("ADMIN CONTROL PLANE — reliability operator actions (live PostgreSQL 
       expect(after.failureReason).toBe(
         `marked_abandoned_by_user:${orgA.owner.userId}`,
       );
-      expect(after.lastActivityAtUtc.getTime()).toBeGreaterThan(
+      // PRO-C1C-02 — abandoning is bookkeeping, not upload activity: it stamps
+      // abandonedAtUtc and leaves lastActivityAtUtc where the upload left it.
+      expect(after.lastActivityAtUtc.getTime()).toBe(
         before.lastActivityAtUtc.getTime(),
       );
       // The winner's response projected the row that was written — so the

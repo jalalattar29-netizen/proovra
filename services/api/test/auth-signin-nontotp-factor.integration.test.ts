@@ -74,9 +74,13 @@ describe("AUTH-LOCKOUT-NONTOTP — sign-in with a phone-only account (live Postg
       });
     }
     const m = o.members[0]!;
+    // PRO-A2-03 — the tenant fixture seeds its members as people the
+    // Organization's directory provisioned (a synthetic provider id), who have
+    // no password sign-in. This suite is about a PASSWORD account that joined
+    // the Organization, so it seeds that self-serve identity explicitly.
     await prisma.user.update({
       where: { id: m.userId },
-      data: { passwordHash: await hashPassword(password), emailVerifiedAt: new Date() },
+      data: { providerUserId: m.email, passwordHash: await hashPassword(password), emailVerifiedAt: new Date() },
     });
     return { o, m };
   }

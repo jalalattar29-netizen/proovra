@@ -300,8 +300,21 @@ describe("canonical verification for the pre-canonical fleet", () => {
     await prisma.evidence.update({ where: { id: pending }, data: { publicVerifyState: "NOT_PUBLISHED" } });
     const viaId = await publicVerify(pending);
     expect(viaId.statusCode, viaId.body).toBe(200);
+    // PRO-O1C-04 — this FREE record answers on the BASIC tier, and a BASIC
+    // body states what IT carries (no content, no location) whatever the
+    // record's own policy allows on the rich tier.
     expect(viaId.json().canonicalVerification).toMatchObject({
       reference: ref,
+      status: "AVAILABLE",
+      disclosure: { mode: "VERIFICATION_ONLY", recordedLocation: false, source: "RECORD_POLICY", originalDownload: false },
+    });
+    // The record's policy itself is what a rich-tier record's id link states.
+    const rich = await legacyRecord("TEAM");
+    await prisma.$transaction((tx) => runtime.ensureVerificationRefTx(tx as never, rich, { source: "TEST" }));
+    const richViaId = await publicVerify(rich);
+    expect(richViaId.statusCode, richViaId.body).toBe(200);
+    expect(richViaId.json().canonicalVerification).toMatchObject({
+      reference: await refOf(rich),
       status: "AVAILABLE",
       disclosure: { mode: "CONTENT_PREVIEW", recordedLocation: false, source: "RECORD_POLICY", originalDownload: false },
     });

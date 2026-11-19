@@ -402,6 +402,9 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
       const o = await org(1);
       const member = o.members[0]!;
       await ceremony.enroll(member.userId);
+      // PRO-A2-03 — the tenant fixture seeds directory-provisioned members; the
+      // independent account this case starts from is seeded explicitly.
+      await prisma.user.update({ where: { id: member.userId }, data: { providerUserId: member.email } });
       // PRO-A2-05 (DEC-08) — an independent (self-serve) member's factors belong
       // to their own account: refused before any step-up, nothing revoked.
       const selfServe = await reenrol(o, o.owner, member.userId, {});
