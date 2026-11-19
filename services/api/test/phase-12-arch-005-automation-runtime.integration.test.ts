@@ -1509,6 +1509,16 @@ describe("§2 — ARCH-005: the Automation runtime is durable, fenced and reacha
         where: { id: dest.id },
         select: { consecutiveFailureCount: true, enabled: true, autoDisabledAt: true },
       });
+    // Isolation: earlier cases in this file leave deliveries to this destination
+    // waiting for a retry (12.5 leaves one RETRY_SCHEDULED). The sweep below
+    // would send a due one into the 500 receiver and count it as one of the
+    // ten failures, disabling the destination after nine of this case's
+    // events. Whether it is due yet depends on how long the cases in between
+    // took, so the count was timing-dependent. They are parked for the case.
+    await prisma.automationWebhookDelivery.updateMany({
+      where: { destinationId: dest.id, status: { in: ["PENDING", "RETRY_SCHEDULED"] } },
+      data: { nextAttemptAt: new Date(Date.now() + 60 * 60_000) },
+    });
     receiver.reset();
     receiver.nextStatus = 500;
     try {
