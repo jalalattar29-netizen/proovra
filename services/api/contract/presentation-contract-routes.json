@@ -970,6 +970,7 @@
     "POST /v1/notifications/process-retries",
     "POST /v1/notifications/run-digests",
     "POST /v1/notifications/run-reminders",
+    "POST /v1/oauth/extension/approve",
     "POST /v1/oauth/extension/revoke",
     "POST /v1/oauth/extension/token",
     "POST /v1/operations/custody-attestations/:id/verify",

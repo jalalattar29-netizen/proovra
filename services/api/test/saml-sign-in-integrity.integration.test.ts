@@ -418,7 +418,11 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
     const verified = await signInThroughMfa(conn, email, secretBytes);
     expect(verified.statusCode, verified.body).toBe(200);
 
-    const row = await prisma.authenticatedSession.findFirstOrThrow({ where: { userId: user.id } });
+    // The session this sign-in minted (the seeded account also holds the
+    // fixture's own session row; an unordered read could return either).
+    const row = await prisma.authenticatedSession.findFirstOrThrow({
+      where: { userId: user.id, ssoConnectionId: conn },
+    });
     expect(row.teamId).toBe(org.workspaceId);
     expect(row.ssoConnectionId).toBe(conn);
     const bound = await prisma.user.findUniqueOrThrow({

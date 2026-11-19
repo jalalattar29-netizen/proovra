@@ -60,9 +60,13 @@ import {
   completeSamlIdpStepUp,
   isStepUpIdpState,
 } from "../services/identity-security/step-up-idp-flow.js";
-import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
+import {
+  LoginMfaContextUnavailableError,
+  resolveLoginMfaEnforcement,
+} from "../services/security/login-mfa-enforcement.service.js";
 import {
   createMfaPendingChallenge,
+  MfaLoginTemporarilyLockedError,
 } from "../services/security/mfa.service.js";
 import {
   validateSamlResponse,
@@ -134,6 +138,7 @@ import { safeEmitSecurityEvent } from "../services/security/security-event.servi
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { bump } from "../services/ops/metrics.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { evaluateAccess, loadMemberAccessSnapshot } from "../services/identity/access-policy.service.js";
 import {
   isNativeCodeChallenge,
   isNativeSsoState,
@@ -337,12 +342,29 @@ async function authorizeSamlOperator(
     select: { role: true, teamId: true },
   });
   if (memberships.length === 0) return indistinguishable;
-  const membership =
-    memberships.find((m) => m.role === "OWNER") ??
-    memberships.find((m) => m.role === "ADMIN") ??
-    memberships[0]!;
+  // PRO-A2C-01 — the operator is decided by the CANONICAL access evaluation,
+  // not the raw ACTIVE row: an OWNER/ADMIN whose access window expired
+  // (A2-26), or whose workspace/Organization is not active, does not replace
+  // the Organization's IdP trust anchor.
+  const operatorRows = memberships.filter((m) => m.role === "OWNER" || m.role === "ADMIN");
+  let canonicalOperator: { role: string; teamId: string } | null = null;
+  const ordered = [
+    ...operatorRows.filter((m) => m.role === "OWNER"),
+    ...operatorRows.filter((m) => m.role !== "OWNER"),
+  ];
+  for (const m of ordered) {
+    const snapshot = await loadMemberAccessSnapshot({ teamId: m.teamId, userId: actorUserId });
+    if (
+      snapshot &&
+      evaluateAccess({ kind: "MEMBER", member: snapshot }, { permission: "identity.external_mapping.manage" }).allowed
+    ) {
+      canonicalOperator = m;
+      break;
+    }
+  }
+  const membership = canonicalOperator ?? memberships[0]!;
 
-  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+  if (!canonicalOperator) {
     return {
       ok: false,
       statusCode: 403,
@@ -1117,16 +1139,26 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
                 : err.code === "SAML_SEAT_CONTENTION"
                   ? "seat_contention"
                   : err.code.toLowerCase()
-              : "saml_acs_failed";
+              : err instanceof LoginMfaContextUnavailableError
+                ? // PRO-A1-01 — the account's second-factor state is unknown:
+                  // no session, no enrolment cookie, a retryable refusal.
+                  "security_context_unavailable"
+                : err instanceof MfaLoginTemporarilyLockedError
+                  ? "mfa_temporarily_locked"
+                  : "saml_acs_failed";
 
         await markCallbackFailed(
           { attemptId: attempt.id, reason: reason.slice(0, 64) },
           prisma,
         );
-        await noteSsoFailure(
-          { connectionId: conn.id, reason },
-          prisma,
-        );
+        // An internal security-context fault is not the IdP's failure; it must
+        // not count toward the connection's failure circuit.
+        if (!(err instanceof LoginMfaContextUnavailableError) && !(err instanceof MfaLoginTemporarilyLockedError)) {
+          await noteSsoFailure(
+            { connectionId: conn.id, reason },
+            prisma,
+          );
+        }
 
         // B5B-F-302 — the asserted address belongs to a pre-existing
         // self-serve account: no session; the browser carries the signed

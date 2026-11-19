@@ -669,6 +669,13 @@ export type PlatformContextAvailableWorkspace = {
 // The legacy `workspace` + `availableWorkspaces` fields above remain on the
 // envelope for backward compatibility for one phase. New code paths must
 // consume `account`, `personalSpace`, `organizations`, and `activeSpace`.
+//
+// PRO-X1-11 — NAMED INSTALLED CONSUMER: every store-installed PROOVRA browser
+// extension build reads `availableWorkspaces` and `activeSpace.id`
+// (apps/extension/src/lib/popup-context.ts). Removing or reshaping them makes
+// those builds say the account has no workspace. Do not remove them without
+// first raising PRESENTATION_CONTRACT_MIN_CLIENT above every build that reads
+// them; extension requests name their build in `x-proovra-client`.
 // =============================================================================
 
 /**

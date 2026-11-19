@@ -36,6 +36,9 @@ import { DataTable, type DataTableColumn } from "../../../../../components/ui/Da
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../../lib/api";
 import { useWorkspacePermissionAccess } from "../../../../../components/governance/governance-action-state";
+import { StepUpModal, isStepUpCancelled, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
+import { useActiveSpaceId } from "../../../../../lib/platform-context/useTenantModel";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 
 // PRO-G2Z-02 (WS-ENT) - row actions follow the route's own permission (advisory mirror).
 const ROLE_REFUSAL_NOTE = "Your role in this workspace does not include this governance action.";
@@ -88,26 +91,46 @@ function Shell() {
     }
   }, [campaignId]);
 
+  const stepUp = useStepUpAction({ teamId: useActiveSpaceId() });
+  const { confirm } = useConfirmAction();
   const decide = useCallback(
     async (itemId: string, decision: AccessReviewItemDecision) => {
+      // PRO-G2-17 — Revoke removes the member's grant: confirm first, and the
+      // server asks for a step-up (answered through the step-up dialog).
+      if (
+        decision === "REVOKED" &&
+        !(await confirm({
+          title: "Revoke this access?",
+          description: "The member loses this grant immediately.",
+          confirmLabel: "Revoke access",
+          tone: "danger",
+          testId: "access-review-revoke",
+        }))
+      ) {
+        return;
+      }
       setBusy(true);
       setDenial(null);
       try {
-        await apiFetch(
-          `/v1/governance/access-reviews/items/${itemId}/decision`,
-          {
-            method: "POST",
-            body: JSON.stringify({ decision }),
-          },
+        await stepUp.runStepUpAction(async (headers) =>
+          apiFetch(
+            `/v1/governance/access-reviews/items/${itemId}/decision`,
+            {
+              method: "POST",
+              headers: { ...(headers ?? {}) },
+              body: JSON.stringify({ decision }),
+            },
+          ),
         );
         await refresh();
       } catch (err) {
+        if (isStepUpCancelled(err)) return;
         handleError(err, setDenial);
       } finally {
         setBusy(false);
       }
     },
-    [refresh],
+    [refresh, stepUp, confirm],
   );
 
   useEffect(() => {
@@ -240,6 +263,7 @@ function Shell() {
           }
         />
       </div>
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

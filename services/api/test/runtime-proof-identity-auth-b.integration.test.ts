@@ -23,7 +23,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -569,6 +569,29 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
       const factorId = await seedTotp(memberUserId);
       const url = `/v1/identity/mfa-admin/factors/${teamId}/${memberUserId}/${factorId}/revoke`;
       const payload = { reason: "Lost device" };
+
+      // PRO-A2-05 (DEC-08) — a workspace administers the factors of identities
+      // its Organization originated. An independent member is refused before
+      // any step-up, and nothing is revoked; the rest of this case runs on a
+      // directory-originated identity (restored at the end).
+      const selfServe = await call({ method: "POST", url, token: ownerToken, payload });
+      expect(selfServe.statusCode, selfServe.body).toBe(403);
+      expect((json(selfServe).error as { reason?: string }).reason).toBe("target_self_serve_account");
+      expect((await prisma.mfaFactor.findUniqueOrThrow({ where: { id: factorId } })).status).toBe("ACTIVE");
+      const memberOrigin = await prisma.user.findUniqueOrThrow({
+        where: { id: memberUserId },
+        select: { providerUserId: true },
+      });
+      const memberOrganizationId = (
+        await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { organizationId: true } })
+      ).organizationId;
+      await prisma.user.update({
+        where: { id: memberUserId },
+        data: { providerUserId: `scim-${memberOrganizationId}:rt-${memberUserId.slice(0, 8)}` },
+      });
+      onTestFinished(async () => {
+        await prisma.user.update({ where: { id: memberUserId }, data: { providerUserId: memberOrigin.providerUserId } });
+      });
 
       const viewer = await call({ method: "POST", url, token: viewerToken, payload });
       const outsider = await call({ method: "POST", url, token: harness.fixtures.teamB.ownerToken, payload });

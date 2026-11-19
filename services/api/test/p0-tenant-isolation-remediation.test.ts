@@ -519,6 +519,15 @@ describe("P0 — SCIM deactivation revokes sessions and heals context", () => {
       "teamMember.findUnique": () => ({ id: "member-1", status: "ACTIVE" }),
       // PRO-014 — the directory reaches only people it linked in this Organization.
       "externalIdentityMapping.findFirst": () => ({ id: "mapping-1" }),
+      // PRO-T1-05 / PRO-A2-06 (DEC-08) — an identity THIS Organization's
+      // directory originated loses every session; an independent account would
+      // lose only the Organization's SSO sessions.
+      "user.findUnique": () => ({
+        id: USER_ID,
+        email: "managed@example.test",
+        providerUserId: `scim-${ORG_ID}:subject-1`,
+        createdAt: new Date(),
+      }),
     });
     const res = await scimDeactivateUser(
       { teamId: TEAM_ID, organizationId: ORG_ID, tokenId: "tok-1", baseUrl: "https://x" },
@@ -665,6 +674,7 @@ describe("P0 — source contracts for fail-closed tenant guards", () => {
     expect(removal).toMatch(/massRevokeWorkspaceMemberships/);
     expect(removal).toMatch(/currentWorkspaceId: \{ in: orgTeamIds \}/);
     expect(removal).toMatch(/ORG_MEMBER_REMOVED/);
-    expect(removal).toMatch(/revokeAllSessionsForUser/);
+    // PRO-T1-05 (DEC-08) — through the canonical authority-loss scope.
+    expect(removal).toMatch(/revokeSessionsForAuthorityLoss/);
   });
 });

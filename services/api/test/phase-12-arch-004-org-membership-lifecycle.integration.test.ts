@@ -537,15 +537,35 @@ describe("§2 — ARCH-004: Organization membership has an auditable lifecycle",
     // is about the write rather than about clock granularity.
     await new Promise((r) => setTimeout(r, 1_100));
 
-    const res = await post(
-      `/v1/orgs/${organizationId}/members/${subjectMembershipId}/suspend`,
-    );
-    expect(res.statusCode, res.body).toBe(200);
+    // PRO-T1-05 (DEC-08) — the account-wide watermark moves for an identity
+    // the Organization ORIGINATED. An independent account keeps its own
+    // sessions (its Organization access ends at the per-request evaluation;
+    // ws-auth-identity-roots covers that side), so the subject is made a
+    // directory-originated identity for this case and restored afterwards.
+    const original = await prisma.user.findUniqueOrThrow({
+      where: { id: subjectUserId },
+      select: { providerUserId: true },
+    });
+    await prisma.user.update({
+      where: { id: subjectUserId },
+      data: { providerUserId: `scim-${organizationId}:arch-004-${subjectUserId.slice(0, 8)}` },
+    });
+    try {
+      const res = await post(
+        `/v1/orgs/${organizationId}/members/${subjectMembershipId}/suspend`,
+      );
+      expect(res.statusCode, res.body).toBe(200);
 
-    expect(
-      await watermarkOf(),
-      "a suspended member's tokens must stop being useful now, not at expiry",
-    ).toBeGreaterThan(before);
+      expect(
+        await watermarkOf(),
+        "a suspended member's tokens must stop being useful now, not at expiry",
+      ).toBeGreaterThan(before);
+    } finally {
+      await prisma.user.update({
+        where: { id: subjectUserId },
+        data: { providerUserId: original.providerUserId },
+      });
+    }
   }, 120_000);
 
   it("12 — a suspended member disappears from their own Organization list", async () => {

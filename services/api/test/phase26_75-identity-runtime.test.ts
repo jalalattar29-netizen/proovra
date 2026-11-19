@@ -133,7 +133,8 @@ describe("Phase 26.75 — session quarantine", () => {
   });
 
   it("emergency org revoke writes Phase 19 RevokedSession + emits event", () => {
-    expect(src).toMatch(/await revokeAllSessionsForUser\(/);
+    // PRO-A2C-04 — through the workspace-scoped revocation (Phase 19 rows inside).
+    expect(src).toMatch(/await revokeUserSessionsInWorkspaceScope\(/);
     expect(src).toMatch(/emergency_org_session_revoke/);
     expect(src).toMatch(/emergency_org_revoke_total/);
   });

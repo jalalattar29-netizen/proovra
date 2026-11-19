@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../src/auth-context";
-import { resendVerification, revokeSessionToken, verifyEmail } from "../../src/auth/auth-api";
+import { resendVerification, revokeSessionToken, verifyEmail, verifyEmailSignIn } from "../../src/auth/auth-api";
 import { useCompleteLogin } from "../../src/auth/use-auth-flow";
 import { theme } from "../../src/theme/theme";
 import { ProovraScreen, ProovraCard, ProovraButton, ProovraSection, ProovraLoadingState, ProovraText, ProovraFormField, ProovraInput } from "../../src/ui";
+import { takeConsentForRegistration } from "../../src/auth/pending-sign-in-consent";
 
 /**
  * Email verification — reached via the emailed deep link (carries ?token=).
@@ -94,13 +95,28 @@ export default function VerifyEmailScreen() {
     const s = session.current;
     if (!s || continued.current) return;
     continued.current = true;
-    void completeLogin({ kind: "session", token: s.token, user: s.user }, "email");
+    // PRO-NA-05 — the box ticked when THIS account registered on this device
+    // is recorded now; a link registered elsewhere records nothing and the
+    // acceptance screen asks.
+    const legalAcceptedSource = takeConsentForRegistration(s.user?.email ?? null);
+    void completeLogin(
+      { kind: "session", token: s.token, user: s.user },
+      "email",
+      legalAcceptedSource ? { legalAcceptedSource } : {},
+    );
   }, [completeLogin]);
 
   const submit = useCallback(
     async (withPassword?: string) => {
       try {
-        session.current = await verifyEmail(token, withPassword);
+        const result = await verifyEmailSignIn(token, withPassword);
+        if (result.kind !== "session") {
+          // PRO-A1-10 — verified, and this account signs in with its second
+          // factor (or must enrol one first): the sign-in continues there.
+          await completeLogin(result, "email");
+          return;
+        }
+        session.current = { token: result.token, user: result.user ?? null };
         if (needsSwitchQuestion(currentToken, currentUser?.id ?? null, session.current.user?.id ?? null)) {
           // No timer: nothing continues until the person answers.
           setState("switch");
@@ -124,7 +140,7 @@ export default function VerifyEmailScreen() {
         }
       }
     },
-    [token, continueToApp, currentToken, currentUser],
+    [token, continueToApp, currentToken, currentUser, completeLogin],
   );
 
   // Stay signed in: the session the link created is revoked, the current one

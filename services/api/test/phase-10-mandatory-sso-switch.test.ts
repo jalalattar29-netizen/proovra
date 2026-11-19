@@ -177,7 +177,7 @@ describe("§7/§9 — anti-divergence: no ambiguous/forged auth provenance", () 
     expect(authRoutes).not.toContain("/v1/auth/guest");
     expect(authRoutes).not.toContain("GUEST_LOGIN_RETIRED");
     // Email-verification mint is not PASSWORD (§2).
-    expect(authRoutes).toMatch(/Verification succeeded[\s\S]{0,400}jwtPayloadFromUser\(fullUser, "MAGIC_LINK"\)/);
+    expect(authRoutes).toMatch(/Verification succeeded[\s\S]{0,1200}jwtPayloadFromUser\(fullUser, "MAGIC_LINK"\)/); // PRO-A1-10: MFA gate between
     // MFA augments (mfaAt) rather than replacing primary (§3).
     expect(authRoutes).toMatch(/mfaAt: Math\.floor\(Date\.now\(\) \/ 1000\)/);
     // SSO is org-bound: the gate resolves the connection + checks org/status (§1).

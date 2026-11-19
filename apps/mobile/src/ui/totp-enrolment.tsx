@@ -209,14 +209,17 @@ export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
       setStage({ kind: "codes", codes });
       setLabel("");
       setCode("");
-      onEnrolled();
+      // PRO-NA2Z-01 — the parent is told only when the person has saved the
+      // codes (RecoveryCodesSheet onDone). Telling it now made Settings reload
+      // behind a spinner, unmounting this component and the one copy of the
+      // codes with it.
     } catch (err) {
       // A wrong code and an expired enrolment call for different next steps.
       setMessage(enrollFailureMessage(classifyEnrollFailure(err)));
     } finally {
       setBusy(false);
     }
-  }, [stage, code, onEnrolled]);
+  }, [stage, code]);
 
   /**
    * Abandoning an enrolment removes its ENROLLING factor, as the web's Cancel
@@ -309,7 +312,10 @@ export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
       <RecoveryCodesSheet
         codes={stage.kind === "codes" ? stage.codes : null}
         context="enroll"
-        onDone={() => setStage({ kind: "idle" })}
+        onDone={() => {
+          setStage({ kind: "idle" });
+          onEnrolled();
+        }}
       />
     </>
   );

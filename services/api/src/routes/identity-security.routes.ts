@@ -736,6 +736,8 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
     level: z.enum(MFA_POLICY_LEVELS as unknown as [string, ...string[]]),
     stepUpTtlSeconds: z.number().int().min(60).max(3600).nullable().optional(),
     trustedDeviceTtlDays: z.number().int().min(1).max(180).nullable().optional(),
+    /** PRO-P3AZ-02 — the version the caller loaded (stale -> 409). */
+    policyVersion: z.number().int().min(0).optional(),
   });
 
   /*
@@ -793,7 +795,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         const updated = await updateMfaPolicyVersioned({
           teamId: body.teamId,
           actorUserId: actor.userId,
-          expectedPolicyVersion: current.policyVersion,
+          expectedPolicyVersion: body.policyVersion ?? current.policyVersion,
           level: body.level as never,
           ...(body.stepUpTtlSeconds !== undefined ? { stepUpTtlSeconds: body.stepUpTtlSeconds } : {}),
           ...(body.trustedDeviceTtlDays !== undefined

@@ -1,6 +1,7 @@
 import type { FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../db.js";
+import { emitTenantAudit } from "./audit/tenant-audit.service.js";
 import {
   REQUIRED_LEGAL_VERSIONS,
   type RequiredLegalPolicyKey,
@@ -28,8 +29,25 @@ export async function recordLegalAcceptances(params: {
 
   if (!params.acceptances.length) return;
 
+  /*
+   * PRO-A1-07 — ACCEPTANCE HISTORY. The row per (user, policy) is the CURRENT
+   * acceptance; it used to be overwritten in place, losing when, from where
+   * and through which surface an earlier version was accepted. Every new
+   * acceptance (a version not already on the row) is now also written to the
+   * append-only audit chain with the version it replaces, so the facts of
+   * every accepted version stay retrievable. Re-accepting the SAME version
+   * changes nothing (no overwrite of the original moment, no second event).
+   */
+  const existing = await db.userLegalAcceptance.findMany({
+    where: { userId: params.userId, policyKey: { in: params.acceptances.map((a) => a.policyKey) } },
+    select: { policyKey: true, policyVersion: true, acceptedAt: true, source: true },
+  });
+  const byKey = new Map(existing.map((r) => [r.policyKey, r]));
+  const changed = params.acceptances.filter((a) => byKey.get(a.policyKey)?.policyVersion !== a.policyVersion);
+  if (changed.length === 0) return;
+
   await db.$transaction(
-    params.acceptances.map((item) =>
+    changed.map((item) =>
       db.userLegalAcceptance.upsert({
         where: {
           userId_policyKey: {
@@ -55,6 +73,31 @@ export async function recordLegalAcceptances(params: {
       })
     )
   );
+
+  for (const item of changed) {
+    const previous = byKey.get(item.policyKey) ?? null;
+    await emitTenantAudit(
+      {
+        action: "identity.legal_accepted",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: params.userId,
+        workspaceId: null,
+        resourceType: "legal_policy",
+        resourceId: item.policyKey,
+
+        metadata: {
+          policyKey: item.policyKey,
+          acceptedVersion: item.policyVersion,
+          source: params.source ?? null,
+          previousVersion: previous?.policyVersion ?? null,
+          previousAcceptedAt: previous?.acceptedAt ? previous.acceptedAt.toISOString() : null,
+          previousSource: previous?.source ?? null,
+        },
+      },
+      db,
+    ).catch(() => undefined);
+  }
 }
 
 export async function getUserLegalAcceptanceStatus(params: {

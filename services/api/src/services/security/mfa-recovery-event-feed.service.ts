@@ -22,6 +22,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { isCanonicalRecoveryOperator } from "./mfa-recovery-request.service.js";
 import {
   keysetAfter,
   keysetPage,
@@ -90,6 +91,15 @@ export async function readRecoveryEventFeed(
       role: { in: ["OWNER", "ADMIN"] },
     },
     select: { teamId: true },
+  }).then(async (rows) => {
+    // PRO-A2C-01 — only memberships the canonical access evaluation allows
+    // (access window, Organization lifecycle, workspace state) count.
+    const allowed = await Promise.all(
+      rows.map((m) =>
+        isCanonicalRecoveryOperator({ teamId: m.teamId, userId: input.actorUserId, permission: "identity.org_policy.read" }),
+      ),
+    );
+    return rows.filter((_, i) => allowed[i]);
   });
   if (memberships.length === 0) {
     return { events: [], windowDays, pageSize, nextCursor: null, hasMore: false };

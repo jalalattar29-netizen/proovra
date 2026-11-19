@@ -271,6 +271,8 @@ const H = vi.hoisted(() => {
         if (prop === "$transaction") {
           return async (fn: (tx: unknown) => unknown) => fn(client);
         }
+        // PRO-A1-14 — the unlink takes a per-account advisory lock.
+        if (prop === "$executeRaw") return async () => 0;
         if (typeof prop !== "string") return undefined;
         return delegate(prop);
       },

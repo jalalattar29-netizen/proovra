@@ -126,6 +126,12 @@ type OtpContext = {
   sentAt: number;
   /** True when this enrolment replaces an existing ACTIVE factor. */
   replacing: boolean;
+  /**
+   * PRO-A1Z-01 — the factor the server revokes when this one is verified.
+   * Null when the API does not support replacement (then the old device
+   * stays active and the panel says so).
+   */
+  replacesFactorId: string | null;
 };
 
 type Phase =
@@ -443,6 +449,12 @@ export function ContactFactorEnrollmentPanel({
             codeExpiresAt,
             sentAt: Date.now(),
             replacing,
+            replacesFactorId:
+              replacing && res?.replaceSupported === true
+                ? (opts.resend && awaitingCode
+                    ? phase.ctx.replacesFactorId
+                    : activeFactor?.factorId ?? null)
+                : null,
           },
         });
         setCode("");
@@ -526,6 +538,7 @@ export function ContactFactorEnrollmentPanel({
               factorId: ctx.factorId,
               verificationAttemptId: ctx.verificationAttemptId,
               code: trimmed,
+              ...(ctx.replacesFactorId ? { replacesFactorId: ctx.replacesFactorId } : {}),
             }),
           },
         );
@@ -539,8 +552,9 @@ export function ContactFactorEnrollmentPanel({
         setLabel("");
         setCode("");
         setReplaceIntent(false);
+        // PRO-A1Z-01 — "replaced" only when the server revoked the old device.
         setPhase(
-          ctx.replacing
+          ctx.replacing && ctx.replacesFactorId
             ? { kind: "replacement_complete", destinationMask: mask }
             : { kind: "enrolled", destinationMask: mask },
         );

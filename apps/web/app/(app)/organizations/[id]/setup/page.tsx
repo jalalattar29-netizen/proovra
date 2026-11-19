@@ -164,6 +164,8 @@ type MfaPolicyResponse = {
     level: MfaPolicyLevel;
     ssoReadyFlag: boolean;
     scimReadyFlag: boolean;
+    /** PRO-P3AZ-02 — the version this page loaded (absent on older APIs). */
+    policyVersion?: number;
   };
 };
 
@@ -556,7 +558,15 @@ function OrganizationSetupInner() {
         apiFetch("/v1/identity-security/mfa-policy", {
           method: "PUT",
           headers: { "content-type": "application/json", ...(headers ?? {}) },
-          body: JSON.stringify({ teamId: primaryWorkspaceId, level: mfaLevel }),
+          // PRO-P3AZ-02 — send the version this page loaded, so a concurrent
+          // admin's edit answers 409 instead of being overwritten.
+          body: JSON.stringify({
+            teamId: primaryWorkspaceId,
+            level: mfaLevel,
+            ...(mfa.kind === "ready" && typeof mfa.data.policy.policyVersion === "number"
+              ? { policyVersion: mfa.data.policy.policyVersion }
+              : {}),
+          }),
         }),
       );
       markSaved("security");
@@ -566,7 +576,7 @@ function OrganizationSetupInner() {
     } finally {
       setBusy(false);
     }
-  }, [primaryWorkspaceId, mfaLevel, loadWorkspaceScoped, markSaved, stepUp]);
+  }, [primaryWorkspaceId, mfaLevel, mfa, loadWorkspaceScoped, markSaved, stepUp]);
 
   const saveRetention = useCallback(async () => {
     if (retentionTemplate === "CUSTOM" && !retentionYears) {

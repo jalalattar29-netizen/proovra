@@ -329,11 +329,36 @@ export async function verifyFactorEnrollmentStepUp(input: {
   userId: string;
   proof: AccountStepUpProof | null | undefined;
 }): Promise<{ ok: true } | { ok: false; denial: StepUpDenial }> {
-  if (input.req.user?.tokenScope === MFA_ENROLLMENT_SCOPE) return { ok: true };
   const held = await prisma.mfaFactor.findFirst({
     where: { userId: input.userId, status: "ACTIVE", revokedAt: null },
     select: { id: true },
   });
+  if (input.req.user?.tokenScope === MFA_ENROLLMENT_SCOPE) {
+    // PRO-A1-01 (defence in depth) — the enrolment token exists only for an
+    // account that holds NO active factor. An account that already holds one
+    // (the token was minted on a wrong reading, or a factor was added since)
+    // must sign in with that factor; the token never adds a second one.
+    if (!held) return { ok: true };
+    safeEmitSecurityEvent({
+      teamId: null,
+      eventType: "step_up_denied",
+      severity: "WARNING",
+      details: { actorUserId: input.userId, action: "mfa_factor_enroll", reason: "enrollment_token_factor_held" },
+    });
+    return {
+      ok: false,
+      denial: {
+        status: 401,
+        body: {
+          error: {
+            code: "STEP_UP_INVALID",
+            methods: [],
+            message: "This account already has a second factor. Sign in again and use it.",
+          },
+        },
+      },
+    };
+  }
   if (!held) return { ok: true };
   return verifyAccountStepUp({
     req: input.req,

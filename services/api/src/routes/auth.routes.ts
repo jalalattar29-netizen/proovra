@@ -56,6 +56,8 @@ import {
   createMfaPendingChallenge,
   consumeMfaPendingChallenge,
   recordPendingChallengeFailure,
+  claimLoginChallengeAttempt,
+  MfaLoginTemporarilyLockedError,
   readMfaStatus,
   loadOpenLoginChallenge,
   loadOpenLoginChallengeByHandoff,
@@ -108,10 +110,11 @@ import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 import {
   hashSessionId,
   revokeAllSessionsForUser,
+  emitAllSessionsRevokedEvent,
   revokeSession,
 } from "../services/identity-security/session-revocation.service.js";
 import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
-import { MFA_ENROLLMENT_SCOPE } from "../services/auth/extension-scope.js";
+import { MFA_ENROLLMENT_SCOPE, isRestrictedScope } from "../services/auth/extension-scope.js";
 import {
   clearMfaEnrollmentCookie,
   enrolledFactorIdOf,
@@ -801,6 +804,14 @@ export async function authRoutes(app: FastifyInstance) {
   // ONLY — not localStorage. The frontend exchanges it at
   // `POST /v1/auth/mfa/verify`.
   // ---------------------------------------------------------------------------
+  /** The primary ceremony a pending/enrolment token carries for a gated sign-in. */
+  function primaryCeremonyOf(loginMethod: string): "PASSWORD" | "MAGIC_LINK" | "SOCIAL_OAUTH" {
+    if (loginMethod === "email_password") return "PASSWORD";
+    // PRO-A1-10 — an email-verification link proves mailbox possession only.
+    if (loginMethod === "email_verification") return "MAGIC_LINK";
+    return "SOCIAL_OAUTH";
+  }
+
   async function gateLoginWithMfa(
     req: FastifyRequest,
     reply: FastifyReply,
@@ -895,7 +906,7 @@ export async function authRoutes(app: FastifyInstance) {
         },
       });
       const mfaEnrollmentToken = signMfaEnrollmentToken(
-        jwtPayloadFromUser(user, loginMethod === "email_password" ? "PASSWORD" : "SOCIAL_OAUTH"),
+        jwtPayloadFromUser(user, primaryCeremonyOf(loginMethod)),
         jwtSecret as string,
       );
       if (req.headers["x-web-client"] === "1") {
@@ -923,18 +934,45 @@ export async function authRoutes(app: FastifyInstance) {
 
     // MFA_REQUIRED — create durable challenge + sign token whose
     // `sid` is the challenge JTI.
-    const challenge = await createMfaPendingChallenge({
-      userId: user.id,
-      purpose: "LOGIN",
-      ipAddress: req.ip ?? null,
-      userAgent: readUserAgent(req),
-      metadata: { loginMethod },
-    });
+    let challenge: Awaited<ReturnType<typeof createMfaPendingChallenge>>;
+    try {
+      challenge = await createMfaPendingChallenge({
+        userId: user.id,
+        purpose: "LOGIN",
+        ipAddress: req.ip ?? null,
+        userAgent: readUserAgent(req),
+        metadata: { loginMethod },
+      });
+    } catch (err) {
+      if (!(err instanceof MfaLoginTemporarilyLockedError)) throw err;
+      // PRO-A1-05 — account in a second-factor lockout window.
+      auditAuthEvent(req, {
+        userId: user.id,
+        action: "auth.mfa_challenge_issued",
+        outcome: "blocked",
+        severity: "warning",
+        resourceId: user.id,
+        metadata: { loginMethod, reason: "mfa_temporarily_locked" },
+      });
+      reply
+        .code(429)
+        .header("Retry-After", String(err.retryAfterSec))
+        .send({
+          error: {
+            code: "MFA_TEMPORARILY_LOCKED",
+            message:
+              "Too many incorrect second-factor codes. Sign-in is paused for this account for a while; try again later.",
+            retryAfterSec: err.retryAfterSec,
+            requestId: req.id,
+          },
+        });
+      return { mfaIssued: true };
+    }
     // PRO-008 (AUTH-02) — the pending token carries the PRIMARY ceremony this
     // sign-in actually used, exactly as the enrolment token above does; a
     // Google or Apple sign-in is never recorded as a password one.
     const pendingToken = signMfaPendingToken(
-      jwtPayloadFromUser(user, loginMethod === "email_password" ? "PASSWORD" : "SOCIAL_OAUTH"),
+      jwtPayloadFromUser(user, primaryCeremonyOf(loginMethod)),
       jwtSecret as string,
       challenge.jti,
     );
@@ -1608,11 +1646,28 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.post("/v1/auth/password-reset/confirm", async (req, reply) => {
+    // PRO-A1-09
+    const confirmRl = await enforceRateLimit({
+      key: `auth:password-reset-confirm:ip:${readClientIp(req)}`,
+      bound: "global",
+      max: AUTH_EMAIL_VERIFY_RATE_LIMIT_PER_IP_PER_MIN,
+      windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
+    });
+    if (!confirmRl.allowed) return replyRateLimited(reply, confirmRl.resetAtMs, confirmRl.store);
     const body = PasswordResetConfirmBody.parse(req.body);
 
+    // PRO-A1-08 — revocation commits with the password change.
     const res = await resetPasswordWithToken({
       token: body.token,
       newPassword: body.newPassword,
+      inTransaction: async (tx, userId) => {
+        await revokeAllSessionsForUser(
+          { userId, reason: "PASSWORD_CHANGED", actorUserId: userId },
+          tx,
+          { securityEvent: false },
+        );
+        await cancelOutstandingStepUpChallenges(userId, tx);
+      },
     });
 
     if (!res.ok) {
@@ -1622,16 +1677,8 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(400).send({ message: res.reason });
     }
 
-    // D13 — a reset is how an account is taken back. Every session issued
-    // before it ends, so whoever held the old password is signed out too.
-    await revokeAllSessionsForUser({
-      userId: res.userId,
-      reason: "PASSWORD_CHANGED",
-      actorUserId: res.userId,
-    });
-    // Closure audit N-6 — and no step-up approved under the old password is
-    // spent after it.
-    await cancelOutstandingStepUpChallenges(res.userId);
+    // D13 / N-6 — sessions and step-ups ended in the reset transaction; event after commit.
+    emitAllSessionsRevokedEvent({ userId: res.userId, reason: "PASSWORD_CHANGED", actorUserId: res.userId });
 
     auditAuthEvent(req, {
       userId: null,
@@ -1716,6 +1763,10 @@ export async function authRoutes(app: FastifyInstance) {
         },
       });
     }
+
+    // PRO-A1-10 — the verify link passes the same second-factor gate as every sign-in.
+    const gate = await gateLoginWithMfa(req, reply, fullUser, "email_verification");
+    if (gate.mfaIssued) return reply;
 
     // §10.2 correction — email-verification proves EMAIL POSSESSION, not a
     // password credential for this session; classify MAGIC_LINK (fails closed
@@ -1974,6 +2025,14 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.post("/v1/auth/mfa/passkey-handoff/options", async (req, reply) => {
+    // PRO-A1-09 — bounded per client address.
+    const optionsRl = await enforceRateLimit({
+      key: `auth:mfa-passkey-handoff-options:ip:${readClientIp(req)}`,
+      bound: "global",
+      max: AUTH_EMAIL_VERIFY_RATE_LIMIT_PER_IP_PER_MIN,
+      windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
+    });
+    if (!optionsRl.allowed) return replyRateLimited(reply, optionsRl.resetAtMs, optionsRl.store);
     const parsed = LoginPasskeyHandoffBody.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ message: "invalid_body" });
     const challenge = await loadOpenLoginChallengeByHandoff(parsed.data.token);
@@ -2093,6 +2152,21 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(429).send({ message: "rate_limited" });
     }
 
+    // PRO-A1-05 — claim one checked attempt before the answer is looked at.
+    const attempt = await claimLoginChallengeAttempt({ jti: challengeJti, userId });
+    if (attempt !== "ok") {
+      clearMfaPendingCookie(req, reply);
+      auditAuthEvent(req, {
+        userId,
+        action: "auth.mfa_verify",
+        outcome: "failure",
+        severity: "warning",
+        metadata: { reason: `challenge_${attempt}` },
+      });
+      // A replayed (completed) challenge keeps its own answer.
+      return reply.code(401).send({ message: attempt === "consumed" ? "mfa_challenge_already_used" : "mfa_challenge_expired" });
+    }
+
     // 2) Verify the second factor. Exactly one of code|recoveryCode
     //    was guaranteed by zod refine().
     let verifyOk = false;
@@ -2159,8 +2233,8 @@ export async function authRoutes(app: FastifyInstance) {
     if (!verifyOk) {
       // Do NOT clear the pending cookie here — the user may retry
       // within the 5-min window. Rate-limit above bounds the retries.
-      // Bump the challenge's per-row failure counter for forensics.
-      void recordPendingChallengeFailure(challengeJti);
+      // PRO-A1-05 — the last allowed failed attempt ends the challenge.
+      await recordPendingChallengeFailure(challengeJti);
       auditAuthEvent(req, {
         userId,
         action: "auth.mfa_verify",
@@ -2363,6 +2437,23 @@ export async function authRoutes(app: FastifyInstance) {
       : null;
     if (!factor) {
       return reply.code(409).send({ message: "mfa_factor_not_enrolled" });
+    }
+    // PRO-A1-01 — another ACTIVE factor: the account was already protected.
+    const otherActive = await prisma.mfaFactor.findFirst({
+      where: { userId, status: "ACTIVE", revokedAt: null, id: { not: factor.id } },
+      select: { id: true },
+    });
+    if (otherActive) {
+      clearMfaEnrollmentCookie(req, reply);
+      auditAuthEvent(req, {
+        userId,
+        action: "auth.mfa_enrollment_completed",
+        outcome: "blocked",
+        severity: "warning",
+        resourceId: userId,
+        metadata: { reason: "factor_already_held" },
+      });
+      return reply.code(409).send({ message: "mfa_factor_already_held" });
     }
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -2583,6 +2674,8 @@ export async function authRoutes(app: FastifyInstance) {
       // Pending MFA tokens are NOT a session — they only authorize
       // the verify-mfa endpoint.
       if (payload.mfa === "pending") return { authenticated: false };
+      // PRO-A1-13 — restricted-scope tokens are refused by every ordinary route.
+      if (isRestrictedScope((payload as { scope?: unknown }).scope)) return { authenticated: false };
 
       // Confirm the session is not on the revocation deny list.
       // We don't fail open on a registry read error — the boolean

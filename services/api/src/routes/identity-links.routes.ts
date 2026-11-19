@@ -715,7 +715,18 @@ export async function identityLinksRoutes(app: FastifyInstance) {
        * so the identity resolves to this account only if it is linked again.
        */
       const revokedAt = new Date();
-      await prisma.$transaction(async (tx) => {
+      const outcome = await prisma.$transaction(async (tx) => {
+        // PRO-A1-14 — the last-method rule is re-decided INSIDE the write,
+        // under a per-account advisory lock: two concurrent unlinks serialise,
+        // and the second sees the first's revocation.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`identity-link-unlink:${userId}`}))`;
+        const [lockedLinks, lockedMe] = await Promise.all([
+          tx.userIdentityLink.count({ where: { userId, status: "ACTIVE" } }),
+          tx.user.findUnique({ where: { id: userId }, select: { passwordHash: true } }),
+        ]);
+        const stillActive = await tx.userIdentityLink.count({ where: { id: target.id, status: "ACTIVE" } });
+        if (stillActive === 0) return "gone" as const;
+        if (lockedLinks - 1 + (lockedMe?.passwordHash ? 1 : 0) < 1) return "last" as const;
         await tx.userIdentityLink.update({
           where: { id: target.id },
           data: { status: "REVOKED", revokedAtUtc: revokedAt },
@@ -728,7 +739,20 @@ export async function identityLinksRoutes(app: FastifyInstance) {
           },
           data: { providerUserId: detachedLegacySubject(target.id) },
         });
+        return "ok" as const;
       });
+      if (outcome === "gone") {
+        return reply.code(404).send({ error: { code: "link_not_found" } });
+      }
+      if (outcome === "last") {
+        return reply.code(409).send({
+          error: {
+            code: "last_login_method_protected",
+            message:
+              "This is your only way to sign in. Add a password or connect another login method first.",
+          },
+        });
+      }
       auditIdentityEvent(req, userId, "identity.login_method_unlinked", {
         provider: target.provider,
         linkId: target.id,

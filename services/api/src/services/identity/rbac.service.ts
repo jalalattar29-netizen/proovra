@@ -1767,7 +1767,11 @@ async function autoRevokeAllSessions(
     const mod = await import(
       "../identity-security/session-revocation.service.js"
     );
-    await mod.revokeAllSessionsForUser(
+    // PRO-T1-05 (DEC-08) — the canonical authority-loss scope: an
+    // Organization-originated identity loses every session; an independent
+    // account loses only the sessions the Organization's SSO issued. Workspace
+    // access itself ends at the next per-request membership evaluation.
+    await mod.revokeSessionsForAuthorityLoss(
       {
         teamId: input.teamId,
         userId: input.userId,

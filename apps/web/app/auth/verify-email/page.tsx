@@ -8,6 +8,7 @@ import { apiFetch, isApiResponseError } from "../../../lib/api";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
 import { safeReturnPath } from "../../../lib/navigation/safe-return-path";
+import { takePendingRegisterLegalAcceptance } from "../../../lib/legalAcceptance";
 
 /**
  * EV5 — Email verification landing page.
@@ -112,7 +113,14 @@ function VerifyEmailPageContent() {
             body: JSON.stringify(withPassword ? { token, password: withPassword } : { token }),
           },
           { auth: false },
-        )) as { token?: string } | null;
+        )) as { token?: string; mfaRequired?: boolean; user?: { email?: string | null } } | null;
+
+        // PRO-A1-10 — the address is verified, and this account's sign-in
+        // needs its second factor: the session comes from the challenge.
+        if (data?.mfaRequired === true && !data.token) {
+          router.replace(`/auth/mfa-challenge?next=${encodeURIComponent(nextPath)}`);
+          return;
+        }
 
         if (!data?.token) {
           setState("invalid");
@@ -125,18 +133,24 @@ function VerifyEmailPageContent() {
         // path (non-cookie clients) work too.
         setToken(data.token);
 
-        // Best-effort: record legal acceptances now that we have a
-        // session. Failure is non-fatal — the user still gets in.
-        try {
-          await apiFetch("/v1/users/legal-acceptance", {
-            method: "POST",
-            body: JSON.stringify({
-              source: "register",
-              acceptances: getRequiredAcceptances(),
-            }),
-          });
-        } catch {
-          // ignore
+        // PRO-A1-06 — the acceptance is recorded only for the consent this
+        // person gave on /register in THIS browser (the hold the register
+        // page wrote for this address). A link opened elsewhere records
+        // nothing; the post-sign-in acceptance step shows the documents and
+        // asks. Failure is non-fatal — that step asks then too.
+        const held = takePendingRegisterLegalAcceptance(data.user?.email ?? null);
+        if (held) {
+          try {
+            await apiFetch("/v1/users/legal-acceptance", {
+              method: "POST",
+              body: JSON.stringify({
+                source: "register",
+                acceptances: getRequiredAcceptances(),
+              }),
+            });
+          } catch {
+            // ignore
+          }
         }
 
         // Best-effort: claim any pre-session evidence the operator captured
@@ -160,6 +174,12 @@ function VerifyEmailPageContent() {
       } catch (err) {
         const code = isApiResponseError(err) ? err.code : "NETWORK_ERROR";
         const status = isApiResponseError(err) ? (err.statusCode ?? 0) : 0;
+        // PRO-A1-10 — the account's policy requires a factor it does not
+        // have yet: the API set the enrolment cookie; guided setup is next.
+        if (code === "MFA_ENROLLMENT_REQUIRED" || (err as { code?: string }).code === "MFA_ENROLLMENT_REQUIRED") {
+          router.replace(`/auth/mfa-challenge?enroll=1&next=${encodeURIComponent(nextPath)}`);
+          return;
+        }
         if (code === "EMAIL_VERIFICATION_PASSWORD_REQUIRED") {
           setState("password");
           return;

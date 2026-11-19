@@ -12,11 +12,11 @@
  * nowhere.
  */
 
-import { Suspense, useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { apiBaseUrl } from "../../../../lib/api";
+import { apiBaseUrl, apiFetch, isApiResponseError } from "../../../../lib/api";
 import {
   extensionAuthorizeUrl,
   validateExtensionAuthorizeQuery,
@@ -35,6 +35,8 @@ function ExtensionContinueBody() {
   const router = useRouter();
   const { user, authReady } = useAuth();
   const handedOff = useRef(false);
+  // PRO-X1-01 (DEC-29) — the person confirms the connection explicitly.
+  const [phase, setPhase] = useState<"confirm" | "connecting" | "declined" | "failed">("confirm");
 
   const validation = useMemo(
     () => validateExtensionAuthorizeQuery(new URLSearchParams(searchParams?.toString() ?? "")),
@@ -49,9 +51,39 @@ function ExtensionContinueBody() {
       router.replace(`/login?next=${encodeURIComponent(here)}`);
       return;
     }
-    handedOff.current = true;
-    window.location.replace(extensionAuthorizeUrl(apiBaseUrl(), validation.query));
+    // Signed in: nothing happens until the person presses Connect.
   }, [validation, authReady, user, router]);
+
+  const connect = useCallback(async () => {
+    if (!validation.ok || handedOff.current) return;
+    setPhase("connecting");
+    try {
+      const res = (await apiFetch("/v1/oauth/extension/approve", {
+        method: "POST",
+        body: JSON.stringify({
+          client_id: validation.params.client_id,
+          redirect_uri: validation.params.redirect_uri,
+          code_challenge: validation.params.code_challenge,
+        }),
+      })) as { approval?: string } | null;
+      if (!res?.approval) {
+        setPhase("failed");
+        return;
+      }
+      handedOff.current = true;
+      const withApproval = `${validation.query}&approval=${encodeURIComponent(res.approval)}`;
+      window.location.replace(extensionAuthorizeUrl(apiBaseUrl(), withApproval));
+    } catch (err) {
+      // An API that predates the confirmation step has no approve route: it
+      // still issues the code on authorize, exactly as before.
+      if (isApiResponseError(err) && err.statusCode === 404) {
+        handedOff.current = true;
+        window.location.replace(extensionAuthorizeUrl(apiBaseUrl(), validation.query));
+        return;
+      }
+      setPhase("failed");
+    }
+  }, [validation]);
 
   if (!validation.ok) {
     return (
@@ -70,11 +102,60 @@ function ExtensionContinueBody() {
     );
   }
 
+  if (authReady && user) {
+    const account = (user as { email?: string | null }).email ?? "your PROOVRA account";
+    return (
+      <main style={shell} data-page="auth-extension-continue" data-extension-continue-state={phase}>
+        <h1 style={{ fontSize: 22, marginBottom: 8 }}>Connect the PROOVRA browser extension</h1>
+        {phase === "declined" ? (
+          <p style={{ color: "#475569", lineHeight: 1.5 }} role="status">
+            The extension was not connected. You can close this window.
+          </p>
+        ) : (
+          <>
+            <p style={{ color: "#475569", lineHeight: 1.5 }}>
+              Connect the PROOVRA extension as <strong>{account}</strong>? It will be able to capture
+              pages into the workspaces this account can record evidence in, for up to an hour, and it
+              is signed out when you sign out here.
+            </p>
+            <p style={{ color: "#475569", lineHeight: 1.5, fontSize: 14 }}>
+              Only continue if you just chose Sign in from the PROOVRA extension yourself.
+            </p>
+            {phase === "failed" ? (
+              <p role="alert" style={{ color: "#b91c1c" }}>
+                The extension could not be connected. Close this window and choose Sign in again from
+                the extension.
+              </p>
+            ) : null}
+            <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => void connect()}
+                disabled={phase === "connecting"}
+                data-extension-continue-action="connect"
+              >
+                {phase === "connecting" ? "Connecting…" : `Connect as ${account}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPhase("declined")}
+                disabled={phase === "connecting"}
+                data-extension-continue-action="cancel"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </main>
+    );
+  }
+
   return (
     <main
       style={shell}
       data-page="auth-extension-continue"
-      data-extension-continue-state={!authReady ? "resolving" : user ? "continuing" : "sign-in"}
+      data-extension-continue-state={!authReady ? "resolving" : "sign-in"}
       aria-busy="true"
     >
       <h1 style={{ fontSize: 22, marginBottom: 8 }}>Connecting the PROOVRA extension</h1>

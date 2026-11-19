@@ -70,7 +70,12 @@ vi.mock("../src/db.js", () => {
         ...model("teamMember"),
         findMany: async () => [{ teamId: TEAM }],
       },
-      team: { findMany: async () => [{ id: TEAM, name: "Northgate" }] },
+      // PRO-A2-04 — a workspace with no Organization governs no identity: its
+      // inventory is the sessions it issued (the teamId leg).
+      team: {
+        findMany: async () => [{ id: TEAM, name: "Northgate" }],
+        findUnique: async () => ({ organizationId: null }),
+      },
     },
   };
 });
@@ -209,9 +214,10 @@ describe("listActiveSessions — keyset over (lastSeenAtUtc, id)", () => {
     H.rows.authenticatedSession = [sessionRow(1), sessionRow(2), sessionRow(3)];
     const page = await listActiveSessions({ teamId: TEAM, limit: 2 });
     const q = H.findManyArgs[0]!.args;
-    // A workspace's sessions are its own and its members'.
+    // PRO-A2-04 — a workspace's sessions are the ones it issued (members'
+    // account-global sessions only when the Organization governs the identity).
     expect(q.where).toEqual({
-      OR: [{ teamId: TEAM }, { userId: { in: expect.any(Array) } }],
+      OR: [{ teamId: TEAM }],
       revokedAtUtc: null,
       expiresAtUtc: { gt: expect.any(Date) },
     });
@@ -236,7 +242,7 @@ describe("listActiveSessions — keyset over (lastSeenAtUtc, id)", () => {
     expect(q.where.AND).toHaveLength(2);
     // includeRevoked drops the revokedAtUtc predicate; expired stays hidden.
     expect(q.where.AND[0]).toEqual({
-      OR: [{ teamId: TEAM }, { userId: { in: expect.any(Array) } }],
+      OR: [{ teamId: TEAM }],
       expiresAtUtc: { gt: expect.any(Date) },
     });
     expect(q.where.AND[1]).toEqual(keysetAfter("lastSeenAtUtc", after));

@@ -41,7 +41,7 @@
 
 import { prisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
-import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
+import { revokeSessionsForAuthorityLoss } from "../identity-security/session-revocation.service.js";
 // ARCH-004 — governance-membership transitions have ONE orchestrator. This
 // module composes it; it never writes `status` itself.
 import {
@@ -273,7 +273,10 @@ export async function suspendOrganization(input: {
   let sessionsRevokedForUsers = 0;
   for (const userId of result.memberUserIds) {
     try {
-      await revokeAllSessionsForUser({ userId, reason: "ORG_SUSPENDED" });
+      // PRO-T1-05 (DEC-08) — Organization-originated identities lose every
+      // session; independent accounts lose only the Organization-issued ones
+      // (their Personal Space is not affected, as the suspension dialog says).
+      await revokeSessionsForAuthorityLoss({ userId, organizationId, reason: "ORG_SUSPENDED" });
       sessionsRevokedForUsers += 1;
     } catch {
       // isolated — the org is already dark; a failed revocation only

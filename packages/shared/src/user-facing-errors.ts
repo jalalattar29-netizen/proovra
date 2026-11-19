@@ -251,6 +251,14 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "Check the email address and password and try again. If you have forgotten your password, you can reset it.",
     severity: "warning",
   },
+  // PRO-A1-05 — too many wrong second-factor answers on this account: sign-in
+  // is paused for a stated window (429 + Retry-After). Nothing was changed.
+  MFA_TEMPORARILY_LOCKED: {
+    title: "Sign-in is paused for this account",
+    message:
+      "Too many incorrect verification codes were entered. Wait up to 30 minutes, then sign in again. If this was not you, change your password.",
+    severity: "warning",
+  },
   UNAUTHORIZED: {
     title: "Please sign in again",
     message: "Your session may have expired. Sign in again to continue — your evidence data has not been changed.",
@@ -763,6 +771,20 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
   SUBSCRIPTION_INACTIVE: {
     title: "Subscription inactive",
     message: "Your subscription is not currently active. Update billing to manage Teams.",
+    severity: "warning",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  /**
+   * PRO-PWXZ-01 — the shared workspace's subscription lifecycle forbids new
+   * paid work (402 from assertCommercialLifecycleAllowsPaidMutation). Clients
+   * that did not name it (the extension) said "Nothing was saved. Please try
+   * again" with a Retry that could only fail.
+   */
+  COMMERCIAL_LIFECYCLE_RESTRICTED: {
+    title: "Billing needs attention",
+    message:
+      "This workspace's subscription does not allow new records right now (for example, a payment is overdue). Existing records remain available — manage billing in PROOVRA or ask the workspace owner.",
     severity: "warning",
     actionLabel: "View billing",
     actionHref: "/billing",

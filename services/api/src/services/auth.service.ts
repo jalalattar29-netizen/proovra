@@ -684,12 +684,35 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
     // verified now if the provider vouches for the new address, otherwise not
     // at all (invitation acceptance and reset trust `emailVerifiedAt`).
     const normalizedAddress = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
-    const emailChanged =
-      isOAuthProvider && normalizedAddress(profile.email ?? user.email) !== normalizedAddress(user.email);
+    /*
+     * PRO-A1-04 — A LINKED SIGN-IN METHOD NEVER REWRITES THE ACCOUNT'S ADDRESS.
+     *
+     * Only an account the provider itself created (its own provider pair is
+     * this subject) follows the provider's address. An account reached through
+     * a UserIdentityLink (a password account that linked Google/Apple) keeps
+     * its own address and verification stamp: the password login id, reset
+     * lookup, notifications and invitation matching stay on the address the
+     * owner chose. And even a provider-created account does not take an
+     * address another self-serve account already holds verified (B1-F-004:
+     * one verified self-serve account per address).
+     */
+    const ownsProviderPair =
+      user.provider === profile.provider && user.providerUserId === profile.providerUserId;
+    let addressMayChange =
+      isOAuthProvider &&
+      ownsProviderPair &&
+      Boolean(profile.email) &&
+      normalizedAddress(profile.email) !== normalizedAddress(user.email);
+    if (addressMayChange && profile.email) {
+      const holder = await findSelfServeAccountHoldingAddress(prisma, profile.email);
+      if (holder && holder.id !== user.id) addressMayChange = false;
+    }
+    const emailChanged = addressMayChange;
+    const sameAddress = normalizedAddress(profile.email ?? user.email) === normalizedAddress(user.email);
     user = await prisma.user.update({
       where: { id: user.id },
       data: {
-        email: profile.email ?? user.email,
+        email: emailChanged ? (profile.email ?? user.email) : user.email,
         displayName: profile.displayName ?? user.displayName,
         // OAuth email-verification guard FIRST: for GOOGLE / APPLE
         // sign-ins, stamp emailVerifiedAt when the existing row has none
@@ -700,7 +723,7 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
         // A changed address re-decides it (B-04, above).
         ...(emailChanged
           ? { emailVerifiedAt: providerVouchesForEmail ? now : null }
-          : providerVouchesForEmail && !user.emailVerifiedAt
+          : providerVouchesForEmail && !user.emailVerifiedAt && sameAddress
             ? { emailVerifiedAt: now }
             : {}),
         // Backfill avatarUrl on repeat sign-in ONLY when the row has

@@ -677,6 +677,11 @@ vi.mock("../src/services/identity-security/session-revocation.service.js", () =>
     H.writes.push("revokeAllSessionsForUser");
     return { revoked: 1 };
   },
+  // PRO-T1-05 (DEC-08) — the canonical authority-loss scope.
+  revokeSessionsForAuthorityLoss: async () => {
+    H.writes.push("revokeSessionsForAuthorityLoss");
+    return { scope: "ORGANIZATION_SESSIONS", revoked: 0 };
+  },
   hashSessionId: (s: string) => `hash:${s}`,
 }));
 vi.mock("../src/services/identity/account-lifecycle-preflight.service.js", () => ({
@@ -3593,7 +3598,8 @@ describe("SYSTEM 8 — organization identity", () => {
     // Governance + workspace + pointer + session layers all off-boarded.
     expect(H.writes).toContain("removeOrganizationMembership");
     expect(H.writes).toContain("massRevokeWorkspaceMemberships");
-    expect(H.writes).toContain("revokeAllSessionsForUser");
+    // PRO-T1-05 (DEC-08) — sessions end through the canonical authority-loss scope.
+    expect(H.writes).toContain("revokeSessionsForAuthorityLoss");
     expect(membershipRow(MEMBERSHIP_TARGET)).toBeUndefined();
     expect(rows("user").find((u) => u.id === SUBJECT)!.currentWorkspaceId).toBeNull();
     const removed = H.audits.find((a) => a.eventType === "ORG_MEMBER_REMOVED")!;
@@ -3673,6 +3679,7 @@ describe("SYSTEM 8 — organization identity", () => {
     expect(rows("user").find((u) => u.id === SUBJECT)!.currentWorkspaceId).toBeNull();
     // Leaving an org does NOT sign the account out.
     expect(H.writes).not.toContain("revokeAllSessionsForUser");
+    expect(H.writes).not.toContain("revokeSessionsForAuthorityLoss");
 
     const again = await app.inject({
       method: "POST",

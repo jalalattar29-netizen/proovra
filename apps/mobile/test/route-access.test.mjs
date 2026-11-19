@@ -43,6 +43,8 @@ const PUBLIC = [
   "mfa", "mfa-recovery-verify", "org-invite/[token]", "portal", "portal/[token]", "portal/accept/[grantId]",
   "portal/work/[workflowId]", "register", "reset-password", "sso-complete", "verify", "verify/[id]",
   "verify/package/[id]", "verify-email", "+not-found",
+  // PRO-NA-01 — static support page, reachable from the signed-out MFA challenge.
+  "support",
 ];
 
 test("every route file is classified, and exactly the public list is open signed out", () => {
@@ -61,7 +63,7 @@ test("the audit's signed-out screens all need a session", () => {
     "evidence-request/[id]", "evidence-requests", "evidence/[id]", "intake-link-create", "intake-links",
     "legal-acceptance", "operations", "operations/batch-analysis", "operations/health", "operations/quotas",
     "organizations", "organizations/[id]", "reports", "screen-capture", "search", "settings/security",
-    "settings/privacy", "spaces", "step-up/complete", "support", "trust-center", "workspace-people",
+    "settings/privacy", "spaces", "step-up/complete", "trust-center", "workspace-people",
   ]) {
     assert.equal(R.routeNeedsSession(["(stack)", ...path.split("/")]), true, `${path} must need a session`);
   }

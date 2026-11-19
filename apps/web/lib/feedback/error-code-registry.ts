@@ -86,6 +86,8 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // B1-F-004 — Google/Apple sign-in for an address an existing account holds.
   EXISTING_ACCOUNT_SIGN_IN_REQUIRED: { disposition: "customer", where: "global" },
   MFA_POLICY_VERSION_CONFLICT: { disposition: "customer", where: "global" },
+  // PRO-A1-05 — second-factor lockout window at sign-in (429 + Retry-After).
+  MFA_TEMPORARILY_LOCKED: { disposition: "customer", where: "global" },
   INVALID_OR_EXPIRED: {
     disposition: "generic",
     why:

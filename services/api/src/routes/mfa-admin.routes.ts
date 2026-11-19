@@ -60,6 +60,7 @@ import { authorizeOrFail } from "../middleware/authorize.js";
 import { decodeKeysetCursor } from "../services/pagination/keyset-cursor.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { assertTeamAllowsEnterpriseFeature } from "../services/billing-enforcement.service.js";
+import { isSelfServeAccountForOrganization } from "../services/security/enterprise-account-linking.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
 import { getAuthUserId } from "../auth.js";
 import { AppError, ErrorCode } from "../errors.js";
@@ -238,6 +239,19 @@ async function authorizeMfaAdminScope(
 }
 
 /**
+ * PRO-A2-05 — true when the target is NOT an identity the workspace's
+ * Organization originated. A workspace with no Organization governs no
+ * identity. Fails closed (unreadable provenance = self-serve).
+ */
+async function isSelfServeTargetForWorkspace(teamId: string, targetUserId: string): Promise<boolean> {
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { organizationId: true } });
+  if (!team?.organizationId) return true;
+  return isSelfServeAccountForOrganization({ userId: targetUserId, organizationId: team.organizationId }).catch(
+    () => true,
+  );
+}
+
+/**
  * PRO-022 (AUTH-16) — the target is a member the caller may see (the scope
  * check concealed everyone else), so a rank refusal is told as the canonical
  * 403, before any step-up is spent on an action that cannot happen.
@@ -247,9 +261,31 @@ async function refuseUnlessOutranks(
   teamId: string,
   actorUserId: string,
   targetUserId: string,
+  options: { accountLevel?: boolean } = { accountLevel: true },
 ): Promise<boolean> {
   const refusal = await assertActorOutranksMfaTarget({ teamId, actorUserId, targetUserId });
-  if (!refusal) return true;
+  if (!refusal) {
+    // PRO-A2-05 (DEC-08) — a factor belongs to the ACCOUNT. A workspace's
+    // administrators govern the factors of identities their Organization
+    // originated (managed identities); they do not remove the second factor
+    // of an independent self-serve account that merely joined the workspace —
+    // that factor also guards the person's own Personal Space and billing.
+    // The workspace's own control for such a member is the MFA policy at
+    // sign-in (require MFA for this workspace) and recovery requests the
+    // person files themselves.
+    if (options.accountLevel !== false && (await isSelfServeTargetForWorkspace(teamId, targetUserId))) {
+      reply.code(403).send({
+        error: {
+          code: "permission_denied",
+          reason: "target_self_serve_account",
+          message:
+            "This member's sign-in factors belong to their own account, not to this workspace. Require MFA at sign-in for this workspace instead, or ask them to file a recovery request.",
+        },
+      });
+      return false;
+    }
+    return true;
+  }
   if (refusal === "self_target_forbidden") {
     // AUD-0026 — your own factors are changed on your own protected routes,
     // which ask for the strongest factor being removed.
@@ -528,6 +564,10 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         targetUserId: params.userId,
       });
       if (!scope) return;
+      // PRO-A2-05 — the members rank rule applies here too (an ADMIN could
+      // reset the OWNER's trusted devices). Trusted devices are recorded per
+      // workspace, so this is not an account-level change.
+      if (!(await refuseUnlessOutranks(reply, params.teamId, scope.actorUserId, params.userId, { accountLevel: false }))) return;
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,

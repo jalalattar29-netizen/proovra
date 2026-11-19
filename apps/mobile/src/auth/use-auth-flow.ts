@@ -16,6 +16,7 @@ import { endSessionReplacedBy } from "./account-switch";
 import { fetchMe, getLegalStatus, recordLegalAcceptance, type LoginResult } from "./auth-api";
 import { endMfaEnrollment, holdMfaEnrollment } from "./mfa-enrollment-session";
 import { holdMfaPending } from "./mfa-pending-session";
+import { holdConsentForMfa } from "./pending-sign-in-consent";
 import type { OAuthMode } from "./use-oauth";
 import { takePendingIntent } from "../deep-link/pending-intent";
 import { openRecordLinkInItsWorkspace } from "../deep-link/open-record-link";
@@ -59,6 +60,9 @@ export function useCompleteLogin() {
       if (result.kind === "mfaRequired") {
         // PRO-NA-08 — the challenge token stays out of the route (in memory).
         holdMfaPending(result.mfaPendingToken);
+        // PRO-NA-05 — the consent ticked for this sign-in is recorded when the
+        // second factor completes it (/mfa), bound to this pending token.
+        holdConsentForMfa(result.mfaPendingToken, options.legalAcceptedSource);
         router.push({ pathname: "/mfa", params: { mode } });
         return;
       }

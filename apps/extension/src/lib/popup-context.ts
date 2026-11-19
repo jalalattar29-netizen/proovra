@@ -70,7 +70,18 @@ export type CaptureCase = { id: string; name: string };
 export type CaseLoad =
   | { kind: "ok"; cases: CaptureCase[] }
   | { kind: "signed_out" }
+  /** PRO-X1-06 — the current terms must be accepted before any capture. */
+  | { kind: "terms_required" }
   | { kind: "error"; status: number | null };
+
+/** The shared nested refusal code `{ error: { code } }`, or null (pure; no client import). */
+function nestedCodeOf(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const error = (body as { error?: unknown }).error;
+  if (!error || typeof error !== "object") return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : null;
+}
 
 const CLOSED_CASE_STATUSES: ReadonlySet<string> = new Set(["ARCHIVED", "CLOSED"]);
 
@@ -96,6 +107,9 @@ export function parseEligibleCases(body: unknown, teamId: string): CaptureCase[]
 }
 
 export function classifyCasesResponse(status: number | null, body: unknown, teamId: string): CaseLoad {
+  // PRO-X1-06 — the terms gate refuses every write (capture included) until
+  // the current terms are accepted; it is not "cases could not be loaded".
+  if (status === 428 && nestedCodeOf(body) === "LEGAL_REACCEPT_REQUIRED") return { kind: "terms_required" };
   if (status === 401) return { kind: "signed_out" };
   if (status === null || status < 200 || status >= 300) return { kind: "error", status };
   return { kind: "ok", cases: parseEligibleCases(body, teamId) };

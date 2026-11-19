@@ -52,7 +52,7 @@ import {
   orgAccessDenial,
 } from "../services/organization/org-access.js";
 // P0 remediation (2026-07-21) — admin org-member removal revokes sessions.
-import { revokeAllSessionsForUser } from "../services/identity-security/session-revocation.service.js";
+import { revokeSessionsForAuthorityLoss } from "../services/identity-security/session-revocation.service.js";
 // ARCH-004 — governance-membership transitions have ONE orchestrator.
 import {
   lockOrganizationOwnersTx,
@@ -2238,9 +2238,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
       // by the REVOKED memberships even if this write fails.
       if (result.kind === "ok") {
         try {
-          await revokeAllSessionsForUser(
+          // PRO-T1-05 (DEC-08) — an independent account keeps its Personal
+          // Space and other workspaces; only Organization-issued sessions end.
+          await revokeSessionsForAuthorityLoss(
             {
               teamId: null,
+              organizationId: orgId,
               userId: result.targetUserId,
               reason: "ORG_MEMBER_REMOVED",
               actorUserId: userId,
@@ -2516,9 +2519,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
         // suspend of an already-SUSPENDED row (changed:false) signs nobody out.
         if (action === "suspend" && outcome.changed) {
           try {
-            await revokeAllSessionsForUser(
+            // PRO-T1-05 (DEC-08) — canonical authority-loss scope.
+            await revokeSessionsForAuthorityLoss(
               {
                 teamId: null,
+                organizationId: orgId,
                 userId: target.userId,
                 // The canonical revocation vocabulary already has this reason; a
                 // new ORG_-prefixed twin would be a second name for one fact.

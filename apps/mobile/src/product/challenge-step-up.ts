@@ -161,10 +161,15 @@ export function parseStartedChallenge(data: unknown): StartedChallenge | null {
   };
 }
 
-/** Enrollment required: the web treats STEP_UP_ENROLLMENT_REQUIRED or any 403 as such. */
+/**
+ * Enrollment required: ONLY the server's STEP_UP_ENROLLMENT_REQUIRED (the code
+ * the step-up start route has sent for every enrolment refusal since Phase 13).
+ * PRO-NA-10 — any other 403 (membership suspended, access window expired,
+ * purpose not permitted) is that refusal, not "add an authenticator".
+ */
 export function isEnrollmentRequired(err: unknown): boolean {
   const e = obj(err);
-  return e["code"] === "STEP_UP_ENROLLMENT_REQUIRED" || e["statusCode"] === 403;
+  return e["code"] === "STEP_UP_ENROLLMENT_REQUIRED";
 }
 
 /** StepUpModal.tsx PURPOSE_LABEL, verbatim. */

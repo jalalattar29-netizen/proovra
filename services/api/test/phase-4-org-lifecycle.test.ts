@@ -119,6 +119,12 @@ vi.mock(
     revokeAllSessionsForUser: async (input: unknown) => {
       H.sessionsRevoked.push(input);
     },
+    // PRO-T1-05 (DEC-08) — Organization suspension goes through the canonical
+    // authority-loss scope (managed: every session; self-serve: org SSO only).
+    revokeSessionsForAuthorityLoss: async (input: { userId: string; reason: string }) => {
+      H.sessionsRevoked.push({ userId: input.userId, reason: input.reason });
+      return { scope: "ACCOUNT", revoked: 1 };
+    },
   }),
 );
 

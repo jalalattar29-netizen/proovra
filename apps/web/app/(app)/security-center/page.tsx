@@ -599,7 +599,7 @@ function SecurityCenterPageInner() {
                 <EmptyState
                   compact
                   title="No trusted devices recorded"
-                  purpose="Devices that operators have marked trusted for step-up appear here. Revoke a device to force a fresh challenge on its next sign-in."
+                  purpose="Browsers recorded as recognised appear here. Recording or revoking a browser does not change when a second factor is asked for."
                 />
               }
             />

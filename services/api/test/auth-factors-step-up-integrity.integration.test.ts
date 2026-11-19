@@ -146,6 +146,34 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
     });
   }
 
+  /**
+   * PRO-A2-04 — quarantining another person's session is a stepped-up act:
+   * without a proof the route answers the step-up demand and restricts nothing.
+   */
+  async function quarantineAsOwner(o: OrganizationTenant, sessionId: string): Promise<Res> {
+    const url = `/v1/admin/identity/sessions/${sessionId}/quarantine`;
+    const body = { teamId: o.workspaceId, reason: "MANUAL_OPERATOR" };
+    // The workspace answers for the sessions it issued: the fixture's session
+    // row carries no workspace, so it is recorded as started in this one (an
+    // independent member's session started elsewhere is not the workspace's).
+    await prisma.authenticatedSession.update({ where: { id: sessionId }, data: { teamId: o.workspaceId } });
+    const bare = await call("POST", url, o.owner.token, body);
+    expect(bare.statusCode, bare.body).toBe(401);
+    expect(errorCode(bare)).toBe("STEP_UP_REQUIRED");
+    expect(
+      (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: sessionId } })).quarantinedAtUtc,
+    ).toBeNull();
+    const stepUp = await ceremony.approvedHeader({
+      token: o.owner.token,
+      userId: o.owner.userId,
+      teamId: o.workspaceId,
+      purpose: "CONTRIBUTOR_SESSION_REVOKE",
+      resourceKind: "authenticated_session",
+      resourceId: sessionId,
+    });
+    return call("POST", url, o.owner.token, body, stepUp);
+  }
+
   beforeAll(async () => {
     process.env.MESSAGING_TRANSPORT = "recording";
     const { bootIntegrationHarness } = await import("./integration-harness.js");
@@ -370,10 +398,21 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
       expect((await prisma.mfaFactor.findUniqueOrThrow({ where: { id: factor.id } })).status).toBe("ACTIVE");
     });
 
-    it("the OWNER requires re-enrolment of a MEMBER (control)", async () => {
+    it("the OWNER requires re-enrolment of a MEMBER the Organization originated (control); an independent member's factors are refused", async () => {
       const o = await org(1);
       const member = o.members[0]!;
       await ceremony.enroll(member.userId);
+      // PRO-A2-05 (DEC-08) — an independent (self-serve) member's factors belong
+      // to their own account: refused before any step-up, nothing revoked.
+      const selfServe = await reenrol(o, o.owner, member.userId, {});
+      expect(selfServe.statusCode, selfServe.body).toBe(403);
+      expect((selfServe.json().error as { reason?: string } | undefined)?.reason).toBe("target_self_serve_account");
+      expect(await prisma.mfaFactor.count({ where: { userId: member.userId, status: "ACTIVE" } })).toBe(1);
+      // The control: an identity this Organization's directory originated.
+      await prisma.user.update({
+        where: { id: member.userId },
+        data: { providerUserId: `scim-${o.organizationId}:managed-${randomUUID().slice(0, 8)}` },
+      });
       const stepUp = await ceremony.approvedHeader({
         token: o.owner.token,
         userId: o.owner.userId,
@@ -405,10 +444,7 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
         where: { userId: admin.userId, sessionIdHash: hashSessionId(sid(admin.token)) },
       });
 
-      const q = await call("POST", `/v1/admin/identity/sessions/${adminSession.id}/quarantine`, o.owner.token, {
-        teamId: o.workspaceId,
-        reason: "MANUAL_OPERATOR",
-      });
+      const q = await quarantineAsOwner(o, adminSession.id);
       expect(q.statusCode, q.body).toBe(200);
 
       const fromQuarantined = await call("POST", `/v1/admin/identity/sessions/${adminSession.id}/release`, admin.token, {
@@ -464,10 +500,7 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
       expect(before.statusCode, before.body).toBe(401);
       expect(errorCode(before)).toBe("STEP_UP_REQUIRED");
 
-      const q = await call("POST", "/v1/admin/identity/sessions/" + adminSession.id + "/quarantine", o.owner.token, {
-        teamId: o.workspaceId,
-        reason: "MANUAL_OPERATOR",
-      });
+      const q = await quarantineAsOwner(o, adminSession.id);
       expect(q.statusCode, q.body).toBe(200);
 
       // Quarantined: refused outright, whatever header it presents.
@@ -516,10 +549,7 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
       expect(allowed.statusCode, allowed.body).toBe(200);
       expect(await roleNow()).toBe("ORG_AUDITOR");
 
-      const q = await call("POST", "/v1/admin/identity/sessions/" + adminSession.id + "/quarantine", o.owner.token, {
-        teamId: o.workspaceId,
-        reason: "MANUAL_OPERATOR",
-      });
+      const q = await quarantineAsOwner(o, adminSession.id);
       expect(q.statusCode, q.body).toBe(200);
 
       // The same person, the same permission, a quarantined session: refused, nothing written.

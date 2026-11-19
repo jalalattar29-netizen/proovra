@@ -41,6 +41,7 @@ import { z } from "zod";
 
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
+import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import {
@@ -50,6 +51,7 @@ import {
 import {
   VerifiedContactFactorError,
   completeContactFactorEnrollment,
+  completeContactFactorReplacement,
   listContactFactors,
   readOwnContactFactorStatus,
   resolveEnrollingDestination,
@@ -226,6 +228,8 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
         // server's single denial shape.
         return reply.code(200).send({
           factor,
+          // PRO-A1Z-01 — capability: verify accepts `replacesFactorId`.
+          replaceSupported: true,
           verificationAttemptId: verification.attempt.id,
           codeExpiresAtUtc:
             verification.attempt.expiresAtUtc?.toISOString() ?? null,
@@ -248,6 +252,13 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
       factorId: z.string().uuid(),
       verificationAttemptId: z.string().uuid(),
       code: z.string().min(3).max(16),
+      /**
+       * PRO-A1Z-01 — 'Replace this device': the account's own ACTIVE phone
+       * this new one replaces. Revoked (generation bumped, so approvals bound
+       * to it refuse at spend) in the same transaction that activates the new
+       * one. Optional: older clients that send nothing add a phone as before.
+       */
+      replacesFactorId: z.string().uuid().optional(),
     })
     .strict();
 
@@ -273,6 +284,14 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
       );
       if (!pendingDestination) return reply.code(400).send({ status: "denied" });
       const destination = pendingDestination.destination;
+      if (body.replacesFactorId) {
+        // Refused before the code is spent: only the caller's own ACTIVE
+        // phone factor, never the one being enrolled.
+        const replacedStatus = await readOwnContactFactorStatus({ userId, factorId: body.replacesFactorId });
+        if (replacedStatus !== "ACTIVE" || body.replacesFactorId === body.factorId) {
+          return reply.code(409).send({ error: { code: "replaced_factor_invalid" } });
+        }
+      }
 
       try {
         const result = await checkVerification({
@@ -292,10 +311,16 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
         return reply.code(400).send({ status: "denied" });
       }
 
-      const factor = await completeContactFactorEnrollment({
-        userId,
-        factorId: body.factorId,
-      });
+      const factor = body.replacesFactorId
+        ? await completeContactFactorReplacement({
+            userId,
+            factorId: body.factorId,
+            replacesFactorId: body.replacesFactorId,
+          })
+        : await completeContactFactorEnrollment({ userId, factorId: body.factorId });
+      // PRO-A1Z-04 — closure rule N-6: binding a factor ends every outstanding
+      // step-up approval, as TOTP activation and passkey registration do.
+      await cancelOutstandingStepUpChallenges(userId).catch(() => 0);
 
       auditIdentitySecurityEvent(req, {
         userId,

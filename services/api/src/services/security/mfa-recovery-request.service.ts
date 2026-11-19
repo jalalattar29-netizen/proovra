@@ -196,6 +196,34 @@ export async function hasEligibleRecoveryApprover(input: {
 }
 
 /**
+ * PRO-A2C-01 — the recovery operator is decided by the CANONICAL access
+ * evaluation, the one every other route of the module (authorizeMfaAdminScope
+ * -> authorizeOrFail) and hasEligibleRecoveryApprover already use: an OWNER/ADMIN
+ * row that is ACTIVE but whose access window expired (A2-26), whose
+ * Organization is not active, or whose workspace is gone is not an operator.
+ * The raw role row is kept as the role pre-filter.
+ */
+export async function isCanonicalRecoveryOperator(input: {
+  teamId: string;
+  userId: string;
+  permission: "identity.access_review.action" | "identity.org_policy.read";
+}): Promise<boolean> {
+  const row = await prisma.teamMember.findFirst({
+    where: {
+      userId: input.userId,
+      teamId: input.teamId,
+      status: "ACTIVE",
+      role: { in: ["OWNER", "ADMIN"] },
+    },
+    select: { id: true },
+  });
+  if (!row) return false;
+  const snapshot = await loadMemberAccessSnapshot({ teamId: input.teamId, userId: input.userId });
+  if (!snapshot) return false;
+  return evaluateAccess({ kind: "MEMBER", member: snapshot }, { permission: input.permission }).allowed;
+}
+
+/**
  * Create a recovery request in EMAIL_VERIFICATION_PENDING. The user
  * must be an ACTIVE member of the target team AND must have a
  * resolvable email address on their User row (so we can send the
@@ -854,14 +882,10 @@ export async function approveRecoveryRequest(
     });
     return { ok: false, reason: "request_expired" };
   }
-  const approverMembership = await prisma.teamMember.findFirst({
-    where: {
-      userId: input.approverUserId,
-      teamId: row.teamId,
-      status: "ACTIVE",
-      role: { in: ["OWNER", "ADMIN"] },
-    },
-    select: { id: true, role: true },
+  const approverMembership = await isCanonicalRecoveryOperator({
+    teamId: row.teamId,
+    userId: input.approverUserId,
+    permission: "identity.access_review.action",
   });
   if (!approverMembership) {
     return { ok: false, reason: "approver_not_admin" };
@@ -1056,14 +1080,10 @@ export async function rejectRecoveryRequest(
   ) {
     return { ok: false, reason: "request_not_pending" };
   }
-  const adminCheck = await prisma.teamMember.findFirst({
-    where: {
-      userId: input.approverUserId,
-      teamId: row.teamId,
-      status: "ACTIVE",
-      role: { in: ["OWNER", "ADMIN"] },
-    },
-    select: { id: true },
+  const adminCheck = await isCanonicalRecoveryOperator({
+    teamId: row.teamId,
+    userId: input.approverUserId,
+    permission: "identity.access_review.action",
   });
   if (!adminCheck) return { ok: false, reason: "approver_not_admin" };
   // AUD-0038 — the members rank rule applies to the decision either way. An
@@ -1273,14 +1293,10 @@ export async function readRecoveryRequestDetail(
   if (!row) return { ok: false, reason: "request_not_found" };
   if (row.userId !== input.actorUserId) {
     // Allow if actor is admin of the team.
-    const admin = await prisma.teamMember.findFirst({
-      where: {
-        userId: input.actorUserId,
-        teamId: row.teamId,
-        status: "ACTIVE",
-        role: { in: ["OWNER", "ADMIN"] },
-      },
-      select: { id: true },
+    const admin = await isCanonicalRecoveryOperator({
+      teamId: row.teamId,
+      userId: input.actorUserId,
+      permission: "identity.org_policy.read",
     });
     if (!admin) return { ok: false, reason: "not_authorized" };
   }
@@ -1341,14 +1357,10 @@ export async function listRecoveryRequestApprovals(input: {
   // Caller may read approvals if they are the SUBJECT of the request
   // (their own recovery) OR an ACTIVE OWNER/ADMIN of the team.
   if (parent.userId !== input.actorUserId) {
-    const admin = await prisma.teamMember.findFirst({
-      where: {
-        userId: input.actorUserId,
-        teamId: parent.teamId,
-        status: "ACTIVE",
-        role: { in: ["OWNER", "ADMIN"] },
-      },
-      select: { id: true },
+    const admin = await isCanonicalRecoveryOperator({
+      teamId: parent.teamId,
+      userId: input.actorUserId,
+      permission: "identity.org_policy.read",
     });
     if (!admin) return { ok: false, reason: "not_authorized" };
   }

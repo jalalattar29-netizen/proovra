@@ -242,6 +242,31 @@ describe("Organization security policy per workspace (live PostgreSQL)", () => {
     const other = await seedOrganizationTenant(deps);
     const member = org.members[0]!;
 
+    // PRO-A2-04 (DEC-08) — an independent (self-serve) member: a session that
+    // started outside the workspace is the person's own. The workspace neither
+    // lists it nor restricts it.
+    const own = await prisma.authenticatedSession.findFirstOrThrow({
+      where: { userId: member.userId, revokedAtUtc: null },
+      select: { id: true },
+    });
+    const independent = await listActiveSessions({ teamId: org.workspaceId, userId: member.userId });
+    expect(independent.sessions).toHaveLength(0);
+    expect(
+      await quarantineSession({
+        teamId: org.workspaceId,
+        sessionId: own.id,
+        actorUserId: org.owner.userId,
+        reason: "MANUAL_OPERATOR",
+      }),
+    ).toBeNull();
+    expect(await isSessionQuarantined({ sessionId: own.id })).toBe(false);
+
+    // IDENT-001 — an identity this Organization's directory originated: its
+    // account-global sessions are the Organization's to see and end.
+    await prisma.user.update({
+      where: { id: member.userId },
+      data: { providerUserId: `scim-${org.organizationId}:managed-${member.userId.slice(0, 8)}` },
+    });
     const page = await listActiveSessions({ teamId: org.workspaceId, userId: member.userId });
     expect(page.sessions).toHaveLength(1);
     const sessionId = page.sessions[0]!.id;

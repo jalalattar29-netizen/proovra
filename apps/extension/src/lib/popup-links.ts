@@ -31,6 +31,9 @@ export const COMMERCIAL_DENIALS: ReadonlySet<string> = new Set([
   // B4-F-100 — the lapsed-plan allowance and the no-allowance credit refusal.
   "PLAN_LAPSED_ALLOWANCE_EXHAUSTED",
   "CREDIT_REQUIRED_NONE_AVAILABLE",
+  // PRO-PWXZ-01 — a shared workspace whose subscription lifecycle forbids new
+  // paid work (past due beyond grace, cancelled past paid-through, ambiguous).
+  "COMMERCIAL_LIFECYCLE_RESTRICTED",
 ]);
 
 /**
@@ -51,6 +54,15 @@ const NOT_RETRYABLE_DENIALS: ReadonlySet<string> = new Set([
   TERMS_DENIAL,
   "MANAGED_IDENTITY_NO_PERSONAL_SPACE",
   "PERSONAL_SPACE_UNAVAILABLE",
+  // PRO-X1-02 — the organization's sign-in policy; a retry repeats it.
+  "REAUTHENTICATION_REQUIRED",
+  // PRO-X1-08 — the canonical access refusals (not authorization_unavailable,
+  // a 503 that may clear).
+  "not_found",
+  "permission_denied",
+  "unauthenticated",
+  // PRO-PWXZ-01 — a withheld organization contract: the administrator acts.
+  "ENTERPRISE_CONTRACT_REQUIRED",
 ]);
 
 /** PURE — the configured web origin as an http(s) origin, or null. */

@@ -43,7 +43,7 @@ import {
 // correction 4/5 — mandatory-SSO (login method) is DECOUPLED from managed
 // identity; this service no longer reads managed status for the login gate.
 import { resolveEnterpriseContract } from "../organization/enterprise-contract.service.js";
-import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
+import { revokeSessionsForAuthorityLoss } from "../identity-security/session-revocation.service.js";
 import { checkOrgAccess } from "../organization/org-access.js";
 import { emitOrgAuditEvent } from "../organization/org-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
@@ -921,8 +921,11 @@ export async function activateHighSecurityMode(
     const uniqueUserIds = [...new Set(memberships.map((m) => m.userId))];
     const auditTeamId = await orgCanonicalTeamId(input.organizationId, tx as PrismaClient);
     for (const userId of uniqueUserIds) {
-      await revokeAllSessionsForUser(
-        { teamId: auditTeamId ?? "", userId, reason: "POLICY_CHANGE", actorUserId: input.actorUserId },
+      // PRO-T1-05 (DEC-08) — the stricter policy is enforced on every request
+      // in the Organization; an independent account is not signed out of its
+      // own spaces, only Organization-originated identities lose every session.
+      await revokeSessionsForAuthorityLoss(
+        { teamId: auditTeamId ?? null, organizationId: input.organizationId, userId, reason: "POLICY_CHANGE", actorUserId: input.actorUserId },
         tx as PrismaClient,
       );
     }

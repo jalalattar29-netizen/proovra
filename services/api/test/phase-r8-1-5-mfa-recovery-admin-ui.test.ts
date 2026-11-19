@@ -356,8 +356,9 @@ describe("R8.1.5 — scope guards: no parallel auth / workflow / tenant leak", (
     );
     // The approve admin check requires ACTIVE OWNER/ADMIN on the
     // request's team — never a different team.
+    // PRO-A2C-01 — through the canonical operator check, on the request's team.
     expect(RECOVERY_SVC).toMatch(
-      /teamMember\.findFirst\(\{\s*where:\s*\{[\s\S]{0,200}teamId:\s*row\.teamId/,
+      /isCanonicalRecoveryOperator\(\{\s*teamId:\s*row\.teamId/,
     );
     // The recovery_requests row carries teamId NOT NULL.
     expect(SCHEMA).toMatch(

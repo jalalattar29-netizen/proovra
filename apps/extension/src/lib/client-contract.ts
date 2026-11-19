@@ -66,8 +66,38 @@ export function escalateClientUpdate(
   return next;
 }
 
-export function parseStoredClientUpdate(v: unknown): ClientUpdateNotice | null {
-  return v === "UPDATE_REQUIRED" || v === "UPDATE_AVAILABLE" ? v : null;
+/**
+ * PRO-X1-07 — the stored verdict is tied to the build that earned it. An entry
+ * written by another build (or an old bare string) is foreign: updating the
+ * extension must not keep showing "Update required" forever.
+ */
+export type StoredClientUpdate = { notice: ClientUpdateNotice; own: number; ext: string };
+
+export function storedClientUpdate(notice: ClientUpdateNotice, ext: string, own: number = PRESENTATION_CONTRACT_VERSION): StoredClientUpdate {
+  return { notice, own, ext };
+}
+
+export function parseStoredClientUpdate(
+  v: unknown,
+  ext?: string,
+  own: number = PRESENTATION_CONTRACT_VERSION,
+): ClientUpdateNotice | null {
+  if (!v || typeof v !== "object") return null;
+  const s = v as Partial<StoredClientUpdate>;
+  if (s.notice !== "UPDATE_REQUIRED" && s.notice !== "UPDATE_AVAILABLE") return null;
+  if (s.own !== own) return null;
+  if (ext !== undefined && s.ext !== ext) return null;
+  return s.notice;
+}
+
+/** PRO-X1-07 — a response that names its contract and calls for nothing: this build is current. */
+export function headersSayCurrent(
+  headers: { get(name: string): string | null } | null | undefined,
+  own: number = PRESENTATION_CONTRACT_VERSION,
+): boolean {
+  if (!headers || typeof headers.get !== "function") return false;
+  if (positiveInteger(headers.get(CLIENT_CONTRACT_HEADER)) === null) return false;
+  return clientUpdateVerdict(headers, own) === null;
 }
 
 /* ------------------------------------------- PRO-PSZ-05: reporting (request) */

@@ -178,7 +178,7 @@ export function OrgMemberLifecycleControls({
         setReason("");
         setNotice(
           action === "suspend"
-            ? `${memberLabel} is suspended and signed out. Their access to this organization's workspaces is paused too; their Personal Space is not affected.`
+            ? `${memberLabel} is suspended. Their access to this organization's workspaces is paused, and sessions signed in through this organization's single sign-on end; their own account and Personal Space are not affected.`
             : `${memberLabel} is active again, with the workspace access the suspension paused.`,
         );
         await onChanged();
@@ -333,8 +333,9 @@ export function OrgMemberLifecycleControls({
           <p style={{ margin: 0, fontSize: 12.5, color: "var(--ink-secondary, #475569)" }}>
             Suspend <strong>{memberLabel}</strong>? Their organization access
             and their access to this organization&apos;s workspaces stop
-            immediately, and their signed-in sessions are revoked. Their
-            Personal Space is not affected. The membership and its history are
+            immediately, and sessions signed in through this organization&apos;s
+            single sign-on end. Their own account and Personal Space are not
+            affected. The membership and its history are
             kept, and restoring it returns the workspace access this suspension
             paused.
           </p>

@@ -461,6 +461,9 @@ async function isUnprovenDirectoryAccount(user: {
   return !proven.ok;
 }
 
+/** PRO-A1-09 — per-address cooldown between reset emails. */
+export const PASSWORD_RESET_PER_ADDRESS_COOLDOWN_MS = 60 * 1000;
+
 export async function createPasswordResetTokenForEmail(emailRaw: string) {
   const email = normalizeEmail(emailRaw);
 
@@ -469,10 +472,19 @@ export async function createPasswordResetTokenForEmail(emailRaw: string) {
   // the owner of a mailbox can take back a password somebody else set on their
   // address, and among EMAIL rows the one with a password is the person's own, so
   // a row an IdP created cannot divert their reset.
-  const user = await prisma.user.findFirst({
+  // PRO-A1-04 — a deterministic owner: the row whose password login id IS
+  // this address first; then a row with a password; then the oldest. Ordering
+  // by password-hash text picked between two such rows arbitrarily.
+  const candidates = await prisma.user.findMany({
     where: { provider: AuthProvider.EMAIL, email },
-    orderBy: [{ passwordHash: { sort: "desc", nulls: "last" } }, { createdAt: "asc" }],
+    orderBy: [{ createdAt: "asc" }],
+    take: 10,
   });
+  const user =
+    candidates.find((c) => (c.providerUserId ?? "").trim().toLowerCase() === email) ??
+    candidates.find((c) => c.passwordHash) ??
+    candidates[0] ??
+    null;
 
   if (!user) return null;
 
@@ -481,6 +493,20 @@ export async function createPasswordResetTokenForEmail(emailRaw: string) {
   if (user.providerUserId === closedAccountProviderId(user.id)) return null;
 
   if (await isUnprovenDirectoryAccount(user)) return null;
+
+  // PRO-A1-09 — one reset email per address per cooldown, whichever IP asks
+  // (the verification path's per-address rule): a rotating-IP caller cannot
+  // flood the mailbox or stack live links. The route answers the same neutral
+  // 200 either way.
+  const recent = await prisma.passwordResetToken.findFirst({
+    where: {
+      userId: user.id,
+      usedAt: null,
+      createdAt: { gt: new Date(Date.now() - PASSWORD_RESET_PER_ADDRESS_COOLDOWN_MS) },
+    },
+    select: { id: true },
+  });
+  if (recent) return null;
 
   const rawToken = randomBytes(32).toString("hex");
 
@@ -506,6 +532,13 @@ export async function createPasswordResetTokenForEmail(emailRaw: string) {
 export async function resetPasswordWithToken(params: {
   token: string;
   newPassword: string;
+  /**
+   * PRO-A1-08 — work that must commit WITH the new password (the route ends
+   * every earlier session and step-up approval here). A failure rolls the
+   * password, the token claim and the retirements back: the link stays usable
+   * and no half-applied reset is reported as failed.
+   */
+  inTransaction?: (tx: TransactionClient, userId: string) => Promise<void>;
 }) {
   const token = params.token.trim();
 
@@ -614,6 +647,7 @@ export async function resetPasswordWithToken(params: {
       where: { userId: rec.userId, usedAt: null },
       data: { usedAt: now },
     });
+    if (params.inTransaction) await params.inTransaction(tx as unknown as TransactionClient, rec.userId);
     return "ok" as const;
   }).catch((err: unknown) => {
     // A refusal found after the claim rolls the claim back with everything else.
@@ -630,6 +664,9 @@ export async function resetPasswordWithToken(params: {
     userId: rec.userId
   };
 }
+
+/** The transaction client handed to `resetPasswordWithToken`'s inTransaction hook. */
+export type TransactionClient = import("@prisma/client").PrismaClient;
 
 /** A reset refused inside its transaction, after the token claim. */
 class ResetRefused extends Error {
@@ -798,8 +835,29 @@ export async function consumeEmailVerificationToken(
    */
   const account = await prisma.user.findUnique({
     where: { id: rec.userId },
-    select: { emailVerifiedAt: true, passwordHash: true, email: true },
+    select: { id: true, emailVerifiedAt: true, passwordHash: true, email: true, providerUserId: true },
   });
+  if (!account) return { ok: false, reason: "invalid" };
+
+  // PRO-A1-10 (c) — a verification link is spent by the FIRST verification.
+  // A leftover live link (an older send that settled 'ambiguous') used after
+  // the owner verified — and perhaps enrolled a second factor — must not sign
+  // anyone in with the mailbox alone. It is retired with every sibling and
+  // answered as already used.
+  if (account.emailVerifiedAt) {
+    await prisma.emailVerificationToken.updateMany({
+      where: { userId: rec.userId, usedAt: null },
+      data: { usedAt: now },
+    });
+    return { ok: false, reason: "already_used" };
+  }
+
+  // PRO-A1-10 (b) — IDENT-013: an unverified, password-less row an
+  // Organization's IdP/directory created is not activated by the mailbox
+  // holder until that Organization has proved the domain. The token stays
+  // unspent; the answer is the neutral invalid-link one.
+  if (await isUnprovenDirectoryAccount(account)) return { ok: false, reason: "invalid" };
+
   const firstVerificationOfPassword = Boolean(
     account && !account.emailVerifiedAt && account.passwordHash,
   );
@@ -843,6 +901,12 @@ export async function consumeEmailVerificationToken(
       data: { usedAt: now },
     });
     if (claim.count === 0) return null;
+    // PRO-A1-10 (c) — the first verification retires every other unused link
+    // of the account in the same transaction that stamps the address.
+    await tx.emailVerificationToken.updateMany({
+      where: { userId: rec.userId, usedAt: null, id: { not: rec.id } },
+      data: { usedAt: now },
+    });
     await tx.user.updateMany({
       where: { id: rec.userId, emailVerifiedAt: null },
       data: {
@@ -892,7 +956,12 @@ export async function findUnverifiedEmailUserByEmail(emailRaw: string) {
       emailVerifiedAt: null,
     },
     orderBy: { createdAt: "asc" },
-    select: { id: true, email: true, emailVerifiedAt: true },
+    select: { id: true, email: true, emailVerifiedAt: true, passwordHash: true, providerUserId: true },
   });
-  return user;
+  if (!user) return null;
+  // PRO-A1-10 — IDENT-013 on the verification path: a row an Organization's
+  // IdP/directory created is not handed to whoever holds the mailbox until
+  // that Organization has proved the domain (the reset path's rule).
+  if (await isUnprovenDirectoryAccount(user)) return null;
+  return { id: user.id, email: user.email, emailVerifiedAt: user.emailVerifiedAt };
 }
