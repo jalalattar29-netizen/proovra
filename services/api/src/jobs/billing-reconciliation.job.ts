@@ -51,6 +51,7 @@ import type { BillingAccountRef } from "../services/billing/billing-accounts.ser
 import { acquireLease } from "../services/rate-limit.js";
 import {
   applyHeldPlanLowerings,
+  finalizeEndedPayPalPaidPeriods,
   retrySupersededCancellations,
 } from "../services/billing/subscription-lifecycle.handlers.js";
 import { finalizeEndedStorageAddons } from "../services/billing/paid-period.service.js";
@@ -380,6 +381,13 @@ async function runSweep(input?: {
   });
   await retrySupersededCancellations().catch((err: unknown) => {
     logWarn("billing.reconciliation.supersession_retry_failed", {
+      err: err instanceof Error ? err.message : "unknown",
+    });
+  });
+  // PRO-BL1-03 — a cancelled PayPal plan ends when its kept paid period does
+  // (the customer's own cancellation; not held by the lowering switch).
+  await finalizeEndedPayPalPaidPeriods().catch((err: unknown) => {
+    logWarn("billing.reconciliation.paypal_paid_period_finalize_failed", {
       err: err instanceof Error ? err.message : "unknown",
     });
   });

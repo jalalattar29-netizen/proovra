@@ -1,6 +1,6 @@
 {
   "contractVersion": 1,
-  "routeEpoch": 1,
+  "routeEpoch": 2,
   "routes": [
     "DELETE /v1/admin/identity/scim/groups/projections/:id",
     "DELETE /v1/auth/saml/:connectionId/certificate-next",
@@ -688,6 +688,7 @@
     "POST /v1/billing/storage-addons/checkout/paypal",
     "POST /v1/billing/storage-addons/checkout/stripe",
     "POST /v1/billing/subscription/cancel",
+    "POST /v1/billing/subscription/payment-management",
     "POST /v1/billing/subscription/plan",
     "POST /v1/billing/subscription/resume",
     "POST /v1/break-glass/activate",

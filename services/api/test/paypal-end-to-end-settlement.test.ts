@@ -32,7 +32,7 @@ const state = vi.hoisted(() => ({
   subscriptions: new Map<string, Record<string, unknown>>(),
   ledger: new Set<string>(),
   payments: new Map<string, { status: string; amountCents: number; currency: string; userId: string }>(),
-  subRows: new Map<string, { status: string; plan: string; userId: string; teamId: string | null; providerStateAtUtc: Date | null; pendingPlan: string | null; pendingPlanEffectiveAtUtc: Date | null }>(),
+  subRows: new Map<string, { status: string; plan: string; userId: string; teamId: string | null; providerStateAtUtc: Date | null; pendingPlan: string | null; pendingPlanEffectiveAtUtc: Date | null; currentPeriodEnd?: Date | null }>(),
   webhookEvents: new Map<string, { processingStatus: string; payloadHash: string | null }>(),
   // BILLING PAYPAL INTEGRITY (2026-09-28) — storage activation reads the LOCAL
   // attempt row first (the canonical decision checks identity against it).
@@ -42,6 +42,8 @@ const state = vi.hoisted(() => ({
   captureCalls: [] as string[],
   captureImpl: null as null | ((orderId: string) => Promise<Record<string, unknown>>),
   subscriptionReadFails: false,
+  /** PRO-BL1-03 — subscriptions with a refunded/disputed payment. */
+  adverseSubscriptions: new Set<string>(),
 }));
 
 vi.mock("../src/db.js", () => {
@@ -83,6 +85,12 @@ vi.mock("../src/db.js", () => {
       updateMany: vi.fn(async () => ({ count: 0 })),
     },
     team: { findUnique: vi.fn(async () => null) },
+    // PRO-BL1-03 — a refunded or disputed payment of the subscription.
+    payment: {
+      findFirst: vi.fn(async ({ where }: { where: { providerResourceId?: string } }) =>
+        where.providerResourceId && state.adverseSubscriptions.has(where.providerResourceId) ? { id: "pay-adverse" } : null,
+      ),
+    },
     entitlement: { findFirst: vi.fn(async () => null) },
     billingCheckoutAttempt: {
       findUnique: vi.fn(async () => null),
@@ -195,6 +203,10 @@ vi.mock("../src/services/billing.service.js", async (importOriginal) => {
         userId: p.userId,
         teamId: p.teamId ?? null,
         id: `row-${p.providerSubId}`,
+        providerSubId: p.providerSubId,
+        // PRO-BL1-03/04 — the real writer keeps the recorded period when a fact does not state one.
+        currentPeriodEnd:
+          (p as { currentPeriodEnd?: Date | null }).currentPeriodEnd ?? existing?.currentPeriodEnd ?? null,
         providerStateAtUtc: p.observedAtUtc ?? existing?.providerStateAtUtc ?? null,
         pendingPlan: existing?.pendingPlan ?? null,
         pendingPlanEffectiveAtUtc: existing?.pendingPlanEffectiveAtUtc ?? null,
@@ -367,6 +379,7 @@ beforeEach(() => {
   state.storageRows.clear();
   state.reviewItems.length = 0;
   state.paypalCancels.length = 0;
+  state.adverseSubscriptions.clear();
   vi.mocked(billingService.setPersonalPlan).mockClear();
   vi.mocked(billingService.upsertWorkspaceStorageAddon).mockClear();
   vi.mocked(grantEvidenceCredits).mockClear();
@@ -689,6 +702,54 @@ describe("PayPal subscriptions — no entitlement before activation", () => {
     setSubscription("I-CAN", { status: "CANCELLED", status_update_time: "2026-09-27T10:00:00Z" });
     await deliver("BILLING.SUBSCRIPTION.CANCELLED", { id: "I-CAN" });
     expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "FREE", expect.objectContaining({ serviceActor: "billing_provider_webhook" }));
+  });
+
+  // PRO-BL1-04 — a paid fact, not a status label.
+  it("PRO-BL1-04 — ACTIVE with a failing payment is PAST_DUE, not a fresh grant", async () => {
+    setSubscription("I-FAIL", {
+      status: "ACTIVE",
+      billing_info: { next_billing_time: "2026-10-25T10:00:00Z", failed_payments_count: 1, outstanding_balance: { value: "19.00", currency_code: "USD" } },
+    });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-FAIL" });
+    expect(state.subRows.get("I-FAIL")?.status).toBe("PAST_DUE");
+    expect(billingService.setPersonalPlan).not.toHaveBeenCalled();
+  });
+
+  it("PRO-BL1-04 — paid-through is the last completed payment plus one cycle, never next_billing_time", async () => {
+    setSubscription("I-PAID", {
+      status: "ACTIVE",
+      billing_info: {
+        next_billing_time: "2027-03-01T00:00:00Z",
+        last_payment: { amount: { value: "19.00", currency_code: "USD" }, time: "2026-01-31T09:00:00Z" },
+      },
+    });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-PAID" });
+    expect((state.subRows.get("I-PAID") as { currentPeriodEnd: Date }).currentPeriodEnd.toISOString()).toBe(
+      "2026-02-28T09:00:00.000Z",
+    );
+  });
+
+  // PRO-BL1-03 / DEC-02 — a PayPal cancel keeps the period already paid for.
+  it("PRO-BL1-03 — a PayPal cancellation inside the paid period keeps the plan until it ends", async () => {
+    const paidAt = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    const lastPayment = { amount: { value: "19.00", currency_code: "USD" }, time: paidAt };
+    setSubscription("I-KEEP", { status: "ACTIVE", billing_info: { last_payment: lastPayment } });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-KEEP" });
+    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "PRO", expect.anything());
+    setSubscription("I-KEEP", { status: "CANCELLED", status_update_time: new Date().toISOString(), billing_info: { last_payment: lastPayment } });
+    await deliver("BILLING.SUBSCRIPTION.CANCELLED", { id: "I-KEEP" });
+    // At the base this lowered to FREE at once.
+    expect(billingService.setPersonalPlan).not.toHaveBeenCalledWith(USER, "FREE", expect.anything());
+  });
+
+  it("PRO-BL1-03 — a refunded or disputed payment ends the kept period at once", async () => {
+    const lastPayment = { amount: { value: "19.00", currency_code: "USD" }, time: new Date(Date.now() - 2 * 86_400_000).toISOString() };
+    setSubscription("I-REF", { status: "ACTIVE", billing_info: { last_payment: lastPayment } });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-REF" });
+    state.adverseSubscriptions.add("I-REF");
+    setSubscription("I-REF", { status: "CANCELLED", status_update_time: new Date().toISOString(), billing_info: { last_payment: lastPayment } });
+    await deliver("BILLING.SUBSCRIPTION.CANCELLED", { id: "I-REF" });
+    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "FREE", expect.anything());
   });
 
   it("the return confirmation is bound to the signed-in account", async () => {

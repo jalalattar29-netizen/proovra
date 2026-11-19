@@ -18,8 +18,9 @@
  * It is NOT a provider customer portal, and it does not need one. Every action
  * here is an existing PROOVRA authority reached through the existing routes:
  * the plan-transition service moves the tier, and the provider-first
- * cancellation service ends the subscription. Nothing new is integrated, and
- * nothing here is a link out to Stripe.
+ * cancellation service ends the subscription. The one link out (PRO-BL1-02) is
+ * the provider's own hosted page for the card, a failed payment and invoices,
+ * offered only when the server projects `actions.paymentManagement`.
  *
  * WHAT THE BROWSER DECIDES
  * ---------------------------------------------------------------------------
@@ -44,6 +45,7 @@ export function ManagePlanDrawer({
   onChangePlan,
   onCancel,
   onResume,
+  onManagePayment,
   changeBusyPlan,
   cancelBusy,
 }: {
@@ -56,6 +58,11 @@ export function ManagePlanDrawer({
   onCancel: () => void;
   /** Undo a scheduled (period-end) cancellation. Absent: not offered. */
   onResume?: () => void;
+  /**
+   * PRO-BL1-02 — open the provider's own billing page (card, failed payment,
+   * invoices). Rendered only when the server projects `actions.paymentManagement`.
+   */
+  onManagePayment?: () => void;
   changeBusyPlan: string | null;
   cancelBusy: boolean;
 }) {
@@ -168,6 +175,60 @@ export function ManagePlanDrawer({
                   .join(" · ")}
               </p>
             </div>
+          </section>
+        ) : null}
+
+        {/* PRO-BL1-02 — the one link out: the provider's own hosted page for the
+            payment method, a failed payment and invoices / receipts. */}
+        {actions.paymentManagement && onManagePayment && plan.accessKind === "SUBSCRIPTION" ? (
+          <section data-billing-payment-management>
+            <h3 className="bill-section__heading">Payment method and invoices</h3>
+            <p className="bill-choice__meta">
+              {actions.paymentManagement.provider === "PAYPAL"
+                ? "Change how PayPal pays this subscription, or see your receipts, in your PayPal account."
+                : "Update your card, pay an outstanding invoice, and get your invoices and receipts on Stripe's own secure billing page. PROOVRA shows no card details itself."}
+            </p>
+            <div className="bill-stacked-actions">
+              <Button variant="secondary" size="sm" disabled={busy} onClick={onManagePayment} data-billing-manage-payment>
+                {actions.paymentManagement.provider === "PAYPAL" ? "Open PayPal" : "Manage payment and invoices"}
+              </Button>
+            </div>
+          </section>
+        ) : null}
+
+        {/* PRO-BL1-05 — a confirmed scheduled downgrade can be withdrawn. The
+            server composes the action (withdrawOffer); without it nothing is
+            offered, as before. */}
+        {plan.scheduledChange?.withdrawOffer &&
+        !plan.scheduledChange.awaitingApproval &&
+        !plan.providerTransition &&
+        plan.accessKind === "SUBSCRIPTION" ? (
+          <section data-billing-withdraw-scheduled>
+            <h3 className="bill-section__heading">Scheduled change</h3>
+            <div className="bill-stacked-actions">
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={changeBusyPlan === plan.scheduledChange.withdrawOffer.planKey}
+                disabled={busy}
+                onClick={() => {
+                  const keep = plan.scheduledChange!.withdrawOffer!;
+                  onChangePlan({
+                    planKey: keep.planKey,
+                    displayName: plan.displayName,
+                    summary: keep.effectSummary,
+                    action: "UPGRADE",
+                    effect: "IMMEDIATE",
+                    actionLabel: keep.actionLabel,
+                    effectSummary: keep.effectSummary,
+                  });
+                }}
+                data-billing-manage-withdraw
+              >
+                {plan.scheduledChange.withdrawOffer.actionLabel}
+              </Button>
+            </div>
+            <p className="bill-move__meta">{plan.scheduledChange.withdrawOffer.effectSummary}</p>
           </section>
         ) : null}
 
@@ -345,7 +406,11 @@ export function ManagePlanDrawer({
                   {/* B6-F-67 — the same provider statement the confirmation
                       makes: PayPal ends a subscription immediately, so the
                       period-end sentence was untrue for it. */}
-                  {plan.paymentProviderLabel === "PayPal"
+                  {plan.paymentProviderLabel === "PayPal" && plan.cancellationKeepsPaidPeriod
+                    ? periodEnd
+                      ? `PayPal stops the subscription immediately; you keep your plan until ${periodEnd}, the end of the period you have paid for, and then move to Free.`
+                      : "PayPal stops the subscription immediately; you keep your plan until the end of the period you have paid for, and then move to Free."
+                    : plan.paymentProviderLabel === "PayPal"
                     ? "PayPal ends a subscription immediately: your plan moves to Free when PayPal confirms the cancellation."
                     : periodEnd
                       ? `Your plan will move to Free at the end of the period you have paid for, on ${periodEnd}.`

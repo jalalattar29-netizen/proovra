@@ -58,6 +58,7 @@ import {
   getPayPalOrder,
   getPayPalSubscription,
   paypalGet,
+  readPayPalBasePlanPaidFact,
 } from "../paypal.service.js";
 import { grantEvidenceCredits, reverseEvidenceCreditPurchase } from "./evidence-credits.service.js";
 import { applyPaymentAdjustment } from "./payment-adjustments.service.js";
@@ -91,6 +92,9 @@ function dateFromIso(value: unknown): Date | null {
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
+/** PRO-BL1-04 — re-exported; the helper lives beside the PayPal API reader. */
+export { addOneMonthUtc } from "../paypal.service.js";
 
 /** PayPal money is a decimal string ("5.00"); cents, or null if unreadable. */
 function centsFromValue(value: unknown): number | null {
@@ -1376,6 +1380,22 @@ export async function applyPayPalSubscriptionState(params: {
   }
 
   // --- Base plan -------------------------------------------------------------
+  // PRO-BL1-04 (WS-BILL, 2026-11-18) — a PAID fact, not a status label. PayPal
+  // keeps a subscription ACTIVE while a renewal (or the first payment) is
+  // failing and being retried, and `next_billing_time` is a date not yet paid
+  // for. The entitlement and the paid-through date now follow money:
+  //   * ACTIVE with failed payments or an outstanding balance is PAST_DUE, so
+  //     the bounded grace applies instead of indefinite paid access;
+  //   * the paid-through date is the last completed payment plus one monthly
+  //     cycle; with no completed payment it is not stated (the recorded one
+  //     stays), never the unpaid next billing time.
+  // One reader, shared with the reconciliation sweep (readPayPalBasePlanPaidFact).
+  const paidFact = readPayPalBasePlanPaidFact(billingInfo);
+  const basePlanStatus =
+    status === prismaPkg.SubscriptionStatus.ACTIVE && paidFact.paymentFailing
+      ? prismaPkg.SubscriptionStatus.PAST_DUE
+      : status;
+  const paidThroughUtc = paidFact.paidThroughUtc;
   const parsed = parsePayPalCustomId(customId);
   if (!parsed.userId) {
     return { outcome: "REJECTED", subscriptionId, reason: "UNATTRIBUTABLE" };
@@ -1475,8 +1495,8 @@ export async function applyPayPalSubscriptionState(params: {
     teamId: parsed.teamId,
     provider: PROVIDER,
     providerSubId: subscriptionId,
-    status,
-    currentPeriodEnd,
+    status: basePlanStatus,
+    currentPeriodEnd: paidThroughUtc,
     observedAtUtc,
     billedCurrency,
     billedUnitAmountCents:

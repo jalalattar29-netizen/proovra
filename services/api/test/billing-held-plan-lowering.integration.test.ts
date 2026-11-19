@@ -108,6 +108,29 @@ describe("PRO-W2C-01 — held plan lowering is revisited (live PostgreSQL)", () 
     expect(await planOf(userId)).toBe("PRO");
   });
 
+  it("PRO-BL1-03 — a cancelled PayPal plan ends when its kept paid period does, whatever the lowering switch", async () => {
+    const t = await seedPersonalTenant(deps, "PRO");
+    const ended = await prisma.subscription.create({
+      data: {
+        userId: t.owner.userId,
+        provider: "PAYPAL",
+        providerSubId: `I-${randomUUID().slice(0, 12).toUpperCase()}`,
+        status: "CANCELED",
+        plan: "PRO",
+        currentPeriodEnd: new Date(Date.now() + 3 * 86_400_000),
+        activatedAtUtc: new Date(Date.now() - 30 * 86_400_000),
+        canceledAtUtc: new Date(),
+      },
+    });
+    // Inside the paid period: kept (switch off, as in production).
+    await handlers.finalizeEndedPayPalPaidPeriods();
+    expect(await planOf(t.owner.userId)).toBe("PRO");
+    // The period is over: ended, although automatic lowering is still off.
+    await prisma.subscription.update({ where: { id: ended.id }, data: { currentPeriodEnd: new Date(Date.now() - 60_000) } });
+    await handlers.finalizeEndedPayPalPaidPeriods();
+    expect(await planOf(t.owner.userId)).toBe("FREE");
+  });
+
   it("a payer who bought again (a live subscription) is never lowered", async () => {
     const userId = await heldPro(new Date(Date.now() - 86_400_000));
     await prisma.subscription.create({

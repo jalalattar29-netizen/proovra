@@ -291,6 +291,13 @@ export async function syncPlanForSubscription(params: {
         before.status === prismaPkg.SubscriptionStatus.ACTIVE ||
         before.status === prismaPkg.SubscriptionStatus.PAST_DUE);
     if (!everCarriedEntitlement) return applied;
+    // PRO-BL1-03 / DEC-02 — a PayPal cancel stops renewal at once, but the
+    // period already paid for is kept, as for Stripe and PayPal add-ons. The
+    // entitlement ends when that period does (`finalizeEndedPayPalPaidPeriods`),
+    // or earlier on a refund or dispute of its payment.
+    if (params.provider === prismaPkg.PaymentProvider.PAYPAL && (await payPalPaidPeriodRunning(subscription))) {
+      return applied;
+    }
     // Held at its lowest: a survivor's plan is restored by the drift repair.
     if (await planLoweringHeld(prismaPkg.PlanType.FREE)) return applied;
 
@@ -591,6 +598,84 @@ export async function heldPlanLoweringCandidates(now: Date = new Date()): Promis
     });
   }
   return out;
+}
+
+/**
+ * PRO-BL1-03 / DEC-02 — is the paid period of an ended PayPal base plan still
+ * running? Its `currentPeriodEnd` is the last completed payment plus one cycle
+ * (PRO-BL1-04), never the unpaid next billing time. A refund or dispute of a
+ * payment of this subscription ends it at once: access never outlives the money.
+ */
+async function payPalPaidPeriodRunning(
+  subscription: { providerSubId: string; currentPeriodEnd: Date | null },
+  now: Date = new Date(),
+): Promise<boolean> {
+  if (!subscription.currentPeriodEnd || subscription.currentPeriodEnd.getTime() <= now.getTime()) return false;
+  const adverse = await prisma.payment.findFirst({
+    where: {
+      provider: prismaPkg.PaymentProvider.PAYPAL,
+      providerResourceId: subscription.providerSubId,
+      OR: [{ refundedAmountCents: { gt: 0 } }, { disputeStatus: { in: ["OPEN", "LOST"] } }],
+    },
+    select: { id: true },
+  });
+  return !adverse;
+}
+
+/**
+ * PRO-BL1-03 — end the plan of a cancelled PayPal subscription whose kept paid
+ * period is over (or was refunded/disputed). Not an automatic LOWERING held by
+ * BILLING_AUTO_PLAN_LOWERING: the customer cancelled, and this only carries out
+ * the end date they were shown. A surviving live base subscription keeps its
+ * plan; an internal grant covering the plan keeps it.
+ */
+export async function finalizeEndedPayPalPaidPeriods(now: Date = new Date()): Promise<number> {
+  const ended = await prisma.subscription.findMany({
+    where: {
+      provider: prismaPkg.PaymentProvider.PAYPAL,
+      status: prismaPkg.SubscriptionStatus.CANCELED,
+      supersededBySubscriptionId: null,
+      activatedAtUtc: { not: null },
+      plan: { in: [...SELF_SERVICE_BASE_SUBSCRIPTION_PLANS] },
+      // Bounded look-back: older rows were lowered when their event arrived.
+      updatedAt: { gte: new Date(now.getTime() - 400 * 24 * 60 * 60 * 1000) },
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { userId: true, plan: true, providerSubId: true, currentPeriodEnd: true },
+    take: 500,
+  });
+  let lowered = 0;
+  const seen = new Set<string>();
+  for (const row of ended) {
+    if (seen.has(row.userId)) continue;
+    seen.add(row.userId);
+    if (await payPalPaidPeriodRunning(row, now)) continue;
+    const entitlement = await prisma.entitlement.findFirst({
+      where: { userId: row.userId, active: true },
+      orderBy: { createdAt: "desc" },
+      select: { plan: true },
+    });
+    if (!entitlement || entitlement.plan !== row.plan) continue;
+    const live = await prisma.subscription.findFirst({
+      where: {
+        userId: row.userId,
+        supersededBySubscriptionId: null,
+        plan: { in: [...SELF_SERVICE_BASE_SUBSCRIPTION_PLANS] },
+        status: { in: [prismaPkg.SubscriptionStatus.ACTIVE, prismaPkg.SubscriptionStatus.PAST_DUE] },
+      },
+      select: { id: true },
+    });
+    if (live) continue;
+    const grant = await readActiveInternalPlanGrant(prisma, row.userId, now);
+    if (grant && internalGrantCoversPlan(grant.plan, entitlement.plan)) continue;
+    await setPersonalPlan(row.userId, prismaPkg.PlanType.FREE, {
+      actorUserId: null,
+      serviceActor: "billing_paid_period_end",
+      providerSubId: row.providerSubId,
+    });
+    lowered += 1;
+  }
+  return lowered;
 }
 
 /**

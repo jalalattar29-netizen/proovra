@@ -30,6 +30,8 @@ const FAKE = vi.hoisted(() => ({
   refuseNext: false,
   /** Answer the NEXT keyed POST with this stored body, executing nothing. */
   staleAnswer: null as Record<string, unknown> | null,
+  /** PRO-BL1-02 — customers a portal session was opened for. */
+  portalCustomers: [] as string[],
 }));
 
 vi.mock("../src/services/stripe.service.js", async (importOriginal) => {
@@ -56,6 +58,10 @@ vi.mock("../src/services/stripe.service.js", async (importOriginal) => {
         err.status = 400;
         throw err;
       }
+      if (path === "/billing_portal/sessions") {
+        FAKE.portalCustomers.push(body.get("customer") ?? "");
+        return { id: "bps_test", url: "https://billing.stripe.com/p/session/test_bl102" };
+      }
       const id = decodeURIComponent(path.replace("/subscriptions/", ""));
       const state = FAKE.live.get(id);
       if (!state) throw new Error(`unknown fake subscription ${id}`);
@@ -72,7 +78,7 @@ vi.mock("../src/services/stripe.service.js", async (importOriginal) => {
       const id = decodeURIComponent(path.replace("/subscriptions/", ""));
       const state = FAKE.live.get(id);
       if (!state) throw new Error(`unknown fake subscription ${id}`);
-      return { id, ...state };
+      return { id, customer: `cus_${id}`, ...state };
     },
     stripeRequestRaw: async () => ({}),
   };
@@ -147,7 +153,7 @@ describe("PRO-BL1-01 — provider intent identity (live PostgreSQL)", () => {
       },
       select: { id: true },
     });
-    return { userId: t.owner.userId, subscriptionId: sub.id, providerSubId };
+    return { userId: t.owner.userId, subscriptionId: sub.id, providerSubId, token: t.owner.token };
   }
 
   it("cancel -> restart -> cancel inside one hour really cancels at the provider", async () => {
@@ -225,6 +231,32 @@ describe("PRO-BL1-01 — provider intent identity (live PostgreSQL)", () => {
       where: { ownerUserId: s.userId, dependentCancellationTriggeredBySubscriptionId: s.subscriptionId },
     });
     expect(dependants).toBe(0);
+  });
+
+  it("PRO-BL1-02 — the payer opens the provider's billing page for their own subscription's customer; no subscription is 404", async () => {
+    const s = await seedStripePro();
+    const token = s.token;
+    const res = await harness.app.inject({
+      method: "POST",
+      url: "/v1/billing/subscription/payment-management",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      payload: "{}",
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(JSON.parse(res.body).paymentManagement).toEqual({
+      provider: "STRIPE",
+      url: "https://billing.stripe.com/p/session/test_bl102",
+    });
+    expect(FAKE.portalCustomers).toEqual([`cus_${s.providerSubId}`]);
+
+    const free = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+    const none = await harness.app.inject({
+      method: "POST",
+      url: "/v1/billing/subscription/payment-management",
+      headers: { authorization: `Bearer ${free.owner.token}`, "content-type": "application/json" },
+      payload: "{}",
+    });
+    expect(none.statusCode).toBe(404);
   });
 
   it("a renewing fact against a confirmed customer cancellation is never silent", async () => {

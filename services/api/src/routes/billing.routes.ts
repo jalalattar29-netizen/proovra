@@ -90,6 +90,7 @@ import {
   findLivePersonalSubscription,
   resolvePersonalPlanTransition,
 } from "../services/billing/plan-transition.service.js";
+import { createPaymentManagementLink } from "../services/billing/payment-management.service.js";
 import { internalGrantCheckoutRefusal } from "../services/billing/internal-plan-grant.service.js";
 import {
   resolvePendingPayPalCheckout,
@@ -1129,6 +1130,42 @@ export async function billingRoutes(app: FastifyInstance) {
         },
       });
       return reply.code(200).send({ resume: outcome });
+    }
+  );
+
+  /**
+   * PRO-BL1-02 (WS-BILL) — fix a failed payment, change the card, get invoices
+   * and receipts: a link to the provider's own hosted billing page for the
+   * payer's live PERSONAL subscription (Stripe Customer Portal session; PayPal
+   * automatic payments). BILLING_MANAGE on the caller's own account; nothing
+   * is stored, and repeated presses create independent short-lived sessions.
+   */
+  app.post(
+    "/v1/billing/subscription/payment-management",
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("subscription_change", 20)] },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      CancelSubscriptionBody.parse(req.body ?? {});
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_MANAGE",
+      });
+      const base = (
+        process.env.APP_BASE_URL?.trim() ||
+        process.env.WEB_BASE_URL?.trim() ||
+        process.env.NEXT_PUBLIC_WEB_BASE?.trim() ||
+        "https://app.proovra.com"
+      ).replace(/\/+$/, "");
+      const link = await createPaymentManagementLink({ userId, returnUrl: `${base}/billing` });
+      auditBillingAction(req, {
+        userId,
+        action: "billing.payment_management_opened",
+        outcome: "success",
+        metadata: { provider: link.provider },
+      });
+      return reply.code(200).send({ paymentManagement: link });
     }
   );
 

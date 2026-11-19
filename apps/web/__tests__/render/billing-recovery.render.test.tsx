@@ -884,6 +884,75 @@ describe("the plan drawer and what add-ons do", () => {
     expect(downgradeAddonNote(paid("PRO", [MOVE_TEAM], { storageAddons: { offers: [], active: [teamAddon] } } as Partial<BillingAccountProjection>), MOVE_TEAM)).toBeNull();
   });
 
+  // PRO-BL1-02 / PRO-BL1-05 / PRO-BL1-03 (WS-BILL) — server-composed actions,
+  // and nothing new against an API that predates them.
+  const drawer = (projection: BillingAccountProjection, over: Record<string, unknown> = {}) =>
+    render(
+      <ManagePlanDrawer
+        open
+        projection={projection}
+        onClose={noop}
+        onChangePlan={noop}
+        onCancel={noop}
+        changeBusyPlan={null}
+        cancelBusy={false}
+        {...over}
+      />,
+    );
+  const withPlan = (p: BillingAccountProjection, plan: Record<string, unknown>, actions: Record<string, unknown> = {}) =>
+    ({ ...p, plan: { ...p.plan, ...plan }, actions: { ...p.actions, ...actions } }) as unknown as BillingAccountProjection;
+
+  it("PRO-BL1-02 — offers the provider's billing page only when the server projects it", async () => {
+    const onManagePayment = vi.fn();
+    drawer(withPlan(team([]), {}, { paymentManagement: { provider: "STRIPE" } }), { onManagePayment });
+    const button = q<HTMLButtonElement>("[data-billing-manage-payment]")!;
+    expect(button.textContent).toBe("Manage payment and invoices");
+    await userEvent.click(button);
+    expect(onManagePayment).toHaveBeenCalledTimes(1);
+  });
+
+  it("PRO-BL1-02 — an older API (no actions.paymentManagement) renders no such control", () => {
+    drawer(team([]), { onManagePayment: noop });
+    expect(q("[data-billing-payment-management]")).toBeNull();
+  });
+
+  it("PRO-BL1-05 — a confirmed scheduled downgrade can be withdrawn with the server's own offer", async () => {
+    const onChangePlan = vi.fn();
+    const withdrawOffer = {
+      planKey: "TEAM",
+      actionLabel: "Keep Team",
+      effectSummary: "Cancels the scheduled move to Pro. You stay on Team; nothing is charged now.",
+    };
+    drawer(
+      withPlan(team([]), {
+        scheduledChange: { displayName: "Pro", effectiveAtUtc: "2026-12-01T00:00:00.000Z", awaitingApproval: false, withdrawOffer },
+      }),
+      { onChangePlan },
+    );
+    const keep = q<HTMLButtonElement>("[data-billing-manage-withdraw]")!;
+    expect(keep.textContent).toBe("Keep Team");
+    await userEvent.click(keep);
+    expect(onChangePlan).toHaveBeenCalledWith(expect.objectContaining({ planKey: "TEAM", action: "UPGRADE" }));
+  });
+
+  it("PRO-BL1-05 — no way back is offered without the server's offer (older API, PayPal, unapproved)", () => {
+    drawer(
+      withPlan(team([]), {
+        scheduledChange: { displayName: "Pro", effectiveAtUtc: "2026-12-01T00:00:00.000Z", awaitingApproval: false },
+      }),
+    );
+    expect(q("[data-billing-manage-withdraw]")).toBeNull();
+  });
+
+  it("PRO-BL1-03 — PayPal cancel copy keeps the paid period only when the API says it does", () => {
+    const paypal = withPlan(team([]), { paymentProviderLabel: "PayPal" });
+    const first = drawer(paypal);
+    expect(document.body.textContent).toMatch(/PayPal ends a subscription immediately: your plan moves to Free when PayPal confirms/);
+    first.unmount();
+    drawer(withPlan(paypal, { cancellationKeepsPaidPeriod: true }));
+    expect(document.body.textContent).toMatch(/PayPal stops the subscription immediately; you keep your plan until .*the end of the period you have paid for/);
+  });
+
   it("after Resume, says which add-ons still end when the count identifies them", () => {
     const notice = describeResume(
       { result: "RESUMED", provider: "STRIPE", currentPeriodEnd: null, dependentAddonsStillEnding: 1 },

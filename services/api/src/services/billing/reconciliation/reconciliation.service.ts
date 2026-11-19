@@ -823,8 +823,20 @@ async function reconcileSubscriptions(ctx: {
       providerResourceId: binding.providerSubId,
     });
 
-    const status = subscriptionStatusFromObservation(observation);
-    if (!status) continue;
+    const observedStatus = subscriptionStatusFromObservation(observation);
+    if (!observedStatus) continue;
+    // PRO-BL1-04 (WS-BILL) — a PayPal base plan follows the PAID fact, exactly
+    // as the webhook settlement does: ACTIVE with a failing payment is PAST_DUE
+    // (bounded grace), and the paid-through date is the last completed payment
+    // plus one cycle, never the unpaid next billing time. Without this the
+    // hourly sweep re-stamped what settlement had corrected.
+    const status =
+      observation.paidFact?.paymentFailing && observedStatus === prismaPkg.SubscriptionStatus.ACTIVE
+        ? prismaPkg.SubscriptionStatus.PAST_DUE
+        : observedStatus;
+    const observedPeriodEndUtc = observation.paidFact
+      ? observation.paidFact.paidThroughUtc
+      : observation.currentPeriodEndUtc;
 
     const isStripe = binding.provider === prismaPkg.PaymentProvider.STRIPE;
     // AUD-01 — the price billed states the plan in force, so a landed schedule
@@ -846,8 +858,8 @@ async function reconcileSubscriptions(ctx: {
       status === binding.status &&
       plan === binding.plan &&
       (!isStripe || observation.cancelAtPeriodEnd === binding.cancelAtPeriodEnd) &&
-      (observation.currentPeriodEndUtc === null ||
-        observation.currentPeriodEndUtc.getTime() === binding.currentPeriodEnd?.getTime())
+      (observedPeriodEndUtc === null ||
+        observedPeriodEndUtc.getTime() === binding.currentPeriodEnd?.getTime())
     ) {
       // Provider and local already agree.
       await stampProviderState(binding.id, observation.observedAtUtc);
@@ -869,7 +881,7 @@ async function reconcileSubscriptions(ctx: {
       provider: binding.provider,
       providerSubId: binding.providerSubId,
       status,
-      currentPeriodEnd: observation.currentPeriodEndUtc,
+      currentPeriodEnd: observedPeriodEndUtc,
       observedAtUtc: observation.observedAtUtc,
       holdPlanLowering: !automaticPlanLoweringEnabled(),
       ...(isStripe

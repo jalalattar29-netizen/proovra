@@ -904,6 +904,8 @@ export const WRITE_SWEEP_HINTS: Record<string, RouteHint> = {
     },
     ensure: ["Sub"],
   },
+  // PRO-BL1-02 — opens the provider's hosted billing page (Stripe portal session).
+  "POST /v1/billing/subscription/payment-management": { unreachable: "Needs real Stripe (Customer Portal session)." },
   "POST /v1/billing/checkout/stripe": { unreachable: "Needs real Stripe." },
   "POST /v1/billing/checkout/paypal": { unreachable: "Needs real PayPal." },
   "POST /v1/billing/credits/checkout/stripe": { unreachable: "Needs real Stripe." },

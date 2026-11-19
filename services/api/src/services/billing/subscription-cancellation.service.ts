@@ -457,9 +457,14 @@ export async function requestSubscriptionCancellation(input: {
     // An IMMEDIATE cancellation has no future access date to report. Returning
     // the stored period end here would put a date on the screen that the
     // provider has already invalidated.
+    // PRO-BL1-03 / DEC-02 — a PayPal cancel ends billing at once but keeps the
+    // period already paid for (last completed payment + one cycle), so that
+    // date is the end of access when it is still ahead.
     accessEndsAtUtc: schedulesPeriodEnd
       ? updated.currentPeriodEnd?.toISOString() ?? null
-      : null,
+      : updated.currentPeriodEnd && updated.currentPeriodEnd.getTime() > Date.now()
+        ? updated.currentPeriodEnd.toISOString()
+        : null,
     cancelAtPeriodEnd: updated.cancelAtPeriodEnd,
     status: updated.status,
     alreadyScheduled: false,

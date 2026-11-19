@@ -1092,3 +1092,47 @@ export async function capturePayPalOrder(orderId: string) {
 
   return (await res.json()) as Record<string, unknown>;
 }
+
+/**
+ * PRO-BL1-04 (WS-BILL) — one monthly billing cycle after a completed payment
+ * (the PROOVRA base plans are monthly). Clamped to the target month's last day.
+ */
+export function addOneMonthUtc(from: Date): Date {
+  const d = new Date(from.getTime());
+  const day = d.getUTCDate();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, lastDay));
+  return d;
+}
+
+/**
+ * PRO-BL1-04 (WS-BILL) — the PAID fact of a PayPal BASE-PLAN subscription, read
+ * from its `billing_info`. ONE reader for the webhook/return settlement and
+ * the reconciliation sweep, so the sweep cannot re-stamp what settlement
+ * corrected.
+ *   paymentFailing  PayPal still says ACTIVE while a payment is failing
+ *                   (failed_payments_count > 0 or an outstanding balance);
+ *   paidThroughUtc  the last COMPLETED payment plus one monthly cycle; null
+ *                   when no completed payment is reported. Never the unpaid
+ *                   `next_billing_time`.
+ */
+export function readPayPalBasePlanPaidFact(billingInfo: unknown): {
+  paymentFailing: boolean;
+  paidThroughUtc: Date | null;
+} {
+  const info = (billingInfo && typeof billingInfo === "object" ? billingInfo : {}) as Record<string, unknown>;
+  const failed = Number(info.failed_payments_count ?? 0);
+  const outstandingRaw = (info.outstanding_balance as { value?: unknown } | null | undefined)?.value;
+  const outstanding = Number(
+    typeof outstandingRaw === "string" || typeof outstandingRaw === "number" ? outstandingRaw : 0,
+  );
+  const lastRaw = (info.last_payment as { time?: unknown } | null | undefined)?.time;
+  const last = typeof lastRaw === "string" && lastRaw.trim() ? new Date(lastRaw) : null;
+  const lastPaidAt = last && !Number.isNaN(last.getTime()) ? last : null;
+  return {
+    paymentFailing: (Number.isFinite(failed) && failed > 0) || (Number.isFinite(outstanding) && outstanding > 0),
+    paidThroughUtc: lastPaidAt ? addOneMonthUtc(lastPaidAt) : null,
+  };
+}
