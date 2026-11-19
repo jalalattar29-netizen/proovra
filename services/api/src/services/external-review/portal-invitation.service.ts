@@ -39,6 +39,54 @@ import {
   transitionExternalReviewGrant,
 } from "./external-review-grant.service.js";
 import { emitPortalActivity } from "./portal-activity.service.js";
+import { upsertEvidenceReviewerWorkflow } from "../evidence-review/reviewer-workflow.service.js";
+
+/**
+ * PRO-R1-06 — an invitation must have something to review. Every portal
+ * surface is keyed by the record's review workflow, and capture finalization
+ * creates it only best effort (a failed fan-out or a legacy record has none).
+ * For an EVIDENCE grant, and the record of a PACKAGE grant, the workflow is
+ * ensured here (idempotent: an existing one is left exactly as it is). A
+ * subject that cannot be prepared refuses the invitation rather than e-mailing
+ * an empty portal. (A CASE grant lists its linked records' workflows.)
+ */
+async function ensureReviewableSubject(
+  prisma: PrismaClient,
+  input: { teamId: string; actorUserId: string; scope: IssueInvitationInput["scope"] },
+): Promise<boolean> {
+  let evidenceId: string | null = null;
+  if (input.scope.kind === "EVIDENCE") evidenceId = input.scope.evidenceId ?? null;
+  if (input.scope.kind === "PACKAGE" && input.scope.packageId) {
+    const pkg = await prisma.verificationPackage.findFirst({
+      where: { id: input.scope.packageId },
+      select: { evidenceId: true },
+    });
+    evidenceId = pkg?.evidenceId ?? null;
+  }
+  if (!evidenceId) return true;
+  const existing = await prisma.evidenceReviewWorkflow.findFirst({
+    where: { evidenceId },
+    select: { id: true, teamId: true },
+  });
+  if (existing) return existing.teamId === input.teamId;
+  const record = await prisma.evidence.findFirst({
+    where: { id: evidenceId, teamId: input.teamId },
+    select: { id: true },
+  });
+  if (!record) return true; // the grant issuer refuses a foreign subject itself
+  try {
+    await upsertEvidenceReviewerWorkflow({
+      evidenceId,
+      workspaceType: "TEAM",
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      note: "Created for an external review invitation.",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export type IssueInvitationInput = {
   prisma?: PrismaClient;
@@ -86,6 +134,10 @@ export async function issueInvitation(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
+
+  if (!(await ensureReviewableSubject(prisma, { teamId: input.teamId, actorUserId: input.invitedByUserId, scope: input.scope }))) {
+    return { ok: false, denial: "POLICY_REJECTED" };
+  }
 
   const issued = await issueExternalReviewGrant(
     {

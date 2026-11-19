@@ -42,6 +42,10 @@ vi.mock("../../components/ui", async (orig) => ({
   ...((await orig()) as object),
   useToast: () => ({ addToast: mocks.toast }),
 }));
+// PRO-R2Z-07 — the console confirms revocations through the shared dialog.
+vi.mock("../../components/ui/ConfirmActionModal", () => ({
+  useConfirmAction: () => ({ confirm: async () => true, askReason: async () => null }),
+}));
 
 import ExternalInvitationsPage from "../../app/(app)/review/external/page";
 

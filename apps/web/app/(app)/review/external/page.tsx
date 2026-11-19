@@ -304,6 +304,7 @@ function ExternalReviewManagementConsole() {
   const [tab, setTab] = useState<TabId>("active");
   const [selected, setSelected] = useState<string | null>(null);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
+  const { confirm: confirmBulk } = useConfirmAction();
   const [banner, setBanner] = useState<{
     tone: "info" | "ok" | "warn";
     text: string;
@@ -376,6 +377,14 @@ function ExternalReviewManagementConsole() {
       });
       return;
     }
+    // PRO-R2Z-07 — ending outside reviewers' access asks first, with the count.
+    const ok = await confirmBulk({
+      title: `Revoke ${ids.length} invitation${ids.length === 1 ? "" : "s"}?`,
+      description: "Each reviewer's access ends immediately. A revoked invitation cannot be restored; you would issue a new one.",
+      confirmLabel: "Revoke access",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       const res = await apiFetch(
         "/v1/external-review/invitations/bulk/revoke",
@@ -416,7 +425,7 @@ function ExternalReviewManagementConsole() {
       const denial = denialFromError(err);
       setBanner({ tone: "warn", text: `Access was not revoked. ${reviewerDenialMessage(denial)}` });
     }
-  }, [caps.canBulkRevoke, multiSelected, refresh]);
+  }, [caps.canBulkRevoke, multiSelected, refresh, confirmBulk]);
 
   return (
     <PageShell
@@ -486,6 +495,8 @@ function ExternalReviewManagementConsole() {
             onClick={() => {
               setTab(t.id);
               setSelected(null);
+              // PRO-R2Z-07 — a bulk action applies to the rows you can see.
+              setMultiSelected(new Set());
             }}
             style={{
               padding: "9px 14px",
@@ -808,6 +819,16 @@ function InvitationDetailDrawer({
   onNotice: (tone: "ok" | "warn", text: string) => void;
 }) {
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
+  // PRO-R1-02 — the reviewer's verdicts, rationale and comments on this
+  // invitation. "unavailable" when the API predates the feedback read.
+  const [feedback, setFeedback] = useState<
+    | {
+        decisions: Array<{ id: string; verdict: string; rationale: string | null; submittedAtUtc: string }>;
+        comments: Array<{ id: string; body: string; authorDisplay: string | null; createdAt: string; parentCommentId: string | null }>;
+      }
+    | "unavailable"
+    | null
+  >(null);
   const [deliveries, setDeliveries] = useState<DeliveryRow[] | null>(null);
   const [revealed, setRevealed] = useState<{
     rawToken: string;
@@ -835,6 +856,15 @@ function InvitationDetailDrawer({
   useEffect(() => {
     void (async () => {
       await loadActivity();
+      try {
+        const f = await apiFetch(`/v1/external-review/invitations/${row.grantId}/feedback`, { method: "GET" });
+        setFeedback({
+          decisions: Array.isArray(f?.decisions) ? f.decisions : [],
+          comments: Array.isArray(f?.comments) ? f.comments : [],
+        });
+      } catch {
+        setFeedback("unavailable");
+      }
       try {
         const d = await apiFetch(
           `/v1/external-review/invitations/${row.grantId}/delivery`,
@@ -925,6 +955,14 @@ function InvitationDetailDrawer({
       onRefuse("NOT_PERMITTED");
       return;
     }
+    // PRO-R2Z-07 — revoke asks first, as "End sessions" does.
+    const ok = await confirmAction({
+      title: "Revoke this invitation?",
+      description: `${row.inviteEmail}'s access ends immediately. A revoked invitation cannot be restored; you would issue a new one.`,
+      confirmLabel: "Revoke access",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await apiFetch(
         `/v1/external-review/invitations/${row.grantId}/revoke`,
@@ -941,7 +979,7 @@ function InvitationDetailDrawer({
       });
       onRefuse(denialFromError(err));
     }
-  }, [caps.canRevoke, row.grantId, onChanged, onRefuse]);
+  }, [caps.canRevoke, row.grantId, row.inviteEmail, onChanged, onRefuse, confirmAction]);
 
   return (
     <aside
@@ -1290,6 +1328,35 @@ function InvitationDetailDrawer({
             </p>
           ) : null}
         </div>
+      </section>
+
+      <section data-drawer-feedback-panel style={cardStyle}>
+        <strong style={cardTitleStyle}>Reviewer feedback</strong>
+        {feedback === null ? (
+          <p style={mutedStyle}>Loading…</p>
+        ) : feedback === "unavailable" ? (
+          <p style={mutedStyle}>Reviewer feedback could not be loaded.</p>
+        ) : feedback.decisions.length === 0 && feedback.comments.length === 0 ? (
+          <p style={mutedStyle}>The reviewer has not commented or decided yet.</p>
+        ) : (
+          <div style={{ display: "grid", gap: 6, fontSize: 12 }}>
+            {feedback.decisions.map((d) => (
+              <div key={d.id} data-feedback-decision={d.verdict}>
+                <strong>Decision: {identifierLabel(d.verdict)}</strong>{" "}
+                <span style={{ color: "var(--ink-secondary, #475569)" }}>{formatUserDateTime(d.submittedAtUtc)}</span>
+                {d.rationale ? <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{d.rationale}</p> : null}
+              </div>
+            ))}
+            {feedback.comments.map((c) => (
+              <div key={c.id} data-feedback-comment style={{ paddingLeft: c.parentCommentId ? 12 : 0 }}>
+                <span style={{ color: "var(--ink-secondary, #475569)" }}>
+                  {c.authorDisplay ?? "Reviewer"} · {formatUserDateTime(c.createdAt)}
+                </span>
+                <p style={{ margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{c.body}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section

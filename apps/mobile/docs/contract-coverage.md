@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**175 bindings — OK 175, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**176 bindings — OK 176, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -128,6 +128,7 @@ top level of it.
 | OK | `parsePortalDashboard` | `GET /v1/portal/dashboard` | portal | assigned, length, limitations, portal, reviewer, scope |
 | OK | `parsePortalComments` | `GET /v1/portal/work/:workflowId/comments` | comments | comments |
 | OK | `parsePortalRecordedDecision` | `GET /v1/portal/work/:workflowId/decisions` | decisions | decisions |
+| OK | `parsePortalPackage` | `GET /v1/portal/work/:workflowId/verification-package` | disclosureProfile, packageId, packageSha256, reportVersion, url | reportVersion, url |
 | OK | `parseProvenanceChain` | `GET /v1/provenance/:evidenceId` | chain | chain |
 | OK | `parseQuotas` | `GET /v1/quotas` | data | data, length |
 | OK | `parseUserScopedReports` | `GET /v1/reports` | items, nextCursor | items, nextCursor |

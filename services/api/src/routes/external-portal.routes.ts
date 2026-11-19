@@ -637,6 +637,56 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     },
   );
 
+  // PRO-R1-02 — what the outside reviewer said, for the workspace that asked:
+  // the reviewer's verdicts with their rationale and their comment thread on
+  // THIS invitation (threads are private per grant; another reviewer's thread
+  // is another invitation's). Same gate as the invitation family's reads
+  // (review.queue.read), plus the operator's current reach to the grant's
+  // subject: a grant over a record or case closed to the reader answers as a
+  // missing one. Plain strings, rendered as text.
+  app.get(
+    "/v1/external-review/invitations/:id/feedback",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = await authorizeCurrentWorkspaceOrFail(req, reply, {
+        permission: "review.queue.read",
+      });
+      if (!ctx) return reply;
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (
+        !(await externalReviewGrantSubjectInReach({
+          grantId: id,
+          teamId: ctx.workspaceId,
+          actorUserId: ctx.userId,
+        }))
+      ) {
+        return reply.code(404).send({ error: { code: "EXTERNAL_REVIEW_GRANT_NOT_FOUND" } });
+      }
+      const [decisions, comments] = await Promise.all([
+        prisma.externalReviewDecision.findMany({
+          where: { teamId: ctx.workspaceId, grantId: id },
+          orderBy: { submittedAtUtc: "desc" },
+          take: 50,
+          select: { id: true, workflowId: true, verdict: true, rationale: true, reviewerDisplay: true, submittedAtUtc: true },
+        }),
+        prisma.externalReviewComment.findMany({
+          where: { teamId: ctx.workspaceId, grantId: id },
+          orderBy: { createdAt: "asc" },
+          take: 500,
+          select: { id: true, workflowId: true, parentCommentId: true, body: true, authorDisplay: true, createdAt: true, resolvedAtUtc: true },
+        }),
+      ]);
+      return reply.code(200).send({
+        decisions: decisions.map((d) => ({ ...d, submittedAtUtc: d.submittedAtUtc.toISOString() })),
+        comments: comments.map((c) => ({
+          ...c,
+          createdAt: c.createdAt.toISOString(),
+          resolvedAtUtc: c.resolvedAtUtc?.toISOString() ?? null,
+        })),
+      });
+    },
+  );
+
   // ---------------------------------------------------------------------------
   // Phase 2B Closure — bulk invitation orchestration + delivery audit
   // ---------------------------------------------------------------------------
@@ -1157,8 +1207,15 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         select: { id: true, teamId: true, scopeKind: true, evidenceId: true, allowPackageDownload: true, invitedByUserId: true },
       });
       if (!grant) return reply.code(403).send({ denial: "OUT_OF_SCOPE" });
+      // PRO-R1-07 — a CASE / PACKAGE grant releases the disclosure package of
+      // the record this review is about (already proved in scope above).
+      const scopedWorkflow = await prisma.evidenceReviewWorkflow.findFirst({
+        where: { id: workflowId, teamId: s.teamId },
+        select: { evidenceId: true },
+      });
       const released = await releaseExternalDisclosurePackage({
         grant: { ...grant, scopeKind: grant.scopeKind as "EVIDENCE" | "CASE" | "PACKAGE" },
+        scopedEvidenceId: scopedWorkflow?.evidenceId ?? null,
         ip: req.ip ?? null,
         userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
       });

@@ -57,6 +57,36 @@ export function buildPortalDecisionPath(workflowId: string): string {
   return `/v1/portal/work/${encodeURIComponent(workflowId)}/decision`;
 }
 
+/**
+ * PRO-R13Z-01 — the material a grant releases: the EXTERNAL_DISCLOSURE
+ * verification package of the record under review (the web portal's
+ * download leg). Answers a short-lived signed URL; each issue is a custody event.
+ */
+export function buildPortalPackagePath(workflowId: string): string {
+  return `/v1/portal/work/${encodeURIComponent(workflowId)}/verification-package`;
+}
+
+export function parsePortalPackage(v: unknown): { url: string; reportVersion: number | null } | null {
+  const o = obj(v);
+  const url = str(o.url);
+  if (!url || !/^https:\/\//i.test(url)) return null;
+  return { url, reportVersion: typeof o.reportVersion === "number" ? o.reportVersion : null };
+}
+
+/** The web portal's refusal copy for the package leg, by server code. */
+export function portalPackageRefusalMessage(err: unknown): string {
+  const e = obj(err);
+  const code = (str(e.code) ?? str(obj(obj(e.details).error).code) ?? str(obj(e.error).code) ?? "").toLowerCase();
+  if (code === "package_download_not_granted") {
+    return "Your access does not include the file for this review. Ask the person who invited you.";
+  }
+  if (code === "external_disclosure_not_issued") {
+    return "The verification package for this record has not been issued yet. Ask the person who invited you.";
+  }
+  if (code === "package_file_unavailable") return "The file is temporarily unavailable. Try again later.";
+  return "The verification package could not be opened. Try again, or open the review on the web portal.";
+}
+
 export function buildGrantAcceptPath(token: string): string {
   return `/v1/external-review/access/${encodeURIComponent(token)}`;
 }
