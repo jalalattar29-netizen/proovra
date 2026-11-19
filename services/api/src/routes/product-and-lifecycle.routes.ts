@@ -25,7 +25,7 @@ import { requireAuth } from "../middleware/auth.js";
 // server-side but checks neither ACTIVE membership, parent-Organization
 // lifecycle, access expiry, nor capability.
 import { getAuthUserId } from "../auth.js";
-import { authorizeOrFail, evaluateCurrentWorkspace } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateCurrentWorkspace, sendDenyResponse } from "../middleware/authorize.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { provenRequestWorkspace } from "../services/access/request-workspace.js";
 import { requireWorkspacePermission } from "../middleware/require-workspace-permission.js";
@@ -155,6 +155,11 @@ async function resolveWorkspace(
   if (proven) return proven;
   const outcome = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
   if (!outcome.allowed) {
+    // PRO-BL2-06 — an outage / unauthenticated context keeps its own answer.
+    if (outcome.httpStatus === 503 || outcome.httpStatus === 401) {
+      sendDenyResponse(reply, outcome);
+      return null;
+    }
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
@@ -1100,6 +1105,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
         key: "FEATURE_WEBHOOKS",
+        record: false, // PRO-BL2-08 — a read is not a violation attempt
       });
       if (!featureOk.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
@@ -1165,6 +1171,22 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         }
         throw err;
       }
+      // PRO-G1-08 — the create is a tenant audit fact (same envelope as the
+      // deactivate below); never the secret. A failed audit does not fail the
+      // committed create (the tracker counts it).
+      void emitTenantAudit({
+        action: "integration.lifecycle_webhook.create",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "lifecycle_webhook_endpoint",
+        resourceId: res.endpointId,
+        actorAuthority: "ORG_ADMIN",
+        requestedState: "ACTIVE",
+        resultingState: "ACTIVE",
+        metadata: { url: body.url, subscribedEvents: body.subscribedEvents },
+      }).catch(() => null);
       // secret is ONLY returned in this response
       return reply.code(201).send({
         endpointId: res.endpointId,
@@ -1350,6 +1372,19 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           responseBodyPreview: null,
         },
       });
+      // PRO-G1-08 — a replay re-sends workspace data to an external URL.
+      void emitTenantAudit({
+        action: "integration.lifecycle_webhook.delivery_replay",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.teamId,
+        resourceType: "lifecycle_webhook_delivery",
+        resourceId: id,
+        previousState: row.state ?? null,
+        requestedState: "PENDING",
+        resultingState: "PENDING",
+      }).catch(() => null);
       return reply.code(200).send({ ok: true, replayedId: id });
     },
   );
@@ -1893,6 +1928,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
         key: "FEATURE_ARCHIVE_TIERS",
+        record: false, // PRO-BL2-08 — a read is not a violation attempt
       });
       if (!featureOk.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_ARCHIVE_TIERS" });
@@ -2001,6 +2037,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
         key: "FEATURE_DESTRUCTION_GOVERNANCE",
+        record: false, // PRO-BL2-08 — a read is not a violation attempt
       });
       if (!featureOk.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_DESTRUCTION_GOVERNANCE" });
@@ -2307,6 +2344,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           teamId: ctx.teamId,
           key: "FEATURE_LIFECYCLE_DASHBOARD",
           actorUserId: ctx.userId,
+          // PRO-BL2-08 — the dashboard is served either way; a read writes nothing.
+          record: false,
         });
         entitlementMissing = !feOk.ok;
       } catch {

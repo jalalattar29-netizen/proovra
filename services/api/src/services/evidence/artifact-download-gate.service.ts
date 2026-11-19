@@ -44,6 +44,7 @@ import { resolveEvidenceRecordAccess } from "./evidence-record-access.service.js
 import { assertRedactionCapability } from "../redaction/redaction-rbac.service.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
 import { noteCustodyFailure } from "../custody-events-observability.js";
+import { claimCustodyAccessSlot, stablePayloadKey } from "./custody-access-coalescer.js";
 import { evaluateEffectiveLegalHold, resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 import type { FastifyRequest } from "fastify";
 import type { PrivilegedAction } from "@proovra/shared";
@@ -253,11 +254,17 @@ async function evaluateArtifactDownloadPolicy(input: {
     body: Record<string, unknown>,
     payload: Record<string, unknown>,
   ): Promise<ArtifactDownloadDecision> => {
-    if (recordDenial) {
+    // PRO-O1-03 — one identical refusal per (record, actor, artifact, reason)
+    // per window is a custody fact; the rest are counted, not appended.
+    const fullPayload = { ...payload, actorUserId, ...(input.onBehalfOf ?? {}) };
+    if (
+      recordDenial &&
+      (await claimCustodyAccessSlot(["blocked", evidenceId, actorUserId, String(kind), stablePayloadKey(fullPayload)]))
+    ) {
       await appendCustodyEvent({
         evidenceId,
         eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-        payload: { ...payload, actorUserId, ...(input.onBehalfOf ?? {}) },
+        payload: fullPayload,
         ip,
         userAgent,
       }).catch(noteCustodyFailure);
@@ -606,8 +613,19 @@ export async function recordOriginalRelease(input: {
   mimeType?: string | null;
   ip?: string | null;
   userAgent?: string | null;
+  /** public_verify only: what one coalescing window is per (the share link). */
+  coalesceKey?: string | null;
 }): Promise<void> {
   if (input.originalUrlsIssued <= 0) return;
+  // PRO-O1-03 — an anonymous Public Verify answer that issues original URLs is
+  // recorded once per (record, link) window, as the route already does for the
+  // ordinary VERIFY_VIEWED; authenticated channels are recorded every time.
+  if (
+    input.channel === "public_verify" &&
+    !(await claimCustodyAccessSlot(["verify-original", input.evidenceId, input.coalesceKey ?? null]))
+  ) {
+    return;
+  }
   const at = new Date();
   const underLegalHold = input.channel === "public_verify" ? false : await legalHoldAtRelease(input.evidenceId);
   const eventType =

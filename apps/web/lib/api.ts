@@ -1,4 +1,10 @@
-import { ROUTE_EPOCH_HEADER, observeContractHeader, observeRouteEpochHeader } from "./contract-skew";
+import {
+  MIN_CLIENT_CONTRACT_HEADER,
+  ROUTE_EPOCH_HEADER,
+  observeContractHeader,
+  observeMinClientHeader,
+  observeRouteEpochHeader,
+} from "./contract-skew";
 import { LEGAL_REACCEPT_REQUIRED_EVENT, SESSION_EXPIRED_EVENT } from "./session-events";
 
 const DEFAULT_API_BASE = "https://api.proovra.com";
@@ -446,6 +452,22 @@ export async function apiFetch(
   }
 }
 
+/**
+ * PRO-S1-05 — a READ that hears nothing for this long is a lost answer
+ * (NETWORK_ERROR), not an endless spinner. Above the API's own read deadline
+ * (45 s, answered 503 SERVER_BUSY), so a slow server normally answers first.
+ * Writes are never timed out here (a retry could repeat a committed write), a
+ * caller's own signal wins, and raw-text downloads keep their own pace.
+ */
+export const API_READ_TIMEOUT_MS = 60_000;
+
+function withDefaultReadTimeout(init: RequestInit, opts?: ApiFetchOpts): RequestInit {
+  if ((init.method ?? "GET").toUpperCase() !== "GET" || init.signal || opts?.rawText) return init;
+  const timeout = (globalThis.AbortSignal as { timeout?: (ms: number) => AbortSignal } | undefined)?.timeout;
+  if (typeof timeout !== "function") return init;
+  return { ...init, signal: timeout.call(globalThis.AbortSignal, API_READ_TIMEOUT_MS) };
+}
+
 async function runApiFetch(
   path: string,
   init: RequestInit = {},
@@ -461,9 +483,15 @@ async function runApiFetch(
 
   let res: Response;
   try {
-    res = await fetchWithAuthRetry(url, init, finalOpts);
+    res = await fetchWithAuthRetry(url, withDefaultReadTimeout(init, opts), finalOpts);
     // AUD-32 — a response from a newer API contract than this build.
     observeContractHeader(res.headers?.get?.("x-proovra-contract") ?? null);
+    // PRO-PW-08 — the minimum client contract: below it, a blocking reload.
+    try {
+      observeMinClientHeader(res.headers?.get?.(MIN_CLIENT_CONTRACT_HEADER) ?? null);
+    } catch {
+      /* advisory */
+    }
     // B8-F-402 — a page ahead of the API's route table. Advisory only: it
     // must never turn a delivered response into a network error.
     try {

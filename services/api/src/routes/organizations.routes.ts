@@ -117,6 +117,7 @@ import { refreshTeamSeatState } from "../services/billing.service.js";
 import { acceptOrganizationInvite } from "../services/organization/org-invite-acceptance.service.js";
 import { lookupOrganizationInvitation } from "../services/organization/org-invite-lookup.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
 // Macro-Wave A2 — durable invite delivery (outbox + inline first attempt +
 // rotation retry). The outbox row is committed in the SAME transaction as
@@ -1309,6 +1310,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
       windowSec: 60,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       const retryAfterSec = Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000));
       void reply.header("Retry-After", String(retryAfterSec));
       return reply.code(429).send({

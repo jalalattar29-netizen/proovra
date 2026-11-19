@@ -25,7 +25,8 @@ import {
   NO_CONTRACT_LIMITS,
   resolveEffectiveContractSeats,
 } from "../services/billing/enterprise-contract-limits.js";
-import { enforceRateLimit } from "../services/rate-limit.js";
+import { acquireLease, enforceRateLimit } from "../services/rate-limit.js";
+import { bump } from "../services/ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   liveWorkspaceWhere,
@@ -1250,10 +1251,31 @@ async function bumpAnalyticsMetric(
   }
 }
 
+/** PRO-N1-11 — one rejection SecurityEvent per client and reason per window. */
+const ANALYTICS_REJECTION_EVENT_WINDOW_MS = 60_000;
+
 async function emitAnalyticsRejection(
   request: FastifyRequest,
   reason: AnalyticsRejectionReason,
 ): Promise<void> {
+  // PRO-N1-11 — the metric above is the flood signal; the SecurityEvent ROW is
+  // written at most once per (client, reason) per window. Every request past
+  // the limiter used to insert one row, so an unauthenticated flood became
+  // unbounded security_events growth.
+  let first = true;
+  try {
+    const lease = await acquireLease(
+      `analytics-reject:${reason}:${trustedClientIpKey(request).slice(0, 200)}`,
+      ANALYTICS_REJECTION_EVENT_WINDOW_MS,
+    );
+    first = lease.acquired;
+  } catch {
+    first = true;
+  }
+  if (!first) {
+    bump("analytics_rejection_security_event_suppressed_total");
+    return;
+  }
   // Bounded SecurityEvent — never the raw payload.
   safeEmitSecurityEvent({
     teamId: null,

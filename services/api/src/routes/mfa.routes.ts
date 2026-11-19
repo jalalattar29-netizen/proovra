@@ -48,6 +48,7 @@ import {
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { assertLimiterAvailable } from "../http/limiter-unavailable.js";
 import {
   beginTotpEnrollment,
   checkRecoveryCode,
@@ -80,6 +81,8 @@ async function isRateLimited(key: string): Promise<boolean> {
     windowSec: Math.round(ATTEMPT_WINDOW_MS / 1000),
     bound: "global",
   });
+  // DEC-20 — a store outage is a retryable 503, not "too many attempts".
+  assertLimiterAvailable(result);
   return !result.allowed;
 }
 

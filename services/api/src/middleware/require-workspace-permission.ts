@@ -25,7 +25,7 @@ import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastif
 import type { Permission } from "@proovra/shared";
 
 import { getAuthUserId } from "../auth.js";
-import { evaluateCurrentWorkspace } from "./authorize.js";
+import { evaluateCurrentWorkspace, sendDenyResponse } from "./authorize.js";
 import { emitTrustEvent } from "../services/trust/trust-and-governance-audit.service.js";
 
 export function requireWorkspacePermission(
@@ -48,6 +48,13 @@ export function requireWorkspacePermission(
     for (const p of anyOf) {
       const outcome = await evaluateCurrentWorkspace(req, { permission: p });
       if (outcome.allowed) return;
+      // PRO-BL2-06 — an evaluator outage (503) or an unauthenticated context
+      // (401) is not a permission denial: answer it the way the canonical
+      // authority does, so clients retry instead of showing "no permission".
+      if (outcome.httpStatus === 503 || outcome.httpStatus === 401) {
+        sendDenyResponse(reply, outcome);
+        return;
+      }
     }
     const membership = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
     if (membership.allowed) {

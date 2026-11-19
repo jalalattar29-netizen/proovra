@@ -57,6 +57,7 @@ import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { intakePlanRefusal } from "../services/intake/intake-link-mint-gate.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   buildProviderHealthSnapshot,
@@ -714,6 +715,7 @@ export async function communicationsRoutes(app: FastifyInstance) {
       ]) {
         const verdict = await enforceRateLimit({ key: bound.key, bound: "global", max: bound.max, windowSec: 3600 });
         if (!verdict.allowed) {
+          if (isLimiterUnavailable(verdict)) return replyLimiterUnavailable(reply, verdict);
           reply.header("Retry-After", String(Math.max(1, Math.ceil((verdict.resetAtMs - Date.now()) / 1000))));
           return reply.code(429).send({ error: { code: "rate_limited" } });
         }

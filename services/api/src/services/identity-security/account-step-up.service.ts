@@ -38,6 +38,7 @@ import { prisma } from "../../db.js";
 import { MFA_ENROLLMENT_SCOPE } from "../auth/extension-scope.js";
 import { verifyPassword } from "../email-password-auth.service.js";
 import { enforceRateLimit } from "../rate-limit.js";
+import { assertLimiterAvailable } from "../../http/limiter-unavailable.js";
 import { verifyActiveTotp } from "../security/mfa.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
@@ -59,6 +60,8 @@ async function isRateLimited(userId: string): Promise<boolean> {
     windowSec: ATTEMPT_WINDOW_SEC,
     bound: "global",
   });
+  // DEC-20 — a store outage is a retryable 503, not "too many attempts".
+  assertLimiterAvailable(verdict);
   return !verdict.allowed;
 }
 

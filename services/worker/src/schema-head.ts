@@ -16,7 +16,6 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281121050000_extracted_text_source_part";
 export const EXPECTED_MIGRATION_HEAD = "20281121140000_ops_idempotency_reservation";
 
 export type MigrationRow = {

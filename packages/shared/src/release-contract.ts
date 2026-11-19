@@ -88,3 +88,64 @@ export function clientBelowMinimumContract(
   const n = positiveIntegerHeader(servedMinimum);
   return n !== null && own < n;
 }
+
+/**
+ * PRO-PSZ-05 — CLIENT CONTRACT REPORTING (request side).
+ *
+ * The API advertised its contract and minimum client but never learned which
+ * contract a request came from, so no enforcement could be staged per client.
+ * A client now states its own presentation contract and a bounded list of
+ * capability tokens on each request. REPORTING ONLY: an absent header means a
+ * legacy client and must never by itself refuse anything — a route may only
+ * branch on a capability a client positively declares, and raising the
+ * minimum is a separate, deliberate release step (DEC-23).
+ *
+ * Browsers send these only to an API that allow-lists them for CORS, which it
+ * says with CLIENT_REPORT_ACCEPTED_HEADER on its responses; native clients are
+ * not subject to CORS.
+ */
+export const CLIENT_REPORTED_CONTRACT_HEADER = "x-proovra-client-contract";
+export const CLIENT_CAPABILITIES_HEADER = "x-proovra-client-capabilities";
+export const CLIENT_REPORT_ACCEPTED_HEADER = "x-proovra-client-report-accepted";
+
+/** Capability tokens a client may truthfully declare (closed set). */
+export const CLIENT_CAPABILITIES = Object.freeze({
+  /** Reads x-proovra-min-client-contract and shows an update-required state. */
+  UPDATE_REQUIRED_NOTICE: "update-required-notice",
+} as const);
+
+export type ClientContractReport = {
+  /** The client's own PRESENTATION_CONTRACT_VERSION, or null (legacy client). */
+  contract: number | null;
+  /** Declared capability tokens, bounded and normalised. */
+  capabilities: ReadonlyArray<string>;
+};
+
+const CAPABILITY_TOKEN = /^[a-z0-9][a-z0-9-]{0,39}$/;
+
+/** Parse the two request headers. Never throws; malformed input reads as legacy. */
+export function parseClientContractReport(
+  contractRaw: string | null | undefined,
+  capabilitiesRaw: string | null | undefined,
+): ClientContractReport {
+  const contract = positiveIntegerHeader(contractRaw);
+  const capabilities: string[] = [];
+  for (const raw of String(capabilitiesRaw ?? "").split(",")) {
+    const token = raw.trim().toLowerCase();
+    if (!CAPABILITY_TOKEN.test(token) || capabilities.includes(token)) continue;
+    capabilities.push(token);
+    if (capabilities.length >= 16) break;
+  }
+  return { contract, capabilities };
+}
+
+/** The header values a client sends. */
+export function clientContractReportHeaders(
+  capabilities: ReadonlyArray<string>,
+  own: number = PRESENTATION_CONTRACT_VERSION,
+): Record<string, string> {
+  return {
+    [CLIENT_REPORTED_CONTRACT_HEADER]: String(own),
+    [CLIENT_CAPABILITIES_HEADER]: capabilities.join(","),
+  };
+}

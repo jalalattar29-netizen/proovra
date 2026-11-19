@@ -39,6 +39,8 @@ describe("OPS-015 page newer than the API", () => {
     });
     const notice = screen.getByTestId("contract-skew-notice");
     expect(notice.textContent).toMatch(/update to PROOVRA is finishing/);
-    expect(notice.querySelector("button")).toBeNull();
+    // No Reload (it would not help); PRO-PW-08 adds only a Dismiss control.
+    const labels = Array.from(notice.querySelectorAll("button")).map((b) => b.textContent);
+    expect(labels).toEqual(["Dismiss"]);
   });
 });

@@ -52,6 +52,27 @@ import { sweepDueDeliveries } from "../services/automation/automation-delivery-r
 import { detectTimeBasedAutomationTriggers } from "../services/automation/automation-triggers.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
+import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
+
+/**
+ * PRO-G1-08 — every rule mutation leaves one SecurityEvent (the E3 events the
+ * service declares), with the actor and the rule id. Best effort: a failed
+ * audit write never fails the committed mutation (it is counted by the sink).
+ */
+function auditAutomationRule(
+  eventType: "automation_rule_created" | "automation_rule_updated" | "automation_rule_enabled" | "automation_rule_disabled",
+  teamId: string,
+  ruleId: string,
+  actorUserId: string,
+  details: Record<string, unknown>,
+): void {
+  safeEmitSecurityEvent({
+    teamId,
+    eventType,
+    severity: "INFO",
+    details: { ruleId, actorUserId, ...details },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -411,6 +432,11 @@ export async function automationRoutes(
           updatedByUserId: member.userId,
         },
       });
+      // PRO-G1-08 — the declared automation_rule_* events (E3).
+      auditAutomationRule("automation_rule_created", created.teamId, created.id, member.userId, {
+        triggerType: created.triggerType,
+        actionType: created.actionType,
+      });
       reply.code(201).send(projectRule(created));
     },
   );
@@ -494,6 +520,10 @@ export async function automationRoutes(
         where: { id: existing.id },
         data,
       });
+      // PRO-G1-08
+      auditAutomationRule("automation_rule_updated", updated.teamId, updated.id, member.userId, {
+        changed: Object.keys(data).filter((k) => k !== "updatedByUserId").sort(),
+      });
       reply.send(projectRule(updated));
     },
   );
@@ -547,6 +577,8 @@ export async function automationRoutes(
         version: { increment: 1 },
       },
     });
+    // PRO-G1-08
+    auditAutomationRule(enabled ? "automation_rule_enabled" : "automation_rule_disabled", updated.teamId, updated.id, member.userId, {});
     reply.send(projectRule(updated));
   };
 

@@ -8,13 +8,15 @@
  * integrity via EvidenceIntegritySnapshot, etc.
  *
  * Hard rules:
- *   - Reads ONLY. Page-load mutation surface is zero.
+ *   - Reads ONLY, except the advisory risk snapshot below.
  *   - Each section is wrapped in try/catch so a single failure
  *     degrades the section, never the envelope.
  *   - Bounded queries (take caps) and bounded operator-safe strings.
  *   - Evidence reads come from the canonical `CaseEvidenceLink` table
  *     (Track 1B closure — the legacy Evidence column was dropped).
- *   - Risk engine writes an advisory CaseRiskSnapshot (best-effort).
+ *   - Risk engine writes an advisory CaseRiskSnapshot (best-effort), and
+ *     only when the risk changed or the latest is over an hour old
+ *     (PRO-K1-14), so a reload is not a write.
  *   - NO signed URL generation, NO custody event emission, NO
  *     report/package generation, NO queue enqueues.
  */
@@ -571,7 +573,7 @@ export async function buildMatterWorkspace(input: {
     runEvidenceBoard(caseRow.id, evidenceIds),
     runRelationships(caseRow.id, evidenceIds, input.userId),
     runWorkflows(caseRow.id),
-    runIncidentsAndCausality(caseRow.id, evidenceIds),
+    runIncidentsAndCausality(caseRow.id, evidenceIds, caseRow.teamId),
     runReviewerCoordination(caseRow.id, caseRow.teamId, evidenceIds),
     runGovernance(caseRow.id, evidenceIds, risk.data?.auditReadinessScore ?? null),
     runCustodyAndIntegrity(evidenceIds),
@@ -1165,6 +1167,7 @@ async function runWorkflows(
 async function runIncidentsAndCausality(
   caseId: string,
   evidenceIds: string[],
+  teamId: string | null,
 ): Promise<MatterWorkspaceEnvelope["sections"]["incidentsAndCausality"]> {
   try {
     const [incidents, chains] = await Promise.all([
@@ -1192,25 +1195,31 @@ async function runIncidentsAndCausality(
               relatedEvidenceId: true,
             },
           }),
-      prisma.operationalCausalityChain.findMany({
-        where: { status: "ACTIVE" },
-        orderBy: [{ severity: "desc" }, { lastSeenAtUtc: "desc" }],
-        take: 50,
-        select: {
-          id: true,
-          chainKey: true,
-          title: true,
-          summary: true,
-          rootCauseType: true,
-          severity: true,
-          status: true,
-          linkedIncidentIds: true,
-          linkedWorkflowIds: true,
-          linkedCaseIds: true,
-          startAtUtc: true,
-          lastSeenAtUtc: true,
-        },
-      }),
+      // PRO-K1-14 — the case's OWN workspace's chains that link this case, not
+      // the 50 most severe chains of every tenant filtered in memory (a case's
+      // chain was dropped once the platform had more than 50). Chains are
+      // workspace-scoped; a personal case has none.
+      teamId === null
+        ? Promise.resolve([])
+        : prisma.operationalCausalityChain.findMany({
+            where: { teamId, status: "ACTIVE", linkedCaseIds: { array_contains: [caseId] } },
+            orderBy: [{ severity: "desc" }, { lastSeenAtUtc: "desc" }],
+            take: 50,
+            select: {
+              id: true,
+              chainKey: true,
+              title: true,
+              summary: true,
+              rootCauseType: true,
+              severity: true,
+              status: true,
+              linkedIncidentIds: true,
+              linkedWorkflowIds: true,
+              linkedCaseIds: true,
+              startAtUtc: true,
+              lastSeenAtUtc: true,
+            },
+          }),
     ]);
 
     // Filter chains to those that include this caseId in linkedCaseIds.

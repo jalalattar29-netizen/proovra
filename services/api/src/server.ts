@@ -6,6 +6,9 @@ import {
   PRESENTATION_CONTRACT_HEADER,
   PRESENTATION_CONTRACT_MIN_CLIENT,
   PRESENTATION_CONTRACT_MIN_CLIENT_HEADER,
+  CLIENT_CAPABILITIES_HEADER,
+  CLIENT_REPORT_ACCEPTED_HEADER,
+  CLIENT_REPORTED_CONTRACT_HEADER,
   PRESENTATION_CONTRACT_ROUTE_EPOCH,
   PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER,
   PRESENTATION_CONTRACT_VERSION,
@@ -297,6 +300,8 @@ import {
   readServerTimeouts,
   sendServerBusy,
 } from "./middleware/overload-gate.js";
+import { cachedHealthDbProbe } from "./http/health-db-probe.js";
+import { installClientContractReportObserver } from "./http/client-contract-report.js";
 
 // UC-SEC-002 / UC-SEC-005 — the CORS origin decision lives in ONE module.
 
@@ -692,6 +697,10 @@ allowedHeaders: [
   // reload does not spend another use of a use-limited reviewer link. It grants
   // nothing by itself; the share authority hashes it and compares.
   "x-proovra-verify-session",
+  // PRO-PSZ-05 — the client's own contract and declared capabilities
+  // (reporting only; http/client-contract-report.ts).
+  CLIENT_REPORTED_CONTRACT_HEADER,
+  CLIENT_CAPABILITIES_HEADER,
 ],
     origin: (origin, cb) => cb(null, isCorsOriginAllowed(origin)),
     // AUD-32 (2026-10-20) — the browser may READ the contract version (a
@@ -706,6 +715,7 @@ allowedHeaders: [
       // both are already sent; the browser simply hid them cross-origin.
       "x-request-id",
       "retry-after",
+      CLIENT_REPORT_ACCEPTED_HEADER,
     ],
   });
 
@@ -717,8 +727,13 @@ allowedHeaders: [
     // B8-F-401/402 — additive: older clients ignore both (release-contract.ts).
     reply.header(PRESENTATION_CONTRACT_ROUTE_EPOCH_HEADER, String(PRESENTATION_CONTRACT_ROUTE_EPOCH));
     reply.header(PRESENTATION_CONTRACT_MIN_CLIENT_HEADER, String(PRESENTATION_CONTRACT_MIN_CLIENT));
+    // PRO-PSZ-05 — this API allow-lists the client report headers, so a
+    // browser client may start sending them (an older API never says so).
+    reply.header(CLIENT_REPORT_ACCEPTED_HEADER, "1");
     return payload;
   });
+  // PRO-PSZ-05 — and reads what a client reports (reporting only, DEC-23).
+  installClientContractReportObserver(app);
 
   // F-08 (2026-11-15) — overload is refused fast (503 + Retry-After) before
   // any authentication read, after CORS so a browser can read the refusal.
@@ -1278,15 +1293,14 @@ allowedHeaders: [
       // preflight refuses. A deployed process never reaches this (null above).
       isolation = null;
     }
-    try {
-      await prisma.$queryRaw`SELECT 1`;
+    // PRO-S1-09 — one shared, short-lived probe result, not a query per call.
+    if (await cachedHealthDbProbe(() => prisma.$queryRaw`SELECT 1`)) {
       // OPS-015 — the commit this process runs, so web and API versions can be
       // compared from outside. The web's own /api/health already states its own.
       const revision = (process.env.APP_RELEASE_SHA ?? "").trim() || null;
       return reply.code(200).send({ ok: true, db: "up", revision, ...(isolation ? { isolation } : {}) });
-    } catch {
-      return reply.code(503).send({ ok: false, db: "down", ...(isolation ? { isolation } : {}) });
     }
+    return reply.code(503).send({ ok: false, db: "down", ...(isolation ? { isolation } : {}) });
   });
 
   // Phase P2.0 — AWS Secrets Manager hydration. Runs ONCE at boot.

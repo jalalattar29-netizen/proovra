@@ -69,3 +69,44 @@ export function escalateClientUpdate(
 export function parseStoredClientUpdate(v: unknown): ClientUpdateNotice | null {
   return v === "UPDATE_REQUIRED" || v === "UPDATE_AVAILABLE" ? v : null;
 }
+
+/* ------------------------------------------- PRO-PSZ-05: reporting (request) */
+
+/**
+ * What this build tells the API about itself: its presentation contract and
+ * the capabilities it truthfully implements (it reads the minimum-client
+ * header and shows UPDATE_REQUIRED). Reporting only.
+ *
+ * The extension has no host permission, so its requests are CORS requests: an
+ * API that does not allow-list these headers would refuse the preflight and
+ * break every call. They are therefore sent only after this API has said it
+ * accepts them (`x-proovra-client-report-accepted: 1` on a response).
+ */
+export const CLIENT_REPORTED_CONTRACT_HEADER = "x-proovra-client-contract";
+export const CLIENT_CAPABILITIES_HEADER = "x-proovra-client-capabilities";
+export const CLIENT_REPORT_ACCEPTED_HEADER = "x-proovra-client-report-accepted";
+export const EXTENSION_CLIENT_CAPABILITIES: ReadonlyArray<string> = ["update-required-notice"];
+
+let reportAccepted = false;
+
+export function noteClientReportAccepted(headers: { get(name: string): string | null } | null | undefined): void {
+  try {
+    if (headers?.get(CLIENT_REPORT_ACCEPTED_HEADER) === "1") reportAccepted = true;
+  } catch {
+    /* advisory */
+  }
+}
+
+/** The report headers, or none until the API has accepted them. */
+export function clientContractReportHeaders(): Record<string, string> {
+  if (!reportAccepted) return {};
+  return {
+    [CLIENT_REPORTED_CONTRACT_HEADER]: String(PRESENTATION_CONTRACT_VERSION),
+    [CLIENT_CAPABILITIES_HEADER]: EXTENSION_CLIENT_CAPABILITIES.join(","),
+  };
+}
+
+/** Tests only. */
+export function resetClientReportAcceptedForTests(): void {
+  reportAccepted = false;
+}

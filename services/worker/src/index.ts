@@ -13,6 +13,7 @@ import { WORKER_CONCURRENCY_SETTINGS, workerQueueConcurrency } from "./worker-co
 // PHASE 12 CORRECTIVE PASS §4 (SEC-004) — the ONE secrets authority, shared
 // with the API. See the call site near the bottom of this file.
 import { getOcrProducerMode, getTranscriptProducerMode, initSecretsAuthority } from "@proovra/shared-runtime";
+import { beginWorkerShutdown, markActiveReconciliationRunsInterrupted } from "./shutdown-state.js";
 import { logger } from "./logger.js";
 import {
   derivedAssetsQueue,
@@ -2459,6 +2460,14 @@ let shuttingDown = false;
 async function shutdown(exitCode: number) {
   if (shuttingDown) return;
   shuttingDown = true;
+  // PRO-S1-06 — readiness turns red now, and the drain is bounded: a hung
+  // job can no longer keep a scheduler-less process alive forever.
+  beginWorkerShutdown({
+    exitCode,
+    exit: (code) => process.exit(code),
+    onDeadline: () => markActiveReconciliationRunsInterrupted(),
+    log: (obj, msg) => logger.error(obj, msg),
+  });
 
   logger.info({ requestId: randomUUID(), exitCode }, "worker.shutdown_started");
 
@@ -2693,6 +2702,15 @@ async function shutdown(exitCode: number) {
     const requestId = randomUUID();
     logger.error({ requestId, err }, "worker.health_close_failed");
     captureException(err, { requestId });
+  }
+
+  // PRO-W2-09 — a sweep still running in this process is closed as
+  // interrupted, so another replica takes its slot on the next tick.
+  try {
+    const interrupted = await markActiveReconciliationRunsInterrupted();
+    if (interrupted > 0) logger.warn({ interrupted }, "worker.shutdown_runs_interrupted");
+  } catch {
+    // Best effort: the heartbeat staleness rule still frees the slot.
   }
 
   process.exit(exitCode);

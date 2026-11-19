@@ -72,6 +72,38 @@ function readRedisCooldownMs(): number {
   return clampPositiveInt(parsed, 15_000);
 }
 
+/**
+ * PRO-S1-03 — how long one limiter round-trip to Redis may take. The error and
+ * close handlers only fire when the socket errors or closes; a Redis that
+ * accepts the connection and stops answering (paused, wedged, mid-failover)
+ * left every rate-limited request awaiting forever. A command that does not
+ * answer within this bound is a store failure like any other: the same
+ * cooldown, the same "global" refusal / "process" memory fallback.
+ */
+export const DEFAULT_RATE_LIMIT_REDIS_COMMAND_TIMEOUT_MS = 1_000;
+function readRedisCommandTimeoutMs(): number {
+  const raw = process.env.RATE_LIMIT_REDIS_COMMAND_TIMEOUT_MS;
+  const parsed = raw ? Number.parseInt(raw, 10) : DEFAULT_RATE_LIMIT_REDIS_COMMAND_TIMEOUT_MS;
+  return Math.min(clampPositiveInt(parsed, DEFAULT_RATE_LIMIT_REDIS_COMMAND_TIMEOUT_MS), 30_000);
+}
+
+/** Bound one store step (connect or command) by the command timeout. */
+async function storeDeadline<T>(work: Promise<T>): Promise<T> {
+  const ms = readRedisCommandTimeoutMs();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("rate_limit_store_timeout")), ms);
+    (timer as { unref?: () => void }).unref?.();
+  });
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    // A late rejection of the abandoned step must not surface as unhandled.
+    work.catch(() => undefined);
+  }
+}
+
 function shouldUseRedis(): boolean {
   return Date.now() >= redisUnavailableUntil;
 }
@@ -157,6 +189,9 @@ function getRedis(options: { ignoreCooldown?: boolean } = {}): IORedis | null {
       maxRetriesPerRequest: null,
       lazyConnect: true,
       enableOfflineQueue: false,
+      // PRO-S1-03 — ioredis itself also gives up on a silent server.
+      commandTimeout: readRedisCommandTimeoutMs(),
+      connectTimeout: Math.max(readRedisCommandTimeoutMs() * 2, 1_000),
     });
 
     redis.on("error", () => {
@@ -222,7 +257,14 @@ const MEMORY_RATE_LIMIT_PRUNE_INTERVAL_MS = 5_000;
 let lastMemoryPruneAtMs = 0;
 
 function pruneExpiredMemoryBuckets(now: number): void {
-  if (memoryStore.size <= MEMORY_RATE_LIMIT_PRUNE_THRESHOLD) return;
+  // The lease map is bounded by the same sweep (coalescing leases are keyed per
+  // record, so they can outnumber the buckets).
+  if (
+    memoryStore.size <= MEMORY_RATE_LIMIT_PRUNE_THRESHOLD &&
+    memoryLeases.size <= MEMORY_RATE_LIMIT_PRUNE_THRESHOLD
+  ) {
+    return;
+  }
   if (now - lastMemoryPruneAtMs < MEMORY_RATE_LIMIT_PRUNE_INTERVAL_MS) return;
   lastMemoryPruneAtMs = now;
   for (const [k, bucket] of memoryStore) {
@@ -308,13 +350,13 @@ async function enforceRedisRateLimit(params: {
   const redisKey = `${REDIS_KEY_PREFIX}${params.key}`;
 
   try {
-    await ensureConnected(params.redisClient);
+    await storeDeadline(ensureConnected(params.redisClient));
 
     const pipeline = params.redisClient.pipeline();
     pipeline.incr(redisKey);
     pipeline.pttl(redisKey);
 
-    const result = await pipeline.exec();
+    const result = await storeDeadline(pipeline.exec());
 
     const countRaw = result?.[0]?.[1];
     const ttlRaw = result?.[1]?.[1];
@@ -327,7 +369,7 @@ async function enforceRedisRateLimit(params: {
     }
 
     if (current === 1 || ttl < 0) {
-      await params.redisClient.pexpire(redisKey, params.windowSec * 1000);
+      await storeDeadline(params.redisClient.pexpire(redisKey, params.windowSec * 1000));
     }
 
     const allowed = current <= params.max;
@@ -409,6 +451,28 @@ const DISTINCT_CLIENT_LIMIT_SCRIPT = [
 
 type MemoryMemberSet = { members: Set<string>; resetAtMs: number };
 const memoryMemberSets = new Map<string, MemoryMemberSet>();
+let lastMemberSetPruneAtMs = 0;
+
+/**
+ * PRO-S1-12 — the distinct-client sets are bounded like the buckets above: an
+ * expired set was only replaced when the same key returned, so probing random
+ * resource keys (Verify package ids) grew this map until restart. Same rule:
+ * only past-window sets are removed, at most once per interval, so no live
+ * admission is ever forgotten.
+ */
+function pruneExpiredMemberSets(now: number): void {
+  if (memoryMemberSets.size <= MEMORY_RATE_LIMIT_PRUNE_THRESHOLD) return;
+  if (now - lastMemberSetPruneAtMs < MEMORY_RATE_LIMIT_PRUNE_INTERVAL_MS) return;
+  lastMemberSetPruneAtMs = now;
+  for (const [k, set] of memoryMemberSets) {
+    if (set.resetAtMs <= now) memoryMemberSets.delete(k);
+  }
+}
+
+/** Test-only: the number of distinct-client sets this process holds in memory. */
+export function __memoryDistinctClientSetCountForTests(): number {
+  return memoryMemberSets.size;
+}
 
 function enforceMemoryDistinctClientLimit(params: {
   key: string;
@@ -417,6 +481,7 @@ function enforceMemoryDistinctClientLimit(params: {
   windowSec: number;
 }): RateLimitResult {
   const now = Date.now();
+  pruneExpiredMemberSets(now);
   let set = memoryMemberSets.get(params.key);
   if (!set || set.resetAtMs <= now) {
     set = { members: new Set(), resetAtMs: buildWindowReset(now, params.windowSec) };
@@ -456,16 +521,18 @@ export async function enforceDistinctClientLimit(params: {
   const now = Date.now();
   const redisKey = `${REDIS_KEY_PREFIX}${key}`;
   try {
-    await ensureConnected(redisClient);
+    await storeDeadline(ensureConnected(redisClient));
     // One atomic decision. Membership first: an admitted client never consumes
     // another slot and is never refused inside its window.
-    const [allowed, size, ttl] = (await redisClient.eval(
-      DISTINCT_CLIENT_LIMIT_SCRIPT,
-      1,
-      redisKey,
-      member,
-      String(max),
-      String(windowSec * 1000),
+    const [allowed, size, ttl] = (await storeDeadline(
+      redisClient.eval(
+        DISTINCT_CLIENT_LIMIT_SCRIPT,
+        1,
+        redisKey,
+        member,
+        String(max),
+        String(windowSec * 1000),
+      ),
     )) as [number, number, number];
     const resetAtMs = Number(ttl) > 0 ? now + Number(ttl) : buildWindowReset(now, windowSec);
     return { allowed: Number(allowed) === 1, remaining: Math.max(0, max - Number(size)), resetAtMs, store: "redis" };
@@ -566,6 +633,7 @@ function leaseToken(): string {
 
 function acquireMemoryLease(key: string, ttlMs: number): Lease {
   const now = Date.now();
+  pruneExpiredMemoryBuckets(now);
   const held = memoryLeases.get(key);
   if (held && held.expiresAtMs > now) {
     return { acquired: false, release: async () => undefined };
@@ -619,8 +687,8 @@ export async function acquireLease(
   const redisKey = `${REDIS_KEY_PREFIX}lease:${key}`;
   const token = leaseToken();
   try {
-    await ensureConnected(client);
-    const ok = await client.set(redisKey, token, "PX", ttl, "NX");
+    await storeDeadline(ensureConnected(client));
+    const ok = await storeDeadline(client.set(redisKey, token, "PX", ttl, "NX"));
     if (ok !== "OK") return { acquired: false, release: async () => undefined };
     return {
       acquired: true,

@@ -45,11 +45,21 @@ export type OverloadGateSettings = {
   maxEventLoopDelayMs: number;
   retryAfterSeconds: number;
   sampleIntervalMs: number;
+  /**
+   * PRO-S1-05 — how long a READ (GET/HEAD) may run before it is answered
+   * 503 SERVER_BUSY + Retry-After, if it has not started its response. Each
+   * pool acquisition waits up to its own bound, so a request making several
+   * sequential reads under saturation could linger for N x that bound. Writes
+   * are never cut (a later commit must not follow a "busy" answer), and a
+   * response that has started streaming is never cut. 0 disables.
+   */
+  readDeadlineMs?: number;
 };
 
 export const DEFAULT_API_MAX_IN_FLIGHT = 512;
 export const DEFAULT_API_MAX_EVENT_LOOP_DELAY_MS = 1_000;
 export const DEFAULT_API_OVERLOAD_RETRY_AFTER_SECONDS = 2;
+export const DEFAULT_API_READ_DEADLINE_MS = 45_000;
 const SAMPLE_INTERVAL_MS = 500;
 
 function setting(env: NodeJS.ProcessEnv, name: string, fallback: number, min: number, max: number): number {
@@ -77,6 +87,7 @@ export function readOverloadGateSettings(env: NodeJS.ProcessEnv = process.env): 
     ),
     retryAfterSeconds: setting(env, "API_OVERLOAD_RETRY_AFTER_SECONDS", DEFAULT_API_OVERLOAD_RETRY_AFTER_SECONDS, 1, 300),
     sampleIntervalMs: SAMPLE_INTERVAL_MS,
+    readDeadlineMs: setting(env, "API_READ_DEADLINE_MS", DEFAULT_API_READ_DEADLINE_MS, 0, 3_600_000),
   };
 }
 
@@ -170,7 +181,7 @@ export function sendServerBusy(
 }
 
 export type OverloadGateHandle = {
-  stats(): { inFlight: number; refused: number; eventLoopDelayMs: number };
+  stats(): { inFlight: number; refused: number; eventLoopDelayMs: number; deadlineRefused: number };
 };
 
 export function installOverloadGate(
@@ -182,6 +193,7 @@ export function installOverloadGate(
   let refused = 0;
   let delayMs = 0;
   let refusedThisWindow = 0;
+  let deadlineRefused = 0;
 
   let histogram: ReturnType<typeof monitorEventLoopDelay> | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -217,7 +229,21 @@ export function installOverloadGate(
     }
     inFlight += 1;
     let released = false;
+    // PRO-S1-05 — a read that has not answered by its deadline is refused
+    // busy (nothing it reads is changed by refusing it).
+    const readDeadlineMs = settings.readDeadlineMs ?? 0;
+    const deadline =
+      readDeadlineMs > 0 && (req.method === "GET" || req.method === "HEAD")
+        ? setTimeout(() => {
+            if (reply.sent || reply.raw.headersSent) return;
+            deadlineRefused += 1;
+            req.log.warn({ deadlineMs: readDeadlineMs }, "api.overload.read_deadline");
+            void sendServerBusy(req, reply, { retryAfterSeconds: settings.retryAfterSeconds });
+          }, readDeadlineMs)
+        : null;
+    deadline?.unref?.();
     reply.raw.once("close", () => {
+      if (deadline) clearTimeout(deadline);
       if (released) return;
       released = true;
       inFlight -= 1;
@@ -230,6 +256,6 @@ export function installOverloadGate(
   });
 
   return {
-    stats: () => ({ inFlight, refused, eventLoopDelayMs: currentDelay() }),
+    stats: () => ({ inFlight, refused, eventLoopDelayMs: currentDelay(), deadlineRefused }),
   };
 }

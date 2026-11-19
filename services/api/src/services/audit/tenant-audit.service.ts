@@ -18,6 +18,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendPlatformAuditLog } from "../platform-audit-log.service.js";
+import { trackAuditAppend } from "./detached-audit-tracker.js";
 
 export type TenantAuditSourceApp =
   | "API"
@@ -352,6 +353,14 @@ export async function emitTenantAudit(
   env: TenantAuditEnvelope,
   db?: PrismaClient,
 ): Promise<void> {
+  // PRO-S1-02 — every append is registered: failures counted, shutdown drains.
+  return trackAuditAppend(emitTenantAuditRow(env, db));
+}
+
+async function emitTenantAuditRow(
+  env: TenantAuditEnvelope,
+  db?: PrismaClient,
+): Promise<void> {
   const metadata = stripSecrets({
     sourceApp: env.sourceApp,
     organizationId: env.organizationId ?? null,
@@ -451,6 +460,14 @@ export type PlatformAuditEnvelope = {
 };
 
 export async function emitPlatformAudit(
+  env: PlatformAuditEnvelope,
+  db?: PrismaClient,
+): Promise<void> {
+  // PRO-S1-02 — every append is registered: failures counted, shutdown drains.
+  return trackAuditAppend(emitPlatformAuditRow(env, db));
+}
+
+async function emitPlatformAuditRow(
   env: PlatformAuditEnvelope,
   db?: PrismaClient,
 ): Promise<void> {

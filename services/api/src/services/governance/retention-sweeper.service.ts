@@ -7,20 +7,18 @@
  *   - Walks evidence rows where `retentionUntilUtc <= now` and the
  *     row is NOT already archived / deleted.
  *   - For each candidate, runs the legal-hold inheritance resolver
- *     (per-record + case-level). If the evidence is held, the row
- *     is SKIPPED — never auto-deleted, never auto-archived. A
- *     DELETE_BLOCKED_BY_LEGAL_HOLD custody event is recorded so
- *     operators see the block.
- *   - For non-held candidates, the sweeper records a
- *     RETENTION_CANDIDATE_IDENTIFIED custody event and timestamps
- *     the evidence row so operators can triage. Phase 14 deliberately
- *     does NOT auto-delete — destructive deletion is deferred until
- *     the policy explicitly opts in.
+ *     (per-record + case-level). Nothing is ever auto-deleted or
+ *     auto-archived; a held record is recorded as a candidate blocked
+ *     by its hold (`blockedByLegalHold: true`).
+ *   - The FIRST time a record is seen past its retention date (or after
+ *     its retention date moved past the previous flag) the sweeper records
+ *     ONE RETENTION_CANDIDATE_IDENTIFIED custody event; every run timestamps
+ *     the evidence row so operators can triage from the candidates list.
+ *     Phase 14 deliberately does NOT auto-delete.
  *
- * Idempotency: rows with `retentionReconciliationFlaggedAtUtc` set
- * in the last 24h are skipped. So repeated sweeps within the day
- * are no-ops; the next day re-flags so operators see "still
- * expired" signals.
+ * Idempotency (PRO-W2C2-01): rows flagged in the last 24h are not selected;
+ * the daily re-flag refreshes the row's timestamp only — the append-only
+ * custody chain is not given one identical entry per day.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -61,6 +59,13 @@ export async function reconcileRetention(
       deletedAt: null,
       // Skip rows already archived.
       archivedAt: null,
+      // PRO-W2C2-01 — rows flagged inside the reissue window are not
+      // selected, so a fixed oldest-first page cannot re-take the same rows
+      // every run while the records behind them are never reached.
+      OR: [
+        { retentionReconciliationFlaggedAtUtc: null },
+        { retentionReconciliationFlaggedAtUtc: { lte: reissueCutoff } },
+      ],
     },
     select: {
       id: true,
@@ -102,11 +107,20 @@ export async function reconcileRetention(
       // blocked by its hold — it used to get DELETE_BLOCKED_BY_LEGAL_HOLD on
       // EVERY run, which read as a deletion attempt that never happened and
       // repeated forever. The flag now bounds it to once per reissue window.
+      // PRO-W2C2-01 — the custody chain records the TRANSITION into expiry
+      // once: on the first flag, or when the retention date moved past the
+      // previous flag (a new expiry). The daily "still expired" signal is the
+      // row's flag timestamp and the candidates list, never another
+      // append-only custody row per day.
+      const firstTransition =
+        !ev.retentionReconciliationFlaggedAtUtc ||
+        (ev.retentionUntilUtc !== null && ev.retentionReconciliationFlaggedAtUtc < ev.retentionUntilUtc);
       await client.$transaction(async (tx) => {
         await tx.evidence.update({
           where: { id: ev.id },
           data: { retentionReconciliationFlaggedAtUtc: now },
         });
+        if (!firstTransition) return;
         await appendCustodyEventTx(tx, {
           evidenceId: ev.id,
           eventType: "RETENTION_CANDIDATE_IDENTIFIED",

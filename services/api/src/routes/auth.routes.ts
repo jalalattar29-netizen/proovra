@@ -90,6 +90,7 @@ import {
   type SsoSessionCompletion,
 } from "../services/identity/sso-session-completion.service.js";
 import { enforceRateLimit, clearAllRateLimitBuckets } from "../services/rate-limit.js";
+import { assertLimiterAvailable, isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 // Phase 2.7Z+ — E2E auth rate-limit bypass (env-gated, production-safe).
 // See services/api/src/services/auth-test-bypass.ts for the three
 // layers of defense and the operational rules.
@@ -118,6 +119,8 @@ import {
   setMfaEnrollmentCookie,
   signMfaEnrollmentToken,
 } from "../services/auth/mfa-enrollment-session.js";
+import { bump } from "../services/ops/metrics.service.js";
+import { holdResponseForAudit, installAuditResponseHold } from "../services/audit/detached-audit-tracker.js";
 
 // Phase E10.1 — DEF-037 closure. Per-IP rate limits on the public,
 // unauthenticated email login and password-reset-request surfaces.
@@ -542,6 +545,8 @@ async function loginMfaIsRateLimited(userId: string): Promise<boolean> {
     max: LOGIN_MFA_ATTEMPT_MAX,
     windowSec: Math.round(LOGIN_MFA_ATTEMPT_WINDOW_MS / 1000),
   });
+  // DEC-20 — a store outage is a retryable 503, not "too many attempts".
+  assertLimiterAvailable(result);
   return !result.allowed;
 }
 
@@ -576,7 +581,7 @@ function auditAuthEvent(
   const outcome =
     params.outcome === "failure" ? "error" : params.outcome === "blocked" ? "denied" : "success";
   const reason = params.metadata?.["reason"];
-  void emitPlatformAudit({
+  const work = emitPlatformAudit({
     action: params.action,
     outcome,
     denialReason: outcome === "denied" ? (typeof reason === "string" ? reason : params.action) : null,
@@ -591,7 +596,26 @@ function auditAuthEvent(
       ipAddress: req.ip,
       userAgent: readUserAgent(req),
     },
-  }).catch(() => null);
+  });
+  // PRO-S1-02 — an outcome about an identified account is evidence of access:
+  // the response waits for its row (written, or counted as failed by the
+  // tracker) instead of racing it. Anonymous rows stay detached and tracked.
+  if (params.userId) holdResponseForAudit(req, work);
+  else work.catch(() => null);
+}
+
+/**
+ * PRO-S1-01 — an ANONYMOUS refusal on an endpoint with no limiter in front of
+ * its audit (a malformed social token, an invalid reset token, a forged MFA
+ * pending token, a sign-out with no live session) is logged and counted, not
+ * appended to the platform-wide audit chain: each chain row takes the one
+ * global lock, so an unauthenticated flood serialised every tenant's audited
+ * requests. Same rule as the limiter refusals above (F-01). Outcomes about an
+ * identified account are still chained.
+ */
+function logAnonymousAuthOutcome(req: FastifyRequest, action: string, reason: string): void {
+  bump("auth_anonymous_outcome_logged_total");
+  req.log.warn({ action, reason: reason.slice(0, 120), requestId: req.id }, "auth.anonymous_outcome");
 }
 
 function fireLoginCompletedAnalytics(
@@ -634,6 +658,8 @@ export async function authRoutes(app: FastifyInstance) {
   // Phase P2.0 — read once at route-registration time (after
   // `initSecretsManager` has run). AWS first, env fallback.
   const jwtSecret = getSecret("AUTH_JWT_SECRET");
+  // PRO-S1-02 — responses wait for their identified sign-in audit rows.
+  installAuditResponseHold(app);
   if (!jwtSecret) {
     throw new Error("AUTH_JWT_SECRET is not set");
   }
@@ -1038,13 +1064,8 @@ export async function authRoutes(app: FastifyInstance) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "invalid_id_token";
 
-      auditAuthEvent(req, {
-        userId: null,
-        action: "auth.google_login",
-        outcome: "failure",
-        severity: "warning",
-        metadata: { reason: message },
-      });
+      // PRO-S1-01 — anonymous, unlimited: logged and counted, not chained.
+      logAnonymousAuthOutcome(req, "auth.google_login", message);
 
       // B1-F-004 (free-audit 0ea0) — the verified address belongs to an existing
       // account and this provider subject is not linked to it: nothing was
@@ -1157,13 +1178,8 @@ export async function authRoutes(app: FastifyInstance) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "invalid_id_token";
 
-      auditAuthEvent(req, {
-        userId: null,
-        action: "auth.apple_login",
-        outcome: "failure",
-        severity: "warning",
-        metadata: { reason: message },
-      });
+      // PRO-S1-01 — anonymous, unlimited: logged and counted, not chained.
+      logAnonymousAuthOutcome(req, "auth.apple_login", message);
 
       // B1-F-004 (free-audit 0ea0) — the verified address belongs to an existing
       // account and this provider subject is not linked to it: nothing was
@@ -1213,6 +1229,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       logAuthRateLimited(req, "auth.email_register", rl.resetAtMs, { scope: "ip", store: rl.store });
       return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
@@ -1334,6 +1351,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
 
@@ -1365,6 +1383,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       logAuthRateLimited(req, "auth.email_login", rl.resetAtMs, { scope: "ip", store: rl.store });
       return replyLoginRateLimited(reply, rl);
     }
@@ -1386,6 +1405,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_LOGIN_ACCOUNT_WINDOW_SEC,
     });
     if (!accountRl.allowed) {
+      if (isLimiterUnavailable(accountRl)) return replyLimiterUnavailable(reply, accountRl);
       logAuthRateLimited(req, "auth.email_login", accountRl.resetAtMs, { scope: "account", store: accountRl.store });
       return replyLoginRateLimited(reply, accountRl);
     }
@@ -1505,6 +1525,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       logAuthRateLimited(req, "auth.password_reset_requested", rl.resetAtMs, { scope: "ip", store: rl.store });
       // B-09 — this is a 429, not the handler's 200: the per-address limit
       // is the same for every address, so it discloses nothing about any one
@@ -1595,15 +1616,8 @@ export async function authRoutes(app: FastifyInstance) {
     });
 
     if (!res.ok) {
-      auditAuthEvent(req, {
-        userId: null,
-        action: "auth.password_reset_confirm",
-        outcome: "failure",
-        severity: "warning",
-        metadata: {
-          reason: res.reason,
-        },
-      });
+      // PRO-S1-01 — an invalid reset token names no account: logged, not chained.
+      logAnonymousAuthOutcome(req, "auth.password_reset_confirm", String(res.reason));
 
       return reply.code(400).send({ message: res.reason });
     }
@@ -1641,6 +1655,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
 
@@ -1731,6 +1746,7 @@ export async function authRoutes(app: FastifyInstance) {
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       return replyRateLimited(reply, rl.resetAtMs, rl.store);
     }
 
@@ -1864,6 +1880,7 @@ export async function authRoutes(app: FastifyInstance) {
       max: 20,
       windowSec: 60,
     });
+    if (isLimiterUnavailable(limited)) return replyLimiterUnavailable(reply, limited);
     if (!limited.allowed) return reply.code(429).send({ message: "rate_limited" });
     const raw = typeof req.body === "object" && req.body !== null ? (req.body as Record<string, unknown>) : {};
     const handoff = raw.handoff === true;
@@ -1904,6 +1921,7 @@ export async function authRoutes(app: FastifyInstance) {
       max: 5,
       windowSec: 600,
     });
+    if (isLimiterUnavailable(limited)) return replyLimiterUnavailable(reply, limited);
     if (!limited.allowed) return reply.code(429).send({ message: "rate_limited" });
     const { contact } = await signInMethodsFor(challenge.userId);
     if (!contact) return reply.code(409).send({ message: "mfa_method_unavailable" });
@@ -1976,6 +1994,7 @@ export async function authRoutes(app: FastifyInstance) {
       max: 5,
       windowSec: 300,
     });
+    if (isLimiterUnavailable(limited)) return replyLimiterUnavailable(reply, limited);
     if (!limited.allowed) return reply.code(429).send({ message: "rate_limited" });
     const challenge = await loadOpenLoginChallengeByHandoff(parsed.data.token);
     if (!challenge || !challenge.passkeyChallenge) {
@@ -2048,13 +2067,9 @@ export async function authRoutes(app: FastifyInstance) {
       clearMfaPendingCookie(req, reply);
       const reason =
         err instanceof Error ? err.message : "pending_token_invalid";
-      auditAuthEvent(req, {
-        userId: null,
-        action: "auth.mfa_verify",
-        outcome: "failure",
-        severity: "warning",
-        metadata: { reason },
-      });
+      // PRO-S1-01 — a pending token that fails its signature names no
+      // account (it runs before the limiter): logged, not chained.
+      logAnonymousAuthOutcome(req, "auth.mfa_verify", reason);
       safeEmitSecurityEvent({
         teamId: null,
         eventType: "auth_login_failed",
@@ -2486,15 +2501,22 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     clearSessionCookie();
-    auditAuthEvent(req, {
-      userId,
-      action: "auth.logout",
-      outcome: "success",
-      metadata: {
-        webClient: req.headers["x-web-client"] === "1",
-        sessionEnded,
-      },
-    });
+    // PRO-S1-01 — only a sign-out that ended a session is an audit fact; a
+    // cookie-less (or already-dead) logout is anonymous, gate-exempt and
+    // unthrottled, so it is logged and counted instead of chained.
+    if (sessionEnded) {
+      auditAuthEvent(req, {
+        userId,
+        action: "auth.logout",
+        outcome: "success",
+        metadata: {
+          webClient: req.headers["x-web-client"] === "1",
+          sessionEnded,
+        },
+      });
+    } else {
+      logAnonymousAuthOutcome(req, "auth.logout", "no_live_session");
+    }
 
     return reply.code(200).send({ ok: true });
   });

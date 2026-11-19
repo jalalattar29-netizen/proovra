@@ -10327,6 +10327,9 @@ model GovernanceReconciliationRun {
 
   startedAtUtc      DateTime  @default(now()) @map("started_at_utc") @db.Timestamptz(6)
   finishedAtUtc     DateTime? @map("finished_at_utc") @db.Timestamptz(6)
+  /// PRO-W2-09 — touched by the holder while its body runs; staleness of a
+  /// RUNNING row is judged on it (NULL: an older writer, judged from start).
+  heartbeatAtUtc    DateTime? @map("heartbeat_at_utc") @db.Timestamptz(6)
   /// Logical lock key — used by `acquireRunLock` to refuse a second
   /// concurrent run of the same kind for the same team.
   lockKey           String    @map("lock_key") @db.VarChar(128)

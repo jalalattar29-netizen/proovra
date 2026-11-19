@@ -28,6 +28,7 @@ import { z } from "zod";
 
 import { prisma } from "../db.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { oidcRedirectUri, samlAcsUrl } from "../services/access-control/sso-endpoints.js";
 import {
   IdpStepUpBeginError,
@@ -74,6 +75,7 @@ export async function stepUpIdpRoutes(app: FastifyInstance): Promise<void> {
         windowSec: 600,
       });
       if (!limit.allowed) {
+        if (isLimiterUnavailable(limit)) return replyLimiterUnavailable(reply, limit);
         return reply.code(429).send({ error: { code: "rate_limited" } });
       }
       try {

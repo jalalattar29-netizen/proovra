@@ -204,6 +204,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281121010000_external_identity_link_source",
       // RG-05 (PRO-AI1-04 / PRO-AI1Z-01): extracted text claimed once per source part. EXPAND.
       "20281121050000_extracted_text_source_part",
+      // PRO-W2-09 (WS-REL): the reconciliation-run heartbeat column. EXPAND.
+      "20281121120000_reconciliation_run_heartbeat",
       // PRO-P1-06 (WS-SHELL): Operations idempotency reservation. EXPAND.
       "20281121140000_ops_idempotency_reservation",
     ];

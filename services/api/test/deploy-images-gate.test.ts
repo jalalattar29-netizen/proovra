@@ -61,6 +61,18 @@ describe("decidePublication", () => {
     expect(decidePublication({ headSha: A, mainSha: A, runs: missing }).publish).toBe(false);
   });
 
+  it("PRO-S1-11: a manual dispatch for a superseded green commit publishes its sha tag only", () => {
+    expect(decidePublication({ headSha: A, mainSha: B, runs: allGreen(A), manual: true })).toEqual({
+      publish: true,
+      tagLatest: false,
+      reason: "MANUAL_SUPERSEDED_SHA_TAG_ONLY",
+    });
+    // Still never an override of a red workflow.
+    const runs = allGreen(A);
+    runs["ci.yml"] = [green(A, { conclusion: "failure" })];
+    expect(decidePublication({ headSha: A, mainSha: B, runs, manual: true }).publish).toBe(false);
+  });
+
   it("refuses a stale completion for a superseded commit", () => {
     const d = decidePublication({ headSha: A, mainSha: B, runs: allGreen(A) });
     expect(d).toEqual({ publish: false, tagLatest: false, reason: "SUPERSEDED_BY_NEWER_MAIN" });
@@ -151,6 +163,14 @@ describe("deploy-images.yml routes publication through the gate", () => {
     const buildStep = WORKFLOW_CODE.slice(build, WORKFLOW_CODE.indexOf("- name:", build + 10));
     expect(buildStep).not.toMatch(/^\s*tags:/m);
     expect(WORKFLOW_CODE).toMatch(/resolves to \$got, not the smoked \$want/);
+  });
+
+  it("PRO-S1-11: the API digest is smoked before it is tagged, and the trigger reaches the gate", () => {
+    const smoke = WORKFLOW_CODE.indexOf('node scripts/release/smoke-api-image.mjs "$IMAGE_REF" "$RELEASE_SHA"');
+    const tag = WORKFLOW_CODE.indexOf("docker buildx imagetools create --tag");
+    expect(smoke).toBeGreaterThan(-1);
+    expect(tag).toBeGreaterThan(smoke);
+    expect(WORKFLOW).toContain("GATE_TRIGGER: ${{ github.event_name }}");
   });
 
   it("a manual dispatch names a SHA and still goes through the same gate", () => {

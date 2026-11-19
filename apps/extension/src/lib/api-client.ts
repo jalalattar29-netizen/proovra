@@ -12,8 +12,10 @@ import { classifyStoragePutStatus, parseRetryAfterMs } from "@proovra/shared";
 import { CONFIG } from "./config.js";
 import {
   CLIENT_UPDATE_STORAGE_KEY,
+  clientContractReportHeaders,
   clientUpdateVerdict,
   escalateClientUpdate,
+  noteClientReportAccepted,
   type ClientUpdateNotice,
 } from "./client-contract.js";
 
@@ -154,6 +156,8 @@ async function apiRequest<T>(
     {
       method,
       headers: {
+        // PRO-PSZ-05 — only once this API has said it accepts them (CORS).
+        ...clientContractReportHeaders(),
         authorization: `Bearer ${token}`,
         ...(body !== undefined ? { "content-type": "application/json" } : {}),
       },
@@ -163,6 +167,7 @@ async function apiRequest<T>(
     API_TIMEOUT_MS,
   );
   observeClientContract(res.headers);
+  noteClientReportAccepted(res.headers);
   const text = await res.text();
   let json: unknown = null;
   try {

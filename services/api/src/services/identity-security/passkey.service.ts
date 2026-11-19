@@ -50,6 +50,7 @@ import {
 } from "../../errors.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { enforceRateLimit } from "../rate-limit.js";
+import { assertLimiterAvailable } from "../../http/limiter-unavailable.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { tryResolveWebauthnConfig, type WebauthnConfig } from "./webauthn-config.js";
 
@@ -404,6 +405,8 @@ export async function completePasskeyRegistration(
     windowSec: PASSKEY_REGISTRATION_TICKET_TTL_SECONDS + 60,
     bound: "global",
   });
+  // DEC-20 — an undecidable store must not read as a spent ticket: 503, retryable.
+  assertLimiterAvailable(spent);
   if (!spent.allowed) throw registrationRefused();
 
   const now = new Date();

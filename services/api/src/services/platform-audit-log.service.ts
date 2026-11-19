@@ -5,12 +5,37 @@ import type { PrismaClient } from "@prisma/client";
 import { maskIpPreview, summariseUserAgent } from "@proovra/shared";
 import {
   appendAdminAuditChainRowTx,
+  isAuditChainLockBusyError,
   assertMetadataMaxDepth,
   canonicalJsonForAuditHash,
   computeAuditLogChainHash,
   METADATA_MAX_DEPTH_DEFAULT,
 } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
+import { DomainError } from "../errors.js";
+
+/**
+ * PRO-S1-01 — how long one API append may wait for the platform-wide chain
+ * lock (AUDIT_CHAIN_LOCK_WAIT_MS, default 5 s). Past it the append fails fast
+ * with a retryable 503 SERVER_BUSY instead of parking a pooled connection
+ * inside BEGIN behind every other tenant's appends.
+ */
+export const DEFAULT_AUDIT_CHAIN_LOCK_WAIT_MS = 5_000;
+export function auditChainLockWaitMs(): number {
+  const raw = Number.parseInt(process.env.AUDIT_CHAIN_LOCK_WAIT_MS ?? "", 10);
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 60_000) : DEFAULT_AUDIT_CHAIN_LOCK_WAIT_MS;
+}
+
+function auditChainBusy(): DomainError {
+  return new DomainError("audit chain lock wait exceeded", {
+    httpStatus: 503,
+    publicCode: "SERVER_BUSY",
+    publicMessage: "The service is busy right now; try again in a moment.",
+    reportability: "OPERATIONAL_WARNING",
+    severity: "warning",
+    metadata: { retryAfterSeconds: 2, reason: "audit_chain_busy" },
+  });
+}
 
 /** Legacy sentinel kept in DB for rows created before user_id could be null. */
 const LEGACY_PUBLIC_VERIFY_USER_ID = "__public_verify__";
@@ -339,7 +364,10 @@ export async function appendPlatformAuditLog(
     body: (tx: Prisma.TransactionClient) => Promise<void>,
   ): Promise<void> => {
     if (canOpenTransaction) {
-      await (db as PrismaClient).$transaction(body);
+      // PRO-S1-01 — an own transaction states its bounds: pool acquisition
+      // (maxWait) and total life (timeout) rather than library defaults.
+      const waitMs = auditChainLockWaitMs();
+      await (db as PrismaClient).$transaction(body, { maxWait: waitMs, timeout: waitMs * 2 });
       return;
     }
     // Already inside one: `db` IS the transaction client.
@@ -348,34 +376,39 @@ export async function appendPlatformAuditLog(
 
   // THE ONE APPEND (shared-runtime audit/admin-audit-chain): lock, head,
   // strictly increasing createdAt (ET-CUS-05), V4 hash, insert.
-  await runInTransaction((tx) =>
-    appendAdminAuditChainRowTx(tx, {
-      userId,
-      isPublic,
-      action,
-      category,
-      severity,
-      source,
-      outcome,
-      resourceType,
-      resourceId,
-      requestId,
-      organizationId: params.organizationId ?? null,
-      workspaceId: params.workspaceId ?? null,
-      actorType: params.actorType ?? null,
-      actorDisplay: params.actorDisplay ?? null,
-      actorAuthority: params.actorAuthority ?? null,
-      targetDisplay: params.targetDisplay ?? null,
-      previousState: params.previousState ?? null,
-      requestedState: params.requestedState ?? null,
-      resultingState: params.resultingState ?? null,
-      reasonCode: params.reasonCode ?? null,
-      eventVersion: ADMIN_AUDIT_EVENT_VERSION,
-      metadata: sanitized,
-      ipAddress: safeIpPreview(params.ipAddress ?? lifted.ipAddress ?? undefined),
-      userAgent: safeUaPreview(params.userAgent ?? lifted.userAgent ?? undefined),
-    }),
-  );
+  try {
+    await runInTransaction((tx) =>
+      appendAdminAuditChainRowTx(tx, {
+        userId,
+        isPublic,
+        action,
+        category,
+        severity,
+        source,
+        outcome,
+        resourceType,
+        resourceId,
+        requestId,
+        organizationId: params.organizationId ?? null,
+        workspaceId: params.workspaceId ?? null,
+        actorType: params.actorType ?? null,
+        actorDisplay: params.actorDisplay ?? null,
+        actorAuthority: params.actorAuthority ?? null,
+        targetDisplay: params.targetDisplay ?? null,
+        previousState: params.previousState ?? null,
+        requestedState: params.requestedState ?? null,
+        resultingState: params.resultingState ?? null,
+        reasonCode: params.reasonCode ?? null,
+        eventVersion: ADMIN_AUDIT_EVENT_VERSION,
+        metadata: sanitized,
+        ipAddress: safeIpPreview(params.ipAddress ?? lifted.ipAddress ?? undefined),
+        userAgent: safeUaPreview(params.userAgent ?? lifted.userAgent ?? undefined),
+      }, undefined, { lockWaitMs: auditChainLockWaitMs() }),
+    );
+  } catch (err) {
+    if (isAuditChainLockBusyError(err)) throw auditChainBusy();
+    throw err;
+  }
 }
 
 function computeExpectedHashForRow(

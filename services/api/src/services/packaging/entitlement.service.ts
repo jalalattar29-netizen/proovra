@@ -49,6 +49,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitLifecycleEvent } from "../intelligence/intelligence-activity.service.js";
+import { acquireLease } from "../rate-limit.js";
 
 // ===========================================================================
 // Kind classification
@@ -497,6 +498,9 @@ export async function resolveEntitlement(input: {
 // Denial emit helper (POLICY_VIOLATION-equivalent)
 // ===========================================================================
 
+/** PRO-BL2-08 — one denial event per (workspace, key, actor) per window. */
+const ENTITLEMENT_DENIAL_EVENT_WINDOW_MS = 60 * 60_000;
+
 async function emitDenial(
   prisma: PrismaClient,
   teamId: string,
@@ -512,6 +516,19 @@ async function emitDenial(
     denial === "QUOTA_EXCEEDED" || kind === "QUOTA"
       ? ("POLICY_VIOLATION_QUOTA" as const)
       : ("POLICY_VIOLATION_ENTITLEMENT" as const);
+
+  // PRO-BL2-08 — a violation ledger records an attempt, not every request that
+  // asked: one event per (workspace, key, actor, denial) per window. Repeats
+  // inside the window are counted only by the caller's own refusal.
+  try {
+    const lease = await acquireLease(
+      `entitlement-denial:${teamId}:${key}:${actorUserId ?? "-"}:${denial}`,
+      ENTITLEMENT_DENIAL_EVENT_WINDOW_MS,
+    );
+    if (!lease.acquired) return;
+  } catch {
+    // The store threw outright: record rather than lose the window's only event.
+  }
 
   await emitLifecycleEvent({
     prisma,
@@ -537,6 +554,11 @@ export async function assertFeatureEntitlement(input: {
   teamId: string;
   key: EntitlementKey;
   actorUserId?: string | null;
+  /**
+   * PRO-BL2-08 — false for a READ (a page load, a status probe): asking is not
+   * a violation attempt, so nothing is written. Default true (writes).
+   */
+  record?: boolean;
 }): Promise<
   | { ok: true }
   | { ok: false; denial: "ENTITLEMENT_REQUIRED"; requiredEntitlement: EntitlementKey }
@@ -548,7 +570,7 @@ export async function assertFeatureEntitlement(input: {
     key: input.key,
   });
   if (projection.kind !== "FEATURE") {
-    await emitDenial(prisma, input.teamId, input.key, input.actorUserId, "ENTITLEMENT_REQUIRED");
+    if (input.record !== false) await emitDenial(prisma, input.teamId, input.key, input.actorUserId, "ENTITLEMENT_REQUIRED");
     return {
       ok: false,
       denial: "ENTITLEMENT_REQUIRED",
@@ -556,7 +578,7 @@ export async function assertFeatureEntitlement(input: {
     };
   }
   if (projection.value === true) return { ok: true };
-  await emitDenial(prisma, input.teamId, input.key, input.actorUserId, "ENTITLEMENT_REQUIRED");
+  if (input.record !== false) await emitDenial(prisma, input.teamId, input.key, input.actorUserId, "ENTITLEMENT_REQUIRED");
   return {
     ok: false,
     denial: "ENTITLEMENT_REQUIRED",

@@ -42,6 +42,7 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import {
   verifyAccountStepUp,
   verifyFactorEnrollmentStepUp,
@@ -156,6 +157,7 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
         windowSec: 3600,
       });
       if (!enrolBound.allowed) {
+        if (isLimiterUnavailable(enrolBound)) return replyLimiterUnavailable(reply, enrolBound);
         reply.header("Retry-After", String(Math.max(1, Math.ceil((enrolBound.resetAtMs - Date.now()) / 1000))));
         return reply.code(429).send({ error: { code: "rate_limited" } });
       }

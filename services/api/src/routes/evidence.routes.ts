@@ -391,6 +391,8 @@ import { evaluateAccess, loadMemberAccessSnapshot } from "../services/identity/a
 import { bump as bumpOpsMetric } from "@proovra/shared-runtime/ops";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { claimPublicVerifyAuditSlot } from "../services/public-verify/public-verify-audit-coalescer.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { admitPublicVerifyClient } from "../services/public-verify/public-verify-gate.js";
 import { readVerificationViewCounts } from "../services/public-verify/view-counts.service.js";
 // Phase A.1D — explicit retry/regenerate path for report artifacts.
@@ -2061,6 +2063,27 @@ function auditVerificationAction(
   }
 ) {
   const outcome: TenantAuditOutcome = params.outcome ?? "success";
+  // PRO-O1-02 — an ANONYMOUS view is chained once per (record, outcome)
+  // window, not once per request; signed-in actions are unchanged.
+  if (params.userId === null) {
+    void claimPublicVerifyAuditSlot({
+      action: params.action,
+      outcome,
+      reason: params.denialReason ?? (typeof params.metadata?.outcome === "string" ? params.metadata.outcome : null),
+      resourceId: params.resourceId ?? null,
+    }).then((first) => {
+      if (first) emitVerificationAudit(req, params, outcome);
+    });
+    return;
+  }
+  emitVerificationAudit(req, params, outcome);
+}
+
+function emitVerificationAudit(
+  req: FastifyRequest,
+  params: Parameters<typeof auditVerificationAction>[1],
+  outcome: TenantAuditOutcome,
+) {
   void emitTenantAudit({
     action: params.action,
     outcome,
@@ -7184,6 +7207,7 @@ const storage = await getStorageProtectionSummary(
         windowSec: readPositiveIntEnv("EVIDENCE_PART_PRESIGN_RATE_WINDOW_SEC", 3600),
       });
       if (!partRate.allowed) {
+        if (isLimiterUnavailable(partRate)) return replyLimiterUnavailable(reply, partRate);
         const retryAfterSec = Math.max(1, Math.ceil((partRate.resetAtMs - Date.now()) / 1000));
         reply.header("Retry-After", String(retryAfterSec));
         return reply.code(429).send({ code: "RATE_LIMITED", retryAfterSec, message: "Too many upload requests. Try again later." });
@@ -8921,12 +8945,37 @@ return {
       const csv = buildMetadataCsv(csvItems);
       // The other export routes audit; this one wrote no record that metadata
       // for these evidence ids left the system (EVID-013).
+      // PRO-E1-12 — the row names EVERY exported record (bounded: the bulk
+      // action takes at most 100) and the workspace each belongs to, not just
+      // the first id.
+      const exportedIds = csvItems.map((item) => item.id).slice(0, 100);
+      const exportedTeams = exportedIds.length
+        ? await prisma.evidence.findMany({ where: { id: { in: exportedIds } }, select: { id: true, teamId: true } })
+        : [];
+      const byWorkspace: Record<string, number> = {};
+      for (const row of exportedTeams) {
+        const key = row.teamId ?? "personal";
+        byWorkspace[key] = (byWorkspace[key] ?? 0) + 1;
+      }
+      const workspaceKeys = Object.keys(byWorkspace);
+      // The audit metadata is size-bounded (5 KiB): 100 ids fit; workspace
+      // attribution keeps the ten largest groups and counts the rest.
+      const topWorkspaces = Object.fromEntries(
+        Object.entries(byWorkspace).sort((x, y) => y[1] - x[1]).slice(0, 10),
+      );
       await auditEvidenceAction(req, {
         userId,
         action: "evidence.metadata_csv_export",
         outcome: "success",
         resourceId: csvItems[0]?.id ?? "bulk",
-        metadata: { exportedCount: csvItems.length, failedCount: results.filter((item) => !item.ok).length },
+        teamId: workspaceKeys.length === 1 && workspaceKeys[0] !== "personal" ? workspaceKeys[0] : null,
+        metadata: {
+          exportedCount: csvItems.length,
+          failedCount: results.filter((item) => !item.ok).length,
+          exportedIds,
+          byWorkspace: topWorkspaces,
+          otherWorkspaceCount: Math.max(0, workspaceKeys.length - 10),
+        },
       });
       return reply.code(200).send({
         successCount: results.filter((item) => item.ok).length,
@@ -16755,6 +16804,8 @@ await recordOriginalRelease({
   originalUrlsIssued,
   ip: req.ip,
   userAgent: req.headers["user-agent"],
+  // PRO-O1-03 — one release event per link per window, not per answer.
+  coalesceKey: shareLink?.id ?? null,
 });
     const evidenceStatusForGate = evidence.status as
       | prismaPkg.EvidenceStatus

@@ -31,6 +31,7 @@ import { z, ZodError } from "zod";
 import { WorkflowIntakeConsentSnapshotSchema } from "@proovra/shared";
 
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { validateUploadedFile } from "../services/security/file-validation.service.js";
 import {
   workflowIntakeFeatureDisabledReason,
@@ -192,6 +193,7 @@ async function applyRateLimits(
     windowSec: 60,
   });
   if (!ipResult.allowed) {
+    if (isLimiterUnavailable(ipResult)) { replyLimiterUnavailable(reply, ipResult); return false; }
     reply.code(429).send({
       error: { code: "RATE_LIMITED", scope: "ip" },
     });
@@ -209,6 +211,7 @@ async function applyRateLimits(
     windowSec: 60,
   });
   if (!tokenResult.allowed) {
+    if (isLimiterUnavailable(tokenResult)) { replyLimiterUnavailable(reply, tokenResult); return false; }
     reply.code(429).send({
       error: { code: "RATE_LIMITED", scope: "token" },
     });

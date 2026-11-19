@@ -96,6 +96,7 @@ import { readCaptureTrustTimeline } from "../services/capture-trust/trust-event.
 import { evidenceClosedTo } from "../services/access/record-reach.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { isDomainError } from "../errors.js";
 import { evaluateExtensionCaptureTargetPolicy } from "../services/auth/extension-scope.js";
 
@@ -417,6 +418,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
         bound: "global",
       });
       if (!rate.allowed) {
+        if (isLimiterUnavailable(rate)) return replyLimiterUnavailable(reply, rate);
         return reply.code(429).send({ denial: "RATE_LIMITED" });
       }
 

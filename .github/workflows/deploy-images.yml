@@ -15,7 +15,11 @@
 #
 # Each required workflow's completion re-evaluates the gate; the evaluation
 # that finds all three green publishes. `workflow_dispatch` re-runs the same
-# gate for a named SHA — it is a retry, never an override.
+# gate for a named SHA — never an override of a red or missing workflow. For a
+# green commit that main has already moved past it publishes that commit's
+# immutable `sha-` tag only (a rollback target; PRO-S1-11) and never moves
+# `latest`/`main`. A refusal is reported as a warning annotation and in the
+# job summary: a green run is not, by itself, evidence that an image exists.
 name: deploy-images
 
 on:
@@ -74,6 +78,9 @@ jobs:
         id: decide
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PRO-S1-11 — a manual dispatch may publish the immutable SHA tag of a
+          # superseded green commit (a rollback target); it never moves latest.
+          GATE_TRIGGER: ${{ github.event_name }}
           HEAD_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}
         run: node scripts/release/image-publish-gate.mjs
 
@@ -212,6 +219,13 @@ jobs:
           docker run --rm "$IMAGE_REF" node scripts/smoke-ocr-languages.mjs
           docker run --rm --network none "$IMAGE_REF" node scripts/smoke-report-scripts.mjs
           node scripts/release/smoke-worker-bitcoin-verifier.mjs "$IMAGE_REF"
+
+      # PRO-S1-11 — the API digest is smoked before it is tagged, as the worker is.
+      - name: Smoke — the pushed API digest (release identity, entry point, Prisma client, offline pnpm)
+        if: matrix.service == 'api'
+        run: |
+          docker pull "$IMAGE_REF"
+          node scripts/release/smoke-api-image.mjs "$IMAGE_REF" "$RELEASE_SHA"
 
       - name: Tag the smoked digest
         env:

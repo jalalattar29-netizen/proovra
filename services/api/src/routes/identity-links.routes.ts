@@ -79,6 +79,7 @@ import {
 } from "../services/auth/social-sign-in-nonce.service.js";
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
 import {
   approveOrganizationLink,
@@ -305,6 +306,7 @@ export async function identityLinksRoutes(app: FastifyInstance) {
       windowSec: 60,
     });
     if (!rl.allowed) {
+      if (isLimiterUnavailable(rl)) return replyLimiterUnavailable(reply, rl);
       return reply
         .code(429)
         .header("Retry-After", String(Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000))))

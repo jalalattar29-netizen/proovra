@@ -198,7 +198,12 @@ async function emitWebhookAudit(input: {
     | "integration.webhook.test_sent"
     | "integration.webhook.delivery_retried"
     | "integration.webhook.delivery_cancelled"
-    | "integration.webhook.secret_rotated";
+    | "integration.webhook.secret_rotated"
+    // PRO-G1-08 — pointing workspace events at a URL, re-scoping and toggling it.
+    | "integration.webhook.created"
+    | "integration.webhook.updated"
+    | "integration.webhook.enabled"
+    | "integration.webhook.disabled";
   metadata?: Prisma.InputJsonValue;
 }): Promise<void> {
   try {
@@ -763,6 +768,14 @@ export async function integrationsRoutes(app: FastifyInstance) {
           eventTypes: body.eventTypes ?? [],
           actorUserId: ok.actorUserId,
         });
+        // PRO-G1-08 — one activity row per committed create (never the secret).
+        await emitWebhookAudit({
+          teamId: body.teamId,
+          actorUserId: ok.actorUserId,
+          endpointId: endpoint.id,
+          eventType: "integration.webhook.created",
+          metadata: { url: endpoint.url, eventTypes: body.eventTypes ?? [] },
+        });
         return reply.code(201).send({
           webhook: projectWebhookEndpoint(endpoint),
           rawSecret,
@@ -890,6 +903,24 @@ export async function integrationsRoutes(app: FastifyInstance) {
           description: body.description,
           eventTypes: body.eventTypes,
           status: body.status,
+        });
+        // PRO-G1-08 — a status change is enabled/disabled; any other change is
+        // an update (re-scope or description), with what was asked.
+        await emitWebhookAudit({
+          teamId: body.teamId,
+          actorUserId: ok.actorUserId,
+          endpointId: id,
+          eventType:
+            body.status === "ACTIVE"
+              ? "integration.webhook.enabled"
+              : body.status === "DISABLED"
+                ? "integration.webhook.disabled"
+                : "integration.webhook.updated",
+          metadata: {
+            ...(body.eventTypes !== undefined ? { eventTypes: body.eventTypes } : {}),
+            ...(body.description !== undefined ? { descriptionChanged: true } : {}),
+            ...(body.status !== undefined ? { status: body.status } : {}),
+          },
         });
         return reply
           .code(200)
@@ -1029,6 +1060,13 @@ export async function integrationsRoutes(app: FastifyInstance) {
         const disabled = await disableWebhookEndpoint({
           id,
           teamId: body.teamId,
+        });
+        // PRO-G1-08
+        await emitWebhookAudit({
+          teamId: body.teamId,
+          actorUserId: ok.actorUserId,
+          endpointId: id,
+          eventType: "integration.webhook.disabled",
         });
         return reply
           .code(200)

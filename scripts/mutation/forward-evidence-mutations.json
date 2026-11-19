@@ -3047,8 +3047,8 @@
     "phase": "P13",
     "name": "a package identifier that resolves to nothing is never bounded",
     "file": "services/api/src/services/public-verify/public-verify-gate.ts",
-    "find": "  if (r.allowed) return true;\n  refuse(req, reply, target.kind, r.resetAtMs);",
-    "replace": "  return true;\n  refuse(req, reply, target.kind, r.resetAtMs);",
+    "find": "  if (r.allowed) return true;\n  if (isLimiterUnavailable(r)) {\n    replyLimiterUnavailable(reply, r);\n    return false;\n  }\n  refuse(req, reply, target.kind, r.resetAtMs);",
+    "replace": "  return true;\n  if (isLimiterUnavailable(r)) {\n    replyLimiterUnavailable(reply, r);\n    return false;\n  }\n  refuse(req, reply, target.kind, r.resetAtMs);",
     "tests": [
       {
         "cwd": "services/api",

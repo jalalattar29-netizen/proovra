@@ -211,9 +211,14 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       // bound: overload, not a bad session. Still refused (fail closed), but a
       // 401 here signed every client out during a capacity stall.
       if (isDatabasePoolTimeout(err)) return sendServerBusy(req, reply);
+      // PRO-S1-08 — any other failure of the revocation read is equally an
+      // UNKNOWN security context, not an ended session: a 401 here made the
+      // native app and extension delete their stored credential on a DB blip.
+      // Fail closed with the same retryable 503 as the session-state read.
       return reply
-        .code(401)
-        .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
+        .code(503)
+        .header("Retry-After", "5")
+        .send(createErrorResponse(ErrorCode.SECURITY_CONTEXT_UNAVAILABLE, req.id));
     }
 
     // Phase 4A Closure — SECURITY policy gate at session-authenticate time.

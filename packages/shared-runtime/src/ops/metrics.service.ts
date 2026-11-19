@@ -304,6 +304,14 @@ export const COUNTER_NAMES = [
   // trustworthy count could be established.
   "rate_limit_store_unavailable_total",
   "rate_limit_refused_store_unavailable_total",
+  // WS-REL (PRO-S1-01 / PRO-N1-11 / PRO-O1-02) — anonymous refusals and
+  // coalesced public views that are counted and logged instead of appended to
+  // the platform audit chain; and appends refused at the chain-lock bound.
+  "auth_anonymous_outcome_logged_total",
+  "analytics_rejection_security_event_suppressed_total",
+  "public_verify_view_audit_coalesced_total",
+  "audit_chain_lock_busy_total",
+  "custody_access_event_coalesced_total",
   // PA-03 (2026-09-30) — a governance policy audit row that could not be
   // written. Evaluation audits do not fail the request they describe, so a
   // lost row is counted here instead of vanishing in a catch.
