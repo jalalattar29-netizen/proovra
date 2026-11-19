@@ -50,9 +50,32 @@ type UseCaptureDraftPersistenceOpts = {
    * as the record create). The draft list is scoped by it.
    */
   teamId?: string | null;
+  /**
+   * PRO-C1-01 (review gap 4) / DEC-27 — the active workspace BY IDENTITY: its
+   * id, or a constant for a Personal Space the server has not resolved; null
+   * while the context is unknown. A draft keeps the workspace it was started
+   * in: when this changes to another workspace the hook lets go of that draft
+   * (it stays on the server, listed and resumable in its own workspace, with
+   * the record it reserved) and the new workspace starts a fresh one.
+   */
+  workspaceKey?: string | null;
 };
 
 const DEBOUNCE_MS = 750;
+
+/**
+ * DEC-27 — the active workspace as a draft's identity. The caller's own
+ * Personal Space is one identity whether or not the server has resolved its
+ * id yet; every other workspace is its id. Null while the context is unknown.
+ */
+export function draftWorkspaceKey(
+  space: { type: string; id?: string | null; shared?: boolean } | null | undefined,
+): string | null {
+  if (!space) return null;
+  if (space.type === "PERSONAL" && !space.shared) return "personal:own";
+  return space.id || null;
+}
+
 
 function snapshotItem(item: SessionItem): DraftItemSnapshot {
   return {
@@ -123,9 +146,14 @@ function isSessionLockedError(err: unknown): boolean {
 export function useCaptureDraftPersistence({
   enabled,
   teamId = null,
+  workspaceKey = null,
 }: UseCaptureDraftPersistenceOpts) {
   const teamIdRef = useRef<string | null>(teamId);
   teamIdRef.current = teamId;
+  const workspaceKeyRef = useRef<string | null>(workspaceKey);
+  workspaceKeyRef.current = workspaceKey;
+  /** The workspace the held draft row belongs to (null: no draft, or unknown). */
+  const draftWorkspaceRef = useRef<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [savingState, setSavingState] = useState<
     "idle" | "saving" | "error" | "locked" | "forbidden"
@@ -179,6 +207,7 @@ export function useCaptureDraftPersistence({
       const omitItems = keepSavedItemsRef.current && items.length === 0;
 
       if (!draftIdRef.current) {
+        const startedIn = workspaceKeyRef.current;
         const created = await apiFetch("/v1/capture/sessions", {
           method: "POST",
           body: JSON.stringify({
@@ -192,8 +221,11 @@ export function useCaptureDraftPersistence({
         });
 
         const newId = created?.session?.id ?? null;
-        if (newId) {
+        // DEC-27 — a draft created in a workspace the person left while the
+        // request was in flight stays there; this page does not hold it.
+        if (newId && workspaceKeyRef.current === startedIn) {
           draftIdRef.current = newId;
+          draftWorkspaceRef.current = startedIn;
           setDraftId(newId);
         }
       } else {
@@ -381,9 +413,42 @@ const isMeaningful =
     lockedRef.current = false;
     keepSavedItemsRef.current = true;
     draftIdRef.current = id;
+    // The page lists (and so adopts) only the active workspace's drafts.
+    draftWorkspaceRef.current = workspaceKeyRef.current;
     setDraftId(id);
     setSavingState("idle");
   }, []);
+
+  // PRO-C1-01 (review gap 4) / DEC-27 — THE DRAFT KEEPS ITS WORKSPACE. After a
+  // confirmed switch the page used to keep the old workspace's draft id: the
+  // retried Finish then bound that draft to the NEW workspace's record and
+  // released the record it had reserved in the old one. Now the hook lets go
+  // of the draft — nothing is deleted or patched: it stays on the server in
+  // its own workspace, listed there and resumable with its reservation — and
+  // the next save (or Finish, through ensureDraft) starts a fresh draft in the
+  // workspace now active. The staged files stay on the page; they are sent
+  // only into a record newly reserved here, under the Review dialog that names
+  // this workspace. An unknown context (null) is not a switch.
+  useEffect(() => {
+    if (!workspaceKey) return;
+    if (!draftIdRef.current || !draftWorkspaceRef.current) return;
+    if (draftWorkspaceRef.current === workspaceKey) return;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    // The latest state is kept (lastPayloadRef) so the fresh draft starts from it.
+    pendingPayloadRef.current = null;
+    acceptedPayloadRef.current = null;
+    draftIdRef.current = null;
+    draftWorkspaceRef.current = null;
+    lockedRef.current = false;
+    keepSavedItemsRef.current = false;
+    setDraftId(null);
+    setSavingState("idle");
+    setLastSavedAt(null);
+  }, [workspaceKey]);
+
 
   // The draft id is "consumed" by finalization on the server when the
   // /v1/evidence create call passes captureSessionId. After a successful

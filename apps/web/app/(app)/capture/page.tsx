@@ -52,7 +52,8 @@ import {
 // bit-for-bit identical to today. When the flag is true, the hook attempts
 // /v1/workflow/templates and falls back to useIntakeTemplates on any error.
 import { useWorkflowTemplates } from "./_hooks/useWorkflowTemplates";
-import { useCaptureDraftPersistence } from "./_hooks/useCaptureDraftPersistence";
+import { draftWorkspaceKey, useCaptureDraftPersistence } from "./_hooks/useCaptureDraftPersistence";
+
 import { draftBelongsToSpace, useCaptureDraftList } from "./_hooks/useCaptureDraftList";
 
 import {
@@ -187,7 +188,13 @@ function CapturePageInner() {
   const [reattachDismissed, setReattachDismissed] = useState(false);
 
   // B4-F-307 — a draft is started in (and listed for) the active workspace.
-  const draftPersistence = useCaptureDraftPersistence({ enabled: true, teamId: activeSpace?.id || null });
+  // DEC-27 — and it keeps that workspace: `workspaceKey` names the active one by identity.
+  const draftPersistence = useCaptureDraftPersistence({
+    enabled: true,
+    teamId: activeSpace?.id || null,
+    workspaceKey: draftWorkspaceKey(activeSpace),
+  });
+
   // Free acceptance J6 — the hook object is a new literal every render; the
   // autosave effect depends on the stable callback only (FAIL-1).
   const { scheduleSave: scheduleDraftSave, savingState: draftSavingState } = draftPersistence;

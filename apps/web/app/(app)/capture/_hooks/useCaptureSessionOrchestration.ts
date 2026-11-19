@@ -88,7 +88,15 @@ export type CaptureRecordReservation = {
   uploadedItemIds: Set<string>;
   /** C-05 — the metadata last sent for each legacy-uploaded item. */
   sentMetadata?: Map<string, PartMetadata>;
+  /**
+   * PRO-C1-01 (review gap 1) — the workspace that was active when the record
+   * was reserved, by identity (a Personal Space may carry no id).
+   */
+  reservedSpace?: ReservationSpace | null;
 };
+
+/** A workspace by identity: its type, and its id when the server resolved one. */
+export type ReservationSpace = { type: string; id: string | null };
 
 export function reservationFitsItems(
   reservation: CaptureRecordReservation,
@@ -100,16 +108,45 @@ export function reservationFitsItems(
 
 /**
  * PRO-C1-01 — does this reservation hold a record of a workspace other than the
- * one now active? Only a known record workspace and a known active workspace
- * can disagree; an unknown either side is not a switch.
+ * one now active?
+ *
+ * Compared by RESOLVED WORKSPACE IDENTITY, Personal included (review gap 1).
+ * A Personal Space may be active with no id (the server has not resolved the
+ * caller's personal workspace); comparing ids alone then answered "not another
+ * workspace" for a record reserved in a team, and the retry sealed it in the
+ * team while the dialog named Personal — with no workspace header sent, so
+ * the server's refusal did not fire either.
+ *
+ *   - both ids known: the ids decide;
+ *   - the active space has no id: the record is in it only when it was
+ *     reserved while that same id-less space was active;
+ *   - the context is unknown (null): not a switch — nothing is created while
+ *     the context is unknown, and a retry into the reserved record goes on.
+ *
+ * Answering "other" is always the safe side: the Finish then goes through
+ * POST /v1/evidence, where the server resumes the same record if it IS the
+ * same workspace and reserves afresh if it is not.
  */
 export function reservationInOtherWorkspace(
   reservation: CaptureRecordReservation | null,
-  activeWorkspaceId: string | null,
+  active: ReservationSpace | null,
 ): boolean {
   if (!reservation?.evidenceId) return false;
-  if (!reservation.evidenceTeamId || !activeWorkspaceId) return false;
-  return reservation.evidenceTeamId !== activeWorkspaceId;
+  if (!active) return false;
+  const reserved = reservation.reservedSpace ?? null;
+  if (active.id) {
+    if (reservation.evidenceTeamId) return reservation.evidenceTeamId !== active.id;
+    // The record's workspace was not echoed (an older API): where it was reserved decides.
+    return reserved ? reserved.id !== active.id : false;
+  }
+  return !(reserved && !reserved.id && reserved.type === active.type);
+}
+
+/** The active space as a reservation identity (null while the context is unknown). */
+export function reservationSpaceOf(
+  space: { type: string; id?: string | null } | null | undefined,
+): ReservationSpace | null {
+  return space ? { type: space.type, id: space.id || null } : null;
 }
 
 
@@ -815,7 +852,7 @@ export function useCaptureSessionOrchestration({
     // goes through POST /v1/evidence again, where the server releases the old
     // reservation (C-08, CAPTURE_WORKSPACE_CHANGED) and reserves here. An
     // unknown context keeps the reservation (nothing is created while unknown).
-    if (reservationInOtherWorkspace(reservation, activeSpace?.id ?? null)) {
+    if (reservationInOtherWorkspace(reservation, reservationSpaceOf(activeSpace))) {
       reservation = null;
     }
     if (!reservation) {
@@ -983,6 +1020,9 @@ export function useCaptureSessionOrchestration({
         (created as { teamId?: string | null }).teamId ?? null;
       reservation.evidenceId = evidenceId;
       reservation.evidenceTeamId = evidenceTeamId;
+      // Review gap 1 — where it was reserved, by identity (kept on a resume).
+      if (!resuming) reservation.reservedSpace = reservationSpaceOf(activeSpace);
+
       syncReservation();
       setSessionStatus(
         resuming
