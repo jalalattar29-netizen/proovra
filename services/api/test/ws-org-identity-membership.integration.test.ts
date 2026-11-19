@@ -37,6 +37,10 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
   let reconciliation: typeof import("../src/services/access-control/scim-reconciliation.service.js");
   let groups: typeof import("../src/services/access-control/scim-groups.service.js");
   let rbac: typeof import("../src/services/identity/rbac.service.js");
+  let legacy: typeof import("../src/commands/remediate-admin-manual-identity-links.js");
+  let ssoHardening: typeof import("../src/services/access-control/sso-hardening.service.js");
+  let lifecycleWebhooks: typeof import("../src/services/packaging/webhooks/webhook-platform.service.js");
+  let domainOnly: typeof import("../src/commands/remediate-domain-only-managed-links.js");
   let deps: FixtureDeps;
 
   const auth = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -97,6 +101,10 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
     reconciliation = await import("../src/services/access-control/scim-reconciliation.service.js");
     groups = await import("../src/services/access-control/scim-groups.service.js");
     rbac = await import("../src/services/identity/rbac.service.js");
+    legacy = await import("../src/commands/remediate-admin-manual-identity-links.js");
+    ssoHardening = await import("../src/services/access-control/sso-hardening.service.js");
+    lifecycleWebhooks = await import("../src/services/packaging/webhooks/webhook-platform.service.js");
+    domainOnly = await import("../src/commands/remediate-domain-only-managed-links.js");
     deps = {
       prisma: prisma as never,
       tag: `wsorg-${Date.now().toString(36)}`,
@@ -444,5 +452,115 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
     const hook = await webhookBy(org.workspaceId, member.userId);
     await rbac.revokeCapability({ teamId: org.workspaceId, grantId: grant.id, actorUserId: org.owner.userId } as never);
     expect((await prisma.webhookEndpoint.findUniqueOrThrow({ where: { id: hook.id } })).status).toBe("DISABLED");
+  });
+
+  it("remediation (dry run by default) — legacy links classified by evidence; DOMAIN bindings on self-serve accounts released", async () => {
+    const org = await fx.seedOrganizationTenant(deps);
+    const consented = await orgMember(org, "rem-consent");
+    const unknown = await orgMember(org, "rem-unknown");
+    const mk = (userId: string) =>
+      prisma.externalIdentityMapping.create({
+        data: { teamId: org.workspaceId, organizationId: org.organizationId, userId, provider: "GENERIC_OIDC", externalSubjectId: `rem-${randomUUID()}` },
+        select: { id: true },
+      });
+    const mConsent = await mk(consented.userId);
+    const mUnknown = await mk(unknown.userId);
+    await prisma.membershipGrant.create({
+      data: { teamMemberId: consented.teamMemberId, source: "SSO_JIT", intent: "SSO_JIT", externalRef: `org-link:GENERIC_OIDC:${randomUUID()}` } as never,
+    });
+
+    const dry = await legacy.remediateAdminManualIdentityLinks(prisma as never);
+    const mine = dry.affected.filter((a) => a.organizationId === org.organizationId);
+    expect(mine.find((a) => a.mappingId === mConsent.id)?.evidence).toBe("OWNER_CONSENT_EVIDENCE");
+    expect(mine.find((a) => a.mappingId === mUnknown.id)?.evidence).toBe("NO_EVIDENCE");
+    expect((await prisma.externalIdentityMapping.findUniqueOrThrow({ where: { id: mConsent.id } })).linkSource).toBeNull();
+
+    await legacy.remediateAdminManualIdentityLinks(prisma as never, { apply: true });
+    expect((await prisma.externalIdentityMapping.findUniqueOrThrow({ where: { id: mConsent.id } })).linkSource).toBe("OWNER_CONSENT");
+    const untouched = await prisma.externalIdentityMapping.findUniqueOrThrow({ where: { id: mUnknown.id } });
+    expect(untouched.unlinkedAtUtc).toBeNull();
+    expect(untouched.linkSource).toBeNull();
+
+    // A DOMAIN binding written on a self-serve account (the unreachable invite path).
+    const managedOrg = await fx.seedOrganizationTenant(deps, { managedIdentityRequired: true });
+    const domain = await fx.verifyOrganizationDomain(deps, managedOrg.organizationId, managedOrg.owner.userId);
+    const person = await selfServeAt(domain, "rem-domain");
+    await prisma.user.update({
+      where: { id: person.id },
+      data: { identityMode: "MANAGED_ENTERPRISE", managingOrganizationId: managedOrg.organizationId, managedIdentitySource: "DOMAIN" } as never,
+    });
+    const listed = await domainOnly.remediateDomainOnlyManagedLinks(prisma as never);
+    expect(listed.affected.some((a) => a.userId === person.id && a.managedIdentitySource === "DOMAIN")).toBe(true);
+    expect((await identityMode.resolveManagedIdentity(person.id)).state).toBe("MANAGED");
+    await domainOnly.remediateDomainOnlyManagedLinks(prisma as never, { apply: true });
+    expect((await identityMode.resolveManagedIdentity(person.id)).state).toBe("STANDARD");
+  });
+
+  it("PRO-LEAD-01 — a lifecycle webhook whose creator's capability expired queues nothing and is deactivated; the owner's still queues", async () => {
+    const org = await fx.seedOrganizationTenant(deps);
+    const member = await orgMember(org, "lead01-lc");
+    const grant = await rbac.grantCapability({
+      teamId: org.workspaceId,
+      teamMemberId: member.teamMemberId,
+      permission: "integration.lifecycle_webhook.manage" as never,
+      actorUserId: org.owner.userId,
+    });
+    const endpointBy = (userId: string) =>
+      prisma.lifecycleWebhookEndpoint.create({
+        data: {
+          teamId: org.workspaceId,
+          url: `https://hooks.example.test/${randomUUID()}`,
+          secret: randomUUID(),
+          subscribedEvents: ["EVIDENCE_CREATED"],
+          createdByUserId: userId,
+        },
+        select: { id: true },
+      });
+    const memberHook = await endpointBy(member.userId);
+    const ownerHook = await endpointBy(org.owner.userId);
+    const emit = () =>
+      lifecycleWebhooks.emitWebhookEvent({ prisma: prisma as never, teamId: org.workspaceId, eventKind: "EVIDENCE_CREATED", payload: { n: randomUUID() } });
+
+    const queued = await emit();
+    expect(queued.deliveryIds).toHaveLength(2);
+
+    // The capability lapses by time: no transition runs.
+    await prisma.memberCapabilityGrant.update({ where: { id: grant.id }, data: { expiresAtUtc: new Date(Date.now() - 60_000) } });
+    const after = await emit();
+    expect(after.deliveryIds).toHaveLength(1);
+    const rows = await prisma.lifecycleWebhookDelivery.findMany({ where: { id: { in: [...after.deliveryIds] } }, select: { endpointId: true } });
+    expect(rows.map((r) => r.endpointId)).toEqual([ownerHook.id]);
+    expect((await prisma.lifecycleWebhookEndpoint.findUniqueOrThrow({ where: { id: memberHook.id } })).state).toBe("DEACTIVATED");
+    expect((await prisma.lifecycleWebhookEndpoint.findUniqueOrThrow({ where: { id: ownerHook.id } })).state).toBe("ACTIVE");
+  });
+
+  it("PRO-A2-08 — a signed assertion ID is accepted once per connection and the sweep keeps the row until the assertion expires", async () => {
+    const org = await fx.seedOrganizationTenant(deps);
+    const conn = await prisma.ssoConnection.create({
+      data: {
+        teamId: org.workspaceId,
+        organizationId: org.organizationId,
+        provider: "GENERIC_SAML",
+        status: "ACTIVE",
+        displayName: "idp",
+        createdByUserId: org.owner.userId,
+        allowedEmailDomains: [],
+      } as never,
+      select: { id: true },
+    });
+    const use = (assertionId: string | null) =>
+      ssoHardening.recordSamlAssertionUse(
+        { teamId: org.workspaceId, ssoConnectionId: conn.id, assertionId, notOnOrAfter: new Date(Date.now() + 300_000) },
+        prisma as never,
+      );
+    const id = `_${randomUUID()}`;
+    expect(await use(null)).toBe("SKIPPED");
+    expect(await use(id)).toBe("RECORDED");
+    expect(await use(id)).toBe("REPLAYED");
+    expect(await use(`_${randomUUID()}`)).toBe("RECORDED");
+    // The sweep keeps an unexpired assertion-use row whatever its age.
+    await prisma.ssoCallbackAttempt.updateMany({ where: { ssoConnectionId: conn.id }, data: { createdAt: new Date(Date.now() - 30 * 86_400_000) } });
+    await ssoHardening.sweepStaleCallbackAttempts({ olderThanDays: 1 }, prisma as never);
+    expect(await use(id)).toBe("REPLAYED");
   });
 });
