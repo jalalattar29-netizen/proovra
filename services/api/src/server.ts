@@ -301,6 +301,7 @@ import {
   sendServerBusy,
 } from "./middleware/overload-gate.js";
 import { cachedHealthDbProbe } from "./http/health-db-probe.js";
+import { installClientContractReportObserver } from "./http/client-contract-report.js";
 
 // UC-SEC-002 / UC-SEC-005 — the CORS origin decision lives in ONE module.
 
@@ -726,6 +727,8 @@ allowedHeaders: [
     reply.header(CLIENT_REPORT_ACCEPTED_HEADER, "1");
     return payload;
   });
+  // PRO-PSZ-05 — and reads what a client reports (reporting only, DEC-23).
+  installClientContractReportObserver(app);
 
   // F-08 (2026-11-15) — overload is refused fast (503 + Retry-After) before
   // any authentication read, after CORS so a browser can read the refusal.
