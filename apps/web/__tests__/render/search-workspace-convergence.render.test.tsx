@@ -31,8 +31,11 @@
  */
 
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, waitFor, act, cleanup, fireEvent } from "@testing-library/react";
+import { dict, type Locale } from "@proovra/shared/i18n";
+
+type CopyKey = keyof (typeof dict)["en"];
 
 // ---------------------------------------------------------------------------
 // Seams — every request the console makes, recorded in order
@@ -70,6 +73,15 @@ vi.mock("../../lib/api", () => ({
 }));
 
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
+
+// B2A-F-12 — the page reads its copy through `useT()`. With no provider that is
+// English (every case above); the locale cases at the end set another one.
+let testLocale: Locale | null = null;
+vi.mock("../../app/providers", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useT: () => (key: CopyKey) =>
+    testLocale ? (dict[testLocale] as Record<CopyKey, string>)[key] || dict.en[key] : dict.en[key],
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {}, replace: () => {}, back: () => {} }),
@@ -1299,5 +1311,61 @@ describe("coverage", () => {
     // RESTRICTED is covered by the route gate, not by a readiness fixture:
     // the console never mounts for an actor without SEARCH_VIEW.
     expect(NON_RENDERING_CONTEXTS).toContain("restrictedReadOnly");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B2A-F-12 / PRO-KZ-01 — the case pivot's filter is translated like its
+// neighbours. It was two English literals in the filter panel.
+// ---------------------------------------------------------------------------
+
+describe("B2A-F-12 — the case filter renders its locale (PRO-KZ-01)", () => {
+  const CASE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const ENGLISH_SECTION = "Case";
+  const ENGLISH_TOGGLE = "Only records in the case you came from";
+
+  /** The filter panel of the real page, opened through the case pivot's URL. */
+  async function caseFilterPanel(locale: Locale | null): Promise<HTMLElement> {
+    window.history.replaceState({}, "", `/search?caseId=${CASE_ID}`);
+    testLocale = locale;
+    await mountRendered("personalNormal");
+    const panel = document.querySelector<HTMLElement>("[data-search-filters]");
+    expect(panel).not.toBeNull();
+    return panel!;
+  }
+
+  afterEach(() => {
+    testLocale = null;
+    window.history.replaceState({}, "", "/search");
+  });
+
+  it("English by default: the section and its toggle are the dictionary's English", async () => {
+    expect(dict.en.searchFilterCase).toBe(ENGLISH_SECTION);
+    expect(dict.en.searchFilterCaseOnly).toBe(ENGLISH_TOGGLE);
+    const panel = await caseFilterPanel(null);
+    expect(panel.textContent).toContain(ENGLISH_TOGGLE);
+  });
+
+  it.each(["de", "ar", "fr", "es", "tr", "ru"] as const)(
+    "%s: the case scope is translated — no English literal is rendered",
+    async (locale) => {
+      const copy = dict[locale];
+      // A real translation, not an English copy.
+      expect(copy.searchFilterCaseOnly).not.toBe(ENGLISH_TOGGLE);
+      const panel = await caseFilterPanel(locale);
+      expect(panel.textContent).toContain(copy.searchFilterCaseOnly);
+      expect(panel.textContent).toContain(copy.searchFilterCase);
+      expect(panel.textContent).not.toContain(ENGLISH_TOGGLE);
+      // The neighbouring section is translated through the same dictionary.
+      expect(panel.textContent).toContain(copy.searchFilterLifecycle);
+    },
+  );
+
+  it("without the case pivot the section is absent", async () => {
+    window.history.replaceState({}, "", "/search");
+    testLocale = "de";
+    await mountRendered("personalNormal");
+    const panel = document.querySelector<HTMLElement>("[data-search-filters]")!;
+    expect(panel.textContent).not.toContain(dict.de.searchFilterCaseOnly);
   });
 });

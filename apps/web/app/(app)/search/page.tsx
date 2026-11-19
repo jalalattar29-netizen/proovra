@@ -2110,9 +2110,9 @@ function SearchInner() {
           {filter.caseId ? (
             // PRO-KZ-01 — the case pivot's scope, shown and removable; turning
             // it off returns to the whole workspace's search.
-            <FilterSection label="Case">
+            <FilterSection label={t("searchFilterCase")}>
               <Toggle
-                label="Only records in the case you came from"
+                label={t("searchFilterCaseOnly")}
                 value={true}
                 onChange={(v) => {
                   if (!v) updateFilter({ caseId: undefined });
