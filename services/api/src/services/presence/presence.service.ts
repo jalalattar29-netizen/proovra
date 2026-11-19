@@ -47,7 +47,46 @@ type Entry = {
   lastSeenAtUtc: Date;
 };
 
+/**
+ * PRO-K2-03 — a bound ACROSS keys, not only per key. A bucket nobody reads
+ * again was never evicted (eviction ran only inside listViewers for the same
+ * key), so distinct keys accumulated for the life of the process. Expired
+ * entries are swept at most once per TTL window on write, and the number of
+ * live keys is capped: past the cap the least recently refreshed keys go.
+ */
+const MAX_KEYS = 20_000;
+let lastSweepAtMs = 0;
+
 const store: Map<Key, Map<string, Entry>> = new Map();
+
+function bucketNewestMs(bucket: Map<string, Entry>): number {
+  let newest = 0;
+  for (const entry of bucket.values()) newest = Math.max(newest, entry.lastSeenAtUtc.getTime());
+  return newest;
+}
+
+function sweepExpired(nowMs: number): void {
+  lastSweepAtMs = nowMs;
+  for (const [k, bucket] of store) {
+    for (const [userId, entry] of bucket) {
+      if (nowMs - entry.lastSeenAtUtc.getTime() > HEARTBEAT_TTL_MS) bucket.delete(userId);
+    }
+    if (bucket.size === 0) store.delete(k);
+  }
+}
+
+function enforceKeyBound(nowMs: number): void {
+  if (nowMs - lastSweepAtMs > HEARTBEAT_TTL_MS) sweepExpired(nowMs);
+  if (store.size <= MAX_KEYS) return;
+  sweepExpired(nowMs);
+  if (store.size <= MAX_KEYS) return;
+  const byAge = Array.from(store.entries())
+    .map(([k, bucket]) => [k, bucketNewestMs(bucket)] as const)
+    .sort((a, b) => a[1] - b[1]);
+  // Trim to 90% so a sustained flood pays the sort once per 2,000 new keys.
+  const target = Math.floor(MAX_KEYS * 0.9);
+  for (let i = 0; i < byAge.length && store.size > target; i++) store.delete(byAge[i]![0]);
+}
 
 function key(teamId: string, resourceKind: string, resourceId: string): Key {
   return `${teamId}|${resourceKind}|${resourceId}`;
@@ -69,6 +108,9 @@ export function recordHeartbeat(input: {
   if (!bucket) {
     bucket = new Map();
     store.set(k, bucket);
+    enforceKeyBound(Date.now());
+    // The bound may have trimmed this new (empty, so "oldest") bucket.
+    if (!store.has(k)) store.set(k, bucket);
   }
   bucket.set(input.userId, {
     userId: input.userId,
@@ -135,7 +177,14 @@ export function listViewers(input: {
  */
 export function _resetPresenceStoreForTests(): void {
   store.clear();
+  lastSweepAtMs = 0;
 }
+
+/** Test-only: the number of live presence keys (PRO-K2-03 bound). */
+export function _presenceKeyCountForTests(): number {
+  return store.size;
+}
+export const PRESENCE_MAX_KEYS = MAX_KEYS;
 
 /** Test-only: surface internal bound for assertion. */
 export const PRESENCE_HEARTBEAT_TTL_MS = HEARTBEAT_TTL_MS;

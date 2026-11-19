@@ -172,3 +172,17 @@ export function formatRelativeTime(value?: string | Date | null): string {
   if (days < 30) return `${days}d ago`;
   return formatUserDate(value);
 }
+
+/**
+ * PRO-K2-24 — the `datetime-local` value for a stored UTC instant, in the
+ * VIEWER's wall-clock. Slicing the ISO string ("…T15:00") seeded the control
+ * with UTC digits that `new Date(local)` then re-read as LOCAL time, so every
+ * unchanged save moved the instant by the browser's UTC offset.
+ */
+export function toDateTimeLocalInputValue(value?: string | Date | null): string {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

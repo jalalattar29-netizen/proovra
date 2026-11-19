@@ -83,6 +83,11 @@ function DiscussionPanel({
   // enforce; a read-only role (VIEWER, EXTERNAL) reads the discussion only.
   const canComment = team.viewerCapabilities?.canComment === true;
   const [loading, setLoading] = useState(true);
+  // PRO-K2-16 — older comments past the first page.
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // PRO-K2-04 — handles in the last post that named nobody.
+  const [unresolved, setUnresolved] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -90,6 +95,7 @@ function DiscussionPanel({
       const res = await listComments(team.id);
       setItems(res.items);
       setDirectory(res.directory);
+      setNextCursor(res.nextCursor ?? null);
     } catch (err) {
       onError(err);
     } finally {
@@ -101,12 +107,28 @@ function DiscussionPanel({
     void refresh();
   }, [refresh]);
 
+  const loadOlder = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await listComments(team.id, { cursor: nextCursor });
+      setItems((prev) => [...prev, ...res.items]);
+      setDirectory((prev) => ({ ...prev, ...res.directory }));
+      setNextCursor(res.nextCursor ?? null);
+    } catch (err) {
+      onError(err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!body.trim() || busy) return;
     setBusy(true);
     try {
-      await createComment(team.id, { targetType: "TEAM", body });
+      const created = await createComment(team.id, { targetType: "TEAM", body });
+      setUnresolved(created.unresolvedMentions);
       setBody("");
       await refresh();
     } catch (err) {
@@ -202,6 +224,12 @@ function DiscussionPanel({
           </form>
         )}
 
+        {unresolved.length > 0 ? (
+          <p role="status" className="app-table__muted" data-testid="comment-unresolved-mentions" style={{ marginBottom: "1rem" }}>
+            Nobody was notified for {unresolved.map((h) => `@${h}`).join(", ")}: no member of this team matches.
+          </p>
+        ) : null}
+
         {loading ? (
           <p style={{ color: "#5F6878" }}>Loading comments…</p>
         ) : items.length === 0 ? (
@@ -239,6 +267,17 @@ function DiscussionPanel({
             ))}
           </ul>
         )}
+        {!loading && nextCursor ? (
+          <button
+            type="button"
+            className="app-secondary-action"
+            data-testid="comments-load-more"
+            disabled={loadingMore}
+            onClick={() => void loadOlder()}
+          >
+            {loadingMore ? "Loading…" : "Load older comments"}
+          </button>
+        ) : null}
       </div>
     </section>
   );

@@ -17,6 +17,10 @@
  * Security:
  *   - The token is in the URL path; we POST it to the accept endpoint
  *     and immediately drop the token reference after the response.
+ *   - PRO-K2-15 — the sign-in bounce never puts the token in a query string:
+ *     it is held in this tab's sessionStorage and `/login?next=` names the
+ *     token-less `/collaboration-teams/invites/resume/accept`, which reads
+ *     it back. The hand-off is cleared once an accept is answered.
  *   - We never log the token to console or analytics.
  *   - Invalid / expired / revoked tokens produce a safe generic error
  *     ("This invite is no longer valid") — we never leak team or
@@ -35,12 +39,46 @@ import { useToast } from "../../../../../../components/ui";
 import { isApiResponseError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { acceptInvite } from "../../../../../../lib/api/collaboration-teams";
+import { requestWorkspaceSwitch } from "../../../../../../lib/platform-context";
 import {
-  COLLABORATION_TEAM_BILLING_UPGRADE_CTA,
   isWellFormedCollaborationTeamInviteToken,
 } from "@proovra/shared";
 
+/** The path segment that stands in for the token after a sign-in bounce. */
+const RESUME_SEGMENT = "resume";
+const RESUME_PATH = `/collaboration-teams/invites/${RESUME_SEGMENT}/accept`;
+const HANDOFF_KEY = "proovra-collab-invite-handoff";
+
+function readHandoff(): string {
+  try {
+    return window.sessionStorage.getItem(HANDOFF_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+function writeHandoff(token: string): void {
+  try {
+    window.sessionStorage.setItem(HANDOFF_KEY, token);
+  } catch {
+    // No storage: the reader opens the e-mailed link again after signing in.
+  }
+}
+function clearHandoff(): void {
+  try {
+    window.sessionStorage.removeItem(HANDOFF_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 type Status =
+  // PRO-K2-15 — opening the link no longer joins: the invitee presses Accept.
+  | "ready"
+  // Returned from sign-in without the held invitation (another tab or browser).
+  | "resume_missing"
+  | "wrong_account"
+  | "already_used"
+  | "archived"
   | "checking"
   | "accepting"
   | "success"
@@ -85,7 +123,15 @@ function AcceptTeamInvite() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const { addToast } = useToast();
-  const rawToken = decodeURIComponent(params?.token ?? "");
+  const pathToken = decodeURIComponent(params?.token ?? "");
+  const resuming = pathToken === RESUME_SEGMENT;
+  // After a sign-in bounce the token comes from this tab's hand-off, read on
+  // the client only; otherwise it is the path segment.
+  const [heldToken, setHeldToken] = useState<string | null>(null);
+  useEffect(() => {
+    if (resuming) setHeldToken(readHandoff());
+  }, [resuming]);
+  const rawToken = resuming ? (heldToken ?? "") : pathToken;
   const [status, setStatus] = useState<Status>("checking");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [requestId, setRequestId] = useState<string | undefined>();
@@ -111,6 +157,7 @@ function AcceptTeamInvite() {
     setStatus("accepting");
     try {
       const result = await acceptInvite(rawToken);
+      clearHandoff();
       // We never keep the raw token in component state — accept() takes
       // it once and returns the team id.
       setTeamId(result.teamId ?? null);
@@ -123,9 +170,16 @@ function AcceptTeamInvite() {
       }
       setStatus("success");
       addToast("You've joined the team.", "success");
-      setTimeout(() => {
-        router.replace(`/collaboration-teams/${result.teamId}`);
-      }, 700);
+      // PRO-K2-15 — open the team IN its workspace: the team read is scoped to
+      // the active workspace, so landing there from another one answered 404.
+      if (result.workspaceId) {
+        try {
+          await requestWorkspaceSwitch(result.workspaceId);
+        } catch {
+          // The team link still works once the reader switches themselves.
+        }
+      }
+      router.replace(`/collaboration-teams/${result.teamId}`);
     } catch (err) {
       if (isApiResponseError(err)) {
         setRequestId(err.requestId);
@@ -133,6 +187,8 @@ function AcceptTeamInvite() {
         // Map STABLE backend codes to safe surface states — never regex
         // over the error message. We DO NOT show team metadata for
         // invalid tokens — only a generic safe message.
+        // An answered accept ends the hand-off; a 401 still needs it.
+        if (err.statusCode !== 401) clearHandoff();
         if (err.statusCode === 401) setStatus("auth_required");
         else if (err.code === "TEAM_MEMBER_LIMIT_REACHED") {
           // Pre-acceptance capacity gate. The server's billing guard
@@ -146,6 +202,9 @@ function AcceptTeamInvite() {
           // Entitlement Alignment — the Team is grandfathered on a plan
           // with zero Teams; all membership growth is locked.
           setStatus("plan_restricted");
+        else if (err.code === "INVITE_EMAIL_MISMATCH") setStatus("wrong_account");
+        else if (err.code === "INVITE_ALREADY_USED") setStatus("already_used");
+        else if (err.code === "collaboration_team_archived") setStatus("archived");
         else if (err.code === "INVITE_EXPIRED") setStatus("expired");
         else if (err.code === "INVITE_REVOKED") setStatus("revoked");
         else if (err.code === "WORKSPACE_MEMBERSHIP_REQUIRED")
@@ -160,9 +219,18 @@ function AcceptTeamInvite() {
     }
   }, [rawToken, router, addToast]);
 
-  // Acceptance is a ONE-SHOT mutation: `startedRef` makes it idempotent, so
-  // listing `run` cannot produce a second accept even if its identity changes.
+  // PRO-K2-15 — nothing is written on page load. The shape check runs; the
+  // ONE-SHOT accept runs only when the invitee presses Accept (`startedRef`
+  // keeps a double click to one request).
   useEffect(() => {
+    if (resuming && heldToken === null) return; // hand-off not read yet
+    if (resuming && heldToken === "") {
+      setStatus("resume_missing");
+      return;
+    }
+    setStatus(isWellFormedCollaborationTeamInviteToken(rawToken) ? "ready" : "invalid");
+  }, [rawToken, resuming, heldToken]);
+  const onAccept = useCallback(() => {
     if (startedRef.current) return;
     startedRef.current = true;
     void run();
@@ -181,14 +249,17 @@ function AcceptTeamInvite() {
         requestId,
         capacityProbe,
         teamId,
+        onAccept,
         onSignIn: () => {
           // Send the user to sign-in and bounce back here after auth.
           // PHASE 5 §8 (2026-07-22) — the sign-in page is /login (there
           // is no /signin route; the old target 404'd and DROPPED the
           // invite token). /login honours `next` for both the password
           // flow and the OAuth return-url handoff.
-          const here = `/collaboration-teams/invites/${encodeURIComponent(rawToken)}/accept`;
-          router.push(`/login?next=${encodeURIComponent(here)}`);
+          // PRO-K2-15 — the token is NOT in `next`: it waits in this tab and
+          // the token-less resume path reads it back after sign-in.
+          writeHandoff(rawToken);
+          router.push(`/login?next=${encodeURIComponent(RESUME_PATH)}`);
         },
       })}
     </div>
@@ -229,8 +300,10 @@ function renderStateContent({
   requestId,
   capacityProbe,
   teamId,
+  onAccept,
   onSignIn,
 }: {
+  onAccept: () => void;
   status: Status;
   errorMessage: string;
   requestId?: string;
@@ -239,6 +312,64 @@ function renderStateContent({
   onSignIn: () => void;
 }) {
   switch (status) {
+    case "ready":
+      return (
+        <Panel
+          kicker="Team invite"
+          title="Join this team?"
+          body="You were invited to a Collaboration Team. Accepting adds you to it with the role the invitation names. If this was not meant for you, simply leave this page."
+          tone="neutral"
+          actions={
+            <button type="button" className="app-primary-action" onClick={onAccept} data-testid="accept-invite-accept">
+              Accept invitation
+            </button>
+          }
+        />
+      );
+    case "resume_missing":
+      return (
+        <Panel
+          kicker="Team invite"
+          title="Open your invitation link again"
+          body="You are signed in. To finish joining, open the link in your invitation e-mail again in this browser."
+          tone="neutral"
+        />
+      );
+    case "wrong_account":
+      return (
+        <Panel
+          kicker="Team invite"
+          title="This invitation is for another address"
+          body="Sign in with the address this invitation was sent to, then open the link again."
+          tone="warn"
+          requestId={requestId}
+          actions={
+            <button type="button" className="app-secondary-action" onClick={onSignIn} data-testid="accept-invite-switch-account">
+              Sign in with another account
+            </button>
+          }
+        />
+      );
+    case "already_used":
+      return (
+        <Panel
+          kicker="Team invite"
+          title="This invitation was already used"
+          body="Invitations work once. Ask the team lead for a new one if you still need access."
+          tone="warn"
+          requestId={requestId}
+        />
+      );
+    case "archived":
+      return (
+        <Panel
+          kicker="Team invite"
+          title="This team is archived"
+          body="An archived team does not accept new members."
+          tone="warn"
+          requestId={requestId}
+        />
+      );
     case "checking":
     case "accepting":
       return (
@@ -403,15 +534,6 @@ function renderStateContent({
           actions={
             <>
               <Link
-                href={COLLABORATION_TEAM_BILLING_UPGRADE_CTA}
-                className="app-primary-action"
-                data-testid="accept-invite-billing-cta"
-                aria-label="View billing and upgrade options"
-                title="Owner can upgrade to add more seats"
-              >
-                View billing
-              </Link>
-              <Link
                 href="/collaboration-teams"
                 className="app-secondary-action"
               >
@@ -437,14 +559,6 @@ function renderStateContent({
           requestId={requestId}
           actions={
             <>
-              <Link
-                href={COLLABORATION_TEAM_BILLING_UPGRADE_CTA}
-                className="app-primary-action"
-                data-testid="accept-invite-plan-restricted-billing-cta"
-                aria-label="View billing and upgrade options"
-              >
-                View billing
-              </Link>
               <Link
                 href="/collaboration-teams"
                 className="app-secondary-action"

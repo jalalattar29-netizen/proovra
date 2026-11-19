@@ -581,6 +581,48 @@ async function requireMemberWithPermission(
   return { role, team };
 }
 
+/** PRO-K2-11 — is this person the owner of record of the group's workspace? */
+export async function isCollaborationTeamWorkspaceOwner(
+  teamId: string,
+  userId: string | null,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(teamId)) return false;
+  const row = await client.collaborationTeam.findUnique({
+    where: { id: teamId },
+    select: { workspace: { select: { ownerUserId: true } } },
+  });
+  return row?.workspace.ownerUserId === userId;
+}
+
+/**
+ * PRO-K2-11 / DEC-17 — who may ARCHIVE a group: a member holding the group's
+ * `team.archive` (LEAD), OR the workspace OWNER of record, who pays for the
+ * plan-capped group slots and must be able to reclaim one a member created.
+ * The owner's override confers nothing else (no group role, no assignment
+ * authority); archive keeps its exact-name confirmation, step-up and audit.
+ */
+async function requireArchiveAuthority(
+  client: PrismaClient,
+  teamId: string,
+  actorUserId: string,
+): Promise<{ team: { id: string; workspaceId: string; status: string } }> {
+  try {
+    return await requireMemberWithPermission(client, teamId, actorUserId, "team.archive");
+  } catch (err) {
+    const row = await client.collaborationTeam.findUnique({
+      where: { id: teamId },
+      select: { id: true, workspaceId: true, status: true, workspace: { select: { ownerUserId: true } } },
+    });
+    if (!row || row.workspace.ownerUserId !== actorUserId) throw err;
+    const owner = await client.teamMember.findFirst({
+      where: { teamId: row.workspaceId, userId: actorUserId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!owner) throw err;
+    return { team: { id: row.id, workspaceId: row.workspaceId, status: row.status } };
+  }
+}
 // =============================================================================
 // Plan-limit enforcement
 // =============================================================================
@@ -979,10 +1021,15 @@ export async function listCollaborationTeams(
   const participationFilter =
     scope === "ALL"
       ? {}
-      : // Membership across all statuses, so a removed member can still see
-        // history if a surface chooses to show it; `viewerRole` below is null
-        // unless the membership is ACTIVE.
-        { members: { some: { userId: input.actorUserId } } };
+      : // PRO-K2-06 — the list agrees with every other read of a group
+        // (authorizeCollaborationTeam): only an EFFECTIVE member participates.
+        // A removed or suspended member kept receiving the team's row and its
+        // live counts, then a 404 on opening it.
+        {
+          members: {
+            some: { userId: input.actorUserId, ...effectiveGroupMemberWhere(input.workspaceId) },
+          },
+        };
   const where = {
     workspaceId: input.workspaceId,
     ...(input.status
@@ -1234,7 +1281,7 @@ export async function getCollaborationTeamDetail(
    */
   if (!viewerRow && !input.viaWorkspaceGovernance) throw E.notFound("Team");
   const viewer = { role: viewerRow?.role ?? "VIEWER" };
-  const [activeMemberCount, capacityMemberCount, pendingInviteCount, validLeadCount] = await Promise.all([
+  const [activeMemberCount, capacityMemberCount, pendingInviteCount, validLeadCount, openAssignmentCount] = await Promise.all([
     client.collaborationTeamMember.count({
       // WCR-11 — effective members only.
       where: { teamId: input.teamId, ...effectiveGroupMemberWhere(input.workspaceId) },
@@ -1253,6 +1300,10 @@ export async function getCollaborationTeamDetail(
     // Members ledger X5 — whether the group still has a valid lead, so the
     // workspace owner is offered Lead recovery only when it is needed.
     client.collaborationTeamMember.count({ where: validLeadWhere(input.teamId, input.workspaceId) }),
+    // PRO-K2-18 — the Work badge counts open work, not every task ever.
+    client.collaborationTeamAssignment.count({
+      where: { teamId: input.teamId, status: { notIn: ["COMPLETED", "CANCELLED"] } },
+    }),
   ]);
   /**
    * An address is administrative data. A VIEWER reads the team; an EXTERNAL
@@ -1299,6 +1350,10 @@ export async function getCollaborationTeamDetail(
         "team.member.invite",
       ),
       canManageAccessReviews: isCollaborationTeamModerator(viewer.role),
+      // PRO-K2-11 — archive/restore: the group's LEAD or the workspace owner.
+      canArchive:
+        collaborationTeamRoleHasPermission(viewer.role as CollaborationTeamRole, "team.archive") ||
+        team.workspace.ownerUserId === input.actorUserId,
     },
     activeMemberCount,
     capacityMemberCount,
@@ -1341,6 +1396,7 @@ export async function getCollaborationTeamDetail(
       deliveryStatus: inv.deliveryStatus,
     })),
     assignmentCount: team._count.assignments as number,
+    openAssignmentCount,
   };
 }
 
@@ -1531,12 +1587,8 @@ export async function assessCollaborationTeamArchiveImpact(
   input: { teamId: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<CollaborationTeamArchiveImpact> {
-  const { team } = await requireMemberWithPermission(
-    client,
-    input.teamId,
-    input.actorUserId,
-    "team.archive",
-  );
+  // PRO-K2-11 — the same authority as the archive itself (LEAD or owner).
+  const { team } = await requireArchiveAuthority(client, input.teamId, input.actorUserId);
   const row = await client.collaborationTeam.findUniqueOrThrow({
     where: { id: input.teamId },
     select: { name: true, status: true },
@@ -1563,7 +1615,7 @@ export async function assertArchiveConfirmation(
   input: { teamId: string; actorUserId: string; confirmName: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
-  await requireMemberWithPermission(client, input.teamId, input.actorUserId, "team.archive");
+  await requireArchiveAuthority(client, input.teamId, input.actorUserId);
   const row = await client.collaborationTeam.findUniqueOrThrow({
     where: { id: input.teamId },
     select: { name: true },
@@ -1604,7 +1656,7 @@ export async function archiveCollaborationTeam(
     // waits here and then finds ARCHIVED.
     await tx.$queryRaw`SELECT "id" FROM "collaboration_teams" WHERE "id" = ${input.teamId}::uuid FOR UPDATE`;
     // Authority re-checked under the lock: a LEAD demoted meanwhile is refused.
-    const { team } = await requireMemberWithPermission(db, input.teamId, input.actorUserId, "team.archive");
+    const { team } = await requireArchiveAuthority(db, input.teamId, input.actorUserId);
     if (team.status === "ARCHIVED") return { changed: false, summary: null };
 
     const counts = await countArchiveImpact(db, team);
@@ -1702,13 +1754,9 @@ export async function unarchiveCollaborationTeam(
   input: { teamId: string; actorUserId: string; auditTx?: CollaborationMutationAudit },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ changed: boolean }> {
-  const { team } = await requireMemberWithPermission(
-    client,
-    input.teamId,
-    input.actorUserId,
-    // Restoring is the inverse of archiving and carries the same authority.
-    "team.archive",
-  );
+  // Restoring is the inverse of archiving and carries the same authority
+  // (PRO-K2-11: the group LEAD or the workspace owner of record).
+  const { team } = await requireArchiveAuthority(client, input.teamId, input.actorUserId);
   if (team.status === "ACTIVE") return { changed: false };
 
   await assertRestoreLifecycleAllows(team.workspaceId, client);
@@ -2478,6 +2526,7 @@ export async function acceptInvite(
       maxUses: true,
       useCount: true,
       acceptedByUserId: true,
+      createdByUserId: true,
     },
   });
   if (!invite) throw E.inviteNotFound();
@@ -2505,18 +2554,22 @@ export async function acceptInvite(
   }
 
   if (invite.status === "REVOKED") throw E.inviteRevoked();
+  // PRO-K2-14 — a consumed invitation is answered as consumed BEFORE the
+  // expiry branch: replaying an old ACCEPTED link after its expiry rewrote
+  // the stored fact "accepted" to EXPIRED.
+  // Consumed by someone else (or by this user before their membership
+  // was removed) — invites are single-use (maxUses is always written 1).
+  if (invite.status === "ACCEPTED" || invite.useCount >= invite.maxUses)
+    throw E.inviteAlreadyUsed();
   if (invite.expiresAtUtc.getTime() < Date.now()) {
-    await client.collaborationTeamInvite.update({
-      where: { id: invite.id },
+    // Only a still-PENDING row becomes EXPIRED; history is never rewritten.
+    await client.collaborationTeamInvite.updateMany({
+      where: { id: invite.id, status: "PENDING" },
       data: { status: "EXPIRED" },
     });
     throw E.inviteExpired();
   }
   if (invite.status === "EXPIRED") throw E.inviteExpired();
-  // Consumed by someone else (or by this user before their membership
-  // was removed) — invites are single-use (maxUses is always written 1).
-  if (invite.status === "ACCEPTED" || invite.useCount >= invite.maxUses)
-    throw E.inviteAlreadyUsed();
   // An archived group admits nobody (2026-10-28): archive revokes pending
   // invitations, and a link minted in the instant before is refused here.
   const inviteTeam = await client.collaborationTeam.findUnique({
@@ -2524,6 +2577,21 @@ export async function acceptInvite(
     select: { status: true },
   });
   if (!inviteTeam || inviteTeam.status !== "ACTIVE") throw E.archived();
+  // PRO-K2-14 / DEC-28 — a pending invitation cannot exercise authority its
+  // inviter no longer holds: the inviter must still be an effective member
+  // allowed to invite into this group.
+  if (invite.createdByUserId) {
+    const inviter = await client.collaborationTeamMember.findFirst({
+      where: { teamId: invite.teamId, userId: invite.createdByUserId, ...effectiveGroupMemberWhere(invite.workspaceId) },
+      select: { role: true },
+    });
+    if (
+      !inviter ||
+      !collaborationTeamRoleHasPermission(inviter.role as CollaborationTeamRole, "team.member.invite")
+    ) {
+      throw E.inviteRevoked();
+    }
+  }
 
   /**
    * BIND THE INVITE TO THE PERSON IT WAS ADDRESSED TO.
@@ -3229,9 +3297,14 @@ export async function listCollaborationTeamMembers(
    * history (a roster of who was suspended, say) and is honoured as asked.
    */
   const effective = effectiveGroupMemberWhere(input.workspaceId);
+  // PRO-K2-24 — `status=ACTIVE` is not history: the pickers that ask for it
+  // (assignee, lead recovery) mean "who can be handed this now", so it gets the
+  // effective-membership predicate too. Only other explicit statuses read
+  // history as asked.
+  const historyStatus = input.status && input.status !== "ACTIVE" ? input.status : null;
   const where: Prisma.CollaborationTeamMemberWhereInput = {
     teamId: input.teamId,
-    ...(input.status ? { status: input.status } : effective),
+    ...(historyStatus ? { status: historyStatus } : effective),
     ...(input.role ? { role: input.role } : {}),
     ...(search
       ? {
@@ -3248,7 +3321,7 @@ export async function listCollaborationTeamMembers(
                   { email: { contains: search, mode: "insensitive" } },
                 ],
               },
-              ...(input.status
+              ...(historyStatus
                 ? []
                 : [
                     {

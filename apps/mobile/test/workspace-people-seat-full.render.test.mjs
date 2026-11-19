@@ -132,3 +132,24 @@ test("at zero free seats Invite stays enabled, and the invitation is actually se
   assert.deepEqual(posts[0].body, { email: "new@x.io", role: "MEMBER" });
   r.unmount();
 });
+
+test("PRO-T1-02 — the caller's own row offers Leave; a refusal is explained in the words of the web", async () => {
+  let refuse = true;
+  routes["/v1/teams/team-1/leave"] = () =>
+    refuse
+      ? { __status: 409, body: { error: { code: "OWNED_RECORDS_HANDOVER_REQUIRED", message: "You still own evidence or cases in this workspace." } } }
+      : { __status: 204, body: null };
+  const r = await renderComponent(h(M.TestProviders, null, h(M.default, {})));
+  await settle();
+  // Only the caller's row (ADMIN, not the owner's) carries the control.
+  assert.equal(r.byTestId("workspace-leave").length, 1);
+  await r.press("Leave this workspace");
+  await settle();
+  assert.ok(r.hasText("Leave this workspace?"));
+  await r.press("Leave workspace");
+  await settle();
+  const sent = requests.filter((q) => q.path === "/v1/teams/team-1/leave" && q.method === "POST");
+  assert.equal(sent.length, 1);
+  assert.ok(r.texts().some((t) => t.includes("Ask an administrator to take them over before you leave.")), r.texts().join(" | "));
+  r.unmount();
+});

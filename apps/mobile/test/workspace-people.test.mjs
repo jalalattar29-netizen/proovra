@@ -303,3 +303,47 @@ test("a resend is reported from the re-read list and the route's emailSent", () 
   assert.equal(W.resendOutcome(inv, true, null).tone, "error");
   assert.match(W.resendErrorCopy({ code: "INVITE_NOT_FOUND" }), /no longer exists/);
 });
+
+/* ------------------------------------------- leave + ownership offers (WS-WSP) */
+
+test("PRO-T1-02 — Leave is offered on the caller's own ACTIVE non-owner row only", () => {
+  const row = (userId, role, status = "ACTIVE") => ({ userId, role, status });
+  assert.equal(W.buildWorkspaceLeavePath("t 1"), "/v1/teams/t%201/leave");
+  assert.equal(W.canLeaveWorkspace(row("me", "MEMBER"), "me"), true);
+  assert.equal(W.canLeaveWorkspace(row("me", "admin"), "me"), true);
+  assert.equal(W.canLeaveWorkspace(row("me", "OWNER"), "me"), false);
+  assert.equal(W.canLeaveWorkspace(row("me", "MEMBER", "SUSPENDED"), "me"), false);
+  assert.equal(W.canLeaveWorkspace(row("other", "MEMBER"), "me"), false);
+  assert.equal(W.canLeaveWorkspace(row("me", "MEMBER"), null), false);
+});
+
+test("PRO-T1-18 — the leave refusals are named by the route's codes, in the web's words", () => {
+  const web = readFileSync(
+    resolve(HERE, "../../web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx"),
+    "utf8",
+  );
+  const handover = W.leaveFailureCopy({ code: "OWNED_RECORDS_HANDOVER_REQUIRED" }, "x");
+  assert.ok(web.includes(handover), "native handover copy differs from the web's");
+  assert.equal(W.leaveFailureCopy({ body: { error: { code: "OWNED_RECORDS_HANDOVER_REQUIRED" } } }, null), handover);
+  assert.match(W.leaveFailureCopy({ code: "last_administrator_protected" }, null), /last administrator/);
+  assert.match(W.leaveFailureCopy({ code: "owner_cannot_leave" }, null), /Transfer ownership first/);
+  assert.equal(W.leaveFailureCopy({ code: "something_else" }, "Server said so."), "Server said so.");
+  assert.equal(W.leaveFailureCopy(null, null), "You could not leave this workspace.");
+});
+
+test("PRO-T1-06 — ownership offers: paths, the 202 pending flag and an older API", () => {
+  assert.equal(W.buildOwnershipOfferPath("t1"), "/v1/teams/t1/ownership-offer");
+  assert.equal(W.buildOwnershipOfferActionPath("t1", "o1", "accept"), "/v1/teams/t1/ownership-offer/o1/accept");
+  assert.equal(W.buildOwnershipOfferActionPath("t1", "o1", "cancel"), "/v1/teams/t1/ownership-offer/o1/cancel");
+  assert.equal(W.isPendingOwnershipOffer({ offer: {}, pendingAcceptance: true }), true);
+  // An API that predates offers answers the completed transfer: not pending.
+  assert.equal(W.isPendingOwnershipOffer({ team: { id: "t1" } }), false);
+  assert.equal(W.isPendingOwnershipOffer(null), false);
+  assert.match(W.ownershipOfferSentCopy("Dana"), /^Offer sent to Dana, waiting for acceptance\./);
+  assert.deepEqual(W.parseOwnershipOffersForMe({ teams: [] }), []);
+  assert.deepEqual(W.parseOwnershipOffersForMe({ ownershipOffers: [{ id: "o1", teamId: "t1", teamName: "Acme", expiresAtUtc: "2026-12-01T00:00:00Z" }, { id: 3 }] }), [
+    { id: "o1", teamId: "t1", teamName: "Acme", toUserId: null, expiresAtIso: "2026-12-01T00:00:00Z" },
+  ]);
+  assert.equal(W.parsePendingOwnershipOffer({ offer: null }), null);
+  assert.equal(W.parsePendingOwnershipOffer({ offer: { id: "o1", teamId: "t1", toUserId: "u2" } }).toUserId, "u2");
+});

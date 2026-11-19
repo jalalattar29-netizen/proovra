@@ -51,6 +51,7 @@ import { getEmailService } from "../services/email.service.js";
 import {
   WorkspaceInvitationError,
   acceptWorkspaceInvitation,
+  declineWorkspaceInvitation,
   lookupWorkspaceInvitation,
   createWorkspaceInvitation,
   projectInvitation,
@@ -79,6 +80,7 @@ import {
   changeMemberRole as changeWorkspaceMemberRole,
   revokeMember as revokeWorkspaceMember,
   leaveWorkspace,
+  mayGrantWorkspaceRole,
   preflightMemberMutation,
   RbacError,
 } from "../services/identity/membership-provisioning.service.js";
@@ -96,7 +98,11 @@ import {
 // PHASE 4 §7.4 (2026-07-22) — owned-workspace lifecycle.
 import {
   reopenClosedWorkspace,
-  transferWorkspaceOwnership,
+  offerWorkspaceOwnership,
+  acceptWorkspaceOwnershipOffer,
+  readPendingOwnershipOffer,
+  settleWorkspaceOwnershipOffer,
+  listOwnershipOffersFor,
 } from "../services/workspace/workspace-lifecycle.service.js";
 import {
   appendCustodyEventTx,
@@ -361,6 +367,33 @@ async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
   if (reply.sent) return;
   await requireLegalAcceptance(req, reply);
+}
+
+/**
+ * PRO-T1-03 / PRO-T1-18 — ONE definition of "records the member still owns in
+ * this workspace": every evidence row not DESTROYED (trashed included, MEM-01)
+ * and every case. The removal-impact preview, the removal itself (before and
+ * inside its transaction) and self-service leave all count with it, so the
+ * preview predicts the mutation and leave cannot orphan what removal protects.
+ */
+async function countRecordsMemberStillOwns(
+  teamId: string,
+  ownerUserId: string,
+  db: typeof prisma,
+): Promise<{ ownedEvidence: number; ownedCases: number }> {
+  const [ownedEvidence, ownedCases] = await Promise.all([
+    db.evidence.count({
+      where: {
+        AND: [await workspaceEvidenceWhere(teamId, db)],
+        ownerUserId,
+        lifecycleState: { not: "DESTROYED" },
+      },
+    }),
+    db.case.count({
+      where: { AND: [await workspaceCaseWhere(teamId, db)], ownerUserId },
+    }),
+  ]);
+  return { ownedEvidence, ownedCases };
 }
 
 /** The owner of record holding a current OWNER membership (members audit ROLE-06). */
@@ -741,7 +774,28 @@ export async function teamsRoutes(app: FastifyInstance) {
     // `useActiveWorkspaceId` read `teams.items` against a `{teams}`
     // payload and got `undefined`. See
     // services/api/test/phase-32-8-foundation-cleanup.test.ts.
-    return reply.code(200).send({ teams: items, items });
+    // PRO-T1-01 / PRO-NA-02 — a CLOSED workspace leaves the list above (its
+    // memberships, the owner's included, are revoked), which left its owner of
+    // record no door back to Reopen. Additive: the workspaces this caller owns
+    // of record that are closed now, with only what the reopen surface needs.
+    // Same rule reopenClosedWorkspace authorizes on (Team.ownerUserId).
+    const closedOwned = await prisma.team.findMany({
+      where: { ownerUserId: userId, closedAtUtc: { not: null }, isPersonal: false },
+      select: { id: true, name: true, closedAtUtc: true },
+      orderBy: { closedAtUtc: "desc" },
+      take: 50,
+    });
+
+    // PRO-T1-06 — ownership offers addressed to this person (additive), so the
+    // recipient has a door to accept or decline.
+    const ownershipOffers = (await listOwnershipOffersFor(userId)).map((o) => ({
+      id: o.id,
+      teamId: o.teamId,
+      teamName: o.teamName,
+      expiresAtUtc: o.expiresAtUtc,
+    }));
+
+    return reply.code(200).send({ teams: items, items, closedOwned, ownershipOffers });
   });
 
   app.get(
@@ -1080,6 +1134,8 @@ export async function teamsRoutes(app: FastifyInstance) {
             id: member.id,
             userId: member.userId,
             role: member.role,
+            // PRO-T1-09 — additive: a removed or suspended row is not a current member.
+            status: member.status,
             createdAt: member.createdAt,
             user: user
               ? {
@@ -1666,7 +1722,10 @@ export async function teamsRoutes(app: FastifyInstance) {
           .code(403)
           .send({ error: { code: "role_transition_to_owner_forbidden" } });
       }
-      if (!hasRole(actor.role, invitedRole)) {
+      // PRO-T1-04 — the SAME ceiling as a role change (rbac.service): an
+      // OWNER may invite up to ADMIN; an ADMIN only below its own rank. The
+      // looser `rank >=` rule let an ADMIN mint ADMINs by invitation.
+      if (!mayGrantWorkspaceRole(actor.role, invitedRole)) {
         await auditTeamAction(req, {
           userId,
           action: "teams.invite_create",
@@ -2365,20 +2424,12 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
       const targetUserId = target.userId;
 
-      // Count active records owned by the member inside this team.
-      // Soft-deleted evidence is excluded (those rows are already
-      // out of operational queues).
-      const [ownedEvidence, ownedCases, openAssignments] = await Promise.all([
-        prisma.evidence.count({
-          where: {
-            AND: [await workspaceEvidenceWhere(teamId, prisma)],
-            ownerUserId: targetUserId,
-            deletedAt: null,
-          },
-        }),
-        prisma.case.count({
-          where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: targetUserId },
-        }),
+      // PRO-T1-03 — the SAME ownership predicate the removal enforces (trashed
+      // evidence included). The preview used `deletedAt: null`, so a member
+      // owning only trashed records read "no transfer needed" and the removal
+      // then answered TRANSFER_TARGET_REQUIRED with no selector to satisfy it.
+      const [{ ownedEvidence, ownedCases }, openAssignments] = await Promise.all([
+        countRecordsMemberStillOwns(teamId, targetUserId, prisma),
         prisma.caseAssignment.count({
           where: {
             assignedToUserId: targetUserId,
@@ -2551,18 +2602,8 @@ export async function teamsRoutes(app: FastifyInstance) {
       // Records the member owns in this workspace — TRASHED ones included
       // (members audit MEM-01): a trashed record left owned by a former member
       // stayed on their list after removal.
-      const [ownedEvidenceCount, ownedCaseCount] = await Promise.all([
-        prisma.evidence.count({
-          where: {
-            AND: [await workspaceEvidenceWhere(teamId, prisma)],
-            ownerUserId: target.userId,
-            lifecycleState: { not: "DESTROYED" },
-          },
-        }),
-        prisma.case.count({
-          where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: target.userId },
-        }),
-      ]);
+      const { ownedEvidence: ownedEvidenceCount, ownedCases: ownedCaseCount } =
+        await countRecordsMemberStillOwns(teamId, target.userId, prisma);
       const hasOwnedRecords = ownedEvidenceCount > 0 || ownedCaseCount > 0;
 
       if (hasOwnedRecords && !transferToUserId) {
@@ -2641,18 +2682,8 @@ export async function teamsRoutes(app: FastifyInstance) {
           } else {
             // Records may have been handed TO this member by a removal that
             // committed while this one waited for the lock.
-            const [lateEvidence, lateCases] = await Promise.all([
-              tx.evidence.count({
-                where: {
-                  AND: [await workspaceEvidenceWhere(teamId, tx as never)],
-                  ownerUserId: target.userId,
-                  lifecycleState: { not: "DESTROYED" },
-                },
-              }),
-              tx.case.count({
-                where: { AND: [await workspaceCaseWhere(teamId, tx as never)], ownerUserId: target.userId },
-              }),
-            ]);
+            const { ownedEvidence: lateEvidence, ownedCases: lateCases } =
+              await countRecordsMemberStillOwns(teamId, target.userId, tx as never);
             if (lateEvidence > 0 || lateCases > 0) {
               throw new TransferTargetRequiredError(lateEvidence, lateCases);
             }
@@ -2816,6 +2847,17 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
       }
       if (await denyIfManagedIdentity(reply, userId, req)) return;
+      // PRO-T1-18 — the removal rule applies to leaving too: records the
+      // member still owns would otherwise stay owned by a non-member, and the
+      // removal transfer flow can no longer reach a REVOKED membership.
+      const stillOwned = await countRecordsMemberStillOwns(teamId, userId, prisma);
+      if (actor.role !== prismaPkg.TeamRole.OWNER && (stillOwned.ownedEvidence > 0 || stillOwned.ownedCases > 0)) {
+        return sendBusinessRefusal(req, reply, 409, {
+          code: "OWNED_RECORDS_HANDOVER_REQUIRED",
+          message:
+            "You still own evidence or cases in this workspace. Ask an administrator to take them over, or remove you with a transfer, before you leave.",
+        });
+      }
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -3048,6 +3090,44 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
       }
       return acceptWorkspaceInviteHandler(req, reply, parsed.data.token);
+    },
+  );
+
+  /**
+   * PRO-T1-14 — the invitee declines: POST /v1/teams/invites/decline { token }.
+   * Token in the body (B-15), bound to the signed-in account's verified address
+   * exactly as acceptance is. Additive: no existing client depends on it.
+   */
+  app.post<{ Body: { token?: unknown } }>(
+    "/v1/teams/invites/decline",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      void reply.header("Cache-Control", "no-store");
+      const parsed = z.object({ token: z.string().min(8).max(512) }).safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(404).send({
+          error: { code: "INVITE_NOT_FOUND" },
+          code: "INVITE_NOT_FOUND",
+          message: "This invitation link is not available.",
+        });
+      }
+      const userId = getAuthUserId(req);
+      try {
+        const declined = await declineWorkspaceInvitation({ rawToken: parsed.data.token, actorUserId: userId });
+        await auditTeamAction(req, {
+          userId,
+          action: "teams.invite_decline",
+          outcome: "success",
+          resourceId: declined.workspaceId,
+          metadata: { inviteId: declined.inviteId },
+        });
+        return reply.code(200).send({ declined: true });
+      } catch (err) {
+        if (err instanceof WorkspaceInvitationError) {
+          return reply.code(err.httpStatus).send({ error: { code: err.code }, code: err.code, message: err.message });
+        }
+        throw err;
+      }
     },
   );
 
@@ -3597,6 +3677,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           id: true,
           userId: true,
           role: true,
+          status: true,
           createdAt: true,
         },
       });
@@ -3618,6 +3699,8 @@ export async function teamsRoutes(app: FastifyInstance) {
           email: u?.email ?? null,
           displayName: u?.displayName ?? null,
           role: m.role,
+          // PRO-T1-09 — reviewers see whether access is current.
+          status: m.status,
           addedAt: m.createdAt.toISOString(),
         };
       });
@@ -3718,7 +3801,10 @@ export async function teamsRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         teamId,
         summary: {
-          internalMembers: internal.length,
+          // PRO-T1-09 — only ACTIVE memberships are current internal members;
+          // removed/suspended rows are counted separately.
+          internalMembers: internal.filter((m) => m.status === "ACTIVE").length,
+          inactiveMembers: internal.filter((m) => m.status !== "ACTIVE").length,
           pendingInvites: pendingInvites.length,
           externalCollaborators: externalCollaborators.length,
         },
@@ -3955,7 +4041,20 @@ export async function teamsRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const teamId = z.string().uuid().parse((req.params as { id: string }).id);
       const userId = getAuthUserId(req);
-      if (!(await requireWorkspaceOwner(teamId, userId, req))) {
+      // PRO-T1-01 / PRO-NA-02 — a COMPLETED closure revokes every membership,
+      // the owner's included, so the owner predicate above refuses exactly the
+      // person who may reopen. For a workspace that is closed NOW, the owner of
+      // record (the rule reopenClosedWorkspace authorizes on) may read its
+      // closure state; every other endpoint stays refused.
+      const lifecycleRow = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { ownerUserId: true, closedAtUtc: true },
+      });
+      const closedOwnerRead =
+        lifecycleRow !== null &&
+        lifecycleRow.closedAtUtc !== null &&
+        lifecycleRow.ownerUserId === userId;
+      if (!closedOwnerRead && !(await requireWorkspaceOwner(teamId, userId, req))) {
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
       const [latest, preflight, memberCount] = await Promise.all([
@@ -3977,6 +4076,9 @@ export async function teamsRoutes(app: FastifyInstance) {
         // Collaboration consequence surfaced up front: how many OTHER
         // members lose access when this workspace closes.
         membersLosingAccess: memberCount,
+        // PRO-T1-01 — liveness, not history: a reopened workspace keeps its
+        // COMPLETED request, so the client must not infer "closed" from it.
+        workspaceClosed: lifecycleRow?.closedAtUtc != null,
       });
     },
   );
@@ -4254,13 +4356,21 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       try {
-        const result = await transferWorkspaceOwnership({
+        // PRO-T1-06 / DEC-18 — the owner OFFERS; nothing moves until the
+        // named recipient accepts with their own step-up. `transfer` keeps
+        // its old fields (plus `pending`) so an installed client still reads
+        // a success shape; `offer` is the new authority.
+        const offer = await offerWorkspaceOwnership({
           teamId,
           actorUserId: userId,
           newOwnerUserId: body.newOwnerUserId,
           correlationId: req.id,
         });
-        return reply.code(200).send({ transfer: result });
+        return reply.code(202).send({
+          offer,
+          pendingAcceptance: true,
+          transfer: { teamId, fromUserId: userId, toUserId: body.newOwnerUserId, pending: true },
+        });
       } catch (err) {
         const e = err as Error & { statusCode?: number; code?: string };
         if (typeof e.statusCode === "number" && typeof e.code === "string") {
@@ -4273,6 +4383,101 @@ export async function teamsRoutes(app: FastifyInstance) {
     },
   );
 
+  // ---------------------------------------------------------------------------
+  // PRO-T1-06 / DEC-18 — the ownership offer: read (owner or recipient),
+  // accept (recipient + step-up), decline (recipient), cancel (owner).
+  // ---------------------------------------------------------------------------
+  const sendLifecycleError = (reply: FastifyReply, err: unknown) => {
+    const e = err as Error & { statusCode?: number; code?: string };
+    if (typeof e.statusCode === "number" && typeof e.code === "string") {
+      return reply.code(e.statusCode).send({ error: { code: e.code.toLowerCase() } });
+    }
+    throw err;
+  };
+
+  app.get(
+    "/v1/teams/:id/ownership-offer",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const teamId = z.string().uuid().parse((req.params as { id: string }).id);
+      const userId = getAuthUserId(req);
+      const offer = await readPendingOwnershipOffer({ teamId, userId });
+      return reply.code(200).send({ offer });
+    },
+  );
+
+  app.post(
+    "/v1/teams/:id/ownership-offer/:offerId/accept",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const params = z.object({ id: z.string().uuid(), offerId: z.string().uuid() }).parse(req.params);
+      const userId = getAuthUserId(req);
+      const body = z
+        .object({
+          stepUp: z
+            .object({
+              method: z.enum(["password", "mfa"]).optional(),
+              currentPassword: z.string().optional(),
+              code: z.string().optional(),
+            })
+            .optional(),
+        })
+        .passthrough()
+        .parse(req.body ?? {});
+      // The recipient is asked for proof only for an offer addressed to them:
+      // anyone else gets the uniform not-found first.
+      const offer = await readPendingOwnershipOffer({ teamId: params.id, userId });
+      if (!offer || offer.id !== params.offerId || offer.toUserId !== userId) {
+        return reply.code(404).send({ error: { code: "ownership_offer_not_found" } });
+      }
+      const stepUp = await verifyAccountStepUp({
+        req,
+        reply,
+        userId,
+        action: "workspace_ownership_transfer",
+        proof: body.stepUp,
+      });
+      if (!stepUp.ok) return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+      try {
+        const transfer = await acceptWorkspaceOwnershipOffer({
+          teamId: params.id,
+          offerId: params.offerId,
+          actorUserId: userId,
+          correlationId: req.id,
+        });
+        await refreshTeamSeatState(params.id);
+        return reply.code(200).send({ transfer });
+      } catch (err) {
+        return sendLifecycleError(reply, err);
+      }
+    },
+  );
+
+  for (const [suffix, outcome] of [
+    ["decline", "DECLINED"],
+    ["cancel", "CANCELLED"],
+  ] as const) {
+    app.post(
+      `/v1/teams/:id/ownership-offer/:offerId/${suffix}`,
+      { preHandler: requireAuthAndLegal },
+      async (req, reply) => {
+        const params = z.object({ id: z.string().uuid(), offerId: z.string().uuid() }).parse(req.params);
+        const userId = getAuthUserId(req);
+        try {
+          const offer = await settleWorkspaceOwnershipOffer({
+            teamId: params.id,
+            offerId: params.offerId,
+            actorUserId: userId,
+            outcome,
+            correlationId: req.id,
+          });
+          return reply.code(200).send({ offer });
+        } catch (err) {
+          return sendLifecycleError(reply, err);
+        }
+      },
+    );
+  }
   app.post(
     "/v1/teams/:id/reopen",
     { preHandler: requireAuthAndLegal },

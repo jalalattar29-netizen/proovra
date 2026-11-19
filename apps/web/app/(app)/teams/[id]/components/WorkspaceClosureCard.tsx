@@ -58,6 +58,12 @@ type ClosureState = {
   confirmationPhrase: string;
   coolingOffDays: number;
   membersLosingAccess: number;
+  /**
+   * PRO-T1-01 — whether the workspace is closed NOW (Team.closedAtUtc). A
+   * reopened workspace keeps its COMPLETED request as history. Absent from an
+   * older API: the latest request status is the fallback.
+   */
+  workspaceClosed?: boolean;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -259,6 +265,10 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
     ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED", "PROCESSING"].includes(
       req.status,
     );
+  // PRO-T1-01 — closed now: the server's liveness flag when present.
+  const closedNow =
+    !open &&
+    (state.workspaceClosed ?? (req !== null && req.status === "COMPLETED"));
   const phraseExpected = state.confirmationPhrase;
   const muted: React.CSSProperties = { color: "#6a777b", fontSize: 13 };
 
@@ -280,7 +290,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
       data-workspace-closure-card
     >
       <div className="app-panel__head">
-        <h3 className="app-panel__title">Close workspace</h3>
+        <h3 className="app-panel__title">{closedNow ? "Closed workspace" : "Close workspace"}</h3>
       </div>
       <div className="app-panel__body">
         <p className="app-table__muted" style={{ margin: "0 0 4px" }}>
@@ -315,7 +325,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
         </div>
       ) : null}
 
-      {open && req ? (
+      {closedNow || reopenNotice ? null : open && req ? (
         <div data-workspace-closure-status={req.status} style={{ marginTop: 10 }}>
           <p style={{ ...muted, color: "#21353a", margin: 0 }}>
             {STATUS_LABEL[req.status] ?? identifierLabel(req.status)}
@@ -431,7 +441,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
 
       {/* PHASE 13 — reopen. Rendered only when this card's own read says the
           workspace is actually closed, so the control can always work. */}
-      {!open && req && req.status === "COMPLETED" ? (
+      {closedNow || reopenNotice ? (
         <div
           data-workspace-reopen
           aria-busy={reopenBusy}
@@ -445,7 +455,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
             members, API credentials and webhooks are NOT restored — re-invite
             people and re-issue credentials deliberately.
           </p>
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 10 }} hidden={!closedNow}>
             <Button
               variant="secondary"
               size="sm"

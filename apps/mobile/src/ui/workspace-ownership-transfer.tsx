@@ -28,6 +28,12 @@ import {
   transferDenialCopy,
   transferOutcome,
   type TransferCandidate,
+  buildOwnershipOfferActionPath,
+  buildOwnershipOfferPath,
+  isPendingOwnershipOffer,
+  ownershipOfferSentCopy,
+  parsePendingOwnershipOffer,
+  type OwnershipOffer,
 } from "../product/workspace-people";
 import { ProovraBadge, ProovraButton, ProovraCard, ProovraFormField, ProovraInput, ProovraListRow, ProovraText } from "./index";
 import { StepUpSheet, useStepUp } from "./step-up-sheet";
@@ -61,6 +67,31 @@ export function WorkspaceOwnershipTransferCard({
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
   const stepUp = useStepUp();
+
+  // PRO-T1-06 - the owner's own pending offer, withdrawable until accepted.
+  // An older API has no offer read: nothing is shown.
+  const [pendingOffer, setPendingOffer] = useState<OwnershipOffer | null>(null);
+  const loadPendingOffer = useCallback(async () => {
+    try {
+      const offer = parsePendingOwnershipOffer(await apiFetch(buildOwnershipOfferPath(teamId)));
+      setPendingOffer(offer && offer.toUserId !== currentUserId ? offer : null);
+    } catch {
+      setPendingOffer(null);
+    }
+  }, [teamId, currentUserId]);
+  useEffect(() => {
+    void loadPendingOffer();
+  }, [loadPendingOffer]);
+  const withdrawOffer = useCallback(async () => {
+    if (!pendingOffer) return;
+    try {
+      await apiFetch(buildOwnershipOfferActionPath(teamId, pendingOffer.id, "cancel"), { method: "POST", body: JSON.stringify({}) });
+      setError(null);
+    } catch (err) {
+      setError(toSafeUserError(err, { message: "The offer could not be withdrawn." }).message);
+    }
+    await loadPendingOffer();
+  }, [pendingOffer, teamId, loadPendingOffer]);
 
   useEffect(() => {
     const t = setTimeout(() => setQuery(searchInput.trim()), 300);
@@ -117,16 +148,20 @@ export function WorkspaceOwnershipTransferCard({
     setError(null);
     setBusy(true);
     await stepUp.start(async (proof) => {
-      await apiFetch(buildWorkspaceTransferPath(teamId), {
+      const res = (await apiFetch(buildWorkspaceTransferPath(teamId), {
         method: "POST",
         body: JSON.stringify(withStepUp(buildWorkspaceTransferBody(chosen.userId), proof)),
-      });
+      })) as unknown;
       setConfirming(false);
       setTarget(null);
-      await onTransferred(transferOutcome(chosen.label, teamName));
+      // PRO-T1-06 — an API with offer/accept answers 202 `pendingAcceptance`:
+      // nothing moved yet; the recipient accepts (web or this app).
+      const pending = isPendingOwnershipOffer(res);
+      if (pending) await loadPendingOffer();
+      await onTransferred(pending ? ownershipOfferSentCopy(chosen.label) : transferOutcome(chosen.label, teamName));
     }, fail);
     setBusy(false);
-  }, [target, stepUp, teamId, teamName, onTransferred, fail]);
+  }, [target, stepUp, teamId, teamName, onTransferred, fail, loadPendingOffer]);
 
   const rows = list.kind === "ready" ? list.rows : [];
   // Keep the chosen member selectable after a search that no longer lists them.
@@ -142,6 +177,14 @@ export function WorkspaceOwnershipTransferCard({
         Hand this workspace to another active member. They become the owner and the billing owner; you stay a member.
         Evidence, cases and audit history are unaffected.
       </ProovraText>
+      {pendingOffer ? (
+        <View style={{ gap: theme.space.s1 }} testID="ownership-offer-pending">
+          <ProovraText variant="label" color={theme.color.ink.secondary}>
+            An ownership offer is waiting for the recipient's acceptance. Nothing changes until they accept.
+          </ProovraText>
+          <ProovraButton label="Withdraw offer" variant="ghost" fullWidth={false} onPress={() => void withdrawOffer()} />
+        </View>
+      ) : null}
 
       {list.kind === "loading" && !hasLoaded ? (
         <ProovraText variant="label" color={theme.color.ink.muted}>

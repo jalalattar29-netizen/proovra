@@ -43,6 +43,8 @@ export type Comment = {
 export type CommentList = {
   items: ReadonlyArray<Comment>;
   directory: Record<string, CollaborationTeamUserDirectoryEntry>;
+  /** PRO-K2-16 — older comments exist past this page. Absent from an older API. */
+  nextCursor?: string | null;
 };
 
 export type InAppNotification = {
@@ -124,12 +126,15 @@ export async function listComments(
     targetType?: CollaborationTeamCommentTarget;
     targetId?: string;
     limit?: number;
+    /** PRO-K2-16 — the server's `nextCursor` from the previous page. */
+    cursor?: string | null;
   },
 ): Promise<CommentList> {
   const params: string[] = [];
   if (opts?.targetType) params.push(`targetType=${opts.targetType}`);
   if (opts?.targetId) params.push(`targetId=${encodeURIComponent(opts.targetId)}`);
   if (opts?.limit) params.push(`limit=${opts.limit}`);
+  if (opts?.cursor) params.push(`cursor=${encodeURIComponent(opts.cursor)}`);
   const qs = params.length ? `?${params.join("&")}` : "";
   return (await apiFetch(
     `${BASE}/${encodeURIComponent(teamId)}/comments${qs}`,
@@ -143,12 +148,16 @@ export async function createComment(
     targetId?: string | null;
     body: string;
   },
-): Promise<{ id: string }> {
+): Promise<{ id: string; unresolvedMentions: string[] }> {
   const res = (await apiFetch(`${BASE}/${encodeURIComponent(teamId)}/comments`, {
     method: "POST",
     body: JSON.stringify(input),
-  })) as { comment: { id: string } };
-  return res.comment;
+  })) as { comment: { id: string }; unresolvedMentions?: unknown };
+  // PRO-K2-04 — handles that named nobody; an older API omits the field.
+  const unresolved = Array.isArray(res.unresolvedMentions)
+    ? res.unresolvedMentions.filter((h): h is string => typeof h === "string")
+    : [];
+  return { ...res.comment, unresolvedMentions: unresolved };
 }
 
 export async function editComment(

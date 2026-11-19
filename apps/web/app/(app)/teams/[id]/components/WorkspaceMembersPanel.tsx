@@ -42,6 +42,7 @@ import {
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import { formatUserDate } from "../../../../../lib/date";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 
 export type WorkspaceMember = {
@@ -136,9 +137,11 @@ export const WorkspaceMembersPanel = forwardRef<
     onInvite: () => void;
     onRemove: (member: WorkspaceMember) => void;
     notify: (message: string, tone: "success" | "error") => void;
+    /** PRO-T1-02 — called after the caller left this workspace. */
+    onLeft?: () => void;
   }
 >(function WorkspaceMembersPanel(
-  { teamId, currentUserId, canManageTeam, onInvite, onRemove, notify },
+  { teamId, currentUserId, canManageTeam, onInvite, onRemove, notify, onLeft },
   ref,
 ) {
   const [searchInput, setSearchInput] = useState("");
@@ -269,6 +272,48 @@ export const WorkspaceMembersPanel = forwardRef<
   );
 
   const stepUp = useStepUpAction({ teamId });
+  const { confirm } = useConfirmAction();
+  const [leaving, setLeaving] = useState(false);
+
+  /**
+   * PRO-T1-02 — self-service leave. The route existed (step-up, last-admin
+   * protection, standing reach ended, PRO-T1-18 owned-record precondition) and
+   * no client called it.
+   */
+  const leaveWorkspace = async () => {
+    if (leaving) return;
+    const ok = await confirm({
+      title: "Leave this workspace?",
+      description:
+        "You lose access to this workspace and everything shared with you in it. Records you own here must be handed over first. Your own account and Personal Space are not affected.",
+      confirmLabel: "Leave workspace",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setLeaving(true);
+    try {
+      await stepUp.runStepUpAction((headers) =>
+        apiFetch(`/v1/teams/${encodeURIComponent(teamId)}/leave`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+          body: "{}",
+        }),
+      );
+      notify("You left this workspace.", "success");
+      if (onLeft) onLeft();
+      else window.location.assign("/");
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      notify(
+        code === "OWNED_RECORDS_HANDOVER_REQUIRED"
+          ? "You still own evidence or cases in this workspace. Ask an administrator to take them over before you leave."
+          : toSafeUserError(err, { message: "You could not leave this workspace." }).message,
+        "error",
+      );
+    } finally {
+      setLeaving(false);
+    }
+  };
 
   const changeRole = async (member: WorkspaceMember, nextRole: ManageableRole) => {
     /**
@@ -311,6 +356,12 @@ export const WorkspaceMembersPanel = forwardRef<
 
   const filtered = query !== "" || status !== "ALL";
   const rows = list.kind === "ready" ? list.rows : [];
+  // PRO-T1-04 — the role ceiling the server enforces: an owner may grant up to
+  // ADMIN; anyone else only roles strictly below their own.
+  const viewerRole = rows.find((m) => m.userId === currentUserId)?.role ?? null;
+  const roleOptionsForViewer = MANAGEABLE_ROLE_OPTIONS.filter(
+    (r) => viewerRole !== "ADMIN" || r !== "ADMIN",
+  );
 
   return (
     <div className="app-panel" data-testid="people-roster">
@@ -447,7 +498,11 @@ export const WorkspaceMembersPanel = forwardRef<
                  * transfer, and nobody edits their own role. The server
                  * re-checks both.
                  */
-                const editable = canManageTeam && !isSelf && !isTeamOwner;
+                // PRO-T1-09 — a removed or suspended membership is history, not
+                // a current member: no role or Remove controls on it.
+                const isCurrent = member.status === undefined || member.status === "ACTIVE";
+                const editable = canManageTeam && !isSelf && !isTeamOwner && isCurrent;
+                const canLeave = isSelf && !isTeamOwner && isCurrent;
                 const rowKey = member.id ?? member.userId;
                 const st = statusText(member.status);
                 return (
@@ -476,7 +531,7 @@ export const WorkspaceMembersPanel = forwardRef<
                         <div style={{ maxWidth: 150 }}>
                           <AppListbox
                             value={member.role}
-                            options={MANAGEABLE_ROLE_OPTIONS.map((r) => ({
+                            options={(member.role === "ADMIN" ? MANAGEABLE_ROLE_OPTIONS : roleOptionsForViewer).map((r) => ({
                               value: r,
                               label: workspaceRoleLabel(r),
                             }))}
@@ -520,6 +575,16 @@ export const WorkspaceMembersPanel = forwardRef<
                           aria-label={`Remove ${label}`}
                         >
                           Remove
+                        </button>
+                      ) : canLeave ? (
+                        <button
+                          type="button"
+                          className="app-secondary-action app-secondary-action--danger"
+                          onClick={() => void leaveWorkspace()}
+                          disabled={leaving}
+                          data-testid="member-leave-workspace"
+                        >
+                          Leave workspace
                         </button>
                       ) : (
                         <span className="app-table__muted" aria-hidden>

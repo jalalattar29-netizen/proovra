@@ -34,7 +34,10 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { releaseManagedIdentity } from "../identity/identity-mode.service.js";
-import { evaluateOrganizationClosurePreflight } from "../identity/account-lifecycle-preflight.service.js";
+import {
+  evaluateOrganizationClosurePreflight,
+  type OrganizationClosureBlocker,
+} from "../identity/account-lifecycle-preflight.service.js";
 import { emitOrgAuditEvent } from "./org-audit.service.js";
 // PHASE 3 (2026-07-22) — canonical membership orchestrator.
 import { CLOSURE_STALE_MS, closeWorkspacesTx } from "../workspace/workspace-closure.service.js";
@@ -82,6 +85,14 @@ export async function archiveOrganizationStatusTx(
   });
 }
 
+/** PRO-PSZ-01 — blockers found when the closure re-judged inside its transaction. */
+export class OrganizationClosureBlockedError extends Error {
+  constructor(readonly blockers: Array<{ code: string; message: string; count: number }>) {
+    super("organization closure blocked at execution");
+    this.name = "OrganizationClosureBlockedError";
+  }
+}
+
 export async function executeOrganizationClosure(input: {
   organizationId: string;
   requestedByUserId: string;
@@ -92,6 +103,14 @@ export async function executeOrganizationClosure(input: {
    * commit in the SAME transaction as the closure.
    */
   closureRequestId?: string;
+  /**
+   * PRO-PSZ-01 — re-judge the blockers INSIDE this transaction, with every
+   * workspace row of the organization locked FOR UPDATE (id order), so a hold
+   * or billing relationship that appeared after the processor's preflight
+   * stops the closure. Receives the transaction's preflight verdict and
+   * returns the blockers that apply (a contract termination filters some).
+   */
+  rejudgeInTransaction?: (blockers: OrganizationClosureBlocker[]) => Array<{ code: string; message: string; count: number }>;
 }): Promise<void> {
   const { organizationId, requestedByUserId } = input;
 
@@ -101,6 +120,14 @@ export async function executeOrganizationClosure(input: {
       select: { id: true },
     });
     const teamIds = orgTeams.map((t) => t.id);
+    if (input.rejudgeInTransaction) {
+      for (const id of [...teamIds].sort()) {
+        await tx.$queryRaw`SELECT "id" FROM "teams" WHERE "id" = ${id}::uuid FOR UPDATE`;
+      }
+      const verdict = await evaluateOrganizationClosurePreflight(organizationId, requestedByUserId, tx as never);
+      const blockers = input.rejudgeInTransaction(verdict.blockers);
+      if (blockers.length > 0) throw new OrganizationClosureBlockedError(blockers);
+    }
 
     // Archive — checkOrgAccess denies ARCHIVED orgs, so this single
     // status flip is the access cutover for every org surface.
@@ -356,8 +383,23 @@ export async function processOrganizationClosures(now: Date): Promise<void> {
         requestedByUserId: req.requestedByUserId,
         terminateContract: termination,
         closureRequestId: req.id,
+        rejudgeInTransaction: (all) =>
+          termination
+            ? all.filter((b) => b.code !== "ORG_MEMBERS_ACTIVE" && b.code !== "BILLING_CONTRACT_ACTIVE")
+            : all,
       });
-    } catch {
+    } catch (err) {
+      if (err instanceof OrganizationClosureBlockedError) {
+        await recordOrganizationClosureOutcome({
+          requestId: req.id,
+          organizationId: req.organizationId,
+          requestedByUserId: req.requestedByUserId,
+          fromStatus: "PROCESSING",
+          outcome: "BLOCKED",
+          blockers: err.blockers,
+        }).catch(() => null);
+        continue;
+      }
       // The closure rolled back as a unit. If recording the failure fails
       // too, the request stays PROCESSING and the reaper resumes it.
       await recordOrganizationClosureOutcome({

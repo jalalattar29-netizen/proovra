@@ -49,6 +49,8 @@
  * (the Personal container) are unchanged and still archive with the account.
  */
 
+import { DESTRUCTION_REVIEW_AWAITING_DECISION } from "@proovra/shared";
+
 import { prisma } from "../../db.js";
 import { resolveWorkspaceKind } from "./workspace-kind.js";
 import {
@@ -166,7 +168,7 @@ export async function recordsNotInAccountExportConsequence(
 /** The connection the preflight reads on: the module client, or the closure's transaction. */
 type PreflightClient = Pick<
   typeof prisma,
-  "organizationMembership" | "team" | "subscription" | "teamMember" | "evidenceLegalHold"
+  "organizationMembership" | "team" | "subscription" | "teamMember" | "evidenceLegalHold" | "destructionReview"
 >;
 
 async function judgeSubscriptionCandidates(
@@ -458,13 +460,18 @@ export type OrganizationClosureBlocker = {
 export async function evaluateOrganizationClosurePreflight(
   orgId: string,
   ownerUserId: string,
+  /**
+   * PRO-PSZ-01 — the closure execution re-judges INSIDE its transaction,
+   * under the workspace locks, as account closure does.
+   */
+  client: PreflightClient = prisma,
 ): Promise<{ blockers: OrganizationClosureBlocker[] }> {
   const blockers: OrganizationClosureBlocker[] = [];
 
   const [otherMembers, activeHolds, billingTeams, personalTeams] =
     await Promise.all([
       // Removal keeps a REVOKED row, and someone who has left holds nothing.
-      prisma.organizationMembership.count({
+      client.organizationMembership.count({
         where: {
           organizationId: orgId,
           userId: { not: ownerUserId },
@@ -472,14 +479,14 @@ export async function evaluateOrganizationClosurePreflight(
         },
       }),
       // PHASE 12B CLUSTER 8 — all scopes, all stores.
-      countActiveHoldsAllStores({ team: { organizationId: orgId } }),
-      prisma.team.count({
+      countActiveHoldsAllStores({ team: { organizationId: orgId } }, client),
+      client.team.count({
         where: {
           organizationId: orgId,
           billingStatus: { in: ["ACTIVE", "PAST_DUE"] },
         },
       }),
-      prisma.team.count({
+      client.team.count({
         where: { organizationId: orgId, isPersonal: true },
       }),
     ]);
@@ -559,22 +566,26 @@ export type WorkspaceClosureBlocker = {
  */
 export async function evaluateWorkspaceClosurePreflight(
   teamId: string,
+  /** PRO-PSZ-01 — re-judged inside the closure transaction, under its lock. */
+  client: PreflightClient = prisma,
 ): Promise<{ blockers: WorkspaceClosureBlocker[] }> {
   const blockers: WorkspaceClosureBlocker[] = [];
 
   const [team, activeHolds, activeSubCount, pendingDestruction] =
     await Promise.all([
-      prisma.team.findUnique({
+      client.team.findUnique({
         where: { id: teamId },
         select: { isPersonal: true, billingStatus: true },
       }),
       // PHASE 12B CLUSTER 8 — all scopes, all stores.
-      countActiveHoldsAllStores({ teamId }),
-      prisma.subscription.count({
+      countActiveHoldsAllStores({ teamId }, client),
+      client.subscription.count({
         where: { teamId, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
       }),
-      prisma.destructionReview.count({
-        where: { teamId, status: "PENDING" },
+      // PRO-T1C-06 — the canonical "awaiting a decision" set: a review being
+      // decided (UNDER_REVIEW) is as open as one not yet picked up.
+      client.destructionReview.count({
+        where: { teamId, status: { in: [...DESTRUCTION_REVIEW_AWAITING_DECISION] } },
       }),
     ]);
 

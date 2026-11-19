@@ -68,6 +68,7 @@ import {
  * definition, one emitter, no cycle.
  */
 import { emitTeamNotifications } from "./team-notifications.js";
+import { effectiveGroupMemberWhere } from "./effective-membership.js";
 
 export { emitTeamNotifications };
 
@@ -361,7 +362,7 @@ export async function createComment(
     auditTx?: CommentAudit<{ id: string; mentionCount: number; notificationCount: number }>;
   },
   client: PrismaClient = defaultPrisma,
-): Promise<{ id: string; mentionCount: number; notificationCount: number }> {
+): Promise<{ id: string; mentionCount: number; notificationCount: number; unresolvedMentions: string[] }> {
   const { team, role } = await requireMemberRole(
     client,
     input.teamId,
@@ -419,13 +420,17 @@ export async function createComment(
     ? await client.collaborationTeamMember.findMany({
         where: {
           teamId: input.teamId,
-          status: "ACTIVE",
+          // RG-31 — mentions follow EFFECTIVE membership: a group row whose
+          // workspace membership ended is not notified.
+          ...effectiveGroupMemberWhere(team.workspaceId),
           user: {
             OR: handles.flatMap((handle) => [
               { email: { startsWith: `${handle}@`, mode: "insensitive" as const } },
               {
                 displayName: {
-                  equals: handle.replace(/./g, " "),
+                  // PRO-K2-04 — escape the dot: `/./g` replaced EVERY character,
+                  // so a display-name handle never matched anybody.
+                  equals: handle.replace(/\./g, " "),
                   mode: "insensitive" as const,
                 },
               },
@@ -456,7 +461,7 @@ export async function createComment(
   );
   const broadcastMembers = broadcastHandles
     ? await client.collaborationTeamMember.findMany({
-        where: { teamId: input.teamId, status: "ACTIVE" },
+        where: { teamId: input.teamId, ...effectiveGroupMemberWhere(team.workspaceId) },
         select: { userId: true, role: true },
         take: MAX_BROADCAST_MENTION_RECIPIENTS,
       })
@@ -598,7 +603,12 @@ export async function createComment(
       notificationCount,
     };
     if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, created);
-    return created;
+    // PRO-K2-04 — the author is told which handles named nobody (as the
+    // evidence-thread path already does), instead of a silent highlight.
+    return {
+      ...created,
+      unresolvedMentions: userMentions.filter((u) => !u.mentionedUserId).map((u) => u.rawHandle),
+    };
   });
 
   return result;
@@ -611,9 +621,12 @@ export async function listComments(
     targetType?: string | null;
     targetId?: string | null;
     limit?: number;
+    /** PRO-K2-16 — keyset cursor (the last comment id of the previous page). */
+    cursor?: string | null;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{
+  nextCursor: string | null;
   items: Array<{
     id: string;
     authorUserId: string;
@@ -641,10 +654,14 @@ export async function listComments(
   if (input.targetType)
     where.targetType = validateCommentTarget(input.targetType);
   if (input.targetId) where.targetId = input.targetId;
-  const rows = await client.collaborationTeamComment.findMany({
+  // PRO-K2-16 — keyset paging (createdAt, id), newest first, so history past
+  // the first page is reachable (mirrors listTeamActivity).
+  const pageSize = Math.min(Math.max(input.limit ?? 50, 1), 200);
+  const fetched = await client.collaborationTeamComment.findMany({
     where,
-    orderBy: { createdAt: "desc" },
-    take: Math.min(Math.max(input.limit ?? 50, 1), 200),
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+    take: pageSize + 1,
     include: {
       mentions: {
         select: {
@@ -655,6 +672,8 @@ export async function listComments(
       },
     },
   });
+  const rows = fetched.slice(0, pageSize);
+  const nextCursor = fetched.length > pageSize ? rows[rows.length - 1]!.id : null;
   const actorIds = Array.from(
     new Set([
       ...rows.map((r) => r.authorUserId),
@@ -685,6 +704,7 @@ export async function listComments(
       })),
     })),
     directory,
+    nextCursor,
   };
 }
 

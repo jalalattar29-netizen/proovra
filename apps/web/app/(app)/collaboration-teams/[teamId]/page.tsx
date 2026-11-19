@@ -482,10 +482,11 @@ function TeamDetail() {
     !isArchived &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.assignment.reassign");
   /** Archive, and Restore — the one write an archived team still accepts. */
-  const canArchive = collaborationTeamRoleHasPermission(
-    team.viewerRole,
-    "team.archive",
-  );
+  // PRO-K2-11 — the server's projection (group LEAD or workspace owner);
+  // an older API falls back to the group role.
+  const canArchive =
+    team.viewerCapabilities?.canArchive ??
+    collaborationTeamRoleHasPermission(team.viewerRole, "team.archive");
   const canTransferLead =
     !isArchived &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.transfer_lead");
@@ -512,7 +513,12 @@ function TeamDetail() {
    * is the population, and the server has always sent it.
    */
   const activeMemberCountForBadge = team.activeMemberCount;
-  const openAssignmentCount = team.assignmentCount;
+  // PRO-K2-18 — the badge counts OPEN work (completed and cancelled tasks are
+  // history); an older server without the field falls back to the total.
+  const openAssignmentCount = team.openAssignmentCount ?? team.assignmentCount;
+  // PRO-K2-18 / AUD-0051 — capacity is counted as the server enforces it
+  // (owner excluded), exactly as the Members tab does.
+  const capacityMemberCountForBadge = team.capacityMemberCount ?? activeMemberCountForBadge;
 
   // Per-tab count badges — only where a real count exists on `team`.
   const tabCounts: Partial<Record<TabId, number>> = {
@@ -704,7 +710,7 @@ function TeamDetail() {
               {headerEntitlement ? (
                 <PlanLimitBadge
                   kind="MEMBERS_USED"
-                  current={activeMemberCountForBadge}
+                  current={capacityMemberCountForBadge}
                   max={headerEntitlement.collaborationTeamMembers.limit}
                   planLabel={headerEntitlement.plan}
                 />

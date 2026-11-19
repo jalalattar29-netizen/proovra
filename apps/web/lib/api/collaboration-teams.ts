@@ -113,6 +113,8 @@ export type CollaborationTeamDetail = {
     canComment?: boolean;
     canManageGuests: boolean;
     canManageAccessReviews: boolean;
+    /** PRO-K2-11 — archive/restore (group LEAD or workspace owner). Absent from an older API. */
+    canArchive?: boolean;
   };
   /**
    * WCR-08 (2026-09-07) — THE AUTHORITATIVE COUNTS, WHICH THE SERVER HAS
@@ -145,6 +147,8 @@ export type CollaborationTeamDetail = {
   members: ReadonlyArray<CollaborationTeamMember>;
   invites: ReadonlyArray<CollaborationTeamInvite>;
   assignmentCount: number;
+  /** PRO-K2-18 — tasks not COMPLETED/CANCELLED. Absent from an older server. */
+  openAssignmentCount?: number;
 };
 
 export type CollaborationTeamActivityItem = {
@@ -733,6 +737,8 @@ export async function revokeInvite(
  */
 export type CollaborationTeamInviteAcceptResult = {
   teamId: string;
+  /** PRO-K2-15 — the team's workspace (absent from an older API). */
+  workspaceId?: string;
   memberId?: string;
   alreadyMember?: boolean;
 };

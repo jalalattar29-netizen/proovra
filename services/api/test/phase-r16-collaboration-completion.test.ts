@@ -585,8 +585,10 @@ describe("Phase R16 — API routes", () => {
     }
   });
 
-  it("registers activity v2 filtered endpoint", () => {
+  it("PRO-K2-19 — activity v2 is a typed 410 tombstone (it had no client)", () => {
     expect(routes).toContain('"/v1/collaboration-teams/:teamId/activity/v2"');
+    expect(routes).toContain('code: "COLLABORATION_TEAM_ACTIVITY_V2_RETIRED"');
+    expect(routes).not.toMatch(/\blistTeamActivityFiltered\(/);
   });
 
   it("wires the routes into the Fastify app via server.ts", () => {

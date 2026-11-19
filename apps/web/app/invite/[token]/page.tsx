@@ -521,6 +521,24 @@ export default function InviteAcceptPage() {
     });
   }, [user, token, verificationSent]);
 
+  /**
+   * PRO-T1-14 — the invitee may say no. Same token + verified-address binding
+   * as accepting (the server checks); the invitation stops working and its
+   * pending place is freed. An API older than this build has no decline route:
+   * the reader is told the truth (ignoring the link lets it expire).
+   */
+  const [decline, setDecline] = useState<"idle" | "submitting" | "declined" | "failed">("idle");
+  const onDecline = useCallback(() => {
+    if (decline === "submitting") return;
+    setDecline("submitting");
+    void apiFetch("/v1/teams/invites/decline", { method: "POST", body: JSON.stringify({ token }) })
+      .then(() => setDecline("declined"))
+      .catch((err) => {
+        setDecline("failed");
+        captureException(err, { feature: "invite_decline" });
+      });
+  }, [decline, token]);
+
   const onRetry = useCallback(() => {
     setAccept({ kind: "idle" });
     setEntry({ kind: "idle" });
@@ -575,6 +593,41 @@ export default function InviteAcceptPage() {
       }),
     )
     .filter((a): a is SystemStateAction => a !== null);
+  if (view.actions.includes("accept") && decline !== "declined") {
+    actions.push({
+      label: decline === "submitting" ? "Declining…" : "Decline",
+      onClick: onDecline,
+      variant: "secondary",
+      testId: "invite-decline",
+    });
+  }
+
+  if (decline === "declined") {
+    return (
+      <div className="page" data-invite-page>
+        <div className="invite-shell">
+          <MarketingHeader />
+          <main className="invite-main" id="app-main-content">
+            <section className="invite-card" data-invite-state="declined">
+              <ProovraSystemState
+                context="public"
+                presentation="contained"
+                kind="invitation-revoked"
+                tone="info"
+                statusLabel="Declined"
+                title="Invitation declined"
+                message="You declined this invitation. The link no longer works; nothing was added to your account."
+                actions={[{ label: "Go to homepage", href: "/", variant: "text", testId: "invite-home" }]}
+                testId="invite-state"
+              >
+                <TrustLine />
+              </ProovraSystemState>
+            </section>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page" data-invite-page>
@@ -599,6 +652,11 @@ export default function InviteAcceptPage() {
               actions={actions}
               testId="invite-state"
             >
+              {decline === "failed" ? (
+                <p role="alert" data-testid="invite-decline-failed">
+                  This invitation could not be declined here. You can simply ignore it — it expires on its own.
+                </p>
+              ) : null}
               {view.kind === "loading" ? <ContextSkeleton /> : null}
               {view.context ? <InvitationContext context={view.context} /> : null}
               <TrustLine />

@@ -60,7 +60,7 @@ import {
   escalateDiscussionThread,
   getDiscussionThread,
   listDiscussionThreads,
-  listMessagesForThread,
+  listMessagesPageForThread,
   postMessageWithMentionOutcome,
   projectDiscussionMessage,
   projectDiscussionThread,
@@ -489,7 +489,8 @@ export async function collaborationRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { id } = ParamsId.parse(req.params);
       const query = z
-        .object({ teamId: z.string().uuid() })
+        // PRO-K2-16 — `before`: the oldest message id already shown.
+        .object({ teamId: z.string().uuid(), before: z.string().uuid().optional() })
         .parse(req.query ?? {});
       const ok = await requireReviewerMember(req, reply, query.teamId);
       if (!ok) return;
@@ -497,10 +498,10 @@ export async function collaborationRoutes(app: FastifyInstance) {
       if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
-      const rows = await listMessagesForThread(id);
+      const page = await listMessagesPageForThread({ threadId: id, before: query.before ?? null });
       return reply
         .code(200)
-        .send({ messages: rows.map(projectDiscussionMessage) });
+        .send({ messages: page.messages.map(projectDiscussionMessage), olderCursor: page.olderCursor });
     },
   );
 

@@ -95,6 +95,8 @@ export {
   touchMemberLastSeen,
   leaveWorkspace,
   preflightMemberMutation,
+  // PRO-T1-04 — the one role ceiling, for the invitation route.
+  mayGrantWorkspaceRole,
 } from "./rbac.service.js";
 
 // PRO-039 / RT-020 — an organization member's suspension pauses (and its
@@ -600,6 +602,11 @@ export async function grantWorkspaceMembership(
     update: {
       status: "ACTIVE",
       ...(revivedRole ? { role: revivedRole as never } : {}),
+      // PRO-T1-10 — a NEW grant reviving an ENDED membership is not bound by
+      // the old access window (A2-26 windows belong to the grant that set
+      // them); without this the revived member took a seat and was refused
+      // every request as member_access_expired.
+      ...(revivedRole ? { accessExpiresAtUtc: null } : {}),
       suspendedAtUtc: null,
       suspensionReason: null,
       revokedAtUtc: null,
@@ -962,6 +969,9 @@ export async function provisionMembership(
         : {
             status: "ACTIVE",
             ...(revivesEndedMembership ? { role: desiredRole as never } : {}),
+            // PRO-T1-10 — see the twin above: a revived grant drops the ended
+            // grant's access window.
+            ...(revivesEndedMembership ? { accessExpiresAtUtc: null } : {}),
             suspendedAtUtc: null,
             suspensionReason: null,
             revokedAtUtc: null,

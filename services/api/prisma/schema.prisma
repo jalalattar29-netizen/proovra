@@ -4059,6 +4059,24 @@ model WorkspaceClosureRequest {
   @@index([status, coolingOffEndsAtUtc])
   @@map("workspace_closure_requests")
 }
+/// PRO-T1-06 / DEC-18 — an owner's offer of a (legacy) Owned Workspace's
+/// ownership; nothing moves until the named recipient accepts.
+/// PENDING / ACCEPTED / DECLINED / CANCELLED / SUPERSEDED / EXPIRED.
+model WorkspaceOwnershipOffer {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId       String    @map("team_id") @db.Uuid
+  fromUserId   String    @map("from_user_id") @db.Uuid
+  toUserId     String    @map("to_user_id") @db.Uuid
+  status       String    @default("PENDING") @db.VarChar(20)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAtUtc DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  decidedAtUtc DateTime? @map("decided_at_utc") @db.Timestamptz(6)
+
+  @@index([teamId, status])
+  @@index([toUserId, status])
+  @@map("workspace_ownership_offers")
+}
+
 
 enum TeamRole {
   OWNER

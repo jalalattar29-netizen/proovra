@@ -25,7 +25,7 @@ import { AppStatusText } from "../../../../../components/app-primitives/AppStatu
 import { isApiResponseError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import type { SafeErrorFallback } from "../../../../../lib/feedback/toSafeUserError";
-import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
+import { formatUserDate, formatUserDateTime, toDateTimeLocalInputValue } from "../../../../../lib/date";
 import {
   ASSIGNEE_TEAM_LEVEL_LABEL,
   ASSIGNEE_TEAM_LEVEL_SHORT,
@@ -953,11 +953,11 @@ function EditAssignmentModal({
     assignment.priority,
   );
   // `datetime-local` wants a local wall-clock string, so the stored UTC
-  // instant is trimmed to minutes for the control and sent back as an ISO
-  // instant below. Empty means "no due date", which is a real choice.
-  const [dueAt, setDueAt] = useState(
-    assignment.dueAtUtc ? assignment.dueAtUtc.slice(0, 16) : "",
-  );
+  // instant is converted to the viewer's wall-clock for the control and sent
+  // back as an ISO instant below (PRO-K2-24: slicing the UTC string shifted the
+  // instant by the UTC offset on every save). Empty means "no due date".
+  const initialDueAt = toDateTimeLocalInputValue(assignment.dueAtUtc);
+  const [dueAt, setDueAt] = useState(initialDueAt);
   const [note, setNote] = useState(assignment.note ?? "");
   const [busy, setBusy] = useState(false);
 
@@ -975,7 +975,14 @@ function EditAssignmentModal({
       await updateAssignment(teamId, assignment.id, {
         assigneeUserId: assigneeUserId || null,
         priority,
-        dueAtUtc: dueAt ? new Date(dueAt).toISOString() : null,
+        // An untouched field keeps the stored instant exactly (no minute
+        // truncation either).
+        dueAtUtc:
+          dueAt === initialDueAt
+            ? (assignment.dueAtUtc ?? null)
+            : dueAt
+              ? new Date(dueAt).toISOString()
+              : null,
         note: note.trim() ? note.trim() : null,
       });
       await onSaved("Work updated.");

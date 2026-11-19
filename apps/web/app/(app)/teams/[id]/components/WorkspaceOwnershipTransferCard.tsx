@@ -42,6 +42,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "../../../../../components/ui/Button";
 import { apiFetch } from "../../../../../lib/api";
+import { formatUserDate } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import {
   StepUpVerify,
@@ -191,6 +192,35 @@ export function WorkspaceOwnershipTransferCard({
   const [stepUpMethods, setStepUpMethods] = useState<StepUpMethods>(["reauth"]);
   const [stepUpMsg, setStepUpMsg] = useState("");
 
+  // PRO-T1-06 — the owner's own pending offer, withdrawable until accepted.
+  // An older API has no offer read (404): nothing is shown.
+  const [pendingOffer, setPendingOffer] = useState<{ id: string; toUserId: string; expiresAtUtc: string } | null>(null);
+  const loadPendingOffer = useCallback(async () => {
+    try {
+      const res = (await apiFetch(`/v1/teams/${teamId}/ownership-offer`)) as { offer?: { id: string; toUserId: string; fromUserId: string; expiresAtUtc: string } | null };
+      setPendingOffer(res?.offer && res.offer.toUserId !== currentUserId ? res.offer : null);
+    } catch {
+      setPendingOffer(null);
+    }
+  }, [teamId, currentUserId]);
+  useEffect(() => {
+    void loadPendingOffer();
+  }, [loadPendingOffer]);
+  const withdrawOffer = useCallback(async () => {
+    if (!pendingOffer) return;
+    try {
+      await apiFetch(`/v1/teams/${teamId}/ownership-offer/${pendingOffer.id}/cancel`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      setNotice("Ownership offer withdrawn. Nothing changed.");
+    } catch (err) {
+      setError(toSafeUserError(err, { message: "The offer could not be withdrawn." }).message);
+    }
+    await loadPendingOffer();
+  }, [pendingOffer, teamId, loadPendingOffer]);
+
   // Stale-response protection.
   const mountedRef = useRef(true);
   const seqRef = useRef(0);
@@ -309,21 +339,27 @@ export function WorkspaceOwnershipTransferCard({
       const seq = ++seqRef.current;
 
       try {
-        await apiFetch(`/v1/teams/${teamId}/transfer-ownership`, {
+        const res = (await apiFetch(`/v1/teams/${teamId}/transfer-ownership`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             newOwnerUserId: targetUserId,
             ...(proof ? { stepUp: proof } : {}),
           }),
-        });
+        })) as { pendingAcceptance?: boolean } | null;
         if (!mountedRef.current || seq !== seqRef.current) return;
         const label = targetLabel || "the new owner";
         setStepUpOpen(false);
         setConfirming(false);
         setTargetUserId("");
         setTargetLabel("");
-        const outcome = `${label} now owns ${teamName}. Billing ownership moved with it; you remain a member.`;
+        // PRO-T1-06 — an API with offer/accept answers `pendingAcceptance`:
+        // nothing has moved until the recipient accepts. An older API moved
+        // ownership at once.
+        const outcome =
+          res?.pendingAcceptance === true
+            ? `Ownership offered to ${label}. Nothing changes until they accept; you can withdraw the offer until then.`
+            : `${label} now owns ${teamName}. Billing ownership moved with it; you remain a member.`;
         setNotice(outcome);
         /**
          * PHASE 13 (NEW-049) — the outcome is handed UPWARDS, not just shown.
@@ -338,6 +374,7 @@ export function WorkspaceOwnershipTransferCard({
          * because the outcome belongs to the page: it is the last thing this
          * component knows, and by design it is about to stop existing.
          */
+        await loadPendingOffer();
         await onTransferred(outcome);
       } catch (err) {
         if (!mountedRef.current || seq !== seqRef.current) return;
@@ -353,7 +390,7 @@ export function WorkspaceOwnershipTransferCard({
         if (mountedRef.current && seq === seqRef.current) setBusy(false);
       }
     },
-    [targetUserId, targetLabel, teamId, teamName, onTransferred],
+    [targetUserId, targetLabel, teamId, teamName, onTransferred, loadPendingOffer],
   );
 
   /**
@@ -378,6 +415,17 @@ export function WorkspaceOwnershipTransferCard({
           and the billing owner; you stay a member. Evidence, cases and audit
           history are unaffected.
         </p>
+        {pendingOffer ? (
+          <div data-ownership-offer-pending style={{ margin: "8px 0" }}>
+            <p className="app-table__muted" style={{ margin: "0 0 6px" }}>
+              An ownership offer is waiting for the recipient&rsquo;s acceptance (open until{" "}
+              {formatUserDate(pendingOffer.expiresAtUtc)}). Nothing changes until they accept.
+            </p>
+            <button type="button" className="app-secondary-action" onClick={() => void withdrawOffer()} data-action="withdraw-ownership-offer">
+              Withdraw offer
+            </button>
+          </div>
+        ) : null}
 
       {list.kind === "loading" && !hasLoaded ? (
         <p

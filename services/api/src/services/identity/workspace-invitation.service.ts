@@ -47,6 +47,7 @@ import * as prismaPkg from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import {
   invitationCannotReviveMembership,
+  mayGrantWorkspaceRole,
   provisionMembership,
 } from "./membership-provisioning.service.js";
 import {
@@ -408,6 +409,22 @@ export async function resendWorkspaceInvitation(
         createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
       },
     });
+    // PRO-T1-04 / PRO-T1-15 — a resend renews the invitation's authority, so
+    // the resender must be able to grant its role under the one ceiling: an
+    // ADMIN cannot keep an ADMIN invitation alive.
+    if (input.actorUserId) {
+      const resender = await tx.teamMember.findFirst({
+        where: { teamId: input.workspaceId, userId: input.actorUserId, status: prismaPkg.TeamMemberStatus.ACTIVE },
+        select: { role: true },
+      });
+      if (!mayGrantWorkspaceRole(resender?.role ?? null, existing.role)) {
+        throw new WorkspaceInvitationError(
+          "ROLE_ABOVE_INVITER_AUTHORITY",
+          "Only the workspace owner can renew an invitation with this role.",
+          403,
+        );
+      }
+    }
     if (recentResends >= MAX_INVITE_RESENDS_PER_24H) {
       throw new WorkspaceInvitationError(
         "INVITE_RESEND_LIMIT",
@@ -516,6 +533,71 @@ export async function revokeWorkspaceInvitation(
     if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, projected);
     return projected;
   });
+}
+
+// =============================================================================
+// Decline (PRO-T1-14)
+// =============================================================================
+
+/**
+ * The invitee says no. Bound exactly like acceptance — the token AND the
+ * signed-in account's VERIFIED address must match the invitation — so nobody
+ * else can decline on their behalf. A decline is a revocation recorded as the
+ * invitee's own act (`revokedByUserId` = the invitee): the pending place is
+ * freed at once, the link stops working, and the workspace's activity trail
+ * says who declined. Idempotent for an already-revoked invitation.
+ */
+export async function declineWorkspaceInvitation(
+  input: { rawToken: string; actorUserId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ workspaceId: string; inviteId: string }> {
+  const invite = await client.teamInvite.findFirst({ where: { tokenHash: hashToken(input.rawToken) } });
+  if (!invite) {
+    throw new WorkspaceInvitationError("INVITE_NOT_FOUND", "This invitation does not exist.", 404);
+  }
+  const actor = await client.user.findUnique({
+    where: { id: input.actorUserId },
+    select: { email: true, emailVerifiedAt: true },
+  });
+  const actorEmail = normalizeInviteEmail(actor?.email ?? "");
+  if (!actorEmail || actorEmail !== normalizeInviteEmail(invite.email) || !actor?.emailVerifiedAt) {
+    throw new WorkspaceInvitationError(
+      "INVITE_EMAIL_MISMATCH",
+      "Sign in with the address this invitation was sent to.",
+      403,
+    );
+  }
+  const status = invitationStatus(invite);
+  if (status === "ACCEPTED") {
+    throw new WorkspaceInvitationError(
+      "INVITE_NOT_PENDING",
+      "This invitation was already accepted. Leave the workspace instead.",
+      409,
+    );
+  }
+  if (status === "REVOKED") return { workspaceId: invite.teamId, inviteId: invite.id };
+  await client.$transaction(async (tx) => {
+    const claimed = await tx.teamInvite.updateMany({
+      where: { id: invite.id, acceptedAt: null, revokedAt: null },
+      data: {
+        revokedAt: new Date(),
+        revokedByUserId: input.actorUserId,
+        tokenHash: hashToken(`declined:${invite.id}:${randomBytes(16).toString("hex")}`),
+      },
+    });
+    if (claimed.count === 0) return;
+    await tx.teamActivity.create({
+      data: {
+        teamId: invite.teamId,
+        eventType: "invite_declined",
+        targetType: "invite",
+        targetId: invite.id,
+        actorUserId: input.actorUserId,
+        metadata: { role: invite.role },
+      },
+    });
+  });
+  return { workspaceId: invite.teamId, inviteId: invite.id };
 }
 
 // =============================================================================

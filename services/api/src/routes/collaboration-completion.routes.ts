@@ -25,7 +25,6 @@ import {
   deleteComment,
   editComment,
   listComments,
-  listTeamActivityFiltered,
 } from "../services/collaboration-team/collaboration-completion.service.js";
 
 function handleError(
@@ -158,12 +157,19 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
               error: { code: "invalid_query", message: "targetId must be a record id.", requestId: req.id ?? null },
             });
           }
+          // PRO-K2-16 — keyset cursor: the last comment id of the previous page.
+          if (q.cursor !== undefined && !z.string().uuid().safeParse(q.cursor).success) {
+            return reply.code(400).send({
+              error: { code: "invalid_query", message: "cursor must be a comment id.", requestId: req.id ?? null },
+            });
+          }
           const res = await listComments({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
             targetType: q.targetType ?? null,
             targetId: q.targetId ?? null,
             limit,
+            cursor: q.cursor ?? null,
           });
           return reply.send(res);
         } catch (err) {
@@ -221,7 +227,10 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
                 db,
               }),
           });
-          return reply.code(201).send({ comment: { id: result.id } });
+          // PRO-K2-04 — additive: handles that named no member of this group.
+          return reply
+            .code(201)
+            .send({ comment: { id: result.id }, unresolvedMentions: result.unresolvedMentions });
         } catch (err) {
           return handleError(reply, err, req.id ?? null);
         }
@@ -529,42 +538,24 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // Activity (filtered + enriched) — overrides Phase 5 listActivity for
-  // the same path. Registered at a distinct subpath to avoid collision.
+  // PRO-K2-19 — `activity/v2` had no client (web and native read `/activity`)
+  // and carried its own e-mail-bearing directory. Retired to a typed 410
+  // tombstone, like the other retired collaboration routes; the canonical
+  // read is GET /v1/collaboration-teams/:teamId/activity.
   // ---------------------------------------------------------------------------
 
   app.get<{ Params: { teamId: string } }>(
     "/v1/collaboration-teams/:teamId/activity/v2",
     {
       preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.read",
-          groupPermission: "team.activity.read",
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        try {
-          const q = (req.query as Record<string, string | undefined>) ?? {};
-          const res = await listTeamActivityFiltered({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-            eventType: q.eventType ?? null,
-            actorFilter: q.actor ?? null,
-            sinceUtc: q.since ? new Date(q.since) : null,
-            untilUtc: q.until ? new Date(q.until) : null,
-            limit: q.limit ? parseInt(q.limit, 10) : undefined,
-            cursor: q.cursor ?? null,
-          });
-          return reply.send(res);
-        } catch (err) {
-          return handleError(reply, err, req.id ?? null);
-        }
-      },
+      handler: async (_req, reply) =>
+        reply.code(410).send({
+          error: {
+            code: "COLLABORATION_TEAM_ACTIVITY_V2_RETIRED",
+            message: "This activity read has been retired. Use the team's activity feed.",
+          },
+          canonical: "/v1/collaboration-teams/{teamId}/activity",
+        }),
     },
   );
 }

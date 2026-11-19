@@ -29,6 +29,8 @@ import {
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { ProovraSupportReference } from "../../../../components/feedback/ProovraSupportReference";
+import { ClosedOwnedWorkspaces } from "../../teams/[id]/components/ClosedOwnedWorkspaces";
+import { OwnershipOffers } from "../../teams/[id]/components/OwnershipOffers";
 import { WorkspaceClosureCard } from "../../teams/[id]/components/WorkspaceClosureCard";
 import { WorkspaceOwnershipTransferCard } from "../../teams/[id]/components/WorkspaceOwnershipTransferCard";
 
@@ -127,6 +129,9 @@ export function WorkspaceLifecycleSection({
         >
           Try again
         </button>
+        {/* PRO-T1-01 — a closed workspace answers this read with not-found;
+            its owner of record still gets the Reopen door. */}
+        <ClosedOwnedWorkspaces />
       </div>
     );
   }
@@ -197,6 +202,9 @@ export function WorkspaceLifecycleSection({
           {policy.closable ? <WorkspaceClosureCard teamId={workspace.id} /> : null}
         </div>
       ) : null}
+      {/* PRO-T1-06 — offers of ownership addressed to this person. */}
+      <OwnershipOffers onAccepted={() => load()} />
+      <ClosedOwnedWorkspaces />
     </div>
   );
 }

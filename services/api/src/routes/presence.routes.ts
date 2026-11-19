@@ -36,7 +36,10 @@ import {
   listViewersAsyncViaSelector as listViewers,
   recordHeartbeatViaSelector as recordHeartbeat,
 } from "../services/presence/presence-selector.js";
-import { presenceResourceClosedTo } from "../services/presence/presence-reach.js";
+import {
+  presenceResourceClosedTo,
+  presenceResourceExistsHere,
+} from "../services/presence/presence-reach.js";
 
 const HeartbeatBody = z.object({
   teamId: z.string().uuid(),
@@ -50,10 +53,14 @@ const HeartbeatBody = z.object({
     "reviewer_workflow",
     "evidence_request",
   ]),
-  resourceId: z.string().min(1).max(180),
+  // PRO-K2-03 — every resource kind's id is a uuid (presence-reach.ts); a
+  // free-form string let any member mint unbounded distinct presence keys.
+  resourceId: z.string().uuid(),
 });
 
-const HereQuery = HeartbeatBody;
+// The read-only query creates no presence state, so it keeps the bounded
+// string id (an unknown id simply has no viewers).
+const HereQuery = HeartbeatBody.extend({ resourceId: z.string().min(1).max(180) });
 
 export async function presenceRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------
@@ -82,7 +89,12 @@ export async function presenceRoutes(app: FastifyInstance) {
       const userId = authz.actorUserId;
       // PRO-046 — a record a restricted case closes to the caller gives the same
       // 404 here as everywhere else: no heartbeat, no viewer list.
-      if (await presenceResourceClosedTo(body.resourceKind, body.resourceId, userId, body.teamId)) {
+      // PRO-K2-03 — an id that names no row of this workspace records nothing:
+      // the same 404, and no presence bucket is created for it.
+      if (
+        !(await presenceResourceExistsHere(body.resourceKind, body.resourceId, body.teamId)) ||
+        (await presenceResourceClosedTo(body.resourceKind, body.resourceId, userId, body.teamId))
+      ) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 

@@ -32,9 +32,12 @@ beforeEach(() => {
   };
 });
 
+// PRO-NC-10 — the server projects `id` = the MEMBERSHIP row and `userId` = the
+// person; an assignment names the person. The fixture keeps them distinct.
 const MEMBERS = [
-  { id: "u-dana", role: "MEMBER", status: "ACTIVE", displayName: "Dana", email: null },
-  { id: "u-gone", role: "MEMBER", status: "REMOVED", displayName: "Former", email: null },
+  { id: "m-dana", userId: "u-dana", role: "MEMBER", status: "ACTIVE", displayName: "Dana", email: null },
+  { id: "m-gone", userId: "u-gone", role: "MEMBER", status: "REMOVED", displayName: "Former", email: null },
+  { id: "m-ghost", userId: null, role: "MEMBER", status: "ACTIVE", displayName: "Unlinked", email: null },
 ];
 const render = () =>
   renderComponent(h(M.TestProviders, null, h(M.CollaborationWorkSection, { teamId: "t1", members: MEMBERS })));
@@ -68,4 +71,31 @@ test("filters compose into ONE query", async () => {
   const q = last();
   assert.match(q, /assignee=u-dana/);
   assert.match(q, /priority=HIGH/);
+});
+
+test("PRO-NC-10 — the assignee filter sends the person's userId, never the membership id", async () => {
+  const r = await render();
+  await r.press("Assignee: Dana");
+  assert.doesNotMatch(last(), /m-dana/);
+  // A member with no linked person cannot be named as an assignee.
+  assert.equal(r.byLabel("Assignee: Unlinked").length, 0);
+});
+test("PRO-NC-10 � an assigned row names the person, not 'Another member'", async () => {
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    return new Response(
+      JSON.stringify({
+        assignments: [
+          { id: "a1", targetType: "CASE", targetId: "c1", target: { resolved: true, label: "Case one" }, assigneeUserId: "u-dana", status: "OPEN", priority: "NORMAL" },
+        ],
+        total: 1,
+        nextCursor: null,
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+  const r = await render();
+  assert.ok(r.texts().some((t) => /Case one/.test(t)), r.texts().join(" | "));
+  assert.ok(r.texts().some((t) => /CASE|Case/.test(t) && /Dana/.test(t)) || r.hasText("Dana"), r.texts().join(" | "));
+  assert.ok(!r.texts().some((t) => /Another member/.test(t)));
 });

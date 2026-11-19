@@ -896,3 +896,93 @@ export function inviteCreateOutcome(
   }
   return { message: `Invitation sent to ${email}.`, tone: "success" };
 }
+
+/* --------------------------------------------------- leave (PRO-T1-02 native) */
+
+/** POST /v1/teams/:id/leave — the caller ends their OWN membership (step-up). */
+export function buildWorkspaceLeavePath(teamId: string): string {
+  return `/v1/teams/${encodeURIComponent(teamId)}/leave`;
+}
+
+/** The caller's own ACTIVE, non-owner row offers Leave (the server re-checks). */
+export function canLeaveWorkspace(m: WorkspaceMember, selfUserId: string | null): boolean {
+  return (
+    Boolean(selfUserId) &&
+    m.userId === selfUserId &&
+    m.role.toUpperCase() !== "OWNER" &&
+    (m.status ?? "ACTIVE").toUpperCase() === "ACTIVE"
+  );
+}
+
+/** The leave refusals the route sends, in the same words as the web. */
+export function leaveFailureCopy(err: unknown, fallback: string | null): string {
+  const e = (err ?? {}) as { code?: unknown; body?: { error?: { code?: unknown }; code?: unknown } };
+  const code = [e.code, e.body?.error?.code, e.body?.code].find((c) => typeof c === "string") as string | undefined;
+  if (code === "OWNED_RECORDS_HANDOVER_REQUIRED") {
+    return "You still own evidence or cases in this workspace. Ask an administrator to take them over before you leave.";
+  }
+  if (code === "last_administrator_protected") {
+    return "You are the last administrator of this workspace. Make someone else an administrator before you leave.";
+  }
+  if (code === "owner_cannot_leave") return "The owner cannot leave the workspace. Transfer ownership first.";
+  return fallback ?? "You could not leave this workspace.";
+}
+
+export const LEAVE_WORKSPACE_CONSEQUENCE =
+  "You lose access to this workspace and everything shared with you in it. Records you own here must be handed over first. Your own account and Personal Space are not affected.";
+
+/* ---------------------------------------- ownership offers (PRO-T1-06 native) */
+
+/**
+ * Ownership of a (legacy) Owned Workspace moves by OFFER and recipient
+ * ACCEPTANCE (DEC-18). `POST transfer-ownership` answers 202
+ * `{ offer, pendingAcceptance: true }` on an API that has the offer flow.
+ */
+export interface OwnershipOffer {
+  id: string;
+  teamId: string;
+  teamName: string | null;
+  toUserId: string | null;
+  expiresAtIso: string | null;
+}
+function offerFrom(raw: unknown): OwnershipOffer | null {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const id = typeof r.id === "string" ? r.id : null;
+  const teamId = typeof r.teamId === "string" ? r.teamId : null;
+  if (!id || !teamId) return null;
+  return {
+    id,
+    teamId,
+    teamName: typeof r.teamName === "string" ? r.teamName : null,
+    toUserId: typeof r.toUserId === "string" ? r.toUserId : null,
+    expiresAtIso: typeof r.expiresAtUtc === "string" ? r.expiresAtUtc : null,
+  };
+}
+/** `GET /v1/teams` → `ownershipOffers` addressed to the caller (absent on an older API → []). */
+export function parseOwnershipOffersForMe(payload: unknown): OwnershipOffer[] {
+  const d = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const list = Array.isArray(d.ownershipOffers) ? d.ownershipOffers : [];
+  return list.map(offerFrom).filter((o): o is OwnershipOffer => o !== null);
+}
+/** `GET /v1/teams/:id/ownership-offer` → the pending offer (owner or recipient), else null. */
+export function parsePendingOwnershipOffer(payload: unknown): OwnershipOffer | null {
+  const d = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  return offerFrom(d.offer);
+}
+export function buildOwnershipOfferPath(teamId: string): string {
+  return `/v1/teams/${encodeURIComponent(teamId)}/ownership-offer`;
+}
+export function buildOwnershipOfferActionPath(
+  teamId: string,
+  offerId: string,
+  action: "accept" | "decline" | "cancel",
+): string {
+  return `${buildOwnershipOfferPath(teamId)}/${encodeURIComponent(offerId)}/${action}`;
+}
+/** True when the transfer response is an offer still waiting for the recipient. */
+export function isPendingOwnershipOffer(payload: unknown): boolean {
+  return Boolean(payload && typeof payload === "object" && (payload as Record<string, unknown>).pendingAcceptance === true);
+}
+export function ownershipOfferSentCopy(label: string): string {
+  return `Offer sent to ${label}, waiting for acceptance. Nothing changes until they accept; you can withdraw the offer until then.`;
+}

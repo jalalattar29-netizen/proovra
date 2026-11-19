@@ -377,33 +377,46 @@ describe("Members re-audit D1a — membership concurrency and governed refusals 
   // SEC-01 — two concurrent ownership transfers: exactly one wins.
   // ===========================================================================
 
-  it("SEC-01 — two transfers released together are serialised by the workspace row lock: one wins, one OWNER remains", async () => {
+  it("SEC-01 — an acceptance and a withdrawal released together are serialised by the workspace row lock: one outcome, one OWNER remains", async () => {
+    // PRO-T1-06 / DEC-18 — ownership moves by offer and recipient acceptance;
+    // the race that matters is accept vs withdraw of the same offer.
     const w = await ownedWorkspace();
     const x = await person(w.teamId, "MEMBER");
-    const y = await person(w.teamId, "MEMBER");
     const password = await withPassword(w.owner.id);
-    const transferTo = (to: string) =>
-      h.app.inject({
-        method: "POST",
-        url: `/v1/teams/${w.teamId}/transfer-ownership`,
-        headers: bearer(w.owner.token),
-        payload: { newOwnerUserId: to, stepUp: { method: "password", currentPassword: password } },
-      });
+    const xPassword = await withPassword(x.id);
+    const offered = await h.app.inject({
+      method: "POST",
+      url: `/v1/teams/${w.teamId}/transfer-ownership`,
+      headers: bearer(w.owner.token),
+      payload: { newOwnerUserId: x.id, stepUp: { method: "password", currentPassword: password } },
+    });
+    expect(offered.statusCode, offered.body).toBe(202);
+    const offerId = (offered.json() as { offer: { id: string } }).offer.id;
 
-    // Hold the workspace row so both transfers are in flight at once.
+    // Hold the workspace row so both settlements are in flight at once.
     const holder = holdOpen((tx) => tx.$queryRaw`SELECT "id" FROM "teams" WHERE "id" = ${w.teamId}::uuid FOR UPDATE`);
     await holder.ready;
-    const first = transferTo(x.id);
-    const second = transferTo(y.id);
-    expect(await untilBlocked(2, [first, second])).toBe("blocked");
+    const accept = h.app.inject({
+      method: "POST",
+      url: `/v1/teams/${w.teamId}/ownership-offer/${offerId}/accept`,
+      headers: bearer(x.token),
+      payload: { stepUp: { method: "password", currentPassword: xPassword } },
+    });
+    const withdraw = h.app.inject({
+      method: "POST",
+      url: `/v1/teams/${w.teamId}/ownership-offer/${offerId}/cancel`,
+      headers: bearer(w.owner.token),
+      payload: {},
+    });
+    expect(await untilBlocked(2, [accept, withdraw])).toBe("blocked");
     holder.release();
     await holder.done;
-    const results = await Promise.all([first, second]);
+    const results = await Promise.all([accept, withdraw]);
 
     const statuses = results.map((r) => r.statusCode).sort();
-    expect(statuses, results.map((r) => r.body).join(" | ")).toEqual([200, 403]);
-    const loser = results.find((r) => r.statusCode === 403)!;
-    expect(errorCode(loser)).toBe("not_workspace_owner");
+    expect(statuses, results.map((r) => r.body).join(" | ")).toEqual([200, 409]);
+    const loser = results.find((r) => r.statusCode === 409)!;
+    expect(errorCode(loser)).toBe("ownership_offer_not_pending");
     const owners = await prisma.teamMember.findMany({ where: { teamId: w.teamId, role: "OWNER", status: "ACTIVE" } });
     expect(owners).toHaveLength(1);
     const team = await prisma.team.findUniqueOrThrow({ where: { id: w.teamId } });
@@ -485,11 +498,22 @@ describe("Members re-audit D1a — membership concurrency and governed refusals 
     const w = await ownedWorkspace();
     const heir = await person(w.teamId, "MEMBER");
     const password = await withPassword(w.owner.id);
-    const res = await h.app.inject({
+    const offered = await h.app.inject({
       method: "POST",
       url: `/v1/teams/${w.teamId}/transfer-ownership`,
       headers: bearer(w.owner.token),
       payload: { newOwnerUserId: heir.id, stepUp: { method: "password", currentPassword: password } },
+    });
+    expect(offered.statusCode, offered.body).toBe(202);
+    // PRO-T1-06 — nothing moved, and nobody was told they own it, yet.
+    expect((await prisma.team.findUniqueOrThrow({ where: { id: w.teamId } })).ownerUserId).toBe(w.owner.id);
+    const offerId = (offered.json() as { offer: { id: string } }).offer.id;
+    const heirPassword = await withPassword(heir.id);
+    const res = await h.app.inject({
+      method: "POST",
+      url: `/v1/teams/${w.teamId}/ownership-offer/${offerId}/accept`,
+      headers: bearer(heir.token),
+      payload: { stepUp: { method: "password", currentPassword: heirPassword } },
     });
     expect(res.statusCode, res.body).toBe(200);
     const requestId = res.headers["x-request-id"] as string;

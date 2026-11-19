@@ -48,6 +48,7 @@ import {
   assertArchiveConfirmation,
   recoverCollaborationTeamLead,
   assessCollaborationTeamArchiveImpact,
+  isCollaborationTeamWorkspaceOwner,
   changeMemberRole,
   createAssignment,
   createCollaborationTeam,
@@ -415,14 +416,32 @@ const UpdateAssignmentBody = z.object({
     .optional(),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
   assigneeUserId: z.string().uuid().optional().nullable(),
+  // PRO-K2-01: an ABSENT dueAtUtc must stay undefined ("leave the due date
+  // alone") so updateAssignment's undefined/null contract holds — zod runs the
+  // transform for an absent optional key, so `s ? … : null` erased the due
+  // date and made every status-only PATCH look like a due-date edit.
   dueAtUtc: z
     .string()
     .datetime()
     .optional()
     .nullable()
-    .transform((s) => (s ? new Date(s) : null)),
+    .transform((s) => (s === undefined ? undefined : s ? new Date(s) : null)),
   note: z.string().max(600).optional().nullable(),
 });
+
+/**
+ * PRO-K2-12 — the one growth/reduction line for task edits under the billing
+ * write-gate: completing, cancelling or releasing (unassigning) an existing
+ * task settles it; everything else (starting, re-prioritising, re-dating,
+ * handing on) is gated. Discussion (comments/threads) is communication on
+ * existing records and is deliberately not treated as growth.
+ */
+function isSettlingAssignmentUpdate(d: z.infer<typeof UpdateAssignmentBody>): boolean {
+  if (d.priority !== undefined || d.dueAtUtc !== undefined || d.note !== undefined) return false;
+  const settlesStatus = d.status === "COMPLETED" || d.status === "CANCELLED";
+  if (settlesStatus) return d.assigneeUserId === undefined || d.assigneeUserId === null;
+  return d.status === undefined && d.assigneeUserId === null;
+}
 
 // -----------------------------------------------------------------------------
 // Route registration
@@ -683,10 +702,15 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
+        // PRO-K2-11 / DEC-17 — the workspace OWNER of record may archive (and
+        // preview the archive of) a group they do not lead; everyone else needs
+        // the group's `team.archive`. The service re-checks the same rule.
+        const ownerOverride = await isCollaborationTeamWorkspaceOwner(req.params.teamId, await getAuthUserId(req));
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.create",
-          groupPermission: "team.archive",
+          ...(ownerOverride
+            ? { permission: "identity.member.role.change" as const, requireGroupMembership: false }
+            : { permission: "collaboration.thread.create" as const, groupPermission: "team.archive" as const }),
           requireActiveTeam: true,
         });
         if (!binding) return;
@@ -732,10 +756,15 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
+        // PRO-K2-11 / DEC-17 — the workspace OWNER of record may archive (and
+        // preview the archive of) a group they do not lead; everyone else needs
+        // the group's `team.archive`. The service re-checks the same rule.
+        const ownerOverride = await isCollaborationTeamWorkspaceOwner(req.params.teamId, await getAuthUserId(req));
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.create",
-          groupPermission: "team.archive",
+          ...(ownerOverride
+            ? { permission: "identity.member.role.change" as const, requireGroupMembership: false }
+            : { permission: "collaboration.thread.create" as const, groupPermission: "team.archive" as const }),
           requireActiveTeam: true,
         });
         if (!binding) return;
@@ -902,10 +931,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
+        // PRO-K2-11 — restoring is the inverse of archiving: the same authority.
+        const ownerOverride = await isCollaborationTeamWorkspaceOwner(req.params.teamId, await getAuthUserId(req));
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.create",
-          groupPermission: "team.archive",
+          ...(ownerOverride
+            ? { permission: "identity.member.role.change" as const, requireGroupMembership: false }
+            : { permission: "collaboration.thread.create" as const, groupPermission: "team.archive" as const }),
           requireActiveTeam: false,
         });
         if (!binding) return;
@@ -1195,9 +1227,30 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
               },
               db,
             );
+        // PRO-K2-24 — role and status ran as separate transactions, so a body
+        // carrying both could commit the role and then fail the status. No
+        // first-party client sends both; a combined body is refused before
+        // anything is written.
+        if (parsed.data.role && parsed.data.status) {
+          return reply.code(400).send({
+            error: {
+              code: "invalid_body",
+              message: "Change the role and the status in separate requests.",
+              requestId: req.id ?? null,
+            },
+          });
+        }
         try {
           // Phase 10 — billing write-gate (no quota for role/status changes).
-          await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
+          // PRO-K2-12 — the gate refuses GROWTH only: suspending or removing a
+          // member is a reduction (the DELETE door was never gated), so a
+          // lapsed workspace can still offboard people.
+          const reduction =
+            !parsed.data.role &&
+            (parsed.data.status === "SUSPENDED" || parsed.data.status === "REMOVED");
+          if (!reduction) {
+            await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
+          }
           if (parsed.data.role) {
             await changeMemberRole({
               teamId: req.params.teamId,
@@ -1504,6 +1557,9 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.send({
             teamId: result.teamId,
+            // PRO-K2-15 — additive: the workspace the team lives in, so the
+            // client can switch into it before opening the team.
+            workspaceId: result.workspaceId,
             memberId: result.memberId,
             alreadyMember: result.alreadyMember,
           });
@@ -2027,7 +2083,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             });
         try {
           // Phase 10 — billing write-gate.
-          await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
+          // PRO-K2-12 — settling an existing task (complete, cancel, release)
+          // is not growth: the service already promises that "a downgrade
+          // strands nothing", so the lapsed-workspace gate applies only to
+          // edits that hand work on or change it.
+          if (!isSettlingAssignmentUpdate(parsed.data)) {
+            await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
+          }
           await updateAssignment({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
