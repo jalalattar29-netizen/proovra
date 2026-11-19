@@ -4006,6 +4006,30 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 2 FROM information_schema.columns WHERE table_schema='public' AND table_name='case_siu_exports' AND column_name IN ('includes_pii','included_evidence_ids');\"",
       "evidence": "PRO-K1-01 (WS-REACH, 2026-11-18). Two nullable columns on case_siu_exports (includes_pii BOOLEAN, included_evidence_ids JSONB) recording what a stored SIU bundle discloses, written once by the builder. No row is rewritten and no stored bundle is touched; an older image never reads them. A legacy row (both NULL) is treated by the new API as PII-bearing and generator-only. Rollback: leave the columns."
+    },
+    "20281121010000_external_identity_link_source": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='external_identity_mappings' AND column_name='link_source';\"",
+      "evidence": "PRO-A2-02 / B5B-F-302 (WS-ORG, 2026-11-18). One nullable column on external_identity_mappings recording who created an Organization identity link, no default, no index, no backfill. No row is rewritten; a row an older image writes stays NULL (legacy) and an older image never reads it. Rollback: leave the column."
+    },
+    "20281121060000_evidence_released_objects_removed": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='evidence' AND column_name='released_objects_removed_at_utc';\"",
+      "evidence": "PRO-C1C-01 / PRO-C1-03 (WS-CAP, 2026-11-18). One nullable column on evidence, no default, no index, no backfill: the capture reaper stamps it once it has removed a released, never-sealed record's uploaded objects. No row is rewritten; an older image never reads or writes it. Rollback: leave the column."
+    },
+    "20281121100000_workspace_ownership_offers": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.workspace_ownership_offers') IS NOT NULL;\"",
+      "evidence": "PRO-T1-06 / DEC-18 (WS-WSP, 2026-11-18). One new, empty table recording a workspace owner's ownership offer (no foreign keys, two indexes). No existing object is touched; an older image never reads it. Rollback: leave the table."
     }
   }
 }

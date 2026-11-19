@@ -1547,8 +1547,12 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281121010000_external_identity_link_source",
       // RG-05 (PRO-AI1-04 / PRO-AI1Z-01): extracted text claimed once per source part. EXPAND.
       "20281121050000_extracted_text_source_part",
+      // PRO-C1C-01 / PRO-C1-03 (WS-CAP): released reservations' objects swept once. EXPAND.
+      "20281121060000_evidence_released_objects_removed",
       // WS-REACH (PRO-K1-01): what a stored SIU bundle discloses. EXPAND.
       "20281121070000_siu_export_disclosure_facts",
+      // PRO-T1-06 / DEC-18 (WS-WSP): workspace ownership moves by offer and acceptance. EXPAND.
+      "20281121100000_workspace_ownership_offers",
       // PRO-W2-09 (WS-REL): the reconciliation-run heartbeat column. EXPAND.
       "20281121120000_reconciliation_run_heartbeat",
       // PRO-P1-06 (WS-SHELL): Operations idempotency reservation. EXPAND.
