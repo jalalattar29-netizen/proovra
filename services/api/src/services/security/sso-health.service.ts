@@ -159,6 +159,8 @@ export async function buildSsoHealthSnapshot(
     const reason7 = new Map<SsoFailureReason, number>();
 
     for (const a of attempts) {
+      // PRO-A2-08 — assertion-use ledger rows are not sign-in attempts.
+      if (a.failureReason === "saml_assertion_use") continue;
       total7++;
       const recent24 = a.issuedAtUtc >= since24h;
       if (recent24) total24++;

@@ -96,6 +96,7 @@ import {
   noteSsoFailure,
   noteSsoSuccess,
   persistSamlCallbackAttempt,
+  recordSamlAssertionUse,
 } from "../services/access-control/sso-hardening.service.js";
 import {
   recordAuthenticatedSession,
@@ -761,6 +762,25 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           throw new SamlAssertionError(
             "SAML_IN_RESPONSE_TO_MISMATCH",
             "InResponseTo does not match stored AuthnRequest ID.",
+          );
+        }
+
+        // PRO-A2-08 — an assertion-only signature leaves the Response (and its
+        // InResponseTo) unsigned: the assertion ID is accepted once.
+        if (
+          (await recordSamlAssertionUse(
+            {
+              teamId: conn.teamId,
+              ssoConnectionId: conn.id,
+              assertionId: assertion.replayGuardAssertionId,
+              notOnOrAfter: assertion.notOnOrAfter,
+            },
+            prisma,
+          )) === "REPLAYED"
+        ) {
+          throw new SamlAssertionError(
+            "SAML_ASSERTION_REPLAYED",
+            "This assertion was already used.",
           );
         }
 

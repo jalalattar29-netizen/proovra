@@ -519,6 +519,64 @@ export async function persistSamlCallbackAttempt(
 }
 
 // -----------------------------------------------------------------------------
+// PRO-A2-08 — one-time use of a signed SAML assertion ID
+// -----------------------------------------------------------------------------
+
+/** failureReason marker of an assertion-use row (it is not a sign-in attempt). */
+export const SAML_ASSERTION_USE_MARKER = "saml_assertion_use";
+
+/**
+ * Records that a signature-verified assertion was accepted once, on the same
+ * ledger that makes the RelayState one-shot (the unique state hash is the
+ * arbiter under concurrency). Called by every SAML consumer after
+ * validateSamlResponse, before anything is provisioned or approved.
+ *
+ *   RECORDED  first use
+ *   REPLAYED  this assertion ID was already used for this connection
+ *   SKIPPED   the verified signature covers the Response (nothing to record)
+ *
+ * A storage failure throws: the caller refuses the sign-in (fail closed).
+ */
+export async function recordSamlAssertionUse(
+  input: {
+    teamId: string;
+    ssoConnectionId: string;
+    assertionId: string | null | undefined;
+    notOnOrAfter: Date | null | undefined;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<"RECORDED" | "REPLAYED" | "SKIPPED"> {
+  if (!input.assertionId) return "SKIPPED";
+  const hash = hashStateToken(`saml-assertion:${input.ssoConnectionId}:${input.assertionId}`);
+  const now = Date.now();
+  const expiry =
+    input.notOnOrAfter && input.notOnOrAfter.getTime() > now
+      ? new Date(input.notOnOrAfter.getTime() + 120_000)
+      : new Date(now + 86_400_000);
+  try {
+    await client.ssoCallbackAttempt.create({
+      data: {
+        teamId: input.teamId,
+        organizationId: await connectionOrganization(client, input.ssoConnectionId),
+        ssoConnectionId: input.ssoConnectionId,
+        stateHash: hash,
+        nonceHash: hash,
+        status: "CONSUMED",
+        failureReason: SAML_ASSERTION_USE_MARKER,
+        expiresAtUtc: expiry,
+      },
+    });
+    return "RECORDED";
+  } catch (err) {
+    if ((err as { code?: string } | null)?.code === "P2002") {
+      bump("sso_callback_replay_total");
+      return "REPLAYED";
+    }
+    throw err;
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Stale-attempt sweep (cron-driven cleanup)
 // -----------------------------------------------------------------------------
 
@@ -537,7 +595,9 @@ export async function sweepStaleCallbackAttempts(
     where: {
       createdAt: { lt: cutoff },
       OR: [
-        { status: { in: ["EXPIRED", "FAILED", "CONSUMED", "REPLAYED"] } },
+        // PRO-A2-08 — an assertion-use row is kept until its assertion expired
+        // (every other finished row expired minutes after it was issued).
+        { status: { in: ["EXPIRED", "FAILED", "CONSUMED", "REPLAYED"] }, expiresAtUtc: { lt: new Date() } },
         { status: "PENDING", expiresAtUtc: { lt: cutoff } },
       ],
     },
