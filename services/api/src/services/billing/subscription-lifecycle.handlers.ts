@@ -623,13 +623,44 @@ async function payPalPaidPeriodRunning(
 }
 
 /**
- * PRO-BL1-03 — end the plan of a cancelled PayPal subscription whose kept paid
- * period is over (or was refunded/disputed). Not an automatic LOWERING held by
- * BILLING_AUTO_PLAN_LOWERING: the customer cancelled, and this only carries out
- * the end date they were shown. A surviving live base subscription keeps its
- * plan; an internal grant covering the plan keeps it.
+ * PRO-BL1-03 / DEC-02 — a cancelled PayPal subscription whose kept paid period
+ * is over (or was refunded/disputed) while the account still carries its plan.
+ *
+ * BILLING HOLDS (2026-11-19, review HIGH-MONEY-DISCLOSURE) — ending that plan
+ * is an automatic lowering like any other, with ONE exception: the customer
+ * cancelled it themselves through PROOVRA's own cancel path, and this only
+ * carries out the end date they were shown. That is PROVEN, not inferred:
+ *
+ *   - `customerCancelRequestedAtUtc` is set (written only by
+ *     `requestSubscriptionCancellation`, with the provider's confirmation;
+ *     `canceledAtUtc` is no proof, every provider fact writes it too), and
+ *   - the sweep never held this subscription (no AUTOMATIC_PLAN_LOWERING_HELD
+ *     review item names it).
+ *
+ * Every other row (a cancellation made at PayPal, a payment failure, a lost
+ * webhook the sweep learned of and held) is HELD while BILLING_AUTO_PLAN_LOWERING
+ * is off. It used to lower all of them, including rows the same sweep pass had
+ * just held, so for PayPal the hold was void.
+ *
+ * This is the ONE enumeration: `finalizeEndedPayPalPaidPeriods` acts on it and
+ * `billing-automatic-effects-preview` prints it. A surviving live base
+ * subscription keeps its plan; an internal grant covering the plan keeps it.
  */
-export async function finalizeEndedPayPalPaidPeriods(now: Date = new Date()): Promise<number> {
+export type EndedPayPalPaidPeriodCandidate = {
+  userId: string;
+  subscriptionId: string;
+  providerSubId: string;
+  from: prismaPkg.PlanType;
+  periodEndUtc: Date | null;
+  /** Proven customer cancellation through PROOVRA, never sweep-held. */
+  customerCancelled: boolean;
+  /** An AUTOMATIC_PLAN_LOWERING_HELD review item already names this subscription. */
+  sweepHeld: boolean;
+};
+
+export async function endedPayPalPaidPeriodCandidates(
+  now: Date = new Date(),
+): Promise<EndedPayPalPaidPeriodCandidate[]> {
   const ended = await prisma.subscription.findMany({
     where: {
       provider: prismaPkg.PaymentProvider.PAYPAL,
@@ -641,10 +672,17 @@ export async function finalizeEndedPayPalPaidPeriods(now: Date = new Date()): Pr
       updatedAt: { gte: new Date(now.getTime() - 400 * 24 * 60 * 60 * 1000) },
     },
     orderBy: { updatedAt: "desc" },
-    select: { userId: true, plan: true, providerSubId: true, currentPeriodEnd: true },
+    select: {
+      id: true,
+      userId: true,
+      plan: true,
+      providerSubId: true,
+      currentPeriodEnd: true,
+      customerCancelRequestedAtUtc: true,
+    },
     take: 500,
   });
-  let lowered = 0;
+  const out: EndedPayPalPaidPeriodCandidate[] = [];
   const seen = new Set<string>();
   for (const row of ended) {
     if (seen.has(row.userId)) continue;
@@ -668,14 +706,67 @@ export async function finalizeEndedPayPalPaidPeriods(now: Date = new Date()): Pr
     if (live) continue;
     const grant = await readActiveInternalPlanGrant(prisma, row.userId, now);
     if (grant && internalGrantCoversPlan(grant.plan, entitlement.plan)) continue;
-    await setPersonalPlan(row.userId, prismaPkg.PlanType.FREE, {
-      actorUserId: null,
-      serviceActor: "billing_paid_period_end",
+    const heldItem = await prisma.billingReviewItem.findUnique({
+      where: {
+        provider_providerResourceId_reason: {
+          provider: prismaPkg.PaymentProvider.PAYPAL,
+          providerResourceId: row.providerSubId,
+          reason: "AUTOMATIC_PLAN_LOWERING_HELD",
+        },
+      },
+      select: { id: true },
+    });
+    const sweepHeld = heldItem !== null;
+    out.push({
+      userId: row.userId,
+      subscriptionId: row.id,
       providerSubId: row.providerSubId,
+      from: row.plan,
+      periodEndUtc: row.currentPeriodEnd,
+      customerCancelled: row.customerCancelRequestedAtUtc !== null && !sweepHeld,
+      sweepHeld,
+    });
+  }
+  return out;
+}
+
+/**
+ * The sweep step over `endedPayPalPaidPeriodCandidates`.
+ *
+ *   - proven customer cancellation: the plan ends (the switch does not apply);
+ *   - anything else, switch off: HELD — the plan is kept and an
+ *     AUTOMATIC_PLAN_LOWERING_HELD review item names the subscription;
+ *   - anything else, switch on: the plan ends.
+ */
+export async function finalizeEndedPayPalPaidPeriods(
+  now: Date = new Date(),
+): Promise<{ lowered: number; held: number }> {
+  const switchOn = automaticPlanLoweringEnabled();
+  let lowered = 0;
+  let held = 0;
+  for (const c of await endedPayPalPaidPeriodCandidates(now)) {
+    if (!c.customerCancelled && !switchOn) {
+      if (!c.sweepHeld) {
+        await recordBillingReviewItem({
+          userId: c.userId,
+          provider: prismaPkg.PaymentProvider.PAYPAL,
+          providerResourceId: c.providerSubId,
+          product: "PLAN",
+          reason: "AUTOMATIC_PLAN_LOWERING_HELD",
+          detail: { from: c.from, to: prismaPkg.PlanType.FREE, why: "PAYPAL_PAID_PERIOD_ENDED_NOT_CUSTOMER_CANCELLED" },
+        });
+      }
+      held += 1;
+      continue;
+    }
+    await setPersonalPlan(c.userId, prismaPkg.PlanType.FREE, {
+      actorUserId: null,
+      serviceActor: c.customerCancelled ? "billing_paid_period_end" : "billing_reconciliation",
+      providerSubId: c.providerSubId,
     });
     lowered += 1;
   }
-  return lowered;
+  return { lowered, held };
 }
 
 /**

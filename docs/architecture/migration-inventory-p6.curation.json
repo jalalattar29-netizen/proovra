@@ -3831,6 +3831,14 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 2 FROM information_schema.columns WHERE table_schema='public' AND table_name='subscriptions' AND column_name IN ('provider_intent_key','provider_intent_at_utc');\"",
       "evidence": "PRO-BL1-01 (WS-BILL, 2026-11-18). Two nullable columns on subscriptions holding the idempotency key and time of the one provider mutation intent in flight (cancel, restart, plan change), so a retry reuses its key and a new intent never replays a stale answer. No row is rewritten; an older image never reads them. Rollback: leave the columns."
     },
+    "20281121030100_subscription_customer_cancel_request": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='subscriptions' AND column_name = 'customer_cancel_requested_at_utc';\"",
+      "evidence": "Billing holds (WS-BILL, 2026-11-19). One nullable column on subscriptions recording that the customer cancelled through PROOVRA's own cancel path, written only by the cancel service. The sweep ends a cancelled PayPal plan without BILLING_AUTO_PLAN_LOWERING only for a row carrying it; every other ended row is held. No row is rewritten; an older image never reads it. Rollback: leave the column."
+    },
     "20281120000000_login_mfa_challenge_factors": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",

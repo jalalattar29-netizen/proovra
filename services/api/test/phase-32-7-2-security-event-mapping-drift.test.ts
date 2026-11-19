@@ -1545,6 +1545,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281120000000_login_mfa_challenge_factors",
       // PRO-BL1-01 (WS-BILL): the provider intent key on subscriptions. EXPAND.
       "20281121030000_subscription_provider_intent_key",
+      // Billing holds (WS-BILL): the customer-cancel fact on subscriptions. EXPAND.
+      "20281121030100_subscription_customer_cancel_request",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

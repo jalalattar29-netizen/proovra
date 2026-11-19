@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281121030000_subscription_provider_intent_key";
+export const EXPECTED_MIGRATION_HEAD = "20281121030100_subscription_customer_cancel_request";
 
 export type MigrationRow = {
   migration_name: string;

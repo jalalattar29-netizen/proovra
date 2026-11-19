@@ -331,10 +331,32 @@ async function main(): Promise<number> {
     });
   }
 
+  // ---- 4c. Cancelled PayPal plans whose kept paid period is over ------------
+  // The sweep step's own enumeration (`finalizeEndedPayPalPaidPeriods` acts on
+  // exactly this list). A proven customer cancellation ends whatever the switch
+  // says; every other row is held while BILLING_AUTO_PLAN_LOWERING is off. A row
+  // the sweep held earlier is listed again in section 5 (`alsoHeldLowering`).
+  const { endedPayPalPaidPeriodCandidates, heldPlanLoweringCandidates } = await import(
+    "../services/billing/subscription-lifecycle.handlers.js"
+  );
+  for (const c of await endedPayPalPaidPeriodCandidates(now)) {
+    emit({
+      action: "END_PAYPAL_PLAN_AFTER_PAID_PERIOD",
+      provider: "PAYPAL",
+      effectiveMonth: month(now),
+      subscriptionId: c.subscriptionId,
+      from: c.from,
+      to: "FREE",
+      paidThroughUtc: c.periodEndUtc?.toISOString() ?? null,
+      why: c.customerCancelled ? "CUSTOMER_CANCELLED_IN_PROOVRA" : "NOT_A_PROVEN_CUSTOMER_CANCELLATION",
+      alsoHeldLowering: c.sweepHeld,
+      held: !c.customerCancelled && !automaticPlanLoweringEnabled(),
+    });
+  }
+
   // ---- 5. Lowerings the sweep held earlier (PRO-W2C-01) --------------------
   // Their subscription is already CANCELED, so section 4 never reaches them;
   // these are the accounts `applyHeldPlanLowerings` lowers once the switch is on.
-  const { heldPlanLoweringCandidates } = await import("../services/billing/subscription-lifecycle.handlers.js");
   for (const c of await heldPlanLoweringCandidates(now)) {
     emit({
       action: "APPLY_HELD_PLAN_LOWERING",

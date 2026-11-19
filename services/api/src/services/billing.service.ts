@@ -810,7 +810,7 @@ export async function upsertSubscription(
         : staleAgainstCancellation
           ? {}
           : existing?.cancelAtPeriodEnd
-            ? { cancelAtPeriodEnd: false, canceledAtUtc: null }
+            ? { cancelAtPeriodEnd: false, canceledAtUtc: null, customerCancelRequestedAtUtc: null }
             : {};
   if (reversesCancellation && !staleAgainstCancellation && existing) {
     await recordBillingReviewItem({

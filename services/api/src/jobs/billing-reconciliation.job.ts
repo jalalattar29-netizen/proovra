@@ -391,8 +391,10 @@ async function runSweep(input?: {
       err: err instanceof Error ? err.message : "unknown",
     });
   });
-  // PRO-BL1-03 — a cancelled PayPal plan ends when its kept paid period does
-  // (the customer's own cancellation; not held by the lowering switch).
+  // PRO-BL1-03 — a cancelled PayPal plan ends when its kept paid period does.
+  // Only a PROVEN customer cancellation (PROOVRA's own cancel path, never
+  // sweep-held) ends without BILLING_AUTO_PLAN_LOWERING; every other ended row
+  // is held and listed by the preview.
   await finalizeEndedPayPalPaidPeriods().catch((err: unknown) => {
     logWarn("billing.reconciliation.paypal_paid_period_finalize_failed", {
       err: err instanceof Error ? err.message : "unknown",
