@@ -13215,12 +13215,45 @@ model RedactionProject {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  versions RedactionVersion[]
-  activity RedactionActivity[]
+  versions     RedactionVersion[]
+  activity     RedactionActivity[]
+  pagePreviews RedactionPagePreview[]
 
   @@unique([teamId, evidenceId])
   @@index([teamId])
   @@map("redaction_projects")
+}
+
+/// PRO-R3-04 — one rendered page of a PDF redaction project's record, drawn
+/// under the region editor. A DERIVED working image: never the original, never
+/// a redacted copy, never public. One row per (project, page); the row is the
+/// durable authority of the `redaction-page-preview` job (QUEUED -> RENDERING
+/// -> READY | FAILED, lease on renderStartedAt). Destroyed with the record.
+model RedactionPagePreview {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId          String    @map("team_id") @db.Uuid
+  projectId       String    @map("project_id") @db.Uuid
+  evidenceId      String    @map("evidence_id") @db.Uuid
+  /// 0-based, the same index a PDF_PAGE_RECT region stores.
+  pageIndex       Int       @map("page_index")
+  state           String    @default("QUEUED") @db.VarChar(20)
+  renderStartedAt DateTime? @map("render_started_at") @db.Timestamptz(6)
+  storageBucket   String?   @map("storage_bucket") @db.VarChar(255)
+  storageKey      String?   @map("storage_key") @db.VarChar(600)
+  byteSize        BigInt?   @map("byte_size")
+  width           Int?
+  height          Int?
+  failureReason   String?   @map("failure_reason") @db.VarChar(120)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project RedactionProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, pageIndex])
+  @@index([teamId])
+  @@index([evidenceId])
+  @@index([state, updatedAt])
+  @@map("redaction_page_previews")
 }
 
 model RedactionVersion {

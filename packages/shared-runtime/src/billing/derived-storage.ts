@@ -27,7 +27,7 @@ export type DerivedStorageScope = {
 
 export async function sumDerivedAssetStorageBytes(
   // AUD-0017 — any client with the delegate, so a transaction can pass its own.
-  prisma: Pick<PrismaClient, "evidencePartDerivedAsset"> & Partial<Pick<PrismaClient, "redactionDerivative">>,
+  prisma: Pick<PrismaClient, "evidencePartDerivedAsset"> & Partial<Pick<PrismaClient, "redactionDerivative" | "redactionPagePreview">>,
   scope: DerivedStorageScope,
 ): Promise<bigint> {
   if (!scope.teamId) return 0n;
@@ -48,5 +48,18 @@ export async function sumDerivedAssetStorageBytes(
       })
     : null;
   const redactionRaw = redaction?._sum?.byteSize ?? 0;
-  return BigInt(Math.trunc(Number(raw))) + BigInt(Math.trunc(Number(redactionRaw)));
+  // PRO-R3-04 — the editor's rendered page images are stored objects of the
+  // same kind: one row per (project, page), counted while the pointer exists.
+  const previews = prisma.redactionPagePreview
+    ? await prisma.redactionPagePreview.aggregate({
+        where: { teamId: scope.teamId, storageKey: { not: null } },
+        _sum: { byteSize: true },
+      })
+    : null;
+  const previewRaw = previews?._sum?.byteSize ?? 0;
+  return (
+    BigInt(Math.trunc(Number(raw))) +
+    BigInt(Math.trunc(Number(redactionRaw))) +
+    BigInt(Math.trunc(Number(previewRaw)))
+  );
 }

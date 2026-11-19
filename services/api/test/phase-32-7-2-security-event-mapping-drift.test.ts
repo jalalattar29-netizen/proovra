@@ -1543,6 +1543,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // GOV-012: the owner-only legal-hold disclosure setting (default BLOCK). EXPAND.
       "20281119100400_legal_hold_disclosure_setting",
       "20281120000000_login_mfa_challenge_factors",
+      // PRO-R2-17: append-only history of coded review values. EXPAND.
+      "20281121110000_coding_value_history",
+      // PRO-R3-04: the redaction editor's rendered PDF page previews. EXPAND.
+      "20281121110100_redaction_page_previews",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

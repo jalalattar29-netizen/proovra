@@ -33,6 +33,9 @@ export const EVIDENCE_TABLE_TOMBSTONE_CLASS: Readonly<Record<string, TombstoneCl
   VerificationPackage: "DELETED",
   VerificationView: "DELETED",
   EvidencePartDerivedAsset: "DELETED",
+  // PRO-R3-04 — rendered page images of the record for the redaction editor:
+  // derived from the content, so rows and objects go with it.
+  RedactionPagePreview: "DELETED",
   // Everything PROOVRA derived from the content.
   EvidenceOcrText: "DELETED",
   EvidenceTranscriptSegment: "DELETED",

@@ -1067,6 +1067,8 @@ export async function executeEvidenceDestruction(
     // who did what and when stays.
     const redactionVersionWhere = { project: { evidenceId: evidence.id } };
     await tx.redactionDetection.deleteMany({ where: { version: redactionVersionWhere } });
+    // PRO-R3-04 — page previews are images of the content itself.
+    await tx.redactionPagePreview.deleteMany({ where: { evidenceId: evidence.id } });
     await tx.redactionRegion.updateMany({ where: { version: redactionVersionWhere }, data: { label: null, rationale: null } });
     await tx.redactionApproval.updateMany({ where: { version: redactionVersionWhere }, data: { rationale: null } });
     await tx.redactionVersion.updateMany({ where: redactionVersionWhere, data: { rationale: null } });
@@ -1176,7 +1178,7 @@ async function enumerateStorageTargets(
   const caseIds = (
     await prisma.caseEvidenceLink.findMany({ where: { evidenceId }, select: { caseId: true } })
   ).map((l) => l.caseId);
-  const [parts, reports, packages, derivatives, derivedAssets, siuExports] = await Promise.all([
+  const [parts, reports, packages, derivatives, derivedAssets, pagePreviews, siuExports] = await Promise.all([
     prisma.evidencePart.findMany({
       where: { evidenceId },
       select: { storageBucket: true, storageKey: true },
@@ -1197,6 +1199,11 @@ async function enumerateStorageTargets(
       where: { evidenceId, storageKey: { not: null } },
       select: { storageBucket: true, storageKey: true },
     }),
+    // PRO-R3-04 — the redaction editor's rendered page images of this record.
+    prisma.redactionPagePreview.findMany({
+      where: { evidenceId, storageKey: { not: null } },
+      select: { storageBucket: true, storageKey: true },
+    }),
     // (2026-09-29, audit H2) An SIU export bundle of any case this record is
     // linked to carries its report and verification package.
     caseIds.length
@@ -1214,7 +1221,7 @@ async function enumerateStorageTargets(
       key: row.storageKey,
       required: true,
     })),
-    ...[...derivatives, ...derivedAssets].map((row) => ({
+    ...[...derivatives, ...derivedAssets, ...pagePreviews].map((row) => ({
       bucket: row.storageBucket,
       key: row.storageKey,
     })),

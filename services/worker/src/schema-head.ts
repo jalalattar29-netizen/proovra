@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281120000000_login_mfa_challenge_factors";
+export const EXPECTED_MIGRATION_HEAD = "20281121110100_redaction_page_previews";
 
 export type MigrationRow = {
   migration_name: string;
