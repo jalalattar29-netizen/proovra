@@ -170,7 +170,12 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
     // round 3.
     // Rebaselined 2026-11-17: 94351 -> 100536. A Google/Apple first sign-in for an
     // address an existing account holds is answered with guidance (B1-F-004).
-    { rel: "src/routes/auth.routes.ts", expected: 100536, tolerance: 0.05 },
+    // Rebaselined 2026-11-19 (remediation integration): 100536 -> 108136. Two
+    // workstreams grew the file in parallel: bounded limiter waits / 503 on a
+    // store outage and the bounded audit chain (PRO-S1-01/02/03/07/12), and
+    // the WS-AUTH identity fixes. Each stayed inside the old band alone; the
+    // merged file did not. All of the growth is remediation code.
+    { rel: "src/routes/auth.routes.ts", expected: 108136, tolerance: 0.05 },
   ];
   for (const { rel, expected, tolerance } of POST_E10_1_PINS) {
     it(`${rel} unchanged at the post-E10.1 baseline`, () => {

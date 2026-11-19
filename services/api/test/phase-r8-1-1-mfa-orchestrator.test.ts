@@ -326,7 +326,10 @@ describe("R8.1.2 Part 7 — login flow integration LIVE (was deferred in R8.1.1)
     // sign-in budget beside the per-address one (B-21) and coded refusals (B-16).
     // 2026-11-17 (B1-F-004) rebaselined 94351→100536: a Google/Apple first sign-in
     // for an address an existing account holds is answered with guidance.
-    const expected = 100536;
+    // 2026-11-19 (remediation integration) rebaselined 100536→108136: the limiter /
+    // audit-chain fixes (PRO-S1-01/02/03/07/12) and the WS-AUTH identity fixes
+    // landed on parallel branches; the merged file left the old band.
+    const expected = 108136;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);
