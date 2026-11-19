@@ -249,9 +249,8 @@ export function VideoRedactionViewer({
           fontSize: 11,
         }}
       >
-        Regions apply across the selected frames. The method (blur,
-        pixelate or blackout) is applied in the background, frame by
-        frame; the original video is never modified.
+        Regions are recorded across the selected frames. A redacted video
+        copy cannot be produced yet; the original video is never modified.
       </small>
       {addError ? (
         <p role="alert" data-redaction-region-add-error style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 12.5, margin: "8px 0 0" }}>

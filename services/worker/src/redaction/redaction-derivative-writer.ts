@@ -170,6 +170,12 @@ export async function markDerivativeFailedWorker(input: {
    * fail a QUEUED row and nothing else.
    */
   claimedAt?: DerivativeClaimToken;
+  /**
+   * PRO-R3-09 — an object this render already stored (READY was then
+   * refused): recorded on the FAILED row so retention/destruction, which
+   * enumerate derivative objects by row pointer, can find it.
+   */
+  storedObject?: { bucket: string; key: string };
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   const row = await prisma.redactionDerivative.findFirst({
     where: { id: input.derivativeId, teamId: input.teamId },
@@ -186,6 +192,7 @@ export async function markDerivativeFailedWorker(input: {
       state: "FAILED",
       failureReason: input.failureReason.slice(0, 120),
       lastErrorPreview: input.errorPreview?.slice(0, 400) ?? null,
+      ...(input.storedObject ? { storageBucket: input.storedObject.bucket, storageKey: input.storedObject.key } : {}),
     },
   });
   if (res.count !== 1) return { ok: false, reason: "stale_transition" };

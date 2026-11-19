@@ -420,6 +420,14 @@ describe("features round 3 closures (live PostgreSQL)", () => {
     expect(open.statusCode, open.body).toBe(201);
     const ver = await req("POST", `/v1/redaction/projects/${json<{ projectId: string }>(open).projectId}/versions${q}`, A.adminToken, {});
     const vid = json<{ versionId: string }>(ver).versionId;
+    // PRO-R3-03 — a version with nothing masked is not submitted: draw one region first.
+    expect(
+      (await req("POST", `/v1/redaction/versions/${vid}/regions${q}`, A.adminToken, {
+        kind: "BBOX_NORMALIZED",
+        method: "BLACKOUT",
+        geometry: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 },
+      })).statusCode,
+    ).toBe(201);
     expect((await req("POST", `/v1/redaction/versions/${vid}/submit${q}`, A.adminToken, {})).statusCode).toBe(200);
     // Control: the author never approves their own version.
     expect((await req("POST", `/v1/redaction/versions/${vid}/approve${q}`, A.adminToken, { verdict: "APPROVE" })).statusCode).toBe(409);

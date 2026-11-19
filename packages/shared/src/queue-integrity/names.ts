@@ -10,9 +10,9 @@
  * ---------------------------------------------------------------------------
  * THE REAL TOPOLOGY (measured from the tree, not assumed)
  * ---------------------------------------------------------------------------
- *   12 BullMQ Queue objects = 10 PROCESSED queues + 2 DLQ sinks
- *   10 job names            = one per processed queue, 1:1
- *   10 worker registrations = one per processed queue, 1:1
+ *   13 BullMQ Queue objects = 11 PROCESSED queues + 2 DLQ sinks
+ *   11 job names            = one per processed queue, 1:1
+ *   11 worker registrations = one per processed queue, 1:1
  *   20 DB-outbox sweeps     = scheduler + processor pairs
  *                             (17 until ARCH-005 added AutomationDispatchSweep
  *                             on 2026-08-07, 18 until TrashGraceReconciliationSweep
@@ -23,6 +23,14 @@
  *    2 telemetry samplers    (observability heartbeat, queue-health sampler —
  *                             they process no durable work and own no state,
  *                             so they are not Point-5 processors)
+ *
+ * PRO-R3-04 (2026-11-19) — 10 -> 11 processed queues when
+ * `redaction-page-preview` was added END TO END: a producer (the API read
+ * `GET /v1/redaction/projects/:id/preview/pages/:n` commits a
+ * `RedactionPagePreview` row QUEUED and enqueues it), a consumer, a
+ * conditional claim with a lease, one terminal writer and the stranded-row
+ * recovery inside `RedactionStrandedReconciler`. The PDF redaction editor drew
+ * regions on a blank frame because nothing rendered the page.
  *
  * ET-Q-07 (2026-09-30) — the counts moved from 15 to 10 processed queues when
  * FIVE PRODUCERLESS QUEUES WERE RETIRED: `mi-exif`, `mi-search-index`,
@@ -53,7 +61,7 @@
  *
  * The two DLQ sinks (`report-dlq`, `media-intelligence-dlq`) are queues with no
  * job name and no worker: failed jobs are moved into them for operator triage.
- * That is why the queue count (12) and the registration count (10) differ, and
+ * That is why the queue count (13) and the registration count (11) differ, and
  * it is the single reconciliation behind what looked like a missing-coverage
  * gap.
  */
@@ -98,6 +106,7 @@ export type JobTransport = "bullmq" | "bullmq_dlq" | "db_outbox_sweep";
 
 export const QUEUE_NAMES = {
   REDACTION_DERIVATIVE: "redaction-derivative",
+  REDACTION_PAGE_PREVIEW: "redaction-page-preview",
   REPORT: "report",
   REPORT_DLQ: "report-dlq",
   EVIDENCE_PURGE: "evidence-purge",
@@ -137,7 +146,10 @@ export const MI_PREFIX_MEANING = "media_intelligence" as const;
 // ===========================================================================
 
 /**
- * BullMQ job names — exactly 10, one per processed queue.
+ * BullMQ job names — exactly 11, one per processed queue.
+ *
+ * PRO-R3-04 (2026-11-19) — `RenderRedactionPagePreview` added with its queue,
+ * producer, processor and recovery (see the header).
  *
  * ET-Q-07 (2026-09-30) — `ExtractExif`, `IndexMediaIntelligence`,
  * `SyncTeamGraphDomain`, `SyncTeamGraphTimeline` and
@@ -145,6 +157,7 @@ export const MI_PREFIX_MEANING = "media_intelligence" as const;
  */
 export const JOB_NAMES = {
   RENDER_REDACTION_DERIVATIVE: "RenderRedactionDerivative",
+  RENDER_REDACTION_PAGE_PREVIEW: "RenderRedactionPagePreview",
   GENERATE_REPORT: "GenerateReportJob",
   PURGE_DELETED_EVIDENCE: "PurgeDeletedEvidenceJob",
   UPGRADE_OTS: "UpgradeOts",

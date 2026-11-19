@@ -42,8 +42,6 @@ import {
   readPortalFailure,
   portalPathFor,
   setBearer,
-  startPortalSso,
-  stashRawTokenForSso,
   type PortalMfaDetail,
 } from "../../../../lib/external-portal/portal-client";
 import { PortalMfaCodeStep } from "../../../../components/external-portal/PortalMfaCodeStep";
@@ -155,35 +153,6 @@ export default function PortalAcceptPage({
       void onOpenWithToken();
     }
   }, [ssoOutcome, token, busy, codeStep, onOpenWithToken]);
-
-  const onSignInWithSso = useCallback(async () => {
-    if (!token) {
-      setError("SSO_REQUIRES_TOKEN_BOOTSTRAP");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const origin = window.location.origin;
-      const spEntityId =
-        window.location.origin + "/portal/sso/sp";
-      const acsUrl = `${origin}/portal/sso/callback/${encodeURIComponent(grantId)}`;
-      // Stash the raw token so the post-SSO redirect can resume the session.
-      stashRawTokenForSso(token);
-      setBearer(token);
-      const res = await startPortalSso({
-        grantId,
-        spEntityId,
-        acsUrl,
-      });
-      window.location.href = res.redirectUrl;
-    } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const denial = ((err as any)?.denial ?? "POLICY_REJECTED") as string;
-      setError(denial);
-      setBusy(false);
-    }
-  }, [grantId, token]);
 
   return (
     <main
@@ -333,30 +302,8 @@ export default function PortalAcceptPage({
           >
             {busy ? "Opening portal…" : "Open with invitation link"}
           </button>
-          <button
-            type="button"
-            data-portal-accept-sign-in-with-sso
-            onClick={onSignInWithSso}
-            disabled={busy}
-            style={{
-              padding: "10px 18px",
-              border: "1px solid #1e3a8a",
-              background: busy ? "#cbd5e1" : "#fff",
-              color: "#1e3a8a",
-              fontWeight: 600,
-              fontSize: 13,
-              borderRadius: 8,
-              cursor: busy ? "not-allowed" : "pointer",
-            }}
-          >
-            {busy ? "Redirecting…" : "Sign in with SSO"}
-          </button>
-          <small style={{ color: "#475569", fontSize: 11 }}>
-            Use SSO if your organization is federated with PROOVRA — it
-            validates that the identity who arrives matches the invited
-            reviewer. If you are not sure, "Open with invitation link"
-            always works.
-          </small>
+          {/* PRO-R1-03 — no SSO sign-in: outside reviewers open the portal
+              with the emailed link (and the emailed code when required). */}
         </div>
       )}
 

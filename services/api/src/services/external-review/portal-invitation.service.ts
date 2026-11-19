@@ -40,6 +40,54 @@ import {
   transitionExternalReviewGrant,
 } from "./external-review-grant.service.js";
 import { emitPortalActivity } from "./portal-activity.service.js";
+import { upsertEvidenceReviewerWorkflow } from "../evidence-review/reviewer-workflow.service.js";
+
+/**
+ * PRO-R1-06 — an invitation must have something to review. Every portal
+ * surface is keyed by the record's review workflow, and capture finalization
+ * creates it only best effort (a failed fan-out or a legacy record has none).
+ * For an EVIDENCE grant, and the record of a PACKAGE grant, the workflow is
+ * ensured here (idempotent: an existing one is left exactly as it is). A
+ * subject that cannot be prepared refuses the invitation rather than e-mailing
+ * an empty portal. (A CASE grant lists its linked records' workflows.)
+ */
+async function ensureReviewableSubject(
+  prisma: PrismaClient,
+  input: { teamId: string; actorUserId: string; scope: IssueInvitationInput["scope"] },
+): Promise<boolean> {
+  let evidenceId: string | null = null;
+  if (input.scope.kind === "EVIDENCE") evidenceId = input.scope.evidenceId ?? null;
+  if (input.scope.kind === "PACKAGE" && input.scope.packageId) {
+    const pkg = await prisma.verificationPackage.findFirst({
+      where: { id: input.scope.packageId },
+      select: { evidenceId: true },
+    });
+    evidenceId = pkg?.evidenceId ?? null;
+  }
+  if (!evidenceId) return true;
+  const existing = await prisma.evidenceReviewWorkflow.findFirst({
+    where: { evidenceId },
+    select: { id: true, teamId: true },
+  });
+  if (existing) return existing.teamId === input.teamId;
+  const record = await prisma.evidence.findFirst({
+    where: { id: evidenceId, teamId: input.teamId },
+    select: { id: true },
+  });
+  if (!record) return true; // the grant issuer refuses a foreign subject itself
+  try {
+    await upsertEvidenceReviewerWorkflow({
+      evidenceId,
+      workspaceType: "TEAM",
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      note: "Created for an external review invitation.",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export type IssueInvitationInput = {
   prisma?: PrismaClient;
@@ -87,6 +135,10 @@ export async function issueInvitation(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
+
+  if (!(await ensureReviewableSubject(prisma, { teamId: input.teamId, actorUserId: input.invitedByUserId, scope: input.scope }))) {
+    return { ok: false, denial: "POLICY_REJECTED" };
+  }
 
   const issued = await issueExternalReviewGrant(
     {
@@ -228,10 +280,15 @@ export async function acceptInvitation(input: {
   if (!res.ok) {
     return { ok: false, denial: mapGrantDenial(res.reason) };
   }
-  await prisma.externalReviewerRoleAssignment.updateMany({
-    where: { id: input.grantId, teamId: input.teamId },
+  // PRO-R1-13 — acceptance is recorded ONCE. Every portal page re-runs the
+  // token exchange (an ACTIVE -> ACTIVE same-state transition succeeds), so the
+  // stamp is conditional on its absence and GRANT_ACCEPTED is emitted only by
+  // the call that set it; later sign-ins record LOGIN only.
+  const stamped = await prisma.externalReviewerRoleAssignment.updateMany({
+    where: { id: input.grantId, teamId: input.teamId, inviteAcceptedAtUtc: null },
     data: { inviteAcceptedAtUtc: new Date() },
   });
+  if (stamped.count === 0) return { ok: true };
   await emitPortalActivity({
     prisma,
     teamId: input.teamId,

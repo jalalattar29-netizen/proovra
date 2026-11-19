@@ -93,7 +93,10 @@ type Counts = {
 };
 
 function ReviewOperationsPageBody() {
-  const { askReason } = useConfirmAction();
+  const { askReason, confirm } = useConfirmAction();
+  // PRO-R2-11 — bumped after Claim and after a bulk action so the list and
+  // the counts reflect what was just done.
+  const [reloadTick, setReloadTick] = useState(0);
   const teamId = useTeamId();
   const meUserId = usePlatformContext().envelope?.user.id ?? null;
   const [counts, setCounts] = useState<Counts | null>(null);
@@ -154,6 +157,7 @@ useEffect(() => {
     escalatedOnly,
     assignedToMe,
     meUserId,
+    reloadTick,
   ]);
 
   const selectedIds = useMemo(
@@ -173,11 +177,9 @@ useEffect(() => {
           body: JSON.stringify({ teamId }),
         },
       );
-      // Refetch to reflect the change.
-      setStage((s) => s);
-      // Trigger reload by toggling state slightly.
-      setSelected({ __reload: false });
+      // PRO-R2-11 — refetch: the row now shows its assignee.
       setSelected({});
+      setReloadTick((t) => t + 1);
     } catch (err) {
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not claim." }).message);
@@ -199,6 +201,19 @@ useEffect(() => {
         testId: "review-operations-bulk-note",
       });
       if (!note) return;
+    } else {
+      // PRO-R2-11 — Close / Mark in review act on every selected review at
+      // once: ask first, stating the count.
+      const ok = await confirm({
+        title: action === "CLOSE" ? `Close ${selectedIds.length} reviews?` : `Mark ${selectedIds.length} reviews in review?`,
+        description:
+          action === "CLOSE"
+            ? "Each selected review is closed. A closed review can only be reopened one at a time."
+            : "Each selected review moves to In review.",
+        confirmLabel: action === "CLOSE" ? "Close reviews" : "Mark in review",
+        tone: action === "CLOSE" ? "danger" : "warning",
+      });
+      if (!ok) return;
     }
     setBusy(true);
     try {
@@ -224,6 +239,7 @@ useEffect(() => {
         `${r.succeeded} succeeded · ${r.failed} failed (of ${r.total}).`,
       );
       setSelected({});
+      setReloadTick((t) => t + 1);
     } catch (err) {
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Bulk action failed." }).message);

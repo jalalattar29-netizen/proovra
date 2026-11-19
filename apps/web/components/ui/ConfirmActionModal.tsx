@@ -266,10 +266,24 @@ function ConfirmActionModal({
         return;
       }
       if (e.key === "Enter") {
-        const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+        // PRO-PW-03 — an auto-repeating Enter (the key that activated the
+        // trigger, still held) never confirms: the dialog stays open.
+        if (e.repeat) {
+          e.preventDefault();
+          return;
+        }
+        const active = document.activeElement as HTMLElement | null;
+        const tag = (active?.tagName ?? "").toLowerCase();
         // Don't auto-submit if the user is typing into the gated
         // confirmation text field or a textarea.
         if (tag === "textarea" || tag === "input") return;
+        // PRO-PW-03 — Enter on a focused control activates THAT control
+        // (Cancel, the close button, a link) natively; it is a confirm
+        // accelerator only on the confirm button or when focus is on no
+        // control at all.
+        const onControl =
+          tag === "button" || tag === "a" || tag === "select" || active?.getAttribute("role") === "button";
+        if (onControl && active?.getAttribute("data-confirm-action-submit") !== "true") return;
         if (confirmDisabled) return;
         e.preventDefault();
         void handleConfirm();

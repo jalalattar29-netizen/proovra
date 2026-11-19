@@ -27,7 +27,7 @@ export type DerivedStorageScope = {
 
 export async function sumDerivedAssetStorageBytes(
   // AUD-0017 — any client with the delegate, so a transaction can pass its own.
-  prisma: Pick<PrismaClient, "evidencePartDerivedAsset">,
+  prisma: Pick<PrismaClient, "evidencePartDerivedAsset"> & Partial<Pick<PrismaClient, "redactionDerivative" | "redactionPagePreview">>,
   scope: DerivedStorageScope,
 ): Promise<bigint> {
   if (!scope.teamId) return 0n;
@@ -36,5 +36,30 @@ export async function sumDerivedAssetStorageBytes(
     _sum: { sizeBytes: true },
   });
   const raw = agg?._sum?.sizeBytes ?? 0;
-  return BigInt(Math.trunc(Number(raw)));
+  // PRO-R3-15 / DEC-04 — a redacted copy is a customer-requested derived
+  // artifact: an object in the workspace's bucket counts like every other
+  // derived object with a storage pointer (a READY copy, and a FAILED row
+  // that recorded the object it stored). One row per version, one pointer
+  // per row, so a re-render never double-counts.
+  const redaction = prisma.redactionDerivative
+    ? await prisma.redactionDerivative.aggregate({
+        where: { teamId: scope.teamId, storageKey: { not: null } },
+        _sum: { byteSize: true },
+      })
+    : null;
+  const redactionRaw = redaction?._sum?.byteSize ?? 0;
+  // PRO-R3-04 — the editor's rendered page images are stored objects of the
+  // same kind: one row per (project, page), counted while the pointer exists.
+  const previews = prisma.redactionPagePreview
+    ? await prisma.redactionPagePreview.aggregate({
+        where: { teamId: scope.teamId, storageKey: { not: null } },
+        _sum: { byteSize: true },
+      })
+    : null;
+  const previewRaw = previews?._sum?.byteSize ?? 0;
+  return (
+    BigInt(Math.trunc(Number(raw))) +
+    BigInt(Math.trunc(Number(redactionRaw))) +
+    BigInt(Math.trunc(Number(previewRaw)))
+  );
 }

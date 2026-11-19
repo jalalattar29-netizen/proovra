@@ -1,4 +1,5 @@
 "use client";
+import { ExternalReviewSubjectPanel } from "../../external-review/ExternalReviewSubjectPanel";
 import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
@@ -391,6 +392,8 @@ export function SimpleCaseDetail({
 
       {activeTab === "overview" ? (
         <>
+          {/* PRO-R1-01 / DEC-01 — External Review of the case over the existing grant routes. */}
+          <ExternalReviewSubjectPanel teamId={caseDetail.teamId ?? null} subject={{ kind: "CASE", caseId }} />
           <OverviewTab
             caseDetail={caseDetail}
             evidenceCount={evidenceTotal}

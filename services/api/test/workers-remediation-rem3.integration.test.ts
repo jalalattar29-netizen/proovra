@@ -411,7 +411,7 @@ describe("round 3 worker remediation (live PostgreSQL 16)", () => {
         select: { id: true },
       });
       await prisma.redactionRegion.create({
-        data: { versionId: version.id, teamId, kind: "RECT", method: "BLACKOUT", authoredByUserId: ownerUserId, geometry: { x: 0.1, y: 0.1, width: 0.3, height: 0.3 } } as never,
+        data: { versionId: version.id, teamId, kind: "BBOX_NORMALIZED", method: "BLACKOUT", authoredByUserId: ownerUserId, geometry: { x: 0.1, y: 0.1, width: 0.3, height: 0.3 } } as never,
       });
       const d = await prisma.redactionDerivative.create({
         data: { versionId: version.id, teamId, kind: "IMAGE", ...derivative } as never,

@@ -116,6 +116,7 @@ import {
 import { buildRedactionProviderHealth } from "../services/redaction/redaction-provider-health.service.js";
 import { buildRedactionDetectionManifest } from "../services/redaction/redaction-detection-manifest.service.js";
 import { closedRedactionAnswer } from "../services/redaction/redaction-record-reach.service.js";
+import { readRedactionPagePreview } from "../services/redaction/redaction-page-preview.service.js";
 import { evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import {
   getRedactionDetectionPolicy,
@@ -647,6 +648,50 @@ export async function redactionRoutes(app: FastifyInstance) {
     },
   );
 
+  // PRO-R3-04 — the page image the PDF region editor draws on. `:n` is the
+  // 0-based page index a PDF_PAGE_RECT region stores. The region-authoring
+  // capability (the people who draw regions) and the project's record reach
+  // (REDACTION_RECORD_ROUTES) gate it. The first ask queues the worker's
+  // RenderRedactionPagePreview job; the answer is PENDING until the page is
+  // rendered, then a short-lived presigned URL of the PREVIEW object — never
+  // the original, never a bucket or key.
+  app.get(
+    "/v1/redaction/projects/:id/preview/pages/:n",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (!(await gate(reply, ctx, "redaction.region.author"))) return reply;
+      const params = z
+        .object({ id: z.string().uuid(), n: z.string().regex(/^[0-9]{1,4}$/) })
+        .safeParse(req.params);
+      if (!params.success) {
+        return reply.code(400).send({ denial: "PREVIEW_PAGE_OUT_OF_RANGE" });
+      }
+      const answer = await readRedactionPagePreview({
+        teamId: ctx.teamId,
+        projectId: params.data.id,
+        pageIndex: Number(params.data.n),
+        actorUserId: ctx.userId,
+      });
+      noStorePresignedResponse(reply);
+      if (!answer.ok) return reply.code(answer.status).send(answer.body);
+      if (answer.state === "READY") {
+        return reply.code(200).send({
+          state: "READY",
+          url: answer.url,
+          width: answer.width,
+          height: answer.height,
+          expiresAtUtc: answer.expiresAtUtc,
+        });
+      }
+      if (answer.state === "UNAVAILABLE") {
+        return reply.code(200).send({ state: "UNAVAILABLE", reason: answer.reason });
+      }
+      return reply.code(200).send({ state: "PENDING" });
+    },
+  );
+
   // -------------------------------------------------------------------------
   // Versions
   // -------------------------------------------------------------------------
@@ -725,6 +770,25 @@ export async function redactionRoutes(app: FastifyInstance) {
       if (!(await gate(reply, ctx, "redaction.version.publish"))) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = PublishBody.parse(req.body ?? {});
+
+      // PRO-R3-14 — validate BEFORE spending the single-use step-up: a publish
+      // that cannot happen (no READY copy, version not APPROVED) is refused
+      // without consuming the challenge. The transition re-checks both under
+      // its compare-and-swap after the step-up.
+      const precheckDerivative = await prisma.redactionDerivative.findFirst({
+        where: { teamId: ctx.teamId, versionId: id },
+        select: { state: true },
+      });
+      if (!precheckDerivative || precheckDerivative.state !== "READY") {
+        return reply.code(409).send({ denial: "DERIVATIVE_NOT_READY" as RedactionDenialReason });
+      }
+      const precheckVersion = await prisma.redactionVersion.findFirst({
+        where: { teamId: ctx.teamId, id },
+        select: { state: true },
+      });
+      if (!precheckVersion || precheckVersion.state !== "APPROVED") {
+        return reply.code(409).send({ denial: "INVALID_TRANSITION" as RedactionDenialReason });
+      }
 
       // STEP-UP: publishing a redacted derivative is the irreversible,
       // disclosure-shaping step of the redaction lifecycle (it flips the
@@ -1288,7 +1352,12 @@ export async function redactionRoutes(app: FastifyInstance) {
         kinds: body.kinds as never,
         description: body.description ?? undefined,
       });
-      return reply.code(200).send({ policy });
+      // PRO-R3-08 — the change is a version awaiting a second administrator's
+      // approval (202), or nothing was written (409); never a 200 "applied".
+      if (!policy.pendingPolicyVersionId) {
+        return reply.code(409).send({ denial: "POLICY_REJECTED" as RedactionDenialReason, policy });
+      }
+      return reply.code(202).send({ policy });
     },
   );
 

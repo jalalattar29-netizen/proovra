@@ -17,6 +17,7 @@ let posts = [];
 let decisions = [];
 let caps = ["portal.decide", "portal.comment"];
 let decisionsStatus = 200;
+let packageReply = null;
 const WF = "3f0c2a1e-0000-4000-8000-00000000000a";
 const COMMENTS = [
   { id: "c1", body: "Is the timestamp local?", authorDisplay: "Rae", createdAtUtc: "2026-09-20T10:00:00Z", parentCommentId: null },
@@ -31,6 +32,8 @@ beforeEach(() => {
   decisions = [];
   caps = ["portal.decide", "portal.comment"];
   decisionsStatus = 200;
+  packageReply = { body: { url: "https://storage.example.test/pkg.zip", reportVersion: 1 }, status: 200 };
+  globalThis.__LINKING_OPENED__ = [];
   globalThis.__EXPO_PARAMS__ = { workflowId: WF };
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url).replace(/^https?:\/\/[^/]+/, "");
@@ -47,6 +50,7 @@ beforeEach(() => {
     }
     if (path === `/v1/portal/work/${WF}/decisions`) return decisionsStatus === 200 ? send({ decisions }) : send({ denial: "NOT_PERMITTED" }, decisionsStatus);
     if (path === `/v1/portal/work/${WF}/view`) return send({ ok: true });
+    if (path === `/v1/portal/work/${WF}/verification-package`) return send(packageReply.body, packageReply.status);
     return send({ message: "unstubbed" }, 500);
   };
 });
@@ -63,6 +67,30 @@ const render = async () => {
   await settle();
   return r;
 };
+const openMaterial = async (r) => {
+  await r.press("Open verification package");
+  await settle();
+};
+
+test("PRO-NC-09 / PRO-R13Z-01: the package is offered first; viewed and the decision follow opening it", async () => {
+  const r = await render();
+  assert.equal(posts.some((p) => p.path.endsWith("/view")), false, "viewed was recorded before any material was shown");
+  assert.equal(r.byLabel("Approve").length, 0, "a decision was offered before the material was opened");
+  assert.ok(r.hasText("Open the verification package above before recording a decision."));
+  await openMaterial(r);
+  assert.deepEqual(globalThis.__LINKING_OPENED__, ["https://storage.example.test/pkg.zip"]);
+  assert.equal(posts.filter((p) => p.path.endsWith("/view")).length, 1);
+  assert.ok(r.byLabel("Approve").length > 0);
+});
+
+test("PRO-NC-09: a refused package records no view and offers no decision", async () => {
+  packageReply = { body: { error: { code: "package_download_not_granted" } }, status: 403 };
+  const r = await render();
+  await openMaterial(r);
+  assert.ok(r.hasText("Your access does not include the file for this review. Ask the person who invited you."));
+  assert.equal(posts.some((p) => p.path.endsWith("/view")), false);
+  assert.equal(r.byLabel("Approve").length, 0);
+});
 
 test("native offers exactly the server's verdicts", async () => {
   const P = await loadModule("src/product/portal.ts", []);
@@ -71,6 +99,7 @@ test("native offers exactly the server's verdicts", async () => {
 
 test("a decision posts { verdict, rationale }, is re-read, and a second one replaces it", async () => {
   const r = await render();
+  await openMaterial(r);
   assert.ok(r.hasText("You have not recorded a decision for this review yet."));
   await r.type("Decision rationale", "Metadata is incomplete.");
   await r.press("Request changes");
@@ -86,6 +115,7 @@ test("a decision posts { verdict, rationale }, is re-read, and a second one repl
 
 test("a verdict other than Approve needs a rationale before it can be chosen", async () => {
   const r = await render();
+  await openMaterial(r);
   const reject = r.byLabel("Reject").find((n) => n.props.onPress);
   assert.equal(reject.props.disabled ?? reject.props.accessibilityState?.disabled, true);
 });

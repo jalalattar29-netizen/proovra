@@ -529,10 +529,14 @@ describe("Phase 2B Closure — Operator Console UI", () => {
     expect(UI_OPERATOR).toMatch(/data-activity-timeline/);
   });
 
-  it("exposes SSO controls — auth method, connection id, allowed domains", () => {
-    expect(UI_OPERATOR).toMatch(/data-bulk-auth-method/);
-    expect(UI_OPERATOR).toMatch(/data-bulk-sso-connection/);
-    expect(UI_OPERATOR).toMatch(/data-bulk-allowed-domains/);
+  // PRO-R1-03 — SSO is not offered for outside reviewers: the bulk form no
+  // longer takes SSO settings it could not enforce (the API refuses them).
+  // The drawer still shows a grant's stored federation fields.
+  it("offers no SSO controls in the bulk form; the drawer still shows stored federation fields", () => {
+    expect(UI_OPERATOR).not.toMatch(/data-bulk-auth-method/);
+    expect(UI_OPERATOR).not.toMatch(/data-bulk-sso-connection/);
+    expect(UI_OPERATOR).not.toMatch(/data-bulk-allowed-domains/);
+    expect(UI_OPERATOR).toMatch(/data-bulk-sign-in-note/);
     expect(UI_OPERATOR).toMatch(/data-sso-auth-method/);
     expect(UI_OPERATOR).toMatch(/data-sso-connection-id/);
   });
@@ -575,11 +579,11 @@ describe("Phase 2B Closure — Portal UX", () => {
     expect(UI_ACCEPT).toMatch(/url\.searchParams\.delete\("token"\)/);
   });
 
-  it("portal accept page exposes both link + SSO sign-in paths", () => {
+  // PRO-R1-03 — the reviewer signs in with the link; no SSO path is offered.
+  it("portal accept page offers the invitation link and no SSO sign-in", () => {
     expect(UI_ACCEPT).toMatch(/data-portal-accept-open-with-token/);
-    expect(UI_ACCEPT).toMatch(/data-portal-accept-sign-in-with-sso/);
-    expect(UI_ACCEPT).toMatch(/startPortalSso/);
-    expect(UI_ACCEPT).toMatch(/stashRawTokenForSso/);
+    expect(UI_ACCEPT).not.toMatch(/data-portal-accept-sign-in-with-sso/);
+    expect(UI_ACCEPT).not.toMatch(/startPortalSso\(/);
   });
 
   it("portal accept page renders bounded denial + no-token states", () => {

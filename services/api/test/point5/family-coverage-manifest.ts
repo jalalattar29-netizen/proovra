@@ -523,7 +523,11 @@ export async function recordSuiteProof(suiteModuleUrl: string): Promise<void> {
 export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
   {
     family: "redaction",
-    suites: ["test/point5/family-redaction.integration.test.ts"],
+    suites: [
+      "test/point5/family-redaction.integration.test.ts",
+      // PRO-R3-04 — the page-preview unit and its share of the reconciler.
+      "test/point5/family-redaction-page-preview.integration.test.ts",
+    ],
     units: [
       {
         workName: "RenderRedactionDerivative",
@@ -542,6 +546,21 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
         ],
       },
       {
+        workName: "RenderRedactionPagePreview",
+        executor: "services/worker/src/redaction/redaction-page-preview.processor.ts",
+        cases: [
+          "redaction.preview.durable.intent_before_work",
+          "redaction.preview.tenant.workspace_reloaded",
+          "redaction.preview.tenant.cross_workspace_denied",
+          "redaction.preview.claim.one_winner",
+          "redaction.preview.claim.active_not_stolen",
+          "redaction.preview.idempotency.duplicate_is_noop",
+          "redaction.preview.terminal.stale_cannot_overwrite",
+          "redaction.preview.failure.no_false_ready",
+          "redaction.preview.payload.rejects_unknown_field",
+        ],
+      },
+      {
         workName: "RedactionStrandedReconciler",
         executor: "services/worker/src/redaction/redaction-derivative.processor.ts",
         cases: [
@@ -553,6 +572,8 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
           "redaction.recon.idempotency.duplicate_is_noop",
           "redaction.recon.terminal.stale_cannot_overwrite",
           "redaction.recon.recovers_stranded_once",
+          // PRO-R3-04 — the same sweep recovers stranded page previews.
+          "redaction.recon.preview.recovers_stranded_once",
         ],
         inapplicable: {
           "payload.rejects_unknown_field": "no_queue_payload",

@@ -176,6 +176,12 @@ const BulkIssueBody = z.object({
     })
     .optional(),
   rows: z.array(BulkRowSchema).min(1).max(BULK_INVITATION_MAX_ROWS),
+  // PRO-R1-03 — read only so an SSO request is REFUSED, never silently
+  // dropped into a plain bearer-link invitation. TOKEN (what installed
+  // consoles send by default) is accepted unchanged.
+  defaultAuthMethod: z.string().max(16).optional(),
+  defaultSsoConnectionId: z.string().max(64).optional(),
+  defaultAllowedDomains: z.array(z.string().max(253)).max(50).optional(),
 });
 
 const BulkRevokeBody = z.object({
@@ -360,6 +366,27 @@ function isOwnerTier(
     }).workspaceRole === "OWNER"
   );
 }
+
+/**
+ * PRO-R1-08 — the activity codes a reviewer may read about their own grant:
+ * what the reviewer did, never what operators did around it.
+ */
+const PORTAL_REVIEWER_VISIBLE_ACTIVITY: ReadonlySet<string> = new Set([
+  "GRANT_ACCEPTED",
+  "LOGIN",
+  "LOGOUT",
+  "MFA_CHALLENGE_PASSED",
+  "MFA_CHALLENGE_FAILED",
+  "INACTIVITY_TIMEOUT",
+  "REVIEW_OPENED",
+  "EVIDENCE_VIEWED",
+  "ANNOTATION_CREATED",
+  "COMMENT_POSTED",
+  "DECISION_SUBMITTED",
+  "DOWNLOAD_ATTEMPTED",
+  "DOWNLOAD_PERMITTED",
+  "DOWNLOAD_REFUSED",
+]);
 
 /**
  * Resolve the portal session. Token + optional sessionId are read
@@ -632,6 +659,56 @@ export async function externalPortalRoutes(app: FastifyInstance) {
     },
   );
 
+  // PRO-R1-02 — what the outside reviewer said, for the workspace that asked:
+  // the reviewer's verdicts with their rationale and their comment thread on
+  // THIS invitation (threads are private per grant; another reviewer's thread
+  // is another invitation's). Same gate as the invitation family's reads
+  // (review.queue.read), plus the operator's current reach to the grant's
+  // subject: a grant over a record or case closed to the reader answers as a
+  // missing one. Plain strings, rendered as text.
+  app.get(
+    "/v1/external-review/invitations/:id/feedback",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = await authorizeCurrentWorkspaceOrFail(req, reply, {
+        permission: "review.queue.read",
+      });
+      if (!ctx) return reply;
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (
+        !(await externalReviewGrantSubjectInReach({
+          grantId: id,
+          teamId: ctx.workspaceId,
+          actorUserId: ctx.userId,
+        }))
+      ) {
+        return reply.code(404).send({ error: { code: "EXTERNAL_REVIEW_GRANT_NOT_FOUND" } });
+      }
+      const [decisions, comments] = await Promise.all([
+        prisma.externalReviewDecision.findMany({
+          where: { teamId: ctx.workspaceId, grantId: id },
+          orderBy: { submittedAtUtc: "desc" },
+          take: 50,
+          select: { id: true, workflowId: true, verdict: true, rationale: true, reviewerDisplay: true, submittedAtUtc: true },
+        }),
+        prisma.externalReviewComment.findMany({
+          where: { teamId: ctx.workspaceId, grantId: id },
+          orderBy: { createdAt: "asc" },
+          take: 500,
+          select: { id: true, workflowId: true, parentCommentId: true, body: true, authorDisplay: true, createdAt: true, resolvedAtUtc: true },
+        }),
+      ]);
+      return reply.code(200).send({
+        decisions: decisions.map((d) => ({ ...d, submittedAtUtc: d.submittedAtUtc.toISOString() })),
+        comments: comments.map((c) => ({
+          ...c,
+          createdAt: c.createdAt.toISOString(),
+          resolvedAtUtc: c.resolvedAtUtc?.toISOString() ?? null,
+        })),
+      });
+    },
+  );
+
   // ---------------------------------------------------------------------------
   // Phase 2B Closure — bulk invitation orchestration + delivery audit
   // ---------------------------------------------------------------------------
@@ -671,6 +748,18 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       });
       if (bulkGate.sent) return;
       const body = BulkIssueBody.parse(req.body);
+      if (
+        (body.defaultAuthMethod !== undefined && body.defaultAuthMethod !== "TOKEN") ||
+        (body.defaultSsoConnectionId !== undefined && body.defaultSsoConnectionId !== "") ||
+        (body.defaultAllowedDomains !== undefined && body.defaultAllowedDomains.length > 0)
+      ) {
+        return reply.code(400).send({
+          error: {
+            code: "EXTERNAL_REVIEW_SSO_NOT_SUPPORTED",
+            message: "Outside reviewers sign in with the emailed link (and the emailed code when required). SSO is not available for external review.",
+          },
+        });
+      }
 
       const team = await prisma.team.findUnique({
         where: { id: ctx.workspaceId },
@@ -1144,8 +1233,15 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         select: { id: true, teamId: true, scopeKind: true, evidenceId: true, allowPackageDownload: true, invitedByUserId: true },
       });
       if (!grant) return reply.code(403).send({ denial: "OUT_OF_SCOPE" });
+      // PRO-R1-07 — a CASE / PACKAGE grant releases the disclosure package of
+      // the record this review is about (already proved in scope above).
+      const scopedWorkflow = await prisma.evidenceReviewWorkflow.findFirst({
+        where: { id: workflowId, teamId: s.teamId },
+        select: { evidenceId: true },
+      });
       const released = await releaseExternalDisclosurePackage({
         grant: { ...grant, scopeKind: grant.scopeKind as "EVIDENCE" | "CASE" | "PACKAGE" },
+        scopedEvidenceId: scopedWorkflow?.evidenceId ?? null,
         ip: req.ip ?? null,
         userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
       });
@@ -1199,7 +1295,20 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         grantId: s.grantId,
         limit: 200,
       });
-      return reply.code(200).send({ activity: rows });
+      // PRO-R1-08 — the reviewer route never returns workspace-internal data:
+      // only reviewer-originated codes, and never a payload or an IP (operator
+      // events carry staff ids, break-glass justifications, batch ids). The
+      // keys stay for installed clients; sessionId only for this session.
+      const activity = rows
+        .filter((r) => PORTAL_REVIEWER_VISIBLE_ACTIVITY.has(r.code))
+        .map((r) => ({
+          id: r.id,
+          code: r.code,
+          sessionId: r.sessionId === s.sessionId ? r.sessionId : null,
+          payload: null,
+          occurredAtUtc: r.occurredAtUtc,
+        }));
+      return reply.code(200).send({ activity });
     },
   );
 

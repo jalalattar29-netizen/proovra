@@ -252,15 +252,30 @@ describe("PHASE 12B — processor fail-closed guards (zero READY on any mismatch
   it("PDF region without page identity FAILS closed (no silent unredacted page)", async () => {
     seedDerivative("QUEUED");
     ((DB.derivative!.version as Record<string, unknown>).project as Record<string, unknown>).artifactKind = "PDF";
-    DB.regions = [{ geometry: { x: 0.1, y: 0.1, width: 0.2, height: 0.1 } }]; // no page
+    DB.regions = [{ kind: "BBOX_NORMALIZED", geometry: { x: 0.1, y: 0.1, width: 0.2, height: 0.1 } }]; // no page
     await processRedactionDerivativeJob(job());
     expect(DB.derivative?.state).toBe("FAILED");
     expect(DB.derivative?.failureReason).toBe("region_page_missing");
   });
 
+  it("PRO-R3-03: a version with no region FAILS closed — never a 'redacted copy' with nothing masked", async () => {
+    seedDerivative("QUEUED");
+    DB.regions = [];
+    await processRedactionDerivativeJob(job());
+    expect(DB.derivative?.state).toBe("FAILED");
+    expect(DB.derivative?.failureReason).toBe("no_regions");
+  });
+
+  it("PRO-R3-01: a region kind the renderer cannot burn for the media FAILS closed by name", async () => {
+    seedDerivative("QUEUED");
+    DB.regions = [{ kind: "AUDIO_RANGE_MS", geometry: { startMs: 0, endMs: 10 } }];
+    await processRedactionDerivativeJob(job());
+    expect(DB.derivative?.failureReason).toBe("region_kind_unsupported");
+  });
+
   it("invalid region geometry FAILS closed", async () => {
     seedDerivative("QUEUED");
-    DB.regions = [{ geometry: { x: "bad" } }];
+    DB.regions = [{ kind: "BBOX_NORMALIZED", geometry: { x: "bad" } }];
     await processRedactionDerivativeJob(job());
     expect(DB.derivative?.failureReason).toBe("region_invalid");
   });

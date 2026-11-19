@@ -17,9 +17,14 @@
  * The web's evidence preview is not ported: it iframes the internal,
  * app-authenticated evidence page, which a portal reviewer has no session
  * for, and no portal-scoped content endpoint exists (recorded in the ledger).
+ *
+ * PRO-NC-09 / PRO-R13Z-01 — the material the grant releases (the
+ * verification package) is offered first. The review is marked viewed only
+ * once the reviewer has opened it, and a decision can be recorded only after
+ * that; a refused package means no "viewed" record and no decision here.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { Linking, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { publicFetch } from "../../../../src/api";
@@ -46,18 +51,21 @@ import {
   buildPortalDecisionBody,
   buildPortalDecisionPath,
   buildPortalDecisionsPath,
+  buildPortalPackagePath,
   buildPortalViewPath,
   classifyPortalDenial,
   hasPortalCapability,
   isSendablePortalComment,
   parsePortalComments,
   parsePortalDashboard,
+  parsePortalPackage,
   parsePortalRecordedDecision,
   portalCredential,
   portalDecisionLabel,
   portalDecisionRationaleProblem,
   portalDecisionRecordedNotice,
   portalDenialMessage,
+  portalPackageRefusalMessage,
   threadPortalComments,
   type PortalComment,
   type PortalDashboard,
@@ -93,6 +101,9 @@ export default function PortalWorkScreen() {
   const [decision, setDecision] = useState<DecisionState>({ kind: "loading" });
   const [status, setStatus] = useState<string | null>(null);
   const viewed = useRef(false);
+  const [material, setMaterial] = useState<
+    { kind: "idle" } | { kind: "opening" } | { kind: "opened" } | { kind: "refused"; message: string }
+  >({ kind: "idle" });
 
   const credential = useCallback(
     () => portalCredential(getPortalToken(), getPortalSessionId()),
@@ -136,18 +147,36 @@ export default function PortalWorkScreen() {
     }
   }, [workflowId, credential]);
 
+  // PRO-NC-09 — "viewed" is a real record the workspace relies on: it is sent
+  // once, and only after the review material was actually opened.
+  const openMaterial = useCallback(async () => {
+    if (!workflowId) return;
+    setMaterial({ kind: "opening" });
+    try {
+      const pkg = parsePortalPackage(
+        await publicFetch(buildPortalPackagePath(workflowId), { method: "GET" }, credential()),
+      );
+      if (!pkg) {
+        setMaterial({ kind: "refused", message: portalPackageRefusalMessage(null) });
+        return;
+      }
+      await Linking.openURL(pkg.url);
+      setMaterial({ kind: "opened" });
+      if (!viewed.current) {
+        viewed.current = true;
+        void publicFetch(
+          buildPortalViewPath(workflowId),
+          { method: "POST", body: JSON.stringify({}) },
+          credential(),
+        ).catch(() => undefined);
+      }
+    } catch (err) {
+      setMaterial({ kind: "refused", message: portalPackageRefusalMessage(err) });
+    }
+  }, [workflowId, credential]);
+
   useEffect(() => {
     if (!workflowId) return;
-    // Marking a review viewed is a real record. Sent once, on open — not on
-    // every render, and not on a list that merely scrolled past it.
-    if (!viewed.current) {
-      viewed.current = true;
-      void publicFetch(
-        buildPortalViewPath(workflowId),
-        { method: "POST", body: JSON.stringify({}) },
-        credential(),
-      ).catch(() => undefined);
-    }
     // The projection carries the reviewer's capabilities, as on the web page.
     void publicFetch(PORTAL_DASHBOARD_PATH, { method: "GET" }, credential())
       .then((d) => setDashboard(parsePortalDashboard(d)))
@@ -224,6 +253,25 @@ export default function PortalWorkScreen() {
         <ProovraEmpty presence="page" title="This review is not open" purpose={denied} />
       ) : (
         <>
+          <ProovraPageSection title="Review material">
+            <ProovraCard testID="portal-material">
+              <ProovraText variant="bodySm">
+                The verification package of the record under review: every cryptographic commitment, no original files.
+              </ProovraText>
+              <ProovraButton
+                label="Open verification package"
+                variant="secondary"
+                loading={material.kind === "opening"}
+                onPress={() => void openMaterial()}
+              />
+              {material.kind === "opened" ? (
+                <ProovraText variant="label" color={theme.color.ink.secondary}>Opened. The link expires after a few minutes.</ProovraText>
+              ) : material.kind === "refused" ? (
+                <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{material.message}</ProovraText>
+              ) : null}
+            </ProovraCard>
+          </ProovraPageSection>
+
           <ProovraPageSection title="Discussion">
             {comments === null ? (
               <ProovraLoadingState label="Loading discussion" />
@@ -320,7 +368,11 @@ export default function PortalWorkScreen() {
               {status ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{status}</ProovraText> : null}
             </ProovraCard>
 
-            {!canDecide ? (
+            {canDecide && material.kind !== "opened" ? (
+              <ProovraText variant="label" color={theme.color.ink.secondary}>
+                Open the verification package above before recording a decision.
+              </ProovraText>
+            ) : !canDecide ? (
               dashboard ? (
                 <ProovraText variant="label" color={theme.color.ink.secondary}>
                   Your role is read-only for decisions. You may still annotate and comment when permitted.

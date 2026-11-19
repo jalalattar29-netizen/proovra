@@ -425,6 +425,8 @@ export type ReviewWorkspaceResponse = {
   };
   reviewWorkflow: {
     available: boolean;
+    /** PRO-R2-13 — the round was resolved only by the record's own owner (absent on an older API). */
+    selfAttested?: boolean;
     id?: string;
     evidenceId?: string;
     workspaceType?: string;

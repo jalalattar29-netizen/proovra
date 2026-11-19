@@ -71,7 +71,17 @@ export async function recordRedactionApproval(
   }
   if (version.authoredByUserId === input.approverUserId) {
     // Server-side separation of duties — approver must differ from author.
-    return { ok: false, denial: "NOT_PERMITTED" };
+    // PRO-R3-05 — said as what it is, so a lone administrator is told to add
+    // an eligible approver rather than "not permitted".
+    return { ok: false, denial: "APPROVER_MUST_DIFFER_FROM_AUTHOR" };
+  }
+  // PRO-R3-05 — the author is whoever drew the mask, not only who opened the
+  // version: someone who authored a region of this version cannot approve it.
+  if (input.verdict === "APPROVE") {
+    const drewRegion = await prisma.redactionRegion.count({
+      where: { versionId: version.id, teamId: input.teamId, authoredByUserId: input.approverUserId },
+    });
+    if (drewRegion > 0) return { ok: false, denial: "APPROVER_MUST_DIFFER_FROM_AUTHOR" };
   }
 
   /*

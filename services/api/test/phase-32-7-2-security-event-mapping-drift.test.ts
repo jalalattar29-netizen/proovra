@@ -1559,6 +1559,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281121070000_siu_export_disclosure_facts",
       // PRO-T1-06 / DEC-18 (WS-WSP): workspace ownership moves by offer and acceptance. EXPAND.
       "20281121100000_workspace_ownership_offers",
+      // PRO-R2-17: append-only history of coded review values. EXPAND.
+      "20281121110000_coding_value_history",
+      // PRO-R3-04: the redaction editor's rendered PDF page previews. EXPAND.
+      "20281121110100_redaction_page_previews",
       // PRO-W2-09 (WS-REL): the reconciliation-run heartbeat column. EXPAND.
       "20281121120000_reconciliation_run_heartbeat",
       // PRO-P1-06 (WS-SHELL): Operations idempotency reservation. EXPAND.

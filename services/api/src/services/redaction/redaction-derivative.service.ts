@@ -36,6 +36,10 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { enqueueRedactionDerivativeRender } from "../../queue/redaction-derivative-queue.js";
 import { emitRedactionActivity } from "./redaction-activity.service.js";
 import { isUniqueViolation } from "./redaction-project.service.js";
+import {
+  assertWorkspaceAllowsStorageGrowth,
+  resolveEnforcementScopeForRequester,
+} from "../billing-enforcement.service.js";
 
 const ARTIFACT_TO_DERIVATIVE: Readonly<
   Record<RedactionArtifactKind, RedactionDerivativeKind>
@@ -97,6 +101,31 @@ export async function requestRedactionDerivative(
   }
 
   const derivativeKind = ARTIFACT_TO_DERIVATIVE[artifactKind];
+
+  // PRO-R3-15 / DEC-04 — a new copy is new storage growth: refused, before
+  // any row exists, when it would take the workspace past its allowance (the
+  // copy is estimated at the original's size). An already READY copy adds
+  // nothing and is answered below.
+  if (version.derivative?.state !== "READY") {
+    const evidence = await prisma.evidence.findFirst({
+      where: { id: version.project.evidenceId },
+      select: { ownerUserId: true, teamId: true, sizeBytes: true },
+    });
+    if (evidence) {
+      try {
+        const scope = await resolveEnforcementScopeForRequester({
+          ownerUserId: evidence.ownerUserId,
+          teamId: evidence.teamId ?? input.teamId,
+        });
+        await assertWorkspaceAllowsStorageGrowth({ scope, incomingBytes: evidence.sizeBytes ?? 0n });
+      } catch (err) {
+        if ((err as { code?: unknown } | null)?.code === "STORAGE_LIMIT_REACHED") {
+          return { ok: false, denial: "STORAGE_LIMIT_REACHED" };
+        }
+        throw err;
+      }
+    }
+  }
 
   // PHASE 12B DURABILITY (Correction 5): the row is committed QUEUED BEFORE
   // enqueue; ONLY the worker performs the atomic QUEUED→RENDERING claim. An

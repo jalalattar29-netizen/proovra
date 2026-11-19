@@ -25,8 +25,10 @@ import { createHash } from "node:crypto";
 import {
   JOB_NAMES,
   QueuePayloadRejected,
+  REDACTION_SOURCE_BYTE_BUDGET,
   decodeJobPayload,
   getWorkEntryOrThrow,
+  regionToRenderRect,
   type RedactionDerivativeJobPayload,
 } from "@proovra/shared";
 
@@ -43,10 +45,13 @@ import {
   markDerivativeReadyWorker,
 } from "./redaction-derivative-writer.js";
 
-const SOURCE_READ_BUDGET_BYTES = 50 * 1024 * 1024; // 50MB, matches MI extract
+// PRO-W2C2-04 — ONE source budget, shared with the API's detection read and
+// the project-open size check. A record above it is refused with a size
+// reason; the digest check only ever compares the WHOLE object.
+const SOURCE_READ_BUDGET_BYTES = REDACTION_SOURCE_BYTE_BUDGET;
 const REDACTION_S3_PREFIX = "redactions";
 export const REDACTION_RENDER_ENGINE = "redaction-render-v1";
-const PDF_RASTER_SCALE = 2;
+export const PDF_RASTER_SCALE = 2;
 
 type NormalizedRect = { x: number; y: number; width: number; height: number; page?: number };
 
@@ -164,18 +169,23 @@ export async function processRedactionDerivativeJob(
     // Approved regions — the authoritative WHAT-to-redact.
     const regions = await prisma.redactionRegion.findMany({
       where: { versionId: version.id, teamId },
-      select: { geometry: true },
+      select: { kind: true, geometry: true },
     });
+    // PRO-R3-03 — a "redacted copy" with nothing masked is not one.
+    if (regions.length === 0) {
+      await fail("no_regions");
+      return;
+    }
+    // PRO-R3-01 — the ONE decoder the API validated these regions with
+    // (PDF_PAGE_RECT pageIndex -> 1-based page, text ranges by their box).
     const rects: NormalizedRect[] = [];
     for (const r of regions) {
-      const g = r.geometry as Record<string, unknown> | null;
-      const x = num(g?.x), y = num(g?.y), w = num(g?.width), h = num(g?.height);
-      if (x === null || y === null || w === null || h === null) {
-        await fail("region_invalid");
+      const decoded = regionToRenderRect(r.kind, r.geometry, artifactKind);
+      if (!decoded.ok) {
+        await fail(decoded.reason);
         return;
       }
-      const page = num(g?.page);
-      rects.push({ x, y, width: w, height: h, ...(page !== null ? { page } : {}) });
+      rects.push(decoded.rect);
     }
     if (artifactKind === "PDF" && rects.some((r) => r.page === undefined)) {
       // Page identity is REQUIRED for page-aware PDF redaction — fail closed
@@ -187,10 +197,14 @@ export async function processRedactionDerivativeJob(
     // Source binding — the immutable original object.
     const evidence = await prisma.evidence.findFirst({
       where: { id: version.project.evidenceId, teamId },
-      select: { storageBucket: true, storageKey: true, fileSha256: true },
+      select: { storageBucket: true, storageKey: true, fileSha256: true, sizeBytes: true },
     });
     if (!evidence?.storageBucket || !evidence.storageKey) {
       await fail("source_object_missing");
+      return;
+    }
+    if (evidence.sizeBytes !== null && evidence.sizeBytes !== undefined && Number(evidence.sizeBytes) > SOURCE_READ_BUDGET_BYTES) {
+      await fail("source_too_large");
       return;
     }
     // WORKERS-11 — a record that has left service (trashed, destruction-bound,
@@ -212,6 +226,12 @@ export async function processRedactionDerivativeJob(
       await fail("source_object_empty");
       return;
     }
+    if (source.length >= SOURCE_READ_BUDGET_BYTES) {
+      // The read reached the budget: the object may be larger than what was
+      // read, so it is a size refusal, never a digest one.
+      await fail("source_too_large");
+      return;
+    }
     if (evidence.fileSha256) {
       const digest = createHash("sha256").update(source).digest("hex");
       if (digest !== evidence.fileSha256.toLowerCase()) {
@@ -229,7 +249,15 @@ export async function processRedactionDerivativeJob(
       contentType = "image/png";
       extension = "png";
     } else {
-      output = await renderRedactedPdf(source, rects);
+      const pdf = await renderRedactedPdfCounted(source, rects);
+      // PRO-R3-03 — every region is burned or the copy is not produced: a
+      // rectangle whose page does not exist (page 0, past the last page,
+      // fractional) fails the render with a named reason.
+      if (pdf.burned !== rects.length) {
+        await fail("region_page_out_of_range");
+        return;
+      }
+      output = pdf.output;
       contentType = "application/pdf";
       extension = "pdf";
     }
@@ -276,7 +304,18 @@ export async function processRedactionDerivativeJob(
       logger.warn({ derivativeId, reason: done.reason }, "redaction_derivative.ready_rejected");
       // The record left service mid-render: the row is settled FAILED with
       // that reason rather than left RENDERING for the lease reconciler.
-      if (done.reason.startsWith("evidence_ineligible:")) await fail(done.reason);
+      // PRO-R3-09 — the object already stored is recorded on the FAILED row,
+      // so the destruction executor (which enumerates derivative objects by
+      // row pointer) finds it rather than leaving an orphan.
+      if (done.reason.startsWith("evidence_ineligible:")) {
+        await markDerivativeFailedWorker({
+          derivativeId,
+          teamId,
+          failureReason: done.reason,
+          claimedAt,
+          storedObject: { bucket: evidence.storageBucket, key: outKey },
+        });
+      }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -290,10 +329,6 @@ export async function processRedactionDerivativeJob(
     }
     await fail("renderer_failed", msg.slice(0, 300));
   }
-}
-
-function num(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
 // ── IMAGE — sharp composite of opaque rects over normalized geometry ─────────
@@ -322,21 +357,41 @@ async function renderRedactedImage(source: Buffer, rects: NormalizedRect[]): Pro
 
 // ── PDF — rasterize each page, burn rects, reassemble (flattened raster) ─────
 export async function renderRedactedPdf(source: Buffer, rects: NormalizedRect[]): Promise<Buffer> {
-  const canvasModule = (await import("@napi-rs/canvas")) as unknown as {
-    createCanvas: (w: number, h: number) => {
-      getContext: (t: "2d") => {
-        fillStyle: string;
-        fillRect: (x: number, y: number, w: number, h: number) => void;
-      } & Record<string, unknown>;
-      toBuffer: (mime?: string) => Buffer;
-    };
-    DOMMatrix?: typeof globalThis.DOMMatrix;
-    ImageData?: typeof globalThis.ImageData;
-    Path2D?: typeof globalThis.Path2D;
+  return (await renderRedactedPdfCounted(source, rects)).output;
+}
+
+export type PdfRasterCanvasModule = {
+  createCanvas: (w: number, h: number) => {
+    getContext: (t: "2d") => {
+      fillStyle: string;
+      fillRect: (x: number, y: number, w: number, h: number) => void;
+    } & Record<string, unknown>;
+    toBuffer: (mime?: string) => Buffer;
   };
+  DOMMatrix?: typeof globalThis.DOMMatrix;
+  ImageData?: typeof globalThis.ImageData;
+  Path2D?: typeof globalThis.Path2D;
+};
+
+/**
+ * The ONE canvas the worker rasterises PDF pages onto (the redacted copy and,
+ * PRO-R3-04, the editor's page preview), with the globals PDF.js needs.
+ */
+export async function loadPdfRasterCanvas(): Promise<PdfRasterCanvasModule> {
+  const canvasModule = (await import("@napi-rs/canvas")) as unknown as PdfRasterCanvasModule;
   if (canvasModule.DOMMatrix && !globalThis.DOMMatrix) globalThis.DOMMatrix = canvasModule.DOMMatrix;
   if (canvasModule.ImageData && !globalThis.ImageData) globalThis.ImageData = canvasModule.ImageData;
   if (canvasModule.Path2D && !globalThis.Path2D) globalThis.Path2D = canvasModule.Path2D;
+  return canvasModule;
+}
+
+/** The PDF render, with the number of rectangles actually burned (PRO-R3-03). */
+export async function renderRedactedPdfCounted(
+  source: Buffer,
+  rects: NormalizedRect[],
+): Promise<{ output: Buffer; burned: number }> {
+  let burned = 0;
+  const canvasModule = await loadPdfRasterCanvas();
 
   // The worker's one PDF.js build (see pdf/pdfjs-runtime.ts).
   const { closePdf, openPdf } = await import("../pdf/pdfjs-runtime.js");
@@ -371,6 +426,7 @@ export async function renderRedactedPdf(source: Buffer, rects: NormalizedRect[])
       // gone because the output is a flattened image-only PDF).
       for (const r of rects) {
         if (r.page !== pageNo) continue;
+        burned += 1;
         ctx.fillStyle = "black";
         ctx.fillRect(
           Math.max(0, Math.floor(r.x * w)),
@@ -389,7 +445,7 @@ export async function renderRedactedPdf(source: Buffer, rects: NormalizedRect[])
     await closePdf(pdf);
   }
   doc.end();
-  return finished;
+  return { output: await finished, burned };
 }
 
 // ── stranded-QUEUED reconciler (interval + cron-lock; registered in index) ───

@@ -23,7 +23,9 @@
 import {
   REVIEWER_ROLES,
   REVIEWER_ROLE_CAPABILITIES,
+  mapTeamRoleToCanonical,
   reviewerCapabilitiesForRole,
+  roleHasPermission,
   type ReviewerCapability,
   type ReviewerRole,
 } from "@proovra/shared";
@@ -84,7 +86,18 @@ export function resolveReviewerRole(
   }
   const role = DEFAULT_BY_WORKSPACE_ROLE[wsRole];
   if (!role) return { role: null, capabilities: [] };
-  return { role, capabilities: REVIEWER_ROLE_CAPABILITIES[role] };
+  // PRO-R2-03 / DEC-17 — ONE definition of "review.assign": the canonical
+  // permission catalogue. The reviewer-role table no longer has its own
+  // opinion for the built-in roles; whoever the catalogue lets assign may
+  // assign here, and nobody else.
+  const mayAssign = roleHasPermission(mapTeamRoleToCanonical(wsRole), "review.assign");
+  const table = REVIEWER_ROLE_CAPABILITIES[role];
+  const capabilities = mayAssign
+    ? table.includes("review.assign")
+      ? table
+      : [...table, "review.assign" as ReviewerCapability]
+    : table.filter((c) => c !== "review.assign");
+  return { role, capabilities };
 }
 
 export function callerHasCapability(

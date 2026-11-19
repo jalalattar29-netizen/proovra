@@ -26,6 +26,7 @@ import {
   type VideoTimelineLayer, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
+import { activateOnKey } from "./region-authoring";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 // PHASE 13 — the two write legs this workspace had no control for. Without
 // registered frames there is nothing to group, and without grouped tracks
@@ -491,6 +492,10 @@ function renderTrackSegment(
       data-redaction-video-track-state={t.state}
       title={`${t.label ?? identifierLabel(t.kind)} · ${identifierLabel(t.state)} · ${t.startFrame}..${t.endFrame}`}
       onClick={() => toggleSelected(t.id)}
+      // PRO-R3-18 — a selectable track segment is a keyboard-reachable button.
+      role="button"
+      tabIndex={0}
+      onKeyDown={activateOnKey(() => toggleSelected(t.id))}
       style={{
         position: "absolute",
         left: `${left}%`,

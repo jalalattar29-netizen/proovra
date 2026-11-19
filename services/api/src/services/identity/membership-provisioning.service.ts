@@ -48,9 +48,8 @@ import {
 } from "../billing/workspace-seats.service.js";
 import { endStandingReachForMembers, releaseWorkOnSuspension } from "./standing-reach.js";
 import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
-// PRO-LEAD-01 — directory role loss ends standing credentials like an admin change.
-import { endStandingCredentialsOnLostAuthorityTx } from "../sharing/standing-credential-authority.js";
-import { mapTeamRoleToCanonical, roleHasPermission } from "@proovra/shared";
+// PRO-LEAD-01 / PRO-R1-05 — directory role loss ends creator authority like an admin change.
+import { endCreatorAuthorityOnRoleChangeTx } from "../sharing/standing-credential-authority.js";
 
 export type TxClient = Prisma.TransactionClient | PrismaClient;
 
@@ -1113,47 +1112,32 @@ export async function applyDirectoryRoleChange(
     externalRef: input.externalRef ?? null,
     grantedRole: input.desiredRole,
   });
-  // PRO-LEAD-01 / B7B-F09 — a directory demotion ends the standing credentials
-  // (API keys, intake links, webhooks, lifecycle webhooks) and outward grants
-  // whose permission the new role no longer carries, in the same unit as the
-  // role write — the rule rbac `changeMemberRole` applies to an administrator's
-  // change ("whichever path changed the role").
+  // PRO-LEAD-01 / B7B-F09 / PRO-R1-05 — a directory demotion ends the standing
+  // credentials (API keys, intake links, webhooks, lifecycle webhooks) and
+  // outward grants the new role no longer supports, in the same unit as the
+  // role write, through the ONE role-change leg rbac `changeMemberRole` uses.
   await endCreatorAuthorityOnRoleLossTx(tx, {
     teamId: target.teamId,
     userId: target.userId,
-    newRole: input.desiredRole,
     actorUserId: null,
   });
   return { changed: true };
 }
 
 /**
- * PRO-LEAD-01 — the role-change leg of creator authority, shared by every
+ * PRO-LEAD-01 / PRO-R1-05 — the role-change leg of creator authority for every
  * directory path that lowers a role (SCIM PATCH, group add/remove/realign,
- * group archive): outward share / external-review grants by role, then the
- * canonical standing-credential rule (which also honours a capability grant
- * or delegated scope that still carries the permission).
+ * group archive). It IS the shared leg (`endCreatorAuthorityOnRoleChangeTx`,
+ * also asked by rbac `changeMemberRole`): outward share / external-review
+ * grants and standing credentials, each by the canonical creator-authority
+ * decision (a capability grant or delegated scope that still carries the
+ * permission keeps them).
  */
 async function endCreatorAuthorityOnRoleLossTx(
   tx: TxClient,
-  input: { teamId: string; userId: string; newRole: string; actorUserId: string | null },
+  input: { teamId: string; userId: string; actorUserId: string | null },
 ): Promise<void> {
-  const nextRole = mapTeamRoleToCanonical(input.newRole as never);
-  const losesShares = !roleHasPermission(nextRole, "evidence.publish_verify");
-  const losesExternal = !roleHasPermission(nextRole, "governance.legal_hold.manage");
-  if (losesShares || losesExternal) {
-    await revokeCreatorShareGrantsTx(tx as never, {
-      creators: [{ teamId: input.teamId, userId: input.userId }],
-      reason: "CREATOR_LOST_AUTHORITY",
-      actorUserId: input.actorUserId,
-      kinds: { ownerShares: losesShares, externalReview: losesExternal, intakeLinks: false, apiKeys: false, webhooks: false },
-    });
-  }
-  await endStandingCredentialsOnLostAuthorityTx(tx as never, {
-    teamId: input.teamId,
-    userId: input.userId,
-    actorUserId: input.actorUserId,
-  });
+  await endCreatorAuthorityOnRoleChangeTx(tx as never, input);
 }
 
 /**
@@ -1492,7 +1476,6 @@ export async function transferWorkspaceOwnerRoles(
     await endCreatorAuthorityOnRoleLossTx(tx, {
       teamId: input.teamId,
       userId: input.fromUserId,
-      newRole: "ADMIN",
       actorUserId: input.actorUserId ?? null,
     });
   }

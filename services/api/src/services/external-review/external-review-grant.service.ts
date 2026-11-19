@@ -177,6 +177,20 @@ function projectRow(raw: RawGrantRow): ExternalReviewGrantRow {
   };
 }
 
+/**
+ * PRO-P3DZ-01 — the operator read projection: a grant whose expiry passed
+ * reads EXPIRED (the read-time rule of evaluateExternalReviewAccess), since no
+ * writer moves the stored state. Used by list reads only; transitions and the
+ * token lookup keep the stored state they compare against.
+ */
+function projectEffectiveRow(raw: RawGrantRow): ExternalReviewGrantRow {
+  const row = projectRow(raw);
+  if ((row.state === "INVITED" || row.state === "ACTIVE") && raw.expires_at_utc.getTime() <= Date.now()) {
+    return { ...row, state: "EXPIRED" };
+  }
+  return row;
+}
+
 // =============================================================================
 // Helpers — pure
 // =============================================================================
@@ -755,9 +769,16 @@ export async function renewExternalReviewGrant(
       return { ok: false as const, reason: "not_renewable" as const };
     }
     const now = new Date();
+    // PRO-LEAD-06 — the module's hard rule: an EXPIRED grant is never
+    // extended. Its stored state stays ACTIVE/INVITED (expiry is read-time),
+    // so without this check renewal revived the old bearer token. The
+    // operator issues a fresh grant (a fresh token) instead.
+    if (current.expiresAtUtc.getTime() <= now.getTime()) {
+      return { ok: false as const, reason: "not_renewable" as const };
+    }
     const expiresAtUtc = new Date(now.getTime() + input.days * 24 * 60 * 60 * 1000);
     const moved = await tx.externalReviewGrant.updateMany({
-      where: { id: current.id, state: { in: ["INVITED", "ACTIVE"] } },
+      where: { id: current.id, state: { in: ["INVITED", "ACTIVE"] }, expiresAtUtc: { gt: now } },
       data: { expiresAtUtc, updatedAtUtc: now },
     });
     if (moved.count === 0) return { ok: false as const, reason: "not_renewable" as const };
@@ -945,7 +966,14 @@ export async function listExternalReviewGrants(
     params.push(input.caseId);
     where.push(`"case_id" = $${params.length}`);
   }
-  if (input.state) {
+  // PRO-P3DZ-01 — the state filter reads the EFFECTIVE state: expiry
+  // overrides a stored INVITED/ACTIVE (no writer ever stores EXPIRED).
+  if (input.state === "EXPIRED") {
+    where.push(`("state" = 'EXPIRED' OR ("state" IN ('INVITED','ACTIVE') AND "expires_at_utc" <= NOW()))`);
+  } else if (input.state === "INVITED" || input.state === "ACTIVE") {
+    params.push(input.state);
+    where.push(`"state" = $${params.length} AND "expires_at_utc" > NOW()`);
+  } else if (input.state) {
     params.push(input.state);
     where.push(`"state" = $${params.length}`);
   }
@@ -980,7 +1008,7 @@ export async function listExternalReviewGrants(
       sql,
       ...params,
     )) as RawGrantRow[];
-    return raw.map(projectRow);
+    return raw.map(projectEffectiveRow);
   } catch {
     return [];
   }

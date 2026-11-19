@@ -466,6 +466,23 @@ export const REDACTION_DENIAL_REASONS = [
   // PHASE 12B — VIDEO/AUDIO redaction is FUTURE_NOT_SHIPPING: rejected BEFORE
   // any derivative row/enqueue exists. Stable, safe, media-scoped denial.
   "UNSUPPORTED_REDACTION_MEDIA",
+  // RG-29 (PRO-R3-01/03/04/13, PRO-W2C2-04, PRO-R3-05) — truthful refusals.
+  /** The renderer cannot burn this region kind/geometry for the project's media. */
+  "REGION_KIND_UNSUPPORTED",
+  /** Only an opaque black-out is rendered; other methods are not offered. */
+  "REGION_METHOD_UNSUPPORTED",
+  /** A version with no region would publish an unmasked copy. */
+  "VERSION_HAS_NO_REGIONS",
+  /** The record is larger than the redaction source budget. */
+  "SOURCE_TOO_LARGE",
+  /** The record is not sealed, or has left service (trashed / destruction-bound / destroyed). */
+  "EVIDENCE_NOT_ELIGIBLE",
+  /** Separation of duties: the version's author cannot approve it; another eligible approver must. */
+  "APPROVER_MUST_DIFFER_FROM_AUTHOR",
+  /** The workspace's provider-usage allowance for redaction detection is spent. */
+  "DETECTION_ALLOWANCE_EXCEEDED",
+  /** PRO-R3-15 — the copy would take the workspace past its storage allowance. */
+  "STORAGE_LIMIT_REACHED",
 ] as const;
 export type RedactionDenialReason =
   (typeof REDACTION_DENIAL_REASONS)[number];
@@ -784,6 +801,95 @@ export function isValidRegionGeometry(
   }
 }
 
+/**
+ * PRO-W2C2-04 — THE source byte budget for a redaction project: the API's
+ * detection read and the worker's render read use this one figure, and a
+ * record above it is refused when the project is opened (a size reason, never
+ * a digest reason).
+ */
+export const REDACTION_SOURCE_BYTE_BUDGET = 256 * 1024 * 1024;
+
+/** What the derivative renderer burns: a normalized rectangle, on a 1-based page for a PDF. */
+export type RedactionRenderRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** 1-based page number (PDF only). */
+  page?: number;
+};
+
+export type RedactionRenderRectResult =
+  | { ok: true; rect: RedactionRenderRect }
+  | { ok: false; reason: "region_invalid" | "region_kind_unsupported" | "region_page_missing" };
+
+/**
+ * PRO-R3-01 / PRO-R3-03 — THE ONE decoder from a stored region to what the
+ * renderer burns, keyed by region kind and the project's artifact kind. The
+ * API refuses at write time (addRedactionRegion, detection promotion) any
+ * region this decoder cannot map, and the worker uses it to render, so a
+ * region the API accepted is always renderable and a region the renderer
+ * cannot burn is never accepted.
+ *
+ *   IMAGE: BBOX_NORMALIZED as is; POLYGON_NORMALIZED as its bounding box (masks
+ *          at least the polygon).
+ *   PDF:   PDF_PAGE_RECT {pageIndex (0-based), rect} -> page = pageIndex + 1;
+ *          PDF_TEXT_RANGE only with a bboxHint (the text range alone has no
+ *          geometry to burn); BBOX_NORMALIZED only with an integer 1-based
+ *          `page` (the legacy worker shape).
+ *   Every other combination (VIDEO/AUDIO kinds, an image kind without a page
+ *   on a PDF) is unsupported.
+ */
+export function regionToRenderRect(
+  kind: string,
+  geometry: unknown,
+  artifactKind: string,
+): RedactionRenderRectResult {
+  if (!(REDACTION_REGION_KINDS as ReadonlyArray<string>).includes(kind)) {
+    return { ok: false, reason: "region_kind_unsupported" };
+  }
+  if (!isValidRegionGeometry(kind as RedactionRegionKind, geometry)) {
+    return { ok: false, reason: "region_invalid" };
+  }
+  const g = geometry as Record<string, unknown>;
+  const box = (b: BboxNormalized): RedactionRenderRect => ({ x: b.x, y: b.y, width: b.width, height: b.height });
+  if (artifactKind === "IMAGE") {
+    if (kind === "BBOX_NORMALIZED") return { ok: true, rect: box(geometry as BboxNormalized) };
+    if (kind === "POLYGON_NORMALIZED") {
+      const pts = (geometry as PolygonNormalized).points;
+      const xs = pts.map((p) => Math.min(1, Math.max(0, p.x)));
+      const ys = pts.map((p) => Math.min(1, Math.max(0, p.y)));
+      const x = Math.min(...xs);
+      const y = Math.min(...ys);
+      const width = Math.max(...xs) - x;
+      const height = Math.max(...ys) - y;
+      if (width <= 0 || height <= 0) return { ok: false, reason: "region_invalid" };
+      return { ok: true, rect: { x, y, width, height } };
+    }
+    return { ok: false, reason: "region_kind_unsupported" };
+  }
+  if (artifactKind === "PDF") {
+    if (kind === "PDF_PAGE_RECT") {
+      const r = geometry as PdfPageRect;
+      return { ok: true, rect: { ...box(r.rect), page: r.pageIndex + 1 } };
+    }
+    if (kind === "PDF_TEXT_RANGE") {
+      const r = geometry as PdfTextRange;
+      if (!r.bboxHint) return { ok: false, reason: "region_kind_unsupported" };
+      return { ok: true, rect: { ...box(r.bboxHint), page: r.pageIndex + 1 } };
+    }
+    if (kind === "BBOX_NORMALIZED") {
+      const page = g.page;
+      if (typeof page !== "number" || !Number.isInteger(page) || page < 1) {
+        return { ok: false, reason: "region_page_missing" };
+      }
+      return { ok: true, rect: { ...box(geometry as BboxNormalized), page } };
+    }
+    return { ok: false, reason: "region_kind_unsupported" };
+  }
+  return { ok: false, reason: "region_kind_unsupported" };
+}
+
 // ===========================================================================
 // 17. Cross-platform integration shapes
 // ===========================================================================
@@ -884,6 +990,28 @@ export type RedactionDerivativeJobPayload = {
   derivativeId: string;
   trace?: string | null;
 };
+
+/**
+ * PRO-R3-04 — the page-preview job: one page of a PDF project's record,
+ * rendered as the image the region editor draws on. Same contract as the
+ * derivative job: `previewId` is the ONLY authoritative field. Queue and job
+ * names are `QUEUE_NAMES.REDACTION_PAGE_PREVIEW` /
+ * `JOB_NAMES.RENDER_REDACTION_PAGE_PREVIEW` (queue-integrity), declared once.
+ */
+export type RedactionPagePreviewJobPayload = {
+  previewId: string;
+  trace?: string | null;
+};
+
+/**
+ * The most pages of one record the editor may ask to have rendered
+ * (0-based index below this). A longer document keeps the blank frame for
+ * the pages beyond it.
+ */
+export const REDACTION_PAGE_PREVIEW_MAX_PAGES = 200;
+
+export const REDACTION_PAGE_PREVIEW_STATES = ["QUEUED", "RENDERING", "READY", "FAILED"] as const;
+export type RedactionPagePreviewState = (typeof REDACTION_PAGE_PREVIEW_STATES)[number];
 
 /** Stable job id derived from the derivative id. */
 export function buildRedactionDerivativeJobId(derivativeId: string): string {

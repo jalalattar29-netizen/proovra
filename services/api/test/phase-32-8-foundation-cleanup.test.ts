@@ -457,15 +457,22 @@ describe("Phase 32.8 Foundation cleanup — capability registry extensions", () 
     expect(caps.EXPORT_GOVERNANCE_MANAGE).toBe(true);
   });
 
-  it("TEAM MEMBER gets review-act capabilities but NOT governance-admin", () => {
+  it("TEAM MEMBER can escalate, but cannot hand review work to others, and is NOT governance-admin", () => {
     const caps = resolveCapabilities({
       scope: "TEAM",
       role: "MEMBER",
       plan: "TEAM",
       isPlatformAdmin: false,
     });
-    expect(caps.REVIEW_ASSIGN).toBe(true);
-    expect(caps.REVIEW_REASSIGN).toBe(true);
+    // PRO-R2-03 / DEC-17 — `review.assign` has ONE definition: OWNER and
+    // ADMIN. A plain reviewer (MEMBER) no longer assigns or reassigns work.
+    expect(caps.REVIEW_ASSIGN).toBe(false);
+    expect(caps.REVIEW_REASSIGN).toBe(false);
+    for (const role of ["OWNER", "ADMIN"] as const) {
+      const lead = resolveCapabilities({ scope: "TEAM", role, plan: "TEAM", isPlatformAdmin: false });
+      expect(lead.REVIEW_ASSIGN, role).toBe(true);
+      expect(lead.REVIEW_REASSIGN, role).toBe(true);
+    }
     expect(caps.REVIEW_ESCALATE).toBe(true);
     expect(caps.LEGAL_HOLD_PLACE).toBe(false);
     expect(caps.RETENTION_MANAGE).toBe(false);

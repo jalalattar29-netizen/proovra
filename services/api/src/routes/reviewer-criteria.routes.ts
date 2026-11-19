@@ -350,7 +350,13 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
     const latest = set.versions[0];
     if (!latest) return reply.code(400).send({ error: { code: "no_version" } });
     if (!latest.publishedAt) return reply.code(409).send({ error: { code: "draft_exists", reason: "The latest version is still a draft — edit it instead." } });
-    const created = await prisma.reviewerCriteriaVersion.create({
+    // PRO-R2-09 — the draft is a NEW VERSION; the published one stays in
+    // force, so the set keeps its PUBLISHED status (the picker shows it and
+    // reviews keep resolving v-latest-published). A concurrent second
+    // duplicate collides on (set, version) and is told a draft exists.
+    let created: { version: number };
+    try {
+      created = await prisma.reviewerCriteriaVersion.create({
       data: {
         criteriaSetId: setId,
         version: latest.version + 1,
@@ -364,8 +370,14 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
           })),
         },
       },
+      select: { version: true },
     });
-    await prisma.reviewerCriteriaSet.update({ where: { id: setId }, data: { status: "DRAFT" } });
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code === "P2002") {
+        return reply.code(409).send({ error: { code: "draft_exists", reason: "A draft of the next version already exists — edit it instead." } });
+      }
+      throw err;
+    }
     await emitTenantAudit({
       action: "reviewer_criteria.duplicated",
       outcome: "success",
@@ -454,8 +466,10 @@ export async function loadPublishedCriteria(input: {
     });
     if (!set) return { ok: false, code: "NOT_FOUND" };
     if (set.workspaceId !== input.teamId) return { ok: false, code: "CROSS_TENANT" };
+    // PRO-R2-10 — a retired set (or a retired version) is not consumed.
+    if (set.status === "RETIRED") return { ok: false, code: "NOT_PUBLISHED" };
     const v = set.versions[0];
-    if (!v || !v.publishedAt) return { ok: false, code: "NOT_PUBLISHED" };
+    if (!v || !v.publishedAt || v.retiredAt) return { ok: false, code: "NOT_PUBLISHED" };
     return {
       ok: true,
       setId: set.id,

@@ -22,6 +22,12 @@ import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import {
+  RegionCoordinateForm,
+  isDeliberateDrag,
+  useEvidenceImagePreview,
+  type NormalizedRect,
+} from "./region-authoring";
 
 type Region = {
   id: string;
@@ -73,6 +79,13 @@ export function ImageRedactionViewer({
   }>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // PRO-R3-04 — the record's own image, through the Evidence detail read
+  // (reach, the original-download decision and custody stay canonical). The
+  // frame takes the image's real proportions once it has loaded.
+  const preview = useEvidenceImagePreview(evidenceId);
+  const [aspect, setAspect] = useState<string | null>(null);
+  const [previewBroken, setPreviewBroken] = useState(false);
+  const showImage = preview.state === "ready" && !previewBroken;
   // Only normalized bounding boxes can be drawn as an overlay rectangle;
   // other region kinds (text spans, audio ranges) are listed in the
   // region panel instead of being painted on the image.
@@ -120,15 +133,7 @@ export function ImageRedactionViewer({
     },
     [drag, versionLocked],
   );
-  const onMouseUp = useCallback(async () => {
-    if (!drag || versionLocked) return;
-    const geometry = {
-      x: Math.max(0, Math.min(1, drag.x)),
-      y: Math.max(0, Math.min(1, drag.y)),
-      width: Math.max(0.005, Math.min(1 - drag.x, drag.w)),
-      height: Math.max(0.005, Math.min(1 - drag.y, drag.h)),
-    };
-    setDrag(null);
+  const addRegion = useCallback(async (geometry: NormalizedRect) => {
     try {
       await apiFetch(`/v1/redaction/versions/${versionId}/regions`, {
         method: "POST",
@@ -145,7 +150,19 @@ export function ImageRedactionViewer({
       // used to vanish silently.
       setAddError(regionAddFailureMessage(err));
     }
-  }, [drag, method, onChanged, versionId, versionLocked]);
+  }, [method, onChanged, versionId]);
+  const onMouseUp = useCallback(async () => {
+    if (!drag || versionLocked) return;
+    setDrag(null);
+    // PRO-R3-18 — a click without a drag is not a region.
+    if (!isDeliberateDrag(drag.w, drag.h)) return;
+    await addRegion({
+      x: Math.max(0, Math.min(1, drag.x)),
+      y: Math.max(0, Math.min(1, drag.y)),
+      width: Math.max(0.005, Math.min(1 - drag.x, drag.w)),
+      height: Math.max(0.005, Math.min(1 - drag.y, drag.h)),
+    });
+  }, [addRegion, drag, versionLocked]);
 
   return (
     <section
@@ -171,11 +188,9 @@ export function ImageRedactionViewer({
           Method&nbsp;
           <AppListbox
             value={method}
-            options={[
-              { value: "BLACKOUT", label: "Blackout" },
-              { value: "BLUR", label: "Blur" },
-              { value: "PIXELATE", label: "Pixelate" },
-            ]}
+            // PRO-R3-04 — the renderer paints an opaque black-out for every
+            // region; methods it does not render are not offered.
+            options={[{ value: "BLACKOUT", label: "Blackout" }]}
             onChange={(next) => setMethod(
                             next as "BLUR" | "PIXELATE" | "BLACKOUT",
                           )}
@@ -191,10 +206,12 @@ export function ImageRedactionViewer({
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
+        // PRO-R3-18 — leaving the frame disarms the drag.
+        onMouseLeave={() => setDrag(null)}
         style={{
           position: "relative",
           width: "100%",
-          aspectRatio: "16 / 10",
+          aspectRatio: aspect ?? "16 / 10",
           background:
             "repeating-linear-gradient(45deg, #f1f5f9 0 8px, #e2e8f0 8px 16px)",
           borderRadius: 8,
@@ -202,20 +219,49 @@ export function ImageRedactionViewer({
           cursor: versionLocked ? "not-allowed" : "crosshair",
         }}
       >
-        <span
-          data-redaction-image-placeholder
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#475569",
-            fontSize: 12,
-          }}
-        >
-          Original evidence preview · drag to draw a region
-        </span>
+        {showImage ? (
+          <img
+            data-redaction-image-preview
+            src={preview.url}
+            alt="The record being redacted"
+            draggable={false}
+            onLoad={(e) => {
+              const el = e.currentTarget;
+              if (el.naturalWidth > 0 && el.naturalHeight > 0) {
+                setAspect(`${el.naturalWidth} / ${el.naturalHeight}`);
+              }
+            }}
+            onError={() => setPreviewBroken(true)}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "fill",
+              userSelect: "none",
+              pointerEvents: "none",
+            }}
+          />
+        ) : (
+          <span
+            data-redaction-image-placeholder
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#475569",
+              fontSize: 12,
+              textAlign: "center",
+              padding: 12,
+            }}
+          >
+            {preview.state === "loading"
+              ? "Loading the image…"
+              : "The image could not be shown here (your access may not include the original). Regions you draw apply to the full image frame."}
+          </span>
+        )}
         {drag ? (
           <div
             data-redaction-image-active-rect
@@ -247,6 +293,8 @@ export function ImageRedactionViewer({
           />
         ))}
       </div>
+
+      <RegionCoordinateForm disabled={versionLocked} onAdd={addRegion} />
 
       <small
         style={{

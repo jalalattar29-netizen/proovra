@@ -53,7 +53,7 @@ type AnyFn = ReturnType<typeof vi.fn>;
 const prismaStub: {
   qcSample: { findFirst: AnyFn; create: AnyFn; update: AnyFn; updateMany: AnyFn };
   workflowReviewDecision: { findFirst: AnyFn };
-  reviewerDisagreement: { findFirst: AnyFn; create: AnyFn; update: AnyFn };
+  reviewerDisagreement: { findFirst: AnyFn; create: AnyFn; update: AnyFn; updateMany: AnyFn };
   codingSchema: { findFirst: AnyFn; create: AnyFn; update: AnyFn };
   evidenceReviewWorkflow: { findFirst: AnyFn };
 } = {
@@ -63,6 +63,8 @@ const prismaStub: {
     findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    // PRO-R2-04 — the transition is a compare-and-swap on the state read.
+    updateMany: vi.fn(async () => ({ count: 1 })),
   },
   codingSchema: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
   // Taking the second review (UNDER_SECOND_REVIEW) reads the disputed
@@ -293,7 +295,8 @@ describe("Phase 4 — reviewer-disagreement.service audit emission", () => {
     prismaStub.reviewerDisagreement.findFirst.mockResolvedValueOnce({
       id: "dis-1",
       state: "FILED",
-      challengerUserId: ACTOR_ID,
+      // PRO-R2-04 — the second reviewer is independent of the challenger.
+      challengerUserId: "00000000-0000-4000-8000-0000000000c1",
       workflowId: WORKFLOW_ID,
     });
     prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce({ evidenceId: "ev-1" });

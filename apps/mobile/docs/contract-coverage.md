@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**174 bindings — OK 174, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**176 bindings — OK 176, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -39,6 +39,7 @@ top level of it.
 | OK | `parseBillingProjection` | `GET /v1/billing/accounts/:type/:id` | <SPREAD>, account, actionRequired, actions, collaboration, plan, usage | account, actionRequired, actions, collaboration, contract, dependentStorageCancellation,… |
 | OK | `parsePaymentHistory` | `GET /v1/billing/accounts/:type/:id/history` | activity, count, items | items |
 | OK | `parseBillingActivity` | `GET /v1/billing/accounts/:type/:id/history` | activity, count, items | activity, map |
+| OK | `parseBillingOverview` | `GET /v1/billing/overview` | entitlement, storageAddons, summary, workspaces | storageAddons, summary, workspaces |
 | OK | `parsePricingCatalogue` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | currency, enterprise |
 | OK | `parseStorageAddons` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | storageAddons |
 | OK | `parseEvidenceCreditOffer` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | payg |
@@ -127,6 +128,7 @@ top level of it.
 | OK | `parsePortalDashboard` | `GET /v1/portal/dashboard` | portal | assigned, length, limitations, portal, reviewer, scope |
 | OK | `parsePortalComments` | `GET /v1/portal/work/:workflowId/comments` | comments | comments |
 | OK | `parsePortalRecordedDecision` | `GET /v1/portal/work/:workflowId/decisions` | decisions | decisions |
+| OK | `parsePortalPackage` | `GET /v1/portal/work/:workflowId/verification-package` | disclosureProfile, packageId, packageSha256, reportVersion, url | reportVersion, url |
 | OK | `parseProvenanceChain` | `GET /v1/provenance/:evidenceId` | chain | chain |
 | OK | `parseQuotas` | `GET /v1/quotas` | data | data, length |
 | OK | `parseUserScopedReports` | `GET /v1/reports` | items, nextCursor | items, nextCursor |
@@ -192,7 +194,7 @@ top level of it.
 | OK | `parseArchiveRestoreRequested` | `POST /v1/evidence/:id/archive-restore` | deduplicated, request | deduplicated |
 | OK | `parseEvidenceBulkResponse` | `POST /v1/evidence/bulk` | csv, failedCount, fileName, items, results, successCount | accepted, csv, failedCount, fileName, pendingCount, queued, results, successCount, updated |
 | OK | `parseIntakePartUpload` | `POST /v1/external-intake/:token/sessions/:sid/parts` | part, upload | headers, part, partId, upload |
-| OK | `parseEnrolmentStart` | `POST /v1/identity-security/contact-factors/enroll/start` | codeExpiresAtUtc, factor, replaceSupported, verificationAttemptId | codeExpiresAtUtc, factor, verificationAttemptId |
+| OK | `parseEnrolmentStart` | `POST /v1/identity-security/contact-factors/enroll/start` | codeExpiresAtUtc, factor, verificationAttemptId | codeExpiresAtUtc, factor, verificationAttemptId |
 | OK | `parseStartedChallenge` | `POST /v1/identity-security/step-up/start` | availableMethods, challenge, destinationMask, handoffUrl, method, passkeyOptions | availableMethods, challenge, destinationMask, handoffUrl, method |
 | OK | `parseRecoveryRequest` | `POST /v1/identity/mfa-admin/recovery-requests` | details, error, ok, request, retryAfter | expiresAt, id, request, status |
 | OK | `parseTotpEnrollment` | `POST /v1/identity/mfa/enroll/start` | factorId, otpauthUri, secretBase32 | factorId, otpauthUri, secretBase32 |

@@ -108,7 +108,15 @@ export async function writeCodingValue(
    * one statement (INSERT … ON CONFLICT … DO UPDATE): both writers succeed and
    * the later one is the stored value, exactly as two sequential writes are.
    */
-  const saved = await prisma.codingValue.upsert({
+  /*
+   * PRO-R2-17 — THE VALUE AND ITS HISTORY ROW ARE ONE WRITE. The current row
+   * is still one per (workflow, field); every write also appends what was
+   * written, by whom and why, so a later reviewer's value never erases an
+   * earlier one. (A caller that is already inside a transaction passes its
+   * client, which has no $transaction: both statements then run in theirs.)
+   */
+  const writeBoth = async (client: Pick<PrismaClient, "codingValue" | "codingValueHistory">) => {
+    const row = await client.codingValue.upsert({
     where: {
       coding_value_workflow_field_uniq: {
         workflowId: input.workflowId,
@@ -129,9 +137,51 @@ export async function writeCodingValue(
       rationale: input.rationale ?? null,
     },
     select: { id: true },
-  });
+    });
+    await client.codingValueHistory.create({
+      data: {
+        teamId: input.teamId,
+        workflowId: input.workflowId,
+        fieldId: input.fieldId,
+        value: input.value as never,
+        authorUserId: input.authorUserId,
+        rationale: input.rationale ?? null,
+      },
+      select: { id: true },
+    });
+    return row;
+  };
+  const saved =
+    typeof (prisma as { $transaction?: unknown }).$transaction === "function"
+      ? await prisma.$transaction((tx) => writeBoth(tx))
+      : await writeBoth(prisma);
 
   return { ok: true, codingValueId: saved.id };
+}
+
+/**
+ * PRO-R2-17 — every value written for a workflow's fields, oldest first
+ * (bounded). The current value of a field is its latest row.
+ */
+export async function readCodingValueHistoryForWorkflow(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  workflowId: string;
+}) {
+  const prisma = input.prisma ?? defaultPrisma;
+  return prisma.codingValueHistory.findMany({
+    where: { teamId: input.teamId, workflowId: input.workflowId },
+    orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      fieldId: true,
+      value: true,
+      rationale: true,
+      authorUserId: true,
+      recordedAt: true,
+    },
+    take: 1000,
+  });
 }
 
 /**

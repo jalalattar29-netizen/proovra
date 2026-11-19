@@ -67,6 +67,7 @@ import {
 } from "../services/reviewer-workspace/coding-schema.service.js";
 import {
   evaluateRequiredFieldsCoverage,
+  readCodingValueHistoryForWorkflow,
   readCodingValuesForWorkflow,
   writeCodingValue,
 } from "../services/reviewer-workspace/coding-value.service.js";
@@ -285,6 +286,20 @@ async function refuseWithoutReviewCapability(
     entitlement: "REVIEWER_OPERATIONS",
   });
   return true;
+}
+
+/**
+ * PRO-LEAD-07 — reviewer working data (coded values, disagreements, QC
+ * samples) is read by holders of a reviewer role only: VIEWER has none in the
+ * reviewer capability map, and evidence.read alone (what resolveTeam asks) is
+ * not a reviewer role.
+ */
+function requireReviewerRole(
+  ctx: { workspaceRole: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null; isPlatformAdmin: boolean },
+): boolean {
+  return (
+    resolveReviewerRole({ workspaceRole: ctx.workspaceRole, isPlatformAdmin: ctx.isPlatformAdmin }).role !== null
+  );
 }
 
 function requireCap(
@@ -650,6 +665,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (!requireReviewerRole(ctx)) return denyNoPermission(reply);
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
@@ -660,12 +676,15 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
           values: [],
           coverage: { totalRequired: 0, fulfilled: 0, unfulfilledFieldIds: [] },
           schemaBinding: null,
+          history: [],
         });
       }
-      const [values, coverage, binding] = await Promise.all([
+      const [values, coverage, binding, history] = await Promise.all([
         readCodingValuesForWorkflow({ teamId: ctx.teamId, workflowId }),
         evaluateRequiredFieldsCoverage({ teamId: ctx.teamId, workflowId }),
         getWorkflowSchemaBinding({ teamId: ctx.teamId, workflowId }),
+        // PRO-R2-17 — every value written, oldest first (additive).
+        readCodingValueHistoryForWorkflow({ teamId: ctx.teamId, workflowId }),
       ]);
       // `schemaBinding` is the authoritative reread for bind-schema: which
       // schema this workflow collects coded fields for (null = unbound).
@@ -674,6 +693,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         values,
         coverage,
         schemaBinding: binding?.schema ?? null,
+        history,
       });
     },
   );
@@ -724,6 +744,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (!requireReviewerRole(ctx)) return denyNoPermission(reply);
       const q = z
         .object({
           state: z.enum(DISAGREEMENT_STATES).optional(),
@@ -776,13 +797,18 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
       if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_TASKS_AND_QUEUES")) return reply;
-      if (!requireCap(ctx, "review.adjudicate")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = TransitionDisagreementBody.parse(req.body);
       const disagreement = await prisma.reviewerDisagreement.findFirst({
         where: { id, teamId: ctx.teamId },
-        select: { workflowId: true },
+        select: { workflowId: true, challengerUserId: true },
       });
+      // PRO-R2Z-08 — WITHDRAWN is the challenger's own act: it takes the
+      // capability that filed it (review.disagree), and the service keeps it
+      // to the challenger. Every other move is adjudication.
+      const withdrawingOwn =
+        body.to === "WITHDRAWN" && disagreement !== null && disagreement.challengerUserId === ctx.userId;
+      if (!requireCap(ctx, withdrawingOwn ? "review.disagree" : "review.adjudicate")) return denyNoPermission(reply);
       if (!(await itemWorkflowOpen(ctx, disagreement))) {
         return denyWith(reply, 409, "DISAGREEMENT_NOT_FOUND");
       }
@@ -808,6 +834,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveTeam(req, reply);
       if (!ctx) return reply;
+      if (!requireReviewerRole(ctx)) return denyNoPermission(reply);
       const q = z
         .object({
           state: z.string().optional(),

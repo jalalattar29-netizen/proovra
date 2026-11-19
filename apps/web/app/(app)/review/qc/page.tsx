@@ -292,6 +292,17 @@ function QcWorkspace({ teamId }: { teamId: string }) {
       rationale?: string,
     ) => {
       if (busySampleId) return;
+      // PRO-R2-05 — a QC verdict is final: PASS / PARTIAL ask first, like the
+      // FAIL path does through its picker.
+      if (verdict !== "FAIL") {
+        const ok = await confirm({
+          title: verdict === "PASS" ? "Record a PASS verdict?" : "Record a PARTIAL verdict?",
+          description: "The quality-check verdict is final for this sample.",
+          confirmLabel: verdict === "PASS" ? "Record PASS" : "Record PARTIAL",
+          tone: "warning",
+        });
+        if (!ok) return;
+      }
       setBusySampleId(sampleId);
       try {
         const res = await renderQcVerdict({
@@ -316,7 +327,7 @@ function QcWorkspace({ teamId }: { teamId: string }) {
         if (alive.current) setBusySampleId(null);
       }
     },
-    [refresh, busySampleId, teamId],
+    [refresh, busySampleId, teamId, confirm],
   );
 
   const onAssign = useCallback(

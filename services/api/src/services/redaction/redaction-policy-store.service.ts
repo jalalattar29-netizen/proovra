@@ -575,6 +575,8 @@ export async function resolveEffectivePolicy(input: {
     where: {
       teamId: input.teamId,
       revokedAtUtc: null,
+      // PRO-R3-08 — an ARCHIVED policy governs nothing any more.
+      policy: { archivedAt: null },
       OR: targets.map((t) => ({
         scope: t.scope,
         scopeTargetId: t.scopeTargetId,
@@ -597,10 +599,14 @@ export async function resolveEffectivePolicy(input: {
   });
   // Order by precedence ascending (GLOBAL → WORKSPACE → CASE →
   // PROJECT) so higher-precedence overwrites.
+  // PRO-R3-08 — within one scope the most recent assignment wins
+  // (deterministic; it was database order).
   assignments.sort(
     (a: (typeof assignments)[number], b: (typeof assignments)[number]) =>
       POLICY_ASSIGNMENT_PRECEDENCE[a.scope as PolicyAssignmentScope] -
-      POLICY_ASSIGNMENT_PRECEDENCE[b.scope as PolicyAssignmentScope],
+        POLICY_ASSIGNMENT_PRECEDENCE[b.scope as PolicyAssignmentScope] ||
+      a.assignedAtUtc.getTime() - b.assignedAtUtc.getTime() ||
+      a.id.localeCompare(b.id),
   );
 
   const providers: Record<RedactionDetectionProvider, boolean> = {

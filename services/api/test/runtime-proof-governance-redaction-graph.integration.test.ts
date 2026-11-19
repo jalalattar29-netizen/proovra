@@ -584,7 +584,8 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
     let versionId: string;
     let evidenceId: string;
 
-    const REGION = { kind: "BBOX_NORMALIZED", method: "BLUR", geometry: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 } };
+    // PRO-R3-04 — the renderer burns an opaque black-out; it is the only method offered for an image.
+    const REGION = { kind: "BBOX_NORMALIZED", method: "BLACKOUT", geometry: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 } };
 
     beforeAll(async () => {
       const { teamA: a } = h.fixtures;
@@ -624,7 +625,8 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
     it("POST /v1/redaction/versions/:id/regions + DELETE /v1/redaction/regions/:id — author and remove a region with activity; refuse a member and another tenant", async () => {
       const { teamA: a, teamB: b } = h.fixtures;
       const url = `/v1/redaction/versions/${versionId}/regions`;
-      const member = await call({ method: "POST", url, token: a.memberToken, payload: REGION });
+      // PRO-R3-05 / DEC-16 — a MEMBER prepares (authors regions); a VIEWER holds no redaction role.
+      const member = await call({ method: "POST", url, token: a.viewerToken, payload: REGION });
       expect(member.statusCode).toBe(403);
       expect(member.json()).toEqual({ denial: "NOT_PERMITTED" });
       const foreign = await call({ method: "POST", url, token: b.ownerToken, payload: REGION });
@@ -639,11 +641,11 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       expect(added.statusCode, added.body).toBe(201);
       const regionId = added.json().regionId as string;
       const region = await prisma.redactionRegion.findUniqueOrThrow({ where: { id: regionId } });
-      expect(region).toMatchObject({ teamId: a.teamId, versionId, kind: "BBOX_NORMALIZED", method: "BLUR", geometry: REGION.geometry, authoredByUserId: a.ownerUserId });
+      expect(region).toMatchObject({ teamId: a.teamId, versionId, kind: "BBOX_NORMALIZED", method: "BLACKOUT", geometry: REGION.geometry, authoredByUserId: a.ownerUserId });
       expect(await activity("REGION_ADDED", { actorUserId: a.ownerUserId })).toMatchObject({ versionId, payload: expect.objectContaining({ regionId }) });
 
       const del = `/v1/redaction/regions/${regionId}`;
-      expect((await call({ method: "DELETE", url: del, token: a.memberToken })).statusCode).toBe(403);
+      expect((await call({ method: "DELETE", url: del, token: a.viewerToken })).statusCode).toBe(403);
       const foreignDel = await call({ method: "DELETE", url: del, token: b.ownerToken });
       expect(foreignDel.statusCode).toBe(409);
       expect(foreignDel.json()).toEqual({ denial: "REGION_INVALID" });
@@ -674,7 +676,7 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       // DetectionReviewPanel body.
       const payload = { rows: [{ detectionId: d1.id, decisionState: "ACCEPTED" }, { detectionId: d2.id, decisionState: "REJECTED" }] };
 
-      expect((await call({ method: "POST", url, token: a.memberToken, payload })).statusCode).toBe(403);
+      expect((await call({ method: "POST", url, token: a.viewerToken, payload })).statusCode).toBe(403);
       // The route names one version, held to the caller's workspace (5391f131b):
       // another tenant's version is answered exactly like a version that does not
       // exist, the same 409 the region route gives.
@@ -762,9 +764,12 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
         versionId,
         payload: expect.objectContaining({ from: "APPROVED", to: "PUBLISHED", stepUpVerified: true, stepUpChallengeId: challengeId, stepUpPurpose: "REDACTION_PUBLISH" }),
       });
-      // The consumed challenge cannot publish again.
+      // The consumed challenge cannot publish again. PRO-R3-14 — a publish that
+      // can no longer happen (the version is PUBLISHED) is refused before any
+      // step-up is asked or spent.
       const replay = await call({ method: "POST", url, token: a.adminToken, payload, headers: { [STEP]: challengeId } });
-      expect(replay.statusCode).toBe(401);
+      expect(replay.statusCode).toBe(409);
+      expect(replay.json()).toEqual({ denial: "INVALID_TRANSITION" });
     });
 
     it("DELETE /v1/redaction/policies/:id — archives the policy with a policy-audit row; refuses a member and another tenant", async () => {
@@ -865,7 +870,7 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       expect(audit).toMatchObject({ teamId: a.teamId, actorUserId: a.adminUserId, policyVersionId, payload: { assignmentId } });
     });
 
-    it("POST /v1/redaction/video-tracks/merge — merges same-evidence tracks into one span and records the timeline event; refuses a member and another tenant", async () => {
+    it("POST /v1/redaction/video-tracks/merge — merges same-evidence tracks into one span and records the timeline event; refuses a viewer and another tenant", async () => {
       const { teamA: a, teamB: b } = h.fixtures;
       const video = await createEvidence(a.teamId, a.ownerUserId, "VIDEO");
       const track = (startFrame: number, endFrame: number, confidenceBand: string) =>
@@ -879,7 +884,8 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       // VideoReviewWorkspace body.
       const payload = { trackIds: [t1.id, t2.id] };
 
-      expect((await call({ method: "POST", url, token: a.memberToken, payload })).statusCode).toBe(403);
+      // PRO-R3-05 / DEC-16 — a MEMBER holds the reviewer tier (detection review); a VIEWER holds no redaction role.
+      expect((await call({ method: "POST", url, token: a.viewerToken, payload })).statusCode).toBe(403);
       const foreign = await call({ method: "POST", url, token: b.ownerToken, payload });
       expect(foreign.statusCode).toBe(409);
       expect(foreign.json()).toEqual({ denial: "VERSION_NOT_FOUND" });

@@ -21,6 +21,9 @@ import {
   redactionDerivativeQueueName,
   redactionDerivativeQueue,
   enqueueRedactionDerivativeRenderWorker,
+  redactionPagePreviewQueueName,
+  redactionPagePreviewQueue,
+  enqueueRedactionPagePreviewRenderWorker,
   evidencePurgeQueue,
   evidencePurgeQueueName,
   generateReportJobName,
@@ -86,6 +89,10 @@ import {
   processRedactionDerivativeJob,
   reconcileStrandedRedactionDerivatives,
 } from "./redaction/redaction-derivative.processor.js";
+import {
+  processRedactionPagePreviewJob,
+  reconcileStrandedRedactionPagePreviews,
+} from "./redaction/redaction-page-preview.processor.js";
 import { runRetentionReconciliation } from "./governance/retention-reconciliation.worker.js";
 import { runDestructionOrchestration } from "./governance/destruction-orchestrator.worker.js";
 import {
@@ -145,6 +152,9 @@ import {
  */
 export const RECOVERED_WORK_TYPES = [
   "RENDER_REDACTION_DERIVATIVE",
+  // PRO-R3-04 — the same timer also recovers stranded page previews
+  // (`reconcileStrandedRedactionPagePreviews`).
+  "RENDER_REDACTION_PAGE_PREVIEW",
   "REDACTION_RECONCILER",
 ] as const;
 
@@ -907,6 +917,13 @@ async function runRedactionReconciler() {
     await withCronLock("redaction-derivative-reconciler", () =>
       reconcileStrandedRedactionDerivatives({
         enqueue: enqueueRedactionDerivativeRenderWorker,
+      }),
+    );
+    // PRO-R3-04 — the same sweep recovers page previews left QUEUED by a
+    // lost enqueue, or RENDERING past their lease.
+    await withCronLock("redaction-page-preview-reconciler", () =>
+      reconcileStrandedRedactionPagePreviews({
+        enqueue: enqueueRedactionPagePreviewRenderWorker,
       }),
     );
   } catch (err) {
@@ -2005,7 +2022,8 @@ async function sampleQueueHealthOnce() {
     // already covered them but the heartbeat log line was misleading.
     //
     // ET-Q-07 (2026-09-30) — five producerless queues were retired and
-    // left this list with them; it samples the 12 Queue objects that exist.
+    // left this list with them; it samples the 13 Queue objects that exist
+    // (12 until PRO-R3-04 added `redaction-page-preview`).
     const snapshot = await snapshotQueueHealth([
       { name: reportQueueName, queue: reportQueue },
       { name: reportDlqQueueName, queue: reportDlqQueue },
@@ -2016,6 +2034,7 @@ async function sampleQueueHealthOnce() {
       { name: mediaIntelligenceDlqQueueName, queue: mediaIntelligenceDlqQueue },
       { name: derivedAssetsQueueName, queue: derivedAssetsQueue },
       { name: redactionDerivativeQueueName, queue: redactionDerivativeQueue },
+      { name: redactionPagePreviewQueueName, queue: redactionPagePreviewQueue },
       // PHASE 12 POINT 5 — `mi-embed` was MISSING from this list. It is a
       // live, registered BullMQ unit (`EmbedSemanticChunks`) that calls a paid
       // AI provider, and the heartbeat has never sampled it: a backlog or a
@@ -2121,7 +2140,8 @@ type WorkerKind =
   | "mi-embed"
   | "graph-reconcile"
   | "graph-search-projection"
-  | "redaction-derivative";
+  | "redaction-derivative"
+  | "redaction-page-preview";
 
 function safeRegisterWorker(
   kind: WorkerKind,
@@ -2319,6 +2339,28 @@ const redactionDerivativeWorker = safeRegisterWorker("redaction-derivative", () 
 );
 void redactionDerivativeWorker;
 
+// PRO-R3-04 — the PDF region editor's page preview. Payload carries ONLY the
+// RedactionPagePreview id; the processor reloads all authoritative state,
+// atomically claims QUEUED→RENDERING, renders the one page (pdfjs raster) and
+// completes via its ONE writer. Concurrency 1 — rendering is CPU/memory bound.
+const redactionPagePreviewWorker = safeRegisterWorker("redaction-page-preview", () =>
+  new Worker(
+    redactionPagePreviewQueueName,
+    wrapJobHandlerWithOtelContext(
+      "proovra.worker.redaction_page_preview",
+      redactionPagePreviewQueueName,
+      processRedactionPagePreviewJob,
+    ),
+    {
+      connection: redisConnection,
+      concurrency: 1,
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
+      autorun: false,
+    },
+  ),
+);
+void redactionPagePreviewWorker;
+
 // ET-Q-07 (2026-09-30) — FIVE worker registrations that used to sit in this
 // block are gone: `mi-exif`, `mi-search-index`, `graph-domain-sync`,
 // `graph-timeline-sync` and `org-health-refresh`. Each bound a real processor
@@ -2419,6 +2461,7 @@ const REGISTERED_WORKERS: ReadonlyArray<readonly [WorkerKind, Worker | null]> = 
   ["media-intelligence", mediaIntelligenceWorker],
   ["derived-assets", derivedAssetsWorker],
   ["redaction-derivative", redactionDerivativeWorker],
+  ["redaction-page-preview", redactionPagePreviewWorker],
   ["graph-reconcile", graphReconcileWorker],
   ["mi-embed", miEmbedWorker],
   ["graph-search-projection", graphSearchProjectionWorker],
@@ -2642,6 +2685,7 @@ async function shutdown(exitCode: number) {
     ["graph-search-projection", graphSearchProjectionWorker] as const,
     // AUD-0002 — registered at start-up, and closed with the others.
     ["redaction-derivative", redactionDerivativeWorker] as const,
+    ["redaction-page-preview", redactionPagePreviewWorker] as const,
   ]) {
     if (!w) continue;
     try {
@@ -2664,6 +2708,7 @@ async function shutdown(exitCode: number) {
     // AUD-0002 — the DLQ and the redaction-derivative queue were left open.
     await mediaIntelligenceDlqQueue.close();
     await redactionDerivativeQueue.close();
+    await redactionPagePreviewQueue.close();
     // Phase 31.13 — derived assets queue.
     await derivedAssetsQueue.close();
     // Phase 16 — mi-embed queue.

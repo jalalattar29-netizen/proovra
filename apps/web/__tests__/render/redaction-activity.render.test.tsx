@@ -22,6 +22,8 @@ vi.mock("../../lib/api", () => ({ apiFetch: mocks.fetch }));
 vi.mock("../../lib/platform-context", () => ({
   useTeamId: () => "team-1",
   useTenantGuard: () => mocks.guard,
+  // PRO-R3-05 — the approval panel names the viewer to explain the two-person rule.
+  useOptionalPlatformContext: () => null,
 }));
 vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () => ({ confirm: mocks.confirm }) }));
 vi.mock("../../components/navigation/PageRouteGate", () => ({

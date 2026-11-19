@@ -16,6 +16,7 @@
 
 import { identifierLabel } from "@proovra/shared";
 import { formatUserDateTime } from "../../lib/date";
+import { activateOnKey } from "./region-authoring";
 
 type VersionRow = {
   id: string;
@@ -70,6 +71,11 @@ export function VersionHistoryPanel({
                 data-redaction-version-row={v.id}
                 data-redaction-version-state={v.state}
                 onClick={() => onSelect(v.id)}
+                // PRO-R3-18 — a selectable row is a keyboard-reachable button.
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
+                onKeyDown={activateOnKey(() => onSelect(v.id))}
                 style={{
                   padding: "6px 8px",
                   marginBottom: 4,

@@ -166,10 +166,15 @@ function boundingBoxToBbox(
     | undefined,
 ): BboxNormalized | null {
   if (!b) return null;
-  const x = clamp01(b.Left ?? 0);
-  const y = clamp01(b.Top ?? 0);
-  const width = clamp01(b.Width ?? 0);
-  const height = clamp01(b.Height ?? 0);
+  // PRO-R3-02 — clamp the box's EDGES, not each field: a subject at the
+  // frame edge (Left 0.9, Width 0.3) becomes {x 0.9, width 0.1}, which the
+  // bounds validator accepts, instead of x + width > 1, which it refused.
+  const left = Number.isFinite(b.Left) ? (b.Left as number) : 0;
+  const top = Number.isFinite(b.Top) ? (b.Top as number) : 0;
+  const x = clamp01(left);
+  const y = clamp01(top);
+  const width = clamp01(left + (Number.isFinite(b.Width) ? (b.Width as number) : 0)) - x;
+  const height = clamp01(top + (Number.isFinite(b.Height) ? (b.Height as number) : 0)) - y;
   if (width <= 0 || height <= 0) return null;
   return { x, y, width, height };
 }

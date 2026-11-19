@@ -8,10 +8,13 @@
  * ---------------------------------------------------------------------------
  * CONSERVED SETS
  * ---------------------------------------------------------------------------
- *   10 BullMQ jobs   (one per processed queue, 1:1 with worker registrations)
+ *   11 BullMQ jobs   (one per processed queue, 1:1 with worker registrations)
  *   20 DB sweeps     (scheduler + processor pairs)
  *   ──
- *   30 entries in CANONICAL_WORK_REGISTRY, every one of which processes work.
+ *   31 entries in CANONICAL_WORK_REGISTRY, every one of which processes work.
+ *
+ * PRO-R3-04 (2026-11-19) — 10 -> 11 jobs and 30 -> 31 entries when
+ * `RenderRedactionPagePreview` was registered (see `names.ts`).
  *
  * ET-SM-07 (2026-09-30) — 19 -> 20 sweeps and 29 -> 30 entries when
  * `IntegrityRecheckSweep` was registered. See the entry, and the
@@ -176,7 +179,7 @@ const WORKER_INDEX = "services/worker/src/index.ts";
 const SUBSYSTEM = "services/worker/src/subsystem-queue-processors.ts";
 
 // ===========================================================================
-// THE 10 BULLMQ JOBS
+// THE 11 BULLMQ JOBS
 // ===========================================================================
 
 const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
@@ -217,6 +220,44 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     externalBoundary: "storage",
     auditFamily: "redaction.derivative",
     projection: "GET /v1/redaction/derivatives/:id",
+  },
+  // PRO-R3-04 — the page image the PDF region editor draws on. A derived
+  // working image of ONE page; the row is created QUEUED by the authorized
+  // API read and the job carries only its id.
+  {
+    workName: JOB_NAMES.RENDER_REDACTION_PAGE_PREVIEW,
+    family: "redaction",
+    familyReason:
+      "Renders one page of a PDF redaction project's record as the image the region editor draws on; it exists only for redaction authoring.",
+    transport: "bullmq",
+    queueName: QUEUE_NAMES.REDACTION_PAGE_PREVIEW,
+    implementation: "CURRENT_RUNTIME",
+    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
+    jobIdPrefix: "rpp",
+    durableAuthority: {
+      model: "RedactionPagePreview",
+      tenantSource: "RedactionPagePreview.teamId, cross-checked against project.teamId and the evidence row's teamId",
+      createdBySynchronousPath: true,
+    },
+    canonicalProducer: SHARED_ENQUEUE,
+    canonicalProcessor:
+      "services/worker/src/redaction/redaction-page-preview.processor.ts",
+    workerRegistration: WORKER_INDEX,
+    claim: {
+      from: "QUEUED",
+      to: "RENDERING",
+      mechanism: "conditional_update_many",
+      leaseField: "renderStartedAt",
+      leaseMs: 20 * 60 * 1000,
+    },
+    terminalWriter: "services/worker/src/redaction/redaction-page-preview-writer.ts",
+    idempotency: ["deterministic_job_id", "conditional_state_claim"],
+    reconciler: WORKER_INDEX,
+    retry: RETRY_POLICIES.HEAVY_RENDER,
+    recovery: RECOVERY_POLICIES.HEAVY_RENDER,
+    externalBoundary: "storage",
+    auditFamily: "redaction.page_preview",
+    projection: "GET /v1/redaction/projects/:id/preview/pages/:n",
   },
 
   // ---- FAMILY 3: RETENTION AND DESTRUCTION ---------------------------------
@@ -752,7 +793,7 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     workName: SWEEP_NAMES.REDACTION_RECONCILER,
     family: "redaction",
     familyReason:
-      "Re-enqueues redaction derivatives left QUEUED when a producer committed the row and then failed to enqueue.",
+      "Re-enqueues redaction derivatives and page previews left QUEUED when a producer committed the row and then failed to enqueue.",
     transport: "db_outbox_sweep",
     queueName: null,
     implementation: "CURRENT_RUNTIME",

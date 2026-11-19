@@ -443,11 +443,12 @@ describe("Phase 2 — Reviewer Criteria lifecycle (inject)", () => {
     // Double-publish is rejected too.
     expect((await call(reviewerCriteriaRoutes, "POST", `/v1/reviewer-criteria/${setId}/publish`, { teamId: TEAM_1 })).status).toBe(409);
 
-    // Duplicate as v2 (copies criteria, set back to DRAFT).
+    // Duplicate as v2 (copies criteria). PRO-R2-09 — v1 stays in force, so the
+    // set stays PUBLISHED while the v2 draft exists.
     const dup = await call(reviewerCriteriaRoutes, "POST", `/v1/reviewer-criteria/${setId}/duplicate`, { teamId: TEAM_1 });
     expect(dup.status).toBe(201);
     expect(dup.body.version).toBe(2);
-    expect(H.sets.get(setId)!.status).toBe("DRAFT");
+    expect(H.sets.get(setId)!.status).toBe("PUBLISHED");
     expect(versionsOfSet(setId)[0].criteria.length).toBe(2);
     // A second duplicate while the draft exists is rejected.
     const dup2 = await call(reviewerCriteriaRoutes, "POST", `/v1/reviewer-criteria/${setId}/duplicate`, { teamId: TEAM_1 });

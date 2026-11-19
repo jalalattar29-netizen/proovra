@@ -122,6 +122,56 @@ export async function revokeIntakeLinkForLostAuthority(
 type RoleChangeTx = Parameters<typeof revokeCreatorShareGrantsTx>[0] & Pick<PrismaClient, "teamMember" | "evidenceRequest">;
 
 /**
+ * The permission that let a member create each kind of creator-scoped
+ * OUTWARD grant (members audit SEC-08): an owner share link and an
+ * external-review grant.
+ */
+export const CREATOR_GRANT_PERMISSION = {
+  ownerShare: "evidence.publish_verify",
+  externalReview: "governance.legal_hold.manage",
+} as const satisfies Record<string, Permission>;
+
+/**
+ * PRO-R1-05 — THE role-change leg, shared by EVERY role writer (the
+ * administrator's `changeMemberRole`, the directory's
+ * `applyDirectoryRoleChange` and `demoteGroupMappedRoleOnArchive`). Inside the
+ * writer's transaction and after the new role is written, it ends:
+ *
+ *   - the creator's owner share links and external-review grants when, by the
+ *     canonical decision (`evaluateCreatorAuthority`, so a capability grant
+ *     that still carries the permission keeps them, and the access window is
+ *     set aside under A2-26), they no longer hold the permission that created
+ *     them;
+ *   - their standing credentials, through `endStandingCredentialsOnLostAuthorityTx`.
+ *
+ * An indeterminate read revokes nothing (the use-time checks fail closed).
+ */
+export async function endCreatorAuthorityOnRoleChangeTx(
+  tx: RoleChangeTx,
+  input: { teamId: string; userId: string; actorUserId: string | null },
+): Promise<{ ownerShares: number; externalReview: number; apiKeys: number; intakeLinks: number; webhooks: number }> {
+  const lost = async (permission: Permission) =>
+    (await evaluateCreatorAuthority({ teamId: input.teamId, userId: input.userId, permission }, tx as unknown as PrismaClient))
+      .verdict === "LOST";
+  const losesShares = await lost(CREATOR_GRANT_PERMISSION.ownerShare);
+  const losesExternal = await lost(CREATOR_GRANT_PERMISSION.externalReview);
+  let ownerShares = 0;
+  let externalReview = 0;
+  if (losesShares || losesExternal) {
+    const r = await revokeCreatorShareGrantsTx(tx, {
+      creators: [{ teamId: input.teamId, userId: input.userId }],
+      reason: "CREATOR_LOST_AUTHORITY",
+      actorUserId: input.actorUserId,
+      kinds: { ownerShares: losesShares, externalReview: losesExternal, intakeLinks: false, apiKeys: false, webhooks: false },
+    });
+    ownerShares = r.ownerShares;
+    externalReview = r.externalReview;
+  }
+  const standing = await endStandingCredentialsOnLostAuthorityTx(tx, input);
+  return { ownerShares, externalReview, ...standing };
+}
+
+/**
  * At a ROLE CHANGE, inside its transaction and after the new role is written:
  * end the standing credentials whose permission the member no longer holds
  * (API keys, intake links — direct and request-bound separately — and

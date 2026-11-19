@@ -157,7 +157,14 @@ function FieldWidget({
           rows={3}
           disabled={pending}
           defaultValue={typeof v["text"] === "string" ? (v["text"] as string) : ""}
-          onBlur={(e) => void write({ text: e.target.value })}
+          onBlur={(e) => {
+            // PRO-R2Z-09 — only a value the reviewer actually entered or
+            // changed is written; tabbing through codes nothing.
+            const next = e.target.value;
+            const prior = typeof v["text"] === "string" ? (v["text"] as string) : "";
+            if (next.trim().length === 0 || next === prior) return;
+            void write({ text: next });
+          }}
           style={widgetStyle}
         />
       );
@@ -167,8 +174,16 @@ function FieldWidget({
           aria-labelledby={labelId}
           type="number"
           disabled={pending}
-          defaultValue={typeof v["number"] === "number" ? (v["number"] as number) : 0}
-          onBlur={(e) => void write({ number: Number(e.target.value) })}
+          // PRO-R2Z-09 — no numeric default: an empty field stays uncoded.
+          defaultValue={typeof v["number"] === "number" ? (v["number"] as number) : ""}
+          onBlur={(e) => {
+            const raw = e.target.value.trim();
+            if (raw.length === 0) return;
+            const next = Number(raw);
+            if (!Number.isFinite(next)) return;
+            if (typeof v["number"] === "number" && v["number"] === next) return;
+            void write({ number: next });
+          }}
           style={widgetStyle}
         />
       );

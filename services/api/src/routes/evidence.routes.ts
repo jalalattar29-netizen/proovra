@@ -9812,11 +9812,10 @@ return {
         sha256: part.sha256 ?? null,
         sizeBytes: bigintToString(part.sizeBytes),
       })),
-      mismatchFlags: {
-        originalVsRecordedHash: evidence.fileSha256 ? null : null,
-        originalVsVerificationPackageManifest: null,
-        previewVsOriginal: null,
-      },
+      // PRO-E2-11 — no comparison computes these flags, so none is advertised:
+      // a constant null read as "no mismatch" to an API consumer. Every
+      // client already treats a null group as "nothing to show".
+      mismatchFlags: null,
     });
   });
 
@@ -11664,7 +11663,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               })
             : null;
           if (!wfRow || !wfRow.teamId) {
-            return { state: "first_required" as const, firstReviewerUserId: null, resolvedByRequestInfo: false };
+            return { state: "first_required" as const, firstReviewerUserId: null, resolvedByRequestInfo: false, selfAttested: false };
           }
           const rows = await prisma.workflowReviewDecision.findMany({
             where: { workflowId: wfRow.id, round: wfRow.decisionRound },
@@ -11680,6 +11679,13 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             state,
             firstReviewerUserId: rows.find((r) => r.stage === "FIRST")?.reviewerUserId ?? null,
             resolvedByRequestInfo: state === "resolved" && projection.projectedStage === "NEEDS_MORE_INFO",
+            // PRO-R2-13 / DEC-15 — a round resolved only by the record's own
+            // owner is a self-attestation, not an independent review: said so
+            // wherever the review state is shown (no verdict is refused).
+            selfAttested:
+              state === "resolved" &&
+              rows.length > 0 &&
+              rows.every((r) => r.reviewerUserId === evidence.ownerUserId),
           };
         })();
         // The adjudicator role exactly as the decision route reads it.
@@ -12014,6 +12020,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                   note: null,
                   viewerUserId: ownerUserId,
                   availableActions: reviewWorkflowActions,
+                  selfAttested: decisionState.selfAttested,
                 }
               : {
                   available: false,

@@ -489,7 +489,8 @@ function QueuesShell() {
       workflowIds: ids,
       teamId,
     });
-    setBanner(summariseOutcome(`Decide=${verdict}`, ids.length, res));
+    // PRO-R2-02 — this writes a coded verdict VALUE, not a review decision.
+    setBanner(summariseOutcome(`Coded verdict ${verdict}`, ids.length, res));
     setSelected(new Set());
     setPendingConfirmation(null);
     await refresh();
@@ -1345,8 +1346,10 @@ function BulkBar({
             onDecide(v as "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_INFO")
           }
           style={bulkBtn}
+          title="Sets the coded verdict field only; it does not approve, reject or close the review."
         >
-          Bulk {v.toLowerCase()}
+          {/* PRO-R2-02 — named for what it does: a coded value, not a decision. */}
+          Code verdict: {v.toLowerCase()}
         </button>
       ))}
       <span style={{ flex: 1 }} />
@@ -1372,9 +1375,11 @@ function ConfirmModal({
     | { kind: "DECIDE"; verdict: string }
     | { kind: "ASSIGN"; assigneeUserId: string };
   count: number;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }) {
+  // PRO-R2-11 — one submission per confirmation: Apply is busy-guarded.
+  const [applying, setApplying] = useState(false);
   return (
     <div
       data-bulk-confirm
@@ -1401,15 +1406,17 @@ function ConfirmModal({
         }}
       >
         <h3 style={{ marginTop: 0, fontSize: 16, fontWeight: 700 }}>
-          Confirm bulk{" "}
           {confirmation.kind === "DECIDE"
-            ? confirmation.verdict.toLowerCase()
-            : "assign"}
+            ? `Set the coded verdict "${confirmation.verdict.toLowerCase()}"`
+            : "Confirm bulk assign"}
         </h3>
         <p style={{ color: "var(--ink-secondary, #475569)", fontSize: 13 }}>
           This will apply the action to{" "}
           <strong>{Math.min(count, BULK_ACTION_CAP)}</strong>{" "}
           workflows. The audit trail records each per-item outcome.
+          {confirmation.kind === "DECIDE"
+            ? " It records a coded verdict value only: no review is approved, rejected, escalated or closed."
+            : null}
         </p>
         <div
           style={{
@@ -1430,10 +1437,15 @@ function ConfirmModal({
           <button
             type="button"
             data-bulk-confirm-go
-            onClick={onConfirm}
+            disabled={applying}
+            onClick={() => {
+              if (applying) return;
+              setApplying(true);
+              void Promise.resolve(onConfirm()).finally(() => setApplying(false));
+            }}
             style={primaryBtn}
           >
-            Apply
+            {applying ? "Applying…" : "Apply"}
           </button>
         </div>
       </div>

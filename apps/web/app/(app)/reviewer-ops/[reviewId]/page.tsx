@@ -15,7 +15,8 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  * overclaim phrases.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
@@ -234,8 +235,10 @@ function ReviewWorkspacePageInner() {
     //
     // The union fixes both, and makes a typo a compile error rather than a
     // 404 discovered by a reviewer.
-    async (label: string, action: ReviewerOpsAction, body: Record<string, unknown>) => {
-      if (!teamId) return;
+    // PRO-R2-16 — resolves true only when the action succeeded, so a caller
+    // holding typed input (the reason modal) keeps it on a refusal.
+    async (label: string, action: ReviewerOpsAction, body: Record<string, unknown>): Promise<boolean> => {
+      if (!teamId) return false;
       setBusy(label);
       try {
         await apiFetch(
@@ -249,16 +252,39 @@ function ReviewWorkspacePageInner() {
           },
         );
         load();
+        return true;
       } catch (err) {
         setError(
           toSafeUserError(err, { message: `Action "${label}" failed.` }).message,
         );
+        return false;
       } finally {
         setBusy(null);
       }
     },
     [teamId, workflowId, load],
   );
+
+  // PRO-R2-05 — an approval is an immutable verdict that can release held
+  // outputs: the key and the button both ask first, through the shared
+  // confirm dialog. A second press while the dialog is open opens nothing.
+  const { confirm } = useConfirmAction();
+  const approvePending = useRef(false);
+  const confirmAndApprove = useCallback(async () => {
+    if (approvePending.current) return;
+    approvePending.current = true;
+    try {
+      const ok = await confirm({
+        title: "Approve this review?",
+        description: "The approval is recorded as an immutable decision and may release outputs held for review. Reopening starts a new round; it does not remove this decision.",
+        confirmLabel: "Approve",
+        tone: "warning",
+      });
+      if (ok) await post("approve", "approve", {});
+    } finally {
+      approvePending.current = false;
+    }
+  }, [confirm, post]);
 
   // Phase 2.5 — action shortcuts. Fire ONLY when no input/textarea is
   // focused (isShortcutTarget) and when the review is in a state that
@@ -299,7 +325,7 @@ function ReviewWorkspacePageInner() {
         if (busy !== null) return;
         if (!requestableStates.includes(lifecycleState)) return;
         e.preventDefault();
-        void post("approve", "approve", {});
+        void confirmAndApprove();
       } else if (k === "a") {
         // A = start review (claim it for the current reviewer).
         if (busy !== null) return;
@@ -310,7 +336,7 @@ function ReviewWorkspacePageInner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [data, busy, shortcutsOpen, reasonModal, post]);
+  }, [data, busy, shortcutsOpen, reasonModal, post, confirmAndApprove]);
 
   // PageRouteGate already guaranteed ALLOWED. If the envelope is
   // still hydrating, render the bounded loading shell.
@@ -728,7 +754,7 @@ function ReviewWorkspacePageInner() {
                   p.lifecycleState,
                 )
               }
-              onClick={() => post("approve", "approve", {})}
+              onClick={() => void confirmAndApprove()}
             >
               Approve
             </button>
@@ -800,19 +826,17 @@ function ReviewWorkspacePageInner() {
         onCancel={() => setReasonModal(null)}
         onSubmit={async (reason) => {
           if (!reasonModal) return;
+          let ok = false;
           if (reasonModal === "REQUEST_INFO") {
-            await post("request-info", "request-info", { note: reason });
+            ok = await post("request-info", "request-info", { note: reason });
           } else if (reasonModal === "REJECT") {
-            await post("reject", "reject", { note: reason });
+            ok = await post("reject", "reject", { note: reason });
           } else if (reasonModal === "PAUSE") {
-            await post("pause", "pause", { pausedReason: reason });
+            ok = await post("pause", "pause", { pausedReason: reason });
           }
-          // Close on success. The `post()` helper handles failures by
-          // setting `error` on the page; the modal stays open in that
-          // case so the operator can retry without retyping the reason.
-          // The early returns above mean: only close when we actually
-          // dispatched.
-          setReasonModal(null);
+          // PRO-R2-16 — close only on success; a refusal keeps the modal and
+          // the typed reason open for the retry (the page shows the error).
+          if (ok) setReasonModal(null);
         }}
       />
     </PageShell>

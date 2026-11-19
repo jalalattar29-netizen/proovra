@@ -102,9 +102,13 @@ describe("Phase 25.7 — queue intelligence service", () => {
     expect(src).toMatch(/activeReviews \+ overdueReviews >= 5/);
   });
 
-  it("permissions are derived from team-member role (no hardcoded reviewer)", () => {
-    expect(src).toMatch(/canAssignReviewer:\s*\n?\s*m\.role === "OWNER" \|\| m\.role === "ADMIN" \|\| m\.role === "REVIEWER"/);
-    expect(src).toMatch(/canSeeReviewerRestricted:\s*m\.role === "OWNER" \|\| m\.role === "ADMIN"/);
+  // PRO-R2Z-01 — the stored role is mapped to the canonical role and the
+  // reviewer test is the canonical permission (a MEMBER is a REVIEWER).
+  it("permissions are derived from the canonical role of the team member", () => {
+    expect(src).toMatch(/const canonical = mapTeamRoleToCanonical\(m\.role/);
+    expect(src).toMatch(/roleHasPermission\(canonical, "evidence_request\.review"\)/);
+    expect(src).toMatch(/canAssignReviewer: reviews/);
+    expect(src).toMatch(/canSeeReviewerRestricted: canonical === "OWNER" \|\| canonical === "ADMIN"/);
   });
 });
 

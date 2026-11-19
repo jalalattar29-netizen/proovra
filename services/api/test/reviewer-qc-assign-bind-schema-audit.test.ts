@@ -96,9 +96,26 @@ beforeEach(() => {
   for (const model of Object.values(prismaStub)) {
     for (const fn of Object.values(model)) (fn as AnyFn).mockReset();
   }
+  // PRO-R2-08 — the assignee must be able to render the QC verdict; these
+  // cases assign an administrator (a SUPERVISOR in the reviewer-role map).
+  prismaStub.teamMember.findFirst.mockResolvedValue({ role: "ADMIN" });
 });
 
 describe("assignSample", () => {
+  it("PRO-R2-08: refuses an assignee who could not render the QC verdict (MEMBER), writing nothing", async () => {
+    prismaStub.qcSample.findFirst.mockResolvedValueOnce({
+      id: SAMPLE, state: "SAMPLED", workflowId: WORKFLOW, qcReviewerUserId: null,
+    });
+    prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce({ evidenceId: EVIDENCE });
+    prismaStub.teamMember.findFirst.mockResolvedValue({ role: "MEMBER" });
+    const res = await qc.assignSample({
+      teamId: TEAM, sampleId: SAMPLE, qcReviewerUserId: REVIEWER, actorUserId: ACTOR,
+    });
+    expect(res).toEqual({ ok: false, denial: "NOT_PERMITTED", code: "REVIEW_ASSIGNEE_NOT_ELIGIBLE" });
+    expect(prismaStub.qcSample.updateMany).not.toHaveBeenCalled();
+    expect(emitTenantAuditMock).not.toHaveBeenCalled();
+  });
+
   it("refuses an assignee who is not an ACTIVE member of the workspace, writing nothing", async () => {
     prismaStub.qcSample.findFirst.mockResolvedValueOnce({
       id: SAMPLE, state: "SAMPLED", workflowId: WORKFLOW, qcReviewerUserId: null,

@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 379,
-    "classifiedMigrations": 379,
+    "filesystemMigrations": 380,
+    "classifiedMigrations": 380,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 379,
+    "productionSnapshotUnknown": 380,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 379,
-    "classifiedMigrations": 379,
+    "filesystemMigrations": 380,
+    "classifiedMigrations": 380,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 379,
+    "productionSnapshotUnknown": 380,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 140,
+      "EXPAND": 141,
       "BACKFILL": 36,
       "CONTRACT_DROP": 12,
       "REPAIR": 6
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 161,
+      "SAFE_TO_APPLY_NOW": 162,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 7
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 379
+    "ProductionMigrationStateUnknown": 380
   },
   "gateFailures": [],
   "migrations": [
@@ -28307,44 +28307,51 @@
       "evidence": "AUTH-LOCKOUT-NONTOTP (2026-11-07). Six nullable columns on mfa_pending_challenges (the sign-in challenge already owns the second factor) carrying the passkey challenge, the mobile handoff token hash and the phone-code attempt binding,. No row is rewritten; an older image never reads them. Rollback: leave the columns."
     },
     {
-      "name": "20281121020000_extension_session_parent",
+      "name": "20281121110000_coding_value_history",
       "order": 377,
       "sqlPresent": true,
-      "byteLength": 625,
-      "checksumSha256": "fba172cfe00cc7cdcc8671e9cabfb49630052d53ea6c541f52fba492bafc0562",
-      "checksumSha256Raw": "fba172cfe00cc7cdcc8671e9cabfb49630052d53ea6c541f52fba492bafc0562",
+      "byteLength": 1285,
+      "checksumSha256": "4d5286e902999ec13708614bbc763394087036cf9ea4ec51deb4b029e63f88f1",
+      "checksumSha256Raw": "4d5286e902999ec13708614bbc763394087036cf9ea4ec51deb4b029e63f88f1",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
       "gitTracked": true,
-      "gitIntroductionCommit": "853d227d8da12f1b6d93d2d08071030787d42de4",
+      "gitIntroductionCommit": "f34dc73b05110d8296b948df29324e3cf957f513",
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
-      "sqlShape": "EXPAND",
-      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
       "classificationEvidence": null,
       "schemaObjectsTouched": {
-        "createdTables": [],
+        "createdTables": [
+          "coding_value_history"
+        ],
         "droppedTables": [],
         "alteredTables": [
-          "authenticated_sessions"
+          "coding_value_history"
         ],
-        "addedColumns": [
-          "parent_session_id_hash"
-        ],
+        "addedColumns": [],
         "droppedColumns": [],
         "createdTypes": [],
         "droppedTypes": [],
         "alteredTypes": [],
         "createdIndexes": [
-          "authenticated_sessions_user_id_parent_session_id_hash_idx"
+          "coding_value_history_team_id_idx",
+          "coding_value_history_workflow_id_field_id_recorded_at_idx"
         ],
         "droppedIndexes": [],
-        "addedConstraints": [],
+        "addedConstraints": [
+          "coding_value_history_field_id_fkey"
+        ],
         "droppedConstraints": []
       },
-      "dataTablesTouched": [],
-      "dataTablesMutatedPreexisting": [],
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
       "dependencies": [
-        "20260603100000_phase26_identity_governance"
+        "20270101000000_phase_r3_model_catchup"
       ],
       "softDependencies": [],
       "unknownDependencies": [],
@@ -28363,17 +28370,91 @@
       "believedProductionEvidence": null,
       "safeBeforeCodeDeployment": true,
       "requiresBackfill": false,
-      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='authenticated_sessions' AND column_name='parent_session_id_hash';\"",
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.coding_value_history') IS NOT NULL;\"",
       "blockingReadinessCategories": [],
       "rollbackDisposition": null,
       "releaseWave": "SAFE_TO_APPLY_NOW",
       "ownerAction": null,
       "removalCondition": null,
-      "evidence": "PRO-X1-04 (2026-11-18, WS-AUTH). One nullable column on authenticated_sessions naming the web session that authorized an extension session, plus an index; web sign-out then ends the extension authority it issued. No row is rewritten; an older image never reads it. Rollback: leave the column."
+      "evidence": "PRO-R2-17 (2026-11-19). One new, empty append-only table keeping every coded review value in order (coding_values holds only the latest). No existing object is touched; an older image never reads it. Rollback: drop the table."
+    },
+    {
+      "name": "20281121110100_redaction_page_previews",
+      "order": 378,
+      "sqlPresent": true,
+      "byteLength": 1835,
+      "checksumSha256": "7b27098b68a8bd80074cede27df6c93e64c697965cc590dfa3b37e369709fcec",
+      "checksumSha256Raw": "7b27098b68a8bd80074cede27df6c93e64c697965cc590dfa3b37e369709fcec",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "redaction_page_previews"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "redaction_page_previews"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "redaction_page_previews_evidence_id_idx",
+          "redaction_page_previews_project_id_page_index_key",
+          "redaction_page_previews_state_updated_at_idx",
+          "redaction_page_previews_team_id_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "redaction_page_previews_project_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20261101000000_phase_3a_redaction_platform"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.redaction_page_previews') IS NOT NULL;\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "PRO-R3-04 (2026-11-19). One new, empty table: one row per (redaction project, PDF page) owning the worker's page-preview render (QUEUED, RENDERING, READY, FAILED). No existing object is touched; an older image never reads it. Rollback: drop the table (and the objects its rows point at)."
     },
     {
       "name": "email_password_auth",
-      "order": 378,
+      "order": 379,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

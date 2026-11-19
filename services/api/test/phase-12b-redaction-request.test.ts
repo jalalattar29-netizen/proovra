@@ -43,6 +43,8 @@ vi.mock("../src/db.js", () => ({
     },
     redactionVersion: { findFirst: async () => H.version },
     redactionProject: { findFirst: async () => ({ evidenceId: "ev-1" }) },
+    // PRO-R3-15 — the storage-growth check reads the record (none here: skipped).
+    evidence: { findFirst: async () => null },
     redactionDerivative: {
       findFirst: async () => H.derivativeRow,
       create: async (args: { data: Record<string, unknown> }) => {

@@ -32,6 +32,7 @@ import {
   REDACTION_DERIVATIVE_JOB_NAME,
   REDACTION_DERIVATIVE_QUEUE_NAME,
   type RedactionDerivativeJobPayload,
+  type RedactionPagePreviewJobPayload,
   // PHASE 12 POINT 5 — the ONE enqueue authority + the ONE job registry.
   JOB_NAMES,
   QUEUE_NAMES,
@@ -75,6 +76,8 @@ export const derivedAssetsQueueName = QUEUE_NAMES.DERIVED_ASSETS;
 export const derivedAssetsJobName = JOB_NAMES.GENERATE_DERIVED_ASSET;
 export const redactionDerivativeQueueName = REDACTION_DERIVATIVE_QUEUE_NAME;
 export const redactionDerivativeJobName = REDACTION_DERIVATIVE_JOB_NAME;
+export const redactionPagePreviewQueueName = QUEUE_NAMES.REDACTION_PAGE_PREVIEW;
+export const redactionPagePreviewJobName = JOB_NAMES.RENDER_REDACTION_PAGE_PREVIEW;
 export const miEmbedQueueName = QUEUE_NAMES.MI_EMBED;
 export const miEmbedJobName = JOB_NAMES.EMBED_SEMANTIC_CHUNKS;
 export const graphReconcileQueueName = QUEUE_NAMES.GRAPH_RECONCILE;
@@ -321,6 +324,17 @@ export const redactionDerivativeQueue = new Queue(
   queueOptions(JOB_NAMES.RENDER_REDACTION_DERIVATIVE),
 );
 
+// PRO-R3-04 — the PDF region editor's page previews. The API produces
+// (GET /v1/redaction/projects/:id/preview/pages/:n); this handle is the
+// worker's consumer side and the stranded-row re-enqueue.
+export const redactionPagePreviewQueue = new Queue(
+  redactionPagePreviewQueueName,
+  queueOptions(JOB_NAMES.RENDER_REDACTION_PAGE_PREVIEW, {
+    removeOnComplete: 200,
+    removeOnFail: 200,
+  }),
+);
+
 // ET-Q-07 (2026-09-30) — FIVE Queue objects used to be declared in this block
 // that are gone: `exifQueue` (`mi-exif`), `miSearchIndexQueue`
 // (`mi-search-index`), `graphDomainSyncQueue` (`graph-domain-sync`),
@@ -373,6 +387,19 @@ export async function enqueueRedactionDerivativeRenderWorker(
     redactionDerivativeQueue,
     JOB_NAMES.RENDER_REDACTION_DERIVATIVE,
     payload.derivativeId,
+    { traceId: payload.trace ?? "" },
+  );
+  return { enqueued: outcome.enqueued };
+}
+
+/** Redaction page preview: the `RedactionPagePreview` row is the authority. */
+export async function enqueueRedactionPagePreviewRenderWorker(
+  payload: RedactionPagePreviewJobPayload,
+): Promise<{ enqueued: boolean }> {
+  const outcome = await enqueueWork(
+    redactionPagePreviewQueue,
+    JOB_NAMES.RENDER_REDACTION_PAGE_PREVIEW,
+    payload.previewId,
     { traceId: payload.trace ?? "" },
   );
   return { enqueued: outcome.enqueued };

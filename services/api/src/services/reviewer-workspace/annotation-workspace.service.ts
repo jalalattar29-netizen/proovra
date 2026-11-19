@@ -25,6 +25,38 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
+import { resolveEvidenceOperationAccess } from "../evidence/evidence-record-access.service.js";
+import { appendReviewerAuditEventTx } from "../evidence-review/reviewer-audit.service.js";
+
+const NOT_WRITABLE_LIFECYCLES = new Set(["TRASHED", "DESTROYED", "PENDING_DESTRUCTION"]);
+
+/**
+ * PRO-R2Z-03 — THE annotation write rule, as the evidence annotation route
+ * applies it (getEvidenceForCollaborativeWrite): the writer holds
+ * evidence.update_metadata on the record through the canonical record access,
+ * and the record is still open for notes (not trashed, pending destruction or
+ * destroyed). The reviewer workspace was a second writer with weaker
+ * authority.
+ */
+async function annotationWriteRefusal(
+  prisma: PrismaClient,
+  userId: string,
+  evidenceId: string,
+): Promise<AnnotationDenialReason | null> {
+  const access = await resolveEvidenceOperationAccess(
+    { userId, evidenceId, permission: "evidence.update_metadata" },
+    prisma,
+  );
+  if (!access.allowed) return access.visibility === "FORBIDDEN" ? "NOT_PERMITTED" : "ANNOTATION_NOT_FOUND";
+  const state = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { lifecycleState: true, deletedAt: true },
+  });
+  if (!state || state.deletedAt || (state.lifecycleState && NOT_WRITABLE_LIFECYCLES.has(state.lifecycleState))) {
+    return "EVIDENCE_NOT_WRITABLE";
+  }
+  return null;
+}
 
 export type AnnotationDenialReason =
   | "WORKSPACE_NOT_FOUND"
@@ -34,6 +66,7 @@ export type AnnotationDenialReason =
   | "ANNOTATION_NOT_FOUND"
   | "ANNOTATION_ALREADY_RESOLVED"
   | "BULK_SET_TOO_LARGE"
+  | "EVIDENCE_NOT_WRITABLE"
   | "NOT_PERMITTED";
 
 export type AnnotationRow = {
@@ -156,16 +189,29 @@ export async function postAnnotationReply(input: {
   if (parent.parentAnnotationId !== null) {
     return { ok: false, denial: "ANNOTATION_NESTING_INVALID" };
   }
-  const created = await prisma.evidenceAnnotation.create({
-    data: {
+  const refusal = await annotationWriteRefusal(prisma, input.authorUserId, parent.evidenceId);
+  if (refusal) return { ok: false, denial: refusal };
+  // The reply and its reviewer-audit row commit together (as the evidence
+  // annotation route writes ANNOTATION_CREATED).
+  const created = await prisma.$transaction(async (tx) => {
+    const row = await tx.evidenceAnnotation.create({
+      data: {
+        evidenceId: parent.evidenceId,
+        authorUserId: input.authorUserId,
+        annotationType: "TEXT",
+        coordinateSpace: "DOCUMENT_PAGE",
+        body: input.body,
+        parentAnnotationId: parent.id,
+      },
+      select: { id: true },
+    });
+    await appendReviewerAuditEventTx(tx, {
       evidenceId: parent.evidenceId,
-      authorUserId: input.authorUserId,
-      annotationType: "TEXT",
-      coordinateSpace: "DOCUMENT_PAGE",
-      body: input.body,
-      parentAnnotationId: parent.id,
-    },
-    select: { id: true },
+      actorUserId: input.authorUserId,
+      eventType: "ANNOTATION_CREATED",
+      metadata: { annotationId: row.id, parentAnnotationId: parent.id, via: "reviewer_workspace" },
+    });
+    return row;
   });
   return { ok: true, annotationId: created.id };
 }
@@ -188,6 +234,7 @@ export async function resolveAnnotation(input: {
     },
     select: {
       id: true,
+      evidenceId: true,
       resolvedAtUtc: true,
       evidence: { select: { teamId: true } },
     },
@@ -198,13 +245,27 @@ export async function resolveAnnotation(input: {
   if (row.resolvedAtUtc !== null) {
     return { ok: false, denial: "ANNOTATION_ALREADY_RESOLVED" };
   }
-  await prisma.evidenceAnnotation.update({
-    where: { id: row.id },
-    data: {
-      resolvedAtUtc: new Date(),
-      resolvedByUserId: input.actorUserId,
-    },
+  const refusal = await annotationWriteRefusal(prisma, input.actorUserId, row.evidenceId);
+  if (refusal) return { ok: false, denial: refusal };
+  // Compare-and-swap on "still unresolved": of two racing resolves one wins.
+  const won = await prisma.$transaction(async (tx) => {
+    const moved = await tx.evidenceAnnotation.updateMany({
+      where: { id: row.id, resolvedAtUtc: null },
+      data: {
+        resolvedAtUtc: new Date(),
+        resolvedByUserId: input.actorUserId,
+      },
+    });
+    if (moved.count === 0) return false;
+    await appendReviewerAuditEventTx(tx, {
+      evidenceId: row.evidenceId,
+      actorUserId: input.actorUserId,
+      eventType: "ANNOTATION_UPDATED",
+      metadata: { annotationId: row.id, resolved: true, via: "reviewer_workspace" },
+    });
+    return true;
   });
+  if (!won) return { ok: false, denial: "ANNOTATION_ALREADY_RESOLVED" };
   return { ok: true };
 }
 
@@ -235,14 +296,37 @@ export async function bulkResolveAnnotations(input: {
         AND: [evidenceVisibleThroughCasesWhere(input.actorUserId)],
       },
     },
-    select: { id: true },
+    select: { id: true, evidenceId: true },
   });
   if (candidates.length === 0) return { ok: true, resolved: 0 };
-  const ids = candidates.map((c) => c.id);
+  // PRO-R2Z-03 — each record answers the canonical write rule once; an
+  // annotation on a record the actor may not write is left as it is.
+  const writable = new Map<string, boolean>();
+  for (const c of candidates) {
+    if (!writable.has(c.evidenceId)) {
+      writable.set(c.evidenceId, (await annotationWriteRefusal(prisma, input.actorUserId, c.evidenceId)) === null);
+    }
+  }
+  const allowed = candidates.filter((c) => writable.get(c.evidenceId) === true);
+  if (allowed.length === 0) return { ok: true, resolved: 0 };
   const now = new Date();
-  await prisma.evidenceAnnotation.updateMany({
-    where: { id: { in: ids } },
-    data: { resolvedAtUtc: now, resolvedByUserId: input.actorUserId },
+  const resolved = await prisma.$transaction(async (tx) => {
+    let count = 0;
+    for (const c of allowed) {
+      const moved = await tx.evidenceAnnotation.updateMany({
+        where: { id: c.id, resolvedAtUtc: null },
+        data: { resolvedAtUtc: now, resolvedByUserId: input.actorUserId },
+      });
+      if (moved.count === 0) continue;
+      count += 1;
+      await appendReviewerAuditEventTx(tx, {
+        evidenceId: c.evidenceId,
+        actorUserId: input.actorUserId,
+        eventType: "ANNOTATION_UPDATED",
+        metadata: { annotationId: c.id, resolved: true, via: "reviewer_workspace_bulk" },
+      });
+    }
+    return count;
   });
-  return { ok: true, resolved: ids.length };
+  return { ok: true, resolved };
 }

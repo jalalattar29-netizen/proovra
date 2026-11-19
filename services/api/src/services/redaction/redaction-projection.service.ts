@@ -82,7 +82,9 @@ export async function projectRedactionProject(input: {
       evidenceId: project.evidenceId,
       artifactKind: project.artifactKind as RedactionArtifactKind,
       title: project.title,
-      state: project.state as RedactionProjectState,
+      // PRO-R3-13 — legacy rows carry the column default OPEN, which is not a
+      // declared project state; it reads as DRAFT.
+      state: (project.state === "OPEN" ? "DRAFT" : project.state) as RedactionProjectState,
       createdByUserId: project.createdByUserId,
       createdAtUtc: project.createdAt.toISOString(),
       publishedVersion,

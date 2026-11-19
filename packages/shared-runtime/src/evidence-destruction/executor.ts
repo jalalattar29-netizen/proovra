@@ -1061,6 +1061,27 @@ export async function executeEvidenceDestruction(
     await tx.evidenceAnnotation.updateMany({ where: { evidenceId: evidence.id }, data: { body: null } });
     await tx.evidenceLegalNote.updateMany({ where: { evidenceId: evidence.id }, data: { body: "" } });
     await tx.evidenceReviewerComment.updateMany({ where: { evidenceId: evidence.id }, data: { body: "" } });
+    // PRO-R3-09 — redaction rows reach the record through its project
+    // (REDACTION_TABLE_TOMBSTONE_CLASS): detections are derived from the
+    // content and go; titles, labels and rationale people wrote are cleared;
+    // who did what and when stays.
+    const redactionVersionWhere = { project: { evidenceId: evidence.id } };
+    await tx.redactionDetection.deleteMany({ where: { version: redactionVersionWhere } });
+    // PRO-R3-04 — page previews are images of the content itself.
+    await tx.redactionPagePreview.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.redactionRegion.updateMany({ where: { version: redactionVersionWhere }, data: { label: null, rationale: null } });
+    await tx.redactionApproval.updateMany({ where: { version: redactionVersionWhere }, data: { rationale: null } });
+    await tx.redactionVersion.updateMany({ where: redactionVersionWhere, data: { rationale: null } });
+    const redactionVersionIds = (
+      await tx.redactionVersion.findMany({ where: redactionVersionWhere, select: { id: true } })
+    ).map((v) => v.id);
+    if (redactionVersionIds.length > 0) {
+      await tx.redactionDecision.updateMany({
+        where: { versionId: { in: redactionVersionIds } },
+        data: { rationale: null, modifiedRegionGeometry: prismaPkg.Prisma.DbNull },
+      });
+    }
+    await tx.redactionProject.updateMany({ where: { evidenceId: evidence.id }, data: { title: null } });
 
     // The tombstone. The row stays; the content pointers do not.
     // ET-SEC-12 — the tombstone is written only over THIS executor's own
@@ -1157,7 +1178,7 @@ async function enumerateStorageTargets(
   const caseIds = (
     await prisma.caseEvidenceLink.findMany({ where: { evidenceId }, select: { caseId: true } })
   ).map((l) => l.caseId);
-  const [parts, reports, packages, derivatives, derivedAssets, siuExports] = await Promise.all([
+  const [parts, reports, packages, derivatives, derivedAssets, pagePreviews, siuExports] = await Promise.all([
     prisma.evidencePart.findMany({
       where: { evidenceId },
       select: { storageBucket: true, storageKey: true },
@@ -1178,6 +1199,11 @@ async function enumerateStorageTargets(
       where: { evidenceId, storageKey: { not: null } },
       select: { storageBucket: true, storageKey: true },
     }),
+    // PRO-R3-04 — the redaction editor's rendered page images of this record.
+    prisma.redactionPagePreview.findMany({
+      where: { evidenceId, storageKey: { not: null } },
+      select: { storageBucket: true, storageKey: true },
+    }),
     // (2026-09-29, audit H2) An SIU export bundle of any case this record is
     // linked to carries its report and verification package.
     caseIds.length
@@ -1195,7 +1221,7 @@ async function enumerateStorageTargets(
       key: row.storageKey,
       required: true,
     })),
-    ...[...derivatives, ...derivedAssets].map((row) => ({
+    ...[...derivatives, ...derivedAssets, ...pagePreviews].map((row) => ({
       bucket: row.storageBucket,
       key: row.storageKey,
     })),

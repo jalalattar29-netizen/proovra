@@ -57,6 +57,7 @@ import { ReviewerWorkflowCard } from "../components/ReviewerWorkflowCard";
 import { EvidenceReviewActionsPanel } from "../components/EvidenceReviewActionsPanel";
 import { ReviewerAuditTrailSection } from "../components/ReviewerAuditTrailSection";
 import { EvidenceCopilotPanel } from "../../../../../components/ai-copilot/EvidenceCopilotPanel";
+import { ExternalReviewSubjectPanel } from "../../../../../components/external-review/ExternalReviewSubjectPanel";
 // The READ of the one group-responsibility authority, shared with both Case
 // detail branches so all three surfaces say the same thing.
 import { TeamResponsibilityPanel } from "../../../../../components/collaboration/TeamResponsibilityPanel";
@@ -346,6 +347,15 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             </p>
           </div>
         ) : null}
+
+        {/* PRO-R1-01 / DEC-01 — External Review on the record: issue, list,
+            inspect and revoke over the existing grant routes. Shown where the
+            plan includes it or invitations already exist; the server decides
+            role, reach, step-up and lifecycle. */}
+        <ExternalReviewSubjectPanel
+          teamId={(evidence as { teamId?: string | null }).teamId ?? workspace.reviewWorkflow?.teamId ?? null}
+          subject={{ kind: "EVIDENCE", evidenceId: evidence.id }}
+        />
 
         {/* Phase EVIDENCE-LIBRARY-ENTERPRISE-GATE (FIX 6) — Reviewer Comments,
             Legal Notes and Annotations are enterprise / collaboration /

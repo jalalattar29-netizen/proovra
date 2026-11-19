@@ -81,7 +81,9 @@ describe("ENT-01 — Team features on the Personal Workspace", () => {
   it("an invited MEMBER works records but does not administer the workspace", () => {
     const caps = personal("MEMBER", TEAM_PLAN);
     expect(caps.CASES_MANAGE).toBe(true);
-    expect(caps.REVIEW_ASSIGN).toBe(true);
+    // PRO-R2-03 / DEC-17 — handing work to others is the OWNER / ADMIN power.
+    expect(caps.REVIEW_ASSIGN).toBe(false);
+    expect(caps.REVIEWER_OPS_ACT).toBe(true);
     expect(caps.SETTINGS_MANAGE).toBe(false);
     expect(caps.TEAM_MANAGE).toBe(false);
     expect(caps.CASE_ASSIGN).toBe(false);

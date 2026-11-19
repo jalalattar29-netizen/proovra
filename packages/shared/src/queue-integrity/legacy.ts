@@ -261,6 +261,26 @@ export const LEGACY_PAYLOAD_ADAPTERS: ReadonlyArray<LegacyPayloadAdapter> = [
     owner: "platform-redaction",
   },
 
+  // PRO-R3-04 (2026-11-19) — `RenderRedactionPagePreview` was introduced with
+  // the canonical envelope, so NO pre-Point-5 payload of it can exist. The
+  // classification is stated rather than omitted: a payload on this queue
+  // without `schemaVersion` was not written by any producer of this job, and
+  // it is quarantined, never adapted.
+  {
+    jobName: "RenderRedactionPagePreview",
+    disposition: "quarantine",
+    oldSchema: "(none: the queue was created with the canonical payload)",
+    acceptedVersions: [0],
+    readReference: () => null,
+    discardsAuthorityFields: [],
+    maxQueueRetentionMs: LEGACY_QUEUE_RETENTION_MS,
+    backlogCommand: backlogCommand("redaction-page-preview"),
+    drainCommand:
+      "pnpm --filter proovra-api queue:drain-check -- --queue=redaction-page-preview",
+    removalCondition: removalCondition("redaction-page-preview"),
+    owner: "platform-redaction",
+  },
+
   // ---- Family 8: reconciliation (search projection) -------------------------
   {
     jobName: "RebuildSearchDocument",

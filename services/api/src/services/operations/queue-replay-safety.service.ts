@@ -130,6 +130,13 @@ const ENTRIES: ReadonlyArray<ReplaySafetyEntry> = [
     rationale:
       "Renders a redacted derivative of evidence content; idempotent per derivative version, but it produces a disclosable copy, so step-up gates it.",
   },
+  {
+    queueName: QUEUE_NAMES.REDACTION_PAGE_PREVIEW,
+    jobKind: JOB_NAMES.RENDER_REDACTION_PAGE_PREVIEW,
+    category: "safe",
+    rationale:
+      "Renders one page image for the redaction editor; one row per (project, page) claimed conditionally, read only through the region-authoring gate, never disclosed.",
+  },
   // ---- graph queues ----
   {
     queueName: QUEUE_NAMES.GRAPH_RECONCILE,

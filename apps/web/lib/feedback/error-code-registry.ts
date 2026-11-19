@@ -714,6 +714,8 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   EXTERNAL_REVIEW_GRANT_NOT_FOUND: { disposition: "customer", where: "global" },
   EXTERNAL_REVIEW_GRANT_LIFETIME_INVALID: { disposition: "customer", where: "global" },
   EXTERNAL_REVIEW_GRANT_NOT_RENEWABLE: { disposition: "customer", where: "global" },
+  // PRO-R1-03 — a bulk invitation that asks for SSO is refused with the server's sentence.
+  EXTERNAL_REVIEW_SSO_NOT_SUPPORTED: { disposition: "customer", where: "global" },
   INVITE_NOT_FOUND: {
     disposition: "generic",
     why:

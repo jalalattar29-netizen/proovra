@@ -131,8 +131,9 @@ function EscalationsConsolePageInner() {
       id: string,
       path: string,
       body: Record<string, unknown>,
-    ) => {
-      if (!teamId) return;
+    ): Promise<boolean> => {
+      // PRO-R2-16 — true only on success, so the reason modal keeps its text on a refusal.
+      if (!teamId) return false;
       setBusy(`${id}:${label}`);
       try {
         await apiFetch(
@@ -144,10 +145,12 @@ function EscalationsConsolePageInner() {
           },
         );
         load();
+        return true;
       } catch (err) {
         setError(
           toSafeUserError(err, { message: `Action "${label}" failed.` }).message,
         );
+        return false;
       } finally {
         setBusy(null);
       }
@@ -373,20 +376,21 @@ function EscalationsConsolePageInner() {
         onSubmit={async (reason) => {
           if (!reasonModal) return;
           const { kind, escalationId } = reasonModal;
+          let ok = false;
           if (kind === "ESCALATION_REASSIGN") {
-            await act("reassign", escalationId, "reassign", {
+            ok = await act("reassign", escalationId, "reassign", {
               newAssigneeUserId: reason,
             });
           } else if (kind === "ESCALATION_RESOLVE") {
-            await act("resolve", escalationId, "resolve", {
+            ok = await act("resolve", escalationId, "resolve", {
               resolutionNote: reason,
             });
           } else if (kind === "ESCALATION_SUPPRESS") {
-            await act("suppress", escalationId, "suppress", {
+            ok = await act("suppress", escalationId, "suppress", {
               suppressionReason: reason,
             });
           }
-          setReasonModal(null);
+          if (ok) setReasonModal(null);
         }}
       />
     </PageShell>

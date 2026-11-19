@@ -44,15 +44,29 @@ export type ExternalReviewPackageOutcome =
 
 export async function releaseExternalDisclosurePackage(input: {
   grant: Pick<ExternalReviewGrantRow, "id" | "teamId" | "scopeKind" | "evidenceId" | "allowPackageDownload" | "invitedByUserId">;
+  /**
+   * PRO-R1-07 — for a CASE or PACKAGE grant, the record of the review being
+   * worked, as the CALLER resolved it inside the grant's scope
+   * (resolveWorkflowInGrantScope: the package's record, or a record linked to
+   * the case and not closed by another restricted case). Ignored for an
+   * EVIDENCE grant, whose record is the grant's own.
+   */
+  scopedEvidenceId?: string | null;
   ip: string | null;
   userAgent: string | null;
 }): Promise<ExternalReviewPackageOutcome> {
   const { grant } = input;
-  if (grant.scopeKind !== "EVIDENCE" || !grant.evidenceId || !grant.allowPackageDownload) {
+  const subjectEvidenceId =
+    grant.scopeKind === "EVIDENCE"
+      ? grant.evidenceId
+      : grant.scopeKind === "CASE" || grant.scopeKind === "PACKAGE"
+        ? (input.scopedEvidenceId ?? null)
+        : null;
+  if (!subjectEvidenceId || !grant.allowPackageDownload) {
     return { ok: false, status: 403, code: "package_download_not_granted" };
   }
   const evidence = await prisma.evidence.findUnique({
-    where: { id: grant.evidenceId },
+    where: { id: subjectEvidenceId },
     select: { id: true, teamId: true },
   });
   // A record that left the grant's workspace answers as an inactive grant.

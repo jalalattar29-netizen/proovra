@@ -16,14 +16,38 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   REDACTION_ARTIFACT_KINDS,
+  REDACTION_SOURCE_BYTE_BUDGET,
   isAllowedVersionTransition,
   type RedactionArtifactKind,
   type RedactionDenialReason,
   type RedactionVersionState,
 } from "@proovra/shared";
 
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { evaluateDerivedProductionEligibility } from "@proovra/shared-runtime/media-intelligence";
+
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitRedactionActivity } from "./redaction-activity.service.js";
+import { resolveEffectivePolicy } from "./redaction-policy-store.service.js";
+
+/**
+ * PRO-R3-13 — the artifact kind is the RECORD's, not the caller's: an image
+ * mime type is an IMAGE project, a PDF a PDF project, video/audio their own
+ * (refused later as unsupported media). Unknown -> null (not redactable).
+ */
+function artifactKindForRecord(record: { mimeType: string | null; type: string | null }): RedactionArtifactKind | null {
+  const m = (record.mimeType ?? "").toLowerCase();
+  if (m.startsWith("image/")) return "IMAGE";
+  if (m === "application/pdf") return "PDF";
+  if (m.startsWith("video/")) return "VIDEO";
+  if (m.startsWith("audio/")) return "AUDIO";
+  if (m.length > 0) return null; // a known type no redaction renders
+  // No mime type recorded (legacy): the record's capture type, where it is unambiguous.
+  if (record.type === "PHOTO") return "IMAGE";
+  if (record.type === "VIDEO") return "VIDEO";
+  if (record.type === "AUDIO") return "AUDIO";
+  return null;
+}
 
 /** Prisma's unique-constraint violation (P2002), by its stable code. */
 export function isUniqueViolation(err: unknown): boolean {
@@ -65,10 +89,12 @@ export async function openRedactionProject(
   }
   const prisma = input.prisma ?? defaultPrisma;
 
-  // Workspace-anchored existence check on the evidence row.
+  // Workspace-anchored existence check on the evidence row — through the
+  // canonical workspace scope (a Personal record stored with a NULL team id
+  // belongs to its owner's personal workspace).
   const evidence = await prisma.evidence.findFirst({
-    where: { id: input.evidenceId, teamId: input.teamId },
-    select: { id: true },
+    where: { AND: [{ id: input.evidenceId }, await workspaceEvidenceWhere(input.teamId, prisma as never)] },
+    select: { id: true, mimeType: true, sizeBytes: true, type: true },
   });
   if (!evidence) {
     return { ok: false, denial: "PROJECT_NOT_FOUND" };
@@ -82,6 +108,26 @@ export async function openRedactionProject(
     return { ok: true, projectId: existing.id, opened: false };
   }
 
+  // PRO-R3-13 — a redaction starts only from a SEALED record still in
+  // service (the shared derived-production rule the worker relies on).
+  const eligibility = await evaluateDerivedProductionEligibility(input.evidenceId, prisma as never);
+  if (!eligibility.eligible) {
+    return { ok: false, denial: "EVIDENCE_NOT_ELIGIBLE" };
+  }
+  // The project's media is the record's own.
+  // A record whose media is known must match the requested kind; a record
+  // with no usable media facts (legacy DOCUMENT without a mime type) is left
+  // to the caller's kind, and the renderer still fails closed on wrong media.
+  const recordKind = artifactKindForRecord({ mimeType: evidence.mimeType ?? null, type: (evidence.type as string | null) ?? null });
+  const knownMedia = (evidence.mimeType ?? "").length > 0 || evidence.type !== "DOCUMENT";
+  if (knownMedia && recordKind !== input.artifactKind) {
+    return { ok: false, denial: "ARTIFACT_NOT_REDACTABLE" };
+  }
+  // PRO-W2C2-04 — above the one source budget the copy could never render.
+  if (evidence.sizeBytes !== null && Number(evidence.sizeBytes) > REDACTION_SOURCE_BYTE_BUDGET) {
+    return { ok: false, denial: "SOURCE_TOO_LARGE" };
+  }
+
   let created: { id: string };
   try {
     created = await prisma.redactionProject.create({
@@ -91,6 +137,8 @@ export async function openRedactionProject(
         artifactKind: input.artifactKind,
         title: input.title?.slice(0, 200) ?? null,
         createdByUserId: input.createdByUserId,
+        // PRO-R3-13 — a declared project state (the column default OPEN is not one).
+        state: "DRAFT",
       },
       select: { id: true },
     });
@@ -245,6 +293,39 @@ export async function transitionRedactionVersion(
   const from = version.state as RedactionVersionState;
   if (!isAllowedVersionTransition(from, input.toState)) {
     return { ok: false, denial: "INVALID_TRANSITION" };
+  }
+  // PRO-R3-03 — a version with nothing to mask is not submitted for approval:
+  // it would render and publish an unmasked copy as "redacted".
+  if (input.toState === "IN_REVIEW") {
+    const regionCount = await prisma.redactionRegion.count({
+      where: { versionId: input.versionId, teamId: input.teamId },
+    });
+    if (regionCount === 0) return { ok: false, denial: "VERSION_HAS_NO_REGIONS" };
+  }
+  // PRO-R3-08 — the policy's BLOCK_PUBLICATION rule is enforced where the
+  // version can still be worked: a version with an undecided suggestion of a
+  // blocked kind is not submitted (decisions need a DRAFT), and is not
+  // published if the policy came into force after it was submitted.
+  if (input.toState === "IN_REVIEW" || input.toState === "PUBLISHED") {
+    const effective = await resolveEffectivePolicy({
+      prisma,
+      teamId: input.teamId,
+      projectId: version.projectId,
+    });
+    const blockedKinds = Object.entries(effective.ruleActions ?? {})
+      .filter(([, action]) => action === "BLOCK_PUBLICATION")
+      .map(([kind]) => kind);
+    if (blockedKinds.length > 0) {
+      const undecided = await prisma.redactionDetection.count({
+        where: {
+          versionId: input.versionId,
+          teamId: input.teamId,
+          kind: { in: blockedKinds },
+          decisionState: { in: ["SUGGESTED", "DEFERRED"] },
+        },
+      });
+      if (undecided > 0) return { ok: false, denial: "POLICY_REJECTED" };
+    }
   }
 
   const now = new Date();

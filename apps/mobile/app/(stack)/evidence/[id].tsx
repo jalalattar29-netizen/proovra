@@ -193,6 +193,7 @@ import {
   PublicVerificationSharing,
   VerificationDisclosureCard,
   VerificationLinksHandoffCard,
+  ExternalReviewHandoffCard,
   RecordSummaryCard,
   ReviewHero,
   SnapshotTimingSection,
@@ -1849,6 +1850,8 @@ export default function EvidenceDetailScreen() {
             <ProovraText variant="label" color={theme.color.ink.secondary}>{generationNote}</ProovraText>
           ) : null}
           <LatestVerificationLinkCard shareUrl={shareUrl} publicVerification={publicVerification} />
+          {/* PRO-R1-01 / DEC-01 — External Review is managed on the web: explicit handoff. */}
+          <ExternalReviewHandoffCard manageUrl={webRecordPageUrl(webOrigin(), String(id))} />
           {/* Disclosure is web-only by design: shown read-only here, with an explicit handoff. */}
           {publicVerification ? <VerificationDisclosureCard publicVerification={publicVerification} manageUrl={webRecordPageUrl(webOrigin(), String(id))} /> : null}
           {/* B5B-F-105 — revoke reviewer links / withdraw the page: web-managed, explicit handoff. */}
