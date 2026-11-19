@@ -261,7 +261,11 @@ describe("Point 5 — independent topology discovery", () => {
     ).toEqual([]);
   });
 
-  it("BullMQ processed queues = 10, registrations = 10, processors = 10", () => {
+  it("BullMQ processed queues = 11, registrations = 11, processors = 11", () => {
+    // PRO-R3-04 (2026-11-19) — every 10 below became 11 and the 12 became 13
+    // when `redaction-page-preview` / `RenderRedactionPagePreview` was added
+    // end to end (Queue object, registration, processor binding, QUEUE_NAMES
+    // value, registry entry, JOB_NAMES value); the 2 DLQ sinks are unchanged.
     // ET-Q-07 (2026-09-30) — every 15 below became 10 and the 17 became 12,
     // for ONE reason: five queues that had a registered worker and no producer
     // were retired — `mi-exif`, `mi-search-index`, `graph-domain-sync`,
@@ -275,17 +279,17 @@ describe("Point 5 — independent topology discovery", () => {
     );
     // Derived from discovery, then cross-checked against two independent
     // sources: the shared name authority and the registry.
-    expect(processed).toHaveLength(10);
-    expect(REGISTRATIONS).toHaveLength(10);
-    expect(REGISTRATIONS.filter((r) => r.processor).length).toBe(10);
+    expect(processed).toHaveLength(11);
+    expect(REGISTRATIONS).toHaveLength(11);
+    expect(REGISTRATIONS.filter((r) => r.processor).length).toBe(11);
     expect(
       Object.values(QUEUE_NAMES).filter((q) => !isDlqQueueName(q)),
-    ).toHaveLength(10);
-    expect(getBullMqEntries()).toHaveLength(10);
-    expect(Object.values(JOB_NAMES)).toHaveLength(10);
+    ).toHaveLength(11);
+    expect(getBullMqEntries()).toHaveLength(11);
+    expect(Object.values(JOB_NAMES)).toHaveLength(11);
     // The DLQ sinks are queues with no registration BY DESIGN, which is the
     // whole reason the object count and the registration count differ.
-    expect(QUEUE_OBJECTS).toHaveLength(12);
+    expect(QUEUE_OBJECTS).toHaveLength(13);
     expect(DLQ_SINKS).toHaveLength(2);
   });
 

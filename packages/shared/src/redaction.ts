@@ -991,6 +991,28 @@ export type RedactionDerivativeJobPayload = {
   trace?: string | null;
 };
 
+/**
+ * PRO-R3-04 — the page-preview job: one page of a PDF project's record,
+ * rendered as the image the region editor draws on. Same contract as the
+ * derivative job: `previewId` is the ONLY authoritative field. Queue and job
+ * names are `QUEUE_NAMES.REDACTION_PAGE_PREVIEW` /
+ * `JOB_NAMES.RENDER_REDACTION_PAGE_PREVIEW` (queue-integrity), declared once.
+ */
+export type RedactionPagePreviewJobPayload = {
+  previewId: string;
+  trace?: string | null;
+};
+
+/**
+ * The most pages of one record the editor may ask to have rendered
+ * (0-based index below this). A longer document keeps the blank frame for
+ * the pages beyond it.
+ */
+export const REDACTION_PAGE_PREVIEW_MAX_PAGES = 200;
+
+export const REDACTION_PAGE_PREVIEW_STATES = ["QUEUED", "RENDERING", "READY", "FAILED"] as const;
+export type RedactionPagePreviewState = (typeof REDACTION_PAGE_PREVIEW_STATES)[number];
+
 /** Stable job id derived from the derivative id. */
 export function buildRedactionDerivativeJobId(derivativeId: string): string {
   return `rd-${derivativeId}`;

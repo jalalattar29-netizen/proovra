@@ -51,7 +51,7 @@ import {
 const SOURCE_READ_BUDGET_BYTES = REDACTION_SOURCE_BYTE_BUDGET;
 const REDACTION_S3_PREFIX = "redactions";
 export const REDACTION_RENDER_ENGINE = "redaction-render-v1";
-const PDF_RASTER_SCALE = 2;
+export const PDF_RASTER_SCALE = 2;
 
 type NormalizedRect = { x: number; y: number; width: number; height: number; page?: number };
 
@@ -360,27 +360,38 @@ export async function renderRedactedPdf(source: Buffer, rects: NormalizedRect[])
   return (await renderRedactedPdfCounted(source, rects)).output;
 }
 
+export type PdfRasterCanvasModule = {
+  createCanvas: (w: number, h: number) => {
+    getContext: (t: "2d") => {
+      fillStyle: string;
+      fillRect: (x: number, y: number, w: number, h: number) => void;
+    } & Record<string, unknown>;
+    toBuffer: (mime?: string) => Buffer;
+  };
+  DOMMatrix?: typeof globalThis.DOMMatrix;
+  ImageData?: typeof globalThis.ImageData;
+  Path2D?: typeof globalThis.Path2D;
+};
+
+/**
+ * The ONE canvas the worker rasterises PDF pages onto (the redacted copy and,
+ * PRO-R3-04, the editor's page preview), with the globals PDF.js needs.
+ */
+export async function loadPdfRasterCanvas(): Promise<PdfRasterCanvasModule> {
+  const canvasModule = (await import("@napi-rs/canvas")) as unknown as PdfRasterCanvasModule;
+  if (canvasModule.DOMMatrix && !globalThis.DOMMatrix) globalThis.DOMMatrix = canvasModule.DOMMatrix;
+  if (canvasModule.ImageData && !globalThis.ImageData) globalThis.ImageData = canvasModule.ImageData;
+  if (canvasModule.Path2D && !globalThis.Path2D) globalThis.Path2D = canvasModule.Path2D;
+  return canvasModule;
+}
+
 /** The PDF render, with the number of rectangles actually burned (PRO-R3-03). */
 export async function renderRedactedPdfCounted(
   source: Buffer,
   rects: NormalizedRect[],
 ): Promise<{ output: Buffer; burned: number }> {
   let burned = 0;
-  const canvasModule = (await import("@napi-rs/canvas")) as unknown as {
-    createCanvas: (w: number, h: number) => {
-      getContext: (t: "2d") => {
-        fillStyle: string;
-        fillRect: (x: number, y: number, w: number, h: number) => void;
-      } & Record<string, unknown>;
-      toBuffer: (mime?: string) => Buffer;
-    };
-    DOMMatrix?: typeof globalThis.DOMMatrix;
-    ImageData?: typeof globalThis.ImageData;
-    Path2D?: typeof globalThis.Path2D;
-  };
-  if (canvasModule.DOMMatrix && !globalThis.DOMMatrix) globalThis.DOMMatrix = canvasModule.DOMMatrix;
-  if (canvasModule.ImageData && !globalThis.ImageData) globalThis.ImageData = canvasModule.ImageData;
-  if (canvasModule.Path2D && !globalThis.Path2D) globalThis.Path2D = canvasModule.Path2D;
+  const canvasModule = await loadPdfRasterCanvas();
 
   // The worker's one PDF.js build (see pdf/pdfjs-runtime.ts).
   const { closePdf, openPdf } = await import("../pdf/pdfjs-runtime.js");
