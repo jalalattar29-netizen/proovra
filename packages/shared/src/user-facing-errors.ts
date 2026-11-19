@@ -251,6 +251,14 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "Check the email address and password and try again. If you have forgotten your password, you can reset it.",
     severity: "warning",
   },
+  // PRO-A1-05 — too many wrong second-factor answers on this account: sign-in
+  // is paused for a stated window (429 + Retry-After). Nothing was changed.
+  MFA_TEMPORARILY_LOCKED: {
+    title: "Sign-in is paused for this account",
+    message:
+      "Too many incorrect verification codes were entered. Wait up to 30 minutes, then sign in again. If this was not you, change your password.",
+    severity: "warning",
+  },
   UNAUTHORIZED: {
     title: "Please sign in again",
     message: "Your session may have expired. Sign in again to continue — your evidence data has not been changed.",

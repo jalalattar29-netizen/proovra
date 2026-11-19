@@ -252,7 +252,19 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
           (s) => s.id,
         );
 
-      // Control: while the person is a member, both reach the workspace.
+      // PRO-A2-04 (DEC-08) — an independent (self-serve) member: the workspace
+      // answers for what it issued. The session started in the person's own
+      // space is not the workspace's even while they are a member.
+      const whileIndependentMember = await listed();
+      expect(whileIndependentMember).toContain(startedHere.id);
+      expect(whileIndependentMember).not.toContain(startedElsewhere.id);
+
+      // Control: an identity this Organization's directory originated — while
+      // the person is a member, both sessions reach the workspace.
+      await prisma.user.update({
+        where: { id: u.userId },
+        data: { providerUserId: `scim-${orgId}:g2-departed-${randomUUID().slice(0, 8)}` },
+      });
       expect(await listed()).toEqual(expect.arrayContaining([startedHere.id, startedElsewhere.id]));
 
       await prisma.teamMember.update({ where: { id: u.memberId! }, data: { status: "REVOKED" } });

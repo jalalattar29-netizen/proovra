@@ -32,6 +32,9 @@ const SIGN_IN_FAILURES: ReadonlyArray<[RegExp, string]> = [
   [/browser_mismatch/, "This sign-in was started in a different browser. Start it again here."],
   [/(state_expired|_expired$)/, "That sign-in took too long. Start it again."],
   [/(state_replayed|_replayed$)/, "That sign-in link has already been used. Start it again."],
+  // PRO-A1-05 / PRO-A1-01 — refusals of the second-factor gate after the IdP answered.
+  [/mfa_temporarily_locked/, "Too many incorrect verification codes were entered for this account. Wait up to 30 minutes, then sign in again."],
+  [/security_context_unavailable/, "Sign-in is temporarily unavailable. Nothing was changed; try again in a moment."],
   [/seat_limit_reached/, "Your organization has no seats left. Ask your administrator."],
   [/seat_contention/, "Your organization is busy adding people. Try again in a moment."],
   [/(account_link_denied|managed_identity_conflict)/, "This account cannot be linked to your organization's sign-in. Ask your administrator."],

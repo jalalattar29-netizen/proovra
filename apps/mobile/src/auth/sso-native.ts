@@ -110,6 +110,13 @@ export function ssoFailureMessage(reason: string): string {
     return "Your organization's access is suspended. Ask your administrator.";
   }
   if (reason === "rate_limited") return "Too many sign-in attempts. Wait a minute and try again.";
+  // PRO-A1-05 / PRO-A1-01 — refusals of the second-factor gate after the IdP answered.
+  if (reason === "mfa_temporarily_locked") {
+    return "Too many incorrect verification codes were entered for this account. Wait up to 30 minutes, then sign in again.";
+  }
+  if (reason === "security_context_unavailable") {
+    return "Sign-in is temporarily unavailable. Nothing was changed; try again in a moment.";
+  }
   if (reason.includes("domain") || reason.includes("account_link") || reason.includes("managed_identity_conflict")) {
     return "Your organization did not accept this account for single sign-on. Ask your administrator.";
   }
