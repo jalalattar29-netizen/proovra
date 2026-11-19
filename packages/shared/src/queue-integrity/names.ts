@@ -207,6 +207,23 @@ export const SWEEP_NAMES = {
    */
   TRASH_GRACE_RECONCILER: "TrashGraceReconciliationSweep",
   /**
+   * WS-SCHED / PRO-P3DZ-04 (2026-11-19) — RETENTION-ARCHIVE RESTORE.
+   *
+   * A person asks for an archived record back; the API writes the request row
+   * and answers 202, and this sweep does the work (verify every stored object
+   * against the record, then move it back to ACTIVE). It ran as a timer inside
+   * the trash-grace launcher, outside this registry and outside scheduled-sweep
+   * health, so a stopped or disabled scheduler left requests "in progress" with
+   * nothing saying so. It is now addressable here like every other unit of
+   * asynchronous work, runs under the reconciliation-run authority
+   * (`GovernanceReconciliationKind.ARCHIVE_RESTORE`) and is health-monitored.
+   *
+   * A db_outbox_sweep for the usual reason: the durable authority is the
+   * `EvidenceArchiveRestoreRequest` row the synchronous route committed, and
+   * the sweep claims due rows under a lease rather than receiving a message.
+   */
+  ARCHIVE_RESTORE: "ArchiveRestoreSweep",
+  /**
    * PHASE 12 CORRECTIVE PASS §2 CONTINUATION (ARCH-005, 2026-08-07).
    *
    * THE ONE AUTOMATION EXECUTION AUTHORITY.

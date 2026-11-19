@@ -1020,6 +1020,59 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     projection: "GET /v1/evidence/:id",
   },
   {
+    // WS-SCHED / PRO-P3DZ-04 — see the ARCHIVE_RESTORE note in `names.ts`.
+    workName: SWEEP_NAMES.ARCHIVE_RESTORE,
+    family: "retention_destruction",
+    familyReason:
+      "Brings a retention-archived record back to ACTIVE after verifying every stored object against it; a retention lifecycle mutation of the Evidence record, the inverse of the archive boundary.",
+    transport: "db_outbox_sweep",
+    queueName: null,
+    implementation: "CURRENT_RUNTIME",
+    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
+    jobIdPrefix: null,
+    // The request row IS the outbox: written by the authorized route
+    // (POST /v1/evidence/:id/archive-restore) in the transaction that answers
+    // 202. The record, and with it the workspace, is re-read from Evidence at
+    // execution: a request whose record is no longer RETENTION_ARCHIVED (or is
+    // claimed for destruction) fails STATE_CHANGED and restores nothing.
+    durableAuthority: {
+      model: "EvidenceArchiveRestoreRequest",
+      tenantSource: "Evidence.teamId",
+      createdBySynchronousPath: true,
+    },
+    canonicalProducer: WORKER_INDEX,
+    canonicalProcessor: "services/worker/src/governance/archive-restore.ts",
+    workerRegistration: WORKER_INDEX,
+    // `claimRequest`: one conditional updateMany takes a REQUESTED row, or a
+    // RUNNING row whose lease expired, to RUNNING with a fresh 15-minute lease
+    // (`ARCHIVE_RESTORE_LEASE_MS`) and counts the attempt. A live RUNNING row
+    // matches nothing, so a second sweeper does no work on it.
+    claim: {
+      from: "REQUESTED",
+      to: "RUNNING",
+      mechanism: "conditional_update_many",
+      leaseField: "leaseUntilUtc",
+      leaseMs: 15 * 60 * 1000,
+    },
+    // COMPLETED and FAILED are both written by this module, each conditional
+    // on the row still being RUNNING (and, for COMPLETED, on the record still
+    // being archived, under the record's advisory lock).
+    terminalWriter: "services/worker/src/governance/archive-restore.ts",
+    idempotency: ["conditional_state_claim"],
+    // Its own recovery: an expired lease is due again on the next tick, and a
+    // request that was claimed ARCHIVE_RESTORE_MAX_ATTEMPTS times without
+    // finishing is failed terminally instead of being re-run forever.
+    reconciler: "services/worker/src/governance/archive-restore.ts",
+    retry: RETRY_POLICIES.SWEEP,
+    recovery: RECOVERY_POLICIES.SWEEP,
+    // Object storage, READ ONLY: every original, report and package object is
+    // re-read. A store that cannot answer is not a verdict on the bytes: the
+    // request goes back to REQUESTED (bounded by the attempt ceiling).
+    externalBoundary: "storage",
+    auditFamily: "governance.archive_restore",
+    projection: "GET /v1/evidence/:id",
+  },
+  {
     workName: SWEEP_NAMES.CAPTURE_DRAFT_REAPER,
     family: "retention_destruction",
     familyReason:

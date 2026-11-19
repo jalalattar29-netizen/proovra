@@ -44,6 +44,14 @@ import {
   type IntegrityObjectReader,
 } from "../integrity-recheck.js";
 
+/**
+ * WS-SCHED / PRO-P3DZ-04 — the registered work this module recovers
+ * (SWEEP_NAMES keys, as the work registry addresses it). The sweep is its own
+ * reconciler: a request whose lease expired is due again on the next tick, and
+ * the attempt ceiling retires one that never finishes.
+ */
+export const RECOVERED_WORK_TYPES = ["ARCHIVE_RESTORE"] as const;
+
 /** How long one claimed attempt may run before another worker may resume it. */
 export const ARCHIVE_RESTORE_LEASE_MS = 15 * 60 * 1000;
 /** Transient storage failures retried this many times before FAILED. */

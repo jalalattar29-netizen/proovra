@@ -602,6 +602,8 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
       "test/point5/family-retention-destruction.integration.test.ts",
       "test/point5/family-retention-sweeps.integration.test.ts",
       "test/point5/family-trash-grace.integration.test.ts",
+      // WS-SCHED / PRO-P3DZ-04 — the archive-restore sweep's own suite.
+      "test/point5/archive-restore-sweep.integration.test.ts",
     ],
     units: [
       {
@@ -678,6 +680,25 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
           "archive.claim.active_not_stolen",
           "archive.idempotency.duplicate_is_noop",
           "archive.terminal.stale_cannot_overwrite",
+        ],
+        inapplicable: { "payload.rejects_unknown_field": "no_queue_payload" },
+      },
+      {
+        // WS-SCHED / PRO-P3DZ-04 (2026-11-19).
+        workName: "ArchiveRestoreSweep",
+        executor: "services/worker/src/governance/archive-restore.ts",
+        cases: [
+          "archiverestore.durable.intent_before_work",
+          "archiverestore.tenant.workspace_reloaded",
+          "archiverestore.tenant.cross_workspace_denied",
+          "archiverestore.claim.one_winner",
+          "archiverestore.claim.active_not_stolen",
+          "archiverestore.idempotency.duplicate_is_noop",
+          "archiverestore.terminal.stale_cannot_overwrite",
+          // Object storage is a genuine external read here: a store that
+          // cannot answer is never a verdict on the bytes. The request goes
+          // back to REQUESTED and the record stays archived.
+          "archiverestore.provider.unknown_outcome_non_terminal",
         ],
         inapplicable: { "payload.rejects_unknown_field": "no_queue_payload" },
       },

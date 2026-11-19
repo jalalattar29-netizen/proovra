@@ -95,6 +95,9 @@ import {
 import { runImmutableStorageReconciliation } from "./governance/immutable-storage-reconciliation.worker.js";
 // Phase 4B Final Closure I7 — Archive tier auto-transition scheduler.
 import { runArchiveTierAutoTransitions } from "./governance/archive-tier-auto-transition.worker.js";
+// PRO-P3DZ-04 — a registered sweep: its executor is a static import, like
+// every other launcher's, so the work registry resolves it.
+import { runArchiveRestoreSweep } from "./governance/archive-restore.js";
 // Reviewer Ops activation — periodic reconcile tick across all teams.
 import { runReviewerReconciliation } from "./reviewer-ops/reviewer-reconciliation.worker.js";
 // Macro-Wave A2 — org-invite delivery sweep tick (stranded/due PENDING
@@ -972,7 +975,6 @@ async function runArchiveRestoreTick() {
   try {
     // PRO-P3DZ-04 — under the reconciliation-run authority, so the platform
     // health snapshot can tell a running sweep from a stopped one.
-    const { runArchiveRestoreSweep } = await import("./governance/archive-restore.js");
     await withCronLock("archive-restore", () => runArchiveRestoreSweep());
   } catch (err) {
     logger.error({ err }, "archive_restore.sweep.failed");
@@ -1004,7 +1006,14 @@ function startTrashGraceReconcilerScheduler() {
   } else {
     logger.info({}, "trash_grace.reconciler.scheduler.disabled");
   }
-  // AUD-0001 — restore is started whatever the trash-grace switch says.
+}
+/**
+ * WS-SCHED / PRO-P3DZ-04 — ArchiveRestoreSweep has its OWN launcher
+ * (SWEEP_NAMES.ARCHIVE_RESTORE in the work registry). AUD-0001 still holds, by
+ * construction now: it does not sit inside the trash-grace launcher at all, so
+ * that switch cannot stop a restore a person is waiting for.
+ */
+function startArchiveRestoreScheduler() {
   if (archiveRestoreEnabled) {
     archiveRestoreTimer = setInterval(() => {
       void runArchiveRestoreTick();
@@ -2432,6 +2441,7 @@ function openConsumers(): void {
   }
   startRedactionReconcilerScheduler();
   startTrashGraceReconcilerScheduler();
+  startArchiveRestoreScheduler();
   startSearchIndexReconcilerScheduler();
   startIntelligenceRunReconcilerScheduler();
   logger.info({ workers: REGISTERED_WORKERS.filter(([, w]) => w).length }, "worker.consumers_started");
