@@ -457,7 +457,11 @@ describe("R8.1.1 Part 8 — step-up uses the same factor model", () => {
     // bound to one pending challenge by a hashed single-use token. Every
     // approval and consume stays in step-up.service.ts (the invariant test
     // above still holds).
-    const expected = 59090;
+    // Rebaselined 2026-11-19 (remediation integration) to 62092: the file sat
+    // at the top of the band (61753); WS-AUTH's scoped-authority fixes and
+    // another workstream's fix each stayed inside it alone, the merge did not.
+    // No step-up authority was added (the invariant test above still holds).
+    const expected = 62092;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);
