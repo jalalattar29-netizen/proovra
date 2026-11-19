@@ -35,7 +35,7 @@
  *   --api-port=N         API port (default 4000 — the extension's default origin)
  *   --web-port=N         Web port (default 3311)
  *   --fixture-port=N     fixture server port (default 4599)
- *   --skip-web           do not start Next.js (Library/Detail read is via API)
+ *   --skip-web           REFUSED: sign-in is confirmed on the web page (PRO-X1-01)
  *   --browsers=a,b       chromium,edge (default both)
  *   --keep-up            leave API/worker/web running after the run (for debugging)
  *
@@ -89,6 +89,8 @@ const MINIO_IMAGE =
 const DEFAULT_DB_URL = `postgresql://${PG_USER}:${PG_PASSWORD}@127.0.0.1:${PG_HOST_PORT}/${PG_DB}`;
 const DEFAULT_REDIS_URL = `redis://127.0.0.1:${REDIS_HOST_PORT}/0`;
 const DEFAULT_S3_ENDPOINT = `http://127.0.0.1:${MINIO_HOST_PORT}`;
+/** PRO-X1-01 — the web page where the person confirms connecting the extension. */
+const EXTENSION_CONSENT_PATH = "/auth/extension/continue";
 
 function flag(name) {
   return process.argv.includes(`--${name}`);
@@ -572,6 +574,10 @@ async function main() {
   // Stale results from an earlier run must never be read as this run's.
   prepareResultDirs();
   assertLocalDisposable();
+  // PRO-X1-01 — the extension sign-in is confirmed on a WEB page, so a stack
+  // without the web app cannot sign in: refused here, by name, rather than as
+  // eleven AUTH-stage timeouts.
+  if (config.skipWeb) fail("--skip-web cannot run this acceptance: sign-in needs the web confirmation page (/auth/extension/continue).");
 
   // The worker renders the Report PDF with Puppeteer; without a browser the
   // Report and Package fail forever (RETRYABLE_FAILURE). Resolve one up front.
@@ -691,6 +697,15 @@ async function main() {
     await waitForHttp(`${apiOrigin}/healthz`, "API", { expectStatus: 200 });
     await waitForHttp(`${apiOrigin}/readyz`, "API (DB ready)", { expectStatus: 200 });
     await waitForHttp(fixtureOrigin, "fixture server");
+    // PRO-X1-01 — sign-in passes through the WEB confirmation page: authorize
+    // sends the extension's auth window to /auth/extension/continue, where the
+    // person presses "Connect". The web app is therefore part of the stack the
+    // acceptance needs READY (it was started but never waited for), and
+    // `next dev` compiles a route on its first request — so the page is
+    // requested here, once, rather than inside a test's bounded AUTH stage.
+    await waitForHttp(`http://localhost:${config.webPort}${EXTENSION_CONSENT_PATH}`, "web (extension confirmation page)", {
+      expectStatus: 200,
+    });
 
     // 5. Run the Playwright acceptance per requested browser.
     const e2eDir = resolve(REPO_ROOT, "apps/extension/e2e");

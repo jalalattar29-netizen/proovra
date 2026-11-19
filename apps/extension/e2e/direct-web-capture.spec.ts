@@ -6,8 +6,9 @@
  *   1. SIGN-IN — the popup's own "Sign in" button. The background runs the
  *      extension's real `chrome.identity.launchWebAuthFlow` against the real
  *      /v1/oauth/extension/authorize (the browser carries the seeded user's
- *      proovra_session cookie, as a signed-in web session would), receives the
- *      302 to its chromiumapp.org redirect and exchanges the PKCE-bound code at
+ *      proovra_session cookie, as a signed-in web session would), is sent to
+ *      the web confirmation page where "Connect" is pressed (PRO-X1-01), receives
+ *      the 302 to its chromiumapp.org redirect and exchanges the PKCE-bound code at
  *      /v1/oauth/extension/token. Nothing is injected into extension storage.
  *   2. CAPTURE — the popup lists the workspace from the real platform context
  *      (UC-EXT-001), the case picker lists the seeded case (UC-EXT-010), and the
@@ -57,6 +58,8 @@ const TEAM = process.env.PROOVRA_E2E_TEAM_ID ?? "";
 const CASE_ID = process.env.PROOVRA_E2E_CASE_ID ?? "";
 const EXTENSION_ID = process.env.PROOVRA_E2E_EXTENSION_ID ?? "";
 const FIXTURES = process.env.FIXTURE_ORIGIN ?? "http://127.0.0.1:4599";
+/** PRO-X1-01 — the web confirmation page the extension's auth window is sent to. */
+const EXTENSION_CONSENT_PATH = "/auth/extension/continue";
 
 const ACQ_MODE = "DIRECT_WEB_CAPTURE_EXTENSION";
 
@@ -402,6 +405,43 @@ async function openPopupFor(context: BrowserContext, sw: Worker, targetTabId: nu
 }
 
 /**
+ * PRO-X1-01 (DEC-29) — the extension's REAL sign-in, including the person's
+ * explicit confirmation. The popup button starts the background's
+ * launchWebAuthFlow; /v1/oauth/extension/authorize no longer issues a code on
+ * the web session alone: it sends the auth window to the web confirmation page
+ * (/auth/extension/continue), where the signed-in person presses "Connect".
+ * That page mints the session-bound approval and re-enters authorize, which
+ * then 302s to the chromiumapp.org redirect. The test presses the page's own
+ * Connect button in the auth window; nothing is minted or injected around it.
+ * Bounded by the caller's AUTH stage.
+ */
+async function signInThroughPopup(context: BrowserContext, popup: Page): Promise<void> {
+  await popup.getByTestId("sign-out").or(popup.getByTestId("sign-in")).first().waitFor({ timeout: 10_000 });
+  if (await popup.getByTestId("sign-in").isVisible()) {
+    await popup.getByTestId("sign-in").click();
+    const deadline = Date.now() + 30_000;
+    let consent: Page | undefined;
+    while (!consent && Date.now() < deadline) {
+      consent = context.pages().find((p) => p.url().includes(EXTENSION_CONSENT_PATH));
+      if (!consent) await new Promise((r) => setTimeout(r, 200));
+    }
+    if (!consent) {
+      const open = context.pages().map((p) => p.url().split("?")[0]).join(", ");
+      throw new Error(`the auth window never reached ${EXTENSION_CONSENT_PATH} (open pages: ${open})`);
+    }
+    const authWindow = consent;
+    const connect = authWindow.locator('[data-extension-continue-action="connect"]');
+    await connect.waitFor({ state: "visible", timeout: 30_000 });
+    await expect(connect, "the confirmation names the account being connected").toContainText("Connect as ");
+    // The auth window closes itself on the redirect, so the click may race it.
+    await connect.click().catch((err: unknown) => {
+      if (!authWindow.isClosed()) throw err;
+    });
+  }
+  await popup.getByTestId("signed-in").waitFor({ state: "visible", timeout: 45_000 });
+}
+
+/**
  * The OAuth endpoints answer as the API (not the web app on the wrong port),
  * and a SIGNED-OUT auth window is sent to sign in rather than shown 401 JSON
  * (UC-EXT-006) — probed live on the running stack.
@@ -480,13 +520,11 @@ for (const fixture of ["static", "long", "spa", "mutating"]) {
       const popup = await stage("POPUP", STAGE_TIMEOUT.POPUP, () => openPopupFor(context, sw, fixtureTabId));
 
       // AUTH — the extension's REAL sign-in: popup button -> background
-      // launchWebAuthFlow -> authorize (302 to chromiumapp.org) -> token.
+      // launchWebAuthFlow -> authorize -> web confirmation ("Connect",
+      // PRO-X1-01) -> authorize with the approval (302 to chromiumapp.org)
+      // -> token.
       await stage("AUTH", STAGE_TIMEOUT.AUTH, async () => {
-        await popup.getByTestId("sign-out").or(popup.getByTestId("sign-in")).first().waitFor({ timeout: 10_000 });
-        if (await popup.getByTestId("sign-in").isVisible()) {
-          await popup.getByTestId("sign-in").click();
-        }
-        await popup.getByTestId("signed-in").waitFor({ state: "visible", timeout: 45_000 });
+        await signInThroughPopup(context, popup);
         const redirect = await sw.evaluate(() => chrome.identity.getRedirectURL("oauth2"));
         expect(redirect).toBe(`https://${EXTENSION_ID}.chromiumapp.org/oauth2`);
       });
@@ -576,9 +614,7 @@ async function signedInPopup(channel: string, fixture: string): Promise<SignedIn
   await context.addCookies([{ name: "proovra_session", value: SESSION_BEARER, url: API }]);
   const popup = await stage("POPUP", STAGE_TIMEOUT.POPUP, () => openPopupFor(context, sw, fixtureTabId));
   await stage("AUTH", STAGE_TIMEOUT.AUTH, async () => {
-    await popup.getByTestId("sign-out").or(popup.getByTestId("sign-in")).first().waitFor({ timeout: 10_000 });
-    if (await popup.getByTestId("sign-in").isVisible()) await popup.getByTestId("sign-in").click();
-    await popup.getByTestId("signed-in").waitFor({ state: "visible", timeout: 45_000 });
+    await signInThroughPopup(context, popup);
   });
   await stage("WORKSPACE", 20_000, async () => {
     await expect(popup.locator(`[data-testid="workspace"] option[value="${TEAM}"]`)).toHaveCount(1, { timeout: 15_000 });
