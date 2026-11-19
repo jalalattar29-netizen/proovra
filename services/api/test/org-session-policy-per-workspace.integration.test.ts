@@ -241,6 +241,9 @@ describe("Organization security policy per workspace (live PostgreSQL)", () => {
     const org = await seedOrganizationTenant(deps, { memberCount: 1 });
     const other = await seedOrganizationTenant(deps);
     const member = org.members[0]!;
+    // PRO-A2-03 — the tenant fixture seeds directory-provisioned members; the
+    // independent account this case starts from is seeded explicitly.
+    await prisma.user.update({ where: { id: member.userId }, data: { providerUserId: member.email } });
 
     // PRO-A2-04 (DEC-08) — an independent (self-serve) member: a session that
     // started outside the workspace is the person's own. The workspace neither
