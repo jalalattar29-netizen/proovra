@@ -279,7 +279,9 @@ export const PRE_CR5_PAGE_BYTES = 54441;
 // bridged part's metadata (C-05), and forgets/aborts a settled resumable upload. Client transport and compat only:
 // the server still decides digest, size, binding and storage limits.
 // Rebaselined 2026-11-19 (remediation integration): 48,056 -> 49,780 — WS-CAP capture-session remediation (upload/seal roots on the web capture hook).
-export const PRE_CR5_ORCH_BYTES = 49780;
+// Rebaselined 2026-11-19 (remediation integration, High-review fixes): 49,780 -> 51,734 — WS-CAP PRO-C1-01 review gaps 1, 3, 4:
+// a reservation and its draft keep their workspace by identity, Personal included.
+export const PRE_CR5_ORCH_BYTES = 51734;
 // PHASE 13 rebaseline (2026-08-17): 13,423 → 13,630 — NEW-036. `StartResumableInput`
 // gained one optional pass-through flag, `multipartAlreadyInitiated`, and the one
 // line that forwards it to `MultipartUploader`. The capture orchestration runs
