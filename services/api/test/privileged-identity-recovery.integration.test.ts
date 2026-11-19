@@ -213,6 +213,9 @@ describe("privileged identity — factor removal authority (live PostgreSQL)", (
       // PRO-A2-05 (DEC-08) — an independent member's factors are their own
       // account's: refused, nothing revoked. The control is an identity this
       // Organization's directory originated.
+      // PRO-A2-03 — a seeded member is directory-provisioned; the refused half
+      // needs a self-serve account, stated here.
+      await prisma.user.update({ where: { id: m.userId }, data: { providerUserId: m.email } });
       const selfServe = await call(
         "POST",
         `/v1/identity/mfa-admin/factors/${o.workspaceId}/${m.userId}/${factor.id}/revoke`,

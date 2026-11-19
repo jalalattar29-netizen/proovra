@@ -520,7 +520,9 @@ describe("the Enterprise contract and its lifecycle (live PostgreSQL)", () => {
       const data = (res.json() as { data: Record<string, { limit: number | null; used: number; remaining: number | null }> }).data;
       expect(data.analyses).toMatchObject({ limit: 250, used: 0, remaining: 250 });
       expect(data.batchJobs).toMatchObject({ limit: null, remaining: null });
-      expect(data.apiKeys).toMatchObject({ limit: null, remaining: null });
+      // PRO-G1-11 / PRO-G2-11 — API keys now show the limit key creation
+      // enforces (INTEGRATION_API_KEYS_MAX; 100 in the Enterprise catalogue).
+      expect(data.apiKeys).toMatchObject({ limit: 100, used: 0, remaining: 100 });
     });
 
     it("the routes that spend pass the plan answer to the policy", () => {
@@ -529,12 +531,22 @@ describe("the Enterprise contract and its lifecycle (live PostgreSQL)", () => {
         "src/routes/ai-case.routes.ts",
         "src/routes/ai-reviewer.routes.ts",
         "src/routes/search.routes.ts",
-        "src/services/intelligence/semantic.service.ts",
       ]) {
         expect(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), file).toMatch(
           /planAllowed: await workspaceIncludesAiOperations\(/,
         );
       }
+      // RG-04 (PRO-AI1C-01) — live indexing asks the one semantic-egress gate,
+      // and that gate is where the plan answer reaches the policy.
+      expect(
+        readFileSync(new URL("../src/services/intelligence/semantic.service.ts", import.meta.url), "utf8"),
+        "semantic.service.ts",
+      ).toMatch(/await evaluateSemanticEgress\(\{ teamId: input\.teamId/);
+      const gate = readFileSync(new URL("../src/services/ai/workspace-ai-policy.service.ts", import.meta.url), "utf8");
+      const egress = gate.slice(gate.indexOf("export async function evaluateSemanticEgress("));
+      expect(egress.slice(0, egress.indexOf("\n}\n")), "evaluateSemanticEgress").toMatch(
+        /const planAllowed = await workspaceIncludesAiOperations\(input\.teamId\);[\s\S]*evaluateBackgroundAiPolicy\([^)]*planAllowed\)[\s\S]*\n\s+planAllowed,/,
+      );
     });
   });
 
