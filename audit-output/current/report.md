@@ -10,7 +10,7 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
+| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
 | ProductClosure       | OPEN    | release-blocking measured facts + undisposed routes                   |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
@@ -21,20 +21,20 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 3060156824052d5a5c3b959ee66c8c1f0080f9ca0cfd64d3445e19bce6a3c5ff |
+| engineHash    | 53cb1e66020fbe1029bbeb8b3e261cfa2075b00506f0f1e20c7905aa0b07b076 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1247  |
+| registeredRoutes              | 1260  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 1022  |
+| productConsumerRoutes         | 1035  |
 | machineOnlyConsumerRoutes     | 7     |
 | noConsumerRoutes              | 218   |
-| dispositionedNonProductRoutes | 201   |
-| undisposedRoutes              | 23    |
+| dispositionedNonProductRoutes | 199   |
+| undisposedRoutes              | 25    |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 42    |
 
@@ -52,7 +52,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ClassificationConflicts                        | 0     |
 | WrongOriginConsumers                           | 0     |
 | AuthorizationUnresolved                        | 0     |
-| TenantBindingUnresolved                        | 0     |
+| TenantBindingUnresolved                        | 4     |
 | OrganizationAuthorizationUnresolved            | 0     |
 | OrganizationRoutesMissingRequiredAuthorization | 0     |
 | TenantUnboundInsertRoutes                      | 0     |
@@ -73,7 +73,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 497   |
+| AuditFilesInventoried                      | 513   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -122,7 +122,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 404   |
+| ProductBehaviorTestsInventoried            | 420   |
 
 ### Report roles
 
@@ -165,9 +165,12 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-_(none — the instrument is sound)_
+- INSTRUMENT: TenantBindingUnresolved = 4
 
 ### Product closure
 
-- UNWIRED EXECUTABLE WRITERS: 5 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
-- ArchitectureBacklog: UndisposedRoutes = 23 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)
+- INSTRUMENT: TenantBindingUnresolved = 4
+- MUTATION: authorizationAfterMutation = 5
+- MUTATION: tenantUnbound = 5
+- UNWIRED EXECUTABLE WRITERS: 8 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
+- ArchitectureBacklog: UndisposedRoutes = 25 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)

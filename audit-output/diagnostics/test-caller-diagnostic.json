@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "83a8cc06a0118eacedc1377e60c62f0a24605578d417644e801c7b9cbc6d8b3f",
+  "capabilityRouteInventoryHash": "28109845be5def0ab38aefdd121fdaa3c0cf3d91b45445ac9901f0a76bb48335",
   "totals": {
-    "routes": 1247,
+    "routes": 1260,
     "routesWithAnyTestCaller": 59,
     "testOnlyRoutes": 8,
-    "testCallSites": 142,
+    "testCallSites": 151,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -140,6 +140,12 @@
     },
     {
       "routeId": "DELETE /v1/evidence/saved-views/:id",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "DELETE /v1/external-intake/:token/sessions/:sid/parts/:partId",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -334,9 +340,10 @@
     },
     {
       "routeId": "GET /public/verify/:id",
-      "testCallerCount": 6,
+      "testCallerCount": 10,
       "testOnly": false,
       "testCallerFiles": [
+        "apps/web/__tests__/render/public-verify-anonymous-transport.render.test.tsx",
         "e2e/updated-report/canonical-verification.spec.ts",
         "e2e/updated-report/public-verify-convergence.spec.ts",
         "e2e/updated-report/public-verify-identifiers.spec.ts",
@@ -1564,6 +1571,12 @@
     },
     {
       "routeId": "GET /v1/external-review/invitations/:id/delivery",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/external-review/invitations/:id/feedback",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -2860,6 +2873,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/redaction/projects/:id/preview/pages/:n",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/redaction/providers/health",
       "testCallerCount": 0,
       "testOnly": false,
@@ -3348,6 +3367,12 @@
     },
     {
       "routeId": "GET /v1/teams/:id/members/:memberId/removal-impact",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/teams/:id/ownership-offer",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -4458,6 +4483,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/billing/subscription/payment-management",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/billing/subscription/plan",
       "testCallerCount": 0,
       "testOnly": false,
@@ -4531,6 +4562,12 @@
     },
     {
       "routeId": "POST /v1/capture/direct-sessions/:id/evidence",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/capture/direct-sessions/:id/heartbeat",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -5129,6 +5166,12 @@
     },
     {
       "routeId": "POST /v1/evidence/:id/restore",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/submitter-contact",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -5818,6 +5861,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/identity/mfa-admin/digest-preferences/snooze-link",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6316,6 +6365,12 @@
       "testCallerFiles": [
         "e2e/acceptance/capacity/sweeps.ts"
       ]
+    },
+    {
+      "routeId": "POST /v1/oauth/extension/approve",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
     },
     {
       "routeId": "POST /v1/oauth/extension/revoke",
@@ -7292,6 +7347,24 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/teams/:id/ownership-offer/:offerId/accept",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/teams/:id/ownership-offer/:offerId/cancel",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/teams/:id/ownership-offer/:offerId/decline",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/teams/:id/reopen",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7311,6 +7384,12 @@
     },
     {
       "routeId": "POST /v1/teams/invites/accept",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/teams/invites/decline",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7628,5 +7707,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "4f731b2abb1c672079fb19bff3dcf2e4ca0a8c2738c2da309d40889f564d12d5"
+  "contentHash": "200f2fc7a967d19a22d3c95a6f694f942321e4143e05588adf89717e151840d0"
 }
