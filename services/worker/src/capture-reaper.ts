@@ -257,17 +257,54 @@ function parsePendingObjectDeletes(value: unknown): Array<{ bucket: string; key:
 }
 
 /**
+ * PRO-NB-01 (review gap 1) / DEC-24 — WHEN A RELEASED RECORD'S OBJECTS MAY GO.
+ *
+ * A release is a soft delete and, until this module began removing released
+ * objects, was recoverable. An installed older app still asks for a release
+ * on its own device-clock verdict (and at sign-out) after deleting its device
+ * copies, so the objects of a released record that HELD STAGED CONTENT
+ * (reservationHoldsStagedContentTx: a part row, or a resumable upload with
+ * bytes) are the only copy. They are never removed before the server's own
+ * 24 h reservation lifetime has passed for that record, whoever released it
+ * and for whatever reason. A record that never held staged content has
+ * nothing to lose and is swept after the ordinary grace.
+ *
+ * This is the one predicate every object delete in this module passes
+ * through (releasedObjectKeysOnly), the carried retries included.
+ */
+export function releasedObjectsRemovableWhere(now: Date): prismaPkg.Prisma.EvidenceWhereInput {
+  return {
+    OR: [
+      { createdAt: { lt: new Date(now.getTime() - EVIDENCE_RESERVATION_TTL_MS) } },
+      {
+        AND: [
+          { parts: { none: {} } },
+          {
+            OR: [
+              { uploadSession: { is: null } },
+              { uploadSession: { is: { isMultipart: false, completedPartCount: { lte: 0 } } } },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
  * B4-F-004 — of the carried keys, only those still owned by released,
  * never-sealed records (or by no record) may be deleted. A key a live or
  * sealed record references is never touched, whatever the carried list says.
  */
 async function releasedObjectKeysOnly(
   objects: Array<{ bucket: string; key: string }>,
+  now: Date,
 ): Promise<Array<{ bucket: string; key: string }>> {
   if (objects.length === 0) return [];
   const keys = [...new Set(objects.map((o) => o.key))];
   const UNSEALED = [prismaPkg.EvidenceStatus.CREATED, prismaPkg.EvidenceStatus.UPLOADING];
-  const releasedRecord = { deletedAt: { not: null }, status: { in: UNSEALED } };
+  // PRO-NB-01 (review gap 1) — and only once the record's objects are removable.
+  const releasedRecord = { AND: [{ deletedAt: { not: null }, status: { in: UNSEALED } }, releasedObjectsRemovableWhere(now)] };
   const [liveParts, liveRecords] = await Promise.all([
     prisma.evidencePart.findMany({
       where: { storageKey: { in: keys }, NOT: { evidence: releasedRecord } },
@@ -347,6 +384,13 @@ export async function releaseExpiredReservations(
   };
   const exclude = options.excludeIds?.length ? { id: { notIn: [...options.excludeIds] } } : {};
   const released: string[] = [];
+  /**
+   * PRO-NB-01 (review gap 1) — records this run released BECAUSE the server's
+   * own 24 h lifetime ended (the session's start + 24 h, or the reservation
+   * window). Only these give their objects back in the same run; any other
+   * release of a record that held staged content waits (releasedObjectsRemovableWhere).
+   */
+  const releasedAtServerExpiry = new Set<string>();
   const LIVE = [prismaPkg.CaptureSessionStatus.ACTIVE, prismaPkg.CaptureSessionStatus.INTERRUPTED];
 
   // UC-STR-002 — a STALE seal claim (a seal that crashed between its claim and
@@ -384,6 +428,8 @@ export async function releaseExpiredReservations(
   result.scanned += sessions.length;
   for (const s of sessions) {
     try {
+      // PRO-NB-01 — did this session reach the server's own 24 h lifetime?
+      let lifetimeEnded = false;
       await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${s.id}`}))`;
         // F-23 (independent forward audit) — a session whose record is already
@@ -400,6 +446,7 @@ export async function releaseExpiredReservations(
             select: { status: true, deletedAt: true },
           });
           const maxEnd = new Date((reserved.startedAtUtc ?? reserved.createdAt).getTime() + EVIDENCE_RESERVATION_TTL_MS);
+          lifetimeEnded = maxEnd.getTime() <= now.getTime();
           if (record?.status === prismaPkg.EvidenceStatus.SIGNED || record?.status === prismaPkg.EvidenceStatus.REPORTED) {
             // C-13 (Free-user audit of 4d9b78963) — returning here left the
             // session ACTIVE with its expiry in the past, so EVERY pass selected
@@ -493,6 +540,7 @@ export async function releaseExpiredReservations(
         ) {
           result.reservationsReleased++;
           released.push(row.finalizedEvidenceId);
+          if (lifetimeEnded) releasedAtServerExpiry.add(row.finalizedEvidenceId);
         }
       });
     } catch (err) {
@@ -517,6 +565,8 @@ export async function releaseExpiredReservations(
       if (ok) {
         result.reservationsReleased++;
         released.push(e.id);
+        // RESERVATION_EXPIRED is the 24 h reservation window itself.
+        releasedAtServerExpiry.add(e.id);
       }
     } catch (err) {
       result.failed++;
@@ -532,7 +582,7 @@ export async function releaseExpiredReservations(
   // record is never touched.
   const keys = new Map<string, { bucket: string; key: string }>();
   if (options.deleteObject && options.retryObjectDeletes?.length) {
-    for (const o of await releasedObjectKeysOnly([...options.retryObjectDeletes])) {
+    for (const o of await releasedObjectKeysOnly([...options.retryObjectDeletes], now)) {
       keys.set(`${o.bucket}/${o.key}`, o);
     }
   }
@@ -540,16 +590,29 @@ export async function releaseExpiredReservations(
     const [parts, records] = await Promise.all([
       prisma.evidencePart.findMany({
         where: { evidenceId: { in: released } },
-        select: { storageBucket: true, storageKey: true },
+        select: { evidenceId: true, storageBucket: true, storageKey: true },
       }),
-      prisma.evidence.findMany({
-        where: { id: { in: released }, storageKey: { not: null } },
-        select: { storageBucket: true, storageKey: true },
-      }),
+      prisma.evidence
+        .findMany({
+          where: { id: { in: released }, storageKey: { not: null } },
+          select: { id: true, storageBucket: true, storageKey: true },
+        })
+        .then((rows) => rows.map((r) => ({ evidenceId: r.id, storageBucket: r.storageBucket, storageKey: r.storageKey }))),
     ]);
+
+    // PRO-NB-01 — a record released in this run that held staged content
+    // inside its 24 h lifetime (an INTERRUPTED session ended at its idle
+    // expiry) keeps its objects; removeReleasedReservationObjects takes them
+    // once the lifetime has passed.
+    const fresh: Array<{ bucket: string; key: string }> = [];
     for (const o of [...parts, ...records]) {
-      if (o.storageBucket && o.storageKey) keys.set(`${o.storageBucket}/${o.storageKey}`, { bucket: o.storageBucket, key: o.storageKey });
+      if (!o.storageBucket || !o.storageKey) continue;
+      const object = { bucket: o.storageBucket, key: o.storageKey };
+      // Released at the server's own expiry: cleaned up as designed.
+      if (releasedAtServerExpiry.has(o.evidenceId)) keys.set(`${object.bucket}/${object.key}`, object);
+      else fresh.push(object);
     }
+    for (const o of await releasedObjectKeysOnly(fresh, now)) keys.set(`${o.bucket}/${o.key}`, o);
   }
   if (options.deleteObject) {
     for (const o of keys.values()) {
@@ -603,7 +666,8 @@ export type ReleasedObjectSweepResult = {
  * objects were not yet removed has its part objects, its own object and every
  * key under its own evidence/<id>/ prefix (the resumable door's assembled
  * session object included, PRO-C1-03) deleted through the version-aware
- * deleter. A key a live or sealed record references is never touched; a
+ * deleter. A record that held staged content is not eligible before its 24 h
+ * reservation lifetime has passed (releasedObjectsRemovableWhere, PRO-NB-01). A key a live or sealed record references is never touched; a
  * version under retention or a legal hold is retained and reported. The record
  * is stamped releasedObjectsRemovedAtUtc once; a failed delete is carried
  * forward by the existing pendingObjectDeletes carrier.
@@ -634,6 +698,8 @@ export async function removeReleasedReservationObjects(options: {
       deletedAt: { not: null, lt: new Date(now.getTime() - RELEASED_OBJECTS_GRACE_MS) },
       lifecycleState: "ACTIVE",
       releasedObjectsRemovedAtUtc: null,
+      // PRO-NB-01 — a record that held staged content waits for the server's 24 h lifetime.
+      AND: [releasedObjectsRemovableWhere(now)],
     },
     orderBy: { deletedAt: "asc" },
     take: batchSize,
@@ -656,7 +722,7 @@ export async function removeReleasedReservationObjects(options: {
       if (options.listKeys && bucket) {
         for (const key of await options.listKeys({ bucket, prefix: `evidence/${record.id}/` })) add(bucket, key);
       }
-      for (const o of await releasedObjectKeysOnly([...keys.values()])) {
+      for (const o of await releasedObjectKeysOnly([...keys.values()], now)) {
         result.objectDeletesRequested++;
         try {
           const removal = await options.deleteObject(o);

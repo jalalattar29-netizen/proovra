@@ -59,6 +59,8 @@ function installNative() {
         typeof native.state.continuous === "function" ? native.state.continuous(id) : native.state.continuous,
       getContinuousSegments: () => native.state.segments,
       listContinuousRecordings: () => native.state.recordings,
+      // PRO-NBC-03 — Android's one durable ledger (null: none).
+      getContinuousLedger: () => native.state.ledger ?? null,
       // One native name, two shapes: the Kotlin ledger bind takes an object
       // (AUD-004), the Swift broadcast bind takes (recordingId, captureSessionId) (AUD-006).
       bindContinuousSession: async (a, b) => {
@@ -593,4 +595,75 @@ test("optional microphone (Android): the in-app choice asks RECORD_AUDIO and sta
   await r.press("Start Continuous Capture");
   await settle();
   assert.equal(options?.microphone, true);
+});
+
+/* ------------------------------------------- PRO-NBC-03 (review gap 2) -- */
+
+// The signed-in fixture account is "user-1". Android keeps ONE durable ledger.
+function withLedger(ledger) {
+  native.state.ledger = {
+    recordingId: "rec-a",
+    captureSessionId: "cs-a",
+    evidenceId: "ev-a",
+    state: "INTERRUPTED",
+    layout: "SINGLE_FILE",
+    active: false,
+    interruption: "PROCESS_DEATH",
+    outcome: RESULT,
+    segments: [],
+    ...ledger,
+  };
+
+  // The native module refuses to overwrite the recording the ledger holds.
+  native.state.start = async () => {
+    throw Object.assign(new Error("An earlier recording is still on this device."), { code: "PENDING_RECORDING" });
+  };
+}
+
+test("PRO-NBC-03: another account's recording is never called nobody's, never offered a Discard, and never deleted", async () => {
+  withLedger({ ownerUserId: "user-other" });
+  const r = await render();
+  assert.ok(r.hasText("A recording from another account on this device is waiting for its owner."));
+  assert.ok(!r.hasText("An earlier recording is still on this device."), "account B was told account A's recording has no session");
+  assert.equal(r.byLabel("Discard earlier recording").length, 0, "account B was offered a discard of account A's recording");
+  assert.equal(r.byLabel("Recover recording").length, 0, "account B was offered account A's recording");
+  assert.equal(r.byLabel("Start Continuous Capture").length, 0, "a start would be refused: it is not offered");
+  assert.ok(!native.calls.includes("discardContinuousSpool"), "account A's recording was deleted");
+  assert.ok(!native.calls.includes("stopContinuousCapture"));
+  assert.deepEqual(requests.filter((q) => q.path.endsWith("/discard")), [], "account A's server session was discarded");
+});
+
+test("PRO-NBC-03: a recording that never reached its session and was claimed at its owner's sign-out is foreign to the next account", async () => {
+  withLedger({ ownerUserId: null, captureSessionId: null, evidenceId: null });
+  // What the previous account's sign-out recorded on this device.
+  await M.AsyncStorage.setItem(
+    "proovra.capture.native-residue-owners.v1",
+    JSON.stringify([{ id: "continuous:rec-a", ownerUserId: "user-other" }]),
+  );
+  const r = await render();
+  assert.ok(r.hasText("A recording from another account on this device is waiting for its owner."));
+  assert.equal(r.byLabel("Discard earlier recording").length, 0);
+
+  assert.ok(!native.calls.includes("discardContinuousSpool"));
+});
+
+test("PRO-NBC-03: the same leftover recording with no other owner is still this account's to discard", async () => {
+  withLedger({ ownerUserId: null, captureSessionId: null, evidenceId: null });
+  const r = await render();
+  assert.ok(r.hasText("An earlier recording is still on this device."));
+  await r.press("Discard earlier recording");
+  await settle();
+  assert.ok(native.calls.includes("discardContinuousSpool"));
+});
+
+test("PRO-NBC-03: a start records the signed-in account in the native ledger", async () => {
+  let options = null;
+  native.state.start = async (o) => {
+    options = o;
+    return { osConsentGranted: true, captureStartedAtUtc: "2026-09-30T10:00:00.000Z", segmentMs: 6000, maxSegments: 199 };
+  };
+  const r = await render();
+  await r.press("Start Continuous Capture");
+  await settle();
+  assert.equal(options?.ownerUserId, "user-1");
 });

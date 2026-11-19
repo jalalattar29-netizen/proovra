@@ -578,13 +578,19 @@ internal object ContinuousLedgerKeeper {
     return after
   }
 
+  /**
+   * PRO-NBC-04 — the same rule for a whole replacement, and the caller is
+   * told: false means the write failed and the previous ledger is still in
+   * force (true with no store attached, as before).
+   */
   @Synchronized
-  fun replace(l: ContinuousLedger) {
-    // PRO-NBC-04 — the same rule for a whole replacement.
-    if (store?.write(l) == false) return
+  fun replace(l: ContinuousLedger): Boolean {
+    if (store?.write(l) == false) return false
     current = l
     loaded = true
+    return true
   }
+
 
   @Synchronized
   fun clear() {

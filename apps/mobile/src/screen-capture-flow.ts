@@ -26,6 +26,12 @@ export type ScreenFlowEvent =
   | { type: "STARTED" } // Android consent granted; session active
   | { type: "FRAME"; frameCount: number } // a frame was captured
   | { type: "STOPPED"; frameCount: number; stopReason: string }
+  /**
+   * AUD-37 — a capture a process death interrupted is offered for review from
+   * the intro (or after a refused start). STOPPED is honoured only while
+   * active, so the recovered capture was never actually offered.
+   */
+  | { type: "RECOVERED"; frameCount: number; stopReason: string }
   | { type: "FINALIZE" } // user asked to seal
   | { type: "FINALIZED"; evidenceId: string }
   | { type: "FAIL"; message: string; recoverable?: boolean }
@@ -69,7 +75,13 @@ export function screenFlowReducer(
       }
       return { phase: "review", frameCount: event.frameCount, stopReason: event.stopReason };
 
+    case "RECOVERED":
+      if (state.phase !== "intro" && state.phase !== "error") return state;
+      if (event.frameCount <= 0) return state;
+      return { phase: "review", frameCount: event.frameCount, stopReason: event.stopReason };
+
     case "FINALIZE":
+
       return state.phase === "review" || state.phase === "pending"
         ? { phase: "uploading", frameCount: state.frameCount }
         : state;

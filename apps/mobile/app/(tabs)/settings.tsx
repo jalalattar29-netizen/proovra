@@ -16,10 +16,11 @@ import { Alert, Pressable, Switch, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useLocale } from "../../src/locale-context";
 import { useAuth } from "../../src/auth-context";
-import { logout as logoutApi, getLegalStatus, signOutIncompleteMessage, SIGN_OUT_INCOMPLETE_TITLE } from "../../src/auth/auth-api";
+import { getLegalStatus, signOutIncompleteMessage, SIGN_OUT_INCOMPLETE_TITLE } from "../../src/auth/auth-api";
 import { loadTelemetryConsent, setTelemetryConsent } from "../../src/privacy/telemetry-consent";
 import { apiFetch, setAuthToken } from "../../src/api";
-import { teardownCaptureOnSignOut } from "../../src/capture/capture-teardown";
+import { signOutOnDevice } from "../../src/auth/account-switch";
+
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import { formatUserDateTime } from "../../src/lib/date";
@@ -192,8 +193,9 @@ export default function SettingsScreen() {
     // PRO-NBC-03 / DEC-24 — staged captures are NOT discarded: they stay, keyed
     // to this account, for it to finish or discard after signing back in, so a
     // failed sign-out never leaves the person signed in with their evidence gone.
-    await teardownCaptureOnSignOut().catch(() => undefined);
-    const outcome = await logoutApi();
+    // Review gap 3 — and the recorder is stopped only once the server confirmed
+    // the sign-out (signOutOnDevice): a failed one leaves the recording running.
+    const outcome = await signOutOnDevice();
     if (!outcome.ok) {
       // B8-F-001 — the server session is still alive: the device keeps it and
       // says so, with a retry, instead of purging a token the server still honours.

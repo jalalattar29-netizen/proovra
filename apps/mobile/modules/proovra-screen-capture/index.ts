@@ -86,6 +86,8 @@ export type ScreenCaptureState = { active: boolean; frameCount: number };
 export type ScreenCaptureOptions = {
   /** Hard ceiling on frames (native clamps to 60). UC-2 is a short session. */
   maxFrames?: number;
+  /** PRO-NBC-03 — the signed-in account, recorded in the durable frame ledger. */
+  ownerUserId?: string | null;
 };
 
 /**
@@ -110,10 +112,12 @@ type NativeEvents = {
 type NativeModuleType = {
   isSupported(): boolean;
   getState(): ScreenCaptureState;
-  startCapture(options: { maxFrames: number }): Promise<ScreenCaptureStarted>;
+  startCapture(options: { maxFrames: number; ownerUserId?: string }): Promise<ScreenCaptureStarted>;
   captureFrame(): Promise<ScreenFrameEvent>;
   stopCapture(): Promise<ScreenCaptureResult>;
   getRecoveredScreenCapture?(): ScreenCaptureResult | null;
+  /** PRO-NBC-03 — absent on native builds before the frame ledger carried its owner. */
+  getRecoveredScreenCaptureOwner?(): string | null;
   clearScreenCaptureLedger?(): Promise<void>;
 };
 
@@ -158,6 +162,7 @@ export async function startScreenCapture(options: ScreenCaptureOptions = {}): Pr
   }
   return nativeModule().startCapture({
     maxFrames: Math.max(1, Math.min(options.maxFrames ?? DEFAULT_MAX_FRAMES, 60)),
+    ...(options.ownerUserId ? { ownerUserId: options.ownerUserId } : {}),
   });
 }
 
@@ -193,7 +198,26 @@ export function getRecoveredScreenCapture(): ScreenCaptureResult | null {
   }
 }
 
+/**
+ * PRO-NBC-03 — the account the native frame ledger was written for. `known`
+ * is false when the native build cannot say (no owner support) — the caller
+ * then decides by its own claim record; `ownerUserId` is null for a ledger an
+ * earlier build wrote.
+ */
+export function getRecoveredScreenCaptureOwner(): { known: boolean; ownerUserId: string | null } {
+  if (Platform.OS !== "android") return { known: false, ownerUserId: null };
+  try {
+    const mod = nativeModule();
+    if (typeof mod.getRecoveredScreenCaptureOwner !== "function") return { known: false, ownerUserId: null };
+    const owner = mod.getRecoveredScreenCaptureOwner();
+    return { known: true, ownerUserId: typeof owner === "string" && owner ? owner : null };
+  } catch {
+    return { known: false, ownerUserId: null };
+  }
+}
+
 /** AUD-37 — the recovered capture was staged or discarded: the native ledger goes. */
+
 export async function clearScreenCaptureLedger(): Promise<void> {
   if (Platform.OS !== "android") return;
   const mod = nativeModule();
@@ -428,6 +452,12 @@ export type ScreenContinuousOptions = {
    * on or off in Apple's broadcast picker, which is the consent there.
    */
   microphone?: boolean;
+  /**
+   * PRO-NBC-03 — Android: the signed-in account, recorded in the durable ledger
+   * from its first write, so another account on the device is never offered
+   * the recording. Not sent to iOS.
+   */
+  ownerUserId?: string | null;
 };
 
 /**
@@ -583,6 +613,7 @@ export async function startContinuousCapture(
     maxSegments: Math.max(1, Math.min(options.maxSegments ?? DEFAULT_MAX_SEGMENTS, B.maxSegments)),
     // Explicit only: anything but `true` records no microphone.
     microphone: options.microphone === true,
+    ...(Platform.OS === "android" && options.ownerUserId ? { ownerUserId: options.ownerUserId } : {}),
   });
 }
 

@@ -586,6 +586,14 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      // PRO-C1-01 (review gap 2) — the follow-up writes of an open session are
+      // held to the same rule as its create: a web page that left the record's
+      // workspace adds nothing more to it. (Abort stays open: it only releases.)
+      {
+        const moved = captureWorkspaceMismatch(req, body.teamId);
+        if (moved) return reply.code(moved.statusCode).send(moved.body);
+      }
+
       const personalDenial = await assertPersonalUploadMutationAllowed(
         body.teamId,
         actor.actorUserId,
@@ -680,6 +688,14 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      // PRO-C1-01 (review gap 2) — the follow-up writes of an open session are
+      // held to the same rule as its create: a web page that left the record's
+      // workspace adds nothing more to it. (Abort stays open: it only releases.)
+      {
+        const moved = captureWorkspaceMismatch(req, body.teamId);
+        if (moved) return reply.code(moved.statusCode).send(moved.body);
+      }
+
       const personalDenial = await assertPersonalUploadMutationAllowed(
         body.teamId,
         actor.actorUserId,
@@ -768,6 +784,14 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      // PRO-C1-01 (review gap 2) — the follow-up writes of an open session are
+      // held to the same rule as its create: a web page that left the record's
+      // workspace adds nothing more to it. (Abort stays open: it only releases.)
+      {
+        const moved = captureWorkspaceMismatch(req, body.teamId);
+        if (moved) return reply.code(moved.statusCode).send(moved.body);
+      }
+
       const personalDenial = await assertPersonalUploadMutationAllowed(
         body.teamId,
         actor.actorUserId,
@@ -815,6 +839,14 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      // PRO-C1-01 (review gap 2) — the follow-up writes of an open session are
+      // held to the same rule as its create: a web page that left the record's
+      // workspace adds nothing more to it. (Abort stays open: it only releases.)
+      {
+        const moved = captureWorkspaceMismatch(req, body.teamId);
+        if (moved) return reply.code(moved.statusCode).send(moved.body);
+      }
 
       const personalDenial = await assertPersonalUploadMutationAllowed(
         body.teamId,
@@ -875,6 +907,14 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      // PRO-C1-01 (review gap 2) — the follow-up writes of an open session are
+      // held to the same rule as its create: a web page that left the record's
+      // workspace adds nothing more to it. (Abort stays open: it only releases.)
+      {
+        const moved = captureWorkspaceMismatch(req, body.teamId);
+        if (moved) return reply.code(moved.statusCode).send(moved.body);
+      }
 
       const personalDenial = await assertPersonalUploadMutationAllowed(
         body.teamId,

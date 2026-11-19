@@ -250,7 +250,119 @@ describe("PRO-C1-01 — a retried Finish after a workspace switch never seals in
     expect(completes().map((c) => c.path)).toEqual(["/v1/evidence/ev-1/complete"]);
   });
 
+  it("review gap 1: a record reserved in a team is not resumed from a Personal Space that carries no id", async () => {
+    failPutFor = new Set(["a.png"]);
+    const { result, rerender } = setup([item("1", "a.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(1);
+
+    // "Switch anyway" to the caller's Personal Space, whose id the server has
+    // not resolved: no id to compare, and no workspace header is sent.
+    activeSpace = { id: null, type: "PERSONAL" };
+    apiHandler = (path, init) => {
+      if (path === "/v1/evidence" && init?.method === "POST") {
+        evidenceCounter += 1;
+        return { id: `ev-${evidenceCounter}`, teamId: "personal-9" };
+      }
+      return defaultHandler(path, init);
+    };
+    rerender();
+    failPutFor = new Set();
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+
+    expect(creates()).toHaveLength(2);
+    expect(JSON.parse(String(creates()[1]?.init?.body)).teamId).toBeUndefined();
+    expect(completes().map((c) => c.path)).toEqual(["/v1/evidence/ev-2/complete"]);
+    expect(push).not.toHaveBeenCalledWith("/evidence/ev-1");
+  });
+
+  it("review gap 1: an id-less Personal Space still resumes the record it reserved itself, and a team is another workspace for it", async () => {
+    activeSpace = { id: null, type: "PERSONAL" };
+    apiHandler = (path, init) => {
+      if (path === "/v1/evidence" && init?.method === "POST") {
+        evidenceCounter += 1;
+        return { id: `ev-${evidenceCounter}`, teamId: evidenceCounter === 1 ? "personal-9" : "team-1" };
+      }
+      return defaultHandler(path, init);
+    };
+    failPutFor = new Set(["a.png"]);
+    const { result, rerender } = setup([item("1", "a.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    rerender();
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    // Same id-less Personal Space: the same record, no second reservation.
+    expect(creates()).toHaveLength(1);
+
+    activeSpace = { id: "team-1", type: "ORGANIZATION" };
+    rerender();
+    failPutFor = new Set();
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(2);
+    expect(JSON.parse(String(creates()[1]?.init?.body)).teamId).toBe("team-1");
+    expect(completes().map((c) => c.path)).toEqual(["/v1/evidence/ev-2/complete"]);
+  });
+
+  it("review gap 3: a switch DURING a running finalize is refused 409 by the server — nothing is sealed in the workspace left, and the next Finish reserves in the new one", async () => {
+    // The header follows the switch at once, so the server refuses the next
+    // record write of the running finalize (CAPTURE_WORKSPACE_CHANGED).
+    let switched = false;
+    apiHandler = (path, init) => {
+      const part = path.match(/^\/v1\/evidence\/(ev-\d+)\/parts$/);
+      if (part && part[1] === "ev-1") {
+        const body = JSON.parse(String(init?.body));
+        if (body.partIndex === 1) {
+          // The person confirms the switch while the first file is uploading.
+          switched = true;
+          activeSpace = { id: "team-2", type: "ORGANIZATION" };
+        }
+        if (switched) throw Object.assign(new Error("moved"), { statusCode: 409, code: "CAPTURE_WORKSPACE_CHANGED" });
+      }
+      if (/^\/v1\/evidence\/ev-1\/complete$/.test(path) && switched) {
+        throw Object.assign(new Error("moved"), { statusCode: 409, code: "CAPTURE_WORKSPACE_CHANGED" });
+      }
+      if (path === "/v1/evidence" && init?.method === "POST") {
+        evidenceCounter += 1;
+        return { id: `ev-${evidenceCounter}`, teamId: switched ? "team-2" : "team-1" };
+      }
+      return defaultHandler(path, init);
+    };
+    const { result, rerender } = setup([item("1", "a.png"), item("2", "b.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+
+    expect(switched).toBe(true);
+    // Nothing was sealed in workspace A, nothing opened, and no success was claimed.
+    expect(completes()).toHaveLength(0);
+    expect(push).not.toHaveBeenCalled();
+    expect(result.current.error).toBeTruthy();
+    expect(result.current.busy).toBe(false);
+    expect(result.current.sessionItems).toHaveLength(2);
+
+    // The next Finish, under the dialog that names B, reserves in B.
+    rerender();
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(2);
+    expect(JSON.parse(String(creates()[1]?.init?.body)).teamId).toBe("team-2");
+    expect(completes().map((c) => c.path)).toEqual(["/v1/evidence/ev-2/complete"]);
+    expect(push).toHaveBeenCalledWith("/evidence/ev-2");
+    expect(push).not.toHaveBeenCalledWith("/evidence/ev-1");
+  });
+
   it("a CAPTURE_WORKSPACE_CHANGED refusal forgets the reservation", async () => {
+
     apiHandler = (path, init) => {
       if (/\/v1\/evidence\/ev-1\/complete$/.test(path)) {
         throw Object.assign(new Error("moved"), { statusCode: 409, code: "CAPTURE_WORKSPACE_CHANGED" });

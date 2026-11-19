@@ -41,8 +41,10 @@ before(async () => {
 });
 
 const mounted = [];
+const recovery = { held: null, owner: null, startOptions: null };
 beforeEach(async () => {
   calls.length = 0;
+  Object.assign(recovery, { held: null, owner: null, startOptions: null });
   globalThis.__RN_OS__ = "android";
   globalThis.__RN_VERSION__ = 34;
   globalThis.__PERMISSION_REQUESTS__ = [];
@@ -55,9 +57,20 @@ beforeEach(async () => {
       getState: () => ({ active: false, frameCount: 0 }),
       getContinuousState: () => ({ active: false, segmentCount: 0 }),
       getContinuousSegments: () => [],
-      startCapture: async () => {
+      startCapture: async (o) => {
         calls.push("startCapture");
+        recovery.startOptions = o;
+        // The native module refuses to overwrite a held capture.
+        if (recovery.held) throw Object.assign(new Error("Review or discard the recovered capture first."), { code: "RECOVERY_PENDING" });
         return { osConsentGranted: true, captureStartedAtUtc: "2026-09-30T10:00:00.000Z", maxFrames: 20 };
+      },
+      // PRO-NBC-03 — the durable frame ledger and the account it was written for.
+      // (The binding caches the module object, so the state lives outside it.)
+      getRecoveredScreenCapture: () => recovery.held,
+      getRecoveredScreenCaptureOwner: () => recovery.owner,
+      clearScreenCaptureLedger: async () => {
+        calls.push("clearScreenCaptureLedger");
+        recovery.held = null;
       },
       captureFrame: async () => ({ frameIndex: 0, frameCount: 1 }),
       stopCapture: async () => {
@@ -230,4 +243,43 @@ test("AUD-005: Discard of a kept staging releases its session and deletes its fr
   assert.deepEqual(discarded, ["/v1/capture/direct-sessions/cs-1/discard"]);
   assert.ok(FRAMES.every((f) => globalThis.__DELETED__.includes(f.uri)));
   assert.equal(await M.loadPendingScreenStaging(), null);
+});
+
+/* ------------------------------------------- PRO-NBC-03 (review gap 1) -- */
+
+// The signed-in fixture account is "user-1".
+function withRecoveredFrames(ownerUserId) {
+  recovery.held = { ...RESULT, stopReason: "INTERRUPTED", limitations: ["CAPTURE_INTERRUPTED"] };
+  recovery.owner = ownerUserId;
+}
+
+test("PRO-NBC-03: frames another account left on this device are not offered, not deleted, and said truthfully", async () => {
+  withRecoveredFrames("user-other");
+  const r = await render();
+  assert.ok(r.hasText("A screen capture from another account on this device is waiting for its owner."));
+  assert.equal(r.byLabel("Add to capture session").length, 0, "account B was offered account A's frames for review");
+  assert.equal(r.byLabel("Start Screen Capture").length, 0, "a start would be refused: it is not offered");
+  assert.equal(r.byLabel("Discard").length, 0, "account B was offered a discard of account A's frames");
+  assert.deepEqual(globalThis.__DELETED__, [], "account A's frame files were deleted");
+  assert.ok(!calls.includes("clearScreenCaptureLedger"), "account A's frame ledger was cleared");
+});
+
+test("PRO-NBC-03: the account that made the capture is offered its recovered frames, and its Discard clears its own ledger", async () => {
+  withRecoveredFrames("user-1");
+  const r = await render();
+  assert.ok(!r.hasText("A screen capture from another account on this device is waiting for its owner."));
+  assert.ok(r.byLabel("Add to capture session").length > 0, "the owner's recovered frames were not offered");
+
+  await r.press("Discard");
+  await settle();
+  assert.ok(calls.includes("clearScreenCaptureLedger"));
+  assert.deepEqual(globalThis.__DELETED__.sort(), FRAMES.map((f) => f.uri).sort());
+});
+
+test("PRO-NBC-03: a start records the signed-in account in the native frame ledger", async () => {
+  const r = await render();
+  await r.press("Start Screen Capture");
+  await settle();
+  assert.equal(recovery.startOptions?.ownerUserId, "user-1");
+
 });

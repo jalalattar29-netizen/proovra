@@ -271,7 +271,24 @@ export class DirectCaptureError extends Error {
   }
 }
 
+/**
+ * PRO-NB-01 (review gap 2) — WHY the session's record takes no more parts. The
+ * denial code stays EVIDENCE_NOT_OPEN (installed clients read it); the detail
+ * tells a current client the two cases apart: a record that is already SEALED
+ * exists as evidence (re-opening the capture would upload every item again
+ * into a second record), a RELEASED one is gone and the capture can be
+ * re-opened.
+ */
+export const EVIDENCE_NOT_OPEN_SEALED = "RECORD_SEALED";
+export const EVIDENCE_NOT_OPEN_RELEASED = "RECORD_RELEASED";
+function evidenceNotOpenDetail(
+  evidence: { status: prismaPkg.EvidenceStatus; deletedAt: Date | null } | null,
+): string {
+  return evidence && !evidence.deletedAt ? EVIDENCE_NOT_OPEN_SEALED : EVIDENCE_NOT_OPEN_RELEASED;
+}
+
 const DEFAULT_TTL_SECONDS = 60 * 60;
+
 const MAX_TTL_SECONDS = 4 * 60 * 60;
 /**
  * ET-DC-06: the absolute lifetime of a direct-capture session. The expiry
@@ -1009,7 +1026,7 @@ export async function declareDirectCapturePart(
     (evidence.status !== prismaPkg.EvidenceStatus.CREATED &&
       evidence.status !== prismaPkg.EvidenceStatus.UPLOADING)
   ) {
-    throw new DirectCaptureError("EVIDENCE_NOT_OPEN");
+    throw new DirectCaptureError("EVIDENCE_NOT_OPEN", evidenceNotOpenDetail(evidence));
   }
 
   // A device-bound session must sign every declaration; an unbound session
@@ -1485,7 +1502,7 @@ export async function declareDirectCapturePartLost(input: {
     evidence.deletedAt ||
     (evidence.status !== prismaPkg.EvidenceStatus.CREATED && evidence.status !== prismaPkg.EvidenceStatus.UPLOADING)
   ) {
-    throw new DirectCaptureError("EVIDENCE_NOT_OPEN");
+    throw new DirectCaptureError("EVIDENCE_NOT_OPEN", evidenceNotOpenDetail(evidence));
   }
 
   // F-17 (independent forward audit) — whether the bytes are stored is read
@@ -2117,6 +2134,14 @@ export type DiscardDirectCaptureSessionInput = {
   sessionId: string;
   ownerUserId: string;
   now?: Date;
+  /**
+   * PRO-NB-01 (review gap 1) — the person explicitly confirmed, in a client
+   * that knows the rule, that staged content may be discarded. Installed
+   * older clients never send it, so their automatic discards (the one-hour
+   * device-clock staleness discard, the sign-out discard) cannot release a
+   * session whose record holds staged content.
+   */
+  confirmStagedContentDiscard?: boolean;
 };
 
 export type DiscardDirectCaptureSessionResult = {
@@ -2124,8 +2149,16 @@ export type DiscardDirectCaptureSessionResult = {
   status: prismaPkg.CaptureSessionStatus;
   /** The reservation that was released, when the session had made one. */
   releasedEvidenceId: string | null;
-  /** True when this call performed the discard (false = already terminal). */
+  /** True when this call performed the discard (false = already terminal, or kept). */
   discarded: boolean;
+  /**
+   * PRO-NB-01 — true when the session was KEPT because its reserved record
+   * holds staged content and the discard was not an explicit confirmed one.
+   * The session stays ACTIVE and resumable until `keptUntilUtc` (start + 24 h),
+   * when the reaper — the single expiry authority — ends it.
+   */
+  keptStagedContent?: boolean;
+  keptUntilUtc?: string;
 };
 
 /**
@@ -2183,7 +2216,10 @@ export async function discardDirectCaptureSession(
     };
   }
 
-  const released = await db.$transaction(async (tx) => {
+  const maxEnd = session.startedAtUtc
+    ? new Date(session.startedAtUtc.getTime() + MAX_SESSION_LIFETIME_SECONDS * 1000)
+    : null;
+  const outcome = await db.$transaction(async (tx) => {
     // Serialise against a concurrent reserve/complete for the SAME session, the
     // same lock reserve takes — so a discard can never race a binding.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${session.id}`}))`;
@@ -2224,6 +2260,26 @@ export async function discardDirectCaptureSession(
       }
     }
 
+    // PRO-NB-01 (review gap 1) / DEC-24 — the server decides expiry. A discard
+    // that does not carry the person's explicit confirmation (every installed
+    // older client: its one-hour device-clock staleness discard and its
+    // sign-out discard) never releases an ACTIVE session whose record holds
+    // staged content: the app has already deleted its device copies, so the
+    // release destroyed the only copy. The session and its bytes are kept to
+    // the session's maximum lifetime (C-02, the same rule the reaper and
+    // requireActive apply) and the answer says so; the old client reads a 200
+    // with `discarded:false`, exactly as for an already-terminal session.
+    if (
+      !input.confirmStagedContentDiscard &&
+      fresh.status === prismaPkg.CaptureSessionStatus.ACTIVE &&
+      fresh.finalizedEvidenceId &&
+      maxEnd !== null &&
+      maxEnd.getTime() > now.getTime() &&
+      (await reservationHoldsStagedContentTx(tx, fresh.finalizedEvidenceId))
+    ) {
+      return { kept: true as const };
+    }
+
     const claim = await tx.captureSession.updateMany({
       where: {
         id: session.id,
@@ -2256,6 +2312,18 @@ export async function discardDirectCaptureSession(
     });
     return released ? fresh.finalizedEvidenceId : null;
   });
+
+  if (outcome !== null && typeof outcome === "object") {
+    return {
+      sessionId: session.id,
+      status: prismaPkg.CaptureSessionStatus.ACTIVE,
+      releasedEvidenceId: null,
+      discarded: false,
+      keptStagedContent: true,
+      keptUntilUtc: maxEnd!.toISOString(),
+    };
+  }
+  const released = outcome;
 
   // Outside the transaction: the trust chain has its own sequencing and must
   // not extend the reservation lock.

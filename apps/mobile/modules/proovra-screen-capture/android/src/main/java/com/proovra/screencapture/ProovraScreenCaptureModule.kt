@@ -123,6 +123,9 @@ class ProovraScreenCaptureModule : Module() {
     // AUD-37 — a single-frame capture a dead process left behind (INTERRUPTED,
     // with its frames), or null.
     Function("getRecoveredScreenCapture") { ScreenCaptureService.recoveredOutcome()?.toJsMap() }
+    // PRO-NBC-03 — the account the recovered capture belongs to (null when the
+    // ledger was written by an earlier build, or there is none).
+    Function("getRecoveredScreenCaptureOwner") { ScreenCaptureService.recoveredOwner() }
     AsyncFunction("clearScreenCaptureLedger") { promise: Promise ->
       if (!ScreenCaptureService.clearLedger()) {
         promise.reject(CodedException("BUSY", "Stop the capture before clearing it.", null)); return@AsyncFunction
@@ -207,6 +210,8 @@ class ProovraScreenCaptureModule : Module() {
       startPromise = pending
       pendingKind = "frame"
       pendingMaxFrames = ((options["maxFrames"] as? Number)?.toInt() ?: 20).coerceIn(1, 60)
+      // PRO-NBC-03 — the frame ledger records who started the capture.
+      ScreenCaptureService.pendingOwnerUserId = options["ownerUserId"] as? String
       bindFrameCallbacks()
       launchConsent(activity, pending)
     }
@@ -251,7 +256,10 @@ class ProovraScreenCaptureModule : Module() {
       }
       // The microphone only on an explicit request, and only with the runtime
       // grant JS obtained first (never requested from here, never assumed).
+      // PRO-NBC-03 — the continuous ledger records who started the recording.
+      ContinuousScreenCaptureService.pendingOwnerUserId = options["ownerUserId"] as? String
       val microphone = options["microphone"] == true
+
       if (microphone && activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
         promise.reject(CodedException("MICROPHONE_PERMISSION_REQUIRED", "Microphone recording needs the microphone permission.", null)); return@AsyncFunction
       }

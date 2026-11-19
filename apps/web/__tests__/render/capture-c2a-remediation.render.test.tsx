@@ -47,7 +47,7 @@ vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 
 import { useCaptureAllowance } from "../../app/(app)/capture/_hooks/useCaptureAllowance";
 import { useCaptureCamera } from "../../app/(app)/capture/_hooks/useCaptureCamera";
-import { useCaptureDraftPersistence } from "../../app/(app)/capture/_hooks/useCaptureDraftPersistence";
+import { draftWorkspaceKey, useCaptureDraftPersistence } from "../../app/(app)/capture/_hooks/useCaptureDraftPersistence";
 import { draftBelongsToSpace } from "../../app/(app)/capture/_hooks/useCaptureDraftList";
 import { CaptureLocationStatus } from "../../app/(app)/capture/_lib/CaptureLocationStatus";
 import { CaptureClearConfirmDialog, clearSessionConsequence } from "../../app/(app)/capture/_lib/CaptureClearConfirmDialog";
@@ -221,7 +221,51 @@ describe("B4-F-307 — drafts belong to the workspace they were started in", () 
     expect(create?.body?.teamId).toBe("team-9");
   });
 
+  it("DEC-27 (PRO-C1-01 review gap 4): a workspace switch lets go of the draft without touching it; the new workspace starts a fresh draft", async () => {
+    const payload = { templateId: null, planMode: "FLEXIBLE", internalNotes: "Started in A", useLocation: false, items: [] } as never;
+    const { result, rerender } = renderHook(
+      ({ ws }) => useCaptureDraftPersistence({ enabled: true, teamId: ws, workspaceKey: ws }),
+      { initialProps: { ws: "team-9" as string | null } },
+    );
+    await act(async () => {
+      result.current.scheduleSave(payload);
+      await result.current.ensureDraft();
+    });
+    expect(result.current.draftId).toBe("draft-1");
+    const createdInA = apiCalls.filter((c) => c.path === "/v1/capture/sessions");
+    expect(createdInA.map((c) => c.body?.teamId)).toEqual(["team-9"]);
+
+    // An unknown context is not a switch: the draft is kept.
+    rerender({ ws: null });
+    expect(result.current.draftId).toBe("draft-1");
+
+    // A confirmed switch to another workspace.
+    const before = apiCalls.length;
+    rerender({ ws: "team-5" });
+    expect(result.current.draftId).toBeNull();
+    // A's draft row is neither deleted nor patched: it stays resumable in A.
+    expect(apiCalls.slice(before).filter((c) => c.path.startsWith("/v1/capture/sessions/"))).toEqual([]);
+
+    // Finish in B needs a draft now: a NEW one, started in B, from the state on the page.
+    await act(async () => {
+      await result.current.ensureDraft();
+    });
+    const creates = apiCalls.filter((c) => c.path === "/v1/capture/sessions");
+    expect(creates.map((c) => c.body?.teamId)).toEqual(["team-9", "team-5"]);
+    expect(creates[1]?.body?.internalNotes).toBe("Started in A");
+    expect(apiCalls.filter((c) => c.path.startsWith("/v1/capture/sessions/"))).toEqual([]);
+  });
+
+  it("DEC-27: the caller's own Personal Space is one workspace whether or not its id is resolved", () => {
+    expect(draftWorkspaceKey(null)).toBeNull();
+    expect(draftWorkspaceKey({ type: "PERSONAL", id: null })).toBe("personal:own");
+    expect(draftWorkspaceKey({ type: "PERSONAL", id: "p1" })).toBe("personal:own");
+    expect(draftWorkspaceKey({ type: "PERSONAL", id: "p2", shared: true })).toBe("p2");
+    expect(draftWorkspaceKey({ type: "ORGANIZATION", id: "team-9" })).toBe("team-9");
+  });
+
   it("the list shows only the active workspace's drafts", () => {
+
     const personal = { id: "p1", type: "PERSONAL", shared: false };
     const team = { id: "team-9", type: "ORGANIZATION" };
     expect(draftBelongsToSpace({ teamId: "team-9" }, team)).toBe(true);
@@ -232,7 +276,10 @@ describe("B4-F-307 — drafts belong to the workspace they were started in", () 
   });
 
   it("the page lists visible drafts, says a failed delete, resets an adopted draft it deletes, and refreshes after adopt/finalize", () => {
-    expect(PAGE).toMatch(/useCaptureDraftPersistence\(\{ enabled: true, teamId: activeSpace\?\.id \|\| null \}\)/);
+    expect(PAGE).toMatch(
+      /useCaptureDraftPersistence\(\{\s*enabled: true,\s*teamId: activeSpace\?\.id \|\| null,\s*workspaceKey: draftWorkspaceKey\(activeSpace\),\s*\}\)/,
+    );
+
     expect(PAGE).toMatch(/draftList\.drafts\.filter\(\(draft\) => draftBelongsToSpace\(draft, activeSpace\)\)/);
     expect(PAGE).toMatch(/\{visibleDrafts\.map\(\(draft\) =>/);
     expect(PAGE).toMatch(/if \(draft\.id === draftPersistence\.draftId\) \{\s*await draftPersistence\.discardDraft\(\);/);

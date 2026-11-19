@@ -47,6 +47,12 @@ internal data class FrameLedger(
   val endedAtUtc: String? = null,
   /** The last monotonic offset the ledger proves (a frame, or the finish). */
   val lastOffsetMs: Long = 0L,
+  /**
+   * PRO-NBC-03 — the account that started the capture, recorded when the ledger
+   * is first written. JS offers recovered frames only to this account; null on
+   * a ledger an earlier build wrote.
+   */
+  val ownerUserId: String? = null,
 )
 
 /** A frame was written: recorded before JS is told. Idempotent per frame index. */
@@ -143,6 +149,7 @@ internal fun frameLedgerToJson(l: FrameLedger): String = MiniJson.write(
     "stopReason" to l.stopReason,
     "endedAtUtc" to l.endedAtUtc,
     "lastOffsetMs" to l.lastOffsetMs,
+    "ownerUserId" to l.ownerUserId,
   ),
 )
 
@@ -183,7 +190,9 @@ internal fun frameLedgerFromJson(text: String): FrameLedger? {
     stopReason = root.fstr("stopReason"),
     endedAtUtc = root.fstr("endedAtUtc"),
     lastOffsetMs = root.flong("lastOffsetMs") ?: 0L,
+    ownerUserId = root.fstr("ownerUserId"),
   )
+
 }
 
 /** Atomic file store for the frame ledger (frame-ledger.json in its directory). */

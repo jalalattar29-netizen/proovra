@@ -36,6 +36,14 @@ import {
   type PendingScreenStaging,
 } from "../../src/capture/screen-staging-store";
 import { discardDirectCaptureSession } from "../../src/direct-capture";
+import {
+  claimResidue,
+  clearOwnedScreenCaptureLedger,
+  FOREIGN_RESIDUE_COPY,
+  frameResidueId,
+  ownedRecoveredScreenCapture,
+} from "../../src/capture/native-residue-owner";
+
 import { releaseDirectSessionOrKeep } from "../../src/capture/stale-capture-release";
 import {
   ensureCaptureNotificationPermission,
@@ -58,8 +66,6 @@ import {
   addScreenFrameListener,
   addScreenStoppedListener,
   captureScreenFrame,
-  clearScreenCaptureLedger,
-  getRecoveredScreenCapture,
   getScreenCaptureState,
   isScreenCaptureSupported,
   startScreenCapture,
@@ -92,6 +98,8 @@ export default function ScreenCaptureScreen() {
   const [state, dispatch] = useReducer(screenFlowReducer, INITIAL_SCREEN_FLOW);
   const [busy, setBusy] = useState(false);
   const [notificationDenied, setNotificationDenied] = useState(false);
+  // PRO-NBC-03 — another account's unfinished capture is on this device (kept for its owner).
+  const [foreignCapture, setForeignCapture] = useState(false);
   // The last native result, so Discard can delete its frame files (UC-AND-010).
   const lastResultRef = useRef<ScreenCaptureResult | null>(null);
   // AUD-005 — a staging stopped by a retryable failure (or found after an app
@@ -161,11 +169,16 @@ export default function ScreenCaptureScreen() {
         }
         // AUD-37 — frames a process death interrupted are offered for review
         // (stopReason INTERRUPTED, CAPTURE_INTERRUPTED), never lost.
-        const recovered = getRecoveredScreenCapture();
-        if (recovered) {
+        // PRO-NBC-03 — to their OWNER only: frames another account left on
+        // this device are not offered, not shown and not cleared here.
+        void ownedRecoveredScreenCapture(userId).then((owned) => {
+          if (cancelled) return;
+          setForeignCapture(owned.kind === "foreign");
+          if (owned.kind !== "own") return;
+          const recovered = owned.result;
           lastResultRef.current = recovered;
-          dispatch({ type: "STOPPED", frameCount: recovered.frames.length, stopReason: recovered.stopReason });
-        }
+          dispatch({ type: "RECOVERED", frameCount: recovered.frames.length, stopReason: recovered.stopReason });
+        });
       });
       return () => {
         cancelled = true;
@@ -221,14 +234,32 @@ export default function ScreenCaptureScreen() {
           return;
         }
       }
-      await startScreenCapture({ maxFrames: 20 });
+      // PRO-NBC-03 — the capture is this account's from its first moment: the
+      // native frame ledger records it, and so does the device's claim record.
+      const started = await startScreenCapture({ maxFrames: 20, ownerUserId: userId });
+      void claimResidue(frameResidueId(started?.captureStartedAtUtc), userId);
       dispatch({ type: "STARTED" });
     } catch (err) {
+      if ((err as { code?: string } | null)?.code === "RECOVERY_PENDING") {
+        // The native ledger still holds an unfinished capture. Another
+        // account's is said as such and kept; this account's own is offered.
+        const owned = await ownedRecoveredScreenCapture(userId);
+        if (owned.kind === "foreign") {
+          setForeignCapture(true);
+          return;
+        }
+        if (owned.kind === "own") {
+          lastResultRef.current = owned.result;
+          dispatch({ type: "RECOVERED", frameCount: owned.result.frames.length, stopReason: owned.result.stopReason });
+
+          return;
+        }
+      }
       dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Screen capture consent was not granted." }).message, recoverable: true });
     } finally {
       setBusy(false);
     }
-  }, [useLocation, locationRequired, workspace, toast]);
+  }, [useLocation, locationRequired, workspace, toast, userId]);
 
   const captureFrame = useCallback(async () => {
     setBusy(true);
@@ -357,7 +388,7 @@ export default function ScreenCaptureScreen() {
       // screenshots go (UC-AND-010), and the staging record with them.
       await discardScreenCaptureFiles(result);
       await clearPendingScreenStaging();
-      await clearScreenCaptureLedger().catch(() => undefined);
+      await clearOwnedScreenCaptureLedger(userId).catch(() => undefined);
       pendingRef.current = null;
       lastResultRef.current = null;
 
@@ -395,10 +426,10 @@ export default function ScreenCaptureScreen() {
       pendingRef.current = null;
       lastResultRef.current = null;
       await clearPendingScreenStaging();
-      await clearScreenCaptureLedger().catch(() => undefined);
+      await clearOwnedScreenCaptureLedger(userId).catch(() => undefined);
       dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not stage the capture." }).message });
     }
-  }, [toast, workspace, useLocation, linkGroup]);
+  }, [toast, workspace, useLocation, linkGroup, userId]);
 
   /** Discard / Try Again / Capture Another: the local screenshots go too (UC-AND-010). */
   const reset = useCallback(() => {
@@ -415,20 +446,22 @@ export default function ScreenCaptureScreen() {
       // PRO-NB-03 — a release that got no answer is kept for Capture to retry.
       if (pending.session) {
         void releaseDirectSessionOrKeep(pending.session, null, {
-          discard: discardDirectCaptureSession,
+          // PRO-NB-01 — the person's own discard of the kept staging.
+          discard: (s) => discardDirectCaptureSession(s, { confirmedByPerson: true }),
+
           keep: (r) => saveCaptureSession({ ...r, type: "PHOTO", items: [], draftId: null, acquisition: null }),
         });
       }
     }
     void clearPendingScreenStaging();
-    void clearScreenCaptureLedger().catch(() => undefined);
+    void clearOwnedScreenCaptureLedger(userId).catch(() => undefined);
     // Each capture reads its own start location.
     locationRef.current = null;
     carriedLocationRef.current = null;
     setLocationNote(null);
     setNotificationDenied(false);
     dispatch({ type: "RESET" });
-  }, []);
+  }, [userId]);
 
   /** Back to Capture, where the staged record is listed as pending. */
   const reviewInCapture = useCallback(() => {
@@ -455,7 +488,14 @@ export default function ScreenCaptureScreen() {
   return (
     <ProovraScreen>
       <ProovraSection title="Direct Screen Capture">
-        {state.phase === "intro" && notificationDenied && (
+        {state.phase === "intro" && foreignCapture && (
+          <ProovraCard style={styles.card}>
+            <ProovraText variant="body" weight="semibold">{FOREIGN_RESIDUE_COPY.frames.title}</ProovraText>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{FOREIGN_RESIDUE_COPY.frames.body}</ProovraText>
+          </ProovraCard>
+        )}
+
+        {state.phase === "intro" && !foreignCapture && notificationDenied && (
           <ProovraCard style={styles.card}>
             <ProovraText variant="body" weight="semibold">Notifications are off</ProovraText>
             <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{NOTIFICATION_DENIED_COPY.frames}</ProovraText>
@@ -464,7 +504,7 @@ export default function ScreenCaptureScreen() {
           </ProovraCard>
         )}
 
-        {state.phase === "intro" && !notificationDenied && (
+        {state.phase === "intro" && !foreignCapture && !notificationDenied && (
           <ProovraCard style={styles.card}>
             <ProovraText variant="body" color={theme.color.ink.secondary}>
               PROOVRA will capture what is shown on your screen, using Android's own screen-capture permission. Before it starts:

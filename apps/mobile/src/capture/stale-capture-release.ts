@@ -16,7 +16,11 @@
  *     or no account action could release it): cleared;
  *   - the discard could not be answered (no connection, timeout, 5xx) or the
  *     sign-in ended: the record is KEPT, so the next visit to Capture tries
- *     the release again instead of forgetting the reservation.
+ *     the release again instead of forgetting the reservation;
+ *   - PRO-NB-01: the server answered that it KEPT the session because its
+ *     record holds staged content (`keptStagedContent`): the record is KEPT
+ *     on the device too, so the capture stays offered until the server's own
+ *     24 h lifetime ends it. The device never forgets what the server holds.
  */
 import { captureHoldReason, classifyCaptureError } from "./capture-retry";
 import type { PersistedCaptureSession } from "./capture-session-store";
@@ -33,6 +37,11 @@ export function holdsDirectSession(r: Pick<PersistedCaptureSession, "captureSess
   if (r.captureSessionId === r.evidenceId) return false;
   if (r.draftId && r.captureSessionId === r.draftId) return false;
   return true;
+}
+
+/** PURE — PRO-NB-01: did the discard answer say the server kept the session (staged content)? */
+export function serverKeptStagedContent(answer: unknown): boolean {
+  return (answer as { keptStagedContent?: unknown } | null | undefined)?.keptStagedContent === true;
 }
 
 /** PURE — after a failed discard, may the local record still be dropped? */
@@ -54,7 +63,8 @@ export async function releaseStaleCaptureRecord(
   let outcome: "released" | "cleared" = "cleared";
   if (holdsDirectSession(r)) {
     try {
-      await deps.discard({ captureSessionId: r.captureSessionId, expiresAtUtc: r.expiresAtUtc });
+      const answer = await deps.discard({ captureSessionId: r.captureSessionId, expiresAtUtc: r.expiresAtUtc });
+      if (serverKeptStagedContent(answer)) return "kept";
       outcome = "released";
     } catch (err) {
       if (!staleReleaseSettled(err)) return "kept";
@@ -80,9 +90,22 @@ export async function releaseDirectSessionOrKeep(
   },
 ): Promise<"released" | "cleared" | "kept"> {
   try {
-    await deps.discard(session);
+    const answer = await deps.discard(session);
+    if (serverKeptStagedContent(answer)) {
+      // PRO-NB-01 — the server holds staged content for this session: keep the
+      // record so Capture still offers it instead of forgetting it.
+      await deps
+        .keep({
+          captureSessionId: session.captureSessionId,
+          expiresAtUtc: session.expiresAtUtc,
+          evidenceId: evidenceId ?? `unreserved:${session.captureSessionId}`,
+        })
+        .catch(() => undefined);
+      return "kept";
+    }
     return "released";
   } catch (err) {
+
     if (staleReleaseSettled(err)) return "cleared";
     await deps
       .keep({

@@ -690,7 +690,15 @@ export async function captureTrustRoutes(app: FastifyInstance) {
       const { id } = SessionParams.parse(req.params);
       if (!(await authorizeOwnedSessionRelease(req, reply, id, userId))) return reply;
       try {
-        const result = await discardDirectCaptureSession({ sessionId: id, ownerUserId: userId });
+        // PRO-NB-01 — additive and optional: only a client that asked the person
+        // sends it. Anything else (no body, an older client's `{}`) is an
+        // unconfirmed discard, which keeps a session holding staged content.
+        const body = req.body as { confirmStagedContentDiscard?: unknown } | null | undefined;
+        const result = await discardDirectCaptureSession({
+          sessionId: id,
+          ownerUserId: userId,
+          confirmStagedContentDiscard: body?.confirmStagedContentDiscard === true,
+        });
         return reply.code(200).send({ result });
       } catch (err) {
         return sendDirectCaptureError(reply, err);

@@ -133,6 +133,9 @@ class ContinuousScreenCaptureService : Service() {
     private var currentFile: File? = null
     private var recordingStartElapsedMs = 0L
     @Volatile private var active = false
+
+    /** PRO-NBC-03 — the account starting the next recording (set by the module before start). */
+    @Volatile var pendingOwnerUserId: String? = null
     private var terminationReason = "USER_STOPPED"
     private var last: Map<String, Any?>? = null
 
@@ -206,13 +209,16 @@ class ContinuousScreenCaptureService : Service() {
      */
     fun bindSession(captureSessionId: String, evidenceId: String, ownerUserId: String?): Boolean {
       var ok = false
-      ContinuousLedgerKeeper.update { l ->
+      val after = ContinuousLedgerKeeper.update { l ->
         when (val outcome = bindLedger(l, captureSessionId, evidenceId, ownerUserId)) {
           is BindOutcome.Bound -> { ok = true; outcome.ledger }
           BindOutcome.Mismatch -> null
         }
       }
-      return ok
+      // PRO-NBC-04 — a bind the disk does not hold is not a bind: when the
+      // ledger write failed, update() returns the previous (unbound) ledger.
+      if (!ok || after == null) return false
+      return ledgerBoundTo(after, captureSessionId)
     }
 
     /**
@@ -422,9 +428,11 @@ class ContinuousScreenCaptureService : Service() {
     if (!microphoneActive) limitations.add("AUDIO_NOT_CAPTURED")
     // AUD-004 — the durable ledger exists from the moment recording does, and
     // names the one file before it is finalised.
-    ContinuousLedgerKeeper.replace(
+    val ledgerWritten = ContinuousLedgerKeeper.replace(
       ContinuousLedger(
         recordingId = "${timeline.startWallMs}-${java.util.UUID.randomUUID()}",
+        // PRO-NBC-03 — who started it, from the first write (the bind confirms it).
+        ownerUserId = pendingOwnerUserId,
         startedAtUtc = startedAtUtc,
         startedAtWallMs = timeline.startWallMs,
         device = deviceBlock(),
@@ -437,7 +445,15 @@ class ContinuousScreenCaptureService : Service() {
         audioTracks = audioTracks(),
       ),
     )
+    // PRO-NBC-04 — no recording without its durable ledger: when the ledger
+    // could not be written (disk full, I/O error) a process death would leave
+    // a recording nothing can recover, so the start is refused and said.
+    if (!ledgerWritten) {
+      failStart("LEDGER_UNAVAILABLE", "The recording could not be made recoverable on this device, so it was not started.")
+      return
+    }
     onStartedCb?.invoke(startedAtUtc)
+
     onStartedCb = null; onStartFailedCb = null
   }
 
