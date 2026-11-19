@@ -214,19 +214,13 @@ export function OrgMemberLifecycleControls({
    *
    * REVOKED offers neither transition here.
    *
-   * PHASE 13 (NEW-038) — the previous version of this comment said the routes
-   * answer `ILLEGAL_MEMBERSHIP_TRANSITION` for restore-from-revoked. They do
-   * not: `restoreOrganizationMembership` explicitly PERMITS `REVOKED -> ACTIVE`
-   * and its own docblock calls it "a real administrative need (a mistaken
-   * removal)". So the reason for withholding the control is a PRODUCT decision
-   * — revocation is presented to an administrator as terminal, and undoing one
-   * is a deliberate act that should not sit one click away from the roster —
-   * and not a server constraint. Stated correctly, because a comment that
-   * invents a server rule is how the next reader concludes the API is missing a
-   * capability it already has.
-   *
-   * The consequence is real and worth naming: an administrator who revokes in
-   * error has no product path back today, while the API supports one.
+   * PRO-T2-03 — this is a SERVER rule as well as a product one:
+   * `restoreOrganizationMembership` admits `SUSPENDED -> ACTIVE` only, and the
+   * restore route answers 409 `ILLEGAL_MEMBERSHIP_TRANSITION` for a REVOKED
+   * row. A membership that ended (the person left, or was removed) comes back
+   * only through a new invitation the person accepts. An API deployed before
+   * that rule still permitted `REVOKED -> ACTIVE`; the control was never
+   * offered for it here either.
    */
   const canSuspend = status === "ACTIVE";
   const canRestore = status === "SUSPENDED";
