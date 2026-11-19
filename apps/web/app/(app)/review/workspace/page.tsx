@@ -551,7 +551,7 @@ function ReviewerWorkspaceShell() {
           err,
         });
         setStatusBanner(
-          "The decision could not be sent. Nothing was recorded — please retry.",
+          "The decision could not be sent: workflow not closed, nothing was recorded — please retry.",
         );
         setLifecycleBusy(false);
         return;
@@ -567,7 +567,7 @@ function ReviewerWorkspaceShell() {
           code: res.code,
         });
         setStatusBanner(
-          `The decision was refused (${identifierLabel(res.code)}). Nothing was recorded.`,
+          `The decision was refused (${identifierLabel(res.code)}): workflow not closed, nothing was recorded.`,
         );
         setLifecycleBusy(false);
         return;
@@ -772,18 +772,10 @@ function ReviewerWorkspaceShell() {
         // either opens the reason form (REJECT / ESCALATE / NEEDS_INFO)
         // or runs the APPROVE lifecycle, which advances on success.
         // Hotkeys MUST NOT pre-advance — that would mask partial failure.
-        APPROVE: () => {
-          if (canDecide) onDecision("APPROVE");
-        },
-        REJECT: () => {
-          if (canDecide) onDecision("REJECT");
-        },
-        ESCALATE: () => {
-          if (canDecide) onDecision("ESCALATE");
-        },
-        REQUEST_INFO: () => {
-          if (canDecide) onDecision("NEEDS_INFO");
-        },
+        APPROVE: () => (canDecide ? onDecision("APPROVE") : undefined),
+        REJECT: () => (canDecide ? onDecision("REJECT") : undefined),
+        ESCALATE: () => (canDecide ? onDecision("ESCALATE") : undefined),
+        REQUEST_INFO: () => (canDecide ? onDecision("NEEDS_INFO") : undefined),
         NEXT_ITEM: () => void advanceToNext(),
         TOGGLE_ANNOTATIONS: () => setSidePaneMode("ANNOTATIONS"),
         FOCUS_CODING_PANEL: () => setSidePaneMode("CODING"),

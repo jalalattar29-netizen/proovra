@@ -401,6 +401,13 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "Only an invitation that is still open can be renewed. Issue a new one instead.",
     severity: "warning",
   },
+  // PRO-R1-03 — an SSO request for an outside reviewer is refused, never issued as a plain link.
+  EXTERNAL_REVIEW_SSO_NOT_SUPPORTED: {
+    title: "SSO isn't available for external review",
+    message:
+      "Outside reviewers sign in with the emailed link, and the emailed code when required. Remove the SSO settings and send the invitation again.",
+    severity: "warning",
+  },
   INVITE_PENDING_WITH_DIFFERENT_ROLE: {
     title: "An invitation is already pending",
     message:
