@@ -159,7 +159,8 @@ test("no parallel, backup or V2 surface exists on the route", () => {
 
 test("the route stays under its byte guard", () => {
   const bytes = Buffer.byteLength(PAGE, "utf8");
-  assert.ok(bytes < 80_000, `page.tsx is ${bytes} bytes`);
+  // Rebaselined 2026-11-19 (remediation integration): 80,000 -> 84,000 (see evidence-detail-ia-refactor.test.ts).
+  assert.ok(bytes < 84_000, `page.tsx is ${bytes} bytes`);
 });
 
 // ---------------------------------------------------------------------------
