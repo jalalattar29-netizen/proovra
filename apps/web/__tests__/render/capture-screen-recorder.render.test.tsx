@@ -291,7 +291,9 @@ describe("CaptureScreenRecorderCard", () => {
 
   it("the capture page wires the recorder through the canonical session path", () => {
     const page = readFileSync(resolve(__dirname, "../../app/(app)/capture/page.tsx"), "utf8");
-    expect(page).toMatch(/useCaptureScreenRecorder\(\{ addFilesToSession \}\)/);
+    // PRO-C1-07 (pin updated): the recorder is also given the staged-bytes budget.
+    expect(page).toMatch(/useCaptureScreenRecorder\(\{ addFilesToSession, getStagedBytes: \(\) => stagedBytesRef\.current \}\)/);
+
     expect(page).toMatch(/<CaptureScreenRecorderCard/);
   });
 });
