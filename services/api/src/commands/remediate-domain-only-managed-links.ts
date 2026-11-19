@@ -46,6 +46,15 @@ import { revokeAllSessionsForUser } from "../services/identity-security/session-
 import { resolveAccountOriginForOrganization } from "../services/security/enterprise-account-linking.service.js";
 
 const DIRECTORY_OR_IDP_SOURCES = ["SCIM", "SAML", "OIDC"] as const;
+/**
+ * PRO-A2-01 (WS-ORG) — a DOMAIN-source binding (the invitation path) on an
+ * account this Organization did NOT originate is listed too. Provenance is the
+ * account-origin authority, never a guess; no mapping is required as evidence
+ * (an invitation writes none). Apply releases the binding only: mappings,
+ * memberships and sessions are untouched (a DOMAIN binding never let the IdP
+ * sign in as the account).
+ */
+const DOMAIN_SOURCE = "DOMAIN";
 const PAGE = 500;
 
 export type DomainOnlyManagedLink = {
@@ -103,7 +112,7 @@ export async function findDomainOnlyManagedLinks(
       where: {
         identityMode: "MANAGED_ENTERPRISE",
         managingOrganizationId: { not: null },
-        managedIdentitySource: { in: [...DIRECTORY_OR_IDP_SOURCES] },
+        managedIdentitySource: { in: [...DIRECTORY_OR_IDP_SOURCES, DOMAIN_SOURCE] },
       } as never,
       orderBy: { id: "asc" },
       take: PAGE,
@@ -129,13 +138,15 @@ export async function findDomainOnlyManagedLinks(
         client,
       );
       if (origin?.kind !== "SELF_SERVE") continue; // the Organization created it
+      const isDomain = user.managedIdentitySource === DOMAIN_SOURCE;
       const first = await client.externalIdentityMapping.findFirst({
         where: { organizationId, userId: user.id },
         orderBy: { linkedAtUtc: "asc" },
         select: { linkedAtUtc: true },
       });
-      // No mapping = no evidence of how it was bound: never guessed.
-      if (!first || user.createdAt.getTime() > first.linkedAtUtc.getTime()) continue;
+      // No mapping = no evidence of how a directory/IdP binding was made:
+      // never guessed. A DOMAIN binding needs none (provenance above suffices).
+      if (!isDomain && (!first || user.createdAt.getTime() > first.linkedAtUtc.getTime())) continue;
       const [liveOrganizationMappings, personal] = await Promise.all([
         client.externalIdentityMapping.count({
           where: { organizationId, userId: user.id, unlinkedAtUtc: null },
@@ -150,7 +161,7 @@ export async function findDomainOnlyManagedLinks(
         organizationId,
         managedIdentitySource: user.managedIdentitySource ?? "UNKNOWN",
         userCreatedAtUtc: user.createdAt.toISOString(),
-        firstOrganizationLinkAtUtc: first.linkedAtUtc.toISOString(),
+        firstOrganizationLinkAtUtc: first ? first.linkedAtUtc.toISOString() : "none",
         liveOrganizationMappings,
         hasPassword: Boolean(user.passwordHash),
         hasPersonalWorkspace: Boolean(personal),
@@ -189,6 +200,7 @@ export async function remediateDomainOnlyManagedLinks(
         txc,
       );
       if (!done) return false;
+      if (row.managedIdentitySource === DOMAIN_SOURCE) return true;
       await txc.externalIdentityMapping.updateMany({
         where: { organizationId: row.organizationId, userId: row.userId, unlinkedAtUtc: null },
         data: { unlinkedAtUtc: new Date() },
@@ -200,7 +212,7 @@ export async function remediateDomainOnlyManagedLinks(
       continue;
     }
     report.remediated += 1;
-    await revokeAllSessionsForUser(
+    if (row.managedIdentitySource !== DOMAIN_SOURCE) await revokeAllSessionsForUser(
       { userId: row.userId, reason: "RECONCILIATION_SWEEP" },
       client,
     ).catch(() => null);
