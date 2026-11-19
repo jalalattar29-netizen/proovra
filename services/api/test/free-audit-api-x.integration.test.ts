@@ -111,6 +111,8 @@ describe("free-audit 0ea0 — API-X cross-lane completions (live PostgreSQL)", (
         archive: can(role, "evidence.archive"),
         delete: can(role, "evidence.delete"),
         restoreFromTrash: can(role, "evidence.restore_from_trash"),
+        // PRO-E2-09: the projection also states the original-download gate's answer.
+        downloadOriginal: can(role, "evidence.download_original"),
       };
       const detail = await call("GET", `/v1/evidence/${ev.id}`, token);
       expect(detail.statusCode, detail.body).toBe(200);

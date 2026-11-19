@@ -434,6 +434,18 @@ describe("§1 — NEW-005: permission-guard admission requires a LIVE membership
 
   it("8 — a CLOSED/suspended workspace refuses, through the real lifecycle path", async () => {
     await restoreBaseline();
+    // PRO-TZ-03 — a resume is a join: it claims each member's seat again, and
+    // the fixture workspace is FREE, a plan that sells no member seats. The
+    // case is about admission while suspended, so the workspace holds a plan
+    // with seats for its duration and the shipped resume can put everyone back.
+    const planBefore = await prisma.team.findUniqueOrThrow({
+      where: { id: workspaceA },
+      select: { billingPlan: true, billingStatus: true },
+    });
+    await prisma.team.update({
+      where: { id: workspaceA },
+      data: { billingPlan: "TEAM", billingStatus: "ACTIVE" },
+    });
     // Driven through the production service, not by hand-editing rows: the
     // question is whether the SHIPPED closure path removes admission.
     await mods.suspendOrganizationWorkspace({
@@ -454,6 +466,7 @@ describe("§1 — NEW-005: permission-guard admission requires a LIVE membership
       // included; resume through the shipped path so later cases start from
       // a workspace whose owner can issue the baseline grants again.
       await mods.resumeOrganizationWorkspace({ teamId: workspaceA, actorUserId: ownerUserId });
+      await prisma.team.update({ where: { id: workspaceA }, data: planBefore });
     }
   }, 180_000);
 

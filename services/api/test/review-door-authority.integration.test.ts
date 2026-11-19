@@ -264,9 +264,14 @@ describe("review door authority (live PostgreSQL)", () => {
         // The coding sheet answers an unknown workflow as empty, so a closed
         // record must read exactly the same, value for value.
         const coding = await get(`/v1/reviewer/work/${r.workflowId}/coding?${teamQ()}`, who);
-        expect(coding.statusCode, coding.body).toBe(200);
+        // PRO-LEAD-07 — a VIEWER holds no reviewer role, so the coding sheet
+        // refuses them before the record is looked at: the same 403 for a
+        // closed record and an unknown one.
+        expect(coding.statusCode, coding.body).toBe(who === viewer ? 403 : 200);
         const unknown = await get(`/v1/reviewer/work/${randomUUID()}/coding?${teamQ()}`, who);
+        expect(unknown.statusCode, unknown.body).toBe(coding.statusCode);
         expect(coding.json()).toEqual(unknown.json());
+        if (who === viewer) expect(coding.json()).toEqual({ denial: "NOT_PERMITTED" });
         const summary = await get(`/v1/reviewer-ops/decisions/summary?${teamQ()}&previewLimit=50`, who);
         expect(summary.statusCode, summary.body).toBe(200);
         expect(summary.body).not.toContain(r.evidenceId);
