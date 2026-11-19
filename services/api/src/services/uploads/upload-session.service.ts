@@ -498,7 +498,9 @@ export async function createUploadSession(
             return { ok: false, reason: "idempotency_key_conflict" };
           }
           bump("upload_session_idempotent_reuse_total");
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { target_part_index: _targetPartIndex, ...priorSession } = prior;
+
           return { ok: true, session: projectSession(priorSession), reused: true };
         }
       }
