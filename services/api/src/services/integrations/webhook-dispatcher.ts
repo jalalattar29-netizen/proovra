@@ -46,7 +46,7 @@ import { machineEgressRestricted, machineEgressTargetOf } from "../access/record
 import { isLiveOperatingWorkspace } from "../workspace/operating-workspace.js";
 
 /** PRO-G1-09 — how long a delivery of a non-operating workspace waits before it is looked at again. */
-const NOT_OPERATING_DEFER_MS = 15 * 60_000;
+export const NOT_OPERATING_DEFER_MS = 15 * 60_000;
 // Phase O1.4 — bounded webhook-dispatch span. Attributes are
 // bounded: eventType + endpointId hash prefix + status. NEVER the
 // payload, signature, or destination URL.

@@ -94,7 +94,7 @@ describe("auth session-inventory parity", () => {
     // login still awaiting a second factor never lands in the inventory.
     for (const name of ["/v1/auth/google", "/v1/auth/apple"]) {
       const h = handlerSlices().find((x) => x.name === name)!;
-      const gateAt = h.body.indexOf("if (gate.mfaIssued) return;");
+      const gateAt = h.body.indexOf("if (gate.mfaIssued) return");
       const recAt = h.body.indexOf(RECORDER);
       expect(gateAt, `${name} must keep its MFA gate`).toBeGreaterThan(-1);
       expect(recAt, `${name} must record a session`).toBeGreaterThan(-1);

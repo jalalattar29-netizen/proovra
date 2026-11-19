@@ -427,25 +427,6 @@ async function dispatchOne(
     return;
   }
 
-  // PRO-W2-05 / PRO-G1-14 / DEC-09 — a delivery is sent only while the
-  // workspace still holds FEATURE_WEBHOOKS (the API's emit asks it before the
-  // row is written; this asks it again at send, so a delivery queued or
-  // retrying when the entitlement was lost is not sent). Withheld, terminal,
-  // with its reason; the endpoint stays ACTIVE, so the pause is reversible for
-  // new events. Fails closed.
-  if (!(await workerFeatureEntitled(delivery.teamId, "FEATURE_WEBHOOKS"))) {
-    await webhookDeliveryUpdate({
-      where: { id: deliveryId },
-      data: {
-        state: "WITHHELD",
-        responseBodyPreview: "withheld:entitlement_required",
-        lastAttemptAtUtc: new Date(),
-      },
-    }).catch(() => null);
-    logger.info({ deliveryId }, "webhook.dispatcher.withheld_not_entitled");
-    return;
-  }
-
   const endpoint = await endpointFindUnique(delivery.endpointId);
   if (!endpoint || endpoint.state !== "ACTIVE") {
     await webhookDeliveryUpdate({
@@ -470,6 +451,27 @@ async function dispatchOne(
       },
     }).catch(() => null);
     logger.info({ deliveryId }, "webhook.dispatcher.workspace_not_operating_deferred");
+    return;
+  }
+
+  // Integration: asked AFTER the operating check above, so a delivery of a
+  // suspended (reversible) organization is deferred, not withheld for good.
+  // PRO-W2-05 / PRO-G1-14 / DEC-09 — a delivery is sent only while the
+  // workspace still holds FEATURE_WEBHOOKS (the API's emit asks it before the
+  // row is written; this asks it again at send, so a delivery queued or
+  // retrying when the entitlement was lost is not sent). Withheld, terminal,
+  // with its reason; the endpoint stays ACTIVE, so the pause is reversible for
+  // new events. Fails closed.
+  if (!(await workerFeatureEntitled(delivery.teamId, "FEATURE_WEBHOOKS"))) {
+    await webhookDeliveryUpdate({
+      where: { id: deliveryId },
+      data: {
+        state: "WITHHELD",
+        responseBodyPreview: "withheld:entitlement_required",
+        lastAttemptAtUtc: new Date(),
+      },
+    }).catch(() => null);
+    logger.info({ deliveryId }, "webhook.dispatcher.withheld_not_entitled");
     return;
   }
 

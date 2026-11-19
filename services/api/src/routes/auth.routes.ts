@@ -1067,7 +1067,7 @@ export async function authRoutes(app: FastifyInstance) {
         user,
         body.code ? "google_oauth_code" : "google_id_token",
       );
-      if (gate.mfaIssued) return;
+      if (gate.mfaIssued) return reply;
 
       const token = signJwt(jwtPayloadFromUser(user, "SOCIAL_OAUTH"), jwtSecret, 60 * 60 * 24 * 30);
 
@@ -1186,7 +1186,7 @@ export async function authRoutes(app: FastifyInstance) {
         user,
         body.code ? "apple_oauth_code" : "apple_id_token",
       );
-      if (gate.mfaIssued) return;
+      if (gate.mfaIssued) return reply;
 
       const token = signJwt(jwtPayloadFromUser(user, "SOCIAL_OAUTH"), jwtSecret, 60 * 60 * 24 * 30);
 
@@ -1524,7 +1524,7 @@ export async function authRoutes(app: FastifyInstance) {
     // R8.1.2 — second-factor gate. Email/password is the primary
     // attack surface for credential stuffing; MFA matters most here.
     const gate = await gateLoginWithMfa(req, reply, user, "email_password");
-    if (gate.mfaIssued) return;
+    if (gate.mfaIssued) return reply;
 
     const token = signJwt(jwtPayloadFromUser(user, "PASSWORD"), jwtSecret, 60 * 60 * 24 * 30);
     // Phase 2.5 — record AuthenticatedSession for the user-facing

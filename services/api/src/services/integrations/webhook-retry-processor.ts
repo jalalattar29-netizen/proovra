@@ -16,7 +16,8 @@ import { WEBHOOK_RETRY_MAX_ATTEMPTS } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { isIntegrationsFeatureEnabled } from "./api-keys.service.js";
-import { attemptDelivery } from "./webhook-dispatcher.js";
+import { NOT_OPERATING_DEFER_MS, attemptDelivery } from "./webhook-dispatcher.js";
+import { isLiveOperatingWorkspace } from "../workspace/operating-workspace.js";
 import { resolveEntitlement } from "../packaging/entitlement.service.js";
 
 export type ProcessWebhookRetriesSummary = {
@@ -116,6 +117,26 @@ export async function processDueWebhookRetries(
     const endpoint = await client.webhookEndpoint.findUnique({
       where: { id: refreshed.endpointId },
     });
+    // PRO-G1-09 / B7B-F02 — a workspace that is not operating (closed, or its
+    // organization suspended) sends nothing; a row due in that window is
+    // DEFERRED (attempt count untouched) so it delivers after the organization
+    // resumes. Asked before the entitlement below: a suspended organization
+    // resolves as not entitled, and that verdict is terminal. A disabled
+    // endpoint (closure, workspace suspension) still ends as CANCELLED below.
+    if (endpoint && endpoint.status === "ACTIVE" && !(await isLiveOperatingWorkspace(refreshed.teamId, client))) {
+      await client.integrationWebhookDelivery
+        .update({
+          where: { id: refreshed.id },
+          data: {
+            status: "RETRY_SCHEDULED",
+            errorMessage: "workspace_not_operating",
+            nextAttemptAtUtc: new Date(Date.now() + NOT_OPERATING_DEFER_MS),
+          },
+        })
+        .catch(() => null);
+      summary.rescheduled += 1;
+      continue;
+    }
     // PRO-G1-14 / DEC-09 — a scheduled retry is still outbound delivery, so
     // the workspace must still hold FEATURE_WEBHOOKS when it is sent (the
     // automation sibling SKIPs a lost capability the same way). Withheld, not
