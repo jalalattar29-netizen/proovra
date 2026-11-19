@@ -28,6 +28,7 @@ import { apiFetch } from "../../lib/api";
 import { formatUserDateTime } from "../../lib/date";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { usePlanFeature } from "../../lib/platform-context/useServerProjectionGates";
+import { AppListbox } from "../app-primitives/AppListbox";
 import { StepUpModal, useStepUpAction } from "../identity-security/StepUpModal";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
 
@@ -233,18 +234,13 @@ export function ExternalReviewSubjectPanel({
           </label>
           <label style={{ fontSize: 12, display: "grid", gap: 2 }}>
             Access ends after
-            <select
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-              data-external-review-days
-              style={{ padding: "5px 8px", borderRadius: 6, border: "1px solid #cbd5e1" }}
-            >
-              {EXPIRY_DAYS.map((d) => (
-                <option key={d} value={d}>
-                  {d} days
-                </option>
-              ))}
-            </select>
+            <AppListbox
+              value={String(days)}
+              options={EXPIRY_DAYS.map((d) => ({ value: String(d), label: `${d} days` }))}
+              onChange={(next) => setDays(Number(next))}
+              ariaLabel="Access ends after"
+              triggerProps={{ "data-external-review-days": "" }}
+            />
           </label>
           <button type="submit" className="app-secondary-action" disabled={busy || email.trim().length === 0}>
             {busy ? "Sending…" : "Send invitation"}

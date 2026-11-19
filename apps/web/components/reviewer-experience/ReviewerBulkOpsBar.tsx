@@ -78,7 +78,7 @@ export function ReviewerBulkOpsBar({
   const [noteAction, setNoteAction] = useState<BulkAction | null>(null);
   const [noteText, setNoteText] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const { confirm } = useConfirmAction();
+  const { confirm: confirmAction } = useConfirmAction();
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<BulkResult | null>(null);
 
@@ -326,7 +326,7 @@ export function ReviewerBulkOpsBar({
               }
               onClick={() => {
                 // PRO-R2-11 — a bulk move of every selected review asks first.
-                void confirm({
+                void confirmAction({
                   title: `Apply ${noteAction} to ${selection.size} reviews?`,
                   description: "The action is applied to every selected review.",
                   confirmLabel: `Apply ${noteAction}`,

@@ -615,7 +615,7 @@ function ReviewerWorkspaceShell() {
   // and submit through runLifecycle from the form handler.
   // PRO-R2-05 — an approval is an immutable verdict: the button and the "a"
   // key ask first through the shared confirm dialog (one dialog at a time).
-  const { confirm } = useConfirmAction();
+  const { confirm: confirmAction } = useConfirmAction();
   const approvePending = useRef(false);
   const onDecision = useCallback(
     (kind: "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_INFO") => {
@@ -623,7 +623,7 @@ function ReviewerWorkspaceShell() {
       if (kind === "APPROVE") {
         if (approvePending.current) return;
         approvePending.current = true;
-        void confirm({
+        void confirmAction({
           title: "Approve this review?",
           description: "The approval is recorded as an immutable decision and may release outputs held for review.",
           confirmLabel: "Approve",
@@ -637,7 +637,7 @@ function ReviewerWorkspaceShell() {
       }
       setReasonForm({ kind });
     },
-    [activeWorkflowId, runLifecycle, confirm],
+    [activeWorkflowId, runLifecycle, confirmAction],
   );
 
   const submitReasonForm = useCallback(

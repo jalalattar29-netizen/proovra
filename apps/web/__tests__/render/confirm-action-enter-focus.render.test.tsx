@@ -16,12 +16,12 @@ afterEach(() => cleanup());
 const results: boolean[] = [];
 
 function Trigger() {
-  const { confirm } = useConfirmAction();
+  const { confirm: confirmAction } = useConfirmAction();
   return (
     <button
       type="button"
       onClick={() => {
-        void confirm({ title: "Delete it?", tone: "danger", confirmLabel: "Delete" }).then((ok) => {
+        void confirmAction({ title: "Delete it?", tone: "danger", confirmLabel: "Delete" }).then((ok) => {
           results.push(ok);
         });
       }}
