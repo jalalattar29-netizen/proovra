@@ -530,6 +530,24 @@ export async function loadEvidenceOutputFacts(input: {
       // newer than the latest report) is a fact of the decision, so no surface
       // offers "Generate updated report" the route always refuses. An
       // unreadable freshness withholds nothing (the route still decides).
+      // RG-03 (PRO-O1C-02) — a record entitled only through its stored earned
+      // fact keeps its owed first issuance and recovery, but a customer NEW
+      // version is decided by the current lifecycle (the request authority
+      // asks the same question), so the offer is withheld after a paid lapse.
+      const newVersionNotIncluded =
+        latestReport != null &&
+        ev.ownerUserId != null &&
+        eligibility?.issuance.basis === "EARNED_AT_FINALIZATION"
+          ? await resolveEvidenceOutputEligibility({
+              evidenceId: ev.id,
+              ownerUserId: ev.ownerUserId,
+              teamId: ev.teamId ?? null,
+              customerNewVersion: true,
+            })
+              .then((e) => e.reportEligibility !== "ELIGIBLE")
+              .catch(() => false)
+          : false;
+
       const newVersionNeedsNewerFacts =
         latestReport != null &&
         eligibility?.plan === "FREE" &&
@@ -578,6 +596,7 @@ export async function loadEvidenceOutputFacts(input: {
             freeFirstIssuanceExcluded),
         freeFirstIssuanceExcluded,
         ...(newVersionNeedsNewerFacts ? { newVersionNeedsNewerFacts: true } : {}),
+        ...(newVersionNotIncluded ? { newVersionNotIncluded: true } : {}),
         storedOutputMissing:
           reportObject === "NOT_FOUND" ? "REPORT" : packageObject === "NOT_FOUND" ? "PACKAGE" : null,
       };

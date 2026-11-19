@@ -115,6 +115,15 @@ type ApiFetchOpts = {
    * is not guaranteed to reproduce those bytes.
    */
   rawText?: boolean;
+  /**
+   * PRO-NB-08 — THE PUBLIC TRANSPORT. For flows a person performs outside
+   * their account (public verification): the request carries no bearer
+   * token, no session cookie and no active-workspace header, is never
+   * replayed as an authenticated request, and a 401 never ends the session.
+   * A signed-in person who opens someone else's verification link sends
+   * nothing that says who they are.
+   */
+  anonymous?: boolean;
 };
 
 /**
@@ -274,7 +283,7 @@ async function namesADeliberateDenial(res: Response): Promise<boolean> {
 async function fetchWithAuthRetry(
   url: string,
   init: RequestInit,
-  opts: Required<Pick<ApiFetchOpts, "auth" | "retryAuthOnce">>
+  opts: Required<Pick<ApiFetchOpts, "auth" | "retryAuthOnce">> & { anonymous?: boolean }
 ) {
   const makeHeaders = () => {
     const headers = new Headers(init.headers);
@@ -289,13 +298,15 @@ async function fetchWithAuthRetry(
 
     // The workspace the operator is looking at. Never overrides an explicit
     // per-request binding a caller has already set.
-    if (!headers.has(WORKSPACE_HEADER)) {
+    if (opts.anonymous) {
+      headers.delete(WORKSPACE_HEADER);
+    } else if (!headers.has(WORKSPACE_HEADER)) {
       const workspaceId = readActiveWorkspaceId();
       if (workspaceId) headers.set(WORKSPACE_HEADER, workspaceId);
     }
 
     const token = readToken();
-    if (opts.auth && token) {
+    if (opts.auth && !opts.anonymous && token) {
       headers.set("authorization", `Bearer ${token}`);
     } else {
       headers.delete("authorization");
@@ -304,14 +315,15 @@ async function fetchWithAuthRetry(
     return headers;
   };
 
+  const credentials: RequestCredentials = opts.anonymous ? "omit" : "include";
   const first = await fetch(url, {
     ...init,
     headers: makeHeaders(),
-    credentials: "include",
+    credentials,
     cache: "no-store",
   });
 
-  if (first.status !== 401 || !opts.retryAuthOnce) {
+  if (first.status !== 401 || !opts.retryAuthOnce || opts.anonymous) {
     return first;
   }
 
@@ -342,7 +354,7 @@ async function fetchWithAuthRetry(
   const second = await fetch(url, {
     ...init,
     headers: makeHeaders(),
-    credentials: "include",
+    credentials,
     cache: "no-store",
   });
 
@@ -409,7 +421,7 @@ function readKeyFor(
   if (method !== "GET") return null;
   if (init.body != null) return null;
   if (init.signal) return null;
-  return `${url}|auth:${opts?.auth !== false}|retry:${opts?.retryAuthOnce !== false}|raw:${opts?.rawText === true}|gen:${writeGeneration}`;
+  return `${url}|auth:${opts?.auth !== false}|retry:${opts?.retryAuthOnce !== false}|raw:${opts?.rawText === true}|anon:${opts?.anonymous === true}|gen:${writeGeneration}`;
 }
 
 function cloneResult(value: unknown): unknown {
@@ -476,9 +488,11 @@ async function runApiFetch(
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${API_BASE}${normalizedPath}`;
 
+  const anonymous = opts?.anonymous === true;
   const finalOpts = {
-    auth: opts?.auth !== false,
-    retryAuthOnce: opts?.retryAuthOnce !== false,
+    auth: !anonymous && opts?.auth !== false,
+    retryAuthOnce: !anonymous && opts?.retryAuthOnce !== false,
+    anonymous,
   };
 
   let res: Response;

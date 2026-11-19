@@ -1408,6 +1408,11 @@ describe("14. Chain transfer state machine", () => {
         create: async () => ({ id: "xfer-1" }),
         findMany: async () => [],
       },
+      // PRO-BL2-07 — a transfer closes only on a built, releasable package of
+      // this workspace that carries every record the transfer moves.
+      evidenceExchangePackage: {
+        findFirst: async () => ({ state: "READY", evidenceIds: ["ev-1"] }),
+      },
     });
     const result = await completeChainTransfer({
       prisma: prisma as never,
@@ -1436,6 +1441,21 @@ describe("15. Evidence exchange package lifecycle", () => {
     let storedState: string | undefined;
     const transitions: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }> = [];
     const prisma = makePrismaStub({
+      // PRO-O1Z-02 — creation asks the byte-boundary export verdict for every
+      // selected record, so the double models one live, unheld record.
+      evidence: {
+        count: async () => 1,
+        findMany: async () => [{ id: "ev-1", teamId: "team-1" }],
+        findFirst: async () => ({
+          id: "ev-1",
+          lifecycleState: "ACTIVE",
+          deletedAt: null,
+          ownerUserId: "user-1",
+          caseLinks: [],
+        }),
+      },
+      evidenceLegalHold: { findMany: async () => [], findFirst: async () => null, count: async () => 0 },
+      destructionReview: { findFirst: async () => null },
       evidenceExchangePackage: {
         create: async (args: { data: Record<string, unknown>; select: unknown }) => {
           storedState = args.data.state as string;
@@ -1570,20 +1590,25 @@ describe("17. Verification package wires 7 lifecycle manifests", () => {
     expect(src).toContain("buildLifecycleAndExchangeManifests");
   });
 
-  it("verification-package-lifecycle.ts declares all 7 path strings under lifecycle/ prefix", () => {
+  // PRO-W1C-02 (WS-OUT RG-18) — the exchange package states only facts about
+  // its selection: the workspace-wide retention / exchange / transfer families
+  // (other packages, counterparties) are no longer written, and no family is
+  // filled with a placeholder state when no matching row exists.
+  it("verification-package-lifecycle.ts declares the selection-scoped lifecycle/ paths only", () => {
     const src = fs.readFileSync(lcPath, "utf8");
-    const expectedPaths = [
+    for (const p of [
       "lifecycle/lifecycle-manifest.json",
-      "lifecycle/retention-manifest.json",
       "lifecycle/legal-hold-manifest.json",
       "lifecycle/archive-manifest.json",
       "lifecycle/destruction-manifest.json",
-      "lifecycle/exchange-manifest.json",
-      "lifecycle/transfer-manifest.json",
-    ];
-    for (const p of expectedPaths) {
+    ]) {
       expect(src).toContain(p);
     }
+    for (const p of ["lifecycle/exchange-manifest.json", "lifecycle/transfer-manifest.json"]) {
+      expect(src).not.toContain(p);
+    }
+    expect(src).not.toMatch(/state: row?.status ?? "ACTIVE"/);
+    expect(src).toContain("evidenceIds: ReadonlyArray<string>");
   });
 });
 

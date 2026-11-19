@@ -185,6 +185,8 @@ export async function runFirstIssuanceReconciliation(options: {
         evidenceId: ev.id,
         purpose: recent ? "lifecycle_recovery" : "first_issuance",
         machineId: "worker.first-issuance",
+        // RG-03 (PRO-W1-04) — an entitled first issuance is owed.
+        owed: true,
         enqueue: (requestId) => enqueueReportGenerationRequest(requestId),
       });
       if (res.requestId && res.reason !== "already_terminal") summary.firstIssueScheduled++;
@@ -258,11 +260,17 @@ export async function runFirstIssuanceReconciliation(options: {
   }
 
   // ---- MISSING PACKAGE FOR THE LATEST REPORT --------------------------------
-  if (packageRecoveryEnabled || options.dryRun) {
+  // RG-03 (PRO-W1-01) — the historical sweep stays behind its flag, but a
+  // package a run OWNED and the governance gate denied (a hold, recorded in
+  // verificationPackageMetadata.blocked) is re-asked regardless: it is owed by
+  // a request that did not complete, not historical backfill. While the
+  // blocker stands the writer collapses onto the blocked head (no new row).
+  {
     const rows = await prisma.$queryRaw<
-      Array<{ id: string; owner_user_id: string; team_id: string | null; version: number }>
+      Array<{ id: string; owner_user_id: string; team_id: string | null; version: number; gate_blocked: boolean }>
     >`
-      SELECT e.id, e.owner_user_id, e.team_id, r.version
+      SELECT e.id, e.owner_user_id, e.team_id, r.version,
+             COALESCE(e.verification_package_metadata->>'blocked', 'false') = 'true' AS gate_blocked
         FROM evidence e
         JOIN reports r
           ON r.evidence_id = e.id
@@ -275,6 +283,8 @@ export async function runFirstIssuanceReconciliation(options: {
          AND e.deleted_at IS NULL
          AND e.lifecycle_state IN ('ACTIVE','UNDER_REVIEW','ON_HOLD','RETENTION_LOCKED')
          AND vp.id IS NULL
+         AND (${packageRecoveryEnabled || options.dryRun === true}
+              OR COALESCE(e.verification_package_metadata->>'blocked', 'false') = 'true')
          AND (${packageCursor}::uuid IS NULL OR e.id > ${packageCursor}::uuid)
          AND NOT EXISTS (
                SELECT 1 FROM report_generation_requests q
@@ -324,7 +334,7 @@ export async function runFirstIssuanceReconciliation(options: {
           summary.packageSkippedStorageRefused++;
           continue;
         }
-        if (options.dryRun || !packageRecoveryEnabled) {
+        if (options.dryRun || (!packageRecoveryEnabled && !row.gate_blocked)) {
           summary.packageScheduled++;
           continue;
         }
@@ -332,6 +342,7 @@ export async function runFirstIssuanceReconciliation(options: {
           evidenceId: row.id,
           purpose: "package_recovery",
           machineId: "worker.package-recovery",
+          owed: true,
           packageForReportVersion: row.version,
           enqueue: (requestId) => enqueueReportGenerationRequest(requestId),
         });

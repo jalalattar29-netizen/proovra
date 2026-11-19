@@ -467,7 +467,7 @@ export type CompleteChainTransferInput = {
 
 export type CompleteChainTransferResult =
   | { ok: true }
-  | { ok: false; denial: "NOT_FOUND" | "INVALID_STATE" };
+  | { ok: false; denial: "NOT_FOUND" | "INVALID_STATE" | "PACKAGE_NOT_READY" };
 
 export async function completeChainTransfer(
   input: CompleteChainTransferInput,
@@ -481,10 +481,21 @@ export async function completeChainTransfer(
   if (row.state !== "ACCEPTED") return { ok: false, denial: "INVALID_STATE" };
   // The package a transfer closes on is part of its custody record, so it must be
   // this workspace's own. It was stored as given.
-  const ownPackage = await prisma.evidenceExchangePackage.count({
+  const ownPackage = await prisma.evidenceExchangePackage.findFirst({
     where: { id: input.packageId, teamId: input.teamId },
+    select: { state: true, evidenceIds: true },
   });
-  if (ownPackage !== 1) return { ok: false, denial: "NOT_FOUND" };
+  if (!ownPackage) return { ok: false, denial: "NOT_FOUND" };
+  // PRO-BL2-07 (RG-18) — a transfer completes only with a package that was
+  // built and can be released (READY / DELIVERED) and that carries every
+  // record the transfer moves.
+  const packaged = new Set(idsOf(ownPackage.evidenceIds));
+  if (
+    (ownPackage.state !== "READY" && ownPackage.state !== "DELIVERED") ||
+    !idsOf(row.evidenceIds).every((id) => packaged.has(id))
+  ) {
+    return { ok: false, denial: "PACKAGE_NOT_READY" };
+  }
   const at = new Date();
   const moved = await prisma.$transaction(async (tx) => {
     const claim = await tx.chainTransfer.updateMany({

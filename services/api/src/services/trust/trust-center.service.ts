@@ -27,12 +27,14 @@
 import type { PrismaClient } from "@prisma/client";
 import {
   AI_DISCLOSURE_SECTIONS,
+  isSafeTrustImplementationReference,
   METHODOLOGY_SECTIONS,
   SECURITY_SECTIONS,
   TRUST_ARTICLE_DRIFT_STATES,
   TRUST_ARTICLE_KINDS,
   TRUST_ARTICLE_STATES,
   TRUST_CENTER_SECTIONS,
+  TRUST_IMPLEMENTATION_REFERENCE_MAX_COUNT,
   type AiDisclosureSection,
   type MethodologySection,
   type SecuritySection,
@@ -65,7 +67,7 @@ export type UpsertArticleInput = {
 
 export type UpsertArticleResult =
   | { ok: true; articleId: string; version: number; state: TrustArticleState }
-  | { ok: false; denial: "POLICY_REJECTED" };
+  | { ok: false; denial: "POLICY_REJECTED" | "INVALID_IMPLEMENTATION_REFERENCE" };
 
 export async function upsertTrustArticle(
   input: UpsertArticleInput,
@@ -75,6 +77,17 @@ export async function upsertTrustArticle(
   }
   if (!validateSection(input.kind, input.section)) {
     return { ok: false, denial: "POLICY_REJECTED" };
+  }
+  // PRO-G2-03 — the ONE writer of implementationReferences validates them:
+  // repository-relative paths under a source root, no traversal, bounded
+  // count. A reference is a pointer an auditor can open in the repository,
+  // never a path the server is asked to probe on a tenant's behalf.
+  const refs = input.implementationReferences ?? [];
+  if (
+    refs.length > TRUST_IMPLEMENTATION_REFERENCE_MAX_COUNT ||
+    !refs.every((r) => isSafeTrustImplementationReference(r))
+  ) {
+    return { ok: false, denial: "INVALID_IMPLEMENTATION_REFERENCE" };
   }
   const prisma = input.prisma ?? defaultPrisma;
   const state: TrustArticleState = input.publish ? "PUBLISHED" : "DRAFT";
@@ -244,20 +257,38 @@ export async function listTrustArticleVersions(input: {
  * platform always reports the full catalog so the Trust Center UI
  * never shows holes — sections start in DRAFT until an operator
  * publishes them or this seed re-runs with publish=true.
+ *
+ * PRO-G2-04 / PRO-G2-13 (RG-20) — two modes, one writer:
+ *   * "insert_missing" (the DEFAULT): only canonical slugs the workspace does
+ *     not hold are created. An existing article — published, drafted or edited
+ *     by its owner — is never touched. Read paths and any caller without the
+ *     authoring authority get this mode only.
+ *   * "reapply_canonical": the owner's explicit "restore the platform text"
+ *     action. It overwrites the canonical slugs with the canonical text (and
+ *     state). Only the authorized, stepped-up seed route may ask for it.
  */
+export type TrustSeedMode = "insert_missing" | "reapply_canonical";
+
 export async function ensureTrustCenterSeed(input: {
   prisma?: PrismaClient;
   teamId: string;
   systemUserId: string;
   publish?: boolean;
-}): Promise<{ created: number; updated: number }> {
+  mode?: TrustSeedMode;
+}): Promise<{ created: number; updated: number; skipped: number }> {
+  const mode: TrustSeedMode = input.mode ?? "insert_missing";
   let created = 0;
   let updated = 0;
+  let skipped = 0;
   for (const seed of SEED_ARTICLES) {
     const existing = await (input.prisma ?? defaultPrisma).trustCenterArticle.findFirst({
       where: { teamId: input.teamId, kind: seed.kind, slug: seed.slug },
       select: { id: true, version: true },
     });
+    if (existing && mode === "insert_missing") {
+      skipped += 1;
+      continue;
+    }
     const result = await upsertTrustArticle({
       prisma: input.prisma,
       teamId: input.teamId,
@@ -276,7 +307,7 @@ export async function ensureTrustCenterSeed(input: {
     if (existing) updated += 1;
     else created += 1;
   }
-  return { created, updated };
+  return { created, updated, skipped };
 }
 
 // ---------------------------------------------------------------------------
@@ -1083,7 +1114,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     slug: "evidence-immutability",
     title: "Evidence immutability",
     summary:
-      "Originals are persisted once and never overwritten. When the storage bucket has S3 Object Lock configured, PROOVRA applies bounded retention + legal-hold semantics through the operations/object-lock-status.service.ts; otherwise immutability is enforced by the application contract (no overwrite/replace API path exists).",
+      "Originals are persisted once and never overwritten. When the storage bucket has S3 Object Lock configured, PROOVRA applies object retention at write time and reports the bucket state through operations/object-lock-status.service.ts. Legal holds are enforced by the application (the hold evaluator and the destruction executor refuse any release or purge of held records); no storage-native legal hold is placed. Otherwise immutability is enforced by the application contract (no overwrite/replace API path exists).",
     body:
       "An original evidence file is uploaded via storage.ts to a content-addressable key, its SHA-256 is recorded on the Evidence row at capture, and OpenTimestamps anchoring fixes the digest to a public-blockchain proof. Reviewer corrections + redactions produce DERIVATIVES — separate Evidence rows with their own custody events — so the original bytes remain intact and re-hash-verifiable. The bootstrap/object-lock-verification.ts probe reports whether the configured bucket actually has Object Lock enabled; the Status Page surfaces an honest verdict rather than asserting Object Lock when it is not configured.",
     implementationReferences: [
@@ -1102,7 +1133,7 @@ const SEED_ARTICLES: ReadonlyArray<SeedArticle> = [
     summary:
       "S3 Object Lock is supported when the configured storage bucket has it enabled (S3-Compliance or S3-Governance mode). PROOVRA does not silently assert Object Lock — bootstrap probes the bucket and surfaces the verdict honestly via the status page DEPENDENCY_HEALTH component.",
     body:
-      "The bootstrap/object-lock-verification.ts script runs at API startup and calls GetObjectLockConfigurationCommand against the evidence bucket; the result feeds the operations/object-lock-status.service.ts read-model. When enabled, PROOVRA applies retention via PutObjectRetentionCommand and legal holds via PutObjectLegalHoldCommand (storage.ts wraps these). Retention windows are typically configured at the bucket policy level by operators. When Object Lock is NOT enabled (e.g. Cloudflare R2 today, or buckets without compliance-mode), the status page reports the gap rather than masking it.",
+      "The bootstrap/object-lock-verification.ts script runs at API startup and calls GetObjectLockConfigurationCommand against the evidence bucket; the result feeds the operations/object-lock-status.service.ts read-model. When enabled, PROOVRA applies retention via PutObjectRetentionCommand (storage.ts wraps it). Legal holds are NOT placed as storage-native S3 legal holds: they are enforced by the application, whose hold evaluator and destruction executor refuse to release or purge a held record. Retention windows are typically configured at the bucket policy level by operators. When Object Lock is NOT enabled on a bucket, the status page reports the gap rather than masking it.",
     implementationReferences: [
       "services/api/src/bootstrap/object-lock-verification.ts",
       "services/api/src/services/operations/object-lock-status.service.ts",

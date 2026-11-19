@@ -52,6 +52,7 @@ import {
   // derives forceRegenerate from artifact availability, and the classifier that
   // tells a still-standing blocker apart from a dead terminal.
   isRecoverableBlockedTerminalReason,
+  isSystemReissueRequestPurpose,
   resolveForceRegenerate,
   type GenerationIntent,
   type GenerationRequestOutcome,
@@ -112,6 +113,8 @@ export type RequestReportGenerationInput = {
   supersedeTechnicalTerminal?: boolean;
   /** AUD-027 — an authorized operator supersession, on the operator budget (see the writer). */
   operatorSupersession?: { actorUserId: string; reason: string; requestKey: string } | null;
+  /** RG-03 — a system re-issue's request identity (see the writer). */
+  systemReissueIdentity?: string | null;
 };
 
 export type RequestReportGenerationResult =
@@ -221,11 +224,16 @@ export async function requestReportGeneration(
    * writer's bounded refusal onto its customer outcomes.
    */
   let eligibilityIssuance: OutputProductionEntitlement | null = null;
-  if (evidenceSubject?.ownerUserId) {
+  // RG-03 (PRO-O1Z-01, DEC-03) — a system re-issue PROOVRA owes asks no
+  // commercial question: the writer exempts it from entitlement (lifecycle
+  // still applies), so an unreadable or lapsed entitlement does not refuse it.
+  if (evidenceSubject?.ownerUserId && !isSystemReissueRequestPurpose(input.purpose)) {
     const eligibility = await resolveEvidenceOutputEligibility({
       evidenceId: input.evidenceId,
       ownerUserId: evidenceSubject.ownerUserId,
       teamId: evidenceSubject.teamId ?? null,
+      // RG-03 (PRO-O1C-02) — an updated report is a customer new version.
+      customerNewVersion: input.purpose === "updated_report",
     }).catch(() => null);
     if (!eligibility || eligibility.issuance.decision === "UNRESOLVED") {
       bump("report_generation_entitlement_unresolved_total");

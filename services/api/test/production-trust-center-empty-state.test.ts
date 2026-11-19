@@ -94,7 +94,8 @@ describe("Production fix A — GET routes self-heal an empty Trust Center", () =
     expect(slice).toMatch(/let\s+articles\s*;/);
     expect(slice).toMatch(/articles\s*=\s*await\s+listTrustArticles/);
     expect(slice).toMatch(
-      /if\s*\(\s*articles\.length\s*===\s*0\s*\)\s*\{[\s\S]{0,400}ensureTrustCenterSeed/,
+      // PRO-G2-04 — the self-heal also requires the UNFILTERED workspace count to be zero.
+      /if\s*\(\s*articles\.length\s*===\s*0\s*&&[\s\S]{0,200}trustCenterArticle\.count[\s\S]{0,600}ensureTrustCenterSeed/,
     );
     // The self-heal must be wrapped in try/catch so a seed failure
     // never turns a GET into a 500.
@@ -107,7 +108,7 @@ describe("Production fix A — GET routes self-heal an empty Trust Center", () =
     expect(slice).toMatch(/let\s+subprocessors\s*;/);
     expect(slice).toMatch(/subprocessors\s*=\s*await\s+listSubprocessors/);
     expect(slice).toMatch(
-      /if\s*\(\s*subprocessors\.length\s*===\s*0\s*\)\s*\{[\s\S]{0,400}ensureSubprocessorSeed/,
+      /if\s*\(\s*subprocessors\.length\s*===\s*0\s*&&[\s\S]{0,200}subprocessor\.count[\s\S]{0,600}ensureSubprocessorSeed/,
     );
     expect(slice).toMatch(/try\s*\{[\s\S]{0,400}ensureSubprocessorSeed/);
     expect(slice).toMatch(/ensureSubprocessorSeed[\s\S]{0,400}\}\s*catch\b/);

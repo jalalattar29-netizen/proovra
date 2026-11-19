@@ -41,6 +41,8 @@ export async function resolveEvidenceOutputIssuance(
     id: string;
     ownerUserId: string;
     teamId: string | null;
+    /** RG-03 (PRO-O1C-02) — a customer-requested new version (purpose updated_report). */
+    customerNewVersion?: boolean;
   },
   client: WorkerDbClient = prisma,
 ): Promise<OutputIssuanceEntitlement> {
@@ -100,6 +102,7 @@ export async function resolveEvidenceOutputIssuance(
     funding,
     lifecycle,
     earned,
+    customerNewVersion: record.customerNewVersion === true,
   });
 }
 
@@ -117,6 +120,7 @@ export async function workerOutputEntitlement(
     id: string;
     ownerUserId: string;
     teamId: string | null;
+    customerNewVersion?: boolean;
   },
   client: WorkerDbClient = prisma,
 ): Promise<OutputIssuanceEntitlement | null> {

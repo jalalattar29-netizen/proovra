@@ -79,6 +79,8 @@ const H = vi.hoisted(() => ({
   holdReleaseError: null as string | null,
   holdReleaseApproved: false,
   holdExists: true,
+  /** The scope of the one hold id (PRO-G2-12). */
+  holdScope: "EVIDENCE" as "EVIDENCE" | "CASE",
 
   /** Exchange side-effect ledgers — a denial must leave ALL of these empty. */
   signedUrlsMinted: [] as string[],
@@ -313,6 +315,36 @@ vi.mock("../src/services/governance/legal-hold.service.js", () => {
         ]
       : [],
   listLifecycleLegalHoldsLegacyShape: async () => [],
+  // PRO-G2-12 — one hold by id, of the route's scope (H.holdScope).
+  getLegalHoldInLegacyShape: async (i: { holdId: string; scope: "EVIDENCE" | "CASE" }) => {
+    if (!H.holdExists || i.holdId !== HOLD || i.scope !== H.holdScope) return null;
+    return i.scope === "EVIDENCE"
+      ? {
+          id: HOLD,
+          teamId: TEAM,
+          evidenceId: EVIDENCE,
+          caseId: null,
+          title: "Preservation",
+          reason: null,
+          status: "RELEASED",
+          placedByUserId: ACTOR,
+          placedAtUtc: "2026-07-30T10:00:00.000Z",
+          releasedByUserId: ACTOR,
+          releasedAtUtc: "2026-07-30T11:00:00.000Z",
+          releaseNote: "Matter closed",
+        }
+      : {
+          id: HOLD,
+          teamId: TEAM,
+          caseId: CASE,
+          title: "Preservation",
+          status: "RELEASED",
+          placedByUserId: ACTOR,
+          placedAtUtc: "2026-07-30T10:00:00.000Z",
+          releasedByUserId: ACTOR,
+          releasedAtUtc: "2026-07-30T11:00:00.000Z",
+        };
+  },
   };
 });
 
@@ -429,6 +461,7 @@ beforeEach(async () => {
   H.holdReleaseError = null;
   H.holdReleaseApproved = false;
   H.holdExists = true;
+  H.holdScope = "EVIDENCE";
   H.deliveryFound = true;
   H.signedUrlsMinted.length = 0;
   H.deliveriesCreated.length = 0;
@@ -603,6 +636,20 @@ describe("Trust residue — Legal-Hold compatibility adapters", () => {
     expect(JSON.parse(res.body).error.code).toBe("hold_not_found");
   });
 
+  it("PRO-G2-12: a CASE hold id on the evidence release route is refused before any write", async () => {
+    H.holdScope = "CASE";
+    const res = await gov.inject({
+      method: "POST",
+      url: `/v1/governance/legal-holds/${HOLD}/release`,
+      headers: json,
+      payload: { teamId: TEAM, releaseNote: "Matter closed" },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(JSON.parse(res.body).error.code).toBe("hold_not_found");
+    expect(H.writes).toEqual([]);
+    expect(H.stepUpCalls).toEqual([]);
+  });
+
   it("a canonical release refusal surfaces its bounded code with no invented status", async () => {
     H.holdReleaseError = "release_approval_required";
     const res = await gov.inject({
@@ -639,6 +686,7 @@ describe("Trust residue — Legal-Hold compatibility adapters", () => {
 
   it("releasing a case hold enforces the workspace approval gate BEFORE any release", async () => {
     H.requireLegalHoldReleaseApproval = true;
+    H.holdScope = "CASE";
     const blocked = await gov.inject({
       method: "POST",
       url: `/v1/governance/case-legal-holds/${HOLD}/release`,

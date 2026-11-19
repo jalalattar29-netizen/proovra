@@ -2705,6 +2705,13 @@ export async function teamsRoutes(app: FastifyInstance) {
               where: { id: { in: moved.map((e) => e.id) } },
               data: { ownerUserId: transferToUserId },
             });
+            // RG-03 (PRO-WZ-01) — a held first-output release is decided for
+            // the record's current actor: the departing member's hold passes
+            // to the transfer target with the records.
+            await tx.evidence.updateMany({
+              where: { id: { in: moved.map((e) => e.id) }, outputsHeldActorUserId: target.userId },
+              data: { outputsHeldActorUserId: transferToUserId },
+            });
             // Members audit LIFE-17 — each moved record's chain says why its
             // owner changed, in the same transaction as the change.
             for (const e of moved) {

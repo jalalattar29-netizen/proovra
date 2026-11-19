@@ -526,6 +526,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           evidenceIds: z.array(z.string().uuid()).min(1).max(500),
           caseId: z.string().uuid().nullable().optional(),
           scopeNote: z.string().min(1).max(400).optional(),
+          // PRO-W1C-05 (DEC-25) — optional; absent = FULL_FORENSIC (today's package).
+          disclosureProfile: z.enum(["FULL_FORENSIC", "EXTERNAL_DISCLOSURE"]).optional(),
         })
         .parse(req.body);
       // IDENT-019 — a quarantined session keeps reads; this is refused.
@@ -537,9 +539,19 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         caseId: body.caseId ?? null,
         scopeNote: body.scopeNote ?? null,
         createdByUserId: ctx.userId,
+        disclosureProfile: body.disclosureProfile,
       });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
-      return reply.code(201).send({ packageId: res.packageId });
+      if (!res.ok) {
+        // PRO-O1Z-02 — the export verdict's outcome, not which record.
+        return reply
+          .code(409)
+          .send(res.denial === "EXPORT_BLOCKED" ? { denial: res.denial, outcome: res.outcome } : { denial: res.denial });
+      }
+      // PRO-W1C-05 — the profile the package WAS created under (additive): a
+      // client that asked for one learns whether this server honoured it.
+      return reply
+        .code(201)
+        .send({ packageId: res.packageId, disclosureProfile: body.disclosureProfile ?? "FULL_FORENSIC" });
     },
   );
 
@@ -705,8 +717,20 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         teamId: ctx.teamId,
         packageId: id,
         ttlSeconds: q.ttlSeconds ?? 3600,
+        actorUserId: ctx.userId,
       });
-      if (!res.ok) return reply.code(404).send({ denial: res.denial });
+      if (!res.ok) {
+        // PRO-O1Z-02 — the workspace's package-download policy (the code the
+        // other package downloads answer with); an unreadable policy is retryable.
+        if (res.denial === "POLICY_BLOCKED") {
+          return reply
+            .code(res.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
+            .send({ denial: res.denial, code: res.code });
+        }
+        if (res.denial === "EXPORT_BLOCKED") return reply.code(409).send({ denial: res.denial, outcome: res.outcome });
+        if (res.denial === "DOWNLOAD_UNAVAILABLE") return reply.code(503).send({ denial: res.denial });
+        return reply.code(404).send({ denial: res.denial });
+      }
       // A signed link hands out access to the package's evidence. The URL
       // itself is never recorded — only who minted it, for what, and until when.
       await emitTenantAudit({
@@ -824,6 +848,8 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         recipientOrgSlug: body.recipientOrgSlug ?? null,
         channel: body.channel ?? "SIGNED_URL",
       });
+      // PRO-BL2-07 — a package that cannot be released records no delivery.
+      if (!res.ok && res.denial === "PACKAGE_NOT_READY") return reply.code(409).send({ denial: "PACKAGE_NOT_READY" });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
       // Recording a delivery releases the package to an external recipient.
       // The recipient's address stays on the delivery row (referenced by id);
@@ -879,7 +905,14 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const res = await recordPackageDownload({
         teamId: ctx.teamId,
         deliveryId: id,
+        actorUserId: ctx.userId,
       });
+      if (!res.ok && res.denial === "POLICY_BLOCKED") {
+        return reply
+          .code(res.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
+          .send({ denial: res.denial, code: res.code });
+      }
+      if (!res.ok && res.denial === "PACKAGE_NOT_READY") return reply.code(409).send({ denial: "PACKAGE_NOT_READY" });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
       await emitTenantAudit({
         action: "exchange.delivery.download_authorized",

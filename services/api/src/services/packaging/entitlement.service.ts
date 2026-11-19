@@ -138,7 +138,15 @@ export const DEFAULT_ENTITLEMENTS: Record<
   { kind: EntitlementKind; value: EntitlementValue }
 > = {
   FEATURE_REDACTION: { kind: "FEATURE", value: false },
-  FEATURE_TRUST_CENTER: { kind: "FEATURE", value: true },
+  // DEC-12 (RG-20, B7B-F06 / PRO-G2-13) — custom Trust Center AUTHORING is an
+  // Enterprise capability. The default no longer grants it to every plan (the
+  // default-true escape hatch let any self-serve owner publish custom trust
+  // content). An ACTIVE Enterprise contract still grants it through the
+  // ENTERPRISE line below, and explicit product-line / operator grants stay
+  // valid. READS of the Trust Center and the canonical platform seed do not
+  // ask this key and stay available on every plan; already-published content
+  // is not withdrawn.
+  FEATURE_TRUST_CENTER: { kind: "FEATURE", value: false },
   FEATURE_GOVERNANCE_PLATFORM: { kind: "FEATURE", value: false },
   FEATURE_EVIDENCE_EXCHANGE: { kind: "FEATURE", value: false },
   FEATURE_WEBHOOKS: { kind: "FEATURE", value: false },

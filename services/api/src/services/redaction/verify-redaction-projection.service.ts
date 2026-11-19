@@ -102,38 +102,23 @@ export async function projectVerifyRedaction(
       },
     });
 
-    const totalFramesCount = await client.videoFrame.count({
-      where: { evidenceId: input.evidenceId, teamId: input.teamId },
-    });
+    /*
+     * PRO-R3-10 (RG-18) — "video frames reviewed" and "regions approved for
+     * masking" were counts of rows an administrator TYPES (no worker extracts
+     * frames from the sealed object). Public statements about a record come
+     * from system facts, so operator-entered video provenance never reaches
+     * the public projection; the field stays (null) for older parsers.
+     */
+    if (!project) return null;
 
-    // Nothing surfaceable: no redaction project AND no extracted video
-    // frames. Keep the verify payload clean for the common case.
-    if (!project && totalFramesCount === 0) return null;
-
-    const published = project?.versions[0] ?? null;
-    const acceptedTracksCount =
-      totalFramesCount > 0
-        ? await client.videoTrack.count({
-            where: {
-              evidenceId: input.evidenceId,
-              teamId: input.teamId,
-              state: "ACCEPTED",
-            },
-          })
-        : 0;
+    const published = project.versions[0] ?? null;
 
     return {
       hasPublishedDerivative: published !== null,
       publishedVersionOrdinal: published?.versionOrdinal ?? null,
       publishedAtUtc: published?.publishedAtUtc?.toISOString() ?? null,
       approvalCount: published?.approvals.length ?? 0,
-      videoProvenance:
-        totalFramesCount > 0
-          ? {
-              totalFrames: totalFramesCount,
-              acceptedTracks: acceptedTracksCount,
-            }
-          : null,
+      videoProvenance: null,
       limitations: REDACTION_PUBLIC_VERIFY_LIMITATIONS,
     };
   } catch {

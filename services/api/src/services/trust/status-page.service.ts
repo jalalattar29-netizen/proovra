@@ -89,13 +89,18 @@ export async function ensureStatusComponentsSeed(input: {
   prisma?: PrismaClient;
   teamId: string;
 }): Promise<{ created: number; updated: number }> {
+  // PRO-G2-13 (RG-20) — CREATE-ONLY. This runs on every GET /v1/trust/status;
+  // it used to upsert all thirteen components on each read (a write per
+  // component, per read, as the reader). A component that exists is left as
+  // it is; only a missing one is created. `updated` stays for older callers.
   let created = 0;
-  let updated = 0;
+  const updated = 0;
   for (const seed of SEED_COMPONENTS) {
     const existing = await (input.prisma ?? defaultPrisma).statusComponent.findFirst({
       where: { teamId: input.teamId, key: seed.key },
       select: { id: true },
     });
+    if (existing) continue;
     await upsertStatusComponent({
       prisma: input.prisma,
       teamId: input.teamId,
@@ -103,8 +108,7 @@ export async function ensureStatusComponentsSeed(input: {
       label: seed.label,
       description: seed.description,
     });
-    if (existing) updated += 1;
-    else created += 1;
+    created += 1;
   }
   return { created, updated };
 }

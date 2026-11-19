@@ -204,9 +204,17 @@ describe("first issuance", () => {
 });
 
 describe("missing package for the latest report", () => {
-  it("does not run unless enabled", async () => {
+  // RG-03 (PRO-W1-01) — the HISTORICAL sweep still needs the flag; a package a
+  // run owned and the governance gate denied (gate_blocked) is re-asked anyway.
+  it("without the flag only gate-blocked owed packages are re-asked", async () => {
+    queryRaw.mockResolvedValue([{ id: "e7", owner_user_id: "u", team_id: "t", version: 7, gate_blocked: false }]);
     await runFirstIssuanceReconciliation({ now: NOW });
-    expect(queryRaw).not.toHaveBeenCalled();
+    expect(requestFromWorker).not.toHaveBeenCalled();
+    queryRaw.mockResolvedValue([{ id: "e8", owner_user_id: "u", team_id: "t", version: 2, gate_blocked: true }]);
+    const res = await runFirstIssuanceReconciliation({ now: NOW });
+    expect(res.packageScheduled).toBe(1);
+    const call = requestFromWorker.mock.calls.at(-1)![0];
+    expect(call).toMatchObject({ evidenceId: "e8", packageForReportVersion: 2, purpose: "package_recovery", owed: true });
   });
 
   it("requests the package for EXACTLY the latest report version (v7), never a new report", async () => {

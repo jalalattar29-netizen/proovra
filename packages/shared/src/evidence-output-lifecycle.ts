@@ -872,6 +872,8 @@ const RECOVERABLE_BLOCKED_TERMINAL_REASONS: ReadonlySet<string> = new Set([
   "POLICY_VERSION_CHANGED",
   "LEGAL_HOLD_ACTIVE",
   "ORGANIZATION_NOT_ACTIVE",
+  // RG-03 (PRO-W1-03) — a closed workspace issues nothing; a reopen ends it.
+  "WORKSPACE_CLOSED",
 ]);
 
 /**
@@ -1203,6 +1205,13 @@ export type EvidenceOutputFacts = {
    */
   newVersionNeedsNewerFacts?: boolean;
   /**
+   * RG-03 (PRO-O1C-02, DEC-03) — the record is entitled only through its
+   * stored PAID earned fact and the subject's current lifecycle does not
+   * include outputs: owed first issuance and recovery stay available, a
+   * customer NEW version does not. Absent = not refused for it.
+   */
+  newVersionNotIncluded?: boolean;
+  /**
    * AUD-011 — which output of the latest pair a HEAD of its RECORDED version
    * proved gone (single-record views probe it; lists never do). Absent/null =
    * not proven missing (present, not checked, or the store did not answer).
@@ -1342,6 +1351,20 @@ export type OutputProductionDecision =
   | { produce: false; refusal: null; unresolved: true };
 
 /**
+ * RG-03 (PRO-O1Z-01, DEC-03) — request purposes that are a SYSTEM RE-ISSUE
+ * PROOVRA owes, not a customer output: the linked replacement of an output
+ * sealed by key material PROOVRA withdrew. Its commercial entitlement is not
+ * asked (a lapsed, downgraded or Free record is owed it too, at no charge);
+ * the record's lifecycle still is. Server-minted only — no route accepts a
+ * purpose from a caller.
+ */
+export const SYSTEM_REISSUE_REQUEST_PURPOSES = ["signing_key_compromise_replacement"] as const;
+
+export function isSystemReissueRequestPurpose(purpose: string | null | undefined): boolean {
+  return (SYSTEM_REISSUE_REQUEST_PURPOSES as ReadonlyArray<string>).includes(purpose ?? "");
+}
+
+/**
  * THE ONE DECISION every output producer, the worker claim and both commit
  * gates ask before a report or package request is created, run or committed.
  *
@@ -1358,9 +1381,15 @@ export function decideOutputProduction(input: {
   entitlement: OutputProductionEntitlement | null;
   /** The record has no report yet and the request is not its own completion. */
   historicalFirstIssuance?: boolean;
+  /**
+   * RG-03 — a system re-issue PROOVRA owes (isSystemReissueRequestPurpose):
+   * lifecycle applies, commercial entitlement does not.
+   */
+  systemReissue?: boolean;
 }): OutputProductionDecision {
   const lifecycle = outputLifecycleRefusal(input.subject);
   if (lifecycle) return { produce: false, refusal: lifecycle };
+  if (input.systemReissue === true) return { produce: true };
   const e = input.entitlement;
   if (!e || e.decision === "UNRESOLVED") return { produce: false, refusal: null, unresolved: true };
   const included =
@@ -1677,6 +1706,7 @@ export function resolveEvidenceOutputActions(
     if (!pairComplete) return no("PAIR_INCOMPLETE");
     if (f.reportEligibility === "UNRESOLVED") return no("ENTITLEMENT_UNAVAILABLE");
     if (f.reportEligibility !== "ELIGIBLE") return no("NOT_INCLUDED");
+    if (f.newVersionNotIncluded === true) return no("NOT_INCLUDED");
     if (f.restrictions.legalHold) return no("LEGAL_HOLD_ACTIVE");
     if (f.newVersionNeedsNewerFacts === true) return no("NO_MATERIAL_CHANGE");
     if (f.newVersionFitsStorage === false) return no("STORAGE_LIMIT");

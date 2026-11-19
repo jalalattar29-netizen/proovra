@@ -984,6 +984,10 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, permissionForReviewTransition(body.nextStatus));
       if (!ok) return;
+      // PRO-G2-16 (RG-20) — IDENT-019: a quarantined session keeps its reads
+      // and loses every governance transition, including the non-destructive
+      // ones that ask no step-up (deny/defer/cancel/restore, lifecycle moves).
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: body.teamId, userId: ok.actorUserId, action: "WORKSPACE_GOVERNANCE_UPDATE" })).refused) return;
       if (await destructionReviewClosedTo(body.teamId, id, ok.actorUserId)) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
@@ -1080,6 +1084,10 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       // of state machine pointers must be permission-gated and audited.
       const ok = await requireMember(req, reply, body.teamId, "governance.policy.manage");
       if (!ok) return;
+      // PRO-G2-16 (RG-20) — IDENT-019: a quarantined session keeps its reads
+      // and loses every governance transition, including the non-destructive
+      // ones that ask no step-up (deny/defer/cancel/restore, lifecycle moves).
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: body.teamId, userId: ok.actorUserId, action: "WORKSPACE_GOVERNANCE_UPDATE" })).refused) return;
       // D1 (2026-09-16) — DESTROYED is not a pointer an operator may set.
       // This route moves the lifecycle state only; it never touches storage.
       // Forcing DESTROYED here produced a destroyed-looking record whose

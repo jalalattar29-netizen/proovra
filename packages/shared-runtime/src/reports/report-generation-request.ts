@@ -43,6 +43,7 @@ import {
   OPERATOR_SUPERSESSION_INTENT,
   // 2026-10-20 — THE output-producer decision (AUD-01/02/35).
   decideOutputProduction,
+  isSystemReissueRequestPurpose,
   outputLifecycleRefusal,
   type OutputProductionEntitlement,
   type OutputProductionRefusal,
@@ -177,6 +178,15 @@ export type CreateReportGenerationRequestInput = {
    * `supersedeTechnicalTerminal`; never set by a customer or automatic path.
    */
   operatorSupersession?: { actorUserId: string; reason: string; requestKey: string } | null;
+  /**
+   * RG-03 (PRO-W1-02 / PRO-W1-08) — the request identity of a SYSTEM RE-ISSUE
+   * (isSystemReissueRequestPurpose), appended to the idempotency key so the
+   * re-issue is its own request: it never collapses onto another purpose's
+   * forced request at the same baseline, and a server-minted attempt ordinal
+   * (`kc0`, `kc1`, ...) lets a terminal attempt be followed by a new one
+   * within the caller's bound. Ignored for every other purpose.
+   */
+  systemReissueIdentity?: string | null;
   /**
    * THE OUTPUT-PRODUCER GUARD (2026-10-20, AUD-01/02/35). REQUIRED of every
    * producer: the host's own entitlement reading for this record (the api's
@@ -363,6 +373,9 @@ export async function createReportGenerationRequest(
     subject: evidence as never,
     artifactType,
     entitlement,
+    // RG-03 (PRO-O1Z-01, DEC-03) — an owed system re-issue asks lifecycle, not
+    // the current commercial entitlement.
+    systemReissue: isSystemReissueRequestPurpose(input.purpose),
     historicalFirstIssuance:
       artifactType === "REPORT" &&
       !hasReport &&
@@ -424,7 +437,11 @@ export async function createReportGenerationRequest(
     if (!target) return { created: false, reason: "report_version_not_found" };
   }
 
-  const baseKey = buildReportGenerationIdempotencyKey({
+  const systemIdentity =
+    isSystemReissueRequestPurpose(input.purpose) && input.systemReissueIdentity
+      ? input.systemReissueIdentity.replace(/[^a-z0-9]/gi, "").slice(0, 12)
+      : "";
+  const baseKey = `${buildReportGenerationIdempotencyKey({
     artifactType,
     evidenceId,
     baselineVersion:
@@ -432,7 +449,7 @@ export async function createReportGenerationRequest(
         ? targetReportVersion
         : (latestReport?.version ?? 0),
     forceRegenerate,
-  });
+  })}${systemIdentity ? `:${systemIdentity}` : ""}`.slice(0, 160);
 
   /**
    * COMMERCIAL SUPERSESSION (2026-09-08) — THE PERMANENT-LOCKOUT FIX.
@@ -802,6 +819,18 @@ export async function blockerStillActive(
           select: { status: true },
         });
         return !organization || organization.status !== "ACTIVE";
+      }
+
+      /*
+       * RG-03 (PRO-W1-03) — the worker's admission reads Team.closedAtUtc;
+       * reopening the workspace clears it.
+       */
+      case "WORKSPACE_CLOSED": {
+        const workspace = await prisma.team.findUnique({
+          where: { id: input.teamId },
+          select: { closedAtUtc: true },
+        });
+        return !workspace || workspace.closedAtUtc !== null;
       }
 
       default:

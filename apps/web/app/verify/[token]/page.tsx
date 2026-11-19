@@ -1034,7 +1034,9 @@ export default function VerifyPage() {
       const manual = options.manual === true;
       try {
         // REPORT-013 — one use of a use-limited link per viewing session.
-        const data = await apiFetch(`/public/verify/${encodeURIComponent(params.token)}`, verifyViewSessionInit());
+        // PRO-NB-08 — the public transport: the reader's own session (cookie,
+        // bearer, active workspace) is not attached to someone else's link.
+        const data = await apiFetch(`/public/verify/${encodeURIComponent(params.token)}`, verifyViewSessionInit(), { anonymous: true });
         if (cancelled || !isMountedRef.current) return;
         setLinkNotice(null);
 
@@ -1295,7 +1297,9 @@ export default function VerifyPage() {
     const url = reference
       ? `${window.location.origin}/verify/${encodeURIComponent(reference)}`
       : window.location.href;
-    void copyWithFeedback(url, addToast, "Verification link copied");
+    // PRO-O1-09 (RG-18) — without a reference this page was opened through a
+    // reviewer share: the visitor copies THEIR share link, and it is named so.
+    void copyWithFeedback(url, addToast, reference ? "Verification link copied" : "Share link copied");
   };
 
   return (
@@ -1871,7 +1875,9 @@ export default function VerifyPage() {
                     Actions
                   </h2>
                   <div style={{ marginTop: 7, ...VERIFY_TYPO.small, maxWidth: 760 }}>
-                    Copy this record&apos;s permanent verification link to share it.
+                    {reference
+                      ? "Copy this record’s permanent verification link to share it."
+                      : "This page was opened through a reviewer share link. Copying it copies that share link, which may expire; it is not the record’s permanent verification link."}
                   </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap: 12 }}>
@@ -1893,7 +1899,7 @@ export default function VerifyPage() {
                       cursor: "pointer",
                     }}
                   >
-                    Copy Verification Link
+                    {reference ? "Copy Verification Link" : "Copy This Share Link"}
                   </button>
                   <button
                     type="button"

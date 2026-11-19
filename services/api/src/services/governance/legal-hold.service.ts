@@ -960,6 +960,50 @@ export async function listEvidenceScopedLegalHoldsLegacyShape(
     }));
 }
 
+/**
+ * PRO-G2-12 (RG-20) — ONE hold, by id, in a compat route's legacy shape.
+ * Null when the hold is not in the workspace or is not of the route's scope,
+ * so a compat route never acts on, or answers with, a hold of another scope —
+ * and never substitutes an unrelated row when the acted-on id is not in a
+ * bounded list.
+ */
+export async function getLegalHoldInLegacyShape(
+  input: { teamId: string; holdId: string; scope: "EVIDENCE" | "CASE" },
+  client: PrismaClient = defaultPrisma,
+): Promise<EvidenceScopedLegalHoldLegacyShape | CaseScopedLegalHoldLegacyShape | null> {
+  const r = await getCanonicalLegalHold({ teamId: input.teamId, holdId: input.holdId }, client);
+  if (!r || r.scope !== input.scope) return null;
+  if (input.scope === "EVIDENCE") {
+    if (!r.evidenceId) return null;
+    return {
+      id: r.id,
+      teamId: r.teamId,
+      evidenceId: r.evidenceId,
+      caseId: r.caseId,
+      title: r.title,
+      reason: r.reason,
+      status: r.status,
+      placedByUserId: r.placedByUserId,
+      placedAtUtc: r.placedAtUtc.toISOString(),
+      releasedByUserId: r.releasedByUserId,
+      releasedAtUtc: r.releasedAtUtc?.toISOString() ?? null,
+      releaseNote: r.releaseNote,
+    };
+  }
+  if (!r.caseId) return null;
+  return {
+    id: r.id,
+    teamId: r.teamId,
+    caseId: r.caseId,
+    title: r.title,
+    status: r.status,
+    placedByUserId: r.placedByUserId,
+    placedAtUtc: r.placedAtUtc.toISOString(),
+    releasedByUserId: r.releasedByUserId,
+    releasedAtUtc: r.releasedAtUtc?.toISOString() ?? null,
+  };
+}
+
 export type CaseScopedLegalHoldLegacyShape = {
   id: string;
   teamId: string;

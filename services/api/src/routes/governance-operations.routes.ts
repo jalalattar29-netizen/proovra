@@ -361,10 +361,11 @@ export async function governanceOperationsRoutes(app: FastifyInstance) {
       const limit = Math.min(query.limit ?? 50, 200);
       const rows = await prisma.governanceReconciliationRun.findMany({
         where: {
-          // teamId can be null (cross-team runs); we include both so the
-          // dashboard can show platform-wide runs without flooding when
-          // user filter explicit teamId.
-          OR: [{ teamId: query.teamId }, { teamId: null }],
+          // PRO-G2-07 (RG-20) — ONLY the authorized workspace's runs. A
+          // team-less run is a platform-wide sweep (platform counts, raw error
+          // text, metadata); it is platform-staff data and is never listed to
+          // a workspace member, whatever their role or plan.
+          teamId: query.teamId,
           ...(query.kind ? { kind: query.kind } : {}),
         },
         orderBy: { startedAtUtc: "desc" },

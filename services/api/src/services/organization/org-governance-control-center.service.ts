@@ -31,6 +31,8 @@
  */
 
 import { prisma } from "../../db.js";
+import { hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
+import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import {
   readRetentionPosture,
   readRetentionPostureSample,
@@ -166,11 +168,58 @@ async function resolveOrgWorkspaceIds(orgId: string): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
+/**
+ * PRO-LEAD-05 (RG-20) — an organization oversight role is not workspace
+ * membership (org-access.ts: org roles do not grant workspace content). The
+ * aggregate's COUNTS cover every workspace of the org; its content SAMPLES
+ * (hold titles and reasons, destruction reasons, record ids) are projected
+ * only for workspaces where the viewer is an ACTIVE member allowed the same
+ * read the workspace's own legal-hold list asks (governance.policy.read), and
+ * never for a record hidden from the viewer by a restricted case. A withheld
+ * entry is dropped from the sample (older clients render the shorter list).
+ */
+async function contentReach(
+  viewerUserId: string | null | undefined,
+  teamIds: ReadonlyArray<string>,
+): Promise<(teamId: string, evidenceId: string) => boolean> {
+  if (!viewerUserId) return () => false;
+  const allowed = new Map<string, Set<string>>();
+  // Only workspaces the viewer is an ACTIVE member of are asked (the policy
+  // engine records every refusal; a non-member is not a refusal to record).
+  const memberships = await prisma.teamMember.findMany({
+    where: { userId: viewerUserId, teamId: { in: [...teamIds] }, status: "ACTIVE" },
+    select: { teamId: true },
+  });
+  for (const { teamId } of memberships) {
+    try {
+      const access = await evaluateMemberAccess({
+        teamId,
+        userId: viewerUserId,
+        permission: "governance.policy.read",
+      });
+      if (!access.allowed) continue;
+      const hidden = await hiddenRecordIdsInWorkspace(teamId, viewerUserId);
+      allowed.set(teamId, new Set(hidden.evidenceIds));
+    } catch {
+      // unknown -> withheld
+    }
+  }
+  return (teamId, evidenceId) => {
+    const hidden = allowed.get(teamId);
+    return hidden !== undefined && !hidden.has(evidenceId);
+  };
+}
+
 export async function buildOrgGovernanceControlCenter(input: {
   orgId: string;
+  /** The authenticated viewer; content samples are projected by their reach. */
+  viewerUserId?: string | null;
 }): Promise<OrgGovernanceControlCenterEnvelope> {
   const teamIds = await resolveOrgWorkspaceIds(input.orgId);
   const hasWorkspaces = teamIds.length > 0;
+  const mayReadContent = hasWorkspaces
+    ? await contentReach(input.viewerUserId, teamIds)
+    : () => false;
 
   // ----------- Legal holds -----------
   let legalHolds: OrgGovernanceControlCenterEnvelope["sections"]["legalHolds"] =
@@ -248,7 +297,7 @@ export async function buildOrgGovernanceControlCenter(input: {
           evidenceUnderHoldCount,
           sample: holds
             .filter((h): h is typeof h & { evidenceId: string } =>
-              typeof h.evidenceId === "string",
+              typeof h.evidenceId === "string" && mayReadContent(h.teamId, h.evidenceId),
             )
             .map((h) => ({
             id: h.id,
@@ -357,7 +406,9 @@ export async function buildOrgGovernanceControlCenter(input: {
         status: "ok",
         data: {
           pendingCount: count,
-          sample: rows.map((r) => ({
+          sample: rows
+            .filter((r) => mayReadContent(r.teamId, r.evidenceId))
+            .map((r) => ({
             id: r.id,
             teamId: r.teamId,
             evidenceId: r.evidenceId,

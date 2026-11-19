@@ -8,7 +8,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { evaluateCurrentWorkspace } from "../middleware/authorize.js";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
-import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { resolveEvidenceWorkspaceIds, workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { getEmailAppBaseUrl } from "../services/email.service.js";
 import { resolveWorkspaceSeatState } from "../services/billing/workspace-seats.service.js";
@@ -463,7 +463,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
           where: { id: { in: uniqueIds }, ownerUserId: userId, deletedAt: null },
           // teamId comes back on the same rows, so the durable job gets its
           // workspace without a second query.
-          select: { id: true, teamId: true },
+          select: { id: true, teamId: true, ownerUserId: true },
         });
         const evidence: typeof rows = [];
         for (const row of rows) {
@@ -494,7 +494,11 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         // ONE workspace per job. A batch spanning two has no honest team_id,
         // and assigning one of them would hide the rest from their own
         // workspace's reads.
-        const teamIds = [...new Set(evidence.map((e) => e.teamId).filter(Boolean))];
+        // PRO-G2-05 — each record's workspace through the canonical resolver:
+        // a legacy NULL-team personal record belongs to its owner's personal
+        // workspace, not to "no workspace".
+        const workspaceOf = await resolveEvidenceWorkspaceIds(evidence, prisma as never);
+        const teamIds = [...new Set(evidence.map((e) => workspaceOf.get(e.id) ?? null).filter(Boolean))];
         if (teamIds.length !== 1 || !teamIds[0]) {
           auditEnterpriseAction(req, {
             userId,
@@ -766,9 +770,15 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         const processingPromise = batchAnalysisService.processBatch(
           userId,
           id,
-          (evidenceId) =>
+          async (evidenceId) =>
             prisma.evidence.findFirst({
-              where: { id: evidenceId, teamId: workspace.teamId, deletedAt: null },
+              // PRO-G2-05 — the canonical workspace population.
+              where: {
+                AND: [
+                  { id: evidenceId, deletedAt: null },
+                  await workspaceEvidenceWhere(workspace.teamId, prisma as never),
+                ],
+              },
               select: {
                 type: true,
                 mimeType: true,

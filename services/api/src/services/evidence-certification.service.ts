@@ -447,8 +447,11 @@ export async function revokeEvidenceCertification(params: {
   const revokedAtUtc = new Date();
   // ET-CUS-11: the revocation and its custody event commit together.
   const updated = await prisma.$transaction(async (tx) => {
-    const row = await tx.evidenceCertification.update({
-      where: { id: latest.id },
+    // PRO-O1-05 (race) — conditional on the status the checks above read: a
+    // concurrent attest that lands between the read and this write is not
+    // overwritten without the attestor-only check; the caller retries.
+    const written = await tx.evidenceCertification.updateMany({
+      where: { id: latest.id, status: latest.status },
       data: {
         status: PrismaCertificationStatus.REVOKED,
         revokedByUserId: params.revokedByUserId,
@@ -456,6 +459,16 @@ export async function revokeEvidenceCertification(params: {
         revokeReason,
       },
     });
+    if (written.count !== 1) {
+      const error = new Error("This certification changed while it was being revoked. Reload and try again.") as Error & {
+        statusCode?: number;
+        code?: string;
+      };
+      error.statusCode = 409;
+      error.code = "CERTIFICATION_STATE_CHANGED";
+      throw error;
+    }
+    const row = await tx.evidenceCertification.findUniqueOrThrow({ where: { id: latest.id } });
     await appendCustodyEventTx(tx, {
       evidenceId: latest.evidenceId,
       eventType: prismaPkg.CustodyEventType.CERTIFICATION_REVOKED,

@@ -3839,6 +3839,14 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 6 FROM information_schema.columns WHERE table_schema='public' AND table_name='mfa_pending_challenges' AND column_name IN ('passkey_challenge','passkey_handoff_token_hash','passkey_verified_at','contact_factor_id','contact_verification_attempt_id','contact_team_id');\"",
       "evidence": "AUTH-LOCKOUT-NONTOTP (2026-11-07). Six nullable columns on mfa_pending_challenges (the sign-in challenge already owns the second factor) carrying the passkey challenge, the mobile handoff token hash and the phone-code attempt binding,. No row is rewritten; an older image never reads them. Rollback: leave the columns."
     },
+    "20281121040000_exchange_package_disclosure_profile": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='evidence_exchange_packages' AND column_name='disclosure_profile';\"",
+      "evidence": "RG-18 PRO-W1C-05 (2028-11-21). One NOT NULL column on evidence_exchange_packages with default 'FULL_FORENSIC' (the existing behaviour for every existing and every unspecified package); the worker applies the external-disclosure projection only when a package asks for it. No row is rewritten beyond the default fill; an older image never reads it. Rollback: leave the column."
+    },
     "20281119100400_legal_hold_disclosure_setting": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",

@@ -40,6 +40,7 @@ import {
   releaseCanonicalLegalHold,
 } from "./governance/legal-hold.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
+import { emitTenantAudit } from "./audit/tenant-audit.service.js";
 
 // -----------------------------------------------------------------------------
 // Default policy
@@ -185,6 +186,12 @@ export type UpdateGovernancePolicyInput = {
    * an INSERT whose uniqueness constraint on `team_id` is the concurrency guard.
    */
   expectedVersion: number;
+  /**
+   * PRO-G2-08 (RG-20) — when set, the policy write and its tenant audit row
+   * (governance.workspace_policy_updated) commit in ONE transaction: an audit
+   * failure rolls the change back instead of answering 500 after it committed.
+   */
+  audit?: { correlationId: string | null };
 };
 
 /**
@@ -266,6 +273,53 @@ export async function updateWorkspaceGovernancePolicyWithVersion(
 }> {
   const changedFields = changedGovernancePolicyFields(input.patch);
 
+  if (input.audit && "$transaction" in client && typeof client.$transaction === "function") {
+    const audit = input.audit;
+    try {
+      return await client.$transaction(async (tx) => {
+        const written = await updateWorkspaceGovernancePolicyWithVersion(
+          { ...input, audit: undefined },
+          tx as unknown as PrismaClient,
+        );
+        await emitTenantAudit(
+          {
+            action: "governance.workspace_policy_updated",
+            outcome: "success",
+            sourceApp: "API",
+            actorUserId: input.actorUserId,
+            workspaceId: input.teamId,
+            resourceType: "workspace_governance_policy",
+            resourceId: written.row.id,
+            capability: "governance.policy.manage",
+            policyId: written.row.id,
+            policyVersion: written.newVersion,
+            correlationId: audit.correlationId,
+            metadata: {
+              previousVersion: written.previousVersion,
+              newVersion: written.newVersion,
+              changedFields: written.changedFields,
+            },
+          },
+          tx as unknown as PrismaClient,
+        );
+        return written;
+      });
+    } catch (err) {
+      // A conflict raised inside the transaction read its "current version"
+      // on a connection that may already be aborted; re-read it here.
+      if (
+        err instanceof GovernancePolicyVersionConflictError ||
+        (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")
+      ) {
+        throw new GovernancePolicyVersionConflictError(
+          input.expectedVersion,
+          await loadWorkspaceGovernancePolicyVersion(input.teamId, client),
+        );
+      }
+      throw err;
+    }
+  }
+
   if (input.expectedVersion === POLICY_VERSION_ABSENT) {
     try {
       const row = await client.workspaceGovernancePolicy.create({
@@ -291,7 +345,9 @@ export async function updateWorkspaceGovernancePolicyWithVersion(
         // caller's view of "no policy" is stale — nothing was mutated.
         throw new GovernancePolicyVersionConflictError(
           input.expectedVersion,
-          await loadWorkspaceGovernancePolicyVersion(input.teamId, client),
+          // Inside a transaction the connection is aborted after P2002; the
+          // transactional caller re-reads the version on its own client.
+          await loadWorkspaceGovernancePolicyVersion(input.teamId, client).catch(() => POLICY_VERSION_ABSENT),
         );
       }
       throw err;

@@ -58,7 +58,7 @@
  *   One failure never breaks the loop.
  */
 
-import { projectCustodyEventForExternalArtifact } from "@proovra/shared";
+import { projectCustodyEventForExternalArtifact, projectJsonForDisclosure, type DisclosureRecord } from "@proovra/shared";
 import archiver from "archiver";
 import { createHash, randomUUID } from "node:crypto";
 import { PassThrough } from "node:stream";
@@ -71,6 +71,7 @@ import { buildLifecycleAndExchangeManifests } from "./verification-package-lifec
 import { logger } from "./logger.js";
 // The ONE export-package meter writer, shared with the API's completion route.
 import {
+  evaluateEffectiveLegalHold,
   evidenceVisibleThroughCasesWhere,
   recordExportPackageUsage,
   workspaceEvidenceWhere,
@@ -122,6 +123,15 @@ function sha256Hex(buf: Buffer): string {
   return createHash("sha256").update(buf).digest("hex");
 }
 
+/**
+ * PRO-W1C-05 (RG-18, DEC-25) — the disclosure profile a package's entries are
+ * built under, keyed by the build's entry list. EXTERNAL_DISCLOSURE runs every
+ * JSON entry through THE external projection (projectJsonForDisclosure, the
+ * verification package's own policy, incl. the custody-payload allow-list)
+ * and records what was withheld for disclosure-manifest.json.
+ */
+const ENTRY_DISCLOSURE = new WeakMap<PackageEntry[], { records: DisclosureRecord[] }>();
+
 function appendEntry(
   archive: archiver.Archiver,
   entries: PackageEntry[],
@@ -129,6 +139,18 @@ function appendEntry(
   buffer: Buffer,
   contentType?: string,
 ): void {
+  const external = ENTRY_DISCLOSURE.get(entries);
+  if (external && contentType === "application/json") {
+    try {
+      const projected = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", name, JSON.parse(buffer.toString("utf8")), {});
+      external.records.push(...projected.records);
+      buffer = Buffer.from(JSON.stringify(projected.value, null, 2), "utf8");
+    } catch {
+      // Unparseable JSON is not shipped under the external profile.
+      external.records.push({ file: name, path: "$", action: "WITHHELD", reason: "DIRECT_IDENTIFIER" });
+      return;
+    }
+  }
   entries.push(contentType ? { name, buffer, contentType } : { name, buffer });
   archive.append(buffer, { name });
 }
@@ -846,6 +868,7 @@ export async function buildExchangePackage(
       scopeNote: true,
       createdByUserId: true,
       createdAt: true,
+      disclosureProfile: true,
     },
   });
   if (!pkg) {
@@ -886,7 +909,30 @@ export async function buildExchangePackage(
       })
     ).map((row) => row.id),
   );
-  const evidenceIds = candidateIds.filter((id) => inScope.has(id));
+  /*
+   * PRO-O1Z-02 (RG-18) — the export verdict, re-read at build time: a record
+   * trashed, bound for destruction, put on hold (lifecycle or an effective
+   * legal hold) after the package was requested is not built into it. It is
+   * dropped like an out-of-scope id (counted, never named). An unreadable
+   * hold is a hold.
+   */
+  const lifecycleOk = new Set(
+    (
+      await prisma.evidence.findMany({
+        where: {
+          id: { in: [...inScope] },
+          deletedAt: null,
+          lifecycleState: { notIn: ["TRASHED", "PENDING_DESTRUCTION", "DESTROYED", "ON_HOLD", "RETENTION_LOCKED"] as never },
+        },
+        select: { id: true },
+      })
+    ).map((r) => r.id),
+  );
+  for (const id of [...lifecycleOk]) {
+    const held = await evaluateEffectiveLegalHold(prisma as never, { teamId, evidenceId: id }).catch(() => ({ held: true }));
+    if (held.held) lifecycleOk.delete(id);
+  }
+  const evidenceIds = candidateIds.filter((id) => inScope.has(id) && lifecycleOk.has(id));
   const excludedOutOfScope = candidateIds.length - evidenceIds.length;
 
   // THE CLAIM. A caller that does not win it does nothing at all — no ZIP is
@@ -918,6 +964,7 @@ export async function buildExchangePackage(
     archive.pipe(pass);
 
     const entries: PackageEntry[] = [];
+    if (pkg.disclosureProfile === "EXTERNAL_DISCLOSURE") ENTRY_DISCLOSURE.set(entries, { records: [] });
 
     // Phase 6 — Resolve template-identity provenance for the included
     // evidence set so the manifest can surface the trio for downstream
@@ -974,9 +1021,11 @@ export async function buildExchangePackage(
     );
 
     // Lifecycle manifests — always included.
+    // PRO-W1C-02 — scoped to the package's reach-checked selection.
     const lifecycleEntries = await buildLifecycleAndExchangeManifests({
       prisma,
       teamId,
+      evidenceIds,
     }).catch(() => []);
     for (const le of lifecycleEntries) {
       appendEntry(archive, entries, le.path, jsonBuffer(le.json), "application/json");
@@ -995,6 +1044,23 @@ export async function buildExchangePackage(
       // resolved once above for the package manifest. Identity-only.
       provenanceByEvidenceId: provenanceCache.byEvidenceId,
     });
+
+    // PRO-W1C-05 — what the external profile withheld, by file and path.
+    const disclosure = ENTRY_DISCLOSURE.get(entries);
+    if (disclosure) {
+      ENTRY_DISCLOSURE.delete(entries);
+      appendEntry(
+        archive,
+        entries,
+        "disclosure-manifest.json",
+        jsonBuffer({
+          schema: "PROOVRA_EXCHANGE_DISCLOSURE_MANIFEST",
+          profile: "EXTERNAL_DISCLOSURE",
+          withheld: disclosure.records.slice(0, 2000),
+        }),
+        "application/json",
+      );
+    }
 
     // Checksums — computed after all other entries are appended.
     archive.append(jsonBuffer(buildPackageChecksums(entries)), {

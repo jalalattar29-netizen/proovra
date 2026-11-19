@@ -244,13 +244,13 @@ export function assertMetadataSize(metadata: Prisma.InputJsonValue): void {
  * the values they were written with. The READ path masks legacy values on the
  * way out instead (see `projectAuditClientLabels`).
  */
-function safeUaPreview(ua: string | undefined): string | null {
+export function safeUaPreview(ua: string | undefined): string | null {
   if (!ua) return null;
   const summary = summariseUserAgent(ua);
   return summary.trim().length > 0 ? summary.slice(0, 512) : null;
 }
 
-function safeIpPreview(ip: string | undefined): string | null {
+export function safeIpPreview(ip: string | undefined): string | null {
   if (!ip) return null;
   const masked = maskIpPreview(ip);
   return masked.trim().length > 0 ? masked.slice(0, 45) : null;

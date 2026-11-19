@@ -25,6 +25,7 @@ import * as path from "node:path";
 
 import type { PrismaClient } from "@prisma/client";
 import {
+  isSafeTrustImplementationReference,
   SECURITY_CONTROL_CONFIDENCE,
   SECURITY_SECTIONS,
   type SecurityClaimCheckProjection,
@@ -266,12 +267,13 @@ function candidateRoots(): ReadonlyArray<string> {
 }
 
 function referenceExists(reference: string): boolean {
+  // PRO-G2-03 — a reference that is not a repository-relative path under a
+  // source root (absolute, traversal, unknown root) is never probed: it is
+  // reported as not evidenced, a constant answer that reveals nothing about
+  // the host filesystem.
+  if (!isSafeTrustImplementationReference(reference)) return false;
   const cleaned = stripAnchor(reference);
   if (!cleaned) return false;
-  // Absolute path: check directly.
-  if (path.isAbsolute(cleaned)) {
-    return existsSync(cleaned);
-  }
   for (const root of candidateRoots()) {
     const candidate = path.resolve(root, cleaned);
     if (existsSync(candidate)) return true;

@@ -2967,6 +2967,12 @@ anchorHash ? `Anchor: ${anchorHash}` : null,
       if (context?.isIntake) {
         return `Identity snapshot recorded • Submitted by: ${INTAKE_SUBMITTED_BY_LABEL}`;
       }
+      // PRO-O1C-01 (RG-18) — attribution (identity level, sign-in provider) is
+      // shown only when the public-verify identity exposure allows it, the same
+      // rule the page's identity rows follow; otherwise the bare label.
+      if (!getPublicVerifyIdentityExposure().exposeAttribution) {
+        return "Identity snapshot recorded";
+      }
       const identityLevel = normalizePublicPayloadValue(
         obj.identityLevelSnapshot
       );
@@ -13225,6 +13231,18 @@ return reply.code(200).send({
             code: "KEY_COMPROMISE_REPLACEMENT_NOT_REQUESTED",
             message: "The replacement could not be requested now. Try again later.",
           },
+          // RG-03 (PRO-W1-02) — another forced request for this record is running.
+          other_request_active: {
+            code: "KEY_COMPROMISE_REPLACEMENT_OTHER_REQUEST_ACTIVE",
+            message:
+              "Another report version for this record is being issued now. When it finishes, it is sealed with a current key; check this record again then.",
+          },
+          // RG-03 (PRO-W1-08) — the bounded attempts all ended without a replacement.
+          replacement_attempts_exhausted: {
+            code: "KEY_COMPROMISE_REPLACEMENT_ATTEMPTS_EXHAUSTED",
+            message:
+              "The replacement could not be issued after several attempts. Nothing was changed; contact PROOVRA support to complete it.",
+          },
         };
         return reply.code(replaced.code === "not_found" ? 404 : 409).send({
           ...refusal[replaced.code],
@@ -14366,8 +14384,8 @@ const resolvedDisplayName =
 noStorePresignedResponse(reply);
 return reply.code(200).send({
   evidenceId: id,
-  bucket: releaseBucket,
-  key: releaseKey,
+  // PRO-O1-08 (RG-18) — no storage bucket / object key in the body: clients
+  // use `url` and `downloadFileName` (web and mobile read nothing else).
   // The name the presigned URL saves under (Content-Disposition).
   downloadFileName: releaseFileName,
 originalFileName: resolvedOriginalFileName ?? resolvedDisplayName,
@@ -14737,7 +14755,7 @@ displayName: resolvedDisplayName,
         resourceId: id,
         teamId: packageDownloadTeamId,
         metadata: {
-          packageKey: latest.storageKey,
+          // PRO-O1-08 — no object key in tenant-visible audit metadata.
           version: latest.version,
           packageType: latest.packageType ?? null,
         },

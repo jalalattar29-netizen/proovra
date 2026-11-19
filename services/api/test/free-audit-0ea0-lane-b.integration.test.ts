@@ -983,8 +983,31 @@ describe("free-audit 0ea0 — lane B: what survives a downgrade (live PostgreSQL
       expect(await prisma.stepUpChallenge.count({ where: { initiatedByUserId: t.owner.id } })).toBe(0);
     });
 
-    it("Trust Center authoring: the catalogue's default entitlement (every plan, Free included) is unchanged", async () => {
-      const t = await tenant("FREE");
+    // DEC-12 (WS-OUT RG-20) supersedes the earlier "default unchanged" row:
+    // custom Trust Center authoring is Enterprise-only. A Free owner is refused
+    // before any step-up; an ACTIVE Enterprise contract reaches the step-up.
+    it("Trust Center authoring: DEC-12 — Free is refused, an Enterprise contract reaches the step-up", async () => {
+      const free = await tenant("FREE");
+      const refused = await call(
+        "POST",
+        "/v1/trust/subprocessors",
+        free.owner,
+        {
+          slug: `sp-${tag()}`,
+          name: "Vendor",
+          vendor: "Vendor Inc",
+          purpose: "Hosting",
+          region: "EU",
+          dataCategories: ["METADATA"],
+          changeSummary: "added",
+        },
+        ws(free.teamId),
+      );
+      expect(refused.statusCode, refused.body).toBe(403);
+      expect(refused.json()).toEqual({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_TRUST_CENTER" });
+      expect(await prisma.subprocessor.count({ where: { teamId: free.teamId } })).toBe(0);
+
+      const t = await tenant("ENTERPRISE", { contract: true });
       const sp = await call(
         "POST",
         "/v1/trust/subprocessors",
@@ -1000,7 +1023,8 @@ describe("free-audit 0ea0 — lane B: what survives a downgrade (live PostgreSQL
         },
         ws(t.teamId),
       );
-      expect(sp.statusCode, sp.body).toBe(201);
+      expect(sp.statusCode, sp.body).toBe(401);
+      expect(sp.json().error.code).toBe("STEP_UP_REQUIRED");
       const incident = await call("POST", "/v1/trust/status/incidents", t.owner, { title: "Outage", severity: "MINOR", componentKeys: ["API"] }, ws(t.teamId));
       expect(incident.statusCode, incident.body).toBe(401);
       expect(incident.json().error.code).toBe("STEP_UP_REQUIRED");

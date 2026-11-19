@@ -1256,6 +1256,22 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "The replacement could not be requested right now. Nothing was charged. Try again in a few minutes.",
     severity: "error",
   },
+  VERIFICATION_ACCESS_STATE_NOT_CHANGEABLE: {
+    title: "This verification page can't be changed here",
+    message: "This verification page is in a state only PROOVRA operations can change. Nothing was changed.",
+    severity: "warning",
+  },
+  KEY_COMPROMISE_REPLACEMENT_OTHER_REQUEST_ACTIVE: {
+    title: "Another report version is being issued",
+    message:
+      "Another report version for this record is being issued now. It is sealed with a current key; check this record again when it finishes.",
+    severity: "info",
+  },
+  KEY_COMPROMISE_REPLACEMENT_ATTEMPTS_EXHAUSTED: {
+    title: "The replacement could not be issued",
+    message: "The replacement could not be issued after several attempts. Nothing was changed or charged. Contact PROOVRA support to complete it.",
+    severity: "error",
+  },
   CONCURRENCY_LIMITED: {
     title: "Several versions are already being created",
     message:

@@ -8,223 +8,56 @@
  *   inspect the EXACT manifest shapes that ship inside the offline
  *   verification ZIP, without having to generate a full package.
  *
- *   Production ZIP emission lives in:
- *     services/worker/src/verification-package-trust-and-governance.ts
+ * RG-20 / PRO-G2-01: the builders live ONCE in @proovra/shared-runtime
+ * (trust-verification-manifests.ts) and the Worker's verification package
+ * calls the same functions. This module only supplies the API's default
+ * Prisma client, so preview and package cannot diverge in scope or shape.
  *
- *   The two sides MUST stay shape-compatible (schemaVersion +
- *   field set). If you change one, update the other and update
- *   the closure test (test/phase-4a-trust-and-governance.test.ts).
- *
- * Five bounded entries:
- *
- *   trust-manifest.json
- *   governance-manifest.json
- *   methodology-manifest.json
- *   ai-disclosure-manifest.json
- *   subprocessor-manifest.json
- *
- * Hard rules:
+ * Hard rules (enforced by the shared builder):
  *   * NEVER raw article bodies — manifests carry slugs + versions
  *     + publish timestamps only.
- *   * Workspace-anchored.
+ *   * Workspace-anchored on teamId; bounded reads.
  *   * Offline-verifiable.
  */
 
 import type { PrismaClient } from "@prisma/client";
-import {
-  GOVERNANCE_POLICY_KINDS,
-  type AiDisclosureManifestEntry,
-  type AiDisclosureSection,
-  type GovernanceManifestEntry,
-  type GovernancePolicyKind,
-  type MethodologyManifestEntry,
-  type MethodologySection,
-  type SubprocessorDataCategory,
-  type SubprocessorManifestEntry,
-  type SubprocessorState,
-  type TrustManifestEntry,
+import type {
+  AiDisclosureManifestEntry,
+  GovernanceManifestEntry,
+  MethodologyManifestEntry,
+  SubprocessorManifestEntry,
+  TrustManifestEntry,
 } from "@proovra/shared";
+import {
+  buildAiDisclosureManifestEntry as sharedAiDisclosure,
+  buildGovernanceManifestEntry as sharedGovernance,
+  buildMethodologyManifestEntry as sharedMethodology,
+  buildSubprocessorManifestEntry as sharedSubprocessor,
+  buildTrustManifestEntry as sharedTrust,
+} from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 
-export async function buildTrustManifestEntry(input: {
-  prisma?: PrismaClient;
-  teamId: string;
-}): Promise<TrustManifestEntry> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const rows = await prisma.trustCenterArticle
-    .findMany({
-      where: { teamId: input.teamId, kind: "TRUST_CENTER", state: "PUBLISHED" },
-      select: {
-        section: true,
-        slug: true,
-        title: true,
-        version: true,
-        publishedAtUtc: true,
-      },
-      orderBy: { section: "asc" },
-    })
-    .catch(() => [] as Array<{
-      section: string;
-      slug: string;
-      title: string;
-      version: number;
-      publishedAtUtc: Date | null;
-    }>);
-  const subprocessorCount = await prisma.subprocessor
-    .count({ where: { teamId: input.teamId, state: "ACTIVE" } })
-    .catch(() => 0);
-  return {
-    schemaVersion: "PROOVRA_TRUST_MANIFEST_V1",
-    generatedAtUtc: new Date().toISOString(),
-    trustArticles: rows.map((r) => ({
-      section: r.section,
-      slug: r.slug,
-      title: r.title,
-      version: r.version,
-      publishedAtUtc: r.publishedAtUtc?.toISOString() ?? null,
-    })),
-    activeSubprocessorCount: subprocessorCount,
-  };
+type Input = { prisma?: PrismaClient; teamId: string };
+
+export async function buildTrustManifestEntry(input: Input): Promise<TrustManifestEntry> {
+  return sharedTrust({ prisma: input.prisma ?? defaultPrisma, teamId: input.teamId });
 }
 
-export async function buildGovernanceManifestEntry(input: {
-  prisma?: PrismaClient;
-  teamId: string;
-}): Promise<GovernanceManifestEntry> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const policyRows = await prisma.governancePolicy
-    .findMany({
-      where: { teamId: input.teamId },
-      select: { kind: true, state: true },
-    })
-    .catch(() => [] as Array<{ kind: string; state: string }>);
-  const policiesPerKind = {} as Record<GovernancePolicyKind, number>;
-  for (const k of GOVERNANCE_POLICY_KINDS) policiesPerKind[k] = 0;
-  let policiesActive = 0;
-  for (const p of policyRows) {
-    policiesPerKind[p.kind as GovernancePolicyKind] =
-      (policiesPerKind[p.kind as GovernancePolicyKind] ?? 0) + 1;
-    if (p.state === "ACTIVE") policiesActive += 1;
-  }
-  const accessReviewCampaignCount = await prisma.accessReviewCampaign
-    .count({ where: { teamId: input.teamId } })
-    .catch(() => 0);
-  // Members audit DOM-09 — live member delegated scopes.
-  const delegatedAdminActiveGrants = await prisma.memberDelegatedAdminScope
-    .count({ where: { teamId: input.teamId, revokedAtUtc: null, OR: [{ expiresAtUtc: null }, { expiresAtUtc: { gt: new Date() } }] } })
-    .catch(() => 0);
-  const crossOrgActive = await prisma.crossOrgReviewGrant
-    .count({ where: { teamId: input.teamId, state: "ACCEPTED" } })
-    .catch(() => 0);
-  return {
-    schemaVersion: "PROOVRA_GOVERNANCE_MANIFEST_V1",
-    generatedAtUtc: new Date().toISOString(),
-    policyCount: policyRows.length,
-    policiesActive,
-    policiesPerKind,
-    accessReviewCampaignCount,
-    delegatedAdminActiveGrants,
-    crossOrgActiveGrants: crossOrgActive,
-  };
+export async function buildGovernanceManifestEntry(input: Input): Promise<GovernanceManifestEntry> {
+  return sharedGovernance({ prisma: input.prisma ?? defaultPrisma, teamId: input.teamId });
 }
 
-export async function buildMethodologyManifestEntry(input: {
-  prisma?: PrismaClient;
-  teamId: string;
-}): Promise<MethodologyManifestEntry> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const rows = await prisma.trustCenterArticle
-    .findMany({
-      where: { teamId: input.teamId, kind: "METHODOLOGY", state: "PUBLISHED" },
-      select: { section: true, slug: true, version: true, publishedAtUtc: true },
-      orderBy: { section: "asc" },
-    })
-    .catch(() => [] as Array<{
-      section: string;
-      slug: string;
-      version: number;
-      publishedAtUtc: Date | null;
-    }>);
-  return {
-    schemaVersion: "PROOVRA_METHODOLOGY_MANIFEST_V1",
-    generatedAtUtc: new Date().toISOString(),
-    sections: rows.map((r) => ({
-      section: r.section as MethodologySection,
-      slug: r.slug,
-      version: r.version,
-      publishedAtUtc: r.publishedAtUtc?.toISOString() ?? null,
-    })),
-  };
+export async function buildMethodologyManifestEntry(input: Input): Promise<MethodologyManifestEntry> {
+  return sharedMethodology({ prisma: input.prisma ?? defaultPrisma, teamId: input.teamId });
 }
 
-export async function buildAiDisclosureManifestEntry(input: {
-  prisma?: PrismaClient;
-  teamId: string;
-}): Promise<AiDisclosureManifestEntry> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const rows = await prisma.trustCenterArticle
-    .findMany({
-      where: { teamId: input.teamId, kind: "AI_DISCLOSURE", state: "PUBLISHED" },
-      select: { section: true, slug: true, version: true, publishedAtUtc: true },
-      orderBy: { section: "asc" },
-    })
-    .catch(() => [] as Array<{
-      section: string;
-      slug: string;
-      version: number;
-      publishedAtUtc: Date | null;
-    }>);
-  return {
-    schemaVersion: "PROOVRA_AI_DISCLOSURE_MANIFEST_V1",
-    generatedAtUtc: new Date().toISOString(),
-    sections: rows.map((r) => ({
-      section: r.section as AiDisclosureSection,
-      slug: r.slug,
-      version: r.version,
-      publishedAtUtc: r.publishedAtUtc?.toISOString() ?? null,
-    })),
-  };
+export async function buildAiDisclosureManifestEntry(input: Input): Promise<AiDisclosureManifestEntry> {
+  return sharedAiDisclosure({ prisma: input.prisma ?? defaultPrisma, teamId: input.teamId });
 }
 
-export async function buildSubprocessorManifestEntry(input: {
-  prisma?: PrismaClient;
-  teamId: string;
-}): Promise<SubprocessorManifestEntry> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const rows = await prisma.subprocessor
-    .findMany({
-      where: { teamId: input.teamId, state: "ACTIVE" },
-      orderBy: { name: "asc" },
-    })
-    .catch(() => [] as Array<{
-      slug: string;
-      name: string;
-      vendor: string;
-      region: string;
-      purpose: string;
-      dataCategories: unknown;
-      state: string;
-      version: number;
-      effectiveAtUtc: Date;
-    }>);
-  return {
-    schemaVersion: "PROOVRA_SUBPROCESSOR_MANIFEST_V1",
-    generatedAtUtc: new Date().toISOString(),
-    subprocessors: rows.map((r) => ({
-      slug: r.slug ?? "",
-      name: r.name,
-      vendor: r.vendor ?? "",
-      region: r.region ?? "",
-      purpose: r.purpose ?? "",
-      dataCategories: Array.isArray(r.dataCategories)
-        ? (r.dataCategories as ReadonlyArray<SubprocessorDataCategory>)
-        : [],
-      state: r.state as SubprocessorState,
-      version: r.version,
-      effectiveAtUtc: r.effectiveAtUtc.toISOString(),
-    })),
-  };
+export async function buildSubprocessorManifestEntry(input: Input): Promise<SubprocessorManifestEntry> {
+  return sharedSubprocessor({ prisma: input.prisma ?? defaultPrisma, teamId: input.teamId });
 }
 
 // ---------------------------------------------------------------------------

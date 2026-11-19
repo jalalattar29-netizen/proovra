@@ -375,7 +375,9 @@ export function ReviewerSharesPanel({
         {link.lastUsedAtUtc ? ` · last opened ${formatUserDateTime(link.lastUsedAtUtc)}` : ""}
       </p>
       {revokedNote(link) ? <p className="app-field__help">{revokedNote(link)}</p> : null}
-      {link.state === "ACTIVE" || (link.state === "EXPIRED" && link.purpose === "OWNER_SHARE") ? (
+      {/* PRO-O1-04 — a link printed in an issued report/package is read-only here:
+          it belongs to the artifact; taking verification down is Withdraw. */}
+      {link.purpose === "OWNER_SHARE" && (link.state === "ACTIVE" || link.state === "EXPIRED") ? (
         <div className="evidence-detail-link-row__actions">
           {link.purpose === "OWNER_SHARE" ? (
             <button
