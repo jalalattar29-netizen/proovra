@@ -205,11 +205,27 @@ describe("privileged identity — factor removal authority (live PostgreSQL)", (
       expect(await activeFactors(o.owner.userId)).toBe(1);
     });
 
-    it("control: the OWNER still revokes a MEMBER's factor with a step-up", async () => {
+    it("control: the OWNER still revokes the factor of a MEMBER the Organization originated, with a step-up", async () => {
       const o = await org(1);
       const m = o.members[0]!;
       await ceremony.enroll(m.userId);
       const factor = await prisma.mfaFactor.findFirstOrThrow({ where: { userId: m.userId, status: "ACTIVE" } });
+      // PRO-A2-05 (DEC-08) — an independent member's factors are their own
+      // account's: refused, nothing revoked. The control is an identity this
+      // Organization's directory originated.
+      const selfServe = await call(
+        "POST",
+        `/v1/identity/mfa-admin/factors/${o.workspaceId}/${m.userId}/${factor.id}/revoke`,
+        o.owner.token,
+        { reason: "lost device report" },
+      );
+      expect(selfServe.statusCode, selfServe.body).toBe(403);
+      expect((selfServe.json().error as { reason?: string }).reason).toBe("target_self_serve_account");
+      expect(await activeFactors(m.userId)).toBe(1);
+      await prisma.user.update({
+        where: { id: m.userId },
+        data: { providerUserId: `scim-${o.organizationId}:managed-${m.userId.slice(0, 8)}` },
+      });
       const header = await ceremony.approvedHeader({
         token: o.owner.token,
         userId: o.owner.userId,

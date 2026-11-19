@@ -152,6 +152,10 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
   async function quarantineAsOwner(o: OrganizationTenant, sessionId: string): Promise<Res> {
     const url = `/v1/admin/identity/sessions/${sessionId}/quarantine`;
     const body = { teamId: o.workspaceId, reason: "MANUAL_OPERATOR" };
+    // The workspace answers for the sessions it issued: the fixture's session
+    // row carries no workspace, so it is recorded as started in this one (an
+    // independent member's session started elsewhere is not the workspace's).
+    await prisma.authenticatedSession.update({ where: { id: sessionId }, data: { teamId: o.workspaceId } });
     const bare = await call("POST", url, o.owner.token, body);
     expect(bare.statusCode, bare.body).toBe(401);
     expect(errorCode(bare)).toBe("STEP_UP_REQUIRED");
@@ -401,7 +405,7 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
       // to their own account: refused before any step-up, nothing revoked.
       const selfServe = await reenrol(o, o.owner, member.userId, {});
       expect(selfServe.statusCode, selfServe.body).toBe(403);
-      expect(selfServe.json().error.reason).toBe("target_self_serve_account");
+      expect((selfServe.json().error as { reason?: string } | undefined)?.reason).toBe("target_self_serve_account");
       expect(await prisma.mfaFactor.count({ where: { userId: member.userId, status: "ACTIVE" } })).toBe(1);
       // The control: an identity this Organization's directory originated.
       await prisma.user.update({

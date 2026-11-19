@@ -1069,12 +1069,13 @@ async function recentLoginFailures(userId: string): Promise<{ failures: number; 
 /**
  * Claim one checked attempt on an open sign-in challenge. "ok": the answer may
  * be checked. "exhausted": the cap was reached (the challenge is ended).
- * "closed": no open challenge (expired, consumed, someone else's).
+ * "closed": no open challenge (expired, someone else's). "consumed": this
+ * person's challenge already completed a sign-in (a replayed pending token).
  */
 export async function claimLoginChallengeAttempt(input: {
   jti: string;
   userId: string;
-}): Promise<"ok" | "exhausted" | "closed"> {
+}): Promise<"ok" | "exhausted" | "closed" | "consumed"> {
   const claimed = await prisma.mfaPendingChallenge.updateMany({
     where: openLoginWhere({
       jti: input.jti,
@@ -1088,7 +1089,13 @@ export async function claimLoginChallengeAttempt(input: {
     where: openLoginWhere({ jti: input.jti, userId: input.userId }),
     select: { id: true },
   });
-  if (!open) return "closed";
+  if (!open) {
+    const spent = await prisma.mfaPendingChallenge.findFirst({
+      where: { purpose: "LOGIN", jti: input.jti, userId: input.userId, consumedAt: { not: null } },
+      select: { id: true },
+    });
+    return spent ? "consumed" : "closed";
+  }
   await prisma.mfaPendingChallenge.updateMany({
     where: { id: open.id, consumedAt: null },
     data: { expiresAt: new Date() },

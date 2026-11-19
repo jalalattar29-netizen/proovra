@@ -2146,9 +2146,10 @@ export async function authRoutes(app: FastifyInstance) {
         action: "auth.mfa_verify",
         outcome: "failure",
         severity: "warning",
-        metadata: { reason: attempt === "exhausted" ? "challenge_attempts_exhausted" : "challenge_closed" },
+        metadata: { reason: `challenge_${attempt}` },
       });
-      return reply.code(401).send({ message: "mfa_challenge_expired" });
+      // A replayed (completed) challenge keeps its own answer.
+      return reply.code(401).send({ message: attempt === "consumed" ? "mfa_challenge_already_used" : "mfa_challenge_expired" });
     }
 
     // 2) Verify the second factor. Exactly one of code|recoveryCode

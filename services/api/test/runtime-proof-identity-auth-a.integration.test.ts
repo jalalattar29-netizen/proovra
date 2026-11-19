@@ -431,14 +431,21 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
       expect((json(replay).error as Json).code).toBe("INVALID_OR_EXPIRED");
       expect(await prisma.authenticatedSession.count({ where: { userId: user.id } })).toBe(1);
 
-      // D15 — a second link for an address that is already verified keeps
-      // the moment ownership was FIRST proven.
+      // D15 / PRO-A1-10 — a second link for an address that is already
+      // verified keeps the moment ownership was FIRST proven, and signs nobody
+      // in: a verification link is spent by the first verification (a leftover
+      // link must not be a mailbox-only sign-in to a verified account).
       const firstProven = (await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).emailVerifiedAt;
       const { createEmailVerificationToken } = await import("../src/services/email-password-auth.service.js");
       const second = await createEmailVerificationToken(user.id);
       const again = await call({ method: "POST", url: "/v1/auth/email/verify", payload: { token: second.rawToken } });
-      expect(again.statusCode, again.body).toBe(200);
+      expect(again.statusCode, again.body).toBe(400);
+      expect((json(again).error as Json).code).toBe("INVALID_OR_EXPIRED");
       expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).emailVerifiedAt).toEqual(firstProven);
+      expect(await prisma.authenticatedSession.count({ where: { userId: user.id } })).toBe(1);
+      expect(
+        await prisma.emailVerificationToken.count({ where: { userId: user.id, usedAt: null } }),
+      ).toBe(0);
     });
 
     it("POST /v1/auth/password-reset/confirm — the mailed token replaces the password once; a replay and a guessed token change nothing", async () => {
