@@ -90,6 +90,7 @@ import {
   sendRbacRefusal,
 } from "../http/member-command-gates.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { assertCaseNotHeldForUnlinkTx, caseUnlinkRefusal } from "../services/cases/case-evidence-link.service.js";
 import { refuseIfSessionQuarantined } from "../services/access-control/adaptive-runtime-gate.service.js";
 import {
   ACTIVE_WORKSPACE_CLOSURE_STATUSES,
@@ -112,6 +113,7 @@ import {
 } from "@proovra/shared-runtime";
 import {
   resolveWorkspaceLifecyclePolicy,
+  roleHasPermission,
   WORKSPACE_LIFECYCLE_ERROR_CODES,
 } from "@proovra/shared";
 import { resolveWorkspaceKind } from "../services/identity/workspace-kind.js";
@@ -123,6 +125,9 @@ import { resolveCaseRecordAccess } from "../services/cases/case-permission.servi
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { sendBusinessRefusal } from "../http/business-refusal.js";
 import { buildRbacMatrix } from "../services/platform-context/rbac-matrix.js";
+
+/** PRO-T1-07 — a record was linked to the case while the unlink waited for its lock. */
+class CaseUnlinkHasEvidence extends Error {}
 
 const WORKSPACE_MEMBER_PAGE_SIZE = 50;
 const WORKSPACE_MEMBER_PAGE_MAX = 200;
@@ -3257,11 +3262,49 @@ export async function teamsRoutes(app: FastifyInstance) {
       if (targetId) where.targetId = targetId;
       if (eventType) where.eventType = eventType;
 
+      // PRO-G1Z-05 — integration credential activity (key names, scopes,
+      // prefixes, webhook secret prefixes) is integration-owner data, read
+      // under the integration.*.manage permissions the integrations surface
+      // itself requires; other members' feed omits those rows.
+      const hiddenTargetTypes = [
+        ...(roleHasPermission(actor.role, "integration.api_key.manage") ? [] : ["api_credential"]),
+        ...(roleHasPermission(actor.role, "integration.webhook.manage") ? [] : ["webhook_endpoint"]),
+      ];
       const activities = await prisma.teamActivity.findMany({
-        where,
+        where: hiddenTargetTypes.length > 0 ? { AND: [where, { targetType: { notIn: hiddenTargetTypes } }] } : where,
         orderBy: { createdAt: "desc" },
         take: limit ?? 50,
       });
+
+      // PRO-T1-08 — a case name in activity metadata is the case's data: a
+      // restricted case closed to this reader keeps its event, not its name.
+      const namedCaseIds = activities
+        .map((a) => {
+          const m = a.metadata as Record<string, unknown> | null;
+          if (!m || typeof m !== "object" || Array.isArray(m) || !("caseName" in m)) return null;
+          const id = typeof m.caseId === "string" ? m.caseId : a.targetType === "case" ? a.targetId : null;
+          return id;
+        })
+        .filter((id): id is string => typeof id === "string");
+      const closedCaseIds = new Set(
+        namedCaseIds.length > 0
+          ? (
+              await prisma.case.findMany({
+                where: { id: { in: [...new Set(namedCaseIds)] }, NOT: caseVisibleToWhere(userId) },
+                select: { id: true },
+              })
+            ).map((c) => c.id)
+          : [],
+      );
+      const withoutClosedCaseName = (activity: (typeof activities)[number], metadata: unknown): unknown => {
+        if (closedCaseIds.size === 0 || !metadata || typeof metadata !== "object" || Array.isArray(metadata)) return metadata;
+        const m = metadata as Record<string, unknown>;
+        const id = typeof m.caseId === "string" ? m.caseId : activity.targetType === "case" ? activity.targetId : null;
+        if (!id || !closedCaseIds.has(id)) return metadata;
+        const { caseName: _caseName, ...rest } = m;
+        void _caseName;
+        return rest;
+      };
 
       const actorIds = activities
         .map((a) => a.actorUserId)
@@ -3303,9 +3346,12 @@ export async function teamsRoutes(app: FastifyInstance) {
           // Members audit ROLE-03 — invitation activity carries the invited
           // address, which the invitations list itself withholds from MEMBER
           // and VIEWER. Contact data in metadata follows the same rule.
-          metadata: hasRole(actor.role, prismaPkg.TeamRole.ADMIN)
-            ? activity.metadata
-            : withoutContactData(activity.metadata),
+          metadata: withoutClosedCaseName(
+            activity,
+            hasRole(actor.role, prismaPkg.TeamRole.ADMIN)
+              ? activity.metadata
+              : withoutContactData(activity.metadata),
+          ),
           createdAt: activity.createdAt,
         };
       });
@@ -3463,8 +3509,61 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ code: "CASE_NOT_FOUND", message: "Case not found in this workspace" });
       }
 
+      // PRO-T1-07 — taking a case OUT of the workspace moves it into its
+      // owner's personal reach, where it survives that person's later removal
+      // (removal only counts workspace cases). That is the owner's own act, not
+      // an admin's on someone else's case: only the case's owner may do it, and
+      // only for a case holding no workspace record (its links would otherwise
+      // span two tenancies) and under no legal hold, behind the same step-up a
+      // case deletion asks (to the workspace the case is gone).
+      const unlinkRefused = (code: string, message: string, status = 409) => {
+        void auditTeamAction(req, {
+          userId,
+          action: "teams.case_unlink",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: teamId,
+          metadata: { reason: code, caseId },
+        });
+        return reply.code(status).send({ code, message });
+      };
+      if (caseItem.ownerUserId !== userId) {
+        return unlinkRefused(
+          "CASE_UNLINK_OWNER_REQUIRED",
+          "Only the case's owner can take it out of this workspace. Transfer or delete the case instead.",
+          403,
+        );
+      }
+      if ((await prisma.caseEvidenceLink.count({ where: { caseId } })) > 0) {
+        return unlinkRefused(
+          "CASE_UNLINK_HAS_EVIDENCE",
+          "This case holds workspace records. Remove them from the case before taking it out of the workspace.",
+        );
+      }
+      {
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId,
+          userId,
+          purpose: "CASE_DELETE",
+          resourceKind: "case",
+          resourceId: caseId,
+        });
+        if (gate.sent) return;
+      }
+
       // The unlink and its audit row commit together (members re-audit AUD-01).
-      const updated = await prisma.$transaction(async (tx) => {
+      let updated: Awaited<ReturnType<typeof prisma.case.update>>;
+      try {
+       updated = await prisma.$transaction(async (tx) => {
+        // Hold re-read under the case row lock (UC-CASE-001), and the record
+        // condition re-checked after it: a link or hold placed concurrently is
+        // either seen here or waits for this commit.
+        await assertCaseNotHeldForUnlinkTx(tx, caseId);
+        if ((await tx.caseEvidenceLink.count({ where: { caseId } })) > 0) {
+          throw new CaseUnlinkHasEvidence();
+        }
         const row = await tx.case.update({
           where: { id: caseId },
           data: { teamId: null },
@@ -3478,7 +3577,18 @@ export async function teamsRoutes(app: FastifyInstance) {
           db: tx,
         });
         return row;
-      });
+       });
+      } catch (err) {
+        if (err instanceof CaseUnlinkHasEvidence) {
+          return unlinkRefused(
+            "CASE_UNLINK_HAS_EVIDENCE",
+            "This case holds workspace records. Remove them from the case before taking it out of the workspace.",
+          );
+        }
+        const refusal = caseUnlinkRefusal(err);
+        if (refusal) return unlinkRefused(refusal.body.code, refusal.body.message, refusal.status);
+        throw err;
+      }
 
       await createActivity(teamId, "case_unlinked", "case", userId, caseId, {
         caseName: updated.name,

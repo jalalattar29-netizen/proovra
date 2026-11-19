@@ -181,6 +181,7 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
                   {/* PRO-E2-09 — per note: the author or a manager (server-projected). */}
                   {canWrite && item.canManage !== false ? (
                     <div className="evidence-library-panel__actions evd-block--tight">
+                      {item.viewerCanEdit !== false ? (
                       <button type="button" className="app-secondary-action"
                         onClick={() => {
                           setEditingId(item.id);
@@ -190,6 +191,7 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
                       >
                         Edit
                       </button>
+                      ) : null}
                       <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteNote(item.id)}>Delete</button>
                     </div>
                   ) : null}

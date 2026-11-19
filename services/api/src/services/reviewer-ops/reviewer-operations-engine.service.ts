@@ -469,6 +469,8 @@ async function buildDashboardInner(
         where: {
           teamId: input.teamId,
           status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+          // PRO-R2-12 — WORKFLOW-003: an escalation on a closed record moves no count.
+          workflow: { evidence: evidenceVisibleThroughCasesWhere(input.meUserId) },
         },
       }),
       client.reviewEscalation.count({
@@ -476,6 +478,7 @@ async function buildDashboardInner(
           teamId: input.teamId,
           status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
           severity: "CRITICAL",
+          workflow: { evidence: evidenceVisibleThroughCasesWhere(input.meUserId) },
         },
       }),
       listLatestWorkloadSnapshots({ teamId: input.teamId, limit: 10 }, client),

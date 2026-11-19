@@ -906,12 +906,8 @@ function EscalationRow({ esc }: { esc: RecentEscalation }) {
             Open evidence
           </Link>
         ) : null}
-        <Link
-          href={`/investigation/relationships?nodeId=${encodeURIComponent(esc.id)}`}
-          style={pivotLinkSmallStyle}
-        >
-          Inspect graph
-        </Link>
+        {/* PRO-K1C-06 — an escalation id is not a graph node; the record's
+            own neighbourhood is the pivot (Open evidence above). */}
       </div>
     </li>
   );

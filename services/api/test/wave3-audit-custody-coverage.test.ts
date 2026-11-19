@@ -74,7 +74,7 @@ describe("Wave 3 Phase 7B — audit + custody coverage", () => {
 
   // ------------------------------------------------------------------ 1
   it("POST /v1/graph/duplicates/:edgeId/decision — audit + custody emit", () => {
-    const block = sliceRoute(GRAPH_ROUTES, "/v1/graph/duplicates/:edgeId/decision", 6000);
+    const block = sliceRoute(GRAPH_ROUTES, "/v1/graph/duplicates/:edgeId/decision", 9000);
     expect(block).toContain('action: "DUPLICATE_DECISION_RECORDED"');
     expect(block).toContain("appendInvestigationCustody");
     expect(block).toContain(
@@ -256,7 +256,7 @@ describe("Wave 3 Phase 7B — custody emit ordered after DB write", () => {
   it("duplicate decision — custody after audit", () => {
     const block = GRAPH_ROUTES.slice(
       GRAPH_ROUTES.indexOf("/v1/graph/duplicates/:edgeId/decision"),
-      GRAPH_ROUTES.indexOf("/v1/graph/duplicates/:edgeId/decision") + 6000,
+      GRAPH_ROUTES.indexOf("/v1/graph/duplicates/:edgeId/decision") + 9000,
     );
     assertCustodyAfterAudit(block, "DUPLICATE_DECISION_RECORDED");
   });

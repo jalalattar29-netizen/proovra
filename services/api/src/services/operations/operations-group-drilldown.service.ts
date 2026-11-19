@@ -142,6 +142,12 @@ export async function listGroupAffectedRecords(
     severity?: string | null;
     limit: number;
     cursor?: string | null;
+    /**
+     * The caller's record reach (`incidentInReach`, record-reach.ts). Required:
+     * a condition naming a record a restricted case closes to the caller is,
+     * to them, not there, in the drill-down exactly as in the list (PRO-P1-01).
+     */
+    incidentReach: prismaPkg.Prisma.OperationalIncidentWhereInput;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<AffectedRecordPage> {
@@ -181,6 +187,7 @@ export async function listGroupAffectedRecords(
     where: workspaceIncidentWhereWith(
       input.teamId,
       identity,
+      input.incidentReach,
       // The queue's status FILTER vocabulary; omitted means UNRESOLVED, so a
       // group's drill-down lists the same members its count was made of.
       incidentStatusFilterWhere(input.status),

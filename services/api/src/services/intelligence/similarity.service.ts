@@ -22,8 +22,14 @@ import { prisma as defaultPrisma } from "../../db.js";
 export async function listSimilaritiesForEvidence(
   evidenceId: string,
   client: PrismaClient = defaultPrisma,
+  /**
+   * PRO-AI1Z-02 — the reader's closed records (`hiddenRecordIdsInWorkspace`):
+   * a peer a restricted case closes to them is not named, and a trashed peer
+   * is not offered. Omitted only by machine callers.
+   */
+  hiddenEvidenceIds?: readonly string[],
 ): Promise<DbSimilarity[]> {
-  return client.evidenceSimilarity.findMany({
+  const rows = await client.evidenceSimilarity.findMany({
     where: {
       OR: [
         { sourceEvidenceId: evidenceId },
@@ -32,6 +38,16 @@ export async function listSimilaritiesForEvidence(
     },
     orderBy: [{ kind: "asc" }, { score: "desc" }],
   });
+  if (hiddenEvidenceIds === undefined) return rows;
+  const peerOf = (r: DbSimilarity) => (r.sourceEvidenceId === evidenceId ? r.targetEvidenceId : r.sourceEvidenceId);
+  const peers = [...new Set(rows.map(peerOf))];
+  const live = new Set(
+    peers.length
+      ? (await client.evidence.findMany({ where: { id: { in: peers }, deletedAt: null }, select: { id: true } })).map((e) => e.id)
+      : [],
+  );
+  const hidden = new Set(hiddenEvidenceIds);
+  return rows.filter((r) => live.has(peerOf(r)) && !hidden.has(peerOf(r)));
 }
 
 export function projectSimilarity(

@@ -42,6 +42,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useToast } from "../../../../components/ui";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   useEnterpriseSurfaceAccess,
@@ -146,6 +147,8 @@ function EvidenceDetailPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { addToast } = useToast();
+  // PRO-E1C-05 — removing a record from a case is confirmed, with its access consequence.
+  const { confirm: confirmRemoveCase } = useConfirmAction();
   const evidenceId = params?.id ?? "";
 
   // Track 1A — governance / intelligence / investigation are Enterprise
@@ -821,6 +824,25 @@ function EvidenceDetailPageInner() {
   const removeCase = async (caseId?: string) => {
     const targetCaseId = caseId ?? workspace?.relationships.caseId ?? null;
     if (!evidenceId || !targetCaseId) return;
+    const linked = workspace?.relationships.cases?.find((c) => c.caseId === targetCaseId);
+    const caseLabel = linked?.caseName || "this case";
+    // PRO-E1C-05 — a restricted case keeps this record closed to everyone off
+    // its list; removing it re-opens the record to the whole workspace. When
+    // an older API does not say, the copy names the possibility.
+    const restrictedNote =
+      linked?.caseRestricted === true
+        ? " This case is restricted: once removed, everyone in the workspace who can read records will be able to open this one."
+        : linked?.caseRestricted === false
+          ? ""
+          : " If the case is restricted, removing the record opens it to everyone in the workspace who can read records.";
+    const ok = await confirmRemoveCase({
+      title: `Remove this record from "${caseLabel}"?`,
+      description: `The record itself is preserved and can be linked again.${restrictedNote}`,
+      confirmLabel: "Remove from case",
+      tone: "danger",
+      testId: "evidence-remove-case",
+    });
+    if (!ok) return;
     setActionBusy(true);
     try {
       await apiFetch(`/v1/cases/${targetCaseId}/evidence/${evidenceId}`, {

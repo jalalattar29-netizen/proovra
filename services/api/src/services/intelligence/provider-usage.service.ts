@@ -80,12 +80,26 @@ export async function summariseProviderUsage(input: {
   prisma?: PrismaClient;
   teamId: string;
   sinceUtc?: Date;
+  /**
+   * PRO-AI1Z-02 / B7B-F03 — records and cases closed to the reader move no
+   * number (the same rule `listRecentUsage` applies to its rows).
+   */
+  hidden?: { evidenceIds: readonly string[]; caseIds: readonly string[] };
 }) {
   const prisma = input.prisma ?? defaultPrisma;
   const since = input.sinceUtc ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const closedEvidence = [...(input.hidden?.evidenceIds ?? [])];
+  const closedCases = [...(input.hidden?.caseIds ?? [])];
   const rows = await prisma.providerUsageEvent.groupBy({
     by: ["provider", "operation", "unit"],
-    where: { teamId: input.teamId, occurredAtUtc: { gte: since } },
+    where: {
+      teamId: input.teamId,
+      occurredAtUtc: { gte: since },
+      AND: [
+        ...(closedEvidence.length ? [{ OR: [{ evidenceId: null }, { evidenceId: { notIn: closedEvidence } }] }] : []),
+        ...(closedCases.length ? [{ OR: [{ caseId: null }, { caseId: { notIn: closedCases } }] }] : []),
+      ],
+    },
     _sum: { units: true, estimatedCostUsdMicros: true },
     _count: { _all: true },
   });

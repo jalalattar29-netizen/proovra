@@ -22,6 +22,8 @@
 
 import type { SiuCapability } from "@proovra/shared";
 
+import { caseOwnerAccessRole } from "../cases/case-permission.service.js";
+
 export type SiuCapabilityDecision = {
   capability: SiuCapability;
   allowed: boolean;
@@ -38,6 +40,12 @@ export type EvaluateSiuCapabilityInput = {
   teamId: string;
   userId: string;
   caseOwnerUserId: string | null;
+  /**
+   * The caller's CURRENT workspace role (PRO-K1-04, A2-14): historical creator
+   * status is not authority, so a case owner demoted to VIEWER (or with no
+   * active role) does not get the owner fallback.
+   */
+  currentRole: string | null;
   capability: SiuCapability;
 };
 
@@ -63,7 +71,8 @@ export async function evaluateSiuCapability(
   // once the access policy ships the bindings.
   if (
     input.caseOwnerUserId &&
-    input.caseOwnerUserId === input.userId
+    input.caseOwnerUserId === input.userId &&
+    caseOwnerAccessRole(input.currentRole) === "OWNER"
   ) {
     return {
       capability: input.capability,

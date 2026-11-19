@@ -95,7 +95,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { caseClosedTo, evidenceClosedTo } from "../access/record-reach.js";
+import { machineEgressRestricted, type MachineEgressTarget } from "../access/record-reach.js";
 import { isLiveOperatingWorkspace } from "../workspace/operating-workspace.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import {
@@ -1058,14 +1058,26 @@ async function automationTargetRestricted(
   targetType: string,
   targetId: string,
 ): Promise<boolean> {
+  // PRO-LEAD-02 — every target kind resolved to the record / case it is
+  // about, by the one machine-egress rule (record-reach.ts); fails closed.
   const kind = targetType.toLowerCase();
-  try {
-    if (kind === "evidence") return await evidenceClosedTo(targetId, null, prisma);
-    if (kind === "case") return await caseClosedTo(targetId, null, prisma);
-  } catch {
-    return true;
-  }
-  return false;
+  const target: MachineEgressTarget =
+    kind === "evidence"
+      ? { evidenceId: targetId }
+      : kind === "case"
+        ? { caseId: targetId }
+        : kind === "legal_hold"
+          ? { holdId: targetId }
+          : kind === "exchange_package"
+            ? { packageId: targetId }
+            : kind === "review_workflow"
+              ? { workflowId: targetId }
+              : kind === "review_escalation"
+                ? { escalationId: targetId }
+                : kind === "external_review_grant"
+                  ? { grantId: targetId }
+                  : {};
+  return machineEgressRestricted(target, prisma);
 }
 
 async function finaliseFailed(

@@ -43,6 +43,7 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { workspaceIncidentWhere } from "../services/observability/incident-scope.js";
+import { incidentInReach, viewerReachInWorkspace } from "../services/access/record-reach.js";
 import {
   unresolvedIncidentWhere,
   untriagedIncidentWhere,
@@ -209,9 +210,14 @@ export async function workspaceOperationsRoutes(
       const actor = await requireWorkspaceMember(req, reply, workspaceId);
       if (!actor) return;
 
+      // PRO-T1-17 / B7B-F03 — an incident naming a record closed to this
+      // member is that record's row: it is neither listed nor counted.
       const where = {
-        ...workspaceIncidentWhere(workspaceId),
-        ...unresolvedIncidentWhere(),
+        AND: [
+          workspaceIncidentWhere(workspaceId),
+          unresolvedIncidentWhere(),
+          incidentInReach(await viewerReachInWorkspace(workspaceId, actor.actorUserId)),
+        ],
       };
       // CRITICAL first: the severity enum is declared INFO..CRITICAL, so
       // DESCENDING is most-severe-first. Ascending put INFO first and let a

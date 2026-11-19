@@ -30,6 +30,11 @@ vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
   emitTenantAudit: async (e: JsonRecord) => { H.audits.push(e); },
   queryTenantAudit: async (arg: JsonRecord) => { H.queryArg = arg; return { items: [{ eventId: "e1" }], nextCursorId: null }; },
 }));
+// PRO-BLZ-01: the route narrows by the reader's record reach; nothing is
+// restricted in this seam (real rows: ws-reach-privacy.integration.test.ts).
+vi.mock("../src/services/access/record-reach.js", () => ({
+  hiddenRecordIdsInWorkspace: async () => ({ caseIds: [], evidenceIds: [] }),
+}));
 
 import { phase11TenantRoutes } from "../src/routes/phase11-tenant.routes.js";
 

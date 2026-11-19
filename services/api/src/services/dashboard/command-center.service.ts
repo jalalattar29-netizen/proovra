@@ -2907,16 +2907,13 @@ async function runIncidents(
 
   let causalityChains: CommandCenterCausalityChainItem[] = [];
   try {
-    causalityChains = (
-      await listWorkspaceCausalityChains({
-        teamId,
-        limit: 12,
-      })
-    ).filter(
-      (c) =>
-        !c.linkedEvidenceIds.some((id) => reach.hidden.evidenceIds.includes(id)) &&
-        !c.linkedCaseIds.some((id) => reach.hidden.caseIds.includes(id)),
-    );
+    // The reach filter lives in the reader itself (PRO-P1-01), one rule for
+    // the dashboard and the Operations route.
+    causalityChains = await listWorkspaceCausalityChains({
+      teamId,
+      limit: 12,
+      hidden: reach.hidden,
+    });
   } catch {
     causalityChains = [];
   }
@@ -3174,7 +3171,7 @@ export async function buildCommandCenter(input: {
     // Phase 32.8C++ deep operations intelligence (partial-failure tolerant).
     runRelationshipIntelligence(input.teamId, pop, reach),
     runCrossCaseIntelligenceV2(input.teamId, scope, pop, reach),
-    runReconstructedTimeline(input.teamId, opsCounters, reach),
+    runReconstructedTimeline(input.teamId, opsCounters, reach, input.canReadSecurity),
     runDeepIntegrityWatch(input.teamId, pop, reach),
     input.canReadSecurity ? runAccessSecurityClassifier(input.teamId) : securityClassifierWithheld(),
     runQueueWorkerTelemetry(input.teamId, scope, pop, counters, evidenceCounters, reach),
@@ -3218,7 +3215,7 @@ export async function buildCommandCenter(input: {
       scope,
       await hiddenWorkflowIdsInWorkspace(input.teamId, input.userId),
     ),
-    runOperationalGraphSection(input.teamId),
+    runOperationalGraphSection(input.teamId, reach),
     runOrganizationalHealthSection(input.teamId, reach),
   ]);
 
@@ -3509,6 +3506,8 @@ async function runReviewerCapacityBoard(
 
 async function runOperationalGraphSection(
   teamId: string,
+  /** PRO-N1-08 — the reader's reach; root causes and counts are narrowed by it. */
+  reach: ViewerReach,
 ): Promise<CommandCenterEnvelope["sections"]["operationalGraph"]> {
   const meta: SectionMeta = {
     status: "ok",
@@ -3595,7 +3594,7 @@ async function runOperationalGraphSection(
     },
   };
   try {
-    data = await getOperationalGraphSummary({ teamId });
+    data = await getOperationalGraphSummary({ teamId, hidden: reach.hidden });
   } catch {
     /* degrade */
   }
@@ -5186,6 +5185,8 @@ async function runReconstructedTimeline(
   teamId: string,
   opsCounters: OperationsCounters,
   reach: ViewerReach,
+  /** PRO-N1C-01 — audit.read: workspace security events are withheld without it (AUD-0030). */
+  canReadSecurity: boolean,
 ): Promise<{ meta: SectionMeta; events: ReconstructedTimelineEvent[] }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -5366,7 +5367,8 @@ async function runReconstructedTimeline(
       }),
       // The same shared list the operational timeline reads.
       Promise.resolve(opsCounters.recentEscalations),
-      prisma.securityEvent.findMany({
+      // PRO-N1C-01 — never read for a caller without audit.read.
+      (canReadSecurity ? prisma.securityEvent : { findMany: async () => [] as never[] }).findMany({
         where: {
           teamId,
           severity: { in: ["WARNING", "HIGH"] },
@@ -5453,9 +5455,12 @@ async function runReconstructedTimeline(
   }
 
   events.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  // PRO-N1C-01 — no security-family event (from any source, the projection
+  // included) reaches a caller without audit.read.
+  const visible = canReadSecurity ? events : events.filter((e) => e.family !== "security");
   return {
     meta,
-    events: events.slice(0, RECONSTRUCTED_TIMELINE_LIMIT),
+    events: visible.slice(0, RECONSTRUCTED_TIMELINE_LIMIT),
   };
 }
 

@@ -1003,13 +1003,6 @@
       "replacement": "POST /v1/reviewer-ops/reviews/:workflowId/start"
     },
     {
-      "routeId": "PUT /v1/cases/:id/siu-profile",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "SIU profile upsert has no control; the SIU vertical panel is read-only",
-      "evidence": "reg services/api/src/routes/siu.routes.ts:299; apps/web/app/(app)/cases/components/SiuPanel.tsx wired calls: :170 apiFetch(`/v1/cases/${caseId}/siu-profile`) GET, :211 `/v1/cases/${caseId}/siu-exports`, :223 `/v1/cases/${caseId}/siu-profile/reveal-pii`, :246 `/v1/cases/${caseId}/siu-export/preflight`, :288 fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`) — no write to any siu-profile sub-resource; apps/web/app/(app)/cases/components/SiuPanel.tsx:430 <table data-testid=\"siu-checklist\"> and :461 <ul data-testid=\"siu-indicators\"> render read-only rows; docs/verticals/insurance-siu.md documents the vertical",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/ai/search/nl",
       "disposition": "COMPATIBILITY_TOMBSTONE",
       "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",

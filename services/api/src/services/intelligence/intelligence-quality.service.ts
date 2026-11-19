@@ -31,15 +31,35 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import type { HiddenRecordIds } from "../access/record-reach.js";
 
 // ---------------------------------------------------------------------------
 // Provider quality
 // ---------------------------------------------------------------------------
 
+function usageInReach(h?: HiddenRecordIds) {
+  const ev = h?.evidenceIds ?? [];
+  const cs = h?.caseIds ?? [];
+  return {
+    AND: [
+      ...(ev.length ? [{ OR: [{ evidenceId: null }, { evidenceId: { notIn: ev } }] }] : []),
+      ...(cs.length ? [{ OR: [{ caseId: null }, { caseId: { notIn: cs } }] }] : []),
+    ],
+  };
+}
+function recordInReach(h?: HiddenRecordIds) {
+  return h && h.evidenceIds.length ? { evidenceId: { notIn: h.evidenceIds } } : {};
+}
+function correctionInReach(h?: HiddenRecordIds) {
+  return h && h.evidenceIds.length ? { NOT: { record: { evidenceId: { in: h.evidenceIds } } } } : {};
+}
+
 export async function projectProviderQuality(input: {
   prisma?: PrismaClient;
   teamId: string;
   range: ExecutiveMetricsRange;
+  /** PRO-AI1Z-02 / B7B-F03 — the reader's closed records and cases: they move no number. */
+  hidden?: HiddenRecordIds;
 }): Promise<ProviderQualityProjection> {
   const prisma = input.prisma ?? defaultPrisma;
   const since = new Date(Date.now() - rangeWindowMs(input.range));
@@ -48,7 +68,7 @@ export async function projectProviderQuality(input: {
   const usageRows = await prisma.providerUsageEvent
     .groupBy({
       by: ["provider"],
-      where: { teamId: input.teamId, occurredAtUtc: { gte: since } },
+      where: { teamId: input.teamId, occurredAtUtc: { gte: since }, ...usageInReach(input.hidden) },
       _count: { _all: true },
       _sum: { estimatedCostUsdMicros: true },
     })
@@ -65,6 +85,7 @@ export async function projectProviderQuality(input: {
         teamId: input.teamId,
         occurredAtUtc: { gte: since },
         failureReason: { not: null },
+        ...usageInReach(input.hidden),
       },
       _count: { _all: true },
     })
@@ -74,7 +95,7 @@ export async function projectProviderQuality(input: {
   const recordRows = await prisma.mediaIntelligenceRecord
     .groupBy({
       by: ["provider"],
-      where: { teamId: input.teamId, createdAt: { gte: since } },
+      where: { teamId: input.teamId, createdAt: { gte: since }, ...recordInReach(input.hidden) },
       _count: { _all: true },
       _avg: { providerConfidence: true },
     })
@@ -90,6 +111,7 @@ export async function projectProviderQuality(input: {
       where: {
         teamId: input.teamId,
         createdAt: { gte: since },
+        ...correctionInReach(input.hidden),
       },
       select: {
         state: true,
@@ -142,6 +164,7 @@ export async function projectProviderQuality(input: {
         teamId: input.teamId,
         createdAt: { gte: since },
         state: { in: ["ACCEPTED", "REJECTED", "CORRECTED"] },
+        ...recordInReach(input.hidden),
       },
       _count: { _all: true },
     })
@@ -239,13 +262,15 @@ export async function projectReviewerQuality(input: {
   prisma?: PrismaClient;
   teamId: string;
   range: ExecutiveMetricsRange;
+  /** PRO-AI1Z-02 / B7B-F03 — the reader's closed records and cases: they move no number. */
+  hidden?: HiddenRecordIds;
 }): Promise<ReviewerQualityProjection> {
   const prisma = input.prisma ?? defaultPrisma;
   const since = new Date(Date.now() - rangeWindowMs(input.range));
 
   const corrections = await prisma.reviewerCorrection
     .findMany({
-      where: { teamId: input.teamId, createdAt: { gte: since } },
+      where: { teamId: input.teamId, createdAt: { gte: since }, ...correctionInReach(input.hidden) },
       select: {
         id: true,
         authoredByUserId: true,
@@ -330,6 +355,8 @@ export async function projectTeamQuality(input: {
   prisma?: PrismaClient;
   teamId: string;
   range: ExecutiveMetricsRange;
+  /** PRO-AI1Z-02 / B7B-F03 — the reader's closed records and cases: they move no number. */
+  hidden?: HiddenRecordIds;
 }): Promise<TeamQualityProjection> {
   const prisma = input.prisma ?? defaultPrisma;
   const since = new Date(Date.now() - rangeWindowMs(input.range));
@@ -337,7 +364,7 @@ export async function projectTeamQuality(input: {
   // Team-level row.
   const records = await prisma.mediaIntelligenceRecord
     .findMany({
-      where: { teamId: input.teamId, createdAt: { gte: since } },
+      where: { teamId: input.teamId, createdAt: { gte: since }, ...recordInReach(input.hidden) },
       select: {
         state: true,
         providerConfidence: true,
@@ -399,6 +426,7 @@ export async function projectTeamQuality(input: {
         teamId: input.teamId,
         occurredAtUtc: { gte: since },
         caseId: { not: null },
+        ...usageInReach(input.hidden),
       },
       _count: { _all: true },
     })
@@ -406,13 +434,15 @@ export async function projectTeamQuality(input: {
 
   const caseRows: TeamQualityRow[] = [];
   for (const c of caseAggregates) {
-    if (!c.caseId) continue;
+    // PRO-AI1Z-02 — a case closed to the reader has no row of its own.
+    if (!c.caseId || input.hidden?.caseIds.includes(c.caseId)) continue;
     const caseRecords = await prisma.mediaIntelligenceRecord
       .findMany({
         where: {
           teamId: input.teamId,
           createdAt: { gte: since },
           evidenceId: { in: await evidenceIdsForCase(prisma, input.teamId, c.caseId, since) },
+          ...recordInReach(input.hidden),
         },
         select: {
           state: true,

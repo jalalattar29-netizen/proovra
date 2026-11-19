@@ -256,8 +256,9 @@ export async function buildCasesSummary(input: {
         },
       }),
       // P12.3 canonical-only: case holds are scope='CASE' canonical rows.
+      // PRO-K1-06 — only cases this reader may see are counted (EVID-004).
       prisma.evidenceLegalHold.findMany({
-        where: { teamId: input.teamId, scope: "CASE", status: "ACTIVE" },
+        where: { teamId: input.teamId, scope: "CASE", status: "ACTIVE", legalCase: caseVisibleToWhere(input.userId) },
         select: { caseId: true },
         distinct: ["caseId"],
         take: 2000,
@@ -268,9 +269,13 @@ export async function buildCasesSummary(input: {
             teamId: input.teamId,
             status: { in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
             evidenceId: { not: undefined },
+            // PRO-K1-06 — a workflow on a record closed to the reader moves no count.
+            evidence: evidenceVisibleThroughCasesWhere(input.userId),
           },
           select: {
-            evidence: { select: { caseLinks: { select: { caseId: true } } } },
+            evidence: {
+              select: { caseLinks: { where: { case: caseVisibleToWhere(input.userId) }, select: { caseId: true } } },
+            },
           },
           take: 1000,
         })
@@ -339,7 +344,11 @@ export async function buildCasesSummary(input: {
               status: {
                 in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"],
               },
-              evidence: { caseLinks: { some: { caseId: { in: caseIds } } } },
+              evidence: {
+                caseLinks: { some: { caseId: { in: caseIds } } },
+                // PRO-K1-06 — the per-case pending-review count excludes closed records.
+                AND: [evidenceVisibleThroughCasesWhere(input.userId)],
+              },
             },
             select: {
               evidence: {

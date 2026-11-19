@@ -451,7 +451,8 @@ describe("Phase 32.8D — case lifecycle service", () => {
   it("changeCaseStatus writes a CaseStatusHistory row", () => {
     const block = LIFECYCLE.match(/export async function changeCaseStatus[\s\S]*?\n\}\s*\n/);
     expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/client\.caseStatusHistory\.create/);
+    // PRO-K1-08: on the status change's own transaction.
+    expect(block![0]).toMatch(/tx\.caseStatusHistory\.create/);
   });
 
   it("addCaseAssignment enforces workspace membership for team workspaces", () => {

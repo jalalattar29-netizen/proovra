@@ -18,6 +18,7 @@
 
 import { prisma } from "../../db.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import { allOpen, type HiddenRecordIds } from "../access/record-reach.js";
 
 type Relation =
   | "CAUSED_BY"
@@ -702,12 +703,30 @@ async function persistChain(
 }
 
 /**
+ * A causality chain names records and cases in JSON id lists; it is open to a
+ * reader only when none of them is closed to that reader (PRO-P1-01).
+ */
+export function causalityChainInReach(
+  chain: { linkedEvidenceIds: unknown; linkedCaseIds: unknown },
+  hidden: HiddenRecordIds,
+): boolean {
+  const ids = (v: unknown): string[] => (Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === "string") : []);
+  return allOpen(ids(chain.linkedEvidenceIds), hidden.evidenceIds) && allOpen(ids(chain.linkedCaseIds), hidden.caseIds);
+}
+
+/**
  * Dashboard reader: ACTIVE causality chains for the workspace,
  * severity-sorted then most-recent.
  */
 export async function listWorkspaceCausalityChains(input: {
   teamId: string;
   limit?: number;
+  /**
+   * The reader's closed records (`hiddenRecordIdsInWorkspace`), required
+   * (PRO-P1-01): a chain naming a record or case closed to the reader is
+   * that record's row, so it is not listed.
+   */
+  hidden: HiddenRecordIds;
 }): Promise<
   Array<{
     id: string;
@@ -736,7 +755,7 @@ export async function listWorkspaceCausalityChains(input: {
       orderBy: [{ severity: "desc" }, { lastSeenAtUtc: "desc" }],
       take: limit,
     });
-    return rows.map((r) => ({
+    return rows.filter((r) => causalityChainInReach(r, input.hidden)).map((r) => ({
       id: r.id,
       chainKey: r.chainKey,
       title: r.title,

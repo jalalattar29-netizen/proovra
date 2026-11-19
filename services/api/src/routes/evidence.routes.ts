@@ -10,6 +10,7 @@ import { requestKeyCompromiseReplacement } from "../services/operations/signing-
 import {
   accessibleWorkspaceIdsFor,
   evidenceReachWhere,
+  hiddenRecordIdsInWorkspace,
   resolvedEvidenceReachWhere,
 } from "../services/access/record-reach.js";
 import { readWorkspaceHeader } from "../services/access/request-workspace.js";
@@ -25,7 +26,10 @@ import { getSecret } from "../config/runtime-secrets.js";
 import { EXTENSION_CAPTURE_SCOPE, extensionMayPresignPart } from "../services/auth/extension-scope.js";
 import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
 import { secondReviewForRound } from "../services/evidence-review/second-review.service.js";
-import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
+import {
+  projectSubmitterEmail,
+  resolveRecipientContactDisclosure,
+} from "../services/privacy/recipient-contact-disclosure.js";
 import {
   projectCaptureCoordinates,
   resolveCaptureLocationDisclosure,
@@ -1512,6 +1516,22 @@ function primaryCaseIdOf(e: {
   return e.caseLinks?.[0]?.caseId ?? null;
 }
 
+/**
+ * PRO-C1-08 / DEC-14 (POL-C1-01) — the per-file note is captured under the
+ * label "private to you": its author (the part's uploader; the record's owner
+ * for a part written before uploaders were recorded) reads it, and no other
+ * reader of the record does, on every projection that carries it.
+ */
+function privatePartNoteFor(
+  part: { privateRole: string | null; privateNote: string | null; uploadedByUserId: string | null },
+  recordOwnerUserId: string | null,
+  viewerUserId: string,
+): { privateRole: string | null; privateNote: string | null } {
+  const author = part.uploadedByUserId ?? recordOwnerUserId;
+  const mine = author !== null && author === viewerUserId;
+  return { privateRole: mine ? part.privateRole ?? null : null, privateNote: mine ? part.privateNote ?? null : null };
+}
+
 type SelectedEvidence = prismaPkg.Prisma.EvidenceGetPayload<{
   select: typeof SAFE_EVIDENCE_SELECT;
 }>;
@@ -1846,9 +1866,21 @@ async function resolveViewerCasesForEvidence(viewerUserId: string, evidenceId: s
     where: { evidenceId },
     orderBy: { linkedAtUtc: "asc" },
     take: 100,
-    select: { caseId: true, role: true, linkedAtUtc: true, case: { select: { name: true } } },
+    select: {
+      caseId: true,
+      role: true,
+      linkedAtUtc: true,
+      case: { select: { name: true, restrictedAtUtc: true, _count: { select: { access: true, teamAccess: true } } } },
+    },
   });
-  const out: Array<{ caseId: string; caseName: string | null; role: string; linkedAtUtc: string }> = [];
+  const out: Array<{
+    caseId: string;
+    caseName: string | null;
+    role: string;
+    linkedAtUtc: string;
+    /** PRO-E1C-05 — removing the record from a restricted case widens who can read it. Additive. */
+    caseRestricted: boolean;
+  }> = [];
   for (const l of links) {
     const access = await resolveCaseRecordAccess({ userId: viewerUserId, caseId: l.caseId });
     if (!access.allowed) continue;
@@ -1857,6 +1889,8 @@ async function resolveViewerCasesForEvidence(viewerUserId: string, evidenceId: s
       caseName: l.case?.name ?? null,
       role: String(l.role),
       linkedAtUtc: l.linkedAtUtc.toISOString(),
+      caseRestricted:
+        !!l.case && (l.case.restrictedAtUtc !== null || l.case._count.access > 0 || l.case._count.teamAccess > 0),
     });
   }
   return out;
@@ -3079,7 +3113,8 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     captureMethod: e.captureMethod ?? null,
     acquisition: resolveEvidenceAcquisition(e),
     identityLevelSnapshot: e.identityLevelSnapshot ?? null,
-    submittedByEmail: e.submittedByEmail ?? null,
+    // PRO-E2-02 / DEC-14 — an external submitter's address is masked for every reader.
+    submittedByEmail: projectSubmitterEmail(e.submittedByEmail, e),
     submittedByAuthProvider: e.submittedByAuthProvider ?? null,
     submittedByUserId: e.submittedByUserId ?? null,
     createdByUserId: e.createdByUserId ?? null,
@@ -3950,7 +3985,8 @@ function mapEvidenceListItem(item: SelectedEvidenceListItem) {
     })(),
     identityLevel: item.identityLevelSnapshot,
     identityLevelLabel: mapIdentityLevelLabel(item.identityLevelSnapshot),
-    submittedByEmail: item.submittedByEmail,
+    // PRO-E2-02 / DEC-14 — masked on the list, bulk rows and CSV too.
+    submittedByEmail: projectSubmitterEmail(item.submittedByEmail, item),
     latestReportVersion: item.latestReportVersion,
     reportReady: deriveCanonicalArtifactAvailability({
       latestReportVersion: item.latestReportVersion,
@@ -4290,6 +4326,76 @@ async function canManageEvidenceCollaborativeContent(
 function normalizeUserHeader(req: FastifyRequest) {
   const userAgent = req.headers["user-agent"];
   return Array.isArray(userAgent) ? userAgent[0] ?? null : userAgent ?? null;
+}
+
+/**
+ * PRO-E2-06 — THE REVIEWER AUDIT, AS THIS VIEWER MAY SEE IT. The trail keeps
+ * the facts the record's own reads withhold, so it follows the same rules:
+ *   - EVID-011: a PRIVILEGED legal note is read by its author and managers,
+ *     never by every reader. Its events are not listed to anyone else, and
+ *     every LEGAL_NOTE_* event's metadata (which carries the note type) is
+ *     withheld from non-managers.
+ *   - EVID-003: a related record closed to the viewer is not named: an id of a
+ *     record a restricted case closes to them is removed from the metadata.
+ */
+async function projectReviewerAuditForViewer<
+  T extends { eventType: string; metadata: unknown; actorUserId?: string | null },
+>(
+  events: T[],
+  ctx: { evidenceId: string; teamId: string | null; viewerUserId: string },
+  seesPrivileged: boolean,
+): Promise<T[]> {
+  const privilegedIds = seesPrivileged
+    ? new Set<string>()
+    : new Set(
+        (
+          await prisma.evidenceLegalNote.findMany({
+            where: { evidenceId: ctx.evidenceId, noteType: "PRIVILEGED" },
+            select: { id: true },
+          })
+        ).map((n) => n.id),
+      );
+  const hidden = ctx.teamId ? new Set((await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.viewerUserId)).evidenceIds) : new Set<string>();
+  const out: T[] = [];
+  for (const event of events) {
+    const meta =
+      event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)
+        ? (event.metadata as Record<string, unknown>)
+        : null;
+    if (event.eventType.startsWith("LEGAL_NOTE_") && !seesPrivileged) {
+      const noteId = typeof meta?.legalNoteId === "string" ? meta.legalNoteId : null;
+      if (noteId && privilegedIds.has(noteId)) continue;
+      out.push({ ...event, metadata: null });
+      continue;
+    }
+    if (meta && hidden.size > 0) {
+      const kept = Object.fromEntries(
+        Object.entries(meta).filter(([, v]) => !(typeof v === "string" && hidden.has(v))),
+      );
+      out.push({ ...event, metadata: kept });
+      continue;
+    }
+    out.push(event);
+  }
+  return out;
+}
+
+/**
+ * PRO-R2-07 — reviewer notes written by /v1/reviewer-ops/workspace/:id/notes
+ * are stored as `{"v":1,"type","body"}`; every comment reader shows the text
+ * (and the type, additively), never the raw envelope.
+ */
+function decodeReviewerNoteEnvelope(stored: string): { body: string; type: string | null } {
+  if (!stored.trim().startsWith("{")) return { body: stored, type: null };
+  try {
+    const parsed = JSON.parse(stored) as { v?: number; type?: unknown; body?: unknown };
+    if (parsed && parsed.v === 1 && typeof parsed.type === "string" && typeof parsed.body === "string") {
+      return { body: parsed.body, type: parsed.type };
+    }
+  } catch {
+    /* plain text */
+  }
+  return { body: stored, type: null };
 }
 
 function mapCollaborativeAuthor(user: { id: string; displayName: string | null; email: string | null }) {
@@ -7700,8 +7806,7 @@ const previewable = isPreviewableEvidenceKind(kind);
 return {
   // PRO-C1-12 — an allow-list projection: no bucket, key or version id.
   ...withoutStorageCoordinates(toJsonSafe(part) as Record<string, unknown>),
-  privateRole: part.privateRole ?? null,
-  privateNote: part.privateNote ?? null,
+  ...privatePartNoteFor(part, evidence.ownerUserId, ownerUserId),
   checklistStepId: part.checklistStepId ?? null,
   sourceLabel: part.sourceLabel ?? null,
   clientSignals: part.clientSignals ?? null,
@@ -9046,11 +9151,15 @@ return {
         id: comment.id,
         evidenceId: comment.evidenceId,
         visibility: comment.visibility,
-        body: comment.body,
+        // PRO-R2-07 — a reviewer note stored as a v1 envelope reads as its text.
+        body: decodeReviewerNoteEnvelope(comment.body).body,
+        noteType: decodeReviewerNoteEnvelope(comment.body).type,
         createdAt: comment.createdAt.toISOString(),
         updatedAt: comment.updatedAt.toISOString(),
         edited: comment.updatedAt.getTime() !== comment.createdAt.getTime(),
         author: mapCollaborativeAuthor(comment.author),
+        // DEC-15 — only the author may edit (PRO-E2-03); additive for clients.
+        viewerCanEdit: comment.authorUserId === userId,
       })),
     });
   });
@@ -9095,6 +9204,8 @@ return {
         updatedAt: created.updatedAt.toISOString(),
         edited: false,
         author: mapCollaborativeAuthor(created.author),
+        // DEC-15 — only the author may edit (PRO-E2-03); additive for clients.
+        viewerCanEdit: true,
       },
     });
   });
@@ -9107,18 +9218,21 @@ return {
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const commentId = z.string().uuid().parse((req.params as { commentId: string }).commentId);
       const body = ReviewerCommentUpdateBody.parse(req.body);
-      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
+      await getEvidenceForCollaborativeWrite(userId, id);
       const comment = await prisma.evidenceReviewerComment.findUnique({ where: { id: commentId } });
 
       if (!comment || comment.evidenceId !== id || comment.deletedAt) {
         return reply.code(404).send({ message: "Comment not found" });
       }
 
-      const canManage =
-        comment.authorUserId === userId ||
-        (await canManageEvidenceCollaborativeContent(userId, evidence));
-      if (!canManage) {
-        return reply.code(403).send({ message: "Forbidden" });
+      // PRO-E2-03 / DEC-15 — only the author rewrites their own words. A
+      // manager may soft-delete (DELETE keeps the manager tier) but never edits
+      // text that stays attributed to someone else.
+      if (comment.authorUserId !== userId) {
+        return reply.code(403).send({
+          message: "Only the author can edit this. A manager can remove it instead.",
+          code: "AUTHOR_ONLY_EDIT",
+        });
       }
 
       const updated = await prisma.$transaction(async (tx) => {
@@ -9152,6 +9266,8 @@ return {
           updatedAt: updated.updatedAt.toISOString(),
           edited: updated.updatedAt.getTime() !== updated.createdAt.getTime(),
           author: mapCollaborativeAuthor(updated.author),
+          // DEC-15 — only the author may edit (PRO-E2-03); additive for clients.
+          viewerCanEdit: true,
         },
       });
     }
@@ -9231,6 +9347,8 @@ return {
         updatedAt: note.updatedAt.toISOString(),
         edited: note.updatedAt.getTime() !== note.createdAt.getTime(),
         author: mapCollaborativeAuthor(note.author),
+        // DEC-15 — only the author may edit (PRO-E2-03); additive for clients.
+        viewerCanEdit: note.authorUserId === userId,
       })),
     });
   });
@@ -9273,6 +9391,8 @@ return {
         updatedAt: created.updatedAt.toISOString(),
         edited: false,
         author: mapCollaborativeAuthor(created.author),
+        // DEC-15 — only the author may edit (PRO-E2-03); additive for clients.
+        viewerCanEdit: true,
       },
     });
   });
@@ -9285,18 +9405,21 @@ return {
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const noteId = z.string().uuid().parse((req.params as { noteId: string }).noteId);
       const body = LegalNoteUpdateBody.parse(req.body);
-      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
+      await getEvidenceForCollaborativeWrite(userId, id);
       const note = await prisma.evidenceLegalNote.findUnique({ where: { id: noteId } });
 
       if (!note || note.evidenceId !== id || note.deletedAt) {
         return reply.code(404).send({ message: "Legal note not found" });
       }
 
-      const canManage =
-        note.authorUserId === userId ||
-        (await canManageEvidenceCollaborativeContent(userId, evidence));
-      if (!canManage) {
-        return reply.code(403).send({ message: "Forbidden" });
+      // PRO-E2-03 / DEC-15 — only the author rewrites their own words. A
+      // manager may soft-delete (DELETE keeps the manager tier) but never edits
+      // text that stays attributed to someone else.
+      if (note.authorUserId !== userId) {
+        return reply.code(403).send({
+          message: "Only the author can edit this. A manager can remove it instead.",
+          code: "AUTHOR_ONLY_EDIT",
+        });
       }
 
       const updated = await prisma.$transaction(async (tx) => {
@@ -9330,6 +9453,8 @@ return {
           updatedAt: updated.updatedAt.toISOString(),
           edited: updated.updatedAt.getTime() !== updated.createdAt.getTime(),
           author: mapCollaborativeAuthor(updated.author),
+          // DEC-15 — only the author may edit (PRO-E2-03); additive for clients.
+          viewerCanEdit: true,
         },
       });
     }
@@ -9403,6 +9528,8 @@ return {
         updatedAt: annotation.updatedAt.toISOString(),
         edited: annotation.updatedAt.getTime() !== annotation.createdAt.getTime(),
         author: mapCollaborativeAuthor(annotation.author),
+        // DEC-15 — only the author may edit (PRO-E2-03); additive for clients.
+        viewerCanEdit: annotation.authorUserId === userId,
       })),
     });
   });
@@ -9466,6 +9593,8 @@ return {
         updatedAt: created.updatedAt.toISOString(),
         edited: false,
         author: mapCollaborativeAuthor(created.author),
+        // DEC-15 — only the author may edit (PRO-E2-03); additive for clients.
+        viewerCanEdit: true,
       },
     });
   });
@@ -9481,18 +9610,21 @@ return {
         .uuid()
         .parse((req.params as { annotationId: string }).annotationId);
       const body = AnnotationUpdateBody.parse(req.body);
-      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
+      await getEvidenceForCollaborativeWrite(userId, id);
       const annotation = await prisma.evidenceAnnotation.findUnique({ where: { id: annotationId } });
 
       if (!annotation || annotation.evidenceId !== id || annotation.deletedAt) {
         return reply.code(404).send({ message: "Annotation not found" });
       }
 
-      const canManage =
-        annotation.authorUserId === userId ||
-        (await canManageEvidenceCollaborativeContent(userId, evidence));
-      if (!canManage) {
-        return reply.code(403).send({ message: "Forbidden" });
+      // PRO-E2-03 / DEC-15 — only the author rewrites their own words. A
+      // manager may soft-delete (DELETE keeps the manager tier) but never edits
+      // text that stays attributed to someone else.
+      if (annotation.authorUserId !== userId) {
+        return reply.code(403).send({
+          message: "Only the author can edit this. A manager can remove it instead.",
+          code: "AUTHOR_ONLY_EDIT",
+        });
       }
       if (body.evidencePartId && !(await annotationPartBelongsToEvidence(body.evidencePartId, id))) {
         return reply.code(400).send(ANNOTATION_PART_MISMATCH);
@@ -9550,6 +9682,8 @@ return {
           updatedAt: updated.updatedAt.toISOString(),
           edited: updated.updatedAt.getTime() !== updated.createdAt.getTime(),
           author: mapCollaborativeAuthor(updated.author),
+          // DEC-15 — only the author may edit (PRO-E2-03); additive for clients.
+          viewerCanEdit: true,
         },
       });
     }
@@ -10764,6 +10898,7 @@ return {
               storageObjectLockLegalHoldStatus: true,
               privateRole: true,
               privateNote: true,
+              uploadedByUserId: true,
               checklistStepId: true,
               sourceLabel: true,
               clientSignals: true,
@@ -11101,8 +11236,9 @@ return {
           const part = partLookup.get(item.id);
           return {
             ...item,
-            privateNote: part?.privateNote ?? null,
-            privateRole: part?.privateRole ?? null,
+            ...(part
+              ? privatePartNoteFor(part, evidence.ownerUserId, ownerUserId)
+              : { privateNote: null, privateRole: null }),
             sourceLabel: part?.sourceLabel ?? null,
             clientSignals: part?.clientSignals ?? null,
           };
@@ -11383,6 +11519,9 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               where: {
                 caseLinks: { some: { caseId: primaryCaseId } },
                 deletedAt: null,
+                // PRO-E2-10 — counts only what this viewer could open, as the
+                // case-filtered list does (EVID-004 / restricted-case inheritance).
+                AND: [evidenceReachWhere(ownerUserId, await accessibleWorkspaceIdsFor(ownerUserId))],
               },
             })
           : null;
@@ -11438,7 +11577,12 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         const relationshipItems = await listEvidenceRelationships(id, ownerUserId);
         const artifactHistory = await listEvidenceArtifacts(id);
         const governance = buildEvidenceReviewGovernance();
-        const reviewerAudit = await listReviewerAuditEvents(id);
+        // PRO-E2-06 — the audit trail is projected per viewer (EVID-011 / EVID-003).
+        const reviewerAudit = await projectReviewerAuditForViewer(
+          await listReviewerAuditEvents(id),
+          { evidenceId: id, teamId: evidence.teamId ?? null, viewerUserId: ownerUserId },
+          await canManageEvidenceCollaborativeContent(ownerUserId, evidence),
+        );
 
         /*
          * WHAT THIS RECORD ASKS OF THIS VIEWER (2026-10-23) — one server-owned
@@ -12001,8 +12145,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               sizeBytes: part.sizeBytes?.toString() ?? null,
               sha256: part.sha256 ?? null,
               durationMs: part.durationMs ?? null,
-              privateRole: part.privateRole ?? null,
-              privateNote: part.privateNote ?? null,
+              ...privatePartNoteFor(part, evidence.ownerUserId, ownerUserId),
               checklistStepId: part.checklistStepId ?? null,
               sourceLabel: part.sourceLabel ?? null,
               clientSignals: toJsonSafe(part.clientSignals ?? null),

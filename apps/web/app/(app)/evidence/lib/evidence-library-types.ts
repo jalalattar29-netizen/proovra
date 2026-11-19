@@ -560,6 +560,8 @@ export type CollaborativeAuthor = {
 
 export type ReviewerComment = {
   id: string;
+  /** DEC-15 / PRO-E2-03 — only the author may edit; absent on an older API (treat as allowed). */
+  viewerCanEdit?: boolean;
   evidenceId: string;
   visibility: "INTERNAL" | "TEAM";
   body: string;
@@ -580,6 +582,8 @@ export type ReviewerCommentsResponse = {
 
 export type LegalNote = {
   id: string;
+  /** DEC-15 / PRO-E2-03 — only the author may edit; absent on an older API (treat as allowed). */
+  viewerCanEdit?: boolean;
   evidenceId: string;
   noteType: "GENERAL" | "PRIVILEGED" | "DISCLOSURE" | "REVIEW_BOUNDARY" | "HANDOFF";
   body: string;
@@ -600,6 +604,8 @@ export type LegalNotesResponse = {
 
 export type EvidenceAnnotation = {
   id: string;
+  /** DEC-15 / PRO-E2-03 — only the author may edit; absent on an older API (treat as allowed). */
+  viewerCanEdit?: boolean;
   evidenceId: string;
   evidencePartId: string | null;
   annotationType: "POINT" | "BOX" | "REGION" | "TIMESTAMP" | "TEXT";

@@ -50,6 +50,10 @@ export type CaseEvidenceAuthorityErrorCode =
   // Members re-audit (second round) — removing a record from a RESTRICTED case
   // can open it to the whole workspace; that is a manager's act.
   | "restricted_unlink_requires_manager"
+  // PRO-K1-02 / DEC-06 — linking a record into a RESTRICTED case (or
+  // restricting a case that holds it) closes it to everyone off the list; only
+  // someone with authority over that record's access does it.
+  | "restricted_link_requires_manager"
   // Members re-audit ACC-06 — the case was under a legal hold; the hold's
   // record must be kept, and it names the case, so the case is never deleted.
   | "case_hold_history";
@@ -123,7 +127,7 @@ export type AttachEvidenceToCaseResult = {
  * either commits first and is seen here, or waits for this unlink to commit.
  * Fails closed: a hold store that cannot be read refuses the unlink.
  */
-async function assertCaseNotHeldForUnlinkTx(tx: Prisma.TransactionClient, caseId: string): Promise<void> {
+export async function assertCaseNotHeldForUnlinkTx(tx: Prisma.TransactionClient, caseId: string): Promise<void> {
   let held: number;
   try {
     await tx.$queryRaw`SELECT "id" FROM "cases" WHERE "id" = ${caseId}::uuid FOR UPDATE`;
@@ -203,6 +207,9 @@ export async function attachEvidenceToCase(
       where: { caseId: caseRow.id, evidenceId: evidence.id },
     });
     if (existing) return { created: false as const, link: existing as LinkRow };
+    // PRO-K1-02 / DEC-06 — decided under the pair lock, before any write: a
+    // refused link revokes nobody's grant.
+    await assertMayCloseRecordsIntoRestrictedCaseTx(tx, caseRow.id, [evidence.id], input.actorUserId ?? null);
     const created = await tx.caseEvidenceLink.create({
       data: {
         teamId: caseRow.teamId,
@@ -304,6 +311,78 @@ async function assertMayUnlinkFromRestrictedCaseTx(
     (member.role === "OWNER" || member.role === "ADMIN") &&
     caseRowVisibleTo(row, actorUserId);
   if (!manager) throw new CaseEvidenceAuthorityError("restricted_unlink_requires_manager");
+}
+
+/**
+ * PRO-K1-02 / DEC-06 — THE RESTRICTED-CASE NARROWING RULE. Linking a record into
+ * a restricted case, or restricting a case that already holds records, closes
+ * those records to everyone off the case's list: their creator, the workspace
+ * owner and every colleague, whose share links on them are then revoked. That
+ * is an act on the RECORD's access, so it needs authority over the record, not
+ * merely the right to make a case:
+ *   - an ACTIVE workspace OWNER / ADMIN who can see the case (the manager tier
+ *     the symmetric unlink rule already asks), or
+ *   - someone who can see the case, for records that are their own
+ *     (Evidence.ownerUserId): a member files their own capture into it.
+ * A MEMBER can still restrict their own records; they cannot take a
+ * colleague's record away from its owner. Unrestricted cases are unaffected; a
+ * system call (no actor) is unaffected. Read inside the caller's transaction.
+ */
+export async function assertMayCloseRecordsIntoRestrictedCaseTx(
+  tx: Prisma.TransactionClient,
+  caseId: string,
+  evidenceIds: readonly string[],
+  actorUserId: string | null,
+  opts: { assumeRestricted?: boolean } = {},
+): Promise<void> {
+  if (!actorUserId || evidenceIds.length === 0) return;
+  const row = await tx.case.findUnique({ where: { id: caseId }, select: CASE_VISIBILITY_SELECT });
+  if (!row) return;
+  const restricted =
+    opts.assumeRestricted === true || row.restrictedAtUtc !== null || row.access.length > 0 || row.teamAccess.length > 0;
+  if (!restricted) return;
+  const member = row.teamId
+    ? await tx.teamMember.findUnique({
+        where: { teamId_userId: { teamId: row.teamId, userId: actorUserId } },
+        select: { role: true, status: true },
+      })
+    : null;
+  // When restricting (assumeRestricted), the caller's sight of the case was
+  // proven by the access-manager decision before this grant; the row read here
+  // may already carry the new restriction that is about to name them.
+  const sees = opts.assumeRestricted === true || caseRowVisibleTo(row, actorUserId);
+  const workspaceManager =
+    member?.status === "ACTIVE" && (member.role === "OWNER" || member.role === "ADMIN") && sees;
+  if (workspaceManager) return;
+  if (sees) {
+    const foreign = await tx.evidence.count({
+      where: { id: { in: [...evidenceIds] }, NOT: { ownerUserId: actorUserId } },
+    });
+    if (foreign === 0) return;
+  }
+  throw new CaseEvidenceAuthorityError("restricted_link_requires_manager");
+}
+
+/**
+ * PRO-K1-02 / DEC-06 — restricting a case (its first access grant) closes every
+ * record already linked to it: the same narrowing as linking each of them into
+ * a restricted case, decided by the same rule. Call inside the grant's
+ * transaction when the restriction is being set.
+ */
+export async function assertMayRestrictCaseTx(
+  tx: Prisma.TransactionClient,
+  caseId: string,
+  actorUserId: string | null,
+): Promise<void> {
+  if (!actorUserId) return;
+  const links = await tx.caseEvidenceLink.findMany({ where: { caseId }, select: { evidenceId: true } });
+  await assertMayCloseRecordsIntoRestrictedCaseTx(
+    tx,
+    caseId,
+    links.map((l) => l.evidenceId),
+    actorUserId,
+    { assumeRestricted: true },
+  );
 }
 
 /** Atomic, idempotent detach. Detaching an unattached pair is a no-op. */
@@ -438,10 +517,14 @@ export async function deleteCaseAtomically(
     const removed = await tx.caseEvidenceLink.deleteMany({ where: { caseId: input.caseId } });
     await tx.caseAccess.deleteMany({ where: { caseId: input.caseId } });
     await tx.caseCollaborationTeamAccess.deleteMany({ where: { caseId: input.caseId } });
+    // PRO-K1-15 — the case's notes go with the case. case_comments has no
+    // foreign key to cases, so they used to survive as personal data with no
+    // reader and no retention path. They are coordination notes, not evidence,
+    // custody or an issued artifact; the deletion is audited below.
+    const removedComments = await tx.caseComment.deleteMany({ where: { caseId: input.caseId } });
     // EVID-005: the search documents go with the case. Reach hides them by
     // looking up the live case row, so once it is gone a restricted case's
-    // name and note text would match for every member, with no expiry. Comments
-    // stay as stored; the reconcile no longer indexes a comment with no case.
+    // name and note text would match for every member, with no expiry.
     await tx.evidenceSearchDocument.deleteMany({
       where: {
         OR: [
@@ -467,6 +550,7 @@ export async function deleteCaseAtomically(
         metadata: {
           caseId: input.caseId,
           removedLinkCount: removed.count,
+          removedCommentCount: removedComments.count,
           reason: "case_deleted",
           ipAddress: input.ipAddress ?? null,
           userAgent: input.userAgent ?? null,
@@ -542,6 +626,16 @@ export function caseUnlinkRefusal(
   err: unknown,
 ): { status: 403 | 409 | 503; body: { code: string; message: string } } | null {
   if (!(err instanceof CaseEvidenceAuthorityError)) return null;
+  if (err.code === "restricted_link_requires_manager") {
+    return {
+      status: 403,
+      body: {
+        code: "CASE_RESTRICTED_LINK_MANAGER_REQUIRED",
+        message:
+          "This case is restricted. Adding a record to it closes the record to everyone not on the case, so only a workspace owner or admin on the case, or the record's own creator, can do it.",
+      },
+    };
+  }
   if (err.code === "restricted_unlink_requires_manager") {
     return {
       status: 403,

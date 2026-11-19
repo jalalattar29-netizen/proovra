@@ -135,7 +135,8 @@ test("Legal-hold guard still applies to ARCHIVED-target transitions (CLOSURE_STA
 test("Closure cascade body is untouched — restoring to OPEN does NOT reactivate removed assignments", () => {
   assert.match(
     LIFECYCLE,
-    /client\.caseAssignment\.updateMany\(\{\s*\n?\s*where:\s*\{\s*caseId:\s*existing\.id,\s*status:\s*"ACTIVE"\s*\},\s*\n?\s*data:\s*\{\s*\n?\s*status:\s*"REMOVED",/,
+    // PRO-K1-08: the cascade now runs on the status change's own transaction (`tx`).
+    /(?:client|tx)\.caseAssignment\.updateMany\(\{\s*\n?\s*where:\s*\{\s*caseId:\s*existing\.id,\s*status:\s*"ACTIVE"\s*\},\s*\n?\s*data:\s*\{\s*\n?\s*status:\s*"REMOVED",/,
   );
 });
 

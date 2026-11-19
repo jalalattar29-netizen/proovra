@@ -32,6 +32,7 @@ import { useHealthDestination } from "../../../../lib/navigation/healthDestinati
 import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
 import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 import { formatUserDate, formatUserTime } from "../../../../lib/date";
+import { relationshipInspectorHref } from "../relationships/href";
 // =============================================================================
 // Types — mirror the /v1/graph/timeline projection
 // =============================================================================
@@ -431,20 +432,22 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
   // Phase 31.18 — pivots. The timeline event carries graph nodeId
   // and optionally otherNodeId. We pivot to the Relationship
   // Inspector for the node, and (when an edge event) for the edge.
+  const inspectHref = relationshipInspectorHref({
+    caseId: (event as { caseId?: string | null }).caseId ?? null,
+    nodeId: event.nodeId,
+  });
   return (
     <li className="inv-timeline-row" style={eventRowStyle}>
       <div style={eventTimeStyle}>{formatTime(event.atUtc)}</div>
       <div style={eventKindBadgeStyle(event.kind)}>{kindLabel(event.kind)}</div>
       <div className="inv-timeline-row__summary" style={eventSummaryStyle}>{identifierTextLabel(event.summary)}</div>
       <div style={eventPivotsStyle}>
-        <Link
-          href={`/investigation/relationships?nodeId=${encodeURIComponent(
-            event.nodeId,
-          )}`}
-          style={eventPivotLinkStyle}
-        >
-          Inspect
-        </Link>
+        {/* PRO-K1C-06 — the inspector needs the case; without it there is no link. */}
+        {inspectHref ? (
+          <Link href={inspectHref} style={eventPivotLinkStyle}>
+            Inspect
+          </Link>
+        ) : null}
       </div>
     </li>
   );

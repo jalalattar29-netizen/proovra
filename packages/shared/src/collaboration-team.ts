@@ -556,7 +556,9 @@ export function buildCollaborationTeamUserDirectoryEntry(
   const displayName =
     user.displayName ||
     [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
-    user.email?.split("@")[0] ||
+    // An address is administrative data (WCR-16, PRO-K2-05/K2-17): its local
+    // part is a name only for a reader who may see the address itself.
+    (opts.viewerIsWorkspaceMember ? user.email?.split("@")[0] : null) ||
     "Team member";
   const initials = computeInitials(displayName, user.email);
   return {

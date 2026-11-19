@@ -65,6 +65,11 @@ export type IntakeRowModel = {
   recipientPhone: string | null;
   /** Whether the two contact values above are the raw or the masked form. */
   recipientContactIsMasked: boolean;
+  /**
+   * PRO-I1-08 — the reader holds the reveal authority; the raw values come from
+   * the audited reveal route, not the list (the list is masked for everybody).
+   */
+  recipientContactRevealable: boolean;
   /** True when the API returned no recipient of any kind. */
   recipientIsPlaceholder: boolean;
   channelWire: string;
@@ -194,7 +199,10 @@ export function buildRowModel(
     recipientName: link.recipientLabel ?? null,
     recipientEmail,
     recipientPhone,
-    recipientContactIsMasked: !revealed,
+    // PRO-I1-08 — a current API masks the list for everybody: the values are
+    // raw only when the server actually sent raw ones (an older API).
+    recipientContactIsMasked: !(revealed && (link.recipientEmail || link.recipientPhone)),
+    recipientContactRevealable: revealed && !(link.recipientEmail || link.recipientPhone),
     recipientIsPlaceholder:
       !link.recipientLabel && !recipientEmail && !recipientPhone,
     channelWire,

@@ -32,6 +32,7 @@ import { OperationalEmptyState } from "../../../../components/operational/Operat
 import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 import { formatUserDateTime } from "../../../../lib/date";
 import { GraphCurationPanel } from "./_sections/GraphCurationPanel";
+import { relationshipInspectorHref } from "../relationships/href";
 type GraphSeedKind = "CASE" | "INCIDENT" | "REPORT" | "EVIDENCE";
 
 type GraphSeed = {
@@ -436,29 +437,26 @@ function SeedRow({ seed }: { seed: GraphSeed }) {
             Search for this entity
           </Link>
         ) : null}
-        <Link href={href} style={pivotLinkSmallStyle}>
-          Open
-        </Link>
+        {href ? (
+          <Link href={href} style={pivotLinkSmallStyle}>
+            Open
+          </Link>
+        ) : null}
       </div>
     </li>
   );
 }
 
-function pivotHref(seed: GraphSeed): string {
+function pivotHref(seed: GraphSeed): string | null {
   switch (seed.nodeKind) {
     case "CASE":
       return `/investigation/cases/${seed.externalId}/graph`;
     case "EVIDENCE":
       return `/evidence/${seed.externalId}`;
-    case "INCIDENT":
-      return `/investigation/relationships?nodeId=${encodeURIComponent(seed.id)}`;
-    case "REPORT":
-      return `/investigation/relationships?nodeId=${encodeURIComponent(seed.id)}`;
     default:
-      // Phase 14 — defensive fallback for future seed kinds (e.g.
-      // ENTITY when widened). Pivots to the relationship inspector
-      // which already handles unknown node kinds gracefully.
-      return `/investigation/relationships?nodeId=${encodeURIComponent(seed.id)}`;
+      // PRO-K1C-06 — the inspector needs a case; a seed that does not name
+      // one (INCIDENT / REPORT / future kinds) has no inspector link.
+      return relationshipInspectorHref({ caseId: (seed as { caseId?: string | null }).caseId ?? null, nodeId: seed.id });
   }
 }
 

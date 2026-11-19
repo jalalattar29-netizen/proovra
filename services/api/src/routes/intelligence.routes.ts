@@ -317,7 +317,8 @@ export async function intelligenceRoutes(app: FastifyInstance) {
       const [texts, entities, similarities] = await Promise.all([
         listExtractedTexts(id),
         listEvidenceEntities(id),
-        listSimilaritiesForEvidence(id),
+        // PRO-AI1Z-02 — peers closed to this reader (or trashed) are not named.
+        listSimilaritiesForEvidence(id, prisma, (await hiddenRecordIdsInWorkspace(query.teamId, ok.userId)).evidenceIds),
       ]);
       return reply.code(200).send({
         extractedTexts: texts.map(projectExtractedTextSummary),

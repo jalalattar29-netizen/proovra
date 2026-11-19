@@ -29,11 +29,18 @@ import {
   PROOVRA_SPAN_NAMES,
   withProovraSpan,
 } from "../../observability/otel.js";
-import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { evaluateEffectiveLegalHold, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 
 export type RunSiuPreflightInput = {
   caseId: string;
   teamId: string;
+  /**
+   * PRO-K1C-01 — the actor the bundle would be built for. The preflight judges
+   * the SAME population the bundle carries (their reach, live lifecycle), so it
+   * never names a record closed to them nor blocks on one they cannot act on.
+   */
+  actorUserId: string;
 };
 
 export async function runSiuExportPreflight(
@@ -83,12 +90,18 @@ async function runSiuExportPreflightInner(
   const evidence = await prisma.evidence.findMany({
     where: {
       caseLinks: { some: { caseId: input.caseId } },
-      AND: [scope],
+      // PRO-K1C-01 — the bundle's population (siu-export-bundle.service.ts):
+      // the actor's reach (EVID-004 / B3C-F-003), no trashed or destruction-
+      // bound record.
+      AND: [scope, evidenceVisibleThroughCasesWhere(input.actorUserId)],
+      deletedAt: null,
+      lifecycleState: { notIn: ["TRASHED", "PENDING_DESTRUCTION", "DESTROYED"] },
     },
     select: {
       id: true,
+      teamId: true,
       status: true,
-      legalHolds: { select: { id: true } },
+      caseLinks: { select: { caseId: true }, take: 100 },
       hashSemantics: true,
       lifecycleState: true,
       verificationPackageMetadata: true,
@@ -112,7 +125,22 @@ async function runSiuExportPreflightInner(
         evidenceId: ev.id,
       }));
     }
-    if (ev.legalHolds && ev.legalHolds.length > 0) {
+    // PRO-K1C-01 — the hold decided by the effective-hold evaluator the
+    // download gate uses (ACTIVE holds of any scope), never by a raw relation
+    // that keeps released and expired holds. Unreadable: blocked (fail closed).
+    let held: boolean;
+    try {
+      held = (
+        await evaluateEffectiveLegalHold(prisma, {
+          teamId: ev.teamId ?? input.teamId,
+          evidenceId: ev.id,
+          caseIds: ev.caseLinks.map((l) => l.caseId),
+        })
+      ).held;
+    } catch {
+      held = true;
+    }
+    if (held) {
       findings.push(blocker("LEGAL_HOLD_EXPORT_BLOCK", {
         detail: "Active legal hold prevents SIU export of this evidence.",
         evidenceId: ev.id,

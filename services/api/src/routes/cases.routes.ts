@@ -32,6 +32,7 @@ import {
   attachEvidenceToCase,
   detachEvidenceFromCase,
   deleteCaseAtomically,
+  assertMayRestrictCaseTx,
   caseUnlinkRefusal,
   CaseEvidenceAuthorityError,
 } from "../services/cases/case-evidence-link.service.js";
@@ -277,6 +278,10 @@ async function grantCaseAccessTx(
     });
     // A grant makes the case restricted, durably (re-audit defect 6).
     const nowRestricted = await markCaseRestrictedTx(tx, input.caseId);
+    // PRO-K1-02 / DEC-06 — restricting closes the case's records to everyone
+    // off its list: decided by the record-access narrowing rule, in this
+    // transaction, before any grant is revoked.
+    if (nowRestricted) await assertMayRestrictCaseTx(tx, input.caseId, input.actorUserId);
     const access = await tx.caseAccess.upsert({
       where: { caseId_userId: { caseId: input.caseId, userId: input.targetUserId } },
       update: {},
@@ -689,8 +694,9 @@ export async function casesRoutes(app: FastifyInstance) {
       //        has no `archivedAt` / `deletedAt` columns (cases
       //        track lifecycle via the `status` enum), so the
       //        spec's "exclude archived / deleted" rule maps to
-      //        excluding the inactive status values that the
-      //        attach gate would later fail on anyway.
+      //        excluding the inactive status values. (PRO-K1-08: closure
+      //        is case organization; the attach gate does not refuse a
+      //        closed case — the picker simply does not offer one.)
 
       const eligibleFetched = await prisma.case.findMany({
         where: {
@@ -958,6 +964,8 @@ export async function casesRoutes(app: FastifyInstance) {
           metadata: { targetUserId: body.userId },
         });
       } catch (err) {
+        const linkRefusal = caseUnlinkRefusal(err); // PRO-K1-02: restricting closes linked records
+        if (linkRefusal) return reply.code(linkRefusal.status).send(linkRefusal.body);
         if (!(err instanceof CaseAccessManagerRefusal)) throw err;
         return refuseCaseAccessManagement(req, reply, err.decision, {
           userId: ownerUserId,
@@ -1258,7 +1266,14 @@ export async function casesRoutes(app: FastifyInstance) {
       // Only an ACTIVE membership confers access (P0 2026-07-21), so a
       // suspended or revoked member is not listed as someone who has it.
       const members = await prisma.teamMember.findMany({
-        where: { teamId: caseItem.teamId, status: "ACTIVE" },
+        // PRO-K1-11 — the grant applies the canonical membership rule
+        // (isActiveWorkspaceMember: ACTIVE and unexpired access); the picker
+        // does not offer a member whose access has expired.
+        where: {
+          teamId: caseItem.teamId,
+          status: "ACTIVE",
+          OR: [{ accessExpiresAtUtc: null }, { accessExpiresAtUtc: { gt: new Date() } }],
+        },
         include: {
           user: {
             select: {
@@ -1691,6 +1706,8 @@ export async function casesRoutes(app: FastifyInstance) {
       } catch (err) {
         // UC-CASE-002 — an authority refusal is an answer, never a 500: every
         // record-side refusal is the anti-enumeration 404, a missing case 404.
+        const linkRefusal = caseUnlinkRefusal(err); // PRO-K1-02
+        if (linkRefusal) return reply.code(linkRefusal.status).send(linkRefusal.body);
         if (err instanceof CaseEvidenceAuthorityError) {
           return reply
             .code(404)
@@ -2099,6 +2116,8 @@ export async function casesRoutes(app: FastifyInstance) {
           metadata: { targetUserId: body.userId },
         });
       } catch (err) {
+        const linkRefusal = caseUnlinkRefusal(err); // PRO-K1-02: restricting closes linked records
+        if (linkRefusal) return reply.code(linkRefusal.status).send(linkRefusal.body);
         if (!(err instanceof CaseAccessManagerRefusal)) throw err;
         return refuseCaseAccessManagement(req, reply, err.decision, {
           userId: ownerUserId,
@@ -2235,6 +2254,8 @@ export async function casesRoutes(app: FastifyInstance) {
           metadata: { targetUserId, email: body.email },
         });
       } catch (err) {
+        const linkRefusal = caseUnlinkRefusal(err); // PRO-K1-02: restricting closes linked records
+        if (linkRefusal) return reply.code(linkRefusal.status).send(linkRefusal.body);
         if (!(err instanceof CaseAccessManagerRefusal)) throw err;
         return refuseCaseAccessManagement(req, reply, err.decision, {
           userId: ownerUserId,
@@ -2352,6 +2373,8 @@ export async function casesRoutes(app: FastifyInstance) {
           return true;
         });
       } catch (err) {
+        const linkRefusal = caseUnlinkRefusal(err); // PRO-K1-02: restricting closes linked records
+        if (linkRefusal) return reply.code(linkRefusal.status).send(linkRefusal.body);
         if (!(err instanceof CaseAccessManagerRefusal)) throw err;
         return refuseCaseAccessManagement(req, reply, err.decision, {
           userId: ownerUserId,
@@ -2486,6 +2509,8 @@ export async function casesRoutes(app: FastifyInstance) {
           if (locked[0]?.status !== "ACTIVE") throw new TeamArchivedDuringGrant();
           // A grant makes the case restricted, durably (re-audit defect 6).
           const nowRestricted = await markCaseRestrictedTx(tx, id);
+          // PRO-K1-02 / DEC-06 — the same narrowing rule as a person's grant.
+          if (nowRestricted) await assertMayRestrictCaseTx(tx, id, actorUserId);
           const row = await tx.caseCollaborationTeamAccess.upsert({
             where: { caseId_collaborationTeamId: { caseId: id, collaborationTeamId: team.id } },
             update: {},
@@ -2528,6 +2553,8 @@ export async function casesRoutes(app: FastifyInstance) {
             requestId: req.id,
           });
         }
+        const linkRefusal = caseUnlinkRefusal(err); // PRO-K1-02: restricting closes linked records
+        if (linkRefusal) return reply.code(linkRefusal.status).send(linkRefusal.body);
         if (!(err instanceof CaseAccessManagerRefusal)) throw err;
         return refuseCaseAccessManagement(req, reply, err.decision, {
           userId: actorUserId,
@@ -2636,6 +2663,8 @@ export async function casesRoutes(app: FastifyInstance) {
           return r;
         });
       } catch (err) {
+        const linkRefusal = caseUnlinkRefusal(err); // PRO-K1-02: restricting closes linked records
+        if (linkRefusal) return reply.code(linkRefusal.status).send(linkRefusal.body);
         if (!(err instanceof CaseAccessManagerRefusal)) throw err;
         return refuseCaseAccessManagement(req, reply, err.decision, {
           userId: actorUserId,

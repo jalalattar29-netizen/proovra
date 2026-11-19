@@ -53,6 +53,7 @@ import {
 import { inputRefusal } from "../../../errors.js";
 import type { EntitlementProjection } from "@proovra/shared";
 import { admitWebhookDelivery, assertLimitEntitlementTx, resolveEntitlement } from "../entitlement.service.js";
+import { machineEgressRestricted, machineEgressTargetOf } from "../../access/record-reach.js";
 
 // -----------------------------------------------------------------------------
 // Bounded constants — keep all magic numbers here.
@@ -366,6 +367,10 @@ export async function emitWebhookEvent(
   // queues no lifecycle delivery (closure and workspace suspension also
   // DEACTIVATE the endpoints; an organization suspension is reversible).
   if (!(await isLiveOperatingWorkspace(input.teamId, prisma))) return { deliveryIds: [] };
+  // PRO-LEAD-02 / B7B-F01 — a lifecycle endpoint is a machine on no access
+  // list: an event about a record or case a restricted case closes (a hold on
+  // it, a package built from it) is not queued. Fails closed.
+  if (await machineEgressRestricted(machineEgressTargetOf(input.payload), prisma)) return { deliveryIds: [] };
 
   const canonical = canonicalJson(input.payload);
   const deliveryIds: string[] = [];

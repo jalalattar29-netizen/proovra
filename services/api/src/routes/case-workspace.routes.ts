@@ -17,7 +17,11 @@
 
 import { resolveCaseRecordAccess } from "../services/cases/case-permission.service.js";
 import { evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
-import { listCaseEvidenceIdsForViewer } from "../services/cases/case-risk-engine.service.js";
+import {
+  caseRiskForViewer,
+  computeCaseRisk,
+  listCaseEvidenceIdsForViewer,
+} from "../services/cases/case-risk-engine.service.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -26,7 +30,7 @@ import { queryBoolean } from "../http/query-boolean.js";
 import { getAuthUserId } from "../auth.js";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 import { prisma } from "../db.js";
-import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
+import { caseClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import { planIncludesCollaboration } from "@proovra/shared-billing";
 import { resolveWorkspaceCommercialContext } from "../services/billing/workspace-seats.service.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -404,10 +408,20 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       const params = WorkspaceParams.parse(req.params);
       const member = await requireCaseAccess(req, reply, params.id);
       if (!member) return;
-      const snap = await prisma.caseRiskSnapshot.findFirst({
-        where: { caseId: params.id },
-        orderBy: { sampledAtUtc: "desc" },
-      });
+      // PRO-K1-06 — a reader whose reach is narrower than the case sees the risk
+      // of their own population (computed, not stored), never the case-wide
+      // counts of records closed to them.
+      const caseRow = await prisma.case.findUnique({ where: { id: params.id }, select: { teamId: true } });
+      const view = await caseRiskForViewer({ teamId: caseRow?.teamId ?? null, caseId: params.id, viewerUserId: member.userId });
+      const snap = view.narrowed
+        ? {
+            ...(await computeCaseRisk({ teamId: caseRow?.teamId ?? null, caseId: params.id, evidenceIds: view.viewerEvidenceIds })),
+            sampledAtUtc: new Date(),
+          }
+        : await prisma.caseRiskSnapshot.findFirst({
+            where: { caseId: params.id },
+            orderBy: { sampledAtUtc: "desc" },
+          });
       if (!snap) {
         return reply
           .code(200)
@@ -732,6 +746,10 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       const q = AssignmentCandidatesQuery.parse(req.query ?? {});
       const access = await requireCaseAccess(req, reply, params.id);
       if (!access) return;
+      // PRO-K1-11 / EVID-009 — the picker answers to the authority of the write
+      // it feeds: only a caller who may ASSIGN on this case may enumerate the
+      // workspace's members through it (a VIEWER is refused, 403).
+      if (!(await gateCaseMutation(reply, "ASSIGN", params.id, access))) return;
       const caseRow = await prisma.case.findUnique({
         where: { id: params.id },
         select: { id: true, teamId: true, ownerUserId: true },
@@ -794,11 +812,18 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       });
       const hasMore = members.length > limit;
-      const page = hasMore ? members.slice(0, limit) : members;
+      const fullPage = hasMore ? members.slice(0, limit) : members;
       const nextCursor =
-        hasMore && page.length > 0
-          ? page[page.length - 1]!.createdAt.toISOString()
+        hasMore && fullPage.length > 0
+          ? fullPage[fullPage.length - 1]!.createdAt.toISOString()
           : null;
+      // PRO-K1-11 — a member the case is closed to (restricted case, off its
+      // list) is refused by the write (assignee reach); the picker does not
+      // offer them. The cursor still advances over the whole page.
+      const page: typeof fullPage = [];
+      for (const m of fullPage) {
+        if (!(await caseClosedTo(params.id, m.user.id))) page.push(m);
+      }
       const userIds = page.map((m) => m.user.id);
       const existing = await prisma.caseAssignment.findMany({
         where: {
@@ -879,6 +904,10 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         where: {
           ...where,
           ...(caseRow.teamId ? { AND: [evidenceVisibleThroughCasesWhere(callerUserId)] } : {}),
+          // PRO-K1-11 — a trashed or destruction-bound record cannot be linked
+          // (attachEvidenceToCase refuses it), so it is not offered.
+          deletedAt: null,
+          lifecycleState: { notIn: ["TRASHED", "PENDING_DESTRUCTION", "DESTROYED"] },
           ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}),
           ...(search
             ? {

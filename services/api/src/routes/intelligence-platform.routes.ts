@@ -489,10 +489,18 @@ async function auditEntryInReach(
   return (entry) => {
     const p = (entry.payload ?? {}) as Record<string, unknown>;
     const named = (v: unknown, set: Set<string>) => typeof v === "string" && set.has(v);
+    // PRO-AI1Z-02 — a budget alert scoped to a CASE / EVIDENCE names it as
+    // its scopeTargetId.
+    const scope = typeof p.scope === "string" ? p.scope.toUpperCase() : typeof p.scopeKind === "string" ? p.scopeKind.toUpperCase() : null;
+    const scopeTargetClosed =
+      (scope === "CASE" && named(p.scopeTargetId, closedCases)) ||
+      (scope === "EVIDENCE" && named(p.scopeTargetId, closedEvidence)) ||
+      (scope === null && (named(p.scopeTargetId, closedCases) || named(p.scopeTargetId, closedEvidence)));
     return !(
       named(p.evidenceId, closedEvidence) ||
       named(p.caseId, closedCases) ||
-      named(p.recordId, closedRecordIds)
+      named(p.recordId, closedRecordIds) ||
+      scopeTargetClosed
     );
   };
 }
@@ -797,13 +805,15 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
-      const summary = await summariseProviderUsage({ teamId: ctx.teamId });
       // B6-F-43: a usage row names its record and case; rows naming one closed
-      // to the reader are not listed (RC-CASE-REACH).
+      // to the reader are not listed (RC-CASE-REACH), and (PRO-AI1Z-02) they
+      // move no number in the summary either.
+      const hidden = await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId);
+      const summary = await summariseProviderUsage({ teamId: ctx.teamId, hidden });
       const recent = await listRecentUsage({
         teamId: ctx.teamId,
         limit: 50,
-        hidden: await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId),
+        hidden,
       });
       return reply.code(200).send({
         summary,
@@ -980,6 +990,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       const projection = await projectProviderQuality({
         teamId: ctx.teamId,
         range: q.range ?? "7d",
+        hidden: (await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId)), // PRO-AI1Z-02
       });
       return reply.code(200).send({ projection });
     },
@@ -997,6 +1008,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       const projection = await projectReviewerQuality({
         teamId: ctx.teamId,
         range: q.range ?? "7d",
+        hidden: (await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId)), // PRO-AI1Z-02
       });
       return reply.code(200).send({ projection });
     },
@@ -1014,6 +1026,7 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       const projection = await projectTeamQuality({
         teamId: ctx.teamId,
         range: q.range ?? "7d",
+        hidden: (await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId)), // PRO-AI1Z-02
       });
       return reply.code(200).send({ projection });
     },

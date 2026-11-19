@@ -93,6 +93,13 @@ const mockClient = {
 
 vi.mock("../src/db.js", () => ({ prisma: mockClient }));
 
+// PRO-K1-06: the linked-evidence arm asks the searcher's record reach; nothing
+// is restricted in this dataset (closed records: ws-reach-privacy.integration).
+vi.mock("../src/services/access/record-reach.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  hiddenRecordIdsInWorkspace: async () => ({ caseIds: [], evidenceIds: [] }),
+}));
+
 // Prisma.sql tagged-template shim: capture the interpolated params so we
 // can assert the raw queries bind the right teamId and are parameterised
 // (never string-concatenated).

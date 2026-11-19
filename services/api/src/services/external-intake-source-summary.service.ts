@@ -31,7 +31,8 @@ import type {
 
 import { prisma as defaultPrisma } from "../db.js";
 import {
-  projectRecipientContact,
+  maskSubmitterContact,
+  projectRecipientContactMasked,
   type RecipientContactDisclosure,
 } from "./privacy/recipient-contact-disclosure.js";
 
@@ -103,6 +104,9 @@ export type ExternalIntakeSourceSummary = {
     submitterEmail: string | null;
     /** Submitter-PROVIDED, like the two above. Masked for anonymous modes. */
     submitterPhone: string | null;
+    /** PRO-E2-02 — whether a contact was given; the values above are masked. Additive. */
+    hasSubmitterEmail: boolean;
+    hasSubmitterPhone: boolean;
     pseudonym: string | null;
     openedAtUtc: string | null;
     uploadStartedAtUtc: string | null;
@@ -181,15 +185,19 @@ export function buildSummary(
       createdByUserId: link.createdByUserId,
       recipientLabel: link.recipientLabel,
       customerId: link.customerId,
-      ...projectRecipientContact(link, disclosure),
+      ...projectRecipientContactMasked(link, disclosure),
       revokedAtUtc: link.revokedAtUtc?.toISOString() ?? null,
     },
     session: {
       id: session.id,
       status: session.status,
       submitterDisplayName: isAnonymous ? null : session.submitterDisplayName,
-      submitterEmail: isAnonymous ? null : session.submitterEmail,
-      submitterPhone: isAnonymous ? null : session.submitterPhone,
+      // PRO-E2-02 / DEC-14 — the submitter's own contact is masked for every
+      // reader; the raw values leave only through the audited reveal route.
+      submitterEmail: isAnonymous ? null : maskSubmitterContact({ email: session.submitterEmail, phone: null }).email,
+      submitterPhone: isAnonymous ? null : maskSubmitterContact({ email: null, phone: session.submitterPhone }).phone,
+      hasSubmitterEmail: !isAnonymous && Boolean(session.submitterEmail),
+      hasSubmitterPhone: !isAnonymous && Boolean(session.submitterPhone),
       pseudonym:
         link.intakeMode === "EXTERNAL_PSEUDONYMOUS" ? session.pseudonym : null,
       openedAtUtc: session.openedAtUtc?.toISOString() ?? null,

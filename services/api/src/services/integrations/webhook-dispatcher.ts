@@ -42,7 +42,7 @@ import {
 } from "@proovra/shared-runtime/outbound";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { caseClosedTo, evidenceClosedTo } from "../access/record-reach.js";
+import { machineEgressRestricted, machineEgressTargetOf } from "../access/record-reach.js";
 import { isLiveOperatingWorkspace } from "../workspace/operating-workspace.js";
 
 /** PRO-G1-09 — how long a delivery of a non-operating workspace waits before it is looked at again. */
@@ -197,17 +197,9 @@ async function webhookPayloadRestricted(
   payload: Record<string, unknown>,
   client: PrismaClient,
 ): Promise<boolean> {
-  const evidenceId = typeof payload.evidenceId === "string" ? payload.evidenceId : null;
-  const caseId = typeof payload.caseId === "string" ? payload.caseId : null;
-  if (!evidenceId && !caseId) return false;
-  try {
-    return (
-      (evidenceId !== null && (await evidenceClosedTo(evidenceId, null, client))) ||
-      (caseId !== null && (await caseClosedTo(caseId, null, client)))
-    );
-  } catch {
-    return true;
-  }
+  // PRO-LEAD-02 — the one machine-egress rule (record-reach.ts), shared with
+  // the lifecycle and automation channels; fails closed.
+  return machineEgressRestricted(machineEgressTargetOf(payload), client);
 }
 
 const EMPTY_RESULT: EmitWebhookEventResult = Object.freeze({

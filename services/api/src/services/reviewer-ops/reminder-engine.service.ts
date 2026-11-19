@@ -38,6 +38,7 @@ import { bump } from "../ops/metrics.service.js";
 import { sendReviewReminder } from "../review-operations/review-notifications.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { advanceSweepCursor, afterCursor, readSweepCursor } from "./sweep-cursor.js";
+import { hiddenWorkflowIdsInWorkspace } from "../access/record-reach.js";
 
 // -----------------------------------------------------------------------------
 // Projection
@@ -417,12 +418,33 @@ export async function listReminders(
     workflowId?: string;
     reviewerUserId?: string;
     limit?: number;
+    /**
+     * PRO-R2-12 — WORKFLOW-003: the reader. A reminder about review work on a
+     * record a restricted case closes to them (its workflow, or an escalation
+     * of it) is not listed. Required; `null` is a machine reader.
+     */
+    viewerUserId: string | null;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<ReadonlyArray<ReviewerOpsReminderProjection>> {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 500);
+  const hiddenWorkflows = await hiddenWorkflowIdsInWorkspace(input.teamId, input.viewerUserId, client);
+  const hiddenEscalations = hiddenWorkflows.length
+    ? (
+        await client.reviewEscalation.findMany({
+          where: { teamId: input.teamId, workflowId: { in: hiddenWorkflows } },
+          select: { id: true },
+        })
+      ).map((e) => e.id)
+    : [];
   const rows = await client.reviewerOpsReminder.findMany({
     where: {
+      AND: [
+        ...(hiddenWorkflows.length ? [{ OR: [{ workflowId: null }, { workflowId: { notIn: hiddenWorkflows } }] }] : []),
+        ...(hiddenEscalations.length
+          ? [{ OR: [{ escalationId: null }, { escalationId: { notIn: hiddenEscalations } }] }]
+          : []),
+      ],
       teamId: input.teamId,
       ...(input.kind ? { kind: input.kind } : {}),
       ...(input.workflowId ? { workflowId: input.workflowId } : {}),

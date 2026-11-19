@@ -1543,6 +1543,10 @@ function RowActions({
   const platform = usePlatformContext();
   const listRole = actorRoleIn(platform?.envelope ?? null, activeWorkspaceId);
   const mayDestroy = listRole === null || listRole === "OWNER" || listRole === "ADMIN";
+  // PRO-K1-09 — the Enterprise case page (MatterWorkspace) has no Settings
+  // tab, so Rename / Change status are offered only where the detail page
+  // can perform them (the SimpleCaseDetail Settings tab reads ?tab=settings).
+  const enterpriseCasePage = useEnterpriseSurfaceAccess();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -1574,7 +1578,7 @@ function RowActions({
     const ok = await confirm({
       title: `Archive "${caseName}"?`,
       description:
-        "Archiving hides this case from the default list. Linked evidence, reports and packages are preserved and unchanged.",
+        "Archiving marks this case as archived and unassigns everyone currently assigned to it. Linked evidence, reports and packages are preserved and unchanged.",
       confirmLabel: "Archive case",
       tone: "warning",
       testId: "cases-row-archive",
@@ -1603,7 +1607,9 @@ function RowActions({
     const ok = await confirm({
       title: `Delete "${caseName}"?`,
       description:
-        "This deletes the case workspace only. Preserved evidence records remain in the Evidence Library; they are unlinked from this case, not destroyed.",
+        "This deletes the case workspace only. Preserved evidence records remain in the Evidence Library; they are unlinked from this case, not destroyed." +
+        // PRO-K1-13 / PRO-K1-15 — the real effects of deleting.
+        " The case's notes are deleted with it, and if the case is restricted, its records become visible to everyone in the workspace who can read records.",
       confirmLabel: "Delete case",
       tone: "danger",
       testId: "cases-row-delete",
@@ -1660,14 +1666,18 @@ function RowActions({
           </button>
           {readOnly ? null : (
           <>
-          {mayDestroy ? (
-            <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
-              Rename
-            </button>
-          ) : null}
-          <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
-            Change status
-          </button>
+          {enterpriseCasePage ? null : (
+            <>
+              {mayDestroy ? (
+                <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
+                  Rename
+                </button>
+              ) : null}
+              <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
+                Change status
+              </button>
+            </>
+          )}
           <button
             type="button"
             role="menuitem"

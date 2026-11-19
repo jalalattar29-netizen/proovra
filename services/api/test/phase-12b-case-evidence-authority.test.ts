@@ -99,8 +99,13 @@ vi.mock("../src/db.js", () => {
 
   const client = {
     case: {
-      findUnique: async ({ where }: { where: { id: string } }) =>
-        H.cases.get(where.id) ?? null,
+      // PRO-K1-02: the attach rule reads the case's visibility facts; every case
+      // in this matrix is unrestricted (the restricted rule is proved on real
+      // rows in ws-reach-roots.integration.test.ts).
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        const row = H.cases.get(where.id);
+        return row ? { restrictedAtUtc: null, access: [], teamAccess: [], ...row } : null;
+      },
       delete: async ({ where }: { where: { id: string } }) => {
         H.cases.delete(where.id);
         H.mutations += 1;
@@ -108,6 +113,8 @@ vi.mock("../src/db.js", () => {
       },
     },
     caseAccess: { deleteMany: async () => ({ count: 0 }) },
+    // PRO-K1-15: a deleted case takes its comments with it.
+    caseComment: { deleteMany: async () => ({ count: 0 }) },
     caseCollaborationTeamAccess: { deleteMany: async () => ({ count: 0 }) },
     evidenceSearchDocument: {
       deleteMany: async () => ({ count: 0 }),

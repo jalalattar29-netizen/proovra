@@ -395,6 +395,8 @@ export type ReviewWorkspaceResponse = {
       caseName: string | null;
       role: string;
       linkedAtUtc: string;
+      /** PRO-E1C-05 — the case is restricted; absent on an older API. */
+      caseRestricted?: boolean;
     }>;
     relatedEvidenceCount: number | null;
     multipart: boolean;

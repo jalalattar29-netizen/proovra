@@ -212,10 +212,12 @@ test("Status change opens the canonical useConfirmAction modal with spec-locked 
     SIMPLE_DETAIL,
     /Change this case from \$\{caseStatusLabel\(\s*\n?\s*caseDetail\.status,\s*\n?\s*\)\} to \$\{caseStatusLabel\(\s*\n?\s*toStatus,\s*\n?\s*\)\}\?/,
   );
-  // Reassurance line that org-only.
+  // PRO-K1-08 — the copy states the real effect: closing/archiving unassigns
+  // everyone; linked material and history are unchanged.
+  assert.match(SIMPLE_DETAIL, /Everyone currently assigned to this case is unassigned\./);
   assert.match(
     SIMPLE_DETAIL,
-    /This only updates case organization\. Linked evidence, reports, verification packages, notes, and audit history remain unchanged\./,
+    /Linked evidence, reports, verification packages, notes, and audit history remain unchanged\./,
   );
 });
 

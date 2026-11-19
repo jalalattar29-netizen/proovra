@@ -1,3 +1,4 @@
+import { projectSubmitterEmail } from "./privacy/recipient-contact-disclosure.js";
 import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
@@ -59,6 +60,8 @@ type EvidenceIntelligenceInput = {
     captureMethod: prismaPkg.CaptureMethod | null;
     identityLevelSnapshot: prismaPkg.IdentityLevel | null;
     submittedByEmail: string | null;
+    /** PRO-E2-02 — decides whether the submitter is external (masked). */
+    acquisitionMode?: string | null;
     submittedByAuthProvider: prismaPkg.AuthProvider | null;
     uploadedByUserId: string | null;
     createdByUserId: string | null;
@@ -1077,7 +1080,8 @@ export async function buildEvidenceIntelligence(
     provenance: {
       captureMethod: params.evidence.captureMethod ?? null,
       identityLevelSnapshot: params.evidence.identityLevelSnapshot ?? null,
-      submittedByEmail: params.evidence.submittedByEmail ?? null,
+      // PRO-E2-02 / DEC-14 — an external submitter's address is masked.
+      submittedByEmail: projectSubmitterEmail(params.evidence.submittedByEmail, params.evidence),
       submittedByAuthProvider: params.evidence.submittedByAuthProvider ?? null,
       createdByUserId: params.evidence.createdByUserId ?? null,
       uploadedByUserId: params.evidence.uploadedByUserId ?? null,

@@ -400,7 +400,10 @@ vi.mock("../src/services/billing.service.js", () => ({
   listStorageAddonDefinitions: () => [],
 }));
 
-vi.mock("../src/services/billing/commercial-context.service.js", () => ({
+// The case rules now reach the workspace plan gate (PRO-K1-04/K1-13), whose
+// module reads this one's constants: keep the real exports, replace the read.
+vi.mock("../src/services/billing/commercial-context.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   resolveCommercialContext: async () => ({ scope: { plan: H.plan } }),
 }));
 

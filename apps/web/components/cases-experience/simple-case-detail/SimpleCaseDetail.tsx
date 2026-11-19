@@ -203,6 +203,21 @@ export function SimpleCaseDetail({
   const platformEnvelope = usePlatformContext().envelope;
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  // PRO-K1-09 — the row menu deep-links to a tab (?tab=settings); read it once
+  // after mount (no server-render mismatch).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    if (
+      requested === "overview" ||
+      requested === "evidence" ||
+      requested === "reports" ||
+      requested === "notes" ||
+      requested === "settings"
+    ) {
+      setActiveTab(requested);
+    }
+  }, []);
   // Phase CASES-ATTACH-PICKER — `attachOpen` lives at page level so
   // the single header "Add evidence" button can open the dialog
   // from any tab. The previous implementation kept this state
@@ -2363,7 +2378,11 @@ function SettingsTab({
           caseDetail.status,
         )} to ${caseStatusLabel(
           toStatus,
-        )}? This only updates case organization. Linked evidence, reports, verification packages, notes, and audit history remain unchanged.`,
+        )}?${
+          toStatus === "CLOSED" || toStatus === "ARCHIVED"
+            ? " Everyone currently assigned to this case is unassigned."
+            : ""
+        } Linked evidence, reports, verification packages, notes, and audit history remain unchanged.`,
         confirmLabel: "Change status",
         tone: "neutral",
         testId: "simple-case-settings-status",
@@ -2399,7 +2418,9 @@ function SettingsTab({
     const ok = await confirm({
       title: "Delete this case?",
       description:
-        "Deleting this case will not delete preserved evidence records. Evidence remains available in the Evidence Library unless separately archived or restricted.",
+        "Deleting this case will not delete preserved evidence records. Evidence remains available in the Evidence Library unless separately archived or restricted." +
+          // PRO-K1-13 / PRO-K1-15 — the real effects of deleting.
+          " The case's notes are deleted with it, and if the case is restricted, its records become visible to everyone in the workspace who can read records.",
       confirmLabel: "Delete case",
       tone: "danger",
       testId: "simple-case-settings-delete",

@@ -4,7 +4,7 @@ import { CopyButton } from "../../../src/ui/copy-button";
 import { Alert, Pressable, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
-import { apiFetch, apiFetchText, apiBaseUrl, getAuthToken } from "../../../src/api";
+import { apiFetch, apiFetchText, apiBaseUrl, getActiveWorkspaceId, getAuthToken, WORKSPACE_HEADER } from "../../../src/api";
 import { toSafeUserError } from "../../../src/errors/safe-error";
 import { useToast } from "../../../src/toast-context";
 import { caseStatusDisplay } from "../../../src/product/domain-display";
@@ -346,10 +346,19 @@ export default function CaseDetailScreen() {
     try {
       const dest = await exportFileUri(`case-${id}.zip`);
       if (!dest) throw new Error("A writable temporary directory is not available on this device.");
+      const workspaceId = getActiveWorkspaceId();
       const res = await FileSystem.downloadAsync(`${apiBaseUrl()}/v1/cases/${id}/export`, dest, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, ...(workspaceId ? { [WORKSPACE_HEADER]: workspaceId } : {}) },
       });
-      if (res.status >= 400) throw new Error(`Export failed (${res.status})`);
+      if (res.status >= 400) {
+        // PRO-NC-05 — a refusal goes through the ONE API-client error path (the
+        // legal gate on 428, sign-in on a session end, the server's own
+        // sentence): the same request is asked again through it, and the
+        // cached refusal body is not left behind as a .zip.
+        await FileSystem.deleteAsync(res.uri, { idempotent: true }).catch(() => undefined);
+        await apiFetchText(`/v1/cases/${encodeURIComponent(String(id))}/export`);
+        throw new Error(`Export failed (${res.status})`);
+      }
       await shareFile(res.uri, { mimeType: "application/zip", dialogTitle: `${name}.zip`, uti: "public.zip-archive" });
     } catch (err) {
       Alert.alert("Export failed", toSafeUserError(err).message);

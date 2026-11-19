@@ -50,6 +50,9 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "../db.js";
+import * as prismaPkg from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import { appendReviewerAuditEventTx } from "../services/evidence-review/reviewer-audit.service.js";
 import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
@@ -1337,6 +1340,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const reminders = await listReminders({
         teamId: q.teamId,
         limit: 25,
+        viewerUserId: ctx.actorUserId, // PRO-R2-12
         ...(ctx.mayActOnOthersReviews ? {} : { reviewerUserId: ctx.actorUserId }),
       });
       return reply.code(200).send({ reminders });
@@ -2477,22 +2481,33 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         body: body.body.trim(),
       });
 
-      const created = await prisma.evidenceReviewerComment.create({
-        data: {
+      // PRO-R2-07 — the canonical comment write (EVID-010): the content and
+      // its COMMENT_CREATED reviewer-audit event commit together.
+      const created = await prisma.$transaction(async (tx) => {
+        const row = await tx.evidenceReviewerComment.create({
+          data: {
+            evidenceId: workflow.evidenceId,
+            authorUserId: ctx.actorUserId,
+            body: envelope,
+            // visibility defaults to INTERNAL — reviewer notes are
+            // operator-readable within the team workspace. Promoting
+            // to TEAM/external broadcast is a separate workflow.
+          },
+          select: {
+            id: true,
+            authorUserId: true,
+            body: true,
+            visibility: true,
+            createdAt: true,
+          },
+        });
+        await appendReviewerAuditEventTx(tx, {
           evidenceId: workflow.evidenceId,
-          authorUserId: ctx.actorUserId,
-          body: envelope,
-          // visibility defaults to INTERNAL — reviewer notes are
-          // operator-readable within the team workspace. Promoting
-          // to TEAM/external broadcast is a separate workflow.
-        },
-        select: {
-          id: true,
-          authorUserId: true,
-          body: true,
-          visibility: true,
-          createdAt: true,
-        },
+          actorUserId: ctx.actorUserId,
+          eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_CREATED,
+          metadata: { commentId: row.id, visibility: row.visibility, noteType: body.type } as Prisma.InputJsonValue,
+        });
+        return row;
       });
 
       // Audit emission — workspace-scoped TeamActivity row so the

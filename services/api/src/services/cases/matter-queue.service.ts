@@ -18,6 +18,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db.js";
 import { listCaseEvidenceIdsForViewerByCase } from "./case-risk-engine.service.js";
 import { caseVisibleToWhere } from "./case-visibility.js";
+import { hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 import { OUTPUT_PRODUCING_LIFECYCLE_WHERE } from "../billing/owed-output-population.service.js";
 
@@ -63,6 +64,8 @@ const UUID_PREFIX_RE = /^[0-9a-f-]{2,}$/i;
 async function buildSearchOrClause(
   teamId: string,
   rawTerm: string,
+  /** PRO-K1-06 — the searcher: a record closed to them confirms nothing. */
+  viewerUserId: string,
 ): Promise<Array<Record<string, unknown>>> {
   const term = rawTerm.trim();
   const or: Array<Record<string, unknown>> = [
@@ -145,7 +148,18 @@ async function buildSearchOrClause(
           LIMIT 200
         `,
       );
-      const caseIds = rows.map((r) => r.case_id);
+      // PRO-K1-06 — the linked-evidence arm answers only through records the
+      // searcher may open (EVID-004): a closed record's id is no match.
+      const hidden = new Set((await hiddenRecordIdsInWorkspace(teamId, viewerUserId)).evidenceIds);
+      const openRows = hidden.size
+        ? await prisma.caseEvidenceLink.findMany({
+            where: { caseId: { in: rows.map((r) => r.case_id) }, teamId },
+            select: { caseId: true, evidenceId: true },
+          })
+        : null;
+      const caseIds = openRows
+        ? [...new Set(openRows.filter((l) => !hidden.has(l.evidenceId) && l.evidenceId.toLowerCase().startsWith(term.toLowerCase())).map((l) => l.caseId))]
+        : rows.map((r) => r.case_id);
       if (caseIds.length > 0) or.push({ id: { in: caseIds } });
     } catch {
       /* evidence search degrades silently */
@@ -288,7 +302,7 @@ export async function buildMatterQueue(input: {
     // The search OR-clause is composed here but the workspace scope
     // (`teamId`) stays as a top-level AND on `where`, so no OR branch can
     // ever widen the query beyond the caller's workspace.
-    where.OR = await buildSearchOrClause(input.teamId, input.filter.search);
+    where.OR = await buildSearchOrClause(input.teamId, input.filter.search, input.userId);
   }
   // PRO-K1-07 — the assignee filter is SQL (it was applied to the first
   // page after the cut, so assigned cases beyond it were missed).

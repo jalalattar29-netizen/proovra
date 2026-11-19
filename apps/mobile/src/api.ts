@@ -320,3 +320,8 @@ export async function publicFetch(
 
   return readJsonBody(res);
 }
+
+/** The workspace header value a direct (non-fetch) transfer must also send (PRO-NC-05). */
+export function getActiveWorkspaceId(): string | null {
+  return activeWorkspaceId;
+}

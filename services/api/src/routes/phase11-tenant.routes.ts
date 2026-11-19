@@ -20,6 +20,8 @@ import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { resolveDeepLink } from "../services/identity/deep-link-resolution.service.js";
 import { emitTenantAudit, queryTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
+import { prisma } from "../db.js";
 
 function sessionHash(req: FastifyRequest): string | null {
   return (req as FastifyRequest & { user?: { sessionIdHash?: string } }).user?.sessionIdHash ?? null;
@@ -106,7 +108,13 @@ export async function phase11TenantRoutes(app: FastifyInstance) {
     });
     if (!auth) return; // authorizeOrFail already sent the canonical deny
 
+    // PRO-BLZ-01 — record reach applies to the audit as to every sibling read.
+    const hidden = await hiddenRecordIdsInWorkspace(auth.teamId, auth.actorUserId);
+    const hiddenReportIds = hidden.evidenceIds.length
+      ? (await prisma.report.findMany({ where: { evidenceId: { in: hidden.evidenceIds } }, select: { id: true } })).map((r) => r.id)
+      : [];
     const page = await queryTenantAudit({
+      hiddenResources: { evidenceIds: hidden.evidenceIds, caseIds: hidden.caseIds, reportIds: hiddenReportIds },
       scope: { kind: "WORKSPACE", workspaceId: auth.teamId }, // the PROVEN scope, never a client-declared tenant
       action: q.action ?? null,
       outcome: q.outcome ?? null,
