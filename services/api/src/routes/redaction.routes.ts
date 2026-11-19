@@ -116,6 +116,7 @@ import {
 import { buildRedactionProviderHealth } from "../services/redaction/redaction-provider-health.service.js";
 import { buildRedactionDetectionManifest } from "../services/redaction/redaction-detection-manifest.service.js";
 import { closedRedactionAnswer } from "../services/redaction/redaction-record-reach.service.js";
+import { readRedactionPagePreview } from "../services/redaction/redaction-page-preview.service.js";
 import { evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import {
   getRedactionDetectionPolicy,
@@ -644,6 +645,50 @@ export async function redactionRoutes(app: FastifyInstance) {
         projectId: id,
       });
       return reply.code(200).send({ activity: rows });
+    },
+  );
+
+  // PRO-R3-04 — the page image the PDF region editor draws on. `:n` is the
+  // 0-based page index a PDF_PAGE_RECT region stores. The region-authoring
+  // capability (the people who draw regions) and the project's record reach
+  // (REDACTION_RECORD_ROUTES) gate it. The first ask queues the worker's
+  // RenderRedactionPagePreview job; the answer is PENDING until the page is
+  // rendered, then a short-lived presigned URL of the PREVIEW object — never
+  // the original, never a bucket or key.
+  app.get(
+    "/v1/redaction/projects/:id/preview/pages/:n",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (!(await gate(reply, ctx, "redaction.region.author"))) return reply;
+      const params = z
+        .object({ id: z.string().uuid(), n: z.string().regex(/^d{1,4}$/) })
+        .safeParse(req.params);
+      if (!params.success) {
+        return reply.code(400).send({ denial: "PREVIEW_PAGE_OUT_OF_RANGE" });
+      }
+      const answer = await readRedactionPagePreview({
+        teamId: ctx.teamId,
+        projectId: params.data.id,
+        pageIndex: Number(params.data.n),
+        actorUserId: ctx.userId,
+      });
+      noStorePresignedResponse(reply);
+      if (!answer.ok) return reply.code(answer.status).send(answer.body);
+      if (answer.state === "READY") {
+        return reply.code(200).send({
+          state: "READY",
+          url: answer.url,
+          width: answer.width,
+          height: answer.height,
+          expiresAtUtc: answer.expiresAtUtc,
+        });
+      }
+      if (answer.state === "UNAVAILABLE") {
+        return reply.code(200).send({ state: "UNAVAILABLE", reason: answer.reason });
+      }
+      return reply.code(200).send({ state: "PENDING" });
     },
   );
 

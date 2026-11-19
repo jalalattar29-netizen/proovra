@@ -28,6 +28,8 @@ const DERIVATIVE_GONE = refused(404, "DERIVATIVE_NOT_READY");
 export const REDACTION_RECORD_ROUTES: Readonly<Record<string, Entry>> = {
   "GET /v1/redaction/projects/:id": { row: "project", answer: refused(404, "PROJECT_NOT_FOUND") },
   "GET /v1/redaction/projects/:id/activity": { row: "project", answer: { status: 200, body: { activity: [] } } },
+  // PRO-R3-04 — the editor's page image is the record's own content.
+  "GET /v1/redaction/projects/:id/preview/pages/:n": { row: "project", answer: refused(404, "PROJECT_NOT_FOUND") },
   "POST /v1/redaction/projects/:id/versions": { row: "project", answer: refused(409, "PROJECT_NOT_FOUND") },
   "POST /v1/redaction/versions/:id/submit": { row: "version", answer: VERSION_GONE },
   "POST /v1/redaction/versions/:id/approve": { row: "version", answer: VERSION_GONE },
