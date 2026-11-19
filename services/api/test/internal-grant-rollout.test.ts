@@ -200,6 +200,8 @@ describe("internal-grant rollout — migration state", () => {
       // GOV-012: the owner-only legal-hold disclosure setting (default BLOCK). EXPAND.
       "20281119100400_legal_hold_disclosure_setting",
       "20281120000000_login_mfa_challenge_factors",
+      // PRO-K1-01 (WS-REACH): what a stored SIU bundle discloses. EXPAND.
+      "20281121070000_siu_export_disclosure_facts",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

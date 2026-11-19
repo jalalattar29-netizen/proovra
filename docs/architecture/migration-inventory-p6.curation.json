@@ -3823,6 +3823,14 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.package_seal_byte_checks') IS NOT NULL;\"",
       "evidence": "REPORT-014 (2026-11-04). One new, empty table remembering the definitive outcome of the immutable part of a package seal check by seal identity. Key revocation is never stored. An older image ignores it. Rollback: drop the table."
     },
+    "20281121070000_siu_export_disclosure_facts": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 2 FROM information_schema.columns WHERE table_schema='public' AND table_name='case_siu_exports' AND column_name IN ('includes_pii','included_evidence_ids');\"",
+      "evidence": "PRO-K1-01 (WS-REACH, 2026-11-18). Two nullable columns on case_siu_exports (includes_pii BOOLEAN, included_evidence_ids JSONB) recording what a stored SIU bundle discloses, written once by the builder. No row is rewritten and no stored bundle is touched; an older image never reads them. A legacy row (both NULL) is treated by the new API as PII-bearing and generator-only. Rollback: leave the columns."
+    },
     "20281120000000_login_mfa_challenge_factors": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",

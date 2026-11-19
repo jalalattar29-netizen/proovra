@@ -105,6 +105,9 @@ export const EVIDENCE_TABLE_TOMBSTONE_CLASS: Readonly<Record<string, TombstoneCl
   OperationalWorkflow: "OPERATIONAL",
   ReviewerRoutingRecommendation: "OPERATIONAL",
   CaseSiuReviewIndicator: "OPERATIONAL",
+  // PRO-K1-01: the export row names the records its bundle carried (ids only),
+  // the same standing as an exchange package row.
+  CaseSiuExport: "OPERATIONAL",
   EvidenceExchangePackage: "OPERATIONAL",
   ExternalReviewerRoleAssignment: "OPERATIONAL",
   RedactionProject: "OPERATIONAL",
