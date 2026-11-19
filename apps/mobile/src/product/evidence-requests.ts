@@ -119,6 +119,12 @@ export interface EvidenceRequestDetail extends EvidenceRequestListItem {
   recipientLabel: string | null;
   deliverables: EvidenceRequestDeliverable[];
   responses: EvidenceRequestResponse[];
+  /**
+   * PRO-I1-01 (release order) — true only when the API said the
+   * needs-more-info reviewer note is NOT emailed (`needsMoreInfoDelivery`).
+   * An API without the field emails the note to the request's recipient.
+   */
+  reviewerNoteStaysInternal: boolean;
 }
 
 function o(v: unknown): Record<string, unknown> {
@@ -201,6 +207,22 @@ export function parseEvidenceRequestDetail(data: unknown): EvidenceRequestDetail
     recipientLabel: s(r["recipientLabel"]),
     deliverables,
     responses,
+    reviewerNoteStaysInternal: o(r["needsMoreInfoDelivery"])["reviewerNote"] === "INTERNAL",
+  };
+}
+
+/**
+ * PRO-I1-01 (release order) — the re-request copy for the API that answered.
+ * "Workspace-internal" is said only on the server's confirmation; otherwise
+ * the note is the emailed reason and the copy says so.
+ */
+export function rerequestCopy(staysInternal: boolean): { body: string; placeholder: string } {
+  if (staysInternal) {
+    return { body: REQUEST_DETAIL_COPY.rerequestBody, placeholder: REQUEST_DETAIL_COPY.rerequestPlaceholder };
+  }
+  return {
+    body: REQUEST_DETAIL_COPY.rerequestBodyEmailed,
+    placeholder: REQUEST_DETAIL_COPY.rerequestPlaceholderEmailed,
   };
 }
 
@@ -807,6 +829,9 @@ export const REQUEST_DETAIL_COPY = {
   rerequestBody:
     "Flag this request as needing more information from the contributor. The contributor's intake page will show a re-request banner pointing at the unfulfilled deliverables. Workspace-internal note below is attached to the audit event.",
   rerequestPlaceholder: "Reviewer note (workspace-internal, required)",
+  rerequestBodyEmailed:
+    "Flag this request as needing more information from the contributor. The contributor's intake page will show a re-request banner pointing at the unfulfilled deliverables. When the request has an email recipient, the note below is emailed to them as the reason more is needed. Write only what the contributor may read. The note is also attached to the audit event.",
+  rerequestPlaceholderEmailed: "Note (emailed to the contributor, required)",
   rerequestAction: "Mark as needs more info",
   recording: "Recording…",
   completion: "Completion",

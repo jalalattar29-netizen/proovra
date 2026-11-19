@@ -79,7 +79,7 @@ top level of it.
 | OK | `parseEvidencePickerRows` | `GET /v1/evidence` | items, pageInfo, scope | data, items |
 | OK | `parseEvidenceRequestList` | `GET /v1/evidence-requests` | requests | map, requests |
 | OK | `parseLinkedRequests` | `GET /v1/evidence-requests` | requests | requests |
-| OK | `parseEvidenceRequestDetail` | `GET /v1/evidence-requests/:id` | request | assignedReviewerUserId, deliverables, instructions, priority, recipientLabel, recipientM… |
+| OK | `parseEvidenceRequestDetail` | `GET /v1/evidence-requests/:id` | request | assignedReviewerUserId, deliverables, instructions, needsMoreInfoDelivery, priority, rec… |
 | OK | `parseRequestDeliveries` | `GET /v1/evidence-requests/:id/deliveries` | deliveries | deliveries, items, map |
 | OK | `parseRequestEvents` | `GET /v1/evidence-requests/:id/events` | events | events, items, map |
 | OK | `parseDerivedReview` | `GET /v1/evidence/:evidenceId/derived-review` | <SPREAD>, evidenceId, keyframeBytesUrls, projection, release, status | evidenceId, keyframeBytesUrls, projection, status |

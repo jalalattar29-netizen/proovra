@@ -155,10 +155,29 @@ test("Request more information posts the REQUIRED note to needs-more-info (page.
   assert.ok(r.hasText("Request more information"));
   const button = () => r.byLabel("Mark as needs more info").find((n) => n.props.onPress);
   assert.ok(button().props.accessibilityState?.disabled || button().props.disabled, "an empty note is refused server-side (422 reviewer_note_required)");
-  await r.type("Reviewer note (workspace-internal, required)", "Need the plate visible");
+  // PRO-I1-01 (release order) — this answer has no `needsMoreInfoDelivery`: an
+  // older API, which emails the note. The screen must say so, never "internal".
+  assert.ok(r.hasText("the note below is emailed to them"), "the older API's note is emailed and the copy says it");
+  assert.ok(!r.hasText("Workspace-internal note below"));
+  assert.equal(r.byLabel("Reviewer note (workspace-internal, required)").length, 0);
+  await r.type("Note (emailed to the contributor, required)", "Need the plate visible");
   await r.press("Mark as needs more info");
   await settle();
   assert.deepEqual(posted("/needs-more-info")[0].body, { reviewerNote: "Need the plate visible" });
+});
+
+test("PRO-I1-01: the note is called workspace-internal only when the API confirms it is not emailed", async () => {
+  const confirmed = { needsMoreInfoDelivery: { reviewerNote: "INTERNAL", contributorMessage: true, contributorMessageMax: 1000 } };
+  routes[`/v1/evidence-requests/${REQ}`] = () => ({ body: { request: base(confirmed) } });
+  routes[`/v1/evidence-requests/${REQ}/needs-more-info`] = () => ({ body: { request: base({ ...confirmed, status: "NEEDS_MORE_INFO" }) } });
+  const r = await render();
+  assert.ok(r.hasText("Workspace-internal note below is attached to the audit event."));
+  assert.ok(!r.hasText("the note below is emailed to them"));
+  assert.equal(r.byLabel("Note (emailed to the contributor, required)").length, 0);
+  await r.type("Reviewer note (workspace-internal, required)", "Plate unreadable in photo 2");
+  await r.press("Mark as needs more info");
+  await settle();
+  assert.deepEqual(posted("/needs-more-info")[0].body, { reviewerNote: "Plate unreadable in photo 2" });
 });
 
 test("Request more information is not offered where the server refuses it (IN_PROGRESS)", async () => {

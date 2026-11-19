@@ -105,6 +105,20 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
       expect(row).toEqual({ reviewerNote: "INTERNAL-ONLY difficult client, check claim history", status: "NEEDS_MORE_INFO" });
     });
 
+    it("release order: every request projection states that the reviewer note is not emailed, so a web deployed first can tell this API from the old one", async () => {
+      const email = `ws-msg-${randomUUID().slice(0, 8)}@example.test`;
+      const { id } = await sentExternalRequest(email);
+      const expected = { reviewerNote: "INTERNAL", contributorMessage: true, contributorMessageMax: svc.NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX };
+      const one = await h.app.inject({ method: "GET", url: `/v1/evidence-requests/${id}`, headers: owner() });
+      expect(one.statusCode, one.body).toBe(200);
+      expect((one.json() as { request: { needsMoreInfoDelivery?: unknown } }).request.needsMoreInfoDelivery).toEqual(expected);
+      const list = await h.app.inject({ method: "GET", url: `/v1/evidence-requests?teamId=${A().teamId}`, headers: owner() });
+      expect(list.statusCode, list.body).toBe(200);
+      const rows = (list.json() as { requests: Array<{ id: string; needsMoreInfoDelivery?: unknown }> }).requests;
+      expect(rows.length).toBeGreaterThan(0);
+      for (const r of rows) expect(r.needsMoreInfoDelivery).toEqual(expected);
+    });
+
     it("an empty note is accepted (the UI calls it optional) and the contributor gets the neutral sentence", async () => {
       const email = `ws-msg-${randomUUID().slice(0, 8)}@example.test`;
       const { id } = await sentExternalRequest(email);

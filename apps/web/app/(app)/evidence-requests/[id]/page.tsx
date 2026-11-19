@@ -40,6 +40,11 @@ import { EvidenceRequestEventsTab } from "../../../../components/hidden-feature-
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { canTransitionEvidenceRequest, identifierLabel, type EvidenceRequestStatus } from "@proovra/shared";
 import { EvidenceRequestAssignment } from "./_components/EvidenceRequestAssignment";
+import {
+  LEGACY_NEEDS_MORE_INFO_COPY,
+  reviewerNoteStaysInternal,
+  type NeedsMoreInfoDelivery,
+} from "../../../../lib/evidence/needs-more-info-delivery";
 
 type AuthRequestView = {
   id: string;
@@ -93,6 +98,8 @@ type AuthRequestView = {
     reviewedByUserId: string | null;
     reviewerNote: string | null;
   }>;
+  /** PRO-I1-01 — absent on an older API, which still emails the reviewer note. */
+  needsMoreInfoDelivery?: NeedsMoreInfoDelivery;
 };
 
 function formatDateTime(iso: string | null): string {
@@ -133,7 +140,8 @@ function Inner() {
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [reviewerNote, setReviewerNote] = useState("");
-  // PRO-I1-01 — the ONLY text emailed to the contributor; the note stays internal.
+  // PRO-I1-01 — the ONLY text emailed to the contributor; the note stays
+  // internal. Offered only when the API confirmed that behaviour (below).
   const [contributorMessage, setContributorMessage] = useState("");
   // Bumped after an assignment change so the activity timeline rereads.
   const [eventsRevision, setEventsRevision] = useState(0);
@@ -164,6 +172,11 @@ function Inner() {
     void load();
   }, [load]);
 
+  // PRO-I1-01 (release order) — true only on the API's own confirmation. An
+  // older API emails the note and drops `contributorMessage`, so the page
+  // then says the note is emailed and offers no second field.
+  const noteStaysInternal = reviewerNoteStaysInternal(data);
+
   const markNeedsMoreInfo = useCallback(async () => {
     if (!requestId) return;
     setActionBusy("needs-more-info");
@@ -175,7 +188,9 @@ function Inner() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reviewerNote: reviewerNote.trim() || undefined,
-            contributorMessage: contributorMessage.trim() || undefined,
+            contributorMessage: noteStaysInternal
+              ? contributorMessage.trim() || undefined
+              : undefined,
           }),
         },
       );
@@ -189,7 +204,7 @@ function Inner() {
     } finally {
       setActionBusy(null);
     }
-  }, [contributorMessage, load, requestId, reviewerNote]);
+  }, [contributorMessage, load, noteStaysInternal, requestId, reviewerNote]);
 
   const waiveDeliverable = useCallback(
     async (deliverableId: string) => {
@@ -478,36 +493,50 @@ function Inner() {
           <p style={{ ...mutedStyle, margin: "4px 0 8px" }}>
             Flag this request as needing more information from the contributor.
             The contributor's intake page will show a re-request banner pointing
-            at the unfulfilled deliverables. When the request has an email
-            recipient, they are told more is needed: with your message to the
-            contributor if you write one, otherwise with a standard sentence.
-            The reviewer note stays inside the workspace and is attached to the
-            audit event.
+            at the unfulfilled deliverables.{" "}
+            {noteStaysInternal
+              ? "When the request has an email recipient, they are told more is needed: with your message to the contributor if you write one, otherwise with a standard sentence. The reviewer note stays inside the workspace and is attached to the audit event."
+              : LEGACY_NEEDS_MORE_INFO_COPY.explanation}
           </p>
           <textarea
             value={reviewerNote}
             onChange={(e) => setReviewerNote(e.target.value)}
-            placeholder="Reviewer note (workspace-internal, optional)"
-            aria-label="Reviewer note (workspace-internal, optional)"
+            placeholder={
+              noteStaysInternal
+                ? "Reviewer note (workspace-internal, optional)"
+                : LEGACY_NEEDS_MORE_INFO_COPY.noteLabel
+            }
+            aria-label={
+              noteStaysInternal
+                ? "Reviewer note (workspace-internal, optional)"
+                : LEGACY_NEEDS_MORE_INFO_COPY.noteLabel
+            }
             rows={2}
             maxLength={4000}
             style={textareaStyle}
             data-evidence-request-reviewer-note
+            data-note-delivery={noteStaysInternal ? "internal" : "emailed"}
           />
-          <textarea
-            value={contributorMessage}
-            onChange={(e) => setContributorMessage(e.target.value)}
-            placeholder="Message to the contributor (sent by email, optional)"
-            aria-label="Message to the contributor (sent by email, optional)"
-            rows={2}
-            maxLength={1000}
-            style={textareaStyle}
-            data-evidence-request-contributor-message
-          />
+          {noteStaysInternal ? (
+            <textarea
+              value={contributorMessage}
+              onChange={(e) => setContributorMessage(e.target.value)}
+              placeholder="Message to the contributor (sent by email, optional)"
+              aria-label="Message to the contributor (sent by email, optional)"
+              rows={2}
+              maxLength={1000}
+              style={textareaStyle}
+              data-evidence-request-contributor-message
+            />
+          ) : null}
           <button
             type="button"
             onClick={markNeedsMoreInfo}
-            disabled={actionBusy !== null}
+            // The older API refuses an empty note (it is the emailed reason).
+            disabled={
+              actionBusy !== null ||
+              (!noteStaysInternal && reviewerNote.trim().length === 0)
+            }
             style={primaryButtonStyle}
             data-action="mark-needs-more-info"
           >
