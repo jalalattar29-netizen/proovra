@@ -498,7 +498,8 @@ export async function createUploadSession(
             return { ok: false, reason: "idempotency_key_conflict" };
           }
           bump("upload_session_idempotent_reuse_total");
-          const { target_part_index: _targetPartIndex, ...priorSession } = prior;
+          const { target_part_index, ...priorSession } = prior;
+          void target_part_index; // compared above (sameDeclaredUpload); not part of the projection
           return { ok: true, session: projectSession(priorSession), reused: true };
         }
       }

@@ -31,6 +31,7 @@ vi.mock("../src/db.js", () => {
     findUnique: vi.fn(async () => ({ ...s.row })),
     findUniqueOrThrow: vi.fn(async () => ({ ...s.row })),
     updateMany: vi.fn(async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a loose stub of the Prisma delegate
       const data = args.data as Record<string, any>;
       if (data.status === "RUNNING") {
         if (!(s.row.status === "REQUESTED" || s.row.status === "RUNNING")) return { count: 0 };
@@ -48,6 +49,7 @@ vi.mock("../src/db.js", () => {
       return { count: 0 };
     }),
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a loose stub of the Prisma delegate
   const prisma: Record<string, any> = {
     evidenceArchiveRestoreRequest: req,
     evidence: {

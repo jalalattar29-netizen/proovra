@@ -119,23 +119,6 @@ import {
 // Prisma stub factory
 // ---------------------------------------------------------------------------
 
-const WEBHOOKS_GRANTED = {
-  findUnique: async (args: { where: { teamId_key: { key: string } } }) =>
-    args.where.teamId_key.key === "FEATURE_WEBHOOKS"
-      ? {
-          id: "g",
-          key: "FEATURE_WEBHOOKS",
-          kind: "FEATURE",
-          valueBool: true,
-          valueNumber: null,
-          source: "CUSTOM",
-          productLine: null,
-          grantedAtUtc: new Date(0),
-          expiresAtUtc: null,
-        }
-      : null,
-};
-
 function makePrismaStub(overrides: Record<string, unknown> = {}) {
   const base: Record<string, unknown> = {
     // WORKSPACE-SCOPE CONVERGENCE — the lifecycle services resolve the
