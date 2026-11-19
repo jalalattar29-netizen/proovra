@@ -219,6 +219,13 @@ async function refuseUnlessEnterpriseRetention(reply: FastifyReply, teamId: stri
   }
 }
 
+/** PRO-BL2-04 — rolls the replay's re-queue back when the daily delivery quota refuses it. */
+class ReplayQuotaExceeded extends Error {
+  constructor(readonly limit: number) {
+    super("replay_quota_exceeded");
+  }
+}
+
 export async function productAndLifecycleRoutes(app: FastifyInstance) {
   // =========================================================================
   // Entitlements
@@ -1430,37 +1437,49 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       if (row.endpoint?.state !== "ACTIVE") {
         return reply.code(409).send({ denial: "ENDPOINT_INACTIVE" });
       }
-      // PRO-BL2-04 — "unlimited manual replays": a replay is a delivery, so it
-      // consumes one unit of QUOTA_WEBHOOK_DELIVERIES_PER_DAY, atomically.
-      const replayQuota = await consumeQuotaEntitlement({
-        teamId: ctx.teamId,
-        key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
-      });
-      if (!replayQuota.ok) {
-        return reply.code(429).send({
-          denial: "QUOTA_EXCEEDED",
-          key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
-          limit: replayQuota.limit,
-        });
-      }
-
       // WS-SCHED / PRO-G1Z-07 — only a SETTLED delivery is replayed. Resetting
       // a row the dispatcher holds (DISPATCHING) or has queued (PENDING /
       // RETRYING) let the next tick claim and POST it again while the first
       // attempt was still running. Conditional on the settled state, so a
       // concurrent claim and replay produce one send.
-      const replayed = await prisma.lifecycleWebhookDelivery.updateMany({
-        where: { id, teamId: ctx.teamId, state: { in: ["FAILED", "DEAD_LETTERED", "DELIVERED"] } },
-        data: {
-          state: "PENDING",
-          nextAttemptAtUtc: new Date(),
-          attemptCount: 0,
-          lastAttemptAtUtc: null,
-          responseStatus: null,
-          responseBodyPreview: null,
-        },
+      //
+      // PRO-BL2-04 — "unlimited manual replays": a replay is a delivery, so it
+      // consumes one unit of QUOTA_WEBHOOK_DELIVERIES_PER_DAY. The unit is
+      // spent in the SAME transaction, AFTER the conditional re-queue took
+      // effect: a replay refused as in flight costs nothing, and a replay the
+      // quota refuses re-queues nothing (the transaction rolls back).
+      const replay = await prisma.$transaction(async (tx) => {
+        const replayed = await tx.lifecycleWebhookDelivery.updateMany({
+          where: { id, teamId: ctx.teamId, state: { in: ["FAILED", "DEAD_LETTERED", "DELIVERED"] } },
+          data: {
+            state: "PENDING",
+            nextAttemptAtUtc: new Date(),
+            attemptCount: 0,
+            lastAttemptAtUtc: null,
+            responseStatus: null,
+            responseBodyPreview: null,
+          },
+        });
+        if (replayed.count !== 1) return { outcome: "IN_FLIGHT" as const };
+        const quota = await consumeQuotaEntitlement({
+          prisma: tx as never,
+          teamId: ctx.teamId,
+          key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+        });
+        if (!quota.ok) throw new ReplayQuotaExceeded(quota.limit);
+        return { outcome: "REPLAYED" as const };
+      }).catch((err: unknown) => {
+        if (err instanceof ReplayQuotaExceeded) return { outcome: "QUOTA_EXCEEDED" as const, limit: err.limit };
+        throw err;
       });
-      if (replayed.count !== 1) {
+      if (replay.outcome === "QUOTA_EXCEEDED") {
+        return reply.code(429).send({
+          denial: "QUOTA_EXCEEDED",
+          key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+          limit: replay.limit,
+        });
+      }
+      if (replay.outcome === "IN_FLIGHT") {
         return reply.code(409).send({ denial: "DELIVERY_IN_FLIGHT", state: row.state });
       }
       // PRO-G1-08 — a replay re-sends workspace data to an external URL.

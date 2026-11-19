@@ -414,6 +414,57 @@ describe("outbound webhook policy — three stacks (live PostgreSQL)", () => {
     const deliveryState = async (id: string) =>
       (await prisma.lifecycleWebhookDelivery.findUniqueOrThrow({ where: { id }, select: { state: true } })).state;
 
+    it("PRO-BL2-04 / PRO-G1Z-07: a refused replay leaves the daily delivery quota unchanged; an accepted one spends exactly one unit", async () => {
+      const { teamA } = h.fixtures;
+      const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+      const setQuota = (value: number) =>
+        upsertEntitlementGrant({
+          teamId: teamA.teamId,
+          key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+          value,
+          kind: "QUOTA",
+          source: "CUSTOM",
+          grantedByUserId: teamA.ownerUserId,
+        });
+      const used = async () => {
+        const rows = await prisma.entitlementUsage.findMany({
+          where: { teamId: teamA.teamId, key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY" },
+          select: { consumed: true },
+        });
+        return rows.reduce((n, r) => n + Number(r.consumed), 0);
+      };
+      // PENDING: queued for the dispatcher, not settled.
+      const row = await seedDelivery(`https://203.0.113.10/replay-quota/${randomUUID()}`);
+      const before = await used();
+
+      const inFlight = await replay(row.deliveryId);
+      expect(inFlight.statusCode, inFlight.body).toBe(409);
+      expect(JSON.parse(inFlight.body)).toEqual({ denial: "DELIVERY_IN_FLIGHT", state: "PENDING" });
+      expect(await used()).toBe(before);
+
+      // Settled → accepted: exactly one unit, and the row is queued again.
+      await prisma.lifecycleWebhookDelivery.update({ where: { id: row.deliveryId }, data: { state: "FAILED" } });
+      const ok = await replay(row.deliveryId);
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect(await used()).toBe(before + 1);
+      expect(await deliveryState(row.deliveryId)).toBe("PENDING");
+
+      // At the quota: refused 429, nothing spent, and the settled row is NOT re-queued.
+      await prisma.lifecycleWebhookDelivery.update({ where: { id: row.deliveryId }, data: { state: "FAILED" } });
+      await setQuota(before + 1);
+      try {
+        const atQuota = await replay(row.deliveryId);
+        expect(atQuota.statusCode, atQuota.body).toBe(429);
+        expect(JSON.parse(atQuota.body)).toMatchObject({ denial: "QUOTA_EXCEEDED", key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY" });
+        expect(await used()).toBe(before + 1);
+        expect(await deliveryState(row.deliveryId)).toBe("FAILED");
+      } finally {
+        await setQuota(10_000);
+        // Left settled, so no later dispatcher tick in this suite sends it.
+        await prisma.lifecycleWebhookDelivery.update({ where: { id: row.deliveryId }, data: { state: "DELIVERED" } });
+      }
+    });
+
     it("WS-SCHED PRO-G1Z-07: a replay pressed while the delivery is in flight is refused and the receiver gets one POST; a settled one replays once", async () => {
       const row = await seedDelivery(`https://203.0.113.10/inflight/${randomUUID()}`);
       const calls: string[] = [];
