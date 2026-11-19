@@ -73,11 +73,13 @@ const DETAIL_PAGE = [
 
 describe("CAPTURE-DETAIL-WIRING — backend projection", () => {
   it("review-workspace contentItems carries privateNote", () => {
-    expect(EVIDENCE_ROUTES).toMatch(/privateNote:\s*part\?\.privateNote\s*\?\?\s*null/);
+    // PRO-C1-08: carried through the author-only projection.
+    expect(EVIDENCE_ROUTES).toContain("privatePartNoteFor(part, evidence.ownerUserId, ownerUserId)");
+    expect(EVIDENCE_ROUTES).toContain("privateNote: mine ? part.privateNote ?? null : null");
   });
 
   it("review-workspace contentItems carries privateRole (new)", () => {
-    expect(EVIDENCE_ROUTES).toMatch(/privateRole:\s*part\?\.privateRole\s*\?\?\s*null/);
+    expect(EVIDENCE_ROUTES).toContain("privateRole: mine ? part.privateRole ?? null");
   });
 
   it("review-workspace contentItems carries sourceLabel (new)", () => {

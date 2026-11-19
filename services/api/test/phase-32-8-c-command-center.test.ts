@@ -1558,7 +1558,8 @@ describe("Phase 32.8C++ — Reconstructed Timeline engine", () => {
      */
     expect(body).toMatch(/opsCounters\.recentEscalations/);
     expect(COUNTERS).toMatch(/prisma\.reviewEscalation\s*\n?\s*\.findMany/);
-    expect(body).toMatch(/prisma\.securityEvent\.findMany/);
+    // PRO-N1C-01: the real table, read only for a caller holding audit.read.
+    expect(body).toMatch(/canReadSecurity \? prisma\.securityEvent : [\s\S]{0,80}\)\.findMany\(/);
   });
 });
 

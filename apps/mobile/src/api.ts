@@ -23,11 +23,6 @@ export function setActiveWorkspaceId(workspaceId: string | null) {
   activeWorkspaceId = workspaceId;
 }
 
-/** The workspace header value a direct (non-fetch) transfer must also send (PRO-NC-05). */
-export function getActiveWorkspaceId(): string | null {
-  return activeWorkspaceId;
-}
-
 export function setAuthToken(token: string | null) {
   if (token !== authToken) activeWorkspaceId = null;
   authToken = token;
@@ -320,4 +315,9 @@ export async function publicFetch(
   }
 
   return readJsonBody(res);
+}
+
+/** The workspace header value a direct (non-fetch) transfer must also send (PRO-NC-05). */
+export function getActiveWorkspaceId(): string | null {
+  return activeWorkspaceId;
 }

@@ -100,7 +100,9 @@ describe("buildSummary — happy path", () => {
   it("preserves contributor identity for non-anonymous modes", () => {
     const s = buildSummary(fakeLink({ intakeMode: "EXTERNAL_ONE_TIME" }), fakeSession());
     expect(s.session.submitterDisplayName).toBe("Jane Doe");
-    expect(s.session.submitterEmail).toBe("jane@example.com");
+    // PRO-E2-02 / DEC-14: the submitter address is masked for every reader.
+    expect(s.session.submitterEmail).toBe("j***@example.com");
+    expect(s.session.hasSubmitterEmail).toBe(true);
     expect(s.isAnonymous).toBe(false);
   });
 });

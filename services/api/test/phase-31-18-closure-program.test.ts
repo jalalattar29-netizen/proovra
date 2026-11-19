@@ -657,7 +657,8 @@ describe("Phase 31.18 — Timeline pivot wiring", () => {
   });
 
   it("renders a per-event 'Inspect' pivot link to the Relationship Inspector", () => {
-    expect(TIMELINE_PAGE).toMatch(/\/investigation\/relationships\?nodeId=\$\{encodeURIComponent\(/);
+    // PRO-K1C-06: through the one inspector-link helper, which requires the case.
+    expect(TIMELINE_PAGE).toMatch(/relationshipInspectorHref\(\{\s*caseId:[\s\S]{0,120}nodeId: event\.nodeId/);
     expect(TIMELINE_PAGE).toMatch(/Inspect/);
   });
 });

@@ -178,7 +178,7 @@ describe("intake provenance", () => {
      */
     const projection = SUMMARY_SERVICE.split("return {")[1] ?? "";
     expect(projection).toContain("recipientLabel: link.recipientLabel");
-    expect(projection).toContain("...projectRecipientContact(link, disclosure)");
+    expect(projection).toContain("...projectRecipientContactMasked(link, disclosure)");
     expect(projection).not.toContain("link.recipientEmail");
     expect(projection).not.toContain("link.recipientPhone");
     // Safe by default: an omitted decision masks.

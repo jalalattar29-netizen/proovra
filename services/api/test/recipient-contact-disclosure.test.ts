@@ -250,7 +250,7 @@ describe("the inventory", () => {
       LINK_SERVICE.indexOf("export function projectWorkflowIntakeLink("),
     );
     expect(fn).toContain("disclosure: RecipientContactDisclosure");
-    expect(fn).toContain("...projectRecipientContact(link, disclosure)");
+    expect(fn).toContain("...projectRecipientContactMasked(link, disclosure)");
     // The two raw reads are gone from the projection body.
     const body = fn.slice(0, fn.indexOf("\n}\n"));
     expect(body).not.toContain("recipientEmail: link.recipientEmail");
@@ -258,7 +258,7 @@ describe("the inventory", () => {
   });
 
   it("the intake-link list uses the same policy, not its own masks", () => {
-    expect(LIFECYCLE).toContain("projectRecipientContact(link, disclosure)");
+    expect(LIFECYCLE).toContain("projectRecipientContactMasked(link, disclosure)");
     expect(LIFECYCLE).toContain(
       "recipientEmailPreview: recipientContact.recipientEmailMasked",
     );
@@ -276,7 +276,7 @@ describe("the inventory", () => {
   });
 
   it("the Evidence Detail summary spreads the same projection", () => {
-    expect(SUMMARY).toContain("...projectRecipientContact(link, disclosure)");
+    expect(SUMMARY).toContain("...projectRecipientContactMasked(link, disclosure)");
     expect(SUMMARY).toContain('disclosure: RecipientContactDisclosure = "MASKED"');
   });
 
@@ -551,8 +551,9 @@ describe("the neighbouring data classes", () => {
     expect(CARD).toContain('<Detail label="Submitter provided">');
     // Anonymity still wins over any reveal authority: the anonymous branch is
     // decided by the intake MODE, not by who is looking.
-    expect(SUMMARY).toContain("submitterEmail: isAnonymous ? null : session.submitterEmail");
-    expect(SUMMARY).toContain("submitterPhone: isAnonymous ? null : session.submitterPhone");
+    // PRO-E2-02: the submitter contact is masked for every reader (anonymity still wins first).
+    expect(SUMMARY).toContain("submitterEmail: isAnonymous ? null : maskSubmitterContact({ email: session.submitterEmail, phone: null }).email");
+    expect(SUMMARY).toContain("submitterPhone: isAnonymous ? null : maskSubmitterContact({ email: null, phone: session.submitterPhone }).phone");
     // Recipient reveal authority is never consulted for submitter fields: the
     // session block of the RETURN literal mentions the decision nowhere.
     const returnLiteral = SUMMARY.slice(SUMMARY.indexOf("  return {"));

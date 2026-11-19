@@ -435,6 +435,9 @@ vi.mock("../src/services/dashboard/causality.service.js", () => ({
     { id: CHAIN, teamId: i.teamId, rootCause: "Provider degradation", linkedWorkflowCount: 1 },
   ],
   detectCausalityForWorkspace: async () => ({ created: 0 }),
+  // PRO-P1-01: nothing is restricted in this seam (reach is proved on real rows
+  // in ws-reach-roots.integration.test.ts).
+  causalityChainInReach: () => true,
 }));
 
 vi.mock("../src/services/dashboard/bulk-actions.service.js", () => ({

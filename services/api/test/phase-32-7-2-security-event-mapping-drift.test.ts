@@ -1543,6 +1543,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // GOV-012: the owner-only legal-hold disclosure setting (default BLOCK). EXPAND.
       "20281119100400_legal_hold_disclosure_setting",
       "20281120000000_login_mfa_challenge_factors",
+      // WS-REACH (PRO-K1-01): what a stored SIU bundle discloses. EXPAND.
+      "20281121070000_siu_export_disclosure_facts",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

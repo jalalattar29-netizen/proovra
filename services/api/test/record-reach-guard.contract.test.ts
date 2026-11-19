@@ -29,6 +29,8 @@ const OWN_AUTHORITY: Record<string, RegExp> = {
   "graph.routes.ts": /resolveGraphReach/,
   "review-operations.routes.ts": /recordOpen\(/,
   "integrations-api.routes.ts": /evidenceClosedTo\(id, null\)/,
+  // PRO-E2-02: the audited submitter-contact reveal answers to the record rule first.
+  "workflow-intake-links.routes.ts": /resolveEvidenceRecordAccess\(/,
 };
 
 /** Public or token-scoped: no signed-in member, so a token authority decides. */
