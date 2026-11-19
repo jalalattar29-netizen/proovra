@@ -35,6 +35,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 import type { FixtureDeps, OrganizationTenant, SeededUser } from "./point7/product-fixtures.js";
 
 type Res = { statusCode: number; body: string; json: () => Record<string, unknown> };
@@ -774,6 +775,8 @@ describe("Round 3 auth-factors — factors, step-up and recovery integrity (live
     it("the holder's PATCH is refused and the expiry stands; the owner's PATCH succeeds", async () => {
       const o = await org(1);
       const d = o.members[0]!;
+      // PRO-A2-09 (WS-ENT) — a new delegated scope needs an Enterprise organization workspace.
+      await makeEnterpriseOrganizationWorkspace(prisma, o.workspaceId);
       const tmD = await tmOf(o.workspaceId, d.userId);
       const grantHeader = await ceremony.approvedHeader({
         token: o.owner.token,

@@ -86,6 +86,10 @@ import { authorizeOrFail } from "../middleware/authorize.js";
 import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import { denyTeamIfNotEnterprise as denyIfTeamNotEnterprise } from "../services/enterprise-gate-resolvers.service.js";
 import {
+  ENTERPRISE_IDENTITY_ADMIN_REFUSAL,
+  refuseUnlessEnterpriseOrganization,
+} from "./_enterprise-surface-gate.js";
+import {
   PermissionSchema,
   DELEGATED_ADMIN_SCOPE_KINDS,
   EXTERNAL_IDENTITY_PROVIDERS,
@@ -706,6 +710,10 @@ export async function identityRoutes(app: FastifyInstance) {
         { kind: "team_member", id: target.teamMemberId },
       );
       if (!actor) return;
+      // PRO-A2-09 (WS-ENT) — a NEW grant is Enterprise identity administration
+      // (the web offers it only in /security-center). Asked after membership
+      // and permission, before step-up, so a refused caller is not challenged.
+      if (await refuseUnlessEnterpriseOrganization(reply, target.teamId, ENTERPRISE_IDENTITY_ADMIN_REFUSAL)) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: target.teamId,
@@ -849,6 +857,8 @@ export async function identityRoutes(app: FastifyInstance) {
         { kind: "team_member", id: target.teamMemberId },
       );
       if (!actor) return;
+      // PRO-A2-09 (WS-ENT) — as the capability grant above.
+      if (await refuseUnlessEnterpriseOrganization(reply, target.teamId, ENTERPRISE_IDENTITY_ADMIN_REFUSAL)) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: target.teamId,

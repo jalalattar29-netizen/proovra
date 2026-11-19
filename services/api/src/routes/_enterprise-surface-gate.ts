@@ -27,10 +27,26 @@ export const ENTERPRISE_ORGANIZATION_REFUSAL = {
   message: "Investigation and SIU tools are part of an Enterprise organization workspace.",
 } as const;
 
+/**
+ * PRO-A2-09 (WS-ENT) — the same question for the identity-administration
+ * GRANTS the web offers only inside /security-center (tier ENTERPRISE): a new
+ * per-member capability grant and a new delegated-administration scope. Reads
+ * and every reduction (revoke, suspend, disable, shorten) stay answered by
+ * role alone, so a workspace that stops being Enterprise can still take
+ * standing authority away (DEC-10).
+ */
+export const ENTERPRISE_IDENTITY_ADMIN_REFUSAL = {
+  denial: "ENTITLEMENT_REQUIRED",
+  requirement: "ENTERPRISE_ORGANIZATION_WORKSPACE",
+  message:
+    "Per-member capability grants and delegated administration are part of an Enterprise organization workspace. Existing grants can still be read and revoked.",
+} as const;
+
 /** True when the refusal was sent (the caller returns). Fails closed. */
 export async function refuseUnlessEnterpriseOrganization(
   reply: FastifyReply,
   teamId: string,
+  refusal: { denial: string; requirement: string; message: string } = ENTERPRISE_ORGANIZATION_REFUSAL,
 ): Promise<boolean> {
   let enterprise = false;
   try {
@@ -39,6 +55,6 @@ export async function refuseUnlessEnterpriseOrganization(
     enterprise = false;
   }
   if (enterprise) return false;
-  reply.code(403).send(ENTERPRISE_ORGANIZATION_REFUSAL);
+  reply.code(403).send(refusal);
   return true;
 }

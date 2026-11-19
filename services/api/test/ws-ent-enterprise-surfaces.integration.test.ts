@@ -81,6 +81,44 @@ describe("PRO-K1-03 Enterprise-only investigation/SIU APIs (live PostgreSQL)", (
     expect(res.statusCode, res.body).toBe(404);
   });
 
+  it("PRO-A2-09: a non-Enterprise workspace cannot mint a capability grant or a delegated scope; reads stay by role", async () => {
+    // At base both POSTs passed membership + permission and went on to the
+    // step-up challenge (401 STEP_UP_REQUIRED) for ANY workspace.
+    const B = h.fixtures.teamB;
+    const A = h.fixtures.teamA;
+    const target = await prisma.teamMember.findFirstOrThrow({
+      where: { teamId: B.teamId, userId: B.viewerUserId },
+      select: { id: true },
+    });
+    for (const [url, body] of [
+      [`/v1/identity/members/${target.id}/capabilities`, { teamId: B.teamId, permission: "evidence.read" }],
+      [`/v1/identity/members/${target.id}/delegated-admin`, { teamId: B.teamId, scopeKind: "GOVERNANCE_ADMIN" }],
+    ] as const) {
+      const res = await call("POST", url, B.ownerToken, body);
+      expect(res.statusCode, `${url} ${res.body}`).toBe(403);
+      expect(res.json()).toMatchObject({ denial: "ENTITLEMENT_REQUIRED", requirement: "ENTERPRISE_ORGANIZATION_WORKSPACE" });
+      // A caller of another workspace still gets the concealed 404.
+      const foreign = await call("POST", url, A.ownerToken, body);
+      expect(foreign.statusCode, foreign.body).toBe(404);
+    }
+    expect(await prisma.memberCapabilityGrant.count({ where: { teamMemberId: target.id } })).toBe(0);
+    expect(await prisma.memberDelegatedAdminScope.count({ where: { teamMemberId: target.id } })).toBe(0);
+
+    // DEC-10 — the roster read (and with it every revoke) is still by role.
+    await prisma.user.update({ where: { id: B.ownerUserId }, data: { currentWorkspaceId: B.teamId } });
+    const roster = await call("GET", "/v1/identity/members", B.ownerToken);
+    expect(roster.statusCode, roster.body).toBe(200);
+
+    // Entitled: the same POST passes the plan question and reaches step-up.
+    await makeEnterpriseOrganizationWorkspace(prisma, B.teamId);
+    const entitled = await call("POST", `/v1/identity/members/${target.id}/delegated-admin`, B.ownerToken, {
+      teamId: B.teamId,
+      scopeKind: "GOVERNANCE_ADMIN",
+    });
+    expect(entitled.statusCode, entitled.body).toBe(401);
+    expect(entitled.body).toContain("STEP_UP_REQUIRED");
+  });
+
   it("once the workspace is an Enterprise organization (ACTIVE contract) the same routes answer, without a redeploy", async () => {
     const A = h.fixtures.teamA;
     await makeEnterpriseOrganizationWorkspace(prisma, A.teamId);
