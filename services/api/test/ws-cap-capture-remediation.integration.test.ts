@@ -223,9 +223,87 @@ describe("WS-CAP capture remediation (Postgres, real HTTP)", () => {
     expect([200, 201], mobilePart.body).toContain(mobilePart.statusCode);
   }, 240_000);
 
+  it("PRO-C1-01 (review gap 2): an open upload session's follow-up writes and a part-metadata restate are refused for a web page that left the record's workspace; abort stays open", async () => {
+    const A = h.fixtures.teamA;
+    const B = h.fixtures.teamB;
+    await prisma.teamMember.upsert({
+      where: { teamId_userId: { teamId: B.teamId, userId: A.memberUserId } },
+      create: { teamId: B.teamId, userId: A.memberUserId, role: "MEMBER", status: "ACTIVE" },
+      update: { status: "ACTIVE" },
+    } as never);
+    const created = await call("POST", "/v1/evidence", A.memberToken, {
+      type: "PHOTO",
+      mimeType: "image/jpeg",
+      teamId: A.teamId,
+      originalFileName: "big.jpg",
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const evidenceId = created.json().id as string;
+    const made = await uploads.createUploadSession(
+      { teamId: A.teamId, evidenceId, actorUserId: A.memberUserId, expectedPartCount: 2, expectedTotalBytes: 12 * 1024 * 1024 },
+      prisma as never,
+    );
+    expect(made.ok).toBe(true);
+    const sessionId = (made as { session: { id: string } }).session.id;
+    const before = await prisma.evidenceUploadSession.findUniqueOrThrow({ where: { id: sessionId } });
+
+    const left = { "x-web-client": "1", "x-proovra-workspace-id": B.teamId };
+    const base = `/v1/uploads/sessions/${sessionId}`;
+    const followUps: Array<[string, Record<string, unknown>]> = [
+      [`${base}/parts/0/uploaded`, { teamId: A.teamId }],
+      [`${base}/complete`, { teamId: A.teamId }],
+      [`${base}/multipart/initiate`, { teamId: A.teamId }],
+      [`${base}/parts/0/presign`, { teamId: A.teamId, sizeBytes: 6 * 1024 * 1024 }],
+      [`${base}/multipart/complete`, { teamId: A.teamId }],
+    ];
+    for (const [url, body] of followUps) {
+      const refused = await call("POST", url, A.memberToken, body, left);
+      expect(refused.statusCode, `${url} ${refused.body}`).toBe(409);
+      expect(refused.json().code, url).toBe("CAPTURE_WORKSPACE_CHANGED");
+    }
+    // Nothing was written to the session by any of them.
+    const after = await prisma.evidenceUploadSession.findUniqueOrThrow({ where: { id: sessionId } });
+    expect(after).toEqual(before);
+
+    // The same page in the record's own workspace, and a non-web client, are not held to it.
+    const same = await call("POST", `${base}/parts/0/uploaded`, A.memberToken, { teamId: A.teamId }, {
+      "x-web-client": "1",
+      "x-proovra-workspace-id": A.teamId,
+    });
+    expect(same.json().code).not.toBe("CAPTURE_WORKSPACE_CHANGED");
+    const native = await call("POST", `${base}/parts/1/uploaded`, A.memberToken, { teamId: A.teamId }, {
+      "x-proovra-workspace-id": B.teamId,
+    });
+    expect(native.json().code).not.toBe("CAPTURE_WORKSPACE_CHANGED");
+    // Abort only releases: a page that left may still abort its upload.
+    const abort = await call("POST", `${base}/abort`, A.memberToken, { teamId: A.teamId, reason: "user_cancelled" }, left);
+    expect(abort.json().code).not.toBe("CAPTURE_WORKSPACE_CHANGED");
+
+    // The part-metadata restate is a POST /parts for an already-bound part.
+    const record = await call("POST", "/v1/evidence", A.memberToken, {
+      type: "PHOTO",
+      mimeType: "image/jpeg",
+      teamId: A.teamId,
+      originalFileName: "a.jpg",
+    });
+    const recordId = record.json().id as string;
+    const bytes = Buffer.from(`C101R-${randomBytes(6).toString("hex")}`);
+    const first = await call("POST", `/v1/evidence/${recordId}/parts`, A.memberToken, { ...presignBody(bytes), privateNote: "written in A" }, {
+      "x-web-client": "1",
+      "x-proovra-workspace-id": A.teamId,
+    });
+    expect([200, 201], first.body).toContain(first.statusCode);
+    const restate = await call("POST", `/v1/evidence/${recordId}/parts`, A.memberToken, { ...presignBody(bytes), privateNote: "written after leaving" }, left);
+    expect(restate.statusCode, restate.body).toBe(409);
+    expect(restate.json().code).toBe("CAPTURE_WORKSPACE_CHANGED");
+    const part = await prisma.evidencePart.findFirstOrThrow({ where: { evidenceId: recordId, partIndex: 0 }, select: { privateNote: true } });
+    expect(part.privateNote).toBe("written in A");
+  }, 240_000);
+
   // --- PRO-NBC-01 -------------------------------------------------------------
 
-  async function stagedSession(t0: Date, staged: boolean) {
+  async function stagedSession(
+t0: Date, staged: boolean) {
     const A = h.fixtures.teamA;
     const open = await svc.openDirectCaptureSession({
       ownerUserId: A.ownerUserId,
@@ -577,8 +655,13 @@ describe("WS-CAP capture remediation (Postgres, real HTTP)", () => {
     const partKey = `evidence/${evidenceId}/parts/000-a.jpg`;
     const sessionKey = `evidence/${evidenceId}/multipart/s-9/object`;
     await prisma.evidencePart.create({ data: { evidenceId, partIndex: 0, storageBucket: "ws-cap-test-bucket", storageKey: partKey } });
-    // Released by the API (a discard) two hours ago: soft delete only.
-    await prisma.evidence.update({ where: { id: evidenceId }, data: { deletedAt: new Date(Date.now() - 120 * MIN) } });
+    // Released by the API (a discard) two hours ago: soft delete only. The
+    // record held staged content, so it is swept once its own 24 h reservation
+    // lifetime has passed (PRO-NB-01 review gap 1).
+    await prisma.evidence.update({
+      where: { id: evidenceId },
+      data: { deletedAt: new Date(Date.now() - 120 * MIN), createdAt: new Date(Date.now() - 25 * 60 * MIN) },
+    });
     const deleted: string[] = [];
     const deleteObject = async (o: { bucket: string; key: string }) => {
       deleted.push(o.key);
@@ -595,4 +678,149 @@ describe("WS-CAP capture remediation (Postgres, real HTTP)", () => {
     await reaper.removeReleasedReservationObjects({ deleteObject, listKeys, bucket: "ws-cap-test-bucket", batchSize: 1000 });
     expect(deleted.filter((k) => k.includes(evidenceId))).toEqual([]);
   }, 240_000);
+
+  // --- PRO-NB-01 (review gap 1): installed older clients -----------------------
+
+  const recordingDeleter = () => {
+    const deleted: string[] = [];
+    const deleteObject = async (o: { bucket: string; key: string }) => {
+      deleted.push(o.key);
+      return { deleted: true, deletedVersions: 1, retainedVersions: 0, deleteMarkerOnly: false, failed: 0 };
+    };
+    return { deleted, deleteObject };
+  };
+
+  it("PRO-NB-01: an old client's discard of a staged session keeps the session and its bytes; an unstaged one is released; the person's confirmed discard releases", async () => {
+    const A = h.fixtures.teamA;
+    const t0 = new Date(Date.now() - 2 * 60 * MIN);
+
+    // The old app's request: an empty body (its staleness / sign-out discard).
+    const staged = await stagedSession(t0, true);
+    const old = await call("POST", `/v1/capture/direct-sessions/${staged.sessionId}/discard`, A.ownerToken, {});
+    expect(old.statusCode, old.body).toBe(200);
+    expect(old.json().result).toMatchObject({
+      discarded: false,
+      releasedEvidenceId: null,
+      keptStagedContent: true,
+      keptUntilUtc: new Date(t0.getTime() + 24 * 60 * MIN).toISOString(),
+    });
+    const keptSession = await prisma.captureSession.findUniqueOrThrow({ where: { id: staged.sessionId }, select: { status: true } });
+    expect(keptSession.status).toBe("ACTIVE");
+    const keptRecord = await prisma.evidence.findUniqueOrThrow({ where: { id: staged.evidenceId }, select: { deletedAt: true } });
+    expect(keptRecord.deletedAt).toBeNull();
+    expect(await prisma.custodyEvent.count({ where: { evidenceId: staged.evidenceId, eventType: "EVIDENCE_DELETED" } })).toBe(0);
+    // Still resumable: the next declaration is accepted (two hours idle).
+    await expect(
+      svc.declareDirectCapturePart({
+        sessionId: staged.sessionId,
+        ownerUserId: A.ownerUserId,
+        partIndex: 1,
+        sha256: hexDigest(),
+        clientReportedSource: "UNKNOWN",
+        signed: null,
+      }),
+    ).resolves.toMatchObject({ created: true });
+    // No body at all is the same unconfirmed request.
+    const bare = await h.app.inject({
+      method: "POST",
+      url: `/v1/capture/direct-sessions/${staged.sessionId}/discard`,
+      headers: { authorization: `Bearer ${A.ownerToken}` },
+    });
+    expect(bare.statusCode, bare.body).toBe(200);
+    expect(bare.json().result.keptStagedContent).toBe(true);
+
+    // Nothing staged: released exactly as before (the empty-record cleanup).
+    const empty = await stagedSession(new Date(Date.now() - 5 * MIN), false);
+    const emptyDiscard = await call("POST", `/v1/capture/direct-sessions/${empty.sessionId}/discard`, A.ownerToken, {});
+    expect(emptyDiscard.statusCode, emptyDiscard.body).toBe(200);
+    expect(emptyDiscard.json().result).toMatchObject({ discarded: true, releasedEvidenceId: empty.evidenceId });
+    expect(emptyDiscard.json().result.keptStagedContent).toBeUndefined();
+
+    // The person's own confirmed discard (a current client) releases staged content.
+    const confirmed = await call("POST", `/v1/capture/direct-sessions/${staged.sessionId}/discard`, A.ownerToken, {
+      confirmStagedContentDiscard: true,
+    });
+    expect(confirmed.statusCode, confirmed.body).toBe(200);
+    expect(confirmed.json().result).toMatchObject({ discarded: true, releasedEvidenceId: staged.evidenceId });
+  }, 240_000);
+
+  it("PRO-NB-01: the reaper never removes the objects of a released record that held staged content inside its 24 h lifetime; after the server's expiry it does", async () => {
+    const A = h.fixtures.teamA;
+    const listKeys = async () => [] as string[];
+
+    // (a) Released early (a confirmed discard, a changed selection, …) while
+    // holding a part: deletedAt is two hours old, the record is three hours old.
+    const staged = await stagedSession(new Date(Date.now() - 3 * 60 * MIN), true);
+    const stagedKey = `evidence/${staged.evidenceId}/parts/000-seg.mp4`;
+    const release = await call("POST", `/v1/capture/direct-sessions/${staged.sessionId}/discard`, A.ownerToken, {
+      confirmStagedContentDiscard: true,
+    });
+    expect(release.json().result.discarded).toBe(true);
+    await prisma.evidence.update({
+      where: { id: staged.evidenceId },
+      data: { deletedAt: new Date(Date.now() - 120 * MIN), createdAt: new Date(Date.now() - 3 * 60 * MIN) },
+    });
+    // A released record that never held content: swept after the ordinary grace.
+    const emptyId = await reservedRecord();
+    const emptyKey = `evidence/${emptyId}/original/a.jpg`;
+    await prisma.evidence.update({
+      where: { id: emptyId },
+      data: { deletedAt: new Date(Date.now() - 120 * MIN), storageBucket: "ws-cap-test-bucket", storageKey: emptyKey },
+    });
+
+    const first = recordingDeleter();
+    await reaper.removeReleasedReservationObjects({ deleteObject: first.deleteObject, listKeys, bucket: "ws-cap-test-bucket", batchSize: 500 });
+    expect(first.deleted).not.toContain(stagedKey);
+    expect(first.deleted).toContain(emptyKey);
+    const untouched = await prisma.evidence.findUniqueOrThrow({ where: { id: staged.evidenceId }, select: { releasedObjectsRemovedAtUtc: true } });
+    expect(untouched.releasedObjectsRemovedAtUtc).toBeNull();
+    // A key carried from an earlier run is held to the same rule.
+    const carried = recordingDeleter();
+    await reaper.releaseExpiredReservations({
+      trigger: "test",
+      deleteObject: carried.deleteObject,
+      batchSize: 500,
+      retryObjectDeletes: [{ bucket: "ws-cap-test-bucket", key: stagedKey }],
+    });
+    expect(carried.deleted).not.toContain(stagedKey);
+
+    // Past the server's own 24 h lifetime: removed, once.
+    const later = recordingDeleter();
+    await reaper.removeReleasedReservationObjects({
+      deleteObject: later.deleteObject,
+      listKeys,
+      bucket: "ws-cap-test-bucket",
+      batchSize: 500,
+      now: new Date(Date.now() + 22 * 60 * MIN),
+    });
+    expect(later.deleted).toContain(stagedKey);
+
+    // (b) The whole path for an old client: its discard is refused (kept); the
+    // reaper leaves the live session alone; once start + 24 h has passed the
+    // reaper — the one expiry authority — ends it and cleans up as designed.
+    const kept = await stagedSession(new Date(Date.now() - 2 * 60 * MIN), true);
+    const keptKey = `evidence/${kept.evidenceId}/parts/000-seg.mp4`;
+    const oldDiscard = await call("POST", `/v1/capture/direct-sessions/${kept.sessionId}/discard`, A.ownerToken, {});
+    expect(oldDiscard.json().result.keptStagedContent).toBe(true);
+    await prisma.captureSession.update({ where: { id: kept.sessionId }, data: { expiresAtUtc: new Date(Date.now() - 30 * MIN) } });
+    const during = recordingDeleter();
+    await reaper.releaseExpiredReservations({ trigger: "test", deleteObject: during.deleteObject, batchSize: 500 });
+    await reaper.removeReleasedReservationObjects({ deleteObject: during.deleteObject, listKeys, bucket: "ws-cap-test-bucket", batchSize: 500 });
+    expect(during.deleted).not.toContain(keptKey);
+    expect((await prisma.captureSession.findUniqueOrThrow({ where: { id: kept.sessionId }, select: { status: true } })).status).toBe("ACTIVE");
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: kept.evidenceId }, select: { deletedAt: true } })).deletedAt).toBeNull();
+
+    // Real server expiry: the session started more than 24 h ago.
+    await prisma.captureSession.update({
+      where: { id: kept.sessionId },
+      data: { startedAtUtc: new Date(Date.now() - 25 * 60 * MIN), expiresAtUtc: new Date(Date.now() - 30 * MIN) },
+    });
+    await prisma.evidence.update({ where: { id: kept.evidenceId }, data: { createdAt: new Date(Date.now() - 25 * 60 * MIN + MIN) } });
+    const after = recordingDeleter();
+    await reaper.releaseExpiredReservations({ trigger: "test", deleteObject: after.deleteObject, batchSize: 500 });
+    expect((await prisma.captureSession.findUniqueOrThrow({ where: { id: kept.sessionId }, select: { status: true } })).status).toBe("EXPIRED");
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: kept.evidenceId }, select: { deletedAt: true } })).deletedAt).not.toBeNull();
+    expect(after.deleted).toContain(keptKey);
+  }, 240_000);
 });
+
