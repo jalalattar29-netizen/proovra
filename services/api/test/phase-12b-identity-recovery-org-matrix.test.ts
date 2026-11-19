@@ -106,6 +106,19 @@ vi.mock("../src/db.js", () => ({
   ),
 }));
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
+// PRO-S1-07 — the anonymous SAML sign-in entry asks for a GLOBAL bound, which
+// refuses (503) when the shared store cannot decide. That refusal is intended
+// and has its own suite (auth-rate-limit-store-unavailable); it is not this
+// file's subject. A unit run has no Redis in CI; one process is the whole
+// deployment here, so the same real limiter counts in process memory.
+vi.mock("../src/services/rate-limit.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/services/rate-limit.js")>();
+  return {
+    ...actual,
+    enforceRateLimit: (params: Parameters<typeof actual.enforceRateLimit>[0]) =>
+      actual.enforceRateLimit({ ...params, bound: "process" }),
+  };
+});
 // Members re-audit ENT-05 — the org workspaces route projects the canonical
 // seat state; this in-memory matrix is about identity recovery, not seats.
 vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({

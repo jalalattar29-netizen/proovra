@@ -252,6 +252,19 @@ vi.mock("../src/db.js", () => {
   return { prisma };
 });
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => undefined }));
+// PRO-N1-15 — a state write for a key the caller has not seen asks for a
+// GLOBAL bound, which refuses (503) when the shared store cannot decide. That
+// refusal is intended and is not this file's subject. A unit run has no Redis
+// in CI; one process is the whole deployment here, so the same real limiter
+// counts in process memory.
+vi.mock("../src/services/rate-limit.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/services/rate-limit.js")>();
+  return {
+    ...actual,
+    enforceRateLimit: (params: Parameters<typeof actual.enforceRateLimit>[0]) =>
+      actual.enforceRateLimit({ ...params, bound: "process" }),
+  };
+});
 vi.mock("../src/middleware/require-legal-acceptance.js", () => ({
   requireLegalAcceptance: async () => undefined,
 }));
