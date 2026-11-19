@@ -174,8 +174,8 @@ export function formatRelativeTime(value?: string | Date | null): string {
 }
 
 /**
- * PRO-K2-24 — the `datetime-local` value for a stored UTC instant, in the
- * VIEWER's wall-clock. Slicing the ISO string ("…T15:00") seeded the control
+ * PRO-K2-24 â€” the `datetime-local` value for a stored UTC instant, in the
+ * VIEWER's wall-clock. Slicing the ISO string ("â€¦T15:00") seeded the control
  * with UTC digits that `new Date(local)` then re-read as LOCAL time, so every
  * unchanged save moved the instant by the browser's UTC offset.
  */
