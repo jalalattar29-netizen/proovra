@@ -12,18 +12,24 @@
  * (the CSP allows inline styles, never inline scripts).
  */
 
+import { safeReturnPath } from "../navigation/safe-return-path";
+
 export type RunbookDenial = "UNAUTHENTICATED" | "FORBIDDEN";
 
 const escapeHtml = (value: string): string =>
   value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-/** Only a same-origin path may be carried to the sign-in page. */
-function safeReturnPath(pathname: string): string {
-  return pathname.startsWith("/") && !pathname.startsWith("//") ? pathname : "/";
+/**
+ * Only a same-origin path may be carried to the sign-in page. PRO-PW-11 — the
+ * ONE return-path rule (it also refuses `/\host` and control characters, which
+ * the private copy here accepted).
+ */
+function safeSignInReturnPath(pathname: string): string {
+  return safeReturnPath(pathname, "/");
 }
 
 export function runbookDenialHtml(access: RunbookDenial, pathname: string): string {
-  const signInHref = `/login?next=${encodeURIComponent(safeReturnPath(pathname))}`;
+  const signInHref = `/login?next=${encodeURIComponent(safeSignInReturnPath(pathname))}`;
   const heading = access === "UNAUTHENTICATED" ? "Sign in to read runbooks" : "Platform administrator only";
   const detail =
     access === "UNAUTHENTICATED"

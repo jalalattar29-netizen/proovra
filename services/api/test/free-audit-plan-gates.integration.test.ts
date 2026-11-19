@@ -218,7 +218,12 @@ describe("free-user audit — plan gates match Pricing (live PostgreSQL)", () =>
       for (const w of writes()) {
         const res = await call("POST", `${w.url}?teamId=${A().teamId}`, A().ownerToken, w.body);
         expect(res.statusCode, `${w.url} ${res.body}`).toBe(403);
-        expect(res.json(), w.url).toEqual({ denial: "ENTITLEMENT_REQUIRED", entitlement: "REVIEWER_OPERATIONS" });
+        expect(res.json(), w.url).toMatchObject({
+          denial: "ENTITLEMENT_REQUIRED",
+          entitlement: "REVIEWER_OPERATIONS",
+          // PRO-R2-14 — plus the one review-capability shape.
+          error: { code: "ENTITLEMENT_REQUIRED", reason: "reviewer_operations_not_included" },
+        });
       }
       // seed-defaults installs schemas when admitted; refused, it installed none.
       expect(await prisma.codingSchema.count({ where: { teamId: A().teamId } })).toBe(0);

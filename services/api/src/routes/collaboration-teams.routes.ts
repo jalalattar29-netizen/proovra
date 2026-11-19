@@ -41,6 +41,7 @@ import {
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
+  ASSIGNEE_UNASSIGNED,
   CollaborationTeamError,
   acceptInvite,
   addExistingMember,
@@ -367,6 +368,22 @@ const UpdateTeamBody = z.object({
 
 /** AUD-0052 — a collaboration-team member id (`:memberId`). */
 const MEMBER_ID = z.string().uuid();
+
+/** PRO-K2-13 — the list paging every group list accepts: a bounded integer limit and a row-id cursor. */
+const ListPagingQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  cursor: z.string().uuid().optional(),
+});
+
+function sendInvalidListQuery(reply: FastifyReply, requestId: string | null) {
+  return reply.code(400).send({
+    error: {
+      code: "invalid_query",
+      message: "limit must be a whole number from 1 to 200, and cursor and assignee must be ids.",
+      requestId,
+    },
+  });
+}
 
 const AddMemberBody = z.object({
   userId: z.string().uuid(),
@@ -1455,6 +1472,10 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           workspaceId: binding.workspace.workspaceId,
           userId: binding.workspace.userId,
         };
+        // PRO-K2-13 — a malformed path id is a 400, never a Prisma error served as 500.
+        if (!MEMBER_ID.safeParse(req.params.inviteId).success) {
+          return reply.code(400).send({ error: { code: "invalid_params", message: "inviteId must be an id.", requestId: req.id ?? null } });
+        }
         try {
           await revokeInvite({
             teamId: req.params.teamId,
@@ -1912,8 +1933,11 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         };
         try {
           const q = (req.query as Record<string, string | undefined>) ?? {};
-          const limit = q.limit ? parseInt(q.limit, 10) : undefined;
-          const cursor = q.cursor ?? null;
+          // PRO-K2-13 — malformed paging is a 400, never a Prisma error served as 500.
+          const paging = ListPagingQuery.safeParse({ limit: q.limit, cursor: q.cursor });
+          if (!paging.success) return sendInvalidListQuery(reply, req.id ?? null);
+          const limit = paging.data.limit;
+          const cursor = paging.data.cursor ?? null;
           const result = await listTeamActivity({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
@@ -1951,6 +1975,11 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         };
         try {
           const q = (req.query ?? {}) as Record<string, string | undefined>;
+          // PRO-K2-13 — malformed paging / assignee is a 400, never a 500.
+          const paging = ListPagingQuery.extend({
+            assignee: z.union([z.string().uuid(), z.literal(ASSIGNEE_UNASSIGNED)]).optional(),
+          }).safeParse({ limit: q.limit, cursor: q.cursor, assignee: q.assignee });
+          if (!paging.success) return sendInvalidListQuery(reply, req.id ?? null);
           // EVERY Work filter is the server's. The surface used to narrow an
           // already-fetched cursor page by search, assignee and priority,
           // which on a group with more work than one page hides rows the
@@ -1966,8 +1995,8 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             assigneeUserId: q.assignee ?? null,
             overdueOnly: q.overdue === "true",
             search: q.q ?? null,
-            limit: q.limit ? Number.parseInt(q.limit, 10) : undefined,
-            cursor: q.cursor ?? null,
+            limit: paging.data.limit,
+            cursor: paging.data.cursor ?? null,
           });
           return reply.send({
             assignments: page.items,
@@ -2074,6 +2103,10 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           workspaceId: binding.workspace.workspaceId,
           userId: binding.workspace.userId,
         };
+        // PRO-K2-13 — a malformed path id is a 400, never a Prisma error served as 500.
+        if (!MEMBER_ID.safeParse(req.params.assignmentId).success) {
+          return reply.code(400).send({ error: { code: "invalid_params", message: "assignmentId must be an id.", requestId: req.id ?? null } });
+        }
         const parsed = UpdateAssignmentBody.safeParse(req.body);
         if (!parsed.success)
           return reply

@@ -19,10 +19,12 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { stateReasonFor, type WorkflowActionKey } from "./workflow-actions.service.js";
 
 export type WorkflowErrorCode =
   | "workflow_not_found"
-  | "invalid_transition";
+  | "invalid_transition"
+  | "stale_workflow_state";
 
 export class WorkflowError extends Error {
   code: WorkflowErrorCode;
@@ -57,14 +59,11 @@ export async function assignWorkflow(
     existing.status === "OPEN"
       ? prismaPkg.OperationalWorkflowStatus.ASSIGNED
       : existing.status;
-  const updated = await client.operationalWorkflow.update({
-    where: { id: existing.id },
-    data: {
-      assignedOwnerUserId: input.assigneeUserId,
-      assignedByUserId: input.actorUserId,
-      assignedAtUtc: new Date(),
-      status: nextStatus,
-    },
+  const updated = await casUpdate(client, existing, "assign", { assignedOwnerUserId: existing.assignedOwnerUserId }, {
+    assignedOwnerUserId: input.assigneeUserId,
+    assignedByUserId: input.actorUserId,
+    assignedAtUtc: new Date(),
+    status: nextStatus,
   });
   // Re-audit 4, R4-3 — every caller assigns inside a transaction (the
   // assignee is decided in the write), where a swallowed insert failure would
@@ -100,27 +99,24 @@ export async function escalateWorkflow(
     where: { id: input.workflowId, teamId: input.teamId },
   });
   if (!existing) throw new WorkflowError("workflow_not_found");
-  const updated = await client.operationalWorkflow.update({
-    where: { id: existing.id },
-    data: {
-      escalationLevel: existing.escalationLevel + 1,
-      severity:
-        existing.severity === "CRITICAL"
+  const updated = await casUpdate(client, existing, "escalate", { escalationLevel: existing.escalationLevel }, {
+    escalationLevel: existing.escalationLevel + 1,
+    severity:
+      existing.severity === "CRITICAL"
+        ? "CRITICAL"
+        : existing.severity === "HIGH"
           ? "CRITICAL"
-          : existing.severity === "HIGH"
-            ? "CRITICAL"
-            : existing.severity === "MEDIUM"
-              ? "HIGH"
-              : "MEDIUM",
-      priority:
-        existing.priority === "P0"
+          : existing.severity === "MEDIUM"
+            ? "HIGH"
+            : "MEDIUM",
+    priority:
+      existing.priority === "P0"
+        ? "P0"
+        : existing.priority === "P1"
           ? "P0"
-          : existing.priority === "P1"
-            ? "P0"
-            : existing.priority === "P2"
-              ? "P1"
-              : "P2",
-    },
+          : existing.priority === "P2"
+            ? "P1"
+            : "P2",
   });
   try {
     await client.operationalWorkflowEvent.create({
@@ -157,12 +153,9 @@ export async function addMitigation(
     existing.status === "IN_PROGRESS" || existing.status === "ASSIGNED"
       ? prismaPkg.OperationalWorkflowStatus.MITIGATING
       : existing.status;
-  const updated = await client.operationalWorkflow.update({
-    where: { id: existing.id },
-    data: {
-      mitigationSummary: input.note.slice(0, 400),
-      status: nextStatus,
-    },
+  const updated = await casUpdate(client, existing, "mitigation", {}, {
+    mitigationSummary: input.note.slice(0, 400),
+    status: nextStatus,
   });
   try {
     await client.operationalWorkflowEvent.create({
@@ -195,13 +188,10 @@ export async function resolveWorkflow(
     where: { id: input.workflowId, teamId: input.teamId },
   });
   if (!existing) throw new WorkflowError("workflow_not_found");
-  const updated = await client.operationalWorkflow.update({
-    where: { id: existing.id },
-    data: {
-      status: prismaPkg.OperationalWorkflowStatus.RESOLVED,
-      resolvedAtUtc: new Date(),
-      resolutionSummary: input.note ? input.note.slice(0, 400) : null,
-    },
+  const updated = await casUpdate(client, existing, "resolve", {}, {
+    status: prismaPkg.OperationalWorkflowStatus.RESOLVED,
+    resolvedAtUtc: new Date(),
+    resolutionSummary: input.note ? input.note.slice(0, 400) : null,
   });
   try {
     await client.operationalWorkflowEvent.create({
@@ -245,13 +235,10 @@ export async function reopenWorkflow(
   ) {
     throw new WorkflowError("invalid_transition");
   }
-  const updated = await client.operationalWorkflow.update({
-    where: { id: existing.id },
-    data: {
-      status: prismaPkg.OperationalWorkflowStatus.OPEN,
-      resolvedAtUtc: null,
-      resolutionSummary: null,
-    },
+  const updated = await casUpdate(client, existing, "reopen", {}, {
+    status: prismaPkg.OperationalWorkflowStatus.OPEN,
+    resolvedAtUtc: null,
+    resolutionSummary: null,
   });
   try {
     await client.operationalWorkflowEvent.create({
@@ -284,13 +271,10 @@ export async function scheduleRetry(
     where: { id: input.workflowId, teamId: input.teamId },
   });
   if (!existing) throw new WorkflowError("workflow_not_found");
-  const updated = await client.operationalWorkflow.update({
-    where: { id: existing.id },
-    data: {
-      nextRetryAtUtc: input.nextRetryAtUtc,
-      retryCount: existing.retryCount + 1,
-      lastAttemptAtUtc: new Date(),
-    },
+  const updated = await casUpdate(client, existing, "schedule-retry", { retryCount: existing.retryCount }, {
+    nextRetryAtUtc: input.nextRetryAtUtc,
+    retryCount: existing.retryCount + 1,
+    lastAttemptAtUtc: new Date(),
   });
   try {
     await client.operationalWorkflowEvent.create({
@@ -324,10 +308,8 @@ async function transition(
     where: { id: input.workflowId, teamId: input.teamId },
   });
   if (!existing) throw new WorkflowError("workflow_not_found");
-  const updated = await client.operationalWorkflow.update({
-    where: { id: existing.id },
-    data: { status: next },
-  });
+  const action: WorkflowActionKey = eventType === "STARTED" ? "start" : "suppress";
+  const updated = await casUpdate(client, existing, action, {}, { status: next });
   try {
     await client.operationalWorkflowEvent.create({
       data: {
@@ -344,6 +326,40 @@ async function transition(
     /* best-effort */
   }
   await audit(client, input, updated.id, auditVerb, existing);
+  return updated;
+}
+
+/**
+ * PRO-P1C-02 — THE state machine and the compare-and-set, in the writer.
+ *
+ * The precondition used to live only in the route's pre-read, and every
+ * writer updated by primary key: two concurrent escalates both applied (level
+ * +2), a resolve and a reopen interleaved, and the bulk runner — which never
+ * called the route — resolved already-RESOLVED workflows. Now every writer
+ * (single route and bulk runner alike) refuses an illegal transition
+ * (`invalid_transition`) and writes only if the row still holds the status —
+ * and, for the counters, the value — it was decided against; a lost race is
+ * `stale_workflow_state` and writes nothing (mirrors transitionIncident).
+ */
+async function casUpdate(
+  client: PrismaClient,
+  existing: prismaPkg.OperationalWorkflow,
+  action: WorkflowActionKey,
+  guard: Partial<Pick<prismaPkg.OperationalWorkflow, "assignedOwnerUserId" | "escalationLevel" | "retryCount">>,
+  data: prismaPkg.Prisma.OperationalWorkflowUpdateManyMutationInput,
+): Promise<prismaPkg.OperationalWorkflow> {
+  if (stateReasonFor(action, existing.status) !== null) {
+    throw new WorkflowError("invalid_transition");
+  }
+  const result = await client.operationalWorkflow.updateMany({
+    where: { id: existing.id, teamId: existing.teamId, status: existing.status, ...guard },
+    data,
+  });
+  if (result.count !== 1) throw new WorkflowError("stale_workflow_state");
+  const updated = await client.operationalWorkflow.findFirst({
+    where: { id: existing.id, teamId: existing.teamId },
+  });
+  if (!updated) throw new WorkflowError("workflow_not_found");
   return updated;
 }
 

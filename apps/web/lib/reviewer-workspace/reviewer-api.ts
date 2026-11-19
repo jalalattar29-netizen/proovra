@@ -18,6 +18,7 @@ import type {
   ReviewerWorkspaceProjection,
 } from "@proovra/shared";
 
+import { reviewerDenialFromError } from "./reviewer-denial";
 import { apiFetch } from "../api";
 
 function withTeamId(url: string, teamId?: string | null): string {
@@ -124,8 +125,8 @@ export async function writeCodingValue(input: {
     );
     return { ok: true, codingValueId: res.codingValueId };
   } catch (err) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const denial = ((err as any)?.body?.denial ?? "RATE_LIMITED") as ReviewerDenialReason;
+    // PRO-R2Z-06 — the fields apiFetch actually sets.
+    const denial = reviewerDenialFromError(err) as ReviewerDenialReason;
     return { ok: false, denial };
   }
 }
@@ -149,8 +150,8 @@ export async function fileDisagreement(input: {
     );
     return { ok: true, disagreementId: res.disagreementId };
   } catch (err) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const denial = ((err as any)?.body?.denial ?? "RATE_LIMITED") as ReviewerDenialReason;
+    // PRO-R2Z-06 — the fields apiFetch actually sets.
+    const denial = reviewerDenialFromError(err) as ReviewerDenialReason;
     return { ok: false, denial };
   }
 }
@@ -231,8 +232,8 @@ export async function transitionDisagreement(input: {
     );
     return { ok: true };
   } catch (err) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const denial = ((err as any)?.body?.denial ?? "RATE_LIMITED") as ReviewerDenialReason;
+    // PRO-R2Z-06 — the fields apiFetch actually sets.
+    const denial = reviewerDenialFromError(err) as ReviewerDenialReason;
     return { ok: false, denial };
   }
 }
@@ -261,8 +262,8 @@ export async function renderQcVerdict(input: {
     );
     return { ok: true };
   } catch (err) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const denial = ((err as any)?.body?.denial ?? "RATE_LIMITED") as ReviewerDenialReason;
+    // PRO-R2Z-06 — the fields apiFetch actually sets.
+    const denial = reviewerDenialFromError(err) as ReviewerDenialReason;
     return { ok: false, denial };
   }
 }
@@ -668,8 +669,8 @@ export async function bulkAssign(input: {
       },
     );
   } catch (err) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return { denial: ((err as any)?.body?.denial ?? "RATE_LIMITED") as string };
+    // PRO-R2Z-06 — the fields apiFetch actually sets.
+    return { denial: reviewerDenialFromError(err) };
   }
 }
 
@@ -692,8 +693,8 @@ export async function bulkDecide(input: {
       },
     );
   } catch (err) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return { denial: ((err as any)?.body?.denial ?? "RATE_LIMITED") as string };
+    // PRO-R2Z-06 — the fields apiFetch actually sets.
+    return { denial: reviewerDenialFromError(err) };
   }
 }
 
@@ -713,8 +714,8 @@ export async function bulkCode(input: {
       body: JSON.stringify(input),
     });
   } catch (err) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return { denial: ((err as any)?.body?.denial ?? "RATE_LIMITED") as string };
+    // PRO-R2Z-06 — the fields apiFetch actually sets.
+    return { denial: reviewerDenialFromError(err) };
   }
 }
 

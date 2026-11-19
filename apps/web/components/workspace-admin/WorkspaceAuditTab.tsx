@@ -38,6 +38,9 @@ type AuditPage = { items: AuditRow[]; nextCursorId: string | null };
 
 type OutcomeFilter = "" | "success" | "denied" | "error";
 
+/** PRO-T1C-04 — at most this many server pages (100 events each) per export. */
+const AUDIT_EXPORT_MAX_PAGES = 200;
+
 export function WorkspaceAuditTab({ teamId }: { teamId: string }) {
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -52,7 +55,10 @@ export function WorkspaceAuditTab({ teamId }: { teamId: string }) {
       if (action.trim()) p.set("action", action.trim());
       if (outcome) p.set("outcome", outcome);
       if (cursor) p.set("cursorId", cursor);
-      if (forExport) p.set("export", "true");
+      if (forExport) {
+        p.set("export", "true");
+        p.set("limit", "100");
+      }
       return `/v1/audit/tenant?${p.toString()}`;
     },
     [teamId, action, outcome],
@@ -85,19 +91,45 @@ export function WorkspaceAuditTab({ teamId }: { teamId: string }) {
     void load(null);
   }, [load]);
 
+  const [exportNote, setExportNote] = useState<string | null>(null);
   const exportAudit = useCallback(async () => {
+    setExportNote(null);
     try {
       // SAME endpoint, SAME authorization, SAME query — export=true only.
-      const page = (await apiFetch(query(null, true))) as AuditPage;
-      const blob = new Blob([JSON.stringify(page.items, null, 2)], {
+      // PRO-T1C-04 — every page, not the first one: the server pages
+      // deterministically (cursor), so the export follows `nextCursorId` until
+      // the history ends. Bounded; a failed page aborts the whole export (no
+      // partial file is offered as the history).
+      const items: AuditRow[] = [];
+      let cursor: string | null = null;
+      let pages = 0;
+      let truncated = false;
+      do {
+        const page = (await apiFetch(query(cursor, true))) as AuditPage;
+        items.push(...page.items);
+        cursor = page.nextCursorId;
+        pages += 1;
+        if (cursor && pages >= AUDIT_EXPORT_MAX_PAGES) {
+          truncated = true;
+          break;
+        }
+      } while (cursor);
+      const blob = new Blob([JSON.stringify(items, null, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `workspace-audit-${teamId}.json`;
+      a.download = truncated
+        ? `workspace-audit-${teamId}-newest-${items.length}.json`
+        : `workspace-audit-${teamId}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      setExportNote(
+        truncated
+          ? `Exported the newest ${items.length} events. Older events exist; narrow the filters to export them.`
+          : `Exported ${items.length} event${items.length === 1 ? "" : "s"}.`,
+      );
     } catch (err) {
       setError(toSafeUserError(err, { message: "Audit export is not available." }).message);
     }
@@ -148,6 +180,11 @@ export function WorkspaceAuditTab({ teamId }: { teamId: string }) {
           Export
         </button>
       </div>
+      {exportNote ? (
+        <p role="status" className="cc-section-sub" data-workspace-audit-export-note>
+          {exportNote}
+        </p>
+      ) : null}
 
       {error ? (
         <p role="status" data-workspace-audit-denied className="cc-empty">

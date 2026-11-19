@@ -16,9 +16,10 @@
  * The backend remains the authoritative gate on every endpoint — this is
  * presentation only.
  *
- * Honest "Not available": the download-audit report is marked as an
- * honest unavailable-at-the-org-tier card (the endpoint returns a
- * documented note CSV rather than fabricated rows).
+ * PRO-O1-14 — the download-audit report lists the download events of the
+ * organization's workspaces (they are tenant-audit rows carrying the record's
+ * workspace); the "Not available" badge remains for a card whose data is not
+ * held at the org tier.
  *
  * Constitutional checks satisfied:
  *   - Wrapped in <PageRouteGate routeId="account.organization_admin_reports">.
@@ -130,7 +131,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     id: "external-access",
     label: "External reviewer access",
     description:
-      "External reviewer grants across the org's workspaces — email, role, state, expiry, revocation, and access-activity count.",
+      "External reviewer grants across the org's workspaces — email, role, state, expiry, revocation, and access-activity count. Bounded to the most recent 5,000 grants.",
     file: "external-access.csv",
     filename: "org-external-access.csv",
     minRole: "ORG_AUDITOR",
@@ -142,13 +143,16 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     id: "download-audit",
     label: "Evidence download audit",
     description:
-      "Evidence report/package/original downloads are recorded in the platform audit log scoped to user + evidence id, not attributed to an organization — so this report is not available at the org tier.",
+      // PRO-O1-14 — download audits carry the record's workspace, so the
+      // organization's downloads ARE listed (an API older than this change
+      // answers with a single explanatory row instead).
+      "Report, verification-package and original download events in the organization's workspaces. Bounded to the most recent 5,000 rows; the file says when older events were left out.",
     file: "download-audit.csv",
     filename: "org-download-audit.csv",
     minRole: "ORG_AUDITOR",
     roles: OVERSIGHT_EXPORT_ROLES,
-    source: "Evidence events in the audit log",
-    available: false,
+    source: "Download events in this organization's workspace audit",
+    available: true,
   },
 ];
 

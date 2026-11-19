@@ -129,8 +129,9 @@ describe("SCOPE C — route gating for assignment is preserved", () => {
     // reviewer gate nor by a role literal.
     expect(ROUTES).toMatch(/body\.action === "ASSIGN"\s*\?\s*await requireAssignerMember\(/);
     expect(ROUTES).toMatch(/requireReviewerMember/);
-    // Anti-enumeration: still 404 (never 403) on non-members.
-    expect(ROUTES).not.toMatch(/reply\.code\(403\)/);
+    // Anti-enumeration: still 404 (never 403) on non-members. The one 403 is the
+    // plan refusal sent AFTER membership is proven (PRO-R2-14).
+    expect(ROUTES.replace("reply.code(403).send(reviewCapabilityRefusalBody(", "")).not.toMatch(/reply\.code\(403\)/);
     expect(ROUTES).toMatch(/reply\.code\(404\)/);
   });
 });

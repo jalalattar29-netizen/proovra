@@ -98,6 +98,13 @@ export type MatterQueueEnvelope = {
   workspace: { teamId: string; role: string };
   items: MatterQueueItem[];
   total: number;
+  /**
+   * PRO-K1-07 — additive paging facts (absent from an API older than this
+   * change: the page then behaves as before, with no Load more).
+   */
+  hasMore?: boolean;
+  nextCursor?: string | null;
+  totalIsExact?: boolean;
 };
 
 export type MatterWorkspaceCaseHeader = {

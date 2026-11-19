@@ -58,6 +58,9 @@ function AuditTransparencyShell() {
     AuditTransparencyCategory | "ALL"
   >("ALL");
   const [busy, setBusy] = useState(false);
+  // PRO-G2-14 — a refused or failed read is not "no activity": keep the
+  // outcome and say which it was.
+  const [failure, setFailure] = useState<"denied" | "plan" | "failed" | null>(null);
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -68,8 +71,17 @@ function AuditTransparencyShell() {
           : `/v1/audit-transparency?category=${category}&limit=200`;
       const res = await apiFetch(url, { method: "GET" });
       setEntries((res?.entries ?? []) as AuditTransparencyEntry[]);
-    } catch {
+      setFailure(null);
+    } catch (err) {
       setEntries([]);
+      const e = err as { statusCode?: number; code?: string } | null;
+      setFailure(
+        e?.code === "ENTITLEMENT_REQUIRED"
+          ? "plan"
+          : e?.statusCode === 401 || e?.statusCode === 403 || e?.statusCode === 404
+            ? "denied"
+            : "failed",
+      );
     } finally {
       setBusy(false);
     }
@@ -155,7 +167,27 @@ function AuditTransparencyShell() {
                 </tr>
               </thead>
               <tbody>
-                {entries.length === 0 ? (
+                {failure ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: 0 }} role="alert" data-audit-transparency-failure={failure}>
+                      <EmptyState
+                        compact
+                        title={
+                          failure === "plan"
+                            ? "This workspace's plan does not include the audit timeline."
+                            : failure === "denied"
+                              ? "You do not have access to this audit timeline."
+                              : "The audit timeline could not be loaded."
+                        }
+                        purpose={
+                          failure === "failed"
+                            ? "This is not the same as no activity. Use Refresh to try again."
+                            : "Ask a workspace owner if you need it."
+                        }
+                      />
+                    </td>
+                  </tr>
+                ) : entries.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ padding: 0 }}>
                       <EmptyState

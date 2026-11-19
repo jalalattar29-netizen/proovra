@@ -71,7 +71,18 @@ export type RunBulkActionInput = ActorContext & {
   assigneeUserId?: string | null;
   /** Optional next retry ISO datetime for BULK_SCHEDULE_RETRY. */
   nextRetryAtUtc?: string | null;
+  /** PRO-P1-06 — `<actionType>:<key>`: reserved with the run row, before any item runs. */
+  idempotencyToken?: string | null;
 };
+
+/** PRO-P1-06 — another request already reserved this idempotency key; `runId` is its run. */
+export class BulkIdempotencyReplay extends Error {
+  readonly runId: string;
+  constructor(runId: string) {
+    super("bulk_idempotency_replay");
+    this.runId = runId;
+  }
+}
 
 export type BulkActionRunResult = {
   runId: string;
@@ -87,17 +98,32 @@ export async function runBulkAction(
   client: PrismaClient = defaultPrisma,
 ): Promise<BulkActionRunResult> {
   const targets = input.targetIds.slice(0, MAX_TARGETS);
-  // Persist the run row immediately.
-  const run = await client.bulkOperationalActionRun.create({
-    data: {
-      teamId: input.teamId,
-      actionType: input.actionType,
-      status: "RUNNING",
-      requestedByUserId: input.actorUserId,
-      targetIdsJson: targets,
-      noteText: input.note ? input.note.slice(0, 400) : null,
-    },
-  });
+  // Persist the run row immediately. PRO-P1-06 — with an idempotency token
+  // the row IS the reservation (unique per workspace): a concurrent request
+  // with the same key fails here, before any item runs, and replays.
+  let run: { id: string };
+  try {
+    run = await client.bulkOperationalActionRun.create({
+      data: {
+        teamId: input.teamId,
+        actionType: input.actionType,
+        status: "RUNNING",
+        requestedByUserId: input.actorUserId,
+        targetIdsJson: targets,
+        noteText: input.note ? input.note.slice(0, 400) : null,
+        idempotencyToken: input.idempotencyToken ?? null,
+      },
+    });
+  } catch (err) {
+    if (input.idempotencyToken && (err as { code?: string })?.code === "P2002") {
+      const prior = await client.bulkOperationalActionRun.findFirst({
+        where: { teamId: input.teamId, idempotencyToken: input.idempotencyToken },
+        select: { id: true },
+      });
+      if (prior) throw new BulkIdempotencyReplay(prior.id);
+    }
+    throw err;
+  }
 
   // Persist item rows in PENDING. We use a deterministic target type
   // per action so the dashboard reader can route to the right entity.

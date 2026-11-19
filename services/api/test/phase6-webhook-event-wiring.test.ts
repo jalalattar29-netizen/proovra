@@ -360,6 +360,8 @@ function buildStubPrisma(endpoints: EndpointRow[]): {
   // Minimal prisma surface. Methods not used by emitWebhookEvent are
   // deliberately omitted so a regression would crash loudly.
   const client = {
+    // PRO-G1-09 — the send-time liveness read: an operating personal workspace.
+    team: { findUnique: async () => ({ isPersonal: true, workspaceKind: "PERSONAL", billingPlan: "FREE", closedAtUtc: null, organization: null }) },
     webhookEndpoint: {
       findMany: async (args: {
         where: { teamId: string; status: "ACTIVE" };
@@ -600,6 +602,8 @@ describe("PHASE 6 — emitWebhookEvent never throws even when delivery row inser
 
   function brokenClient(): PrismaClient {
     return {
+      // PRO-G1-09 — the send-time liveness read: an operating personal workspace.
+      team: { findUnique: async () => ({ isPersonal: true, workspaceKind: "PERSONAL", billingPlan: "FREE", closedAtUtc: null, organization: null }) },
       webhookEndpoint: {
         findMany: async () => [
           {

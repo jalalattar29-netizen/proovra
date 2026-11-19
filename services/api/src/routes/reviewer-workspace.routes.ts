@@ -52,6 +52,7 @@ import {
   evaluateCurrentWorkspace,
 } from "../middleware/authorize.js";
 import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
+import { reviewCapabilityRefusalBody } from "../services/billing/review-capability-refusal.js";
 import { enforceReviewActionGate, workflowIdsInReach } from "../services/reviewer-ops/review-action-gate.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 
@@ -276,7 +277,13 @@ async function refuseWithoutReviewCapability(
   capability: "BULK_REVIEW_OPERATIONS" | "REVIEW_ASSIGNMENTS" | "REVIEW_TASKS_AND_QUEUES",
 ): Promise<boolean> {
   if (await workspaceIncludesReviewCapability(teamId, capability)) return false;
-  reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "REVIEWER_OPERATIONS" });
+  // PRO-R2-14 — the one review-capability refusal shape (`error`), with the
+  // flat `denial` / `entitlement` this surface always sent kept for readers of it.
+  reply.code(403).send({
+    ...reviewCapabilityRefusalBody(capability, reply.request.id),
+    denial: "ENTITLEMENT_REQUIRED",
+    entitlement: "REVIEWER_OPERATIONS",
+  });
   return true;
 }
 
@@ -490,9 +497,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       // whose unprovisioned default was TRUE — so this gate admitted every
       // plan including FREE while the catalog reserved the capability for TEAM.
       // Two authorities over one question, and this was the one failing OPEN.
-      if (!(await workspaceIncludesReviewCapability(ctx.teamId, "REVIEW_TASKS_AND_QUEUES"))) {
-        return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "REVIEWER_OPERATIONS" });
-      }
+      if (await refuseWithoutReviewCapability(reply, ctx.teamId, "REVIEW_TASKS_AND_QUEUES")) return reply;
       if (!requireCap(ctx, "review.schema.author")) return denyNoPermission(reply);
       const body = CreateSchemaBody.parse(req.body);
       const res = await createSchema({

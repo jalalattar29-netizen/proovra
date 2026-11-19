@@ -143,8 +143,10 @@ describe("bulk ARCHIVE — request bounds and per-record isolation", () => {
   });
 
   it("a per-record failure is recorded as a failed row, never as a batch failure", () => {
+    // PRO-E1-05 — the failed row carries a bounded reason (domain refusal or
+    // "Operation failed"), never a raw exception message.
     expect(region).toMatch(
-      /catch \(error\) \{\s*results\.push\(\{\s*evidenceId,\s*ok: false,\s*reason: error instanceof Error \? error\.message/,
+      /catch \(error\) \{[\s\S]*?const reason = bulkRefusalReason\(error\);[\s\S]*?results\.push\(\{ evidenceId, ok: false, reason \}\);/,
     );
     expect(region).toMatch(/successCount: results\.filter\(\(item\) => item\.ok\)\.length/);
     expect(region).toMatch(/failedCount: results\.filter\(\(item\) => !item\.ok\)\.length/);

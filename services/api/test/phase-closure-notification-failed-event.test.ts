@@ -291,6 +291,8 @@ function buildStubPrisma(): {
     // PRO-N1Z-02 — the re-invitation gate reads the request and the link.
     evidenceRequest: { findUnique: async () => ({ status: "SENT" }) },
     workflowIntakeLink: { findUnique: async () => null },
+    // PRO-G1-09 — the send-time liveness read: an operating personal workspace.
+    team: { findUnique: async () => ({ isPersonal: true, workspaceKind: "PERSONAL", billingPlan: "FREE", closedAtUtc: null, organization: null }) },
     webhookEndpoint: {
       findMany: async (args: {
         where: { teamId: string; status: "ACTIVE" };

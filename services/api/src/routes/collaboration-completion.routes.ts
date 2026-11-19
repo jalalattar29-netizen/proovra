@@ -253,6 +253,10 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
           workspaceId: binding.workspace.workspaceId,
           userId: binding.workspace.userId,
         };
+        // PRO-K2-13 — a malformed path id is a 400, never a Prisma error served as 500.
+        if (!z.string().uuid().safeParse(req.params.commentId).success) {
+          return reply.code(400).send({ error: { code: "invalid_params", message: "commentId must be an id.", requestId: req.id ?? null } });
+        }
         const parsed = EditCommentBody.safeParse(req.body);
         if (!parsed.success)
           return reply
@@ -304,6 +308,10 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
           workspaceId: binding.workspace.workspaceId,
           userId: binding.workspace.userId,
         };
+        // PRO-K2-13 — a malformed path id is a 400, never a Prisma error served as 500.
+        if (!z.string().uuid().safeParse(req.params.commentId).success) {
+          return reply.code(400).send({ error: { code: "invalid_params", message: "commentId must be an id.", requestId: req.id ?? null } });
+        }
         try {
           await deleteComment({
             teamId: req.params.teamId,

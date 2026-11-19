@@ -450,8 +450,9 @@ describe("free-audit 0ea0 — API-G4A-PLAN-AI (live PostgreSQL)", () => {
     it("B3B-F-501 — reviewer criteria authoring: Free refused with nothing written; PRO creates", async () => {
       const body = (teamId: string) => ({ teamId, name: "c", title: "c", criteria: [{ key: "k", title: "t" }] });
       const refused = await call("POST", "/v1/reviewer-criteria", free.owner.token, body(free.personalTeamId));
-      expect(refused.statusCode, refused.body).toBe(404);
-      expect(json(refused).error.code).toBe("reviewer_operations_not_included");
+      expect(refused.statusCode, refused.body).toBe(403);
+      expect(json(refused).error.code).toBe("ENTITLEMENT_REQUIRED");
+      expect(json(refused).error.reason).toBe("reviewer_operations_not_included");
       expect(await prisma.reviewerCriteriaSet.count({ where: { workspaceId: free.personalTeamId } })).toBe(0);
       const ok = await call("POST", "/v1/reviewer-criteria", pro.owner.token, body(pro.personalTeamId));
       expect(ok.statusCode, ok.body).toBe(201);

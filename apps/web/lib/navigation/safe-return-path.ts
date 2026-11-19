@@ -31,11 +31,25 @@ export const DEFAULT_RETURN_PATH = "/home";
  */
 const MAX_RETURN_PATH_LENGTH = 512;
 
+/**
+ * PRO-PW-11 — the browser-extension sign-in continuation carries the extension's
+ * authorize request (state ≤256, scope ≤256, PKCE challenge ≤128, redirect) in
+ * its query, which can exceed 512 legitimately; it never travels in an email.
+ * Dropping it sent the person to /home with the extension never receiving its
+ * code. Bounded all the same.
+ */
+const EXTENSION_CONTINUE_PREFIX = "/auth/extension/continue";
+const MAX_EXTENSION_CONTINUE_LENGTH = 2048;
+
 export function safeReturnPath(
   raw: string | null | undefined,
   fallback: string = DEFAULT_RETURN_PATH,
 ): string {
   if (typeof raw !== "string") return fallback;
-  if (!raw.startsWith("/") || raw.length > MAX_RETURN_PATH_LENGTH) return fallback;
+  const cap =
+    raw === EXTENSION_CONTINUE_PREFIX || raw.startsWith(`${EXTENSION_CONTINUE_PREFIX}?`)
+      ? MAX_EXTENSION_CONTINUE_LENGTH
+      : MAX_RETURN_PATH_LENGTH;
+  if (!raw.startsWith("/") || raw.length > cap) return fallback;
   return isSafeRedirectAfter(raw) ? raw : fallback;
 }

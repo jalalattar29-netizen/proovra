@@ -261,8 +261,9 @@ function ReviewerIntelligenceConsolePageInner() {
     } catch (err: unknown) {
       // apiFetch throws on non-2xx; map 403/404 to "denied" wording
       // (anti-enumeration: both look the same to the operator).
-      const msg = err instanceof Error ? err.message : "";
-      const denied = /403|404|forbidden|not_found/i.test(msg);
+      // PRO-K1C-07 — the status apiFetch sets, not a guess from message text.
+      const status = (err as { statusCode?: number } | null)?.statusCode;
+      const denied = status === 401 || status === 403 || status === 404;
       setLastAction({
         signalId,
         outcome: denied ? "denied" : "error",
@@ -531,6 +532,13 @@ useEffect(() => {
               ))}
             </ul>
           )}
+          {/* PRO-K1C-07 — the success note lives outside the row the action
+              removed, so it is actually seen. */}
+          {lastAction?.outcome === "ok" ? (
+            <p role="status" style={emptyStyle} data-investigation-reviewers-action-ok>
+              Recorded {lastAction.action === "ACKNOWLEDGED" ? "acknowledged" : "dismissed"}.
+            </p>
+          ) : null}
         </div>
       </section>
 

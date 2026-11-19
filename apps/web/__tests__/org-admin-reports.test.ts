@@ -12,7 +12,7 @@
  *   - it calls the six real report endpoints under /v1/orgs/${orgId}/reports/;
  *   - it role-filters the report cards via roleMeetsMin (backend still gates);
  *   - it surfaces errors via the sanctioned toSafeUserError / notifyApiError;
- *   - the download-audit report is marked honest "Not available".
+ *   - the download-audit report lists the organization's download events (PRO-O1-14).
  */
 
 import { strict as assert } from "node:assert";
@@ -96,8 +96,10 @@ test("surfaces errors via the sanctioned feedback path (toSafeUserError / notify
   assert.doesNotMatch(PAGE, /addToast\(\s*err(or)?\.message/);
 });
 
-test("download-audit report is marked honest 'Not available'", () => {
-  assert.match(PAGE, /available:\s*false/);
+test("PRO-O1-14: download-audit lists the org's download events (available), and the unavailable badge path stays for any future card", () => {
+  const card = PAGE.slice(PAGE.indexOf('id: "download-audit"'), PAGE.indexOf("];", PAGE.indexOf('id: "download-audit"')));
+  assert.match(card, /available:\s*true/);
+  assert.doesNotMatch(card, /not available at the org tier/);
   assert.match(PAGE, /Not available/);
 });
 

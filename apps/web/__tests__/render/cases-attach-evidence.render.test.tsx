@@ -42,11 +42,14 @@ const CASE_ID = "c1000000-0000-4000-8000-000000000001";
  * LOAD rather than fail an assertion.
  */
 const H = vi.hoisted(() => {
+  // PRO-K1C-04 — shaped like apiFetch's error: the HTTP status is `statusCode`.
+  // The fake used `status`, the one field apiFetch never sets, which is how the
+  // page's refusal branch (reading `status`) passed here and was dead in use.
   class FakeApiError extends Error {
-    status: number;
-    constructor(status: number) {
-      super(`http ${status}`);
-      this.status = status;
+    statusCode: number;
+    constructor(statusCode: number) {
+      super(`http ${statusCode}`);
+      this.statusCode = statusCode;
     }
   }
   return {

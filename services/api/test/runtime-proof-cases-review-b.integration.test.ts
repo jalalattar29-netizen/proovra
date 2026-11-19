@@ -540,7 +540,12 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       }
       const free = await call({ method: "POST", url: `/v1/coding/schemas?teamId=${b.teamId}`, token: b.ownerToken, payload: schemaBody(slug) });
       expect(free.statusCode).toBe(403);
-      expect(free.json()).toEqual({ denial: "ENTITLEMENT_REQUIRED", entitlement: "REVIEWER_OPERATIONS" });
+      expect(free.json()).toMatchObject({
+          denial: "ENTITLEMENT_REQUIRED",
+          entitlement: "REVIEWER_OPERATIONS",
+          // PRO-R2-14 — plus the one review-capability shape.
+          error: { code: "ENTITLEMENT_REQUIRED", reason: "reviewer_operations_not_included" },
+        });
       const foreign = await call({ method: "POST", url: `/v1/coding/schemas?teamId=${a.teamId}`, token: b.ownerToken, payload: schemaBody(slug) });
       expect(foreign.statusCode).toBe(403);
       expect(foreign.json()).toEqual({ denial: "NOT_PERMITTED" });
@@ -708,7 +713,12 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       // refused by the plan gate before anything else…
       const freeOwnTeam = await call({ method: "POST", url: `/v1/reviewer/bulk/code?teamId=${b.teamId}`, token: b.ownerToken, payload: body });
       expect(freeOwnTeam.statusCode).toBe(403);
-      expect(freeOwnTeam.json()).toEqual({ denial: "ENTITLEMENT_REQUIRED", entitlement: "REVIEWER_OPERATIONS" });
+      expect(freeOwnTeam.json()).toMatchObject({
+          denial: "ENTITLEMENT_REQUIRED",
+          entitlement: "REVIEWER_OPERATIONS",
+          // PRO-R2-14 — plus the one review-capability shape.
+          error: { code: "ENTITLEMENT_REQUIRED", reason: "reviewer_operations_not_included" },
+        });
       // …and on a plan that includes it, the tenant boundary answers.
       const bPlan = await asTeamPlan(b.teamId);
       const ownTeam = await call({ method: "POST", url: `/v1/reviewer/bulk/code?teamId=${b.teamId}`, token: b.ownerToken, payload: body });

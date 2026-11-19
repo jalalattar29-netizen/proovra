@@ -52,7 +52,7 @@ top level of it.
 | OK | `parseCaseViewer` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | disabledReasons, userId, viewer |
 | OK | `parseCaseDeliverableRows` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
 | OK | `parseCaseCopilotEvidence` | `GET /v1/cases/:id/matter-workspace` | assignments, case, generatedAt, notFound, risk, sections, statusHistory, viewer | sections |
-| OK | `parseMatterQueue` | `GET /v1/cases/matter-queue` | generatedAt, items, total, workspace | generatedAt, items, total, workspace |
+| OK | `parseMatterQueue` | `GET /v1/cases/matter-queue` | generatedAt, hasMore, items, nextCursor, total, totalIsExact, workspace | generatedAt, items, total, workspace |
 | OK | `parseCollaborationTeams` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | teams |
 | OK | `parseCanGovernWorkspace` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | canGovernWorkspace |
 | OK | `parseGrantedScope` | `GET /v1/collaboration-teams` | canGovernWorkspace, nextCursor, rollup, scope, teams, totalActive, workspaceTotalActive | scope |

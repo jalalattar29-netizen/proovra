@@ -36,6 +36,7 @@
  *   inline.
  */
 
+import { PLAN_REFUSAL_COPY, isPlanRefusal } from "../../../../lib/feedback/plan-refusal";
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { reviewerDenialMessage } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -112,6 +113,8 @@ function DisagreementsShell() {
   const teamId = useActiveSpaceId();
   const [rows, setRows] = useState<DisagreementRow[] | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  // PRO-R2-15 — a failed read is an error with Retry, never "no disagreements".
+  const [loadFailure, setLoadFailure] = useState<"denied" | "plan" | "failed" | null>(null);
   /**
    * Which (disagreementId, target state) currently has the resolution
    * picker open. Null when no picker is open. Only one picker can be
@@ -144,6 +147,7 @@ function DisagreementsShell() {
       );
       if (isStale?.()) return;
       setRows((res?.disagreements ?? []) as DisagreementRow[]);
+      setLoadFailure(null);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn("[reviewer-workspace] disagreements list refresh failed", {
@@ -151,7 +155,9 @@ function DisagreementsShell() {
         status: (err as any)?.statusCode ?? 0,
       });
       if (isStale?.()) return;
-      setRows([]);
+      setRows(null);
+      const status = (err as { statusCode?: number } | null)?.statusCode;
+      setLoadFailure(isPlanRefusal(err) ? "plan" : status === 401 || status === 403 ? "denied" : "failed");
     }
   }, [teamId]);
 
@@ -259,7 +265,22 @@ function DisagreementsShell() {
           {banner}
         </div>
       ) : null}
-      {rows === null ? (
+      {loadFailure ? (
+        <div role="alert" data-disagreements-failure={loadFailure}>
+          <p>
+            {loadFailure === "plan"
+              ? PLAN_REFUSAL_COPY
+              : loadFailure === "denied"
+                ? "You do not have access to this workspace's disagreements."
+                : "Disagreements could not be loaded. This is not the same as having none."}
+          </p>
+          {loadFailure === "failed" ? (
+            <button type="button" onClick={() => void refresh()}>
+              Retry
+            </button>
+          ) : null}
+        </div>
+      ) : rows === null ? (
         <div>Loading…</div>
       ) : rows.length === 0 ? (
         <OperationalEmptyState

@@ -8,7 +8,7 @@
  * NEVER PII.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   EXECUTIVE_METRICS_RANGES,
@@ -38,24 +38,39 @@ function Shell() {
   const [breaches, setBreaches] = useState<BudgetBreachProjection | null>(null);
   const [range, setRange] = useState<ExecutiveMetricsRange>("30d");
   const [busy, setBusy] = useState(false);
+  // PRO-BL2-05 — a failed read is a failure, never "No active budgets" / "No
+  // breaches in window". Each read keeps its own outcome (one failing call no
+  // longer blanks the other) and a slower earlier response cannot overwrite a
+  // newer range's.
+  const [spendFailure, setSpendFailure] = useState<LoadFailure | null>(null);
+  const [breachFailure, setBreachFailure] = useState<LoadFailure | null>(null);
+  const generation = useRef(0);
 
   const refresh = useCallback(async () => {
+    const mine = ++generation.current;
     setBusy(true);
-    try {
-      const [s, b] = await Promise.all([
-        apiFetch("/v1/intelligence/budgets/spend", { method: "GET" }),
-        apiFetch(`/v1/intelligence/budgets/breaches?range=${range}`, {
-          method: "GET",
-        }),
-      ]);
-      setSpend((s?.projection ?? null) as BudgetSpendProjection | null);
-      setBreaches((b?.projection ?? null) as BudgetBreachProjection | null);
-    } catch {
+    const [s, b] = await Promise.allSettled([
+      apiFetch("/v1/intelligence/budgets/spend", { method: "GET" }),
+      apiFetch(`/v1/intelligence/budgets/breaches?range=${range}`, {
+        method: "GET",
+      }),
+    ]);
+    if (mine !== generation.current) return;
+    if (s.status === "fulfilled") {
+      setSpend((s.value?.projection ?? null) as BudgetSpendProjection | null);
+      setSpendFailure(null);
+    } else {
       setSpend(null);
-      setBreaches(null);
-    } finally {
-      setBusy(false);
+      setSpendFailure(loadFailureOf(s.reason));
     }
+    if (b.status === "fulfilled") {
+      setBreaches((b.value?.projection ?? null) as BudgetBreachProjection | null);
+      setBreachFailure(null);
+    } else {
+      setBreaches(null);
+      setBreachFailure(loadFailureOf(b.reason));
+    }
+    setBusy(false);
   }, [range]);
 
   useEffect(() => {
@@ -134,17 +149,63 @@ function Shell() {
 
       <section data-budget-center-spend style={section}>
         <h2 style={{ fontSize: 14, marginTop: 0 }}>Per-scope spend</h2>
-        <SpendTable rows={spend?.rows ?? []} />
+        {spendFailure ? (
+          <LoadFailureLine failure={spendFailure} what="budgets" onRetry={() => void refresh()} busy={busy} />
+        ) : (
+          <SpendTable rows={spend?.rows ?? []} />
+        )}
       </section>
 
       <section data-budget-center-breaches style={section}>
         <h2 style={{ fontSize: 14, marginTop: 0 }}>
-          Breach timeline · {breaches?.totalBreaches ?? 0} total ·{" "}
-          {breaches?.softBreaches ?? 0} soft · {breaches?.hardBreaches ?? 0} hard
+          {breachFailure ? (
+            "Breach timeline"
+          ) : (
+            <>
+              Breach timeline · {breaches?.totalBreaches ?? 0} total ·{" "}
+              {breaches?.softBreaches ?? 0} soft · {breaches?.hardBreaches ?? 0} hard
+            </>
+          )}
         </h2>
-        <BreachTable rows={breaches?.rows ?? []} />
+        {breachFailure ? (
+          <LoadFailureLine failure={breachFailure} what="breaches" onRetry={() => void refresh()} busy={busy} />
+        ) : (
+          <BreachTable rows={breaches?.rows ?? []} />
+        )}
       </section>
     </div>
+  );
+}
+
+type LoadFailure = { kind: "denied" | "failed" };
+
+function loadFailureOf(err: unknown): LoadFailure {
+  const status = (err as { statusCode?: number } | null)?.statusCode;
+  return { kind: status === 401 || status === 403 || status === 404 ? "denied" : "failed" };
+}
+
+function LoadFailureLine({
+  failure,
+  what,
+  onRetry,
+  busy,
+}: {
+  failure: LoadFailure;
+  what: "budgets" | "breaches";
+  onRetry: () => void;
+  busy: boolean;
+}) {
+  return (
+    <p role="alert" data-budget-center-failure={failure.kind} style={{ color: "#b91c1c", fontSize: 12 }}>
+      {failure.kind === "denied"
+        ? `You do not have access to this workspace's ${what}.`
+        : `The ${what} could not be loaded. This is not the same as having none.`}{" "}
+      {failure.kind === "failed" ? (
+        <button type="button" onClick={onRetry} disabled={busy} style={primaryButton}>
+          Try again
+        </button>
+      ) : null}
+    </p>
   );
 }
 

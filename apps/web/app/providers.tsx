@@ -3,6 +3,8 @@
 import ContractSkewNotice from "../components/ContractSkewNotice";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
+import { isEnglishOnlyPublicPath } from "../lib/i18n-english-only";
 import {
   clearLocaleCookies,
   directionFor,
@@ -130,6 +132,7 @@ async function fetchMe(): Promise<AuthUser | null> {
 export function Providers({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
   const [mode, setModeState] = useState<LocaleMode>("auto");
+  const pathname = usePathname();
 
   const [token, setTokenState] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -167,8 +170,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    document.documentElement.lang = locale;
-    document.documentElement.dir = directionFor(locale);
+    // PRO-PW-10 (DEC-31) — an English-only public page stays English and
+    // left-to-right whatever the chosen locale; elsewhere the locale decides.
+    const englishOnly = isEnglishOnlyPublicPath(pathname);
+    document.documentElement.lang = englishOnly ? "en" : locale;
+    document.documentElement.dir = englishOnly ? "ltr" : directionFor(locale);
 
     // Locale + locale-mode are functional preferences. Only persist when
     // the user has granted preferences consent; otherwise behaviour stays
@@ -190,7 +196,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     // HTML it sends. Without it the server can only guess LTR and the first
     // frame of every page is the console laid out the wrong way round.
     writeLocaleCookies(locale, mode);
-  }, [locale, mode]);
+  }, [locale, mode, pathname]);
 
   const localeValue = useMemo<LocaleContextValue>(() => {
     const isRTL = locale === "ar";

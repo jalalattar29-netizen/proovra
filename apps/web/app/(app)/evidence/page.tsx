@@ -769,7 +769,24 @@ function EvidenceLibraryPageInner() {
    */
   const metrics = useMemo(() => {
     const usingWorkspaceTotal = workspaceSummary !== null;
-    const workspaceScopeDetail = "Workspace total";
+    // PRO-E1-10 — the card says what the number counts: the summary is for the
+    // scope and filters in use (Trash, Archived, a search), so it is labelled
+    // from that scope and says "matching current filters" when any is set,
+    // instead of a static "Active records · Workspace total".
+    const summaryScope =
+      (workspaceSummary as { scope?: string } | null)?.scope ?? serverQuery.scope;
+    const summaryNarrowed =
+      Array.from(new URLSearchParams(buildEvidenceLibrarySummaryPath(serverQuery).split("?")[1] ?? "").keys()).length > 1;
+    const recordsLabel =
+      summaryScope === "trash"
+        ? "Records in Trash"
+        : summaryScope === "archived"
+          ? "Archived records"
+          : summaryScope === "active"
+            ? "Active records"
+            : "Records";
+    const workspaceTotalDetail = "Workspace total";
+    const workspaceScopeDetail = summaryNarrowed ? "Matching current filters" : workspaceTotalDetail;
     const pageScopeDetail = "On this page";
 
     // Page-derived (safe fallbacks for non-package values).
@@ -785,7 +802,7 @@ function EvidenceLibraryPageInner() {
     // the current page count (clearly labelled).
     const activeRecordsCard = usingWorkspaceTotal
       ? {
-          label: "Active records",
+          label: recordsLabel,
           value: String(workspaceSummary.totalActiveRecords),
           detail: workspaceScopeDetail,
         }
@@ -919,7 +936,7 @@ function EvidenceLibraryPageInner() {
       unassignedCard,
       reviewReadyCard,
     ];
-  }, [library.totalCount, visibleItems, workspaceSummary]);
+  }, [library.totalCount, visibleItems, workspaceSummary, serverQuery]);
 
   const pageLabel = useMemo(() => `Page ${pageNumber}`, [pageNumber]);
   const resultsLabel = useMemo(() => {

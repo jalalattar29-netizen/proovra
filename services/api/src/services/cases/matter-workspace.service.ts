@@ -231,6 +231,13 @@ export type MatterWorkspaceEnvelope = {
         linkRole: string | null;
         linkSource: string | null;
       }>;
+      /**
+       * PRO-K1-07 — additive: how many live records the case links, and whether
+       * `items` is only the newest SECTION_EVIDENCE_LIMIT of them. A client
+       * never presents `items.length` as the case's count.
+       */
+      totalCount?: number;
+      truncated?: boolean;
     };
     relationships: {
       status: SectionStatus;
@@ -416,6 +423,9 @@ export type MatterWorkspaceEnvelope = {
         evidenceId: string;
         createdAt: string;
       }>;
+      /** PRO-K1-07 — additive: the case's comment count and whether `caseComments` is only the newest 25. */
+      caseCommentsTotal?: number;
+      caseCommentsTruncated?: boolean;
     };
     deliverables: {
       status: SectionStatus;
@@ -895,8 +905,15 @@ async function runEvidenceBoard(
         { linkId: l.id, role: l.role, source: l.source },
       ]),
     );
+    // PRO-K1-07 — the true count when the board is cut at its limit.
+    const totalCount =
+      items.length < SECTION_EVIDENCE_LIMIT
+        ? items.length
+        : await prisma.evidence.count({ where: { id: { in: evidenceIds }, deletedAt: null } }).catch(() => items.length);
     return {
       status: "ok",
+      totalCount,
+      truncated: totalCount > items.length,
       items: items.map((e) => ({
         id: e.id,
         // Phase CASES-EVIDENCE-NAMES — pass the real title (or
@@ -1863,8 +1880,15 @@ async function runNotes(
               select: { id: true, evidenceId: true, createdAt: true },
             }),
       ]);
+    // PRO-K1-07 — the true comment count when the list is cut at 25.
+    const caseCommentsTotal =
+      caseComments.length < 25
+        ? caseComments.length
+        : await prisma.caseComment.count({ where: commentFilter }).catch(() => caseComments.length);
     return {
       status: "ok",
+      caseCommentsTotal,
+      caseCommentsTruncated: caseCommentsTotal > caseComments.length,
       caseComments: caseComments.map((c) => ({
         id: c.id,
         authorUserId: c.authorUserId,

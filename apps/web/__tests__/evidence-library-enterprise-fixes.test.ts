@@ -285,7 +285,9 @@ test("FIX 7 — Workspace-total label discipline is intact", () => {
   // moved out of the caption when the target composition put the Scope
   // control immediately below the cards; the SOURCE distinction — the thing
   // that makes the number honest — is unchanged.
-  assert.match(PAGE, /workspaceScopeDetail\s*=\s*"Workspace total"/);
+  // PRO-E1-10 — the workspace caption is "Workspace total" unless filters narrow the summary, then "Matching current filters".
+  assert.match(PAGE, /workspaceTotalDetail\s*=\s*"Workspace total"/);
+  assert.match(PAGE, /workspaceScopeDetail\s*=\s*summaryNarrowed \? "Matching current filters" : workspaceTotalDetail/);
   assert.match(PAGE, /pageScopeDetail\s*=\s*"On this page"/);
   assert.notEqual("Workspace total", "On this page");
   // Page-derived branches must never borrow the workspace caption.

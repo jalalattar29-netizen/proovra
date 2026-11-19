@@ -350,6 +350,11 @@ export async function updateWebhookEndpoint(
         : {}),
       ...(eventTypes !== undefined ? { eventTypes } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
+      // PRO-G1-07 — re-enabling is the admin's statement that the receiver is
+      // fixed (OPS-13, the automation-destination sibling): the failure count
+      // restarts, or the very next failure would disable it again. An
+      // ACTIVE→ACTIVE update leaves the count alone.
+      ...(input.status === "ACTIVE" && existing.status !== "ACTIVE" ? { failureCount: 0 } : {}),
     },
   });
 }

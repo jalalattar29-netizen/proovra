@@ -15,7 +15,7 @@
  *   - Dead-letter after 8 attempts (mirrors webhook-platform.service.ts).
  */
 
-import { SWEEP_NAMES, getWorkEntryOrThrow } from "@proovra/shared";
+import { SWEEP_NAMES, getWorkEntryOrThrow, normalizeWorkspaceKind } from "@proovra/shared";
 import {
   LIFECYCLE_WEBHOOK_OUTBOUND_POLICY,
   checkOutboundUrlStatic,
@@ -106,6 +106,42 @@ const BACKOFF_CAP_SECONDS = 60 * 60; // 1 hour
 /** Response bytes read (then discarded) before the connection is dropped. */
 const RESPONSE_DRAIN_MAX_BYTES = 4 * 1024;
 const PAYLOAD_SIZE_LIMIT_BYTES = 64 * 1024; // 64 KB
+/** PRO-G1-09 — how long a delivery of a non-operating workspace waits before it is looked at again. */
+const NOT_OPERATING_DEFER_MS = 15 * 60_000;
+
+/**
+ * PRO-G1-09 — the worker's reading of the API's `isLiveOperatingWorkspace`
+ * (services/api/src/services/workspace/operating-workspace.ts): the same shared
+ * classifier (`normalizeWorkspaceKind`), the same rule — a closed workspace is
+ * not operating; an ORGANIZATION workspace operates only while its organization
+ * is ACTIVE; an unprovable kind or a failed read fails CLOSED.
+ */
+async function workspaceIsOperating(teamId: string): Promise<boolean> {
+  try {
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: {
+        isPersonal: true,
+        workspaceKind: true,
+        billingPlan: true,
+        closedAtUtc: true,
+        organization: { select: { status: true } },
+      },
+    });
+    if (!team || team.closedAtUtc !== null) return false;
+    const kind = normalizeWorkspaceKind({
+      workspaceKind: team.workspaceKind,
+      isPersonal: team.isPersonal,
+      billingPlan: team.billingPlan,
+      teamLoaded: true,
+    });
+    if (kind === "UNKNOWN") return false;
+    if (kind === "ORGANIZATION") return team.organization?.status === "ACTIVE";
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -376,6 +412,24 @@ async function dispatchOne(
       where: { id: deliveryId },
       data: { state: "FAILED", lastAttemptAtUtc: new Date() },
     }).catch(() => null);
+    return;
+  }
+
+  // PRO-G1-09 / B7B-F02 — a closed workspace, or one whose organization is
+  // suspended, sends nothing out. The emit path already refuses to queue in
+  // that state; a delivery queued BEFORE the transition is deferred here
+  // (attempt count untouched, nothing signed or claimed) and delivers after
+  // the organization resumes. Closure also disables the endpoint, which the
+  // check above turns into FAILED.
+  if (!(await workspaceIsOperating(delivery.teamId))) {
+    await webhookDeliveryUpdate({
+      where: { id: deliveryId },
+      data: {
+        state: "RETRYING",
+        nextAttemptAtUtc: new Date(Date.now() + NOT_OPERATING_DEFER_MS),
+      },
+    }).catch(() => null);
+    logger.info({ deliveryId }, "webhook.dispatcher.workspace_not_operating_deferred");
     return;
   }
 

@@ -222,9 +222,9 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           <button
             type="button"
             className="app-secondary-action"
-            onClick={() =>
-              routerPush(`/evidence/${workspace.evidence.id}?tab=artifacts`)
-            }
+            // PRO-E2-08 — switch the mounted page to Artifacts (a query-only
+            // push does not re-read the initial tab).
+            onClick={() => ctx.openArtifacts()}
             disabled={!reportAvailable}
             aria-disabled={!reportAvailable}
             title={

@@ -186,6 +186,9 @@ export const SESSION_WRITE_EXEMPTIONS: Readonly<Record<LegalExemptionCategory, r
     `POST /v1/integrations/webhooks/${P}/disable`,
     `POST /v1/integrations/webhooks/endpoints/${P}/deactivate`,
     `POST /v1/automation/webhooks/${P}/disable`,
+    // PRO-G1Z-03 — switching a rule OFF reduces outbound behaviour, like the
+    // destination disable above; enabling a rule stays gated.
+    `POST /v1/automation/rules/${P}/disable`,
     `POST /v1/identity/service-accounts/${P}/disable`,
     `POST /v1/external-review/grants/${P}/revoke`,
     `POST /v1/external-review/invitations/${P}/revoke`,

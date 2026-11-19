@@ -79,7 +79,7 @@ const ALL_CASES = [CASE_A1, CASE_B1];
 // service passes (this is where scope/leak assertions live).
 // ---------------------------------------------------------------------------
 const mockClient = {
-  case: { findMany: vi.fn() },
+  case: { findMany: vi.fn(), count: vi.fn() },
   user: { findMany: vi.fn() },
   evidence: { findMany: vi.fn(), count: vi.fn() },
   caseEvidenceLink: { findMany: vi.fn() },
@@ -178,6 +178,15 @@ beforeEach(() => {
           c.teamId === teamId && (!OR || OR.length === 0 || caseMatchesOr(c, OR)),
       ).slice(0, args.take ?? 50);
     },
+  );
+  // PRO-K1-07 — the queue's total is a COUNT of the same where.
+  mockClient.case.count.mockImplementation(
+    async (args: { where: { teamId: string; OR?: Array<Record<string, unknown>> } }) =>
+      ALL_CASES.filter(
+        (c) =>
+          c.teamId === args.where.teamId &&
+          (!args.where.OR || args.where.OR.length === 0 || caseMatchesOr(c, args.where.OR)),
+      ).length,
   );
 
   // Owner resolution: return USER_A_OWNER when the term matches its

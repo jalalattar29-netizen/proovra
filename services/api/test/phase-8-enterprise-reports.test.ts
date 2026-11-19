@@ -258,25 +258,31 @@ describe("Phase 8 reports — every export writes an ORG_REPORT_EXPORTED audit e
   });
 });
 
-describe("Phase 8 reports — download-audit is HONEST-unavailable (never 500, never fabricated)", () => {
+describe("Phase 8 reports — download-audit lists the org's real download audits (PRO-O1-14)", () => {
+  // The download audits ARE tenant-audit rows carrying the record's workspace
+  // id; the old "not attributed to an organization" note was untrue.
   const s = () => sliceEndpoint("download-audit.csv");
-  it("returns 200 with a documented not-available note, not an error", () => {
-    expect(s()).toContain("not_available_at_org_tier");
-    expect(s()).toContain('reply.header("x-report-available", "false")');
+  it("reads tenant-audit rows scoped to the org's workspaces and the download actions", () => {
+    expect(s()).toContain("prisma.adminAuditLog.findMany");
+    expect(s()).toContain('category: "tenant_audit"');
+    expect(s()).toContain("workspaceId: { in: teamIds }");
+    expect(s()).toContain("action: { in: [...DOWNLOAD_AUDIT_ACTIONS] }");
+    expect(s()).not.toContain("not_available_at_org_tier");
   });
-  it("does NOT throw / 500 and does NOT invent download rows", () => {
-    const block = s();
-    expect(block).not.toContain("throw new Error");
-    expect(block).not.toContain(".code(500)");
-    // No evidence/custody query is run here — it only serves the note.
-    expect(block).not.toContain("findMany");
-  });
-  it("audits the export with available:false + rowCount 0", () => {
-    expect(s()).toContain('auditExport(orgId, userId, "download-audit", 0, {');
-    expect(s()).toContain("available: false");
+  it("is bounded and signals truncation like audit.csv", () => {
+    expect(s()).toContain("take: AUDIT_ROW_CAP + 1");
+    expect(s()).toContain('reply.header("x-report-truncated", "true")');
   });
 });
 
+describe("Phase 8 reports — external-access.csv signals truncation (PRO-O1-14)", () => {
+  it("fetches one past the cap and sets x-report-truncated", () => {
+    const s = sliceEndpoint("external-access.csv");
+    expect(s).toContain("take: AUDIT_ROW_CAP + 1");
+    expect(s).toContain("const externalTruncated = fetchedAssignments.length > AUDIT_ROW_CAP");
+    expect(s).toContain('reply.header("x-report-truncated", "true")');
+  });
+});
 describe("Phase 8 reports — does not touch the evidence PDF / signing pipeline", () => {
   it("no hashing / signing / TSA / OTS / verification-package internals", () => {
     // Ban the actual internal CALLS/identifiers. (The honest download-audit

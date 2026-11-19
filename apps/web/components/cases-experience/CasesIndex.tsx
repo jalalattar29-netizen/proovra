@@ -283,6 +283,41 @@ export function CasesIndex() {
     void reload();
   }, [reload, workspaceId]);
 
+  // PRO-K1-07 — the next page, appended (deduplicated by id).
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const loadMore = useCallback(
+    async (cursor: string) => {
+      setLoadingMore(true);
+      setLoadMoreError(null);
+      try {
+        const next = (await apiFetch(`/v1/cases/matter-queue?${queryString}&cursor=${encodeURIComponent(cursor)}`, {
+          method: "GET",
+        })) as MatterQueueEnvelope;
+        setState((prev) => {
+          if (prev.status !== "ready") return prev;
+          const seen = new Set(prev.envelope.items.map((i) => i.id));
+          return {
+            status: "ready",
+            envelope: {
+              ...prev.envelope,
+              items: [...prev.envelope.items, ...next.items.filter((i) => !seen.has(i.id))],
+              hasMore: next.hasMore,
+              nextCursor: next.nextCursor ?? null,
+              total: next.totalIsExact === false ? Math.max(prev.envelope.total, prev.envelope.items.length + next.items.length) : next.total,
+              totalIsExact: next.totalIsExact,
+            },
+          };
+        });
+      } catch (err) {
+        setLoadMoreError(toSafeUserError(err, { message: "More cases could not be loaded." }).message);
+      } finally {
+        setLoadingMore(false);
+      }
+    },
+    [queryString],
+  );
+
   // STAGE 3 — genuine no-workspace case only. Personal users with an
   // active personalSpace fall through to the queue UI (the server is
   // the authority on capability + visibility). The structured
@@ -418,7 +453,10 @@ export function CasesIndex() {
             contextStrip={
               <div className="cc-meta" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <Badge tone="info" subtle data-matter-queue-total>
-                  {envelope.total} {envelope.total === 1 ? "case" : "cases"}
+                  {/* PRO-K1-07 — the server's count of every matching case (a
+                      lower bound, marked +, when a row filter's scan was cut). */}
+                  {envelope.total}
+                  {envelope.totalIsExact === false ? "+" : ""} {envelope.total === 1 && envelope.totalIsExact !== false ? "case" : "cases"}
                 </Badge>
                 <span
                   title={envelope.generatedAt}
@@ -506,6 +544,25 @@ export function CasesIndex() {
           onCreateCase={createLocked ? null : () => setCreateOpen(true)}
           onReload={reload}
         />
+        {envelope.hasMore && envelope.nextCursor ? (
+          // PRO-K1-07 — the rest of the list is reachable.
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+            <Button
+              variant="secondary"
+              data-matter-queue-load-more
+              loading={loadingMore}
+              disabled={loadingMore}
+              onClick={() => void loadMore(envelope.nextCursor as string)}
+            >
+              Load more cases
+            </Button>
+          </div>
+        ) : null}
+        {loadMoreError ? (
+          <p role="alert" className="cc-muted" data-matter-queue-load-more-error>
+            {loadMoreError}
+          </p>
+        ) : null}
       </PageShell>
 
       {/* Phase 2.1 — Create Case modal. Mounted at the page level so

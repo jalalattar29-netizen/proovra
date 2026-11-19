@@ -15,6 +15,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
+import { reviewCapabilityRefusalBody } from "../services/billing/review-capability-refusal.js";
 
 /**
  * B3B-F-501 (Free-user audit 0ea0) — authoring and publishing criteria is
@@ -27,7 +28,8 @@ import { workspaceIncludesReviewCapability } from "../services/billing-enforceme
  */
 async function refuseUnlessReviewIncluded(teamId: string, reply: FastifyReply): Promise<boolean> {
   if (await workspaceIncludesReviewCapability(teamId, "BASIC_RECORD_REVIEW")) return false;
-  reply.code(404).send({ error: { code: "reviewer_operations_not_included", details: null } });
+  // PRO-R2-14 — the one review-capability refusal shape, after membership.
+  reply.code(403).send(reviewCapabilityRefusalBody("BASIC_RECORD_REVIEW", reply.request.id));
   return true;
 }
 

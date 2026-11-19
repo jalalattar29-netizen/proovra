@@ -208,6 +208,35 @@ type TeamActivitiesResponse = {
   activities: TeamActivity[];
 };
 
+/**
+ * PRO-G1Z-06 — "View all integration activity" on /integrations links here
+ * with `?activityTarget=integration`. The activity API filters by one exact
+ * `targetType`; integration activity is two (API keys and webhook endpoints),
+ * so both are read and merged newest-first. Any other value is ignored.
+ */
+const ACTIVITY_TARGET_TYPES: Readonly<Record<string, readonly string[]>> = {
+  integration: ["api_credential", "webhook_endpoint"],
+};
+
+function activityTargetFilter(): readonly string[] | null {
+  if (typeof window === "undefined") return null;
+  const key = new URLSearchParams(window.location.search).get("activityTarget");
+  return key ? ACTIVITY_TARGET_TYPES[key] ?? null : null;
+}
+
+async function loadTeamActivities(
+  teamId: string,
+  targetTypes: readonly string[] | null,
+): Promise<TeamActivitiesResponse> {
+  if (!targetTypes) return (await apiFetch(`/v1/teams/${teamId}/activity`)) as TeamActivitiesResponse;
+  const pages = (await Promise.all(
+    targetTypes.map((t) => apiFetch(`/v1/teams/${teamId}/activity?targetType=${encodeURIComponent(t)}`)),
+  )) as TeamActivitiesResponse[];
+  const merged = pages.flatMap((p) => p?.activities ?? []);
+  merged.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  return { activities: merged };
+}
+
 /** `GET /v1/teams/:id/invites` returns at most this many rows (teams.routes.ts). */
 const INVITE_LIST_PAGE_CAP = 200;
 
@@ -522,7 +551,7 @@ function TeamDetailPageBody() {
               read: (err?.statusCode === 403 ? "refused" : "failed") as InvitesReadState,
             }),
           )) as Promise<{ res: TeamInvitesResponse; read: InvitesReadState }>,
-          (apiFetch(`/v1/teams/${teamId}/activity`).then(
+          (loadTeamActivities(teamId, activityTargetFilter()).then(
             (res: TeamActivitiesResponse) => ({ res, failed: false }),
             () => ({ res: { activities: [] } as TeamActivitiesResponse, failed: true }),
           ) as Promise<{ res: TeamActivitiesResponse; failed: boolean }>),

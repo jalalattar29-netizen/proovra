@@ -103,6 +103,17 @@ const PURPOSES: Purpose[] = [
   "PREFERENCE_UPDATE",
 ];
 
+/** PRO-N1Z-04 — the item a notification pointed at, from the URL. */
+function readLinkedMessage(): { status: Status | null; messageId: string | null } {
+  if (typeof window === "undefined") return { status: null, messageId: null };
+  const params = new URLSearchParams(window.location.search);
+  const rawStatus = params.get("status");
+  const status = rawStatus && (STATUSES as string[]).includes(rawStatus) ? (rawStatus as Status) : null;
+  const rawId = params.get("messageId");
+  const messageId = rawId && /^[0-9a-f-]{36}$/i.test(rawId) ? rawId : null;
+  return { status, messageId };
+}
+
 // Phase 38.12 — wrap in canonical PageRouteGate.
 export default function CommunicationsPage() {
   return (
@@ -118,9 +129,23 @@ function CommunicationsPageInner() {
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [channel, setChannel] = useState<Channel | "">("");
   const [purpose, setPurpose] = useState<Purpose | "">("");
+  // PRO-N1Z-04 — a notification links here as `?status=FAILED&messageId=<id>`:
+  // the status filter is applied and the named message highlighted. Read once
+  // after mount (window, so no Suspense boundary and no hydration mismatch);
+  // unknown values are ignored.
+  const [linked, setLinked] = useState<{ status: Status | null; messageId: string | null }>({
+    status: null,
+    messageId: null,
+  });
   const [status, setStatus] = useState<Status | "">("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const fromUrl = readLinkedMessage();
+    setLinked(fromUrl);
+    if (fromUrl.status) setStatus(fromUrl.status);
+  }, []);
 
   
   useEffect(() => {
@@ -302,7 +327,12 @@ function CommunicationsPageInner() {
             ) : (
               <ul style={listStyle}>
                 {messages.map((m) => (
-                  <li key={m.id} style={rowStyle}>
+                  <li
+                    key={m.id}
+                    style={m.id === linked.messageId ? { ...rowStyle, outline: "2px solid var(--focus-ring, #2563eb)" } : rowStyle}
+                    data-linked-message={m.id === linked.messageId ? "true" : undefined}
+                    aria-current={m.id === linked.messageId ? "true" : undefined}
+                  >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600 }}>
                         {m.purpose}{" "}
@@ -353,6 +383,11 @@ function CommunicationsPageInner() {
                 ))}
               </ul>
             )}
+            {messages !== null && linked.messageId && !messages.some((m) => m.id === linked.messageId) ? (
+              <p style={mutedStyle} data-linked-message-missing="true">
+                The message this notification pointed to is not in this list. It may have been retried, or it belongs to another workspace.
+              </p>
+            ) : null}
           </section>
         </>
       )}
