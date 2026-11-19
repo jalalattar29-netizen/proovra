@@ -312,44 +312,44 @@
       "reviewedAtUtc": "2026-10-09"
     },
     {
-      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:243",
+      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:244",
       "helper": "buildRequestTransitionPath(id, \"send\") — a literal transition",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:243"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:244"
       ],
       "routes": [
         "POST /v1/evidence-requests/:id/send"
       ],
-      "evidence": "Literal \"send\" at the call site.",
+      "evidence": "Literal \"send\" at the call site. | Re-anchored :243 -> :244 on 2026-11-19 (remediation integration, High-review fix merges moved the line). Verified BY READING: the same call.",
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:263",
+      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:264",
       "helper": "buildRequestTransitionPath(id, transition) — transition is the pending action button; re-anchored from :119",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:263",
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:449",
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:722",
-        "apps/mobile/src/product/evidence-requests.ts:247"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:264",
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:452",
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:725",
+        "apps/mobile/src/product/evidence-requests.ts:288"
       ],
       "routes": [
         "POST /v1/evidence-requests/:id/send",
         "POST /v1/evidence-requests/:id/cancel",
         "POST /v1/evidence-requests/:id/close"
       ],
-      "evidence": "pending is set from actionTransitions (:722), which is availableRequestTransitions(status) with \"needs-more-info\" filtered out (:449); that one has its own call site at :289.",
+      "evidence": "pending is set from actionTransitions (:722), which is availableRequestTransitions(status) with \"needs-more-info\" filtered out (:449); that one has its own call site at :289. | Re-anchored :263 -> :264 on 2026-11-19 (remediation integration, High-review fix merges moved the line). Verified BY READING: the same call. After the re-anchor: actionTransitions is built at :452 (availableRequestTransitions(status) at :446, with \"needs-more-info\" filtered out), the button sets pending at :725, the needs-more-info call site is :290, and availableRequestTransitions is declared at evidence-requests.ts:288.",
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:289",
+      "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:290",
       "helper": "buildRequestTransitionPath(id, \"needs-more-info\") — a literal transition",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/evidence-request/[id].tsx:289"
+        "apps/mobile/app/(stack)/evidence-request/[id].tsx:290"
       ],
       "routes": [
         "POST /v1/evidence-requests/:id/needs-more-info"
       ],
-      "evidence": "Literal \"needs-more-info\" at the call site.",
+      "evidence": "Literal \"needs-more-info\" at the call site. | Re-anchored :289 -> :290 on 2026-11-19 (remediation integration, High-review fix merges moved the line). Verified BY READING: the same call.",
       "reviewedAtUtc": "2026-09-25"
     },
     {
