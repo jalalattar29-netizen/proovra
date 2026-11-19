@@ -522,6 +522,36 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
       expect(code(foreignSubject)).toBe("user_not_in_workspace");
       expect(await prisma.externalIdentityMapping.count({ where: { externalSubjectId: subject } })).toBe(0);
 
+      // PRO-A2-02 — an administrator's manual link is for identities the
+      // Organization's directory originated. An independent (self-serve) member
+      // is refused even under step-up and nothing is written; the rest of this
+      // case runs on a directory-originated identity (restored at the end).
+      const selfServeChallenge = await ownerStepUp("EXTERNAL_IDENTITY_LINK", "user", memberUserId);
+      const selfServe = await call({
+        method: "POST",
+        url: "/v1/identity/external-mappings",
+        token: ownerToken,
+        payload: body,
+        challengeId: selfServeChallenge,
+      });
+      expect(selfServe.statusCode, selfServe.body).toBe(409);
+      expect(code(selfServe)).toBe("owner_consent_required");
+      expect(await prisma.externalIdentityMapping.count({ where: { externalSubjectId: subject } })).toBe(0);
+      const memberOrigin = await prisma.user.findUniqueOrThrow({
+        where: { id: memberUserId },
+        select: { providerUserId: true },
+      });
+      const memberOrganizationId = (
+        await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { organizationId: true } })
+      ).organizationId;
+      await prisma.user.update({
+        where: { id: memberUserId },
+        data: { providerUserId: `scim-${memberOrganizationId}:rt-${memberUserId.slice(0, 8)}` },
+      });
+      onTestFinished(async () => {
+        await prisma.user.update({ where: { id: memberUserId }, data: { providerUserId: memberOrigin.providerUserId } });
+      });
+
       const linkChallenge = await ownerStepUp("EXTERNAL_IDENTITY_LINK", "user", memberUserId);
       const linked = await call({
         method: "POST",

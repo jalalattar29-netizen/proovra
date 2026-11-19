@@ -495,7 +495,16 @@ describe("defects — exchange, lifecycle, retention, webhook cancel (live Postg
 
   it("D18 sign-url, deliveries and download authorisation each write an audit row", async () => {
     const { teamA } = h.fixtures;
-    const pkg = await seedPackage("READY", { packageSha256: "c".repeat(64) });
+    // PRO-O1Z-02 — release re-asks the export rule per included record, and a
+    // record that does not exist is refused: the package names a real record.
+    const included = await evidenceFor({ teamId: teamA.teamId, ownerUserId: teamA.ownerUserId });
+    // PRO-O1Z-03 — with no operator download host the stored ZIP itself is
+    // presigned, so a releasable package has a stored object.
+    const pkg = await seedPackage("READY", {
+      packageSha256: "c".repeat(64),
+      evidenceIds: [included],
+      storageKey: `exchange/${teamA.teamId}/${randomUUID()}.zip`,
+    });
 
     const c1 = await stepUp({
       token: teamA.ownerToken,
@@ -525,7 +534,13 @@ describe("defects — exchange, lifecycle, retention, webhook cancel (live Postg
       outcome: "success",
     });
     // The signed URL (and its token) never enters the append-only trail.
-    expect(JSON.stringify(signAudit[0])).not.toContain(signedUrl.split("?token=")[1]);
+    // PRO-O1Z-03 — the bearer part is the manifest token on an operator host,
+    // the request signature on a presigned object URL.
+    const signedQuery = new URL(signedUrl).searchParams;
+    const bearer = signedQuery.get("token") ?? signedQuery.get("X-Amz-Signature");
+    expect(bearer).toBeTruthy();
+    expect(JSON.stringify(signAudit[0])).not.toContain(bearer!);
+    expect(JSON.stringify(signAudit[0])).not.toContain(signedUrl);
 
     const c2 = await stepUp({
       token: teamA.ownerToken,
