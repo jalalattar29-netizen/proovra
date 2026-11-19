@@ -121,6 +121,9 @@ const ENTRYPOINTS = Object.freeze({
     // Read-only: what the billing sweep would do to existing records. Run as a
     // one-off of the new image, `node dist/scripts/billing-automatic-effects-preview.js`.
     "services/api/src/scripts/billing-automatic-effects-preview.ts",
+    // PRO-BL2-01 (WS-BILL) — dry-run by default; lowers inflated downgrade
+    // grandfathers. `pnpm --filter proovra-api ops:repair-legacy-record-cap-override`.
+    "services/api/src/scripts/repair-legacy-record-cap-override.ts",
     // INTERNAL PLAN GRANT — operator CLI over the same service as the admin route
     // (pnpm --filter proovra-api ops:internal-plan-grant).
     "services/api/src/scripts/internal-plan-grant.ts",

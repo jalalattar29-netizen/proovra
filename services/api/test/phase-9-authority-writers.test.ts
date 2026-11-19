@@ -54,6 +54,11 @@ const AUTHORITY_WRITERS: Array<{
       // client, so its caller inside the completion transaction was in fact
       // writing outside it.
       "services/billing/evidence-credits.service.ts": "canonical evidence-credit wallet: grant + conditional consume, ledger-backed",
+      // PRO-BL2-01 (2026-11-18) — operator-run, DRY-RUN-by-default repair that
+      // only LOWERS an inflated legacy_record_cap_override, measured by the
+      // plan writer's own freeze measure (CAS on the stored value).
+      "scripts/repair-legacy-record-cap-override.ts":
+        "repair: lowers legacyRecordCapOverride only (dry-run default; never raises)",
     },
   },
   {

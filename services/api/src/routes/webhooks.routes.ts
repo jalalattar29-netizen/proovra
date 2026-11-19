@@ -162,7 +162,12 @@ function tryParseAddonContextFromCustomId(raw: unknown): {
  * The behaviour is unchanged; this file imports it and calls it as before.
  */
 
-export async function webhooksRoutes(app: FastifyInstance) {
+export async function webhooksRoutes(
+  app: FastifyInstance,
+  /** PRO-BL1-07 — the per-sender verifier bound; production uses the default. */
+  opts: { paypalVerifyPerIpPerMinute?: number } = {},
+) {
+  const paypalVerifyPerIpPerMinute = opts.paypalVerifyPerIpPerMinute ?? PAYPAL_WEBHOOK_VERIFY_PER_IP_PER_MINUTE;
   app.addContentTypeParser(
     "application/json",
     { parseAs: "buffer" },
@@ -537,7 +542,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
     if (structurallyGenuine) {
       const limited = await enforceRateLimit({
         key: `paypal-webhook-verify:${req.ip}`,
-        max: PAYPAL_WEBHOOK_VERIFY_PER_IP_PER_MINUTE,
+        max: paypalVerifyPerIpPerMinute,
         windowSec: 60,
       });
       if (!limited.allowed) {

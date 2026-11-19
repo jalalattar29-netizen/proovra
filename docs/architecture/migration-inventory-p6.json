@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 378,
-    "classifiedMigrations": 378,
+    "filesystemMigrations": 379,
+    "classifiedMigrations": 379,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 378,
+    "productionSnapshotUnknown": 379,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 378,
-    "classifiedMigrations": 378,
+    "filesystemMigrations": 379,
+    "classifiedMigrations": 379,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 378,
+    "productionSnapshotUnknown": 379,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 139,
+      "EXPAND": 140,
       "BACKFILL": 36,
       "CONTRACT_DROP": 12,
       "REPAIR": 6
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 160,
+      "SAFE_TO_APPLY_NOW": 161,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 7
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 378
+    "ProductionMigrationStateUnknown": 379
   },
   "gateFailures": [],
   "migrations": [
@@ -28307,8 +28307,72 @@
       "evidence": "AUTH-LOCKOUT-NONTOTP (2026-11-07). Six nullable columns on mfa_pending_challenges (the sign-in challenge already owns the second factor) carrying the passkey challenge, the mobile handoff token hash and the phone-code attempt binding,. No row is rewritten; an older image never reads them. Rollback: leave the columns."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281121030000_subscription_provider_intent_key",
       "order": 377,
+      "sqlPresent": true,
+      "byteLength": 1639,
+      "checksumSha256": "ada77f557b2214bb693ed8e741b737e29cd04668f8821777331318361e3b86b1",
+      "checksumSha256Raw": "ada77f557b2214bb693ed8e741b737e29cd04668f8821777331318361e3b86b1",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:2 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "subscriptions"
+        ],
+        "addedColumns": [
+          "provider_intent_at_utc",
+          "provider_intent_key"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260204190000_add_auth_billing"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 2 FROM information_schema.columns WHERE table_schema='public' AND table_name='subscriptions' AND column_name IN ('provider_intent_key','provider_intent_at_utc');\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "PRO-BL1-01 (WS-BILL, 2026-11-18). Two nullable columns on subscriptions holding the idempotency key and time of the one provider mutation intent in flight (cancel, restart, plan change), so a retry reuses its key and a new intent never replays a stale answer. No row is rewritten; an older image never reads them. Rollback: leave the columns."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 378,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

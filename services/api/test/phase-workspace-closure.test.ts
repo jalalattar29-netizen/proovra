@@ -34,9 +34,16 @@ describe("preflight", () => {
     );
   });
 
-  it("active billing (team status OR subscription) blocks closure", () => {
+  it("active billing (team status OR subscription OR recurring add-on) blocks closure", () => {
     expect(PREFLIGHT).toMatch(/billingStatus === "ACTIVE"/);
-    expect(PREFLIGHT).toMatch(/teamId,\s*status:\s*\{\s*in:\s*\["ACTIVE",\s*"TRIALING",\s*"PAST_DUE"\]/);
+    // PRO-N1-01 — the ONE open-relationship predicate account closure also
+    // uses: live subscriptions AND recurring storage add-ons of this workspace.
+    expect(PREFLIGHT).toMatch(/listOpenProviderRelationships\(\{\s*teamIds:\s*\[teamId\]\s*\}\)/);
+    const RELATIONSHIPS = readFileSync(
+      fileURLToPath(new URL("../src/services/billing/open-provider-relationships.service.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(RELATIONSHIPS).toMatch(/LIVE_SUBSCRIPTION_STATUSES = \["ACTIVE", "TRIALING", "PAST_DUE"\]/);
   });
 });
 

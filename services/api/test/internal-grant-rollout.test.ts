@@ -200,6 +200,8 @@ describe("internal-grant rollout — migration state", () => {
       // GOV-012: the owner-only legal-hold disclosure setting (default BLOCK). EXPAND.
       "20281119100400_legal_hold_disclosure_setting",
       "20281120000000_login_mfa_challenge_factors",
+      // PRO-BL1-01 (WS-BILL): the provider intent key on subscriptions. EXPAND.
+      "20281121030000_subscription_provider_intent_key",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });
