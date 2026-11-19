@@ -69,11 +69,13 @@ import { artifactLockForAll } from "./object-retention.js";
 import { env } from "./config.js";
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 import { logger } from "./logger.js";
+import { resolveExchangeBuildAdmission } from "./workspace-billing.js";
 // The ONE export-package meter writer, shared with the API's completion route.
 import {
   evaluateEffectiveLegalHold,
   evidenceVisibleThroughCasesWhere,
   recordExportPackageUsage,
+  releaseExportPackageUnit,
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
 import { resolveEvidenceAcquisition } from "@proovra/shared";
@@ -901,6 +903,10 @@ export async function buildExchangePackage(
         where: {
           AND: [
             { id: { in: candidateIds } },
+            // WS-SCHED / PRO-W1C-04 — a record that is destroyed or claimed for
+            // destruction is never packaged again (closes the race with an
+            // executor whose inventory was taken before this build).
+            { destroyedAtUtc: null, lifecycleState: { notIn: ["DESTROYED", "PENDING_DESTRUCTION"] } },
             await workspaceEvidenceWhere(teamId, prisma),
             evidenceVisibleThroughCasesWhere(pkg.createdByUserId ?? null),
           ],
@@ -950,6 +956,19 @@ export async function buildExchangePackage(
   const startedAt = Date.now();
 
   try {
+    // WS-SCHED / PRO-W1-07 (DEC-04) — AT CLAIM, the workspace is asked again:
+    // still live, its organization still ACTIVE, still entitled to Evidence
+    // Exchange. The BUILDING row records what was true when the package was
+    // requested; a build claimed later (queued, re-claimed after a lease,
+    // "Build again") must not run on it. A refusal — and an answer that cannot
+    // be read — takes the failure path below: the package returns to DRAFT,
+    // its reserved monthly unit is given back, nothing is assembled or
+    // uploaded, and the build row states the bounded reason.
+    const admission = await resolveExchangeBuildAdmission(teamId, prisma);
+    if (!admission.admitted) {
+      throw new Error(`exchange_build_refused:${admission.reason}`);
+    }
+
     // Build the ZIP in-memory (archiver — same dep as verification-package.ts).
     const buffers: Buffer[] = [];
     const hashStream = createHash("sha256");
@@ -1110,6 +1129,13 @@ export async function buildExchangePackage(
     const completed = await prisma.$transaction(async (tx) => {
       // ET-SEC-27 — only the attempt that still owns the build commits.
       if (!(await attemptStillOwnsBuild(tx, pkg.id, attemptAt))) return false;
+      // PRO-BL2-02 — a package whose unit was RESERVED at admission is already
+      // counted; only a package without a reservation (created by an older API
+      // image) is metered here.
+      const reservation = await tx.evidenceExchangePackage.findFirst({
+        where: { id: pkg.id, teamId },
+        select: { quotaReservedPeriodStartUtc: true },
+      });
       const transition = await tx.evidenceExchangePackage.updateMany({
         where: { id: pkg.id, teamId, state: "BUILDING" },
         data: {
@@ -1121,7 +1147,9 @@ export async function buildExchangePackage(
         },
       });
       if (transition.count !== 1) return false;
-      await recordExportPackageUsage({ prisma: tx, teamId });
+      if (!reservation?.quotaReservedPeriodStartUtc) {
+        await recordExportPackageUsage({ prisma: tx, teamId });
+      }
       return true;
     });
     if (!completed) {
@@ -1186,12 +1214,26 @@ export async function buildExchangePackage(
     try {
       await prisma.$transaction(async (tx) => {
         if (!(await attemptStillOwnsBuild(tx, pkg.id, attemptAt))) return;
+        // PRO-BL2-02 — the failed build gives its reserved unit back; "Build
+        // again" reserves anew. Read inside the transaction that moves it, so
+        // the unit is released exactly once.
+        const held = await tx.evidenceExchangePackage.findFirst({
+          where: { id: pkg.id, state: "BUILDING" },
+          select: { quotaReservedPeriodStartUtc: true },
+        });
         // Conditional: only a package still BUILDING returns to DRAFT, so a
         // package revoked during the build stays REVOKED.
-        await tx.evidenceExchangePackage.updateMany({
+        const back = await tx.evidenceExchangePackage.updateMany({
           where: { id: pkg.id, state: "BUILDING" },
-          data: { state: "DRAFT" },
+          data: { state: "DRAFT", quotaReservedPeriodStartUtc: null },
         });
+        if (back.count === 1 && held?.quotaReservedPeriodStartUtc) {
+          await releaseExportPackageUnit({
+            prisma: tx,
+            teamId,
+            periodStartUtc: held.quotaReservedPeriodStartUtc,
+          });
+        }
       });
     } catch {
       // ignore

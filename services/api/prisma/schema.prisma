@@ -10319,6 +10319,10 @@ enum GovernanceReconciliationKind {
   /// the API sweep was retired (ET-SEC-24). Recorded here so a stopped or
   /// failing reaper is observable.
   CAPTURE_REAPER
+
+  /// WS-SCHED / PRO-P3DZ-04 — the retention-archive restore sweep. A person
+  /// is waiting on it, so a stopped or failing scheduler must be observable.
+  ARCHIVE_RESTORE
 }
 
 enum GovernanceReconciliationStatus {
@@ -12625,6 +12629,9 @@ model EvidenceExchangePackage {
   deliveredAtUtc        DateTime? @map("delivered_at_utc") @db.Timestamptz(6)
   expiredAtUtc          DateTime? @map("expired_at_utc") @db.Timestamptz(6)
   revokedAtUtc          DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  // PRO-BL2-02 — the entitlement_usage period holding this package's reserved
+  // export unit; NULL = no reservation held (legacy, released or revoked).
+  quotaReservedPeriodStartUtc DateTime? @map("quota_reserved_period_start_utc") @db.Timestamptz(6)
   createdByUserId       String    @map("created_by_user_id") @db.Uuid
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -15546,6 +15553,10 @@ model ReportGenerationRequest {
   intent           String? @db.VarChar(24)
   /// Caller idempotency key for an explicit new version (lost-response replay).
   clientRequestKey String? @map("client_request_key") @db.VarChar(80)
+  /// PRO-W1-06 — bytes this run reserved before publishing (the workspace
+  /// storage reservation). Counted by both usage meters only while the claim
+  /// is live; NULL = nothing reserved.
+  storageReservedBytes BigInt? @map("storage_reserved_bytes")
 
   createdAtUtc   DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
   updatedAtUtc   DateTime  @default(now()) @updatedAt @map("updated_at_utc") @db.Timestamptz(6)

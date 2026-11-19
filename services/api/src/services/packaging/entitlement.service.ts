@@ -792,22 +792,19 @@ export async function assertQuotaEntitlement(input: {
   const limit = typeof projection.value === "number" ? projection.value : 0;
   const period = classifyPeriod(input.key);
   const start = periodStart(period);
-  let consumed = 0;
-  try {
-    const row = await prisma.entitlementUsage.findUnique({
-      where: {
-        teamId_key_periodStartUtc: {
-          teamId: input.teamId,
-          key: input.key,
-          periodStartUtc: start,
-        },
+  // PRO-BL2-02 — a usage read that fails is NOT "nothing consumed": the error
+  // propagates (fail closed) instead of admitting against a zero.
+  const row = await prisma.entitlementUsage.findUnique({
+    where: {
+      teamId_key_periodStartUtc: {
+        teamId: input.teamId,
+        key: input.key,
+        periodStartUtc: start,
       },
-      select: { consumed: true },
-    });
-    consumed = row ? Number(row.consumed) : 0;
-  } catch {
-    consumed = 0;
-  }
+    },
+    select: { consumed: true },
+  });
+  const consumed = row ? Number(row.consumed) : 0;
   const requested = Math.max(0, Math.floor(input.requested));
   if (consumed + requested > limit) {
     await emitDenial(prisma, input.teamId, input.key, input.actorUserId, "QUOTA_EXCEEDED");

@@ -44,10 +44,16 @@ describe("AUD-0002 — shutdown closes every registered worker and queue", () =>
 describe("AUD-0001 — archive restore is not coupled to the trash-grace switch", () => {
   it("restore has its own switch and is not behind the trash-grace one", () => {
     expect(SRC).toContain('const archiveRestoreEnabled = envBoolean("ARCHIVE_RESTORE_ENABLED", true);');
-    const launcher = SRC.slice(SRC.indexOf("function startTrashGraceReconcilerScheduler()"));
+    // PRO-P3DZ-04 — restore is a registered sweep with its own launcher: it is
+    // not inside the trash-grace launcher at all, and both are started
+    // unconditionally by openConsumers.
+    const trash = SRC.slice(SRC.indexOf("function startTrashGraceReconcilerScheduler()"));
+    expect(trash.slice(0, trash.indexOf("\n}\n"))).not.toContain("archiveRestore");
+    const launcher = SRC.slice(SRC.indexOf("function startArchiveRestoreScheduler()"));
     const body = launcher.slice(0, launcher.indexOf("\n}\n"));
-    // No early return: the trash-grace switch cannot skip what follows it.
-    expect(body).not.toMatch(/if \(!trashGraceReconcilerEnabled\)\s*\{[^}]*return;/);
+    expect(body).not.toContain("trashGraceReconcilerEnabled");
     expect(body).toMatch(/if \(archiveRestoreEnabled\) \{\s*archiveRestoreTimer = setInterval/);
+    const open = SRC.slice(SRC.indexOf("function openConsumers(): void {"));
+    expect(open.slice(0, open.indexOf("\n}\n"))).toMatch(/^\s*startArchiveRestoreScheduler\(\);$/m);
   });
 });

@@ -60,6 +60,12 @@ describe("a worker build rechecks the requester's reach (live PostgreSQL)", () =
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
     const { teamA } = h.fixtures;
+    // PRO-W1-07 — the builder re-reads the Evidence Exchange entitlement at claim.
+    await prisma.entitlementGrant.upsert({
+      where: { teamId_key: { teamId: teamA.teamId, key: "FEATURE_EVIDENCE_EXCHANGE" } },
+      update: { valueBool: true, expiresAtUtc: null },
+      create: { teamId: teamA.teamId, key: "FEATURE_EVIDENCE_EXCHANGE", kind: "FEATURE", valueBool: true, source: "CUSTOM", grantedAtUtc: new Date() },
+    });
     listedUserId = teamA.memberUserId;
     offUserId = teamA.adminUserId;
     const restricted = await prisma.case.create({

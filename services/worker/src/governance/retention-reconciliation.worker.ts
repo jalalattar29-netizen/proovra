@@ -72,6 +72,40 @@ export const RECOVERED_WORK_TYPES = [
 
 const DEFAULT_BATCH_SIZE = 200;
 const MAX_BATCH_SIZE = 1000;
+
+/**
+ * WS-SCHED / PRO-W2C-02 — durable id keysets for the two scans below. Both used
+ * to re-read a fixed head of the table every 15 minutes: the expired scan the
+ * oldest `batchSize` rows (records it skips — hold, immutable policy, declined
+ * review — never leave that set, so records behind them never got a review), and
+ * the drift scan an unordered `take`. A global run now resumes after the last
+ * id it read and wraps at the end; a workspace-scoped (operator) run reads its
+ * own workspace from the start and leaves the global cursor alone.
+ */
+const EXPIRED_CURSOR_KEY = "retention-reconciliation:expired";
+const DRIFT_CURSOR_KEY = "retention-reconciliation:drift";
+
+async function readIdCursor(key: string): Promise<string | null> {
+  try {
+    const row = await prisma.workerSweepCursor.findUnique({ where: { key }, select: { cursorId: true } });
+    return row?.cursorId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeIdCursor(key: string, page: Array<{ id: string }>, limit: number): Promise<void> {
+  const cursorId = page.length < limit ? null : page[page.length - 1]!.id;
+  try {
+    await prisma.workerSweepCursor.upsert({
+      where: { key },
+      create: { key, cursorId },
+      update: { cursorId },
+    });
+  } catch {
+    /* a cursor that cannot be written restarts from the head next tick */
+  }
+}
 const NOTIFICATION_DEDUPE_KEY_MAX = 180;
 
 export interface RetentionReconciliationOptions {
@@ -114,6 +148,7 @@ export async function runRetentionReconciliation(
     body: async (ctx) => {
       // 1. Expired-retention scan.
       const now = new Date();
+      const expiredCursor = options.teamId ? null : await readIdCursor(EXPIRED_CURSOR_KEY);
       const expiredEvidence = await prisma.evidence.findMany({
         where: {
           ...(options.teamId ? { teamId: options.teamId } : { teamId: { not: null } }),
@@ -121,8 +156,9 @@ export async function runRetentionReconciliation(
           retentionUntilUtc: { not: null, lt: now },
           lifecycleState: { in: ["ACTIVE", "UNDER_REVIEW", "ARCHIVED"] },
           activeDestructionReviewId: null,
+          ...(expiredCursor ? { id: { gt: expiredCursor } } : {}),
         },
-        orderBy: { retentionUntilUtc: "asc" },
+        orderBy: { id: "asc" },
         take: batchSize,
         select: {
           id: true,
@@ -135,6 +171,7 @@ export async function runRetentionReconciliation(
         },
       });
       ctx.reportProgress({ scanned: expiredEvidence.length });
+      if (!options.teamId) await writeIdCursor(EXPIRED_CURSOR_KEY, expiredEvidence, batchSize);
 
       // GOV-006 — a deferred review wakes on the date a person chose. Nothing read
       // this column, so DEFERRED meant "forever".
@@ -476,20 +513,24 @@ export async function runRetentionReconciliation(
       // 2. Lifecycle drift scan: Evidence rows in PENDING_DESTRUCTION
       //    whose activeDestructionReviewId is null or points at a
       //    terminal review.
+      const driftCursor = options.teamId ? null : await readIdCursor(DRIFT_CURSOR_KEY);
       const driftCandidates = await prisma.evidence.findMany({
         where: {
           ...(options.teamId
             ? { teamId: options.teamId }
             : { teamId: { not: null } }),
           lifecycleState: "PENDING_DESTRUCTION",
+          ...(driftCursor ? { id: { gt: driftCursor } } : {}),
         },
         select: {
           id: true,
           teamId: true,
           activeDestructionReviewId: true,
         },
+        orderBy: { id: "asc" },
         take: batchSize,
       });
+      if (!options.teamId) await writeIdCursor(DRIFT_CURSOR_KEY, driftCandidates, batchSize);
       for (const ev of driftCandidates) {
         if (!ev.teamId) {
           ctx.reportProgress({ skipped: 1 });
@@ -511,9 +552,25 @@ export async function runRetentionReconciliation(
               isDrifted = true;
             }
           }
+          // PRO-W2C-02 — one ledger row per stale pointer, not one per tick: the
+          // same drift (same record, same pointer) is recorded once and stays
+          // counted, until the pointer changes.
+          const driftPointer = ev.activeDestructionReviewId ?? "none";
+          const alreadyRecorded =
+            isDrifted &&
+            (await prisma.evidenceLifecycleEvent.findFirst({
+              where: {
+                evidenceId: ev.id,
+                eventType: "lifecycle_transition",
+                metadata: { path: ["driftPointer"], equals: driftPointer },
+              },
+              select: { id: true },
+            })) !== null;
           if (isDrifted) {
             drift += 1;
             ctx.reportProgress({ incident: 1 });
+          }
+          if (isDrifted && !alreadyRecorded) {
             await prisma.evidenceLifecycleEvent.create({
               data: {
                 teamId: driftTeamId,
@@ -525,6 +582,7 @@ export async function runRetentionReconciliation(
                 metadata: {
                   correlationId: driftCorrelationId,
                   driftKind: "stale_active_destruction_review",
+                  driftPointer,
                   triggeredByRun: ctx.runId,
                 } as prismaPkg.Prisma.InputJsonValue,
                 actorUserId: options.triggeredByUserId ?? undefined,

@@ -60,7 +60,12 @@ vi.mock("../src/db.js", () => ({
       findMany: (...args: unknown[]) => packageRows(...args),
     },
     evidencePartDerivedAsset: { aggregate: vi.fn(async () => ({ _sum: { sizeBytes: 0 } })) },
-    reportGenerationRequest: { findMany: (...args: unknown[]) => recoveryRequests(...args) },
+    // PRO-W1-07 / PRO-W1-06 — the meter also sums stored exchange ZIPs and live reservations.
+    evidenceExchangePackage: { aggregate: vi.fn(async () => ({ _sum: { packageSizeBytes: null } })) },
+    reportGenerationRequest: {
+      findMany: (...args: unknown[]) => recoveryRequests(...args),
+      aggregate: vi.fn(async () => ({ _sum: { storageReservedBytes: null } })),
+    },
     // Free audit 0ea0 (B5B-F-403) — the measure and the gate also read the
     // credit ledger (a credit-funded record's first issuance is excluded too).
     evidenceCreditLedgerEntry: {

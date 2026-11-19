@@ -245,4 +245,79 @@ describe("Communications retry truth (live PostgreSQL)", () => {
     expect(recording.recordedMessages().filter((m) => JSON.stringify(m).includes("Late but delivered."))).toHaveLength(0);
     expect((await prisma.communicationMessage.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("DELIVERED");
   });
+
+  // WS-SCHED / PRO-W2C2-05, PRO-I1Z-04 — a retry whose source is gone is
+  // settled, so dead rows cannot hold the sweep's window.
+  it("WS-SCHED: a retry for a closed request ends CANCELLED source_closed, and 120 dead rows stop occupying the sweep", async () => {
+    // The daily send ceilings count every row of the workspace; this case is
+    // about the sweep window, not the ceiling.
+    const savedLimits = [process.env.COMMUNICATIONS_MAX_SENDS_PER_RECIPIENT_PER_DAY, process.env.COMMUNICATIONS_MAX_SENDS_PER_TEAM_PER_DAY];
+    process.env.COMMUNICATIONS_MAX_SENDS_PER_RECIPIENT_PER_DAY = "10000";
+    process.env.COMMUNICATIONS_MAX_SENDS_PER_TEAM_PER_DAY = "10000";
+    try {
+    const request = await prisma.evidenceRequest.create({
+      data: {
+        teamId: org.workspaceId,
+        requestedByUserId: org.owner.userId,
+        title: "Closed request",
+        requestType: REQUEST_TYPE,
+        recipientMode: "EXTERNAL_CONTRIBUTOR",
+        recipientPhone: PHONE,
+        status: "CANCELLED",
+      } as never,
+      select: { id: true },
+    });
+    const dead = [];
+    for (let i = 0; i < 120; i += 1) {
+      dead.push(
+        await dueMessage({
+          bodyPreview: "Reminder.",
+          bodyResendable: true,
+          relatedEvidenceRequestId: request.id,
+          nextAttemptAtUtc: new Date(Date.now() - 600_000 + i),
+        }),
+      );
+    }
+    const linkId = await intakeLink();
+    const live = await dueMessage({ bodyPreview: "Live retry.", bodyResendable: true, relatedIntakeLinkId: linkId });
+    await processRetries();
+    await processRetries();
+    const statuses = await prisma.communicationMessage.groupBy({
+      by: ["status", "errorCode"],
+      where: { id: { in: dead.map((d) => d.id) } },
+      _count: { _all: true },
+    });
+    expect(statuses).toEqual([{ status: "CANCELLED", errorCode: "source_closed", _count: { _all: 120 } }]);
+    expect(recording.recordedMessages().map((m) => m.body)).toEqual(["Live retry."]);
+    expect(["SENT", "QUEUED"]).toContain((await prisma.communicationMessage.findUniqueOrThrow({ where: { id: live.id } })).status);
+    } finally {
+      process.env.COMMUNICATIONS_MAX_SENDS_PER_RECIPIENT_PER_DAY = savedLimits[0] ?? "";
+      process.env.COMMUNICATIONS_MAX_SENDS_PER_TEAM_PER_DAY = savedLimits[1] ?? "";
+      if (savedLimits[0] === undefined) delete process.env.COMMUNICATIONS_MAX_SENDS_PER_RECIPIENT_PER_DAY;
+      if (savedLimits[1] === undefined) delete process.env.COMMUNICATIONS_MAX_SENDS_PER_TEAM_PER_DAY;
+    }
+  });
+
+  // WS-SCHED / PRO-W2-06 — a send whose process stopped before the provider
+  // answered is retried (with the attempt counted), not cancelled and lost.
+  it("WS-SCHED: a QUEUED row stranded past its lease returns to retry and is sent once", async () => {
+    const linkId = await intakeLink();
+    const row = await dueMessage({
+      status: "QUEUED",
+      nextAttemptAtUtc: null,
+      bodyPreview: "Stranded send.",
+      bodyResendable: true,
+      relatedIntakeLinkId: linkId,
+    });
+    await prisma.$executeRaw`UPDATE communication_messages SET updated_at = now() - interval '10 minutes' WHERE id = ${row.id}::uuid`;
+    // A row inside its lease is never touched.
+    const fresh = await dueMessage({ status: "QUEUED", nextAttemptAtUtc: null, bodyPreview: "In flight.", bodyResendable: true, relatedIntakeLinkId: linkId });
+    await processRetries();
+    await processRetries();
+    expect(recording.recordedMessages().map((m) => m.body)).toEqual(["Stranded send."]);
+    const after = await prisma.communicationMessage.findUniqueOrThrow({ where: { id: row.id } });
+    expect(["SENT", "QUEUED"]).toContain(after.status);
+    expect(after.providerMessageId).not.toBeNull();
+    expect((await prisma.communicationMessage.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe("QUEUED");
+  });
 });

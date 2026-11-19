@@ -2408,14 +2408,19 @@ async function buildOrganizationProjection(input: {
     where: { OR: seatOwners.map(nonOwnerActiveMemberWhere) },
   });
 
-  const storageAgg = await prisma.evidence.aggregate({
-    where: {
-      teamId: { in: workspaceIds },
-      lifecycleState: { not: "DESTROYED" },
-    },
-    _sum: { sizeBytes: true },
-  });
-  const usedBytes = storageAgg._sum.sizeBytes ?? 0n;
+  // WS-SCHED / PRO-W2C2-07 — the organisation figure is the SUM of each
+  // workspace's CANONICAL storage figure (originals + reports + packages +
+  // derived assets, Retention Archive excluded, first issuance excluded): the
+  // number quota, add-ons and invoices read. Its own evidence-only aggregate
+  // (archive included, artifacts omitted) told owners a second "used" number.
+  let usedBytes = 0n;
+  for (const workspaceId of workspaceIds) {
+    // Through the one public commercial resolver (explicit WORKSPACE subject).
+    const owner = seatOwners.find((w) => w.id === workspaceId)?.ownerUserId;
+    if (!owner) continue;
+    const { scope } = await resolveCommercialContext({ type: "WORKSPACE", teamId: workspaceId, requesterUserId: owner });
+    usedBytes += (await getWorkspaceUsage(scope)).storageBytesUsed;
+  }
 
   const baseBytes =
     limits.contractGovernsCapability && limits.storageBytes !== null

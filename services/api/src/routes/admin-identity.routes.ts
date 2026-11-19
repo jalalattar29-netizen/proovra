@@ -124,6 +124,7 @@ import {
 import { runtimeRiskRecomputeSweep } from "../services/access-control/runtime-risk.service.js";
 import { sweepTrustedDeviceDecay } from "../services/access-control/trusted-device-decay.service.js";
 import { sweepGeoCache } from "../services/access-control/geo-intelligence.service.js";
+import { runScheduledIdentityRuntimeSweep } from "../services/access-control/identity-runtime-scheduled.service.js";
 import { resolveSecurityEventActor } from "../services/security/security-event.service.js";
 import {
   SESSION_QUARANTINE_REASONS,
@@ -1541,12 +1542,36 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
             .max(360)
             .optional(),
           decayStaleDays: z.number().int().min(1).max(180).optional(),
+          // Machine all-workspaces mode only (PRO-W2C2-02).
+          maxTeamsPerSweep: z.number().int().min(1).max(1000).optional(),
+          maxDurationMs: z.number().int().min(1_000).max(110_000).optional(),
         })
         .parse(req.body ?? {});
       let teamId: string;
       if (machine) {
         if (!body.teamId) {
-          return reply.code(400).send({ error: { code: "validation_error" } });
+          // WS-SCHED / PRO-W2C2-02 — the scheduler names no workspace: it
+          // asks for the fleet. This used to answer 400, so the runtime
+          // protections ran only when an operator pressed the button. The
+          // sweep pages over workspaces by a durable cursor; see
+          // identity-runtime-scheduled.service.ts for which legs run
+          // unattended and which wait for the operator switch.
+          const sweep = await runScheduledIdentityRuntimeSweep({
+            maxTeams: body.maxTeamsPerSweep,
+            maxDurationMs: body.maxDurationMs,
+          });
+          if (sweep.failedTeams > 0 || sweep.stoppedOnBudget) {
+            req.log?.warn(
+              {
+                teamsRead: sweep.teamsRead,
+                teamsVisited: sweep.teamsVisited,
+                failedTeams: sweep.failedTeams,
+                stoppedOnBudget: sweep.stoppedOnBudget,
+              },
+              "identity.runtime.scheduled_sweep.incomplete",
+            );
+          }
+          return reply.code(200).send({ scope: "all_workspaces", ...sweep });
         }
         teamId = body.teamId;
       } else {

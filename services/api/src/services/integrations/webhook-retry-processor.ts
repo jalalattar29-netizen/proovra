@@ -26,6 +26,51 @@ export type ProcessWebhookRetriesSummary = {
   failed: number;
 };
 
+/**
+ * WS-SCHED / PRO-W2-06, PRO-G1Z-02 — THE LEASE on a PENDING delivery.
+ *
+ * A row is PENDING only while one process is sending it (the inline attempt
+ * after `emitWebhookEvent`, or this sweep's RETRY_SCHEDULED -> PENDING claim);
+ * the send is bounded by the dispatcher's 10 s timeout. A process that dies
+ * (deploy, crash, OOM) or whose outcome write fails leaves the row PENDING, and
+ * nothing read PENDING again — the event was silently lost (or sent and shown
+ * as pending forever). Same pattern as `reclaimLostNotificationClaims`: a
+ * PENDING row untouched for longer than the lease is returned to the pool with
+ * the stranded attempt COUNTED (it may have reached the receiver; the
+ * X-Proovra-Event-Id header lets the receiver de-duplicate), or settled FAILED
+ * `stranded` when that was its last allowed attempt. Conditional on status and
+ * age, so a live send inside its lease is never touched and two sweeps reclaim
+ * a row once.
+ */
+export const WEBHOOK_DELIVERY_LEASE_MS = 15 * 60 * 1000;
+
+export async function reclaimStrandedWebhookDeliveries(
+  client: PrismaClient,
+  now: Date = new Date(),
+): Promise<{ retried: number; failed: number }> {
+  const cutoff = new Date(now.getTime() - WEBHOOK_DELIVERY_LEASE_MS);
+  const failed = await client.integrationWebhookDelivery.updateMany({
+    where: { status: "PENDING", updatedAt: { lt: cutoff }, attemptCount: { gte: WEBHOOK_RETRY_MAX_ATTEMPTS - 1 } },
+    data: {
+      status: "FAILED",
+      attemptCount: { increment: 1 },
+      errorMessage: "stranded",
+      failedAtUtc: now,
+      nextAttemptAtUtc: null,
+    },
+  });
+  const retried = await client.integrationWebhookDelivery.updateMany({
+    where: { status: "PENDING", updatedAt: { lt: cutoff }, attemptCount: { lt: WEBHOOK_RETRY_MAX_ATTEMPTS - 1 } },
+    data: {
+      status: "RETRY_SCHEDULED",
+      attemptCount: { increment: 1 },
+      errorMessage: "stranded",
+      nextAttemptAtUtc: now,
+    },
+  });
+  return { retried: retried.count, failed: failed.count };
+}
+
 export async function processDueWebhookRetries(
   input: { batchSize?: number } = {},
   client: PrismaClient = defaultPrisma,
@@ -40,6 +85,7 @@ export async function processDueWebhookRetries(
   if (!isIntegrationsFeatureEnabled()) return summary;
 
   const now = new Date();
+  await reclaimStrandedWebhookDeliveries(client, now);
   const candidates = await client.integrationWebhookDelivery.findMany({
     where: {
       status: "RETRY_SCHEDULED",

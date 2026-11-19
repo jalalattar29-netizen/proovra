@@ -2265,6 +2265,44 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         });
       }
 
+      // WS-SCHED / PRO-W1C-03 (DEC-04) — every generation is another locked MP4
+      // that counts in workspace storage and cannot be deleted by the customer.
+      // A new generation is admitted only when its expected size (the sum of the
+      // recording's stored parts — remux output tracks its sources) fits; the
+      // worker gates the exact output size again before writing.
+      {
+        const owner = await prisma.evidence.findUnique({
+          where: { id: evidenceId },
+          select: { ownerUserId: true, teamId: true },
+        });
+        const parts = await prisma.evidencePart.aggregate({
+          where: { evidenceId },
+          _sum: { sizeBytes: true },
+        });
+        if (owner) {
+          // The record's commercial subject through the ONE public resolver
+          // (explicit subject), then the canonical storage-growth gate.
+          const { resolveCommercialContext } = await import("../services/billing/commercial-context.service.js");
+          const { assertWorkspaceAllowsStorageGrowth } = await import("../services/billing-enforcement.service.js");
+          try {
+            const commercial = await resolveCommercialContext(
+              owner.teamId
+                ? { type: "WORKSPACE", teamId: owner.teamId, requesterUserId: owner.ownerUserId }
+                : { type: "PERSONAL_ACCOUNT", userId: owner.ownerUserId },
+            );
+            await assertWorkspaceAllowsStorageGrowth({
+              scope: commercial.scope,
+              incomingBytes: BigInt(Math.max(0, Math.trunc(Number(parts._sum.sizeBytes ?? 0)))),
+            });
+          } catch (err) {
+            if ((err as { code?: string }).code === "STORAGE_LIMIT_REACHED") {
+              return reply.code(409).send({ error: { code: "STORAGE_LIMIT_REACHED" } });
+            }
+            throw err;
+          }
+        }
+      }
+
       const generation = Math.max(latest?.generation ?? 0, status.asset?.generation ?? 0) + 1;
       const created = await mi.enqueueMediaIntelligenceRun(
         {

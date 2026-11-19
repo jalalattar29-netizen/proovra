@@ -279,6 +279,22 @@ describe("round 3 governance follow-up (live PostgreSQL 16)", () => {
       await orgExport.processOrganizationDataExports(new Date(), { client: prisma as never, storage });
       expect(await prisma.organizationDataExportRequest.findUniqueOrThrow({ where: { id: req.id }, select: { status: true, manifestJson: true } })).toEqual({ status: "EXPIRED", manifestJson: null });
     });
+
+    // WS-SCHED / PRO-PSZ-02 — an interrupted build no longer blocks the
+    // organization's offboarding export forever.
+    it("WS-SCHED: a PROCESSING export abandoned past the bound is reaped FAILED generation_stalled on the next tick", async () => {
+      const orgId = await orgOf(B().teamId);
+      const stalled = await prisma.organizationDataExportRequest.create({
+        data: { organizationId: orgId, requestedByUserId: B().ownerUserId, status: "PROCESSING", startedAtUtc: new Date(Date.now() - 2 * 3_600_000) } as never,
+        select: { id: true },
+      });
+      const storage = { listObjectVersions: async () => [] } as never;
+      await orgExport.processOrganizationDataExports(new Date(), { client: prisma as never, storage });
+      expect(await prisma.organizationDataExportRequest.findUniqueOrThrow({ where: { id: stalled.id }, select: { status: true, failureCode: true } })).toEqual({
+        status: "FAILED",
+        failureCode: "generation_stalled",
+      });
+    });
   });
 
   // ---------------------------------------------------------------------------

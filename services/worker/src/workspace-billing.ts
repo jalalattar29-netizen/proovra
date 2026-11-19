@@ -18,9 +18,14 @@ import {
   isAllowanceExcludedFirstIssuance,
   isKeyCompromiseReplacementVersion,
   measureFirstIssuanceAllowanceExclusion,
+  liveWorkspaceWhere,
+  lockWorkspaceCapacityTx,
   readActiveInternalPlanGrant,
   storageAddonCapacityStatusWhere,
+  readEvidenceExchangeEntitlement,
   sumDerivedAssetStorageBytes,
+  sumExchangePackageStorageBytes,
+  sumLiveArtifactStorageReservationBytes,
 } from "@proovra/shared-runtime";
 
 /**
@@ -64,6 +69,10 @@ export type WorkerWorkspaceUsage = {
   evidenceStorageBytes: bigint;
   reportStorageBytes: bigint;
   verificationPackageStorageBytes: bigint;
+  /** PRO-W1-07 — stored Evidence Exchange package ZIPs (shared-runtime sum). */
+  exchangePackageStorageBytes: bigint;
+  /** PRO-W1-06 — bytes artifact runs in flight have reserved (in `storageBytesUsed`). */
+  reservedStorageBytes: bigint;
   evidenceCount: number;
   teamMemberCount: number;
   storageBytesLimit: bigint;
@@ -348,8 +357,15 @@ export async function resolveEffectivePlanForEvidence(params: {
 }
 
 export async function getWorkspaceUsage(
-  scope: WorkerWorkspaceScope
+  scope: WorkerWorkspaceScope,
+  options: {
+    /** PRO-W1-06 — the reservation transaction reads on its own connection. */
+    client?: WorkerDbClient;
+    /** PRO-W1-06 — the caller's own request: its reservation is not counted. */
+    excludeReservationRequestId?: string | null;
+  } = {},
 ): Promise<WorkerWorkspaceUsage> {
+  const db: WorkerDbClient = options.client ?? prisma;
   const caps = getPlanCapabilities(scope.plan);
 
   // STORAGE ACCOUNTING — EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24).
@@ -379,7 +395,7 @@ export async function getWorkspaceUsage(
     scope.teamId ??
     (personalOwnerUserId
       ? (
-          await prisma.team.findFirst({
+          await db.team.findFirst({
             where: { ownerUserId: personalOwnerUserId, isPersonal: true },
             select: { id: true },
           })
@@ -409,21 +425,23 @@ export async function getWorkspaceUsage(
     teamMemberCount,
     derivedStorageBytes,
     firstIssuanceExclusion,
+    exchangePackageStorageBytes,
+    reservedStorageBytes,
   ] = await Promise.all([
-    prisma.evidence.aggregate({
+    db.evidence.aggregate({
       where: evidenceWhere,
       _sum: { sizeBytes: true },
     }),
-    prisma.report.aggregate({
+    db.report.aggregate({
       where: reportWhere,
       _sum: { sizeBytes: true },
     }),
     // Every PUBLISHED package artifact (each profile is its own stored object).
-    prisma.verificationPackage.aggregate({
+    db.verificationPackage.aggregate({
       where: { ...verificationPackageWhere, state: "PUBLISHED" },
       _sum: { sizeBytes: true },
     }),
-    prisma.evidence.count({
+    db.evidence.count({
       where: evidenceWhere,
     }),
     // PHASE 12 REMEDIATION — COMM-001 (2026-08-06). This counted EVERY
@@ -433,14 +451,23 @@ export async function getWorkspaceUsage(
     // the API's — the two can no longer report different numbers for the
     // same workspace.
     scope.teamId
-      ? countActiveSeatOccupancy({ teamId: scope.teamId }, prisma)
+      ? countActiveSeatOccupancy({ teamId: scope.teamId }, db)
       : Promise.resolve(0),
     // UC-0 (D5) — same derived-bytes authority as the API, over the same
     // workspace (F-02: the owner's personal workspace for a NULL-team scope).
-    sumDerivedAssetStorageBytes(prisma, { teamId: usageTeamId }),
+    sumDerivedAssetStorageBytes(db, { teamId: usageTeamId }),
     // AUDIT D-03 — the API's measure, over the same population and lifecycle
     // filter as the report and package sums above.
-    measureFirstIssuanceAllowanceExclusion(prisma, evidenceWhere),
+    measureFirstIssuanceAllowanceExclusion(db, evidenceWhere),
+    // PRO-W1-07 (DEC-04) — exchange package ZIPs are customer-requested
+    // derived artifacts: the API's sum, over the same workspace Team.
+    sumExchangePackageStorageBytes(db, { teamId: usageTeamId }),
+    // PRO-W1-06 — bytes other artifact runs have reserved and not yet
+    // committed (live claims only); the API's meter adds the same sum.
+    sumLiveArtifactStorageReservationBytes(db, {
+      teamId: usageTeamId,
+      excludeRequestId: options.excludeReservationRequestId ?? null,
+    }),
   ]);
 
   const evidenceStorageBytes = toBigIntOrZero(evidenceAggregate._sum.sizeBytes);
@@ -453,14 +480,17 @@ export async function getWorkspaceUsage(
     evidenceStorageBytes +
     reportStorageBytes +
     verificationPackageStorageBytes +
-    derivedStorageBytes;
+    derivedStorageBytes +
+    exchangePackageStorageBytes;
   // AUDIT D-03 — the customer-facing figure the API gates and meters read:
   // originals once, an entitled Free record's first issuance left out.
   const firstIssuanceExcludedBytes =
     firstIssuanceExclusion.totalBytes < actualStorageBytes
       ? firstIssuanceExclusion.totalBytes
       : actualStorageBytes;
-  const storageBytesUsed = actualStorageBytes - firstIssuanceExcludedBytes;
+  // PRO-W1-06 — plus what runs in flight have reserved: not stored yet, but
+  // already promised, so no gate on either host admits against it.
+  const storageBytesUsed = actualStorageBytes - firstIssuanceExcludedBytes + reservedStorageBytes;
 
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted figure is the
   // base capacity; the catalog default applies only when the contract is
@@ -493,6 +523,8 @@ const storageBytesLimit =
     evidenceStorageBytes,
     reportStorageBytes,
     verificationPackageStorageBytes,
+    exchangePackageStorageBytes,
+    reservedStorageBytes,
     evidenceCount,
     teamMemberCount,
     storageBytesLimit,
@@ -504,8 +536,10 @@ const storageBytesLimit =
 export async function assertWorkspaceStorageAvailable(params: {
   scope: WorkerWorkspaceScope;
   incomingBytes?: bigint | number | null;
+  /** PRO-W1-06 — see `getWorkspaceUsage`. */
+  usageOptions?: Parameters<typeof getWorkspaceUsage>[1];
 }) {
-  const usage = await getWorkspaceUsage(params.scope);
+  const usage = await getWorkspaceUsage(params.scope, params.usageOptions);
 
   const incoming =
     typeof params.incomingBytes === "bigint"
@@ -542,6 +576,8 @@ export async function assertWorkspaceStorageAvailable(params: {
       reportStorageBytes: usage.reportStorageBytes.toString(),
       verificationPackageStorageBytes:
         usage.verificationPackageStorageBytes.toString(),
+      exchangePackageStorageBytes: usage.exchangePackageStorageBytes.toString(),
+      reservedStorageBytes: usage.reservedStorageBytes.toString(),
       activeStorageAddonBytes: params.scope.activeStorageAddonBytes.toString(),
     };
 
@@ -618,6 +654,8 @@ export async function assertWorkspaceAllowsReportArtifact(params: {
    * refused, leaving the latest report without its package.
    */
   packagePairFollows?: boolean;
+  /** PRO-W1-06 — the claimed request that holds this run's storage reservation. */
+  reservation?: ArtifactStorageReservationHolder;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
   // FREE THREE-RECORD CONTRACT — a single record is answered by THE issuance
@@ -639,7 +677,7 @@ export async function assertWorkspaceAllowsReportArtifact(params: {
     throw err;
   }
 
-  const usage = await assertArtifactStorage({
+  const admitted = await assertArtifactStorage({
     scope,
     incomingBytes: params.incomingBytes ?? 0n,
     evidenceId: params.evidenceId,
@@ -649,11 +687,18 @@ export async function assertWorkspaceAllowsReportArtifact(params: {
       params.packagePairFollows === true && outputs.verificationPackageIncluded
         ? () => estimatePairedPackageBytes(params.evidenceId, params.issuanceVersion)
         : undefined,
+    reservation: params.reservation,
   });
 
   return {
     scope,
-    usage,
+    usage: admitted.usage,
+    /**
+     * PRO-W1-06 — what stays reserved once THIS artifact commits (the paired
+     * package's estimate), or null when the run holds no reservation. The
+     * report commit writes it in its own transaction.
+     */
+    reservedFollowingBytes: admitted.reservedFollowingBytes,
   };
 }
 
@@ -736,7 +781,10 @@ async function assertArtifactStorage(params: {
   outputs: { decision: string; basis: string };
   /** AUDIT D-01 — bytes that will follow this artifact (its package), when not exempt. */
   pairEstimate?: () => Promise<bigint>;
-}): Promise<WorkerWorkspaceUsage> {
+  /** PRO-W1-06 — reserve the admitted bytes on this claimed request. */
+  reservation?: ArtifactStorageReservationHolder;
+}): Promise<{ usage: WorkerWorkspaceUsage; reservedFollowingBytes: bigint | null }> {
+  const exempt = async () => ({ usage: await getWorkspaceUsage(params.scope), reservedFollowingBytes: null });
   const version = params.issuanceVersion;
   if (typeof version === "number" && Number.isInteger(version) && version >= 1) {
     const earlierReports = await prisma.report.count({
@@ -749,7 +797,7 @@ async function assertArtifactStorage(params: {
         isFirstReportVersion: earlierReports === 0,
       })
     ) {
-      return getWorkspaceUsage(params.scope);
+      return exempt();
     }
     // AUDIT D-03 — the server-verified recovery of a proven-missing first-issued
     // file of an entitled FREE record (request purpose `missing_output_recovery`)
@@ -760,14 +808,14 @@ async function assertArtifactStorage(params: {
       params.outputs.decision === "ENTITLED" &&
       (await isAllowanceExcludedFirstIssuance(prisma, { evidenceId: params.evidenceId, version }))
     ) {
-      return getWorkspaceUsage(params.scope);
+      return exempt();
     }
     // B7A-F-006 — the replacement PROOVRA owes after withdrawing a signing key
     // (request purpose `signing_key_compromise_replacement`, server-minted) is
     // not customer storage: `getWorkspaceUsage` leaves its bytes out
     // (`measureFirstIssuanceAllowanceExclusion`), and it is never refused for it.
     if (await isKeyCompromiseReplacementVersion(prisma, { evidenceId: params.evidenceId, version })) {
-      return getWorkspaceUsage(params.scope);
+      return exempt();
     }
   }
   const following = params.pairEstimate ? await params.pairEstimate() : 0n;
@@ -775,7 +823,201 @@ async function assertArtifactStorage(params: {
     typeof params.incomingBytes === "bigint"
       ? params.incomingBytes
       : BigInt(Math.max(0, Math.trunc(Number.isFinite(params.incomingBytes) ? params.incomingBytes : 0)));
-  return assertWorkspaceStorageAvailable({ scope: params.scope, incomingBytes: own + following });
+  if (!params.reservation) {
+    const usage = await assertWorkspaceStorageAvailable({ scope: params.scope, incomingBytes: own + following });
+    return { usage, reservedFollowingBytes: null };
+  }
+  const usage = await reserveArtifactStorage({
+    scope: params.scope,
+    bytes: own + following,
+    holder: params.reservation,
+  });
+  return { usage, reservedFollowingBytes: following };
+}
+
+/** PRO-W1-06 — the claimed request row that carries a run's storage reservation. */
+export type ArtifactStorageReservationHolder = { requestId: string; claimedAtUtc: Date };
+
+/** Bounded like the issuance transactions (F-37): the wait for the lock is inside it. */
+const ARTIFACT_STORAGE_RESERVATION_TRANSACTION = { timeout: 30_000, maxWait: 10_000 } as const;
+
+/**
+ * WS-SCHED / PRO-W1-06 (DEC-04) — RESERVE the bytes of an artifact BEFORE any
+ * of them is written, under the workspace's capacity lock (the lock the API's
+ * admission and completion take): usage plus every other run's live
+ * reservation is read on this transaction, and when the artifact fits its size
+ * is recorded on the request this run holds. Two runs that jointly exceed are
+ * serialized here, so exactly one is admitted; the other is refused with
+ * STORAGE_LIMIT_REACHED having written nothing. The transaction ends before
+ * the upload begins. A refusal, and a run whose claim is no longer its own,
+ * leave no reservation behind.
+ */
+async function reserveArtifactStorage(params: {
+  scope: WorkerWorkspaceScope;
+  bytes: bigint;
+  holder: ArtifactStorageReservationHolder;
+}): Promise<WorkerWorkspaceUsage> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await lockWorkspaceCapacityTx(tx, params.scope);
+      const usage = await assertWorkspaceStorageAvailable({
+        scope: params.scope,
+        incomingBytes: params.bytes,
+        usageOptions: { client: tx, excludeReservationRequestId: params.holder.requestId },
+      });
+      const held = await tx.reportGenerationRequest.updateMany({
+        where: { id: params.holder.requestId, state: "PROCESSING", claimedAtUtc: params.holder.claimedAtUtc },
+        data: { storageReservedBytes: params.bytes },
+      });
+      if (held.count !== 1) {
+        // The claim was taken over: this run may not publish at all.
+        const lost: Error & { code?: string; retriable?: boolean } = new Error(
+          `REPORT_CLAIM_LOST:${params.holder.requestId}`,
+        );
+        lost.code = "REPORT_CLAIM_LOST";
+        lost.retriable = true;
+        throw lost;
+      }
+      return usage;
+    }, ARTIFACT_STORAGE_RESERVATION_TRANSACTION);
+  } catch (err) {
+    if ((err as { code?: string }).code === "STORAGE_LIMIT_REACHED") {
+      // Refused: an earlier reservation of this request (its report's pair
+      // estimate) must not keep counting against the workspace.
+      await releaseArtifactStorageReservation(params.holder).catch(() => undefined);
+    }
+    throw err;
+  }
+}
+
+/**
+ * PRO-W1-06 — RELEASE this run's reservation (fenced by its claim; a run whose
+ * claim was taken over releases nothing: the new holder owns the row). Called
+ * when a run ends without committing what it reserved; the commit
+ * transactions convert it themselves.
+ */
+export async function releaseArtifactStorageReservation(
+  holder: ArtifactStorageReservationHolder,
+  client: WorkerDbClient = prisma,
+): Promise<void> {
+  await client.reportGenerationRequest.updateMany({
+    where: {
+      id: holder.requestId,
+      state: "PROCESSING",
+      claimedAtUtc: holder.claimedAtUtc,
+      storageReservedBytes: { not: null },
+    },
+    data: { storageReservedBytes: null },
+  });
+}
+
+/**
+ * PRO-W1-06 — inside a COMMIT transaction: the artifact's bytes are now a
+ * committed row the meters count, so the reservation shrinks to what is still
+ * to come (`remainingBytes`: the paired package's estimate after a report
+ * commit) or ends (null / 0). Same transaction, so the bytes are never counted
+ * twice and never uncounted.
+ */
+export async function settleArtifactStorageReservationTx(
+  tx: WorkerDbClient,
+  holder: ArtifactStorageReservationHolder,
+  remainingBytes: bigint | null,
+): Promise<void> {
+  await tx.reportGenerationRequest.updateMany({
+    where: {
+      id: holder.requestId,
+      state: "PROCESSING",
+      claimedAtUtc: holder.claimedAtUtc,
+      storageReservedBytes: { not: null },
+    },
+    data: { storageReservedBytes: remainingBytes !== null && remainingBytes > 0n ? remainingBytes : null },
+  });
+}
+
+/**
+ * WS-SCHED / PRO-W1-05, PRO-W1C-03 (DEC-04) — THE storage gate for a derived
+ * object (thumbnail, frame, waveform, proxy, combined recording) BEFORE it is
+ * written under the record's Object Lock. Those bytes count in workspace usage
+ * (`sumDerivedAssetStorageBytes`, both hosts) and can never be deleted by the
+ * customer, so they are admitted like any other customer-requested growth:
+ * refused with STORAGE_LIMIT_REACHED when they would not fit. Reads, exports
+ * and reductions are untouched. Returns false (refused) instead of throwing so
+ * every producer settles its row the same way.
+ */
+export async function workspaceAllowsDerivedArtifact(params: {
+  evidenceId: string;
+  incomingBytes: bigint | number;
+}): Promise<{ allowed: true } | { allowed: false; reason: "storage_limit" | "evidence_not_found" }> {
+  const ev = await prisma.evidence.findUnique({
+    where: { id: params.evidenceId },
+    select: { ownerUserId: true, teamId: true },
+  });
+  if (!ev) return { allowed: false, reason: "evidence_not_found" };
+  const scope = await resolveWorkspaceScopeForEvidence({ ownerUserId: ev.ownerUserId, teamId: ev.teamId });
+  try {
+    await assertWorkspaceStorageAvailable({ scope, incomingBytes: params.incomingBytes });
+    return { allowed: true };
+  } catch (err) {
+    if ((err as { code?: string }).code === "STORAGE_LIMIT_REACHED") {
+      return { allowed: false, reason: "storage_limit" };
+    }
+    throw err;
+  }
+}
+
+export type ExchangeBuildAdmission =
+  | { admitted: true }
+  | {
+      admitted: false;
+      reason: "workspace_closed" | "organization_not_active" | "exchange_not_entitled";
+    };
+
+/**
+ * WS-SCHED / PRO-W1-07 (DEC-04) — may an Evidence Exchange package build run
+ * for this workspace NOW? Asked by the builder when it claims a build, instead
+ * of trusting the BUILDING row the API wrote earlier:
+ *
+ *   - workspace liveness: the canonical predicate (`liveWorkspaceWhere`,
+ *     Team.closedAtUtc) — a closed or missing workspace builds nothing;
+ *   - organization status: ACTIVE, the rule every output run is admitted by
+ *     (`decideRunAdmission`);
+ *   - the FEATURE_EVIDENCE_EXCHANGE entitlement, re-read through the shared
+ *     reader that is pinned against the API engine, with the Enterprise
+ *     standing of this host's own commercial scope.
+ *
+ * Storage is deliberately NOT a refusal here: DEC-04 keeps authorized exports
+ * available to a workspace over its allowance. The ZIP's bytes are counted
+ * (`sumExchangePackageStorageBytes`), so they hold back later growth.
+ */
+export async function resolveExchangeBuildAdmission(
+  teamId: string,
+  client: WorkerDbClient = prisma,
+): Promise<ExchangeBuildAdmission> {
+  const team = await client.team.findFirst({
+    where: { AND: [{ id: teamId }, liveWorkspaceWhere()] },
+    select: { organizationId: true },
+  });
+  if (!team) return { admitted: false, reason: "workspace_closed" };
+  const organization = team.organizationId
+    ? await client.organization.findUnique({
+        where: { id: team.organizationId },
+        select: { status: true },
+      })
+    : null;
+  if (!organization || organization.status !== "ACTIVE") {
+    return { admitted: false, reason: "organization_not_active" };
+  }
+  const scope = await getTeamWorkspaceScope(teamId, client);
+  let standing: "NOT_ENTERPRISE" | "CONTRACT_ACTIVE" | "CONTRACT_LAPSED" = "NOT_ENTERPRISE";
+  if (scope.plan === "ENTERPRISE") {
+    const contract = await client.enterpriseContract.findUnique({
+      where: { organizationId: team.organizationId },
+      select: { status: true },
+    });
+    standing = contract?.status === "ACTIVE" ? "CONTRACT_ACTIVE" : "CONTRACT_LAPSED";
+  }
+  const entitled = await readEvidenceExchangeEntitlement(client, { teamId, standing });
+  return entitled ? { admitted: true } : { admitted: false, reason: "exchange_not_entitled" };
 }
 
 export async function assertWorkspaceAllowsVerificationPackageArtifact(params: {
@@ -786,6 +1028,8 @@ export async function assertWorkspaceAllowsVerificationPackageArtifact(params: {
   evidenceId: string;
   /** F-02 — see `assertWorkspaceAllowsReportArtifact`. */
   issuanceVersion?: number;
+  /** PRO-W1-06 — the claimed request that holds this run's storage reservation. */
+  reservation?: ArtifactStorageReservationHolder;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
   // FREE THREE-RECORD CONTRACT — a single record is answered by THE issuance
@@ -807,12 +1051,13 @@ export async function assertWorkspaceAllowsVerificationPackageArtifact(params: {
     throw err;
   }
 
-  const usage = await assertArtifactStorage({
+  const { usage } = await assertArtifactStorage({
     scope,
     incomingBytes: params.incomingBytes ?? 0n,
     evidenceId: params.evidenceId,
     issuanceVersion: params.issuanceVersion,
     outputs,
+    reservation: params.reservation,
   });
 
   return {

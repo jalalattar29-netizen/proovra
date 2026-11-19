@@ -117,15 +117,6 @@ describe("Macro-Wave A2 — worker sweep tick (fail-soft matrix)", () => {
     expectFetchCalls: number;
   }> = [
     {
-      name: "missing base URL → structured error, no HTTP call",
-      setup: () => {
-        delete process.env.INTERNAL_API_BASE_URL;
-        delete process.env.API_BASE_URL;
-      },
-      expectError: (e) => expect(e).toContain("INTERNAL_API_BASE_URL"),
-      expectFetchCalls: 0,
-    },
-    {
       name: "missing cron secret → structured error, no HTTP call",
       setup: () => {
         delete process.env.INTEGRATION_CRON_SECRET;
@@ -166,6 +157,21 @@ describe("Macro-Wave A2 — worker sweep tick (fail-soft matrix)", () => {
       expect(fetchMock).toHaveBeenCalledTimes(tc.expectFetchCalls);
     });
   }
+
+  // WS-SCHED / PRO-W2-10 — a worker with no base URL configured used to skip
+  // this sweep ("INTERNAL_API_BASE_URL not configured") while its readiness
+  // probe reached the API on the bootstrap default. The sweep now uses the
+  // same default, so invite retries run.
+  it("missing base URL → the bootstrap default API address is called", async () => {
+    delete process.env.INTERNAL_API_BASE_URL;
+    delete process.env.API_BASE_URL;
+    fetchMock.mockResolvedValue(okResponse({ pickedUp: 1, sent: 1 }));
+    const result = await runOrgInviteDeliverySweep({ trigger: "test" });
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url] = fetchMock.mock.calls[0]! as [string, RequestInit];
+    expect(url).toBe("http://proovra-api:8080/v1/org-invite-deliveries/process");
+  });
 
   it("thrown transport errors reach Sentry (on-call visibility)", async () => {
     fetchMock.mockRejectedValue(new Error("boom"));

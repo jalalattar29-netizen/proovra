@@ -148,6 +148,9 @@ async function uncoveredRecords(
 
 export type ReconcileLegalHoldCustodyResult = { holds: number; appended: number; failed: number };
 
+/** PRO-WZ-02 — the sweep's durable keyset over legal holds. */
+export const LEGAL_HOLD_CUSTODY_CURSOR_KEY = "legal-hold-custody:holds";
+
 const HOLD_SELECT = {
   id: true,
   teamId: true,
@@ -172,16 +175,46 @@ export async function reconcileLegalHoldCustody(
 ): Promise<ReconcileLegalHoldCustodyResult> {
   const perHoldLimit = Math.max(1, Math.min(options.perHoldLimit ?? 500, 5000));
   const now = options.now ?? new Date();
+  const maxHolds = Math.max(1, Math.min(options.maxHolds ?? 200, 2000));
+  // WS-SCHED / PRO-WZ-02 — the sweep used to read the 200 most recently
+  // UPDATED holds platform-wide, every time. RELEASED holds never leave that
+  // set, so once more than 200 existed an older WORKSPACE/CASE hold was never
+  // visited again and records added under it never got their hold custody
+  // event. The sweep now pages every non-historical hold by a durable id
+  // cursor (worker_sweep_cursors) and wraps at the end; the command path
+  // (`holdId`) is unchanged.
+  const sweeping = !options.holdId;
+  let cursorId: string | null = null;
+  if (sweeping) {
+    try {
+      cursorId =
+        (await client.workerSweepCursor.findUnique({ where: { key: LEGAL_HOLD_CUSTODY_CURSOR_KEY }, select: { cursorId: true } }))
+          ?.cursorId ?? null;
+    } catch {
+      cursorId = null;
+    }
+  }
   const holds = (await client.evidenceLegalHold.findMany({
     where: {
       historical: false,
       status: { in: ["ACTIVE", "RELEASED"] },
       ...(options.holdId ? { id: options.holdId } : {}),
+      ...(cursorId ? { id: { gt: cursorId } } : {}),
     },
-    orderBy: { updatedAt: "desc" },
-    take: options.holdId ? 1 : Math.max(1, Math.min(options.maxHolds ?? 200, 2000)),
+    orderBy: sweeping ? { id: "asc" } : { updatedAt: "desc" },
+    take: options.holdId ? 1 : maxHolds,
     select: HOLD_SELECT,
   })) as unknown as LegalHoldCustodyHold[];
+  if (sweeping) {
+    const next = holds.length < maxHolds ? null : holds[holds.length - 1]!.id;
+    await client.workerSweepCursor
+      .upsert({
+        where: { key: LEGAL_HOLD_CUSTODY_CURSOR_KEY },
+        create: { key: LEGAL_HOLD_CUSTODY_CURSOR_KEY, cursorId: next },
+        update: { cursorId: next },
+      })
+      .catch(() => undefined);
+  }
 
   const result: ReconcileLegalHoldCustodyResult = { holds: holds.length, appended: 0, failed: 0 };
   for (const hold of holds) {

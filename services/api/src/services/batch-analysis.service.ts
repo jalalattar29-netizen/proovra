@@ -232,6 +232,31 @@ scope?: BatchWorkspaceScope,
   return row ? toMetadata(row) : null;
 }
 
+/**
+ * PRO-G2-06 — a PROCESSING job whose claim outlived BATCH_CLAIM_LEASE_MS was
+ * abandoned by a stopped process; `process` may resume it (processBatch
+ * re-claims it with the same conditional update).
+ */
+export async function isBatchClaimAbandoned(
+  userId: string,
+  jobId: string,
+  scope?: BatchWorkspaceScope,
+  now: Date = new Date(),
+): Promise<boolean> {
+  if (!isUuid(jobId)) return false;
+  const row = await prisma.batchAnalysisJob.findFirst({
+    where: {
+      id: jobId,
+      ownerUserId: userId,
+      ...teamPredicate(scope),
+      status: "PROCESSING",
+      claimedAtUtc: { lt: new Date(now.getTime() - BATCH_CLAIM_LEASE_MS) },
+    },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
 /** Every job the caller owns, newest first. */
 export async function listJobs(userId: string): Promise<BatchJobMetadata[]> {
   const rows = await prisma.batchAnalysisJob.findMany({
@@ -297,6 +322,9 @@ export async function countJobs(
   });
 }
 
+/** PRO-G2-06 — a PROCESSING claim older than this is treated as abandoned. */
+export const BATCH_CLAIM_LEASE_MS = 15 * 60 * 1000;
+
 /**
  * Process a batch job.
  *
@@ -327,21 +355,51 @@ export async function processBatch(
   // It used to match on the id alone and rely on the route having checked
   // ownership one call earlier. That is a binding a caller has to remember,
   // and this service's own rule is that isolation belongs in the predicate.
+  //
+  // WS-SCHED / PRO-G2-06 — THE CLAIM HAS A LEASE. The run is an in-process
+  // promise the route does not await, so a restart, deploy or freeze after the
+  // response left the job PROCESSING forever: `process` answered "already
+  // processing", results "still processing", and only Cancel ended it. A
+  // PROCESSING job whose claim is older than BATCH_CLAIM_LEASE_MS may now be
+  // claimed again by the same conditional update (two resumes: one wins); the
+  // items the dead run had started go back to PENDING and only unfinished items
+  // run. Every write of a run is fenced on ITS claim time, so a late original
+  // run cannot write over the resumed one.
   const claimedAt = new Date();
+  const leaseCutoff = new Date(claimedAt.getTime() - BATCH_CLAIM_LEASE_MS);
   const claim = await prisma.batchAnalysisJob.updateMany({
-    where: { id: jobId, ownerUserId, status: "PENDING", claimedAtUtc: null },
-    data: { status: "PROCESSING", claimedAtUtc: claimedAt, startedAtUtc: claimedAt },
+    where: {
+      id: jobId,
+      ownerUserId,
+      OR: [
+        { status: "PENDING", claimedAtUtc: null },
+        { status: "PROCESSING", claimedAtUtc: { lt: leaseCutoff } },
+      ],
+    },
+    data: { status: "PROCESSING", claimedAtUtc: claimedAt, startedAtUtc: job.startedAtUtc ?? claimedAt },
   });
   if (claim.count === 0) {
-    // Claimed by another instance, or already past PENDING.
+    // Claimed by another instance (inside its lease), or already settled.
     throw new Error("Batch job already processing");
   }
+  const resumed = job.status === "PROCESSING";
+  if (resumed) {
+    await prisma.batchAnalysisJobItem.updateMany({
+      where: { jobId, status: "PROCESSING" },
+      data: { status: "PENDING", startedAtUtc: null },
+    });
+  }
+  const ours = { status: "PROCESSING" as const, claimedAtUtc: claimedAt };
 
-  let processedItems = 0;
-  let failedItems = 0;
+  const fresh = await prisma.batchAnalysisJobItem.findMany({
+    where: { jobId },
+    select: { id: true, evidenceId: true, position: true, status: true },
+  });
+  let processedItems = fresh.filter((i) => i.status === "COMPLETED").length;
+  let failedItems = fresh.filter((i) => i.status === "FAILED").length;
 
   try {
-    const items = [...job.items].sort((a, b) => a.position - b.position);
+    const items = fresh.filter((i) => i.status === "PENDING").sort((a, b) => a.position - b.position);
     for (const item of items) {
       // A cancellation that lands mid-run stops at the next item rather than
       // finishing the batch the operator asked to stop. One indexed lookup
@@ -357,7 +415,7 @@ export async function processBatch(
       // this write (cancelJob moves PENDING/PROCESSING items to FAILED) is
       // never overwritten.
       const started = await prisma.batchAnalysisJobItem.updateMany({
-        where: { id: item.id, status: "PENDING", job: { status: "PROCESSING" } },
+        where: { id: item.id, status: "PENDING", job: ours },
         data: { status: "PROCESSING", startedAtUtc: new Date() },
       });
       if (started.count === 0) return;
@@ -412,7 +470,7 @@ export async function processBatch(
       }
 
       await prisma.batchAnalysisJob.updateMany({
-        where: { id: jobId, ownerUserId, status: "PROCESSING" },
+        where: { id: jobId, ownerUserId, ...ours },
         data: { processedItems, failedItems },
       });
     }
@@ -420,12 +478,12 @@ export async function processBatch(
     // A cancellation that arrived while the last item ran must not be
     // overwritten with COMPLETED. The conditional says so.
     await prisma.batchAnalysisJob.updateMany({
-      where: { id: jobId, ownerUserId, status: "PROCESSING" },
+      where: { id: jobId, ownerUserId, ...ours },
       data: { status: "COMPLETED", completedAtUtc: new Date(), processedItems, failedItems },
     });
   } catch (error) {
     await prisma.batchAnalysisJob.updateMany({
-      where: { id: jobId, ownerUserId, status: "PROCESSING" },
+      where: { id: jobId, ownerUserId, ...ours },
       data: { status: "FAILED", completedAtUtc: new Date(), processedItems, failedItems },
     });
     // A whole-job failure previously left no trace of WHY. Bounded
@@ -695,6 +753,7 @@ export const batchAnalysisService = {
   listJobSummaries,
   countJobs,
   processBatch,
+  isBatchClaimAbandoned,
   cancelJob,
   getAggregateResults,
   exportAsCSV,

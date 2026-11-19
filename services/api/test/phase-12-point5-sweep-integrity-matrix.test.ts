@@ -263,6 +263,8 @@ const PROOF_PREFIX: Record<string, string> = {
   [SWEEP_NAMES.DESTRUCTION_ORCHESTRATOR]: "destruction",
   [SWEEP_NAMES.RETENTION_RECONCILIATION]: "retention",
   [SWEEP_NAMES.ARCHIVE_AUTO_TRANSITION]: "archive",
+  // WS-SCHED / PRO-P3DZ-04 (2026-11-19).
+  [SWEEP_NAMES.ARCHIVE_RESTORE]: "archiverestore",
   [SWEEP_NAMES.CAPTURE_DRAFT_REAPER]: "reaper",
   [SWEEP_NAMES.MFA_CHALLENGE_GC]: "mfagc",
   [SWEEP_NAMES.EXCHANGE_PACKAGE_BUILDER]: "exchange",
@@ -537,7 +539,8 @@ describe("Point 5 — every sweep satisfies its fourteen obligations", () => {
   // ET-SM-07 (2026-09-30) — 19 -> 20 with IntegrityRecheckSweep.
   // Members audit LIFE-11 (2026-10-25) — 20 -> 21 with LifecycleSweep.
   // WORKFLOW-008 (2026-11-01) — 21 -> 22 with ApiDeliverySweeps.
-  it("SweepsBehaviorallyCovered = 22/22 (every registered sweep)", () => {
+  // WS-SCHED / PRO-P3DZ-04 (2026-11-19) — 22 -> 23 with ArchiveRestoreSweep.
+  it("SweepsBehaviorallyCovered = 23/23 (every registered sweep)", () => {
     const covered = registered.filter((e) => {
       const prefix = PROOF_PREFIX[e.workName];
       if (!prefix) return false;

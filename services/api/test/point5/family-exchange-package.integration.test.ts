@@ -84,6 +84,14 @@ describe("POINT 5 FAMILY — exchange package builder (live PostgreSQL 16)", () 
       evidenceId: harness.fixtures.teamB.evidenceId,
       caseId: harness.fixtures.teamB.caseId,
     };
+    for (const teamId of [own.teamId, foreign.teamId]) {
+      // PRO-W1-07 — the builder re-reads the Evidence Exchange entitlement at claim.
+      await prisma.entitlementGrant.upsert({
+        where: { teamId_key: { teamId: teamId, key: "FEATURE_EVIDENCE_EXCHANGE" } },
+        update: { valueBool: true, expiresAtUtc: null },
+        create: { teamId: teamId, key: "FEATURE_EVIDENCE_EXCHANGE", kind: "FEATURE", valueBool: true, source: "CUSTOM", grantedAtUtc: new Date() },
+      });
+    }
   });
 
   afterAll(async () => {

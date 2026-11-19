@@ -541,6 +541,13 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         createdByUserId: ctx.userId,
         disclosureProfile: body.disclosureProfile,
       });
+      if (!res.ok && res.denial === "QUOTA_EXCEEDED") {
+        // PRO-BL2-02 — the reservation, not the read above, is the gate.
+        return reply.code(429).send({
+          denial: "QUOTA_EXCEEDED",
+          key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
+        });
+      }
       if (!res.ok) {
         // PRO-O1Z-02 — the export verdict's outcome, not which record.
         return reply
@@ -610,6 +617,12 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       });
       if (!res.ok && res.reason === "NOT_FOUND") {
         return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
+      if (!res.ok && res.reason === "QUOTA_EXCEEDED") {
+        return reply.code(429).send({
+          denial: "QUOTA_EXCEEDED",
+          key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
+        });
       }
       if (!res.ok) {
         await emitTenantAudit({
@@ -1431,8 +1444,13 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         });
       }
 
-      await prisma.lifecycleWebhookDelivery.update({
-        where: { id },
+      // WS-SCHED / PRO-G1Z-07 — only a SETTLED delivery is replayed. Resetting
+      // a row the dispatcher holds (DISPATCHING) or has queued (PENDING /
+      // RETRYING) let the next tick claim and POST it again while the first
+      // attempt was still running. Conditional on the settled state, so a
+      // concurrent claim and replay produce one send.
+      const replayed = await prisma.lifecycleWebhookDelivery.updateMany({
+        where: { id, teamId: ctx.teamId, state: { in: ["FAILED", "DEAD_LETTERED", "DELIVERED"] } },
         data: {
           state: "PENDING",
           nextAttemptAtUtc: new Date(),
@@ -1442,6 +1460,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           responseBodyPreview: null,
         },
       });
+      if (replayed.count !== 1) {
+        return reply.code(409).send({ denial: "DELIVERY_IN_FLIGHT", state: row.state });
+      }
       // PRO-G1-08 — a replay re-sends workspace data to an external URL.
       void emitTenantAudit({
         action: "integration.lifecycle_webhook.delivery_replay",

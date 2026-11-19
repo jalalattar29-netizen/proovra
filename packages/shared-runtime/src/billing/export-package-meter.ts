@@ -58,6 +58,68 @@ export type ExportPackageMeterClient = {
   };
 };
 
+/**
+ * Structural raw-SQL client for the reservation pair below (a `PrismaClient`
+ * or an interactive transaction from either host).
+ */
+export type ExportPackageReservationClient = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  $queryRaw: (query: TemplateStringsArray, ...values: any[]) => PromiseLike<unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  $executeRaw: (query: TemplateStringsArray, ...values: any[]) => PromiseLike<unknown>;
+};
+
+/**
+ * WS-SCHED / PRO-BL2-02 — RESERVE one export-package unit at admission.
+ *
+ * The gate used to READ `entitlement_usage` and the worker wrote it only at
+ * READY, so every build in flight was uncounted and N concurrent requests at
+ * `limit - 1` all passed. This is ONE conditional statement (the shape
+ * `reserveWorkspaceAiOperation` uses): the row is created at 1 or incremented
+ * only while `consumed < limit`, so concurrent requests at `limit - 1` admit
+ * exactly one. A limit of zero or less never admits.
+ *
+ * The package that holds the reservation records the returned period
+ * (`quota_reserved_period_start_utc`), and the worker's READY step does NOT
+ * meter it again; a build that fails or a package revoked before READY gives
+ * the unit back through `releaseExportPackageUnit`.
+ */
+export async function reserveExportPackageUnit(input: {
+  prisma: ExportPackageReservationClient;
+  teamId: string;
+  limit: number;
+  now?: Date;
+}): Promise<{ reserved: true; periodStartUtc: Date } | { reserved: false }> {
+  const limit = Math.floor(input.limit);
+  if (!Number.isFinite(limit) || limit <= 0) return { reserved: false };
+  const key = EXPORT_PACKAGE_METER_KEY;
+  const start = entitlementPeriodStart(classifyEntitlementPeriod(key), input.now);
+  const rows = (await input.prisma.$queryRaw`
+    INSERT INTO entitlement_usage (id, team_id, key, period_start_utc, consumed, updated_at)
+    VALUES (gen_random_uuid(), ${input.teamId}::uuid, ${key}, ${start}, 1, now())
+    ON CONFLICT (team_id, key, period_start_utc)
+    DO UPDATE SET consumed = entitlement_usage.consumed + 1, updated_at = now()
+    WHERE entitlement_usage.consumed < ${BigInt(limit)}
+    RETURNING consumed`) as unknown[];
+  if (!Array.isArray(rows) || rows.length === 0) return { reserved: false };
+  return { reserved: true, periodStartUtc: start };
+}
+
+/** Give back one reserved unit of the named period. Never below zero. */
+export async function releaseExportPackageUnit(input: {
+  prisma: ExportPackageReservationClient;
+  teamId: string;
+  periodStartUtc: Date;
+}): Promise<void> {
+  await input.prisma.$executeRaw`
+    UPDATE entitlement_usage
+       SET consumed = consumed - 1, updated_at = now()
+     WHERE team_id = ${input.teamId}::uuid
+       AND key = ${EXPORT_PACKAGE_METER_KEY}
+       AND period_start_utc = ${input.periodStartUtc}
+       AND consumed > 0`;
+}
+
 export async function recordExportPackageUsage(input: {
   prisma: ExportPackageMeterClient;
   teamId: string;

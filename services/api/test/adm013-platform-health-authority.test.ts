@@ -569,7 +569,8 @@ describe("scheduled worker sweeps are observed from outside the worker", () => {
 
   it("reports the capture reaper and the integrity recheck, each with last run and last success", async () => {
     const s = await buildPlatformHealthSnapshot();
-    expect(s.scheduledSweeps.map((x) => x.id)).toEqual(["capture_reaper", "integrity_recheck"]);
+    // WS-SCHED / PRO-P3DZ-04 — the retention-archive restore sweep joins them.
+    expect(s.scheduledSweeps.map((x) => x.id)).toEqual(["capture_reaper", "integrity_recheck", "archive_restore"]);
     for (const sub of s.scheduledSweeps) {
       expect(sub.state).toBe("HEALTHY");
       expect(sub.reason).toMatch(/Last run \d{4}-.*; last success \d{4}-/);
@@ -615,6 +616,32 @@ describe("scheduled worker sweeps are observed from outside the worker", () => {
     expect((await sweep("integrity_recheck")).sub.state).toBe("CRITICAL");
   });
 
+  it("WS-SCHED PRO-P3DZ-04: a stopped or disabled restore sweep is CRITICAL after an hour of silence, and a failing one shows its error", async () => {
+    reconciliationRunFindFirst.mockImplementation(async (q: { where: { kind: string; status?: unknown } }) =>
+      q.where.kind !== "ARCHIVE_RESTORE" ? run("SUCCEEDED", 60_000) : q.where.status === "FAILED" ? null : run("SUCCEEDED", 90 * 60_000),
+    );
+    const stale = await sweep("archive_restore");
+    expect(stale.sub.state).toBe("CRITICAL");
+    expect(stale.sub.reason).toMatch(/No successful run in the last 60 minutes/);
+    expect(stale.sub.operatorAction).toMatch(/ARCHIVE_RESTORE_ENABLED/);
+    expect(stale.s.scheduledSweeps.find((x) => x.id === "capture_reaper")!.state).toBe("HEALTHY");
+
+    // Inside the heartbeat's allowance it is healthy (an idle sweep records a run every ten minutes).
+    reconciliationRunFindFirst.mockImplementation(async (q: { where: { kind: string; status?: unknown } }) =>
+      q.where.status === "FAILED" ? null : run("SUCCEEDED", q.where.kind === "ARCHIVE_RESTORE" ? 25 * 60_000 : 60_000),
+    );
+    expect((await sweep("archive_restore")).sub.state).toBe("HEALTHY");
+
+    reconciliationRunFindFirst.mockImplementation(async (q: { where: { kind: string; status?: unknown } }) => {
+      if (q.where.kind !== "ARCHIVE_RESTORE") return q.where.status === "FAILED" ? null : run("SUCCEEDED", 60_000);
+      if (typeof q.where.status === "object" && q.where.status !== null && "in" in (q.where.status as object)) return run("SUCCEEDED", 12 * 60_000);
+      return run("FAILED", 30_000, "relation unreadable");
+    });
+    const failing = await sweep("archive_restore");
+    expect(failing.sub.state).toBe("DEGRADED");
+    expect(failing.sub.reason).toMatch(/The latest run failed \(relation unreadable\)/);
+  });
+
   it("a sweep that has never run is UNKNOWN — never healthy — and still actionable", async () => {
     reconciliationRunFindFirst.mockResolvedValue(null);
     const s = await buildPlatformHealthSnapshot();
@@ -629,7 +656,7 @@ describe("scheduled worker sweeps are observed from outside the worker", () => {
     reconciliationRunFindFirst.mockRejectedValue(new Error("connection reset"));
     const s = await buildPlatformHealthSnapshot();
     expect(s.evaluation.unavailableSources).toContain("scheduled_sweeps");
-    expect(s.scheduledSweeps.map((x) => x.state)).toEqual(["UNKNOWN", "UNKNOWN"]);
+    expect(s.scheduledSweeps.map((x) => x.state)).toEqual(["UNKNOWN", "UNKNOWN", "UNKNOWN"]);
     expect(s.overall.state).not.toBe("HEALTHY");
   });
 });

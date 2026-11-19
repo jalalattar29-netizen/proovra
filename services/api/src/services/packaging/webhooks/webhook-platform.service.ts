@@ -5,8 +5,8 @@
  *   * Endpoint CRUD (create / deactivate / list).
  *   * Event emission (one canonical-JSON payload, HMAC-SHA256 signed
  *     per endpoint, one row per (endpoint, event) inserted PENDING).
- *   * Single-attempt delivery worker entry point with bounded
- *     exponential backoff (cap 1h) and dead-letter after 8 attempts.
+ *   * Delivery itself is the worker dispatcher's (PRO-W2-12): bounded
+ *     exponential backoff and dead-letter live there, once.
  *   * Static verification helper for downstream consumers.
  *
  * Hard rules:
@@ -35,11 +35,8 @@ import {
   LIFECYCLE_WEBHOOK_OUTBOUND_POLICY,
   checkOutboundUrlStatic,
   isWrappedWebhookSigningSecret,
-  sendOutboundRequest,
   unwrapWebhookSigningSecret,
   wrapWebhookSigningSecret,
-  type OutboundSendInput,
-  type OutboundSendResult,
   type OutboundUrlCheck,
 } from "@proovra/shared-runtime/outbound";
 
@@ -60,12 +57,6 @@ import { machineEgressRestricted, machineEgressTargetOf } from "../../access/rec
 // -----------------------------------------------------------------------------
 
 const SECRET_RANDOM_BYTES = 32;
-/** Response bytes read (then discarded) before the connection is dropped. */
-const RESPONSE_DRAIN_MAX_BYTES = 4 * 1024;
-const DELIVERY_TIMEOUT_MS = 5_000;
-const MAX_ATTEMPTS_BEFORE_DEAD_LETTER = 8;
-const BACKOFF_BASE_SECONDS = 30;
-const BACKOFF_CAP_SECONDS = 60 * 60; // 1h
 const SUBSCRIBED_EVENTS_MAX = 64;
 const SIGNATURE_HEX_LENGTH = 64; // sha256 hex
 
@@ -93,12 +84,6 @@ function checkLifecycleUrl(raw: string): OutboundUrlCheck {
     return { ok: false, reason: "non_https_scheme" };
   }
   return verdict;
-}
-
-function computeBackoffSeconds(attemptCount: number): number {
-  const exp = Math.min(attemptCount, 16);
-  const raw = Math.pow(2, exp) * BACKOFF_BASE_SECONDS;
-  return Math.min(raw, BACKOFF_CAP_SECONDS);
 }
 
 /**
@@ -458,195 +443,15 @@ export async function emitWebhookEvent(
 }
 
 // -----------------------------------------------------------------------------
-// Public API — deliverWebhookDelivery (worker entry point)
+// Delivery
 // -----------------------------------------------------------------------------
-
-export type DeliverWebhookDeliveryInput = {
-  prisma?: PrismaClient;
-  deliveryId: string;
-  /** Test seam; production uses the shared outbound transport. */
-  send?: (input: OutboundSendInput) => Promise<OutboundSendResult>;
-};
-
-export type DeliverWebhookDeliveryResult = {
-  ok: boolean;
-  nextRetryAtUtc?: Date;
-};
-
-export async function deliverWebhookDelivery(
-  input: DeliverWebhookDeliveryInput,
-): Promise<DeliverWebhookDeliveryResult> {
-  const prisma = input.prisma ?? defaultPrisma;
-  const delivery = await prisma.lifecycleWebhookDelivery.findUnique({
-    where: { id: input.deliveryId },
-    include: {
-      endpoint: {
-        select: { id: true, url: true, state: true },
-      },
-    },
-  });
-  if (!delivery) return { ok: false };
-  if (delivery.state === "DELIVERED" || delivery.state === "DEAD_LETTERED") {
-    return { ok: delivery.state === "DELIVERED" };
-  }
-  // RG-13 — a withheld delivery is terminal; and a delivery is sent only while
-  // the workspace still holds FEATURE_WEBHOOKS (DEC-09, reversible pause).
-  if (delivery.state === "WITHHELD") return { ok: false };
-  const stillEntitled = await resolveEntitlement({ prisma, teamId: delivery.teamId, key: "FEATURE_WEBHOOKS" })
-    .then((p) => p.value === true)
-    .catch(() => false);
-  if (!stillEntitled) {
-    await prisma.lifecycleWebhookDelivery
-      .update({
-        where: { id: delivery.id },
-        data: { state: "WITHHELD", responseBodyPreview: "withheld:entitlement_required", lastAttemptAtUtc: new Date() },
-      })
-      .catch(() => null);
-    return { ok: false };
-  }
-  if (!delivery.endpoint || delivery.endpoint.state !== "ACTIVE") {
-    await prisma.lifecycleWebhookDelivery
-      .update({
-        where: { id: delivery.id },
-        data: { state: "FAILED", lastAttemptAtUtc: new Date() },
-      })
-      .catch(() => null);
-    return { ok: false };
-  }
-
-  const nextAttemptCount = delivery.attemptCount + 1;
-  const eventKind = delivery.eventKind;
-  const signature = delivery.signature;
-  const canonical = canonicalJson(delivery.payload as unknown);
-
-  let responseStatus: number | null = null;
-  // PRO-061 — the receiver's body is never stored or shown; only its status.
-  const responseBodyPreview: string | null = null;
-  let networkError = false;
-
-  // PRO-061 — the same policy at send: the stored URL is checked again (a row
-  // written before the policy is not trusted), the name is resolved inside the
-  // connection so the checked address is the connected address, and no
-  // redirect is followed.
-  const send = input.send ?? sendOutboundRequest;
-  const result = await send({
-    url: delivery.endpoint.url,
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-proovra-event": eventKind,
-      "x-proovra-signature": signature,
-      "x-proovra-delivery": delivery.id,
-    },
-    body: canonical,
-    timeoutMs: DELIVERY_TIMEOUT_MS,
-    policy: LIFECYCLE_WEBHOOK_OUTBOUND_POLICY,
-    maxResponseBytes: RESPONSE_DRAIN_MAX_BYTES,
-  });
-  if (result.kind === "refused") {
-    await prisma.lifecycleWebhookDelivery
-      .update({
-        where: { id: delivery.id },
-        data: {
-          state: "FAILED",
-          attemptCount: nextAttemptCount,
-          lastAttemptAtUtc: new Date(),
-          responseStatus: null,
-          responseBodyPreview: null,
-        },
-      })
-      .catch(() => null);
-    return { ok: false };
-  }
-  if (result.kind === "response") responseStatus = result.status;
-  else networkError = true;
-
-  const now = new Date();
-  const baseUpdate: {
-    attemptCount: number;
-    lastAttemptAtUtc: Date;
-    responseStatus: number | null;
-    responseBodyPreview: string | null;
-  } = {
-    attemptCount: nextAttemptCount,
-    lastAttemptAtUtc: now,
-    responseStatus,
-    responseBodyPreview,
-  };
-
-  const success =
-    !networkError &&
-    responseStatus !== null &&
-    responseStatus >= 200 &&
-    responseStatus < 300;
-  const isRetryable =
-    networkError ||
-    responseStatus === 429 ||
-    (responseStatus !== null && responseStatus >= 500);
-  // A redirect (3xx) is not followed and is not retried: like a 4xx it is
-  // the receiver's definite answer.
-  const isHardFailure =
-    !success &&
-    !isRetryable &&
-    responseStatus !== null &&
-    responseStatus >= 300 &&
-    responseStatus < 500;
-
-  if (success) {
-    await prisma.lifecycleWebhookDelivery
-      .update({
-        where: { id: delivery.id },
-        data: {
-          ...baseUpdate,
-          state: "DELIVERED",
-          deliveredAtUtc: now,
-        },
-      })
-      .catch(() => null);
-    return { ok: true };
-  }
-
-  if (isHardFailure) {
-    await prisma.lifecycleWebhookDelivery
-      .update({
-        where: { id: delivery.id },
-        data: { ...baseUpdate, state: "FAILED" },
-      })
-      .catch(() => null);
-    return { ok: false };
-  }
-
-  // Retryable path (5xx / 429 / network).
-  if (nextAttemptCount >= MAX_ATTEMPTS_BEFORE_DEAD_LETTER) {
-    await prisma.lifecycleWebhookDelivery
-      .update({
-        where: { id: delivery.id },
-        data: {
-          ...baseUpdate,
-          state: "DEAD_LETTERED",
-          deadLetteredAtUtc: now,
-        },
-      })
-      .catch(() => null);
-    // Bounded audit signal — no PII, only ids.
-    // eslint-disable-next-line no-console
-    console.warn(
-      `webhook_dead_lettered:${delivery.id}`,
-    );
-    return { ok: false };
-  }
-
-  const nextRetryAtUtc = new Date(
-    now.getTime() + computeBackoffSeconds(nextAttemptCount) * 1000,
-  );
-  await prisma.lifecycleWebhookDelivery
-    .update({
-      where: { id: delivery.id },
-      data: { ...baseUpdate, state: "RETRYING" },
-    })
-    .catch(() => null);
-  return { ok: false, nextRetryAtUtc };
-}
+//
+// WS-SCHED / PRO-W2-12 — there is ONE dispatcher: the worker's
+// (services/worker/src/webhook-dispatcher.ts, the module the work registry
+// names). A second, caller-less `deliverWebhookDelivery` lived here with a
+// different wire contract (other header names, another timeout, no row claim,
+// no persisted next attempt). It was removed rather than kept as a trap for a
+// future caller; this module emits PENDING rows and the worker sends them.
 
 // -----------------------------------------------------------------------------
 // Public API — getDeliveryAudit

@@ -59,9 +59,11 @@ export async function reconcileRetention(
       deletedAt: null,
       // Skip rows already archived.
       archivedAt: null,
-      // PRO-W2C2-01 — rows flagged inside the reissue window are not
-      // selected, so a fixed oldest-first page cannot re-take the same rows
-      // every run while the records behind them are never reached.
+      // WS-SCHED / PRO-G2Z-03 / PRO-W2C2-01 — rows flagged inside the reissue window are not
+      // selected at all. They used to be re-read (and skipped) every run, so the
+      // oldest `batchSize` rows occupied the batch forever and record #201+ was
+      // never flagged. Now each run reaches the next unflagged rows, and a
+      // flagged row returns once its window passes.
       OR: [
         { retentionReconciliationFlaggedAtUtc: null },
         { retentionReconciliationFlaggedAtUtc: { lte: reissueCutoff } },

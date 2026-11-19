@@ -376,6 +376,11 @@ vi.mock("../src/services/access-control/session-quarantine.service.js", () => {
   };
 });
 
+// WS-SCHED / PRO-W2C2-02 — the fleet mode of the machine runtime reconcile.
+vi.mock("../src/services/access-control/identity-runtime-scheduled.service.js", () => ({
+  runScheduledIdentityRuntimeSweep: async (input: Record<string, unknown>) =>
+    R("runScheduledIdentityRuntimeSweep", input, { enforcement: false, teamsRead: 0, teamsVisited: 0, failedTeams: 0, stoppedOnBudget: false }),
+}));
 vi.mock("../src/services/access-control/runtime-risk.service.js", () => ({
   runtimeRiskRecomputeSweep: async (i: Record<string, unknown>) =>
     R("runtimeRiskRecomputeSweep", i, { recomputed: 7 }, "runtimeRiskRecomputeSweep"),
@@ -971,13 +976,42 @@ describe("RECONCILE — dual-mode entrypoints (machine vs operator)", () => {
     },
   );
 
-  it.each(RECONCILES)("%s — MACHINE mode without a workspace → 400, ZERO sweep", async (_n, url, primary) => {
+  // WS-SCHED / PRO-W2C2-02 — reconcile-stale still needs its workspace named.
+  // runtime/reconcile without one is now the scheduler's FLEET mode (below):
+  // refusing it is what left the runtime protections without any caller.
+  it.each(RECONCILES.filter(([n]) => n === "sessions/reconcile-stale"))("%s — MACHINE mode without a workspace → 400, ZERO sweep", async (_n, url, primary) => {
     process.env["IDENTITY_RECONCILE_CRON_SECRET"] = CRON_SECRET;
     const res: Res = await app.inject({ method: "POST", url, headers: cronHeaders, payload: {} });
     expect(res.statusCode).toBe(400);
     expect(json(res)).toEqual({ error: { code: "validation_error" } });
     expect(hits(primary)).toEqual([]);
     expect(H.writes).toEqual([]);
+  });
+
+  it("runtime/reconcile — MACHINE mode without a workspace runs the all-workspaces sweep once: no per-workspace sweep from the route, no step-up, no operator audit", async () => {
+    process.env["IDENTITY_RECONCILE_CRON_SECRET"] = CRON_SECRET;
+    H.sessionPresent = false;
+    const res: Res = await app.inject({
+      method: "POST",
+      url: "/v1/admin/identity/runtime/reconcile",
+      headers: cronHeaders,
+      payload: { maxTeamsPerSweep: 50 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(json(res)).toMatchObject({ scope: "all_workspaces", enforcement: false });
+    expect(hits("runScheduledIdentityRuntimeSweep")).toHaveLength(1);
+    expect(hits("runScheduledIdentityRuntimeSweep")[0]!.args).toMatchObject({ maxTeams: 50 });
+    expect(hits("runtimeRiskRecomputeSweep")).toEqual([]);
+    expect(H.stepUps).toEqual([]);
+    expect(H.authorizeChecks).toEqual([]);
+    expect(H.audits).toEqual([]);
+  });
+
+  it("runtime/reconcile — the fleet mode is the machine's alone: an operator with no workspace named sweeps only the derived workspace", async () => {
+    H.sessionPresent = true;
+    const res: Res = await app.inject({ method: "POST", url: "/v1/admin/identity/runtime/reconcile", headers: JSON_HEADERS, payload: {} });
+    expect(hits("runScheduledIdentityRuntimeSweep")).toEqual([]);
+    expect(json(res)["scope"]).toBeUndefined();
   });
 
   it.each(RECONCILES)(

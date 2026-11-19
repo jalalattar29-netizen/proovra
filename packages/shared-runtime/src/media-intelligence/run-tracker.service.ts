@@ -273,6 +273,37 @@ export async function markRunProcessing(
 }
 
 /**
+ * WS-SCHED / PRO-W1C-08 — RENEW the claim held under `fence`: restamp
+ * `started_at_utc` so a live attempt whose stages (download, combine, upload)
+ * together approach MEDIA_INTELLIGENCE_RUN_LEASE_MS is not taken over by the
+ * reconciler while it is still working. Fenced exactly like the terminal
+ * writes: only the current claim holder renews. `{ held: false }` means the
+ * claim was lost (taken over, cancelled or settled) and the caller must stop
+ * before writing anything the run would own.
+ */
+export async function renewRunLease(
+  runId: string,
+  teamId: string,
+  fence: number,
+  client: PrismaClient = getRegisteredPrisma(),
+): Promise<{ held: boolean }> {
+  try {
+    const affected = await client.$executeRawUnsafe(
+      `UPDATE "media_intelligence_runs"
+         SET "started_at_utc" = NOW(), "updated_at_utc" = NOW()
+         WHERE "id" = $1 AND "team_id" = $2 AND "status" = 'PROCESSING'
+           AND "attempt_count" = $3::int`,
+      runId,
+      teamId,
+      fence,
+    );
+    return { held: affected === 1 };
+  } catch {
+    return { held: false };
+  }
+}
+
+/**
  * Transition a run to COMPLETED. Clears `last_error`. Bumps the
  * completed counter.
  */

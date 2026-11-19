@@ -54,6 +54,7 @@ import {
 import { resolveEvidenceWorkspaceIds } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { advanceSweepCursor, afterCursor, readSweepCursor } from "../reviewer-ops/sweep-cursor.js";
 import {
   enqueueAutomationTrigger,
   type AutomationOutboxClient,
@@ -207,6 +208,42 @@ export const SLA_DUE_SOON_WINDOW_HOURS = REVIEWER_OPS_DEFAULT_SLA_POLICY.dueSoon
 /** Rows examined per detector per tick. */
 const DETECT_LIMIT = 100;
 
+/**
+ * WS-SCHED / PRO-W2C2-06 — every detector used to read a fixed oldest-first
+ * (or newest-first) window of 100 rows ACROSS ALL TENANTS with no cursor. Runs
+ * are deduplicated per rule+target forever, so once 100 qualifying rows existed
+ * anywhere the same rows filled the window every minute and no other
+ * workspace's rule ever fired again. Now each detector (1) reads only the
+ * workspaces that have an ENABLED rule for its trigger (a workspace without
+ * one creates no rows and occupies no window) and (2) pages its population by
+ * id through a durable sweep cursor (`worker_sweep_cursors`, the same helper
+ * reconcileReviewSlas uses), wrapping at the end, so every qualifying row is
+ * visited within ceil(population / DETECT_LIMIT) ticks.
+ */
+async function teamsWithEnabledRule(prisma: PrismaClient, triggerType: string): Promise<string[]> {
+  const rows = await prisma.automationRule.findMany({
+    where: { triggerType, enabled: true, team: { closedAtUtc: null } },
+    select: { teamId: true },
+    distinct: ["teamId"],
+    take: 10_000,
+  });
+  return rows.map((r) => r.teamId);
+}
+
+async function detectorCursor(prisma: PrismaClient, triggerType: string) {
+  const key = `automation-detect:${triggerType}`.slice(0, 64);
+  const cursorId = await readSweepCursor(prisma, key);
+  return {
+    after: afterCursor(cursorId),
+    advance: (page: Array<{ id: string }>) =>
+      advanceSweepCursor(prisma, key, cursorId, {
+        lastId: page.length ? page[page.length - 1]!.id : null,
+        pageSize: page.length,
+        limit: DETECT_LIMIT,
+      }),
+  };
+}
+
 export type TimeTriggerDetectionOutcome = {
   reviewOverdue: number;
   slaDueSoon: number;
@@ -250,17 +287,23 @@ export async function detectTimeBasedAutomationTriggers(input?: {
   // (correctly) if somebody moves the date.
   // -------------------------------------------------------------------------
   try {
-    const overdue = await prisma.evidenceReviewWorkflow.findMany({
-      where: {
-        teamId: { not: null },
-        dueAt: { lt: now },
-        closedAt: null,
-        status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT"] },
-      },
-      select: { id: true, teamId: true, dueAt: true, status: true, priority: true },
-      orderBy: { dueAt: "asc" },
-      take: DETECT_LIMIT,
-    });
+    const teams = await teamsWithEnabledRule(prisma, "REVIEW_OVERDUE");
+    const cursor = await detectorCursor(prisma, "REVIEW_OVERDUE");
+    const overdue = teams.length
+      ? await prisma.evidenceReviewWorkflow.findMany({
+          where: {
+            teamId: { in: teams },
+            dueAt: { lt: now },
+            closedAt: null,
+            status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT"] },
+            ...cursor.after,
+          },
+          select: { id: true, teamId: true, dueAt: true, status: true, priority: true },
+          orderBy: { id: "asc" },
+          take: DETECT_LIMIT,
+        })
+      : [];
+    await cursor.advance(overdue);
     for (const w of overdue) {
       if (!w.teamId || !w.dueAt) continue;
       const r = await enqueueAutomationTrigger(prisma, {
@@ -284,12 +327,15 @@ export async function detectTimeBasedAutomationTriggers(input?: {
   // -------------------------------------------------------------------------
   try {
     const horizon = new Date(nowMs + REVIEWER_OPS_SLA_POLICY_HOURS_MAX * 3600 * 1000);
-    const soon = await prisma.evidenceReviewWorkflow.findMany({
+    const teams = await teamsWithEnabledRule(prisma, "SLA_DUE_SOON");
+    const cursor = await detectorCursor(prisma, "SLA_DUE_SOON");
+    const soon = !teams.length ? [] : await prisma.evidenceReviewWorkflow.findMany({
       where: {
-        teamId: { not: null },
+        teamId: { in: teams },
         dueAt: { gte: now, lte: horizon },
         closedAt: null,
         status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT"] },
+        ...cursor.after,
       },
       select: {
         id: true,
@@ -299,13 +345,14 @@ export async function detectTimeBasedAutomationTriggers(input?: {
         priority: true,
         slaDueSoonHours: true,
       },
-      orderBy: { dueAt: "asc" },
+      orderBy: { id: "asc" },
       take: DETECT_LIMIT,
     });
+    await cursor.advance(soon);
     for (const w of soon) {
       if (!w.teamId || !w.dueAt) continue;
       const windowHours = w.slaDueSoonHours ?? SLA_DUE_SOON_WINDOW_HOURS;
-      if (w.dueAt.getTime() > nowMs + windowHours * 3600 * 1000) break;
+      if (w.dueAt.getTime() > nowMs + windowHours * 3600 * 1000) continue;
       const r = await enqueueAutomationTrigger(prisma, {
         teamId: w.teamId,
         triggerType: "SLA_DUE_SOON",
@@ -334,16 +381,21 @@ export async function detectTimeBasedAutomationTriggers(input?: {
   // -------------------------------------------------------------------------
   try {
     const horizon = new Date(nowMs + 72 * 3600 * 1000);
-    const expiring = await prisma.externalReviewGrant.findMany({
+    const teams = await teamsWithEnabledRule(prisma, "EXTERNAL_ACCESS_EXPIRING");
+    const cursor = await detectorCursor(prisma, "EXTERNAL_ACCESS_EXPIRING");
+    const expiring = !teams.length ? [] : await prisma.externalReviewGrant.findMany({
       where: {
+        teamId: { in: teams },
         state: "ACTIVE",
         revokedAtUtc: null,
         expiresAtUtc: { gte: now, lte: horizon },
+        ...cursor.after,
       },
       select: { id: true, teamId: true, expiresAtUtc: true },
-      orderBy: { expiresAtUtc: "asc" },
+      orderBy: { id: "asc" },
       take: DETECT_LIMIT,
     });
+    await cursor.advance(expiring);
     for (const g of expiring) {
       if (!g.teamId || !g.expiresAtUtc) continue;
       const r = await enqueueAutomationTrigger(prisma, {
@@ -370,18 +422,28 @@ export async function detectTimeBasedAutomationTriggers(input?: {
   // candidate and a daily reminder is the honest cadence for one.
   // -------------------------------------------------------------------------
   try {
-    const candidates = await prisma.evidence.findMany({
+    const teams = await teamsWithEnabledRule(prisma, "RETENTION_CANDIDATE_FOUND");
+    const cursor = await detectorCursor(prisma, "RETENTION_CANDIDATE_FOUND");
+    const candidates = !teams.length ? [] : await prisma.evidence.findMany({
       where: {
+        // A PLATFORM-SCOPE scan with no workspace predicate (Evidence is a
+        // mixed-ownership model: a raw `teamId` filter is not a workspace
+        // scope, and the scope verifier refuses one). The id cursor is what
+        // lets every workspace progress; records of workspaces without this
+        // rule are passed over below.
         deletedAt: null,
         retentionUntilUtc: { lte: now },
         lifecycleState: { notIn: ["PENDING_DESTRUCTION", "DESTROYED"] },
+        ...cursor.after,
       },
       select: { id: true, teamId: true, lifecycleState: true },
-      orderBy: { retentionUntilUtc: "asc" },
+      orderBy: { id: "asc" },
       take: DETECT_LIMIT,
     });
+    await cursor.advance(candidates);
+    const ruleTeams = new Set(teams);
     for (const e of candidates) {
-      if (!e.teamId) continue;
+      if (!e.teamId || !ruleTeams.has(e.teamId)) continue;
       const r = await enqueueAutomationTrigger(prisma, {
         teamId: e.teamId,
         triggerType: "RETENTION_CANDIDATE_FOUND",
@@ -414,12 +476,20 @@ export async function detectTimeBasedAutomationTriggers(input?: {
   // rest of this sweep already has.
   // -------------------------------------------------------------------------
   try {
-    const ready = await prisma.evidenceExchangePackage.findMany({
-      where: { state: "READY", createdAt: { gte: new Date(nowMs - 7 * 24 * 3600 * 1000) } },
+    const teams = await teamsWithEnabledRule(prisma, "PACKAGE_READY");
+    const cursor = await detectorCursor(prisma, "PACKAGE_READY");
+    const ready = !teams.length ? [] : await prisma.evidenceExchangePackage.findMany({
+      where: {
+        teamId: { in: teams },
+        state: "READY",
+        createdAt: { gte: new Date(nowMs - 7 * 24 * 3600 * 1000) },
+        ...cursor.after,
+      },
       select: { id: true, teamId: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: { id: "asc" },
       take: DETECT_LIMIT,
     });
+    await cursor.advance(ready);
     for (const pkg of ready) {
       if (!pkg.teamId) continue;
       const r = await enqueueAutomationTrigger(prisma, {
@@ -447,19 +517,22 @@ export async function detectTimeBasedAutomationTriggers(input?: {
   // personal workspace).
   // -------------------------------------------------------------------------
   try {
-    const issued = await prisma.report.findMany({
-      where: { generatedAtUtc: { gte: new Date(nowMs - 7 * 24 * 3600 * 1000) } },
+    const teams = new Set(await teamsWithEnabledRule(prisma, "EVIDENCE_REPORTED"));
+    const cursor = await detectorCursor(prisma, "EVIDENCE_REPORTED");
+    const issued = !teams.size ? [] : await prisma.report.findMany({
+      where: { generatedAtUtc: { gte: new Date(nowMs - 7 * 24 * 3600 * 1000) }, ...cursor.after },
       select: { id: true, version: true, evidence: { select: { id: true, teamId: true, ownerUserId: true } } },
-      orderBy: { generatedAtUtc: "desc" },
+      orderBy: { id: "asc" },
       take: DETECT_LIMIT,
     });
+    await cursor.advance(issued);
     const workspaceBy = await resolveEvidenceWorkspaceIds(
       issued.map((r) => ({ id: r.evidence.id, teamId: r.evidence.teamId, ownerUserId: r.evidence.ownerUserId })),
       prisma,
     );
     for (const report of issued) {
       const teamId = workspaceBy.get(report.evidence.id) ?? null;
-      if (!teamId) continue;
+      if (!teamId || !teams.has(teamId)) continue;
       const r = await enqueueAutomationTrigger(prisma, {
         teamId,
         triggerType: "EVIDENCE_REPORTED",

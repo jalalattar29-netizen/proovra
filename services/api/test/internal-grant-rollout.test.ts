@@ -222,6 +222,11 @@ describe("internal-grant rollout — migration state", () => {
       "20281121110100_redaction_page_previews",
       // PRO-W2-09 (WS-REL): the reconciliation-run heartbeat column. EXPAND.
       "20281121120000_reconciliation_run_heartbeat",
+      // WS-SCHED PRO-BL2-02: the export-package unit reserved at admission. EXPAND.
+      "20281121130000_exchange_package_quota_reservation",
+      // WS-SCHED PRO-P3DZ-04: the ARCHIVE_RESTORE reconciliation kind. EXPAND.
+      "20281121130100_archive_restore_reconciliation_kind",
+      "20281121130200_report_request_storage_reservation",
       // PRO-P1-06 (WS-SHELL): Operations idempotency reservation. EXPAND.
       "20281121140000_ops_idempotency_reservation",
     ];

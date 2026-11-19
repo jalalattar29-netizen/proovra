@@ -247,6 +247,31 @@ describe("Operations truth closure — remaining contract points (live PostgreSQ
     expect(viaRoute.statusCode).toBe(202);
   });
 
+  // WS-SCHED / PRO-P1C-03 — the explicit path is bounded per person: a loop
+  // of "Check again" requests stops forcing the inline discovery sweep.
+  it("WS-SCHED PRO-P1C-03: explicit re-checks beyond the allowance are answered as page loads and run nothing", async () => {
+    const owner = await makeUser(c, "recheck-loop-owner", { plan: "PRO" });
+    const w = await makeWorkspace(c, owner.id, { name: "recheck-loop", billingPlan: "TEAM", billingStatus: "ACTIVE" });
+    const ask = async () => {
+      const res = await c.inj("POST", "/v1/ops/workspace-reconcile", owner.token, { teamId: w.teamId, explicit: true });
+      expect(res.statusCode, res.body).toBe(202);
+      return { body: res.json() as { ran: boolean; explicitThrottled: boolean }, retryAfter: res.headers["retry-after"] };
+    };
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 2_100));
+
+    // 1: the first run. 2: an honoured explicit re-check (past the 2 s floor).
+    expect((await ask()).body).toMatchObject({ ran: true, explicitThrottled: false });
+    await pause();
+    expect((await ask()).body).toMatchObject({ ran: true, explicitThrottled: false });
+    // 3..6 spend the rest of the allowance.
+    for (let i = 3; i <= 6; i += 1) expect((await ask()).body.explicitThrottled).toBe(false);
+    await pause();
+    // 7: past the floor again, but the allowance is spent: no run.
+    const seventh = await ask();
+    expect(seventh.body).toMatchObject({ ran: false, explicitThrottled: true });
+    expect(Number(seventh.retryAfter)).toBeGreaterThan(0);
+  });
+
   it("OPS-003 an ungrantable add-on keeps its obligation through failed attempts, and closes only on provider confirmation", async () => {
     const payer = await makeUser(c, "ungrantable-payer", { plan: "PRO" });
     const space = await personalSpace(c, payer.id);

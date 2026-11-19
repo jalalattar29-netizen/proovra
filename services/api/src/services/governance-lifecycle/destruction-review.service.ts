@@ -50,10 +50,45 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+
+/**
+ * WS-SCHED / PRO-G2-02, DEC-05 — the self-serve permanent-deletion decider.
+ *
+ * Enterprise ORGANIZATION workspaces keep governed, two-person destruction.
+ * A self-serve workspace (canonical kind PERSONAL or OWNED — never decided from
+ * `team_id` nullness) has no second party to approve to, so its own ACTIVE
+ * OWNER may open, approve and request execution of a destruction review alone.
+ * Every other boundary still applies in full: step-up on approve/execute, the
+ * executor's switches, retention, Object Lock, trash grace and legal holds.
+ * UNKNOWN kind fails closed (false).
+ */
+export async function isSelfServeDestructionOwner(
+  client: Pick<PrismaClient, "team" | "teamMember">,
+  teamId: string,
+  actorUserId: string,
+): Promise<boolean> {
+  const team = await client.team.findUnique({
+    where: { id: teamId },
+    select: { workspaceKind: true, isPersonal: true, billingPlan: true },
+  });
+  const kind = resolveWorkspaceKind({
+    workspaceKind: team?.workspaceKind ?? null,
+    isPersonal: team?.isPersonal ?? null,
+    billingPlan: team?.billingPlan ?? null,
+    teamLoaded: team !== null,
+  });
+  if (kind !== "PERSONAL" && kind !== "OWNED") return false;
+  const owner = await client.teamMember.findFirst({
+    where: { teamId, userId: actorUserId, role: "OWNER", status: "ACTIVE" },
+    select: { id: true },
+  });
+  return owner !== null;
+}
 // `canonicalJson` / `sha256Hex` used to be imported here so this service could
 // mint its own destruction certificate hash. It no longer mints one: the
 // canonical executor does, after verifying the deletion, and this service
 // mirrors that hash onto the review row.
+import { resolveWorkspaceKind } from "../identity/workspace-kind.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
@@ -337,6 +372,12 @@ export type TransitionDestructionReviewInput = {
   decisionNote?: string | null;
   deferredUntilUtc?: Date | null;
   requestId?: string | null;
+  /**
+   * PRO-G2-02 / DEC-05 — the route found no Enterprise destruction governance
+   * and the actor claims the self-serve owner path. Re-verified here; when it
+   * holds, the single owner is both proposer and approver.
+   */
+  selfServeOwner?: boolean;
 };
 
 export async function transitionDestructionReview(
@@ -381,7 +422,10 @@ export async function transitionDestructionReview(
   // is the proposer and the approver is still the second person.
   if (input.nextStatus === "APPROVED") {
     const proposer = existing.initiatedByUserId ?? existing.reviewStartedByUserId;
-    if (!proposer || proposer === input.actorUserId) {
+    const soleOwner =
+      input.selfServeOwner === true &&
+      (await isSelfServeDestructionOwner(client, input.teamId, input.actorUserId));
+    if (!soleOwner && (!proposer || proposer === input.actorUserId)) {
       throw new DestructionReviewError("DESTRUCTION_REVIEW_SEPARATION_OF_DUTIES");
     }
   }

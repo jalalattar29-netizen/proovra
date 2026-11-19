@@ -12,9 +12,10 @@ import { Worker } from "bullmq";
 import { WORKER_CONCURRENCY_SETTINGS, workerQueueConcurrency } from "./worker-concurrency.js";
 // PHASE 12 CORRECTIVE PASS §4 (SEC-004) — the ONE secrets authority, shared
 // with the API. See the call site near the bottom of this file.
-import { getOcrProducerMode, getTranscriptProducerMode, initSecretsAuthority } from "@proovra/shared-runtime";
+import { getOcrProducerMode, getTranscriptProducerMode, initSecretsAuthority, integrityRecheckIntervalDays } from "@proovra/shared-runtime";
 import { beginWorkerShutdown, markActiveReconciliationRunsInterrupted } from "./shutdown-state.js";
 import { logger } from "./logger.js";
+import { resolveInternalApiBase } from "./internal-api.js";
 import {
   derivedAssetsQueue,
   derivedAssetsQueueName,
@@ -102,6 +103,9 @@ import {
 import { runImmutableStorageReconciliation } from "./governance/immutable-storage-reconciliation.worker.js";
 // Phase 4B Final Closure I7 — Archive tier auto-transition scheduler.
 import { runArchiveTierAutoTransitions } from "./governance/archive-tier-auto-transition.worker.js";
+// PRO-P3DZ-04 — a registered sweep: its executor is a static import, like
+// every other launcher's, so the work registry resolves it.
+import { runArchiveRestoreSweep } from "./governance/archive-restore.js";
 // Reviewer Ops activation — periodic reconcile tick across all teams.
 import { runReviewerReconciliation } from "./reviewer-ops/reviewer-reconciliation.worker.js";
 // Macro-Wave A2 — org-invite delivery sweep tick (stranded/due PENDING
@@ -178,10 +182,8 @@ function envBoolean(name: string, fallback: boolean): boolean {
 }
 
 
-const internalApiBase =
-  envString("INTERNAL_API_BASE_URL") ??
-  envString("API_BASE_URL") ??
-  "http://proovra-api:8080";
+// PRO-W2-10 — the same resolver every worker-driven API sweep uses.
+const internalApiBase = resolveInternalApiBase();
 
 const internalApiKey = envString("INTERNAL_API_KEY");
 const followUpEnabled = envBoolean("DEMO_FOLLOW_UP_ENABLED", true);
@@ -569,6 +571,9 @@ async function runIntegrityRecheckTick(trigger: string) {
         intervalMs: integrityRecheckIntervalMs,
         baseBatch: integrityRecheckBatch,
         maxBatch: envNumber("INTEGRITY_RECHECK_SWEEP_MAX_BATCH", 200),
+        // PRO-W2-08 / B8-F-301 — size for the CONFIGURED cadence, the same
+        // value the due predicate uses (INTEGRITY_RECHECK_INTERVAL_DAYS).
+        cadenceDays: integrityRecheckIntervalDays(),
       });
       limit = plan.limit;
       if (plan.capacityExceeded) {
@@ -992,8 +997,9 @@ async function runArchiveRestoreTick() {
   if (archiveRestoreRunning) return;
   archiveRestoreRunning = true;
   try {
-    const { processArchiveRestoreRequests } = await import("./governance/archive-restore.js");
-    await withCronLock("archive-restore", () => processArchiveRestoreRequests());
+    // PRO-P3DZ-04 — under the reconciliation-run authority, so the platform
+    // health snapshot can tell a running sweep from a stopped one.
+    await withCronLock("archive-restore", () => runArchiveRestoreSweep());
   } catch (err) {
     logger.error({ err }, "archive_restore.sweep.failed");
   } finally {
@@ -1024,7 +1030,14 @@ function startTrashGraceReconcilerScheduler() {
   } else {
     logger.info({}, "trash_grace.reconciler.scheduler.disabled");
   }
-  // AUD-0001 — restore is started whatever the trash-grace switch says.
+}
+/**
+ * WS-SCHED / PRO-P3DZ-04 — ArchiveRestoreSweep has its OWN launcher
+ * (SWEEP_NAMES.ARCHIVE_RESTORE in the work registry). AUD-0001 still holds, by
+ * construction now: it does not sit inside the trash-grace launcher at all, so
+ * that switch cannot stop a restore a person is waiting for.
+ */
+function startArchiveRestoreScheduler() {
   if (archiveRestoreEnabled) {
     archiveRestoreTimer = setInterval(() => {
       void runArchiveRestoreTick();
@@ -2478,6 +2491,7 @@ function openConsumers(): void {
   }
   startRedactionReconcilerScheduler();
   startTrashGraceReconcilerScheduler();
+  startArchiveRestoreScheduler();
   startSearchIndexReconcilerScheduler();
   startIntelligenceRunReconcilerScheduler();
   logger.info({ workers: REGISTERED_WORKERS.filter(([, w]) => w).length }, "worker.consumers_started");

@@ -1,7 +1,11 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { allowanceSlotEvidenceWhere, evidenceScopeFor } from "@proovra/shared-runtime";
-import { sumDerivedAssetStorageBytes } from "@proovra/shared-runtime";
+import {
+  sumDerivedAssetStorageBytes,
+  sumExchangePackageStorageBytes,
+  sumLiveArtifactStorageReservationBytes,
+} from "@proovra/shared-runtime";
 import { measureFirstIssuanceAllowanceExclusion } from "@proovra/shared-runtime";
 import type { WorkspaceScope } from "./workspace-billing.service.js";
 import {
@@ -270,6 +274,10 @@ export type WorkspaceUsage = {
   evidenceStorageBytes: bigint;
   reportStorageBytes: bigint;
   verificationPackageStorageBytes: bigint;
+  /** PRO-W1-07 — stored Evidence Exchange package ZIPs (in `actualStorageBytes`). */
+  exchangePackageStorageBytes: bigint;
+  /** PRO-W1-06 — bytes reserved by artifact runs in flight (in `storageBytesUsed`). */
+  reservedStorageBytes: bigint;
   /**
    * RETENTION ARCHIVE (owner decision 2026-10-14) — bytes the PLATFORM keeps
    * under its baseline retention after the record left the 90-day Trash
@@ -362,6 +370,8 @@ export type WorkspaceUsageClient = Pick<
   | "reportGenerationRequest"
   // B5B-F-403 (free audit 0ea0) — and the credit ledger (credit-funded records).
   | "evidenceCreditLedgerEntry"
+  // PRO-W1-07 — stored Evidence Exchange package ZIPs count as storage.
+  | "evidenceExchangePackage"
 >;
 
 export async function getWorkspaceUsage(
@@ -451,6 +461,8 @@ export async function getWorkspaceUsage(
     retainedReportAggregate,
     retainedPackageAggregate,
     firstIssuanceExclusion,
+    exchangePackageStorageBytes,
+    reservedStorageBytes,
   ] = await Promise.all([
     db.evidence.aggregate({
       where: evidenceWhere,
@@ -493,6 +505,18 @@ export async function getWorkspaceUsage(
     // AUDIT D-03 — the first issuance of the entitled Free records, over the
     // SAME population and lifecycle filter the report and package sums use.
     measureFirstIssuanceAllowanceExclusion(db, evidenceWhere),
+    // WS-SCHED / PRO-W1-07 (DEC-04) — exchange package ZIPs are
+    // customer-requested derived artifacts: counted like the derived review
+    // materials above, by the sum the Worker's meter uses.
+    sumExchangePackageStorageBytes(db, {
+      teamId: scope.teamId ?? personalTeamForUsage?.id ?? null,
+    }),
+    // WS-SCHED / PRO-W1-06 (DEC-04) — bytes the Worker's artifact runs have
+    // RESERVED and not yet committed (live claims only). Every gate that reads
+    // this figure therefore leaves that room alone.
+    sumLiveArtifactStorageReservationBytes(db, {
+      teamId: scope.teamId ?? personalTeamForUsage?.id ?? null,
+    }),
   ]);
   const retainedArchiveStorageBytes =
     toBigIntOrZero(retainedEvidenceAggregate._sum.sizeBytes) +
@@ -509,7 +533,8 @@ export async function getWorkspaceUsage(
     evidenceStorageBytes +
     reportStorageBytes +
     verificationPackageStorageBytes +
-    derivedStorageBytes;
+    derivedStorageBytes +
+    exchangePackageStorageBytes;
   // AUDIT D-03 — the customer-facing figure: originals counted once, the
   // standard first issuance of an entitled Free record left out. Never below
   // zero (the exclusion is a subset of the sums above by construction).
@@ -517,7 +542,8 @@ export async function getWorkspaceUsage(
     firstIssuanceExclusion.totalBytes < actualStorageBytes
       ? firstIssuanceExclusion.totalBytes
       : actualStorageBytes;
-  const storageBytesUsed = actualStorageBytes - firstIssuanceExcludedBytes;
+  // PRO-W1-06 — plus the reserved bytes of artifact runs in flight.
+  const storageBytesUsed = actualStorageBytes - firstIssuanceExcludedBytes + reservedStorageBytes;
 
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted storage figure
   // is the base capacity. It was previously ignored: every Enterprise
@@ -591,6 +617,8 @@ export async function getWorkspaceUsage(
     evidenceStorageBytes,
     reportStorageBytes,
     verificationPackageStorageBytes,
+    exchangePackageStorageBytes,
+    reservedStorageBytes,
     retainedArchiveStorageBytes,
     evidenceCount,
     teamMemberCount,

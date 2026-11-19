@@ -745,7 +745,12 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         // caller was told it had (remediation 2026-11-10, tracked apart from
         // the AUD ledger). A race between two PENDING calls still ends with
         // one claim; the job does run, so neither answer is untrue.
-        if (job.status !== BatchStatus.PENDING) {
+        // WS-SCHED / PRO-G2-06 — a PROCESSING job whose run was interrupted
+        // (claim older than the lease) is resumed instead of refused.
+        const abandoned =
+          job.status === BatchStatus.PROCESSING &&
+          (await batchAnalysisService.isBatchClaimAbandoned(userId, id, batchWorkspaceOf(req)));
+        if (job.status !== BatchStatus.PENDING && !abandoned) {
           auditEnterpriseAction(req, {
             userId,
             action: "enterprise.batch_process",

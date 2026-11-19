@@ -141,28 +141,47 @@ export async function runReminderScheduler(
   const cooldownThreshold = new Date(now.getTime() - cooldownMs);
   const batchSize = Math.min(Math.max(input.batchSize ?? 100, 1), 500);
 
-  const candidates = await client.evidenceRequest.findMany({
-    where: {
-      status: { in: ELIGIBLE_REQUEST_STATUSES as unknown as string[] as never[] },
-      // Only nudge when there's a due date AND it's within a 7-day pre/post
-      // window. Avoids spamming about distant future deadlines.
-      dueAtUtc: {
-        not: null,
-        lte: new Date(now.getTime() + 7 * 24 * 3600 * 1000),
-        gte: new Date(now.getTime() - 90 * 24 * 3600 * 1000),
-      },
-      recipientMode: "EXTERNAL_CONTRIBUTOR",
-      recipientEmail: { not: null },
+  // WS-SCHED / PRO-W2-04, PRO-N1Z-01 — the window used to be the 100
+  // earliest-due requests platform-wide with no cursor, and rows the loop
+  // skipped (cooldown, dead link, held claim) never left it, so one tenant's
+  // stale requests starved every other tenant's reminders. Now: rows that can
+  // never be reminded (no ACTIVE unexpired intake link) are excluded in the
+  // query, and the scan PAGES by a (dueAtUtc, id) keyset until `batchSize`
+  // reminders are sent or the eligible set is exhausted (bounded by
+  // REMINDER_SCAN_CEILING rows per run), so every eligible request is visited
+  // within a cooldown. Per-request lease + cooldown read still make a send
+  // exclusive across overlapping runs.
+  const baseWhere = {
+    status: { in: ELIGIBLE_REQUEST_STATUSES as unknown as string[] as never[] },
+    // Only nudge when there's a due date AND it's within a 7-day pre/post
+    // window. Avoids spamming about distant future deadlines.
+    dueAtUtc: {
+      not: null,
+      lte: new Date(now.getTime() + 7 * 24 * 3600 * 1000),
+      gte: new Date(now.getTime() - 90 * 24 * 3600 * 1000),
     },
-    take: batchSize,
-    orderBy: { dueAtUtc: "asc" },
-    include: {
-      deliverables: true,
-      intakeLink: true,
-    },
-  });
+    recipientMode: "EXTERNAL_CONTRIBUTOR",
+    recipientEmail: { not: null },
+    intakeLinkId: { not: null },
+    intakeLink: { is: { status: "ACTIVE", expiresAtUtc: { gt: now } } },
+  } as const;
+  const pageSize = batchSize;
+  let cursor: { dueAtUtc: Date; id: string } | null = null;
+
+  for (;;) {
+  if (summary.reminded >= batchSize || summary.scanned >= REMINDER_SCAN_CEILING) break;
+  const candidates: Awaited<ReturnType<typeof loadReminderPage>> = await loadReminderPage(
+    client,
+    baseWhere as never,
+    cursor,
+    pageSize,
+  );
+  if (candidates.length === 0) break;
+  const last = candidates[candidates.length - 1]!;
+  cursor = { dueAtUtc: last.dueAtUtc as Date, id: last.id };
 
   for (const req of candidates) {
+    if (summary.reminded >= batchSize) break;
     summary.scanned += 1;
 
     if (!req.recipientEmail) {
@@ -255,6 +274,40 @@ export async function runReminderScheduler(
       await lease.release();
     }
   }
+  if (candidates.length < pageSize) break;
+  }
 
   return summary;
+}
+
+/** Hard bound on rows examined per run (the keyset makes every run progress). */
+export const REMINDER_SCAN_CEILING = 5_000;
+
+async function loadReminderPage(
+  client: PrismaClient,
+  baseWhere: Record<string, unknown>,
+  cursor: { dueAtUtc: Date; id: string } | null,
+  take: number,
+) {
+  return client.evidenceRequest.findMany({
+    where: cursor
+      ? {
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { dueAtUtc: { gt: cursor.dueAtUtc } },
+                { dueAtUtc: cursor.dueAtUtc, id: { gt: cursor.id } },
+              ],
+            },
+          ],
+        }
+      : baseWhere,
+    take,
+    orderBy: [{ dueAtUtc: "asc" }, { id: "asc" }],
+    include: {
+      deliverables: true,
+      intakeLink: true,
+    },
+  });
 }

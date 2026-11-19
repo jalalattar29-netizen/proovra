@@ -55,7 +55,12 @@ vi.mock("../src/db.js", () => ({
       findMany: (...a: unknown[]) => packageRows(...a),
     },
     evidencePartDerivedAsset: { aggregate: vi.fn(async () => ({ _sum: { sizeBytes: 0 } })) },
-    reportGenerationRequest: { findMany: (...a: unknown[]) => requestRows(...a) },
+    // PRO-W1-07 / PRO-W1-06 — the meter also sums stored exchange ZIPs and live reservations.
+    evidenceExchangePackage: { aggregate: vi.fn(async () => ({ _sum: { packageSizeBytes: null } })) },
+    reportGenerationRequest: {
+      findMany: (...a: unknown[]) => requestRows(...a),
+      aggregate: vi.fn(async () => ({ _sum: { storageReservedBytes: null } })),
+    },
     evidenceCreditLedgerEntry: { findMany: vi.fn(async () => []), findUnique: vi.fn(async () => null) },
   },
 }));

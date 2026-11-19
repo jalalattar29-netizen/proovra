@@ -51,6 +51,12 @@ describe("package custody is complete and recomputable (live PostgreSQL 16)", ()
     ({ prisma } = await import("../src/db.js"));
     runtime = await import("@proovra/shared-runtime");
     runtime.registerPrisma(prisma as never);
+    // PRO-W1-07 — the builder re-reads the Evidence Exchange entitlement at claim.
+    await prisma.entitlementGrant.upsert({
+      where: { teamId_key: { teamId: h.fixtures.teamA.teamId, key: "FEATURE_EVIDENCE_EXCHANGE" } },
+      update: { valueBool: true, expiresAtUtc: null },
+      create: { teamId: h.fixtures.teamA.teamId, key: "FEATURE_EVIDENCE_EXCHANGE", kind: "FEATURE", valueBool: true, source: "CUSTOM", grantedAtUtc: new Date() },
+    });
   }, 180_000);
   afterAll(async () => {
     await h?.cleanup();
