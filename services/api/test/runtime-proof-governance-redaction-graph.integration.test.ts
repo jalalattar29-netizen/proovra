@@ -867,7 +867,7 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       expect(audit).toMatchObject({ teamId: a.teamId, actorUserId: a.adminUserId, policyVersionId, payload: { assignmentId } });
     });
 
-    it("POST /v1/redaction/video-tracks/merge — merges same-evidence tracks into one span and records the timeline event; refuses a member and another tenant", async () => {
+    it("POST /v1/redaction/video-tracks/merge — merges same-evidence tracks into one span and records the timeline event; refuses a viewer and another tenant", async () => {
       const { teamA: a, teamB: b } = h.fixtures;
       const video = await createEvidence(a.teamId, a.ownerUserId, "VIDEO");
       const track = (startFrame: number, endFrame: number, confidenceBand: string) =>
@@ -881,7 +881,8 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       // VideoReviewWorkspace body.
       const payload = { trackIds: [t1.id, t2.id] };
 
-      expect((await call({ method: "POST", url, token: a.memberToken, payload })).statusCode).toBe(403);
+      // PRO-R3-05 / DEC-16 — a MEMBER holds the reviewer tier (detection review); a VIEWER holds no redaction role.
+      expect((await call({ method: "POST", url, token: a.viewerToken, payload })).statusCode).toBe(403);
       const foreign = await call({ method: "POST", url, token: b.ownerToken, payload });
       expect(foreign.statusCode).toBe(409);
       expect(foreign.json()).toEqual({ denial: "VERSION_NOT_FOUND" });
