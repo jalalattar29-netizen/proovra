@@ -979,11 +979,11 @@ export async function listExternalReviewGrants(
   }
   if (input.hidden && input.hidden.evidenceIds.length > 0) {
     params.push([...input.hidden.evidenceIds]);
-    where.push(`("evidence_id" IS NULL OR "evidence_id" <> ALL(${params.length}::uuid[]))`);
+    where.push(`("evidence_id" IS NULL OR "evidence_id" <> ALL($${params.length}::uuid[]))`);
     // PRO-AI1Z-02 — a PACKAGE grant stores only its package: resolved to the
     // record it was issued for, by the same closed-record list.
     where.push(
-      `("package_id" IS NULL OR "package_id" NOT IN (SELECT "id" FROM "verification_packages" WHERE "evidence_id" = ANY(${params.length}::uuid[])))`,
+      `("package_id" IS NULL OR "package_id" NOT IN (SELECT "id" FROM "verification_packages" WHERE "evidence_id" = ANY($${params.length}::uuid[])))`,
     );
   }
   if (input.hidden && input.hidden.caseIds.length > 0) {
