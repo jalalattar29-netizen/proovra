@@ -78,11 +78,7 @@ test("Phase 0 — page.tsx is orchestration only (under 80 KB byte-size guard)",
   // section doesn't break the guard, but well below the original
   // monolith so the next 3,000-line drift dies fast.
   const sizeBytes = Buffer.byteLength(PAGE, "utf8");
-  // Rebaselined 2026-11-19 (remediation integration): 80,000 -> 84,000. The page
-  // was 78,485 bytes before the remediation; several workstreams each added a
-  // little (within the cap alone) and the merged file is 82,828. Extracting a
-  // section into _tabs/ is the real answer and is left to its owner.
-  const CAP_BYTES = 84_000;
+  const CAP_BYTES = 80_000;
   assert.ok(
     sizeBytes <= CAP_BYTES,
     `page.tsx is ${sizeBytes} bytes (cap ${CAP_BYTES}). Extract new sections into _tabs/ instead.`,

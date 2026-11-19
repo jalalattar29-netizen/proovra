@@ -118,8 +118,16 @@ test("the canonical Modal is the only dialog shell on the route", () => {
   assert.match(shell, /"Escape"/);
   assert.match(shell, /aria-modal="true"/);
 
-  const portals = PAGE.match(/<PortalModal\b/g) ?? [];
-  assert.equal(portals.length, 8, `expected 8 canonical dialogs, got ${portals.length}`);
+  // Eight dialogs on the route: seven in the page and the relationship
+  // dialog, which lives in its own component and is mounted by the page.
+  const relationshipDialog = readFileSync(
+    resolve(REPO_ROOT, "apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipDialog.tsx"),
+    "utf8",
+  );
+  assert.ok(PAGE.includes("<EvidenceRelationshipDialog"), "the page must mount the relationship dialog");
+  const count = (source: string) => source.split("<PortalModal").length - 1;
+  const portals = count(PAGE) + count(relationshipDialog);
+  assert.equal(portals, 8, `expected 8 canonical dialogs, got ${portals}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -159,8 +167,7 @@ test("no parallel, backup or V2 surface exists on the route", () => {
 
 test("the route stays under its byte guard", () => {
   const bytes = Buffer.byteLength(PAGE, "utf8");
-  // Rebaselined 2026-11-19 (remediation integration): 80,000 -> 84,000 (see evidence-detail-ia-refactor.test.ts).
-  assert.ok(bytes < 84_000, `page.tsx is ${bytes} bytes`);
+  assert.ok(bytes < 80_000, `page.tsx is ${bytes} bytes`);
 });
 
 // ---------------------------------------------------------------------------

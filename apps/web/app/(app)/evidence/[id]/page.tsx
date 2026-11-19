@@ -94,6 +94,7 @@ import { EvidenceIntegrityTab } from "./_tabs/EvidenceIntegrityTab";
 import { EvidenceCustodyTab } from "./_tabs/EvidenceCustodyTab";
 import { EvidenceRecordRail } from "./_tabs/EvidenceRecordRail";
 import { Modal as PortalModal } from "../../../../components/cases-experience/matter-modals/Modal";
+import { EvidenceRelationshipDialog } from "./components/EvidenceRelationshipDialog";
 import { AppListbox } from "../../../../components/app-primitives";
 import { EvidenceReviewTab } from "./_tabs/EvidenceReviewTab";
 import { EvidenceArtifactsTab } from "./_tabs/EvidenceArtifactsTab";
@@ -232,12 +233,6 @@ function EvidenceDetailPageInner() {
   >([]);
   const [workflowEventsLoading, setWorkflowEventsLoading] = useState(false);
   const [relationshipOpen, setRelationshipOpen] = useState(false);
-  const [relationshipTargetId, setRelationshipTargetId] = useState("");
-  const relationshipTargetIsSelf =
-    Boolean(evidenceId) &&
-    relationshipTargetId.trim().toLowerCase() === String(evidenceId).toLowerCase();
-  const [relationshipType, setRelationshipType] = useState("RELATED");
-  const [relationshipNote, setRelationshipNote] = useState("");
   const [exportDisabled, setExportDisabled] = useState(false);
   const [packageDisabled, setPackageDisabled] = useState(false);
   // The governance reason behind a disabled download. Kept beside the boolean
@@ -605,38 +600,6 @@ function EvidenceDetailPageInner() {
       if (reason === "stale_workflow" || reason === "invalid_stage_transition") {
         await loadWorkspace({ bumpBaseline: true });
       }
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const saveRelationship = async () => {
-    if (!evidenceId || !relationshipTargetId) return;
-    setActionBusy(true);
-    try {
-      await apiFetch(`/v1/evidence/${evidenceId}/relationships`, {
-        method: "POST",
-        body: JSON.stringify({
-          targetEvidenceId: relationshipTargetId,
-          relationshipType,
-          note: relationshipNote || null,
-        }),
-      });
-      addToast("Relationship recorded", "success");
-      setRelationshipOpen(false);
-      setRelationshipTargetId("");
-      setRelationshipType("RELATED");
-      setRelationshipNote("");
-      await loadWorkspace();
-    } catch (saveError) {
-      captureException(saveError, {
-        feature: "web_evidence_relationship_create",
-        evidenceId,
-      });
-      addToast(
-        toSafeUserError(saveError, { message: "Failed to create relationship" }).message,
-        "error",
-      );
     } finally {
       setActionBusy(false);
     }
@@ -1677,91 +1640,16 @@ function EvidenceDetailPageInner() {
         </div>
       </PortalModal>
 
-      <PortalModal
+      {/* The relationship dialog owns its own draft and its save (extracted). */}
+      <EvidenceRelationshipDialog
         open={relationshipOpen}
-        testid="evidence-relationship"
-        dismissDisabled={actionBusy}
+        evidenceId={evidenceId}
+        actionBusy={actionBusy}
+        setActionBusy={setActionBusy}
+        addToast={addToast}
         onClose={() => setRelationshipOpen(false)}
-        title="Record evidence relationship"
-        footer={
-          <>
-            <button type="button" className="app-secondary-action" onClick={() => setRelationshipOpen(false)}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="app-primary-action"
-              onClick={() => void saveRelationship()}
-              disabled={actionBusy || !relationshipTargetId.trim() || relationshipTargetIsSelf}
-              aria-describedby={
-                relationshipTargetIsSelf || !relationshipTargetId.trim()
-                  ? "evidence-relationship-target-reason"
-                  : undefined
-              }
-            >
-              Save relationship
-            </button>
-          </>
-        }
-      >
-        <div className="evidence-detail-modal-stack">
-          <p className="evidence-detail-muted">
-            Enter the linked evidence record ID. The target must be an accessible
-            evidence record.
-          </p>
-          <input
-            className="evidence-detail-input"
-            value={relationshipTargetId}
-            onChange={(event) => setRelationshipTargetId(event.target.value)}
-            placeholder="Linked evidence ID"
-            aria-label="Linked evidence record ID"
-            aria-invalid={relationshipTargetIsSelf || undefined}
-          />
-          {/* PV-DEFECT-001 — the server refuses a self-link (400
-              EVIDENCE_RELATIONSHIP_SELF_LINK); saying so before the request is
-              the same rule, stated where the operator is typing. */}
-          <p
-            id="evidence-relationship-target-reason"
-            className="evidence-detail-muted"
-            role={relationshipTargetIsSelf ? "alert" : undefined}
-            data-evidence-relationship-reason={
-              relationshipTargetIsSelf ? "self" : !relationshipTargetId.trim() ? "empty" : undefined
-            }
-          >
-            {relationshipTargetIsSelf
-              ? "A record can't be linked to itself. Enter a different evidence record ID."
-              : !relationshipTargetId.trim()
-                ? "Enter the ID of the record to link before saving."
-                : null}
-          </p>
-          <label className="evidence-detail-field">
-            <span>Relationship type</span>
-            <AppListbox
-              value={relationshipType}
-              ariaLabel="Relationship type"
-              onChange={(next) => setRelationshipType(next)}
-              options={[
-                "RELATED",
-                "SUPPORTS",
-                "DUPLICATE_OF",
-                "DERIVED_FROM",
-                "SAME_INCIDENT",
-                "CONTRADICTS",
-                "REPLACES",
-                "REFERENCES",
-              ].map((value) => ({ value, label: value.replace(/_/g, " ") }))}
-            />
-          </label>
-          <label className="evidence-detail-field">
-            <span>Note</span>
-            <textarea
-              className="evidence-detail-textarea"
-              value={relationshipNote}
-              onChange={(event) => setRelationshipNote(event.target.value)}
-            />
-          </label>
-        </div>
-      </PortalModal>
+        onSaved={loadWorkspace}
+      />
 
       {/* Phase EVIDENCE-LIFECYCLE-MODALS — close-on-success + refresh.
           Each lifecycle modal now closes automatically once the

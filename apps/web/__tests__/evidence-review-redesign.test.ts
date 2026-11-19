@@ -319,15 +319,22 @@ test("the five Review dialogs are on the canonical portal Modal", () => {
   const portal = PAGE.match(/<PortalModal\b/g) ?? [];
   assert.ok(portal.length >= 5, `expected >=5 portal dialogs, got ${portal.length}`);
   assert.doesNotMatch(PAGE, /<Modal\b/, "no legacy dialog shell may remain");
-  for (const testid of [
-    "evidence-assign-case",
-    "evidence-reviewer-workflow",
-    "evidence-relationship",
-    "evidence-archive",
-    "evidence-trash",
-  ]) {
+  for (const testid of ["evidence-assign-case", "evidence-reviewer-workflow", "evidence-archive", "evidence-trash"]) {
     assert.match(PAGE, new RegExp(`testid="${testid}"`));
   }
+  // The relationship dialog lives in its own component (the page mounts it);
+  // it is on the same canonical shell, with the same pending guard.
+  assert.ok(PAGE.includes("<EvidenceRelationshipDialog"), "the page must mount the relationship dialog");
+  const RELATIONSHIP_DIALOG = read("app/(app)/evidence/[id]/components/EvidenceRelationshipDialog.tsx");
+  assert.ok(
+    RELATIONSHIP_DIALOG.includes(
+      'import { Modal as PortalModal } from "../../../../../components/cases-experience/matter-modals/Modal"',
+    ),
+    "the relationship dialog must use the canonical portal Modal",
+  );
+  assert.ok(RELATIONSHIP_DIALOG.includes('testid="evidence-relationship"'));
+  assert.ok(RELATIONSHIP_DIALOG.includes("dismissDisabled={actionBusy}"));
+  assert.ok(!RELATIONSHIP_DIALOG.includes("<Modal") && !RELATIONSHIP_DIALOG.includes("<select"));
 });
 
 test("dialogs cannot be dismissed while a mutation is pending", () => {
