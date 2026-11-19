@@ -26,6 +26,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { hasPreferencesConsent } from "../../lib/consent";
 
 export type HelpSurface =
   | "capture"
@@ -135,6 +136,9 @@ export function ContextualHelp({
 
   function dismiss() {
     setDismissed(true);
+    // PRO-PW-12 (WS-ENT) — a preference key is written only with preferences
+    // consent (as recent-searches does); without it the dismissal lasts the visit.
+    if (!hasPreferencesConsent()) return;
     try {
       window.localStorage.setItem(dismissKey, "true");
     } catch {

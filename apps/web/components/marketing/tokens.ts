@@ -164,7 +164,7 @@ export const MARKETING_LINKS = {
     security: "/legal/security",
     subprocessors: "/legal/subprocessors",
     dpa: "/legal/dpa",
-    cookies: "/legal/cookie-policy",
+    cookies: "/legal/cookies",
     methodology: "/legal/verification-methodology",
   },
 } as const;
