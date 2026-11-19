@@ -44,6 +44,7 @@ const WEBHOOK_PLAN_ORIGIN = (providerSubId: string) => ({
 });
 import { SELF_SERVICE_BASE_SUBSCRIPTION_PLANS } from "./base-subscription.service.js";
 import { recordBillingReviewItem } from "./billing-review.service.js";
+import { isAccountClosed } from "../identity/account-closed.js";
 import {
   cancelSupersededSubscriptionAtProvider,
   type SupersededCanceller,
@@ -87,7 +88,15 @@ export type SyncPlanOutcome =
       subscriptionId: string;
       keptSubscriptionId: string;
       canceledAtProvider: boolean;
-    };
+    }
+  /**
+   * PRO-N1-01 (review G1) — an ACTIVE fact for an account that has been CLOSED
+   * (a checkout paid after anonymisation). Nothing is written and nothing is
+   * granted: there is nobody left to hold the plan or to cancel it. A review
+   * item (PAYMENT_AFTER_ACCOUNT_CLOSURE, refund review owed) names the provider
+   * subscription for an operator; no provider call is made from here.
+   */
+  | { outcome: "REFUSED_ACCOUNT_CLOSED" };
 
 type ActivationClient = prismaPkg.Prisma.TransactionClient;
 
@@ -162,6 +171,20 @@ export async function syncPlanForSubscription(params: {
       },
       client,
     );
+
+  if (params.status === prismaPkg.SubscriptionStatus.ACTIVE && (await isAccountClosed(params.userId, prisma))) {
+    await recordBillingReviewItem({
+      userId: params.userId,
+      provider: params.provider,
+      providerResourceId: params.providerSubId,
+      product: "PLAN",
+      reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE",
+      providerAction: "NONE",
+      refundReviewRequired: true,
+      detail: { plan: params.plan, observedAtUtc: params.observedAtUtc ? params.observedAtUtc.toISOString() : null },
+    });
+    return { outcome: "REFUSED_ACCOUNT_CLOSED" };
+  }
 
   if (params.status === prismaPkg.SubscriptionStatus.ACTIVE) {
     const decided = await prisma.$transaction(async (tx) => {

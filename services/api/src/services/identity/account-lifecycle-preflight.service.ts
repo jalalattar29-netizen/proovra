@@ -73,7 +73,11 @@ export type AccountClosureBlockerCode =
   | "LEGAL_HOLD_ACTIVE"
   | "BILLING_SUBSCRIPTION_ACTIVE"
   /** PRO-N1-01 — a recurring storage add-on that still renews. */
-  | "BILLING_ADDON_ACTIVE";
+  | "BILLING_ADDON_ACTIVE"
+  /** Review G2 — billing of an owned workspace that another person pays. */
+  | "BILLING_WORKSPACE_PAYER_ACTIVE"
+  /** Review G1 — a checkout attempt still open at the provider. */
+  | "BILLING_CHECKOUT_OPEN";
 
 export type AccountClosureBlocker = {
   code: AccountClosureBlockerCode;
@@ -175,6 +179,7 @@ type PreflightClient = Pick<
   | "teamMember"
   | "evidenceLegalHold"
   | "workspaceStorageAddon"
+  | "billingCheckoutAttempt"
 >;
 
 /**
@@ -398,6 +403,8 @@ export type OrganizationClosureBlockerCode =
   | "ORG_MEMBERS_ACTIVE"
   | "LEGAL_HOLD_ACTIVE"
   | "BILLING_CONTRACT_ACTIVE"
+  /** Review G3 — an open PROVIDER relationship bills one of its workspaces. */
+  | "BILLING_SUBSCRIPTION_ACTIVE"
   | "PERSONAL_WORKSPACE_ORGANIZATION";
 
 export type OrganizationClosureBlocker = {
@@ -427,7 +434,7 @@ export async function evaluateOrganizationClosurePreflight(
 ): Promise<{ blockers: OrganizationClosureBlocker[] }> {
   const blockers: OrganizationClosureBlocker[] = [];
 
-  const [otherMembers, activeHolds, billingTeams, personalTeams] =
+  const [otherMembers, activeHolds, billingTeams, personalTeams, orgTeams] =
     await Promise.all([
       // Removal keeps a REVOKED row, and someone who has left holds nothing.
       prisma.organizationMembership.count({
@@ -448,7 +455,17 @@ export async function evaluateOrganizationClosurePreflight(
       prisma.team.count({
         where: { organizationId: orgId, isPersonal: true },
       }),
+      prisma.team.findMany({
+        where: { organizationId: orgId, closedAtUtc: null },
+        select: { id: true },
+      }),
     ]);
+  // PRO-N1-01 (review G3) — the ONE billing predicate account and workspace
+  // closure use: base subscriptions and recurring storage add-ons the PROVIDER
+  // may still bill for a workspace this closure closes, whatever
+  // `team.billingStatus` says. Closing them would abandon a live charge.
+  const openRelationships =
+    orgTeams.length > 0 ? await listOpenProviderRelationships({ teamIds: orgTeams.map((t) => t.id) }) : [];
 
   if (personalTeams > 0) {
     blockers.push({
@@ -483,6 +500,15 @@ export async function evaluateOrganizationClosurePreflight(
       message:
         "A workspace in this organization has an active billing relationship. Settle it with billing before closure.",
       count: billingTeams,
+    });
+  }
+
+  if (openRelationships.length > 0) {
+    blockers.push({
+      code: "BILLING_SUBSCRIPTION_ACTIVE",
+      message:
+        "A workspace in this organization is still billed by a payment provider (a subscription or a storage add-on). The person who pays for it must cancel it in Billing, and it must have ended, before closure.",
+      count: openRelationships.length,
     });
   }
 

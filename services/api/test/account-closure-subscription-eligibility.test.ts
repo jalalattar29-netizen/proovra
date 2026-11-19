@@ -115,3 +115,41 @@ describe("the preflight judges relationships, not the entitlement verdict", () =
     expect(PREFLIGHT).not.toMatch(/prisma\.entitlement\b/);
   });
 });
+
+// Review HIGH-MONEY-DISCLOSURE (2026-11-19) — PRO-N1-01 gaps G1 and G2.
+describe("open checkouts and another payer's billing", () => {
+  it("an open checkout attempt blocks with its own code and says what to do", () => {
+    const { blockers, pending } = judgeClosureBillingRelationships([
+      { kind: "CHECKOUT_ATTEMPT", state: "RENEWING", endsAtUtc: null },
+    ]);
+    expect(blockers.map((b) => b.code)).toEqual(["BILLING_CHECKOUT_OPEN"]);
+    expect(blockers[0]?.message).toMatch(/Complete it or cancel it in Billing/);
+    expect(pending).toBeNull();
+  });
+
+  it("a renewing subscription paid by SOMEONE ELSE never says 'Cancel it': it names who can", () => {
+    const { blockers } = judgeClosureBillingRelationships([sub({ billedToOtherPayer: true })]);
+    expect(blockers.map((b) => b.code)).toEqual(["BILLING_WORKSPACE_PAYER_ACTIVE"]);
+    expect(blockers[0]?.message).toMatch(/only the person who pays for it can/);
+    expect(blockers[0]?.message).not.toMatch(/Cancel it before closing/);
+  });
+
+  it("the caller's own subscription and another payer's add-on are told apart", () => {
+    const { blockers } = judgeClosureBillingRelationships([sub(), addon({ billedToOtherPayer: true })]);
+    expect(blockers.map((b) => b.code)).toEqual(["BILLING_SUBSCRIPTION_ACTIVE", "BILLING_WORKSPACE_PAYER_ACTIVE"]);
+  });
+
+  it("another payer's CANCELLED relationship still makes closure wait for its end", () => {
+    const res = judgeClosureBillingRelationships([sub({ billedToOtherPayer: true, state: "STOPPING" })]);
+    expect(res.blockers).toEqual([]);
+    expect(res.pending?.count).toBe(1);
+  });
+
+  it("the shared predicate reads open checkout attempts, and organisation closure uses it", () => {
+    expect(RELATIONSHIPS).toContain("billingCheckoutAttempt.findMany");
+    const orgPreflight = PREFLIGHT.slice(PREFLIGHT.indexOf("export async function evaluateOrganizationClosurePreflight"));
+    expect(orgPreflight.slice(0, orgPreflight.indexOf("export async function evaluateWorkspaceClosurePreflight"))).toContain(
+      "listOpenProviderRelationships",
+    );
+  });
+});

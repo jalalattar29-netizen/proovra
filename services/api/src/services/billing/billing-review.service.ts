@@ -49,6 +49,13 @@ export type BillingReviewReason =
    * would end; held, and still counted, until automatic add-on effects are enabled.
    */
   | "AUTOMATIC_ADDON_CAPACITY_END_HELD"
+  /**
+   * PRO-N1-01 (review G1, 2026-11-19) — a plan or storage subscription became
+   * ACTIVE at the provider for an account that has been closed (a checkout paid
+   * after anonymisation). Nothing was granted or recorded as live; the provider
+   * subscription must be cancelled and refunded by an operator.
+   */
+  | "PAYMENT_AFTER_ACCOUNT_CLOSURE"
   /** A refunded or reversed credit purchase whose credits were already consumed. */
   | "CREDIT_REFUND_AFTER_CONSUMPTION"
   /** A plan or storage payment was reversed (chargeback) or refunded. */
