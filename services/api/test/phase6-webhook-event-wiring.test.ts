@@ -390,7 +390,7 @@ function buildStubPrisma(endpoints: EndpointRow[]): {
     // RG-13 (WS-ENT) — every delivery is admitted against FEATURE_WEBHOOKS and
     // the daily delivery quota. This stub workspace holds both (a grant row
     // per key; not an Enterprise workspace); the meter admits every unit.
-    team: { findUnique: async () => null },
+    // (Integration: the `team` read is the PRO-G1-09 personal workspace above.)
     entitlementGrant: {
       findUnique: async (args: { where: { teamId_key: { key: string } } }) => {
         const key = args.where.teamId_key.key;

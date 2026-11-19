@@ -1589,15 +1589,12 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           });
           return reply.send({
             teamId: result.teamId,
-            // PRO-K2-15 — additive: the workspace the team lives in, so the
-            // client can switch into it before opening the team.
+            // PRO-K2-15 / PRO-KZ-02 — additive: the workspace the team lives in,
+            // so the client opens the team IN it (switching first) instead of
+            // under whichever workspace is active (a 404 there).
             workspaceId: result.workspaceId,
             memberId: result.memberId,
             alreadyMember: result.alreadyMember,
-            // PRO-KZ-02 — additive: the workspace the team belongs to, so the
-            // client opens the team IN it (switching first) instead of under
-            // whichever workspace is active (a 404 there).
-            workspaceId: result.workspaceId,
           });
         } catch (err) {
           return handleServiceError(reply, err, req.id ?? null);
