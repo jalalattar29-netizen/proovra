@@ -17,6 +17,10 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../components/ui/FilterBar";
 import { AccessReviewCampaignForm } from "../../../../components/governance/AccessReviewCampaignForm";
 import { apiFetch } from "../../../../lib/api";
+import { useWorkspacePermissionAccess } from "../../../../components/governance/governance-action-state";
+
+// PRO-G2Z-02 (WS-ENT) - row actions follow the route's own permission (advisory mirror).
+const ROLE_REFUSAL_NOTE = "Your role in this workspace does not include this governance action.";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTenantGuard } from "../../../../lib/platform-context";
@@ -60,6 +64,7 @@ export default function AccessReviewsPage() {
 function Shell() {
   const [rows, setRows] = useState<ReadonlyArray<AccessReviewCampaignProjection>>([]);
   const [busy, setBusy] = useState(false);
+  const permissionAccess = useWorkspacePermissionAccess();
   const [failure, setFailure] = useState<ReadFailure | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -302,6 +307,8 @@ function Shell() {
                 variant="secondary"
                 size="sm"
                 data-access-review-campaign-open={c.id}
+                disabled={!permissionAccess.allows("governance.access_review.campaign.manage")}
+                disabledReason={!permissionAccess.allows("governance.access_review.campaign.manage") ? ROLE_REFUSAL_NOTE : undefined}
                 onClick={() => void openCampaign(c.id)}
               >
                 Open
@@ -311,6 +318,8 @@ function Shell() {
                 variant="secondary"
                 size="sm"
                 data-access-review-campaign-close={c.id}
+                disabled={!permissionAccess.allows("governance.access_review.campaign.manage")}
+                disabledReason={!permissionAccess.allows("governance.access_review.campaign.manage") ? ROLE_REFUSAL_NOTE : undefined}
                 onClick={() => void closeCampaign(c.id)}
               >
                 Close

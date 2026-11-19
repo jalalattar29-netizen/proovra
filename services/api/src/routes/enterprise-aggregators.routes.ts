@@ -51,6 +51,13 @@ export async function enterpriseAggregatorsRoutes(app: FastifyInstance) {
         role: roleLabel(ctx.workspaceRole),
         // The rule `GET /v1/teams/:id/members` applies (AZ-R07, AUTHZ-004).
         canSeeContact: ctx.workspaceRole === "OWNER" || ctx.workspaceRole === "ADMIN",
+        // PRO-T1C-02 (WS-ENT) — each section to the role holding its permission.
+        sectionAccess: {
+          billing: ctx.capabilities.has("billing.read"),
+          integrations:
+            ctx.capabilities.has("integration.webhook.manage") || ctx.capabilities.has("integration.api_key.manage"),
+          governance: ctx.capabilities.has("governance.policy.read"),
+        },
       });
       if ("notFound" in envelope) {
         return reply.code(404).send({ error: { code: "not_found" } });

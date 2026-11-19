@@ -375,7 +375,7 @@ const ROUTING_CATALOG: Record<
     recommendedAction:
       "Confirm the report pipeline is healthy and trigger generation if required.",
     primaryRoute: "/evidence",
-    secondaryRoute: "/ops/observability",
+    secondaryRoute: "/operations", // PRO-N1C-02: the tenant queue, never a platform page
     sourceTable: "Evidence + Report",
     requiredPermission: "evidence.finalize",
     requiredRoles: ["OWNER", "ADMIN", "MEMBER"],
@@ -390,7 +390,7 @@ const ROUTING_CATALOG: Record<
     recommendedAction:
       "Confirm the verification-package pipeline is healthy.",
     primaryRoute: "/evidence",
-    secondaryRoute: "/ops/observability",
+    secondaryRoute: "/operations", // PRO-N1C-02: the tenant queue, never a platform page
     sourceTable: "Evidence + VerificationPackage",
     requiredPermission: "evidence.finalize",
     requiredRoles: ["OWNER", "ADMIN", "MEMBER"],
@@ -403,8 +403,8 @@ const ROUTING_CATALOG: Record<
     operationalExplanation:
       "An operational incident classified as a report-generation failure is open.",
     recommendedAction:
-      "Open the runbook and acknowledge or resolve the incident.",
-    primaryRoute: "/ops/observability",
+      "Open the incident in Operations and acknowledge or resolve it.",
+    primaryRoute: "/operations", // PRO-N1C-02
     secondaryRoute: null,
     sourceTable: "OperationalIncident",
     requiredPermission: null,
@@ -418,8 +418,8 @@ const ROUTING_CATALOG: Record<
     operationalExplanation:
       "An operational incident classified as a package-generation failure is open.",
     recommendedAction:
-      "Open the runbook and acknowledge or resolve the incident.",
-    primaryRoute: "/ops/observability",
+      "Open the incident in Operations and acknowledge or resolve it.",
+    primaryRoute: "/operations", // PRO-N1C-02
     secondaryRoute: null,
     sourceTable: "OperationalIncident",
     requiredPermission: null,
@@ -508,9 +508,9 @@ const ROUTING_CATALOG: Record<
     operationalExplanation:
       "A high-severity operational incident is open and unacknowledged.",
     recommendedAction:
-      "Open the runbook and acknowledge or resolve the incident.",
-    primaryRoute: "/ops/observability",
-    secondaryRoute: "/ops/runbooks",
+      "Open the incident in Operations and acknowledge or resolve it.",
+    primaryRoute: "/operations", // PRO-N1C-02
+    secondaryRoute: null,
     sourceTable: "OperationalIncident",
     requiredPermission: null,
     requiredRoles: ["OWNER", "ADMIN"],
@@ -545,7 +545,7 @@ const ROUTING_CATALOG: Record<
     recommendedAction:
       "Open the evidence to review the timestamp status. A timestamp cannot be obtained after the fact — the record remains valid evidence, and its RFC 3161 timestamp is simply absent. Contact support if the failure needs investigating.",
     primaryRoute: "/evidence",
-    secondaryRoute: "/ops/observability",
+    secondaryRoute: "/operations", // PRO-N1C-02: the tenant queue, never a platform page
     sourceTable: "Evidence",
     requiredPermission: "evidence.finalize",
     requiredRoles: ["OWNER", "ADMIN", "MEMBER"],
@@ -567,7 +567,7 @@ const ROUTING_CATALOG: Record<
     recommendedAction:
       "Open the evidence to review the OpenTimestamps status, or resume anchoring from Operations. Anchoring completes on the public chain's schedule, not ours.",
     primaryRoute: "/evidence",
-    secondaryRoute: "/ops/observability",
+    secondaryRoute: "/operations", // PRO-N1C-02: the tenant queue, never a platform page
     sourceTable: "Evidence",
     requiredPermission: "evidence.finalize",
     requiredRoles: ["OWNER", "ADMIN", "MEMBER"],
@@ -2630,9 +2630,9 @@ async function runTimeline(
         occurredAt: r.firstSeenAtUtc.toISOString(),
         label: `Incident opened — ${r.title}`,
         subtitle: r.category,
-        href: r.runbookSlug
-          ? `/ops/runbooks#${r.runbookSlug}`
-          : "/ops/observability",
+        // PRO-N1C-02 (WS-ENT) — /ops/* redirects to platform-staff pages that
+        // refuse every tenant; the workspace incident is acted on in Operations.
+        href: `/operations?incident=${encodeURIComponent(r.id)}`,
         severity: (r.severity === "CRITICAL"
           ? "critical"
           : r.severity === "HIGH"
@@ -5106,8 +5106,8 @@ async function runCrossCaseIntelligenceV2(
           affectedEvidenceIds: evs.slice(0, 12),
           operationalMeaning: `${cases.size} cases are affected by the same ${isReport ? "report" : "package"} generation failure pattern.`,
           recommendedAction:
-            "Open the runbook for the underlying incident.",
-          route: "/ops/observability",
+            "Open the underlying incident in Operations.",
+          route: "/operations", // PRO-N1C-02
         });
       }
     }
@@ -5400,9 +5400,7 @@ async function runReconstructedTimeline(
         caseId: null,
         evidenceId: null,
         operationalMeaning: `Incident · ${i.category} · ${i.title}`,
-        route: i.runbookSlug
-          ? `/ops/runbooks#${i.runbookSlug}`
-          : "/ops/observability",
+        route: `/operations?incident=${encodeURIComponent(i.id)}`, // PRO-N1C-02
         sourceTable: "OperationalIncident",
         confidence: "direct",
         safeToDisplay: true,

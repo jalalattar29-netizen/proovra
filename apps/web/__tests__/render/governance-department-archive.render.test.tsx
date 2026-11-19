@@ -15,6 +15,13 @@ vi.mock("../../components/identity-security/StepUpModal", () => ({
   StepUpModal: () => null,
   useStepUpAction: () => mocks.stepUp,
 }));
+// PRO-G2Z-02 (WS-ENT) — row actions follow the route's permission through the
+// advisory mirror (useWorkspacePermissionAccess). This suite proves the page's
+// own behaviour for a caller the route accepts, so the mirror is stated here.
+vi.mock("../../components/governance/governance-action-state", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useWorkspacePermissionAccess: () => ({ ready: true, verdict: () => "granted", allows: () => true }),
+}));
 vi.mock("../../lib/platform-context", () => ({
   useTeamId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   useTenantGuard: () => mocks.guard,

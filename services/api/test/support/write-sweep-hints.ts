@@ -1318,11 +1318,11 @@ export const WRITE_SWEEP_HINTS: Record<string, RouteHint> = {
   "POST /v1/orgs/:p/closure": { unreachable: "A contract-managed organization closes through operators, by design." },
   "POST /v1/packaging/entitlements/apply-product-line": {
     klass: "platform",
-    body: { teamId: "$Team", targetWorkspaceId: "$Team", line: "CAPTURE_AND_VERIFY" },
+    body: { teamId: "$Team", targetWorkspaceId: "$Team", line: "CAPTURE_AND_VERIFY", expiresAtUtc: "2099-01-01T00:00:00.000Z" },
   },
   "POST /v1/packaging/entitlements/grant": {
     klass: "platform",
-    body: { teamId: "$Team", targetWorkspaceId: "$Team", key: "FEATURE_WEBHOOKS", value: true, kind: "FEATURE" },
+    body: { teamId: "$Team", targetWorkspaceId: "$Team", key: "FEATURE_WEBHOOKS", value: true, kind: "FEATURE", expiresAtUtc: "2099-01-01T00:00:00.000Z" },
   },
   "POST /v1/search/semantic/backfill": { klass: "platform", unreachable: "Needs a live embedding provider." },
   "POST /v1/evidence/:p/custody/attestations/sign": { klass: "platform", unreachable: "Needs a custody event and a real signing key." },

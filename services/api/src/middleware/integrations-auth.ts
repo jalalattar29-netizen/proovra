@@ -34,6 +34,7 @@ import {
   type ServiceAccountFailureReason,
 } from "../services/integrations/api-key-usage.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { consumeQuotaEntitlement, resolveEntitlements } from "../services/packaging/entitlement.service.js";
 import { markBoundedOutcome } from "../http/bounded-outcome.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { loadWorkspaceLifecycleState, workspaceLifecycleDenial } from "../services/identity/access-policy.service.js";
@@ -43,7 +44,7 @@ import {
   revokeApiKeyForLostAuthority,
   STANDING_CREDENTIAL_PERMISSION,
 } from "../services/sharing/standing-credential-authority.js";
-import { isIpAddressAllowed, type Permission } from "@proovra/shared";
+import { isIpAddressAllowed, type EntitlementProjection, type Permission } from "@proovra/shared";
 
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 const DEFAULT_RATE_LIMIT_MAX = 120;
@@ -286,6 +287,53 @@ export async function requireApiKey(
     return false;
   }
 
+  // PRO-G1-14 / PRO-G1-04 / DEC-09 — entitlement at USE time. The key ceiling
+  // (INTEGRATION_API_KEYS_MAX) was read only when a key was created, so a
+  // workspace whose contract lapsed or whose grant was removed kept full
+  // machine API access forever (the automation sibling already stops a rule
+  // whose capability is gone). A workspace whose current entitlement allows
+  // no API key is refused here, reversibly: the key is NOT revoked, so
+  // restoring the entitlement restores access with the same key. The daily
+  // request quota is read alongside (one standing resolution). Fails closed.
+  let integrationEntitlements: Record<
+    "INTEGRATION_API_KEYS_MAX" | "QUOTA_API_REQUESTS_PER_DAY",
+    EntitlementProjection
+  >;
+  try {
+    integrationEntitlements = await resolveEntitlements({
+      teamId: credential.teamId,
+      keys: ["INTEGRATION_API_KEYS_MAX", "QUOTA_API_REQUESTS_PER_DAY"],
+    });
+  } catch {
+    reply.code(503).send({
+      error: { code: "AUTHORIZATION_UNAVAILABLE", message: "Authorization could not be evaluated. Please retry." },
+    });
+    return false;
+  }
+  const keyCeiling = integrationEntitlements.INTEGRATION_API_KEYS_MAX.value;
+  if (typeof keyCeiling !== "number" || keyCeiling <= 0) {
+    safeRecordApiCredentialUsage({
+      apiCredentialId: credential.credentialId,
+      teamId: credential.teamId,
+      routePath: req.routeOptions?.url ?? req.url,
+      method: req.method,
+      action: "entitlement_required",
+      statusCode: 403,
+      success: false,
+      failureReason: "entitlement_required",
+      requestId: req.id ?? null,
+    });
+    reply.code(403).send({
+      error: {
+        code: "ENTITLEMENT_REQUIRED",
+        key: "INTEGRATION_API_KEYS_MAX",
+        message:
+          "This workspace's plan no longer includes API access. The key was not revoked: it works again when API access is restored.",
+      },
+    });
+    return false;
+  }
+
   // Per-credential rate limit. Key is namespaced so it cannot collide
   // with auth-route or user-route limits elsewhere.
   const { windowSec, max } = readRateLimitConfig();
@@ -336,6 +384,50 @@ export async function requireApiKey(
       statusCode: 429,
       success: false,
       failureReason: "rate_limited",
+      requestId: req.id ?? null,
+    });
+    return false;
+  }
+
+  // PRO-G1-04 / PRO-BL2-04 — QUOTA_API_REQUESTS_PER_DAY, per workspace, per
+  // UTC day, consumed atomically (a rate-limited request above consumed
+  // nothing). At quota: 429 naming the key; the window resets at 00:00 UTC.
+  // A meter that cannot be written refuses rather than serving unmetered.
+  let quota: Awaited<ReturnType<typeof consumeQuotaEntitlement>>;
+  try {
+    quota = await consumeQuotaEntitlement({
+      teamId: credential.teamId,
+      key: "QUOTA_API_REQUESTS_PER_DAY",
+      resolved: integrationEntitlements.QUOTA_API_REQUESTS_PER_DAY,
+    });
+  } catch {
+    reply.code(503).send({
+      error: { code: "AUTHORIZATION_UNAVAILABLE", message: "Authorization could not be evaluated. Please retry." },
+    });
+    return false;
+  }
+  if (!quota.ok) {
+    const nowMs = Date.now();
+    const d = new Date(nowMs);
+    const nextUtcDayMs = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+    reply.header("retry-after", String(Math.max(1, Math.ceil((nextUtcDayMs - nowMs) / 1000))));
+    reply.code(429).send({
+      error: {
+        code: "QUOTA_EXCEEDED",
+        key: "QUOTA_API_REQUESTS_PER_DAY",
+        limit: quota.limit,
+        message: "This workspace has used its daily API request quota. It resets at 00:00 UTC.",
+      },
+    });
+    safeRecordApiCredentialUsage({
+      apiCredentialId: credential.credentialId,
+      teamId: credential.teamId,
+      routePath: req.routeOptions?.url ?? req.url,
+      method: req.method,
+      action: "quota_exceeded",
+      statusCode: 429,
+      success: false,
+      failureReason: "quota_exceeded",
       requestId: req.id ?? null,
     });
     return false;

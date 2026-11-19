@@ -80,6 +80,9 @@ const H = vi.hoisted(() => ({
 
   /** Canonical `authorizeOrFail` verdict. */
   authorizeAllowed: true,
+
+  /** PRO-K1-03 (WS-ENT) — the Enterprise-organization authority for graph/SIU. */
+  enterpriseOrganization: true,
   authorizeDenyStatus: 403 as 403 | 404,
   authorizeSeen: [] as string[],
 
@@ -196,6 +199,14 @@ vi.mock("../src/services/platform-context/workspace-capability.service.js", () =
       : null,
   planProducesOperationalConditions: () => true,
   ACTIVE_MEMBER_COUNT_SELECT: { _count: { select: { members: true } } },
+}));
+
+// PRO-K1-03 (WS-ENT) — graph, diagnostics and SIU ask the Enterprise-
+// organization authority after membership; its own answer is proven against
+// live PostgreSQL in ws-ent-enterprise-surfaces.integration.test.ts.
+vi.mock("../src/services/platform-context/enterprise-authority.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  workspaceIsEnterpriseOrganization: async () => H.enterpriseOrganization,
 }));
 
 vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({

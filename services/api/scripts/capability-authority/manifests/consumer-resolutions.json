@@ -259,19 +259,19 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:152",
+      "site": "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:155",
       "helper": "buildCriteriaActionPath(set.id, action) — action is CriteriaAction (\"publish\" | \"duplicate\" | \"retire\"); re-anchored from :175",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:152",
-        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:260",
-        "apps/mobile/src/product/reviewer-criteria.ts:145"
+        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:155",
+        "apps/mobile/app/(stack)/settings/reviewer-criteria.tsx:262",
+        "apps/mobile/src/product/reviewer-criteria.ts:164"
       ],
       "routes": [
         "POST /v1/reviewer-criteria/:setId/publish",
         "POST /v1/reviewer-criteria/:setId/duplicate",
         "POST /v1/reviewer-criteria/:setId/retire"
       ],
-      "evidence": "pending.action comes from availableActions(set) (:260), typed CriteriaAction = \"publish\" | \"duplicate\" | \"retire\" (reviewer-criteria.ts:145).",
+      "evidence": "pending.action comes from availableActions(set) (:260), typed CriteriaAction = \"publish\" | \"duplicate\" | \"retire\" (reviewer-criteria.ts:145). | Re-anchored :152 -> :155 on 2026-11-19 (WS-ENT, PRO-NAZ-01: the list payload is read into a local before setState, three lines above). Verified BY READING: :155 is `await apiFetch(buildCriteriaActionPath(set.id, action), {` inside the confirmed action; pending.action still comes from availableActions(set) (:262, now offered only when the server projects canManage), typed CriteriaAction (reviewer-criteria.ts:164).",
       "reviewedAtUtc": "2026-09-25"
     },
     {

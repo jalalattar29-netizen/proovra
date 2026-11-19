@@ -2317,12 +2317,13 @@ function SettingsTab({
   const caseTeamId = caseDetail.teamId;
   const stepUp = useStepUpAction({ teamId: caseTeamId });
   // Settings is allowed when canMutate (rename) or canChangeStatus or canManage (delete).
-  const canRename = viewer.canMutate;
+  // PRO-K1-05 (WS-ENT) — the server projects Rename / Delete from the
+  // destructive gate's own role input. canMutate (any MEMBER) and canManage
+  // (a case OWNER assignment) both offered controls the gate refuses with
+  // CASE_RENAME_DENIED / CASE_DELETE_DENIED.
+  const canRename = viewer.canRename ?? viewer.canMutate;
   const canChangeStatus = viewer.canChangeStatus;
-  // Delete is OWNER/ADMIN only at the backend — the envelope exposes
-  // `canManage` which corresponds to MANAGE_SETTINGS in the
-  // permission resolver (same predicate that gates the DELETE route).
-  const canDelete = viewer.canManage;
+  const canDelete = viewer.canDelete ?? viewer.canManage;
 
   const handleRename = useCallback(async () => {
     const next = nameDraft.trim();
@@ -2457,6 +2458,7 @@ function SettingsTab({
             onChange={(e) => setNameDraft(e.target.value)}
             maxLength={120}
             disabled={!canRename}
+            title={!canRename ? viewer.disabledReasons.rename ?? "Only a workspace owner or admin can rename this case." : undefined}
             data-simple-case-settings-name-input
             className="cases-filter-search"
             style={{ flex: 1, minWidth: 0, height: 44 }}
@@ -2606,7 +2608,7 @@ function SettingsTab({
           data-simple-case-settings-delete-trigger
           title={
             !canDelete
-              ? "Only the case owner or an admin can delete this case."
+              ? viewer.disabledReasons.delete ?? "Only a workspace owner or admin can delete this case."
               : undefined
           }
           style={{

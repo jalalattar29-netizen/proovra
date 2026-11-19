@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Linkedin, Twitter, Youtube } from "lucide-react";
 import { MARKETING_COPY, MARKETING_LINKS } from "./tokens";
 
 type FooterCol = {
@@ -27,7 +26,7 @@ const COLUMNS: FooterCol[] = [
     links: [
       { label: "Evidence Handling", href: "/legal/evidence-handling" },
       { label: "Incident Response", href: "/legal/incident-response" },
-      { label: "Security Overview", href: "/security-overview" },
+      { label: "Security Overview", href: "/legal/security" },
       { label: "Transparency", href: "/legal/transparency" },
       { label: "Trust Center", href: MARKETING_LINKS.trustCenter },
       { label: "Verification Disclaimer", href: "/legal/verification-disclaimer" },
@@ -131,24 +130,9 @@ export function EnterpriseFooter() {
             >
               {MARKETING_COPY.supportEmail}
             </a>
-            <div className="mt-2 flex items-center gap-2">
-              {[
-                { Icon: Linkedin, href: "https://www.linkedin.com/", label: "LinkedIn" },
-                { Icon: Twitter, href: "https://x.com/", label: "Twitter / X" },
-                { Icon: Youtube, href: "https://www.youtube.com/", label: "YouTube" },
-              ].map(({ Icon, href, label }) => (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={label}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/75 transition-all hover:border-white/25 hover:bg-white/10"
-                >
-                  <Icon size={15} />
-                </a>
-              ))}
-            </div>
+            {/* PRO-PW-12 (WS-ENT) — the social icons linked the bare linkedin.com / x.com /
+                youtube.com home pages (no PROOVRA profile exists in source); removed
+                rather than left as placeholder destinations. */}
           </div>
 
           <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3 lg:gap-12">

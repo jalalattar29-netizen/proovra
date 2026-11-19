@@ -2366,9 +2366,10 @@ function NewGovernanceArchitecture() {
                     >
                       Add notes for this evidence...
                     </div>
-                    <button
-                      type="button"
-                      className="mt-2 w-full rounded-[10px] px-3 py-2 text-[11px] font-bold text-white"
+                    {/* PRO-PW-12 (WS-ENT) — an illustration, not a control: no focus stop, no dead button. */}
+                    <div
+                      aria-hidden="true"
+                      className="mt-2 w-full rounded-[10px] px-3 py-2 text-center text-[11px] font-bold text-white"
                       style={{
                         background:
                           "linear-gradient(160deg, #7C3AED, #6D28D9)",
@@ -2376,7 +2377,7 @@ function NewGovernanceArchitecture() {
                       }}
                     >
                       Save Note
-                    </button>
+                    </div>
                   </div>
                 </div>
               </div>

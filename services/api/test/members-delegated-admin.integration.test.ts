@@ -36,6 +36,7 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -258,6 +259,9 @@ describe("DOM-09 — one delegated-admin authority (live PostgreSQL)", () => {
     // Collection routes (the member listing) derive the workspace from the
     // caller's persisted pointer.
     await prisma.user.update({ where: { id: A().ownerUserId }, data: { currentWorkspaceId: A().teamId } });
+    // PRO-A2-09 (WS-ENT) — new delegated scopes are Enterprise identity
+    // administration; this suite proves the grant lifecycle on an entitled workspace.
+    await makeEnterpriseOrganizationWorkspace(prisma, A().teamId);
     for (const tier of TIERS) holders.set(tier, await person(A().teamId, "VIEWER"));
     nobody = await person(A().teamId, "VIEWER");
   }, 900_000);

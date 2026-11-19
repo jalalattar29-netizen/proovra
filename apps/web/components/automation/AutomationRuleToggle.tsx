@@ -79,8 +79,13 @@ export function AutomationRuleToggle({
       await onChanged();
     } catch (err) {
       if (!mounted.current || mine !== seq.current) return;
-      const e = err as { statusCode?: number };
+      const e = err as { statusCode?: number; code?: string };
       const code = typeof e.statusCode === "number" ? e.statusCode : 0;
+      // PRO-G1-13 (WS-ENT) — a plan refusal is said as one.
+      if (code === 403 && e.code === "ENTITLEMENT_REQUIRED") {
+        setStatus({ kind: "denied", message: "Automation is not included in this workspace's plan or contract (an Enterprise governance feature). This is a plan question for the workspace owner, not a role you can be given." });
+        return;
+      }
       if (code === 403) {
         setStatus({
           kind: "denied",

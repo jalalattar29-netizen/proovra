@@ -1223,7 +1223,7 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // and step-up-idp.routes.ts (the unauthenticated begin of the Organization
 // sign-in that answers an IDP_REAUTH challenge). Each is an identity surface
 // of its own, beside mfa.routes.ts and saml-auth.routes.ts.
-const ROUTE_COUNT_PHASE_2_BASELINE = 139;
+const ROUTE_COUNT_PHASE_2_BASELINE = 140; // +1: _enterprise-surface-gate.ts (WS-ENT, PRO-K1-03 / PRO-A2-09) — a shared gate helper, not a route surface
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

@@ -32,6 +32,13 @@ export function LeadRecoveryBanner({
   onDone: () => void | Promise<void>;
 }) {
   const { addToast } = useToast();
+  // PRO-KZ-03 (WS-ENT) — recoverCollaborationTeamLead is workspace-OWNER-only,
+  // whether or not the owner is in the group. The banner keyed on HOW the
+  // detail was read (viaWorkspaceGovernance), so an ADMIN was offered a
+  // control the server refuses (LEAD_RECOVERY_OWNER_ONLY) and an owner who is
+  // an ordinary member was not offered one it accepts. An older API that does
+  // not project the field keeps the previous answer.
+  const mayRecover = team.viewerIsWorkspaceOwner ?? team.viaWorkspaceGovernance === true;
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -39,7 +46,7 @@ export function LeadRecoveryBanner({
   // list is a 25-row preview, so a larger group's members would be missing.
   const [candidates, setCandidates] = useState<Array<{ value: string; label: string }>>([]);
   useEffect(() => {
-    if (!team.viaWorkspaceGovernance) return;
+    if (!mayRecover) return;
     let cancelled = false;
     void (async () => {
       const rows: Array<{ value: string; label: string }> = [];
@@ -57,7 +64,7 @@ export function LeadRecoveryBanner({
     return () => {
       cancelled = true;
     };
-  }, [team.id, team.viaWorkspaceGovernance]);
+  }, [team.id, mayRecover]);
   const options = [
     ...(viewerUserId ? [{ value: viewerUserId, label: "Me" }] : []),
     ...candidates.filter((c) => c.value !== viewerUserId),
@@ -80,7 +87,7 @@ export function LeadRecoveryBanner({
   return (
     <div className="app-alert" role="status" data-testid="team-lead-recovery" style={{ marginBottom: 12 }}>
       <strong>This Collaboration Team has no lead.</strong>{" "}
-      {team.viaWorkspaceGovernance ? (
+      {mayRecover ? (
         <>
           As the workspace owner you can appoint one: a current member, or yourself.
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8, alignItems: "center" }}>

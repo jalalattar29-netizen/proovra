@@ -98,7 +98,7 @@ export function ReviewActionsPanel({
             {canClaimReview(workflow.teamId, workflow.assignedToUserId, stage) ? (
               <ProovraButton label={COPY.claim} variant="secondary" fullWidth={false} disabled={busy} onPress={() => void claim()} />
             ) : null}
-            {REVIEW_DECISIONS.map((d) => {
+            {REVIEW_DECISIONS.filter((d) => !(workflow.notIncluded ?? []).includes(d)).map((d) => {
               const enabled = reviewDecisionAllowed(stage, d);
               return (
                 <ProovraButton

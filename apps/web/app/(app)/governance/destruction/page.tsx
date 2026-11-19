@@ -34,6 +34,8 @@ import { reconciliationKindLabel } from "../../../../lib/labels/governanceReview
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
+import { useWorkspacePermissionAccess } from "../../../../components/governance/governance-action-state";
+import type { Permission } from "@proovra/shared";
 import { Card } from "../../../../components/ui/Card";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalBreadcrumb } from "../../../../components/navigation/OperationalBreadcrumb";
@@ -193,6 +195,19 @@ function classifyReadFailure(err: unknown): ReadFailure {
   };
 }
 
+/**
+ * PRO-G2Z-02 (WS-ENT) — what each move takes, the route's own table
+ * (permissionForReviewTransition, governance-lifecycle.routes.ts): deciding is
+ * governance.destruction.approve and executing governance.destruction.execute
+ * (OWNER, or a delegated grant); the rest is evidence.delete. An ADMIN was
+ * offered Approve and refused 403.
+ */
+function permissionForMove(next: ReviewStatus): Permission {
+  if (next === "EXECUTED") return "governance.destruction.execute";
+  if (next === "APPROVED" || next === "DENIED" || next === "RESTORED") return "governance.destruction.approve";
+  return "evidence.delete";
+}
+
 const ALLOWED_NEXT: Record<ReviewStatus, ReviewStatus[]> = {
   PENDING: ["UNDER_REVIEW", "DEFERRED", "CANCELLED"],
   UNDER_REVIEW: ["APPROVED", "DENIED", "DEFERRED", "CANCELLED"],
@@ -229,6 +244,8 @@ function DestructionQueuePageInner() {
   const [previewFor, setPreviewFor] = useState<Review | null>(null);
   const [certificateFor, setCertificateFor] = useState<Review | null>(null);
   const { confirm, askReason } = useConfirmAction();
+  // PRO-G2Z-02 — the advisory permission mirror the create forms already use.
+  const permissionAccess = useWorkspacePermissionAccess();
 
   // PHASE 12B CLUSTER 10 — tenant generation guard: drop any telemetry
   // response that lands after the operator switched workspace.
@@ -809,10 +826,13 @@ function DestructionQueuePageInner() {
                     variant={next === "EXECUTED" ? "destructive" : "secondary"}
                     size="sm"
                     onClick={() => transition(r, next)}
+                    disabled={!permissionAccess.allows(permissionForMove(next))}
                     title={
-                      next === "APPROVED" || next === "EXECUTED"
-                        ? "Step-up authentication required"
-                        : undefined
+                      !permissionAccess.allows(permissionForMove(next))
+                        ? "Your role cannot take this step. Deciding and executing destruction is the workspace owner's, or a delegated approver's."
+                        : next === "APPROVED" || next === "EXECUTED"
+                          ? "Step-up authentication required"
+                          : undefined
                     }
                   >
                     {ACTION_LABEL[next]}

@@ -120,6 +120,23 @@ import {
 // Prisma stub factory
 // ---------------------------------------------------------------------------
 
+const WEBHOOKS_GRANTED = {
+  findUnique: async (args: { where: { teamId_key: { key: string } } }) =>
+    args.where.teamId_key.key === "FEATURE_WEBHOOKS"
+      ? {
+          id: "g",
+          key: "FEATURE_WEBHOOKS",
+          kind: "FEATURE",
+          valueBool: true,
+          valueNumber: null,
+          source: "CUSTOM",
+          productLine: null,
+          grantedAtUtc: new Date(0),
+          expiresAtUtc: null,
+        }
+      : null,
+};
+
 function makePrismaStub(overrides: Record<string, unknown> = {}) {
   const base: Record<string, unknown> = {
     // WORKSPACE-SCOPE CONVERGENCE — the lifecycle services resolve the
@@ -1199,6 +1216,9 @@ describe("13. Webhook delivery state machine", () => {
   it("200 response → DELIVERED", async () => {
     let updatedState: string | undefined;
     const prisma = makePrismaStub({
+      // RG-13 (WS-ENT) — a delivery is sent only while the workspace holds
+      // FEATURE_WEBHOOKS; this workspace does (an unexpired grant row).
+      entitlementGrant: WEBHOOKS_GRANTED,
       lifecycleWebhookDelivery: {
         findUnique: async () => ({
           id: "del-1",
@@ -1236,6 +1256,9 @@ describe("13. Webhook delivery state machine", () => {
   it("500 + attemptCount<8 → RETRYING with nextRetryAtUtc", async () => {
     let updatedState: string | undefined;
     const prisma = makePrismaStub({
+      // RG-13 (WS-ENT) — a delivery is sent only while the workspace holds
+      // FEATURE_WEBHOOKS; this workspace does (an unexpired grant row).
+      entitlementGrant: WEBHOOKS_GRANTED,
       lifecycleWebhookDelivery: {
         findUnique: async () => ({
           id: "del-2",
@@ -1272,6 +1295,9 @@ describe("13. Webhook delivery state machine", () => {
   it("500 + attemptCount>=8 → DEAD_LETTERED", async () => {
     let updatedState: string | undefined;
     const prisma = makePrismaStub({
+      // RG-13 (WS-ENT) — a delivery is sent only while the workspace holds
+      // FEATURE_WEBHOOKS; this workspace does (an unexpired grant row).
+      entitlementGrant: WEBHOOKS_GRANTED,
       lifecycleWebhookDelivery: {
         findUnique: async () => ({
           id: "del-3",

@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId } from "../../../../lib/platform-context";
+import { useWorkspacePermissionAccess } from "../../../../components/governance/governance-action-state";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Button } from "../../../../components/ui/Button";
@@ -66,6 +67,9 @@ export default function GovernanceNotificationsPage() {
 }
 
 function GovernanceNotificationsPageInner() {
+  // PRO-G2Z-02 (WS-ENT) — acknowledging is governance.policy.manage on the
+  // server; a role without it (VIEWER, REVIEWER) is not offered the button.
+  const permissionAccess = useWorkspacePermissionAccess();
   const teamId = useTeamId();
   const [notifications, setNotifications] = useState<Notification[] | null>(null);
   const [counts, setCounts] = useState<{ pending: number; failed: number } | null>(null);
@@ -264,7 +268,7 @@ function GovernanceNotificationsPageInner() {
             rowActions={(n) =>
               n.acknowledgedAtUtc ? (
                 <Badge tone="verified">Acknowledged</Badge>
-              ) : (
+              ) : permissionAccess.allows("governance.policy.manage") ? (
                 <Button
                   variant="secondary"
                   size="sm"
@@ -272,7 +276,7 @@ function GovernanceNotificationsPageInner() {
                 >
                   Acknowledge
                 </Button>
-              )
+              ) : null
             }
             emptyState={
               <EmptyState

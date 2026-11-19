@@ -23,6 +23,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 import { placeInCollaborationTeam } from "./support/place-in-collaboration-team.js";
 
 type Person = { id: string; token: string; memberId: string | null };
@@ -1146,6 +1147,8 @@ describe("the one assignee authority holds for every writer, and a departure rel
     const placed = await person("MEMBER", { placed: true });
     const stranger = await person(null);
     const c = await prisma.case.create({ data: { name: `B11 ${tag()}`, teamId: A().teamId, ownerUserId: owner() }, select: { id: true } });
+    // PRO-K1-03 (WS-ENT) — graph, diagnostics and SIU are Enterprise organization tools.
+    await makeEnterpriseOrganizationWorkspace(prisma, A().teamId);
     const url = `/v1/cases/${c.id}/siu-profile`;
     const profile = () => prisma.caseSiuProfile.findUnique({ where: { caseId: c.id } });
 

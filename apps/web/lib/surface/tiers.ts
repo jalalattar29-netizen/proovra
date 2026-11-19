@@ -94,7 +94,12 @@ export type SurfaceTierRule = {
    * unknown (loading / degraded envelope). This keeps the tier table free
    * of plan-literal duplication of the pricing catalog.
    */
-  entitlementOverride?: "intakeIncluded" | "reviewerOperationsIncluded" | "redactionIncluded";
+  entitlementOverride?:
+    | "intakeIncluded"
+    | "reviewerOperationsIncluded"
+    | "redactionIncluded"
+    | "reviewQueuesIncluded"
+    | "externalReviewIncluded";
   /**
    * Match the path EXACTLY rather than as a prefix. Used where one console
    * (`/review`) shares its prefix with surfaces that keep a different rule.
@@ -243,7 +248,13 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // standalone product pages. The bounded redirect targets surface
   // operators inside the canonical Settings location instead of a
   // hard 404.
-  { pathPrefix: "/workspaces", tier: "ENTERPRISE", directAccessPolicy: "redirect", redirectTo: "/collaboration-teams", reason: "Phase 2B — workspace switcher is ENTERPRISE; self-serve users are sent to the canonical Teams product (/collaboration-teams), NOT the deleted /teams landing (which would loop)" },
+  // PRO-PW-02 (WS-ENT) — /workspaces is the ACCOUNT-domain workspace list the
+  // recovery CTAs and membership emails send people to ("Open your
+  // workspaces"). It was tiered ENTERPRISE with a redirect, so every Free /
+  // Pro / Team account landed on /collaboration-teams with no explanation.
+  // The page carries its own PageRouteGate (admin.teams, account domain) and
+  // every /v1/teams call is gated by the API.
+  { pathPrefix: "/workspaces", tier: "CORE", directAccessPolicy: "allow", reason: "account-domain workspace list and switcher (PRO-PW-02)" },
   // Phase IA-surface-tier-pricing — Organizations are ENTERPRISE_ONLY
   // per the pricing page. Self-serve TEAM users manage collaboration
   // through /teams; the Organizations entity (departments, governance,
@@ -328,11 +339,23 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // ladder every `/v1/reviewer-ops/*` route enforces — not "is this an
   // Enterprise workspace". TEAM sells them on the Personal Workspace it lives
   // on; PRO does not. The advanced review surfaces below stay ENTERPRISE.
-  { pathPrefix: "/review", exact: true, tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "reviewer console (per reviewerOperationsIncluded)" },
-  { pathPrefix: "/review/operations", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "reviewer operations (per reviewerOperationsIncluded)" },
-  { pathPrefix: "/review/queues", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "review queues (per reviewerOperationsIncluded)" },
-  { pathPrefix: "/review-operations", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "reviewer operations (per reviewerOperationsIncluded)" },
-  { pathPrefix: "/reviewer-ops", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "notFound", reason: "reviewer ops console (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review", exact: true, tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "The reviewer console is part of the Team plan and above. Record-level review stays on each record's Review tab.", reason: "reviewer console (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review/operations", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer operations are part of the Team plan and above.", reason: "reviewer operations (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review/queues", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Review queues are part of the Team plan and above. Submissions can be reviewed from each evidence request.", reason: "review queues (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/review-operations", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer operations are part of the Team plan and above.", reason: "reviewer operations (per reviewerOperationsIncluded)" },
+  { pathPrefix: "/reviewer-ops", tier: "ENTERPRISE", entitlementOverride: "reviewerOperationsIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer operations are part of the Team plan and above.", reason: "reviewer ops console (per reviewerOperationsIncluded)" },
+  // PRO-R2-06 (WS-ENT) — one review ladder for API and web. The reviewer
+  // workspace, coding schemas, QC, disagreements and reviewer metrics are
+  // served by the API to TEAM (REVIEW_TASKS_AND_QUEUES → reviewQueuesIncluded);
+  // External Review is PRO and above (externalReviewIncluded). A plan that
+  // does not include a Review surface is told so with a plan refusal
+  // (forbidden), not a 404 that reads as a broken link.
+  { pathPrefix: "/review/workspace", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "The reviewer workspace is part of the Team plan and above.", reason: "reviewer workspace (per reviewQueuesIncluded)" },
+  { pathPrefix: "/review/schemas", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Coding schemas are part of the Team plan and above.", reason: "coding schemas (per reviewQueuesIncluded)" },
+  { pathPrefix: "/review/qc", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Quality control sampling is part of the Team plan and above.", reason: "QC (per reviewQueuesIncluded)" },
+  { pathPrefix: "/review/disagreements", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer disagreements are part of the Team plan and above.", reason: "disagreements (per reviewQueuesIncluded)" },
+  { pathPrefix: "/review/metrics", tier: "ENTERPRISE", entitlementOverride: "reviewQueuesIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "Reviewer metrics are part of the Team plan and above.", reason: "reviewer metrics (per reviewQueuesIncluded)" },
+  { pathPrefix: "/review/external", tier: "ENTERPRISE", entitlementOverride: "externalReviewIncluded", directAccessPolicy: "forbidden", forbiddenMessage: "External Review is part of the Pro plan and above.", reason: "external review (per externalReviewIncluded)" },
   { pathPrefix: "/reviewer-workspace", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "reviewer workspace" },
   { pathPrefix: "/review", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "review surfaces" },
   // Free audit B5B-F-205 — one authority for redaction: the server's

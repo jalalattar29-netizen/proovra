@@ -52,6 +52,10 @@ import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError"
  */
 
 import Link from "next/link";
+// PRO-T1C-08 (WS-ENT) — billing links name the organization's billing account
+// (/teams redirected to Collaboration Teams); API keys and webhooks live on
+// /integrations, not the identity console.
+import { buildBillingHref } from "../../../../../../lib/navigation/billingWorkspaceLocator";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -311,7 +315,7 @@ function Overview() {
           }
           footer={
             <Link
-              href="/teams"
+              href={buildBillingHref({ kind: "organization", organizationId: orgId })}
               data-testid="overview-link-billing"
               style={tileLink}
             >
@@ -436,7 +440,7 @@ function Overview() {
             label="API keys & webhooks"
             state={{ tone: "warn", text: "Not configured" }}
             description="Programmatic access + integration delivery. No org-scoped key inventory yet."
-            href="/security-center/identity"
+            href="/integrations"
             linkTestId="overview-link-api"
             linkLabel="Manage API keys / webhooks"
           />
@@ -580,7 +584,7 @@ function Overview() {
           <QuickAction
             testId="quick-action-manage-api"
             label="Manage API keys / webhooks"
-            href="/security-center/identity"
+            href="/integrations"
           />
           <QuickAction
             testId="quick-action-review-access"
@@ -590,7 +594,7 @@ function Overview() {
           <QuickAction
             testId="quick-action-configure-billing"
             label="Configure billing / seats"
-            href="/teams"
+            href={buildBillingHref({ kind: "organization", organizationId: orgId })}
           />
         </div>
       </Card>

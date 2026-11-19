@@ -98,6 +98,12 @@ export interface ReviewWorkflowRef {
   teamId: string | null;
   status: string | null;
   assignedToUserId: string | null;
+  /**
+   * PRO-R2Z-10 (WS-ENT) — decisions the SERVER says are outside the plan
+   * (`availableActions[].blockedBy === "ESCALATION_NOT_INCLUDED"`): Escalate on
+   * Pro. Empty when the API does not project actions (older API).
+   */
+  notIncluded?: ReadonlyArray<string>;
 }
 
 /** `review-workspace.reviewWorkflow` — the fields the panel reads. */
@@ -105,7 +111,12 @@ export function projectReviewWorkflowRef(reviewWorkspace: unknown): ReviewWorkfl
   const o = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
   const wf = o(o(reviewWorkspace)["reviewWorkflow"]);
   const s = (v: unknown) => (typeof v === "string" && v.length > 0 ? v : null);
-  return { teamId: s(wf.teamId), status: s(wf.status), assignedToUserId: s(o(wf.assignedTo).id) };
+  const actions = Array.isArray(wf.availableActions) ? (wf.availableActions as unknown[]) : [];
+  const notIncluded = actions
+    .map((a) => o(a))
+    .filter((a) => a.blockedBy === "ESCALATION_NOT_INCLUDED" && typeof a.action === "string")
+    .map((a) => a.action as string);
+  return { teamId: s(wf.teamId), status: s(wf.status), assignedToUserId: s(o(wf.assignedTo).id), notIncluded };
 }
 
 export const REVIEW_ACTIONS_COPY = {

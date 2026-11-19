@@ -835,12 +835,14 @@ describe("slice E — identity & invitations (live PostgreSQL)", () => {
       expect(second.statusCode, second.body).toBe(429);
       expect(await prisma.apiCredential.count({ where: { teamId: P().teamId, status: "ACTIVE" } })).toBe(1);
 
-      // The grant ends (a downgrade): the key already issued still
-      // authenticates — no running integration is broken — and no new one is
-      // minted.
+      // The grant ends (a downgrade): PRO-G1-14 / DEC-09 (WS-ENT) — the key
+      // already issued is paused, not revoked (403 ENTITLEMENT_REQUIRED; it
+      // works again when the entitlement returns) — and no new one is minted.
       await prisma.entitlementGrant.deleteMany({ where: { teamId: P().teamId, key: "INTEGRATION_API_KEYS_MAX" } });
       const use = await h.app.inject({ method: "GET", url: "/v1/integrations/api/evidence", headers: bearer(raw) });
-      expect(use.statusCode, use.body).not.toBe(401);
+      expect(use.statusCode, use.body).toBe(403);
+      expect(use.json()).toMatchObject({ error: { code: "ENTITLEMENT_REQUIRED", key: "INTEGRATION_API_KEYS_MAX" } });
+      expect(await prisma.apiCredential.count({ where: { teamId: P().teamId, status: "ACTIVE" } })).toBe(1);
       const third = await createKey(P().teamId, P().userId, P().token);
       expect(third.statusCode, third.body).toBe(429);
       expect(await prisma.apiCredential.count({ where: { teamId: P().teamId, status: "ACTIVE" } })).toBe(1);
@@ -857,14 +859,21 @@ describe("slice E — identity & invitations (live PostgreSQL)", () => {
       expect(res.json()).toMatchObject({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
       expect(await prisma.webhookEndpoint.count({ where: { teamId: P().teamId } })).toBe(0);
 
-      const { createWebhookEndpoint } = await import("../src/services/integrations/webhooks.service.js");
-      const existing = await createWebhookEndpoint({
-        teamId: P().teamId,
-        url: `https://203.0.113.10/existing/${tag()}`,
-        eventTypes: [],
-        description: null,
-        actorUserId: P().userId,
-      });
+      // An endpoint kept from an entitled past, seeded as stored: the service
+      // create now applies the endpoint ceiling (PRO-G1-05, WS-ENT), which is 0 here.
+      const existing = {
+        endpoint: await prisma.webhookEndpoint.create({
+          data: {
+            teamId: P().teamId,
+            url: `https://203.0.113.10/existing/${tag()}`,
+            status: "ACTIVE",
+            secretCiphertext: "x",
+            secretPrefix: "whsec_ex",
+            eventTypes: [],
+            createdByUserId: P().userId,
+          },
+        }),
+      };
       const list = await h.app.inject({
         method: "GET",
         url: `/v1/integrations/webhooks?teamId=${P().teamId}`,

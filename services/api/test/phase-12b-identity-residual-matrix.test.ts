@@ -465,6 +465,14 @@ vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({
   },
 }));
 
+// PRO-A2-09 (WS-ENT) — the Enterprise-organization question on new grants is
+// proven live in ws-ent-enterprise-surfaces.integration; this matrix runs entitled.
+vi.mock("../src/routes/_enterprise-surface-gate.js", () => ({
+  ENTERPRISE_ORGANIZATION_REFUSAL: {},
+  ENTERPRISE_IDENTITY_ADMIN_REFUSAL: {},
+  refuseUnlessEnterpriseOrganization: async () => false,
+}));
+
 vi.mock("../src/services/enterprise-gate-resolvers.service.js", () => ({
   resolveTeamEnterpriseFeatureGate: async () =>
     H.enterpriseOk ? { ok: true } : { ok: false, reason: "ENTERPRISE_FEATURE_REQUIRED", statusCode: 402 },

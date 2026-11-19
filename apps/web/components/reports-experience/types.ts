@@ -51,6 +51,13 @@ export type RowDeliverable = {
 
 export type ArtifactRow = {
   evidenceId: string;
+  /**
+   * PRO-O1-10 (WS-ENT) — the caller's package capabilities for this record
+   * (B5B-F-102, the aggregator already projects it). fullForensic needs
+   * evidence.download_original; externalDisclosure needs download_package.
+   * Absent / null on an older API: the list keeps its previous offer.
+   */
+  packageAccess?: { fullForensic: boolean; externalDisclosure: boolean } | null;
   deliverable?: RowDeliverable;
   /** Actual record workspace, not merely the workspace selected in the shell. */
   teamId: string | null;

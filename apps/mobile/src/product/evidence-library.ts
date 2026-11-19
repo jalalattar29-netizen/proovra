@@ -1305,6 +1305,48 @@ export function buildSavedViewUpdateBody(input: { name: string; description: str
  * default change by anyone else (403). Unknown on either side (an older API
  * without `ownerUserId`, or no signed-in user id yet) keeps today's offer.
  */
+/** The caller's role in workspace `teamId`, as the envelope states it, or null. */
+function envelopeRoleIn(envelope: unknown, teamId: string): string | null {
+  const o = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
+  const env = o(envelope);
+  const ws = o(env["workspace"]);
+  if (ws["id"] === teamId && typeof o(ws["membership"])["role"] === "string") return o(ws["membership"])["role"] as string;
+  const opts = o(env["contextOptions"]);
+  if (o(opts["personalSpace"])["workspaceId"] === teamId) return "OWNER";
+  for (const key of ["ownedWorkspaces", "sharedWorkspaces"]) {
+    for (const raw of Array.isArray(opts[key]) ? (opts[key] as unknown[]) : []) {
+      const w = o(raw);
+      if (w["workspaceId"] === teamId && typeof w["role"] === "string") return w["role"] as string;
+    }
+  }
+  for (const org of Array.isArray(opts["organizations"]) ? (opts["organizations"] as unknown[]) : []) {
+    for (const raw of Array.isArray(o(org)["workspaces"]) ? (o(org)["workspaces"] as unknown[]) : []) {
+      const w = o(raw);
+      if (w["workspaceId"] === teamId && typeof w["workspaceRole"] === "string") return w["workspaceRole"] as string;
+    }
+  }
+  return null;
+}
+
+/**
+ * PRO-E1-08 (WS-ENT) — may the caller RENAME / DELETE this saved view? The
+ * server rule (assertSavedViewAccess): a personal view is its owner's; a team
+ * view is editable by that workspace's OWNER / ADMIN, or by its creator while
+ * they still hold the team-view write. An unknown role keeps the owner rule.
+ */
+export function savedViewMayEdit(
+  view: Pick<SavedViewItem, "ownerUserId" | "teamId">,
+  userId: string | null | undefined,
+  envelope: unknown,
+): boolean {
+  const owns = savedViewOwnedBy(view, userId);
+  if (!view.teamId) return owns;
+  const role = envelopeRoleIn(envelope, view.teamId);
+  if (role === "OWNER" || role === "ADMIN") return true;
+  if (role === null) return owns;
+  return owns && savedViewRoleMayShare(role);
+}
+
 export function savedViewOwnedBy(view: Pick<SavedViewItem, "ownerUserId">, userId: string | null | undefined): boolean {
   if (!view.ownerUserId || !userId) return true;
   return view.ownerUserId === userId;

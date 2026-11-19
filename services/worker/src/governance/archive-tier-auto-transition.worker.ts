@@ -41,6 +41,7 @@ import { s3 } from "../storage.js";
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { workerFeatureEntitled } from "./workspace-entitlement.js";
 
 /** A PENDING claim this old was abandoned by a crash. */
 const AUTO_CLAIM_LEASE_MS = 60 * 60 * 1000;
@@ -321,9 +322,11 @@ export async function runArchiveTierAutoTransitions(opts: {
     by: ["teamId"],
     where: { teamId: { not: null }, deletedAt: null, createdAt: { lte: dueBefore } },
   });
+  // PRO-W2C2-03 / B5B-F-300 — a workspace that is closed is not tiered.
   const teams = await prisma.team.findMany({
     where: {
       isPersonal: false,
+      closedAtUtc: null,
       id: { in: withDueRecords.flatMap((row) => (row.teamId ? [row.teamId] : [])) },
     },
     select: { id: true },
@@ -332,8 +335,21 @@ export async function runArchiveTierAutoTransitions(opts: {
 
   let teamsProcessed = 0;
   let totalScheduled = 0;
+  let teamsNotEntitled = 0;
 
   for (const team of teams) {
+    // PRO-W2C2-03 / B5B-F-300 — archive tiering is the packaging engine's
+    // FEATURE_ARCHIVE_TIERS (default off; the INVESTIGATIONS / ENTERPRISE
+    // lines and an ACTIVE Enterprise contract include it), the same
+    // entitlement the API tiering route asks. This sweep asked nothing, so a
+    // workspace that never bought tiers had its sealed originals tagged for
+    // deep archive. Asked per team per tick, so a downgrade stops further
+    // transitions on the next tick and a restored entitlement resumes them.
+    // Fails closed (`workerFeatureEntitled`).
+    if (!(await workerFeatureEntitled(team.id, "FEATURE_ARCHIVE_TIERS"))) {
+      teamsNotEntitled += 1;
+      continue;
+    }
     try {
       const n = await sweepTeam(team.id);
       totalScheduled += n;
@@ -344,7 +360,7 @@ export async function runArchiveTierAutoTransitions(opts: {
   }
 
   logger.info(
-    { trigger: opts.trigger, teamsProcessed, totalScheduled },
+    { trigger: opts.trigger, teamsProcessed, totalScheduled, teamsNotEntitled },
     "archive.auto_transition.sweep_completed",
   );
 

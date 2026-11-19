@@ -499,6 +499,8 @@ export async function searchRoutes(app: FastifyInstance) {
         actorUserId: actor.userId,
         id,
         canManageShared: actor.mayManageSharedViews,
+        // PRO-E1-06 — the create rule, applied to the creator arm too.
+        mayWriteShared: actor.mayPublishSharedViews,
       });
       if (!ok) {
         return reply.code(404).send({ error: { code: "not_found" } });
@@ -531,6 +533,8 @@ export async function searchRoutes(app: FastifyInstance) {
         teamId: body.teamId,
         actorUserId: actor.userId,
         name: body.name,
+        // PRO-E1-06 — a demoted (VIEWER) creator no longer renames a TEAM view.
+        mayWriteShared: actor.mayPublishSharedViews,
       });
       if (!updated) {
         return reply.code(404).send({ error: { code: "not_found" } });

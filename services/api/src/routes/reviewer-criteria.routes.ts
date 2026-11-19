@@ -80,7 +80,16 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
       // carries. Without it native rendered "0 criteria" for every set.
       include: { versions: { orderBy: { version: "desc" }, take: 1, select: { id: true, version: true, publishedAt: true, title: true, _count: { select: { criteria: true } } } } },
     });
-    return reply.code(200).send({ sets });
+    // PRO-NAZ-01 (WS-ENT) — the write routes' own decision, projected, so a
+    // client offers authoring only to a caller the writes would accept:
+    // OWNER/ADMIN, and the plan includes record-level review. Additive.
+    const roleMayAuthor = ok.role === "OWNER" || ok.role === "ADMIN";
+    const planIncludesAuthoring = await workspaceIncludesReviewCapability(q.teamId, "BASIC_RECORD_REVIEW");
+    return reply.code(200).send({
+      sets,
+      canManage: roleMayAuthor && planIncludesAuthoring,
+      manageBlockedBy: roleMayAuthor ? (planIncludesAuthoring ? null : "PLAN_NOT_INCLUDED") : "ROLE",
+    });
   });
 
   app.post("/v1/reviewer-criteria", { preHandler: requireAuth }, async (req, reply) => {

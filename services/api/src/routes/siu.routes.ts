@@ -22,6 +22,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
+import { refuseUnlessEnterpriseOrganization } from "./_enterprise-surface-gate.js";
 import {
   evaluateAccess,
   evaluateMemberAccess,
@@ -121,6 +122,8 @@ async function requireSiuWorkspaceActor(
     });
     return null;
   }
+  // PRO-K1-03 — SIU worklists and saved views are an Enterprise organization tool.
+  if (await refuseUnlessEnterpriseOrganization(reply, teamId)) return null;
   return { userId, teamId };
 }
 
@@ -169,6 +172,14 @@ async function requireCaseActor(
   reply: FastifyReply,
   caseId: string,
   permission: "identity.member.read" | "evidence.update_metadata" = "identity.member.read",
+  /**
+   * PRO-K1-03 / DEC-10 — a READ of material already stored (the profile, the
+   * list of stored export bundles, a stored bundle's download) stays open to
+   * an authorized member after the workspace stops being an Enterprise
+   * organization; every write, every new export and every compute route asks
+   * the Enterprise-organization authority.
+   */
+  options: { retainedRead?: boolean } = {},
 ): Promise<{ userId: string; teamId: string; exposePii: boolean; role: string | null } | null> {
   const userId = getAuthUserId(req);
   /*
@@ -240,6 +251,7 @@ async function requireCaseActor(
   // fields by default. Future phases can wire this to a dedicated
   // capability.
   const exposePii = c.ownerUserId === userId;
+  if (!options.retainedRead && (await refuseUnlessEnterpriseOrganization(reply, c.teamId))) return null;
   return { userId, teamId: c.teamId, exposePii, role: member.role ? String(member.role) : null };
 }
 
@@ -403,7 +415,7 @@ export async function siuRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const params = z.object({ id: z.string().uuid() }).parse(req.params);
-      const ctx = await requireCaseActor(req, reply, params.id);
+      const ctx = await requireCaseActor(req, reply, params.id, "identity.member.read", { retainedRead: true });
       if (!ctx) return;
       // Phase M3.1 — basic profile read returns PII-redacted projection
       // regardless of caller role. PII is only exposed via the dedicated
@@ -878,7 +890,7 @@ export async function siuRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id);
+      const ctx = await requireCaseActor(req, reply, params.id, "identity.member.read", { retainedRead: true });
       if (!ctx) return;
       const exports = await listSiuExports({
         caseId: params.id,
@@ -1218,7 +1230,7 @@ export async function siuRoutes(app: FastifyInstance) {
           exportId: z.string().uuid(),
         })
         .parse(req.params);
-      const ctx = await requireCaseActor(req, reply, params.id);
+      const ctx = await requireCaseActor(req, reply, params.id, "identity.member.read", { retainedRead: true });
       if (!ctx) return;
       // The stored bundle carries the same artifacts; the same gate applies
       // NOW, not only when it was generated (2026-09-29, audit M2).

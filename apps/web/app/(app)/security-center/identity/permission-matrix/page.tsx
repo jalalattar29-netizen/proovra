@@ -753,11 +753,14 @@ export default function PermissionMatrixPage() {
                   its compiled-in capabilities — nothing queried, nothing
                   capped. Declared in apps/web/scripts/admin-complete-lists.mjs, where
                   the API test asserts the handler has no take. */}
+              {/* PRO-A2U-04 (WS-ENT) — this counter sits under the permission
+                  table and counts permissions; it is filtered only when a
+                  filter actually narrowed the permission list. */}
               <ResultCount
                 shown={filtered.length}
                 complete
-                noun="role"
-                filtered={filtered.length !== (matrix ?? []).length}
+                noun="permission"
+                filtered={filtered.length !== (snapshot?.permissions.length ?? 0)}
                 data-testid="admin-permission-matrix-count"
               />
             </div>

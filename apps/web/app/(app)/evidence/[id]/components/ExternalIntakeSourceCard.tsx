@@ -128,8 +128,16 @@ const ACTIONABLE_STATUSES = REVIEWER_STATUS_PRIMARY_ACTIONS;
 
 export default function ExternalIntakeSourceCard({
   evidenceId,
+  canAct = true,
 }: {
   evidenceId: string;
+  /**
+   * PRO-E2-09 (WS-ENT) — the reviewer status and decision buttons are writes
+   * the server refuses a VIEWER (permission) and a plan without record-level
+   * review (reviewer_operations_not_included). Without both they are not
+   * offered; the current status and decision stay readable.
+   */
+  canAct?: boolean;
 }) {
   const stepUp = useStepUpAction({ teamId: useActiveWorkspaceId() });
   const [summary, setSummary] = useState<Summary | null | undefined>(undefined);
@@ -614,6 +622,7 @@ export default function ExternalIntakeSourceCard({
           </p>
         </header>
         {reviewError ? <div className="evd-error">{reviewError}</div> : null}
+        {canAct ? (
         <div className="evd-actions">
           {ACTIONABLE_STATUSES.map((s) => {
             const active = currentStatus === s;
@@ -638,8 +647,10 @@ export default function ExternalIntakeSourceCard({
             );
           })}
         </div>
+        ) : null}
         {/* Verdicts are recorded as DECISIONS; the status they produce is
             derived by the server from the immutable decision log. */}
+        {canAct ? (
         <div
           className="evd-actions evd-actions--top"
           data-evidence-reviewer-decisions="true"
@@ -671,6 +682,7 @@ export default function ExternalIntakeSourceCard({
             );
           })}
         </div>
+        ) : null}
 
         {/*
           THE REASON THE SERVER REQUIRES, ASKED FOR.
@@ -681,7 +693,7 @@ export default function ExternalIntakeSourceCard({
           stays disabled until there is something to send, so the 422 is now
           unreachable from this surface.
         */}
-        {pendingDecision ? (
+        {canAct && pendingDecision ? (
           <div
             className="evd-stack"
             data-evidence-reviewer-reason-for={pendingDecision}

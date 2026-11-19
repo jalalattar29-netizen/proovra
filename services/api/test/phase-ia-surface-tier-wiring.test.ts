@@ -184,10 +184,16 @@ describe("Phase IA-surface-tier-wiring — simplified normal-user sidebar", () =
   // self-serve simplification brief moved them to ENTERPRISE with
   // bounded redirects so they no longer appear as standalone product
   // surfaces.
-  it("/workspaces is ENTERPRISE — self-serve redirects to /collaboration-teams (Phase 2B: no /teams loop)", () => {
+  //
+  // PRO-PW-02 (WS-ENT) — /workspaces LEFT that group. It is the account-domain
+  // workspace list every recovery CTA and membership email opens; the redirect
+  // sent every Free / Pro / Team account to /collaboration-teams instead. It
+  // is CORE / allow and still never points at /teams (no loop).
+  it("/workspaces is an account-domain page (CORE, allow) — no self-serve redirect, never /teams", () => {
     expect(TIERS).toMatch(
-      /pathPrefix:\s*"\/workspaces",\s*tier:\s*"ENTERPRISE",\s*directAccessPolicy:\s*"redirect",\s*redirectTo:\s*"\/collaboration-teams"/,
+      /pathPrefix:\s*"\/workspaces",\s*tier:\s*"CORE",\s*directAccessPolicy:\s*"allow"/,
     );
+    expect(TIERS).not.toMatch(/pathPrefix:\s*"\/workspaces"[^\n]{0,200}redirectTo:\s*"\/teams"/);
   });
 
   /**

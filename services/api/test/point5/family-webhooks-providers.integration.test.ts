@@ -45,6 +45,19 @@ describe("POINT 5 FAMILY — webhooks/providers (live PostgreSQL 16)", () => {
     foreignTeam = harness.fixtures.teamB.teamId;
     ownOwner = harness.fixtures.teamA.ownerUserId;
     foreignOwner = harness.fixtures.teamB.ownerUserId;
+    // RG-13 (WS-ENT) — the dispatcher sends only for a workspace holding
+    // FEATURE_WEBHOOKS (the seeded deliveries model an entitled workspace).
+    const { upsertEntitlementGrant } = await import("../../src/services/packaging/entitlement.service.js");
+    for (const [teamId, owner] of [[ownTeam, ownOwner], [foreignTeam, foreignOwner]] as const) {
+      await upsertEntitlementGrant({
+        teamId,
+        key: "FEATURE_WEBHOOKS",
+        value: true,
+        kind: "FEATURE",
+        source: "CUSTOM",
+        grantedByUserId: owner,
+      });
+    }
   });
 
   afterAll(async () => {

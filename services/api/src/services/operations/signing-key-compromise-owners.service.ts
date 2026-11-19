@@ -80,6 +80,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { workspaceIsEnterpriseOrganization } from "../platform-context/enterprise-authority.js";
 import { dispatchEnqueuedEmailNotifications, enqueueEmailNotificationTx } from "../notifications/index.js";
 import { getEmailWebBaseUrl } from "../notifications/templates.js";
 import { requestReportGeneration } from "../reports/report-generation-authority.service.js";
@@ -409,6 +410,13 @@ export async function notifyOwnersOfKeyCompromise(
       continue;
     }
     try {
+      // PRO-PW-02 (WS-ENT) — /governance/destruction is an Enterprise
+      // organization surface (tier ENTERPRISE, notFound). A certificate of a
+      // workspace that is no longer one links the recipient's inbox instead,
+      // where the in-app notice below is listed. Fails closed to the inbox.
+      const destructionSurfaceReachable = cert.teamId
+        ? await workspaceIsEnterpriseOrganization(cert.teamId).catch(() => false)
+        : false;
       const outcome = await client.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`signing-key-compromise-notice:cert:${cert.certificateId}`}))`;
         // The in-app row is the certificate notice's own dedupe key (a
@@ -447,7 +455,10 @@ export async function notifyOwnersOfKeyCompromise(
           template: {
             kind: "SigningKeyCompromiseNotice",
             data: {
-              actionUrl: absoluteInternalUrl(webBase, internalNavPath("/governance/destruction")),
+              actionUrl: absoluteInternalUrl(
+                webBase,
+                internalNavPath(destructionSurfaceReachable ? "/governance/destruction" : "/notifications"),
+              ),
               replacementAvailable: false,
               subject: "destruction_certificate",
             },

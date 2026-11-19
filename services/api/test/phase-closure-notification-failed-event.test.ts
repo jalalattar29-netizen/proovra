@@ -45,9 +45,19 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { PrismaClient } from "@prisma/client";
+
+// PRO-G1-14 / PRO-W2-05 (WS-ENT) — the integration emitter now asks the
+// entitlement engine before it writes a delivery row. This suite proves the
+// notification.failed EMISSION against an in-memory Prisma stub that has no
+// entitlement tables, so the workspace is stated entitled here; the refusal
+// (withheld CANCELLED row) is proven in ws-ent-integration-entitlements.
+vi.mock("../src/services/packaging/entitlement.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  admitWebhookDelivery: async () => ({ ok: true }),
+}));
 
 // Static: an in-test dynamic import of this module timed out under load.
 import { resendNotificationDelivery } from "../src/services/notifications/index.js";

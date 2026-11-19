@@ -50,6 +50,27 @@ export function siuSavedViewVisibility(
 }
 
 /**
+ * PRO-E1-08 (WS-ENT) — may the caller RENAME / DELETE this saved view? The
+ * server rule (assertSavedViewAccess, evidence.saved-views.routes.ts): a
+ * personal view is its owner's; a team view is editable by that workspace's
+ * OWNER / ADMIN, or by its creator while they still hold the write a team
+ * view needs. A MEMBER was offered Rename/Delete on a colleague's team view
+ * and refused 403. An unknown role keeps the owner rule (server decides).
+ */
+export function mayEditSavedView(
+  view: { ownerUserId?: string | null; teamId?: string | null },
+  currentUserId: string | null | undefined,
+  envelope: PlatformContextEnvelope | null | undefined,
+): boolean {
+  const owns = ownsSavedView(view, currentUserId);
+  if (!view.teamId) return owns;
+  const role = roleInWorkspace(envelope, view.teamId);
+  if (role === "OWNER" || role === "ADMIN") return true;
+  if (role === null) return owns;
+  return owns && roleMayShareSavedViews(role);
+}
+
+/**
  * Does the caller own this saved view? An unknown caller or a row without an
  * owner keeps today's behaviour (the server refuses a non-owner).
  */

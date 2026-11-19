@@ -4137,6 +4137,22 @@ async function getEvidenceForCollaborativeWrite(
     throw err;
   }
   const evidence = await getEvidenceWithRecordAccess(userId, evidenceId, "evidence.update_metadata");
+  await assertEvidenceOpenForWrites(evidenceId, "This record is no longer open for notes.");
+  return evidence;
+}
+
+/**
+ * PRO-E2-05 (WS-ENT) — THE lifecycle predicate for metadata writes on a record,
+ * extracted from the collaborative-write gate (EVID-010) so every sibling write
+ * asks it: a record in Trash, pending destruction or destroyed (or soft-deleted)
+ * takes no new relationship, reviewer-workflow change, label or AI run.
+ * Asked after access is proven, so a refusal reveals nothing a reader could not
+ * already see. 409 EVIDENCE_NOT_WRITABLE.
+ */
+async function assertEvidenceOpenForWrites(
+  evidenceId: string,
+  message = "This record is in Trash or no longer exists, so it cannot be changed.",
+): Promise<void> {
   const state = await prisma.evidence.findUnique({
     where: { id: evidenceId },
     select: { lifecycleState: true, deletedAt: true },
@@ -4145,14 +4161,11 @@ async function getEvidenceForCollaborativeWrite(
     state?.deletedAt ||
     (state?.lifecycleState && ["TRASHED", "DESTROYED", "PENDING_DESTRUCTION"].includes(state.lifecycleState))
   ) {
-    const err: Error & { statusCode?: number; code?: string } = new Error(
-      "This record is no longer open for notes.",
-    );
+    const err: Error & { statusCode?: number; code?: string } = new Error(message);
     err.statusCode = 409;
     err.code = "EVIDENCE_NOT_WRITABLE";
     throw err;
   }
-  return evidence;
 }
 
 /**
@@ -7072,6 +7085,8 @@ if (
         });
         return reply.code(409).send({ message: "Evidence is deleted" });
       }
+      // PRO-E2-05 — a record in Trash or pending destruction is not relabelled.
+      await assertEvidenceOpenForWrites(id);
       try {
   assertEvidenceNotLocked(evidence);
 } catch (err) {
@@ -9019,10 +9034,15 @@ return {
       include: { author: { select: { id: true, displayName: true, email: true } } },
       orderBy: { createdAt: "desc" },
     });
+    // PRO-E2-09 (WS-ENT) — per item, the edit/delete routes' own rule: the
+    // author, or a manager of the record's collaborative content. Additive.
+    const writable = await canWriteCollaborativeContent(userId, id);
+    const managesComments = writable && (await canManageEvidenceCollaborativeContent(userId, evidence));
 
     return reply.code(200).send({
-      canWrite: await canWriteCollaborativeContent(userId, id),
+      canWrite: writable,
       items: comments.map((comment) => ({
+        canManage: writable && (comment.authorUserId === userId || managesComments),
         id: comment.id,
         evidenceId: comment.evidenceId,
         visibility: comment.visibility,
@@ -9196,10 +9216,13 @@ return {
       include: { author: { select: { id: true, displayName: true, email: true } } },
       orderBy: { createdAt: "desc" },
     });
+    // PRO-E2-09 (WS-ENT) — per note, the edit/delete routes' own rule.
+    const writable = await canWriteCollaborativeContent(userId, id);
 
     return reply.code(200).send({
-      canWrite: await canWriteCollaborativeContent(userId, id),
+      canWrite: writable,
       items: items.map((note) => ({
+        canManage: writable && (note.authorUserId === userId || seesPrivileged),
         id: note.id,
         evidenceId: note.evidenceId,
         noteType: note.noteType,
@@ -9897,6 +9920,8 @@ return {
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const body = ReviewerWorkflowUpdateBody.parse(req.body);
       const evidence = await getEvidenceWithReadAccess(userId, id);
+      // PRO-E2-05 — the lifecycle rule the notes already follow.
+      await assertEvidenceOpenForWrites(id);
 
       /*
        * READING THE RECORD IS NOT AUTHORITY TO TRIAGE IT.
@@ -10158,6 +10183,9 @@ return {
       // same capability as removing one); the target only has to be readable.
       const evidence = await getEvidenceWithRecordAccess(userId, id, "evidence.update_metadata");
       const target = await getEvidenceWithReadAccess(userId, body.targetEvidenceId);
+      // PRO-E2-05 — neither end of a new link may be in Trash or destroyed.
+      await assertEvidenceOpenForWrites(id);
+      await assertEvidenceOpenForWrites(target.id);
 
       const relationship = await createEvidenceRelationship({
         sourceEvidenceId: id,
@@ -10202,6 +10230,7 @@ return {
       const body = RelationshipUpdateBody.parse(req.body);
       // D21 — editing a relationship is a write; see the create route.
       await getEvidenceWithRecordAccess(userId, id, "evidence.update_metadata");
+      await assertEvidenceOpenForWrites(id); // PRO-E2-05
 
       const relationship = await prisma.evidenceRelationship.findUnique({
         where: { id: relationshipId },
@@ -10352,6 +10381,8 @@ return {
       // routes beside it. Read access used to be enough, so a viewer spent
       // the workspace's AI budget.
       const evidence = await getEvidenceWithRecordAccess(userId, id, "evidence.update_metadata");
+      // PRO-E2-05 — no AI allowance is spent on a record in Trash or destroyed.
+      await assertEvidenceOpenForWrites(id);
 
       const guard = evidenceAiCostGuard.canCategorizeEvidence(userId, id);
       if (!guard.allowed) {
@@ -11521,6 +11552,11 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             : true,
           hasWorkspace: Boolean(evidence.teamId),
           planIncludesReview: reviewIncluded,
+          // PRO-R2Z-10 (WS-ENT) — Escalate asks REVIEW_ESCALATION, as its route does.
+          planIncludesEscalation:
+            reviewIncluded && evidence.teamId
+              ? await workspaceIncludesReviewCapability(evidence.teamId, "REVIEW_ESCALATION")
+              : reviewIncluded,
           decision: decisionState,
         });
         const caseAssignmentView = {

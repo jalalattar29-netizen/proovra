@@ -136,7 +136,8 @@ export function ContextualHelp({
 
   function dismiss() {
     setDismissed(true);
-    // PRO-C1C-04 — persisted only with preferences consent; hidden for this mount either way.
+    // PRO-C1C-04 / PRO-PW-12 — persisted only with preferences consent (the shared
+    // consent writer); without it the dismissal lasts this mount.
     writePreferenceStorage(dismissKey, "true");
   }
 

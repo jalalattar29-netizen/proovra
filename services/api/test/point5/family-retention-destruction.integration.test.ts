@@ -225,6 +225,20 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
       evidenceId: harness.fixtures.teamB.evidenceId,
       caseId: harness.fixtures.teamB.caseId,
     };
+    // PRO-W2C2-03 (WS-ENT) — the archive sweep tiers only workspaces holding
+    // FEATURE_ARCHIVE_TIERS; both fixture workspaces model entitled ones here
+    // (the refusal is proven in gov-016-archive-tier.integration).
+    const { upsertEntitlementGrant } = await import("../../src/services/packaging/entitlement.service.js");
+    for (const f of [own, foreign]) {
+      await upsertEntitlementGrant({
+        teamId: f.teamId,
+        key: "FEATURE_ARCHIVE_TIERS",
+        value: true,
+        kind: "FEATURE",
+        source: "CUSTOM",
+        grantedByUserId: f.ownerUserId,
+      });
+    }
   });
 
   afterAll(async () => {

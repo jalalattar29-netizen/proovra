@@ -454,8 +454,13 @@ function TeamDetail() {
    * offering an action that cannot succeed, and says why instead.
    */
   const isArchived = team.status !== "ACTIVE";
+  // PRO-K2-09 (WS-ENT) — "two layers, both required": a workspace VIEWER with
+  // a writing group role is refused every write by the workspace permission,
+  // so no write control is offered (an older API omits the flag: unchanged).
+  const workspaceWriteAllowed = team.viewerCapabilities?.workspaceWriteAllowed !== false;
   const canManage =
     !isArchived &&
+    workspaceWriteAllowed &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.update_settings");
   /*
    * MEMBERS EXPERIENCE F — every hero action obeys the gate its submit meets.
@@ -470,10 +475,12 @@ function TeamDetail() {
   const growthAllowed = headerEntitlement?.mutationsAllowed === true;
   const canInvite =
     !isArchived &&
+    workspaceWriteAllowed &&
     growthAllowed &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.member.invite");
   const canAssign =
     !isArchived &&
+    workspaceWriteAllowed &&
     growthAllowed &&
     teamTasksIncluded === true &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.assignment.create");

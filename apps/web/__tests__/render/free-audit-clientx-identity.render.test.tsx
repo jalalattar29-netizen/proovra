@@ -440,10 +440,23 @@ describe("A2-14 saved views: a Viewer saves a personal view, never a shared one"
     expect(mayShareSavedViewsIn(memberEnvelope as never, "team-1")).toBe(true);
     expect(mayShareSavedViewsIn(null, "team-1")).toBe(true);
     const src = readFileSync(resolve(__dirname, "../../app/(app)/evidence/page.tsx"), "utf8");
-    expect(src).toMatch(/\.filter\(\(workspace\) => mayShareSavedViewsIn\(envelope, workspace\.workspaceId\)\)/);
+    // PRO-E1-08 (WS-ENT) — the list now also offers the ACTIVE workspace (an
+    // ADMIN/MEMBER of someone else's workspace may share there), so the rule
+    // is applied to the merged {id, name} options.
+    expect(src).toMatch(/\.filter\(\(workspace\) => mayShareSavedViewsIn\(envelope, workspace\.id\)\)/);
   });
 
   it("Make Default is offered only on the caller's own views, and a colleague's rename omits isDefault", async () => {
+    // PRO-E1-08 (WS-ENT) — Rename / Delete on a COLLEAGUE's team view are the
+    // workspace OWNER's / ADMIN's (assertSavedViewAccess); a MEMBER is no
+    // longer offered them. This case is the admin renaming a colleague's view.
+    ctx = {
+      envelope: {
+        user: { id: "me" },
+        workspace: { id: "team-1", membership: { role: "ADMIN" } },
+        contextOptions: { ownedWorkspaces: [{ workspaceId: "team-1", name: "Claims", role: "ADMIN" }] },
+      },
+    };
     const view = (id: string, ownerUserId: string): EvidenceSavedView => ({
       id,
       ownerUserId,

@@ -43,6 +43,7 @@ import { evaluateMemberAccess } from "../services/identity/access-policy.service
 import { buildInvestigationDiagnostics } from "../services/investigation-diagnostics.service.js";
 import { resolvePlatformAdmin } from "../services/platform-admin.service.js";
 import { viewerReachInWorkspace } from "../services/access/record-reach.js";
+import { refuseUnlessEnterpriseOrganization } from "./_enterprise-surface-gate.js";
 
 const TeamQuery = z.object({
   teamId: z.string().uuid(),
@@ -120,5 +121,7 @@ async function requireDiagnosticsOpsActor(
     });
     return null;
   }
+  // PRO-K1-03 — investigation diagnostics are an Enterprise organization tool.
+  if (await refuseUnlessEnterpriseOrganization(reply, teamId)) return null;
   return { userId };
 }

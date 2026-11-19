@@ -4,12 +4,14 @@
  * A 403 (no capability) or an unresolved workspace renders an honest state.
  */
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { formatUserDateTime } from "../../src/lib/date";
 import { usePlatformContext } from "../../src/product/platform-context";
 import {
+  filterRequestsByStatus,
+  parseRequestStatusFilter,
   parseEvidenceRequestList,
   requestListSummary,
   requestStatusDisplay,
@@ -31,6 +33,9 @@ type Phase = "loading" | "ready" | "error" | "unavailable";
 
 export default function EvidenceRequestsScreen() {
   const router = useRouter();
+  // PRO-NC-03 (WS-ENT) — honour the status filter the Home priority sends.
+  const params = useLocalSearchParams<{ status?: string | string[] }>();
+  const statusFilterKey = Array.isArray(params.status) ? params.status.join(",") : params.status ?? "";
   const { loading: ctxLoading, context } = usePlatformContext();
   const teamId = context?.activeTeamId ?? null;
   const [items, setItems] = useState<EvidenceRequestListItem[]>([]);
@@ -48,7 +53,7 @@ export default function EvidenceRequestsScreen() {
     setError(null);
     try {
       const data = await apiFetch(`/v1/evidence-requests?teamId=${encodeURIComponent(teamId)}`);
-      setItems(parseEvidenceRequestList(data));
+      setItems(filterRequestsByStatus(parseEvidenceRequestList(data), parseRequestStatusFilter(statusFilterKey)));
       setPhase("ready");
     } catch (err) {
       const safe = toSafeUserError(err);
@@ -58,7 +63,7 @@ export default function EvidenceRequestsScreen() {
         setPhase("error");
       }
     }
-  }, [teamId, ctxLoading]);
+  }, [teamId, ctxLoading, statusFilterKey]);
 
   useEffect(() => { void load(); }, [load]);
 

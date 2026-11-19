@@ -387,6 +387,20 @@ function buildStubPrisma(endpoints: EndpointRow[]): {
     // closed in this stub unless a test says so.
     evidence: { count: async (args: { where: { id: string } }) => (closedIds.has(args.where.id) ? 1 : 0) },
     case: { count: async (args: { where: { id: string } }) => (closedIds.has(args.where.id) ? 1 : 0) },
+    // RG-13 (WS-ENT) — every delivery is admitted against FEATURE_WEBHOOKS and
+    // the daily delivery quota. This stub workspace holds both (a grant row
+    // per key; not an Enterprise workspace); the meter admits every unit.
+    team: { findUnique: async () => null },
+    entitlementGrant: {
+      findUnique: async (args: { where: { teamId_key: { key: string } } }) => {
+        const key = args.where.teamId_key.key;
+        const base = { id: "g", key, source: "CUSTOM", productLine: null, grantedAtUtc: new Date(0), expiresAtUtc: null };
+        if (key === "FEATURE_WEBHOOKS") return { ...base, kind: "FEATURE", valueBool: true, valueNumber: null };
+        if (key === "QUOTA_WEBHOOK_DELIVERIES_PER_DAY") return { ...base, kind: "QUOTA", valueBool: null, valueNumber: 1000n };
+        return null;
+      },
+    },
+    $queryRaw: async () => [{ consumed: 1n }],
   } as unknown as PrismaClient;
 
   return { client, deliveries };

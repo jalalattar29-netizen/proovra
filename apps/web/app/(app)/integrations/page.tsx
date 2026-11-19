@@ -2037,15 +2037,17 @@ function Field({
  * F-15 / A2-11 — the plan's API key allowance (INTEGRATION_API_KEYS_MAX)
  * refused a NEW key: 429 `api_key_limit_reached` with `details.limit`.
  * It is an allowance, not a rate limit, so the 429 "try again later" bucket
- * was false. Plans whose Pricing says API access is "Not included" allow 0;
- * keys already issued keep working either way. Null for any other error.
+ * was false. Plans whose Pricing says API access is "Not included" allow 0.
+ * PRO-G1-14 / DEC-09 — at 0 the API also pauses keys already issued (refused,
+ * not revoked) until access is included again; under a positive ceiling the
+ * existing keys keep working. Null for any other error.
  */
 function apiKeyLimitMessage(err: unknown): string | null {
   const e = (err && typeof err === "object" ? err : {}) as { code?: unknown; details?: { limit?: unknown } };
   if (typeof e.code !== "string" || e.code.toLowerCase() !== "api_key_limit_reached") return null;
   const limit = typeof e.details?.limit === "number" ? e.details.limit : null;
   if (limit === 0) {
-    return "API keys are not included in this workspace's plan, so a new key cannot be created. Keys you already have keep working. Upgrade the plan on the Billing page to create new keys.";
+    return "API keys are not included in this workspace's plan, so a new key cannot be created. Keys you already have are not revoked, but they are paused while API access is not included and work again once it is. Upgrade the plan on the Billing page to create or use keys.";
   }
   if (limit !== null) {
     return `This workspace already has the ${limit} active API key${limit === 1 ? "" : "s"} its plan includes. Revoke a key you no longer use, or upgrade the plan on the Billing page for more. Keys you already have keep working.`;

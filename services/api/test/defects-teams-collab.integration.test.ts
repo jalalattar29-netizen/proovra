@@ -21,6 +21,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 
 type Prisma = (typeof import("../src/db.js"))["prisma"];
 
@@ -70,6 +71,8 @@ describe("defects — teams, collaboration, saved views (live PostgreSQL 16)", (
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    // PRO-K1-03 (WS-ENT) — graph, diagnostics and SIU are Enterprise organization tools.
+    await makeEnterpriseOrganizationWorkspace(prisma, h.fixtures.teamA.teamId);
   }, 900_000);
 
   afterAll(async () => {

@@ -33,6 +33,7 @@ import {
 } from "../../lib/platform-context";
 import type { WorkspaceAdminEnvelope } from "./types";
 import { WorkspaceAuditTab } from "./WorkspaceAuditTab";
+import { TeamPermissionMatrix } from "../../app/(app)/teams/[id]/components/TeamPermissionMatrix";
 import { humaniseCode } from "../../lib/ots-presentation";
 
 // CR1.6 — The legacy `no_workspace` LoadState branch was removed.
@@ -120,9 +121,12 @@ export function WorkspaceAdminPanel() {
     { key: "overview", label: "Overview", visible: true },
     { key: "access", label: "Access & Roles", visible: true },
     { key: "permissions", label: "Role Matrix", visible: true },
-    { key: "governance", label: "Governance Snapshot", visible: isTeam },
-    { key: "integrations", label: "Integrations", visible: isTeam },
-    { key: "billing", label: "Billing & Seats", visible: true },
+    // PRO-T1C-02 (WS-ENT) — a section the server does not project to this
+    // role (not_applicable: no billing.read / integration / governance read)
+    // has no tab. An older API projects every section: unchanged.
+    { key: "governance", label: "Governance Snapshot", visible: isTeam && env.sections.governanceSnapshot.status !== "not_applicable" },
+    { key: "integrations", label: "Integrations", visible: isTeam && env.sections.integrationsPosture.status !== "not_applicable" },
+    { key: "billing", label: "Billing & Seats", visible: env.sections.billing.status !== "not_applicable" },
     { key: "accountability", label: "Operational Accountability", visible: isTeam },
     // PHASE 11 §6 — the canonical tenant-audit query/export surface. The
     // server enforces audit.read/audit.export on the PROVEN workspace; the
@@ -196,7 +200,7 @@ export function WorkspaceAdminPanel() {
         <OverviewTab env={env} isTeam={isTeam} canManage={canManage} />
       )}
       {tab === "access" && <AccessTab env={env} canManage={canManage} />}
-      {tab === "permissions" && <RoleMatrixTab />}
+      {tab === "permissions" && <RoleMatrixTab currentRole={env.workspace.role} />}
       {tab === "governance" && isTeam && <GovernanceSnapshotTab env={env} />}
       {tab === "integrations" && isTeam && (
         <IntegrationsPostureTab env={env} canManage={canManage} />
@@ -405,67 +409,23 @@ function AccessTab({
 // Role permission matrix tab
 // ---------------------------------------------------------------------------
 
-function RoleMatrixTab() {
-  // Bounded product-level role summary. This is NOT a complete
-  // permission catalog — backend permissions remain authoritative.
-  // The matrix mirrors the bounded role gates surfaced elsewhere in
-  // the platform (workspace-profile.ts / governance role gates).
-  const rows: Array<{
-    capability: string;
-    OWNER: "yes" | "no" | "partial";
-    ADMIN: "yes" | "no" | "partial";
-    MEMBER: "yes" | "no" | "partial";
-    VIEWER: "yes" | "no" | "partial";
-  }> = [
-    { capability: "View workspace", OWNER: "yes", ADMIN: "yes", MEMBER: "yes", VIEWER: "yes" },
-    { capability: "Capture evidence", OWNER: "yes", ADMIN: "yes", MEMBER: "yes", VIEWER: "no" },
-    { capability: "Open / link cases", OWNER: "yes", ADMIN: "yes", MEMBER: "yes", VIEWER: "no" },
-    { capability: "Review queue actions", OWNER: "yes", ADMIN: "yes", MEMBER: "partial", VIEWER: "no" },
-    { capability: "Governance policy edit", OWNER: "yes", ADMIN: "yes", MEMBER: "no", VIEWER: "no" },
-    { capability: "Legal hold place / release", OWNER: "yes", ADMIN: "yes", MEMBER: "no", VIEWER: "no" },
-    { capability: "Retention / destruction review", OWNER: "yes", ADMIN: "yes", MEMBER: "no", VIEWER: "no" },
-    { capability: "Manage team / invites", OWNER: "yes", ADMIN: "yes", MEMBER: "no", VIEWER: "no" },
-    { capability: "Manage billing", OWNER: "yes", ADMIN: "yes", MEMBER: "no", VIEWER: "no" },
-    { capability: "Manage integrations / API keys", OWNER: "yes", ADMIN: "yes", MEMBER: "no", VIEWER: "no" },
-    { capability: "Download report / package", OWNER: "yes", ADMIN: "yes", MEMBER: "partial", VIEWER: "no" },
-  ];
+/**
+ * PRO-T1C-03 (WS-ENT) — the Role Matrix is the SERVER's computed matrix
+ * (GET /v1/platform/rbac/matrix, buildRbacMatrix over roleHasPermission), the
+ * one /teams/[id] already renders. The hard-coded table it replaces said ADMIN
+ * manages billing and runs destruction review and that VIEWER cannot download
+ * reports or packages — all three contradicted the enforced permissions.
+ */
+function RoleMatrixTab({ currentRole }: { currentRole: string | null }) {
+  const role =
+    currentRole === "OWNER" || currentRole === "ADMIN" || currentRole === "MEMBER" || currentRole === "VIEWER"
+      ? currentRole
+      : null;
   return (
     <section className="cc-section" data-tab-body="permissions">
-      <header className="cc-section-header">
-        <h2 className="cc-section-title">Role Permission Matrix</h2>
-      </header>
-      <div className="cc-section-foot">
-        A summary of what each role can do. Capabilities marked "partial"
-        also depend on workspace policy, such as step-up and governance rules.
-      </div>
-      <table className="workspace-permission-matrix" data-workspace-permission-matrix>
-        <thead>
-          <tr>
-            <th>Capability</th>
-            <th>OWNER</th>
-            <th>ADMIN</th>
-            <th>MEMBER</th>
-            <th>VIEWER</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.capability} data-workspace-permission-row={r.capability}>
-              <td>{identifierLabel(r.capability)}</td>
-              <td data-permission-cell={r.OWNER}>{cellGlyph(r.OWNER)}</td>
-              <td data-permission-cell={r.ADMIN}>{cellGlyph(r.ADMIN)}</td>
-              <td data-permission-cell={r.MEMBER}>{cellGlyph(r.MEMBER)}</td>
-              <td data-permission-cell={r.VIEWER}>{cellGlyph(r.VIEWER)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <TeamPermissionMatrix currentRole={role} />
     </section>
   );
-}
-
-function cellGlyph(v: "yes" | "no" | "partial"): string {
-  return v === "yes" ? "✓" : v === "partial" ? "~" : "—";
 }
 
 // ---------------------------------------------------------------------------

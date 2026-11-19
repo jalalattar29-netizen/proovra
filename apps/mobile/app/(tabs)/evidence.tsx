@@ -762,6 +762,7 @@ export default function EvidenceLibraryScreen() {
             onDelete={deleteView}
             onSetDefault={setDefaultView}
             currentUserId={currentUserId}
+            envelope={platform.envelope}
           />
           <ProovraFilterChips<LibraryScope>
             label="Workspace scope"

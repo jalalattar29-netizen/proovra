@@ -77,10 +77,16 @@ describe("Phase 10 — PlanLimitBadge component shape", () => {
 
   it("the Upgrade affordance points at the canonical /billing surface", () => {
     const src = readFileSync(BADGE_PATH, "utf8");
-    // Bounded: an Upgrade link rendered when over the cap. The literal
-    // /billing href is the constitutional Phase 10 destination.
-    expect(src).toMatch(/href=["']\/billing["']/);
+    // Bounded: an Upgrade link rendered when over the cap. /billing is still
+    // the destination, but PRO-BL1C-03 (WS-ENT) renders it through the one
+    // payer-aware link: only the payer of the ACTIVE workspace is sent to
+    // billing; a member of a workspace someone else pays for is told who
+    // manages it instead of being sent to their own personal billing.
+    expect(src).toMatch(/<WorkspaceUpgradeLink\b/);
+    expect(src).not.toMatch(/href=["']\/billing["']/);
     expect(src).toMatch(/Upgrade/);
+    const link = readFileSync(resolve(WEB_ROOT, "components/billing/WorkspaceUpgradeLink.tsx"), "utf8");
+    expect(link).toMatch(/\/billing/);
   });
 });
 

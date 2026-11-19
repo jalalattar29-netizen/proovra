@@ -168,6 +168,16 @@ describe("outbound webhook policy — three stacks (live PostgreSQL)", () => {
       source: "CUSTOM",
       grantedByUserId: teamA.ownerUserId,
     });
+    // RG-13 (WS-ENT) — every delivery is now admitted against the daily
+    // delivery quota (default 0), granted beside the feature as a line does.
+    await upsertEntitlementGrant({
+      teamId: teamA.teamId,
+      key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+      value: 10_000,
+      kind: "QUOTA",
+      source: "CUSTOM",
+      grantedByUserId: teamA.ownerUserId,
+    });
   }, 180_000);
 
   afterAll(async () => {
@@ -372,6 +382,9 @@ describe("outbound webhook policy — three stacks (live PostgreSQL)", () => {
   describe("integration webhooks", () => {
     it("create refuses localhost. and 0.0.0.1 behind a valid step-up; a stored bypass row is refused at send", async () => {
       const { teamA } = h.fixtures;
+      // PRO-G1-05 (WS-ENT) — the integration family is now counted against the
+      // sold ceiling too; this test creates three.
+      await setEndpointLimit(teamA.teamId, 10);
       for (const url of ["https://localhost./hook", "https://0.0.0.1/hook"]) {
         const challenge = await stepUp({
           token: teamA.ownerToken,

@@ -39,6 +39,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { usePlanFeature } from "../../lib/platform-context";
 
 import {
   ASSIGNEE_TEAM_LEVEL_LABEL,
@@ -176,7 +177,13 @@ export function TeamResponsibilityPanel({
     };
   }, []);
 
-  const canAssign = assignable.length > 0;
+  // PRO-K2-10 (WS-ENT) — Team tasks are the TEAM-plan capability the
+  // assignment submit enforces (assertTeamTaskCapability, reviewQueuesIncluded);
+  // on PRO every "Assign to a team" ended in 403 after the form was filled.
+  // The same terms the team page uses: the plan must include Team tasks
+  // (unknown offers nothing) and the group role must allow assignment.
+  const teamTasksIncluded = usePlanFeature("reviewQueuesIncluded");
+  const canAssign = teamTasksIncluded === true && assignable.length > 0;
 
   /**
    * REMOVE THE TEAM'S RESPONSIBILITY. THE RECORD IS NOT TOUCHED.

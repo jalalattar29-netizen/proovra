@@ -567,6 +567,8 @@ export type ReviewerComment = {
   updatedAt: string;
   edited: boolean;
   author: CollaborativeAuthor;
+  /** PRO-E2-09 — may THIS reader edit / delete it (author or manager). Absent on an older API. */
+  canManage?: boolean;
 };
 
 export type ReviewerCommentsResponse = {
@@ -585,6 +587,8 @@ export type LegalNote = {
   updatedAt: string;
   edited: boolean;
   author: CollaborativeAuthor;
+  /** PRO-E2-09 — may THIS reader edit / delete it (author or manager). Absent on an older API. */
+  canManage?: boolean;
 };
 
 export type LegalNotesResponse = {

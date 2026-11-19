@@ -20,6 +20,10 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../components/ui/FilterBar";
 import { GovernancePolicyForm } from "../../../../components/governance/GovernancePolicyForm";
 import { apiFetch, isApiResponseError } from "../../../../lib/api";
+import { useWorkspacePermissionAccess } from "../../../../components/governance/governance-action-state";
+
+// PRO-G2Z-02 (WS-ENT) - row actions follow the route's own permission (advisory mirror).
+const ROLE_REFUSAL_NOTE = "Your role in this workspace does not include this governance action.";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTenantGuard } from "../../../../lib/platform-context";
@@ -78,6 +82,7 @@ export default function PoliciesPage() {
 function Shell() {
   const [rows, setRows] = useState<ReadonlyArray<GovernancePolicyProjection>>([]);
   const [busy, setBusy] = useState(false);
+  const permissionAccess = useWorkspacePermissionAccess();
   const [denial, setDenial] = useState<PermissionDenialState>(null);
 
   // PHASE 12B CLUSTER 10 — tenant generation guard for the effective-chain
@@ -362,6 +367,8 @@ function Shell() {
                 variant="secondary"
                 size="sm"
                 data-governance-policy-activate={p.id}
+                disabled={!permissionAccess.allows("governance.policy.author")}
+                disabledReason={!permissionAccess.allows("governance.policy.author") ? ROLE_REFUSAL_NOTE : undefined}
                 onClick={() => void activate(p.id)}
               >
                 Activate
@@ -371,6 +378,8 @@ function Shell() {
                 variant="secondary"
                 size="sm"
                 data-governance-policy-deprecate={p.id}
+                disabled={!permissionAccess.allows("governance.policy.author")}
+                disabledReason={!permissionAccess.allows("governance.policy.author") ? ROLE_REFUSAL_NOTE : undefined}
                 onClick={() => void deprecate(p.id)}
               >
                 Deprecate

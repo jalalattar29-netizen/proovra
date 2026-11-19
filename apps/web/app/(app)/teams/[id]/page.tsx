@@ -605,10 +605,9 @@ function TeamDetailPageBody() {
   // the retired `?team=<uuid>` alias is gone.
   const billingConsoleHref = useMemo(
     () =>
-      buildBillingHref(
-        { kind: "team", teamId: teamId || null },
-        { plan: "TEAM" },
-      ),
+      // PRO-T1-13 (WS-ENT) — no hard-coded plan hint: the link names the
+      // workspace's billing, it does not pre-select a TEAM purchase.
+      buildBillingHref({ kind: "team", teamId: teamId || null }),
     [teamId],
   );
 
@@ -1454,10 +1453,16 @@ function TeamDetailPageBody() {
               <span className="app-table__muted">
                 You can still send invitations, but an invited person can join
                 only once a seat frees up or the contract adds seats.{" "}
-                <Link href={billingHref} className="app-table__link">
-                  Review plan and seats
-                </Link>
-                .
+                {isOwner ? (
+                  <>
+                    <Link href={billingHref} className="app-table__link">
+                      Review plan and seats
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  "Ask the workspace owner about seats."
+                )}
               </span>
             </div>
           </div>
@@ -1940,13 +1945,22 @@ function TeamDetailPageBody() {
                   <div className="app-kv-row">
                     <dt className="app-kv-key">Billing</dt>
                     <dd className="app-kv-value">
-                      <Link
-                        href={billingHref}
-                        className="app-secondary-action"
-                        data-testid="people-open-billing"
-                      >
-                        Open billing
-                      </Link>
+                      {/* PRO-T1-13 (WS-ENT) — the workspace's billing is its
+                          owner's; a member would be sent to their OWN billing
+                          and offered a purchase that changes nothing here. */}
+                      {isOwner ? (
+                        <Link
+                          href={billingHref}
+                          className="app-secondary-action"
+                          data-testid="people-open-billing"
+                        >
+                          Open billing
+                        </Link>
+                      ) : (
+                        <span className="app-table__muted" data-testid="people-billing-owner-only">
+                          Managed by the workspace owner
+                        </span>
+                      )}
                     </dd>
                   </div>
                 </dl>

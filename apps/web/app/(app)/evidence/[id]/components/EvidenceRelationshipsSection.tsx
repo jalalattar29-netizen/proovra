@@ -86,6 +86,9 @@ export function EvidenceRelationshipsSection({
       <div className="evidence-detail-review-head">
         <h2 className="evidence-detail-review-head__title">Case &amp; relationships</h2>
         <div className="evidence-detail-review-head__actions">
+          {/* PRO-E2-09 (WS-ENT) — a case link is a write: offered on the same
+              answer as the other relationship writes. */}
+          {canManageRelationships ? (
           <button
             type="button"
             className="app-ghost-action"
@@ -94,6 +97,7 @@ export function EvidenceRelationshipsSection({
           >
             {(cases ? cases.length > 0 : Boolean(caseName)) ? "Reassign case" : "Assign case"}
           </button>
+          ) : null}
           {onRemoveCase && !cases ? (
             <button
               type="button"

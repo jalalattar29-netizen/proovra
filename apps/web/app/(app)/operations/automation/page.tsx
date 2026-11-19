@@ -485,7 +485,7 @@ function AutomationPageInner(): JSX.Element {
             */}
             {canManage
               ? "Owner/admin: create, edit, enable and disable rules here."
-              : "View-only access — changing a rule needs the AUTOMATION_MANAGE capability, held by a workspace owner or admin, on this platform-admin console. Both are required."}
+              : "View-only access — changing a rule needs the AUTOMATION_MANAGE capability, held by a workspace owner or admin,. Both are required."}
           </span>
           <Button variant="secondary" size="sm"
             data-automation-new-rule
@@ -497,7 +497,7 @@ function AutomationPageInner(): JSX.Element {
             title={
               canManage
                 ? undefined
-                : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
+                : "Requires the AUTOMATION_MANAGE capability (a workspace owner or admin)."
             }
           >
             New rule
@@ -568,7 +568,7 @@ function AutomationPageInner(): JSX.Element {
               title={
                 canManage
                   ? undefined
-                  : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
+                  : "Requires the AUTOMATION_MANAGE capability (a workspace owner or admin)."
               }
             >
               Create the first rule
@@ -658,7 +658,7 @@ function AutomationPageInner(): JSX.Element {
                           title={
                             canManage
                               ? undefined
-                              : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
+                              : "Requires the AUTOMATION_MANAGE capability (a workspace owner or admin)."
                           }
                         >
                           Edit

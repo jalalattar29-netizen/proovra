@@ -81,6 +81,7 @@ import {
   writeCodingValue,
 } from "../../../../lib/reviewer-workspace/reviewer-api";
 import { useActiveSpace, useActiveSpaceId } from "../../../../lib/platform-context";
+import { usePlatformContext } from "../../../../lib/platform-context";
 import { isApiResponseError } from "../../../../lib/api";
 import type { ReviewerAnnotationSummary } from "../../../../lib/reviewer-workspace/annotation-types";
 import { MediaViewer } from "../../../../components/reviewer-workspace/viewers/MediaViewer";
@@ -113,11 +114,16 @@ function ReviewerWorkspaceShell() {
   // governs whether the affordance renders active or disabled.
   const activeSpace = useActiveSpace();
   const roleLabel = activeSpace?.roleLabel ?? null;
+  // PRO-R3-06 (WS-ENT) — the server's rule: redaction writes need
+  // FEATURE_REDACTION (planFeatures.redactionIncluded) AND an OWNER / ADMIN
+  // redaction role (assertRedactionCapability). A MEMBER, or a workspace
+  // without the entitlement, was offered "Request redaction" and refused.
+  // An envelope from an API that does not project the field yet leaves the
+  // entitlement unknown: the role rule alone applies and the server decides.
+  const redactionIncluded = usePlatformContext()?.envelope?.planFeatures?.redactionIncluded;
   const canRequestRedaction =
-    roleLabel === "OWNER" ||
-    roleLabel === "ADMIN" ||
-    roleLabel === "MEMBER" ||
-    roleLabel === "Owner";
+    redactionIncluded !== false &&
+    (roleLabel === "OWNER" || roleLabel === "ADMIN" || roleLabel === "Owner");
   const [workspace, setWorkspace] = useState<ReviewerWorkspaceProjection | null>(null);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [fields, setFields] = useState<CodingFieldRow[]>([]);

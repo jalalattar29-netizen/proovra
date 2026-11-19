@@ -15,7 +15,12 @@ import {
   CrossOrgInviteForm,
 } from "../../../../components/governance/CrossOrgReviewForms";
 import { apiFetch } from "../../../../lib/api";
+import { useWorkspacePermissionAccess } from "../../../../components/governance/governance-action-state";
+
+// PRO-G2Z-02 (WS-ENT) - row actions follow the route's own permission (advisory mirror).
+const ROLE_REFUSAL_NOTE = "Your role in this workspace does not include this governance action.";
 import { formatUserDate } from "../../../../lib/date";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 export default function CrossOrgPage() {
   return (
@@ -28,6 +33,10 @@ export default function CrossOrgPage() {
 function Shell() {
   const [rows, setRows] = useState<ReadonlyArray<CrossOrgReviewGrantProjection>>([]);
   const [busy, setBusy] = useState(false);
+  const permissionAccess = useWorkspacePermissionAccess();
+  // PRO-G2Z-02 (WS-ENT) — a refused or failed Decline / Revoke is SAID: the
+  // catches were silent, so a revocation the user believed happened did not.
+  const [actionError, setActionError] = useState<string | null>(null);
   // PHASE 13 — the row currently being accepted. `POST …/:id/accept` carries a
   // body (accepting organization + optional external grant binding), so the
   // action opens a form rather than firing from the row.
@@ -51,9 +60,10 @@ function Shell() {
     setBusy(true);
     try {
       await apiFetch(`/v1/governance/cross-org-review/${id}/decline`, { method: "POST" });
+      setActionError(null);
       await refresh();
-    } catch {
-      /* swallow */
+    } catch (err) {
+      setActionError(toSafeUserError(err, { message: "The review could not be declined. Nothing changed." }).message);
     } finally {
       setBusy(false);
     }
@@ -63,9 +73,10 @@ function Shell() {
     setBusy(true);
     try {
       await apiFetch(`/v1/governance/cross-org-review/${id}/revoke`, { method: "POST" });
+      setActionError(null);
       await refresh();
-    } catch {
-      /* swallow */
+    } catch (err) {
+      setActionError(toSafeUserError(err, { message: "The review could not be revoked. It is still active." }).message);
     } finally {
       setBusy(false);
     }
@@ -130,6 +141,11 @@ function Shell() {
         />
       }
     >
+      {actionError ? (
+        <div className="app-alert app-alert--warn" role="alert" data-cross-org-action-error>
+          {actionError}
+        </div>
+      ) : null}
       {/* PHASE 13 — POST /v1/governance/cross-org-review. The list could show
           grants and refuse them; it could never create one. */}
       <CrossOrgInviteForm onCreated={refresh} />
@@ -201,7 +217,8 @@ function Shell() {
                     variant="secondary"
                     size="sm"
                     data-cross-org-decline={g.id}
-                    disabled={busy}
+                    disabledReason={!permissionAccess.allows("governance.exchange.decide") ? ROLE_REFUSAL_NOTE : undefined}
+                    disabled={busy || !permissionAccess.allows("governance.exchange.decide")}
                     onClick={() => void decline(g.id)}
                   >
                     Decline
@@ -213,6 +230,8 @@ function Shell() {
                   variant="destructive"
                   size="sm"
                   data-cross-org-revoke={g.id}
+                  disabled={!permissionAccess.allows("governance.exchange.decide")}
+                  disabledReason={!permissionAccess.allows("governance.exchange.decide") ? ROLE_REFUSAL_NOTE : undefined}
                   onClick={() => void revoke(g.id)}
                 >
                   Revoke

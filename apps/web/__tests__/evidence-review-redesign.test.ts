@@ -87,7 +87,8 @@ test("the layout does not swap on status — only the label and badge do", () =>
 // ---------------------------------------------------------------------------
 
 test("Assign reviewer is gated on reviewer ops", () => {
-  assert.match(REVIEW, /\{canSeeReviewerOps \? \(\s*<button[\s\S]{0,240}assign-reviewer/);
+  // PRO-E2-09 (WS-ENT): and on a write role — a VIEWER is not offered it.
+  assert.match(REVIEW, /\{canSeeReviewerOps && actor\.canEditMetadata \? \(\s*<button[\s\S]{0,240}assign-reviewer/);
 });
 
 test("Open report is offered only when a report truthfully exists", () => {
@@ -146,14 +147,16 @@ test("reviewer comments, legal notes and annotations stay behind reviewer ops", 
     REVIEW.indexOf("data-evidence-review-enterprise-panels") - 400,
     REVIEW.indexOf("data-evidence-review-enterprise-panels") + 600,
   );
-  assert.match(gate, /canSeeReviewerOps \? \(/);
+  // PRO-E2-01 (WS-ENT): the gate is record-level review (Pro and above), the
+  // plan answer the note routes enforce; a plan without it still sees none.
+  assert.match(gate, /canSeeBasicReview \? \(/);
   for (const panel of ["ReviewerCommentsPanel", "LegalNotesPanel", "AnnotationPanel"]) {
     assert.match(gate, new RegExp(`<${panel}`), `${panel} must be inside the gate`);
   }
 });
 
 test("the governance note is hidden with the panels it describes", () => {
-  assert.match(REVIEW, /\{workspace\.governance && canSeeReviewerOps \? \(/);
+  assert.match(REVIEW, /\{workspace\.governance && canSeeBasicReview \? \(/);
 });
 
 // ---------------------------------------------------------------------------

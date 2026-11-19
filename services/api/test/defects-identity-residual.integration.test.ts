@@ -23,6 +23,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 
 type Json = Record<string, unknown>;
 
@@ -193,6 +194,8 @@ describe("identity residual defects (live PostgreSQL 16)", () => {
   it("D54 — an admin cannot grant a capability the admin does not hold; one the admin holds is granted", async () => {
     const { adminToken, adminUserId, teamId } = harness.fixtures.teamA;
     const subject = await extraMember("d54", "MEMBER");
+    // PRO-A2-09 (WS-ENT) — a new capability grant is Enterprise identity administration.
+    await makeEnterpriseOrganizationWorkspace(prisma, teamId);
     const url = `/v1/identity/members/${subject.memberRowId}/capabilities`;
     const stepUp = () =>
       approvedChallenge({

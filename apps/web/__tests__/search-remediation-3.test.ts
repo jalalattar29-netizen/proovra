@@ -340,7 +340,8 @@ test("Worker lifecycle hook is best-effort: every failure path calls logger.warn
 test("Saved-search service exposes renameSavedView with the canonical input contract", () => {
   assert.match(
     SAVED_SEARCH,
-    /export type RenameSavedViewInput = \{\s*\n?\s*id: string;\s*\n?\s*teamId: string;\s*\n?\s*actorUserId: string;\s*\n?\s*name: string;\s*\n?\s*\};/,
+    // PRO-E1-06 (WS-ENT): the contract gained the optional mayWriteShared input.
+    /export type RenameSavedViewInput = \{\s*\n?\s*id: string;\s*\n?\s*teamId: string;\s*\n?\s*actorUserId: string;\s*\n?\s*name: string;[\s\S]{0,200}mayWriteShared\?: boolean;\s*\n?\s*\};/,
   );
   assert.match(SAVED_SEARCH, /export async function renameSavedView\(/);
 });

@@ -28,10 +28,33 @@ import {
 } from "../../../../../lib/api/collaboration-teams";
 import {
   COLLABORATION_TEAM_ROLES,
+  collaborationTeamRoleHasPermission,
   identifierLabel,
   type CollaborationTeamRole,
 } from "@proovra/shared";
-import { useActiveSpace, usePlatformContext } from "../../../../../lib/platform-context";
+
+/**
+ * PRO-K2-08 (WS-ENT) — one coarse flag (team.update_settings, LEAD + ADMIN)
+ * gated four different permissions: a group ADMIN was offered a role selector
+ * on every row, Suspend/Remove on LEAD rows and the LEAD option, and each
+ * answered 403 (team_forbidden / LEAD_PROTECTED). Each control now follows
+ * its own permission (packages/shared collaboration-team ROLE_PERMISSIONS) and
+ * the server's LEAD protection (assertMayActOnLead: only a LEAD acts on a LEAD
+ * or grants LEAD).
+ */
+function memberControlsFor(viewerRole: string | null | undefined, target: CollaborationTeamRole) {
+  const role = (viewerRole ?? null) as CollaborationTeamRole | null;
+  const has = (p: Parameters<typeof collaborationTeamRoleHasPermission>[1]) =>
+    role !== null && collaborationTeamRoleHasPermission(role, p);
+  const actsOnLead = target !== "LEAD" || role === "LEAD";
+  return {
+    changeRole: has("team.member.change_role") && actsOnLead,
+    suspend: has("team.member.suspend") && actsOnLead,
+    remove: has("team.member.remove") && actsOnLead,
+    mayGrantLead: role === "LEAD",
+  };
+}
+import { useActiveSpace, usePlanFeature, usePlatformContext } from "../../../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../../../lib/platform-context/types";
 import {
   buildWorkspaceInviteHref,
@@ -92,6 +115,7 @@ function MembersTab({
 }) {
   const { addToast } = useToast();
   const [addingMember, setAddingMember] = useState(false);
+  const teamTasksIncluded = usePlanFeature("reviewQueuesIncluded");
   const activeLeadCount = team.members.filter(
     (m) => m.role === "LEAD" && m.status === "ACTIVE",
   ).length;
@@ -438,8 +462,10 @@ function MembersTab({
                 workspace membership, and someone who is not a member yet
                 becomes eligible by being invited to the workspace first.
               */}
-              Add existing workspace members to this team, then assign cases,
-              evidence and review work to the group.
+              {/* PRO-K2-10 — assigning work to a team is Team plan and above. */}
+              {teamTasksIncluded === true
+                ? "Add existing workspace members to this team, then assign cases, evidence and review work to the group."
+                : "Add existing workspace members to this team to work and discuss together."}
             </p>
           </div>
         ) : (
@@ -463,6 +489,7 @@ function MembersTab({
                     key={m.id}
                     member={m}
                     canManage={canManage}
+                    viewerRole={team.viewerRole}
                     isArchived={team.status !== "ACTIVE"}
                     teamId={team.id}
                     activeLeadCount={activeLeadCount}
@@ -581,6 +608,7 @@ function memberStatusTone(status: string): AppTone {
 function MemberRow({
   member,
   canManage,
+  viewerRole,
   isArchived,
   teamId,
   activeLeadCount,
@@ -589,6 +617,8 @@ function MemberRow({
 }: {
   member: CollaborationTeamMember;
   canManage: boolean;
+  /** PRO-K2-08 — the viewer's group role, for per-control permissions. */
+  viewerRole?: string | null;
   /** Lifecycle, separate from role — so a refused action can say WHICH. */
   isArchived: boolean;
   teamId: string;
@@ -695,7 +725,8 @@ function MemberRow({
     }
   };
 
-  const roleOptions = COLLABORATION_TEAM_ROLES.map((r) => ({
+  const controls = memberControlsFor(viewerRole, member.role as CollaborationTeamRole);
+  const roleOptions = COLLABORATION_TEAM_ROLES.filter((r) => r !== "LEAD" || controls.mayGrantLead).map((r) => ({
     value: r,
     label: roleLabel(r),
   }));
@@ -728,7 +759,7 @@ function MemberRow({
         </span>
       </td>
       <td data-label="Role">
-        {canManage ? (
+        {canManage && controls.changeRole ? (
           <div style={{ minWidth: 148 }}>
             <AppListbox<CollaborationTeamRole>
               value={member.role}
@@ -767,7 +798,7 @@ function MemberRow({
       </td>
       <td data-label="">
         <div className="app-table__actions">
-          {canManage && member.status === "ACTIVE" ? (
+          {canManage && member.status === "ACTIVE" && (controls.suspend || controls.remove) ? (
             <>
               {/*
                 SUSPEND IS PRE-EMPTED TOO (§13).
@@ -781,6 +812,7 @@ function MemberRow({
                 mutation that is already known to be refused, and says what to
                 do instead.
               */}
+              {controls.suspend ? (
               <button
                 type="button"
                 onClick={() => void onSuspend()}
@@ -795,6 +827,8 @@ function MemberRow({
               >
                 Suspend
               </button>
+              ) : null}
+              {controls.remove ? (
               <button
                 type="button"
                 onClick={() => void onRemove()}
@@ -811,6 +845,7 @@ function MemberRow({
               >
                 Remove from team
               </button>
+              ) : null}
             </>
           ) : canManage && !isArchived && member.status === "SUSPENDED" ? (
             <button
@@ -1141,7 +1176,8 @@ function AddMemberPanel({
         <div style={{ minWidth: 148 }}>
           <AppListbox<CollaborationTeamRole>
             value={role}
-            options={COLLABORATION_TEAM_ROLES.map((r) => ({
+            // PRO-K2-08 — only a LEAD grants LEAD (assertGroupRoleWithinActorAuthority).
+            options={COLLABORATION_TEAM_ROLES.filter((r) => r !== "LEAD" || team.viewerRole === "LEAD").map((r) => ({
               value: r,
               label: r,
             }))}

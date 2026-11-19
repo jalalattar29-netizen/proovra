@@ -135,12 +135,14 @@ const QUICK_ACTIONS: ReadonlyArray<[string, RegExp]> = [
   ["quick-action-review-audit", /\/organizations\/\$\{orgId\}\/admin\/audit/],
   ["quick-action-configure-mfa", /\/organizations\/\$\{orgId\}\/admin\/security/],
   ["quick-action-manage-retention", /\/organizations\/\$\{orgId\}\/admin\/retention/],
-  ["quick-action-manage-api", /"\/security-center\/identity"/],
+  // PRO-T1C-08 (WS-ENT): API keys and webhooks live on /integrations.
+  ["quick-action-manage-api", /href="\/integrations"/],
   ["quick-action-review-access", /\/organizations\/\$\{orgId\}\/admin\/access-reviews/],
   // PHASE 11 URL convergence (2026-07-23) — the `?org=` query param was a
   // dead reference (the `/teams` → `/collaboration-teams` redirect never
   // read it); the workspace-admin deep link now carries no tenant param.
-  ["quick-action-configure-billing", /href="\/teams"/],
+  // PRO-T1C-08: billing names the organization billing account, not /teams.
+  ["quick-action-configure-billing", /buildBillingHref\(\{ kind: "organization", organizationId: orgId \}\)/],
 ];
 
 test("Overview wires every required evidence-platform quick action", () => {

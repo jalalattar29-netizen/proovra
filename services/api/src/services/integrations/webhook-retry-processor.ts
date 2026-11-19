@@ -17,6 +17,7 @@ import { WEBHOOK_RETRY_MAX_ATTEMPTS } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../../db.js";
 import { isIntegrationsFeatureEnabled } from "./api-keys.service.js";
 import { attemptDelivery } from "./webhook-dispatcher.js";
+import { resolveEntitlement } from "../packaging/entitlement.service.js";
 
 export type ProcessWebhookRetriesSummary = {
   pickedUp: number;
@@ -49,6 +50,7 @@ export async function processDueWebhookRetries(
     take: batchSize,
   });
 
+  const entitlementByTeam = new Map<string, boolean>();
   for (const row of candidates) {
     // Atomic claim — only proceed if the row is still RETRY_SCHEDULED.
     const claim = await client.integrationWebhookDelivery.updateMany({
@@ -68,6 +70,40 @@ export async function processDueWebhookRetries(
     const endpoint = await client.webhookEndpoint.findUnique({
       where: { id: refreshed.endpointId },
     });
+    // PRO-G1-14 / DEC-09 — a scheduled retry is still outbound delivery, so
+    // the workspace must still hold FEATURE_WEBHOOKS when it is sent (the
+    // automation sibling SKIPs a lost capability the same way). Withheld, not
+    // deleted: the row says why. A retry of a delivery admitted earlier does
+    // not consume the daily quota again. Fails closed.
+    let entitled = entitlementByTeam.get(refreshed.teamId);
+    if (entitled === undefined) {
+      try {
+        const projection = await resolveEntitlement({
+          prisma: client,
+          teamId: refreshed.teamId,
+          key: "FEATURE_WEBHOOKS",
+        });
+        entitled = projection.value === true;
+      } catch {
+        entitled = false;
+      }
+      entitlementByTeam.set(refreshed.teamId, entitled);
+    }
+    if (!entitled) {
+      await client.integrationWebhookDelivery
+        .update({
+          where: { id: refreshed.id },
+          data: {
+            status: "CANCELLED",
+            errorMessage: "withheld:entitlement_required",
+            failedAtUtc: new Date(),
+            nextAttemptAtUtc: null,
+          },
+        })
+        .catch(() => null);
+      summary.failed += 1;
+      continue;
+    }
     if (!endpoint || endpoint.status !== "ACTIVE") {
       // Endpoint gone or disabled — give up on this delivery.
       await client.integrationWebhookDelivery

@@ -962,13 +962,22 @@ function EvidenceLibraryPageInner() {
   // (403), so their only option — a personal view (teamId null) — works.
   const teamOptions = useMemo(
     () =>
-      (envelope?.contextOptions?.ownedWorkspaces ?? [])
-        .filter((workspace) => mayShareSavedViewsIn(envelope, workspace.workspaceId))
-        .map((workspace) => ({
+      // PRO-E1-08 (WS-ENT) — an ADMIN/MEMBER of someone else's workspace may
+      // publish a team view there (the API allows any writer), but only OWNED
+      // workspaces were listed. The ACTIVE workspace is offered too when the
+      // caller's role may share in it.
+      [
+        ...(envelope?.contextOptions?.ownedWorkspaces ?? []).map((workspace) => ({
           id: workspace.workspaceId,
           name: workspace.name ?? "Workspace",
         })),
-    [envelope]
+        ...(activeSpaceId &&
+        !(envelope?.contextOptions?.ownedWorkspaces ?? []).some((w) => w.workspaceId === activeSpaceId) &&
+        envelope?.contextOptions?.personalSpace?.workspaceId !== activeSpaceId
+          ? [{ id: activeSpaceId, name: envelope?.activeSpace?.displayName ?? "Workspace" }]
+          : []),
+      ].filter((workspace) => mayShareSavedViewsIn(envelope, workspace.id)),
+    [envelope, activeSpaceId]
   );
 
   /**

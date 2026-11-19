@@ -82,6 +82,12 @@ export type HomePlanFeatures = {
    * offered. Fail-closed like the others.
    */
   casesIncluded: boolean;
+  /**
+   * PRO-N1C-03 (WS-ENT) — `planFeatures.reviewQueuesIncluded`: the review
+   * queue page is TEAM and above. Optional so callers built before the field
+   * keep compiling; fail-closed (unknown → not included).
+   */
+  reviewQueuesIncluded?: boolean;
 };
 
 /**
@@ -2149,6 +2155,10 @@ function buildWorkspacePriorities(args: {
   casesIncluded?: boolean;
   /** B2A-F-03 — own Personal Space only; null elsewhere. */
   recordAllowance?: HomeRecordAllowanceInput | null;
+  /** PRO-N1C-03 — the review queue page exists for this plan. */
+  reviewQueuesIncluded?: boolean;
+  /** PRO-N1C-03 — the first waiting submission's own link (the hero uses it). */
+  firstSubmissionHref?: string | null;
 }): WorkspacePriority[] {
   const p = args.pipeline ?? null;
   const out: WorkspacePriority[] = [];
@@ -2267,7 +2277,14 @@ function buildWorkspacePriorities(args: {
       // The evidence-request review queue is where a submission is
       // reviewed; a notification list is not. UC-WEB-004: this used to point
       // at /evidence-requests?status=…, a route with no list page (404).
-      href: HOME_SUBMISSION_REVIEW_HREF,
+      // PRO-N1C-03 (WS-ENT) — the queue page is TEAM and above; on Pro (which
+      // includes intake) it is a 404/upgrade dead end. Without the queue the
+      // row opens the first waiting submission (as the hero does), or the
+      // intake links list. The executive summary copies this href.
+      href:
+        args.reviewQueuesIncluded === true
+          ? HOME_SUBMISSION_REVIEW_HREF
+          : args.firstSubmissionHref ?? "/intake-links",
       derivedFrom: ["dashboard/trust-summary.intake.submissionsAwaitingReview"],
     });
   }
@@ -3778,6 +3795,7 @@ export function normalizeHomeViewModel(
       inputs.planFeatures?.teamCollaborationIncluded === true,
     reportsIncluded: inputs.planFeatures?.reportsIncluded === true,
     casesIncluded: inputs.planFeatures?.casesIncluded === true,
+    reviewQueuesIncluded: inputs.planFeatures?.reviewQueuesIncluded === true,
   };
   /*
    * B2A-F-01 — WHOSE BILLING FIGURES THESE ARE. `billing` is
@@ -4083,6 +4101,8 @@ export function normalizeHomeViewModel(
     storage,
     casesIncluded: features.casesIncluded,
     recordAllowance,
+    reviewQueuesIncluded: features.reviewQueuesIncluded === true,
+    firstSubmissionHref: submissions[0]?.href ?? null,
   });
   /*
    * OPERATIONAL CONDITIONS BECOME PRIORITIES TOO.

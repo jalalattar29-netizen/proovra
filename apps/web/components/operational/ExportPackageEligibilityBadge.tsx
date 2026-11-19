@@ -108,8 +108,22 @@ export function ExportPackageEligibilityBadge({
           unknown: false,
           reason: next.reason,
         });
-      } catch {
+      } catch (err) {
         if (cancelled) return;
+        // PRO-E1C-02 (WS-ENT) — the snapshot route is audit.read-gated: a
+        // VIEWER / CONTRIBUTOR is REFUSED it (403), which is not a governance
+        // outage. It used to render "eligibility unavailable — action blocked
+        // … contact support" twice on every record while the downloads stayed
+        // enabled. A permission refusal is "not applicable": no panel, and the
+        // download routes' own gates stay the authority. A real outage (5xx,
+        // network) still fails closed below.
+        const status = (err as { statusCode?: number } | null)?.statusCode;
+        if (status === 403 || status === 404) {
+          const na = { loading: false, unknown: false, eligible: true, label: "", reason: null };
+          setState(na);
+          onEligibilityChange?.({ eligible: true, loading: false, unknown: false, reason: null });
+          return;
+        }
         const next = {
           loading: false,
           unknown: true,

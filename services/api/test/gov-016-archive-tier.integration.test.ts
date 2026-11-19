@@ -41,7 +41,7 @@ describe("GOV-016 archive tiers on a versioned locked bucket (Postgres + MinIO)"
 
   const A = () => h.fixtures.teamA;
 
-  async function sealedRecord(ageDays = 0) {
+  async function sealedRecord(ageDays = 0, teamId: string = A().teamId, ownerUserId: string = A().ownerUserId) {
     const key = `evidence/${randomUUID()}/original.bin`;
     const put = await s3.send(
       new PutObjectCommand({
@@ -55,7 +55,7 @@ describe("GOV-016 archive tiers on a versioned locked bucket (Postgres + MinIO)"
       }),
     );
     const team = await prisma.team.findUniqueOrThrow({
-      where: { id: A().teamId },
+      where: { id: teamId },
       select: { organizationId: true },
     });
     const row = await prisma.evidence.create({
@@ -63,9 +63,9 @@ describe("GOV-016 archive tiers on a versioned locked bucket (Postgres + MinIO)"
         type: "DOCUMENT",
         status: "SIGNED",
         mimeType: "text/plain",
-        teamId: A().teamId,
+        teamId,
         organizationId: team.organizationId,
-        ownerUserId: A().ownerUserId,
+        ownerUserId,
         storageBucket: LOCK_BUCKET,
         storageKey: key,
         storageVersionId: put.VersionId,
@@ -96,6 +96,18 @@ describe("GOV-016 archive tiers on a versioned locked bucket (Postgres + MinIO)"
       region: "us-east-1",
       forcePathStyle: true,
       credentials: { accessKeyId: process.env.S3_ACCESS_KEY!, secretAccessKey: process.env.S3_SECRET_KEY! },
+    });
+    // PRO-W2C2-03 / B5B-F-300 (WS-ENT) — the auto worker tiers only workspaces
+    // holding FEATURE_ARCHIVE_TIERS, as the API route always required. Team A
+    // is the entitled workspace these tests sweep; team B stays unentitled.
+    const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+    await upsertEntitlementGrant({
+      teamId: A().teamId,
+      key: "FEATURE_ARCHIVE_TIERS",
+      value: true,
+      kind: "FEATURE",
+      source: "CUSTOM",
+      grantedByUserId: A().ownerUserId,
     });
   }, 900_000);
 
@@ -176,6 +188,40 @@ describe("GOV-016 archive tiers on a versioned locked bucket (Postgres + MinIO)"
         Value: "WARM",
       });
     }
+  });
+
+  it("PRO-W2C2-03: an unentitled or closed workspace's originals are not tagged; a granted entitlement resumes tiering on the next tick", async () => {
+    const B = h.fixtures.teamB;
+    const kind = await prisma.team.findUniqueOrThrow({ where: { id: B.teamId }, select: { isPersonal: true } });
+    expect(kind.isPersonal).toBe(false);
+    await prisma.entitlementGrant.deleteMany({ where: { teamId: B.teamId, key: "FEATURE_ARCHIVE_TIERS" } });
+    const old = await sealedRecord(500, B.teamId, B.ownerUserId);
+    await worker.runArchiveTierAutoTransitions({ trigger: "test" });
+    expect(await prisma.archiveTierTransition.count({ where: { evidenceId: old.id } })).toBe(0);
+    expect((await tagsOf(old.key, old.versionId)).find((t) => t.Key === "proovra-archive-tier")).toBeUndefined();
+
+    const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+    await upsertEntitlementGrant({
+      teamId: B.teamId,
+      key: "FEATURE_ARCHIVE_TIERS",
+      value: true,
+      kind: "FEATURE",
+      source: "CUSTOM",
+      grantedByUserId: B.ownerUserId,
+    });
+    // Entitled but closed: still not tiered.
+    await prisma.team.update({ where: { id: B.teamId }, data: { closedAtUtc: new Date() } });
+    try {
+      await worker.runArchiveTierAutoTransitions({ trigger: "test" });
+      expect(await prisma.archiveTierTransition.count({ where: { evidenceId: old.id } })).toBe(0);
+    } finally {
+      await prisma.team.update({ where: { id: B.teamId }, data: { closedAtUtc: null } });
+    }
+    await worker.runArchiveTierAutoTransitions({ trigger: "test" });
+    expect(
+      await prisma.archiveTierTransition.count({ where: { evidenceId: old.id, state: "COMPLETED", toTier: "WARM" } }),
+    ).toBe(1);
+    await prisma.entitlementGrant.deleteMany({ where: { teamId: B.teamId, key: "FEATURE_ARCHIVE_TIERS" } });
   });
 
   it("a workspace behind five hundred older ones is still swept", async () => {

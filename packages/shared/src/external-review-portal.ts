@@ -43,7 +43,11 @@ export type ExternalReviewerRole = (typeof EXTERNAL_REVIEWER_ROLES)[number];
  *   portal.comment           — post / reply to review comments
  *   portal.decide            — submit a decision (approve/reject/…)
  *   portal.history.read      — read own activity history
- *   portal.download_package  — download verification package (when grant permits)
+ *
+ * PRO-R1-14 (WS-ENT) — `portal.download_package` was declared, held by no
+ * role and checked by no route, while downloads follow the GRANT's own
+ * permission (the external-review grant decides what a reviewer may take).
+ * A capability that answers nothing is removed rather than left looking wired.
  */
 export const EXTERNAL_PORTAL_CAPABILITIES = [
   "portal.view",
@@ -51,7 +55,6 @@ export const EXTERNAL_PORTAL_CAPABILITIES = [
   "portal.comment",
   "portal.decide",
   "portal.history.read",
-  "portal.download_package",
 ] as const;
 export type ExternalPortalCapability =
   (typeof EXTERNAL_PORTAL_CAPABILITIES)[number];

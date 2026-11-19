@@ -38,6 +38,7 @@ import {
   assertFeatureEntitlement,
   assertQuotaEntitlement,
   applyProductLine,
+  consumeQuotaEntitlement,
   listEntitlements,
   upsertEntitlementGrant,
 } from "../services/packaging/entitlement.service.js";
@@ -291,7 +292,18 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     "/v1/packaging/entitlements/apply-product-line",
     { preHandler: requirePlatformAdmin },
     async (req, reply) => {
-      const body = OperatorEntitlementTarget.extend({ line: z.enum(PRODUCT_LINES) }).parse(req.body);
+      // PRO-R3-07 / DEC-12 — a product line applied by an operator is bounded
+      // too: every grant it writes carries the stated expiry.
+      const body = OperatorEntitlementTarget.extend({
+        line: z.enum(PRODUCT_LINES),
+        expiresAtUtc: z.string().datetime(),
+      }).parse(req.body);
+      if (new Date(body.expiresAtUtc).getTime() <= Date.now()) {
+        return reply.code(400).send({
+          error: { code: "ENTITLEMENT_GRANT_EXPIRY_REQUIRED" },
+          message: "A product line applied by an operator needs an expiry in the future.",
+        });
+      }
       const target = await operatorTarget(req, reply, body);
       if (!target) return reply;
       // Phase O — Sentry NODE-1K safety net. The repair migration
@@ -308,6 +320,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           teamId: target.workspaceId,
           line: body.line,
           grantedByUserId: target.operatorUserId,
+          expiresAtUtc: new Date(body.expiresAtUtc),
         });
         await emitTenantAudit({
           action: "billing.entitlement_product_line_applied",
@@ -364,8 +377,19 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         kind: z.enum(["FEATURE", "QUOTA", "LIMIT"] as const),
         source: z.enum(["PLAN", "CUSTOM", "PROMO"] as const).optional(),
         productLine: z.enum(PRODUCT_LINES).nullable().optional(),
-        expiresAtUtc: z.string().datetime().nullable().optional(),
+        // PRO-R3-07 / DEC-12 (WS-ENT) — a NEW exception names its end: an
+        // operator grant without an expiry never ended, survived every
+        // downgrade and was inventoried nowhere. Legacy unbounded rows are
+        // left in place and inventoried for review (dry-run script), not
+        // destroyed.
+        expiresAtUtc: z.string().datetime(),
       }).parse(req.body);
+      if (new Date(body.expiresAtUtc).getTime() <= Date.now()) {
+        return reply.code(400).send({
+          error: { code: "ENTITLEMENT_GRANT_EXPIRY_REQUIRED" },
+          message: "An entitlement exception needs an expiry in the future.",
+        });
+      }
       const target = await operatorTarget(req, reply, body);
       if (!target) return reply;
       const res = await upsertEntitlementGrant({
@@ -376,7 +400,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         source: body.source,
         productLine: body.productLine ?? null,
         grantedByUserId: target.operatorUserId,
-        expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
+        expiresAtUtc: new Date(body.expiresAtUtc),
       });
       await emitTenantAudit({
         action: "billing.entitlement_granted",
@@ -1359,6 +1383,19 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       // reset the delivery's history. Same answer as the integration retry.
       if (row.endpoint?.state !== "ACTIVE") {
         return reply.code(409).send({ denial: "ENDPOINT_INACTIVE" });
+      }
+      // PRO-BL2-04 — "unlimited manual replays": a replay is a delivery, so it
+      // consumes one unit of QUOTA_WEBHOOK_DELIVERIES_PER_DAY, atomically.
+      const replayQuota = await consumeQuotaEntitlement({
+        teamId: ctx.teamId,
+        key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+      });
+      if (!replayQuota.ok) {
+        return reply.code(429).send({
+          denial: "QUOTA_EXCEEDED",
+          key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY",
+          limit: replayQuota.limit,
+        });
       }
 
       await prisma.lifecycleWebhookDelivery.update({

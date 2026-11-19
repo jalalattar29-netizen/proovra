@@ -13,6 +13,7 @@
  *            lifecycle the API enforces.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 
 import {
   addMember,
@@ -37,6 +38,8 @@ describe("Operations truth closure — P1 security (live PostgreSQL 16 + Redis)"
   it("OPS-025 a workspace member never receives another tenant's queue failure text, ids or backlog; the platform authority does", async () => {
     const a = c.h.fixtures.teamA;
     const b = c.h.fixtures.teamB;
+    // PRO-K1-03 (WS-ENT) — graph, diagnostics and SIU are Enterprise organization tools.
+    await makeEnterpriseOrganizationWorkspace(c.prisma, a.teamId);
     const { getQueueHandle } = await import("../src/services/operations/queue-inventory.service.js");
     const { Worker } = await import("bullmq");
     const q = getQueueHandle("report")!;

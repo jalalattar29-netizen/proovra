@@ -95,11 +95,12 @@ afterEach(() => {
 });
 
 describe("Integrations words the plan's API key allowance", () => {
-  it("a plan without API keys says so, keeps existing keys, and points to Billing — never 'try again later'", async () => {
+  it("a plan without API keys says so, says existing keys are paused (not revoked), and points to Billing — never 'try again later'", async () => {
     serve(() => limitRefusal(0, 1));
     const message = await createKey();
     expect(message).toMatch(/not included in this workspace's plan/);
-    expect(message).toMatch(/Keys you already have keep working/);
+    // PRO-G1-14 / DEC-09 — the API pauses issued keys at a 0 ceiling.
+    expect(message).toMatch(/not revoked, but they are paused/);
     expect(message).toMatch(/Billing/);
     expect(message).not.toMatch(/too many|try again/i);
   });

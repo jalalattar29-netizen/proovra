@@ -266,6 +266,10 @@ describe("§2 — ARCH-005: the Automation runtime is durable, fenced and reacha
     // in free-audit-0ea0-lane-b.integration). This suite proves the runtime.
     for (const teamId of [teamA, teamB]) {
       await upsertEntitlementGrant({ teamId, key: "FEATURE_GOVERNANCE_PLATFORM", value: true, kind: "FEATURE", source: "CUSTOM", grantedByUserId: ownerA });
+      // RG-13 (WS-ENT) — automation deliveries consume the workspace's daily
+      // webhook-delivery quota (default 0), granted beside the capability as
+      // the ENTERPRISE line does.
+      await upsertEntitlementGrant({ teamId, key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY", value: 10_000, kind: "QUOTA", source: "CUSTOM", grantedByUserId: ownerA });
     }
 
     // One destination on team A, pointing at the real loopback receiver.
