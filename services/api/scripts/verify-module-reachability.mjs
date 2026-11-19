@@ -158,6 +158,10 @@ const ENTRYPOINTS = Object.freeze({
     // domain-only SCIM / SSO link converted to managed identities
     // (pnpm --filter proovra-api ops:remediate-domain-only-managed-links).
     "services/api/src/scripts/remediate-domain-only-managed-links.ts",
+    // PRO-G2-01 (2026-11-19) — the READ-ONLY inventory of issued packages whose
+    // trust manifests the old unscoped builder filled with other teams' rows.
+    // No write mode (pnpm --filter proovra-api ops:trust-manifest-exposure-inventory).
+    "services/api/src/scripts/trust-manifest-exposure-inventory.ts",
     "services/api/src/seed-signing-key.ts",
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     // OTS INTEGRITY DECOUPLING (2026-09-09) — the bounded reconciliation for
