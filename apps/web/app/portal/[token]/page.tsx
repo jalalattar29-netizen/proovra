@@ -180,10 +180,7 @@ export default function PortalDashboardPage({
         await portalLogout();
         window.location.href = "/portal";
       }} />
-      <AssignedList
-        projection={projection}
-        token={token}
-      />
+      <AssignedList projection={projection} />
       <LimitationsFooter limitations={projection.limitations} />
     </main>
   );
@@ -285,10 +282,8 @@ function Pill({ label }: { label: string }) {
 
 function AssignedList({
   projection,
-  token,
 }: {
   projection: ExternalPortalProjection;
-  token: string;
 }) {
   return (
     <section

@@ -2118,12 +2118,11 @@ async function getThrottlePlan(userId: string, teamId: string | null | undefined
 function withoutStorageCoordinates<T extends Record<string, unknown>>(
   row: T,
 ): Omit<T, "storageBucket" | "storageKey" | "storageVersionId"> {
-  const { storageBucket: _b, storageKey: _k, storageVersionId: _v, ...rest } = row as T & {
-    storageBucket?: unknown;
-    storageKey?: unknown;
-    storageVersionId?: unknown;
-  };
-  return rest;
+  const rest: Record<string, unknown> = { ...row };
+  delete rest.storageBucket;
+  delete rest.storageKey;
+  delete rest.storageVersionId;
+  return rest as Omit<T, "storageBucket" | "storageKey" | "storageVersionId">;
 }
 
 function bigintToString(v: unknown): string | null {
