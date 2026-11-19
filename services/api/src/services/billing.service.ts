@@ -798,7 +798,15 @@ export async function upsertSubscription(
     params.cancelAtPeriodEnd === undefined || params.status === prismaPkg.SubscriptionStatus.CANCELED
       ? {}
       : params.cancelAtPeriodEnd
-        ? { cancelAtPeriodEnd: true, ...(existing?.canceledAtUtc ? {} : { canceledAtUtc: new Date() }) }
+        ? {
+            cancelAtPeriodEnd: true,
+            // A cancellation the PROVIDER reports is dated by the provider's own
+            // fact time, so the ordering test above compares provider time with
+            // provider time. Stamping the local processing time made a genuinely
+            // newer "renewing" fact (delivered seconds later) read as older than
+            // the cancellation and be ignored (AUD-09 convergence regression).
+            ...(existing?.canceledAtUtc ? {} : { canceledAtUtc: params.observedAtUtc ?? new Date() }),
+          }
         : staleAgainstCancellation
           ? {}
           : existing?.cancelAtPeriodEnd
