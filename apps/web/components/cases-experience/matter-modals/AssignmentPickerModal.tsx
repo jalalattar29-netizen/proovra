@@ -20,7 +20,7 @@
 import { identifierLabel } from "@proovra/shared";
 import { AppListbox } from "../../app-primitives/AppListbox";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 
 import { apiFetch } from "../../../lib/api";
 import { Modal } from "./Modal";
@@ -104,8 +104,12 @@ export function AssignmentPickerModal({
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // PRO-K1C-02 — only the newest search's answer is applied: a slower answer
+  // to an earlier query never replaces it.
+  const reloadSeqRef = useRef(0);
   const reload = useCallback(
     async (q: string) => {
+      const mine = ++reloadSeqRef.current;
       setState({ status: "loading" });
       try {
         const qs = new URLSearchParams();
@@ -115,6 +119,7 @@ export function AssignmentPickerModal({
           `/v1/cases/${encodeURIComponent(caseId)}/assignment-candidates?${qs.toString()}`,
           { method: "GET" },
         )) as CandidatesEnvelope;
+        if (mine !== reloadSeqRef.current) return;
         setState({
           status: "ready",
           items: envelope.items,
@@ -124,6 +129,7 @@ export function AssignmentPickerModal({
           loadingMore: false,
         });
       } catch (err) {
+        if (mine !== reloadSeqRef.current) return;
         const e = err as { message?: string };
         setState({
           status: "error",

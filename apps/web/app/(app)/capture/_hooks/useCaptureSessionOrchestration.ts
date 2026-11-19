@@ -98,6 +98,20 @@ export function reservationFitsItems(
   return reservation.itemIds.every((id, index) => itemIds[index] === id);
 }
 
+/**
+ * PRO-C1-01 — does this reservation hold a record of a workspace other than the
+ * one now active? Only a known record workspace and a known active workspace
+ * can disagree; an unknown either side is not a switch.
+ */
+export function reservationInOtherWorkspace(
+  reservation: CaptureRecordReservation | null,
+  activeWorkspaceId: string | null,
+): boolean {
+  if (!reservation?.evidenceId) return false;
+  if (!reservation.evidenceTeamId || !activeWorkspaceId) return false;
+  return reservation.evidenceTeamId !== activeWorkspaceId;
+}
+
 
 export type CaptureSessionAddFiles = (
   files: File[],
@@ -106,7 +120,10 @@ export type CaptureSessionAddFiles = (
     /** Stored on the part as its source label (server bound: 120 chars). */
     sourceLabel?: string;
     /** F-P1-09 — audio facts of a recording (a video without microphone). */
-    audioSignals?: Pick<SessionItemClientSignals, "audioTracks" | "audioNotCapturedReason">;
+    audioSignals?: Pick<
+      SessionItemClientSignals,
+      "audioTracks" | "audioNotCapturedReason" | "audioInterrupted" | "audioInterruptedReason"
+    >;
   }
 ) => Promise<void>;
 
@@ -208,7 +225,13 @@ async function runResumableItemUpload(input: {
   try {
     await driveResumableSession({ sessionId, evidenceId, evidenceTeamId, item, resumable, setSessionItems, bridgeContract });
   } catch (err) {
-    resumable.forget?.(sessionId, { abort: true });
+    // PRO-C1-13 — a RETRYABLE failure (the uploader's own retries ran out on a
+    // longer interruption) keeps the server session: the next Finish re-enters
+    // it (the idempotent create returns the live session for the same file and
+    // initiate returns its multipart) instead of restarting from byte 0. Only a
+    // terminal failure, a cancel or a conflict aborts it.
+    const retryable = (err as { resumableRetryable?: boolean } | null)?.resumableRetryable === true;
+    resumable.forget?.(sessionId, { abort: !retryable });
     throw err;
   }
   resumable.forget?.(sessionId);
@@ -313,10 +336,13 @@ async function driveResumableSession(input: {
       ) {
         unsub();
         reject(
-          new Error(
-            snap.failureReason
-              ? `resumable_upload_failed:${snap.failureReason}`
-              : `resumable_upload_failed:${snap.state.toLowerCase()}`,
+          Object.assign(
+            new Error(
+              snap.failureReason
+                ? `resumable_upload_failed:${snap.failureReason}`
+                : `resumable_upload_failed:${snap.state.toLowerCase()}`,
+            ),
+            { resumableRetryable: snap.state === "FAILED_RETRYABLE" },
           ),
         );
       }
@@ -782,6 +808,14 @@ export function useCaptureSessionOrchestration({
     const itemIds = items.map((item) => item.id);
     let reservation = reservationRef.current;
     if (reservation && !reservationFitsItems(reservation, itemIds)) {
+      reservation = null;
+    }
+    // PRO-C1-01 — a record reserved in another workspace is never resumed from
+    // this one: the Review dialog names the active workspace, so the Finish
+    // goes through POST /v1/evidence again, where the server releases the old
+    // reservation (C-08, CAPTURE_WORKSPACE_CHANGED) and reserves here. An
+    // unknown context keeps the reservation (nothing is created while unknown).
+    if (reservationInOtherWorkspace(reservation, activeSpace?.id ?? null)) {
       reservation = null;
     }
     if (!reservation) {

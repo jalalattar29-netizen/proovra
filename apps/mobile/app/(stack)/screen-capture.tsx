@@ -36,6 +36,7 @@ import {
   type PendingScreenStaging,
 } from "../../src/capture/screen-staging-store";
 import { discardDirectCaptureSession } from "../../src/direct-capture";
+import { releaseDirectSessionOrKeep } from "../../src/capture/stale-capture-release";
 import {
   ensureCaptureNotificationPermission,
   NOTIFICATION_DENIED_COPY,
@@ -411,7 +412,13 @@ export default function ScreenCaptureScreen() {
       // AUD-005 — the user's explicit discard of a kept staging: release its
       // session (no empty reserved record left behind) and delete its frames.
       void discardScreenCaptureFiles(pending.result);
-      if (pending.session) void discardDirectCaptureSession(pending.session).catch(() => undefined);
+      // PRO-NB-03 — a release that got no answer is kept for Capture to retry.
+      if (pending.session) {
+        void releaseDirectSessionOrKeep(pending.session, null, {
+          discard: discardDirectCaptureSession,
+          keep: (r) => saveCaptureSession({ ...r, type: "PHOTO", items: [], draftId: null, acquisition: null }),
+        });
+      }
     }
     void clearPendingScreenStaging();
     void clearScreenCaptureLedger().catch(() => undefined);

@@ -48,7 +48,8 @@ test("each staging step fails with its own sentence, and a staging failure KEEPS
   assert.match(screen, /type: "STAGE_FAILED",\s*message: detail \? `\$\{CONTINUOUS_STAGE_FAILURE\[step\]\}/);
   assert.ok(!/sealDirectCapture\(/.test(screen), "staging still releases the session on failure");
   // Any other exit from an opened session releases it on the server.
-  assert.match(screen, /await discardDirectCaptureSession\(active\.session\)/);
+  // PRO-NB-03: through the release-or-keep rule, so an unanswered release is retried.
+  assert.match(screen, /await releaseDirectSessionOrKeep\(active\.session, active\.evidenceId, \{ discard: discardDirectCaptureSession, keep: keepUnreleased \}\)/);
   assert.match(screen, /label="Start a new recording"/);
   assert.ok(!/"Could not finalize the evidence\."/.test(screen));
 });

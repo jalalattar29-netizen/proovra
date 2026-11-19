@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
 import { usePlatformContext } from "../../../../../lib/platform-context";
@@ -272,8 +272,15 @@ function AssignmentsTab({
    * so "Load more" grows the page instead of navigating it — and the filters
    * that produced it are unchanged, because the cursor is only valid for them.
    */
+  // PRO-KZ-04 — the query a page answers. A page that returns after the team
+  // or a filter changed belongs to the old query and is dropped.
+  const queryKey = JSON.stringify([team.id, statusFilter, targetTypeFilter, priorityFilter, assigneeFilter, debouncedQuery]);
+  const liveQueryKeyRef = useRef(queryKey);
+  liveQueryKeyRef.current = queryKey;
+
   const loadMore = useCallback(async () => {
     if (!cursor || loadingMore) return;
+    const askedKey = queryKey;
     setLoadingMore(true);
     try {
       const page = await listAssignments(team.id, {
@@ -284,6 +291,7 @@ function AssignmentsTab({
         search: debouncedQuery,
         cursor,
       });
+      if (liveQueryKeyRef.current !== askedKey) return;
       setItems((prev) => [...prev, ...page.assignments]);
       setCursor(page.nextCursor);
       setHasMore(page.nextCursor !== null);
@@ -297,6 +305,7 @@ function AssignmentsTab({
   }, [
     cursor,
     loadingMore,
+    queryKey,
     team.id,
     statusFilter,
     targetTypeFilter,

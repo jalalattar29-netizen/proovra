@@ -147,6 +147,72 @@ export async function reserveDirectCaptureEvidence(
 }
 
 /**
+ * PRO-NB-09 — reserve the record AND bind the capture DRAFT it was staged in,
+ * as the web Finish binds it (the plan snapshot rides on the record and the
+ * seal FINALIZES the draft). An API that does not know the field refuses the
+ * strict body with a 400; the reservation is then made exactly as before and
+ * `draftBound` is false, so the caller keeps its old draft handling.
+ */
+export async function reserveDirectCaptureEvidenceForDraft(
+  session: DirectCaptureSession,
+  input: Parameters<typeof reserveDirectCaptureEvidence>[1],
+  captureDraftId: string | null,
+  request: typeof apiFetch = apiFetch,
+): Promise<{ evidenceId: string; draftBound: boolean }> {
+  const post = (body: Record<string, unknown>) =>
+    withTimeout(
+      (signal) =>
+        request(`/v1/capture/direct-sessions/${session.captureSessionId}/evidence`, {
+          method: "POST",
+          body: JSON.stringify(body),
+          signal,
+        }),
+      CAPTURE_REQUEST_TIMEOUT_MS,
+      "Reserving the evidence record",
+    );
+  let res: { evidence?: { evidenceId?: string; draftBound?: boolean } } | null = null;
+  if (captureDraftId) {
+    try {
+      res = await post({ ...input, captureDraftId });
+    } catch (err) {
+      const status = (err as { statusCode?: unknown; status?: unknown } | null)?.statusCode ??
+        (err as { status?: unknown } | null)?.status;
+      if (status !== 400) throw err;
+      res = null;
+    }
+  }
+  if (!res) res = await post({ ...input });
+  const evidenceId = res?.evidence?.evidenceId;
+  if (!evidenceId) throw new Error("Could not reserve the evidence record.");
+  return { evidenceId, draftBound: res?.evidence?.draftBound === true };
+}
+
+/** PRO-NBC-02 — keep a capturing session open while it has nothing to declare yet. */
+export async function touchDirectCaptureSession(
+  session: DirectCaptureSession,
+  request: typeof apiFetch = apiFetch,
+): Promise<boolean> {
+  try {
+    const res = await withTimeout(
+      (signal) =>
+        request(`/v1/capture/direct-sessions/${session.captureSessionId}/heartbeat`, {
+          method: "POST",
+          body: JSON.stringify({}),
+          signal,
+        }),
+      CAPTURE_REQUEST_TIMEOUT_MS,
+      "Keeping the capture session open",
+    );
+    adoptServerSessionExpiry(session, res);
+    return true;
+  } catch {
+    // An older API has no heartbeat (404), or the session already ended: the
+    // next declaration answers authoritatively. Never fatal to the recording.
+    return false;
+  }
+}
+
+/**
  * UC-STR-003 — the server slides a session's expiry on every declaration and
  * answers the new value. The handle carries it forward (only ever later), so
  * the durable record a long recording stages with is the server's expiry, not
@@ -290,10 +356,7 @@ export async function uploadDirectCaptureItem(
 export async function completeDirectCapture(
   session: DirectCaptureSession,
 ): Promise<{ evidenceId: string }> {
-  const res = await apiFetch(
-    `/v1/capture/direct-sessions/${session.captureSessionId}/complete`,
-    { method: "POST", body: JSON.stringify({}) },
-  );
+  const res = await sealRequest(`/v1/capture/direct-sessions/${session.captureSessionId}/complete`, {});
   const evidenceId = res?.result?.evidenceId as string | undefined;
   if (!evidenceId) throw new Error("Could not complete the capture session.");
   return { evidenceId };
@@ -335,10 +398,7 @@ async function sealScreenFrames(
   session: DirectCaptureSession,
   manifestJson: string,
 ): Promise<{ evidenceId: string }> {
-  const res = await apiFetch(buildScreenCompletePath(session.captureSessionId), {
-    method: "POST",
-    body: JSON.stringify({ manifestJson }),
-  });
+  const res = await sealRequest(buildScreenCompletePath(session.captureSessionId), { manifestJson });
   return readSealedEvidence(res);
 }
 
@@ -350,11 +410,36 @@ async function sealContinuousRecording(
   session: DirectCaptureSession,
   manifestJson: string,
 ): Promise<{ evidenceId: string }> {
-  const res = await apiFetch(buildContinuousCompletePath(session.captureSessionId), {
-    method: "POST",
-    body: JSON.stringify({ manifestJson }),
-  });
+  const res = await sealRequest(buildContinuousCompletePath(session.captureSessionId), { manifestJson });
   return readSealedEvidence(res);
+}
+
+/**
+ * PRO-NB-04 — THE SEAL IS A CAPTURE REQUEST TOO: time-bounded and retried.
+ * The three seal calls were the only capture requests with no deadline, so a
+ * stalled answer left "Finishing… 92%" forever, and a lost one reported a
+ * failure for a record the server had sealed. The deadline is sized for the
+ * server re-hashing every stored part; a dropped connection, a timeout or a
+ * live seal claim (SESSION_BUSY) is retried, and the server answers a repeat
+ * of a bound session idempotently (alreadyBound), so a retry never seals twice.
+ */
+export const CAPTURE_SEAL_TIMEOUT_MS = 180_000;
+
+export function sealRequest(
+  path: string,
+  body: Record<string, unknown>,
+  policy?: RetryPolicy,
+  request: typeof apiFetch = apiFetch,
+): Promise<{ result?: { evidenceId?: string } }> {
+  return retryCapture(
+    () =>
+      withTimeout(
+        (signal) => request(path, { method: "POST", body: JSON.stringify(body), signal }),
+        CAPTURE_SEAL_TIMEOUT_MS,
+        "Sealing the capture",
+      ),
+    policy,
+  );
 }
 
 function readSealedEvidence(res: { result?: { evidenceId?: string } }): { evidenceId: string } {

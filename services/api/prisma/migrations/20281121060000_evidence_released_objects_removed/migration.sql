@@ -1,0 +1,23 @@
+-- =============================================================================
+-- 2026-11-18 — PRO-C1C-01 / PRO-C1-03 (WS-CAP): released reservations give their
+-- uploaded bytes back.
+--
+-- EXPAND / SAFE_TO_APPLY_NOW. One nullable column, no default, no backfill, no
+-- index (candidates are selected through the existing evidence(status) index:
+-- unsealed records are a small population). Old API / worker builds never read
+-- or write it.
+--
+-- WHY: a reservation released by the API (discard, selection change, workspace
+-- change, direct-capture discard) was only soft-deleted; its uploaded objects
+-- stayed in the bucket, unmetered, because the worker's capture reaper deleted
+-- the objects of records it released itself and nothing else. The reaper now
+-- removes the objects of every released, never-sealed record once, and stamps
+-- this column when it has (a failed delete is carried forward by the existing
+-- pendingObjectDeletes carrier). NULL = not yet swept (or released before this
+-- column existed; the first sweeps work through those, oldest first).
+--
+-- ROLLBACK: the column is inert to older builds; dropping it loses only the
+-- "already swept" fact (a later sweep would re-list already-empty prefixes).
+-- =============================================================================
+
+ALTER TABLE "evidence" ADD COLUMN IF NOT EXISTS "released_objects_removed_at_utc" TIMESTAMPTZ(6);

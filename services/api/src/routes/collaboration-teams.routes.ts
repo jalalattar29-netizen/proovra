@@ -1562,6 +1562,10 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             workspaceId: result.workspaceId,
             memberId: result.memberId,
             alreadyMember: result.alreadyMember,
+            // PRO-KZ-02 — additive: the workspace the team belongs to, so the
+            // client opens the team IN it (switching first) instead of under
+            // whichever workspace is active (a 404 there).
+            workspaceId: result.workspaceId,
           });
         } catch (err) {
           return handleServiceError(reply, err, req.id ?? null);

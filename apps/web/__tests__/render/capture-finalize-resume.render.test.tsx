@@ -187,6 +187,88 @@ describe("INGEST-009 — a record is never filed into a workspace nobody confirm
   });
 });
 
+describe("PRO-C1-01 — a retried Finish after a workspace switch never seals into the workspace that was left", () => {
+  it("drops the reservation of workspace A and asks POST /v1/evidence again for workspace B", async () => {
+    failPutFor = new Set(["a.png"]);
+    const draftHook = renderHook(() =>
+      useCaptureSessionOrchestration({
+        internalNotes: "",
+        onCloseCaptureDevices: () => {},
+        onResetAudioRecorder: () => {},
+        planMode: "FREEFORM" as never,
+        selectedCollectionPlan: undefined,
+        useLocation: false,
+        getCaptureSessionDraftId: () => "draft-1",
+      }),
+    );
+    act(() => draftHook.result.current.setSessionItems(() => [item("1", "a.png")]));
+    await act(async () => {
+      await draftHook.result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(1);
+    expect(completes()).toHaveLength(0);
+
+    // The person confirms "Switch anyway" to workspace B; /capture stays mounted.
+    activeSpace = { id: "team-2", type: "ORGANIZATION" };
+    apiHandler = (path, init) => {
+      if (path === "/v1/evidence" && init?.method === "POST") {
+        evidenceCounter += 1;
+        return { id: `ev-${evidenceCounter}`, teamId: "team-2" };
+      }
+      return defaultHandler(path, init);
+    };
+    draftHook.rerender();
+    failPutFor = new Set();
+    await act(async () => {
+      await draftHook.result.current.finalizeSession();
+    });
+
+    // The retry went through the server's C-08 authority, naming B and the draft.
+    expect(creates()).toHaveLength(2);
+    const retryBody = JSON.parse(String(creates()[1]?.init?.body));
+    expect(retryBody.teamId).toBe("team-2");
+    expect(retryBody.captureSessionId).toBe("draft-1");
+    // Nothing was written to, or sealed in, A's record after the switch.
+    expect(completes().map((c) => c.path)).toEqual(["/v1/evidence/ev-2/complete"]);
+    expect(push).toHaveBeenCalledWith("/evidence/ev-2");
+    expect(push).not.toHaveBeenCalledWith("/evidence/ev-1");
+  });
+
+  it("the same workspace still resumes the same record", async () => {
+    failPutFor = new Set(["a.png"]);
+    const { result, rerender } = setup([item("1", "a.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    activeSpace = { id: "team-1", type: "ORGANIZATION" };
+    rerender();
+    failPutFor = new Set();
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(1);
+    expect(completes().map((c) => c.path)).toEqual(["/v1/evidence/ev-1/complete"]);
+  });
+
+  it("a CAPTURE_WORKSPACE_CHANGED refusal forgets the reservation", async () => {
+    apiHandler = (path, init) => {
+      if (/\/v1\/evidence\/ev-1\/complete$/.test(path)) {
+        throw Object.assign(new Error("moved"), { statusCode: 409, code: "CAPTURE_WORKSPACE_CHANGED" });
+      }
+      return defaultHandler(path, init);
+    };
+    const { result } = setup([item("1", "a.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    apiHandler = defaultHandler;
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(2);
+  });
+});
+
 describe("UC-WEB-001 — resumable Finish & Sign", () => {
   it("a failed part upload leaves no item stuck uploading and marks the failing item", async () => {
     failPutFor = new Set(["b.png"]);

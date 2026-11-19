@@ -636,9 +636,16 @@ function OrganizationIncidentList({
   const openInWorkspace = async (row: OrgIncidentRow) => {
     if (!row.workspaceId) return;
     setNotice(null);
+    // PRO-TZ-04 — switchWorkspace never rejects; it answers false when the
+    // switch did not happen. Navigating then opened the incident under the
+    // previous workspace.
+    let switched: boolean | void = false;
     try {
-      await switchWorkspace(row.workspaceId);
+      switched = await switchWorkspace(row.workspaceId);
     } catch {
+      switched = false;
+    }
+    if (switched === false) {
       setNotice(copy.rollup.switchFailed);
       return;
     }

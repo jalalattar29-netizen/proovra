@@ -287,3 +287,25 @@ export function recoverOnce(
   inFlight.set(key, p);
   return p;
 }
+
+/** PRO-NB-01 — the server's maximum direct-capture session lifetime (MAX_SESSION_LIFETIME_SECONDS). */
+export const CAPTURE_SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * PRO-NB-01 — may a saved recording's session still be offered for recovery?
+ *
+ * The one-hour sliding expiry the device last heard is not the authority: the
+ * server keeps a session holding staged segments until 24 h after it opened
+ * (C-02), and a device clock ahead of the server judged live sessions expired.
+ * Recovery is offered until start + 24 h; the server answers the first
+ * declaration authoritatively (CAPTURE_WINDOW_EXPIRED), and nothing is deleted
+ * because of the device clock. An unknown start falls back to the old rule.
+ */
+export function captureSessionRecoverable(
+  live: { openedAtIso?: string | null; expiresAtUtc?: string | null },
+  nowMs: number = Date.now(),
+): boolean {
+  const opened = Date.parse(live.openedAtIso ?? "");
+  if (Number.isFinite(opened) && opened > 0) return nowMs < opened + CAPTURE_SESSION_LIFETIME_MS;
+  return captureSessionWindowOpen(live.expiresAtUtc, nowMs);
+}

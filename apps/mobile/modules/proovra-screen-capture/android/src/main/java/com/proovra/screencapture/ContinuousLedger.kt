@@ -569,7 +569,10 @@ internal object ContinuousLedgerKeeper {
     val before = get() ?: return null
     val after = change(before) ?: return before
     if (after != before) {
-      store?.write(after)
+      // PRO-NBC-04 — AUD-004 "persisted before it is visible": a write that
+      // failed (disk full, I/O error) leaves the previous ledger in force, so
+      // nothing (a confirmed-segment delete) acts on a change the disk does not hold.
+      if (store?.write(after) == false) return before
       current = after
     }
     return after
@@ -577,7 +580,8 @@ internal object ContinuousLedgerKeeper {
 
   @Synchronized
   fun replace(l: ContinuousLedger) {
-    store?.write(l)
+    // PRO-NBC-04 — the same rule for a whole replacement.
+    if (store?.write(l) == false) return
     current = l
     loaded = true
   }

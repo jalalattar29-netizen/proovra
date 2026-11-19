@@ -216,6 +216,14 @@ type CompleteEvidenceReturn = {
   /** (2026-09-29, D11) This call was a duplicate of an earlier finalize. */
   alreadyFinalized?: boolean;
   /**
+   * PRO-C1-02 — the seal committed but its storage protection (Object Lock
+   * retention or the lock snapshot) could not be applied after the commit. The
+   * record is sealed; the protection is recorded STORAGE_PROTECTION_UNAVAILABLE
+   * with its lock columns empty and is re-applied by the next complete or by
+   * the sealed-record recovery pass. Absent when protection was settled.
+   */
+  storageProtection?: "PENDING_REPAIR";
+  /**
    * (2026-10-29) The RFC 3161 outcome of THIS finalize, for the completion
    * notice (@proovra/shared tsaCompletionNotice). Absent on a duplicate call;
    * null when no timestamp was requested.
@@ -666,6 +674,57 @@ function buildFingerprint(params: {
   };
 }
 
+/** PRO-S1-04 — object metadata read before the sealing transaction, by bucket and key. */
+type PreReadHeads = Map<string, Awaited<ReturnType<typeof safeHead>>>;
+
+function preReadKey(bucket: string, key: string): string {
+  return `${bucket}
+${key}`;
+}
+
+/**
+ * PRO-S1-04 — HEAD every object the completion will read, outside any
+ * transaction. A HEAD that fails is simply not pre-read: the transaction then
+ * HEADs that object itself and refuses exactly as before (404 / 502).
+ */
+async function headCompletionObjects(input: { evidenceId: string; ownerUserId: string }): Promise<PreReadHeads> {
+  const out: PreReadHeads = new Map();
+  const evidence = await prisma.evidence.findFirst({
+    where: { id: input.evidenceId, ownerUserId: input.ownerUserId, deletedAt: null },
+    select: { status: true, storageBucket: true, storageKey: true },
+  });
+  if (!evidence) return out;
+  if (evidence.status !== EvidenceStatus.CREATED && evidence.status !== EvidenceStatus.UPLOADING) return out;
+  const parts = await prisma.evidencePart.findMany({
+    where: { evidenceId: input.evidenceId },
+    orderBy: { partIndex: "asc" },
+    select: { storageBucket: true, storageKey: true },
+  });
+  const objects =
+    parts.length > 0
+      ? parts.map((p) => ({ bucket: clean(p.storageBucket), key: clean(p.storageKey) }))
+      : [{ bucket: clean(evidence.storageBucket), key: clean(evidence.storageKey) }];
+  const HEAD_CONCURRENCY = 8;
+  for (let i = 0; i < objects.length; i += HEAD_CONCURRENCY) {
+    await Promise.all(
+      objects.slice(i, i + HEAD_CONCURRENCY).map(async (o) => {
+        if (!o.bucket || !o.key) return;
+        try {
+          out.set(preReadKey(o.bucket, o.key), await safeHead(o.bucket, o.key));
+        } catch {
+          /* not pre-read: the transaction HEADs it and refuses as before */
+        }
+      }),
+    );
+  }
+  return out;
+}
+
+/** PRO-S1-04 — the pre-read metadata of this object, or (not pre-read) a HEAD now. */
+async function headBeforeTransaction(preHeads: PreReadHeads, bucket: string, key: string) {
+  return preHeads.get(preReadKey(bucket, key)) ?? (await safeHead(bucket, key));
+}
+
 /**
  * ET-ACQ-04 — a pre-computed digest is bound to the exact object it was read
  * from: bucket, key, version, ETag and size. An object with neither a version
@@ -913,7 +972,18 @@ export async function completeEvidence(params: {
   // the fingerprint, and rolls back with the attestation request. Called with
   // one, it runs every check again under the record (and later the capacity)
   // lock and persists only an attestation for exactly what it derived.
-  const sealTransaction = (attestation: CompletionAttestation | null) => prisma.$transaction(
+  // PRO-S1-04 — the object HEADs each pass needs are taken immediately BEFORE
+  // its transaction opens (refreshed for every pass), so the transaction and
+  // the per-record advisory lock hold a pooled connection for database work
+  // only. The version/ETag/size a HEAD reports still binds the pre-hash and the
+  // attestation exactly as the in-transaction HEAD did (CompletionAttestationStale
+  // on a moved object); an object the pre-read did not cover is HEADed in place.
+  let preHeads: PreReadHeads = new Map();
+  const sealTransaction = async (attestation: CompletionAttestation | null) => {
+    preHeads = await headCompletionObjects({ evidenceId: params.evidenceId, ownerUserId: params.ownerUserId });
+    return sealTransactionOnce(attestation);
+  };
+  const sealTransactionOnce = (attestation: CompletionAttestation | null) => prisma.$transaction(
     async (tx): Promise<CompleteEvidenceTransactionResult> => {
       await tx.$executeRaw`
         SELECT pg_advisory_xact_lock(hashtext(${params.evidenceId}))
@@ -971,7 +1041,10 @@ export async function completeEvidence(params: {
             alreadyFinalized: true,
           },
           shouldEnqueueReport: false,
-          retentionTargets: [],
+          // PRO-C1-02 — a REPORTED record whose first finalize never recorded
+          // a lock is repaired exactly as a SIGNED one is (the report job moves
+          // SIGNED to REPORTED within seconds, so the repair used to be lost).
+          retentionTargets: await unlockedRetentionTargetsTx(tx, evidence, evidenceBucket, evidenceKey),
         };
       }
 
@@ -1017,27 +1090,7 @@ export async function completeEvidence(params: {
         // INGEST-011 — EVIDENCE_LOCKED speaks for every item, so a repair covers
         // every item. It handed back the primary alone, then recorded the lock
         // as complete with part columns still empty.
-        const retentionTargets: RetentionTarget[] = [];
-        const unlockedParts = await tx.evidencePart.findMany({
-          where: { evidenceId: evidence.id, storageObjectLockMode: null },
-          orderBy: { partIndex: "asc" },
-          select: { id: true, storageBucket: true, storageKey: true, storageVersionId: true },
-        });
-        if (evidenceBucket && evidenceKey && (!evidence.storageObjectLockMode || unlockedParts.length > 0)) {
-          retentionTargets.push({
-            bucket: evidenceBucket,
-            key: evidenceKey,
-            versionId: evidence.storageVersionId ?? null,
-          });
-        }
-        for (const part of unlockedParts) {
-          retentionTargets.push({
-            bucket: part.storageBucket,
-            key: part.storageKey,
-            versionId: part.storageVersionId ?? null,
-            evidencePartId: part.id,
-          });
-        }
+        const retentionTargets = await unlockedRetentionTargetsTx(tx, evidence, evidenceBucket, evidenceKey);
 
         return {
           alreadyFinalized: true,
@@ -1395,7 +1448,7 @@ export async function completeEvidence(params: {
             throw err;
           }
 
-          const meta = await safeHead(bucket, key);
+          const meta = await headBeforeTransaction(preHeads, bucket, key);
           const size = meta.sizeBytes;
 
           if (!size || size <= 0) {
@@ -1573,7 +1626,7 @@ const fingerprint = buildFingerprint({
         const bucket = evidenceBucket!;
         const key = evidenceKey!;
 
-        const meta = await safeHead(bucket, key);
+        const meta = await headBeforeTransaction(preHeads, bucket, key);
         const size = meta.sizeBytes;
 
         if (!size || size <= 0) {
@@ -2369,8 +2422,174 @@ const captureMethod =
     requestContext: params.requestContext ?? null,
   });
 
-  if (retentionFailure) throw retentionFailure;
+  if (retentionFailure) {
+    // PRO-C1-02 — THE SEAL HAS COMMITTED: it is answered as the success it is,
+    // with its storage protection pending repair, not as a failed capture (a
+    // 5xx and a critical audit told the person their preserved record failed).
+    // The truthful outcome is recorded once, lock columns left empty (the
+    // existing repair contract), and the next complete or the sealed-record
+    // recovery pass re-applies it.
+    const reason =
+      retentionFailure instanceof Error
+        ? retentionFailure.message.split(":")[0]!.slice(0, 80)
+        : "STORAGE_PROTECTION_FAILED";
+    logWarn("evidence_complete.storage_protection_pending_repair", { evidenceId: final.result.id, reason });
+    await recordStorageProtectionOutcome(
+      final.result.id,
+      prismaPkg.CustodyEventType.STORAGE_PROTECTION_UNAVAILABLE,
+      {
+        phase: STORAGE_PROTECTION_PENDING_REPAIR_PHASE,
+        storageRegion: process.env.S3_REGION?.trim() || null,
+        itemCount: final.retentionTargets.length,
+        retentionApplied: false,
+        reason,
+      },
+    ).catch((err: unknown) =>
+      logWarn("evidence_complete.storage_protection_outcome_unrecorded", {
+        evidenceId: final.result.id,
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+      }),
+    );
+    return { ...final.result, storageProtection: "PENDING_REPAIR" };
+  }
   return final.result;
+}
+
+/** PRO-C1-02 — the custody phase of a post-commit storage-protection failure. */
+export const STORAGE_PROTECTION_PENDING_REPAIR_PHASE = "storage_protection_pending_repair";
+
+/**
+ * INGEST-011 / PRO-C1-02 — the objects of a sealed record whose lock was never
+ * recorded: the primary (when it or any part is unlocked) and every unlocked
+ * part. EVIDENCE_LOCKED speaks for every item, so a repair covers every item.
+ */
+async function unlockedRetentionTargetsTx(
+  tx: prismaPkg.Prisma.TransactionClient,
+  evidence: { id: string; storageObjectLockMode: string | null; storageVersionId: string | null },
+  evidenceBucket: string | null,
+  evidenceKey: string | null,
+): Promise<RetentionTarget[]> {
+  const retentionTargets: RetentionTarget[] = [];
+  const unlockedParts = await tx.evidencePart.findMany({
+    where: { evidenceId: evidence.id, storageObjectLockMode: null },
+    orderBy: { partIndex: "asc" },
+    select: { id: true, storageBucket: true, storageKey: true, storageVersionId: true },
+  });
+  if (evidenceBucket && evidenceKey && (!evidence.storageObjectLockMode || unlockedParts.length > 0)) {
+    retentionTargets.push({
+      bucket: evidenceBucket,
+      key: evidenceKey,
+      versionId: evidence.storageVersionId ?? null,
+    });
+  }
+  for (const part of unlockedParts) {
+    retentionTargets.push({
+      bucket: part.storageBucket,
+      key: part.storageKey,
+      versionId: part.storageVersionId ?? null,
+      evidencePartId: part.id,
+    });
+  }
+  return retentionTargets;
+}
+
+/**
+ * PRO-C1Z-01 / PRO-C1-02 — THE SEALED-RECORD RECOVERY PASS.
+ *
+ * Everything a sealed record is owed after its commit (INGEST-011) used to be
+ * recoverable only by another /complete call: a process that died between the
+ * commit and the once-only fan-out left a record with no reviewer row, tenant
+ * audit, webhook, scan or declared-type check, and a post-commit retention
+ * failure was repaired only if the person pressed Finish again. This bounded
+ * pass, run on the API's platform maintenance schedule, re-drives exactly the
+ * existing authorities and nothing else:
+ *
+ *   * the fan-out through runCompletionFanoutOnce (its durable claim and lease
+ *     decide: one fan-out per record, a live claim is left alone);
+ *   * the storage protection through completeEvidence's own sealed-record
+ *     repair (lock columns empty → retention re-applied, one outcome recorded).
+ *
+ * Only records sealed within the recovery window are considered, so no
+ * historical record is touched by the first run beyond that window.
+ */
+export const SEALED_RECORD_RECOVERY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export async function recoverSealedRecordObligations(
+  opts: { limit?: number; now?: Date } = {},
+): Promise<{ fanoutCandidates: number; fanoutRecovered: number; protectionCandidates: number; protectionRepaired: number; failed: number }> {
+  const now = opts.now ?? new Date();
+  const limit = Math.max(1, Math.min(opts.limit ?? 25, 200));
+  const leaseCutoff = new Date(now.getTime() - COMPLETION_FANOUT_LEASE_MS);
+  const windowStart = new Date(now.getTime() - SEALED_RECORD_RECOVERY_WINDOW_MS);
+  const sealed = [EvidenceStatus.SIGNED, EvidenceStatus.REPORTED];
+  const summary = { fanoutCandidates: 0, fanoutRecovered: 0, protectionCandidates: 0, protectionRepaired: 0, failed: 0 };
+
+  const fanout = await prisma.evidence.findMany({
+    where: {
+      status: { in: sealed },
+      deletedAt: null,
+      completionFanoutDoneAtUtc: null,
+      signedAtUtc: { lt: leaseCutoff, gte: windowStart },
+      OR: [{ completionFanoutClaimedAtUtc: null }, { completionFanoutClaimedAtUtc: { lt: leaseCutoff } }],
+    },
+    orderBy: { signedAtUtc: "asc" },
+    take: limit,
+    select: { id: true, signingKeyVersion: true },
+  });
+  summary.fanoutCandidates = fanout.length;
+  for (const row of fanout) {
+    try {
+      const out = await runCompletionFanoutOnce({
+        evidenceId: row.id,
+        signingKeyVersion: row.signingKeyVersion ?? null,
+        requestContext: { correlationId: "sealed-record-recovery" },
+      });
+      if (out.ran) summary.fanoutRecovered += 1;
+    } catch (err) {
+      summary.failed += 1;
+      logWarn("evidence_complete.recovery_fanout_failed", {
+        evidenceId: row.id,
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+      });
+    }
+  }
+
+  const protection = await prisma.evidence.findMany({
+    where: {
+      status: { in: sealed },
+      deletedAt: null,
+      storageObjectLockMode: null,
+      signedAtUtc: { lt: leaseCutoff, gte: windowStart },
+      custodyEvents: {
+        some: {
+          eventType: prismaPkg.CustodyEventType.STORAGE_PROTECTION_UNAVAILABLE,
+          payload: { path: ["phase"], equals: STORAGE_PROTECTION_PENDING_REPAIR_PHASE },
+        },
+        none: { eventType: prismaPkg.CustodyEventType.EVIDENCE_LOCKED },
+      },
+    },
+    orderBy: { signedAtUtc: "asc" },
+    take: limit,
+    select: { id: true, ownerUserId: true },
+  });
+  summary.protectionCandidates = protection.length;
+  for (const row of protection) {
+    try {
+      const out = await completeEvidence({
+        evidenceId: row.id,
+        ownerUserId: row.ownerUserId,
+        requestContext: { correlationId: "sealed-record-recovery" },
+      });
+      if (!out.storageProtection) summary.protectionRepaired += 1;
+    } catch (err) {
+      summary.failed += 1;
+      logWarn("evidence_complete.recovery_protection_failed", {
+        evidenceId: row.id,
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+      });
+    }
+  }
+  return summary;
 }
 
 /** Enough for every signature the shared classifier reads. */

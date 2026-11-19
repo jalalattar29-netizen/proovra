@@ -36,10 +36,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { ProovraSystemState } from "../../../../../../components/feedback/ProovraSystemState";
 import { useToast } from "../../../../../../components/ui";
+import { useOptionalPlatformContext } from "../../../../../../lib/platform-context/PlatformContextProvider";
 import { isApiResponseError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { acceptInvite } from "../../../../../../lib/api/collaboration-teams";
-import { requestWorkspaceSwitch } from "../../../../../../lib/platform-context";
 import {
   isWellFormedCollaborationTeamInviteToken,
 } from "@proovra/shared";
@@ -123,6 +123,7 @@ function AcceptTeamInvite() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const { addToast } = useToast();
+  const platform = useOptionalPlatformContext();
   const pathToken = decodeURIComponent(params?.token ?? "");
   const resuming = pathToken === RESUME_SEGMENT;
   // After a sign-in bounce the token comes from this tab's hand-off, read on
@@ -170,16 +171,17 @@ function AcceptTeamInvite() {
       }
       setStatus("success");
       addToast("You've joined the team.", "success");
-      // PRO-K2-15 — open the team IN its workspace: the team read is scoped to
-      // the active workspace, so landing there from another one answered 404.
-      if (result.workspaceId) {
-        try {
-          await requestWorkspaceSwitch(result.workspaceId);
-        } catch {
-          // The team link still works once the reader switches themselves.
-        }
+      // PRO-KZ-02 — open the team IN its workspace: switch first when it is not
+      // the active one (an older API sends no workspaceId: unchanged behaviour).
+      const teamWorkspaceId = (result as { workspaceId?: string | null }).workspaceId ?? null;
+      if (platform && teamWorkspaceId && teamWorkspaceId !== platform.activeWorkspaceId) {
+        const personalId =
+          platform.envelope?.contextOptions?.personalSpace?.workspaceId ?? platform.envelope?.personalSpace?.id ?? null;
+        await platform.switchWorkspace(teamWorkspaceId === personalId ? null : teamWorkspaceId);
       }
-      router.replace(`/collaboration-teams/${result.teamId}`);
+      setTimeout(() => {
+        router.replace(`/collaboration-teams/${result.teamId}`);
+      }, 700);
     } catch (err) {
       if (isApiResponseError(err)) {
         setRequestId(err.requestId);
@@ -217,7 +219,7 @@ function AcceptTeamInvite() {
         setErrorMessage("We couldn't complete that action. Please try again.");
       }
     }
-  }, [rawToken, router, addToast]);
+  }, [rawToken, router, addToast, platform]);
 
   // PRO-K2-15 — nothing is written on page load. The shape check runs; the
   // ONE-SHOT accept runs only when the invitee presses Accept (`startedRef`

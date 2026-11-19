@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { writePreferenceStorage } from "../../../../lib/consent";
 
 import {
   computeCaptureReadiness,
@@ -63,15 +64,20 @@ const LEVEL_TONE: Record<
 
 export function CaptureReadinessPanel({
   items,
+  scopeKey,
 }: {
   items: ReadonlyArray<SessionItem>;
+  /** PRO-C1C-03 — the account + workflow the dismissal belongs to. */
+  scopeKey?: string;
 }) {
   const summary = useMemo(
     () => computeCaptureReadiness({ items }),
     [items],
   );
 
-  const dismissKey = DISMISS_KEY_PREFIX;
+  // PRO-C1C-03 — scoped to the account and the workflow, as the header says:
+  // one dismissal no longer hides guidance for every account and template.
+  const dismissKey = `${DISMISS_KEY_PREFIX}${scopeKey ?? "default"}`;
   const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -93,11 +99,8 @@ export function CaptureReadinessPanel({
 
   function dismiss() {
     setDismissed(true);
-    try {
-      window.localStorage.setItem(dismissKey, "true");
-    } catch {
-      /* ignore */
-    }
+    // PRO-C1C-04 — persisted only with preferences consent; hidden for this mount either way.
+    writePreferenceStorage(dismissKey, "true");
   }
 
   return (

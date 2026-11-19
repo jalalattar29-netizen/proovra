@@ -24,8 +24,11 @@ const view = (id, ownerUserId, over = {}) => ({
   filters: { search: "", scope: "active", status: "all", type: "all", review: "all", exportReadiness: "all", caseAssignment: "all", retention: "all", sort: "newest" },
   createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z", ...over,
 });
+// PRO-E1-07 — a team view is listed only in its own workspace, so the fixture's
+// workspace ("ws-owned", where its team views live) is the active one.
 const envelopeWithRole = (role) =>
   platformContextEnvelope({
+    activeSpace: { id: "ws-owned", type: "ORGANIZATION", plan: "BUSINESS", displayName: "Harbour team", status: "active" },
     contextOptions: { ownedWorkspaces: [{ workspaceId: "ws-owned", name: "Harbour team", kind: "OWNED", role, lifecycleStatus: "active" }] },
   });
 
@@ -109,4 +112,16 @@ test("B5B-F-303: Make Default is offered only on the reader's own views; a colle
   const patch = requests.find((q) => q.method === "PATCH");
   assert.ok(patch, "no PATCH was sent");
   assert.ok(!("isDefault" in patch.body), "a rename of a colleague's view carried isDefault (403)");
+});
+
+test("PRO-E1-07: a team view of another workspace is not listed; a personal view is", async () => {
+  routes["/v1/platform/context"] = () => envelopeWithRole("ADMIN");
+  routes["GET /v1/evidence/saved-views"] = () => ({
+    items: [view("mine", "user-1", { teamId: null }), view("here", "user-1"), view("elsewhere", "user-1", { teamId: "ws-other" })],
+  });
+  const r = await mount();
+  await r.press("Saved Views");
+  assert.equal(r.byLabel("Rename View mine").length, 1);
+  assert.equal(r.byLabel("Rename View here").length, 1);
+  assert.equal(r.byLabel("Rename View elsewhere").length, 0, "another workspace's team view is listed here");
 });

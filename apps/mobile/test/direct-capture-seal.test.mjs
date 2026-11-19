@@ -166,7 +166,8 @@ test("every surface that seals a direct capture goes through the rule", () => {
   // and every other exit from an opened session (Discard, Try Again, a start
   // failure) releases it through the primitive.
   const continuous = read("../app/(stack)/continuous-capture.tsx");
-  assert.match(continuous, /const releaseSession = useCallback\(async \(\) => \{[\s\S]*?discardDirectCaptureSession\(active\.session\)/);
+  // PRO-NB-03: the primitive is reached through the release-or-keep rule.
+  assert.match(continuous, /const releaseSession = useCallback\(async \(\) => \{[\s\S]*?releaseDirectSessionOrKeep\(active\.session, active\.evidenceId, \{ discard: discardDirectCaptureSession/);
   assert.match(continuous, /const reset = useCallback\(async \(\) => \{[\s\S]*?await releaseSession\(\)/);
 
   // /capture releases through the primitive directly, in its own failure and
@@ -223,4 +224,76 @@ test("only the canonical surface finalizes — the screens stage", () => {
     assert.match(read(file), /label="Review in Capture"/);
     assert.match(read(file), /label="Capture another"/);
   }
+});
+
+// PRO-NB-04 — the seal request is time-bounded and retried: a lost answer is
+// asked again (the server answers a bound session idempotently), and a terminal
+// refusal is not repeated.
+test("PRO-NB-04: a seal whose first answer is lost is retried and returns the sealed record", async () => {
+  let lost = 1;
+  const prev = globalThis.__record;
+  globalThis.__record = (path, init) => {
+    requests.push({ path, method: init?.method ?? "GET" });
+    if (path.endsWith("/complete") && lost > 0) {
+      lost -= 1;
+      throw new Error("the connection dropped");
+    }
+    return { result: { evidenceId: "ev-sealed", alreadyBound: true } };
+  };
+  try {
+    const out = await mod.completeAcquisition(SESSION, null);
+    assert.equal(out.evidenceId, "ev-sealed");
+    assert.equal(requests.filter((r) => r.path === "/v1/capture/direct-sessions/cs-1/complete").length, 2);
+  } finally {
+    globalThis.__record = prev;
+  }
+});
+
+test("PRO-NB-04: a terminal seal refusal is not repeated", async () => {
+  const prev = globalThis.__record;
+  globalThis.__record = (path, init) => {
+    requests.push({ path, method: init?.method ?? "GET" });
+    throw Object.assign(new Error("refused"), { statusCode: 409, code: "CAPTURE_DIGEST_MISMATCH" });
+  };
+  try {
+    await assert.rejects(() => mod.sealRequest("/v1/capture/direct-sessions/cs-1/complete", {}, { attempts: 4, baseDelayMs: 1, maxDelayMs: 1, maxRetryAfterMs: 1, sleep: async () => {} }));
+    assert.equal(requests.length, 1);
+  } finally {
+    globalThis.__record = prev;
+  }
+});
+
+// PRO-NB-09 — the draft is bound at reservation; an API that does not know the
+// field (strict body → 400) still reserves, unbound.
+test("PRO-NB-09: the reservation names the draft; an older API's 400 falls back to an unbound reservation", async () => {
+  const bodies = [];
+  const bound = await mod.reserveDirectCaptureEvidenceForDraft(SESSION, { type: "PHOTO", mimeType: "image/jpeg", deviceTimeIso: "x" }, "draft-1", async (path, init) => {
+    bodies.push(JSON.parse(init.body));
+    return { evidence: { evidenceId: "ev-1", draftBound: true } };
+  });
+  assert.deepEqual(bound, { evidenceId: "ev-1", draftBound: true });
+  assert.equal(bodies[0].captureDraftId, "draft-1");
+
+  bodies.length = 0;
+  const old = await mod.reserveDirectCaptureEvidenceForDraft(SESSION, { type: "PHOTO", mimeType: "image/jpeg", deviceTimeIso: "x" }, "draft-1", async (path, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    if (body.captureDraftId) throw Object.assign(new Error("Validation failed"), { statusCode: 400 });
+    return { evidence: { evidenceId: "ev-2" } };
+  });
+  assert.deepEqual(old, { evidenceId: "ev-2", draftBound: false });
+  assert.equal(bodies.length, 2);
+  assert.equal(bodies[1].captureDraftId, undefined);
+});
+
+// PRO-NBC-02 — the keep-alive adopts the server's slid expiry and is never fatal.
+test("PRO-NBC-02: the heartbeat adopts the server expiry; an API without the route is not an error", async () => {
+  const session = { ...SESSION, expiresAtUtc: "2026-01-01T00:00:00.000Z" };
+  const ok = await mod.touchDirectCaptureSession(session, async () => ({ session: { expiresAtUtc: "2026-01-01T01:00:00.000Z" } }));
+  assert.equal(ok, true);
+  assert.equal(session.expiresAtUtc, "2026-01-01T01:00:00.000Z");
+  const missing = await mod.touchDirectCaptureSession(session, async () => {
+    throw Object.assign(new Error("not found"), { statusCode: 404 });
+  });
+  assert.equal(missing, false);
 });

@@ -11,6 +11,8 @@ import { useCallback, useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiFetch, getAuthToken } from "../../../src/api";
+import { adoptSwitchedWorkspace } from "../../../src/product/platform-context";
+import { SWITCH_WORKSPACE_PATH, buildSwitchWorkspaceBody } from "../../../src/product/spaces";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
 import { theme } from "../../../src/theme/theme";
 import { setPendingRoute } from "../../../src/deep-link/pending-intent";
@@ -88,6 +90,19 @@ function CollaborationInviteScreen() {
         body: JSON.stringify({ token }),
       });
       const teamId = typeof res?.teamId === "string" ? res.teamId : null;
+      // PRO-KZ-02 — open the team IN its workspace (an older API names none).
+      const teamWorkspaceId = typeof res?.workspaceId === "string" ? res.workspaceId : null;
+      if (teamId && teamWorkspaceId) {
+        try {
+          const switched = await apiFetch(SWITCH_WORKSPACE_PATH, {
+            method: "POST",
+            body: JSON.stringify(buildSwitchWorkspaceBody(teamWorkspaceId)),
+          });
+          adoptSwitchedWorkspace(switched, teamWorkspaceId);
+        } catch {
+          // The membership was made; the team page states its own access.
+        }
+      }
       setPhase("accepted");
       if (teamId) router.replace(`/collaboration-team/${teamId}`);
       else router.replace("/teams");

@@ -28,15 +28,24 @@ const SECURE_KEY = "proovra.pending-intent.v2";
 export const PENDING_INTENT_TTL_MS = 30 * 60 * 1000; // 30 min
 
 let pending: string | null = null;
+/**
+ * PRO-NA-04 — the ORIGINAL link a signed-out person opened, kept beside its
+ * route so the post-sign-in replay can resolve it on the server and switch to
+ * the record's workspace (as a signed-in tap does) instead of opening the raw
+ * route in whatever workspace is active. The stored blob gains an optional
+ * `url`; an older blob without one still replays its route.
+ */
+let pendingUrl: string | null = null;
 
-export function setPendingRoute(route: string): void {
+export function setPendingRoute(route: string, url?: string | null): void {
   pending = route;
-  void persist(route);
+  pendingUrl = url ?? null;
+  void persist(route, pendingUrl);
 }
 
-async function persist(route: string): Promise<void> {
+async function persist(route: string, url: string | null = null): Promise<void> {
   try {
-    await SecureStore.setItemAsync(SECURE_KEY, JSON.stringify({ route, savedAtMs: Date.now() }));
+    await SecureStore.setItemAsync(SECURE_KEY, JSON.stringify({ route, ...(url ? { url } : {}), savedAtMs: Date.now() }));
   } catch {
     // Best-effort — the in-memory copy still serves the same-launch case.
   }
@@ -73,9 +82,17 @@ export async function hydratePendingRoute(): Promise<void> {
   void AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
   if (pending) return;
   try {
-    const route = parsePersistedIntent(await SecureStore.getItemAsync(SECURE_KEY));
-    if (route) pending = route;
-    else clearPersisted();
+    const raw = await SecureStore.getItemAsync(SECURE_KEY);
+    const route = parsePersistedIntent(raw);
+    if (route) {
+      pending = route;
+      try {
+        const url = (JSON.parse(raw as string) as { url?: unknown }).url;
+        pendingUrl = typeof url === "string" && url ? url : null;
+      } catch {
+        pendingUrl = null;
+      }
+    } else clearPersisted();
   } catch {
     // ignore — nothing to rehydrate
   }
@@ -88,6 +105,7 @@ export function peekPendingRoute(): string | null {
 /** Sign-out: where the last person was going is not where the next one is. */
 export function clearPendingRoute(): void {
   pending = null;
+  pendingUrl = null;
   clearPersisted();
 }
 
@@ -97,4 +115,12 @@ export function takePendingRoute(): string | null {
   pending = null;
   if (r) clearPersisted();
   return r;
+}
+
+/** PRO-NA-04 — read and clear the original link with its route (one-shot). */
+export function takePendingIntent(): { route: string; url: string | null } | null {
+  const url = pendingUrl;
+  pendingUrl = null;
+  const route = takePendingRoute();
+  return route ? { route, url } : null;
 }

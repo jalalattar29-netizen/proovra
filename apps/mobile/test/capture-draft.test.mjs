@@ -240,5 +240,5 @@ test("AUD-0035 — a picked file's own name is sent with the reservation; invent
   assert.equal(D.reservedOriginalFileName(null), undefined);
   // The capture screen sends it when it reserves the record.
   const screen = readFileSync(resolve(HERE, "../app/(stack)/capture.tsx"), "utf8");
-  assert.match(screen, /reserveDirectCaptureEvidence\(captureSession, \{[\s\S]{0,400}?originalFileName: reservedOriginalFileName\(primary\)/);
+  assert.match(screen, /reserveDirectCaptureEvidenceForDraft\(\s*captureSession,\s*\{[\s\S]{0,400}?originalFileName: reservedOriginalFileName\(primary\)/);
 });

@@ -473,6 +473,18 @@ test("AUD-0065 — a session whose window has closed is not offered as recoverab
   assert.equal(M.captureSessionWindowOpen(undefined, now), true);
 });
 
+test("PRO-NB-01 — recovery is offered until start + 24 h, whatever the one-hour expiry the device last heard", () => {
+  const opened = "2026-11-09T10:41:48.000Z";
+  // Two hours later, the idle expiry long past on the device clock: still offered.
+  const twoHours = Date.parse("2026-11-09T12:41:48.000Z");
+  assert.equal(M.captureSessionRecoverable({ openedAtIso: opened, expiresAtUtc: "2026-11-09T11:41:48.000Z" }, twoHours), true);
+  // Past the 24 h lifetime: expired.
+  const dayAfter = Date.parse("2026-11-10T10:42:00.000Z");
+  assert.equal(M.captureSessionRecoverable({ openedAtIso: opened, expiresAtUtc: "2026-11-09T11:41:48.000Z" }, dayAfter), false);
+  // An unknown start falls back to the expiry rule.
+  assert.equal(M.captureSessionRecoverable({ openedAtIso: "", expiresAtUtc: "2026-11-09T11:41:48.000Z" }, twoHours), false);
+});
+
 test("AUD-0065 — the capture window's own code is a gone session; the old code still is", () => {
   assert.equal(M.isSessionGone({ code: "CAPTURE_WINDOW_EXPIRED" }), true);
   assert.equal(M.isSessionGone({ code: "SESSION_EXPIRED" }), true);
@@ -482,7 +494,8 @@ test("AUD-0065 — the capture window's own code is a gone session; the old code
 test("AUD-0065 — the screen states an expired session, and a gone session at any step is said as such", async () => {
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("../app/(stack)/continuous-capture.tsx", import.meta.url), "utf8");
-  assert.match(src, /setRecovery\(captureSessionWindowOpen\(live\.expiresAtUtc\) \? \{ kind: "ended" \} : \{ kind: "expired" \}\)/);
+  // PRO-NB-01 — judged by the session's 24 h lifetime (captureSessionRecoverable).
+  assert.match(src, /setRecovery\(captureSessionRecoverable\(live\) \? \{ kind: "ended" \} : \{ kind: "expired" \}\)/);
   assert.match(src, /recovery\?\.kind === "expired"/);
   assert.match(src, /if \(isSessionGone\(err\)\) \{\s*dispatch\(\{ type: "STAGE_FAILED", message: CONTINUOUS_SESSION_GONE \}\);/);
 });

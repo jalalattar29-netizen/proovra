@@ -161,7 +161,9 @@ test("AUD-004: the service writes the durable ledger at start (naming the one fi
 
 test("AUD-004: nothing is deleted on lost JS memory — only a confirmed upload, a bound commit, or an explicit discard", () => {
   // Confirmation: the ledger first, then only a path the ledger says is confirmed.
-  assert.match(continuous, /if \(seg != null && seg\.path in automaticallyDeletablePaths\(after\)\)/);
+  // PRO-NBC-04: and only when the ledger on disk holds the segment as UPLOADED.
+  assert.match(continuous, /if \(seg == null \|\| seg\.uploadState != SEGMENT_UPLOADED\) return false\s*if \(seg\.path in automaticallyDeletablePaths\(after\)\)/);
+  assert.match(code("ContinuousLedger.kt"), /if \(store\?\.write\(after\) == false\) return before/);
   // Commit: only for exactly the bound session.
   assert.match(continuous, /if \(!ledgerBoundTo\(ContinuousLedgerKeeper\.get\(\), captureSessionId\)\) return false/);
   // A new recording never overwrites a ledger that holds segments.

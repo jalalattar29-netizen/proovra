@@ -372,7 +372,12 @@ export default function EvidenceDetailScreen() {
   // The web's usePlanFeatureGate("intakeIncluded") — the server-projected plan feature.
   const intakeIncluded =
     (platform.envelope as { planFeatures?: Record<string, unknown> } | null)?.planFeatures?.["intakeIncluded"] === true;
-  const exportTeamId = platform.context?.activeTeamId ?? null;
+  // PRO-NB-07 — the RECORD's workspace decides these reads (as it decides the
+  // caller's capabilities, B5A-F-03), not whichever workspace is active: a
+  // record opened from another workspace's notification is still that
+  // workspace's. The active one is the fallback until the record is read.
+  const recordTeamId = core?.teamId ?? reviewWorkflow?.teamId ?? platform.context?.activeTeamId ?? null;
+  const exportTeamId = recordTeamId;
   const checkExport = useCallback(async () => {
     if (!id || !exportTeamId) {
       setExportCheck({ phase: "failed" });
@@ -1552,7 +1557,7 @@ export default function EvidenceDetailScreen() {
       {tab === "integrity" ? (
         <>
         {/* T-15 — how this record reached PROOVRA (server provenance projection). */}
-        <ProvenanceChainSection evidenceId={String(id)} workspaceId={platform.context?.activeTeamId ?? null} />
+        <ProvenanceChainSection evidenceId={String(id)} workspaceId={recordTeamId} />
         {rw ? (
           <IntegritySection
             testID="evidence-source-context"
@@ -2178,7 +2183,7 @@ export default function EvidenceDetailScreen() {
       ) : null}
 
       {tab === "derived" ? (
-        <DerivedReviewTab evidenceId={String(id)} teamId={platform.context?.activeTeamId ?? null} />
+        <DerivedReviewTab evidenceId={String(id)} teamId={recordTeamId} />
       ) : null}
 
       {/* ONE shared rail for every tab (EvidenceRecordRail.tsx), below the tab body on a phone. */}

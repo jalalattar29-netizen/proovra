@@ -159,6 +159,15 @@ function sharedWorkspaceName(ownerName: string | null): string {
 export type BuildPlatformContextInput = {
   userId: string;
   requestId: string;
+  /**
+   * PRO-T1-16 — the workspace THIS client names (x-proovra-workspace-id). The
+   * account pointer is one value shared by every tab and device, so a switch in
+   * one re-targeted every other at its next context read. A named workspace the
+   * caller may still enter is the one this envelope describes; one they cannot
+   * enter is ignored (the pointer answers, as for a client that names nothing).
+   * The pointer itself is only ever moved by an explicit switch.
+   */
+  requestedWorkspaceId?: string | null;
   jwtRole?: string | null;
   /**
    * Phase B0 — Wire-version requested by the caller. When `3`, the
@@ -186,6 +195,25 @@ export type BuildPlatformContextResult =
  * user record itself is missing — every other partial-failure mode
  * is reflected in the per-section status fields.
  */
+/**
+ * PRO-T1-16 — may the caller enter this workspace as their context? The same
+ * test the pointer selection applies: an ACTIVE membership and no
+ * membership-level denial from the canonical member-access authority.
+ */
+async function requestedWorkspaceEnterable(userId: string, workspaceId: string): Promise<boolean> {
+  try {
+    const membership = await prisma.teamMember.findUnique({
+      where: { teamId_userId: { teamId: workspaceId, userId } },
+      select: { status: true },
+    });
+    if (!membership || membership.status !== "ACTIVE") return false;
+    const access = await evaluateMemberAccess({ teamId: workspaceId, userId, permission: "evidence.read" });
+    return access.allowed || !SELECTED_CONTEXT_MEMBERSHIP_DENIALS.has(String(access.reason));
+  } catch {
+    return false;
+  }
+}
+
 export async function buildPlatformContext(
   input: BuildPlatformContextInput,
 ): Promise<BuildPlatformContextResult> {
@@ -325,10 +353,21 @@ export async function buildPlatformContext(
     }
   }
 
-  if (userRow.currentWorkspaceId) {
+  // PRO-T1-16 — a named workspace the caller may still enter wins over the
+  // shared pointer; a refused one is simply not used.
+  let selectedWorkspaceId = userRow.currentWorkspaceId;
+  let selectedByRequest = false;
+  if (input.requestedWorkspaceId && input.requestedWorkspaceId !== userRow.currentWorkspaceId) {
+    if (await requestedWorkspaceEnterable(userRow.id, input.requestedWorkspaceId)) {
+      selectedWorkspaceId = input.requestedWorkspaceId;
+      selectedByRequest = true;
+    }
+  }
+
+  if (selectedWorkspaceId) {
     try {
       const team = await prisma.team.findUnique({
-        where: { id: userRow.currentWorkspaceId },
+        where: { id: selectedWorkspaceId },
         select: {
           id: true,
           name: true,
@@ -391,7 +430,9 @@ export async function buildPlatformContext(
         // cannot fire; the guard is stated for the reader.
         workspaceStatus = "degraded";
         workspaceSource = "personal_bootstrap_after_stale";
-        if (personalTeamId && personalSpaceAllowedFlag) {
+        // PRO-T1-16 — a selection this request named is never written back to
+        // (or cleared from) the shared pointer.
+        if (personalTeamId && personalSpaceAllowedFlag && !selectedByRequest) {
           try {
             await prisma.user.update({
               where: { id: userRow.id },
@@ -472,6 +513,7 @@ export async function buildPlatformContext(
       // envelope is still usable.
       if (
         !bootstrap.activeWorkspaceUpdated &&
+        !selectedByRequest &&
         userRow.currentWorkspaceId !== personalTeamId
       ) {
         try {

@@ -246,8 +246,13 @@ export type PlatformContextValue = {
   /**
    * Atomic workspace switch. Pass `null` to switch back to the
    * personal workspace.
+   *
+   * PRO-TZ-04 — resolves `true` once the switched envelope is applied and
+   * `false` when the switch failed or a newer switch superseded it (it never
+   * rejects), so a caller navigates only after a switch that happened. An
+   * older test double resolving `undefined` is treated as "not refused".
    */
-  switchWorkspace: (workspaceId: string | null) => Promise<void>;
+  switchWorkspace: (workspaceId: string | null) => Promise<boolean | void>;
 
   /**
    * Hard refresh — re-fetches /v1/platform/context. Used after
@@ -525,10 +530,11 @@ export function PlatformContextProvider({
 
       try {
         const envelope = await requestWorkspaceSwitch(workspaceId);
-        if (seq !== fetchSequenceRef.current) return;
+        if (seq !== fetchSequenceRef.current) return false;
         ingestEnvelope(envelope);
+        return true;
       } catch (err) {
-        if (seq !== fetchSequenceRef.current) return;
+        if (seq !== fetchSequenceRef.current) return false;
         const cls = classifyError(err, "OPERATIONAL");
         setState((prev) => ({
           name: "FAILED",
@@ -544,6 +550,7 @@ export function PlatformContextProvider({
                   ? prev.previous
                   : null,
         }));
+        return false;
       }
     },
     [ingestEnvelope],

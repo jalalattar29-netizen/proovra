@@ -63,3 +63,35 @@ export async function releaseStaleCaptureRecord(
   await deps.clear({ captureSessionId: r.captureSessionId, draftId: r.draftId });
   return outcome;
 }
+
+/**
+ * PRO-NB-03 — release a direct session the person abandoned (the last item
+ * removed, a screen capture reset, a recording discarded), and when the
+ * release cannot be answered, KEEP a record of the reservation so the next
+ * Capture visit releases it (releaseStaleCaptureRecord) instead of forgetting
+ * a reserved record nothing on the device could reach any more.
+ */
+export async function releaseDirectSessionOrKeep(
+  session: { captureSessionId: string; expiresAtUtc: string },
+  evidenceId: string | null,
+  deps: {
+    discard: StaleReleaseDeps["discard"];
+    keep: (record: { captureSessionId: string; expiresAtUtc: string; evidenceId: string }) => Promise<unknown>;
+  },
+): Promise<"released" | "cleared" | "kept"> {
+  try {
+    await deps.discard(session);
+    return "released";
+  } catch (err) {
+    if (staleReleaseSettled(err)) return "cleared";
+    await deps
+      .keep({
+        captureSessionId: session.captureSessionId,
+        expiresAtUtc: session.expiresAtUtc,
+        // A record id distinct from the session id marks it as holding a direct session.
+        evidenceId: evidenceId ?? `unreserved:${session.captureSessionId}`,
+      })
+      .catch(() => undefined);
+    return "kept";
+  }
+}

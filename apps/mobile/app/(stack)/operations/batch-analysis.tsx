@@ -34,7 +34,7 @@ import { useOptionalLocale } from "../../../src/locale-context";
 import { fillOpsCopy, formatOpsCount, opsCopyFor } from "../../../src/product/ops-copy";
 import { useOpsRowDirection } from "../../../src/ui/ops-surfaces";
 import { useAuth } from "../../../src/auth-context";
-import { usePlatformContext } from "../../../src/product/platform-context";
+import { usePlatformContext, useWorkspaceChangeCount } from "../../../src/product/platform-context";
 import {
   buildLibraryQuery,
   parseEvidencePickerRows,
@@ -292,6 +292,15 @@ export default function BatchAnalysisScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // PRO-NC-01 — the list is the active workspace's: a switch from one known
+  // workspace to another re-reads it (the ticket drops any answer for the
+  // workspace that was left). The first resolution is not a switch, so a mount
+  // still costs one read.
+  const workspaceChanges = useWorkspaceChangeCount();
+  useEffect(() => {
+    if (workspaceChanges > 0) void readJobs(false);
+  }, [workspaceChanges, readJobs]);
 
   // POLLING — the web re-reads the list every 4 s (BATCH_POLL_INTERVAL_MS).
   // Here it runs only while this screen is focused AND a job is still

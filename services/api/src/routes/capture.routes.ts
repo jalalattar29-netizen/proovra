@@ -533,6 +533,32 @@ export async function captureRoutes(app: FastifyInstance) {
           });
         }
 
+        // PRO-C1-05 — autosave writes into a WORKSPACE draft only while the
+        // owner may still create records there: the same canonical
+        // evidence.create decision, and the same answers, as the create
+        // handler (ET-DC-11 / FAIL-2). Discard (DELETE) stays owner-only so a
+        // demoted or removed member can always release their draft.
+        if (session.teamId) {
+          const decision = await evaluateMemberAccess({
+            teamId: session.teamId,
+            userId: ownerUserId,
+            permission: "evidence.create",
+            resourceKind: "capture_session",
+          });
+          if (!decision.allowed) {
+            if (decision.reason === "permission_not_granted") {
+              return reply.code(403).send({
+                code: "NOT_PERMITTED",
+                message: "Your role in this workspace can view records but not add them.",
+              });
+            }
+            return reply.code(403).send({
+              code: "WORKSPACE_MEMBERSHIP_REQUIRED",
+              message: "You are not an active member of this workspace.",
+            });
+          }
+        }
+
         const data: prismaPkg.Prisma.CaptureSessionUpdateInput = {};
         const eventPayload: Record<string, unknown> = {};
 

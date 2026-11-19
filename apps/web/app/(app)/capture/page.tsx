@@ -97,6 +97,7 @@ export default function CapturePage() {
 function CapturePageInner() {
   const { addToast } = useToast();
   const addFilesToSessionRef = useRef<CaptureSessionAddFiles | null>(null);
+  const stagedBytesRef = useRef(0);
   const setPageErrorRef = useRef<(message: string | null) => void>(() => {});
 
   const [useLocation, setUseLocation] = useState(false);
@@ -117,6 +118,7 @@ function CapturePageInner() {
   // confirm finishes accepting the failed location request.
   const [reviewAcceptsLocationFailure, setReviewAcceptsLocationFailure] = useState(false);
   const activeSpace = useActiveSpace();
+  const platformForGuidance = useOptionalPlatformContext();
   const workspaceName = activeSpace?.displayName ?? null;
   // F-12 — the caller's OWN Personal Space only (a joined personal workspace
   // is funded by its owner's account, not the viewer's).
@@ -167,6 +169,8 @@ function CapturePageInner() {
     () => collectionPlans.find((plan) => plan.id === collectionPlanId),
     [collectionPlanId, collectionPlans]
   );
+  // PRO-C1C-03 — guidance dismissals belong to this account and this workflow.
+  const guidanceScopeKey = `${platformForGuidance?.envelope?.account?.userId ?? "anon"}:${selectedCollectionPlan?.id ?? "freeform"}`;
 
   const draftList = useCaptureDraftList();
   // B4-F-307 — only the drafts of the workspace Capture is in.
@@ -217,6 +221,7 @@ function CapturePageInner() {
   } = useCaptureCamera({
     addFilesToSessionRef,
     addToast,
+    getStagedBytes: () => stagedBytesRef.current,
   });
 
   const {
@@ -235,6 +240,7 @@ function CapturePageInner() {
     addToast,
     closeCamera,
     onClearPageError: () => setPageErrorRef.current(null),
+    getStagedBytes: () => stagedBytesRef.current,
   });
 
   // Phase 30.10 / 30.12 — resumable upload adoption. With the env flag OFF
@@ -300,6 +306,8 @@ function CapturePageInner() {
   });
 
   addFilesToSessionRef.current = addFilesToSession;
+  // PRO-C1-07 — what is staged decides each recorder's byte budget.
+  stagedBytesRef.current = sessionItems.reduce((sum, item) => sum + (item.file?.size ?? 0), 0);
   setPageErrorRef.current = setError;
 
   // Browser screen recording — stages ONE video item through the same
@@ -308,7 +316,7 @@ function CapturePageInner() {
   // own click, which opens the browser's chooser. The card below appears only
   // once there is a live, stopped, cancelled or failed recording to show.
   const online = useOnlineStatus();
-  const screenRecorder = useCaptureScreenRecorder({ addFilesToSession });
+  const screenRecorder = useCaptureScreenRecorder({ addFilesToSession, getStagedBytes: () => stagedBytesRef.current });
   const screenCardVisible = shouldShowScreenRecorderCard(screenRecorder.state, screenRecorder.error);
 
   const updateSessionItem = (
@@ -645,7 +653,17 @@ function CapturePageInner() {
   // UC-WEB-002 — one guard for leave-page AND workspace-switch, ON while
   // material is staged OR a finalize/upload is in flight (busy). See
   // _hooks/useCaptureLeaveGuard.ts for why `busy` must not switch it off.
-  useCaptureLeaveGuard(sessionItems.length, busy);
+  // PRO-C1-07 — a recording that is running, or recorded and awaiting "Add to
+  // session", is work at risk too: leaving or switching workspace asks first.
+  const recordingAtRisk =
+    isRecording ||
+    audioRecorderState === "recording" ||
+    audioRecorderState === "preview_ready" ||
+    screenRecorder.state === "recording" ||
+    screenRecorder.state === "paused" ||
+    screenRecorder.state === "stopped" ||
+    screenRecorder.state === "adding";
+  useCaptureLeaveGuard(sessionItems.length + (recordingAtRisk ? 1 : 0), busy);
 
   useEffect(() => {
     const handleOutsideClick = (event: PointerEvent) => {
@@ -1167,13 +1185,14 @@ function CapturePageInner() {
                   }
                 />
                 <CaptureTrustStrip />
-                <CaptureReadinessPanel items={sessionItems} />
+                <CaptureReadinessPanel items={sessionItems} scopeKey={guidanceScopeKey} />
                 {sessionItems.length > 0 ? (
                   <CaptureSuggestionsPanel
                     readiness={computeCaptureReadiness({
                       items: sessionItems,
                     })}
                     onActionClick={onSuggestionAction}
+                    scopeKey={guidanceScopeKey}
                   />
                 ) : null}
                 <CaptureDirectWebCaptureCard />

@@ -218,8 +218,10 @@ export function useHomeData(): HomeData {
           )
         : Promise.resolve(null);
 
+    // PRO-N1-09 — the page of 50 is the ACTIVE workspace's, not the first 50
+    // across every workspace (the server filters by workspaceId).
     const inboxPromise: Promise<HomeInboxInput | null> = apiFetch(
-      "/v1/me/inbox?pageSize=50",
+      workspaceId ? `/v1/me/inbox?pageSize=50&workspaceId=${encodeURIComponent(workspaceId)}` : "/v1/me/inbox?pageSize=50",
       { method: "GET" },
     ).catch(soft("inbox"));
 

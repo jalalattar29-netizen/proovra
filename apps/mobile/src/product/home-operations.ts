@@ -495,6 +495,8 @@ export function buildActivityGroups(input: {
   communications?: unknown;
   /** GET /v1/me/inbox — "request more" items. */
   inbox?: unknown;
+  /** PRO-N1-09 — the active workspace: the inbox aggregates every workspace. */
+  workspaceId?: string | null;
   nowMs?: number;
   limit?: number;
 }): ActivityGroup[] {
@@ -514,6 +516,9 @@ export function buildActivityGroups(input: {
     const it = obj(raw);
     const at = str(it.occurredAt);
     if (str(it.category) !== "intake_required_items_missing" || !at) continue;
+    // PRO-N1-09 — another workspace's entry is not this Home's activity.
+    const itemTeam = str(obj(it.context).teamId);
+    if (input.workspaceId && itemTeam && itemTeam !== input.workspaceId) continue;
     // D4 — this inbox category is the SERVER's "required items are missing"
     // (an evidence request PARTIALLY_FULFILLED or NEEDS_MORE_INFO). It is not
     // a record that anyone sent a "request more", so the row says what the

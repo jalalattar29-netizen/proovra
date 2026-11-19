@@ -85,3 +85,28 @@ test("B4-F-101: /capture releases stale records through the helper instead of cl
   assert.match(body, /releaseStaleCaptureRecord\(r,\s*\{\s*discard: discardDirectCaptureSession,/);
   assert.doesNotMatch(body, /else \{\s*stale \+= 1;\s*await clearCaptureSession/);
 });
+
+// PRO-NB-03 — an abandoned reservation whose release got no answer is KEPT as a
+// record the next Capture visit releases; an answered release keeps nothing.
+test("PRO-NB-03: an unanswered release keeps a releasable record; an answered one keeps nothing", async () => {
+  const kept = [];
+  const session = { captureSessionId: "cs-9", expiresAtUtc: "" };
+  const offline = await M.releaseDirectSessionOrKeep(session, "ev-9", {
+    discard: async () => {
+      throw Object.assign(new Error("offline"), { code: "NETWORK_ERROR" });
+    },
+    keep: async (r) => kept.push(r),
+  });
+  assert.equal(offline, "kept");
+  assert.deepEqual(kept, [{ captureSessionId: "cs-9", expiresAtUtc: "", evidenceId: "ev-9" }]);
+  // The kept record is one the stale release recognises as holding a session.
+  assert.equal(M.holdsDirectSession({ ...kept[0], draftId: null }), true);
+
+  kept.length = 0;
+  const online = await M.releaseDirectSessionOrKeep(session, null, {
+    discard: async () => ({ discarded: true }),
+    keep: async (r) => kept.push(r),
+  });
+  assert.equal(online, "released");
+  assert.deepEqual(kept, []);
+});

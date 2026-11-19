@@ -148,15 +148,23 @@ export default function IntakeLinksScreen() {
         ? { kind: "restricted", reason: "forbidden" }
         : null;
 
+  // PRO-NC-01 — only the newest read, for the workspace still active, is applied.
+  const fetchSeqRef = useRef(0);
+  const liveTeamRef = useRef(teamId);
+  liveTeamRef.current = teamId;
   const fetchLinks = useCallback(
     async (mode: "initial" | "refresh", term: string) => {
       if (!teamId) return;
+      const mine = ++fetchSeqRef.current;
+      const stale = () => mine !== fetchSeqRef.current || liveTeamRef.current !== teamId;
       if (mode === "refresh") setRefreshing(true);
       else setLoad({ kind: "loading" });
       try {
         const data = await apiFetch(buildIntakeListPath(teamId, term));
+        if (stale()) return;
         setLoad({ kind: "ready", items: parseIntakeLinks(data) });
       } catch (err) {
+        if (stale()) return;
         const safe = toSafeUserError(err, { message: COPY.errorFallback });
         const kind = classifyIntakeListFailure(safe);
         if (kind === "feature_disabled") setLoad({ kind: "feature_disabled" });

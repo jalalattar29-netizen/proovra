@@ -240,6 +240,16 @@ export default function SearchScreen() {
   const [failure, setFailure] = useState<"restricted" | "unavailable" | null>(null);
   const [modeUsed, setModeUsed] = useState<SearchMode | null>(null);
   const reqSeq = useRef(0);
+  // PRO-NC-01 — what was listed and inspected belongs to the workspace that
+  // was left: a switch clears it and invalidates any read in flight.
+  const listedForTeam = useRef(teamId);
+  useEffect(() => {
+    if (listedForTeam.current === teamId) return;
+    listedForTeam.current = teamId;
+    reqSeq.current += 1;
+    setResults(null);
+    setInspected(null);
+  }, [teamId]);
   const probeRef = useRef<SearchQueryProbe | null>(null);
   probeRef.current = queryProbe;
 

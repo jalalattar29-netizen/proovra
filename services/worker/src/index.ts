@@ -442,8 +442,14 @@ async function runCaptureDraftReaper(trigger: string) {
     // reads. This worker is the only reaper; a failure here is rethrown by the
     // run and reported below, never swallowed inside it.
     {
-      const { deleteObjectVersions } = await import("./storage.js");
-      const sweep = await runCaptureReaperSweep({ trigger, deleteObject: deleteObjectVersions });
+      const { deleteObjectVersions, listObjects } = await import("./storage.js");
+      const sweep = await runCaptureReaperSweep({
+        trigger,
+        deleteObject: deleteObjectVersions,
+        // PRO-C1C-01 — a released record's own prefix, bounded to one page.
+        listKeys: async ({ bucket, prefix }) => (await listObjects({ bucket, prefix })).map((o) => o.key),
+        bucket: process.env.S3_BUCKET ?? null,
+      });
       if (sweep.failed > 0) {
         logger.warn({ ...sweep, trigger }, "capture.reaper.partial");
       }

@@ -100,6 +100,23 @@ export function hasPreferencesConsent(): boolean {
   return readLocalConsent().preferences === true;
 }
 
+/**
+ * PRO-C1C-04 — THE ONE WRITER FOR A FUNCTIONAL PREFERENCE KEY. The cookie policy
+ * lists these keys as stored "only after preferences consent"; writers called
+ * localStorage directly. Without consent nothing is written (the caller keeps
+ * its in-memory state for this mount) and false is answered.
+ */
+export function writePreferenceStorage(key: string, value: string): boolean {
+  if (typeof window === "undefined") return false;
+  if (!hasPreferencesConsent()) return false;
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function hasAnalyticsConsent(): boolean {
   return readLocalConsent().analytics === true;
 }

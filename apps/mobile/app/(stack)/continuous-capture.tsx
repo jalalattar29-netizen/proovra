@@ -93,7 +93,7 @@ import {
   type CarriedLocation,
 } from "../../src/capture/device-location";
 import { registerLinkedRecord } from "../../src/capture/capture-links";
-import { discardDirectCaptureSession, type DirectCaptureSession } from "../../src/direct-capture";
+import { discardDirectCaptureSession, touchDirectCaptureSession, type DirectCaptureSession } from "../../src/direct-capture";
 import { captureRecordKey, findCaptureSession, saveCaptureSession, type PersistedCaptureWorkspace } from "../../src/capture/capture-session-store";
 import {
   clearLiveContinuousSession,
@@ -125,9 +125,10 @@ import {
 import {
   executeContinuousRecovery,
   planContinuousRecovery,
-  captureSessionWindowOpen,
+  captureSessionRecoverable,
   recoverOnce,
 } from "../../src/capture/continuous-recovery";
+import { releaseDirectSessionOrKeep } from "../../src/capture/stale-capture-release";
 import {
   addContinuousStartedListener,
   addContinuousStoppedListener,
@@ -148,6 +149,18 @@ import {
 type SessionRef = { session: DirectCaptureSession; evidenceId: string };
 
 type Recovery = null | { kind: "ended" } | { kind: "expired" } | { kind: "orphan" } | { kind: "leftover" } | { kind: "mismatch" };
+
+/** PRO-NBC-02 — well inside the server's one-hour sliding expiry. */
+const CONTINUOUS_HEARTBEAT_MS = 10 * 60 * 1000;
+
+/**
+ * PRO-NB-03 — a session whose release got no answer is kept as a pending
+ * capture record, so the next Capture visit releases it (B4-F-101) instead of
+ * the reservation being forgotten until the reaper.
+ */
+function keepUnreleased(r: { captureSessionId: string; expiresAtUtc: string; evidenceId: string }): Promise<void> {
+  return saveCaptureSession({ ...r, type: "VIDEO", items: [], draftId: null, acquisition: null });
+}
 
 export default function ContinuousCaptureScreen() {
   const router = useRouter();
@@ -360,7 +373,8 @@ export default function ContinuousCaptureScreen() {
     await cleanupContinuousTempFiles(seenRef.current);
     await discardContinuousSpool(recordingId).catch(() => undefined);
     await clearLiveContinuousSession();
-    if (active) await discardDirectCaptureSession(active.session).catch(() => undefined);
+    // PRO-NB-03 — a release that got no answer is kept for Capture to retry.
+    if (active) await releaseDirectSessionOrKeep(active.session, active.evidenceId, { discard: discardDirectCaptureSession, keep: keepUnreleased });
   }, [clearStartTimer]);
 
   /**
@@ -498,7 +512,9 @@ export default function ContinuousCaptureScreen() {
           } else {
             // AUD-0065 — a session whose window has closed is not offered as
             // recoverable: the first declaration would be refused.
-            setRecovery(captureSessionWindowOpen(live.expiresAtUtc) ? { kind: "ended" } : { kind: "expired" });
+            // PRO-NB-01 — judged by the session's 24 h lifetime, not the
+            // one-hour expiry on the device clock; the server answers the rest.
+            setRecovery(captureSessionRecoverable(live) ? { kind: "ended" } : { kind: "expired" });
           }
         } else if (native.active) {
           setRecovery({ kind: "orphan" });
@@ -532,6 +548,21 @@ export default function ContinuousCaptureScreen() {
       state.phase === "awaiting" || state.phase === "active" || state.phase === "review" || state.phase === "finalizing";
     setCaptureActive(inFlight);
     return () => setCaptureActive(false);
+  }, [state.phase]);
+
+  // PRO-NBC-02 — a SINGLE_FILE recording declares nothing until Continue, so
+  // nothing slid its session's expiry: a long recording (or a late Continue)
+  // found the session expired. While recording or in review the session is
+  // kept open through the owner heartbeat (bounded by its 24 h lifetime).
+  useEffect(() => {
+    if (state.phase !== "active" && state.phase !== "review") return undefined;
+    const beat = () => {
+      const held = sessionRef.current;
+      if (held) void touchDirectCaptureSession(held.session);
+    };
+    beat();
+    const timer = setInterval(beat, CONTINUOUS_HEARTBEAT_MS);
+    return () => clearInterval(timer);
   }, [state.phase]);
 
   // Wait until the bounded upload queue is drained (queue empty and no worker
@@ -984,8 +1015,11 @@ export default function ContinuousCaptureScreen() {
     const live = await loadLiveContinuousSession();
     await clearLiveContinuousSession();
     if (live) {
-      await discardDirectCaptureSession({ captureSessionId: live.captureSessionId, expiresAtUtc: live.expiresAtUtc }).catch(
-        () => undefined,
+      // PRO-NB-03 — kept for Capture to release when the discard got no answer.
+      await releaseDirectSessionOrKeep(
+        { captureSessionId: live.captureSessionId, expiresAtUtc: live.expiresAtUtc },
+        live.evidenceId,
+        { discard: discardDirectCaptureSession, keep: keepUnreleased },
       );
     }
     setRecovery(null);

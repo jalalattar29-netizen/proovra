@@ -89,6 +89,7 @@ import {
   reserveDirectCaptureEvidence,
   discardDirectCaptureSession,
   submitDirectCaptureAttestation,
+  touchDirectCaptureSession,
 } from "../services/capture-trust/direct-capture-ingest.service.js";
 import { projectProvenanceChain } from "../services/capture-trust/provenance-projection.service.js";
 import { readCaptureTrustTimeline } from "../services/capture-trust/trust-event.service.js";
@@ -208,6 +209,10 @@ const ReserveDirectEvidenceBody = z
     // The outcome of a location request that produced no coordinates; recorded
     // in the creation custody event (canonical location state). Optional.
     locationRequestOutcome: z.enum(["DENIED", "UNAVAILABLE", "TIMEOUT", "NOT_REQUESTED"]).optional(),
+    // PRO-NB-09 — the caller's own capture DRAFT, bound to the record exactly as
+    // POST /v1/evidence binds captureSessionId (plan snapshot; FINALIZED at the
+    // seal). Optional: an older app sends none and keeps today's behaviour.
+    captureDraftId: z.string().uuid().optional(),
   })
   .strict();
 
@@ -493,6 +498,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
           deviceTimeIso: body.deviceTimeIso,
           gps: body.gps,
           locationRequestOutcome: body.locationRequestOutcome,
+          captureDraftId: body.captureDraftId ?? null,
         });
         return reply.code(201).send({ evidence: reserved });
       } catch (err) {
@@ -545,6 +551,31 @@ export async function captureTrustRoutes(app: FastifyInstance) {
       try {
         const out = await listDirectCaptureParts({ sessionId: id, ownerUserId: userId });
         return reply.code(200).send(out);
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/capture/direct-sessions/:id/heartbeat  (PRO-NBC-02)
+  //
+  // Keeps a session that is still capturing open while it has nothing to
+  // declare yet (a SINGLE_FILE continuous recording declares its one part only
+  // after Stop). Same owner authorization as a declaration; the expiry slides
+  // as any activity slides it, never past the session's 24 h lifetime, and an
+  // ended or expired session is refused as every other session call refuses it.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/capture/direct-sessions/:id/heartbeat",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const { id } = SessionParams.parse(req.params);
+      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      try {
+        const out = await touchDirectCaptureSession({ sessionId: id, ownerUserId: userId });
+        return reply.code(200).send({ session: out });
       } catch (err) {
         return sendDirectCaptureError(reply, err);
       }

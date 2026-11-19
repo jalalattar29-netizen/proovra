@@ -158,8 +158,12 @@ export async function transitionUploadSession(
   const now = new Date();
   const data: Record<string, unknown> = {
     status: to as DbUploadSessionStatus,
-    lastActivityAtUtc: now,
   };
+  // PRO-C1C-02 — the reconcile's own STALLED / ABANDONED bookkeeping is not
+  // upload activity: it has stalledAtUtc / abandonedAtUtc. Writing
+  // lastActivityAtUtc there kept an abandoned record's slot about an hour past
+  // its reservation window.
+  if (to !== "STALLED" && to !== "ABANDONED") data.lastActivityAtUtc = now;
   if (input.reason !== undefined) {
     data.failureReason = input.reason?.slice(0, 400) ?? null;
   }

@@ -77,3 +77,50 @@ export async function discardRefusedUploadObjects(
   }
   return out;
 }
+
+/**
+ * PRO-C1-03 — AN ASSEMBLED RESUMABLE OBJECT THAT CAN NEVER BE EVIDENCE GOES.
+ *
+ * The resumable door assembles one object per session (its own key under the
+ * record). When the upload then fails its size or digest check, is refused at
+ * the bridge, or is cancelled after assembly, AbortMultipartUpload is a no-op
+ * and the object stayed, unmetered, with no part row pointing at it. It is
+ * removed here through the same version-aware port, deciding under the record
+ * lock that no part row (of a live OR sealed record) references the key and
+ * that it is not the record's own object: a sealed object is never touched,
+ * and a version under retention or a legal hold is retained and reported.
+ */
+export async function discardUnboundSessionObject(
+  evidenceId: string,
+  target: { bucket: string; key: string },
+  options: {
+    client?: PrismaClient;
+    storage?: Pick<EvidenceDestructionStoragePort, "listObjectVersions" | "deleteObjectVersion">;
+  } = {},
+): Promise<RefusedUploadCleanup> {
+  const client = options.client ?? defaultPrisma;
+  const storage = options.storage ?? apiEvidenceDestructionStorage;
+  const out: RefusedUploadCleanup = { objects: 0, deletedVersions: 0, retainedVersions: 0, failed: 0 };
+  const unbound = await client.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidenceId}))`;
+    const referenced = await tx.evidencePart.count({
+      where: { storageBucket: target.bucket, storageKey: target.key },
+    });
+    if (referenced > 0) return false;
+    const own = await tx.evidence.count({
+      where: { storageBucket: target.bucket, storageKey: target.key },
+    });
+    return own === 0;
+  });
+  if (!unbound) return out;
+  out.objects = 1;
+  try {
+    const removal = await removeObjectVersions(storage, target);
+    out.deletedVersions += removal.deletedVersions;
+    out.retainedVersions += removal.retainedVersions;
+    out.failed += removal.failed;
+  } catch {
+    out.failed++;
+  }
+  return out;
+}

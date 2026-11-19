@@ -1,6 +1,6 @@
 {
   "contractVersion": 1,
-  "routeEpoch": 1,
+  "routeEpoch": 2,
   "routes": [
     "DELETE /v1/admin/identity/scim/groups/projections/:id",
     "DELETE /v1/auth/saml/:connectionId/certificate-next",
@@ -701,6 +701,7 @@
     "POST /v1/capture/direct-sessions/:id/continuous-complete",
     "POST /v1/capture/direct-sessions/:id/discard",
     "POST /v1/capture/direct-sessions/:id/evidence",
+    "POST /v1/capture/direct-sessions/:id/heartbeat",
     "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
     "POST /v1/capture/direct-sessions/:id/parts/:partIndex/loss",
     "POST /v1/capture/direct-sessions/:id/screen-complete",
