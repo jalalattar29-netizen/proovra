@@ -754,6 +754,145 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
   });
 
   // ===========================================================================
+  // WS-SCHED / PRO-W2C2-02 — the scheduler runs the runtime sweeps for the fleet
+  // ===========================================================================
+  describe("WS-SCHED PRO-W2C2-02: the machine reconcile with no workspace sweeps every workspace", () => {
+    const machine = () => ({ [cronHeader]: process.env.IDENTITY_RECONCILE_CRON_SECRET! });
+    const idle = () => new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const session = (teamId: string, userId: string, data: Record<string, unknown> = {}) =>
+      prisma.authenticatedSession.create({
+        data: {
+          userId,
+          teamId,
+          sessionIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+          expiresAtUtc: future(),
+          lastSeenAtUtc: idle(),
+          ...data,
+        } as never,
+        select: { id: true },
+      });
+    const read = (id: string) =>
+      prisma.authenticatedSession.findUniqueOrThrow({
+        where: { id },
+        select: { revokedAtUtc: true, quarantinedAtUtc: true, lastRiskRecomputedAtUtc: true },
+      });
+    const sweepAll = async () => {
+      await prisma.workerSweepCursor.deleteMany({ where: { key: "identity_runtime_reconcile_teams" } });
+      const r = await call("POST", "/v1/admin/identity/runtime/reconcile", null, {}, machine());
+      expect(r.statusCode, r.body).toBe(200);
+      return json(r);
+    };
+
+    it("with no operator action: due quarantines are released, sessions are re-scored, platform retention runs; nothing is revoked or decayed while enforcement is off", async () => {
+      const B = h.fixtures.teamB;
+      const quarantined = await session(A().teamId, A().viewerUserId, {
+        quarantinedAtUtc: past(),
+        quarantineReason: "SUSPICIOUS_SESSION_AUTO",
+        quarantineReleaseAtUtc: past(),
+      });
+      const idleHere = await session(A().teamId, A().viewerUserId);
+      const idleOtherWorkspace = await session(B.teamId, B.ownerUserId);
+      const device = await prisma.trustedDevice.create({
+        data: {
+          teamId: A().teamId,
+          userId: A().viewerUserId,
+          deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+          uaPreview: "ws-sched-agent",
+          ipPreview: "203.0.113.0/24",
+          trustedUntilUtc: future(),
+          lastSeenAtUtc: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000),
+        } as never,
+        select: { id: true },
+      });
+      const geo = await prisma.geoIntelligenceLookup.create({
+        data: { ipHash: createHash("sha256").update(randomUUID()).digest("hex"), provider: "ws-sched", expiresAtUtc: past() },
+        select: { id: true },
+      });
+
+      delete process.env.IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT;
+      const out = await sweepAll();
+      expect(out).toMatchObject({ scope: "all_workspaces", enforcement: false, failedTeams: 0 });
+      expect(out.teamsVisited).toBeGreaterThanOrEqual(2);
+      expect(out.totals.quarantineReleased).toBeGreaterThanOrEqual(1);
+      expect(out.totals.staleSessionsRevoked).toBe(0);
+      expect(out.totals.escalatedToQuarantine).toBe(0);
+
+      expect((await read(quarantined.id)).quarantinedAtUtc).toBeNull();
+      // Both workspaces were reached (the second one had no operator at all).
+      expect((await read(idleHere.id)).lastRiskRecomputedAtUtc).toBeInstanceOf(Date);
+      expect((await read(idleOtherWorkspace.id)).lastRiskRecomputedAtUtc).toBeInstanceOf(Date);
+      // Idle is detected, never revoked, and the stale device keeps its trust.
+      expect(out.totals.staleSessionsDetected).toBeGreaterThanOrEqual(2);
+      expect((await read(idleHere.id)).revokedAtUtc).toBeNull();
+      expect((await read(idleOtherWorkspace.id)).revokedAtUtc).toBeNull();
+      expect((await prisma.trustedDevice.findUniqueOrThrow({ where: { id: device.id } })).status).toBe("ACTIVE");
+      expect(await prisma.geoIntelligenceLookup.count({ where: { id: geo.id } })).toBe(0);
+
+      await prisma.trustedDevice.delete({ where: { id: device.id } });
+    });
+
+    it("with enforcement on: idle sessions are revoked only where the organization configured an idle timeout, at that value; stale devices decay", async () => {
+      const B = h.fixtures.teamB;
+      const orgB = (await prisma.team.findUniqueOrThrow({ where: { id: B.teamId }, select: { organizationId: true } })).organizationId;
+      const policy = await prisma.organizationSecurityPolicy.findFirst({ where: { organizationId: orgId }, select: { id: true, idleTimeoutSeconds: true } });
+      const policyId = policy
+        ? policy.id
+        : (await prisma.organizationSecurityPolicy.create({ data: { organizationId: orgId } as never, select: { id: true } })).id;
+      await prisma.organizationSecurityPolicy.update({ where: { id: policyId }, data: { idleTimeoutSeconds: 3600 } });
+      if (orgB && orgB !== orgId) {
+        await prisma.organizationSecurityPolicy.updateMany({ where: { organizationId: orgB }, data: { idleTimeoutSeconds: null } });
+      }
+
+      const idlePastPolicy = await session(A().teamId, A().viewerUserId);
+      const idleWithinPolicy = await session(A().teamId, A().viewerUserId, { lastSeenAtUtc: new Date(Date.now() - 40 * 60 * 1000) });
+      const idleNoPolicy = orgB && orgB !== orgId ? await session(B.teamId, B.ownerUserId) : null;
+      const device = await prisma.trustedDevice.create({
+        data: {
+          teamId: A().teamId,
+          userId: A().viewerUserId,
+          deviceIdHash: createHash("sha256").update(randomUUID()).digest("hex"),
+          uaPreview: "ws-sched-agent",
+          ipPreview: "203.0.113.0/24",
+          trustedUntilUtc: future(),
+          lastSeenAtUtc: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000),
+        } as never,
+        select: { id: true },
+      });
+
+      process.env.IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT = "true";
+      try {
+        const out = await sweepAll();
+        expect(out).toMatchObject({ scope: "all_workspaces", enforcement: true });
+        expect((await read(idlePastPolicy.id)).revokedAtUtc).toBeInstanceOf(Date);
+        // 40 minutes idle is past the operator sweep's 30-minute default but
+        // inside the hour this organization configured.
+        expect((await read(idleWithinPolicy.id)).revokedAtUtc).toBeNull();
+        if (idleNoPolicy) expect((await read(idleNoPolicy.id)).revokedAtUtc).toBeNull();
+        const after = await prisma.trustedDevice.findUniqueOrThrow({ where: { id: device.id }, select: { trustScoreDecay: true, status: true } });
+        expect(after.trustScoreDecay > 0 || after.status === "REVOKED").toBe(true);
+
+        // A second sweep is a no-op for the revoked session (no double revoke).
+        const again = await sweepAll();
+        expect(again.failedTeams).toBe(0);
+      } finally {
+        delete process.env.IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT;
+        await prisma.organizationSecurityPolicy.update({ where: { id: policyId }, data: { idleTimeoutSeconds: policy?.idleTimeoutSeconds ?? null } });
+        await prisma.trustedDevice.deleteMany({ where: { id: device.id } });
+      }
+    });
+
+    it("the per-workspace machine call and the operator path are unchanged", async () => {
+      const one = await call("POST", "/v1/admin/identity/runtime/reconcile", null, { teamId: A().teamId }, machine());
+      expect(one.statusCode, one.body).toBe(200);
+      expect(json(one).teamId).toBe(A().teamId);
+      expect(json(one).scope).toBeUndefined();
+      // No secret and no session: the fleet mode is not reachable.
+      const anon = await call("POST", "/v1/admin/identity/runtime/reconcile", null, {});
+      expect(anon.statusCode).toBe(401);
+    });
+  });
+
+  // ===========================================================================
   // B1-F-015 — closure says the account export holds no records
   // ===========================================================================
   describe("B1-F-015: the closure preview states that records are not in the account export", () => {

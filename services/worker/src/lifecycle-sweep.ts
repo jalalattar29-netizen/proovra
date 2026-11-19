@@ -19,6 +19,7 @@
 
 import { INTEGRATION_CRON_HEADER, newCorrelationId } from "@proovra/shared";
 import { logger } from "./logger.js";
+import { reportSweepNotConfigured, resolveInternalApiBase } from "./internal-api.js";
 import { captureException } from "./sentry.js";
 
 export type LifecycleSweepResult = {
@@ -29,12 +30,9 @@ export type LifecycleSweepResult = {
   error?: string;
 };
 
+// PRO-W2-10 — the one resolver (with the bootstrap's default).
 function apiBaseUrl(): string {
-  const v =
-    process.env.INTERNAL_API_BASE_URL?.trim() ||
-    process.env.API_BASE_URL?.trim() ||
-    "";
-  return v.replace(/\/+$/, "");
+  return resolveInternalApiBase();
 }
 
 function cronSecret(): string {
@@ -53,6 +51,7 @@ export async function runLifecycleSweepTick(
       { correlationId, hasBaseUrl: Boolean(base), hasSecret: Boolean(secret) },
       "lifecycle_sweep.not_configured",
     );
+    reportSweepNotConfigured({ sweep: "lifecycle-sweep", missing: ["INTEGRATION_CRON_SECRET"] });
     return { ok: false, correlationId, failures: 0, durationMs: Date.now() - startedAt, error: "not_configured" };
   }
 

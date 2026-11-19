@@ -12,8 +12,9 @@ import { Worker } from "bullmq";
 import { WORKER_CONCURRENCY_SETTINGS, workerQueueConcurrency } from "./worker-concurrency.js";
 // PHASE 12 CORRECTIVE PASS §4 (SEC-004) — the ONE secrets authority, shared
 // with the API. See the call site near the bottom of this file.
-import { getOcrProducerMode, getTranscriptProducerMode, initSecretsAuthority } from "@proovra/shared-runtime";
+import { getOcrProducerMode, getTranscriptProducerMode, initSecretsAuthority, integrityRecheckIntervalDays } from "@proovra/shared-runtime";
 import { logger } from "./logger.js";
+import { resolveInternalApiBase } from "./internal-api.js";
 import {
   derivedAssetsQueue,
   derivedAssetsQueueName,
@@ -167,10 +168,8 @@ function envBoolean(name: string, fallback: boolean): boolean {
 }
 
 
-const internalApiBase =
-  envString("INTERNAL_API_BASE_URL") ??
-  envString("API_BASE_URL") ??
-  "http://proovra-api:8080";
+// PRO-W2-10 — the same resolver every worker-driven API sweep uses.
+const internalApiBase = resolveInternalApiBase();
 
 const internalApiKey = envString("INTERNAL_API_KEY");
 const followUpEnabled = envBoolean("DEMO_FOLLOW_UP_ENABLED", true);
@@ -552,6 +551,9 @@ async function runIntegrityRecheckTick(trigger: string) {
         intervalMs: integrityRecheckIntervalMs,
         baseBatch: integrityRecheckBatch,
         maxBatch: envNumber("INTEGRITY_RECHECK_SWEEP_MAX_BATCH", 200),
+        // PRO-W2-08 / B8-F-301 — size for the CONFIGURED cadence, the same
+        // value the due predicate uses (INTEGRITY_RECHECK_INTERVAL_DAYS).
+        cadenceDays: integrityRecheckIntervalDays(),
       });
       limit = plan.limit;
       if (plan.capacityExceeded) {

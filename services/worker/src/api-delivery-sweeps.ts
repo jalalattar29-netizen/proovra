@@ -20,10 +20,12 @@
 import {
   INTEGRATION_CRON_HEADER,
   NOTIFICATION_CRON_HEADER,
+  REVIEWER_OPS_CRON_HEADER,
   newCorrelationId,
 } from "@proovra/shared";
 
 import { logger } from "./logger.js";
+import { reportSweepNotConfigured, resolveInternalApiBase } from "./internal-api.js";
 import { captureException } from "./sentry.js";
 
 export type ApiDeliverySweep = {
@@ -31,7 +33,9 @@ export type ApiDeliverySweep = {
   name: string;
   path: string;
   header: string;
-  secretEnv: "NOTIFICATION_CRON_SECRET" | "INTEGRATION_CRON_SECRET";
+  secretEnv: "NOTIFICATION_CRON_SECRET" | "INTEGRATION_CRON_SECRET" | "IDENTITY_RECONCILE_CRON_SECRET";
+  /** Read when `secretEnv` is unset: the order the route itself reads them in. */
+  secretFallbackEnv?: "INTEGRATION_CRON_SECRET";
   intervalMs: number;
 };
 
@@ -111,6 +115,20 @@ export const API_DELIVERY_SWEEPS: ReadonlyArray<ApiDeliverySweep> = [
     secretEnv: "INTEGRATION_CRON_SECRET",
     intervalMs: 15 * MINUTE,
   },
+  {
+    // WS-SCHED / PRO-W2C2-02 — the identity runtime sweeps (risk recompute,
+    // quarantine release, stale-session detection, geo-cache and callback
+    // retention) for every workspace, paged by a durable cursor on the API.
+    // The route answers on the identity reconcile secret when the API sets
+    // one and on INTEGRATION_CRON_SECRET otherwise; the legs that remove
+    // access wait for the API's IDENTITY_RUNTIME_SCHEDULED_ENFORCEMENT.
+    name: "identity-runtime-reconcile",
+    path: "/v1/admin/identity/runtime/reconcile",
+    header: REVIEWER_OPS_CRON_HEADER,
+    secretEnv: "IDENTITY_RECONCILE_CRON_SECRET",
+    secretFallbackEnv: "INTEGRATION_CRON_SECRET",
+    intervalMs: 5 * MINUTE,
+  },
 ];
 
 export type ApiDeliverySweepResult = {
@@ -121,9 +139,9 @@ export type ApiDeliverySweepResult = {
   error?: string;
 };
 
+// PRO-W2-10 — the one resolver (with the bootstrap's default).
 function apiBaseUrl(): string {
-  const v = process.env.INTERNAL_API_BASE_URL?.trim() || process.env.API_BASE_URL?.trim() || "";
-  return v.replace(/\/+$/, "");
+  return resolveInternalApiBase();
 }
 
 /** Calls one sweep route once. Reports its outcome and never throws. */
@@ -140,12 +158,16 @@ export async function runApiDeliverySweep(
   };
 
   const base = apiBaseUrl();
-  const secret = process.env[sweep.secretEnv]?.trim() ?? "";
+  const secret =
+    process.env[sweep.secretEnv]?.trim() ||
+    (sweep.secretFallbackEnv ? process.env[sweep.secretFallbackEnv]?.trim() : "") ||
+    "";
   if (!base || !secret) {
     logger.warn(
       { sweep: sweep.name, secretEnv: sweep.secretEnv, hasBaseUrl: Boolean(base), hasSecret: Boolean(secret) },
       "api_delivery_sweep.not_configured",
     );
+    reportSweepNotConfigured({ sweep: sweep.name, missing: [sweep.secretEnv] });
     return { ok: false, sweep: sweep.name, correlationId, durationMs: Date.now() - startedAt, error: "not_configured" };
   }
 

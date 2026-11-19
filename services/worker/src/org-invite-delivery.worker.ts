@@ -23,6 +23,7 @@
 
 import { INTEGRATION_CRON_HEADER, newCorrelationId } from "@proovra/shared";
 import { logger } from "./logger.js";
+import { reportSweepNotConfigured, resolveInternalApiBase } from "./internal-api.js";
 import { captureException } from "./sentry.js";
 
 export type OrgInviteDeliverySweepOptions = {
@@ -44,12 +45,9 @@ export type OrgInviteDeliverySweepResult = {
   error?: string;
 };
 
+// PRO-W2-10 — the one resolver (with the bootstrap's default).
 function apiBaseUrl(): string {
-  const v =
-    process.env.INTERNAL_API_BASE_URL?.trim() ||
-    process.env.API_BASE_URL?.trim() ||
-    "";
-  return v.replace(/\/+$/, "");
+  return resolveInternalApiBase();
 }
 
 function cronSecret(): string {
@@ -96,6 +94,7 @@ export async function runOrgInviteDeliverySweep(
   if (!secret) {
     const err = "INTEGRATION_CRON_SECRET not configured";
     logger.error({ trigger, correlationId }, `org_invite_delivery.${err}`);
+    reportSweepNotConfigured({ sweep: "org-invite-delivery", missing: ["INTEGRATION_CRON_SECRET"] });
     return emptyResult(correlationId, 0, err);
   }
 

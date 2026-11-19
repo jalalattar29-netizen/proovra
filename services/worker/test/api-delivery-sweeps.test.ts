@@ -3,7 +3,7 @@
  * the route verifies, and a sweep that cannot run says so.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { INTEGRATION_CRON_HEADER, NOTIFICATION_CRON_HEADER } from "@proovra/shared";
+import { INTEGRATION_CRON_HEADER, NOTIFICATION_CRON_HEADER, REVIEWER_OPS_CRON_HEADER } from "@proovra/shared";
 import { readFileSync } from "node:fs";
 
 import { API_DELIVERY_SWEEPS, runApiDeliverySweep } from "../src/api-delivery-sweeps.js";
@@ -29,6 +29,8 @@ describe("API delivery sweeps", () => {
         ["/v1/integrations/webhooks/cleanup-deliveries", INTEGRATION_CRON_HEADER, "INTEGRATION_CRON_SECRET"],
         ["/v1/integrations/process-secret-cleanup", INTEGRATION_CRON_HEADER, "INTEGRATION_CRON_SECRET"],
         ["/v1/review-operations/reconcile-slas", INTEGRATION_CRON_HEADER, "INTEGRATION_CRON_SECRET"],
+        // WS-SCHED / PRO-W2C2-02
+        ["/v1/admin/identity/runtime/reconcile", REVIEWER_OPS_CRON_HEADER, "IDENTITY_RECONCILE_CRON_SECRET"],
       ].sort(),
     );
   });
