@@ -27,6 +27,8 @@ import { otsColumnsFor } from "./helpers/ots-proof-bytes.js";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
+
 import {
   addMember,
   bootOps,
@@ -437,7 +439,11 @@ describe("Operations remediation closure (live PostgreSQL 16)", () => {
   });
 
   it("P3 a garbage Enterprise drill-down cursor is a stable 400", async () => {
-    const { owner, orgId } = await teamWorkspace("closure-cursor");
+    const { owner, orgId, teamId } = await teamWorkspace("closure-cursor");
+    // PRO-T2-07 — the Organization API serves CUSTOMER organizations only; the
+    // drill-down under test is the Enterprise one, so the workspace is one.
+    await c.prisma.organization.update({ where: { id: orgId }, data: { kind: "CUSTOMER" } });
+    await makeEnterpriseOrganizationWorkspace(c.prisma, teamId);
     const r = await c.inj("GET", `/v1/orgs/${orgId}/operations/incidents?cursor=not-a-cursor`, owner.token);
     expect(r.statusCode).toBe(400);
     expect(r.json().error.code).toBe("invalid_cursor");

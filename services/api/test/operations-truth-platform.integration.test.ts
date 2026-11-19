@@ -71,9 +71,18 @@ describe("Operations truth closure — platform conditions (live PostgreSQL 16 +
     for (let i = 0; i < n; i++) {
       const id = `${tag}-${Date.now()}-${i}`;
       ids.push(id);
-      await q.add(SEARCH_JOB, { evidenceId: null }, { jobId: id, attempts: 2 });
+      // The queue lives in the Redis the whole integration run shares, and
+      // other suites leave hundreds of waiting index jobs on it that nothing
+      // consumes. `lifo` puts THIS job (and its retry) at the head, so this
+      // worker reaches it first instead of working through their backlog.
+      await q.add(SEARCH_JOB, { evidenceId: null }, { jobId: id, attempts: 2, lifo: true });
     }
-    await waitFor(async () => (await q.getJobCounts("failed")).failed >= before + n);
+    // THIS call's jobs reached their final failure (the count alone would also
+    // move for another suite's job that this worker happened to fail).
+    await waitFor(async () => {
+      const states = await Promise.all(ids.map(async (id) => (await q.getJob(id))?.getState()));
+      return states.every((state) => state === "failed") && (await q.getJobCounts("failed")).failed >= before + n;
+    });
     await w.close();
     return ids;
   }
@@ -245,7 +254,8 @@ describe("Operations truth closure — platform conditions (live PostgreSQL 16 +
     const conn = new URL(process.env.REDIS_URL!);
     const okWorker = new Worker(SEARCH_QUEUE, async () => "done", { connection: { host: conn.hostname, port: Number(conn.port) } });
     const doneId = `ops-truth-done-${Date.now()}`;
-    await q.add(SEARCH_JOB, { evidenceId: null }, { jobId: doneId });
+    // Head of the shared queue, as in failSearchJobs: not behind other suites' backlog.
+    await q.add(SEARCH_JOB, { evidenceId: null }, { jobId: doneId, lifo: true });
     await waitFor(async () => (await (await q.getJob(doneId))?.getState()) === "completed");
     await okWorker.close();
     const done = await c.inj("POST", url(doneId), admin.token, body);
