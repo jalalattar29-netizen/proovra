@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   EVIDENCE_TABLE_TOMBSTONE_CLASS,
   EVIDENCE_TOMBSTONE_CLEARED_FIELDS,
+  REDACTION_TABLE_TOMBSTONE_CLASS,
 } from "@proovra/shared-runtime";
 
 const schema = fs.readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
@@ -53,5 +54,18 @@ describe("GOV-010 tombstone classification", () => {
     for (const field of EVIDENCE_TOMBSTONE_CLEARED_FIELDS) {
       expect(tombstone, field).toMatch(new RegExp(`\\b${field}: (null|prismaPkg\\.Prisma\\.DbNull)`));
     }
+  });
+
+  it("PRO-R3-09: the redaction child tables are classified and the executor applies the class", () => {
+    for (const model of ["RedactionDetection", "RedactionRegion", "RedactionDecision", "RedactionApproval", "RedactionVersion", "RedactionActivity"]) {
+      expect(REDACTION_TABLE_TOMBSTONE_CLASS[model], model).toBeDefined();
+    }
+    for (const [model, cls] of Object.entries(REDACTION_TABLE_TOMBSTONE_CLASS)) {
+      const client = model.charAt(0).toLowerCase() + model.slice(1);
+      if (cls === "DELETED") expect(executor, model).toContain(`tx.${client}.deleteMany(`);
+      if (cls === "SCRUBBED") expect(executor, model).toContain(`tx.${client}.updateMany(`);
+    }
+    expect(EVIDENCE_TABLE_TOMBSTONE_CLASS.RedactionProject).toBe("SCRUBBED");
+    expect(executor).toContain("tx.redactionProject.updateMany(");
   });
 });

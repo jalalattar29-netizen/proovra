@@ -726,6 +726,25 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = PublishBody.parse(req.body ?? {});
 
+      // PRO-R3-14 — validate BEFORE spending the single-use step-up: a publish
+      // that cannot happen (no READY copy, version not APPROVED) is refused
+      // without consuming the challenge. The transition re-checks both under
+      // its compare-and-swap after the step-up.
+      const precheckDerivative = await prisma.redactionDerivative.findFirst({
+        where: { teamId: ctx.teamId, versionId: id },
+        select: { state: true },
+      });
+      if (!precheckDerivative || precheckDerivative.state !== "READY") {
+        return reply.code(409).send({ denial: "DERIVATIVE_NOT_READY" as RedactionDenialReason });
+      }
+      const precheckVersion = await prisma.redactionVersion.findFirst({
+        where: { teamId: ctx.teamId, id },
+        select: { state: true },
+      });
+      if (!precheckVersion || precheckVersion.state !== "APPROVED") {
+        return reply.code(409).send({ denial: "INVALID_TRANSITION" as RedactionDenialReason });
+      }
+
       // STEP-UP: publishing a redacted derivative is the irreversible,
       // disclosure-shaping step of the redaction lifecycle (it flips the
       // version + project to PUBLISHED so the verify badge / reports /
@@ -1288,7 +1307,12 @@ export async function redactionRoutes(app: FastifyInstance) {
         kinds: body.kinds as never,
         description: body.description ?? undefined,
       });
-      return reply.code(200).send({ policy });
+      // PRO-R3-08 — the change is a version awaiting a second administrator's
+      // approval (202), or nothing was written (409); never a 200 "applied".
+      if (!policy.pendingPolicyVersionId) {
+        return reply.code(409).send({ denial: "POLICY_REJECTED" as RedactionDenialReason, policy });
+      }
+      return reply.code(202).send({ policy });
     },
   );
 

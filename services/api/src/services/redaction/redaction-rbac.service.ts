@@ -76,6 +76,18 @@ const PLATFORM_ROLE_TO_REDACTION: ReadonlyArray<{
 ];
 
 /**
+ * PRO-R3-05 / DEC-16 — the workspace roles TeamRole actually holds. A MEMBER
+ * may prepare and submit (the reviewer tier: view, author regions, run and
+ * review detection, submit); approval and publication stay with a DISTINCT
+ * OWNER/ADMIN under the two-person rule. VIEWER holds no redaction role.
+ * (The substring table above names roles TeamRole cannot hold; it is kept for
+ * any custom role string and matched first.)
+ */
+const TEAM_ROLE_TO_REDACTION: Readonly<Record<string, RedactionRole | undefined>> = {
+  MEMBER: "REDACTION_REVIEWER",
+};
+
+/**
  * Resolve the (workspace, user) pair to a bounded redaction role
  * set. Refuses non-members of the workspace.
  */
@@ -103,6 +115,8 @@ export async function resolveRedactionRoles(
       for (const r of rule.grants) granted.add(r);
     }
   }
+  const teamRoleGrant = TEAM_ROLE_TO_REDACTION[roleString];
+  if (teamRoleGrant) granted.add(teamRoleGrant);
   // The OWNER / ADMIN of a workspace also picks up the lower
   // redaction roles so the matrix is monotonic.
   if (granted.has("REDACTION_ADMINISTRATOR")) {

@@ -22,7 +22,8 @@ vi.mock("../src/storage.js", () => ({ getObjectRange: vi.fn(), putObjectBuffer: 
 
 import { closePdf, openPdf } from "../src/pdf/pdfjs-runtime.js";
 import { extractPreviewForAsset } from "../src/preview/extract.js";
-import { renderRedactedPdf } from "../src/redaction/redaction-derivative.processor.js";
+import { renderRedactedPdf, renderRedactedPdfCounted } from "../src/redaction/redaction-derivative.processor.js";
+import { regionToRenderRect } from "@proovra/shared";
 
 const PAGE = { r: 0x12, g: 0x34, b: 0x56 };
 
@@ -94,5 +95,23 @@ describe("PDF pages rasterize onto the worker's canvas", () => {
     const r = await rasterFirstPage(out);
     expect(near(pixel(r, r.width * 0.25, r.height * 0.25), { r: 0, g: 0, b: 0 })).toBe(true);
     expect(near(pixel(r, r.width * 0.75, r.height * 0.25), PAGE)).toBe(true);
+  });
+
+  it("PRO-R3-01: the region the product draws (PDF_PAGE_RECT, 0-based pageIndex) is decoded to page 1 and burned", async () => {
+    const decoded = regionToRenderRect("PDF_PAGE_RECT", { pageIndex: 0, rect: { x: 0, y: 0, width: 0.5, height: 0.5 } }, "PDF");
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    const { output, burned } = await renderRedactedPdfCounted(await paintedPdf(), [decoded.rect]);
+    expect(burned).toBe(1);
+    const r = await rasterFirstPage(output);
+    expect(near(pixel(r, r.width * 0.25, r.height * 0.25), { r: 0, g: 0, b: 0 })).toBe(true);
+  });
+
+  it("PRO-R3-03: a rectangle on a page the document does not have is not burned and is counted as such", async () => {
+    const { burned } = await renderRedactedPdfCounted(await paintedPdf(), [
+      { page: 1, x: 0, y: 0, width: 0.2, height: 0.2 },
+      { page: 4, x: 0, y: 0, width: 0.2, height: 0.2 },
+    ]);
+    expect(burned).toBe(1);
   });
 });

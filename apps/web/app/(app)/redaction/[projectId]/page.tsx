@@ -31,7 +31,7 @@ import {
 } from "../../../../components/identity-security/StepUpModal";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
+import { useOptionalPlatformContext, useTeamId, useTenantGuard } from "../../../../lib/platform-context";
 
 import { ImageRedactionViewer } from "../../../../components/redaction/ImageRedactionViewer";
 import { PdfRedactionViewer } from "../../../../components/redaction/PdfRedactionViewer";
@@ -270,15 +270,17 @@ function RedactionProjectShell({
         setBanner(`Version transitioned (${action}).`);
         await refresh();
         setActivityRevision((v) => v + 1);
+        return true;
       } catch (err) {
         // Cancelling step-up must NOT publish and must NOT surface a scary
         // error — the operator deliberately backed out.
         const code = (err as { code?: string })?.code;
         if (code === "STEP_UP_CANCEL") {
           setBanner("Step-up cancelled — the redaction was not published.");
-          return;
+          return false;
         }
         setBanner(refusalBanner(err, `We couldn't complete the ${action} action.`));
+        return false;
       }
     },
     [refresh, stepUp],
@@ -536,9 +538,10 @@ function VersionWorkspace({
     action: "submit" | "approve" | "publish" | "derivative",
     verdict?: "APPROVE" | "REJECT" | "REQUEST_CHANGES",
     rationale?: string,
-  ) => Promise<void>;
+  ) => Promise<void | boolean>;
   onChanged: () => void;
 }) {
+  const viewerUserId = useOptionalPlatformContext()?.envelope?.user?.id ?? null;
   return (
     <div
       data-redaction-version-workspace
@@ -642,6 +645,7 @@ function VersionWorkspace({
       <ApprovalPanel
         version={version}
         artifactKind={project.artifactKind}
+        viewerUserId={viewerUserId}
         onTransition={onTransition}
         onQuarantine={(derivativeId, reason) =>
           onQuarantine(version.id, derivativeId, reason)

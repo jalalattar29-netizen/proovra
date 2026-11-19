@@ -40,6 +40,7 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 // GET /v1/redaction/policy/assignments, and the step-up gated
 // DELETE /v1/redaction/policy-assignments/:id.
 import { PolicyScopePanel } from "../../../../components/redaction/PolicyScopePanel";
+import { activateOnKey } from "../../../../components/redaction/region-authoring";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -204,6 +205,17 @@ function PolicyManagementConsole() {
     }
   }, [newName, refreshPolicies]);
 
+  // PRO-R3-08 — what the next draft version will say.
+  const [draftOffProviders, setDraftOffProviders] = useState<ReadonlySet<string>>(new Set());
+  const [draftOffKinds, setDraftOffKinds] = useState<ReadonlySet<string>>(new Set());
+  const [draftBlockKinds, setDraftBlockKinds] = useState<ReadonlySet<string>>(new Set());
+  const toggleIn = (set: ReadonlySet<string>, key: string): ReadonlySet<string> => {
+    const next = new Set(set);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  };
+
   const onCreateVersion = useCallback(async () => {
     if (!selectedPolicyId) return;
     if (policies?.find((p) => p.id === selectedPolicyId)?.archivedAt) return;
@@ -212,11 +224,14 @@ function PolicyManagementConsole() {
         method: "POST",
         body: JSON.stringify({
           rationale: "New draft",
+          // PRO-R3-08 — the draft carries what the editor below chose: the
+          // providers and detection kinds this policy turns OFF, and the
+          // kinds whose undecided suggestions block submission/publication.
           document: {
             schemaVersion: "PROOVRA_REDACTION_POLICY_V1",
-            providers: {},
-            kinds: {},
-            ruleActions: {},
+            providers: Object.fromEntries([...draftOffProviders].map((p) => [p, false])),
+            kinds: Object.fromEntries([...draftOffKinds].map((k) => [k, false])),
+            ruleActions: Object.fromEntries([...draftBlockKinds].map((k) => [k, "BLOCK_PUBLICATION"])),
             customRules: [],
           },
         }),
@@ -226,7 +241,7 @@ function PolicyManagementConsole() {
     } catch (err) {
       setBanner(redactionRefusalMessage(err, "The new version could not be created."));
     }
-  }, [selectedPolicyId, policies, refreshVersionsAndAudit]);
+  }, [selectedPolicyId, policies, refreshVersionsAndAudit, draftOffProviders, draftOffKinds, draftBlockKinds]);
 
   const onTransitionVersion = useCallback(
     async (
@@ -495,6 +510,52 @@ function PolicyManagementConsole() {
                   </p>
                 ) : null}
               </section>
+              {!selectedArchived ? (
+                <details
+                  data-redaction-policy-draft-editor
+                  style={{
+                    background: "#fff",
+                    border: "1px solid rgba(15, 23, 42, 0.08)",
+                    borderRadius: 10,
+                    padding: 10,
+                    fontSize: 12,
+                  }}
+                >
+                  <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+                    Contents of the next draft version
+                  </summary>
+                  <p style={{ color: "#475569", margin: "6px 0" }}>
+                    A policy turns detection providers and detection kinds off, and can stop a
+                    version from being submitted or published while a suggestion of a chosen kind is
+                    still undecided. It applies where it is assigned: everywhere, this workspace, or
+                    one project. Tick what this version should do, then choose Draft new version.
+                  </p>
+                  {(
+                    [
+                      ["Providers turned off", REDACTION_DETECTION_PROVIDERS, draftOffProviders, setDraftOffProviders, "provider-off"],
+                      ["Detection kinds turned off", REDACTION_DETECTION_KINDS, draftOffKinds, setDraftOffKinds, "kind-off"],
+                      ["Kinds that block submission while undecided", REDACTION_DETECTION_KINDS, draftBlockKinds, setDraftBlockKinds, "kind-block"],
+                    ] as const
+                  ).map(([legend, values, chosen, setChosen, name]) => (
+                    <fieldset key={name} style={{ border: 0, padding: 0, margin: "6px 0" }}>
+                      <legend style={{ fontWeight: 600, padding: 0 }}>{legend}</legend>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
+                        {values.map((v) => (
+                          <label key={v} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <input
+                              type="checkbox"
+                              data-redaction-policy-draft={`${name}:${v}`}
+                              checked={chosen.has(v)}
+                              onChange={() => setChosen(toggleIn(chosen, v))}
+                            />
+                            {identifierLabel(v)}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  ))}
+                </details>
+              ) : null}
               <PolicyVersionsPanel
                 policyId={selectedPolicyId}
                 archived={selectedArchived}
@@ -585,6 +646,11 @@ function PolicyList({
               key={p.id}
               data-redaction-policy-row={p.id}
               onClick={() => onSelect(p.id)}
+              // PRO-R3-18 — a selectable row is a keyboard-reachable button.
+              role="button"
+              tabIndex={0}
+              aria-pressed={selectedId === p.id}
+              onKeyDown={activateOnKey(() => onSelect(p.id))}
               style={{
                 padding: 8,
                 marginBottom: 4,

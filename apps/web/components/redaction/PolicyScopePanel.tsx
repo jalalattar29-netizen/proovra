@@ -239,6 +239,15 @@ export function PolicyScopePanel({
             triggerProps={{ "data-redaction-policy-scope-select": "" }}
           />
         </label>
+        {scope === "CASE" ? (
+          // PRO-R3-08 — said plainly: a record can belong to several cases, so
+          // a detection run does not pick one; only GLOBAL, WORKSPACE and
+          // PROJECT assignments are applied to detection today.
+          <small data-redaction-policy-scope-case-note style={{ color: "#475569", flexBasis: "100%" }}>
+            A case assignment is recorded and shown here, but detection runs apply only the
+            workspace and project assignments (a record can belong to several cases).
+          </small>
+        ) : null}
         {needsTarget ? (
           <label style={labelStyle}>
             {scope === "CASE" ? "Case id" : "Project id"}&nbsp;

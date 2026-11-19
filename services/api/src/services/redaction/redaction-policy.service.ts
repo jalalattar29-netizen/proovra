@@ -29,7 +29,6 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
-  assignPolicyVersion,
   createPolicy,
   createPolicyVersion,
   resolveEffectivePolicy,
@@ -99,7 +98,7 @@ export async function setRedactionDetectionPolicy(input: {
   providers?: Partial<Record<RedactionDetectionProvider, boolean>>;
   kinds?: Partial<Record<RedactionDetectionKind, boolean>>;
   description?: string | null;
-}): Promise<RedactionDetectionPolicy> {
+}): Promise<RedactionDetectionPolicy & { pendingPolicyVersionId?: string | null; applied?: boolean }> {
   const prisma = input.prisma ?? defaultPrisma;
   // Find (or create) the workspace-default policy.
   let policy = await prisma.redactionPolicy.findFirst({
@@ -159,58 +158,41 @@ export async function setRedactionDetectionPolicy(input: {
     },
   });
   if (!versioned.ok) {
+    // PRO-R3-08 — nothing was written: say so, never echo the request back.
     return {
       teamId: input.teamId,
-      providers: docProviders,
-      kinds: docKinds,
+      providers: effective.providers,
+      kinds: effective.kinds,
       description: input.description ?? null,
       updatedAtUtc: new Date().toISOString(),
+      pendingPolicyVersionId: null,
+      applied: false,
     };
   }
-  // Submit → approve → publish via the bounded transitions. The
-  // shim acts as both author + approver for the workspace-default
-  // policy; the regular Policy Management Console enforces real
-  // separation of duties.
-  await transitionPolicyVersion({
+  /*
+   * PRO-R3-08 — the quick toggle is a DRAFT submitted for review by the real
+   * actor, through the same transitions and separation of duties as the
+   * Policy Management Console. It used to approve and publish itself under a
+   * nil-UUID "system actor", so one administrator changed policy with no
+   * second person, and every step's failure was ignored. Approval, publication
+   * and assignment now happen in the console, by someone other than the author.
+   */
+  const submitted = await transitionPolicyVersion({
     prisma,
     teamId: input.teamId,
     policyVersionId: versioned.policyVersionId,
     toState: "IN_REVIEW",
     actorUserId: input.actorUserId,
   });
-  // Use a system actor for the approve step so the bounded
-  // separation-of-duties check in the store still passes for the
-  // workspace-default shim.
-  const SYSTEM_ACTOR = "00000000-0000-0000-0000-000000000000";
-  await transitionPolicyVersion({
-    prisma,
-    teamId: input.teamId,
-    policyVersionId: versioned.policyVersionId,
-    toState: "APPROVED",
-    actorUserId: SYSTEM_ACTOR,
-  });
-  await transitionPolicyVersion({
-    prisma,
-    teamId: input.teamId,
-    policyVersionId: versioned.policyVersionId,
-    toState: "PUBLISHED",
-    actorUserId: SYSTEM_ACTOR,
-  });
-  await assignPolicyVersion({
-    prisma,
-    teamId: input.teamId,
-    policyVersionId: versioned.policyVersionId,
-    scope: "WORKSPACE",
-    scopeTargetId: input.teamId,
-    assignedByUserId: input.actorUserId,
-  });
-
+  // The effective policy is unchanged until another administrator approves.
   return {
     teamId: input.teamId,
-    providers: docProviders,
-    kinds: docKinds,
+    providers: effective.providers,
+    kinds: effective.kinds,
     description: input.description ?? null,
     updatedAtUtc: new Date().toISOString(),
+    pendingPolicyVersionId: (submitted as { ok?: boolean }).ok === false ? null : versioned.policyVersionId,
+    applied: false,
   };
 }
 

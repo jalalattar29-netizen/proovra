@@ -21,6 +21,7 @@ import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { redactionRefusalMessage } from "../../lib/redaction/refusal";
 
 type DetectionRow = {
   id: string;
@@ -61,6 +62,8 @@ export function DetectionReviewPanel({
   ]);
   // Phase 3A Closure — bulk selection.
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // PRO-R3-12 — a refused run or decision is said, never swallowed.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -92,10 +95,11 @@ export function DetectionReviewPanel({
         },
       );
       setProbes((res?.providerStates ?? []) as ProviderProbe[]);
+      setActionError(null);
       await refresh();
       onChanged();
-    } catch {
-      /* swallow */
+    } catch (err) {
+      setActionError(redactionRefusalMessage(err, "Detection could not be run."));
     } finally {
       setBusy(false);
     }
@@ -114,10 +118,11 @@ export function DetectionReviewPanel({
             body: JSON.stringify({ decisionState }),
           },
         );
+        setActionError(null);
         await refresh();
         onChanged();
-      } catch {
-        /* swallow */
+      } catch (err) {
+        setActionError(redactionRefusalMessage(err, "The decision could not be recorded."));
       }
     },
     [refresh, onChanged],
@@ -129,7 +134,7 @@ export function DetectionReviewPanel({
       const ids = Array.from(selected);
       if (ids.length === 0) return;
       try {
-        await apiFetch(
+        const res = await apiFetch(
           `/v1/redaction/versions/${versionId}/decisions/bulk`,
           {
             method: "POST",
@@ -141,11 +146,20 @@ export function DetectionReviewPanel({
             }),
           },
         );
+        // PRO-R3-12 — per-row outcomes are read: a row the server refused is
+        // reported with its reason rather than looking decided.
+        const outcomes = (res?.outcomes ?? []) as Array<{ outcome: string; denial: string | null }>;
+        const refused = outcomes.filter((o) => o.denial);
+        setActionError(
+          refused.length > 0
+            ? `${refused.length} of ${outcomes.length} decisions were refused (${identifierLabel(refused[0]!.denial as string)}).`
+            : null,
+        );
         setSelected(new Set());
         await refresh();
         onChanged();
-      } catch {
-        /* swallow */
+      } catch (err) {
+        setActionError(redactionRefusalMessage(err, "The decisions could not be recorded."));
       }
     },
     [selected, versionId, refresh, onChanged],
@@ -178,6 +192,11 @@ export function DetectionReviewPanel({
         padding: 10,
       }}
     >
+      {actionError ? (
+        <p role="alert" data-redaction-detection-error style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 12.5, margin: "0 0 8px" }}>
+          {actionError}
+        </p>
+      ) : null}
       <header
         style={{
           display: "flex",
@@ -405,7 +424,7 @@ export function DetectionReviewPanel({
                     <code>{d.decisionState}</code>
                   </td>
                   <td style={td}>
-                    {d.decisionState === "SUGGESTED" && !versionLocked ? (
+                    {(d.decisionState === "SUGGESTED" || d.decisionState === "DEFERRED") && !versionLocked ? (
                       <div style={{ display: "flex", gap: 4 }}>
                         <button
                           type="button"
@@ -423,14 +442,16 @@ export function DetectionReviewPanel({
                         >
                           Reject
                         </button>
-                        <button
-                          type="button"
-                          data-redaction-detection-defer={d.id}
-                          onClick={() => onDecide(d.id, "DEFERRED")}
-                          style={deferButton}
-                        >
-                          Defer
-                        </button>
+                        {d.decisionState === "SUGGESTED" ? (
+                          <button
+                            type="button"
+                            data-redaction-detection-defer={d.id}
+                            onClick={() => onDecide(d.id, "DEFERRED")}
+                            style={deferButton}
+                          >
+                            Defer
+                          </button>
+                        ) : null}
                       </div>
                     ) : (
                       <span style={{ color: "#475569" }}>—</span>

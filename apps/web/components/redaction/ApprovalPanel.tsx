@@ -60,6 +60,8 @@ type VersionLike = {
   id: string;
   versionOrdinal: number;
   state: string;
+  /** Who opened the version (projection field; absent on older APIs). */
+  authoredByUserId?: string | null;
   approvals: ReadonlyArray<ApprovalRow>;
   derivative: {
     id: string;
@@ -76,15 +78,18 @@ export function ApprovalPanel({
   artifactKind,
   onTransition,
   onQuarantine,
+  viewerUserId,
 }: {
   version: VersionLike;
+  /** PRO-R3-05 — the signed-in user, to say why the author cannot approve. */
+  viewerUserId?: string | null;
   artifactKind: "IMAGE" | "PDF" | "VIDEO" | "AUDIO";
   onTransition: (
     versionId: string,
     action: "submit" | "approve" | "publish" | "derivative",
     verdict?: "APPROVE" | "REJECT" | "REQUEST_CHANGES",
     rationale?: string,
-  ) => Promise<void>;
+  ) => Promise<void | boolean>;
   /**
    * POST /v1/redaction/derivatives/:id/quarantine, owned by the page. When
    * omitted the quarantine control is not offered.
@@ -95,7 +100,11 @@ export function ApprovalPanel({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [derivativeError, setDerivativeError] = useState<string | null>(null);
   const canSubmit = version.state === "DRAFT";
-  const canApprove = version.state === "IN_REVIEW";
+  // PRO-R3-05 / DEC-16 — two-person rule: the author of the version cannot
+  // approve it. Said on the control, not discovered as "not permitted".
+  const viewerIsAuthor =
+    !!viewerUserId && !!version.authoredByUserId && version.authoredByUserId === viewerUserId;
+  const canApprove = version.state === "IN_REVIEW" && !viewerIsAuthor;
   const canPublish =
     version.state === "APPROVED" && version.derivative?.state === "READY";
 
@@ -177,27 +186,29 @@ export function ApprovalPanel({
     }
   }, [artifactKind, fetchDownloadUrl]);
 
+  // PRO-R3-14 — the typed rationale is cleared only when the action
+  // succeeded; a refusal keeps it for the retry.
   const onClickSubmit = useCallback(async () => {
-    await onTransition(version.id, "submit", undefined, rationale || undefined);
-    setRationale("");
+    const ok = await onTransition(version.id, "submit", undefined, rationale || undefined);
+    if (ok !== false) setRationale("");
   }, [onTransition, rationale, version.id]);
 
   const onClickApprove = useCallback(
     async (verdict: "APPROVE" | "REJECT" | "REQUEST_CHANGES") => {
-      await onTransition(version.id, "approve", verdict, rationale || undefined);
-      setRationale("");
+      const ok = await onTransition(version.id, "approve", verdict, rationale || undefined);
+      if (ok !== false) setRationale("");
     },
     [onTransition, rationale, version.id],
   );
 
   const onClickPublish = useCallback(async () => {
-    await onTransition(
+    const ok = await onTransition(
       version.id,
       "publish",
       undefined,
       rationale || undefined,
     );
-    setRationale("");
+    if (ok !== false) setRationale("");
   }, [onTransition, rationale, version.id]);
 
   return (
@@ -242,6 +253,12 @@ export function ApprovalPanel({
         />
       </label>
 
+      {version.state === "IN_REVIEW" && viewerIsAuthor ? (
+        <p data-redaction-approval-author-note style={{ fontSize: 12, color: "#475569", margin: "0 0 8px" }}>
+          You authored this version, so you cannot approve it. Another owner or administrator of
+          this workspace must approve it; if you are the only one, add a second administrator.
+        </p>
+      ) : null}
       <div
         data-redaction-approval-actions
         style={{ display: "flex", gap: 6, flexWrap: "wrap" }}

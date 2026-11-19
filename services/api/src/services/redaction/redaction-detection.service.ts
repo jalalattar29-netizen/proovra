@@ -51,7 +51,25 @@ import {
 } from "./providers/rekognition-client.js";
 import { analyzeDocumentLayout as azureAnalyzeDocumentLayout } from "./providers/azure-document-intelligence-client.js";
 import { transcribeAndScan as deepgramTranscribeAndScan } from "./providers/deepgram-client.js";
-import { isPolicyAllowed } from "./redaction-policy.service.js";
+import { detectionKindEnabled, isPolicyAllowed } from "./redaction-policy.service.js";
+import { recordProviderUsage } from "../intelligence/provider-usage.service.js";
+import { releaseBudgetReservation, reserveBudgetGate } from "../intelligence/provider-budget.service.js";
+
+/**
+ * PRO-R3-11 — the paid cloud providers a detection run can call, with the
+ * operation, unit and ESTIMATED cost (USD micros per call) recorded through
+ * the existing provider-usage authority and checked against the workspace's
+ * provider budgets (reserveBudgetGate) BEFORE the call. Local providers
+ * (REGEX_PII, MANUAL, …) cost nothing and are not metered.
+ */
+const PAID_DETECTION_PROVIDERS: Readonly<
+  Partial<Record<RedactionDetectionProvider, { operation: "DETECT_FACES" | "DETECT_TEXT_IN_IMAGE" | "OCR_DOCUMENT" | "TRANSCRIBE_AUDIO"; unit: "IMAGE" | "PAGE" | "MINUTE"; estimatedCostUsdMicros: number }>>
+> = {
+  AWS_REKOGNITION_FACES: { operation: "DETECT_FACES", unit: "IMAGE", estimatedCostUsdMicros: 1_000 },
+  AWS_REKOGNITION_TEXT: { operation: "DETECT_TEXT_IN_IMAGE", unit: "IMAGE", estimatedCostUsdMicros: 1_000 },
+  AZURE_DOCUMENT_INTELLIGENCE: { operation: "OCR_DOCUMENT", unit: "PAGE", estimatedCostUsdMicros: 10_000 },
+  DEEPGRAM_TRANSCRIPT: { operation: "TRANSCRIBE_AUDIO", unit: "MINUTE", estimatedCostUsdMicros: 4_300 },
+};
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -269,14 +287,17 @@ export async function runRedactionDetection(
 
   // Phase 3A Closure — workspace-scoped policy gate. Each provider
   // run is bounded by the policy AND the artifact-kind gate.
+  // PRO-R3-08 — the PROJECT scope of the policy applies to its own project.
   const policyAllowed = await isPolicyAllowed({
     prisma,
     teamId: input.teamId,
     providers: input.providers,
+    projectId: version.projectId,
   });
 
   const probes: RedactionProviderProbe[] = [];
   let inserted = 0;
+  const kindEnabledCache = new Map<string, boolean>();
 
   // Inline text that we will hand to REGEX_PII. Operator-supplied
   // text wins; otherwise we accumulate text producers (Azure layout)
@@ -313,6 +334,55 @@ export async function runRedactionDetection(
       });
       continue;
     }
+    const paid = PAID_DETECTION_PROVIDERS[provider];
+    // PRO-R3-11 — idempotent per (version, provider): a paid provider whose
+    // detections are already on this version is not called (and charged)
+    // again; its rows stay as they are.
+    if (paid) {
+      const prior = await prisma.redactionDetection.count({
+        where: { teamId: input.teamId, versionId: input.versionId, provider },
+      });
+      if (prior > 0) {
+        probes.push({ provider, state: "READY", reason: "already_run_for_version" });
+        continue;
+      }
+    }
+    // PRO-R3-11 — the workspace's provider budget answers BEFORE the paid
+    // call (a reservation, so concurrent runs cannot overspend it together).
+    let reservationId: string | null = null;
+    if (paid) {
+      const gate = await reserveBudgetGate(
+        {
+          teamId: input.teamId,
+          provider: provider as never,
+          estimatedCostUsdMicros: paid.estimatedCostUsdMicros,
+          operation: paid.operation,
+          evidenceId: version.project.evidenceId,
+          projectId: version.projectId,
+          initiatedByUserId: input.actorUserId,
+        },
+        prisma,
+      );
+      if (gate.decision === "BLOCK") {
+        probes.push({ provider, state: "RATE_LIMITED", reason: "provider_budget_exceeded" });
+        await recordProviderUsage({
+          prisma,
+          teamId: input.teamId,
+          provider: provider as never,
+          operation: paid.operation,
+          unit: paid.unit,
+          units: 0,
+          estimatedCostUsdMicros: 0,
+          decision: "BLOCK",
+          evidenceId: version.project.evidenceId,
+          projectId: version.projectId,
+          initiatedByUserId: input.actorUserId,
+          failureReason: "redaction_detection_budget_blocked",
+        }).catch(() => undefined);
+        continue;
+      }
+      reservationId = gate.reservationId;
+    }
     const runner = resolveProvider(provider);
     let probe: RedactionProviderProbe = {
       provider,
@@ -335,6 +405,25 @@ export async function runRedactionDetection(
       });
       probe = { provider, state: out.state, reason: out.reason };
       probes.push(probe);
+      // PRO-R3-11 — a provider-accepted call is metered against the
+      // workspace (one usage row per call; a not-configured provider was
+      // never called and costs nothing).
+      if (paid && out.state !== "NOT_CONFIGURED") {
+        await recordProviderUsage({
+          prisma,
+          teamId: input.teamId,
+          provider: provider as never,
+          operation: paid.operation,
+          unit: paid.unit,
+          units: 1,
+          estimatedCostUsdMicros: paid.estimatedCostUsdMicros,
+          decision: "ALLOW",
+          evidenceId: version.project.evidenceId,
+          projectId: version.projectId,
+          initiatedByUserId: input.actorUserId,
+          failureReason: out.state === "READY" ? null : String(out.reason ?? out.state).slice(0, 120),
+        }).catch(() => undefined);
+      }
       // Accumulate extracted text from upstream producers (Azure)
       // so the REGEX_PII pass that follows them can scan the same
       // bytes without paying a second round trip.
@@ -349,6 +438,15 @@ export async function runRedactionDetection(
       }
       if (out.state === "READY" && out.rows.length > 0) {
         for (const row of out.rows) {
+          // PRO-R3-08 — a detection kind the effective policy disables for
+          // this project is not suggested.
+          if (!kindEnabledCache.has(row.kind)) {
+            kindEnabledCache.set(
+              row.kind,
+              await detectionKindEnabled({ prisma, teamId: input.teamId, kind: row.kind as never, projectId: version.projectId }),
+            );
+          }
+          if (kindEnabledCache.get(row.kind) === false) continue;
           await prisma.redactionDetection.create({
             data: {
               teamId: input.teamId,
@@ -390,6 +488,23 @@ export async function runRedactionDetection(
         });
       }
     } catch (err) {
+      // An outcome-unknown provider call is still metered (bounded: one row).
+      if (paid) {
+        await recordProviderUsage({
+          prisma,
+          teamId: input.teamId,
+          provider: provider as never,
+          operation: paid.operation,
+          unit: paid.unit,
+          units: 1,
+          estimatedCostUsdMicros: paid.estimatedCostUsdMicros,
+          decision: "ALLOW",
+          evidenceId: version.project.evidenceId,
+          projectId: version.projectId,
+          initiatedByUserId: input.actorUserId,
+          failureReason: "provider_threw",
+        }).catch(() => undefined);
+      }
       probes.push({
         provider,
         state: "ERROR",
@@ -408,6 +523,8 @@ export async function runRedactionDetection(
         payload: { provider, state: "ERROR" },
       });
     }
+    // The provisional reservation is settled by the usage row above.
+    await releaseBudgetReservation(reservationId, prisma);
   }
 
   await emitRedactionActivity({

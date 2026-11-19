@@ -107,12 +107,35 @@ export const EVIDENCE_TABLE_TOMBSTONE_CLASS: Readonly<Record<string, TombstoneCl
   CaseSiuReviewIndicator: "OPERATIONAL",
   EvidenceExchangePackage: "OPERATIONAL",
   ExternalReviewerRoleAssignment: "OPERATIONAL",
-  RedactionProject: "OPERATIONAL",
+  // PRO-R3-09 — the project carries a title people wrote about the record;
+  // it is SCRUBBED (the row stays). Its child tables carry no evidence id and
+  // are classified through the project relation below.
+  RedactionProject: "SCRUBBED",
   ProviderUsageEvent: "OPERATIONAL",
   ExternalReviewGrant: "OPERATIONAL",
   MediaIntelligenceRun: "OPERATIONAL",
   ReportGenerationRequest: "OPERATIONAL",
   EvidenceArchiveRestoreRequest: "OPERATIONAL",
+});
+
+/**
+ * PRO-R3-09 — the redaction child tables reach the record only through
+ * RedactionProject.evidenceId, so the evidence-id inventory above cannot see
+ * them. What destruction means for each:
+ *   - detections are derived from the content (provider labels, boxes): DELETED;
+ *   - regions, decisions, approvals and versions keep who did what and when,
+ *     and their free text (label, rationale) is SCRUBBED;
+ *   - activity is the append-only record of what happened: AUDIT.
+ * (Derivative OBJECTS are deleted with every other object the record owns.)
+ */
+export const REDACTION_TABLE_TOMBSTONE_CLASS: Readonly<Record<string, TombstoneClass>> = Object.freeze({
+  RedactionDetection: "DELETED",
+  RedactionRegion: "SCRUBBED",
+  RedactionDecision: "SCRUBBED",
+  RedactionApproval: "SCRUBBED",
+  RedactionVersion: "SCRUBBED",
+  RedactionActivity: "AUDIT",
+  RedactionDerivative: "OPERATIONAL",
 });
 
 /**

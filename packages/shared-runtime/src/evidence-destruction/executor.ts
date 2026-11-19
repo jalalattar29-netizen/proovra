@@ -1061,6 +1061,25 @@ export async function executeEvidenceDestruction(
     await tx.evidenceAnnotation.updateMany({ where: { evidenceId: evidence.id }, data: { body: null } });
     await tx.evidenceLegalNote.updateMany({ where: { evidenceId: evidence.id }, data: { body: "" } });
     await tx.evidenceReviewerComment.updateMany({ where: { evidenceId: evidence.id }, data: { body: "" } });
+    // PRO-R3-09 — redaction rows reach the record through its project
+    // (REDACTION_TABLE_TOMBSTONE_CLASS): detections are derived from the
+    // content and go; titles, labels and rationale people wrote are cleared;
+    // who did what and when stays.
+    const redactionVersionWhere = { project: { evidenceId: evidence.id } };
+    await tx.redactionDetection.deleteMany({ where: { version: redactionVersionWhere } });
+    await tx.redactionRegion.updateMany({ where: { version: redactionVersionWhere }, data: { label: null, rationale: null } });
+    await tx.redactionApproval.updateMany({ where: { version: redactionVersionWhere }, data: { rationale: null } });
+    await tx.redactionVersion.updateMany({ where: redactionVersionWhere, data: { rationale: null } });
+    const redactionVersionIds = (
+      await tx.redactionVersion.findMany({ where: redactionVersionWhere, select: { id: true } })
+    ).map((v) => v.id);
+    if (redactionVersionIds.length > 0) {
+      await tx.redactionDecision.updateMany({
+        where: { versionId: { in: redactionVersionIds } },
+        data: { rationale: null, modifiedRegionGeometry: prismaPkg.Prisma.DbNull },
+      });
+    }
+    await tx.redactionProject.updateMany({ where: { evidenceId: evidence.id }, data: { title: null } });
 
     // The tombstone. The row stays; the content pointers do not.
     // ET-SEC-12 — the tombstone is written only over THIS executor's own

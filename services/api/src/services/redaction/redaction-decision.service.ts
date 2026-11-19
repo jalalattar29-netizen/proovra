@@ -117,55 +117,79 @@ export async function recordDetectionDecision(
     /* redaction gate is best-effort */
   }
 
-  // Persist the decision row.
-  const created = await prisma.redactionDecision.create({
-    data: {
-      teamId: input.teamId,
-      versionId: detection.versionId,
-      detectionId: detection.id,
-      decisionState: input.decisionState,
-      modifiedRegionGeometry:
-        input.decisionState === "MODIFIED"
-          ? (input.modifiedRegionGeometry as never)
-          : (undefined as never),
-      rationale: input.rationale?.slice(0, 600) ?? null,
-      decidedByUserId: input.decidedByUserId,
-    },
-    select: { id: true },
-  });
-
-  // Flip the detection's latest decision state.
-  await prisma.redactionDetection.update({
-    where: { id: detection.id },
-    data: { decisionState: input.decisionState },
-  });
-
-  // ACCEPTED / MODIFIED promote into a region on the version.
-  let promotedRegionId: string | null = null;
-  if (
-    input.decisionState === "ACCEPTED" ||
-    input.decisionState === "MODIFIED"
-  ) {
-    const geometry =
-      input.decisionState === "MODIFIED"
-        ? (input.modifiedRegionGeometry as Record<string, unknown>)
-        : (detection.suggestedRegionGeometry as Record<string, unknown>);
-    const region = await addRedactionRegion({
-      prisma,
-      teamId: input.teamId,
-      versionId: detection.versionId,
-      kind: detection.suggestedRegionKind as RedactionRegionKind,
-      method: detection.suggestedMethod as never,
-      geometry,
-      authoredByUserId: input.decidedByUserId,
-      sourceDetectionId: detection.id,
-      sourceProvider: detection.provider as never,
-      rationale: input.rationale ?? null,
+  /*
+   * PRO-R3-02 / PRO-R3-12 — the decision, the detection's state and its
+   * region are ONE fact, written in one transaction. An ACCEPTED / MODIFIED
+   * decision commits only together with the region it promises; when the
+   * region is refused (out of bounds, not renderable, version no longer a
+   * draft) nothing is written and the refusal is returned. A REJECTED or
+   * DEFERRED decision removes a region an earlier acceptance promoted, so the
+   * counters and the mask never disagree.
+   */
+  const promotes = input.decisionState === "ACCEPTED" || input.decisionState === "MODIFIED";
+  let outcome: { decisionId: string; promotedRegionId: string | null };
+  try {
+    outcome = await prisma.$transaction(async (tx) => {
+      const txc = tx as unknown as PrismaClient;
+      let promotedRegionId: string | null = null;
+      if (promotes) {
+        const geometry =
+          input.decisionState === "MODIFIED"
+            ? (input.modifiedRegionGeometry as Record<string, unknown>)
+            : (detection.suggestedRegionGeometry as Record<string, unknown>);
+        const region = await addRedactionRegion({
+          prisma: txc,
+          teamId: input.teamId,
+          versionId: detection.versionId,
+          kind: detection.suggestedRegionKind as RedactionRegionKind,
+          // The renderer burns an opaque black-out (PRO-R3-04).
+          method: "BLACKOUT",
+          geometry,
+          authoredByUserId: input.decidedByUserId,
+          sourceDetectionId: detection.id,
+          sourceProvider: detection.provider as never,
+          rationale: input.rationale ?? null,
+        });
+        if (!region.ok) throw new DecisionRefused(region.denial);
+        promotedRegionId = region.regionId;
+      } else if (input.decisionState === "REJECTED" || input.decisionState === "DEFERRED") {
+        await txc.redactionRegion.deleteMany({
+          where: { versionId: detection.versionId, teamId: input.teamId, sourceDetectionId: detection.id },
+        });
+      }
+      // Compare-and-swap on the version still being a draft: a submit from
+      // another session between the read above and here refuses the decision.
+      const stillDraft = await txc.redactionVersion.count({
+        where: { id: detection.versionId, teamId: input.teamId, state: "DRAFT" },
+      });
+      if (stillDraft !== 1) throw new DecisionRefused("VERSION_LOCKED");
+      const created = await txc.redactionDecision.create({
+        data: {
+          teamId: input.teamId,
+          versionId: detection.versionId,
+          detectionId: detection.id,
+          decisionState: input.decisionState,
+          modifiedRegionGeometry:
+            input.decisionState === "MODIFIED"
+              ? (input.modifiedRegionGeometry as never)
+              : (undefined as never),
+          rationale: input.rationale?.slice(0, 600) ?? null,
+          decidedByUserId: input.decidedByUserId,
+        },
+        select: { id: true },
+      });
+      // Flip the detection's latest decision state.
+      await txc.redactionDetection.update({
+        where: { id: detection.id },
+        data: { decisionState: input.decisionState },
+      });
+      return { decisionId: created.id, promotedRegionId };
     });
-    if (region.ok) {
-      promotedRegionId = region.regionId;
-    }
+  } catch (err) {
+    if (err instanceof DecisionRefused) return { ok: false, denial: err.denial };
+    throw err;
   }
+  const promotedRegionId = outcome.promotedRegionId;
 
   const code =
     input.decisionState === "ACCEPTED"
@@ -194,9 +218,15 @@ export async function recordDetectionDecision(
 
   return {
     ok: true,
-    decisionId: created.id,
+    decisionId: outcome.decisionId,
     promotedRegionId,
   };
+}
+
+class DecisionRefused extends Error {
+  constructor(readonly denial: RedactionDenialReason) {
+    super(denial);
+  }
 }
 
 export async function listDecisionsForVersion(input: {

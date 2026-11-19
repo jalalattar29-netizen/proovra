@@ -223,7 +223,12 @@ export async function analyzeDocumentLayout(
       const region = (para.boundingRegions ?? [])[0];
       const pageIndex = (region?.pageNumber ?? 1) - 1;
       const raw = para.confidence ?? 0.9;
-      const previewLabel = `azure_layout · ${text.slice(0, 60)}`.slice(0, 80);
+      // PRO-R3-09 — the label is bounded metadata, NEVER document text (the
+      // provider contract: "Bounded preview label. NEVER full PII"). It used
+      // to carry the first 60 characters of every extracted paragraph.
+      const previewLabel = `azure_layout · paragraph p${pageIndex + 1} (${text.length} chars)`.slice(0, 80);
+      const size = region?.polygon && region.polygon.length >= 8 ? pageSizes.get(region.pageNumber ?? 1) ?? null : null;
+      const bbox = region?.polygon && region.polygon.length >= 8 ? polygonToNormalizedBbox(region.polygon, size) : null;
 
       if (span && Number.isFinite(span.offset) && Number.isFinite(span.length)) {
         rows.push({
@@ -235,14 +240,14 @@ export async function analyzeDocumentLayout(
             pageIndex,
             charStart: span.offset,
             charEnd: span.offset + span.length,
+            // PRO-R3-01 — the box the renderer burns for this range.
+            ...(bbox ? { bboxHint: bbox } : {}),
           },
-          suggestedMethod: "REMOVE_CONTENT",
+          suggestedMethod: "BLACKOUT",
           previewLabel,
         });
       }
       if (region?.polygon && region.polygon.length >= 8) {
-        const size = pageSizes.get(region.pageNumber ?? 1) ?? null;
-        const bbox = polygonToNormalizedBbox(region.polygon, size);
         if (bbox) {
           rows.push({
             kind: "TEXT_BLOCK",

@@ -21,12 +21,13 @@ import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 import type { PrismaClient } from "@prisma/client";
 
-import type { RedactionDenialReason } from "@proovra/shared";
+import { REDACTION_SOURCE_BYTE_BUDGET, type RedactionDenialReason } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { captureException } from "../../observability/sentry.js";
 
-const MAX_BYTES = 256 * 1024 * 1024;
+// PRO-W2C2-04 — the one budget the worker's render read also uses.
+const MAX_BYTES = REDACTION_SOURCE_BYTE_BUDGET;
 
 let cachedS3: S3Client | null = null;
 

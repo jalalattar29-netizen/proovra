@@ -21,6 +21,7 @@ import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { RegionCoordinateForm, isDeliberateDrag, type NormalizedRect } from "./region-authoring";
 
 export function PdfRedactionViewer({
   evidenceId,
@@ -48,8 +49,6 @@ export function PdfRedactionViewer({
   const [addError, setAddError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  void evidenceId; // reserved for the future presigned-fetch hook.
-
   const onMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (versionLocked) return;
@@ -74,15 +73,7 @@ export function PdfRedactionViewer({
     },
     [drag, versionLocked],
   );
-  const onMouseUp = useCallback(async () => {
-    if (!drag || versionLocked) return;
-    const rect = {
-      x: Math.max(0, Math.min(1, drag.x)),
-      y: Math.max(0, Math.min(1, drag.y)),
-      width: Math.max(0.005, Math.min(1 - drag.x, drag.w)),
-      height: Math.max(0.005, Math.min(1 - drag.y, drag.h)),
-    };
-    setDrag(null);
+  const addRegion = useCallback(async (rect: NormalizedRect) => {
     try {
       await apiFetch(`/v1/redaction/versions/${versionId}/regions`, {
         method: "POST",
@@ -99,7 +90,19 @@ export function PdfRedactionViewer({
       // used to vanish silently.
       setAddError(regionAddFailureMessage(err));
     }
-  }, [drag, method, onChanged, pageIndex, versionId, versionLocked]);
+  }, [method, onChanged, pageIndex, versionId]);
+  const onMouseUp = useCallback(async () => {
+    if (!drag || versionLocked) return;
+    setDrag(null);
+    // PRO-R3-18 — a click without a drag is not a region.
+    if (!isDeliberateDrag(drag.w, drag.h)) return;
+    await addRegion({
+      x: Math.max(0, Math.min(1, drag.x)),
+      y: Math.max(0, Math.min(1, drag.y)),
+      width: Math.max(0.005, Math.min(1 - drag.x, drag.w)),
+      height: Math.max(0.005, Math.min(1 - drag.y, drag.h)),
+    });
+  }, [addRegion, drag, versionLocked]);
 
   return (
     <section
@@ -144,10 +147,9 @@ export function PdfRedactionViewer({
           Method&nbsp;
           <AppListbox
             value={method}
-            options={[
-              { value: "BLACKOUT", label: "Black out" },
-              { value: "REMOVE_CONTENT", label: "Remove content" },
-            ]}
+            // PRO-R3-04 — the copy is a flattened raster with each region
+            // blacked out; "remove content" is not a separate rendering.
+            options={[{ value: "BLACKOUT", label: "Black out" }]}
             onChange={(next) => setMethod(next as "BLACKOUT" | "REMOVE_CONTENT")}
             disabled={versionLocked}
             triggerProps={{ "data-redaction-pdf-method": "" }}
@@ -161,6 +163,8 @@ export function PdfRedactionViewer({
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
+        // PRO-R3-18 — leaving the frame disarms the drag.
+        onMouseLeave={() => setDrag(null)}
         style={{
           position: "relative",
           width: "100%",
@@ -183,7 +187,8 @@ export function PdfRedactionViewer({
             fontSize: 12,
           }}
         >
-          PDF page {pageIndex + 1} preview · drag to draw a page region
+          Page {pageIndex + 1} — the page is not shown here. Open the record in another tab to read
+          it, then draw (or enter) the region as a share of the full page.
         </span>
         {drag ? (
           <div
@@ -209,11 +214,16 @@ export function PdfRedactionViewer({
           fontSize: 11,
         }}
       >
-        Redacted PDFs are generated in the background. Remove content
-        deletes the underlying text as well as drawing the black box. The
-        derivative MUST be readable as the bounded redacted PDF —
-        never as the original.
+        Redacted PDFs are generated in the background as a flattened copy:
+        every page becomes an image with each region blacked out, so the text
+        under a region is not in the copy. The original is never modified.
       </small>
+      <RegionCoordinateForm disabled={versionLocked} onAdd={addRegion} />
+      <p style={{ margin: "6px 0 0", fontSize: 11 }}>
+        <a href={`/evidence/${evidenceId}`} target="_blank" rel="noreferrer" className="ui-link" data-redaction-pdf-open-record>
+          Open the record in a new tab
+        </a>
+      </p>
       {addError ? (
         <p role="alert" data-redaction-region-add-error style={{ color: "var(--status-risk-fg, #991b1b)", fontSize: 12.5, margin: "8px 0 0" }}>
           {addError}

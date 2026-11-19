@@ -135,6 +135,12 @@ function RedactionProjectsShell() {
           eyebrow="Redaction"
           title="Enterprise Redaction Platform"
           subtitle="Workspace-anchored redaction projects. Original evidence is NEVER modified — every approved version generates a derivative artifact with its own bounded audit trail."
+          secondaryActions={
+            // PRO-R3-17 — the policy console was reachable only by typing its URL.
+            <Link href="/redaction/policy" data-redaction-policy-link className="ui-link">
+              Detection policy
+            </Link>
+          }
         />
       }
     >

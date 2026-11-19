@@ -17,6 +17,7 @@ import {
   REDACTION_METHODS,
   REDACTION_REGION_KINDS,
   isValidRegionGeometry,
+  regionToRenderRect,
   type RedactionDenialReason,
   type RedactionDetectionProvider,
   type RedactionMethod,
@@ -58,11 +59,25 @@ export async function addRedactionRegion(
   const prisma = input.prisma ?? defaultPrisma;
   const version = await prisma.redactionVersion.findFirst({
     where: { id: input.versionId, teamId: input.teamId },
-    select: { id: true, state: true, projectId: true },
+    select: { id: true, state: true, projectId: true, project: { select: { artifactKind: true } } },
   });
   if (!version) return { ok: false, denial: "VERSION_NOT_FOUND" };
   if (version.state !== "DRAFT") {
     return { ok: false, denial: "VERSION_LOCKED" };
+  }
+  // PRO-R3-01 / PRO-R3-03 — a region is accepted only if the renderer can burn
+  // it for this project's media (the one shared decoder), so an approved
+  // version is never unrenderable and never renders with a region skipped.
+  // (VIDEO/AUDIO projects have no renderer; their regions are not judged here.)
+  const rendered = version.project.artifactKind === "IMAGE" || version.project.artifactKind === "PDF";
+  const renderable = rendered ? regionToRenderRect(input.kind, input.geometry, version.project.artifactKind) : null;
+  if (renderable && !renderable.ok) {
+    return { ok: false, denial: "REGION_KIND_UNSUPPORTED" };
+  }
+  // PRO-R3-04 — the renderer paints an opaque black-out for every region;
+  // a stored BLUR / PIXELATE / REMOVE_CONTENT would be a promise it does not keep.
+  if (rendered && input.method !== "BLACKOUT") {
+    return { ok: false, denial: "REGION_METHOD_UNSUPPORTED" };
   }
 
   const created = await prisma.redactionRegion.create({
@@ -119,6 +134,7 @@ export async function removeRedactionRegion(
       versionId: true,
       kind: true,
       method: true,
+      sourceDetectionId: true,
       version: { select: { state: true, projectId: true } },
     },
   });
@@ -126,7 +142,18 @@ export async function removeRedactionRegion(
   if (region.version.state !== "DRAFT") {
     return { ok: false, denial: "VERSION_LOCKED" };
   }
-  await prisma.redactionRegion.delete({ where: { id: input.regionId } });
+  // PRO-R3-12 — removing a region promoted from a detection returns that
+  // detection to the review queue in the same transaction, so "accepted"
+  // never counts a detection whose mask is gone.
+  await prisma.$transaction(async (tx) => {
+    await tx.redactionRegion.delete({ where: { id: input.regionId } });
+    if (region.sourceDetectionId) {
+      await tx.redactionDetection.updateMany({
+        where: { id: region.sourceDetectionId, teamId: input.teamId },
+        data: { decisionState: "SUGGESTED" },
+      });
+    }
+  });
   await emitRedactionActivity({
     prisma,
     teamId: input.teamId,

@@ -205,16 +205,19 @@ export function RegionListPanel({
 
 function humaniseKind(kind: string): string {
   switch (kind) {
+    // PRO-R3-17 — the region kinds the API actually stores.
     case "BBOX_NORMALIZED":
       return "Area of the image";
-    case "PDF_RECT":
+    case "POLYGON_NORMALIZED":
+      return "Outlined area of the image";
+    case "PDF_PAGE_RECT":
       return "Area of a PDF page";
-    case "TEXT_SPAN":
+    case "PDF_TEXT_RANGE":
       return "Span of text";
     case "AUDIO_RANGE_MS":
       return "Range of audio";
-    case "VIDEO_FRAME_RANGE":
-      return "Range of video frames";
+    case "VIDEO_FRAME_BBOX":
+      return "Area across video frames";
     default:
       return humanise(kind);
   }
