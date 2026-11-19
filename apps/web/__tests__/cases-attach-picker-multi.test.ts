@@ -265,7 +265,7 @@ test("All-failed toast says 'Could not link the (N) selected evidence record(s).
 test("Already-linked evidence still hidden by the client-side dedupe Set (defensive layer over backend filter)", () => {
   assert.match(
     SIMPLE_DETAIL,
-    /\(res\.items \?\? \[\]\)\.filter\(\s*\n?\s*\(i\) => !existingEvidenceIds\.has\(i\.id\),\s*\n?\s*\);/,
+    /\(res\.items \?\? \[\]\)\.filter\(\s*\n?\s*\(i\) => !existing(?:EvidenceIds|IdsRef\.current)\.has\(i\.id\),\s*\n?\s*\);/,
   );
 });
 

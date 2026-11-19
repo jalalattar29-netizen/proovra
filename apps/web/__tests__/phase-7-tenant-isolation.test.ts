@@ -115,7 +115,7 @@ test("all 15 required Phase 7 surfaces compose the render-proven primitives", ()
     // UC-WEB-002: the registration moved into the ONE capture leave guard,
     // which stays ON while busy (finalize in flight) — the old inline
     // `items > 0 && !busy` dropped it exactly while uploading.
-    ["app/(app)/capture/page.tsx", [/useCaptureLeaveGuard\(sessionItems\.length, busy\)/]],
+    ["app/(app)/capture/page.tsx", [/useCaptureLeaveGuard\(sessionItems\.length(?: \+ \(recordingAtRisk \? 1 : 0\))?, busy\)/]],
     [
       "app/(app)/capture/_hooks/useCaptureLeaveGuard.ts",
       [/useDirtyWork\(/, /stagedItemCount > 0 \|\| busy/, /"Staged evidence in Capture"/],

@@ -552,7 +552,7 @@ describe("enterprise feature route gates", () => {
     expect(destructionMatches.length + authorityMatches.length).toBeGreaterThanOrEqual(3);
     expect(destructionMatches.length).toBeGreaterThanOrEqual(1);
     const authorityAt = text.indexOf("async function destructionDecisionAuthority(");
-    const authority = text.slice(authorityAt, authorityAt + 700);
+    const authority = text.slice(authorityAt, text.indexOf("\n}\n", authorityAt));
     expect(authority).toContain('assertTeamAllowsEnterpriseFeature(teamId, "destructionGovernance")');
     expect(authority).toContain("isSelfServeDestructionOwner(prisma, teamId, actorUserId)");
     expect(authority).toContain('denyIfTeamNotEnterprise(reply, teamId, "destructionGovernance")');

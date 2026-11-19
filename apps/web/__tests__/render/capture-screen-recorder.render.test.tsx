@@ -291,7 +291,7 @@ describe("CaptureScreenRecorderCard", () => {
 
   it("the capture page wires the recorder through the canonical session path", () => {
     const page = readFileSync(resolve(__dirname, "../../app/(app)/capture/page.tsx"), "utf8");
-    expect(page).toMatch(/useCaptureScreenRecorder\(\{ addFilesToSession \}\)/);
+    expect(page).toMatch(/useCaptureScreenRecorder\(\{ addFilesToSession[,} ]/);
     expect(page).toMatch(/<CaptureScreenRecorderCard/);
   });
 });

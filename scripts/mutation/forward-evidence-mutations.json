@@ -10002,8 +10002,8 @@
     "aud": "AUD-01",
     "name": "comment create audits after its transaction commits",
     "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
-    "find": "    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, created);\n    return created;\n  });\n\n  return result;",
-    "replace": "    return created;\n  });\n\n  if (input.auditTx) await input.auditTx(client, result);\n  return result;",
+    "find": "    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, created);\n    // PRO-K2-04 — the author is told which handles named nobody (as the\n    // evidence-thread path already does), instead of a silent highlight.\n    return {\n      ...created,\n      unresolvedMentions: userMentions.filter((u) => !u.mentionedUserId).map((u) => u.rawHandle),\n    };\n  });\n\n  return result;",
+    "replace": "    // PRO-K2-04 — the author is told which handles named nobody (as the\n    // evidence-thread path already does), instead of a silent highlight.\n    return {\n      ...created,\n      unresolvedMentions: userMentions.filter((u) => !u.mentionedUserId).map((u) => u.rawHandle),\n    };\n  });\n\n  if (input.auditTx) await input.auditTx(client, result);\n  return result;",
     "tests": [
       {
         "cwd": "services/api",
@@ -10672,8 +10672,8 @@
     "aud": "MEX-G",
     "name": "archive admits any group member, not only the archive permission",
     "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
-    "find": "const { team } = await requireMemberWithPermission(db, input.teamId, input.actorUserId, \"team.archive\");",
-    "replace": "const { team } = await requireMemberWithPermission(db, input.teamId, input.actorUserId, \"team.read\");",
+    "find": "return await requireMemberWithPermission(client, teamId, actorUserId, \"team.archive\");",
+    "replace": "return await requireMemberWithPermission(client, teamId, actorUserId, \"team.read\");",
     "tests": [
       {
         "cwd": "services/api",

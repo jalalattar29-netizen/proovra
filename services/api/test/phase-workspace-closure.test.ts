@@ -38,7 +38,7 @@ describe("preflight", () => {
     expect(PREFLIGHT).toMatch(/billingStatus === "ACTIVE"/);
     // PRO-N1-01 — the ONE open-relationship predicate account closure also
     // uses: live subscriptions AND recurring storage add-ons of this workspace.
-    expect(PREFLIGHT).toMatch(/listOpenProviderRelationships\(\{\s*teamIds:\s*\[teamId\]\s*\}\)/);
+    expect(PREFLIGHT).toMatch(/listOpenProviderRelationships\(\{\s*teamIds:\s*\[teamId\]\s*\}(,\s*client)?\)/);
     const RELATIONSHIPS = readFileSync(
       fileURLToPath(new URL("../src/services/billing/open-provider-relationships.service.ts", import.meta.url)),
       "utf8",

@@ -805,7 +805,8 @@ describe("Phase 31.19 — Reviewer Console UI actions", () => {
   });
 
   it("403 / 404 / forbidden / not_found responses map to a single 'denied' wording (anti-enumeration)", () => {
-    expect(REVIEWERS_PAGE).toMatch(/403\|404\|forbidden\|not_found/);
+    // PRO-K1C-07 (WS-REACH) — decided on the status apiFetch sets, not on message text.
+    expect(REVIEWERS_PAGE).toMatch(/status === 401 \|\| status === 403 \|\| status === 404/);
     expect(REVIEWERS_PAGE).toMatch(/Action not permitted for this signal/);
   });
 

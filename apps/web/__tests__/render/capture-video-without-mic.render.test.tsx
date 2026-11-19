@@ -48,7 +48,7 @@ class FakeRecorder {
 const fakeStream = { getTracks: () => [], getAudioTracks: () => [], getVideoTracks: () => [] } as unknown as MediaStream;
 // B4-F-303 — the marker is read from the recorded stream's audio tracks, so a
 // granted microphone yields a stream that HAS one (as a browser's does).
-const fakeStreamWithAudio = { getTracks: () => [], getAudioTracks: () => [{ kind: "audio" }], getVideoTracks: () => [] } as unknown as MediaStream;
+const fakeStreamWithAudio = { getTracks: () => [], getAudioTracks: () => [{ kind: "audio", addEventListener: () => {}, removeEventListener: () => {} }], getVideoTracks: () => [] } as unknown as MediaStream;
 
 function stubDevices(microphone: "denied" | "granted") {
   const getUserMedia = vi.fn(async (c: MediaStreamConstraints) => {

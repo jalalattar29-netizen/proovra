@@ -343,7 +343,7 @@ test("B2A-F-23: no 'Request access' link to a page that cannot grant anything", 
 test("B2B-F-04 / B2B-F-09: notifications Open uses the chokepoint; the filter lists joined workspaces", () => {
   const src = read("app/(app)/inbox/page.tsx");
   const open = src.slice(src.indexOf('data-action="open-inbox-item"'), src.indexOf('data-action="open-inbox-item"') + 1400);
-  assert.match(open, /openDestination\(safeNotificationHref\(item\.href\)\)/);
+  assert.match(open, /openDestination\(safeNotificationHref\(item\.href\)[,)]/);
   assert.match(open, /result\.status === "navigated"\) \{\s*if \(!item\.isRead && item\.canMarkRead\) void markRead\(item\);/);
   assert.match(src, /sharedWorkspaces \?\? \[\]\)/);
 });

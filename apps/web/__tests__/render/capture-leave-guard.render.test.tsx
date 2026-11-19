@@ -46,7 +46,7 @@ describe("useCaptureLeaveGuard", () => {
 
   it("the capture page uses this one guard (no second inline guard)", () => {
     const page = readFileSync(resolve(__dirname, "../../app/(app)/capture/page.tsx"), "utf8");
-    expect(page).toMatch(/useCaptureLeaveGuard\(sessionItems\.length, busy\)/);
+    expect(page).toMatch(/useCaptureLeaveGuard\(sessionItems\.length(?: \+ \(recordingAtRisk \? 1 : 0\))?, busy\)/);
     expect(page).not.toMatch(/hasStagedMaterials/);
     expect(page).not.toMatch(/useDirtyWork\(/);
     expect(page).not.toMatch(/addEventListener\("beforeunload"/);

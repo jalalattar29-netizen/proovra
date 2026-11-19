@@ -72,11 +72,13 @@ const post = (headers: Record<string, string> = {}) =>
   app.inject({ method: "POST", url: "/v1/internal/lifecycle/run", headers });
 
 describe("B7A-F-008 — the cron fallback fails closed on routes without requireAuth", () => {
-  it("development, no secret: a bearer-carrying request is 401 and neither the membership query nor the sweep runs", async () => {
+  // PRO-W2-13 (WS-SCHED) — a missing secret is 503 CONFIGURATION_ERROR in EVERY
+  // environment (development used to answer 401); it still fails closed.
+  it("development, no secret: a bearer-carrying request is refused (503) and neither the membership query nor the sweep runs", async () => {
     process.env.NODE_ENV = "development";
     const res = await post({ authorization: "Bearer a.b.c" });
-    expect(res.statusCode).toBe(401);
-    expect(res.json().error.code).toBe("UNAUTHORIZED");
+    expect(res.statusCode).toBe(503);
+    expect(res.json().error.code).toBe("CONFIGURATION_ERROR");
     expect(m.findFirst).not.toHaveBeenCalled();
     expect(m.tick).not.toHaveBeenCalled();
   });

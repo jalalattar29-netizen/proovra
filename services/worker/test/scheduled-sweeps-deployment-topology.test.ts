@@ -113,7 +113,8 @@ describe("the worker sweeps are deployed and started", () => {
   });
 
   it("each scheduler calls the RECORDED run, and a failed run pages an operator", () => {
-    expect(INDEX).toMatch(/await runCaptureReaperSweep\(\{ trigger, deleteObject: deleteObjectVersions \}\)/);
+    // PRO-C1C-01 (WS-CAP) — the recorded run also receives the key lister and the bucket.
+    expect(INDEX).toMatch(/await runCaptureReaperSweep\(\{\s*trigger,\s*deleteObject: deleteObjectVersions,/);
     expect(INDEX).toMatch(/reason: "capture_reaper_run_failed"/);
     // B8-F-301 (free-audit 0ea0, pin updated 2026-11-16): the batch now follows
     // the due population — `limit` starts at integrityRecheckBatch and is

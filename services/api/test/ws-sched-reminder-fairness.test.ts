@@ -95,7 +95,11 @@ function fakeClient(all: Row[]) {
           .sort((x, y) => x.dueAtUtc.getTime() - y.dueAtUtc.getTime() || (x.id < y.id ? -1 : 1))
           .slice(0, args.take);
       },
+      // Integration: PRO-N1Z-02 (WS-MSG) — the re-invitation gate reads the
+      // request before a reminder is sent; these requests are open.
+      findUnique: async () => ({ status: "SENT" }),
     },
+    workflowIntakeLink: { findUnique: async () => null },
     team: { findUnique: async () => ({ name: "W", evidenceWorkspaceLabel: null }) },
     notificationDelivery: {
       findFirst: async (args: any) => {
