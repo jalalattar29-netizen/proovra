@@ -41,7 +41,10 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { repairStaleCurrentWorkspacePointers } from "../access/current-workspace-pointer.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
-import { endCreatorAuthorityOnRoleChangeTx } from "../sharing/standing-credential-authority.js";
+import {
+  endCreatorAuthorityOnRoleChangeTx,
+  endStandingCredentialsOnLostAuthorityTx,
+} from "../sharing/standing-credential-authority.js";
 import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
 import { enqueueMembershipLifecycleNoticeTx } from "../notifications/membership-lifecycle-notice.js";
 import { evaluateMemberAccess } from "./access-policy.service.js";

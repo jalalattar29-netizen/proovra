@@ -137,14 +137,28 @@ describe("WS-REV — external review and decision integrity (live PostgreSQL)", 
     expect(changed.changed).toBe(true);
     expect((await prisma.externalReviewGrant.findUniqueOrThrow({ where: { id: g1 } })).state).toBe("REVOKED");
 
-    // Group-mapping archive: every ACTIVE ADMIN is lowered to MEMBER. Keep the
+    // Group-mapping archive. Integration (PRO-A2Z-02, WS-ORG): the archive
+    // lowers only the ADMIN that THIS group's provenance granted, so the
+    // fixture gives groupAdmin a live group grant and names it. Keep the
     // fixture administrators' role afterwards so other cases are unaffected.
     const admins = await prisma.teamMember.findMany({
       where: { teamId: A().teamId, role: "ADMIN", status: "ACTIVE" },
       select: { id: true },
     });
+    const groupRef = `scim-group:${randomUUID()}`;
+    await provisioning.recordMembershipGrant(prisma as never, {
+      teamMemberId: groupAdmin.memberId,
+      source: "IDP_GROUP",
+      intent: "GROUP_MAPPING",
+      externalRef: groupRef,
+      grantedRole: "ADMIN",
+    });
     await prisma.$transaction(async (tx) => {
-      await provisioning.demoteGroupMappedRoleOnArchive(tx as never, { teamId: A().teamId, mappedRole: "ADMIN" });
+      await provisioning.demoteGroupMappedRoleOnArchive(tx as never, {
+        teamId: A().teamId,
+        mappedRole: "ADMIN",
+        provenanceRefs: [groupRef],
+      });
     });
     expect((await prisma.externalReviewGrant.findUniqueOrThrow({ where: { id: g2 } })).state).toBe("REVOKED");
     await prisma.teamMember.updateMany({ where: { id: { in: admins.map((a) => a.id) } }, data: { role: "ADMIN" } });
