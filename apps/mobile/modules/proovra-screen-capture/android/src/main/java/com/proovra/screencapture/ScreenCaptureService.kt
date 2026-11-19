@@ -94,6 +94,9 @@ class ScreenCaptureService : Service() {
     private var onStartFailedCb: ((String, String) -> Unit)? = null
     @Volatile private var stopReason: String = "USER_STOPPED"
 
+    /** PRO-NBC-03 — the account starting the next capture (set by the module before start). */
+    @Volatile var pendingOwnerUserId: String? = null
+
     /** (frameIndex or -1, frameCount, status: FRAME_CAPTURED / UNCHANGED / FAILED). */
     var onFrame: ((Int, Int, String) -> Unit)? = null
     var onStopped: ((ScreenCaptureOutcome) -> Unit)? = null
@@ -117,6 +120,9 @@ class ScreenCaptureService : Service() {
 
     /** A capture a dead process left behind, with frames to offer; null otherwise. */
     fun recoveredOutcome(): ScreenCaptureOutcome? = recoverableFrameOutcome(FrameLedgerKeeper.get(), active)
+
+    /** PRO-NBC-03 — the account the frame ledger was written for (null: none, or an earlier build's ledger). */
+    fun recoveredOwner(): String? = FrameLedgerKeeper.get()?.ownerUserId
 
     /** JS committed (staged) or discarded the capture: the ledger goes. Never while recording. */
     fun clearLedger(): Boolean {
@@ -277,8 +283,10 @@ class ScreenCaptureService : Service() {
         screenH = heightPx,
         densityDpi = densityDpi,
         orientation = if (widthPx >= heightPx) "landscape" else "portrait",
+        ownerUserId = pendingOwnerUserId,
       ),
     )
+
 
     // The OS revoking the projection (e.g. the user ends casting) fails closed.
     mp.registerCallback(object : MediaProjection.Callback() {
