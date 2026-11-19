@@ -52,6 +52,10 @@ export type SurfaceUserContext = {
     reviewerOperationsIncluded?: boolean | null;
     /** Redaction (free audit B5B-F-205) — FEATURE_REDACTION; absent on an older API. */
     redactionIncluded?: boolean | null;
+    /** PRO-R2-06 (WS-ENT) — review queues / reviewer workspace (TEAM and above). */
+    reviewQueuesIncluded?: boolean | null;
+    /** PRO-R2-06 (WS-ENT) — External Review (PRO and above). */
+    externalReviewIncluded?: boolean | null;
   } | null;
 };
 

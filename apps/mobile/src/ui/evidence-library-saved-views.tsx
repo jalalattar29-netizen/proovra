@@ -13,7 +13,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { theme } from "../theme/theme";
 import { ProovraButton, ProovraFormField, ProovraInput, ProovraText } from "./index";
 import { ProovraFilterChips, ProovraSheet } from "./patterns";
-import { savedViewMetaLine, savedViewOwnedBy, type SavedViewItem } from "../product/evidence-library";
+import { savedViewMayEdit, savedViewMetaLine, savedViewOwnedBy, type SavedViewItem } from "../product/evidence-library";
 
 export interface SavedViewDraft {
   name: string;
@@ -32,6 +32,7 @@ export function EvidenceLibrarySavedViews({
   onDelete,
   onSetDefault,
   currentUserId = null,
+  envelope = null,
 }: {
   views: SavedViewItem[];
   teamOptions: ReadonlyArray<{ id: string; name: string }>;
@@ -48,6 +49,8 @@ export function EvidenceLibrarySavedViews({
    * offered only on views this user made (the server refuses anyone else, 403).
    */
   currentUserId?: string | null;
+  /** PRO-E1-08 — the platform envelope, for the caller's role per view workspace. */
+  envelope?: unknown;
 }) {
   const [listOpen, setListOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -116,6 +119,7 @@ export function EvidenceLibrarySavedViews({
                       onApply(view);
                     }}
                   />
+                  {savedViewMayEdit(view, currentUserId, envelope) ? (
                   <ProovraButton
                     label="Rename"
                     accessibilityLabel={`Rename ${view.name}`}
@@ -130,6 +134,7 @@ export function EvidenceLibrarySavedViews({
                       setEditOpen(true);
                     }}
                   />
+                  ) : null}
                   {savedViewOwnedBy(view, currentUserId) ? (
                   <ProovraButton
                     label={view.isDefault ? "Default View" : "Make Default"}
@@ -140,6 +145,7 @@ export function EvidenceLibrarySavedViews({
                     onPress={() => void onSetDefault(view.id)}
                   />
                   ) : null}
+                  {savedViewMayEdit(view, currentUserId, envelope) ? (
                   <ProovraButton
                     label="Delete"
                     accessibilityLabel={`Delete ${view.name}`}
@@ -147,6 +153,7 @@ export function EvidenceLibrarySavedViews({
                     fullWidth={false}
                     onPress={() => void onDelete(view.id)}
                   />
+                  ) : null}
                 </View>
               </View>
             ))}

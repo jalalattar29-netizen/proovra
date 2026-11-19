@@ -107,6 +107,8 @@ export type EvidenceDetailCtx = {
 
   // Surface gates (Phase IA-self-serve-completion)
   canSeeReviewerOps: boolean;
+  /** PRO-E2-01 — record-level review (BASIC_RECORD_REVIEW); see page.tsx. */
+  canSeeBasicReview: boolean;
   canSeeGovernance: boolean;
   canSeeIntelligence: boolean;
   canSeeIntakeLinks: boolean;
@@ -703,10 +705,13 @@ export function PreviewWorkspace({
   onOpenOriginal,
   onDownloadOriginal,
   canPrepareRecording,
+  canDownloadOriginal = true,
 }: {
   workspace: ReviewWorkspaceResponse;
   onOpenOriginal: () => void;
   onDownloadOriginal: () => void;
+  /** PRO-E2-09 — the caller may take the original (default: offered). */
+  canDownloadOriginal?: boolean;
   /** May this viewer start preparing a historical recording's combined video? */
   canPrepareRecording?: boolean;
 }) {
@@ -871,6 +876,8 @@ export function PreviewWorkspace({
       <div className="evidence-detail-section-head">
         <h2 className="evidence-detail-section-title">Evidence Preview</h2>
         <div className="evidence-detail-section-head__actions">
+          {canDownloadOriginal ? (
+          <>
           <button
             type="button"
             className="app-secondary-action"
@@ -888,6 +895,8 @@ export function PreviewWorkspace({
                 single original; the action downloads every original file. */}
             {originalIsMultipart ? downloadOriginalFilesLabel(storedPartCount) : "Download"}
           </button>
+          </>
+          ) : null}
         </div>
       </div>
 

@@ -146,6 +146,11 @@ export type EvidenceActorCapabilities = {
   archive: boolean;
   delete: boolean;
   restoreFromTrash: boolean;
+  /**
+   * PRO-E2-09 (WS-ENT) — "Open original" / "Download original" are offered
+   * only to a caller the original download gate accepts. Additive.
+   */
+  downloadOriginal: boolean;
 };
 
 const ACTOR_CAPABILITY_PERMISSIONS = {
@@ -153,6 +158,7 @@ const ACTOR_CAPABILITY_PERMISSIONS = {
   archive: "evidence.archive",
   delete: "evidence.delete",
   restoreFromTrash: "evidence.restore_from_trash",
+  downloadOriginal: "evidence.download_original",
 } as const satisfies Record<keyof EvidenceActorCapabilities, EvidenceRecordPermission>;
 
 const NO_ACTOR_CAPABILITIES: EvidenceActorCapabilities = {
@@ -160,6 +166,7 @@ const NO_ACTOR_CAPABILITIES: EvidenceActorCapabilities = {
   archive: false,
   delete: false,
   restoreFromTrash: false,
+  downloadOriginal: false,
 };
 
 export async function projectEvidenceActorCapabilities(

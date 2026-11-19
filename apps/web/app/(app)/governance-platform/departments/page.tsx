@@ -62,6 +62,10 @@ import {
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
 import { apiFetch, isApiResponseError } from "../../../../lib/api";
+import { useWorkspacePermissionAccess } from "../../../../components/governance/governance-action-state";
+
+// PRO-G2Z-02 (WS-ENT) - row actions follow the route's own permission (advisory mirror).
+const ROLE_REFUSAL_NOTE = "Your role in this workspace does not include this governance action.";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
@@ -190,6 +194,7 @@ function Shell() {
   const [departmentsFailure, setDepartmentsFailure] =
     useState<SurfaceFailure | null>(null);
   const [busy, setBusy] = useState(false);
+  const permissionAccess = useWorkspacePermissionAccess();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
 
@@ -756,8 +761,8 @@ function Shell() {
             <Button
               variant="enterprise"
               data-department-create-submit
-              disabled={busy || !name || !slug}
-              disabledReason={
+              disabled={busy || !name || !slug || !permissionAccess.allows("governance.department.define")}
+              disabledReason={!permissionAccess.allows("governance.department.define") ? ROLE_REFUSAL_NOTE :
                 !name
                   ? "Enter the department name."
                   : !slug
@@ -817,8 +822,8 @@ function Shell() {
                     data-department-archive={d.id}
                     aria-label={`Archive ${d.name}`}
                     loading={archivingId === d.id}
-                    disabled={archivingId !== null}
-                    disabledReason={
+                    disabled={archivingId !== null || !permissionAccess.allows("governance.department.define")}
+                    disabledReason={!permissionAccess.allows("governance.department.define") ? ROLE_REFUSAL_NOTE :
                       archivingId !== null && archivingId !== d.id
                         ? "Another department is being archived. Wait for it to finish."
                         : undefined
@@ -924,8 +929,8 @@ function Shell() {
                 <Button
                   variant="enterprise"
                   data-department-grant-submit
-                  disabled={mutating || !grantUserId.trim()}
-                  disabledReason={
+                  disabled={mutating || !grantUserId.trim() || !permissionAccess.allows("governance.department.manage")}
+                  disabledReason={!permissionAccess.allows("governance.department.manage") ? ROLE_REFUSAL_NOTE :
                     !grantUserId.trim()
                       ? "Enter the user to grant the membership to."
                       : undefined
@@ -969,7 +974,8 @@ function Shell() {
                         variant="destructive"
                         size="sm"
                         data-department-membership-revoke={m.id}
-                        disabled={mutating}
+                        disabledReason={!permissionAccess.allows("governance.department.manage") ? ROLE_REFUSAL_NOTE : undefined}
+                        disabled={mutating || !permissionAccess.allows("governance.department.manage")}
                         onClick={() => void revoke(m)}
                       >
                         Revoke

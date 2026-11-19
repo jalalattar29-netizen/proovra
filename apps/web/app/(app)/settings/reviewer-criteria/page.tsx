@@ -40,12 +40,23 @@ function ReviewerCriteriaPageInner() {
   const [showCreate, setShowCreate] = useState(false);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
+  // PRO-NAZ-01 (WS-ENT) — the server projects the write routes' own decision
+  // (OWNER/ADMIN and the plan includes record-level review). An older API
+  // that does not send it leaves authoring offered (the server decides).
+  const [canManage, setCanManage] = useState<boolean>(true);
+  const [manageBlockedBy, setManageBlockedBy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!teamId) return;
     try {
-      const res = (await apiFetch(`/v1/reviewer-criteria?teamId=${teamId}`)) as { sets: CriteriaSet[] };
+      const res = (await apiFetch(`/v1/reviewer-criteria?teamId=${teamId}`)) as {
+        sets: CriteriaSet[];
+        canManage?: boolean;
+        manageBlockedBy?: string | null;
+      };
       setSets(res.sets);
+      setCanManage(res.canManage !== false);
+      setManageBlockedBy(res.canManage === false ? res.manageBlockedBy ?? "ROLE" : null);
       setError(null);
     } catch (err) {
       setError(isApiResponseError(err) && err.statusCode === 403 ? "Your role in this workspace does not include reviewer criteria." : "The criteria catalog is unavailable right now.");
@@ -82,17 +93,26 @@ function ReviewerCriteriaPageInner() {
     <div style={{ padding: 24, maxWidth: 980 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <h1 style={{ margin: 0 }}>Reviewer Criteria</h1>
-        <button className="app-primary-action" onClick={() => setShowCreate((v) => !v)}>
-          {showCreate ? "Close" : "New criteria set"}
-        </button>
+        {canManage ? (
+          <button className="app-primary-action" onClick={() => setShowCreate((v) => !v)}>
+            {showCreate ? "Close" : "New criteria set"}
+          </button>
+        ) : null}
       </div>
+      {!canManage ? (
+        <p className="app-alert" role="note" data-testid="reviewer-criteria-read-only">
+          {manageBlockedBy === "PLAN_NOT_INCLUDED"
+            ? "Authoring reviewer criteria is part of the Pro plan and above. Criteria already published stay readable."
+            : "You can read these criteria. Workspace owners and admins author, publish and retire them."}
+        </p>
+      ) : null}
       <p style={{ opacity: 0.75, fontSize: 14 }}>
         Human-authored, versioned criteria that guide reviewers. Published versions are
         immutable; the Reviewer Copilot may explain criteria but never authors, edits,
         or publishes them.
       </p>
       {error ? <div className="app-alert app-alert--warn" role="alert">{error}</div> : null}
-      {showCreate ? <CreateForm teamId={teamId} onCreated={() => { setShowCreate(false); void load(); }} /> : null}
+      {showCreate && canManage ? <CreateForm teamId={teamId} onCreated={() => { setShowCreate(false); void load(); }} /> : null}
 
       {sets === null ? <p style={{ opacity: 0.6 }}>Loading…</p> : null}
       {sets && sets.length === 0 && !error ? (
@@ -109,7 +129,7 @@ function ReviewerCriteriaPageInner() {
               {s.description ? <div style={{ fontSize: 13, opacity: 0.7 }}>{s.description}</div> : null}
             </div>
             <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {s.status === "DRAFT" ? (
+              {canManage && s.status === "DRAFT" ? (
                 <>
                   <button className="app-secondary-action" disabled={busy} onClick={() => setEditId(editId === s.id ? null : s.id)}>
                     {editId === s.id ? "Close editor" : "Edit draft"}
@@ -119,12 +139,12 @@ function ReviewerCriteriaPageInner() {
                   </button>
                 </>
               ) : null}
-              {s.status === "PUBLISHED" ? (
+              {canManage && s.status === "PUBLISHED" ? (
                 <button className="app-secondary-action" disabled={busy} onClick={() => void act(s.id, "duplicate")}>
                   Duplicate as v{(s.versions[0]?.version ?? 1) + 1}
                 </button>
               ) : null}
-              {s.status !== "RETIRED" ? (
+              {canManage && s.status !== "RETIRED" ? (
                 <button className="app-secondary-action" disabled={busy} onClick={() => void act(s.id, "retire")}>
                   Retire
                 </button>

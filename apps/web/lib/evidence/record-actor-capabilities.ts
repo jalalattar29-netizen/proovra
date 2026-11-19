@@ -34,6 +34,8 @@ export type RecordActorCapabilities = {
   canArchive: boolean;
   canTrash: boolean;
   canRestoreFromTrash: boolean;
+  /** PRO-E2-09 — Open / Download original (server: evidence.download_original). */
+  canDownloadOriginal: boolean;
   /** "server" | "role" | "unknown" — where the answer came from. */
   source: "server" | "role" | "unknown";
 };
@@ -44,6 +46,8 @@ export type ServerActorCapabilities = {
   archive?: boolean;
   delete?: boolean;
   restoreFromTrash?: boolean;
+  /** PRO-E2-09 (WS-ENT) — absent on an older API: the role matrix answers. */
+  downloadOriginal?: boolean;
 };
 
 const ALL: RecordActorCapabilities = {
@@ -51,6 +55,7 @@ const ALL: RecordActorCapabilities = {
   canArchive: true,
   canTrash: true,
   canRestoreFromTrash: true,
+  canDownloadOriginal: true,
   source: "unknown",
 };
 
@@ -65,26 +70,34 @@ export function resolveRecordActorCapabilities(input: {
   server?: ServerActorCapabilities | null;
 }): RecordActorCapabilities {
   const server = input.server;
+  // The role matrix answer, used whole when the server sends nothing and for a
+  // field an older server does not send (downloadOriginal).
+  const roleAnswer = ((): RecordActorCapabilities => {
+    if (input.recordTeamId === undefined || input.recordTeamId === null) return ALL;
+    const role = roleInWorkspace(input.envelope, input.recordTeamId);
+    if (!role) return ALL;
+    const canonical = mapTeamRoleToCanonical(role);
+    return {
+      canEditMetadata: roleHasPermission(canonical, "evidence.update_metadata"),
+      canArchive: roleHasPermission(canonical, "evidence.archive"),
+      canTrash: roleHasPermission(canonical, "evidence.delete"),
+      canRestoreFromTrash: roleHasPermission(canonical, "evidence.restore_from_trash"),
+      canDownloadOriginal: roleHasPermission(canonical, "evidence.download_original"),
+      source: "role",
+    };
+  })();
   if (server && typeof server === "object") {
     return {
       canEditMetadata: server.updateMetadata === true,
       canArchive: server.archive === true,
       canTrash: server.delete === true,
       canRestoreFromTrash: server.restoreFromTrash === true,
+      canDownloadOriginal:
+        typeof server.downloadOriginal === "boolean" ? server.downloadOriginal : roleAnswer.canDownloadOriginal,
       source: "server",
     };
   }
-  if (input.recordTeamId === undefined || input.recordTeamId === null) return ALL;
-  const role = roleInWorkspace(input.envelope, input.recordTeamId);
-  if (!role) return ALL;
-  const canonical = mapTeamRoleToCanonical(role);
-  return {
-    canEditMetadata: roleHasPermission(canonical, "evidence.update_metadata"),
-    canArchive: roleHasPermission(canonical, "evidence.archive"),
-    canTrash: roleHasPermission(canonical, "evidence.delete"),
-    canRestoreFromTrash: roleHasPermission(canonical, "evidence.restore_from_trash"),
-    source: "role",
-  };
+  return roleAnswer;
 }
 
 /**

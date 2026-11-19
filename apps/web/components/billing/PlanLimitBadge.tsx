@@ -22,7 +22,7 @@
  */
 
 import type { JSX } from "react";
-import Link from "next/link";
+import { WorkspaceUpgradeLink } from "./WorkspaceUpgradeLink";
 import type { CSSProperties } from "react";
 
 export type PlanLimitBadgeKind =
@@ -141,15 +141,16 @@ export function PlanLimitBadge(props: PlanLimitBadgeProps): JSX.Element {
           {composeCapacity(props)}
         </span>
       </span>
+      {/* PRO-BL1C-03 (WS-ENT) — "Upgrade" only for the payer of the ACTIVE
+          workspace (WorkspaceUpgradeLink, B3A-F-004): a member of a workspace
+          someone else pays for is told who manages billing instead of being
+          sent to their own personal billing, where a purchase lifts nothing. */}
       {atLimit ? (
-        <Link
-          href="/billing"
-          style={UPGRADE_LINK_STYLE}
-          aria-label={`Upgrade plan: ${label}`}
-          data-testid={`${testid}-upgrade`}
-        >
-          Upgrade
-        </Link>
+        <span style={UPGRADE_LINK_STYLE}>
+          <WorkspaceUpgradeLink ariaLabel={`Upgrade plan: ${label}`} testId={`${testid}-upgrade`}>
+            Upgrade
+          </WorkspaceUpgradeLink>
+        </span>
       ) : null}
     </span>
   );

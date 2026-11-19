@@ -25,6 +25,15 @@ export type PlatformContextPlanFeatures = {
   casesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
   /**
+   * PRO-E2-01 (WS-ENT) — the RECORD-LEVEL review lifecycle (claim, verdicts,
+   * close, reopen): BASIC_RECORD_REVIEW, PRO and above, from the ladder the
+   * review routes enforce. Required for PlanFeatureBooleanKey (see the note on
+   * externalReviewIncluded); an older envelope omits it, which reads as
+   * unknown at runtime and the record page falls back to
+   * reviewerOperationsIncluded.
+   */
+  basicRecordReviewIncluded: boolean;
+  /**
    * Free audit B5B-F-205 — redaction entitlement (FEATURE_REDACTION), once the
    * API projects it. Optional: older envelopes omit it and the /redaction
    * surface rule then falls back to its tier.

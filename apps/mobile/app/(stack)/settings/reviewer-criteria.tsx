@@ -64,6 +64,8 @@ import {
   criteriaActionLabel,
   criteriaStatusLabel,
   criteriaStatusTone,
+  parseCriteriaAuthority,
+  criteriaReadOnlyNote,
   parseCriteriaSets,
   type CriteriaAction,
   type CriteriaSet,
@@ -71,7 +73,7 @@ import {
 
 type State =
   | { phase: "loading" }
-  | { phase: "loaded"; sets: CriteriaSet[] }
+  | { phase: "loaded"; sets: CriteriaSet[]; canManage: boolean; blockedBy: string | null }
   | { phase: "denied" }
   | { phase: "failed" };
 
@@ -102,7 +104,8 @@ export default function ReviewerCriteriaScreen() {
     if (!teamId) return;
     setState({ phase: "loading" });
     try {
-      setState({ phase: "loaded", sets: parseCriteriaSets(await apiFetch(buildCriteriaPath(teamId))) });
+      const payload = await apiFetch(buildCriteriaPath(teamId));
+      setState({ phase: "loaded", sets: parseCriteriaSets(payload), ...parseCriteriaAuthority(payload) });
     } catch (err) {
       const status = (err as { statusCode?: number } | undefined)?.statusCode;
       setState({ phase: status === 403 ? "denied" : "failed" });
@@ -169,7 +172,7 @@ export default function ReviewerCriteriaScreen() {
         eyebrow="Settings"
         subtitle="Human-authored, versioned criteria. A published version can never change."
         primaryAction={
-          state.phase === "loaded" ? (
+          state.phase === "loaded" && state.canManage ? (
             <ProovraButton
               label="New criteria set"
               fullWidth={false}
@@ -204,8 +207,14 @@ export default function ReviewerCriteriaScreen() {
           presence="page"
           title="No criteria sets yet"
           purpose="A criteria set is a versioned list of what a reviewer must judge. Sets created for this workspace appear here."
-          action={<ProovraButton label="New criteria set" onPress={() => setCreating(true)} />}
+          action={state.canManage ? <ProovraButton label="New criteria set" onPress={() => setCreating(true)} /> : undefined}
         />
+      ) : null}
+
+      {state.phase === "loaded" && !state.canManage ? (
+        <ProovraText variant="body" color={theme.color.ink.muted} testID="reviewer-criteria-read-only">
+          {criteriaReadOnlyNote(state.blockedBy)}
+        </ProovraText>
       ) : null}
 
       {state.phase === "loaded" && state.sets.length > 0
@@ -250,7 +259,7 @@ export default function ReviewerCriteriaScreen() {
                 ) : null}
 
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
-                  {availableActions(set).map((action) => (
+                  {(state.canManage ? availableActions(set) : []).map((action) => (
                     <ProovraButton
                       key={action}
                       label={criteriaActionLabel(action)}
@@ -266,7 +275,7 @@ export default function ReviewerCriteriaScreen() {
                   Editing is offered only for a DRAFT — see isEditable. On a
                   published set the API answers 409 published_immutable.
                 */}
-                {isEditable(set) && teamId ? (
+                {state.canManage && isEditable(set) && teamId ? (
                   <>
                     <ProovraButton
                       label={editing === set.id ? "Close editor" : "Edit draft"}

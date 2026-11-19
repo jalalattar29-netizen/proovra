@@ -146,6 +146,11 @@ export function CommandPalette() {
       // command-palette search even before query filtering.
       if (!access.canSeeNav) continue;
       if (!route.commandPaletteVisible) continue;
+      // PRO-N1-07 (WS-ENT) — a parametric href (`/organizations/:id/admin/…`,
+      // `[id]`) is not a destination: the palette pushed it verbatim and
+      // landed on not-found. Settings resolves these pages with the caller's
+      // organization id; the palette does not, so it does not list them.
+      if (/[:[]/.test(route.href)) continue;
       // F-21 — the same suppression the sidebar applies (AppSidebarV2): an
       // organization-only destination is not offered outside an organization
       // workspace. Its page answers NEEDS_ORGANIZATION and its data routes

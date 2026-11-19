@@ -73,6 +73,25 @@ export interface CriteriaSet {
   updatedAtIso: string | null;
 }
 
+/**
+ * PRO-NAZ-01 (WS-ENT) — the list's projection of the write routes' decision
+ * (OWNER/ADMIN and the plan includes record-level review). An older API that
+ * does not send `canManage` leaves authoring offered and the server decides.
+ */
+export function parseCriteriaAuthority(payload: unknown): { canManage: boolean; blockedBy: string | null } {
+  const o = obj(payload);
+  if (o.canManage === false) {
+    return { canManage: false, blockedBy: typeof o.manageBlockedBy === "string" ? o.manageBlockedBy : "ROLE" };
+  }
+  return { canManage: true, blockedBy: null };
+}
+
+export function criteriaReadOnlyNote(blockedBy: string | null): string {
+  return blockedBy === "PLAN_NOT_INCLUDED"
+    ? "Authoring reviewer criteria is part of the Pro plan and above. Criteria already published stay readable."
+    : "You can read these criteria. Workspace owners and admins author, publish and retire them.";
+}
+
 export function parseCriteriaSets(payload: unknown): CriteriaSet[] {
   return rows(obj(payload).sets ?? obj(payload).criteriaSets ?? payload)
     .map((raw) => {

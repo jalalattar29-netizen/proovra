@@ -30,6 +30,25 @@ const STATUS_TONE: Record<string, ProovraStatusTone> = {
   CANCELLED: "neutral",
 };
 
+/**
+ * PRO-NC-03 (WS-ENT) — the Home priority links here with
+ * `?status=RESPONSE_RECEIVED,UNDER_REVIEW`; the list dropped the filter and
+ * showed every request. The list route accepts ONE status, so the requested
+ * set is applied to the loaded rows. An empty / absent param means no filter.
+ */
+export function parseRequestStatusFilter(raw: string | string[] | undefined | null): ReadonlyArray<string> {
+  const value = Array.isArray(raw) ? raw.join(",") : raw ?? "";
+  return value
+    .split(",")
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => /^[A-Z_]{2,40}$/.test(s));
+}
+
+export function filterRequestsByStatus<T extends { status: string }>(items: ReadonlyArray<T>, statuses: ReadonlyArray<string>): T[] {
+  if (statuses.length === 0) return [...items];
+  return items.filter((i) => statuses.includes(String(i.status).toUpperCase()));
+}
+
 export function requestStatusDisplay(status: string | null | undefined): { label: string; tone: ProovraStatusTone } {
   const key = status ?? "";
   return { label: key ? humanizeEnum(key) : "Unknown", tone: STATUS_TONE[key] ?? "neutral" };

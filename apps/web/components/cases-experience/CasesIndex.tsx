@@ -79,6 +79,7 @@ import {
   usePlanFeature,
   usePlatformContext,
 } from "../../lib/platform-context";
+import { actorRoleIn } from "../../lib/platform-context/actorRole";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 // Phase 7C — canonical PROOVRA design foundation. PageShell/PageHeader/
 // PageSection + FilterBar come from the shared barrel; the richer
@@ -1462,7 +1463,16 @@ function RowActions({
   const { confirm } = useConfirmAction();
   // Deleting a case is irreversible and needs a fresh step-up (members audit
   // SEC-03); the list is scoped to the active workspace, so is the challenge.
-  const stepUp = useStepUpAction({ teamId: useActiveWorkspaceId() });
+  const activeWorkspaceId = useActiveWorkspaceId();
+  const stepUp = useStepUpAction({ teamId: activeWorkspaceId });
+  // PRO-K1-05 (WS-ENT) — Rename and Delete pass the destructive gate only for
+  // a workspace OWNER or ADMIN (resolveCaseDestructiveAccessRole); a MEMBER,
+  // case creator or case-OWNER assignee is refused CASE_RENAME_DENIED /
+  // CASE_DELETE_DENIED. When the envelope states the role, only OWNER/ADMIN
+  // are offered them; an unknown role keeps them and the server decides.
+  const platform = usePlatformContext();
+  const listRole = actorRoleIn(platform?.envelope ?? null, activeWorkspaceId);
+  const mayDestroy = listRole === null || listRole === "OWNER" || listRole === "ADMIN";
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -1580,9 +1590,11 @@ function RowActions({
           </button>
           {readOnly ? null : (
           <>
-          <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
-            Rename
-          </button>
+          {mayDestroy ? (
+            <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
+              Rename
+            </button>
+          ) : null}
           <button type="button" role="menuitem" className="cases-row-actions-item" onClick={() => go(`/cases/${caseId}?tab=settings`)}>
             Change status
           </button>
@@ -1595,15 +1607,19 @@ function RowActions({
           >
             Archive
           </button>
-          <div className="cases-row-actions-sep" role="separator" />
-          <button
-            type="button"
-            role="menuitem"
-            className="cases-row-actions-item cases-row-actions-item--danger"
-            onClick={() => void del()}
-          >
-            Delete
-          </button>
+          {mayDestroy ? (
+            <>
+              <div className="cases-row-actions-sep" role="separator" />
+              <button
+                type="button"
+                role="menuitem"
+                className="cases-row-actions-item cases-row-actions-item--danger"
+                onClick={() => void del()}
+              >
+                Delete
+              </button>
+            </>
+          ) : null}
           </>
           )}
         </div>

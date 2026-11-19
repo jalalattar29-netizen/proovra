@@ -35,6 +35,10 @@ import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../../lib/api";
+import { useWorkspacePermissionAccess } from "../../../../../components/governance/governance-action-state";
+
+// PRO-G2Z-02 (WS-ENT) - row actions follow the route's own permission (advisory mirror).
+const ROLE_REFUSAL_NOTE = "Your role in this workspace does not include this governance action.";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { permissionRequiredDetail } from "../../../../../lib/labels/governanceReviewLabels";
@@ -60,6 +64,7 @@ function Shell() {
     [],
   );
   const [busy, setBusy] = useState(false);
+  const permissionAccess = useWorkspacePermissionAccess();
   const [denial, setDenial] = useState<DenialState>(null);
   const denied = denial !== null;
 
@@ -146,27 +151,30 @@ function Shell() {
           <Button
             variant="secondary"
             size="sm"
-            disabled={busy}
+            disabled={busy || !permissionAccess.allows("governance.access_review.decide")}
             onClick={() => void decide(item.id, "APPROVED")}
             data-access-review-item-decision-button="APPROVED"
+            disabledReason={!permissionAccess.allows("governance.access_review.decide") ? ROLE_REFUSAL_NOTE : undefined}
           >
             Approve
           </Button>
           <Button
             variant="destructive"
             size="sm"
-            disabled={busy}
+            disabled={busy || !permissionAccess.allows("governance.access_review.decide")}
             onClick={() => void decide(item.id, "REVOKED")}
             data-access-review-item-decision-button="REVOKED"
+            disabledReason={!permissionAccess.allows("governance.access_review.decide") ? ROLE_REFUSAL_NOTE : undefined}
           >
             Revoke
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            disabled={busy}
+            disabled={busy || !permissionAccess.allows("governance.access_review.decide")}
             onClick={() => void decide(item.id, "ESCALATED")}
             data-access-review-item-decision-button="ESCALATED"
+            disabledReason={!permissionAccess.allows("governance.access_review.decide") ? ROLE_REFUSAL_NOTE : undefined}
           >
             Escalate
           </Button>

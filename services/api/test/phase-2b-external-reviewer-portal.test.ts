@@ -123,10 +123,12 @@ describe("Phase 2B — shared portal contracts", () => {
       "portal.comment",
       "portal.decide",
       "portal.history.read",
-      "portal.download_package",
     ]) {
       expect(SHARED).toContain(`"${c}"`);
     }
+    // PRO-R1-14 (WS-ENT) — a capability no role held and no route checked is
+    // gone; downloads follow the grant's permission.
+    expect(SHARED).not.toContain(`"portal.download_package"`);
   });
   it("EXTERNAL_DECISION_VERDICTS = APPROVE / REJECT / REQUEST_CHANGES / ABSTAIN / ESCALATE", () => {
     for (const v of [
@@ -459,8 +461,8 @@ describe("Phase 2B — enum bound check", () => {
   it("EXTERNAL_REVIEWER_ROLES has exactly 6 entries", () => {
     expect(EXTERNAL_REVIEWER_ROLES.length).toBe(6);
   });
-  it("EXTERNAL_PORTAL_CAPABILITIES has exactly 6 entries", () => {
-    expect(EXTERNAL_PORTAL_CAPABILITIES.length).toBe(6);
+  it("EXTERNAL_PORTAL_CAPABILITIES has exactly 5 entries (PRO-R1-14: the unenforced download capability is gone)", () => {
+    expect(EXTERNAL_PORTAL_CAPABILITIES.length).toBe(5);
   });
   it("EXTERNAL_DECISION_VERDICTS has exactly 5 entries", () => {
     expect(EXTERNAL_DECISION_VERDICTS.length).toBe(5);

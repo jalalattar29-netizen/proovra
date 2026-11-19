@@ -4,7 +4,8 @@ import type { EvidenceSavedView } from "../lib/evidence-library-types";
 import { useState } from "react";
 import { Bookmark as BookmarkIcon, Plus } from "lucide-react";
 import { AppListbox } from "../../../../components/app-primitives";
-import { ownsSavedView } from "../../../../lib/evidence/saved-view-sharing";
+import { mayEditSavedView, ownsSavedView } from "../../../../lib/evidence/saved-view-sharing";
+import { useOptionalPlatformContext } from "../../../../lib/platform-context";
 
 export function SavedViewsMenu({
   views,
@@ -37,6 +38,8 @@ export function SavedViewsMenu({
   onDeleteView: (id: string) => Promise<void>;
   onSetDefault: (id: string) => Promise<void>;
 }) {
+  // PRO-E1-08 — the envelope states the caller's role in each view's workspace.
+  const envelope = useOptionalPlatformContext()?.envelope ?? null;
   const [isOpen, setIsOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [editViewId, setEditViewId] = useState<string | null>(null);
@@ -127,6 +130,7 @@ export function SavedViewsMenu({
                   <button type="button" className="app-secondary-action" onClick={() => onApplyView(view)}>
                     Load View
                   </button>
+                  {mayEditSavedView(view, currentUserId, envelope) ? (
                   <button
                     type="button"
                     className="app-secondary-action"
@@ -140,6 +144,7 @@ export function SavedViewsMenu({
                   >
                     Rename
                   </button>
+                  ) : null}
                   {ownsSavedView(view, currentUserId) ? (
                     <button
                       type="button"
@@ -174,7 +179,7 @@ export function SavedViewsMenu({
                         Keep view
                       </button>
                     </>
-                  ) : (
+                  ) : mayEditSavedView(view, currentUserId, envelope) ? (
                     <button
                       type="button"
                       className="app-danger-action"
@@ -182,7 +187,7 @@ export function SavedViewsMenu({
                     >
                       Delete
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ))}

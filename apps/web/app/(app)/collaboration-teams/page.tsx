@@ -76,7 +76,7 @@ import {
   type CollaborationTeamSummary,
   type CollaborationWorkspaceRollup,
 } from "../../../lib/api/collaboration-teams";
-import { useActiveSpace, usePlatformContext } from "../../../lib/platform-context";
+import { useActiveSpace, usePlanFeature, usePlatformContext } from "../../../lib/platform-context";
 import type { WorkspacePlan } from "../../../lib/platform-context/types";
 import {
   COLLABORATION_TEAM_TYPES,
@@ -1315,8 +1315,11 @@ function TeamsEmptyState({
         <strong>{PLAN_LOCKED_COPY}</strong>
         <p>
           {plan ? `This workspace's ${plan} plan doesn't include Teams. ` : ""}
-          Teams give you shared assignments, member invites, and
-          collaborative review on cases and evidence. Upgrade to create one.
+          {/* PRO-K2-10 (WS-ENT) — Team tasks (shared assignments) are the Team
+              plan and above, not every plan that includes Teams. */}
+          Teams group the people in this workspace for discussion and member
+          access. Shared assignments (Team tasks) are on the Team plan and
+          above. Upgrade to create one.
         </p>
         <div
           style={{
@@ -1523,6 +1526,8 @@ function CreateTeamModal({
   onCreated: (teamId: string) => void;
 }) {
   const { addToast } = useToast();
+  // PRO-K2-10 — Team tasks (assigning work to a team) are TEAM-plan.
+  const teamTasksIncluded = usePlanFeature("reviewQueuesIncluded");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [teamType, setTeamType] = useState<CollaborationTeamType>("GENERAL");
@@ -1596,8 +1601,9 @@ function CreateTeamModal({
             Create a team
           </h2>
           <p className="app-dialog__subtitle">
-            A team groups people who already have access to this workspace, so
-            you can assign work to them and keep the discussion together.
+            {teamTasksIncluded === true
+              ? "A team groups people who already have access to this workspace, so you can assign work to them and keep the discussion together."
+              : "A team groups people who already have access to this workspace and keeps the discussion together. Assigning work to a team (Team tasks) is on the Team plan and above."}
           </p>
         </header>
 

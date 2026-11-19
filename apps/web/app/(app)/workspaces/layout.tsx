@@ -1,11 +1,13 @@
 "use client";
 
-/**
- * Phase IA-self-serve-simplification — ENTERPRISE-tier route group
- * gate. Re-exports the shared `EnterpriseSurfaceLayout` so every page
- * in this directory inherits the surface-tier visibility check. Non-
- * eligible users hitting this URL directly are redirected (or 404'd
- * per the rule table) by `SurfaceGate` before the page renders.
- */
+import type { ReactNode } from "react";
 
-export { default } from "../../../components/surface/EnterpriseSurfaceLayout";
+/**
+ * PRO-PW-02 (WS-ENT) — /workspaces is an ACCOUNT-domain route (tier CORE in
+ * lib/surface/tiers.ts): the page gates itself with PageRouteGate
+ * (admin.teams), so this layout no longer re-exports EnterpriseSurfaceLayout,
+ * whose redirect sent every non-Enterprise account to /collaboration-teams.
+ */
+export default function WorkspacesLayout({ children }: { children: ReactNode }) {
+  return children;
+}

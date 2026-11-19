@@ -84,7 +84,8 @@ export function ReviewerWorkflowCard({
   eventsLoading: boolean;
   actionBusy: boolean;
   onRefreshEvents: () => void;
-  onOpenEditor: () => void;
+  /** PRO-E2-01 — absent when the plan has no reviewer operations (TEAM+). */
+  onOpenEditor?: () => void;
   /** The exact viewer-timezone timestamp, for each row's accessible detail. */
   formatDateTime: (value: string | null | undefined) => string;
 }) {
@@ -114,14 +115,16 @@ export function ReviewerWorkflowCard({
           <button type="button" className="app-ghost-action" onClick={onRefreshEvents}>
             Refresh
           </button>
-          <button
-            type="button"
-            className="app-secondary-action app-secondary-action--filled"
-            onClick={onOpenEditor}
-            disabled={actionBusy}
-          >
-            {workflow.available ? "Update workflow" : "Create workflow"}
-          </button>
+          {onOpenEditor ? (
+            <button
+              type="button"
+              className="app-secondary-action app-secondary-action--filled"
+              onClick={onOpenEditor}
+              disabled={actionBusy}
+            >
+              {workflow.available ? "Update workflow" : "Create workflow"}
+            </button>
+          ) : null}
         </div>
       </div>
 

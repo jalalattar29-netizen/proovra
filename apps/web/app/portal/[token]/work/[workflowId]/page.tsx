@@ -381,6 +381,7 @@ export default function PortalReviewPage({
             onRetry={() => void loadDecision()}
           />
           <CommentsPanel
+            canComment={(projection.reviewer.capabilities as ReadonlyArray<string>).includes("portal.comment")}
             comments={comments}
             rootDraft={rootDraft}
             onRootDraft={setRootDraft}
@@ -609,6 +610,7 @@ function commentFailure(err: unknown): string {
 }
 
 function CommentsPanel({
+  canComment = true,
   comments,
   rootDraft,
   onRootDraft,
@@ -618,6 +620,12 @@ function CommentsPanel({
   onPostReply,
   postError,
 }: {
+  /**
+   * PRO-R1-14 (WS-ENT) — posting and replying require portal.comment (the
+   * server's check); an EXTERNAL_OBSERVER reads the thread without inputs
+   * that could only fail.
+   */
+  canComment?: boolean;
   comments: PortalComment[];
   rootDraft: string;
   onRootDraft: (v: string) => void;
@@ -654,6 +662,7 @@ function CommentsPanel({
           {postError}
         </p>
       ) : null}
+      {canComment ? (
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         <input
           data-portal-root-comment-input
@@ -679,6 +688,11 @@ function CommentsPanel({
           Post
         </button>
       </div>
+      ) : (
+        <p data-portal-comments-read-only style={{ color: "#475569", fontSize: 12, margin: "0 0 8px" }}>
+          Your role on this review is read-only: you can read the discussion but not post to it.
+        </p>
+      )}
       {roots.length === 0 ? (
         <small style={{ color: "#475569", fontSize: 12 }}>
           No comments yet.
@@ -717,6 +731,7 @@ function CommentsPanel({
                 {rep.body}
               </div>
             ))}
+            {canComment ? (
             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
               <input
                 data-portal-comment-reply-input={r.id}
@@ -742,6 +757,7 @@ function CommentsPanel({
                 Reply
               </button>
             </div>
+            ) : null}
           </div>
         ))
       )}

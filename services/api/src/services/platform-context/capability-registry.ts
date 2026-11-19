@@ -317,11 +317,11 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
           "CASE_EVIDENCE_LINK",
           "CASE_COMMENT",
           "CASE_COMMENT_RESOLVE",
-          // Phase E3 — every team writer can read automation rules +
-          // run history (visibility is part of operational discipline).
-          // AUTOMATION_MANAGE (create/edit/enable/disable) stays
-          // OWNER/ADMIN only, granted in the isAdmin branch below.
-          "AUTOMATION_VIEW",
+          // PRO-G1-10 (WS-ENT) — AUTOMATION_VIEW moved to the isAdmin
+          // branch: every automation read (GET /v1/automation/rules, /runs,
+          // /webhooks) maps AUTOMATION_VIEW to integration.webhook.manage
+          // (OWNER/ADMIN), so a writer was admitted to a console whose every
+          // load answered 403. One answer per capability: the server's.
           // Phase E4 — operational analytics is a read-only surface;
           // any team writer can see it. Personal-workspace owners
           // (who are team writers in their personal space) also get
@@ -352,8 +352,10 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
           "EXPORT_GOVERNANCE_MANAGE",
           "SECURITY_CENTER_VIEW",
           // Phase E3 — only OWNER/ADMIN may create/edit/enable/
-          // disable automation rules. Writers can VIEW but not MANAGE.
+          // disable automation rules.
           "AUTOMATION_MANAGE",
+          // PRO-G1-10 — and only they read them (the routes' rule).
+          "AUTOMATION_VIEW",
         ],
         true,
       );

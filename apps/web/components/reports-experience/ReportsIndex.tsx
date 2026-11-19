@@ -1381,6 +1381,12 @@ function ArtifactRowActions({
 
   const reportReady = row.report.state === "ready";
   const packageReady = row.package.state === "ready";
+  // PRO-O1-10 (WS-ENT) — the full forensic ZIP is offered only to a caller who
+  // may take it; a VIEWER clicking it got FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS
+  // and an "export blocked" custody event. Such a caller is pointed at the
+  // record's outputs, where the external-disclosure package is offered.
+  const fullForensicAllowed = row.packageAccess?.fullForensic !== false;
+  const externalOnly = row.packageAccess?.fullForensic === false && row.packageAccess?.externalDisclosure === true;
   const verbs = outputVerbsFor(row);
   const primaryVerb = verbs[0] ?? null;
   const extraVerbs = verbs.slice(1);
@@ -1457,7 +1463,17 @@ function ArtifactRowActions({
           )}
         />
       ) : null}
-      {packageReady ? (
+      {packageReady && !fullForensicAllowed && externalOnly ? (
+        <Link
+          href={`/evidence/${encodeURIComponent(row.evidenceId)}?tab=artifacts`}
+          className="app-secondary-action rpt-row__action"
+          data-reports-external-package={row.evidenceId}
+          title="Your role can download the external-disclosure package from the record's outputs."
+        >
+          <span>External package</span>
+        </Link>
+      ) : null}
+      {packageReady && fullForensicAllowed ? (
         <GovernedExportAction
           evidenceId={row.evidenceId}
           teamId={teamId}

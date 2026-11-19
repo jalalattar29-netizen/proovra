@@ -91,6 +91,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     evidence,
     evidenceId,
     canSeeReviewerOps,
+    canSeeBasicReview,
     canSeeInvestigation,
     actionBusy,
     workflowEvents,
@@ -198,6 +199,9 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           className="evidence-detail-review-hero__actions"
           data-evidence-review-actions
         >
+          {/* PRO-E2-09 (WS-ENT) — linking a case is a write; a VIEWER is
+              offered no control the server refuses (A2-14). */}
+          {actor.canEditMetadata ? (
           <button
             type="button"
             className="app-primary-action"
@@ -209,7 +213,8 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           >
             Attach to case
           </button>
-          {canSeeReviewerOps ? (
+          ) : null}
+          {canSeeReviewerOps && actor.canEditMetadata ? (
             <button
               type="button"
               className="app-secondary-action"
@@ -244,14 +249,15 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
 
       {/* (2) The enterprise workflow card keeps its own controls; it renders
           only where reviewer ops are reachable. */}
-      {canSeeReviewerOps ? (
+      {canSeeBasicReview ? (
         <ReviewerWorkflowCard
           workflow={workspace.reviewWorkflow}
           events={workflowEvents}
           eventsLoading={workflowEventsLoading}
           actionBusy={actionBusy}
           onRefreshEvents={() => void loadWorkflowEvents()}
-          onOpenEditor={() => setWorkflowOpen(true)}
+          // PRO-E2-01 — the workflow editor assigns other members (TEAM).
+          onOpenEditor={canSeeReviewerOps ? () => setWorkflowOpen(true) : undefined}
           formatDateTime={formatUserDateTime}
         />
       ) : null}
@@ -277,7 +283,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         onRemoveRelationship={handleRemoveRelationship}
       />
 
-      {canSeeReviewerOps ? (
+      {canSeeBasicReview ? (
         <EvidenceReviewActionsPanel
           evidenceId={evidenceId}
           teamId={workspace.reviewWorkflow?.teamId ?? null}
@@ -317,7 +323,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             enterprise panels below. When those panels are hidden for
             non-reviewer-ops workspaces, this note has nothing to describe and
             is hidden with them. */}
-        {workspace.governance && canSeeReviewerOps ? (
+        {workspace.governance && canSeeBasicReview ? (
           <div className="evidence-detail-boundary-note">
             <span className="evidence-detail-boundary-note__title">Governance</span>
             <p className="evidence-detail-boundary-note__body">
@@ -346,7 +352,7 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             reviewer-ops features. Personal Space and small-business
             workspaces without reviewer ops hide them entirely. Backend
             authorization is unchanged — this is a visibility gate only. */}
-        {canSeeReviewerOps ? (
+        {canSeeBasicReview ? (
           <div
             className="evidence-detail-embedded-panels"
             data-evidence-review-enterprise-panels

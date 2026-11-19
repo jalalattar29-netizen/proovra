@@ -395,10 +395,12 @@ describe("E3 Test 7 — capability keys in both API and web type unions", () => 
     expect(CAP_TYPES_WEB).toMatch(/"AUTOMATION_MANAGE"/);
   });
 
-  it("capability registry grants AUTOMATION_VIEW to writers + AUTOMATION_MANAGE to admins", () => {
-    // Writer branch grants VIEW.
+  it("capability registry grants AUTOMATION_VIEW + AUTOMATION_MANAGE to admins (PRO-G1-10: the routes' read rule)", () => {
+    // PRO-G1-10 (WS-ENT) — every automation read maps AUTOMATION_VIEW to
+    // integration.webhook.manage (OWNER/ADMIN); a writer granted VIEW was
+    // admitted to a console whose every load answered 403.
     expect(CAP_REGISTRY).toMatch(
-      /if\s*\(isWriter\)[\s\S]*?"AUTOMATION_VIEW"/,
+      /if\s*\(isAdmin\)[\s\S]*?"AUTOMATION_VIEW"/,
     );
     // Admin branch grants MANAGE.
     expect(CAP_REGISTRY).toMatch(

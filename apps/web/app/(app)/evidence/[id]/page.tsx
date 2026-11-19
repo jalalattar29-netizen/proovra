@@ -45,6 +45,7 @@ import { useToast } from "../../../../components/ui";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import {
   useEnterpriseSurfaceAccess,
+  usePlanFeature,
   usePlanFeatureGate,
 } from "../../../../lib/platform-context";
 import { apiFetch } from "../../../../lib/api";
@@ -152,6 +153,13 @@ function EvidenceDetailPageInner() {
   // not: TEAM+, the field the server itself enforces.
   const enterpriseSurfaces = useEnterpriseSurfaceAccess();
   const canSeeReviewerOps = usePlanFeatureGate("reviewerOperationsIncluded");
+  // PRO-E2-01 (WS-ENT) — the record-level review (claim, verdict, close,
+  // reopen, notes) is Pro and above; reviewer OPERATIONS (assigning another
+  // member, queues) stays TEAM. An API that does not project the field yet
+  // keeps the previous answer (unknown is never an automatic allow).
+  const basicReviewGate = usePlanFeatureGate("basicRecordReviewIncluded");
+  const basicReviewProjected = usePlanFeature("basicRecordReviewIncluded");
+  const canSeeBasicReview = basicReviewProjected === null ? canSeeReviewerOps : basicReviewGate;
   const canSeeGovernance = enterpriseSurfaces;
   const canSeeIntelligence = enterpriseSurfaces;
   // Intake links are a COMMERCIAL entitlement — the SERVER-projected
@@ -231,6 +239,17 @@ function EvidenceDetailPageInner() {
   // so the control can say WHY rather than only appearing faded.
   const [exportBlockedReason, setExportBlockedReason] = useState<string | null>(null);
   const [packageBlockedReason, setPackageBlockedReason] = useState<string | null>(null);
+  // PRO-E1C-02 (WS-ENT) — stable callbacks: the badge's effect depends on its
+  // callback, and an inline arrow re-fetched the snapshot on every render.
+  type EligibilitySignal = { eligible: boolean; loading: boolean; unknown: boolean; reason: string | null };
+  const onExportEligibility = useCallback((sig: EligibilitySignal) => {
+    setExportDisabled(!sig.loading && !sig.unknown && !sig.eligible);
+    setExportBlockedReason(sig.eligible ? null : downloadBlockedLabel(sig.reason));
+  }, []);
+  const onPackageEligibility = useCallback((sig: EligibilitySignal) => {
+    setPackageDisabled(!sig.loading && !sig.unknown && !sig.eligible);
+    setPackageBlockedReason(sig.eligible ? null : downloadBlockedLabel(sig.reason));
+  }, []);
   const [initialUpdatedAtUtc, setInitialUpdatedAtUtc] = useState<string | null>(null);
   const [intelligence, setIntelligence] = useState<IntelligenceEvidenceResponse | null>(null);
   const [intelligenceLoaded, setIntelligenceLoaded] = useState(false);
@@ -1009,6 +1028,7 @@ function EvidenceDetailPageInner() {
     showManualLatestStatusCheck,
     initialThreadId,
     canSeeReviewerOps,
+    canSeeBasicReview,
     canSeeGovernance,
     canSeeIntelligence,
     canSeeIntakeLinks,
@@ -1246,25 +1266,20 @@ function EvidenceDetailPageInner() {
             record={evidence}
           />
 
-          {workspace.reviewWorkflow?.teamId ? (
+          {/* PRO-E1C-02 — bound to the RECORD's workspace, not the review row's. */}
+          {(evidence.teamId ?? workspace.reviewWorkflow?.teamId) ? (
             <div className="evidence-detail-eligibility-row">
               <ExportPackageEligibilityBadge
                 evidenceId={evidenceId}
-                teamId={workspace.reviewWorkflow.teamId}
+                teamId={(evidence.teamId ?? workspace.reviewWorkflow?.teamId) as string}
                 kind="export"
-                onEligibilityChange={(s) => {
-                  setExportDisabled(!s.loading && !s.unknown && !s.eligible);
-                  setExportBlockedReason(s.eligible ? null : downloadBlockedLabel(s.reason));
-                }}
+                onEligibilityChange={onExportEligibility}
               />
               <ExportPackageEligibilityBadge
                 evidenceId={evidenceId}
-                teamId={workspace.reviewWorkflow.teamId}
+                teamId={(evidence.teamId ?? workspace.reviewWorkflow?.teamId) as string}
                 kind="package"
-                onEligibilityChange={(s) => {
-                  setPackageDisabled(!s.loading && !s.unknown && !s.eligible);
-                  setPackageBlockedReason(s.eligible ? null : downloadBlockedLabel(s.reason));
-                }}
+                onEligibilityChange={onPackageEligibility}
               />
             </div>
           ) : null}

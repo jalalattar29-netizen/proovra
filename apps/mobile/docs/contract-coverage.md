@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**175 bindings — OK 175, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**176 bindings — OK 176, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -134,7 +134,8 @@ top level of it.
 | OK | `parseReportsSummary` | `GET /v1/reports/artifacts` | generatedAt, sections, workspace | data, sections, status |
 | OK | `parseArtifacts` | `GET /v1/reports/artifacts` | generatedAt, sections, workspace | items, nextCursor, sections, status, total |
 | OK | `parseGeneratedAt` | `GET /v1/reports/artifacts` | generatedAt, sections, workspace | generatedAt |
-| OK | `parseCriteriaSets` | `GET /v1/reviewer-criteria` | sets | criteriaSets, sets |
+| OK | `parseCriteriaSets` | `GET /v1/reviewer-criteria` | canManage, manageBlockedBy, sets | criteriaSets, sets |
+| OK | `parseCriteriaAuthority` | `GET /v1/reviewer-criteria` | canManage, manageBlockedBy, sets | canManage, manageBlockedBy |
 | OK | `parseDraftState` | `GET /v1/reviewer-criteria/:setId` | set | set, updatedAt, versions |
 | OK | `parseCriteriaVersionHistory` | `GET /v1/reviewer-criteria/:setId` | set | set |
 | OK | `parseCriteriaUsage` | `GET /v1/reviewer-criteria/:setId/usage` | usage, usageAvailable | usage |

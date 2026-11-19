@@ -683,8 +683,15 @@ export function AutomationRuleForm({
         await onSaved();
       } catch (err) {
         if (!mounted.current || mine !== seq.current) return;
-        const e = err as { statusCode?: number };
+        const e = err as { statusCode?: number; code?: string };
         const code = typeof e.statusCode === "number" ? e.statusCode : 0;
+        // PRO-G1-13 (WS-ENT) — an entitlement refusal ({denial:
+        // "ENTITLEMENT_REQUIRED"}) is a plan question, not a role one: an OWNER
+        // was told to "ask an owner or admin".
+        if (code === 403 && e.code === "ENTITLEMENT_REQUIRED") {
+          setStatus({ kind: "denied", message: "Automation is not included in this workspace's plan or contract (an Enterprise governance feature). This is a plan question for the workspace owner, not a role you can be given." });
+          return;
+        }
         if (code === 403) {
           setStatus({
             kind: "denied",

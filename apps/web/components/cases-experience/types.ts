@@ -138,6 +138,13 @@ export type MatterWorkspaceEnvelope = {
     canUnlinkLegacyEvidence: boolean;
     canComment: boolean;
     canResolveComment: boolean;
+    /**
+     * PRO-K1-05 (WS-ENT) — Rename / Delete from the destructive gate's own
+     * role input (matter-workspace.service.ts, B3C-F-005). Optional: an older
+     * API omits them and the settings tab keeps its previous answer.
+     */
+    canRename?: boolean;
+    canDelete?: boolean;
     disabledReasons: Partial<{
       assign: string;
       changeStatus: string;
@@ -146,6 +153,8 @@ export type MatterWorkspaceEnvelope = {
       unlinkLegacyEvidence: string;
       comment: string;
       resolveComment: string;
+      rename: string;
+      delete: string;
     }>;
     activeAssignmentRoles: ReadonlyArray<string>;
   };

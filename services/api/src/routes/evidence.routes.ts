@@ -8954,10 +8954,15 @@ return {
       include: { author: { select: { id: true, displayName: true, email: true } } },
       orderBy: { createdAt: "desc" },
     });
+    // PRO-E2-09 (WS-ENT) — per item, the edit/delete routes' own rule: the
+    // author, or a manager of the record's collaborative content. Additive.
+    const writable = await canWriteCollaborativeContent(userId, id);
+    const managesComments = writable && (await canManageEvidenceCollaborativeContent(userId, evidence));
 
     return reply.code(200).send({
-      canWrite: await canWriteCollaborativeContent(userId, id),
+      canWrite: writable,
       items: comments.map((comment) => ({
+        canManage: writable && (comment.authorUserId === userId || managesComments),
         id: comment.id,
         evidenceId: comment.evidenceId,
         visibility: comment.visibility,
@@ -9131,10 +9136,13 @@ return {
       include: { author: { select: { id: true, displayName: true, email: true } } },
       orderBy: { createdAt: "desc" },
     });
+    // PRO-E2-09 (WS-ENT) — per note, the edit/delete routes' own rule.
+    const writable = await canWriteCollaborativeContent(userId, id);
 
     return reply.code(200).send({
-      canWrite: await canWriteCollaborativeContent(userId, id),
+      canWrite: writable,
       items: items.map((note) => ({
+        canManage: writable && (note.authorUserId === userId || seesPrivileged),
         id: note.id,
         evidenceId: note.evidenceId,
         noteType: note.noteType,

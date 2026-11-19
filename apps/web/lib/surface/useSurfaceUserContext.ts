@@ -64,6 +64,16 @@ export function useSurfaceUserContext(): SurfaceUserContext {
         typeof envelope.planFeatures?.redactionIncluded === "boolean"
           ? envelope.planFeatures.redactionIncluded
           : null,
+      // PRO-R2-06 (WS-ENT) — the review queue / reviewer-workspace and
+      // External Review surfaces follow the API's own capability answers.
+      reviewQueuesIncluded:
+        typeof envelope.planFeatures?.reviewQueuesIncluded === "boolean"
+          ? envelope.planFeatures.reviewQueuesIncluded
+          : null,
+      externalReviewIncluded:
+        typeof envelope.planFeatures?.externalReviewIncluded === "boolean"
+          ? envelope.planFeatures.externalReviewIncluded
+          : null,
     },
   };
 }

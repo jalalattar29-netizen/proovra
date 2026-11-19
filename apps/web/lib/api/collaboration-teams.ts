@@ -113,7 +113,18 @@ export type CollaborationTeamDetail = {
     canComment?: boolean;
     canManageGuests: boolean;
     canManageAccessReviews: boolean;
+    /**
+     * PRO-K2-09 (WS-ENT) — the caller's WORKSPACE role may write
+     * (collaboration.thread.create). False for a workspace VIEWER whatever
+     * the group role. Absent on an older API.
+     */
+    workspaceWriteAllowed?: boolean;
   };
+  /**
+   * PRO-KZ-03 (WS-ENT) — lead recovery is the workspace owner's. Absent on an
+   * older API, where the banner keeps its previous answer.
+   */
+  viewerIsWorkspaceOwner?: boolean;
   /**
    * WCR-08 (2026-09-07) — THE AUTHORITATIVE COUNTS, WHICH THE SERVER HAS
    * ALWAYS SENT AND THIS TYPE NEVER DECLARED.

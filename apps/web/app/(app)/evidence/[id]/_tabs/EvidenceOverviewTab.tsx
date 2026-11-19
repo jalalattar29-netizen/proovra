@@ -47,6 +47,7 @@ import GovernanceIndicators from "../components/GovernanceIndicators";
 import { EntityChipGroup } from "../../../../../components/intelligence/EntityChipGroup";
 import { EvidenceOutputsCard } from "../../../../../components/evidence-outputs/EvidenceOutputAttention";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { useRecordActorCapabilities } from "../../../../../lib/evidence/record-actor-capabilities";
 
 export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
@@ -64,6 +65,9 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     downloadOriginal,
     outputAttention,
   } = ctx;
+  // PRO-E2-09 (WS-ENT) — original access is offered only to a caller the
+  // download gate accepts (a VIEWER holds no evidence.download_original).
+  const actorCaps = useRecordActorCapabilities(ctx.workspace?.evidence ?? null);
 
   return (
     <>
@@ -95,7 +99,10 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           ) : null}
         </>
       ) : null}
-      <ExternalIntakeSourceCard evidenceId={evidenceId} />
+      <ExternalIntakeSourceCard
+        evidenceId={evidenceId}
+        canAct={actorCaps.canEditMetadata && ctx.canSeeBasicReview}
+      />
       {canSeeIntakeLinks ? (
         <EvidenceRequestPanel
           evidenceId={evidenceId}
@@ -127,6 +134,7 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         workspace={workspace}
         onOpenOriginal={() => void openOriginal()}
         onDownloadOriginal={() => void downloadOriginal()}
+        canDownloadOriginal={actorCaps.canDownloadOriginal}
         canPrepareRecording={workspace.evidence.combinedRecordingPrepareAllowed === true}
       />
 

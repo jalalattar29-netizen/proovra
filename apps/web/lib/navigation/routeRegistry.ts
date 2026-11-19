@@ -2858,8 +2858,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description:
       "Workspace redaction projects list + per-workspace summary. Bounded review-pillar entry point.",
     domain: "REVIEW_OPERATIONS",
-    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
-    requiredActiveSpace: "ORGANIZATION_ONLY",
+    // PRO-R3-06 (WS-ENT) — ONE authority for redaction: the server's gate
+    // (FEATURE_REDACTION, projected as planFeatures.redactionIncluded, which
+    // the /redaction surface tier follows). ORGANIZATION_ONLY told an entitled
+    // personal-workspace owner it "works inside an organization workspace",
+    // and REVIEWER_OPS_VIEW (TEAM reviewer operations) is not the redaction
+    // rule. Writes stay OWNER/ADMIN on the server (resolveRedactionRoles).
+    requiredCapabilities: [],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,

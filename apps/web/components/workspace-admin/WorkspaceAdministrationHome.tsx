@@ -33,6 +33,7 @@ import {
   useDuplicatePersonalCandidates,
   useOrganizations,
   usePersonalSpace,
+  usePlatformContext,
 } from "../../lib/platform-context";
 import { WorkspaceAdminPanel } from "./WorkspaceAdminPanel";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
@@ -41,6 +42,14 @@ export function WorkspaceAdministrationHome() {
   const account = useAccount();
   const personalSpace = usePersonalSpace();
   const organizations = useOrganizations();
+  // PRO-T1C-05 (WS-ENT) — envelope.organizations holds WORKSPACE ids (ARCH-003);
+  // the organization id lives in contextOptions.organizations. An OWNED
+  // workspace has only a SYSTEM organization and no governance surface.
+  const { envelope } = usePlatformContext();
+  const organizationIdByWorkspace = new Map<string, string>();
+  for (const org of envelope?.contextOptions?.organizations ?? []) {
+    for (const w of org.workspaces ?? []) organizationIdByWorkspace.set(w.workspaceId, org.organizationId);
+  }
   const activeSpace = useActiveSpace();
   const duplicates = useDuplicatePersonalCandidates();
 
@@ -192,14 +201,16 @@ export function WorkspaceAdministrationHome() {
                         cross-surface continuity gap between
                         admin.teams (workspace admin) and
                         account.organizations (governance hub). */}
-                    <Link
-                      href={`/organizations/${org.id}`}
-                      data-action="open-org-governance"
-                      data-organization-governance-link={org.id}
-                      className="cc-quick-action"
-                    >
-                      Manage governance
-                    </Link>
+                    {organizationIdByWorkspace.get(org.id) ? (
+                      <Link
+                        href={`/organizations/${organizationIdByWorkspace.get(org.id)}`}
+                        data-action="open-org-governance"
+                        data-organization-governance-link={organizationIdByWorkspace.get(org.id)}
+                        className="cc-quick-action"
+                      >
+                        Manage governance
+                      </Link>
+                    ) : null}
                   </div>
                 </li>
               );
