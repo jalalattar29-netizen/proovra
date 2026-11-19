@@ -51,7 +51,13 @@ import { formatUserDate, formatUserDateTime } from "../../../lib/date";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { ARTIFACT_WINDOW_BLOCKED_MESSAGE, openArtifactUrlNow } from "../../../lib/evidence/artifact-window";
 import { usePlatformContext } from "../../../lib/platform-context";
-import { identifierLabel } from "@proovra/shared";
+import {
+  DISCLOSURE_PROFILES,
+  DISCLOSURE_PROFILE_DESCRIPTIONS,
+  DISCLOSURE_PROFILE_LABELS,
+  identifierLabel,
+  type DisclosureProfile,
+} from "@proovra/shared";
 import { permissionDenialCopy } from "../../../lib/labels/governanceReviewLabels";
 
 type PermissionDenialState = { denial: string; permission: string | null } | null;
@@ -151,6 +157,18 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
   }
 }
 
+/**
+ * PRO-O1Z-02 — the workspace's package-download policy refused the release
+ * (403 { denial: "POLICY_BLOCKED" }). Said in words; an older API never
+ * answers this, so the branch is simply not taken against it.
+ */
+function packagePolicyRefusal(err: unknown): string | null {
+  const e = err as { statusCode?: number; details?: Record<string, unknown> } | null;
+  return e?.statusCode === 403 && e.details?.["denial"] === "POLICY_BLOCKED"
+    ? "This workspace's policy does not allow package downloads for your role, so no link was issued."
+    : null;
+}
+
 export default function ExchangePage() {
   return (
     <PageRouteGate routeId="workspace.exchange">
@@ -188,6 +206,11 @@ function Shell() {
   // Create form state
   const [kind, setKind] = useState<string>(PACKAGE_KINDS[0]);
   const [evidenceIds, setEvidenceIds] = useState("");
+  // PRO-W1C-05 (DEC-25) — the profile the package is built under. The first
+  // entry is the API's own default (FULL_FORENSIC), so an untouched form asks
+  // for exactly what it asked for before the selector existed.
+  const [disclosureProfile, setDisclosureProfile] = useState<DisclosureProfile>(DISCLOSURE_PROFILES[0]);
+  const [createNotice, setCreateNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   // Signed-link state. Deliberately does NOT hold the URL — only the
@@ -419,16 +442,31 @@ function Shell() {
     setCreating(true);
     setDenial(null);
     setActionError(null);
+    setCreateNotice(null);
     const requestWorkspaceId = activeWorkspaceRef.current;
     try {
       const ids = evidenceIds
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      await apiFetch("/v1/exchange/packages", {
+      // The default is sent as the absence of the field: the request an
+      // untouched form makes is byte-for-byte the one it always made.
+      const wantsExternal = disclosureProfile !== DISCLOSURE_PROFILES[0];
+      const created = (await apiFetch("/v1/exchange/packages", {
         method: "POST",
-        body: JSON.stringify({ kind, evidenceIds: ids }),
-      });
+        body: JSON.stringify(wantsExternal ? { kind, evidenceIds: ids, disclosureProfile } : { kind, evidenceIds: ids }),
+      })) as { packageId?: string; disclosureProfile?: string } | null;
+      if (requestWorkspaceId !== activeWorkspaceRef.current) return;
+      // A server that predates disclosure profiles ignores the field and
+      // builds the full package. It does not echo the profile, so the page
+      // says what was actually made instead of what was asked for.
+      if (wantsExternal && created?.disclosureProfile !== disclosureProfile) {
+        setActionError(
+          "This package was created as a full forensic package: the server does not build external disclosure packages yet. Revoke it if it must not be shared in full.",
+        );
+      } else if (wantsExternal) {
+        setCreateNotice(`${DISCLOSURE_PROFILE_LABELS[disclosureProfile]} requested.`);
+      }
       setEvidenceIds("");
       await refresh();
     } catch (err) {
@@ -453,7 +491,7 @@ function Shell() {
     } finally {
       setCreating(false);
     }
-  }, [kind, evidenceIds, refresh]);
+  }, [kind, evidenceIds, disclosureProfile, refresh]);
 
   /**
    * Mints a short-lived signed link and hands it straight to the browser.
@@ -493,9 +531,10 @@ function Shell() {
         if (requestWorkspaceId !== activeWorkspaceRef.current) return;
         applyDenial(err, setDenial);
         setActionError(
-          toSafeUserError(err, {
-            message: "The package link could not be created.",
-          }).message,
+          packagePolicyRefusal(err) ??
+            toSafeUserError(err, {
+              message: "The package link could not be created.",
+            }).message,
         );
       } finally {
         setSignBusy(null);
@@ -583,10 +622,11 @@ function Shell() {
         if (requestWorkspaceId !== activeWorkspaceRef.current) return;
         applyDenial(err, setDenial);
         setActionError(
-          toSafeUserError(err, {
-            message:
-              "The download could not be authorized, so no link was issued.",
-          }).message,
+          packagePolicyRefusal(err) ??
+            toSafeUserError(err, {
+              message:
+                "The download could not be authorized, so no link was issued.",
+            }).message,
         );
       } finally {
         setDownloadBusy(null);
@@ -734,6 +774,15 @@ function Shell() {
             />
           </label>
           <label style={labelStyle}>
+            Disclosure profile
+            <AppListbox
+              ariaLabel="Disclosure profile"
+              value={disclosureProfile}
+              options={DISCLOSURE_PROFILES.map((p) => ({ value: p, label: DISCLOSURE_PROFILE_LABELS[p] }))}
+              onChange={(next) => setDisclosureProfile(next as DisclosureProfile)}
+            />
+          </label>
+          <label style={labelStyle}>
             Evidence IDs, separated by commas
             <input
               style={{ ...inputStyle, minWidth: 280 }}
@@ -752,6 +801,14 @@ function Shell() {
             {creating ? "Creating…" : "Create Package"}
           </button>
         </div>
+        <p data-exchange-disclosure-profile={disclosureProfile} style={{ margin: "8px 0 0", fontSize: 12, opacity: 0.8 }}>
+          {DISCLOSURE_PROFILE_DESCRIPTIONS[disclosureProfile]}
+        </p>
+        {createNotice ? (
+          <p role="status" data-exchange-create-notice style={{ margin: "6px 0 0", fontSize: 12 }}>
+            {createNotice}
+          </p>
+        ) : null}
       </section>
 
       <button

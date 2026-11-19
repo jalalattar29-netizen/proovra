@@ -97,7 +97,7 @@ export function VerifyPackageByFile() {
     setOutcome({ kind: "looking_up", sha256 });
     try {
       // Anonymous by design: the digest is the only thing sent (no body).
-      const data = (await apiFetch(packageBySha256Path(sha256), { method: "GET" }, { auth: false, retryAuthOnce: false })) as
+      const data = (await apiFetch(packageBySha256Path(sha256), { method: "GET" }, { auth: false, retryAuthOnce: false, anonymous: true })) as
         | (PublicPackageRecord & { code?: unknown })
         | null;
       // A retained record answers 200 with its canonical state, not a record.

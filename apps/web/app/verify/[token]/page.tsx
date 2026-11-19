@@ -1034,7 +1034,9 @@ export default function VerifyPage() {
       const manual = options.manual === true;
       try {
         // REPORT-013 — one use of a use-limited link per viewing session.
-        const data = await apiFetch(`/public/verify/${encodeURIComponent(params.token)}`, verifyViewSessionInit());
+        // PRO-NB-08 — the public transport: the reader's own session (cookie,
+        // bearer, active workspace) is not attached to someone else's link.
+        const data = await apiFetch(`/public/verify/${encodeURIComponent(params.token)}`, verifyViewSessionInit(), { anonymous: true });
         if (cancelled || !isMountedRef.current) return;
         setLinkNotice(null);
 

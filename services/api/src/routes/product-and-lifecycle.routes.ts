@@ -518,7 +518,11 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           .code(409)
           .send(res.denial === "EXPORT_BLOCKED" ? { denial: res.denial, outcome: res.outcome } : { denial: res.denial });
       }
-      return reply.code(201).send({ packageId: res.packageId });
+      // PRO-W1C-05 — the profile the package WAS created under (additive): a
+      // client that asked for one learns whether this server honoured it.
+      return reply
+        .code(201)
+        .send({ packageId: res.packageId, disclosureProfile: body.disclosureProfile ?? "FULL_FORENSIC" });
     },
   );
 
@@ -684,8 +688,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         teamId: ctx.teamId,
         packageId: id,
         ttlSeconds: q.ttlSeconds ?? 3600,
+        actorUserId: ctx.userId,
       });
       if (!res.ok) {
+        // PRO-O1Z-02 — the workspace's package-download policy (the code the
+        // other package downloads answer with); an unreadable policy is retryable.
+        if (res.denial === "POLICY_BLOCKED") {
+          return reply
+            .code(res.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
+            .send({ denial: res.denial, code: res.code });
+        }
         if (res.denial === "EXPORT_BLOCKED") return reply.code(409).send({ denial: res.denial, outcome: res.outcome });
         if (res.denial === "DOWNLOAD_UNAVAILABLE") return reply.code(503).send({ denial: res.denial });
         return reply.code(404).send({ denial: res.denial });
@@ -864,7 +876,13 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const res = await recordPackageDownload({
         teamId: ctx.teamId,
         deliveryId: id,
+        actorUserId: ctx.userId,
       });
+      if (!res.ok && res.denial === "POLICY_BLOCKED") {
+        return reply
+          .code(res.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
+          .send({ denial: res.denial, code: res.code });
+      }
       if (!res.ok && res.denial === "PACKAGE_NOT_READY") return reply.code(409).send({ denial: "PACKAGE_NOT_READY" });
       if (!res.ok) return reply.code(404).send({ denial: "NOT_FOUND" });
       await emitTenantAudit({

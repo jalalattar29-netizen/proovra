@@ -169,10 +169,11 @@ import {
  * answers to the one catalogue key that entitles it, FEATURE_TRUST_CENTER, on
  * every authoring route (articles already asked it; subprocessors and the
  * status page did not). Asked after the permission gate and before any
- * step-up or write. The key's default is not changed here: the packaging
- * catalogue grants it to every plan (DEFAULT_ENTITLEMENTS, Free included), so
- * this aligns the routes with the catalogue rather than withdrawing anything
- * that is advertised. Reads and the canonical seed stay open.
+ * step-up or write. DEC-12 (RG-20): the key's default is FALSE — custom
+ * authoring is an Enterprise capability, granted by an ACTIVE Enterprise
+ * contract through the ENTERPRISE line, or by an explicit operator grant
+ * (platform admin, stepped up); no self-serve plan holds it by default.
+ * Reads and the canonical seed never ask it and stay open on every plan.
  */
 async function refuseTrustAuthoring(
   reply: FastifyReply,

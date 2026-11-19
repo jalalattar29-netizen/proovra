@@ -98,7 +98,7 @@ export default function PackageRecordPage() {
     }
     let cancelled = false;
     setState("loading");
-    apiFetch(`/public/verification-packages/${encodeURIComponent(packageId)}`)
+    apiFetch(`/public/verification-packages/${encodeURIComponent(packageId)}`, {}, { anonymous: true })
       .then((data) => {
         if (cancelled) return;
         // A record that is retained answers 200 with its canonical state, not a

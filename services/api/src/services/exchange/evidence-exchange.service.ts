@@ -40,6 +40,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { signPackageManifest } from "./signed-delivery.service.js";
 import { checkExportEligibility } from "../governance-lifecycle/export-governance.service.js";
 import { presignGetObject } from "../../storage.js";
+import { enforceSensitiveAction } from "../governance.service.js";
 
 /**
  * PRO-O1Z-02 (RG-18) — an exchange package releases its records' material to
@@ -69,6 +70,44 @@ export async function exchangeExportRefusal(
       prisma,
     );
     if (verdict.outcome !== "ALLOWED") return { evidenceIndex: i, outcome: verdict.outcome };
+  }
+  return null;
+}
+
+/**
+ * PRO-O1Z-02 (RG-18) — THE WORKSPACE'S PACKAGE-DOWNLOAD POLICY, for the
+ * exchange package too. Every other package release asks the canonical
+ * sensitive-action gate (`download_package`: the actor's role, the
+ * workspace's allowPackageDownload switch and, per record, the workflow
+ * template's export overlay); the exchange release asked none of it, so a
+ * workspace that had turned package downloads off still handed its records
+ * out through an exchange link. Asked for the ACTOR, once per included
+ * record, wherever the package's bytes are released or a download is
+ * authorised. Returns the first refusal, or null.
+ */
+export async function exchangeDownloadPolicyRefusal(
+  prisma: PrismaClient,
+  input: { teamId: string; actorUserId: string; evidenceIds: ReadonlyArray<string> },
+): Promise<{ code: string; reason: string } | null> {
+  const membership = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId: input.teamId, userId: input.actorUserId } },
+    select: { role: true, status: true },
+  });
+  const role = membership?.status === "ACTIVE" ? membership.role : undefined;
+  const ids = [...new Set(input.evidenceIds)];
+  // A package with no stored selection still answers the role and the switch.
+  for (const id of ids.length > 0 ? ids : [""]) {
+    const decision = await enforceSensitiveAction(
+      "download_package",
+      {
+        teamId: input.teamId,
+        role,
+        evidence: { id, teamId: input.teamId, retentionUntilUtc: null },
+        consultTemplatePolicy: id !== "",
+      },
+      prisma,
+    );
+    if (!decision.allowed) return { code: decision.code, reason: decision.reason };
   }
   return null;
 }
@@ -326,12 +365,18 @@ export type GenerateSignedUrlInput = {
   packageId: string;
   ttlSeconds: number;
   baseUrl?: string;
+  /**
+   * PRO-O1Z-02 — who is asking for the bytes. The route always names the
+   * caller; the workspace package-download policy is then decided for them.
+   */
+  actorUserId?: string;
 };
 
 export type GenerateSignedUrlResult =
   | { ok: true; signedUrl: string; expiresAtUtc: string }
   | { ok: false; denial: "PACKAGE_NOT_FOUND" | "PACKAGE_NOT_READY" | "DOWNLOAD_UNAVAILABLE" }
-  | { ok: false; denial: "EXPORT_BLOCKED"; outcome: string };
+  | { ok: false; denial: "EXPORT_BLOCKED"; outcome: string }
+  | { ok: false; denial: "POLICY_BLOCKED"; code: string; reason: string };
 
 export async function generateSignedUrl(
   input: GenerateSignedUrlInput,
@@ -348,7 +393,17 @@ export async function generateSignedUrl(
   // PRO-O1Z-02 — re-checked at release: a READY package of a record held,
   // trashed or bound for destruction since it was built is not handed out.
   const included = Array.isArray(row.evidenceIds) ? (row.evidenceIds as string[]) : [];
-  const blocked = await exchangeExportRefusal(prisma, included, null);
+  // PRO-O1Z-02 — the workspace's package-download policy, before anything
+  // is minted, recorded or announced.
+  if (input.actorUserId) {
+    const policy = await exchangeDownloadPolicyRefusal(prisma, {
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      evidenceIds: included,
+    });
+    if (policy) return { ok: false, denial: "POLICY_BLOCKED", ...policy };
+  }
+  const blocked = await exchangeExportRefusal(prisma, included, input.actorUserId ?? null);
   if (blocked) return { ok: false, denial: "EXPORT_BLOCKED", outcome: blocked.outcome };
   const ttlSeconds = Math.max(60, Math.min(input.ttlSeconds, 7 * 24 * 60 * 60));
   /*
@@ -578,11 +633,13 @@ export type RecordPackageDownloadInput = {
   teamId: string;
   deliveryId: string;
   ipAddressHash?: string | null;
+  /** PRO-O1Z-02 — who is authorising the download (policy is decided for them). */
+  actorUserId?: string;
 };
 
 export async function recordPackageDownload(
   input: RecordPackageDownloadInput,
-): Promise<{ ok: boolean; denial?: "PACKAGE_NOT_READY" }> {
+): Promise<{ ok: boolean; denial?: "PACKAGE_NOT_READY" | "POLICY_BLOCKED"; code?: string; reason?: string }> {
   const prisma = input.prisma ?? defaultPrisma;
   const delivery = await prisma.evidenceExchangePackageDelivery.findFirst({
     where: { id: input.deliveryId, teamId: input.teamId },
@@ -593,10 +650,20 @@ export async function recordPackageDownload(
   // that is revoked, expired or was never built.
   const pkgState = await prisma.evidenceExchangePackage.findFirst({
     where: { id: delivery.packageId, teamId: input.teamId },
-    select: { state: true },
+    select: { state: true, evidenceIds: true },
   });
   if (!pkgState || !(RELEASABLE_PACKAGE_STATES as ReadonlyArray<string>).includes(pkgState.state)) {
     return { ok: false, denial: "PACKAGE_NOT_READY" };
+  }
+  // PRO-O1Z-02 — no download is authorised (and no webhook says one was)
+  // where the workspace's package-download policy refuses the caller.
+  if (input.actorUserId) {
+    const policy = await exchangeDownloadPolicyRefusal(prisma, {
+      teamId: input.teamId,
+      actorUserId: input.actorUserId,
+      evidenceIds: Array.isArray(pkgState.evidenceIds) ? (pkgState.evidenceIds as string[]) : [],
+    });
+    if (policy) return { ok: false, denial: "POLICY_BLOCKED", ...policy };
   }
   // Record the AUTHORISATION (first one wins). `downloadedAtUtc` is
   // deliberately NOT written here: this path has no transfer-completion
