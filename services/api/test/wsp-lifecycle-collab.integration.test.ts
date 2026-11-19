@@ -30,6 +30,8 @@ describe("WS-WSP — lifecycle and collaboration regressions (live PostgreSQL)",
   let preflight: typeof import("../src/services/identity/account-lifecycle-preflight.service.js");
   let provisioning: typeof import("../src/services/identity/membership-provisioning.service.js");
   let admin: typeof import("../src/services/workspace-admin/workspace-admin.service.js");
+  let orgClosure: typeof import("../src/services/organization/org-closure.service.js");
+  let guards: typeof import("../src/services/collaboration-team/billing-guards.js");
   const P = () => h.fixtures.personal;
   const A = () => h.fixtures.teamA;
 
@@ -46,6 +48,8 @@ describe("WS-WSP — lifecycle and collaboration regressions (live PostgreSQL)",
     preflight = await import("../src/services/identity/account-lifecycle-preflight.service.js");
     provisioning = await import("../src/services/identity/membership-provisioning.service.js");
     admin = await import("../src/services/workspace-admin/workspace-admin.service.js");
+    orgClosure = await import("../src/services/organization/org-closure.service.js");
+    guards = await import("../src/services/collaboration-team/billing-guards.js");
     // Team tasks are a TEAM capability: the personal workspace's plan is its owner's.
     await prisma.entitlement.updateMany({ where: { userId: P().userId }, data: { active: false } });
     await prisma.entitlement.create({ data: { userId: P().userId, plan: "TEAM", active: true, credits: 0 } });
@@ -528,5 +532,95 @@ describe("WS-WSP — lifecycle and collaboration regressions (live PostgreSQL)",
     ).rejects.toBeInstanceOf(closure.WorkspaceClosureBlockedError);
     expect((await prisma.team.findUniqueOrThrow({ where: { id: w.teamId } })).closedAtUtc).toBeNull();
     expect((await prisma.teamMember.findUniqueOrThrow({ where: { id: w.owner.memberId } })).status).toBe("ACTIVE");
+  });
+
+  it("PRO-PSZ-01 — an ORGANIZATION closure re-judges inside its transaction: a late hold closes nothing", async () => {
+    const w = await ownedWorkspace();
+    // What the processor's preflight saw: nothing in the way.
+    expect((await preflight.evaluateOrganizationClosurePreflight(w.organizationId, w.owner.id)).blockers).toHaveLength(0);
+    await prisma.evidenceLegalHold.create({
+      data: { teamId: w.teamId, scope: "WORKSPACE", title: "Late hold", placedByUserId: w.owner.id, status: "ACTIVE" } as never,
+    });
+    const refused = await orgClosure
+      .executeOrganizationClosure({
+        organizationId: w.organizationId,
+        requestedByUserId: w.owner.id,
+        rejudgeInTransaction: (all) => all,
+      })
+      .then(() => null, (err: unknown) => err);
+    expect(refused).toBeInstanceOf(orgClosure.OrganizationClosureBlockedError);
+    expect((refused as InstanceType<typeof orgClosure.OrganizationClosureBlockedError>).blockers.map((b) => b.code)).toEqual([
+      "LEGAL_HOLD_ACTIVE",
+    ]);
+    // Nothing of the closure committed.
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: w.organizationId } })).status).toBe("ACTIVE");
+    expect((await prisma.team.findUniqueOrThrow({ where: { id: w.teamId } })).closedAtUtc).toBeNull();
+    expect((await prisma.teamMember.findUniqueOrThrow({ where: { id: w.owner.memberId } })).status).toBe("ACTIVE");
+  });
+
+  // LAST: it lapses the personal fixture workspace (restored in `finally`).
+  it("PRO-K2-12 — a lapsed workspace can still settle tasks and offboard members; growth stays refused", async () => {
+    const teamId = await groupInPersonal();
+    const a = await person(P().teamId, "MEMBER");
+    const b = await person(P().teamId, "MEMBER");
+    await ct.addExistingMember({ teamId, actorUserId: P().userId, userIdToAdd: a.id, role: "MEMBER" });
+    await ct.addExistingMember({ teamId, actorUserId: P().userId, userIdToAdd: b.id, role: "MEMBER" });
+    const caseRow = await prisma.case.create({
+      data: { name: `Wsp case ${tag()}`, teamId: P().teamId, ownerUserId: P().userId },
+      select: { id: true },
+    });
+    const task = async () =>
+      (await ct.createAssignment({ teamId, actorUserId: P().userId, targetType: "CASE", targetId: caseRow.id, assigneeUserId: a.id })).id;
+    const settled = await task();
+    const edited = await task();
+    const memberOf = async (userId: string) =>
+      (await prisma.collaborationTeamMember.findFirstOrThrow({ where: { teamId, userId }, select: { id: true } })).id;
+
+    // The lapse is a real cancelled subscription, read by the one canonical reader.
+    const past = new Date(Date.now() - 60 * 86_400_000);
+    const providerSubId = `k212-${tag()}`;
+    const before = await prisma.subscription.findMany({ where: { teamId: P().teamId } });
+    await prisma.subscription.deleteMany({ where: { teamId: P().teamId } });
+    await prisma.subscription.create({
+      data: {
+        userId: P().userId,
+        teamId: P().teamId,
+        provider: "STRIPE",
+        providerSubId,
+        status: "CANCELED",
+        plan: "TEAM",
+        canceledAtUtc: past,
+        currentPeriodEnd: past,
+      },
+    });
+    try {
+      const lapsed = await guards
+        .assertSubscriptionActiveOrGraceAllowed({ workspaceId: P().teamId })
+        .then(() => null, (err: { code?: string }) => err.code);
+      expect(lapsed).toBe("SUBSCRIPTION_INACTIVE");
+      const owner = bearer(P().token, P().teamId);
+      const patch = (url: string, payload: Record<string, unknown>) => h.app.inject({ method: "PATCH", url, headers: owner, payload });
+
+      // Reductions and settlements pass the gate.
+      const complete = await patch(`/v1/collaboration-teams/${teamId}/assignments/${settled}`, { status: "COMPLETED" });
+      expect(complete.statusCode, complete.body).toBe(200);
+      expect((await prisma.collaborationTeamAssignment.findUniqueOrThrow({ where: { id: settled } })).status).toBe("COMPLETED");
+      const suspend = await patch(`/v1/collaboration-teams/${teamId}/members/${await memberOf(a.id)}`, { status: "SUSPENDED" });
+      expect(suspend.statusCode, suspend.body).toBe(200);
+      expect((await prisma.collaborationTeamMember.findFirstOrThrow({ where: { teamId, userId: a.id } })).status).toBe("SUSPENDED");
+
+      // Growth and edits stay behind it, and write nothing.
+      const reprioritise = await patch(`/v1/collaboration-teams/${teamId}/assignments/${edited}`, { priority: "URGENT" });
+      expect(code(reprioritise), reprioritise.body).toBe("SUBSCRIPTION_INACTIVE");
+      expect((await prisma.collaborationTeamAssignment.findUniqueOrThrow({ where: { id: edited } })).priority).not.toBe("URGENT");
+      const promote = await patch(`/v1/collaboration-teams/${teamId}/members/${await memberOf(b.id)}`, { role: "ADMIN" });
+      expect(code(promote), promote.body).toBe("SUBSCRIPTION_INACTIVE");
+      expect((await prisma.collaborationTeamMember.findFirstOrThrow({ where: { teamId, userId: b.id } })).role).toBe("MEMBER");
+      const reinstate = await patch(`/v1/collaboration-teams/${teamId}/members/${await memberOf(a.id)}`, { status: "ACTIVE" });
+      expect(code(reinstate), reinstate.body).toBe("SUBSCRIPTION_INACTIVE");
+    } finally {
+      await prisma.subscription.deleteMany({ where: { providerSubId } });
+      if (before.length > 0) await prisma.subscription.createMany({ data: before as never });
+    }
   });
 });
