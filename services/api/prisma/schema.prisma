@@ -2849,6 +2849,12 @@ model Subscription {
   /// same intent reuses it; a new intent mints a new one. NULL = none open.
   providerIntentKey         String?            @map("provider_intent_key") @db.VarChar(200)
   providerIntentAtUtc       DateTime?          @map("provider_intent_at_utc") @db.Timestamptz(6)
+  /// BILLING HOLDS (2026-11-19) — when the CUSTOMER cancelled this
+  /// subscription through PROOVRA's own cancel path (provider-confirmed).
+  /// Written only by the cancel service; cleared by a confirmed restart.
+  /// `canceledAtUtc` cannot prove this: provider facts write it too. The sweep
+  /// ends a cancelled plan without BILLING_AUTO_PLAN_LOWERING only on this.
+  customerCancelRequestedAtUtc DateTime?       @map("customer_cancel_requested_at_utc") @db.Timestamptz(6)
   createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   teamId                    String?            @map("team_id") @db.Uuid

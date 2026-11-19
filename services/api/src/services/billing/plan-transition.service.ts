@@ -63,8 +63,13 @@ import {
 import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { requireVerifiedStripePrice, resolveCommercialOffer } from "./commercial-offer.service.js";
-import { isStripeScheduleFinished, releaseStripeSchedule, type StripeScheduleLike } from "./stripe-schedule.service.js";
-import { beginProviderIntent, settleProviderIntent } from "./provider-intent.service.js";
+import {
+  isStripeScheduleFinished,
+  releaseStripeSchedule,
+  stripeScheduleCarriesChange,
+  type StripeScheduleLike,
+} from "./stripe-schedule.service.js";
+import { beginProviderIntent, providerIntentPrefix, settleProviderIntent } from "./provider-intent.service.js";
 import {
   stripeSubscriptionItem,
   stripeSubscriptionPeriodEnd,
@@ -472,6 +477,18 @@ async function forgetReleasedSchedule(subscriptionId: string, scheduleId: string
   });
 }
 
+/**
+ * PRO-BL1-01 (review G1) — a withdrawal ends whatever plan-change intent was
+ * still open (a schedule update whose answer was lost). The same change asked
+ * for again is then a NEW intent, never a replay of the withdrawn one.
+ */
+async function closeOpenPlanChangeIntent(subscriptionId: string): Promise<void> {
+  await prisma.subscription.updateMany({
+    where: { id: subscriptionId, providerIntentKey: { startsWith: providerIntentPrefix("plan", subscriptionId) } },
+    data: { providerIntentKey: null, providerIntentAtUtc: null },
+  });
+}
+
 function providerFailure(detail: string): DomainError {
   // The provider's own message is deliberately NOT surfaced: it names
   // subscription ids, price ids and internal reasons. `detail` reaches logs.
@@ -696,6 +713,7 @@ async function applyStripePlanChange(args: {
       await forgetReleasedSchedule(subscription.id, scheduleId);
     }
     await clearPendingPlan(subscription.id);
+    await closeOpenPlanChangeIntent(subscription.id);
     return {
       kind: "UPGRADE",
       targetPlan: transition.targetPlan,
@@ -748,6 +766,19 @@ async function applyStripePlanChange(args: {
     if (String(updated.status ?? "").toLowerCase() !== "active") {
       await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
       throw providerFailure("stripe did not confirm an active subscription");
+    }
+
+    // PRO-BL1-01 (review G1) — the reply may be a STORED answer (a retry of a
+    // lost one). The live subscription must bill the target price before the
+    // plan is granted locally. A failed read records nothing and keeps the
+    // intent; the provider's own webhook still lands a change that did happen.
+    const confirmed = await readStripeSubscription(subscription.providerSubId);
+    if (
+      stripeSubscriptionItem(confirmed)?.price?.id !== priceId ||
+      String(confirmed.status ?? "").toLowerCase() !== "active"
+    ) {
+      await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
+      throw providerFailure("stripe's live subscription does not carry the upgrade (stale replay)");
     }
 
     // The provider has confirmed, synchronously. Applying it through the same
@@ -859,6 +890,40 @@ async function applyStripePlanChange(args: {
     // the next plan change, so it is released, or recorded for reconciliation.
     if (createdHere) await releaseAfterFailedEdit(subscription.id, activeScheduleId);
     throw await intentFailure(subscription.id, intentKey, err, "stripe schedule update failed");
+  }
+
+  // PRO-BL1-01 (review G1) — READ BACK before any local write, as the cancel
+  // path does. The answers above may be STORED ones: when the phase update timed
+  // out after Stripe executed it, the schedule created here was released, and a
+  // retry under the same intent replays "created" and "updated" for a schedule
+  // that no longer exists. Recording "scheduled" on that (and ending TEAM-only
+  // add-ons for real) is finding variant B reached through a timeout. The change
+  // is recorded only when the LIVE schedule carries it.
+  let liveSchedule: StripeScheduleLike;
+  try {
+    liveSchedule = (await stripeGet(
+      `/subscription_schedules/${encodeURIComponent(activeScheduleId)}`,
+    )) as StripeScheduleLike;
+  } catch (err) {
+    if (err instanceof StripeHttpError && err.status >= 400 && err.status < 500) {
+      // Stripe has no such schedule: nothing is scheduled.
+      await forgetReleasedSchedule(subscription.id, activeScheduleId);
+      await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
+      throw providerFailure("stripe has no schedule carrying the change");
+    }
+    // Unknown: nothing is recorded; the intent stays open and the retry reads again.
+    throw classifiedProviderFailure(err, "stripe schedule read-back failed");
+  }
+  if (!stripeScheduleCarriesChange(liveSchedule, priceId, startsAt)) {
+    if (isStripeScheduleFinished(liveSchedule)) {
+      await forgetReleasedSchedule(subscription.id, activeScheduleId);
+    } else if (createdHere) {
+      await releaseAfterFailedEdit(subscription.id, activeScheduleId);
+    }
+    // The stale intent is closed: the next attempt mints a new key and Stripe
+    // really executes it.
+    await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
+    throw providerFailure("stripe's live schedule does not carry the change (stale replay)");
   }
 
   await recordPendingPlan({

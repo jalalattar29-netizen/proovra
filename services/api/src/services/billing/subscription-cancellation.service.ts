@@ -403,6 +403,10 @@ export async function requestSubscriptionCancellation(input: {
       data: {
         cancelAtPeriodEnd: schedulesPeriodEnd,
         canceledAtUtc: new Date(),
+        // BILLING HOLDS (2026-11-19) — the durable proof that THIS cancellation
+        // was the customer's, through this path. Written nowhere else: the sweep
+        // ends a cancelled PayPal plan without the lowering switch only on it.
+        customerCancelRequestedAtUtc: new Date(),
         ...(schedulesPeriodEnd && confirmedPeriodEnd
           ? { currentPeriodEnd: confirmedPeriodEnd }
           : {}),

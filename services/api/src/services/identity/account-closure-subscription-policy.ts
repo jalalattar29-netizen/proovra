@@ -27,9 +27,11 @@ import type { AccountClosureBlocker } from "./account-lifecycle-preflight.servic
 
 /** One open provider relationship (see open-provider-relationships.service). */
 export type ClosureBillingRelationship = {
-  kind: "SUBSCRIPTION" | "STORAGE_ADDON";
+  kind: "SUBSCRIPTION" | "STORAGE_ADDON" | "CHECKOUT_ATTEMPT";
   state: "RENEWING" | "STOPPING";
   endsAtUtc: Date | null;
+  /** Paid by someone else (a transferred workspace's subscription or add-on). */
+  billedToOtherPayer?: boolean;
 };
 
 export type ClosureBillingPending = {
@@ -43,8 +45,18 @@ export function judgeClosureBillingRelationships(
   relationships: ReadonlyArray<ClosureBillingRelationship>,
 ): { blockers: AccountClosureBlocker[]; pending: ClosureBillingPending | null } {
   const blockers: AccountClosureBlocker[] = [];
-  const renewingSubs = relationships.filter((r) => r.kind === "SUBSCRIPTION" && r.state === "RENEWING");
-  const renewingAddons = relationships.filter((r) => r.kind === "STORAGE_ADDON" && r.state === "RENEWING");
+  const own = (r: ClosureBillingRelationship) => r.billedToOtherPayer !== true;
+  const renewingSubs = relationships.filter((r) => r.kind === "SUBSCRIPTION" && r.state === "RENEWING" && own(r));
+  const renewingAddons = relationships.filter((r) => r.kind === "STORAGE_ADDON" && r.state === "RENEWING" && own(r));
+  // Review G2 — billing of a workspace the closure closes that SOMEONE ELSE pays
+  // (a workspace transferred to this person). "Cancel it" was a dead end: the
+  // cancel route acts on the caller's own subscription only, and that is the
+  // canonical authority (a subscription is cancelled by the person who pays).
+  const otherPayerRenewing = relationships.filter(
+    (r) => r.kind !== "CHECKOUT_ATTEMPT" && r.state === "RENEWING" && !own(r),
+  );
+  // Review G1 — a checkout that could still be paid after the account is gone.
+  const openCheckouts = relationships.filter((r) => r.kind === "CHECKOUT_ATTEMPT");
   if (renewingSubs.length > 0) {
     blockers.push({
       code: "BILLING_SUBSCRIPTION_ACTIVE",
@@ -59,6 +71,22 @@ export function judgeClosureBillingRelationships(
       message:
         "You have a storage add-on that still renews. Cancel it in Billing before closing your account.",
       count: renewingAddons.length,
+    });
+  }
+  if (otherPayerRenewing.length > 0) {
+    blockers.push({
+      code: "BILLING_WORKSPACE_PAYER_ACTIVE",
+      message:
+        "A workspace you own is still billed to the subscription or storage add-on of the person who owned it before you. You cannot cancel it: only the person who pays for it can, from Billing in their own account. Ask them to cancel it, or transfer the workspace to another owner, then close your account. If you cannot reach them, contact support.",
+      count: otherPayerRenewing.length,
+    });
+  }
+  if (openCheckouts.length > 0) {
+    blockers.push({
+      code: "BILLING_CHECKOUT_OPEN",
+      message:
+        "You have a checkout that is not finished. Complete it or cancel it in Billing before closing your account, so no payment can arrive after the account is closed.",
+      count: openCheckouts.length,
     });
   }
   const stopping = relationships.filter((r) => r.state === "STOPPING");

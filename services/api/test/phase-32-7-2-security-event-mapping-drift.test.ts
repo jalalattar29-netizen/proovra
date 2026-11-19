@@ -1549,6 +1549,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281121020000_extension_session_parent",
       // PRO-BL1-01 (WS-BILL): the provider intent key on subscriptions. EXPAND.
       "20281121030000_subscription_provider_intent_key",
+      // Billing holds (WS-BILL): the customer-cancel fact on subscriptions. EXPAND.
+      "20281121030100_subscription_customer_cancel_request",
       // PRO-W1C-05 (WS-OUT): an exchange package's disclosure profile (default FULL_FORENSIC). EXPAND.
       "20281121040000_exchange_package_disclosure_profile",
       // RG-05 (PRO-AI1-04 / PRO-AI1Z-01): extracted text claimed once per source part. EXPAND.

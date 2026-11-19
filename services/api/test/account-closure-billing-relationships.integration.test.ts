@@ -17,7 +17,12 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
-import { seedOwnedWorkspace, seedPersonalTenant, type FixtureDeps } from "./point7/product-fixtures.js";
+import {
+  seedOrganizationTenant,
+  seedOwnedWorkspace,
+  seedPersonalTenant,
+  type FixtureDeps,
+} from "./point7/product-fixtures.js";
 
 const GB = BigInt(1024) ** BigInt(3);
 const PASSWORD = "ClosureBillingPass123";
@@ -134,7 +139,139 @@ describe("PRO-N1-01 — closure and open provider billing relationships (live Po
     const next = await seedPersonalTenant(deps, "FREE");
     const ws = await seedOwnedWorkspace(deps, { ownerUserId: next.owner.userId });
     await subscription(previous.owner.userId, { teamId: ws.teamId });
-    expect(await codes(next.owner.userId)).toContain("BILLING_SUBSCRIPTION_ACTIVE");
+    // Review G2 — still blocked, but never with "Cancel it": the cancel route
+    // acts on the caller's OWN subscription and answers 404 for this one.
+    const { blockers } = await preflight.evaluateAccountClosurePreflight(next.owner.userId);
+    expect(blockers.map((b) => b.code)).toContain("BILLING_WORKSPACE_PAYER_ACTIVE");
+    expect(blockers.map((b) => b.code)).not.toContain("BILLING_SUBSCRIPTION_ACTIVE");
+    const told = blockers.find((b) => b.code === "BILLING_WORKSPACE_PAYER_ACTIVE")!;
+    expect(told.message).toMatch(/only the person who pays for it can/i);
+    expect(told.message).toMatch(/transfer the workspace/i);
+    expect(told.message).toMatch(/contact support/i);
+
+    // The dead end the old copy sent them into.
+    const cancelAttempt = await harness.app.inject({
+      method: "POST",
+      url: "/v1/billing/subscription/cancel",
+      headers: { authorization: `Bearer ${next.owner.token}`, "content-type": "application/json" },
+      payload: "{}",
+    });
+    expect(cancelAttempt.statusCode).toBe(404);
+
+    // The payer themselves is told to cancel it (their own subscription).
+    expect(await codes(previous.owner.userId)).toContain("BILLING_SUBSCRIPTION_ACTIVE");
+    // Once the payer has cancelled and it ended, the new owner is no longer blocked.
+    await prisma.subscription.updateMany({ where: { teamId: ws.teamId }, data: { status: "CANCELED" } });
+    expect(await codes(next.owner.userId)).not.toContain("BILLING_WORKSPACE_PAYER_ACTIVE");
+  });
+
+  // ---- Review G1 (a): an open checkout is an open provider relationship -----
+  it("an open checkout attempt blocks closure (preflight, route 409, and at execution); a finished one does not", async () => {
+    const t = await seedPersonalTenant(deps, "FREE");
+    const attempt = await prisma.billingCheckoutAttempt.create({
+      data: {
+        userId: t.owner.userId,
+        product: "PLAN",
+        provider: "STRIPE",
+        planKey: "PRO",
+        amountCents: 1900,
+        currency: "EUR",
+        status: "PENDING",
+        checkoutState: "AWAITING_CUSTOMER_APPROVAL",
+        providerResourceId: `cs_test_${randomUUID().slice(0, 12)}`,
+      },
+      select: { id: true },
+    });
+    expect(await codes(t.owner.userId)).toContain("BILLING_CHECKOUT_OPEN");
+
+    await prisma.user.update({ where: { id: t.owner.userId }, data: { passwordHash: await hashPassword(PASSWORD) } });
+    const res = await harness.app.inject({
+      method: "POST",
+      url: "/v1/identity/account-closure",
+      headers: { authorization: `Bearer ${t.owner.token}`, "content-type": "application/json" },
+      payload: { confirmation: "close my account", stepUp: { method: "password", currentPassword: PASSWORD } },
+    });
+    expect(res.statusCode, res.body).toBe(409);
+    expect(res.body).toContain("BILLING_CHECKOUT_OPEN");
+
+    // A checkout opened during cooling-off stops execution too.
+    const req = await dueRequest(t.owner.userId);
+    await closure.processAccountClosures(new Date());
+    expect((await prisma.accountClosureRequest.findUniqueOrThrow({ where: { id: req.id } })).status).toBe("BLOCKED");
+    await notAnonymised(t.owner.userId);
+
+    // Cancelled in Billing (ABANDONED), expired or completed: no longer open.
+    await prisma.billingCheckoutAttempt.update({ where: { id: attempt.id }, data: { status: "ABANDONED" } });
+    expect(await codes(t.owner.userId)).not.toContain("BILLING_CHECKOUT_OPEN");
+  });
+
+  // ---- Review G1 (b): a payment arriving after anonymisation ---------------
+  it("a plan payment arriving after the account was closed activates nothing and records a review item", async () => {
+    const { syncPlanForSubscription } = await import("../src/services/billing/subscription-lifecycle.handlers.js");
+    const t = await seedPersonalTenant(deps, "FREE");
+    const req = await dueRequest(t.owner.userId);
+    await closure.processAccountClosures(new Date());
+    expect((await prisma.accountClosureRequest.findUniqueOrThrow({ where: { id: req.id } })).status).toBe("COMPLETED");
+
+    const providerSubId = `sub_${randomUUID().slice(0, 14)}`;
+    const outcome = await syncPlanForSubscription({
+      userId: t.owner.userId,
+      plan: "PRO",
+      provider: "STRIPE",
+      providerSubId,
+      status: "ACTIVE",
+      currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
+      observedAtUtc: new Date(),
+    });
+    expect(outcome).toEqual({ outcome: "REFUSED_ACCOUNT_CLOSED" });
+    // No live row, no paid entitlement.
+    expect(await prisma.subscription.count({ where: { providerSubId } })).toBe(0);
+    expect(await prisma.entitlement.count({ where: { userId: t.owner.userId, active: true, plan: "PRO" } })).toBe(0);
+    const item = await prisma.billingReviewItem.findFirstOrThrow({
+      where: { providerResourceId: providerSubId, reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE" },
+    });
+    expect(item).toMatchObject({ product: "PLAN", refundReviewRequired: true, providerAction: "NONE", status: "OPEN" });
+  });
+
+  it("a storage add-on payment arriving after the account was closed grants no capacity and records a review item", async () => {
+    const { applyStorageSubscriptionObservation } = await import("../src/services/billing/storage-activation.service.js");
+    const t = await seedPersonalTenant(deps, "FREE");
+    const req = await dueRequest(t.owner.userId);
+    await closure.processAccountClosures(new Date());
+    expect((await prisma.accountClosureRequest.findUniqueOrThrow({ where: { id: req.id } })).status).toBe("COMPLETED");
+
+    const subscriptionId = `sub_addon_${randomUUID().slice(0, 12)}`;
+    let providerCancels = 0;
+    const result = await applyStorageSubscriptionObservation(
+      {
+        provider: "STRIPE",
+        subscriptionId,
+        status: "ACTIVE",
+        planId: null,
+        claimed: { userId: t.owner.userId, teamId: null, addonKey: "PERSONAL_10_GB" },
+        currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
+        observedAtUtc: new Date(),
+        source: "provider_webhook",
+      },
+      {
+        cancelAtProvider: (async () => {
+          providerCancels += 1;
+          return { canceled: true };
+        }) as never,
+      },
+    );
+    expect(result).toMatchObject({ outcome: "REFUSED", reason: "ACCOUNT_CLOSED", canceledAtProvider: false });
+    expect(providerCancels).toBe(0);
+    expect(
+      await prisma.workspaceStorageAddon.count({
+        where: { externalSubscriptionId: subscriptionId, status: { in: ["ACTIVE", "PAST_DUE"] } },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.billingReviewItem.count({
+        where: { providerResourceId: subscriptionId, reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE", refundReviewRequired: true },
+      }),
+    ).toBe(1);
   });
 
   it("an add-on bought during cooling-off: BLOCKED at execution, nothing anonymised, the person is told", async () => {
@@ -202,5 +339,27 @@ describe("PRO-N1-01 — closure and open provider billing relationships (live Po
     await addon(t.owner.userId, ws.teamId);
     const { blockers } = await preflight.evaluateWorkspaceClosurePreflight(ws.teamId);
     expect(blockers.map((b) => b.code)).toContain("BILLING_SUBSCRIPTION_ACTIVE");
+  });
+
+  // ---- Review G3 (d): organisation closure shares the predicate ------------
+  it("organisation closure uses the same predicate: a provider-billed add-on or subscription on its workspace blocks it", async () => {
+    const org = await seedOrganizationTenant(deps, { billingStatus: "INACTIVE" });
+    const orgCodes = async () =>
+      (await preflight.evaluateOrganizationClosurePreflight(org.organizationId, org.owner.userId)).blockers.map(
+        (b) => b.code,
+      );
+    // team.billingStatus says nothing is active: the base preflight passed.
+    expect(await orgCodes()).not.toContain("BILLING_SUBSCRIPTION_ACTIVE");
+    expect(await orgCodes()).not.toContain("BILLING_CONTRACT_ACTIVE");
+
+    const a = await addon(org.owner.userId, org.workspaceId);
+    expect(await orgCodes()).toContain("BILLING_SUBSCRIPTION_ACTIVE");
+    await prisma.workspaceStorageAddon.update({ where: { id: a.id }, data: { status: "CANCELED" } });
+    expect(await orgCodes()).not.toContain("BILLING_SUBSCRIPTION_ACTIVE");
+
+    const sub = await subscription(org.owner.userId, { teamId: org.workspaceId });
+    expect(await orgCodes()).toContain("BILLING_SUBSCRIPTION_ACTIVE");
+    await prisma.subscription.update({ where: { id: sub.id }, data: { status: "CANCELED" } });
+    expect(await orgCodes()).not.toContain("BILLING_SUBSCRIPTION_ACTIVE");
   });
 });

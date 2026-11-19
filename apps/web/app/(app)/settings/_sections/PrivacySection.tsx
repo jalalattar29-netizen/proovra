@@ -436,6 +436,8 @@ const CLOSURE_BLOCKER_ACTION: Record<string, { label: string; href: string }> = 
   BILLING_SUBSCRIPTION_ACTIVE: { label: "Go to Billing", href: "/billing" },
   // PRO-N1-01 — a recurring storage add-on that still renews.
   BILLING_ADDON_ACTIVE: { label: "Go to Billing", href: "/billing" },
+  // Review G1 — an unfinished checkout is finished or cancelled in Billing.
+  BILLING_CHECKOUT_OPEN: { label: "Go to Billing", href: "/billing" },
   ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED: {
     label: "Transfer ownership",
     href: "/organizations",

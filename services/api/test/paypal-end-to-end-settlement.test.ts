@@ -85,6 +85,9 @@ vi.mock("../src/db.js", () => {
       updateMany: vi.fn(async () => ({ count: 0 })),
     },
     team: { findUnique: vi.fn(async () => null) },
+    // PRO-N1-01 (review G1) — activation reads whether the payer's account was
+    // closed; these payers are ordinary open accounts.
+    user: { findUnique: vi.fn(async ({ where }: { where: { id: string } }) => ({ providerUserId: `open:${where.id}` })) },
     // PRO-BL1-03 — a refunded or disputed payment of the subscription.
     payment: {
       findFirst: vi.fn(async ({ where }: { where: { providerResourceId?: string } }) =>

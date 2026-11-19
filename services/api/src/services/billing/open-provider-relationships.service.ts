@@ -22,8 +22,19 @@
  *              still live: closure may be SCHEDULED and completes only once the
  *              row has ended (DEC-21).
  *
- * Pure reads; no provider call. Used by account closure and workspace closure,
- * so both closures share one billing predicate.
+ * Review HIGH-MONEY-DISCLOSURE (2026-11-19):
+ *   - an OPEN CHECKOUT is a relationship too (G1). A Stripe Checkout session or
+ *     a PayPal approval still PENDING has no subscription row yet; paid after
+ *     the account is anonymised it would activate for a closed account. Every
+ *     PENDING checkout attempt of the payer is listed as CHECKOUT_ATTEMPT and
+ *     blocks until the customer finishes or cancels it in Billing.
+ *   - a relationship found only through a workspace being closed, and paid by
+ *     SOMEONE ELSE (a transferred workspace's legacy subscription), is marked
+ *     `billedToOtherPayer` (G2): the closing person cannot cancel it, so the
+ *     blocker has to tell them who can.
+ *
+ * Pure reads; no provider call. Used by account closure, workspace closure and
+ * organisation closure, so all three share one billing predicate.
  */
 
 import type * as prismaPkg from "@prisma/client";
@@ -34,16 +45,21 @@ const LIVE_SUBSCRIPTION_STATUSES = ["ACTIVE", "TRIALING", "PAST_DUE"] as const;
 const LIVE_ADDON_STATUSES = ["PENDING", "ACTIVE", "PAST_DUE"] as const;
 
 export type OpenProviderRelationship = {
-  kind: "SUBSCRIPTION" | "STORAGE_ADDON";
+  kind: "SUBSCRIPTION" | "STORAGE_ADDON" | "CHECKOUT_ATTEMPT";
   id: string;
   state: "RENEWING" | "STOPPING";
   /** When billing/access ends, where the provider named it. */
   endsAtUtc: Date | null;
+  /**
+   * True when `userId` was given and this relationship is paid by another
+   * person (matched through a workspace being closed). Only they can cancel it.
+   */
+  billedToOtherPayer: boolean;
 };
 
 export type OpenRelationshipClient = Pick<
   typeof prisma,
-  "subscription" | "workspaceStorageAddon"
+  "subscription" | "workspaceStorageAddon" | "billingCheckoutAttempt"
 >;
 
 export async function listOpenProviderRelationships(
@@ -64,11 +80,12 @@ export async function listOpenProviderRelationships(
   const addonOr = subjectOr("ownerUserId");
   if (subOr.length === 0) return [];
 
-  const [subs, addons] = await Promise.all([
+  const [subs, addons, attempts] = await Promise.all([
     client.subscription.findMany({
       where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] }, OR: subOr as prismaPkg.Prisma.SubscriptionWhereInput[] },
       select: {
         id: true,
+        userId: true,
         cancelAtPeriodEnd: true,
         canceledAtUtc: true,
         currentPeriodEnd: true,
@@ -84,12 +101,22 @@ export async function listOpenProviderRelationships(
       },
       select: {
         id: true,
+        ownerUserId: true,
         canceledAtUtc: true,
         currentPeriodEnd: true,
         dependentCancellationState: true,
       },
     }),
+    // A checkout the payer opened and nobody has finished, cancelled or expired.
+    input.userId
+      ? client.billingCheckoutAttempt.findMany({
+          where: { userId: input.userId, status: "PENDING" },
+          select: { id: true },
+        })
+      : Promise.resolve([] as Array<{ id: string }>),
   ]);
+  const otherPayer = (payerUserId: string | null) =>
+    Boolean(input.userId) && payerUserId !== input.userId;
 
   return [
     ...subs.map<OpenProviderRelationship>((s) => ({
@@ -100,12 +127,21 @@ export async function listOpenProviderRelationships(
           ? "STOPPING"
           : "RENEWING",
       endsAtUtc: s.currentPeriodEnd,
+      billedToOtherPayer: otherPayer(s.userId),
     })),
     ...addons.map<OpenProviderRelationship>((a) => ({
       kind: "STORAGE_ADDON",
       id: a.id,
       state: a.canceledAtUtc !== null || a.dependentCancellationState === "CONFIRMED" ? "STOPPING" : "RENEWING",
       endsAtUtc: a.currentPeriodEnd,
+      billedToOtherPayer: otherPayer(a.ownerUserId),
+    })),
+    ...attempts.map<OpenProviderRelationship>((c) => ({
+      kind: "CHECKOUT_ATTEMPT",
+      id: c.id,
+      state: "RENEWING",
+      endsAtUtc: null,
+      billedToOtherPayer: false,
     })),
   ];
 }

@@ -3831,6 +3831,14 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='evidence_extracted_texts' AND column_name='source_part_id';\"",
       "evidence": "RG-05 PRO-AI1-04 / PRO-AI1Z-01 (2028-11-21). One nullable column on evidence_extracted_texts and one partial unique index (evidence, part, provider) WHERE status IN (PENDING, COMPLETED): a cloud OCR/transcript extraction of one part is claimed and paid once. Existing rows keep NULL and are outside the index. An older image never reads it. Rollback: drop the index, then the column."
     },
+    "20281121030100_subscription_customer_cancel_request": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='subscriptions' AND column_name = 'customer_cancel_requested_at_utc';\"",
+      "evidence": "Billing holds (WS-BILL, 2026-11-19). One nullable column on subscriptions recording that the customer cancelled through PROOVRA's own cancel path, written only by the cancel service. The sweep ends a cancelled PayPal plan without BILLING_AUTO_PLAN_LOWERING only for a row carrying it; every other ended row is held. No row is rewritten; an older image never reads it. Rollback: leave the column."
+    },
     "20281120000000_login_mfa_challenge_factors": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",

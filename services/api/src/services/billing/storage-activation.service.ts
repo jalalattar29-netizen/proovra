@@ -56,6 +56,7 @@ import { cancelSupersededSubscriptionAtProvider } from "./base-subscription-supe
 import { personalStorageCheckoutLockKey } from "./checkout-attempts.service.js";
 import { payerLegacyWorkspaceIds } from "./billing-accounts.service.js";
 import { automaticAddonCancellationEnabled } from "./automatic-effects.js";
+import { isAccountClosed } from "../identity/account-closed.js";
 
 export type StorageObservation = {
   provider: prismaPkg.PaymentProvider;
@@ -113,7 +114,9 @@ export type StorageRefusalReason =
   | "NOT_ELIGIBLE_FOR_PLAN"
   | "NO_LOCAL_RECORD"
   /** Another add-on of this size went live after this purchase was started. */
-  | "DUPLICATE_PURCHASE";
+  | "DUPLICATE_PURCHASE"
+  /** PRO-N1-01 (review G1) — the payer's account was closed before this activated. */
+  | "ACCOUNT_CLOSED";
 
 function obj(value: prismaPkg.Prisma.JsonValue | null | undefined): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -540,6 +543,22 @@ export async function applyStorageSubscriptionObservation(
     const alreadyLive =
       row.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
       row.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE;
+    // PRO-N1-01 (review G1) — a payment arriving after the payer's account was
+    // closed activates nothing. Recorded for an operator (cancel + refund); no
+    // provider call from here, whatever the source.
+    if (!alreadyLive && (await isAccountClosed(row.ownerUserId, prisma))) {
+      await recordBillingReviewItem({
+        userId: row.ownerUserId,
+        provider: obs.provider,
+        providerResourceId: obs.subscriptionId,
+        product: "STORAGE_ADDON",
+        reason: "PAYMENT_AFTER_ACCOUNT_CLOSURE",
+        providerAction: "NONE",
+        refundReviewRequired: true,
+        detail: { addonKey: row.addonKey, addonId: row.id },
+      });
+      return { outcome: "REFUSED", addonId: row.id, reason: "ACCOUNT_CLOSED", canceledAtProvider: false };
+    }
     const refusal: StorageRefusalReason | null = alreadyLive
       ? null
       : ((await refusalReason(row, obs)) ??

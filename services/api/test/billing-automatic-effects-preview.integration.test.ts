@@ -242,6 +242,66 @@ describe("billing automatic effects preview (live PostgreSQL)", () => {
     expect((await prisma.enterpriseContract.findUniqueOrThrow({ where: { organizationId: org.id } })).status).toBe("ACTIVE");
   });
 
+  // BILLING HOLDS (2026-11-19) — the PayPal paid-period step is an automatic
+  // lowering for every row that is not a proven customer cancellation. The
+  // preview prints the step's own enumeration.
+  it("lists an ended PayPal plan the sweep holds, and a customer's own cancellation as not held", async () => {
+    const { syncPlanForSubscription } = await import("../src/services/billing/subscription-lifecycle.handlers.js");
+    const heldPayer = await user("PRO");
+    const heldSubId = `I-${randomUUID().slice(0, 12).toUpperCase()}`;
+    const held = await subscription(heldPayer, {
+      provider: "PAYPAL",
+      providerSubId: heldSubId,
+      plan: "PRO",
+      currentPeriodEnd: new Date(Date.now() - day),
+    });
+    await syncPlanForSubscription({
+      userId: heldPayer,
+      plan: "PRO",
+      provider: "PAYPAL",
+      providerSubId: heldSubId,
+      status: "CANCELED",
+      currentPeriodEnd: new Date(Date.now() - day),
+      observedAtUtc: new Date(),
+      holdPlanLowering: true,
+    });
+    const customerPayer = await user("PRO");
+    const own = await subscription(customerPayer, {
+      provider: "PAYPAL",
+      providerSubId: `I-${randomUUID().slice(0, 12).toUpperCase()}`,
+      plan: "PRO",
+      status: "CANCELED",
+      currentPeriodEnd: new Date(Date.now() - day),
+      canceledAtUtc: new Date(Date.now() - 20 * day),
+      customerCancelRequestedAtUtc: new Date(Date.now() - 20 * day),
+    });
+
+    const off = runPreview(databaseUrl);
+    expect(off.stderr).toBe("");
+    const listed = off.lines.filter((l) => l.action === "END_PAYPAL_PLAN_AFTER_PAID_PERIOD");
+    expect(listed.find((l) => l.subscriptionId === held.id)).toMatchObject({
+      held: true,
+      why: "NOT_A_PROVEN_CUSTOMER_CANCELLATION",
+      alsoHeldLowering: true,
+      from: "PRO",
+      to: "FREE",
+    });
+    expect(listed.find((l) => l.subscriptionId === own.id)).toMatchObject({
+      held: false,
+      why: "CUSTOMER_CANCELLED_IN_PROOVRA",
+    });
+
+    const armed = runPreview(databaseUrl, { BILLING_AUTO_PLAN_LOWERING: "on" });
+    expect(
+      armed.lines.find((l) => l.action === "END_PAYPAL_PLAN_AFTER_PAID_PERIOD" && l.subscriptionId === held.id),
+    ).toMatchObject({ held: false });
+
+    // The preview wrote nothing: both accounts still carry their plan.
+    for (const id of [heldPayer, customerPayer]) {
+      expect((await prisma.entitlement.findFirstOrThrow({ where: { userId: id, active: true } })).plan).toBe("PRO");
+    }
+  });
+
   it("writes nothing, on a connection Postgres itself keeps read-only", async () => {
     const owed = await user();
     await endedTeam(owed);
