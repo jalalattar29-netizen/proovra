@@ -469,7 +469,8 @@ describe("the seat claim (live PostgreSQL)", () => {
     const ctx = await directory(o);
     const outsider = `grp-${tag()}@${o.domain}`;
     const user = await prisma.user.create({
-      data: { email: outsider, provider: "EMAIL", providerUserId: outsider },
+      // PRO-A2-02 — a directory identity: an account this Organization's directory created.
+      data: { email: outsider, provider: "EMAIL", providerUserId: `scim-${o.orgId}:ext-${tag()}` },
       select: { id: true },
     });
     await prisma.externalIdentityMapping.create({

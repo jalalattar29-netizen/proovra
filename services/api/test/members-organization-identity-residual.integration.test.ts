@@ -193,6 +193,11 @@ describe("DOM-13 residual — Organization-scoped readers, merged groups, rows t
     const person = await plainMember(o.w1);
     await prisma.teamMember.create({ data: { teamId: o.w2, userId: person, role: "MEMBER", status: "ACTIVE" } });
     const outsider = await plainMember(o.w1); // in w1 only
+    // PRO-A2-02 — the manual link is for accounts the Organization's own
+    // directory or IdP created; a self-serve member is linked by their consent.
+    for (const id of [person, outsider]) {
+      await prisma.user.update({ where: { id }, data: { providerUserId: `sso-${o.orgId}:manual-${tag()}` } });
+    }
     const link = await identity.linkExternalIdentity(
       { teamId: o.w1, userId: person, provider: "OKTA", externalSubjectId: `okta|${tag()}`, actorUserId: o.owner.userId },
       prisma,

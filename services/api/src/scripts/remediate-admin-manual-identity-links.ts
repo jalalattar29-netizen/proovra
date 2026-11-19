@@ -7,6 +7,9 @@
  *   pnpm --filter proovra-api exec tsx src/scripts/remediate-admin-manual-identity-links.ts --apply
  *   (in the API image: node dist/scripts/remediate-admin-manual-identity-links.js [--apply])
  *
+ * ROLLOUT ORDER: migration 20281121010000_external_identity_link_source FIRST,
+ * then the API image, then this script (it reads and writes link_source).
+ *
  * DRY RUN BY DEFAULT: without --apply it lists ids, classes and counts and
  * writes nothing.
  */

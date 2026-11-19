@@ -41,6 +41,7 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
   let ssoHardening: typeof import("../src/services/access-control/sso-hardening.service.js");
   let lifecycleWebhooks: typeof import("../src/services/packaging/webhooks/webhook-platform.service.js");
   let domainOnly: typeof import("../src/commands/remediate-domain-only-managed-links.js");
+  let tenantAudit: typeof import("../src/services/audit/tenant-audit.service.js");
   let deps: FixtureDeps;
 
   const auth = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -105,6 +106,7 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
     ssoHardening = await import("../src/services/access-control/sso-hardening.service.js");
     lifecycleWebhooks = await import("../src/services/packaging/webhooks/webhook-platform.service.js");
     domainOnly = await import("../src/commands/remediate-domain-only-managed-links.js");
+    tenantAudit = await import("../src/services/audit/tenant-audit.service.js");
     deps = {
       prisma: prisma as never,
       tag: `wsorg-${Date.now().toString(36)}`,
@@ -209,6 +211,7 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
       userId: victim.userId,
       organizationId: org.organizationId,
       provider: "GENERIC_OIDC",
+      externalSubjectId: subject,
       linkSource: null,
     });
     expect(verdict.honoured).toBe(false);
@@ -220,13 +223,36 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
       }),
     ).toBeNull();
 
-    // The consent flow's membership grant is the owner's evidence.
+    // A consent grant that names no subject (the pre-rule shape) cannot tell
+    // the subject the owner approved from one an administrator linked later.
+    const connection = randomUUID();
     await prisma.membershipGrant.create({
       data: {
         teamMemberId: victim.teamMemberId,
         source: "SSO_JIT",
         intent: "SSO_JIT",
-        externalRef: `org-link:GENERIC_OIDC:${randomUUID()}`,
+        externalRef: `org-link:GENERIC_OIDC:${connection}`,
+      } as never,
+    });
+    expect(
+      await stepUpIdp.resolveLinkedUserForSubject(prisma as never, {
+        organizationId: org.organizationId,
+        provider: "GENERIC_OIDC",
+        externalSubjectId: subject,
+      }),
+    ).toBeNull();
+
+    // The consent flow's grant naming THIS provider and subject is the evidence.
+    await prisma.membershipGrant.create({
+      data: {
+        teamMemberId: victim.teamMemberId,
+        source: "SSO_JIT",
+        intent: "SSO_JIT",
+        externalRef: linking.organizationLinkConsentRef({
+          provider: "GENERIC_OIDC",
+          connectionId: connection,
+          externalSubjectId: subject,
+        }),
       } as never,
     });
     expect(
@@ -458,28 +484,67 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
     const org = await fx.seedOrganizationTenant(deps);
     const consented = await orgMember(org, "rem-consent");
     const unknown = await orgMember(org, "rem-unknown");
+    const unbound = await orgMember(org, "rem-unbound");
+    const adminMade = await orgMember(org, "rem-admin");
     const mk = (userId: string) =>
       prisma.externalIdentityMapping.create({
         data: { teamId: org.workspaceId, organizationId: org.organizationId, userId, provider: "GENERIC_OIDC", externalSubjectId: `rem-${randomUUID()}` },
-        select: { id: true },
+        select: { id: true, externalSubjectId: true },
       });
+    const grant = (teamMemberId: string, externalRef: string) =>
+      prisma.membershipGrant.create({
+        data: { teamMemberId, source: "SSO_JIT", intent: "SSO_JIT", externalRef } as never,
+      });
+    const boundRef = (subject: string) =>
+      linking.organizationLinkConsentRef({ provider: "GENERIC_OIDC", connectionId: randomUUID(), externalSubjectId: subject });
     const mConsent = await mk(consented.userId);
     const mUnknown = await mk(unknown.userId);
-    await prisma.membershipGrant.create({
-      data: { teamMemberId: consented.teamMemberId, source: "SSO_JIT", intent: "SSO_JIT", externalRef: `org-link:GENERIC_OIDC:${randomUUID()}` } as never,
-    });
+    const mUnbound = await mk(unbound.userId);
+    const mAdmin = await mk(adminMade.userId);
+    // Subject-bound consent evidence for this link.
+    await grant(consented.teamMemberId, boundRef(mConsent.externalSubjectId));
+    // A pre-rule grant: provider and connection only.
+    await grant(unbound.teamMemberId, `org-link:GENERIC_OIDC:${randomUUID()}`);
+    // An administrator-made link (the manual route's audit row names it) on a
+    // person who ALSO holds consent evidence, bound and unbound: the audit row wins.
+    await grant(adminMade.teamMemberId, `org-link:GENERIC_OIDC:${randomUUID()}`);
+    await grant(adminMade.teamMemberId, boundRef(mAdmin.externalSubjectId));
+    await tenantAudit.emitTenantAudit({
+      action: "identity.external_mapping.link",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: org.owner.userId,
+      workspaceId: org.workspaceId,
+      resourceType: "external_identity_mapping",
+      resourceId: mAdmin.id,
+      metadata: {},
+    } as never);
+    const row = (id: string) => prisma.externalIdentityMapping.findUniqueOrThrow({ where: { id } });
 
     const dry = await legacy.remediateAdminManualIdentityLinks(prisma as never);
+    expect(dry.dryRun).toBe(true);
     const mine = dry.affected.filter((a) => a.organizationId === org.organizationId);
     expect(mine.find((a) => a.mappingId === mConsent.id)?.evidence).toBe("OWNER_CONSENT_EVIDENCE");
     expect(mine.find((a) => a.mappingId === mUnknown.id)?.evidence).toBe("NO_EVIDENCE");
-    expect((await prisma.externalIdentityMapping.findUniqueOrThrow({ where: { id: mConsent.id } })).linkSource).toBeNull();
+    expect(mine.find((a) => a.mappingId === mUnbound.id)?.evidence).toBe("UNBOUND_CONSENT_GRANT");
+    expect(mine.find((a) => a.mappingId === mAdmin.id)?.evidence).toBe("ADMIN_MANUAL_EVIDENCE");
+    // Dry run by default: nothing written.
+    expect((await row(mConsent.id)).linkSource).toBeNull();
+    expect((await row(mAdmin.id)).unlinkedAtUtc).toBeNull();
 
     await legacy.remediateAdminManualIdentityLinks(prisma as never, { apply: true });
-    expect((await prisma.externalIdentityMapping.findUniqueOrThrow({ where: { id: mConsent.id } })).linkSource).toBe("OWNER_CONSENT");
-    const untouched = await prisma.externalIdentityMapping.findUniqueOrThrow({ where: { id: mUnknown.id } });
+    expect((await row(mConsent.id)).linkSource).toBe("OWNER_CONSENT");
+    const untouched = await row(mUnknown.id);
     expect(untouched.unlinkedAtUtc).toBeNull();
     expect(untouched.linkSource).toBeNull();
+    // An unbound grant is never recorded as the owner's consent.
+    const stillUnbound = await row(mUnbound.id);
+    expect(stillUnbound.unlinkedAtUtc).toBeNull();
+    expect(stillUnbound.linkSource).toBeNull();
+    // The administrator-made link is ended, never stamped as consent.
+    const ended = await row(mAdmin.id);
+    expect(ended.unlinkedAtUtc).not.toBeNull();
+    expect(ended.linkSource).toBeNull();
 
     // A DOMAIN binding written on a self-serve account (the unreachable invite path).
     const managedOrg = await fx.seedOrganizationTenant(deps, { managedIdentityRequired: true });

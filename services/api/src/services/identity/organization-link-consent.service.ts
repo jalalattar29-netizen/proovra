@@ -38,6 +38,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { getSecret } from "../../config/runtime-secrets.js";
 import { isProovraProductionRequest } from "../../http/cors-origin-policy.js";
 import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
+import { organizationLinkConsentRef } from "../security/enterprise-account-linking.service.js";
 import { isAccountClosed } from "./account-closed.js";
 import { provisionMembership } from "./membership-provisioning.service.js";
 
@@ -302,7 +303,13 @@ export async function approveOrganizationLink(
           userId,
           workspace: { teamId: pending.teamId, role: pending.role === "VIEWER" ? "VIEWER" : "MEMBER" },
           actorUserId: userId,
-          externalRef: `org-link:${pending.provider}:${pending.connectionId}`.slice(0, 200),
+          // PRO-A2-02 — the consent evidence names the SUBJECT the owner
+          // approved, not only the provider and connection.
+          externalRef: organizationLinkConsentRef({
+            provider: pending.provider,
+            connectionId: pending.connectionId,
+            externalSubjectId: pending.subject,
+          }).slice(0, 200),
           accessReason: `Account owner approved ${pending.protocol} organization link`,
           preserveExistingStatus: true,
         });

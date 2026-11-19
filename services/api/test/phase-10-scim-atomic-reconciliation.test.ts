@@ -82,8 +82,13 @@ function makeClient(members: Record<string, { id: string; role: string; status: 
       findFirst: async ({ where }: { where: { userId: string } }) => members[where.userId] ?? null,
       findMany: async () => [], // buildResource member list (orthogonal to atomicity)
     },
+    // PRO-A2-02 — the directory acts on accounts this Organization created.
+    user: {
+      findUnique: async () => ({ providerUserId: "scim-org-A:ext-1", email: "person@acme.test", createdAt: new Date(0) }),
+    },
     externalIdentityMapping: {
       findFirst: async () => ({ id: "map-1" }),
+      findMany: async () => [],
       update: async () => { writes.push("mapping.update"); return {}; },
     },
     scimGroup: {
