@@ -24,7 +24,11 @@ describe("BASIC public verification projection (PRO-O1-06, PRO-O1C-04)", () => {
         basicVerification: { original: { sha256: "a".repeat(64), deviceDeclaredCaptureAtUtc: "2026-01-01T00:00:00Z", captureTimeStatement: "x" } },
       },
       disclosure as never,
-    ) as Record<string, any>;
+    ) as {
+      recordFacts: { recordKindLabel: string };
+      basicVerification: { original: { deviceDeclaredCaptureAtUtc?: string } };
+      disclosure: unknown;
+    };
     const body = JSON.stringify(out);
     expect(body).not.toContain("application/vnd.ms-excel");
     expect(out.recordFacts.recordKindLabel).toBe("Single item");
