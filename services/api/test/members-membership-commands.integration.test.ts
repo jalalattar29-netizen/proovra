@@ -169,9 +169,11 @@ describe("Phase B — governed membership commands", () => {
     expect(await prisma.caseAssignment.count({ where: { assignedToUserId: m.id, status: "ACTIVE" } })).toBe(0);
     expect((await prisma.collaborationTeamMember.findFirstOrThrow({ where: { userId: m.id } })).status).toBe("REMOVED");
     expect(await prisma.teamInvite.count({ where: { teamId: A().teamId, email: { equals: m.email, mode: "insensitive" }, revokedAt: null } })).toBe(0);
-    // Their sessions are revoked with the membership: the old token no longer
-    // authenticates at all (401), let alone opens the case.
-    expect((await h.app.inject({ method: "GET", url: `/v1/cases/${kase.id}`, headers: bearer(m.token) })).statusCode).toBe(401);
+    // PRO-T1-05 (DEC-08) — this person is an independent account, so removal
+    // ends their access to the workspace, not their own sessions: the old
+    // token still authenticates and the case is closed to it (404). (Sessions
+    // of a directory-originated identity are ended; e-identity-invites F-16.)
+    expect((await h.app.inject({ method: "GET", url: `/v1/cases/${kase.id}`, headers: bearer(m.token) })).statusCode).toBe(404);
   });
 
   it("INV-01 — a pending invitation cannot revive a SUSPENDED membership; suspension revokes it", async () => {
