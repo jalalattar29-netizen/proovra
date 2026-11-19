@@ -663,7 +663,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       if (!(await gate(reply, ctx, "redaction.region.author"))) return reply;
       const params = z
-        .object({ id: z.string().uuid(), n: z.string().regex(/^d{1,4}$/) })
+        .object({ id: z.string().uuid(), n: z.string().regex(/^[0-9]{1,4}$/) })
         .safeParse(req.params);
       if (!params.success) {
         return reply.code(400).send({ denial: "PREVIEW_PAGE_OUT_OF_RANGE" });
