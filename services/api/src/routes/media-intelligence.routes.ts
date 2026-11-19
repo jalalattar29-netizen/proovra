@@ -2243,11 +2243,18 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
           _sum: { sizeBytes: true },
         });
         if (owner) {
-          const { resolveEvidenceWorkspaceScope } = await import("../services/workspace-billing.service.js");
-          const { assertWorkspaceStorageAvailable } = await import("../services/workspace-usage.service.js");
+          // The record's commercial subject through the ONE public resolver
+          // (explicit subject), then the canonical storage-growth gate.
+          const { resolveCommercialContext } = await import("../services/billing/commercial-context.service.js");
+          const { assertWorkspaceAllowsStorageGrowth } = await import("../services/billing-enforcement.service.js");
           try {
-            await assertWorkspaceStorageAvailable({
-              scope: await resolveEvidenceWorkspaceScope({ ownerUserId: owner.ownerUserId, teamId: owner.teamId }),
+            const commercial = await resolveCommercialContext(
+              owner.teamId
+                ? { type: "WORKSPACE", teamId: owner.teamId, requesterUserId: owner.ownerUserId }
+                : { type: "PERSONAL_ACCOUNT", userId: owner.ownerUserId },
+            );
+            await assertWorkspaceAllowsStorageGrowth({
+              scope: commercial.scope,
               incomingBytes: BigInt(Math.max(0, Math.trunc(Number(parts._sum.sizeBytes ?? 0)))),
             });
           } catch (err) {

@@ -6282,10 +6282,10 @@
     "id": "AFC-F41-H",
     "phase": "AFC",
     "aud": "F-41",
-    "name": "cron routes fall back to the workspace-admin check outside NODE_ENV=production",
+    "name": "cron routes admit a request with no configured secret outside NODE_ENV=production",
     "file": "services/api/src/middleware/cron-secret.ts",
-    "find": "  return !developmentSurfacesAllowed();",
-    "replace": "  return process.env.NODE_ENV === \"production\";",
+    "find": "  // No secret configured: fail closed in every environment (PRO-W2-13).\n",
+    "replace": "  if (process.env.NODE_ENV !== \"production\") return true;\n",
     "tests": [
       {
         "cwd": "services/api",
@@ -6293,7 +6293,7 @@
         "args": [
           "vitest",
           "run",
-          "test/afc-wave-e-environment-and-fixture.test.ts"
+          "test/ws-sched-cron-secret-no-session-fallback.test.ts"
         ]
       }
     ]

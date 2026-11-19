@@ -541,7 +541,21 @@ describe("enterprise feature route gates", () => {
       text.match(
         /denyIfTeamNotEnterprise\(reply, body\.teamId, "destructionGovernance"\)/g,
       ) ?? [];
-    expect(destructionMatches.length).toBeGreaterThanOrEqual(3);
+    // WS-SCHED / PRO-G2-02, DEC-05 (2026-11-19) — the review create and the
+    // review transition now ask `destructionDecisionAuthority`, which asks
+    // the SAME destructionGovernance gate first and refuses with it, and only
+    // otherwise admits a self-serve workspace's own ACTIVE OWNER. The forced
+    // lifecycle transition keeps the bare plan gate. Still three gated
+    // mutations, one question.
+    const authorityMatches =
+      text.match(/destructionDecisionAuthority\(reply, body\.teamId, ok\.actorUserId\)/g) ?? [];
+    expect(destructionMatches.length + authorityMatches.length).toBeGreaterThanOrEqual(3);
+    expect(destructionMatches.length).toBeGreaterThanOrEqual(1);
+    const authorityAt = text.indexOf("async function destructionDecisionAuthority(");
+    const authority = text.slice(authorityAt, authorityAt + 700);
+    expect(authority).toContain('assertTeamAllowsEnterpriseFeature(teamId, "destructionGovernance")');
+    expect(authority).toContain("isSelfServeDestructionOwner(prisma, teamId, actorUserId)");
+    expect(authority).toContain('denyIfTeamNotEnterprise(reply, teamId, "destructionGovernance")');
     // And the borrowed name is gone from this file for good, so the two
     // authorities cannot silently merge back together.
     expect(text).not.toContain('"legalHold"');

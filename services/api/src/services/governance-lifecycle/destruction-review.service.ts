@@ -45,7 +45,6 @@ import {
   isAllowedDestructionReviewTransition,
   isDestructionBoundState,
   isTerminalDestructionReviewStatus,
-  normalizeWorkspaceKind,
   type DestructionReviewReason,
   type DestructionReviewStatus,
 } from "@proovra/shared";
@@ -72,7 +71,7 @@ export async function isSelfServeDestructionOwner(
     where: { id: teamId },
     select: { workspaceKind: true, isPersonal: true, billingPlan: true },
   });
-  const kind = normalizeWorkspaceKind({
+  const kind = resolveWorkspaceKind({
     workspaceKind: team?.workspaceKind ?? null,
     isPersonal: team?.isPersonal ?? null,
     billingPlan: team?.billingPlan ?? null,
@@ -89,6 +88,7 @@ export async function isSelfServeDestructionOwner(
 // mint its own destruction certificate hash. It no longer mints one: the
 // canonical executor does, after verifying the deletion, and this service
 // mirrors that hash onto the review row.
+import { resolveWorkspaceKind } from "../identity/workspace-kind.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";

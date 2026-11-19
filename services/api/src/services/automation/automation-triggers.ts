@@ -426,7 +426,11 @@ export async function detectTimeBasedAutomationTriggers(input?: {
     const cursor = await detectorCursor(prisma, "RETENTION_CANDIDATE_FOUND");
     const candidates = !teams.length ? [] : await prisma.evidence.findMany({
       where: {
-        teamId: { in: teams },
+        // A PLATFORM-SCOPE scan with no workspace predicate (Evidence is a
+        // mixed-ownership model: a raw `teamId` filter is not a workspace
+        // scope, and the scope verifier refuses one). The id cursor is what
+        // lets every workspace progress; records of workspaces without this
+        // rule are passed over below.
         deletedAt: null,
         retentionUntilUtc: { lte: now },
         lifecycleState: { notIn: ["PENDING_DESTRUCTION", "DESTROYED"] },
@@ -437,8 +441,9 @@ export async function detectTimeBasedAutomationTriggers(input?: {
       take: DETECT_LIMIT,
     });
     await cursor.advance(candidates);
+    const ruleTeams = new Set(teams);
     for (const e of candidates) {
-      if (!e.teamId) continue;
+      if (!e.teamId || !ruleTeams.has(e.teamId)) continue;
       const r = await enqueueAutomationTrigger(prisma, {
         teamId: e.teamId,
         triggerType: "RETENTION_CANDIDATE_FOUND",

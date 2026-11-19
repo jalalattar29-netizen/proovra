@@ -3823,6 +3823,22 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.package_seal_byte_checks') IS NOT NULL;\"",
       "evidence": "REPORT-014 (2026-11-04). One new, empty table remembering the definitive outcome of the immutable part of a package seal check by seal identity. Key revocation is never stored. An older image ignores it. Rollback: drop the table."
     },
+    "20281121130100_archive_restore_reconciliation_kind": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'GovernanceReconciliationKind' AND e.enumlabel = 'ARCHIVE_RESTORE';\"",
+      "evidence": "PRO-P3DZ-04 (WS-SCHED, 2026-11-19). One enum value, ARCHIVE_RESTORE, on GovernanceReconciliationKind (ADD VALUE IF NOT EXISTS, in a migration of its own), so the retention-archive restore sweep records its runs and the platform health snapshot can report a stopped or failing one. No row is read or rewritten; an older image never selects the value. Rollback: leave the value (PostgreSQL cannot drop an enum value); nothing reads it once the worker is rolled back."
+    },
+    "20281121130000_exchange_package_quota_reservation": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='evidence_exchange_packages' AND column_name='quota_reserved_period_start_utc';\"",
+      "evidence": "PRO-BL2-02 (WS-SCHED, 2026-11-18). One nullable column, evidence_exchange_packages.quota_reserved_period_start_utc: the month whose export-package unit was reserved at admission, so the worker does not meter the package again at READY and a failed build can give the unit back. No row is rewritten; an older image never reads it (an older worker meters at READY as before). Rollback: leave the column."
+    },
     "20281120000000_login_mfa_challenge_factors": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",
