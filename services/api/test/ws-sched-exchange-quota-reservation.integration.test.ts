@@ -13,9 +13,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
-const upload = vi.hoisted(() => ({ fail: false }));
+const upload = vi.hoisted(() => ({ fail: false, puts: 0 }));
 vi.mock("../../worker/src/storage.js", () => ({
   putObjectBuffer: async () => {
+    upload.puts += 1;
     if (upload.fail) throw new Error("simulated storage outage");
     return { versionId: null };
   },
@@ -211,5 +212,67 @@ describe("PRO-BL2-02 export-package allowance reservation (live PostgreSQL)", ()
     expect(first.revoked).toBe(true);
     expect(second.revoked).toBe(false);
     expect(await consumed(teamA.teamId)).toBe(0);
+  });
+
+  // WS-SCHED / PRO-W1-07 (DEC-04) — the builder asks the workspace AGAIN when
+  // it claims a build. At base it trusted the BUILDING row: all three packages
+  // below were built and went READY.
+  it("PRO-W1-07: a build claimed after the entitlement lapsed, the organization was suspended, or the workspace closed is refused — DRAFT, unit returned, nothing uploaded", async () => {
+    const { teamA } = h.fixtures;
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: teamA.teamId }, select: { organizationId: true } });
+    const grantWhere = { teamId_key: { teamId: teamA.teamId, key: "FEATURE_EVIDENCE_EXCHANGE" } };
+    const admitted = async () => {
+      await setConsumed(teamA.teamId, 0);
+      const res = await create();
+      expect(res.statusCode, res.body).toBe(201);
+      expect(await consumed(teamA.teamId)).toBe(1);
+      return (res.json() as { packageId: string }).packageId;
+    };
+    const refused = async (id: string, reason: string) => {
+      const row = await prisma.evidenceExchangePackage.findUniqueOrThrow({ where: { id } });
+      expect(row.state, reason).toBe("DRAFT");
+      expect(row.storageKey, reason).toBeNull();
+      expect(row.packageSizeBytes, reason).toBeNull();
+      expect(row.quotaReservedPeriodStartUtc, reason).toBeNull();
+      expect(await consumed(teamA.teamId), reason).toBe(0);
+      const build = await prisma.evidenceExchangePackageBuild.findFirstOrThrow({ where: { packageId: id } });
+      expect(build.state).toBe("FAILED");
+      expect(build.failureReason).toBe(`exchange_build_refused:${reason}`);
+    };
+    const putsBefore = upload.puts;
+
+    // 1. The entitlement expired between the request and the claim.
+    let id = await admitted();
+    await prisma.entitlementGrant.update({ where: grantWhere, data: { expiresAtUtc: new Date(Date.now() - 1000) } });
+    await buildExchangePackage(id, prisma as never);
+    await refused(id, "exchange_not_entitled");
+    await prisma.entitlementGrant.update({ where: grantWhere, data: { expiresAtUtc: null } });
+
+    // 2. The organization was suspended.
+    id = await admitted();
+    await prisma.organization.update({ where: { id: team.organizationId! }, data: { status: "SUSPENDED" } as never });
+    await buildExchangePackage(id, prisma as never);
+    await refused(id, "organization_not_active");
+    await prisma.organization.update({ where: { id: team.organizationId! }, data: { status: "ACTIVE" } as never });
+
+    // 3. The workspace was closed.
+    id = await admitted();
+    await prisma.team.update({ where: { id: teamA.teamId }, data: { closedAtUtc: new Date() } });
+    await buildExchangePackage(id, prisma as never);
+    await refused(id, "workspace_closed");
+    await prisma.team.update({ where: { id: teamA.teamId }, data: { closedAtUtc: null } });
+    expect(upload.puts, "no refused build reached object storage").toBe(putsBefore);
+
+    // Live and entitled again: the same package builds (Build again re-reserves).
+    const again = await h.app.inject({
+      method: "POST",
+      url: `/v1/exchange/packages/${id}/build`,
+      headers: { authorization: `Bearer ${teamA.ownerToken}` },
+    });
+    expect(again.statusCode, again.body).toBe(202);
+    await buildExchangePackage(id, prisma as never);
+    const ready = await prisma.evidenceExchangePackage.findUniqueOrThrow({ where: { id } });
+    expect(ready.state).toBe("READY");
+    expect(ready.packageSizeBytes).not.toBeNull();
   });
 });

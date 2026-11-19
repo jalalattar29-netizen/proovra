@@ -4842,7 +4842,12 @@ async function runReportGeneration(
 
         // The allowance is checked with the EXACT size, before any byte is
         // written to storage.
-        await assertWorkspaceAllowsReportArtifact({
+        const reportStorageAdmission = await assertWorkspaceAllowsReportArtifact({
+          // PRO-W1-06 — the admitted bytes (this PDF and, for a later version,
+          // its package estimate) are RESERVED on this request under the
+          // workspace capacity lock, so a concurrent run cannot be admitted
+          // against the same room.
+          reservation: { requestId: command.requestId, claimedAtUtc: command.claimedAtUtc },
           ownerUserId: evidence.ownerUserId,
           teamId: evidence.teamId ?? null,
           incomingBytes: BigInt(finalizedReportPdf.length),
@@ -5287,7 +5292,21 @@ async function runReportGeneration(
             // ET-SEC-30 — fenced: a run whose claim was taken over rolls back.
             const fenced = await tx.reportGenerationRequest.updateMany({
               where: claimFenceWhere(command),
-              data: { reportVersion: prepared.version, stage: "REPORT_COMMITTED" },
+              data: {
+                reportVersion: prepared.version,
+                stage: "REPORT_COMMITTED",
+                // PRO-W1-06 — the PDF is now a committed row the meters count:
+                // the reservation shrinks to the package still to come, in
+                // this same transaction (never counted twice, never dropped).
+                ...(reportStorageAdmission.reservedFollowingBytes !== null
+                  ? {
+                      storageReservedBytes:
+                        reportStorageAdmission.reservedFollowingBytes > 0n
+                          ? reportStorageAdmission.reservedFollowingBytes
+                          : null,
+                    }
+                  : {}),
+              },
             });
             if (fenced.count !== 1) throw new ReportClaimLost(command.requestId);
 
@@ -6044,6 +6063,10 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
          */
         try {
           await assertWorkspaceAllowsVerificationPackageArtifact({
+            // PRO-W1-06 — the exact package bytes replace this request's
+            // reservation (the estimate held since the report gate) before any
+            // ZIP is published; a refusal here has written nothing.
+            reservation: { requestId: command.requestId, claimedAtUtc: command.claimedAtUtc },
             ownerUserId: evidence.ownerUserId,
             teamId: evidence.teamId ?? null,
             incomingBytes: built.reduce((sum, b) => sum + BigInt(b.staged.sizeBytes), BigInt(0)),

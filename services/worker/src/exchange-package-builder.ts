@@ -69,6 +69,7 @@ import { artifactLockForAll } from "./object-retention.js";
 import { env } from "./config.js";
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 import { logger } from "./logger.js";
+import { resolveExchangeBuildAdmission } from "./workspace-billing.js";
 // The ONE export-package meter writer, shared with the API's completion route.
 import {
   evidenceVisibleThroughCasesWhere,
@@ -909,6 +910,19 @@ export async function buildExchangePackage(
   const startedAt = Date.now();
 
   try {
+    // WS-SCHED / PRO-W1-07 (DEC-04) — AT CLAIM, the workspace is asked again:
+    // still live, its organization still ACTIVE, still entitled to Evidence
+    // Exchange. The BUILDING row records what was true when the package was
+    // requested; a build claimed later (queued, re-claimed after a lease,
+    // "Build again") must not run on it. A refusal — and an answer that cannot
+    // be read — takes the failure path below: the package returns to DRAFT,
+    // its reserved monthly unit is given back, nothing is assembled or
+    // uploaded, and the build row states the bounded reason.
+    const admission = await resolveExchangeBuildAdmission(teamId, prisma);
+    if (!admission.admitted) {
+      throw new Error(`exchange_build_refused:${admission.reason}`);
+    }
+
     // Build the ZIP in-memory (archiver — same dep as verification-package.ts).
     const buffers: Buffer[] = [];
     const hashStream = createHash("sha256");

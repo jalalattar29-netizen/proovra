@@ -1547,6 +1547,7 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281121130000_exchange_package_quota_reservation",
       // WS-SCHED PRO-P3DZ-04: the ARCHIVE_RESTORE reconciliation kind. EXPAND.
       "20281121130100_archive_restore_reconciliation_kind",
+      "20281121130200_report_request_storage_reservation",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

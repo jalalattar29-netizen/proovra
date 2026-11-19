@@ -52,6 +52,12 @@ export * from "./notifications/index.js";
 export * from "./billing/seat-occupancy.js";
 // UC-0 (D5) — derived bytes in storage accounting, one query for both hosts.
 export * from "./billing/derived-storage.js";
+// WS-SCHED / PRO-W1-06 (DEC-04) — the workspace storage reservation of an
+// artifact run: one lock key, one "live" predicate, one sum for both hosts.
+export * from "./billing/artifact-storage-reservation.js";
+// WS-SCHED / PRO-W1-07 — the Worker's re-read of the Evidence Exchange
+// entitlement at build claim (pinned against the API engine).
+export * from "./billing/exchange-build-entitlement.js";
 // AUDIT D-03 — the first issuance of an entitled Free record is not customer
 // storage; one measure for both hosts' usage figures.
 export * from "./billing/first-issuance-allowance.js";

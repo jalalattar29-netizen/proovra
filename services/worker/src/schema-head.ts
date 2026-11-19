@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281121130100_archive_restore_reconciliation_kind";
+export const EXPECTED_MIGRATION_HEAD = "20281121130200_report_request_storage_reservation";
 
 export type MigrationRow = {
   migration_name: string;

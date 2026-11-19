@@ -38,3 +38,31 @@ export async function sumDerivedAssetStorageBytes(
   const raw = agg?._sum?.sizeBytes ?? 0;
   return BigInt(Math.trunc(Number(raw)));
 }
+
+/**
+ * WS-SCHED / PRO-W1-07 (DEC-04) — Evidence Exchange package ZIPs are
+ * customer-requested derived artifacts and count toward storage, on both hosts.
+ *
+ * A package counts while its row points at a stored object (`storage_key`),
+ * whatever its state: READY and DELIVERED packages, and one the customer
+ * revoked or that expired while its ZIP is still held under the records'
+ * Object Lock. The builder writes the pointer and `package_size_bytes` in the
+ * READY transition only, so a DRAFT or BUILDING package counts nothing, and
+ * destruction clears the pointer once the object is verified gone
+ * (evidence-destruction/executor), so a destroyed package counts nothing.
+ *
+ * Scoped by the package's own `team_id` (NOT NULL: packages exist only in a
+ * workspace Team), the same subject `sumDerivedAssetStorageBytes` uses.
+ */
+export async function sumExchangePackageStorageBytes(
+  prisma: Pick<PrismaClient, "evidenceExchangePackage">,
+  scope: DerivedStorageScope,
+): Promise<bigint> {
+  if (!scope.teamId) return 0n;
+  const agg = await prisma.evidenceExchangePackage.aggregate({
+    where: { teamId: scope.teamId, storageKey: { not: null } },
+    _sum: { packageSizeBytes: true },
+  });
+  const raw = agg?._sum?.packageSizeBytes ?? 0;
+  return BigInt(Math.trunc(Number(raw)));
+}

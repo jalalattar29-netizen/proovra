@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 380,
-    "classifiedMigrations": 380,
+    "filesystemMigrations": 381,
+    "classifiedMigrations": 381,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 380,
+    "productionSnapshotUnknown": 381,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 380,
-    "classifiedMigrations": 380,
+    "filesystemMigrations": 381,
+    "classifiedMigrations": 381,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 380,
+    "productionSnapshotUnknown": 381,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 141,
+      "EXPAND": 142,
       "BACKFILL": 36,
       "CONTRACT_DROP": 12,
       "REPAIR": 6
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 162,
+      "SAFE_TO_APPLY_NOW": 163,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 7
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 380
+    "ProductionMigrationStateUnknown": 381
   },
   "gateFailures": [],
   "migrations": [
@@ -28429,8 +28429,71 @@
       "evidence": "PRO-P3DZ-04 (WS-SCHED, 2026-11-19). One enum value, ARCHIVE_RESTORE, on GovernanceReconciliationKind (ADD VALUE IF NOT EXISTS, in a migration of its own), so the retention-archive restore sweep records its runs and the platform health snapshot can report a stopped or failing one. No row is read or rewritten; an older image never selects the value. Rollback: leave the value (PostgreSQL cannot drop an enum value); nothing reads it once the worker is rolled back."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281121130200_report_request_storage_reservation",
       "order": 379,
+      "sqlPresent": true,
+      "byteLength": 1212,
+      "checksumSha256": "53979f0e8b7f00fe113455217a5d2b00a559148944dfba19373aa8ffeda50ce3",
+      "checksumSha256Raw": "53979f0e8b7f00fe113455217a5d2b00a559148944dfba19373aa8ffeda50ce3",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "report_generation_requests"
+        ],
+        "addedColumns": [
+          "storage_reserved_bytes"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20271113000000_point5_report_generation_authority"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='report_generation_requests' AND column_name='storage_reserved_bytes';\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "PRO-W1-06 (WS-SCHED, 2026-11-19, DEC-04). One nullable column, report_generation_requests.storage_reserved_bytes: the bytes an artifact run reserved under the workspace capacity lock before publishing, counted by both usage meters only while the request's claim is live, so two concurrent runs cannot jointly exceed the allowance and none is refused after its bytes are under Object Lock. No row is rewritten, no index is added; an older image never reads or writes it. Rollback: leave the column (NULL is the old behaviour)."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 380,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

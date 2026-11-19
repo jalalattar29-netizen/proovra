@@ -15440,6 +15440,10 @@ model ReportGenerationRequest {
   intent           String? @db.VarChar(24)
   /// Caller idempotency key for an explicit new version (lost-response replay).
   clientRequestKey String? @map("client_request_key") @db.VarChar(80)
+  /// PRO-W1-06 — bytes this run reserved before publishing (the workspace
+  /// storage reservation). Counted by both usage meters only while the claim
+  /// is live; NULL = nothing reserved.
+  storageReservedBytes BigInt? @map("storage_reserved_bytes")
 
   createdAtUtc   DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
   updatedAtUtc   DateTime  @default(now()) @updatedAt @map("updated_at_utc") @db.Timestamptz(6)

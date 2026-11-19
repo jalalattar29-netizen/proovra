@@ -59,7 +59,7 @@ import {
 
 import { prisma } from "./db.js";
 import { OutputPolicyBlockedError, OutputProductionRefusedError } from "./output-production-refusal.js";
-import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
+import { evaluateEffectiveLegalHold, releaseStrandedArtifactStorageReservations } from "@proovra/shared-runtime";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { logger } from "./logger.js";
 import { resolveEvidenceOutputIssuance } from "./output-issuance.js";
@@ -383,6 +383,9 @@ export async function resolveAndClaimReportRequest(input: {
       state: "PROCESSING",
       claimedAtUtc,
       leaseRenewedAtUtc: null,
+      // PRO-W1-06 — a new claim starts with nothing reserved (a taken-over
+      // run's reservation must not come alive again under this claim).
+      storageReservedBytes: null,
       attemptCount: { increment: 1 },
     },
   });
@@ -458,6 +461,8 @@ export async function markRequestTerminal(input: {
       resultReportId: input.resultReportId ?? undefined,
       resultChecksum: input.resultChecksum?.slice(0, 128) ?? undefined,
       completedAtUtc: new Date(),
+      // PRO-W1-06 — a settled request reserves no storage.
+      storageReservedBytes: null,
     },
   });
   return updated.count > 0;
@@ -572,6 +577,8 @@ export async function markRequestRetryable(input: {
       state: "FAILED_RETRYABLE",
       terminalReasonCode: input.terminalReasonCode.slice(0, 64),
       claimedAtUtc: null,
+      // PRO-W1-06 — the retry reserves again from fresh usage.
+      storageReservedBytes: null,
     },
   });
   return released.count > 0;
@@ -760,6 +767,8 @@ export type ReportReconcileSummary = {
   leasesReleased: number;
   terminalRepaired: number;
   failures: number;
+  /** PRO-W1-06 — storage reservations cleared from requests with no live claim. */
+  storageReservationsReleased?: number;
 };
 
 /**
@@ -797,9 +806,14 @@ export async function reconcileStrandedReportRequests(input: {
   // F-06 — an EXPIRED claim only: a run that renewed its lease is working.
   const released = await prisma.reportGenerationRequest.updateMany({
     where: reportClaimExpiredWhere(now),
-    data: { state: "FAILED_RETRYABLE", claimedAtUtc: null, leaseRenewedAtUtc: null },
+    data: { state: "FAILED_RETRYABLE", claimedAtUtc: null, leaseRenewedAtUtc: null, storageReservedBytes: null },
   });
   summary.leasesReleased = released.count;
+  // PRO-W1-06 — STRANDED STORAGE RESERVATIONS. A reservation counts only while
+  // its claim is live, so one left by a run that died (or by a settle that
+  // predates the column write) already counts nothing; this states it on the
+  // row. Same sweep, same tick, no second scheduler.
+  summary.storageReservationsReleased = await releaseStrandedArtifactStorageReservations(prisma, now);
 
   // ---- 2. Completed artifact with no terminal request state ---------------
   // The generation succeeded and the process died before the terminal write.

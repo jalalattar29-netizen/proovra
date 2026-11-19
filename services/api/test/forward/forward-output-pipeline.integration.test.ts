@@ -1810,5 +1810,147 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       expect(u.storageBytesUsed).toBe(BigInt(24 * MIB) + (await storedPairBytes(rec.evidenceId, 2)));
       expect(seam.sentryCaptures).toEqual([]);
     }, 600_000);
+
+    // -----------------------------------------------------------------------
+    // WS-SCHED / PRO-W1-07 + PRO-W1-06 (DEC-04) — exchange package ZIPs and the
+    // live storage reservations of artifact runs are in BOTH hosts' meters.
+    // -----------------------------------------------------------------------
+    it("PRO-W1-07 / PRO-W1-06: a stored exchange ZIP and a live run reservation count on both hosts; a pointerless package and a dead claim do not", async () => {
+      const t = await seedPersonalTenant(deps, "FREE");
+      const rec = await freeRecord(t, 10, { stored: false });
+      expect((await bothHosts(t)).storageBytesUsed).toBe(BigInt(10 * MIB));
+
+      // A READY package: its ZIP is a stored object the customer asked for.
+      const pkg = await prisma.evidenceExchangePackage.create({
+        data: {
+          teamId: t.personalTeamId,
+          kind: "EVIDENCE",
+          state: "READY",
+          evidenceIds: [rec.evidenceId],
+          createdByUserId: t.owner.userId,
+          storageKey: `exchange-packages/${t.personalTeamId}/x/1.zip`,
+          packageSizeBytes: BigInt(7 * MIB),
+          readyAtUtc: new Date(),
+        } as never,
+        select: { id: true },
+      });
+      // A package still building has no stored object and counts nothing.
+      await prisma.evidenceExchangePackage.create({
+        data: { teamId: t.personalTeamId, kind: "EVIDENCE", state: "BUILDING", evidenceIds: [rec.evidenceId], createdByUserId: t.owner.userId } as never,
+      });
+      let u = await bothHosts(t);
+      expect(u.exchangePackageStorageBytes).toBe(BigInt(7 * MIB));
+      expect(u.actualStorageBytes).toBe(BigInt(17 * MIB));
+      expect(u.storageBytesUsed).toBe(BigInt(17 * MIB));
+
+      // Delivered and customer-revoked packages still hold their locked ZIP.
+      await prisma.evidenceExchangePackage.update({ where: { id: pkg.id }, data: { state: "REVOKED", revokedAtUtc: new Date() } });
+      expect((await bothHosts(t)).storageBytesUsed).toBe(BigInt(17 * MIB));
+      // Destruction clears the pointer once the object is gone: nothing counts.
+      await prisma.evidenceExchangePackage.update({ where: { id: pkg.id }, data: { storageKey: null } });
+      expect((await bothHosts(t)).storageBytesUsed).toBe(BigInt(10 * MIB));
+
+      // A run in flight that RESERVED 5 MiB: promised, not stored.
+      const held = await request(rec);
+      const claimedAtUtc = new Date();
+      await prisma.reportGenerationRequest.update({
+        where: { id: held },
+        data: { state: "PROCESSING", claimedAtUtc, storageReservedBytes: BigInt(5 * MIB) } as never,
+      });
+      u = await bothHosts(t);
+      expect(u.reservedStorageBytes).toBe(BigInt(5 * MIB));
+      expect(u.storageBytesUsed, "reserved bytes are in the figure every gate reads").toBe(BigInt(15 * MIB));
+      expect(u.actualStorageBytes, "but they are not stored bytes").toBe(BigInt(10 * MIB));
+      // The run's own gate does not count its own reservation twice.
+      const scope = await workerBilling.resolveWorkspaceScopeForEvidence({ ownerUserId: t.owner.userId, teamId: t.personalTeamId });
+      expect((await workerBilling.getWorkspaceUsage(scope, { excludeReservationRequestId: held })).storageBytesUsed).toBe(BigInt(10 * MIB));
+
+      // The claim expires (its worker died): the reservation stops counting at
+      // once, on both hosts, and the stranded-request sweep clears the row.
+      const dead = new Date(Date.now() - 6 * 3_600_000);
+      await prisma.reportGenerationRequest.update({ where: { id: held }, data: { claimedAtUtc: dead, leaseRenewedAtUtc: null } as never });
+      expect((await bothHosts(t)).storageBytesUsed).toBe(BigInt(10 * MIB));
+      const swept = await authority.reconcileStrandedReportRequests({ enqueue: async () => ({ enqueued: false }) });
+      expect(swept.leasesReleased).toBeGreaterThanOrEqual(1);
+      expect(
+        (await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: held }, select: { storageReservedBytes: true } as never }) as unknown as { storageReservedBytes: bigint | null }).storageReservedBytes,
+      ).toBeNull();
+      // A settled request that kept a stale figure is cleared by the same sweep.
+      const stale = await request(rec);
+      await prisma.reportGenerationRequest.update({
+        where: { id: stale },
+        data: { state: "FAILED_TERMINAL", completedAtUtc: new Date(), storageReservedBytes: BigInt(3 * MIB) } as never,
+      });
+      expect((await bothHosts(t)).storageBytesUsed).toBe(BigInt(10 * MIB));
+      const again = await authority.reconcileStrandedReportRequests({ enqueue: async () => ({ enqueued: false }) });
+      expect(again.storageReservationsReleased).toBeGreaterThanOrEqual(1);
+      expect(
+        (await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: stale }, select: { storageReservedBytes: true } as never }) as unknown as { storageReservedBytes: bigint | null }).storageReservedBytes,
+      ).toBeNull();
+    }, 300_000);
+
+    it("PRO-W1-06: two concurrent runs that jointly exceed the allowance — exactly one commits, the other settles NOT_APPLICABLE_STORAGE_LIMIT having written no object", async () => {
+      const t = await seedPersonalTenant(deps, "FREE");
+      const padding = await freeRecord(t, 1, { stored: false });
+      const a = await freeRecord(t, 8, { stored: true });
+      const b = await freeRecord(t, 8, { stored: true });
+      await signFingerprintRaw(a);
+      await signFingerprintRaw(b);
+      // v1 of each (first issuance: never refused, not customer storage).
+      for (const rec of [a, b]) {
+        const id = await request(rec);
+        expect(await run(id, 0)).toBeNull();
+        expect((await state(rec.evidenceId, id)).req).toMatchObject({ state: "SUCCEEDED" });
+      }
+      const pairA = await storedPairBytes(a.evidenceId, 1);
+      const pairB = await storedPairBytes(b.evidenceId, 1);
+      const larger = pairA > pairB ? pairA : pairB;
+      // Room for ONE new version (the larger pair + 1 MiB), not for both.
+      const limit = (await bothHosts(t)).storageBytesLimit;
+      const room = larger + BigInt(MIB);
+      expect(pairA + pairB > room, "the two new versions do not fit together").toBe(true);
+      await prisma.evidence.update({
+        where: { id: padding.evidenceId },
+        data: { sizeBytes: limit - BigInt(16 * MIB) - room } as never,
+      });
+      expect((await bothHosts(t)).storageBytesUsed).toBe(limit - room);
+
+      const objectsOf = (evidenceId: string) => [...storage.objects.keys()].filter((k) => k.includes(evidenceId)).sort();
+      const before = { [a.evidenceId]: objectsOf(a.evidenceId), [b.evidenceId]: objectsOf(b.evidenceId) };
+      const v2a = await request({ ...a, forceRegenerate: true });
+      const v2b = await request({ ...b, forceRegenerate: true });
+      const errors = await Promise.all([run(v2a, 0), run(v2b, 0)]);
+      expect(errors).toEqual([null, null]);
+
+      const sa = await state(a.evidenceId, v2a);
+      const sb = await state(b.evidenceId, v2b);
+      const outcomes = [
+        { rec: a, s: sa, id: v2a },
+        { rec: b, s: sb, id: v2b },
+      ];
+      const won = outcomes.filter((o) => o.s.req?.state === "SUCCEEDED");
+      const lost = outcomes.filter((o) => o.s.req?.state === "NOT_APPLICABLE");
+      expect(won, "exactly one run commits").toHaveLength(1);
+      expect(lost, "the other is refused").toHaveLength(1);
+      expect(lost[0]!.s.req).toMatchObject({ terminalReasonCode: "NOT_APPLICABLE_STORAGE_LIMIT" });
+      expect(won[0]!.s.reports.map((r) => r.version)).toEqual([1, 2]);
+      expect(won[0]!.s.packageRows.filter((p) => p.state === "PUBLISHED" && p.version === 2)).toHaveLength(2);
+      // The refused run committed nothing AND wrote nothing: no report v2, no
+      // published package, no object in the store, no publication intent.
+      expect(lost[0]!.s.reports.map((r) => r.version)).toEqual([1]);
+      expect(lost[0]!.s.packageRows.filter((p) => p.state === "PUBLISHED" && p.version === 2)).toEqual([]);
+      expect(objectsOf(lost[0]!.rec.evidenceId), "no orphan object for the refused run").toEqual(before[lost[0]!.rec.evidenceId]);
+      expect(await prisma.artifactPublicationIntent.count({ where: { requestId: lost[0]!.id } })).toBe(0);
+      // Nothing stays reserved, and the workspace is within its allowance.
+      const reserved = await prisma.reportGenerationRequest.findMany({
+        where: { id: { in: [v2a, v2b] } },
+        select: { storageReservedBytes: true } as never,
+      }) as unknown as Array<{ storageReservedBytes: bigint | null }>;
+      expect(reserved.map((r) => r.storageReservedBytes)).toEqual([null, null]);
+      const end = await bothHosts(t);
+      expect(end.reservedStorageBytes).toBe(0n);
+      expect(end.storageBytesUsed <= end.storageBytesLimit, "no joint overshoot").toBe(true);
+      expect(seam.sentryCaptures).toEqual([]);
+    }, 600_000);
   });
 });

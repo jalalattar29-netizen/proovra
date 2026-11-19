@@ -363,7 +363,9 @@ export async function commitIssuance(input: IssuanceCommitInput): Promise<void> 
 
     const fencedPublish = await tx.reportGenerationRequest.updateMany({
       where: claimFenceWhere(input.command),
-      data: { reportVersion: input.version, stage: "PACKAGE_PUBLISHED" },
+      // PRO-W1-06 — the packages are committed rows now: the run's storage
+      // reservation ends in the transaction that makes them count.
+      data: { reportVersion: input.version, stage: "PACKAGE_PUBLISHED", storageReservedBytes: null },
     });
     if (fencedPublish.count !== 1) throw new ReportClaimLost(input.command.requestId);
   }, PACKAGE_ISSUANCE_TRANSACTION);
