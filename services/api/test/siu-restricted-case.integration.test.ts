@@ -14,6 +14,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 
 describe("SIU — restricted cases (live PostgreSQL 16, real HTTP)", () => {
   let h: IntegrationHarness;
@@ -23,6 +24,8 @@ describe("SIU — restricted cases (live PostgreSQL 16, real HTTP)", () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    // PRO-K1-03 — SIU tools are part of an Enterprise organization workspace.
+    await makeEnterpriseOrganizationWorkspace(prisma, h.fixtures.teamA.teamId);
   }, 180_000);
 
   afterAll(async () => {
