@@ -324,7 +324,7 @@ export function isAuditChainLockBusyError(err: unknown): err is AuditChainLockBu
 
 function isLockWaitCancelled(err: unknown): boolean {
   const text = `${(err as { message?: unknown })?.message ?? ""} ${JSON.stringify((err as { meta?: unknown })?.meta ?? {})}`;
-  return /(55P03|57014)|lock timeout|statement timeout/i.test(text);
+  return /\b(55P03|57014)\b|lock timeout|statement timeout/i.test(text);
 }
 
 async function takeAuditChainLock(tx: AuditTx, lockWaitMs: number | null | undefined): Promise<void> {

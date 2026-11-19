@@ -59,7 +59,10 @@ describe("the worker sweeps are deployed and started", () => {
     expect(worker).toMatch(/image: ghcr\.io\/\$\{GHCR_OWNER[^}]*\}\/proovra-worker:\$\{IMAGE_TAG/);
     expect(worker).toMatch(/restart: unless-stopped/);
     // AUD-023 — health-checked on READINESS (database, Redis, storage).
-    expect(worker).toMatch(/healthcheck:\s*\n\s*test: \[.*localhost:8090\/readyz/);
+    // PRO-W2-11 — the probe follows WORKER_PORT (default 8090) inside the container,
+    // and a stop leaves the drain its time.
+    expect(worker).toMatch(/healthcheck:\s*\n\s*test: \[.*localhost:(?:8090|\$\$\{WORKER_PORT:-8090\})\/readyz/);
+    expect(worker).toMatch(/stop_grace_period: \d+s/);
     // It is not profile-gated or scaled to zero.
     expect(worker).not.toMatch(/^\s+profiles:/m);
     expect(worker).not.toMatch(/replicas:\s*0/);
