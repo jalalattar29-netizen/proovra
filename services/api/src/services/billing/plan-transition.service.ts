@@ -63,7 +63,8 @@ import {
 import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { requireVerifiedStripePrice, resolveCommercialOffer } from "./commercial-offer.service.js";
-import { releaseStripeSchedule, type StripeScheduleLike } from "./stripe-schedule.service.js";
+import { isStripeScheduleFinished, releaseStripeSchedule, type StripeScheduleLike } from "./stripe-schedule.service.js";
+import { beginProviderIntent, settleProviderIntent } from "./provider-intent.service.js";
 import {
   stripeSubscriptionItem,
   stripeSubscriptionPeriodEnd,
@@ -418,12 +419,57 @@ function classifiedProviderFailure(err: unknown, fallback: string): DomainError 
 }
 
 /**
- * One idempotency key per (subscription, from, to, hour): a retry of a change
- * whose answer was lost gets Stripe's original answer, and the same change made
- * legitimately later is a new request rather than a replay of a stale one.
+ * PRO-BL1-01 — one idempotency key per provider call of ONE plan-change
+ * INTENT. The intent (subscription, from, to, nonce) is persisted before the
+ * first call by `beginProviderIntent`: a retry of a change whose answer was
+ * lost reuses it and gets the provider's original answer, and the same change
+ * requested again after a withdrawal, a refusal or a confirmation is a new
+ * intent. The key used to be bucketed by UTC hour, so downgrade -> withdraw ->
+ * downgrade inside one hour replayed the first schedule update's stored answer
+ * without executing it.
  */
-function planChangeKey(kind: string, subscription: PersonalSubscriptionRow, target: prismaPkg.PlanType): string {
-  return `proovra-${kind}-${subscription.id}-${subscription.plan}-${target}-${new Date().toISOString().slice(0, 13)}`;
+function planChangeKey(kind: string, intentKey: string): string {
+  return `${intentKey}-${kind}`;
+}
+
+function openPlanChangeIntent(
+  subscription: PersonalSubscriptionRow,
+  target: prismaPkg.PlanType,
+): Promise<string> {
+  return beginProviderIntent({
+    subscriptionId: subscription.id,
+    kind: "plan",
+    target: `${subscription.plan}-${target}`,
+  });
+}
+
+/**
+ * A provider failure for an open intent: a definite refusal closes it (the
+ * next attempt is a new intent); an unknown outcome keeps it for the retry.
+ */
+async function intentFailure(
+  subscriptionId: string,
+  intentKey: string,
+  err: unknown,
+  fallback: string,
+): Promise<DomainError> {
+  const failure = classifiedProviderFailure(err, fallback);
+  if (failure.publicCode === "PLAN_CHANGE_PROVIDER_FAILED") {
+    await settleProviderIntent({ subscriptionId, key: intentKey });
+  }
+  return failure;
+}
+
+/**
+ * PRO-BL1-01 (variant B) — a released schedule is forgotten at once. It used to
+ * stay in `providerScheduleId` after a withdrawal, so the next downgrade edited
+ * the RELEASED schedule (refused by Stripe, or replayed under the hour key).
+ */
+async function forgetReleasedSchedule(subscriptionId: string, scheduleId: string): Promise<void> {
+  await prisma.subscription.updateMany({
+    where: { id: subscriptionId, providerScheduleId: scheduleId },
+    data: { providerScheduleId: null },
+  });
 }
 
 function providerFailure(detail: string): DomainError {
@@ -647,6 +693,7 @@ async function applyStripePlanChange(args: {
       } catch (err) {
         throw classifiedProviderFailure(err, "stripe schedule release failed");
       }
+      await forgetReleasedSchedule(subscription.id, scheduleId);
     }
     await clearPendingPlan(subscription.id);
     return {
@@ -658,6 +705,9 @@ async function applyStripePlanChange(args: {
     };
   }
 
+  // PRO-BL1-01 — this change's durable intent, before any keyed provider call.
+  const intentKey = await openPlanChangeIntent(subscription, transition.targetPlan);
+
   if (transition.kind === "UPGRADE") {
     const itemId = stripeSubscriptionItem(live)?.id;
     if (!itemId) throw providerFailure("stripe subscription has no items");
@@ -667,8 +717,9 @@ async function applyStripePlanChange(args: {
       try {
         await releaseStripeSchedule(scheduleId);
       } catch (err) {
-        throw classifiedProviderFailure(err, "stripe schedule release failed");
+        throw await intentFailure(subscription.id, intentKey, err, "stripe schedule release failed");
       }
+      await forgetReleasedSchedule(subscription.id, scheduleId);
       await clearPendingPlan(subscription.id);
     }
 
@@ -688,13 +739,14 @@ async function applyStripePlanChange(args: {
     let updated: StripeSubscriptionLike;
     try {
       updated = (await stripeRequest(`/subscriptions/${subscription.providerSubId}`, body, {
-        idempotencyKey: planChangeKey("upgrade", subscription, transition.targetPlan),
+        idempotencyKey: planChangeKey("upgrade", intentKey),
       })) as unknown as StripeSubscriptionLike;
     } catch (err) {
-      throw classifiedProviderFailure(err, "stripe subscription update failed");
+      throw await intentFailure(subscription.id, intentKey, err, "stripe subscription update failed");
     }
 
     if (String(updated.status ?? "").toLowerCase() !== "active") {
+      await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
       throw providerFailure("stripe did not confirm an active subscription");
     }
 
@@ -714,6 +766,7 @@ async function applyStripePlanChange(args: {
     });
 
     await clearPendingPlan(subscription.id);
+    await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
 
     return {
       kind: "UPGRADE",
@@ -732,22 +785,29 @@ async function applyStripePlanChange(args: {
   // One schedule per subscription. A subscription already on one (a change being
   // replaced, or a schedule left by a failed attempt) is edited, not re-created:
   // Stripe refuses `from_subscription` for it.
-  let schedule: StripeScheduleLike;
+  let schedule: StripeScheduleLike | null = null;
   let createdHere = false;
   try {
     if (scheduleId) {
       schedule = (await stripeGet(`/subscription_schedules/${encodeURIComponent(scheduleId)}`)) as StripeScheduleLike;
-    } else {
+      // PRO-BL1-01 (variant B) — a schedule that is already released or
+      // finished carries nothing; editing it is refused or, worse, replayed.
+      if (isStripeScheduleFinished(schedule)) {
+        await forgetReleasedSchedule(subscription.id, scheduleId);
+        schedule = null;
+      }
+    }
+    if (!schedule) {
       schedule = (await stripeRequest(
         "/subscription_schedules",
         new URLSearchParams({ from_subscription: subscription.providerSubId }),
-        { idempotencyKey: planChangeKey("schedule", subscription, transition.targetPlan) },
+        { idempotencyKey: planChangeKey("schedule", intentKey) },
       )) as StripeScheduleLike;
       createdHere = true;
     }
     if (!schedule.id) throw new Error("stripe returned no schedule id");
   } catch (err) {
-    throw classifiedProviderFailure(err, "stripe schedule creation failed");
+    throw await intentFailure(subscription.id, intentKey, err, "stripe schedule creation failed");
   }
   const activeScheduleId = schedule.id;
   // Recorded BEFORE the phases are edited: from here a failure leaves a schedule
@@ -792,13 +852,13 @@ async function applyStripePlanChange(args: {
 
   try {
     await stripeRequest(`/subscription_schedules/${activeScheduleId}`, phases, {
-      idempotencyKey: planChangeKey("schedule-update", subscription, transition.targetPlan),
+      idempotencyKey: planChangeKey("schedule-update", intentKey),
     });
   } catch (err) {
     // Stripe holds a schedule with no change in it. Left alone, it would block
     // the next plan change, so it is released, or recorded for reconciliation.
     if (createdHere) await releaseAfterFailedEdit(subscription.id, activeScheduleId);
-    throw classifiedProviderFailure(err, "stripe schedule update failed");
+    throw await intentFailure(subscription.id, intentKey, err, "stripe schedule update failed");
   }
 
   await recordPendingPlan({
@@ -806,6 +866,7 @@ async function applyStripePlanChange(args: {
     plan: transition.targetPlan,
     effectiveAt: new Date(startsAt * 1000),
   });
+  await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
 
   return {
     kind: "DOWNGRADE",
@@ -864,6 +925,8 @@ async function applyPayPalPlanChange(args: {
   });
 
   let revised: { links?: Array<{ rel?: string; href?: string }> };
+  // PRO-BL1-01 — the revise's PayPal-Request-Id is this intent's.
+  const intentKey = await openPlanChangeIntent(subscription, transition.targetPlan);
   try {
     revised = (await paypalRequest(
       `/v1/billing/subscriptions/${subscription.providerSubId}/revise`,
@@ -878,10 +941,10 @@ async function applyPayPalPlanChange(args: {
         },
       },
       "POST",
-      { requestId: planChangeKey("revise", subscription, transition.targetPlan) },
+      { requestId: planChangeKey("revise", intentKey) },
     )) as { links?: Array<{ rel?: string; href?: string }> };
   } catch (err) {
-    throw classifiedProviderFailure(err, "paypal revise failed");
+    throw await intentFailure(subscription.id, intentKey, err, "paypal revise failed");
   }
 
   // BILLING REMEDIATION (2026-10-30, AUD-19) — this link is sent to the browser,
@@ -904,6 +967,7 @@ async function applyPayPalPlanChange(args: {
     effectiveAt: subscription.currentPeriodEnd,
     awaitingApproval: approvalUrl !== null,
   });
+  await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
 
   return {
     kind: transition.kind,

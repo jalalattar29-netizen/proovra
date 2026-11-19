@@ -32,6 +32,55 @@ import { internalGrantCoversPlan, readActiveInternalPlanGrant } from "./internal
 export const COMMERCIAL_GRACE_PERIOD_DAYS = 7;
 const GRACE_MS = COMMERCIAL_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
 
+/**
+ * BILLING ACCEPTANCE hold (owner ruling 2026-10-31) — the switch that lets an
+ * automatic effect reduce what an EXISTING add-on gives. Off unless set to
+ * `on`. The same variable the API's `automaticAddonCancellationEnabled` reads;
+ * defined here as well because the worker's storage meter must apply the same
+ * rule as the API's.
+ */
+export function automaticAddonEffectsEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return env.BILLING_AUTO_ADDON_CANCELLATION === "on";
+}
+
+/** A past-due add-on whose paid period ended before this instant is beyond the one 7-day grace. */
+export function pastDueAddonGraceCutoff(now: Date = new Date()): Date {
+  return new Date(now.getTime() - GRACE_MS);
+}
+
+/**
+ * PRO-BL1-04 / DEC-02 (WS-BILL, 2026-11-19) — which recurring storage add-ons
+ * carry capacity right now. The ONE rule for the API and worker storage
+ * meters, using the ONE commercial grace above (there is no second clock):
+ *
+ *   ACTIVE     counts;
+ *   PAST_DUE   counts. Once automatic add-on effects are switched ON it counts
+ *              only until its known paid period end + the 7-day grace (the bound
+ *              a past-due base plan gets), and not at all when no paid period is
+ *              recorded.
+ *
+ * Ending the capacity of an add-on that already exists is an automatic
+ * reduction on an existing record, so it is HELD behind the add-on switch like
+ * every other one: with the switch off (the default) a PAST_DUE add-on counts
+ * exactly as before, and the sweep records what is being held
+ * (`holdPastDueAddonCapacityEnds`, listed by the automatic-effects preview).
+ * Nothing is ever cancelled at the provider or rewritten by this rule.
+ */
+export function storageAddonCapacityStatusWhere(
+  now: Date = new Date(),
+  options: { boundPastDue?: boolean } = {},
+): {
+  OR: Array<{ status: "ACTIVE" } | { status: "PAST_DUE"; currentPeriodEnd?: { gt: Date } }>;
+} {
+  const bound = options.boundPastDue ?? automaticAddonEffectsEnabled();
+  return {
+    OR: [
+      { status: "ACTIVE" },
+      bound ? { status: "PAST_DUE", currentPeriodEnd: { gt: pastDueAddonGraceCutoff(now) } } : { status: "PAST_DUE" },
+    ],
+  };
+}
+
 export type CommercialLifecycleSubject =
   | { kind: "PERSONAL"; ownerUserId: string; plan: string }
   | { kind: "WORKSPACE"; teamId: string; plan: string };
@@ -100,7 +149,23 @@ async function readProviderLifecycle(
     subject.kind === "WORKSPACE"
       ? { teamId: subject.teamId }
       : { userId: subject.ownerUserId, plan: subject.plan as never };
-  const where = { ...scope, NOT: { provider: "PAYPAL" as never, status: "TRIALING" as never } };
+  /*
+   * PRO-BL1C-01 (WS-BILL, 2026-11-18) — A SUPERSEDED DUPLICATE IS NOT A SECOND
+   * LIVE SUBSCRIPTION. A duplicate base subscription that activated beside the
+   * kept one is marked `supersededBySubscriptionId` at once and cancelled at
+   * the provider (retried for hours or days when that fails). Counted here, it
+   * made the kept, paid subscription read CANCELLED: Personal-workspace records
+   * fell to the FREE allowance (spending purchased credits), paid mutations
+   * answered 402 and worker issuance read CANCELLED. The live-base resolver
+   * (base-subscription.service) already excludes it; so does this reader, for
+   * both subjects. Two NON-superseded live rows still fail closed below; the
+   * duplicate banner and closure still see the superseded row.
+   */
+  const where = {
+    ...scope,
+    supersededBySubscriptionId: null,
+    NOT: { provider: "PAYPAL" as never, status: "TRIALING" as never },
+  };
 
   const live = await client.subscription.findMany({
     where: { ...where, status: { in: ["ACTIVE", "TRIALING"] } },

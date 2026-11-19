@@ -43,6 +43,12 @@ export type BillingReviewReason =
   | "AUTOMATIC_PLAN_LOWERING_HELD"
   /** The sweep would have cancelled an add-on at the provider. Held until enabled. */
   | "AUTOMATIC_ADDON_CANCELLATION_HELD"
+  /**
+   * PRO-BL1-04 / DEC-02 (2026-11-19) — a past-due add-on is beyond the 7-day
+   * grace after its paid period (or its paid period is unknown). Its capacity
+   * would end; held, and still counted, until automatic add-on effects are enabled.
+   */
+  | "AUTOMATIC_ADDON_CAPACITY_END_HELD"
   /** A refunded or reversed credit purchase whose credits were already consumed. */
   | "CREDIT_REFUND_AFTER_CONSUMPTION"
   /** A plan or storage payment was reversed (chargeback) or refunded. */
@@ -58,11 +64,65 @@ export type BillingReviewReason =
    * that no durable local binding confirms (none, more than one, or one naming
    * another payer, workspace or size). Money may have moved; nothing is granted.
    */
-  | "LEGACY_STORAGE_CAPTURE_UNMATCHED";
+  | "LEGACY_STORAGE_CAPTURE_UNMATCHED"
+  /**
+   * PRO-BL1-01 (2026-11-18) — the provider says a subscription renews although
+   * a customer cancellation it confirmed was recorded. The row follows the
+   * provider (it is the truth about billing), but never silently.
+   */
+  | "CANCELLATION_REVERSED_AT_PROVIDER"
+  /**
+   * PRO-BL1-04 / DEC-02 (2026-11-19) — the provider has reported a subscription
+   * ACTIVE for over an hour and still reports no completed payment for it.
+   * Nothing is granted on the label; the purchase stays pending and the sweep
+   * keeps re-reading it. A person looks at what the provider is doing.
+   */
+  | "ACTIVE_WITHOUT_COMPLETED_PAYMENT"
+  /**
+   * PRO-BL1-04 / DEC-02 (2026-11-19) — a storage add-on is past due and no
+   * paid period is recorded for it, so the 7-day grace has nothing to run
+   * from. Missing payment facts are reviewed. Its capacity stops counting only
+   * once automatic add-on effects are enabled (held until then).
+   */
+  | "STORAGE_ADDON_PAID_PERIOD_UNKNOWN";
 
 export type BillingReviewProduct = "PLAN" | "STORAGE_ADDON" | "EVIDENCE_CREDIT";
 
 export type BillingProviderAction = "NONE" | "CANCELED_AT_PROVIDER" | "CANCEL_FAILED";
+
+/** How long a provider's ACTIVE may lack a completed payment before a person is asked to look. */
+export const UNPROVEN_PAYMENT_REVIEW_AFTER_MS = 60 * 60 * 1000;
+
+/**
+ * PRO-BL1-04 / DEC-02 — an ACTIVE provider subscription with no completed
+ * payment is never granted on the label. The webhook that announces ACTIVE
+ * commonly arrives moments before the payment's own event, so nothing is
+ * recorded then; once the provider's ACTIVE is over an hour old the item is
+ * recorded (idempotent), from whichever path next reads it (re-check, sweep).
+ */
+export async function noteActiveWithoutCompletedPayment(input: {
+  userId: string;
+  provider: prismaPkg.PaymentProvider;
+  providerResourceId: string;
+  product: BillingReviewProduct;
+  observedAtUtc: Date | null;
+  now?: Date;
+}): Promise<boolean> {
+  const now = input.now ?? new Date();
+  if (!input.observedAtUtc || now.getTime() - input.observedAtUtc.getTime() < UNPROVEN_PAYMENT_REVIEW_AFTER_MS) {
+    return false;
+  }
+  await recordBillingReviewItem({
+    userId: input.userId,
+    provider: input.provider,
+    providerResourceId: input.providerResourceId,
+    product: input.product,
+    reason: "ACTIVE_WITHOUT_COMPLETED_PAYMENT",
+    providerAction: "NONE",
+    detail: { providerActiveSinceUtc: input.observedAtUtc.toISOString(), granted: false },
+  });
+  return true;
+}
 
 /**
  * Record (or update) ONE review item. Idempotent on

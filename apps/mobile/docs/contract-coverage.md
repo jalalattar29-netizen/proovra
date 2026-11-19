@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**176 bindings — OK 176, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**174 bindings — OK 174, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -39,7 +39,6 @@ top level of it.
 | OK | `parseBillingProjection` | `GET /v1/billing/accounts/:type/:id` | <SPREAD>, account, actionRequired, actions, collaboration, plan, usage | account, actionRequired, actions, collaboration, contract, dependentStorageCancellation,… |
 | OK | `parsePaymentHistory` | `GET /v1/billing/accounts/:type/:id/history` | activity, count, items | items |
 | OK | `parseBillingActivity` | `GET /v1/billing/accounts/:type/:id/history` | activity, count, items | activity, map |
-| OK | `parseBillingOverview` | `GET /v1/billing/overview` | entitlement, storageAddons, summary, workspaces | storageAddons, summary, workspaces |
 | OK | `parsePricingCatalogue` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | currency, enterprise |
 | OK | `parseStorageAddons` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | storageAddons |
 | OK | `parseEvidenceCreditOffer` | `GET /v1/billing/pricing` | currency, enterprise, free, payg, pro, storageAddons, team | payg |
@@ -91,7 +90,7 @@ top level of it.
 | OK | `parseDuplicateReport` | `GET /v1/evidence/:id/duplicates` | exactHashMatches, fingerprintMatches, groupedMatches, limitation, partHashMatches, possi… | groupedMatches, limitation, totalRecords |
 | OK | `parseLegalNotes` | `GET /v1/evidence/:id/legal-notes` | canWrite, items | items |
 | OK | `parseOperationalTimeline` | `GET /v1/evidence/:id/operational-timeline` | entries, evidenceId, generatedAtUtc, teamId | entries |
-| OK | `parseOriginalLink` | `GET /v1/evidence/:id/original` | displayName, displaySizeLabel, downloadFileName, evidenceId, kind, lastAccessedAtUtc, la… | publicUrl, url |
+| OK | `parseOriginalLink` | `GET /v1/evidence/:id/original` | bucket, displayName, displaySizeLabel, downloadFileName, evidenceId, key, kind, lastAcce… | publicUrl, url |
 | OK | `parseOriginalPartLinks` | `GET /v1/evidence/:id/parts` | artifacts, evidenceId, multipart, originalDownloadBlockedByPolicy, parts, primary | parts |
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/report/latest` | evidenceId, generatedAtUtc, reviewerSnapshot, snapshots, storage, url, version | url |
 | OK | `parseReviewerWorkflow` | `GET /v1/evidence/:id/reviewer-workflow` | available, workflow | available, workflow |
@@ -134,8 +133,7 @@ top level of it.
 | OK | `parseReportsSummary` | `GET /v1/reports/artifacts` | generatedAt, sections, workspace | data, sections, status |
 | OK | `parseArtifacts` | `GET /v1/reports/artifacts` | generatedAt, sections, workspace | items, nextCursor, sections, status, total |
 | OK | `parseGeneratedAt` | `GET /v1/reports/artifacts` | generatedAt, sections, workspace | generatedAt |
-| OK | `parseCriteriaSets` | `GET /v1/reviewer-criteria` | canManage, manageBlockedBy, sets | criteriaSets, sets |
-| OK | `parseCriteriaAuthority` | `GET /v1/reviewer-criteria` | canManage, manageBlockedBy, sets | canManage, manageBlockedBy |
+| OK | `parseCriteriaSets` | `GET /v1/reviewer-criteria` | sets | criteriaSets, sets |
 | OK | `parseDraftState` | `GET /v1/reviewer-criteria/:setId` | set | set, updatedAt, versions |
 | OK | `parseCriteriaVersionHistory` | `GET /v1/reviewer-criteria/:setId` | set | set |
 | OK | `parseCriteriaUsage` | `GET /v1/reviewer-criteria/:setId/usage` | usage, usageAvailable | usage |

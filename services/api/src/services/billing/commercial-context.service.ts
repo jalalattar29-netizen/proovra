@@ -267,7 +267,20 @@ export async function resolveCommercialContext(
  */
 export async function resolveCommercialPlan(
   subject: CommercialSubject,
-): Promise<{ plan: WorkspaceScope["plan"]; ownerUserId: string; billingShape: WorkspaceScope["billingShape"]; credits: number }> {
+  /**
+   * PRO-PSZ-03 / PRO-N1-13 (WS-BILL, 2026-11-18) — opt-in: also the ONE
+   * lifecycle verdict (the same `resolvePaidLifecycle` the envelope uses; a
+   * few indexed subscription reads, none of the usage aggregates), for the
+   * capability resolver and the boot projection's billing signal.
+   */
+  options: { withLifecycle?: boolean } = {},
+): Promise<{
+  plan: WorkspaceScope["plan"];
+  ownerUserId: string;
+  billingShape: WorkspaceScope["billingShape"];
+  credits: number;
+  lifecycle?: CommercialLifecycle;
+}> {
   const scope = await resolveWorkspaceScopeForUser(
     subject.type === "PERSONAL_ACCOUNT"
       ? { ownerUserId: subject.userId, teamId: null }
@@ -278,7 +291,54 @@ export async function resolveCommercialPlan(
     ownerUserId: scope.ownerUserId,
     billingShape: scope.billingShape,
     credits: scope.credits,
+    ...(options.withLifecycle ? { lifecycle: await resolvePaidLifecycle(scope) } : {}),
   };
+}
+
+/**
+ * PRO-N1-13 (WS-BILL, 2026-11-18) — the ONE signal the shell, Home and
+ * Settings render about the person's OWN paid plan, from the canonical
+ * lifecycle verdict. Null when there is nothing to say (an ACTIVE renewing
+ * plan, or FREE). Only ever the requester's personal account: another payer's
+ * billing state is never projected to a member (DEC-14).
+ *
+ *   PAST_DUE          payment failed; access continues until `graceEndsAtUtc`
+ *   PAST_DUE_EXPIRED  the grace window is over; paid actions are refused
+ *   LAPSED            the paid plan ended (or is ambiguous) while still labelled paid
+ *   CANCELLING        renewal stopped; access ends at `endsAtUtc`
+ */
+export type AccountBillingSignal = {
+  state: "PAST_DUE" | "PAST_DUE_EXPIRED" | "LAPSED" | "CANCELLING";
+  graceEndsAtUtc: string | null;
+  endsAtUtc: string | null;
+};
+
+export async function resolveAccountBillingSignal(
+  userId: string,
+  /** The personal account's lifecycle when the caller already resolved it. */
+  known?: CommercialLifecycle | null,
+): Promise<AccountBillingSignal | null> {
+  const life =
+    known ?? (await resolveCommercialPlan({ type: "PERSONAL_ACCOUNT", userId }, { withLifecycle: true })).lifecycle;
+  if (!life) return null;
+  if (life.state === "GRACE") {
+    return { state: "PAST_DUE", graceEndsAtUtc: life.graceEndsAtUtc?.toISOString() ?? null, endsAtUtc: null };
+  }
+  if (life.state === "PAST_DUE_EXPIRED") return { state: "PAST_DUE_EXPIRED", graceEndsAtUtc: null, endsAtUtc: null };
+  if (life.state === "CANCELLED") return { state: "LAPSED", graceEndsAtUtc: null, endsAtUtc: null };
+  if (life.state !== "ACTIVE" || !life.paidActive) return null;
+  const ending = await prisma.subscription.findFirst({
+    where: {
+      userId,
+      status: { in: ["ACTIVE", "PAST_DUE"] },
+      supersededBySubscriptionId: null,
+      cancelAtPeriodEnd: true,
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { currentPeriodEnd: true },
+  });
+  if (ending) return { state: "CANCELLING", graceEndsAtUtc: null, endsAtUtc: ending.currentPeriodEnd?.toISOString() ?? null };
+  return null;
 }
 
 async function resolveCommercialContextLegacy(

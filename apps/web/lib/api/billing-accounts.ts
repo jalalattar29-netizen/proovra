@@ -152,6 +152,12 @@ export type PlanSummary = {
   currency?: "USD" | "EUR";
   currentPeriodEndUtc: string | null;
   cancelAtPeriodEnd: boolean;
+  /**
+   * PRO-BL1-03 — present (true) on an API that keeps the paid period on every
+   * provider's cancellation, PayPal included. Absent: an older API ended a
+   * PayPal plan at once, and the copy must say so.
+   */
+  cancellationKeepsPaidPeriod?: boolean;
   paymentProviderLabel?: string | null;
   graceEndsAtUtc?: string | null;
   billingOwnerMissing: boolean;
@@ -166,6 +172,12 @@ export type PlanSummary = {
        * again re-issues the approval, and it lapses if never approved.
        */
       awaitingApproval?: boolean;
+      /**
+       * PRO-BL1-05 — present on an API that offers withdrawing a confirmed
+       * downgrade: "Keep <current plan>", sent to the change route with the
+       * current plan. Absent: no way back is offered (older API, PayPal).
+       */
+      withdrawOffer?: { planKey: "PRO" | "TEAM"; actionLabel: string; effectSummary: string };
     };
     providerTransition?: {
       state: "IN_PROGRESS";
@@ -358,6 +370,8 @@ export type BillingAccountProjection = {
     canBuyEvidenceCredits: boolean;
     canBuyStorageAddon: boolean;
     canRequestCancellation: boolean;
+    /** PRO-BL1-02 — the provider's hosted billing page is available (absent on an older API). */
+    paymentManagement?: { provider: "STRIPE" | "PAYPAL" };
     contactAccountManager: boolean;
     manageLabel: string | null;
     /**
@@ -704,6 +718,31 @@ export type ResumeResult = {
   dependentAddonsStillEnding: number;
   dependentAddonKeysStillEnding?: string[];
 };
+
+/**
+ * PRO-BL1-02 — a link to the provider's own billing page for the payer's
+ * subscription. Only an https Stripe or PayPal page is returned; anything else
+ * is refused here rather than followed.
+ */
+export async function requestPaymentManagementLink(): Promise<{ provider: "STRIPE" | "PAYPAL"; url: string } | null> {
+  const res = (await apiFetch("/v1/billing/subscription/payment-management", {
+    method: "POST",
+    body: JSON.stringify({}),
+  })) as { paymentManagement?: { provider?: string; url?: string } };
+  const link = res.paymentManagement;
+  if (!link || typeof link.url !== "string") return null;
+  try {
+    const u = new URL(link.url);
+    const host = u.hostname.toLowerCase();
+    const allowed =
+      u.protocol === "https:" &&
+      (host === "stripe.com" || host.endsWith(".stripe.com") || host === "paypal.com" || host.endsWith(".paypal.com"));
+    if (!allowed) return null;
+  } catch {
+    return null;
+  }
+  return { provider: link.provider === "PAYPAL" ? "PAYPAL" : "STRIPE", url: link.url };
+}
 
 export async function requestResume(): Promise<ResumeResult> {
   const res = (await apiFetch("/v1/billing/subscription/resume", {

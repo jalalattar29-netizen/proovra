@@ -77,14 +77,17 @@ import {
   automaticPlanLoweringEnabled,
   lowersPlan,
 } from "../automatic-effects.js";
-import { recordBillingReviewItem } from "../billing-review.service.js";
+import { noteActiveWithoutCompletedPayment, recordBillingReviewItem } from "../billing-review.service.js";
 import { noteProviderObservation } from "../provider-authorization-signal.service.js";
 import type { StorageAddonProviderCanceller } from "../storage-addon-cancellation.service.js";
 import {
   syncPlanForSubscription,
 } from "../subscription-lifecycle.handlers.js";
 import type { BillingAccountRef } from "../billing-accounts.service.js";
-import { applyStorageSubscriptionObservation } from "../storage-activation.service.js";
+import {
+  applyStorageSubscriptionObservation,
+  notePastDueAddonWithoutPaidPeriod,
+} from "../storage-activation.service.js";
 import { keepPaidPeriodAfterProviderCancel } from "../paid-period.service.js";
 import { parsePayPalStorageAddonCustomId } from "../../paypal-checkout-policy.service.js";
 import { StripeBillingReconciliationProvider } from "./stripe.provider.js";
@@ -823,8 +826,20 @@ async function reconcileSubscriptions(ctx: {
       providerResourceId: binding.providerSubId,
     });
 
-    const status = subscriptionStatusFromObservation(observation);
-    if (!status) continue;
+    const observedStatus = subscriptionStatusFromObservation(observation);
+    if (!observedStatus) continue;
+    // PRO-BL1-04 (WS-BILL) — a PayPal base plan follows the PAID fact, exactly
+    // as the webhook settlement does: ACTIVE with a failing payment is PAST_DUE
+    // (bounded grace), and the paid-through date is the last completed payment
+    // plus one cycle, never the unpaid next billing time. Without this the
+    // hourly sweep re-stamped what settlement had corrected.
+    const status =
+      observation.paidFact?.paymentFailing && observedStatus === prismaPkg.SubscriptionStatus.ACTIVE
+        ? prismaPkg.SubscriptionStatus.PAST_DUE
+        : observedStatus;
+    const observedPeriodEndUtc = observation.paidFact
+      ? observation.paidFact.paidThroughUtc
+      : observation.currentPeriodEndUtc;
 
     const isStripe = binding.provider === prismaPkg.PaymentProvider.STRIPE;
     // AUD-01 — the price billed states the plan in force, so a landed schedule
@@ -846,8 +861,8 @@ async function reconcileSubscriptions(ctx: {
       status === binding.status &&
       plan === binding.plan &&
       (!isStripe || observation.cancelAtPeriodEnd === binding.cancelAtPeriodEnd) &&
-      (observation.currentPeriodEndUtc === null ||
-        observation.currentPeriodEndUtc.getTime() === binding.currentPeriodEnd?.getTime())
+      (observedPeriodEndUtc === null ||
+        observedPeriodEndUtc.getTime() === binding.currentPeriodEnd?.getTime())
     ) {
       // Provider and local already agree.
       await stampProviderState(binding.id, observation.observedAtUtc);
@@ -869,7 +884,7 @@ async function reconcileSubscriptions(ctx: {
       provider: binding.provider,
       providerSubId: binding.providerSubId,
       status,
-      currentPeriodEnd: observation.currentPeriodEndUtc,
+      currentPeriodEnd: observedPeriodEndUtc,
       observedAtUtc: observation.observedAtUtc,
       holdPlanLowering: !automaticPlanLoweringEnabled(),
       ...(isStripe
@@ -1279,11 +1294,34 @@ async function reconcileStorageAddonRow(input: {
     providerResourceId: ref,
   });
 
+  // PRO-BL1-04 (WS-BILL) — a PayPal add-on follows the PAID fact, exactly as
+  // the webhook settlement does (one reader): a failing payment under an
+  // ACTIVE label is never a first activation and reads PAST_DUE for an add-on
+  // that was activated; the paid-through date is the last completed payment
+  // plus one cycle, never the unpaid next billing time. Stripe is unchanged.
+  const paymentFailing = observation.paidFact?.paymentFailing === true;
+  // DEC-02 — ACTIVE with no completed payment (none yet, or one failing) is
+  // never a first activation; the row stays pending for the next re-read.
+  const paymentUnproven =
+    observation.paidFact !== undefined && (paymentFailing || observation.paidFact.paidThroughUtc === null);
+  const observedPeriodEndUtc = observation.paidFact
+    ? observation.paidFact.paidThroughUtc
+    : observation.currentPeriodEndUtc;
+
   // BILLING PAYPAL INTEGRITY (2026-09-28) — a FIRST activation is decided by
   // the ONE storage activation authority, with the same plan-id, identity and
   // eligibility checks the webhook and the return route apply. This pass used
   // to grant it with no check at all.
-  if (observation.state === "SUCCEEDED" && !addon.activatedAtUtc) {
+  if (observation.state === "SUCCEEDED" && !addon.activatedAtUtc && paymentUnproven) {
+    await noteActiveWithoutCompletedPayment({
+      userId: addon.ownerUserId,
+      provider,
+      providerResourceId: ref,
+      product: "STORAGE_ADDON",
+      observedAtUtc: observation.observedAtUtc,
+    });
+  }
+  if (observation.state === "SUCCEEDED" && !addon.activatedAtUtc && !paymentUnproven) {
     const claimed = provider === prismaPkg.PaymentProvider.PAYPAL
       ? parsePayPalStorageAddonCustomId(observation.customId ?? null)
       : null;
@@ -1300,7 +1338,8 @@ async function reconcileStorageAddonRow(input: {
             attemptId: claimed.attemptId ?? null,
           }
         : null,
-      currentPeriodEnd: observation.currentPeriodEndUtc,
+      currentPeriodEnd: observedPeriodEndUtc,
+      ...(observation.paidFact ? { paymentProven: true } : {}),
       observedAtUtc: observation.observedAtUtc,
       source: "billing_reconciliation",
     });
@@ -1316,7 +1355,15 @@ async function reconcileStorageAddonRow(input: {
     return { ...base, currentStatus: current?.status ?? addon.status, outcome: "UPDATED" };
   }
 
-  const next = storageStatusFromObservation(observation, addon);
+  const observedNext = storageStatusFromObservation(observation, addon);
+  // ACTIVE with a failing payment: PAST_DUE for an add-on that was activated;
+  // a purchase never activated stays as it is (never live without a payment).
+  const next =
+    observedNext === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE && !addon.activatedAtUtc && paymentUnproven
+      ? addon.status
+      : observedNext === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE && addon.activatedAtUtc && paymentFailing
+        ? prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+        : observedNext;
   if (!next) {
     summary.actionRequired += 1;
     return { ...base, currentStatus: addon.status, outcome: "PROVIDER_MALFORMED" };
@@ -1385,7 +1432,10 @@ async function reconcileStorageAddonRow(input: {
 
   const changed =
     next !== addon.status ||
-    observation.currentPeriodEndUtc?.getTime() !== addon.currentPeriodEnd?.getTime();
+    (observation.paidFact
+      ? // No completed payment reported states no date; the recorded one stays.
+        observedPeriodEndUtc !== null && observedPeriodEndUtc.getTime() !== addon.currentPeriodEnd?.getTime()
+      : observation.currentPeriodEndUtc?.getTime() !== addon.currentPeriodEnd?.getTime());
   if (!changed) {
     const stamped = await stampAddonProviderState({
       addonId: addon.id,
@@ -1426,7 +1476,7 @@ async function reconcileStorageAddonRow(input: {
     },
     data: {
       status: next,
-      currentPeriodEnd: observation.currentPeriodEndUtc ?? addon.currentPeriodEnd,
+      currentPeriodEnd: observedPeriodEndUtc ?? addon.currentPeriodEnd,
       ...(next === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE && !addon.activatedAtUtc
         ? { activatedAtUtc: observation.observedAtUtc ?? new Date() }
         : {}),
@@ -1441,6 +1491,14 @@ async function reconcileStorageAddonRow(input: {
   if (updated.count === 0) {
     return { ...base, currentStatus: addon.status, outcome: "STALE_IGNORED" };
   }
+  await notePastDueAddonWithoutPaidPeriod({
+    ownerUserId: addon.ownerUserId,
+    provider,
+    subscriptionId: ref,
+    addonId: addon.id,
+    status: next,
+    currentPeriodEnd: observedPeriodEndUtc ?? addon.currentPeriodEnd,
+  });
   summary.subscriptionsUpdated += 1;
   await noteStorageAttemptCheck(addon.id, "UPDATED");
   return { ...base, currentStatus: next, outcome: "UPDATED" };

@@ -4038,6 +4038,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.workspace_ownership_offers') IS NOT NULL;\"",
       "evidence": "PRO-T1-06 / DEC-18 (WS-WSP, 2026-11-18). One new, empty table recording a workspace owner's ownership offer (no foreign keys, two indexes). No existing object is touched; an older image never reads it. Rollback: leave the table."
+    },
+    "20281121030000_subscription_provider_intent_key": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 2 FROM information_schema.columns WHERE table_schema='public' AND table_name='subscriptions' AND column_name IN ('provider_intent_key','provider_intent_at_utc');\"",
+      "evidence": "PRO-BL1-01 (WS-BILL, 2026-11-18). Two nullable columns on subscriptions holding the idempotency key and time of the one provider mutation intent in flight (cancel, restart, plan change), so a retry reuses its key and a new intent never replays a stale answer. No row is rewritten; an older image never reads them. Rollback: leave the columns."
     }
   }
 }

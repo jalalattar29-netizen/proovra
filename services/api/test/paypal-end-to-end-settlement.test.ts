@@ -32,7 +32,7 @@ const state = vi.hoisted(() => ({
   subscriptions: new Map<string, Record<string, unknown>>(),
   ledger: new Set<string>(),
   payments: new Map<string, { status: string; amountCents: number; currency: string; userId: string }>(),
-  subRows: new Map<string, { status: string; plan: string; userId: string; teamId: string | null; providerStateAtUtc: Date | null; pendingPlan: string | null; pendingPlanEffectiveAtUtc: Date | null }>(),
+  subRows: new Map<string, { status: string; plan: string; userId: string; teamId: string | null; providerStateAtUtc: Date | null; pendingPlan: string | null; pendingPlanEffectiveAtUtc: Date | null; currentPeriodEnd?: Date | null; activatedAtUtc?: Date | null }>(),
   webhookEvents: new Map<string, { processingStatus: string; payloadHash: string | null }>(),
   // BILLING PAYPAL INTEGRITY (2026-09-28) — storage activation reads the LOCAL
   // attempt row first (the canonical decision checks identity against it).
@@ -42,6 +42,8 @@ const state = vi.hoisted(() => ({
   captureCalls: [] as string[],
   captureImpl: null as null | ((orderId: string) => Promise<Record<string, unknown>>),
   subscriptionReadFails: false,
+  /** PRO-BL1-03 — subscriptions with a refunded/disputed payment. */
+  adverseSubscriptions: new Set<string>(),
 }));
 
 vi.mock("../src/db.js", () => {
@@ -83,6 +85,12 @@ vi.mock("../src/db.js", () => {
       updateMany: vi.fn(async () => ({ count: 0 })),
     },
     team: { findUnique: vi.fn(async () => null) },
+    // PRO-BL1-03 — a refunded or disputed payment of the subscription.
+    payment: {
+      findFirst: vi.fn(async ({ where }: { where: { providerResourceId?: string } }) =>
+        where.providerResourceId && state.adverseSubscriptions.has(where.providerResourceId) ? { id: "pay-adverse" } : null,
+      ),
+    },
     entitlement: { findFirst: vi.fn(async () => null) },
     billingCheckoutAttempt: {
       findUnique: vi.fn(async () => null),
@@ -195,7 +203,14 @@ vi.mock("../src/services/billing.service.js", async (importOriginal) => {
         userId: p.userId,
         teamId: p.teamId ?? null,
         id: `row-${p.providerSubId}`,
+        providerSubId: p.providerSubId,
+        // PRO-BL1-03/04 — the real writer keeps the recorded period when a fact does not state one.
+        currentPeriodEnd:
+          (p as { currentPeriodEnd?: Date | null }).currentPeriodEnd ?? existing?.currentPeriodEnd ?? null,
         providerStateAtUtc: p.observedAtUtc ?? existing?.providerStateAtUtc ?? null,
+        // The real writer stamps the first ACTIVE and keeps it (PRO-BL1-04 reads it).
+        activatedAtUtc:
+          existing?.activatedAtUtc ?? (p.status === "ACTIVE" ? p.observedAtUtc ?? new Date() : null),
         pendingPlan: existing?.pendingPlan ?? null,
         pendingPlanEffectiveAtUtc: existing?.pendingPlanEffectiveAtUtc ?? null,
       };
@@ -319,10 +334,18 @@ function setSubscription(id: string, over: Record<string, unknown>) {
     plan_id: "P-PRO-USD",
     custom_id: `${USER}::PRO`,
     status_update_time: "2026-09-25T10:00:00Z",
-    billing_info: { next_billing_time: "2026-10-25T10:00:00Z" },
+    // PRO-BL1-04 / DEC-02 — an ACTIVE fixture is a PAID subscription unless the
+    // test states its own payment facts: activation needs a completed payment.
+    billing_info:
+      over.status === "ACTIVE"
+        ? { next_billing_time: "2026-10-25T10:00:00Z", last_payment: PAID_ONCE }
+        : { next_billing_time: "2026-10-25T10:00:00Z" },
     ...over,
   });
 }
+
+/** A completed payment, as PayPal reports it in `billing_info.last_payment`. */
+const PAID_ONCE = { amount: { value: "19.00", currency_code: "USD" }, time: "2026-09-25T10:00:00Z" };
 
 let app: FastifyInstance;
 let eventSeq = 0;
@@ -332,7 +355,7 @@ async function deliver(eventType: string, resource: Record<string, unknown>, eve
     method: "POST",
     url: "/webhooks/paypal",
     // F-02 — a genuine delivery carries PayPal's transmission headers.
-    headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id" },
+    headers: { "content-type": "application/json", "paypal-transmission-sig": "test-sig", "paypal-transmission-id": "test-transmission-id", "paypal-auth-algo": "SHA256withRSA", "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-test", "paypal-transmission-time": new Date().toISOString() },
     payload: JSON.stringify({ id: eventId, event_type: eventType, resource }),
   });
 }
@@ -367,6 +390,7 @@ beforeEach(() => {
   state.storageRows.clear();
   state.reviewItems.length = 0;
   state.paypalCancels.length = 0;
+  state.adverseSubscriptions.clear();
   vi.mocked(billingService.setPersonalPlan).mockClear();
   vi.mocked(billingService.upsertWorkspaceStorageAddon).mockClear();
   vi.mocked(grantEvidenceCredits).mockClear();
@@ -691,6 +715,86 @@ describe("PayPal subscriptions — no entitlement before activation", () => {
     expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "FREE", expect.objectContaining({ serviceActor: "billing_provider_webhook" }));
   });
 
+  // PRO-BL1-04 — a paid fact, not a status label.
+  it("PRO-BL1-04 — ACTIVE whose first payment is failing is pending, never a grant", async () => {
+    setSubscription("I-FAIL", {
+      status: "ACTIVE",
+      billing_info: { next_billing_time: "2026-10-25T10:00:00Z", failed_payments_count: 1, outstanding_balance: { value: "19.00", currency_code: "USD" } },
+    });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-FAIL" });
+    expect(state.subRows.get("I-FAIL")?.status).toBe("TRIALING");
+    expect(billingService.setPersonalPlan).not.toHaveBeenCalled();
+  });
+
+  it("PRO-BL1-04 — an activated plan whose renewal is failing is PAST_DUE (grace), not un-granted", async () => {
+    setSubscription("I-DUE", { status: "ACTIVE" });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-DUE" });
+    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "PRO", expect.anything());
+    setSubscription("I-DUE", {
+      status: "ACTIVE",
+      status_update_time: "2026-10-26T10:00:00Z",
+      billing_info: { next_billing_time: "2026-10-30T10:00:00Z", last_payment: PAID_ONCE, failed_payments_count: 1 },
+    });
+    await deliver("BILLING.SUBSCRIPTION.UPDATED", { id: "I-DUE" });
+    expect(state.subRows.get("I-DUE")?.status).toBe("PAST_DUE");
+    expect(billingService.setPersonalPlan).not.toHaveBeenCalledWith(USER, "FREE", expect.anything());
+  });
+
+  // DEC-02 — an ACTIVE label is not a payment: nothing is granted on status alone.
+  it("PRO-BL1-04 — ACTIVE with no completed payment grants nothing; the payment's own event grants it; a stale label is sent to review", async () => {
+    setSubscription("I-NOPAY", { status: "ACTIVE", billing_info: { next_billing_time: "2026-10-25T10:00:00Z" } });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-NOPAY" });
+    // At the base this granted PRO on the label.
+    expect(billingService.setPersonalPlan).not.toHaveBeenCalled();
+    expect(state.subRows.get("I-NOPAY")?.status).toBe("TRIALING");
+    // The provider has said ACTIVE for far longer than an hour (fixture time): reviewed, not granted.
+    expect(state.reviewItems).toEqual(
+      expect.arrayContaining([expect.objectContaining({ reason: "ACTIVE_WITHOUT_COMPLETED_PAYMENT", providerResourceId: "I-NOPAY" })]),
+    );
+
+    setSubscription("I-NOPAY", { status: "ACTIVE" });
+    await deliver("BILLING.SUBSCRIPTION.UPDATED", { id: "I-NOPAY" });
+    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "PRO", expect.anything());
+    expect(state.subRows.get("I-NOPAY")?.status).toBe("ACTIVE");
+  });
+
+  it("PRO-BL1-04 — paid-through is the last completed payment plus one cycle, never next_billing_time", async () => {
+    setSubscription("I-PAID", {
+      status: "ACTIVE",
+      billing_info: {
+        next_billing_time: "2027-03-01T00:00:00Z",
+        last_payment: { amount: { value: "19.00", currency_code: "USD" }, time: "2026-01-31T09:00:00Z" },
+      },
+    });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-PAID" });
+    expect((state.subRows.get("I-PAID") as { currentPeriodEnd: Date }).currentPeriodEnd.toISOString()).toBe(
+      "2026-02-28T09:00:00.000Z",
+    );
+  });
+
+  // PRO-BL1-03 / DEC-02 — a PayPal cancel keeps the period already paid for.
+  it("PRO-BL1-03 — a PayPal cancellation inside the paid period keeps the plan until it ends", async () => {
+    const paidAt = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    const lastPayment = { amount: { value: "19.00", currency_code: "USD" }, time: paidAt };
+    setSubscription("I-KEEP", { status: "ACTIVE", billing_info: { last_payment: lastPayment } });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-KEEP" });
+    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "PRO", expect.anything());
+    setSubscription("I-KEEP", { status: "CANCELLED", status_update_time: new Date().toISOString(), billing_info: { last_payment: lastPayment } });
+    await deliver("BILLING.SUBSCRIPTION.CANCELLED", { id: "I-KEEP" });
+    // At the base this lowered to FREE at once.
+    expect(billingService.setPersonalPlan).not.toHaveBeenCalledWith(USER, "FREE", expect.anything());
+  });
+
+  it("PRO-BL1-03 — a refunded or disputed payment ends the kept period at once", async () => {
+    const lastPayment = { amount: { value: "19.00", currency_code: "USD" }, time: new Date(Date.now() - 2 * 86_400_000).toISOString() };
+    setSubscription("I-REF", { status: "ACTIVE", billing_info: { last_payment: lastPayment } });
+    await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-REF" });
+    state.adverseSubscriptions.add("I-REF");
+    setSubscription("I-REF", { status: "CANCELLED", status_update_time: new Date().toISOString(), billing_info: { last_payment: lastPayment } });
+    await deliver("BILLING.SUBSCRIPTION.CANCELLED", { id: "I-REF" });
+    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "FREE", expect.anything());
+  });
+
   it("the return confirmation is bound to the signed-in account", async () => {
     setSubscription("I-MINE", { status: "ACTIVE", custom_id: `${OTHER_USER}::PRO` });
     const result = await applyPayPalSubscriptionState({ subscriptionId: "I-MINE", expectedUserId: USER, source: "test" });
@@ -846,6 +950,83 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
     expect(billingService.setPersonalPlan).not.toHaveBeenCalled();
   });
 
+  // PRO-BL1-04 / DEC-02 — the add-on's paid period rests on a completed
+  // payment, read by the same reader as the base plan.
+  describe("PRO-BL1-04 — a recurring storage add-on follows the paid fact", () => {
+    const custom_id = `sa1|${USER}|-|PERSONAL_10_GB`;
+    const lastWrite = () =>
+      vi.mocked(billingService.upsertWorkspaceStorageAddon).mock.calls.at(-1)?.[0] as
+        | { status: string; currentPeriodEnd: Date | null }
+        | undefined;
+
+    it("paid-through is the last completed payment plus one cycle, never next_billing_time", async () => {
+      seedStorageRow({ externalSubscriptionId: "I-SA-PAID" });
+      setSubscription("I-SA-PAID", {
+        status: "ACTIVE",
+        plan_id: "P-S10-USD",
+        custom_id,
+        billing_info: {
+          next_billing_time: "2027-03-01T00:00:00Z",
+          last_payment: { amount: { value: "5.00", currency_code: "USD" }, time: "2026-01-31T09:00:00Z" },
+        },
+      });
+      await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-SA-PAID" });
+      expect(lastWrite()).toMatchObject({ status: "ACTIVE" });
+      expect(lastWrite()?.currentPeriodEnd?.toISOString()).toBe("2026-02-28T09:00:00.000Z");
+    });
+
+    it("ACTIVE with no completed payment is not activated on the label; it is once the payment completed", async () => {
+      seedStorageRow({ externalSubscriptionId: "I-SA-UNPAID" });
+      setSubscription("I-SA-UNPAID", {
+        status: "ACTIVE",
+        plan_id: "P-S10-USD",
+        custom_id,
+        billing_info: { next_billing_time: "2027-03-01T00:00:00Z" },
+      });
+      await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-SA-UNPAID" });
+      // At the base this wrote ACTIVE (capacity) dated by the unpaid next billing time.
+      expect(billingService.upsertWorkspaceStorageAddon).not.toHaveBeenCalled();
+      expect(state.reviewItems).toEqual(
+        expect.arrayContaining([expect.objectContaining({ reason: "ACTIVE_WITHOUT_COMPLETED_PAYMENT", product: "STORAGE_ADDON" })]),
+      );
+
+      setSubscription("I-SA-UNPAID", { status: "ACTIVE", plan_id: "P-S10-USD", custom_id });
+      await deliver("BILLING.SUBSCRIPTION.UPDATED", { id: "I-SA-UNPAID" });
+      expect(lastWrite()).toMatchObject({ status: "ACTIVE" });
+      expect(lastWrite()?.currentPeriodEnd?.toISOString()).toBe("2026-10-25T10:00:00.000Z");
+    });
+
+    it("a purchase never activated whose payment is failing is not made live", async () => {
+      seedStorageRow({ externalSubscriptionId: "I-SA-FAIL" });
+      setSubscription("I-SA-FAIL", {
+        status: "ACTIVE",
+        plan_id: "P-S10-USD",
+        custom_id,
+        billing_info: { next_billing_time: "2027-03-01T00:00:00Z", failed_payments_count: 1 },
+      });
+      await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-SA-FAIL" });
+      // At the base this wrote ACTIVE (capacity) with the unpaid next billing time.
+      expect(billingService.upsertWorkspaceStorageAddon).not.toHaveBeenCalled();
+    });
+
+    it("an activated add-on whose renewal is failing is PAST_DUE, and its paid-through stays the paid one", async () => {
+      seedStorageRow({ externalSubscriptionId: "I-SA-DUE", status: "ACTIVE", activatedAtUtc: new Date("2026-01-01T00:00:00Z") });
+      setSubscription("I-SA-DUE", {
+        status: "ACTIVE",
+        plan_id: "P-S10-USD",
+        custom_id,
+        billing_info: {
+          next_billing_time: "2027-03-01T00:00:00Z",
+          outstanding_balance: { value: "5.00", currency_code: "USD" },
+          last_payment: { amount: { value: "5.00", currency_code: "USD" }, time: "2026-01-31T09:00:00Z" },
+        },
+      });
+      await deliver("BILLING.SUBSCRIPTION.UPDATED", { id: "I-SA-DUE" });
+      expect(lastWrite()).toMatchObject({ status: "PAST_DUE" });
+      expect(lastWrite()?.currentPeriodEnd?.toISOString()).toBe("2026-02-28T09:00:00.000Z");
+    });
+  });
+
   // BILLING PAYPAL INTEGRITY (2026-09-28) — an ungrantable activation is no
   // longer left as a billed PENDING row: PayPal is asked to cancel it, the row
   // becomes FAILED (nothing granted) and a refund-review item is recorded.
@@ -880,6 +1061,29 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
       expect.objectContaining({ externalSubscriptionId: "I-SA-ORPHAN", status: "FAILED", ownerUserId: USER }),
     ]);
     expect(state.reviewItems[0]).toMatchObject({ reason: "STORAGE_SUBSCRIPTION_WITHOUT_RECORD" });
+  });
+
+  // PRO-BL1-06 — a sale for a subscription with no local record whose live read
+  // fails is FAILED and redelivered, never acknowledged as PROCESSED.
+  it("PRO-BL1-06 — orphan sale + failed live read: the event is FAILED (5xx) for PayPal to redeliver", async () => {
+    state.subscriptionReadFails = true;
+    const res = await deliver(
+      "PAYMENT.SALE.COMPLETED",
+      { id: "SALE-ORPHAN-1", billing_agreement_id: "I-NO-LOCAL-RECORD", amount: { total: "19.00", currency: "USD" } },
+      "WH-BL106",
+    );
+    expect(res.statusCode).toBeGreaterThanOrEqual(500);
+    expect(state.webhookEvents.get("WH-BL106")?.processingStatus).toBe("FAILED");
+
+    // Redelivered once PayPal answers: routed through settlement and PROCESSED.
+    state.subscriptionReadFails = false;
+    setSubscription("I-NO-LOCAL-RECORD", { status: "ACTIVE", plan_id: "P-S10-USD", custom_id: `sa1|${USER}|-|p10` });
+    const again = await deliver(
+      "PAYMENT.SALE.COMPLETED",
+      { id: "SALE-ORPHAN-1", billing_agreement_id: "I-NO-LOCAL-RECORD", amount: { total: "19.00", currency: "USD" } },
+      "WH-BL106",
+    );
+    expect(again.statusCode).toBe(200);
   });
 
   it("cancellation marks the add-on CANCELED", async () => {

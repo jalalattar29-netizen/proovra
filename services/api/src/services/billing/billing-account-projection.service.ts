@@ -295,6 +295,8 @@ export type PlanSummary = {
   currentPeriodEndUtc: string | null;
   /** Provider-confirmed "cancels at period end". */
   cancelAtPeriodEnd: boolean;
+  /** PRO-BL1-03 — a cancellation keeps the period already paid for (every provider). */
+  cancellationKeepsPaidPeriod?: boolean;
   /**
    * A provider-neutral display name. The raw provider enum is deliberately not
    * exposed to a non-financial viewer, and no provider id is exposed to anyone.
@@ -324,6 +326,8 @@ export type PlanSummary = {
      * and it lapses if never approved.
      */
     awaitingApproval: boolean;
+    /** PRO-BL1-05 — keep the current plan (withdraw a confirmed Stripe downgrade). */
+    withdrawOffer?: { planKey: prismaPkg.PlanType; actionLabel: string; effectSummary: string };
   };
   providerTransition?: {
     state: "IN_PROGRESS";
@@ -660,6 +664,8 @@ export type BillingAccountProjection = {
     canBuyEvidenceCredits: boolean;
     canBuyStorageAddon: boolean;
     canRequestCancellation: boolean;
+    /** PRO-BL1-02 — POST /v1/billing/subscription/payment-management is available. */
+    paymentManagement?: { provider: "STRIPE" | "PAYPAL" };
     /** Enterprise: the only sanctioned change path. */
     contactAccountManager: boolean;
     /**
@@ -1332,6 +1338,38 @@ export function dependentCancellationBannerMessage(
     : `${lead}. ${pronoun} may continue billing until your payment provider confirms the cancellation. We are retrying automatically.`;
 }
 
+/**
+ * PRO-BL1-05 (WS-BILL) — "Keep <current plan>" for a confirmed scheduled
+ * downgrade. Only the PERSONAL base subscription carries its own `plan` and is
+ * the one the change route (`POST /v1/billing/subscription/plan`) acts on; a
+ * workspace-bound row, PayPal (a revise cannot be taken back without a new
+ * approval) and a change still awaiting approval get no offer.
+ */
+function withdrawOfferFor(subscription: {
+  provider: prismaPkg.PaymentProvider;
+  pendingPlan: prismaPkg.PlanType | null;
+  pendingPlanAwaitingApproval?: boolean;
+  plan?: prismaPkg.PlanType;
+}): { withdrawOffer?: { planKey: prismaPkg.PlanType; actionLabel: string; effectSummary: string } } {
+  const current = subscription.plan;
+  if (
+    !subscription.pendingPlan ||
+    subscription.provider !== prismaPkg.PaymentProvider.STRIPE ||
+    subscription.pendingPlanAwaitingApproval === true ||
+    (current !== prismaPkg.PlanType.PRO && current !== prismaPkg.PlanType.TEAM)
+  ) {
+    return {};
+  }
+  const keep = getPlanCapabilities(current).displayName;
+  return {
+    withdrawOffer: {
+      planKey: current,
+      actionLabel: `Keep ${keep}`,
+      effectSummary: `Cancels the scheduled move to ${getPlanCapabilities(subscription.pendingPlan).displayName}. You stay on ${keep}; nothing is charged now.`,
+    },
+  };
+}
+
 // =============================================================================
 // The projection
 // =============================================================================
@@ -1529,6 +1567,10 @@ export async function buildBillingAccountProjection(input: {
     }),
     currentPeriodEndUtc: iso(subscription?.currentPeriodEnd ?? null),
     cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
+    // PRO-BL1-03 (additive) — this API keeps the paid period on every
+    // provider's cancellation, PayPal included. Clients say "you keep it until
+    // <date>" only when this is present (an older API lowered PayPal at once).
+    cancellationKeepsPaidPeriod: true,
     billingOwnerMissing: account.billingOwnerMissing,
     ...(subscription?.pendingPlan
       ? {
@@ -1537,6 +1579,16 @@ export async function buildBillingAccountProjection(input: {
             displayName: getPlanCapabilities(subscription.pendingPlan).displayName,
             effectiveAtUtc: iso(subscription.pendingPlanEffectiveAtUtc ?? null),
             awaitingApproval: subscription.pendingPlanAwaitingApproval === true,
+            /*
+             * PRO-BL1-05 (WS-BILL) — the way back, decided here. A confirmed
+             * Stripe downgrade can be withdrawn before it lands: the change
+             * route with the CURRENT plan releases the schedule (plan-transition
+             * "A scheduled downgrade withdrawn before it landed"). The web hid
+             * every plan action while a change was scheduled, leaving only a
+             * full cancellation. Absent on PayPal (a revise cannot be taken
+             * back without a new approval) and for an unapproved change.
+             */
+            ...withdrawOfferFor(subscription),
           },
         }
       : {}),
@@ -2195,6 +2247,15 @@ export async function buildBillingAccountProjection(input: {
        * mistake the mode made, and it is corrected against the same fact.
        */
       canRequestCancellation: canCancel && liveSubscription,
+      // PRO-BL1-02 (additive) — the provider's own page for fixing a failed
+      // payment, changing the card and getting invoices; the payer only.
+      ...(account.type === "PERSONAL" &&
+      canManage &&
+      liveSubscription &&
+      (subscription?.provider === prismaPkg.PaymentProvider.STRIPE ||
+        subscription?.provider === prismaPkg.PaymentProvider.PAYPAL)
+        ? { paymentManagement: { provider: subscription.provider as "STRIPE" | "PAYPAL" } }
+        : {}),
       /*
        * The one legitimate move a GRANTED account has.
        *

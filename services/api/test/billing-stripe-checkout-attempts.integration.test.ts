@@ -366,6 +366,17 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
       const confirmed = await call("POST", `${attemptBase(t, attempt.id)}/abandon`, t.owner.token, { confirmed: true });
       expect(json(confirmed)).toMatchObject({ outcome: "ABANDONED", cancelsAtProvider: true });
       expect(fake.sessions.get(sessionId)!.status).toBe("expired");
+      // PRO-BL1C-02 — the audit row states the provider act (it said
+      // LOCAL_ABANDONMENT / cancelsAtProvider:false for every abandon).
+      await vi.waitFor(async () => {
+        const rows = await prisma.adminAuditLog.findMany({
+          where: { action: "billing.checkout_attempt_abandoned", resourceId: attempt.id },
+          select: { metadata: true },
+        });
+        const acts = rows.map((r) => r.metadata as Record<string, unknown>);
+        expect(acts).toContainEqual(expect.objectContaining({ result: "ABANDONED", act: "PROVIDER_CANCELLATION", cancelsAtProvider: true }));
+        expect(acts).toContainEqual(expect.objectContaining({ result: "ABANDON_CONFIRMATION_REQUIRED", cancelsAtProvider: false }));
+      });
       expect(await prisma.billingCheckoutAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).toMatchObject({
         status: "CANCELED",
         checkoutState: "PROVIDER_CANCELED",

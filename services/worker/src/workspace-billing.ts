@@ -19,6 +19,7 @@ import {
   isKeyCompromiseReplacementVersion,
   measureFirstIssuanceAllowanceExclusion,
   readActiveInternalPlanGrant,
+  storageAddonCapacityStatusWhere,
   sumDerivedAssetStorageBytes,
 } from "@proovra/shared-runtime";
 
@@ -100,14 +101,9 @@ async function getActiveStorageAddonBytes(
       };
   const aggregate = await client.workspaceStorageAddon.aggregate({
     where: {
-      ownerUserId: params.ownerUserId,
-      ...subject,
-      status: {
-        in: [
-          prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-          prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
-        ],
-      },
+      // PRO-BL1-04 / DEC-02 — the same capacity rule as the API meter: ACTIVE,
+      // or PAST_DUE inside the one 7-day grace after its known paid period.
+      AND: [{ ownerUserId: params.ownerUserId, ...subject }, storageAddonCapacityStatusWhere()],
     },
     _sum: {
       extraStorageBytes: true,

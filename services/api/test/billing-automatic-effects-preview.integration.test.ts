@@ -94,6 +94,27 @@ describe("billing automatic effects preview (live PostgreSQL)", () => {
   const endedTeam = (userId: string) =>
     subscription(userId, { status: "CANCELED", canceledAtUtc: new Date(Date.now() - day) });
 
+  // PRO-BL1-04 / DEC-02 — the 7-day bound on a past-due add-on's capacity is an
+  // automatic reduction on an existing record: listed here, held until enabled.
+  it("lists past-due add-ons beyond the 7-day grace (or with no known paid period) as held capacity ends", async () => {
+    const payer = await user("TEAM");
+    await subscription(payer, {});
+    const beyond = await addon(payer, { status: "PAST_DUE", currentPeriodEnd: new Date(Date.now() - 8 * day) });
+    const unknown = await addon(payer, { status: "PAST_DUE", currentPeriodEnd: null });
+    const inGrace = await addon(payer, { status: "PAST_DUE", currentPeriodEnd: new Date(Date.now() - 2 * day) });
+    const active = await addon(payer);
+
+    const { status, stderr, lines } = runPreview(databaseUrl);
+    expect(stderr).toBe("");
+    expect(status).toBe(0);
+    const listed = lines.filter((l) => l.action === "END_PAST_DUE_ADDON_CAPACITY");
+    const line = (id: string) => listed.find((l) => l.addonId === id);
+    expect(line(beyond.id)).toMatchObject({ why: "GRACE_ENDED", held: true, providerAction: "NONE" });
+    expect(line(unknown.id)).toMatchObject({ why: "PAID_PERIOD_UNKNOWN", held: true, paidThroughUtc: null });
+    expect(line(inGrace.id)).toBeUndefined();
+    expect(line(active.id)).toBeUndefined();
+  });
+
   it("lists exactly what the sweep then cancels, with the dates that protect what was paid for", async () => {
     const owed = await user();
     await endedTeam(owed);

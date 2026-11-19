@@ -219,7 +219,9 @@ async function main(): Promise<number> {
       addonId: row.id,
       addonKey: row.addonKey,
       createdAtUtc: row.createdAt.toISOString(),
-      held: false,
+      // PRO-LEAD-04 — the sweep's refusal cancels at the provider only with the
+      // switch on (a webhook or the customer's return still applies it).
+      held: !automaticAddonCancellationEnabled(),
     });
   }
 
@@ -308,6 +310,42 @@ async function main(): Promise<number> {
         held: !automaticPlanLoweringEnabled(),
       });
     }
+  }
+
+  // ---- 4b. Past-due add-ons beyond the 7-day grace (PRO-BL1-04 / DEC-02) ----
+  // The sweep's own enumeration: with the add-on switch on, the storage meter
+  // stops counting these; with it off they keep counting and are held.
+  const { pastDueAddonsBeyondGrace } = await import("../services/billing/paid-period.service.js");
+  for (const c of await pastDueAddonsBeyondGrace(now)) {
+    emit({
+      action: "END_PAST_DUE_ADDON_CAPACITY",
+      provider: c.provider ?? "UNKNOWN",
+      effectiveMonth: month(c.paidThroughUtc),
+      addonId: c.addonId,
+      addonKey: c.addonKey,
+      why: c.why,
+      paidThroughUtc: c.paidThroughUtc?.toISOString() ?? null,
+      extraStorageBytes: c.extraStorageBytes.toString(),
+      providerAction: "NONE",
+      held: !automaticAddonCancellationEnabled(),
+    });
+  }
+
+  // ---- 5. Lowerings the sweep held earlier (PRO-W2C-01) --------------------
+  // Their subscription is already CANCELED, so section 4 never reaches them;
+  // these are the accounts `applyHeldPlanLowerings` lowers once the switch is on.
+  const { heldPlanLoweringCandidates } = await import("../services/billing/subscription-lifecycle.handlers.js");
+  for (const c of await heldPlanLoweringCandidates(now)) {
+    emit({
+      action: "APPLY_HELD_PLAN_LOWERING",
+      provider: "SUBSCRIPTION_ENDED",
+      effectiveMonth: month(now),
+      subscriptionId: c.subscriptionId,
+      from: c.from,
+      to: "FREE",
+      paidThroughUtc: c.periodEndUtc?.toISOString() ?? null,
+      held: !automaticPlanLoweringEnabled(),
+    });
   }
 
   for (const [key, total] of [...totals.entries()].sort()) {

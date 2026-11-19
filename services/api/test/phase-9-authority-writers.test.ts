@@ -54,6 +54,11 @@ const AUTHORITY_WRITERS: Array<{
       // client, so its caller inside the completion transaction was in fact
       // writing outside it.
       "services/billing/evidence-credits.service.ts": "canonical evidence-credit wallet: grant + conditional consume, ledger-backed",
+      // PRO-BL2-01 (2026-11-18) — operator-run, DRY-RUN-by-default repair that
+      // only LOWERS an inflated legacy_record_cap_override, measured by the
+      // plan writer's own freeze measure (CAS on the stored value).
+      "scripts/repair-legacy-record-cap-override.ts":
+        "repair: lowers legacyRecordCapOverride only (dry-run default; never raises)",
     },
   },
   {
@@ -87,6 +92,11 @@ const AUTHORITY_WRITERS: Array<{
       // `cancel_at_period_end=false`. Never writes status; PayPal is refused.
       "services/billing/subscription-resume.service.ts":
         "canonical: provider-confirmed un-cancel (cancelAtPeriodEnd=false); never writes status",
+      // PRO-BL1-01 (2026-11-18) — the in-flight provider INTENT key and its
+      // time (CAS on the stored key), and nothing else: never a status, plan
+      // or cancellation flag.
+      "services/billing/provider-intent.service.ts":
+        "canonical: provider_intent_key / provider_intent_at_utc only (durable idempotency identity)",
       // BILLING RECONCILIATION (2026-08-27) — the ORDERING STAMP, and nothing
       // else.
       //

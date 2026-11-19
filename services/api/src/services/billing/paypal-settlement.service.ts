@@ -58,10 +58,11 @@ import {
   getPayPalOrder,
   getPayPalSubscription,
   paypalGet,
+  readPayPalSubscriptionPaidFact,
 } from "../paypal.service.js";
 import { grantEvidenceCredits, reverseEvidenceCreditPurchase } from "./evidence-credits.service.js";
 import { applyPaymentAdjustment } from "./payment-adjustments.service.js";
-import { recordBillingReviewItem } from "./billing-review.service.js";
+import { noteActiveWithoutCompletedPayment, recordBillingReviewItem } from "./billing-review.service.js";
 import { applyStorageSubscriptionObservation } from "./storage-activation.service.js";
 import {
   recordCheckoutAttemptProviderOutcome,
@@ -91,6 +92,9 @@ function dateFromIso(value: unknown): Date | null {
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
+/** PRO-BL1-04 — re-exported; the helper lives beside the PayPal API reader. */
+export { addOneMonthUtc } from "../paypal.service.js";
 
 /** PayPal money is a decimal string ("5.00"); cents, or null if unreadable. */
 function centsFromValue(value: unknown): number | null {
@@ -1324,10 +1328,13 @@ export async function applyPayPalSubscriptionState(params: {
   const rawStatus = str(sub.status);
   const status = parsePayPalSubscriptionStatus(rawStatus);
   const billingInfo = rec(sub.billing_info);
-  const currentPeriodEnd = dateFromIso(billingInfo?.next_billing_time);
   const observedAtUtc = dateFromIso(
     sub.status_update_time ?? sub.update_time ?? sub.create_time,
   );
+
+  // PRO-BL1-04 (WS-BILL) — the PAID fact, one reader for the base plan and for
+  // a recurring storage add-on (DEC-02: the paid period applies to both).
+  const paidFact = readPayPalSubscriptionPaidFact(billingInfo);
 
   // --- Storage add-on --------------------------------------------------------
   const addon = parsePayPalStorageAddonCustomId(customId);
@@ -1335,10 +1342,19 @@ export async function applyPayPalSubscriptionState(params: {
     if (params.expectedUserId && addon.userId !== params.expectedUserId) {
       return { outcome: "REJECTED", subscriptionId, reason: "NOT_OWNED" };
     }
+    // PRO-BL1-04 — the add-on follows money too. PayPal keeps it ACTIVE while
+    // a payment is failing: that is PAST_DUE here (and never a first
+    // activation). Its paid-through date is the last completed payment plus
+    // one cycle; with no completed payment none is stated, so a cancellation
+    // keeps no "paid month" (paid-period.service) for an add-on never paid for.
+    const addonStatus =
+      status === prismaPkg.SubscriptionStatus.ACTIVE && paidFact.paymentFailing
+        ? prismaPkg.SubscriptionStatus.PAST_DUE
+        : status;
     const applied = await applyStorageSubscriptionObservation({
       provider: PROVIDER,
       subscriptionId,
-      status,
+      status: addonStatus,
       planId,
       claimed: {
         userId: addon.userId,
@@ -1346,7 +1362,9 @@ export async function applyPayPalSubscriptionState(params: {
         addonKey: addon.storageAddonKey,
         attemptId: addon.attemptId ?? null,
       },
-      currentPeriodEnd,
+      currentPeriodEnd: paidFact.paidThroughUtc,
+      // DEC-02 — ACTIVE with no completed payment is never a first activation.
+      paymentProven: paidFact.paidThroughUtc !== null,
       observedAtUtc,
       source: params.source,
     });
@@ -1368,7 +1386,7 @@ export async function applyPayPalSubscriptionState(params: {
       outcome: "APPLIED",
       kind: "STORAGE_ADDON",
       subscriptionId,
-      status,
+      status: addonStatus,
       returnOutcome: returnOutcomeFor(status, rawStatus),
       plan: null,
       storageAddonKey: addon.storageAddonKey,
@@ -1376,6 +1394,20 @@ export async function applyPayPalSubscriptionState(params: {
   }
 
   // --- Base plan -------------------------------------------------------------
+  // PRO-BL1-04 (WS-BILL, 2026-11-18) — a PAID fact, not a status label. PayPal
+  // keeps a subscription ACTIVE while a renewal (or the first payment) is
+  // failing and being retried, and `next_billing_time` is a date not yet paid
+  // for. The entitlement and the paid-through date now follow money:
+  //   * ACTIVE with failed payments or an outstanding balance is PAST_DUE, so
+  //     the bounded grace applies instead of indefinite paid access;
+  //   * the paid-through date is the last completed payment plus one monthly
+  //     cycle; with no completed payment it is not stated (the recorded one
+  //     stays), never the unpaid next billing time.
+  const basePlanStatus =
+    status === prismaPkg.SubscriptionStatus.ACTIVE && paidFact.paymentFailing
+      ? prismaPkg.SubscriptionStatus.PAST_DUE
+      : status;
+  const paidThroughUtc = paidFact.paidThroughUtc;
   const parsed = parsePayPalCustomId(customId);
   if (!parsed.userId) {
     return { outcome: "REJECTED", subscriptionId, reason: "UNATTRIBUTABLE" };
@@ -1463,6 +1495,29 @@ export async function applyPayPalSubscriptionState(params: {
     });
   }
 
+  // PRO-BL1-04 / DEC-02 — an ACTIVE label is not a payment. A subscription
+  // that was never activated here and for which PayPal reports no completed
+  // payment (none yet, or one failing) is PENDING: no entitlement, the checkout
+  // attempt stays open, and the existing reconciliation path settles it — the
+  // payment's own event (PAYMENT.SALE.COMPLETED re-reads this state), the
+  // customer's re-check, or the sweep. A label that stays unpaid for over an
+  // hour is recorded for review. A subscription already activated is not
+  // un-granted by a read that merely omits the payment.
+  const awaitingFirstPayment =
+    !stored?.activatedAtUtc &&
+    (basePlanStatus === prismaPkg.SubscriptionStatus.PAST_DUE ||
+      (basePlanStatus === prismaPkg.SubscriptionStatus.ACTIVE && paidThroughUtc === null));
+  const settledStatus = awaitingFirstPayment ? prismaPkg.SubscriptionStatus.TRIALING : basePlanStatus;
+  if (awaitingFirstPayment) {
+    await noteActiveWithoutCompletedPayment({
+      userId: parsed.userId,
+      provider: PROVIDER,
+      providerResourceId: subscriptionId,
+      product: "PLAN",
+      observedAtUtc,
+    });
+  }
+
   // What PayPal bills: the configured plan's currency, and the amount of the
   // last payment PayPal reports (absent before the first charge).
   const lastPayment = rec(rec(billingInfo?.last_payment)?.amount);
@@ -1475,8 +1530,8 @@ export async function applyPayPalSubscriptionState(params: {
     teamId: parsed.teamId,
     provider: PROVIDER,
     providerSubId: subscriptionId,
-    status,
-    currentPeriodEnd,
+    status: settledStatus,
+    currentPeriodEnd: paidThroughUtc,
     observedAtUtc,
     billedCurrency,
     billedUnitAmountCents:
@@ -1490,8 +1545,9 @@ export async function applyPayPalSubscriptionState(params: {
     userId: parsed.userId,
     subscriptionId,
     attemptId: parsed.attemptId ?? null,
-    status,
-    rawStatus,
+    // Awaiting its first payment: the buyer approved, PayPal is activating.
+    status: awaitingFirstPayment ? prismaPkg.SubscriptionStatus.TRIALING : status,
+    rawStatus: awaitingFirstPayment ? "APPROVED" : rawStatus,
     observedAtUtc,
   });
 
@@ -1499,8 +1555,8 @@ export async function applyPayPalSubscriptionState(params: {
     outcome: "APPLIED",
     kind: "PLAN",
     subscriptionId,
-    status,
-    returnOutcome: returnOutcomeFor(status, rawStatus),
+    status: awaitingFirstPayment ? prismaPkg.SubscriptionStatus.TRIALING : status,
+    returnOutcome: awaitingFirstPayment ? "PENDING" : returnOutcomeFor(status, rawStatus),
     plan,
     storageAddonKey: null,
     ...(synced.outcome === "SUPERSEDED" ? { superseded: true } : {}),

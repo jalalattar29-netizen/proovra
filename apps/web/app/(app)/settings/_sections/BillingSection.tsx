@@ -43,11 +43,27 @@ import {
 
 /** Only the fields this summary renders. Nothing else is read. */
 type AccountSlice = {
-  plan?: { currentPeriodEndUtc?: string | null } | null;
+  plan?: {
+    currentPeriodEndUtc?: string | null;
+    // PRO-N1-13 — read so a cancelling or past-due plan is never called "Renews".
+    cancelAtPeriodEnd?: boolean;
+    lifecycle?: string;
+    graceEndsAtUtc?: string | null;
+  } | null;
   usage?: {
     storage?: { state?: string; usedLabel?: string; limitLabel?: string } | null;
   } | null;
   collaboration?: { seats?: { used?: number; limit?: number } | null } | null;
+};
+
+/** PRO-N1-13 — display rows for the projection's non-renewing lifecycle states. */
+const PERIOD_ROW_BY_LIFECYCLE: Record<string, (graceEndsAtUtc: string | null) => { label: string; value: string }> = {
+  PAST_DUE: (graceEndsAtUtc) => ({
+    label: "Payment overdue",
+    value: graceEndsAtUtc ? `Access until ${formatUserDateTime(graceEndsAtUtc)}` : "Update your payment details in Billing",
+  }),
+  ACTION_REQUIRED: () => ({ label: "Status", value: "Needs attention — see Billing" }),
+  CANCELLED: () => ({ label: "Status", value: "Ended — see Billing" }),
 };
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -121,6 +137,16 @@ export function BillingSection({ ui }: { ui: SettingsUiContext }) {
   }, [ownPersonal, payerOrgId, activeWorkspaceId]);
 
   const renewsAtUtc = account?.plan?.currentPeriodEndUtc ?? null;
+  // PRO-N1-13 — the period end is a RENEWAL only for a plan that renews. The
+  // SERVER's lifecycle (billing-account-projection) picks the words; this
+  // only maps that display state to a row, deciding nothing.
+  const periodRow: { label: string; value: string } | null =
+    account?.plan?.cancelAtPeriodEnd === true
+      ? renewsAtUtc
+        ? { label: "Ends", value: formatUserDateTime(renewsAtUtc) }
+        : null
+      : (PERIOD_ROW_BY_LIFECYCLE[account?.plan?.lifecycle ?? ""]?.(account?.plan?.graceEndsAtUtc ?? null) ??
+        (renewsAtUtc ? { label: "Renews", value: formatUserDateTime(renewsAtUtc) } : null));
   const storage =
     account?.usage?.storage?.state === "MEASURED" ? account.usage.storage : null;
   const seats = account?.collaboration?.seats?.limit ?? null;
@@ -134,9 +160,7 @@ export function BillingSection({ ui }: { ui: SettingsUiContext }) {
       <Row label="Current plan" value={ui.billing.displayPlan} />
       <Row label="Scope" value={ui.billing.scopeLabel} />
       <Row label="Workspace" value={ui.activeWorkspaceName} />
-      {renewsAtUtc ? (
-        <Row label="Renews" value={formatUserDateTime(renewsAtUtc)} />
-      ) : null}
+      {periodRow ? <Row label={periodRow.label} value={periodRow.value} /> : null}
       {seats !== null || members !== null ? (
         <Row
           label="Seats"

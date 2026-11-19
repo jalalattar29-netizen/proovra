@@ -49,8 +49,12 @@ import {
 } from "../services/billing/reconciliation/reconciliation.service.js";
 import type { BillingAccountRef } from "../services/billing/billing-accounts.service.js";
 import { acquireLease } from "../services/rate-limit.js";
-import { retrySupersededCancellations } from "../services/billing/subscription-lifecycle.handlers.js";
-import { finalizeEndedStorageAddons } from "../services/billing/paid-period.service.js";
+import {
+  applyHeldPlanLowerings,
+  finalizeEndedPayPalPaidPeriods,
+  retrySupersededCancellations,
+} from "../services/billing/subscription-lifecycle.handlers.js";
+import { finalizeEndedStorageAddons, holdPastDueAddonCapacityEnds } from "../services/billing/paid-period.service.js";
 import { closeDueInternalGrants } from "../services/billing/internal-plan-grant.service.js";
 import { sweepExcludedReferences } from "../services/billing/provider-binding-check.service.js";
 import { ABANDONED_RECHECK_WINDOW_MS } from "../services/billing/checkout-attempt-recovery.service.js";
@@ -370,6 +374,13 @@ async function runSweep(input?: {
       err: err instanceof Error ? err.message : "unknown",
     });
   });
+  // PRO-BL1-04 / DEC-02 — past-due add-ons beyond the 7-day grace: with the
+  // add-on switch off their capacity is kept and a held review item says so.
+  await holdPastDueAddonCapacityEnds().catch((err: unknown) => {
+    logWarn("billing.reconciliation.past_due_addon_hold_failed", {
+      err: err instanceof Error ? err.message : "unknown",
+    });
+  });
   await closeDueInternalGrants(prisma).catch((err: unknown) => {
     logWarn("billing.reconciliation.grant_expiry_failed", {
       err: err instanceof Error ? err.message : "unknown",
@@ -377,6 +388,20 @@ async function runSweep(input?: {
   });
   await retrySupersededCancellations().catch((err: unknown) => {
     logWarn("billing.reconciliation.supersession_retry_failed", {
+      err: err instanceof Error ? err.message : "unknown",
+    });
+  });
+  // PRO-BL1-03 — a cancelled PayPal plan ends when its kept paid period does
+  // (the customer's own cancellation; not held by the lowering switch).
+  await finalizeEndedPayPalPaidPeriods().catch((err: unknown) => {
+    logWarn("billing.reconciliation.paypal_paid_period_finalize_failed", {
+      err: err instanceof Error ? err.message : "unknown",
+    });
+  });
+  // PRO-W2C-01 — a lowering the sweep held is applied once the switch is on
+  // (and changes nothing while it is off).
+  await applyHeldPlanLowerings().catch((err: unknown) => {
+    logWarn("billing.reconciliation.held_plan_lowering_failed", {
       err: err instanceof Error ? err.message : "unknown",
     });
   });

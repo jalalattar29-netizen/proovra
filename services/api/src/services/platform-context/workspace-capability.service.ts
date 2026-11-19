@@ -81,6 +81,32 @@ export function planProducesOperationalConditions(plan: WorkspacePlan | null): b
   return caps.operationsWorkbenchIncluded;
 }
 
+/**
+ * PRO-PSZ-03 (WS-BILL, 2026-11-18) — the commercial lifecycle verdict reaches
+ * the Operations workbench (DEC-10). A workspace that qualifies for Operations
+ * only through its PAID plan (not through sharing) and whose lifecycle refuses
+ * paid mutations (past due beyond grace, unpaid, cancelled with the plan held)
+ * keeps READING its workbench but loses the workbench writes, as FREE would.
+ * A shared workspace keeps them: sharing, not the plan, qualifies it.
+ */
+const OPERATIONS_WRITE_CAPABILITIES = [
+  "OPERATIONS_ACKNOWLEDGE",
+  "OPERATIONS_RESOLVE",
+  "OPERATIONS_ASSIGN",
+  "OPERATIONS_SUPPRESS",
+] as const;
+
+export function withholdLapsedOperationsWrites<T extends Record<string, boolean>>(
+  capabilities: T,
+  input: { mutationsAllowed: boolean | null | undefined; memberCount: number },
+): T {
+  if (input.mutationsAllowed !== false || input.memberCount > 1) return capabilities;
+  for (const key of OPERATIONS_WRITE_CAPABILITIES) {
+    if (key in capabilities) (capabilities as Record<string, boolean>)[key] = false;
+  }
+  return capabilities;
+}
+
 /** Prisma `_count` selector for ACTIVE memberships only (OPS-021). */
 export const ACTIVE_MEMBER_COUNT_SELECT = {
   _count: { select: { members: { where: { status: "ACTIVE" as const } } } },
@@ -126,14 +152,19 @@ export async function resolveMemberWorkspaceCapabilities(input: {
   });
 
   let plan: WorkspacePlan | null = null;
+  let mutationsAllowed: boolean | null = null;
   try {
     const { resolveCommercialPlan } = await import("../billing/commercial-context.service.js");
-    const commercial = await resolveCommercialPlan({
-      type: "WORKSPACE",
-      teamId: team.id,
-      requesterUserId: input.userId,
-    });
+    const commercial = await resolveCommercialPlan(
+      {
+        type: "WORKSPACE",
+        teamId: team.id,
+        requesterUserId: input.userId,
+      },
+      { withLifecycle: true },
+    );
     plan = coercePlan(commercial.plan as unknown as string);
+    mutationsAllowed = commercial.lifecycle?.mutationsAllowed ?? null;
   } catch {
     plan = null;
   }
@@ -172,6 +203,8 @@ export async function resolveMemberWorkspaceCapabilities(input: {
     collaborationIncluded,
     reviewerOperationsIncluded,
   }) as Record<CapabilityKey, boolean>;
+  // PRO-PSZ-03 — a lapsed paid plan keeps reads, not workbench writes.
+  withholdLapsedOperationsWrites(capabilities, { mutationsAllowed, memberCount: activeMemberCount });
 
   return { capabilities, plan, workspaceKind, activeMemberCount };
 }

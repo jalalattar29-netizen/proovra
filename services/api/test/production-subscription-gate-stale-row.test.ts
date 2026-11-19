@@ -44,6 +44,7 @@ type Row = {
   status: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELED";
   currentPeriodEnd: Date | null;
   updatedAt: Date;
+  supersededBySubscriptionId?: string | null;
 };
 
 /** A subscription table honouring the where-shapes the reader uses. */
@@ -58,7 +59,7 @@ function fakeClient(rows: Row[]) {
       } else if (k === "status") {
         const s = v as string | { in: string[] };
         if (typeof s === "string" ? r.status !== s : !s.in.includes(r.status)) return false;
-      } else if ((r as Record<string, unknown>)[k] !== v) return false;
+      } else if (((r as Record<string, unknown>)[k] ?? null) !== v) return false;
     }
     return true;
   };
@@ -112,6 +113,33 @@ describe("Phase 9 STEP 5 — canonical lifecycle no longer picks stale rows", ()
     expect(r.state).toBe("ACTIVE");
     expect(r.mutationsAllowed).toBe(true);
   });
+});
+
+describe("PRO-BL1C-01 — a superseded duplicate is not a second live subscription", () => {
+  for (const [label, subject, scope] of [
+    ["PERSONAL", PERSONAL, { userId: "u1", plan: "PRO" }],
+    ["WORKSPACE", WORKSPACE, { teamId: "t1", plan: "TEAM" }],
+  ] as const) {
+    it(`${label}: kept ACTIVE + superseded ACTIVE awaiting its provider cancel reads ACTIVE, mutations allowed`, async () => {
+      const { client } = fakeClient([
+        { ...scope, provider: "STRIPE", status: "ACTIVE", currentPeriodEnd: at(20), updatedAt: at(-5) },
+        { ...scope, provider: "STRIPE", status: "ACTIVE", currentPeriodEnd: at(25), updatedAt: at(-1), supersededBySubscriptionId: "kept" },
+      ]);
+      expect(await readCommercialLifecycle(client, subject, NOW)).toMatchObject({
+        state: "ACTIVE",
+        paidActive: true,
+        mutationsAllowed: true,
+      });
+    });
+
+    it(`${label}: two NON-superseded live rows still fail closed`, async () => {
+      const { client } = fakeClient([
+        { ...scope, provider: "STRIPE", status: "ACTIVE", currentPeriodEnd: at(20), updatedAt: at(-5) },
+        { ...scope, provider: "STRIPE", status: "ACTIVE", currentPeriodEnd: at(25), updatedAt: at(-1) },
+      ]);
+      expect((await readCommercialLifecycle(client, subject, NOW)).state).toBe("CANCELLED");
+    });
+  }
 });
 
 describe("Phase 9 STEP 5 — four-branch corroboration policy (behaviour)", () => {

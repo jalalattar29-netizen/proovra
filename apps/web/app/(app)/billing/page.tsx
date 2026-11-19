@@ -49,6 +49,7 @@ import {
   readBillingHistory,
   requestCancellation,
   requestResume,
+  requestPaymentManagementLink,
   changePlan,
   reconcileAccount,
   recheckPayment,
@@ -473,6 +474,29 @@ function BillingPageInner() {
     }
   }, [selected, projection, cancelBusy, confirm, addToast, refresh, showError]);
 
+  // PRO-BL1-02 — the provider's own page for the card, a failed payment and invoices.
+  const handleManagePayment = useCallback(async () => {
+    if (!projection || cancelBusy) return;
+    setCancelBusy(true);
+    try {
+      const link = await requestPaymentManagementLink();
+      if (!link) {
+        showError(describeBillingError(new Error("unexpected payment page"), {
+          message: "We could not open your payment provider's billing page. Nothing has changed.",
+        }));
+        return;
+      }
+      window.location.assign(link.url);
+    } catch (err) {
+      captureException(err, { feature: "billing_payment_management" });
+      showError(describeBillingError(err, {
+        message: "We could not open your payment provider's billing page. Nothing has changed.",
+      }));
+    } finally {
+      setCancelBusy(false);
+    }
+  }, [projection, cancelBusy, showError]);
+
   const handleCancel = useCallback(async () => {
     if (!selected || !projection) return;
 
@@ -506,7 +530,11 @@ function BillingPageInner() {
         <div style={{ display: "grid", gap: 10 }} data-billing-cancel-consequences>
           <p style={{ margin: 0 }}>
             We will ask your payment provider to stop renewing it.{" "}
-            {paypal
+            {paypal && projection.plan.cancellationKeepsPaidPeriod
+              ? paidUntil
+                ? `PayPal stops the subscription immediately and it cannot be restarted, but you keep ${projection.plan.displayName} until ${paidUntil}, the end of the period you have already paid for.`
+                : `PayPal stops the subscription immediately and it cannot be restarted, but you keep ${projection.plan.displayName} until the end of the period you have already paid for.`
+              : paypal
               ? `PayPal ends a subscription immediately: ${projection.plan.displayName} ends when PayPal confirms the cancellation, and it cannot be restarted.`
               : paidUntil
                 ? `You have paid through ${paidUntil}; where the provider supports it you keep ${projection.plan.displayName} until then, and we will confirm the exact date after they answer.`
@@ -1477,6 +1505,7 @@ function BillingPageInner() {
             onCancel={() => void handleCancel()}
             /* Restarting needs BILLING_MANAGE, which a cancel-only viewer lacks. */
             onResume={projection.actions.planManagement.enabled ? () => void handleResume() : undefined}
+            onManagePayment={projection.actions.paymentManagement ? () => void handleManagePayment() : undefined}
             changeBusyPlan={changeBusyPlan}
             cancelBusy={cancelBusy}
           />

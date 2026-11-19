@@ -203,7 +203,11 @@ class FakePayPal {
     return {
       ...sub,
       status_update_time: sub.update_time,
-      billing_info: sub.status === "ACTIVE" ? { next_billing_time: "2026-10-28T10:00:00Z" } : {},
+      // An ACTIVE fixture is a PAID subscription (DEC-02: activation needs a completed payment).
+      billing_info:
+        sub.status === "ACTIVE"
+          ? { next_billing_time: "2026-10-28T10:00:00Z", last_payment: { time: "2026-09-28T10:00:00Z" } }
+          : {},
       links:
         sub.status === "APPROVAL_PENDING"
           ? [{ rel: "approve", href: `https://www.sandbox.paypal.com/webapps/billing/subscriptions?ba_token=BA-${sub.id}` }]

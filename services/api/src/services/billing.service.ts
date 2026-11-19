@@ -4,6 +4,7 @@ import { prisma } from "../db.js";
 // `resolveWorkspaceSeatState` (billing/workspace-seats.service.ts).
 import * as prismaPkg from "@prisma/client";
 import { resolveWorkspaceSeatState } from "./billing/workspace-seats.service.js";
+import { recordBillingReviewItem } from "./billing/billing-review.service.js";
 import { writeAnalyticsEvent } from "./analytics-event.service.js";
 import { emitPlatformAudit } from "./audit/tenant-audit.service.js";
 import {
@@ -779,14 +780,51 @@ export async function upsertSubscription(
     params.provider === prismaPkg.PaymentProvider.STRIPE &&
     params.providerScheduleId === null &&
     Boolean(existing?.providerScheduleId);
+  // PRO-BL1-01 — a "renewing" fact against a recorded, provider-confirmed
+  // customer cancellation. A fact OLDER than that cancellation (a late
+  // delivery of the state before it) is not applied to the ending flag; a newer
+  // one is the provider's truth and is applied, but recorded for review rather
+  // than silently turning the cancellation back into a renewal.
+  const reversesCancellation =
+    params.cancelAtPeriodEnd === false &&
+    params.status !== prismaPkg.SubscriptionStatus.CANCELED &&
+    existing?.cancelAtPeriodEnd === true &&
+    Boolean(existing.canceledAtUtc);
+  const staleAgainstCancellation =
+    reversesCancellation &&
+    Boolean(params.observedAtUtc) &&
+    params.observedAtUtc!.getTime() < existing!.canceledAtUtc!.getTime();
   const endingFact =
     params.cancelAtPeriodEnd === undefined || params.status === prismaPkg.SubscriptionStatus.CANCELED
       ? {}
       : params.cancelAtPeriodEnd
-        ? { cancelAtPeriodEnd: true, ...(existing?.canceledAtUtc ? {} : { canceledAtUtc: new Date() }) }
-        : existing?.cancelAtPeriodEnd
-          ? { cancelAtPeriodEnd: false, canceledAtUtc: null }
-          : {};
+        ? {
+            cancelAtPeriodEnd: true,
+            // A cancellation the PROVIDER reports is dated by the provider's own
+            // fact time, so the ordering test above compares provider time with
+            // provider time. Stamping the local processing time made a genuinely
+            // newer "renewing" fact (delivered seconds later) read as older than
+            // the cancellation and be ignored (AUD-09 convergence regression).
+            ...(existing?.canceledAtUtc ? {} : { canceledAtUtc: params.observedAtUtc ?? new Date() }),
+          }
+        : staleAgainstCancellation
+          ? {}
+          : existing?.cancelAtPeriodEnd
+            ? { cancelAtPeriodEnd: false, canceledAtUtc: null }
+            : {};
+  if (reversesCancellation && !staleAgainstCancellation && existing) {
+    await recordBillingReviewItem({
+      userId: existing.userId,
+      provider: params.provider,
+      providerResourceId: params.providerSubId,
+      product: "PLAN",
+      reason: "CANCELLATION_REVERSED_AT_PROVIDER",
+      detail: {
+        canceledAtUtc: existing.canceledAtUtc!.toISOString(),
+        observedAtUtc: params.observedAtUtc ? params.observedAtUtc.toISOString() : null,
+      },
+    });
+  }
   const subscription = await client.subscription.upsert({
     where: {
       provider_providerSubId: {

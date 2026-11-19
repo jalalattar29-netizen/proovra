@@ -129,6 +129,49 @@ export function projectSettingsOverview(envelope: unknown): SettingsOverview {
   };
 }
 
+/* ------------------------------------------------ billing attention (PRO-N1-13) */
+
+/**
+ * PRO-N1-13 — the person's OWN paid plan needs attention, from the envelope's
+ * `account.billingSignal` (the API's canonical lifecycle verdict). Null when
+ * there is nothing to say, or on an API that predates the field. The same words
+ * as the web shell banner (BillingAttentionBanner.tsx).
+ */
+export interface BillingAttention {
+  state: "PAST_DUE" | "PAST_DUE_EXPIRED" | "LAPSED" | "CANCELLING";
+  title: string;
+  /** ISO date the sentence refers to (grace end / plan end), when known. */
+  dateIso: string | null;
+}
+
+export function accountBillingAttention(envelope: unknown): BillingAttention | null {
+  const signal = obj(obj(obj(envelope).account).billingSignal);
+  const state = signal.state;
+  if (state === "PAST_DUE") return { state, title: "Payment overdue", dateIso: str(signal.graceEndsAtUtc) };
+  if (state === "PAST_DUE_EXPIRED") return { state, title: "Paid plan paused: payment overdue", dateIso: null };
+  if (state === "LAPSED") return { state, title: "Paid plan needs attention", dateIso: null };
+  if (state === "CANCELLING") return { state, title: "Your plan is set to end", dateIso: str(signal.endsAtUtc) };
+  return null;
+}
+
+/** The sentence under the title; `formatDate` is the screen's own date formatter. */
+export function billingAttentionLine(a: BillingAttention, formatDate: (iso: string) => string): string {
+  switch (a.state) {
+    case "PAST_DUE":
+      return a.dateIso
+        ? `We could not take your last payment. Your paid plan continues until ${formatDate(a.dateIso)} while it is retried; update your payment details on the web to keep it.`
+        : "We could not take your last payment. Update your payment details on the web to keep your paid plan.";
+    case "PAST_DUE_EXPIRED":
+      return "Your last payment was not received and the grace period has ended, so paid actions are paused. Your records stay readable.";
+    case "LAPSED":
+      return "Your paid plan is no longer active, so paid actions are paused. Your records stay readable.";
+    case "CANCELLING":
+      return a.dateIso
+        ? `Your subscription was cancelled and ends on ${formatDate(a.dateIso)}.`
+        : "Your subscription was cancelled and ends at the end of the paid period.";
+  }
+}
+
 /* ------------------------------------------------ security summary (web) */
 
 export interface RecentSignIn {

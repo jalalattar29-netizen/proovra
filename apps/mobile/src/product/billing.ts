@@ -60,6 +60,19 @@ const num = (v: unknown): number | null =>
 export const BILLING_ACCOUNTS_PATH = "/v1/billing/accounts";
 export const BILLING_OVERVIEW_PATH = "/v1/billing/overview";
 export const SUBSCRIPTION_CANCEL_PATH = "/v1/billing/subscription/cancel";
+/** PRO-NA-03 — undo a cancellation scheduled for period end (Stripe). */
+export const SUBSCRIPTION_RESUME_PATH = "/v1/billing/subscription/resume";
+
+/**
+ * PRO-NA-03 — the restart outcome in the web's words (billing page
+ * handleResume). The route answers `{ resume: { result, currentPeriodEnd } }`.
+ */
+export function subscriptionResumeMessage(payload: unknown, formatDate: (iso: string | null) => string | null): string {
+  const resume = obj(obj(payload).resume);
+  if (resume.result === "NOT_SCHEDULED_TO_END") return "This subscription was not set to end, so nothing changed.";
+  const renews = formatDate(typeof resume.currentPeriodEnd === "string" ? resume.currentPeriodEnd : null);
+  return renews ? `Your subscription is restarted and renews on ${renews}.` : "Your subscription is restarted.";
+}
 export const STORAGE_ADDON_CANCEL_PATH = "/v1/billing/storage-addons/cancel";
 
 /**
@@ -97,16 +110,6 @@ export const BILLING_MANAGED_COPY = {
   title: "Billing is managed for you",
   body: "Your organization looks after billing for this account. Your administrator can make changes.",
 } as const;
-
-/**
- * Payment-history failure → the web's copy (StorageAndHistory.tsx). A 403 is
- * not an outage: the records exist and belong to the billing owner.
- */
-export function paymentHistoryFailureCopy(err: unknown): { message: string; retry: boolean } {
-  return obj(err).statusCode === 403
-    ? { message: "Payment records for this account are visible to its billing owner.", retry: false }
-    : { message: "We could not load payment history just now.", retry: true };
-}
 
 export function buildBillingAccountPath(type: string, id: string): string {
   return `/v1/billing/accounts/${encodeURIComponent(type)}/${encodeURIComponent(id)}`;

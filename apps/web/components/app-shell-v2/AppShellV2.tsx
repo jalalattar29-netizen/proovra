@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppSidebarV2 } from "./AppSidebarV2";
 import { AppAccountToolbar } from "./AppAccountToolbar";
 import { SupportAccessBanner } from "./SupportAccessBanner";
+import { BillingAttentionBanner } from "./BillingAttentionBanner";
 import { CommandPalette } from "../navigation/CommandPalette";
 import { usePathname } from "next/navigation";
 import {
@@ -237,6 +238,8 @@ export function AppShellV2({ children, onLogout }: AppShellV2Props) {
              * visible on every route during a support session.
              */}
             <SupportAccessBanner />
+            {/* PRO-N1-13 — the person's own paid plan needs attention. */}
+            <BillingAttentionBanner />
             {needsRecovery ? (
               <WorkspaceRecoveryPanel />
             ) : personalSpaceBlocked ? (

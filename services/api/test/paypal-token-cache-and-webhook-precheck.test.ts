@@ -18,6 +18,7 @@ import {
   clearPayPalAccessTokenCache,
   getPayPalAccessToken,
   getPayPalOrder,
+  PAYPAL_WEBHOOK_VERIFY_PER_IP_PER_MINUTE,
 } from "../src/services/paypal.service.js";
 import { webhooksRoutes } from "../src/routes/webhooks.routes.js";
 
@@ -115,13 +116,24 @@ describe("F-02 — /webhooks/paypal refuses an unsigned POST before calling PayP
     await app.close();
   });
 
-  const post = (headers: Record<string, string>) =>
+  const post = (headers: Record<string, string>, remoteAddress = "203.0.113.10") =>
     app.inject({
       method: "POST",
       url: "/webhooks/paypal",
+      remoteAddress,
       headers: { "content-type": "application/json", ...headers },
       payload: JSON.stringify({ id: "WH-F02-1", event_type: "PAYMENT.CAPTURE.COMPLETED", resource: {} }),
     });
+
+  /** What a genuine PayPal delivery carries (PRO-BL1-07). */
+  const genuine = (): Record<string, string> => ({
+    "paypal-transmission-sig": "sig",
+    "paypal-transmission-id": "tid",
+    "paypal-auth-algo": "SHA256withRSA",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-360caa42",
+    "paypal-transmission-time": new Date().toISOString(),
+  });
+  const randomIp = () => `198.51.100.${Math.floor(Math.random() * 250) + 1}`;
 
   it("no transmission headers: 400 and zero outbound calls", async () => {
     stubPayPal();
@@ -137,9 +149,62 @@ describe("F-02 — /webhooks/paypal refuses an unsigned POST before calling PayP
     expect(calls).toEqual([]);
   });
 
-  it("control: a POST carrying both headers goes on to PayPal's verifier", async () => {
+  it("PRO-BL1-07 — two arbitrary non-empty headers no longer reach PayPal", async () => {
     stubPayPal();
-    await post({ "paypal-transmission-sig": "sig", "paypal-transmission-id": "tid" });
+    // At the base this alone cost a token call and a verify call.
+    expect((await post({ "paypal-transmission-sig": "sig", "paypal-transmission-id": "tid" })).statusCode).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  it("PRO-BL1-07 — a cert URL off PayPal, an unknown algorithm or a stale transmission time: 400, zero outbound calls", async () => {
+    stubPayPal();
+    for (const bad of <Array<Record<string, string>>>[
+      { "paypal-cert-url": "https://attacker.example/cert.pem" },
+      { "paypal-cert-url": "http://api.paypal.com/cert.pem" },
+      { "paypal-auth-algo": "none" },
+      { "paypal-transmission-time": new Date(Date.now() - 3 * 86_400_000).toISOString() },
+      { "paypal-transmission-time": "yesterday" },
+    ]) {
+      expect((await post({ ...genuine(), ...bad })).statusCode, JSON.stringify(bad)).toBe(400);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it("control: a delivery shaped like PayPal's goes on to PayPal's verifier", async () => {
+    stubPayPal();
+    await post(genuine(), randomIp());
     expect(calls.some((c) => c.url.endsWith("/v1/notifications/verify-webhook-signature"))).toBe(true);
+  });
+
+  it("PRO-BL1-07 — verifier calls are bounded per sender address (429 with Retry-After)", async () => {
+    // The production bound is generous for PayPal's own senders; the bound is
+    // the plugin's option, so the same route is exercised at a small one.
+    expect(PAYPAL_WEBHOOK_VERIFY_PER_IP_PER_MINUTE).toBeGreaterThanOrEqual(100);
+    const bounded = Fastify();
+    await bounded.register(webhooksRoutes, { prefix: "/webhooks", paypalVerifyPerIpPerMinute: 3 });
+    await bounded.ready();
+    try {
+      stubPayPal();
+      const send = (remoteAddress: string) =>
+        bounded.inject({
+          method: "POST",
+          url: "/webhooks/paypal",
+          remoteAddress,
+          headers: { "content-type": "application/json", ...genuine() },
+          payload: JSON.stringify({ id: "WH-F02-1", event_type: "PAYMENT.CAPTURE.COMPLETED", resource: {} }),
+        });
+      const ip = `192.0.2.${Math.floor(Math.random() * 250) + 1}`;
+      for (let i = 0; i < 3; i += 1) expect((await send(ip)).statusCode).not.toBe(429);
+      const verifyCalls = calls.filter((c) => c.url.endsWith("/v1/notifications/verify-webhook-signature")).length;
+      const limited = await send(ip);
+      expect(limited.statusCode).toBe(429);
+      expect(Number(limited.headers["retry-after"])).toBeGreaterThanOrEqual(1);
+      // The refused delivery reached PayPal not at all.
+      expect(calls.filter((c) => c.url.endsWith("/v1/notifications/verify-webhook-signature")).length).toBe(verifyCalls);
+      // Another sender is unaffected.
+      expect((await send(randomIp())).statusCode).not.toBe(429);
+    } finally {
+      await bounded.close();
+    }
   });
 });

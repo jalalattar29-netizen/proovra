@@ -36,6 +36,8 @@ import {
   BILLING_MANAGED_COPY,
   STORAGE_ADDON_CANCEL_PATH,
   SUBSCRIPTION_CANCEL_PATH,
+  SUBSCRIPTION_RESUME_PATH,
+  subscriptionResumeMessage,
   buildBillingAccountPath,
   buildBillingHistoryPath,
   buildPaymentCancelPath,
@@ -615,6 +617,26 @@ export default function BillingScreen() {
     }
   }, [refresh]);
 
+  // PRO-NA-03 — restart a subscription set to end (EP-0144), as the web does.
+  const resumeSubscription = useCallback(async () => {
+    setManageOpen(false);
+    setBusy(true);
+    setNotice(null);
+    try {
+      const result = await apiFetch(SUBSCRIPTION_RESUME_PATH, { method: "POST", body: JSON.stringify({}) });
+      setNotice(subscriptionResumeMessage(result, billingDate));
+      refresh();
+    } catch (err) {
+      setNotice(
+        toSafeUserError(err, {
+          message: "We could not reach your payment provider to restart this subscription. Nothing has changed; it is still set to end.",
+        }).message,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [refresh]);
+
   const cancelAddon = useCallback(
     async (addon: ActiveAddonModel) => {
       setConfirm(null);
@@ -942,6 +964,12 @@ export default function BillingScreen() {
                   setManageOpen(false);
                   setConfirm({ kind: "subscription" });
                 }}
+                onResumeSubscription={
+                  // Restarting needs BILLING_MANAGE (the web's rule); it buys nothing.
+                  selected.type === "PERSONAL" && projection.actions.planManagement.enabled
+                    ? () => void resumeSubscription()
+                    : undefined
+                }
                 cancelBusy={busy}
                 onViewPlans={
                   privateCheckout &&

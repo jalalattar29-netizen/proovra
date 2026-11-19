@@ -434,6 +434,8 @@ const CLOSURE_CANCELLABLE = ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED"]
  */
 const CLOSURE_BLOCKER_ACTION: Record<string, { label: string; href: string }> = {
   BILLING_SUBSCRIPTION_ACTIVE: { label: "Go to Billing", href: "/billing" },
+  // PRO-N1-01 — a recurring storage add-on that still renews.
+  BILLING_ADDON_ACTIVE: { label: "Go to Billing", href: "/billing" },
   ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED: {
     label: "Transfer ownership",
     href: "/organizations",
@@ -567,11 +569,13 @@ function AccountClosureCard() {
   );
 
   const req = state?.request ?? null;
+  // PRO-N1-12 — a BLOCKED request is not open (the server accepts a new one):
+  // the card shows the LIVE blockers and the request form again, with a note
+  // that the last request did not run, instead of a stale snapshot forever.
   const open =
     req !== null &&
-    ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED", "PROCESSING"].includes(
-      req.status,
-    );
+    ["REQUESTED", "COOLING_OFF", "SCHEDULED", "PROCESSING"].includes(req.status);
+  const lastBlocked = req !== null && req.status === "BLOCKED";
   const blockers = state?.blockers ?? [];
   const consequences = state?.consequences ?? [];
   const phraseExpected = state?.confirmationPhrase ?? "close my account";
@@ -637,6 +641,9 @@ function AccountClosureCard() {
             {req.status === "COOLING_OFF" && req.coolingOffEndsAtUtc
               ? ` — your account closes after ${formatUserDateTime(req.coolingOffEndsAtUtc)} unless you cancel.`
               : ""}
+            {req.status === "SCHEDULED" && req.coolingOffEndsAtUtc
+              ? ` — your account closes no earlier than ${formatUserDateTime(req.coolingOffEndsAtUtc)}, and only once your cancelled billing has ended, unless you cancel.`
+              : ""}
           </p>
           {req.status === "BLOCKED" && req.blockersJson ? (
             <ul style={{ ...muted, margin: "6px 0 0", paddingLeft: 18 }}>
@@ -679,6 +686,16 @@ function AccountClosureCard() {
         </div>
       ) : (
         <>
+          {lastBlocked ? (
+            <p role="status" className="mt-3" style={muted} data-cc-closure-last-blocked>
+              Your last closure request did not go ahead, because something that
+              prevents closure appeared during the waiting period. Your account
+              was not closed.{" "}
+              {blockers.length > 0
+                ? "Resolve the items below, then request closure again."
+                : "Nothing blocks closure now; you can request it again."}
+            </p>
+          ) : null}
           {consequences.length > 0 ? (
             <div className="mt-3" data-cc-closure-consequences>
               <p style={{ ...muted, fontWeight: 600 }}>Closing your account also:</p>

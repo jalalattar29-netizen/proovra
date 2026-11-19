@@ -40,6 +40,7 @@ export function ManagePlanSheet({
   projection,
   onClose,
   onCancelSubscription,
+  onResumeSubscription,
   cancelBusy,
   onViewPlans,
 }: {
@@ -47,6 +48,8 @@ export function ManagePlanSheet({
   projection: BillingProjection;
   onClose: () => void;
   onCancelSubscription: () => void;
+  /** PRO-NA-03 — present only when the viewer may manage the plan. */
+  onResumeSubscription?: () => void;
   cancelBusy: boolean;
   onViewPlans?: () => void;
 }) {
@@ -110,17 +113,37 @@ export function ManagePlanSheet({
           <View style={{ gap: theme.space.s2 }}>
             <ProovraText variant="bodySm" weight="semibold">Cancel subscription</ProovraText>
             {plan.cancelAtPeriodEnd ? (
-              <ProovraText variant="label" color={theme.color.ink.secondary}>
-                {periodEnd
-                  ? `Cancels on ${periodEnd}. You keep ${plan.displayName} until then, and nothing is charged again.`
-                  : "This subscription is cancelling at the end of the period you have paid for. Nothing is charged again."}
-              </ProovraText>
+              <>
+                <ProovraText variant="label" color={theme.color.ink.secondary}>
+                  {periodEnd
+                    ? `Cancels on ${periodEnd}. You keep ${plan.displayName} until then, and nothing is charged again.`
+                    : "This subscription is cancelling at the end of the period you have paid for. Nothing is charged again."}
+                </ProovraText>
+                {/* PRO-NA-03 — the inverse of cancelling, as on the web
+                    (ManagePlanDrawer "Restart subscription"). It buys nothing:
+                    it asks the provider to keep renewing what is already paid
+                    for. PayPal cannot restart a cancelled subscription. */}
+                {onResumeSubscription && plan.paymentProviderLabel !== "PayPal" ? (
+                  <ProovraButton
+                    label="Restart subscription"
+                    variant="secondary"
+                    fullWidth={false}
+                    loading={cancelBusy}
+                    onPress={onResumeSubscription}
+                    testID="billing-manage-resume"
+                  />
+                ) : null}
+              </>
             ) : actions.canRequestCancellation ? (
               <>
                 <ProovraText variant="label" color={theme.color.ink.secondary}>
                   {`${
                     // B6-F-67 — the confirmation's own provider statement.
-                    plan.paymentProviderLabel === "PayPal"
+                    plan.paymentProviderLabel === "PayPal" && plan.cancellationKeepsPaidPeriod
+                      ? periodEnd
+                        ? `PayPal stops the subscription immediately; you keep your plan until ${periodEnd}, the end of the period you have paid for, and then move to Free.`
+                        : "PayPal stops the subscription immediately; you keep your plan until the end of the period you have paid for, and then move to Free."
+                      : plan.paymentProviderLabel === "PayPal"
                       ? "PayPal ends a subscription immediately: your plan moves to Free when PayPal confirms the cancellation."
                       : periodEnd
                         ? `Your plan will move to Free at the end of the period you have paid for, on ${periodEnd}.`

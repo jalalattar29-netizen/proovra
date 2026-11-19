@@ -130,6 +130,9 @@ export const NOTIFICATION_EVENT_TYPES = [
   "WORKSPACE_OWNERSHIP_RECEIVED",
   "WORKSPACE_CLOSED",
   "ACCOUNT_CLOSED",
+  // PRO-N1-12 (WS-BILL) — an account closure request that did not run at
+  // execution because a blocker appeared during cooling-off. Transactional.
+  "ACCOUNT_CLOSURE_BLOCKED",
   // PROV-013 — an organization's owners and administrators are told when a
   // contract termination is scheduled, not when it has already happened.
   "ORGANIZATION_TERMINATION_SCHEDULED",

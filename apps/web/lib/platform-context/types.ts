@@ -480,6 +480,17 @@ export type PlatformContextAccount = {
   displayName: string | null;
   accountPlan: WorkspacePlan | null;
   accountStatus: "active" | "suspended" | "pending";
+  /**
+   * PRO-N1-13 — the person's own paid plan needs attention. Absent on an API
+   * that predates it (render nothing then).
+   */
+  billingSignal?: AccountBillingSignal | null;
+};
+
+export type AccountBillingSignal = {
+  state: "PAST_DUE" | "PAST_DUE_EXPIRED" | "LAPSED" | "CANCELLING";
+  graceEndsAtUtc: string | null;
+  endsAtUtc: string | null;
 };
 
 export type PlatformContextPersonalSpace = {

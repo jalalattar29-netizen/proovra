@@ -90,6 +90,7 @@ import {
   findLivePersonalSubscription,
   resolvePersonalPlanTransition,
 } from "../services/billing/plan-transition.service.js";
+import { createPaymentManagementLink } from "../services/billing/payment-management.service.js";
 import { internalGrantCheckoutRefusal } from "../services/billing/internal-plan-grant.service.js";
 import {
   resolvePendingPayPalCheckout,
@@ -1133,6 +1134,42 @@ export async function billingRoutes(app: FastifyInstance) {
   );
 
   /**
+   * PRO-BL1-02 (WS-BILL) — fix a failed payment, change the card, get invoices
+   * and receipts: a link to the provider's own hosted billing page for the
+   * payer's live PERSONAL subscription (Stripe Customer Portal session; PayPal
+   * automatic payments). BILLING_MANAGE on the caller's own account; nothing
+   * is stored, and repeated presses create independent short-lived sessions.
+   */
+  app.post(
+    "/v1/billing/subscription/payment-management",
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("subscription_change", 20)] },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      CancelSubscriptionBody.parse(req.body ?? {});
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_MANAGE",
+      });
+      const base = (
+        process.env.APP_BASE_URL?.trim() ||
+        process.env.WEB_BASE_URL?.trim() ||
+        process.env.NEXT_PUBLIC_WEB_BASE?.trim() ||
+        "https://app.proovra.com"
+      ).replace(/\/+$/, "");
+      const link = await createPaymentManagementLink({ userId, returnUrl: `${base}/billing` });
+      auditBillingAction(req, {
+        userId,
+        action: "billing.payment_management_opened",
+        outcome: "success",
+        metadata: { provider: link.provider },
+      });
+      return reply.code(200).send({ paymentManagement: link });
+    }
+  );
+
+  /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — cancel a RECURRING storage
    * add-on.
    *
@@ -1565,6 +1602,11 @@ export async function billingRoutes(app: FastifyInstance) {
         attemptId: guard.attemptId,
         confirmed: body.data.confirmed === true,
       });
+      // PRO-BL1C-02 (WS-BILL) — the audit records what actually happened at the
+      // provider (a Stripe session expired by this abandon), as the PayPal
+      // return route already does; it used to say false/LOCAL every time. A
+      // confirmation request performs nothing, so it records no provider act.
+      const stoppedAtProvider = result.outcome === "ABANDONED" && result.cancelsAtProvider === true;
       auditBillingAction(req, {
         userId: guard.userId,
         action: "billing.checkout_attempt_abandoned",
@@ -1575,11 +1617,13 @@ export async function billingRoutes(app: FastifyInstance) {
           result: result.outcome,
           act:
             result.outcome === "ABANDONED"
-              ? "LOCAL_ABANDONMENT"
+              ? stoppedAtProvider
+                ? "PROVIDER_CANCELLATION"
+                : "LOCAL_ABANDONMENT"
               : result.outcome === "ABANDON_CONFIRMATION_REQUIRED"
                 ? "CONFIRMATION_REQUESTED"
                 : "NO_LOCAL_ABANDONMENT",
-          cancelsAtProvider: false,
+          cancelsAtProvider: stoppedAtProvider,
         },
       });
       return reply.code(200).send(result);

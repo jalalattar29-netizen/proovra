@@ -301,6 +301,7 @@ export function renderTransactionalTemplate(
     case "WORKSPACE_OWNERSHIP_RECEIVED":
     case "WORKSPACE_CLOSED":
     case "ACCOUNT_CLOSED":
+    case "ACCOUNT_CLOSURE_BLOCKED":
     case "ORGANIZATION_TERMINATION_SCHEDULED":
       return renderMembershipLifecycle(eventType, expectCtx(ctx, "MembershipLifecycle"));
     case "SIGNING_KEY_COMPROMISE_NOTICE":
@@ -742,6 +743,7 @@ type MembershipLifecycleEvent =
   | "WORKSPACE_OWNERSHIP_RECEIVED"
   | "WORKSPACE_CLOSED"
   | "ACCOUNT_CLOSED"
+  | "ACCOUNT_CLOSURE_BLOCKED"
   | "ORGANIZATION_TERMINATION_SCHEDULED";
 
 function renderMembershipLifecycle(
@@ -787,6 +789,11 @@ function renderMembershipLifecycle(
     ACCOUNT_CLOSED: {
       title: `Your ${brand} account was closed`,
       line: `Your ${brand} account was closed. Records held by workspaces remain governed by their retention and legal hold rules.`,
+    },
+    // PRO-N1-12 — the person must not believe the account closed.
+    ACCOUNT_CLOSURE_BLOCKED: {
+      title: `Your ${brand} account was not closed`,
+      line: `Your request to close your ${brand} account could not be carried out, usually because something that prevents closure appeared during the waiting period (for example an active subscription, a legal hold or an organization you own). Your account is unchanged and you can still sign in. Open Settings, Privacy and data, to see what is needed, then request closure again.`,
     },
   };
   const { title, line } = copy[eventType];
