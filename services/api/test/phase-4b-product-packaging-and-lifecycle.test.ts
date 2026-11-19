@@ -47,7 +47,6 @@ import {
   createWebhookEndpoint,
   emitWebhookEvent,
   verifyIncomingSignature,
-  deliverWebhookDelivery,
   deactivateWebhookEndpoint,
   listWebhookEndpoints,
 } from "../src/services/packaging/webhooks/webhook-platform.service.js";
@@ -510,7 +509,6 @@ describe("3. Service module surface — typeof checks", () => {
     expect(typeof createWebhookEndpoint).toBe("function");
     expect(typeof emitWebhookEvent).toBe("function");
     expect(typeof verifyIncomingSignature).toBe("function");
-    expect(typeof deliverWebhookDelivery).toBe("function");
     expect(typeof deactivateWebhookEndpoint).toBe("function");
     expect(typeof listWebhookEndpoints).toBe("function");
   });
@@ -1190,112 +1188,20 @@ describe("12. Webhook signing + delivery", () => {
 // ===========================================================================
 
 describe("13. Webhook delivery state machine", () => {
-
-  it("200 response → DELIVERED", async () => {
-    let updatedState: string | undefined;
-    const prisma = makePrismaStub({
-      lifecycleWebhookDelivery: {
-        findUnique: async () => ({
-          id: "del-1",
-          teamId: "team-1",
-          state: "PENDING",
-          attemptCount: 0,
-          eventKind: "EVIDENCE_CREATED",
-          signature: "a".repeat(64),
-          payload: {},
-          endpoint: { id: "ep-1", url: "https://example.com/hook", state: "ACTIVE" },
-        }),
-        update: async (args: { data: Record<string, unknown> }) => {
-          updatedState = args.data.state as string;
-          return args.data;
-        },
-        create: async () => ({ id: "del-1" }),
-        findFirst: async () => null,
-      },
-    });
-
-    // The shared outbound transport is the test seam (PRO-061).
-    try {
-      const result = await deliverWebhookDelivery({
-        prisma: prisma as never,
-        deliveryId: "del-1",
-        send: async () => ({ kind: "response", status: 200, responseBytes: 2 }),
-      });
-      expect(result.ok).toBe(true);
-      expect(updatedState).toBe("DELIVERED");
-    } finally {
-      // nothing to restore: no global was patched
-    }
-  });
-
-  it("500 + attemptCount<8 → RETRYING with nextRetryAtUtc", async () => {
-    let updatedState: string | undefined;
-    const prisma = makePrismaStub({
-      lifecycleWebhookDelivery: {
-        findUnique: async () => ({
-          id: "del-2",
-          teamId: "team-1",
-          state: "PENDING",
-          attemptCount: 3,
-          eventKind: "EVIDENCE_CREATED",
-          signature: "a".repeat(64),
-          payload: {},
-          endpoint: { id: "ep-1", url: "https://example.com/hook", state: "ACTIVE" },
-        }),
-        update: async (args: { data: Record<string, unknown> }) => {
-          updatedState = args.data.state as string;
-          return args.data;
-        },
-        create: async () => ({ id: "del-2" }),
-        findFirst: async () => null,
-      },
-    });
-    try {
-      const result = await deliverWebhookDelivery({
-        prisma: prisma as never,
-        deliveryId: "del-2",
-        send: async () => ({ kind: "response", status: 500, responseBytes: 5 }),
-      });
-      expect(result.ok).toBe(false);
-      expect(updatedState).toBe("RETRYING");
-      expect(result.nextRetryAtUtc).toBeInstanceOf(Date);
-    } finally {
-      // nothing to restore: no global was patched
-    }
-  });
-
-  it("500 + attemptCount>=8 → DEAD_LETTERED", async () => {
-    let updatedState: string | undefined;
-    const prisma = makePrismaStub({
-      lifecycleWebhookDelivery: {
-        findUnique: async () => ({
-          id: "del-3",
-          teamId: "team-1",
-          state: "PENDING",
-          attemptCount: 8,
-          eventKind: "EVIDENCE_CREATED",
-          signature: "a".repeat(64),
-          payload: {},
-          endpoint: { id: "ep-1", url: "https://example.com/hook", state: "ACTIVE" },
-        }),
-        update: async (args: { data: Record<string, unknown> }) => {
-          updatedState = args.data.state as string;
-          return args.data;
-        },
-        create: async () => ({ id: "del-3" }),
-        findFirst: async () => null,
-      },
-    });
-    try {
-      const result = await deliverWebhookDelivery({
-        prisma: prisma as never,
-        deliveryId: "del-3",
-        send: async () => ({ kind: "response", status: 500, responseBytes: 5 }),
-      });
-      expect(result.ok).toBe(false);
-      expect(updatedState).toBe("DEAD_LETTERED");
-    } finally {
-      // nothing to restore: no global was patched
+  // WS-SCHED / PRO-W2-12 — the API's caller-less second dispatcher (another
+  // wire contract, no row claim) was removed. The state machine is the worker
+  // dispatcher's and is exercised against PostgreSQL in
+  // outbound-webhook-ssrf.integration.test.ts.
+  it("the API module does not carry a second dispatcher", () => {
+    const api = fs.readFileSync(
+      new URL("../src/services/packaging/webhooks/webhook-platform.service.ts", import.meta.url),
+      "utf8",
+    );
+    expect(api).not.toMatch(/export async function deliverWebhookDelivery/);
+    expect(api).not.toMatch(/sendOutboundRequest/);
+    const worker = fs.readFileSync(new URL("../../worker/src/webhook-dispatcher.ts", import.meta.url), "utf8");
+    for (const state of ["DISPATCHING", "DELIVERED", "RETRYING", "DEAD_LETTERED", "FAILED"]) {
+      expect(worker).toContain(`"${state}"`);
     }
   });
 });

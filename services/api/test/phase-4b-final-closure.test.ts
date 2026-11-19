@@ -698,9 +698,11 @@ describe("9. C3 — certificate route + artifact endpoint", () => {
 describe("10. C4 — webhook dispatcher state machine", () => {
   it("webhook-platform.service.ts or webhook-dispatcher.ts has DEAD_LETTERED transition", () => {
     let found = false;
+    // WS-SCHED / PRO-W2-12 — the one dispatcher is the worker's.
     for (const rel of [
       "services/packaging/webhooks/webhook-platform.service.ts",
       "services/integrations/webhook-dispatcher.ts",
+      "../../worker/src/webhook-dispatcher.ts",
     ]) {
       try {
         const src = readSrc(rel);
@@ -715,11 +717,14 @@ describe("10. C4 — webhook dispatcher state machine", () => {
     expect(found).toBe(true);
   });
 
-  it("webhook-platform.service.ts has deliverWebhookDelivery function", async () => {
-    const { deliverWebhookDelivery } = await import(
+  // WS-SCHED / PRO-W2-12 — one dispatcher: the worker's. The API module emits
+  // PENDING rows and no longer carries a second, caller-less sender.
+  it("webhook-platform.service.ts emits; the worker dispatcher delivers", async () => {
+    const mod: Record<string, unknown> = await import(
       "../src/services/packaging/webhooks/webhook-platform.service.js"
     );
-    expect(typeof deliverWebhookDelivery).toBe("function");
+    expect(typeof mod.emitWebhookEvent).toBe("function");
+    expect(mod.deliverWebhookDelivery).toBeUndefined();
   });
 
   it("WEBHOOK_DELIVERY_STATES has DEAD_LETTERED", async () => {
