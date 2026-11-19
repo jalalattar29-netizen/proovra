@@ -587,8 +587,10 @@ function VersionWorkspace({
       ) : project.artifactKind === "PDF" ? (
         <PdfRedactionViewer
           evidenceId={project.evidenceId}
+          projectId={project.id}
           versionId={version.id}
           versionLocked={version.state !== "DRAFT"}
+          regions={version.regions ?? []}
           onChanged={onChanged}
         />
       ) : project.artifactKind === "VIDEO" ? (
