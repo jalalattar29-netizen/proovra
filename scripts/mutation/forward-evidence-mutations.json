@@ -1241,8 +1241,8 @@
     "phase": "P7",
     "name": "withheld identity keeps its categorical labels",
     "file": "services/api/src/services/public-verify/public-verify-projection.ts",
-    "find": "  if (!isObj(r) || !isObj(r.identity) || r.identity.disclosure !== \"WITHHELD\") return r;",
-    "replace": "  if (!isObj(r) || !isObj(r.identity) || r.identity.disclosure !== \"WITHHELD\" || Date.now() > 0) return r;",
+    "find": "  if (!isObj(out.identity) || out.identity.disclosure !== \"WITHHELD\") return out;",
+    "replace": "  if (!isObj(out.identity) || out.identity.disclosure !== \"WITHHELD\" || Date.now() > 0) return out;",
     "tests": [
       {
         "cwd": "services/api",

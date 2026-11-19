@@ -1543,6 +1543,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // GOV-012: the owner-only legal-hold disclosure setting (default BLOCK). EXPAND.
       "20281119100400_legal_hold_disclosure_setting",
       "20281120000000_login_mfa_challenge_factors",
+      // PRO-W1C-05 (WS-OUT): an exchange package's disclosure profile (default FULL_FORENSIC). EXPAND.
+      "20281121040000_exchange_package_disclosure_profile",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

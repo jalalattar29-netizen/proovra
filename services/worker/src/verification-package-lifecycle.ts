@@ -1,8 +1,9 @@
 /**
  * PROOVRA Phase 4B — Verification package lifecycle + exchange manifests.
  *
- * Produces seven OPTIONAL advisory JSON files that the verification package
- * may carry. All manifests:
+ * Produces up to four OPTIONAL advisory JSON files that the verification
+ * package may carry (PRO-W1C-02: selection-scoped; the workspace-wide
+ * retention, exchange and transfer families are no longer written). All manifests:
  *   * Are additive only — downstream tooling works without them.
  *   * Never include raw reasons or PII.
  *   * Carry only bounded counts + bounded ids + bounded states.
@@ -10,12 +11,9 @@
  *
  * Paths under the `lifecycle/` prefix:
  *   lifecycle/lifecycle-manifest.json
- *   lifecycle/retention-manifest.json
  *   lifecycle/legal-hold-manifest.json
  *   lifecycle/archive-manifest.json
  *   lifecycle/destruction-manifest.json
- *   lifecycle/exchange-manifest.json
- *   lifecycle/transfer-manifest.json
  *
  * Shape-compatible with the API-side preview writers in
  * services/api/src/services/lifecycle/lifecycle-manifest.service.ts.
