@@ -1,20 +1,16 @@
 /**
- * UC-AND-006 — capture ends with the account session.
+ * UC-AND-006 â€” capture ends with the account session.
  *
- * RED on the pre-remediation tree: sign-out called only logout + token clear —
+ * RED on the pre-remediation tree: sign-out called only logout + token clear â€”
  * a running MediaProjection recording kept going, the open server sessions and
  * their reserved records stayed open, the local spool stayed on disk and the
  * device-wide durable record was offered to the next account.
  */
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
 
 import { loadModule } from "./support/render.mjs";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
 let T;
 const native = [];
 let requests = [];
@@ -23,8 +19,10 @@ before(async () => {
   T = await loadModule("src/capture/capture-teardown.ts", [
     "src/capture/capture-session-store.ts",
     "src/capture/continuous-session-store.ts",
+    "src/auth/account-switch.ts",
     "test/support/expo-stub.mjs",
   ]);
+
 });
 
 beforeEach(() => {
@@ -50,7 +48,7 @@ beforeEach(() => {
   };
 });
 
-// PRO-NBC-03 / PRO-NA-13 / DEC-24 — sign-out stops capture but is never consent
+// PRO-NBC-03 / PRO-NA-13 / DEC-24 â€” sign-out stops capture but is never consent
 // to delete evidence: no server discard, no file deletion, the records stay
 // for their owner (and only for their owner).
 test("PRO-NBC-03: sign-out stops the recorder and preserves every staged capture, server session and file", async () => {
@@ -77,11 +75,36 @@ test("PRO-NBC-03: sign-out stops the recorder and preserves every staged capture
   assert.equal(await T.loadLiveContinuousSession(), null);
 });
 
-test("the settings sign-out runs the teardown BEFORE the token is revoked", () => {
-  const src = readFileSync(resolve(HERE, "../app/(tabs)/settings.tsx"), "utf8");
-  const body = src.match(/const doLogout = useCallback\(async \(\) => \{([\s\S]*?)\}, \[/);
-  assert.ok(body, "doLogout not found");
-  const teardown = body[1].indexOf("teardownCaptureOnSignOut()");
-  const logout = body[1].indexOf("await logoutApi()");
-  assert.ok(teardown >= 0 && logout > teardown, "capture teardown must run while the token is still valid");
+// PRO-NBC-03 (review gap 3) â€” behavioural, over the real sign-out sequence
+// (signOutOnDevice, used by Settings and the invitation's "switch account"):
+// the recorder is stopped only once the server confirmed the sign-out.
+test("PRO-NBC-03: a sign-out the server did not complete leaves the recording running; a confirmed one stops it", async () => {
+  T.setCaptureSessionOwner("user-a");
+  const logoutAnswers = (status, body) => {
+    globalThis.fetch = async (url, init = {}) => {
+      const path = String(url).replace(/^https?:\/\/[^/]+/, "");
+      if (path.startsWith("/v1/auth/logout")) {
+        if (status === 200) native.push("logout");
+        if (status === 0) throw new TypeError("Network request failed");
+        return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+      }
+      requests.push({ path, method: init.method ?? "GET" });
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+    };
+  };
+
+  for (const [status, body] of [[0, null], [503, { error: { code: "SERVER_BUSY", message: "busy" } }], [503, { error: { code: "logout_incomplete", message: "incomplete" } }]]) {
+    logoutAnswers(status, body);
+    const outcome = await T.signOutOnDevice();
+    assert.equal(outcome.ok, false, `status ${status}`);
+    assert.deepEqual(native, [], "the recorder was stopped although the person is still signed in");
+  }
+
+  logoutAnswers(200, { ok: true });
+  const done = await T.signOutOnDevice();
+  assert.equal(done.ok, true);
+  assert.deepEqual(native, ["logout", "stopContinuousCapture"], "the recorder stops after the server confirmed the sign-out");
+
+  assert.deepEqual(requests.filter((r) => r.path.endsWith("/discard")), [], "sign-out discarded a capture");
 });
+

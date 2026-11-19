@@ -21,13 +21,37 @@
 import { getAuthToken, setAuthToken } from "../api";
 import { teardownCaptureOnSignOut } from "../capture/capture-teardown";
 import { clearAccountResidue } from "./account-residue";
-import { logout } from "./auth-api";
+import { logout, type ServerSignOutResult } from "./auth-api";
 
-/** Sign-out: stop capture (preserving what was captured), then revoke the current session. The caller clears the token. */
+/**
+ * A NEW SIGN-IN replaces the session: the old account ends on this device
+ * whatever the server answers, so capture is stopped (preserving what was
+ * captured, and claiming it for the old account) after the revoke was tried.
+ * The caller clears the token.
+ */
 export async function endDeviceSession(): Promise<void> {
-  await teardownCaptureOnSignOut().catch(() => undefined);
   await logout();
+  await teardownCaptureOnSignOut().catch(() => undefined);
 }
+
+/**
+ * THE SIGN-OUT A PERSON ASKS FOR (Settings, the invitation's "switch account").
+ *
+ * PRO-NBC-03 (review gap 3) — the recorder used to be stopped BEFORE the
+ * server's answer was known, so a sign-out that failed (offline, busy) left
+ * the person signed in with their recording stopped. A recorder cannot be
+ * resumed (the OS consent is gone), so it is stopped only once the server has
+ * confirmed the sign-out. On a failed sign-out nothing is touched: the person
+ * is still signed in and still recording. Stopping needs no token, and the
+ * caller clears the token only after this returns ok.
+ */
+export async function signOutOnDevice(): Promise<ServerSignOutResult> {
+  const outcome = await logout();
+  if (!outcome.ok) return outcome;
+  await teardownCaptureOnSignOut().catch(() => undefined);
+  return outcome;
+}
+
 
 /**
  * A new sign-in is about to replace `previousToken` on this device.

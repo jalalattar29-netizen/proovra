@@ -11,12 +11,18 @@
  * them or discard them explicitly.
  */
 import {
+  getContinuousLedger,
   getContinuousSegments,
+  getRecoveredScreenCapture,
+  getRecoveredScreenCaptureOwner,
   getScreenCaptureState,
   getScreenContinuousState,
+  listContinuousRecordings,
   stopContinuousCapture,
   stopScreenCapture,
 } from "../../modules/proovra-screen-capture";
+import { getCaptureSessionOwner } from "./capture-session-store";
+import { claimResidue, continuousResidueId, frameResidueId } from "./native-residue-owner";
 
 async function quietly(step: () => Promise<unknown>): Promise<void> {
   try {
@@ -55,6 +61,34 @@ async function stopNativeCapture(localFiles: Set<string>): Promise<void> {
  */
 export async function stopCaptureOnSessionEnd(): Promise<void> {
   await stopNativeCapture(new Set());
+  await claimNativeResidue();
+}
+
+/**
+ * PRO-NBC-03 (review gaps 1 and 2) — what the native recorders still hold when
+ * this account's session ends is CLAIMED for this account, so the next account
+ * on the device is never offered it and can never discard it
+ * (native-residue-owner.ts). Only residue no native owner and no earlier claim
+ * covers is claimed (a recording made by an earlier build, an iOS broadcast
+ * recording, a recording that never reached its session); the first claim
+ * stands, so residue that is already somebody else's stays theirs.
+ */
+async function claimNativeResidue(): Promise<void> {
+  const owner = getCaptureSessionOwner();
+  if (!owner) return;
+  await quietly(async () => {
+    const recovered = getRecoveredScreenCapture();
+    if (recovered && !getRecoveredScreenCaptureOwner().ownerUserId) {
+      await claimResidue(frameResidueId(recovered.captureStartedAtUtc), owner);
+    }
+  });
+  await quietly(async () => {
+    const ledger = getContinuousLedger();
+    if (ledger && !ledger.ownerUserId) await claimResidue(continuousResidueId(ledger.recordingId), owner);
+  });
+  await quietly(async () => {
+    for (const r of listContinuousRecordings()) await claimResidue(continuousResidueId(r.recordingId), owner);
+  });
 }
 
 /**
@@ -78,4 +112,6 @@ export async function stopCaptureOnSessionEnd(): Promise<void> {
  */
 export async function teardownCaptureOnSignOut(): Promise<void> {
   await stopNativeCapture(new Set());
+  await claimNativeResidue();
 }
+

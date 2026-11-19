@@ -29,10 +29,15 @@ test("the capture paths send the provider's mock flag with the fix (the ONE shar
 
 test("the frame screen offers a recovered capture and clears the ledger only when staged or discarded", () => {
   const src = read("app/(stack)/screen-capture.tsx");
-  assert.match(src, /const recovered = getRecoveredScreenCapture\(\);/);
-  assert.match(src, /dispatch\(\{ type: "STOPPED", frameCount: recovered\.frames\.length, stopReason: recovered\.stopReason \}\)/);
-  // Cleared after a successful staging, a terminal refusal, and an explicit reset.
-  assert.equal((src.match(/clearScreenCaptureLedger\(\)/g) ?? []).length, 3);
+  // PRO-NBC-03 — through the owner gate: only the account that made it is offered it.
+  assert.match(src, /ownedRecoveredScreenCapture\(userId\)/);
+  assert.match(src, /dispatch\(\{ type: "RECOVERED", frameCount: recovered\.frames\.length, stopReason: recovered\.stopReason \}\)/);
+
+  // Cleared after a successful staging, a terminal refusal, and an explicit reset
+  // — never another account's ledger (clearOwnedScreenCaptureLedger).
+  assert.equal((src.match(/clearOwnedScreenCaptureLedger\(userId\)/g) ?? []).length, 3);
+  assert.ok(!/[^d]clearScreenCaptureLedger\(/.test(src), "the screen clears the frame ledger only through the owner gate");
+
 });
 
 test("the Android service records each frame durably before JS is told, and the module refuses to overwrite recovered frames", () => {

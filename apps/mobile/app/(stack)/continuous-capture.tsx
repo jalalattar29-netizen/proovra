@@ -106,6 +106,13 @@ import {
 } from "../../src/capture/notification-permission";
 import { openCaptureDraft } from "../../src/capture/capture-draft";
 import {
+  claimResidue,
+  continuousResidueId,
+  FOREIGN_RESIDUE_COPY,
+  foreignContinuousResidue,
+  mayDiscardContinuousResidue,
+} from "../../src/capture/native-residue-owner";
+import {
   toScreenDraftItem,
   type ScreenAcquisitionMode,
 } from "../../src/capture/screen-acquisition";
@@ -148,7 +155,15 @@ import {
 
 type SessionRef = { session: DirectCaptureSession; evidenceId: string };
 
-type Recovery = null | { kind: "ended" } | { kind: "expired" } | { kind: "orphan" } | { kind: "leftover" } | { kind: "mismatch" };
+type Recovery =
+  | null
+  | { kind: "ended" }
+  | { kind: "expired" }
+  | { kind: "orphan" }
+  | { kind: "leftover" }
+  | { kind: "mismatch" }
+  // PRO-NBC-03 — a recording another account left on this device: never offered, never discarded here.
+  | { kind: "foreign"; running: boolean };
 
 /** PRO-NBC-02 — well inside the server's one-hour sliding expiry. */
 const CONTINUOUS_HEARTBEAT_MS = 10 * 60 * 1000;
@@ -178,6 +193,8 @@ export default function ContinuousCaptureScreen() {
   const [limitAction, setLimitAction] = useState<{ forMessage: string; label: string; route: string } | null>(null);
   const [notificationDenied, setNotificationDenied] = useState(false);
   const [recovery, setRecovery] = useState<Recovery>(null);
+  // PRO-NBC-03 — iOS keeps several recordings: another account's is kept and said, and does not block this one.
+  const [foreignIosNote, setForeignIosNote] = useState(false);
   const isIOS = Platform.OS === "ios";
   const copy = isIOS ? CONTINUOUS_PLATFORM_COPY.ios : CONTINUOUS_PLATFORM_COPY.android;
   const supported =
@@ -369,13 +386,17 @@ export default function ContinuousCaptureScreen() {
     const recordingId = recordingIdRef.current;
     sessionRef.current = null;
     clearStartTimer();
-    if (getScreenContinuousState(recordingId).active) await stopContinuousCapture(recordingId).catch(() => undefined);
-    await cleanupContinuousTempFiles(seenRef.current);
-    await discardContinuousSpool(recordingId).catch(() => undefined);
+    // PRO-NBC-03 — never another account's recording: this account's own
+    // session is released, the other account's recorder and spool are left.
+    if (await mayDiscardContinuousResidue(userId, recordingId)) {
+      if (getScreenContinuousState(recordingId).active) await stopContinuousCapture(recordingId).catch(() => undefined);
+      await cleanupContinuousTempFiles(seenRef.current);
+      await discardContinuousSpool(recordingId).catch(() => undefined);
+    }
     await clearLiveContinuousSession();
     // PRO-NB-03 — a release that got no answer is kept for Capture to retry.
     if (active) await releaseDirectSessionOrKeep(active.session, active.evidenceId, { discard: discardDirectCaptureSession, keep: keepUnreleased });
-  }, [clearStartTimer]);
+  }, [clearStartTimer, userId]);
 
   /**
    * Open the server session once the OS is actually recording. A failure here
@@ -474,7 +495,11 @@ export default function ContinuousCaptureScreen() {
           return;
         }
         const live = await loadLiveContinuousSession();
+        // PRO-NBC-03 — whose is what the native recorder holds? (Unclaimed
+        // residue is this account's and is claimed for it here.)
+        const foreign = await foreignContinuousResidue(userId, { adopt: true });
         if (cancelled) return;
+        setForeignIosNote(isIOS && foreign.recordingIds.length > 0);
         if (live) {
           // AUD-006 — iOS: reattach only to the recording this session bound;
           // any other recording is refused, never attached or uploaded.
@@ -516,6 +541,11 @@ export default function ContinuousCaptureScreen() {
             // one-hour expiry on the device clock; the server answers the rest.
             setRecovery(captureSessionRecoverable(live) ? { kind: "ended" } : { kind: "expired" });
           }
+        } else if (!isIOS && foreign.ledger) {
+          // PRO-NBC-03 — the device's one recording belongs to another account:
+          // it is not offered, not described as nobody's, and cannot be
+          // discarded here. It waits for its owner.
+          setRecovery({ kind: "foreign", running: native.active });
         } else if (native.active) {
           setRecovery({ kind: "orphan" });
         } else if (planContinuousRecovery(getContinuousLedger(), null, userId).kind === "RECOVER") {
@@ -525,7 +555,12 @@ export default function ContinuousCaptureScreen() {
           setRecovery({ kind: "ended" });
         } else if (
           isIOS
-            ? listContinuousRecordings().some((r) => !r.active && (r.segmentCount > 0 || (r as { layout?: string }).layout === "SINGLE_FILE"))
+            ? listContinuousRecordings().some(
+                (r) =>
+                  !foreign.recordingIds.includes(r.recordingId) &&
+                  !r.active &&
+                  (r.segmentCount > 0 || (r as { layout?: string }).layout === "SINGLE_FILE"),
+              )
             : getContinuousSegments().length > 0 ||
               // Contract B — an interrupted SINGLE_FILE ledger has no segments
               // but blocks a new start (PENDING_RECORDING) until discarded.
@@ -641,10 +676,14 @@ export default function ContinuousCaptureScreen() {
           }
         }
         // The OS consent comes FIRST; no server session exists until the OS records.
-        const started = await startContinuousCapture(
-          (withMicrophone ? { microphone: true } : {}) as Parameters<typeof startContinuousCapture>[0],
-        );
+        const started = await startContinuousCapture({
+          ...(withMicrophone ? { microphone: true } : {}),
+          ownerUserId: userId,
+        } as Parameters<typeof startContinuousCapture>[0]);
         recordingIdRef.current = started.recordingId ?? null;
+        // PRO-NBC-03 — this recording is this account's from its first moment
+        // (the Android ledger records it natively too).
+        void claimResidue(continuousResidueId(started.recordingId ?? getContinuousLedger()?.recordingId), userId);
         if (started.awaitingSystemStart) {
           dispatch({ type: "AWAITING_SYSTEM_START" });
           clearStartTimer();
@@ -663,7 +702,20 @@ export default function ContinuousCaptureScreen() {
         await openServerSession();
       } catch (err) {
         if ((err as { code?: string } | null)?.code === "PENDING_RECORDING") {
-          setRecovery({ kind: "leftover" });
+          // PRO-NBC-03 — the recording in the way may be another account's.
+          const foreign = await foreignContinuousResidue(userId);
+          setRecovery(foreign.ledger ? { kind: "foreign", running: false } : { kind: "leftover" });
+          return;
+        }
+        if ((err as { code?: string } | null)?.code === "LEDGER_UNAVAILABLE") {
+          // PRO-NBC-04 — the recorder refused to start without its durable ledger.
+          await releaseSession();
+          dispatch({
+            type: "FAIL",
+            message:
+              "PROOVRA could not save the recording's recovery record on this device (storage may be full), so nothing was recorded. Free some space and try again.",
+            recoverable: true,
+          });
           return;
         }
         await releaseSession();
@@ -676,7 +728,7 @@ export default function ContinuousCaptureScreen() {
         setBusy(false);
       }
     },
-    [resetStreamRefs, openServerSession, releaseSession, clearStartTimer, useLocation, locationRequired, microphone, isIOS, workspace, toast],
+    [resetStreamRefs, openServerSession, releaseSession, clearStartTimer, useLocation, locationRequired, microphone, isIOS, workspace, toast, userId],
   );
 
   /** Stop (or adopt an already-ended recording) and show the reconciled summary. */
@@ -1002,13 +1054,22 @@ export default function ContinuousCaptureScreen() {
     // user's explicit choice); Android has one recorder.
     const ids: Array<string | null> = isIOS ? listContinuousRecordings().map((r) => r.recordingId) : [null];
     for (const id of ids) {
+      // PRO-NBC-03 — another account's recording is never stopped-and-discarded
+      // from here (the card that calls this is not shown for it either).
+      if (!(await mayDiscardContinuousResidue(userId, id))) continue;
       const segs = getContinuousSegments(id);
       await stopContinuousCapture(id).catch(() => undefined);
       await cleanupContinuousTempFiles(segs);
       await discardContinuousSpool(id).catch(() => undefined);
     }
     setRecovery(null);
-  }, [isIOS]);
+  }, [isIOS, userId]);
+
+  /** PRO-NBC-03 — stop another account's still-running recorder. Nothing it recorded is touched. */
+  const stopForeignRecorder = useCallback(async () => {
+    await stopContinuousCapture(null).catch(() => undefined);
+    setRecovery({ kind: "foreign", running: getScreenContinuousState(null).active });
+  }, []);
 
   /** AUD-006 — release a saved session whose recording is not (or no longer) its own. */
   const releaseMismatched = useCallback(async () => {
@@ -1019,7 +1080,9 @@ export default function ContinuousCaptureScreen() {
       await releaseDirectSessionOrKeep(
         { captureSessionId: live.captureSessionId, expiresAtUtc: live.expiresAtUtc },
         live.evidenceId,
-        { discard: discardDirectCaptureSession, keep: keepUnreleased },
+        // PRO-NB-01 — the person's own "Discard saved session".
+        { discard: (s) => discardDirectCaptureSession(s, { confirmedByPerson: true }), keep: keepUnreleased },
+
       );
     }
     setRecovery(null);
@@ -1086,7 +1149,26 @@ export default function ContinuousCaptureScreen() {
           </ProovraCard>
         )}
 
+        {recovery?.kind === "foreign" && (
+          <ProovraCard style={styles.card}>
+            <ProovraText variant="body" weight="semibold">
+              {recovery.running ? FOREIGN_RESIDUE_COPY.recordingRunning.title : FOREIGN_RESIDUE_COPY.recording.title}
+            </ProovraText>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              {recovery.running ? FOREIGN_RESIDUE_COPY.recordingRunning.body : FOREIGN_RESIDUE_COPY.recording.body}
+            </ProovraText>
+            {recovery.running && <ProovraButton label="Stop recording" onPress={() => void stopForeignRecorder()} />}
+          </ProovraCard>
+        )}
+
+        {foreignIosNote && !recovery && state.phase === "intro" && (
+          <ProovraCard style={styles.card}>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{FOREIGN_RESIDUE_COPY.recordingOtherIos}</ProovraText>
+          </ProovraCard>
+        )}
+
         {recovery?.kind === "orphan" && (
+
           <ProovraCard style={styles.card}>
             <ProovraText variant="body" weight="semibold">A screen recording is still running.</ProovraText>
             <ProovraText variant="bodySm" color={theme.color.ink.secondary}>

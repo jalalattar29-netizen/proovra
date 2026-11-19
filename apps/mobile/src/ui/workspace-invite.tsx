@@ -18,9 +18,10 @@ import {
 import { isWellFormedWorkspaceInviteToken } from "@proovra/shared";
 
 import { apiFetch } from "../api";
-import { logout, signOutIncompleteMessage, SIGN_OUT_INCOMPLETE_TITLE } from "../auth/auth-api";
+import { signOutIncompleteMessage, SIGN_OUT_INCOMPLETE_TITLE } from "../auth/auth-api";
 import { useAuth } from "../auth-context";
-import { teardownCaptureOnSignOut } from "../capture/capture-teardown";
+import { signOutOnDevice } from "../auth/account-switch";
+
 import { setPendingRoute } from "../deep-link/pending-intent";
 import { triggerLegalGate } from "../auth/legal-gate";
 import { refreshPlatformContext } from "../product/platform-context";
@@ -176,12 +177,12 @@ export function WorkspaceInvite({ token }: { token: string }) {
         router.push("/(stack)/register");
         return;
       case "switch-account":
-        // Capture ends with the account session here too, while the token is
-        // still valid. The invitation is set after sign-out, which clears intents.
-        await teardownCaptureOnSignOut().catch(() => undefined);
+        // Capture ends with the account session here too — once the server has
+        // confirmed the sign-out (PRO-NBC-03 review gap 3). The invitation is
+        // set after sign-out, which clears intents.
         {
           // B8-F-001 — a sign-out the server did not complete is said, not assumed.
-          const outcome = await logout();
+          const outcome = await signOutOnDevice();
           if (!outcome.ok) {
             Alert.alert(SIGN_OUT_INCOMPLETE_TITLE, signOutIncompleteMessage(outcome.reason));
             return;
