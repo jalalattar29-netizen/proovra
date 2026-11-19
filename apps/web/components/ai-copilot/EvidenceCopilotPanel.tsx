@@ -6,6 +6,7 @@
  * Advisory only; deterministic integrity facts are explained, never decided.
  */
 import { buildCopilotIdempotencyKey, identifierLabel } from "@proovra/shared";
+import { aiPanelFailure } from "../../lib/ai/assistant-state";
 import { useState } from "react";
 
 import { apiFetch, isApiResponseError } from "../../lib/api";
@@ -96,7 +97,7 @@ function suggestionConsequence(intent: "GENERATE" | "RETRY" | "RECOVER" | null):
 type UiState =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "error"; code: string; message: string }
+  | { kind: "error"; code: string; message: string; settingsHref?: string | null }
   | { kind: "result"; result: RunResult; serverActions: ServerAction[] };
 
 const SECTIONS: Array<{ key: keyof EvidenceCopilotData; label: string }> = [
@@ -291,7 +292,10 @@ export function EvidenceCopilotPanel({
       setState({ kind: "result", result: res.data ?? (res as RunResult), serverActions: res.serverActions ?? [] });
     } catch (err) {
       if (isApiResponseError(err)) {
-        setState({ kind: "error", code: err.code ?? String(err.statusCode), message: friendly(err.statusCode ?? 0) });
+        // PRO-AI1C-04 — the shared classifier, code first: a spent allowance
+        // or a plan refusal is said as such, not as "too many requests".
+        const failure = aiPanelFailure(err, friendly);
+        setState({ kind: "error", code: err.code ?? String(err.statusCode), message: failure.message, settingsHref: failure.settingsHref });
       } else {
         setState({ kind: "error", code: "NETWORK", message: "Could not reach the AI service. Evidence workflows are unaffected." });
       }
@@ -327,6 +331,12 @@ export function EvidenceCopilotPanel({
       {state.kind === "error" ? (
         <div className="app-alert app-alert--warn evd-block" role="alert">
           {state.message} <span className="evd-muted">({identifierLabel(state.code)})</span>
+          {state.settingsHref ? (
+            <>
+              {" "}
+              <a href={state.settingsHref} className="app-link">See AI usage in Settings</a>
+            </>
+          ) : null}
         </div>
       ) : null}
       {state.kind === "result" ? (

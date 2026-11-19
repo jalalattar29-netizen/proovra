@@ -34,6 +34,7 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { resolveProducerModeStatuses } from "@proovra/shared-runtime/media-intelligence";
+import { resolveWorkspaceProducerGate } from "../services/intelligence/media-intelligence.service.js";
 
 const TeamQuery = z.object({
   teamId: z.string().uuid(),
@@ -52,9 +53,11 @@ export async function intelligenceCapabilitiesRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      // PRO-AI1C-03 — the chips answer for THIS workspace, not the deployment.
       const producerModes = await resolveProducerModeStatuses({
         teamId,
         prisma,
+        workspaceGate: await resolveWorkspaceProducerGate(teamId),
       });
 
       return reply.code(200).send({ producerModes });

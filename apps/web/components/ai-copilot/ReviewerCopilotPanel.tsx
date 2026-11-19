@@ -13,6 +13,7 @@ import { AppListbox } from "../app-primitives/AppListbox";
 import { useEffect, useState } from "react";
 
 import { buildCopilotIdempotencyKey, identifierLabel } from "@proovra/shared";
+import { aiPanelFailure } from "../../lib/ai/assistant-state";
 
 import { apiFetch, isApiResponseError } from "../../lib/api";
 import { useActiveWorkspaceId } from "../../lib/platform-context";
@@ -110,7 +111,7 @@ type ObservationAck = {
 type UiState =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "error"; code: string; message: string }
+  | { kind: "error"; code: string; message: string; settingsHref?: string | null }
   | { kind: "result"; result: RunResult };
 
 const OBS_SECTIONS: Array<{ key: keyof ReviewerCopilotData; label: string }> = [
@@ -283,7 +284,9 @@ export function ReviewerCopilotPanel({
       setState({ kind: "result", result: res.data ?? (res as RunResult) });
     } catch (err) {
       if (isApiResponseError(err)) {
-        setState({ kind: "error", code: err.code ?? String(err.statusCode), message: friendly(err.statusCode ?? 0) });
+        // PRO-AI1C-04 — the shared classifier, code first.
+        const failure = aiPanelFailure(err, friendly);
+        setState({ kind: "error", code: err.code ?? String(err.statusCode), message: failure.message, settingsHref: failure.settingsHref });
       } else {
         setState({ kind: "error", code: "NETWORK", message: "Could not reach the AI service. Review workflows are unaffected." });
       }
@@ -388,6 +391,12 @@ export function ReviewerCopilotPanel({
       {state.kind === "error" ? (
         <div className="app-alert app-alert--warn" style={{ marginTop: 12 }} role="alert">
           {state.message} <span style={{ opacity: 0.6 }}>({identifierLabel(state.code)})</span>
+          {state.settingsHref ? (
+            <>
+              {" "}
+              <a href={state.settingsHref} className="app-link">See AI usage in Settings</a>
+            </>
+          ) : null}
         </div>
       ) : null}
 

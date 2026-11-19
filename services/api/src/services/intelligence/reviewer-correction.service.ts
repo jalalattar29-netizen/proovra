@@ -141,9 +141,12 @@ export async function createCorrection(
       supersedePrior = null;
     }
   }
-  const nextVersion = await nextVersionFor(prisma, input.teamId, input.recordId);
-
-  const created = await prisma.reviewerCorrection.create({
+  // PRO-AI1Z-03 — version allocation and insert under the per-record lock,
+  // so concurrent writers cannot take the same version number.
+  const created = await prisma.$transaction(async (tx) => {
+  await lockRecordChain(tx as unknown as PrismaClient, input.recordId);
+  const nextVersion = await nextVersionFor(tx as unknown as PrismaClient, input.teamId, input.recordId);
+  return tx.reviewerCorrection.create({
     data: {
       teamId: input.teamId,
       recordId: input.recordId,
@@ -157,6 +160,7 @@ export async function createCorrection(
       supersedesCorrectionId: supersedePrior?.id ?? null,
     },
     select: { id: true, versionNumber: true },
+  });
   });
 
   if (supersedePrior) {
@@ -224,15 +228,18 @@ export async function acceptCorrection(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   let evidenceId = "";
-  await prisma.$transaction(async (tx) => {
-    await tx.reviewerCorrection.update({
-      where: { id: correction.id },
+  // PRO-AI1Z-03 — the DRAFT -> ACCEPTED move is conditional INSIDE the
+  // transaction: of two concurrent accepts of one draft, exactly one moves it.
+  const moved = await prisma.$transaction(async (tx) => {
+    const transition = await tx.reviewerCorrection.updateMany({
+      where: { id: correction.id, state: "DRAFT" },
       data: {
         state: "ACCEPTED",
         acceptedByUserId: input.acceptedByUserId,
         acceptedAt: new Date(),
       },
     });
+    if (transition.count !== 1) return false;
     // Bump the parent record's state + final confidence.
     const record = await tx.mediaIntelligenceRecord.findFirst({
       where: { id: correction.recordId },
@@ -255,7 +262,9 @@ export async function acceptCorrection(
         finalConfidenceBand: finalBand,
       },
     });
+    return true;
   });
+  if (!moved) return { ok: false, denial: "POLICY_REJECTED" };
   await emitLifecycleEvent({
     prisma,
     teamId: input.teamId,
@@ -287,34 +296,81 @@ export async function revertCorrection(
       id: true,
       recordId: true,
       kind: true,
+      state: true,
+      revertedAt: true,
+      supersededAt: true,
       versionNumber: true,
       record: { select: { evidenceId: true } },
     },
   });
   if (!correction) return { ok: false, denial: "RECORD_NOT_FOUND" };
-  const nextVersion = await nextVersionFor(prisma, input.teamId, correction.recordId);
-  const reverted = await prisma.reviewerCorrection.create({
-    data: {
-      teamId: input.teamId,
-      recordId: correction.recordId,
-      kind: correction.kind,
-      state: "REVERTED",
-      patch: {} as never,
-      authoredByUserId: input.actorUserId,
-      versionNumber: nextVersion,
-      parentCorrectionId: correction.id,
-      supersedesCorrectionId: correction.id,
-    },
-    select: { id: true },
+  // PRO-AI1Z-03 — only a live DRAFT or ACCEPTED correction can be reverted.
+  // A revert marker (state REVERTED), an already-reverted or superseded row
+  // is refused: a revert of a revert is not a state of the chain.
+  if (
+    (correction.state !== "DRAFT" && correction.state !== "ACCEPTED") ||
+    correction.revertedAt !== null ||
+    correction.supersededAt !== null
+  ) {
+    return { ok: false, denial: "POLICY_REJECTED" };
+  }
+  const reverted = await prisma.$transaction(async (tx) => {
+    // The version slot is allocated under a per-record lock (dense, unique).
+    await lockRecordChain(tx as unknown as PrismaClient, correction.recordId);
+    const claimed = await tx.reviewerCorrection.updateMany({
+      where: { id: correction.id, revertedAt: null, supersededAt: null },
+      data: { revertedAt: new Date(), supersededAt: new Date() },
+    });
+    if (claimed.count !== 1) return null;
+    const nextVersion = await nextVersionFor(tx as unknown as PrismaClient, input.teamId, correction.recordId);
+    const marker = await tx.reviewerCorrection.create({
+      data: {
+        teamId: input.teamId,
+        recordId: correction.recordId,
+        kind: correction.kind,
+        state: "REVERTED",
+        patch: {} as never,
+        authoredByUserId: input.actorUserId,
+        versionNumber: nextVersion,
+        parentCorrectionId: correction.id,
+        supersedesCorrectionId: correction.id,
+      },
+      select: { id: true },
+    });
+    await tx.reviewerCorrection.update({
+      where: { id: correction.id },
+      data: { supersededByCorrectionId: marker.id },
+    });
+    // Reverting an ACCEPTED correction restores the record: still CORRECTED
+    // while another accepted, live correction stands; otherwise back to the
+    // provider output (PENDING, unreviewed, the provider's confidence band).
+    if (correction.state === "ACCEPTED") {
+      const stillAccepted = await tx.reviewerCorrection.count({
+        where: {
+          recordId: correction.recordId,
+          state: "ACCEPTED",
+          revertedAt: null,
+          supersededAt: null,
+        },
+      });
+      if (stillAccepted === 0) {
+        const record = await tx.mediaIntelligenceRecord.findFirst({
+          where: { id: correction.recordId },
+          select: { providerConfidenceBand: true },
+        });
+        await tx.mediaIntelligenceRecord.update({
+          where: { id: correction.recordId },
+          data: {
+            state: "PENDING",
+            reviewedAt: null,
+            finalConfidenceBand: record?.providerConfidenceBand ?? "LOW",
+          },
+        });
+      }
+    }
+    return marker;
   });
-  await prisma.reviewerCorrection.update({
-    where: { id: correction.id },
-    data: {
-      revertedAt: new Date(),
-      supersededByCorrectionId: reverted.id,
-      supersededAt: new Date(),
-    },
-  });
+  if (!reverted) return { ok: false, denial: "POLICY_REJECTED" };
   await emitLifecycleEvent({
     prisma,
     teamId: input.teamId,
@@ -436,6 +492,11 @@ export async function getCorrectionVersionChainsForEvidence(input: {
 // ---------------------------------------------------------------------------
 // Internal — next version slot for a record (1, 2, 3, …).
 // ---------------------------------------------------------------------------
+
+/** Serialises version allocation for one record's correction chain. */
+async function lockRecordChain(tx: PrismaClient, recordId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"reviewer_correction:" + recordId}))`;
+}
 
 async function nextVersionFor(
   prisma: PrismaClient,

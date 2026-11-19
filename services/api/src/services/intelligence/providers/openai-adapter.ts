@@ -88,6 +88,8 @@ function entityRowFromRegex(
 
 export const openaiEntityExtractionAdapter: ProviderAdapter = {
   provider: PROVIDER_ENTITY,
+  // PRO-AI1-08 — the bounded REGEX_PII fallback: no provider call.
+  local: true,
   supportedOperations: ["EXTRACT_ENTITIES"],
   probe(): ProviderAdapterProbe {
     return probeOpenAI(PROVIDER_ENTITY);
@@ -164,6 +166,8 @@ export const openaiEntityExtractionAdapter: ProviderAdapter = {
 
 export const openaiDocumentSummaryAdapter: ProviderAdapter = {
   provider: PROVIDER_SUMMARY,
+  // PRO-AI1-08 — a deterministic truncation: no provider call.
+  local: true,
   supportedOperations: ["SUMMARISE_DOCUMENT"],
   probe(): ProviderAdapterProbe {
     return probeOpenAI(PROVIDER_SUMMARY);

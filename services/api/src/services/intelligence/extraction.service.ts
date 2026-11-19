@@ -142,11 +142,44 @@ export async function runExtractionInline(
   input: ExtractionInput & {
     kind: ExtractedTextKind;
     jobKind: EvidenceIntelligenceJobKind;
+    /**
+     * RG-05 (PRO-AI1Z-01) — text a cloud provider ALREADY returned (and was
+     * paid for). The canonical writer persists it as COMPLETED under that
+     * provider's name and runs the same downstream triggers; it never asks
+     * the in-process provider (the noop default wrote SKIPPED
+     * "no_provider_configured" over text the vendor had delivered).
+     */
+    supplied?: {
+      text: string | null;
+      provider: string;
+      providerVersion?: string | null;
+      language?: string | null;
+      confidence?: number | null;
+    } | null;
+    /** The evidence part the text came from (one paid extraction per part). */
+    sourcePartId?: string | null;
+    /** A PENDING claim row (claimExtractionPart) to complete instead of a new row. */
+    claimRowId?: string | null;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<DbExtractedText | null> {
-  const provider =
-    input.jobKind === "OCR" ? activeOcrProvider : activeTranscriptProvider;
+  const supplied = input.supplied ?? null;
+  const provider: ExtractionProvider = supplied
+    ? {
+        name: supplied.provider,
+        async extract(): Promise<ExtractionResult> {
+          return {
+            text: supplied.text,
+            language: supplied.language ?? null,
+            confidence: supplied.confidence ?? null,
+            durationMs: null,
+            providerVersion: supplied.providerVersion ?? null,
+          };
+        },
+      }
+    : input.jobKind === "OCR"
+      ? activeOcrProvider
+      : activeTranscriptProvider;
   const startedAt = Date.now();
   let job: DbJob | null = null;
   try {
@@ -196,16 +229,18 @@ export async function runExtractionInline(
   } catch (err) {
     const msg =
       err instanceof Error ? err.message.slice(0, 200) : "extraction_failed";
-    const failed = await client.evidenceExtractedText.create({
-      data: {
-        evidenceId: input.evidenceId,
-        teamId: input.teamId,
-        kind: input.kind,
-        status: "FAILED",
-        provider: provider.name,
-        errorMessage: msg,
-      },
-    });
+    const failedData = {
+      evidenceId: input.evidenceId,
+      teamId: input.teamId,
+      kind: input.kind,
+      status: "FAILED" as const,
+      provider: provider.name,
+      errorMessage: msg,
+      sourcePartId: input.sourcePartId ?? null,
+    };
+    const failed = input.claimRowId
+      ? await client.evidenceExtractedText.update({ where: { id: input.claimRowId }, data: failedData })
+      : await client.evidenceExtractedText.create({ data: failedData });
     if (job) {
       await client.evidenceIntelligenceJob.update({
         where: { id: job.id },
@@ -229,22 +264,24 @@ export async function runExtractionInline(
       ? truncated.split(/\s+/).filter(Boolean).length
       : 0;
 
-  const completed = await client.evidenceExtractedText.create({
-    data: {
-      evidenceId: input.evidenceId,
-      teamId: input.teamId,
-      kind: input.kind,
-      status: "COMPLETED",
-      provider: provider.name,
-      providerVersion: result.providerVersion ?? null,
-      language: result.language ?? null,
-      text: truncated ?? null,
-      confidence: result.confidence ?? null,
-      wordCount,
-      durationMs: result.durationMs ?? Date.now() - startedAt,
-      extractedAtUtc: new Date(),
-    },
-  });
+  const completedData = {
+    evidenceId: input.evidenceId,
+    teamId: input.teamId,
+    kind: input.kind,
+    status: "COMPLETED" as const,
+    provider: provider.name,
+    providerVersion: result.providerVersion ?? null,
+    language: result.language ?? null,
+    text: truncated ?? null,
+    confidence: result.confidence ?? null,
+    wordCount,
+    durationMs: result.durationMs ?? Date.now() - startedAt,
+    extractedAtUtc: new Date(),
+    sourcePartId: input.sourcePartId ?? null,
+  };
+  const completed = input.claimRowId
+    ? await client.evidenceExtractedText.update({ where: { id: input.claimRowId }, data: completedData })
+    : await client.evidenceExtractedText.create({ data: completedData });
   if (job) {
     await client.evidenceIntelligenceJob.update({
       where: { id: job.id },
@@ -389,6 +426,91 @@ export async function runExtractionInline(
   }
 
   return completed;
+}
+
+// -----------------------------------------------------------------------------
+// RG-05 (PRO-AI1-04) — one paid extraction per evidence part
+// -----------------------------------------------------------------------------
+
+/** A PENDING claim older than this was abandoned by a crashed execution. */
+const PART_CLAIM_STALE_MS = 15 * 60 * 1000;
+
+export type ExtractionPartClaim =
+  | { state: "DONE"; chars: number }
+  | { state: "BUSY" }
+  | { state: "CLAIMED"; claimId: string };
+
+/**
+ * Claim the extraction of ONE evidence part by ONE provider before any
+ * provider call or plan operation is spent. A COMPLETED row for the part
+ * means a previous execution already paid for it (DONE: skip, spend
+ * nothing); a live PENDING row means another execution holds it (BUSY:
+ * skip); otherwise a PENDING row is inserted under the partial unique index
+ * evidence_extracted_texts_part_claim_uniq, so of two concurrent executions
+ * exactly one claims the part.
+ */
+export async function claimExtractionPart(
+  input: {
+    evidenceId: string;
+    teamId: string;
+    kind: ExtractedTextKind;
+    provider: string;
+    sourcePartId: string;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<ExtractionPartClaim> {
+  const done = await client.evidenceExtractedText.findFirst({
+    where: {
+      evidenceId: input.evidenceId,
+      sourcePartId: input.sourcePartId,
+      provider: input.provider,
+      status: "COMPLETED",
+    },
+    select: { text: true },
+  });
+  if (done) return { state: "DONE", chars: done.text?.length ?? 0 };
+  // An abandoned claim frees its slot (FAILED rows are outside the index).
+  await client.evidenceExtractedText.updateMany({
+    where: {
+      evidenceId: input.evidenceId,
+      sourcePartId: input.sourcePartId,
+      provider: input.provider,
+      status: "PENDING",
+      createdAt: { lt: new Date(Date.now() - PART_CLAIM_STALE_MS) },
+    },
+    data: { status: "FAILED", errorMessage: "claim_abandoned" },
+  });
+  try {
+    const row = await client.evidenceExtractedText.create({
+      data: {
+        evidenceId: input.evidenceId,
+        teamId: input.teamId,
+        kind: input.kind,
+        status: "PENDING",
+        provider: input.provider,
+        sourcePartId: input.sourcePartId,
+      },
+      select: { id: true },
+    });
+    return { state: "CLAIMED", claimId: row.id };
+  } catch (err) {
+    if ((err as { code?: string }).code === "P2002") return { state: "BUSY" };
+    throw err;
+  }
+}
+
+/** Give a claim up (the provider refused or failed before answering). */
+export async function releaseExtractionClaim(
+  claimId: string,
+  reason: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  await client.evidenceExtractedText
+    .updateMany({
+      where: { id: claimId, status: "PENDING" },
+      data: { status: "FAILED", errorMessage: reason.slice(0, 400) },
+    })
+    .catch(() => undefined);
 }
 
 // -----------------------------------------------------------------------------

@@ -112,8 +112,9 @@ describe("Phase Repair Task A — probe-aware producer chips", () => {
     );
     // The handler calls the probe-aware resolver with the team-anchored
     // input.
+    // input — and (PRO-AI1C-03) this workspace's own policy/plan gate.
     expect(handlerSlice).toMatch(
-      /resolveProducerModeStatuses\(\{\s*teamId,\s*prisma,?\s*\}\)/,
+      /resolveProducerModeStatuses\(\{\s*teamId,\s*prisma,\s*workspaceGate: await resolveWorkspaceProducerGate\(teamId\),?\s*\}\)/,
     );
   });
 

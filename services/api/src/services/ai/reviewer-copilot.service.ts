@@ -7,7 +7,7 @@
  * field), and no substantive observation is grounded without a valid citation.
  */
 import {
-  validateCitations,
+  projectValidatedCitations, validateCitations,
   type AiCitation,
   type CitationResolver,
 } from "./ai-citation.service.js";
@@ -122,8 +122,8 @@ export async function runReviewerCopilot(
     timestampUtc: null, route: String(c.route ?? ""), workspaceId: input.teamId, analyzedAtUtc: nowUtc,
   }));
   const check = await validateCitations(full, { workspaceId: input.teamId }, input.resolveCitation);
-  const validIds = new Set(check.valid.map((c) => c.objectId));
-  const outputCitations = modelCitations.filter((c) => validIds.has(String(c.objectId)));
+  // PRO-AI1-05 — validated entries only, each with the server-derived route.
+  const outputCitations = projectValidatedCitations(modelCitations, check);
 
   return {
     status: "ok",

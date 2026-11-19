@@ -1,9 +1,11 @@
+import { evaluateWorkspaceAiOperation } from "../billing-enforcement.service.js";
 import {
   evaluateWorkspaceAiPolicy,
   resolveWorkspaceAiPolicy,
 } from "./workspace-ai-policy.service.js";
 import {
   projectAiAssistance,
+  withAllowance,
   type AiAssistanceProjection,
 } from "./ai-assistance-projection.js";
 
@@ -124,14 +126,28 @@ const FEATURES: ReadonlyArray<{
  */
 export async function buildAiAssistanceSettings(input: {
   teamId: string;
+  /**
+   * PRO-AI1Z-04 — the VIEWER's canonical role in this workspace, resolved by
+   * the route through the authorization primitive. The evaluator's role step
+   * needs it: without it every member, owners included, read "your role does
+   * not include AI" as soon as the workspace set an allowed-roles list.
+   */
+  userRole?: string | null;
 }): Promise<AiAssistanceSettings> {
   const policy = await resolveWorkspaceAiPolicy(input.teamId);
+  // PRO-AI1Z-04 — the allowance is an input too: a plan without AI (or a
+  // restricted lifecycle) is NOT_INCLUDED_IN_PLAN, and a spent allowance is
+  // not AVAILABLE.
+  const allowance = await evaluateWorkspaceAiOperation({ teamId: input.teamId });
   const decision = await evaluateWorkspaceAiPolicy({
     teamId: input.teamId,
     feature: "SUPPORT_CHAT",
     dataClass: "METADATA",
+    userRole: input.userRole ?? null,
+    planAllowed:
+      allowance.denial !== "AI_NOT_INCLUDED" && allowance.denial !== "COMMERCIAL_LIFECYCLE_RESTRICTED",
   });
-  const base = projectAiAssistance(decision, policy);
+  const base = withAllowance(projectAiAssistance(decision, policy), allowance.denial);
 
   const features: AiAssistanceFeature[] = FEATURES.map((f) => {
     // Platform unavailability outranks a workspace switch: a feature that is

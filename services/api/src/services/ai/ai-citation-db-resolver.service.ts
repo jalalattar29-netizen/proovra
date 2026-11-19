@@ -60,19 +60,19 @@ export type CitationPrisma = {
     findUnique: (args: {
       where: { id: string };
       select: Record<string, true | { select: Record<string, true> }>;
-    }) => Promise<{ sequence: number; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
+    }) => Promise<{ sequence: number; evidenceId?: string; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
   };
   report?: {
     findUnique: (args: {
       where: { id: string };
       select: Record<string, true | { select: Record<string, true> }>;
-    }) => Promise<{ version: number; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
+    }) => Promise<{ version: number; evidenceId?: string; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
   };
   verificationPackage?: {
     findFirst: (args: {
       where: Record<string, unknown>;
       select: Record<string, true | { select: Record<string, true> }>;
-    }) => Promise<{ version: number; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
+    }) => Promise<{ version: number; evidenceId?: string; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
   };
   evidenceReviewWorkflow?: {
     findUnique: (args: {
@@ -103,6 +103,7 @@ export function buildWorkspaceCitationLookups(
         currentVersion: row.verificationPackageVersion ?? null,
         deleted: row.deletedAt != null,
         authorized: row.teamId === teamId,
+        route: `/evidence/${id}`,
       };
     },
     CASE: async (id) => {
@@ -116,13 +117,14 @@ export function buildWorkspaceCitationLookups(
         currentVersion: null,
         deleted: row.deletedAt != null,
         authorized: row.teamId === teamId,
+        route: `/cases/${id}`,
       };
     },
     // Phase P5 — high-value citation types (tenant via the parent evidence).
     CUSTODY_EVENT: async (id) => {
       const row = await prisma.custodyEvent?.findUnique({
         where: { id },
-        select: { sequence: true, evidence: { select: { teamId: true, deletedAt: true } } },
+        select: { sequence: true, evidenceId: true, evidence: { select: { teamId: true, deletedAt: true } } },
       });
       if (!row) return null;
       return {
@@ -131,12 +133,13 @@ export function buildWorkspaceCitationLookups(
         deleted: row.evidence.deletedAt != null,
         authorized: row.evidence.teamId === teamId,
         sequenceExists: true,
+        route: row.evidenceId ? `/evidence/${row.evidenceId}` : null,
       };
     },
     REPORT: async (id) => {
       const row = await prisma.report?.findUnique({
         where: { id },
-        select: { version: true, evidence: { select: { teamId: true, deletedAt: true } } },
+        select: { version: true, evidenceId: true, evidence: { select: { teamId: true, deletedAt: true } } },
       });
       if (!row) return null;
       return {
@@ -144,12 +147,13 @@ export function buildWorkspaceCitationLookups(
         currentVersion: row.version,
         deleted: row.evidence.deletedAt != null,
         authorized: row.evidence.teamId === teamId,
+        route: row.evidenceId ? `/evidence/${row.evidenceId}` : null,
       };
     },
     VERIFICATION_PACKAGE: async (id) => {
       const row = await prisma.verificationPackage?.findFirst({
         where: publishedPackageWhere({ id }),
-        select: { version: true, evidence: { select: { teamId: true, deletedAt: true } } },
+        select: { version: true, evidenceId: true, evidence: { select: { teamId: true, deletedAt: true } } },
       });
       if (!row) return null;
       return {
@@ -157,6 +161,7 @@ export function buildWorkspaceCitationLookups(
         currentVersion: row.version,
         deleted: row.evidence.deletedAt != null,
         authorized: row.evidence.teamId === teamId,
+        route: row.evidenceId ? `/evidence/${row.evidenceId}` : null,
       };
     },
     // WORKFLOW_STATUS + REVIEW_ASSIGNMENT both resolve to the review
@@ -207,6 +212,7 @@ export function buildWorkspaceCitationLookups(
         currentVersion: null,
         deleted: row.deletedAt != null,
         authorized: row.teamId === teamId,
+        route: `/evidence/${evidenceId}`,
       };
     },
   };

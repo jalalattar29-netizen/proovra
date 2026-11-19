@@ -13,6 +13,7 @@ import { COPILOT_BOUNDS } from "./ai-copilot-schemas.js";
 import { openAiClientPrivacyOptions, openAiRequestStore } from "./provider-privacy.service.js";
 import { buildProductKnowledgePromptSection } from "./proovra-product-knowledge.js";
 import { UNTRUSTED_DATA_INSTRUCTION } from "./prompt-context-sanitizer.service.js";
+import { classifyProviderError, costFromUsageUsdMicros, type AiProviderOutcome } from "./ai-provider-outcome.js";
 
 export class CopilotProviderUnavailable extends Error {
   readonly code = "AI_PROVIDER_UNAVAILABLE";
@@ -96,13 +97,49 @@ function isRetryableProviderError(err: unknown): boolean {
   return status === 429 || (typeof status === "number" && status >= 500);
 }
 
+/**
+ * RG-05 (PRO-AI1-03 / PRO-AI1-12) — what one copilot request did at the
+ * provider, across every attempt inside it (the bounded transport retry and
+ * the orchestrator's one schema repair). The route settles spend from this,
+ * not from whether the LAST attempt threw: an earlier answered attempt was
+ * billed even if a later one fails.
+ */
+export type CopilotSpendTracker = {
+  /** Worst outcome seen: ANSWERED > SENT_UNKNOWN > NOT_SENT. */
+  readonly outcome: AiProviderOutcome;
+  /** Provider-reported cost of the answered attempts, when usage was returned. */
+  readonly actualCostUsdMicros: bigint | null;
+};
+
+const OUTCOME_RANK: Record<AiProviderOutcome, number> = { NOT_SENT: 0, SENT_UNKNOWN: 1, ANSWERED: 2 };
+
+/** Transport bounds for the copilot client: no hidden SDK retries, a timeout. */
+export const COPILOT_SDK_MAX_RETRIES = 0;
+function copilotTimeoutMs(): number {
+  const raw = Number.parseInt(process.env.OPENAI_COPILOT_TIMEOUT_MS ?? "", 10);
+  return Number.isFinite(raw) && raw >= 1_000 && raw <= 120_000 ? raw : 45_000;
+}
+
 /** Canonical structured call: returns parsed JSON or { _malformed: true }. */
 export function buildStructuredCopilotCall(config: {
   modelEnvVar: string;
   jsonSchema: ReturnType<typeof buildCopilotJsonSchema>;
   system: string;
-}) {
-  return async (untrustedPayload: unknown): Promise<unknown> => {
+}): ((untrustedPayload: unknown) => Promise<unknown>) & { readonly spend: CopilotSpendTracker } {
+  let outcome: AiProviderOutcome = "NOT_SENT";
+  let cost: bigint | null = null;
+  const note = (o: AiProviderOutcome) => {
+    if (OUTCOME_RANK[o] > OUTCOME_RANK[outcome]) outcome = o;
+  };
+  const spend: CopilotSpendTracker = {
+    get outcome() {
+      return outcome;
+    },
+    get actualCostUsdMicros() {
+      return cost;
+    },
+  };
+  const call = async (untrustedPayload: unknown): Promise<unknown> => {
     const apiKey = getSecret("OPENAI_API_KEY")?.trim();
     if (!apiKey || process.env.OPENAI_AI_ENABLED !== "true") {
       throw new CopilotProviderUnavailable("OpenAI is not configured/enabled.");
@@ -111,7 +148,12 @@ export function buildStructuredCopilotCall(config: {
       process.env[config.modelEnvVar]?.trim() ||
       process.env.OPENAI_MODEL?.trim() ||
       "gpt-4.1-mini";
-    const client = new OpenAI({ apiKey, ...openAiClientPrivacyOptions() });
+    const client = new OpenAI({
+      apiKey,
+      ...openAiClientPrivacyOptions(),
+      maxRetries: COPILOT_SDK_MAX_RETRIES,
+      timeout: copilotTimeoutMs(),
+    });
     const startedAt = Date.now();
     let attempt = 0;
     // Bounded structured telemetry: schema name + latency + attempt + outcome.
@@ -143,7 +185,10 @@ export function buildStructuredCopilotCall(config: {
           temperature: 0.15,
           max_output_tokens: 1500,
         });
+        note("ANSWERED");
         const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+        const attemptCost = costFromUsageUsdMicros(usage);
+        if (attemptCost !== null) cost = (cost ?? 0n) + attemptCost;
         const text = (response as { output_text?: string }).output_text ?? "";
         try {
           const parsed = JSON.parse(text);
@@ -155,7 +200,12 @@ export function buildStructuredCopilotCall(config: {
           return { _malformed: true };
         }
       } catch (err) {
-        if (attempt === 1 && isRetryableProviderError(err)) {
+        const errOutcome = classifyProviderError(err);
+        note(errOutcome);
+        // ONE retry, and only for a refusal proven to be before generation
+        // (429 / 4xx-class, connection refused). A 5xx or timeout may have
+        // been generated and billed: it is not re-sent.
+        if (attempt === 1 && isRetryableProviderError(err) && errOutcome === "NOT_SENT") {
           logTelemetry("retrying", { status: (err as { status?: number })?.status ?? null });
           continue;
         }
@@ -164,4 +214,5 @@ export function buildStructuredCopilotCall(config: {
       }
     }
   };
+  return Object.assign(call, { spend });
 }

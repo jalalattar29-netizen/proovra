@@ -547,10 +547,15 @@ import { createAiProvider } from "../services/ai/ai-provider.js";
 import { AiCostGuard } from "../services/ai/ai-cost-guard.js";
 import {
   buildPrismaLedgerStore,
-  reconcileAiUsage,
   releaseAiReservation,
-  tryReserveAiBudget,
+  ledgerRefusalStatus, tryReserveAiBudget,
 } from "../services/ai/ai-usage-ledger.service.js";
+import {
+  classifyProviderError,
+  providerCostOf,
+  providerOutcomeOf,
+  settleAiSpend,
+} from "../services/ai/ai-provider-outcome.js";
 import { AI_LEGAL_DISCLAIMER } from "../services/ai/ai-policy.js";
 import { AiTask } from "../services/ai/ai-types.js";
 import {
@@ -10406,7 +10411,7 @@ return {
         estimatedCostUsdMicros: 100_000n,
       });
       if (catLedger.decision && !catLedger.decision.allowed && catLedger.decision.code !== "DUPLICATE_REQUEST") {
-        return reply.code(429).send({
+        return reply.code(ledgerRefusalStatus(catLedger.decision.code)).send({
           code: `AI_BUDGET_${catLedger.decision.code}`,
           message: "The workspace AI budget or operation limit has been reached.",
         });
@@ -10434,23 +10439,21 @@ return {
           metadataPayload
         );
       } catch (err) {
-        if (catLedger.reservationId) {
-          await releaseAiReservation(buildPrismaLedgerStore(), catLedger.reservationId).catch(() => undefined);
-        }
-        await catMeter.refund();
+        await settleAiSpend({
+          outcome: classifyProviderError(err),
+          ledgerReservationId: catLedger.reservationId,
+          releasePlanOperation: () => catMeter.refund(),
+        });
         throw err;
       }
-      // B6-F-26 (Free-user audit 0ea0) — only an answered provider call is
-      // spend, on both meters: any other status gives the plan operation back
-      // and releases the ledger reservation (with the rollups it incremented).
-      if (aiResult.status !== "ok") await catMeter.refund();
-      if (catLedger.reservationId) {
-        if (aiResult.status === "ok") {
-          await reconcileAiUsage(buildPrismaLedgerStore(), catLedger.reservationId, null).catch(() => undefined);
-        } else {
-          await releaseAiReservation(buildPrismaLedgerStore(), catLedger.reservationId).catch(() => undefined);
-        }
-      }
+      // B6-F-26 / RG-05 (PRO-AI1-02) — spend follows the server-authored
+      // transport outcome on both meters, never the model-written status.
+      await settleAiSpend({
+        outcome: providerOutcomeOf(aiResult),
+        ledgerReservationId: catLedger.reservationId,
+        actualCostUsdMicros: providerCostOf(aiResult),
+        releasePlanOperation: () => catMeter.refund(),
+      });
 
       const deterministicCategories = [
         evidence.type,

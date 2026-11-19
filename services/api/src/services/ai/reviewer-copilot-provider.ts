@@ -8,6 +8,7 @@ import {
   buildCopilotSystemPrompt,
   buildStructuredCopilotCall,
   CopilotProviderUnavailable,
+  type CopilotSpendTracker,
 } from "./structured-copilot-provider.js";
 
 export { CopilotProviderUnavailable as ReviewerCopilotProviderUnavailable };
@@ -22,12 +23,14 @@ const REVIEWER_SYSTEM = buildCopilotSystemPrompt("Reviewer Copilot", [
   "Ground every observation in the selected evidence contexts and the provided versioned, human-authored criteria.",
 ]);
 
-export function buildReviewerCopilotProvider(): ReviewerCopilotProvider {
+export function buildReviewerCopilotProvider(): ReviewerCopilotProvider & { readonly spend: CopilotSpendTracker } {
   const call = buildStructuredCopilotCall({
     modelEnvVar: "OPENAI_REVIEWER_COPILOT_MODEL",
     jsonSchema: REVIEWER_SCHEMA,
     system: REVIEWER_SYSTEM,
   });
-  return async ({ reviewerContext, selectedEvidence, criteriaVersion }) =>
+  const provider: ReviewerCopilotProvider = async ({ reviewerContext, selectedEvidence, criteriaVersion }) =>
     call({ review: reviewerContext, selectedEvidence, criteriaVersion });
+  // RG-05 — the route settles spend from what the provider actually did.
+  return Object.assign(provider, { spend: call.spend });
 }

@@ -761,7 +761,15 @@ async function buildProducerModes(
   warnings: string[],
 ): Promise<ProducerModeStatus[]> {
   try {
-    return await resolveProducerModeStatuses({ teamId, prisma });
+    // PRO-AI1C-03 — evaluated against this workspace's policy and plan.
+    const { resolveWorkspaceProducerGate } = await import(
+      "./intelligence/media-intelligence.service.js"
+    );
+    return await resolveProducerModeStatuses({
+      teamId,
+      prisma,
+      workspaceGate: await resolveWorkspaceProducerGate(teamId),
+    });
   } catch {
     warnings.push("producer_modes_unavailable");
     return [];

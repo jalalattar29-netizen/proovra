@@ -134,7 +134,7 @@ export type CanEmbedDecision =
   | {
       allowed: false;
       remaining: number;
-      reason: "DAILY_CAP" | "MONTHLY_BUDGET";
+      reason: "DAILY_CAP" | "MONTHLY_BUDGET" | "USAGE_UNREADABLE";
     };
 
 /**
@@ -142,8 +142,9 @@ export type CanEmbedDecision =
  * call. The caller passes `additionalChunks` so the gate can answer
  * "would this push us over the cap?".
  *
- * NEVER throws. A DB read failure → `allowed: true` so a transient
- * outage cannot wedge the pipeline.
+ * NEVER throws. RG-04 (PRO-W2-02): a DB read failure REFUSES
+ * (`USAGE_UNREADABLE`). An unreadable meter is not permission to spend;
+ * the caller degrades (keyword search) or retries later (backfill).
  */
 export async function canEmbedMore(
   client: PrismaClient,
@@ -197,10 +198,7 @@ export async function canEmbedMore(
     const remaining = dailyCap > 0 ? Math.max(0, dailyCap - todayChunks) : Number.MAX_SAFE_INTEGER;
     return { allowed: true, remaining, reason: null };
   } catch {
-    // Read failure — fail-open. The pipeline continues; the budget
-    // counter will be a low estimate until the DB recovers. Better
-    // than wedging the embedding queue.
-    return { allowed: true, remaining: dailyCap, reason: null };
+    return { allowed: false, remaining: 0, reason: "USAGE_UNREADABLE" };
   }
 }
 

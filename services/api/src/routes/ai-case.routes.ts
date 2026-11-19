@@ -60,7 +60,8 @@ import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPris
 import { persistCopilotRun } from "../services/ai/ai-copilot-run-store.service.js";
 import { evaluateWorkspaceAiOperation, workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
 import { AiPlanAllowanceRefused, meterAiPlanOperation } from "../services/ai/ai-plan-operation-meter.js";
-import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
+import { buildPrismaLedgerStore, releaseAiReservation, ledgerRefusalStatus, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
+import { settleAiSpend } from "../services/ai/ai-provider-outcome.js";
 import { cleanupExpiredCopilotRuns } from "../services/ai/ai-retention.service.js";
 
 const Body = z.object({
@@ -95,6 +96,13 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     const userId = getAuthUserId(req);
     const caseId = z.string().uuid().parse((req.params as { caseId: string }).caseId);
     const body = Body.parse(req.body ?? {});
+    // PRO-AI1-13 — the case copilot does not take a free-text question (the
+    // provider prompt has no slot for one). It used to be accepted and
+    // silently dropped; it is refused instead, so a caller is never told its
+    // question was considered. No shipped client sends it.
+    if (body.question !== undefined && body.question.trim() !== "") {
+      return reply.code(400).send({ error: { code: "question_not_supported" } });
+    }
 
     // Authorize case via workspace membership.
     const caseRow = await prisma.case.findUnique({
@@ -216,9 +224,9 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     });
     const guard = await enforceAiEndpointGuard({
       feature: "case-copilot", userId, ip: req.ip,
-      dedupeKey:
-        body.idempotencyKey ??
-        buildCopilotIdempotencyKey({ scope: "case", scopeId: caseId, selection: ids }),
+      // PRO-AI1-13 — the duplicate guard keys on the SERVER-built identity; a
+      // client cannot defeat it by varying its own key.
+      dedupeKey: buildCopilotIdempotencyKey({ scope: "case", scopeId: caseId, selection: ids }),
       dedupeWindowSec: 20,
     });
     if (!guard.allowed) {
@@ -298,7 +306,7 @@ export async function aiCaseRoutes(app: FastifyInstance) {
       requestId: ledgerRequestId, estimatedCostUsdMicros: 250_000n,
     });
     if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
-      return reply.code(429).send({ code: `AI_BUDGET_${ledger.decision.code}`, message: "The workspace AI budget or operation limit has been reached." });
+      return reply.code(ledgerRefusalStatus(ledger.decision.code)).send({ code: `AI_BUDGET_${ledger.decision.code}`, message: "The workspace AI budget or operation limit has been reached." });
     }
 
     // TOCTOU CLOSE.
@@ -342,28 +350,34 @@ export async function aiCaseRoutes(app: FastifyInstance) {
         resolveCitation,
       });
     } catch (err) {
+      // RG-05 (PRO-AI1-03) — settled from what the provider did across every
+      // attempt; a billed earlier attempt is not refunded by a later throw.
+      await settleAiSpend({
+        outcome: err instanceof AiPlanAllowanceRefused ? "NOT_SENT" : caseProvider.spend.outcome,
+        ledgerReservationId: ledger.reservationId,
+        actualCostUsdMicros: caseProvider.spend.actualCostUsdMicros,
+        releasePlanOperation: () => planMeter.refund(),
+      });
       if (err instanceof AiPlanAllowanceRefused) {
-        if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
         await auditCase(req, userId, "blocked", caseId, teamId, { status: err.denial, selectedCount: ids.length });
         return reply.code(err.statusCode).send({ code: err.denial, message: err.message });
       }
-      await planMeter.refund();
       if (err instanceof CaseCopilotProviderUnavailable) {
-        if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
         await auditCase(req, userId, "failure", caseId, teamId, { status: "provider_unavailable", selectedCount: ids.length });
         return reply.code(200).send({ status: "provider_unavailable", advisoryBoundary: "AI assistance is advisory only." });
       }
-      if (ledger.reservationId) await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
       throw err;
     }
     // B6-F-26 (Free-user audit 0ea0) — the ledger records SPEND: it is
     // reconciled only when the provider was actually reached (the plan meter
     // took its operation). A policy-denied or no-selection run released the
     // reservation, and with it the rollups it had incremented.
-    if (ledger.reservationId) {
-      if (planMeter.taken) await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
-      else await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
-    }
+    await settleAiSpend({
+      outcome: planMeter.taken ? caseProvider.spend.outcome : "NOT_SENT",
+      ledgerReservationId: ledger.reservationId,
+      actualCostUsdMicros: caseProvider.spend.actualCostUsdMicros,
+      releasePlanOperation: () => planMeter.refund(),
+    });
 
     await auditCase(req, userId, result.status === "ok" ? "success" : result.status === "blocked_prohibited_claim" ? "blocked" : "failure", caseId, teamId, {
       status: result.status, selectedCount: ids.length, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision,

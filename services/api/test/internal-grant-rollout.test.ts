@@ -202,6 +202,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281120000000_login_mfa_challenge_factors",
       // WS-ORG PRO-A2-02: who created an Organization identity link (link_source). EXPAND.
       "20281121010000_external_identity_link_source",
+      // RG-05 (PRO-AI1-04 / PRO-AI1Z-01): extracted text claimed once per source part. EXPAND.
+      "20281121050000_extracted_text_source_part",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

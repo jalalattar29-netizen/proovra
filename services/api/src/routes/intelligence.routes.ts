@@ -297,11 +297,21 @@ export async function intelligenceRoutes(app: FastifyInstance) {
       // the database and compared to the AUTHORIZED workspace, so a caller
       // cannot pair an evidence id from workspace A with a teamId they hold
       // in workspace B.
+      // PRO-AI1C-05 — compared through THE workspace-of-a-record rule, so a
+      // legacy NULL-team Personal record resolves to its owner's personal
+      // workspace instead of 404ing forever.
       const ev = await prisma.evidence.findUnique({
         where: { id },
-        select: { id: true, teamId: true },
+        select: { id: true, teamId: true, ownerUserId: true },
       });
-      if (!ev || ev.teamId !== query.teamId) {
+      const { resolveEvidenceWorkspaceId } = await import("@proovra/shared-runtime");
+      if (
+        !ev ||
+        (await resolveEvidenceWorkspaceId(
+          { teamId: ev.teamId, ownerUserId: ev.ownerUserId },
+          prisma as never,
+        )) !== query.teamId
+      ) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       const [texts, entities, similarities] = await Promise.all([

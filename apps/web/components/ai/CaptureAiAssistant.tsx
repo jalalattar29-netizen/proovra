@@ -4,7 +4,8 @@ import { identifierLabel } from "@proovra/shared";
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Card } from "../ui";
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, ApiError, isApiResponseError } from "../../lib/api";
+import { aiPanelFailure } from "../../lib/ai/assistant-state";
 
 type EvidenceType = "PHOTO" | "VIDEO" | "AUDIO" | "DOCUMENT";
 
@@ -140,8 +141,12 @@ export function CaptureAiAssistant({
       setAnalysis(result);
     } catch (err: unknown) {
       const apiError = err as ApiError;
+      // PRO-AI1C-04 — the shared classifier, code first: an allowance, plan
+      // or policy refusal is said as such; only a real outage reads as one.
+      const failure = isApiResponseError(err)
+        ? aiPanelFailure(err, () => "AI assistance could not be loaded. Continue capture normally.")
+        : { message: "AI assistance could not be loaded. Continue capture normally.", retryable: true, settingsHref: null };
       const unavailableReason =
-        apiError?.code === "AI_DISABLED" ||
         apiError?.statusCode === 404 ||
         apiError?.statusCode === 503 ||
         apiError?.statusCode === 502 ||
@@ -151,7 +156,7 @@ export function CaptureAiAssistant({
         setUnavailable(true);
         setError("AI assistant unavailable.");
       } else {
-        setError("AI assistance could not be loaded. Continue capture normally.");
+        setError(failure.message);
       }
     } finally {
       setLoading(false);

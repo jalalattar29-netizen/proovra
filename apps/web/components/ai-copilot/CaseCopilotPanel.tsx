@@ -34,6 +34,7 @@
  * SAME function runs on the server before any spend.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { aiPanelFailure } from "../../lib/ai/assistant-state";
 import {
   AlertCircle,
   FileText,
@@ -713,6 +714,13 @@ function describeFailure(
         "Could not reach the AI service. Evidence workflows are unaffected.",
       retryable: true,
     };
+  }
+  // PRO-AI1C-04 — a spent allowance, a plan without AI, a restricted
+  // subscription or a workspace policy is decided by the shared classifier
+  // (code first) and is NOT retryable: pressing Retry cannot change it.
+  if (err.statusCode === 402 || err.statusCode === 429 || err.code === "AI_WORKSPACE_POLICY_DENIED") {
+    const failure = aiPanelFailure(err, () => "");
+    if (failure.message) return { message: failure.message, retryable: failure.retryable };
   }
   switch (err.statusCode) {
     case 422:

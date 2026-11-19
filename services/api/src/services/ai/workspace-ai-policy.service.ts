@@ -25,7 +25,11 @@
 import { AI_TRIAL_CAPABILITIES } from "@proovra/shared-billing";
 import { prisma } from "../../db.js";
 import { getSecret } from "../../config/runtime-secrets.js";
-import { workspaceIncludesAiCapability } from "../billing-enforcement.service.js";
+import { isSemanticReadyAtRuntime } from "../search/embedding-provider.js";
+import {
+  workspaceIncludesAiCapability,
+  workspaceIncludesAiOperations,
+} from "../billing-enforcement.service.js";
 
 export type WorkspaceAiFeature =
   | "SUPPORT_CHAT"
@@ -176,6 +180,18 @@ export function decideAiPolicy(input: AiPolicyDecisionInput): AiPolicyDecision {
       allowed: false,
       decision: "FEATURE_DISABLED",
       reason: `The ${input.feature} AI feature is turned off for this workspace.`,
+    };
+  }
+  // 4b. RG-04 (PRO-AI1C-01) — semantic search sends text to the embedding
+  // vendor, so its own switch is not enough: the workspace must also allow
+  // embeddings. Folded in HERE so every caller of the evaluator (search
+  // rerank, live indexing, backfill route and CLI) gets the same answer.
+  if (input.feature === "SEMANTIC_SEARCH" && policy.embeddingsAllowed !== true) {
+    return {
+      ...base,
+      allowed: false,
+      decision: "FEATURE_DISABLED",
+      reason: "Embeddings are not allowed for this workspace.",
     };
   }
   // 5. Role authorization (null allowlist = all roles permitted).
@@ -530,9 +546,12 @@ function resolveFeatureGlobalProvider(feature: WorkspaceAiFeature): {
     case "EVIDENCE_CATEGORIZATION":
       return { globalAiEnabled: isPlatformAiGloballyEnabled(), providerConfigured: openai };
     case "SEMANTIC_SEARCH":
+      // RG-04 — the provider that matters is the EMBEDDING provider the
+      // deployment resolved (openai behind its outbound gate, or the local
+      // deterministic one), not only the advisory key.
       return {
         globalAiEnabled: process.env.SEMANTIC_SEARCH_ENABLED === "true",
-        providerConfigured: openai,
+        providerConfigured: openai || isSemanticReadyAtRuntime(),
       };
     case "CONTENT_INTELLIGENCE":
     case "REVIEWER_COPILOT":
@@ -586,5 +605,72 @@ export async function evaluateWorkspaceAiPolicy(
     globalAiEnabled,
     providerConfigured,
     planAllowed,
+  });
+}
+
+/**
+ * RG-04 (PRO-AI1C-01) — THE semantic-egress gate: may text (a search query
+ * or evidence-derived chunk text) leave the platform for the embedding vendor
+ * on behalf of this workspace?
+ *
+ * One answer for every path: the canonical evaluator for SEMANTIC_SEARCH
+ * (embeddingsAllowed folded in at step 4b), the plan's per-capability
+ * eligibility and the commercial lifecycle as `planAllowed`. A read failure
+ * is NOT permission: it resolves to a denial with `unavailable: true` so a
+ * caller can degrade (keyword-only) or retry, never send.
+ *
+ * `actorRole` is passed for an actor-initiated egress (a search query); a
+ * background egress (indexing, backfill) has no actor, so the role step is
+ * not applied to it — the workspace's own switches still are.
+ */
+export async function evaluateSemanticEgress(input: {
+  teamId: string;
+  dataClass: WorkspaceAiDataClass;
+  actorRole?: string | null;
+}): Promise<AiPolicyDecision & { unavailable: boolean }> {
+  try {
+    const planAllowed = await workspaceIncludesAiOperations(input.teamId);
+    const decision =
+      input.actorRole === undefined
+        ? await evaluateBackgroundAiPolicy(input.teamId, "SEMANTIC_SEARCH", input.dataClass, planAllowed)
+        : await evaluateWorkspaceAiPolicy({
+            teamId: input.teamId,
+            feature: "SEMANTIC_SEARCH",
+            dataClass: input.dataClass,
+            userRole: input.actorRole,
+            planAllowed,
+          });
+    return { ...decision, unavailable: false };
+  } catch {
+    return {
+      allowed: false,
+      decision: "WORKSPACE_DISABLED",
+      reason: "The workspace AI policy could not be read; nothing was sent.",
+      policyVersion: 0,
+      unavailable: true,
+    };
+  }
+}
+
+/** The evaluator without the actor-role step, for work no actor initiated. */
+async function evaluateBackgroundAiPolicy(
+  teamId: string,
+  feature: WorkspaceAiFeature,
+  dataClass: WorkspaceAiDataClass,
+  planAllowed: boolean,
+): Promise<AiPolicyDecision> {
+  const policy = await resolveWorkspaceAiPolicy(teamId);
+  const { globalAiEnabled, providerConfigured } = resolveFeatureGlobalProvider(feature);
+  let plan = planAllowed;
+  if (plan && isPlanGatedAiFeature(feature) && policy.aiEnabled && policy[FEATURE_SWITCH[feature]] === true) {
+    plan = await workspaceIncludesAiCapability(teamId, feature);
+  }
+  return decideAiPolicy({
+    policy: { ...policy, allowedRoles: null },
+    feature,
+    dataClass,
+    globalAiEnabled,
+    providerConfigured,
+    planAllowed: plan,
   });
 }

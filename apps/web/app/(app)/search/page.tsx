@@ -1599,14 +1599,21 @@ function SearchInner() {
       const r = (await apiFetch("/v1/search/semantic/backfill", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId, dryRun: true }),
-      })) as SemanticBackfillResponse;
+        // PRO-E1-09 — the route takes `workspaceId` (it rejected `teamId`) and
+        // answers with the backfill service's counts: `processed` is the number
+        // of chunks a real run would embed for this one workspace.
+        body: JSON.stringify({ workspaceId: teamId, dryRun: true }),
+      })) as SemanticBackfillResponse & { processed?: number };
       setBackfillResult({
-        dryRun: r?.dryRun === true,
+        dryRun: true,
         chunksToEmbed:
-          typeof r?.chunksToEmbed === "number" ? r.chunksToEmbed : 0,
+          typeof r?.processed === "number"
+            ? r.processed
+            : typeof r?.chunksToEmbed === "number"
+              ? r.chunksToEmbed
+              : 0,
         workspaceCount:
-          typeof r?.workspaceCount === "number" ? r.workspaceCount : 0,
+          typeof r?.workspaceCount === "number" ? r.workspaceCount : 1,
         perDayChunksUsed:
           typeof r?.perDayChunksUsed === "number" ? r.perDayChunksUsed : null,
         perDayChunksCap:

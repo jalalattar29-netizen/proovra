@@ -60,7 +60,11 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireInternalServiceAuth } from "../middleware/internal-service-auth.js";
 import { runProviderOperation } from "../services/intelligence/media-intelligence.service.js";
-import { runExtractionInline } from "../services/intelligence/extraction.service.js";
+import {
+  claimExtractionPart,
+  releaseExtractionClaim,
+  runExtractionInline,
+} from "../services/intelligence/extraction.service.js";
 import { getAdapter } from "../services/intelligence/providers/provider-adapter.js";
 import { getObjectRange } from "../storage.js";
 import { createHash } from "node:crypto";
@@ -302,6 +306,30 @@ export async function internalMediaIntelligenceExtractRoutes(
 
         const isPdf = part.mime_type === "application/pdf";
         const isVideo = part.mime_type.toLowerCase().startsWith("video/");
+        const textKind =
+          kind === "ocr_azure"
+            ? isPdf
+              ? "OCR_PDF"
+              : "OCR_IMAGE"
+            : isVideo
+              ? "TRANSCRIPT_VIDEO"
+              : "TRANSCRIPT_AUDIO";
+        const textProvider = kind === "ocr_azure" ? "azure_document_intelligence" : "deepgram";
+
+        // RG-05 (PRO-AI1-04) — claim the part BEFORE any provider call or plan
+        // operation. A part a previous execution already extracted is skipped
+        // (no vendor call, no operation); a part another execution of the same
+        // request holds is skipped too. A retried job used to re-run and re-pay
+        // every part.
+        const claim = await claimExtractionPart(
+          { evidenceId, teamId, kind: textKind, provider: textProvider, sourcePartId: part.id },
+          prisma,
+        );
+        if (claim.state === "DONE") {
+          totalChars += claim.chars;
+          continue;
+        }
+        if (claim.state === "BUSY") continue;
 
         try {
           const providerResult =
@@ -340,6 +368,7 @@ export async function internalMediaIntelligenceExtractRoutes(
                 });
 
           if (!providerResult.ok) {
+            await releaseExtractionClaim(claim.claimId, providerResult.reason ?? "provider_block", prisma);
             firstFailureReason ??=
               providerResult.reason?.slice(0, ERROR_PREVIEW_MAX_CHARS) ??
               "provider_block";
@@ -348,31 +377,33 @@ export async function internalMediaIntelligenceExtractRoutes(
 
           totalInserted += providerResult.insertedRecords;
           const text = providerResult.extractedText ?? null;
-          if (text && text.length > 0) {
-            totalChars += text.length;
-            try {
-              await runExtractionInline(
-                {
-                  evidenceId,
-                  teamId,
-                  mimeType: part.mime_type,
-                  kind:
-                    kind === "ocr_azure"
-                      ? isPdf
-                        ? "OCR_PDF"
-                        : "OCR_IMAGE"
-                      : isVideo
-                        ? "TRANSCRIPT_VIDEO"
-                        : "TRANSCRIPT_AUDIO",
-                  jobKind: kind === "ocr_azure" ? "OCR" : "TRANSCRIPT",
-                },
-                prisma,
-              );
-            } catch {
-              /* extraction writer is best-effort */
-            }
+          if (text) totalChars += text.length;
+          // RG-05 (PRO-AI1Z-01) — the text the vendor returned (and was paid
+          // for) goes through the CANONICAL writer as COMPLETED under the
+          // vendor's name, completing this part's claim. It used to call the
+          // writer without the text, which picked the in-process noop provider
+          // and recorded SKIPPED "no_provider_configured". The writer's own
+          // triggers (keyword re-index, entity extraction, gated semantic
+          // indexing) then run on it.
+          try {
+            await runExtractionInline(
+              {
+                evidenceId,
+                teamId,
+                mimeType: part.mime_type,
+                kind: textKind,
+                jobKind: kind === "ocr_azure" ? "OCR" : "TRANSCRIPT",
+                supplied: { text, provider: textProvider },
+                sourcePartId: part.id,
+                claimRowId: claim.claimId,
+              },
+              prisma,
+            );
+          } catch {
+            /* extraction writer is best-effort; a stale claim expires */
           }
         } catch (err) {
+          await releaseExtractionClaim(claim.claimId, "provider_failed", prisma);
           firstFailureReason ??= boundedError(err, "provider_failed");
           req.log.warn(
             {

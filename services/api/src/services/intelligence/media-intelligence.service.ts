@@ -50,7 +50,8 @@ import { releaseBudgetReservation, reserveBudgetGate } from "./provider-budget.s
 import { recordProviderUsage } from "./provider-usage.service.js";
 import { emitLifecycleEvent } from "./intelligence-activity.service.js";
 import { evaluateIntelligencePolicy } from "../governance/policy-evaluation.service.js";
-import { resolveWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
+import { evaluateSemanticEgress, resolveWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
+import { classifyProviderError } from "../ai/ai-provider-outcome.js";
 // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the AI commercial
 // allowance is resolved by THE canonical billing authority, not by the
 // ProductLine packaging engine. This module no longer imports that engine at
@@ -60,6 +61,7 @@ import {
   releaseWorkspaceAiOperation,
   reserveWorkspaceAiOperation,
   scopeIncludesAiCapability,
+  workspaceIncludesAiCapability,
 } from "../billing-enforcement.service.js";
 
 // ---------------------------------------------------------------------------
@@ -122,7 +124,7 @@ export async function ingestProviderResult(
   let insertedRecords = 0;
   let reusedRecords = 0;
   let insertedEntities = 0;
-  for (const row of input.result.records) {
+  for (const [recordIndex, row] of input.result.records.entries()) {
     const finalBand: IntelligenceConfidenceBand =
       classifyIntelligenceConfidence(row.providerConfidence);
     const record = await prisma.mediaIntelligenceRecord.upsert({
@@ -164,8 +166,15 @@ export async function ingestProviderResult(
     } else {
       reusedRecords += 1;
     }
-    // Persist the entity rows tied to this record.
-    for (const e of input.result.entities) {
+    // PRO-AI1-09 — each entity is persisted against ITS OWN record, once.
+    // The loop used to attach every entity of the result to every record
+    // (N records x N entities rows) and to append them again on each re-run.
+    for (const e of entitiesForRecord(input.result.records, input.result.entities, recordIndex)) {
+      const existing = await prisma.mediaIntelligenceEntity.findFirst({
+        where: { recordId: record.id, valueHash: e.valueHash, kind: e.kind },
+        select: { id: true },
+      });
+      if (existing) continue;
       await prisma.mediaIntelligenceEntity.create({
         data: {
           teamId: input.teamId,
@@ -183,6 +192,58 @@ export async function ingestProviderResult(
     }
   }
   return { insertedRecords, insertedEntities, reusedRecords };
+}
+
+/**
+ * PRO-AI1-09 — which entities belong to record `index`. A record that names
+ * its entity (`payload.valueHash`) owns the entities with that hash; when
+ * the adapter returns one entity per record, they pair by position; otherwise
+ * the entities belong to the result as a whole and are attached once, to the
+ * first record.
+ */
+function entitiesForRecord(
+  records: ReadonlyArray<{ payload: unknown }>,
+  entities: ReadonlyArray<AdapterEntityRow>,
+  index: number,
+): ReadonlyArray<AdapterEntityRow> {
+  const payload = records[index]?.payload as { valueHash?: unknown } | null | undefined;
+  if (payload && typeof payload.valueHash === "string") {
+    return entities.filter((e) => e.valueHash === payload.valueHash);
+  }
+  if (records.length === entities.length) {
+    const own = entities[index];
+    return own ? [own] : [];
+  }
+  return index === 0 ? entities : [];
+}
+
+/**
+ * PRO-AI1C-03 — whether THIS workspace would let each automatic producer run:
+ * the same policy switches runProviderOperation enforces for byte-source OCR
+ * and transcription (AI on, content intelligence, raw content, the per-kind
+ * switch) plus the plan's CONTENT_INTELLIGENCE eligibility, and the RG-04
+ * semantic-egress gate for semantic search. A read failure answers "not
+ * enabled" — a status chip must never claim more than the gate would allow.
+ */
+export async function resolveWorkspaceProducerGate(
+  teamId: string,
+): Promise<{ ocr: boolean; transcript: boolean; semantic_search: boolean }> {
+  try {
+    const [policy, contentPlan, semantic] = await Promise.all([
+      resolveWorkspaceAiPolicy(teamId),
+      workspaceIncludesAiCapability(teamId, "CONTENT_INTELLIGENCE"),
+      evaluateSemanticEgress({ teamId, dataClass: "DERIVED_CONTENT" }),
+    ]);
+    const content =
+      contentPlan && policy.aiEnabled && policy.contentIntelligenceEnabled && policy.rawContentProcessingAllowed;
+    return {
+      ocr: content && policy.ocrAllowed,
+      transcript: content && policy.transcriptionAllowed,
+      semantic_search: semantic.allowed,
+    };
+  } catch {
+    return { ocr: false, transcript: false, semantic_search: false };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +303,19 @@ export async function runProviderOperation(
     }
   }
 
+  // PRO-AI1-10 — the evidence's case links are a server fact, not a caller
+  // hint: CASE budgets apply through them, and a caller-supplied case id is
+  // kept only when the evidence is actually linked to that case.
+  const linkedCaseIds = await prisma.caseEvidenceLink
+    .findMany({ where: { evidenceId: input.evidenceId }, select: { caseId: true } })
+    .then((rows) => rows.map((r) => r.caseId));
+  const caseId =
+    input.caseId && linkedCaseIds.includes(input.caseId)
+      ? input.caseId
+      : linkedCaseIds.length === 1
+        ? linkedCaseIds[0]!
+        : null;
+
   // Phase 4A Closure: evaluate intelligence policy before budget gate.
   // An evaluator that could not read the effective INTELLIGENCE policy
   // REJECTS; that is refused exactly like a BLOCK verdict (no provider call)
@@ -269,7 +343,7 @@ export async function runProviderOperation(
       estimatedCostUsdMicros: 0,
       decision: "BLOCK",
       evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
+      caseId,
       projectId: input.projectId ?? null,
       initiatedByUserId: input.initiatedByUserId ?? null,
       failureReason: reason,
@@ -280,7 +354,7 @@ export async function runProviderOperation(
       code: "PROVIDER_CALL_REFUSED_POLICY",
       actorUserId: input.initiatedByUserId ?? null,
       evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
+      caseId,
       projectId: input.projectId ?? null,
       provider: input.provider,
       operation: input.operation,
@@ -326,7 +400,13 @@ export async function runProviderOperation(
   const aiAllowance = await evaluateWorkspaceAiOperation({
     teamId: input.teamId,
   });
-  if (!aiAllowance.allowed) {
+  // PRO-AI1-08 — a LOCAL adapter calls no provider: a spent monthly allowance
+  // does not stop it (it spends none). Plan and lifecycle refusals still do.
+  const localOnly = adapter.local === true;
+  if (
+    !aiAllowance.allowed &&
+    !(localOnly && aiAllowance.denial === "AI_MONTHLY_LIMIT_REACHED")
+  ) {
     const reason =
       aiAllowance.denial === "AI_NOT_INCLUDED"
         ? "entitlement_required:AI_NOT_INCLUDED"
@@ -343,7 +423,7 @@ export async function runProviderOperation(
       estimatedCostUsdMicros: 0,
       decision: "BLOCK",
       evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
+      caseId,
       projectId: input.projectId ?? null,
       initiatedByUserId: input.initiatedByUserId ?? null,
       failureReason: reason,
@@ -374,7 +454,7 @@ export async function runProviderOperation(
       estimatedCostUsdMicros: 0,
       decision: "BLOCK",
       evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
+      caseId,
       projectId: input.projectId ?? null,
       initiatedByUserId: input.initiatedByUserId ?? null,
       failureReason: reason,
@@ -392,11 +472,12 @@ export async function runProviderOperation(
   // below); a BLOCK released it already.
   const gate = await reserveBudgetGate(
     {
+      caseIds: linkedCaseIds,
       teamId: input.teamId,
       provider: input.provider,
       operation: input.operation,
-      estimatedCostUsdMicros: estimatePreCallCostUsdMicros(input.provider),
-      caseId: input.caseId ?? null,
+      estimatedCostUsdMicros: localOnly ? 0 : estimatePreCallCostUsdMicros(input.provider),
+      caseId,
       projectId: input.projectId ?? null,
       evidenceId: input.evidenceId,
       initiatedByUserId: input.initiatedByUserId ?? null,
@@ -410,7 +491,7 @@ export async function runProviderOperation(
     code: "PROVIDER_CALL_STARTED",
     actorUserId: input.initiatedByUserId ?? null,
     evidenceId: input.evidenceId,
-    caseId: input.caseId ?? null,
+    caseId,
     projectId: input.projectId ?? null,
     provider: input.provider,
     operation: input.operation,
@@ -426,7 +507,7 @@ export async function runProviderOperation(
       estimatedCostUsdMicros: 0,
       decision: "BLOCK",
       evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
+      caseId,
       projectId: input.projectId ?? null,
       initiatedByUserId: input.initiatedByUserId ?? null,
       failureReason: gate.reason ?? "budget_block",
@@ -437,7 +518,7 @@ export async function runProviderOperation(
       code: "PROVIDER_CALL_REFUSED_BUDGET",
       actorUserId: input.initiatedByUserId ?? null,
       evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
+      caseId,
       projectId: input.projectId ?? null,
       provider: input.provider,
       operation: input.operation,
@@ -454,9 +535,10 @@ export async function runProviderOperation(
   // called, in one atomic statement; every path below that does not spend
   // gives it back. It used to be read above and recorded after success, so
   // concurrent operations at the boundary were all admitted.
-  const planReservation = aiAllowance.scope
-    ? await reserveWorkspaceAiOperation(aiAllowance.scope)
-    : ({ allowed: true, reservation: null } as const);
+  const planReservation =
+    aiAllowance.scope && !localOnly
+      ? await reserveWorkspaceAiOperation(aiAllowance.scope)
+      : ({ allowed: true, reservation: null } as const);
   if (!planReservation.allowed) {
     const reason =
       planReservation.denial === "AI_MONTHLY_LIMIT_REACHED"
@@ -472,7 +554,7 @@ export async function runProviderOperation(
       estimatedCostUsdMicros: 0,
       decision: "BLOCK",
       evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
+      caseId,
       projectId: input.projectId ?? null,
       initiatedByUserId: input.initiatedByUserId ?? null,
       failureReason: reason,
@@ -530,11 +612,15 @@ export async function runProviderOperation(
     }
   }
   } catch (err) {
-    await giveBack();
+    // RG-05 (PRO-AI1-03) — a throw proves nothing was billed only when the
+    // transport says the request never reached the provider.
+    if (classifyProviderError(err) === "NOT_SENT") await giveBack();
     throw err;
   }
   if (!result.ok) {
-    await giveBack();
+    // An adapter that reports billed units for a failed call keeps the
+    // operation; a refusal before any provider work gives it back.
+    if (!((result.usage?.units ?? 0) > 0)) await giveBack();
     await recordProviderUsage({
       prisma,
       teamId: input.teamId,
@@ -545,7 +631,7 @@ export async function runProviderOperation(
       estimatedCostUsdMicros: result.usage?.estimatedCostUsdMicros ?? 0,
       decision: gate.decision,
       evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
+      caseId,
       projectId: input.projectId ?? null,
       initiatedByUserId: input.initiatedByUserId ?? null,
       failureReason: result.reason ?? null,
@@ -556,7 +642,7 @@ export async function runProviderOperation(
       code: "PROVIDER_CALL_FAILED",
       actorUserId: input.initiatedByUserId ?? null,
       evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
+      caseId,
       projectId: input.projectId ?? null,
       provider: input.provider,
       operation: input.operation,
@@ -576,7 +662,8 @@ export async function runProviderOperation(
     provider: input.provider,
     result,
   });
-  // Record the provider usage (real cost).
+  // Record the provider usage (real cost). PRO-AI1-08 — a local adapter
+  // called no provider: its usage row records zero cost.
   await recordProviderUsage({
     prisma,
     teamId: input.teamId,
@@ -584,10 +671,10 @@ export async function runProviderOperation(
     operation: input.operation,
     unit: result.usage.unit,
     units: result.usage.units,
-    estimatedCostUsdMicros: result.usage.estimatedCostUsdMicros,
+    estimatedCostUsdMicros: localOnly ? 0 : result.usage.estimatedCostUsdMicros,
     decision: gate.decision,
     evidenceId: input.evidenceId,
-    caseId: input.caseId ?? null,
+    caseId,
     projectId: input.projectId ?? null,
     initiatedByUserId: input.initiatedByUserId ?? null,
   });
@@ -597,7 +684,7 @@ export async function runProviderOperation(
     code: "PROVIDER_CALL_COMPLETED",
     actorUserId: input.initiatedByUserId ?? null,
     evidenceId: input.evidenceId,
-    caseId: input.caseId ?? null,
+    caseId,
     projectId: input.projectId ?? null,
     provider: input.provider,
     operation: input.operation,
@@ -612,7 +699,7 @@ export async function runProviderOperation(
       code: "RECORD_INGESTED",
       actorUserId: input.initiatedByUserId ?? null,
       evidenceId: input.evidenceId,
-      caseId: input.caseId ?? null,
+      caseId,
       projectId: input.projectId ?? null,
       provider: input.provider,
       reason: `count=${ingest.insertedRecords}`,

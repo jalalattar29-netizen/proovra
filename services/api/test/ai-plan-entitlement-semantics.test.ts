@@ -113,7 +113,10 @@ describe("deterministic answers and the monthly plan cap", () => {
     const reserveIdx = chat.indexOf("reserveWorkspaceAiOperation(aiScope)");
     expect(preflightIdx).toBeGreaterThan(0);
     expect(reserveIdx, "the reservation must sit on the provider branch, after the preflight").toBeGreaterThan(preflightIdx);
-    expect(chat).toContain('if (planReservation?.allowed && result.status !== "ok")');
+    // RG-05 (PRO-AI1-02) — given back from the transport outcome, not from the
+    // model-written status.
+    expect(chat).toContain("outcome: providerOutcomeOf(result)");
+    expect(chat).not.toContain('result.status !== "ok"');
     expect(chat, "the old record-after-success writer must not return").not.toContain("recordWorkspaceAiOperation");
   });
 

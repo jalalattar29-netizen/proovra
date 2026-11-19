@@ -24,6 +24,7 @@ import {
   aiStatusCopy,
   managedByCopy,
   resolveManagedBy,
+  type AiAssistanceReason,
   type AiAssistanceStatus,
 } from "../../../../lib/ai/assistanceStatus";
 
@@ -32,15 +33,20 @@ export function AiStatusRow({
   enabled,
   workspaceKind,
   canManage,
+  reason,
+  allowanceResetsAtUtc,
 }: {
   status: AiAssistanceStatus;
+  /** PRO-AI1Z-04 — additive; absent from an older API. */
+  reason?: AiAssistanceReason | null;
+  allowanceResetsAtUtc?: string | null;
   /** The workspace's own switch, independent of platform availability. */
   enabled: boolean;
   workspaceKind: "PERSONAL" | "ORGANIZATION" | null;
   canManage: boolean | null;
 }) {
-  const copy = aiStatusCopy(status);
-  const managedBy = resolveManagedBy({ status, workspaceKind, canManage });
+  const copy = aiStatusCopy(status, { reason, allowanceResetsAtUtc });
+  const managedBy = resolveManagedBy({ status, workspaceKind, canManage, reason });
 
   return (
     <div
@@ -94,7 +100,7 @@ export function AiStatusRow({
         "PROOVRA platform availability" is already what the detail line says,
         and repeating it reads as though two separate things were wrong.
       */}
-      {status === "TEMPORARILY_UNAVAILABLE" && enabled ? null : (
+      {status === "TEMPORARILY_UNAVAILABLE" && enabled && !reason ? null : (
         <p
           style={{ margin: "4px 0 0", fontSize: 12, color: "var(--app-ink-secondary, #667085)" }}
           data-cc-ai-managed-by={managedBy}
@@ -109,7 +115,7 @@ export function AiStatusRow({
         only "unavailable" would make an administrator hunt for a setting they
         have already set correctly.
       */}
-      {status === "TEMPORARILY_UNAVAILABLE" && enabled ? (
+      {status === "TEMPORARILY_UNAVAILABLE" && enabled && !reason ? (
         <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--app-ink-secondary, #667085)" }}>
           This workspace has AI assistance enabled; the platform is not serving
           AI requests at the moment. No change is needed here.

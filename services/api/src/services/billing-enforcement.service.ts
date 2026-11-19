@@ -1519,12 +1519,14 @@ async function decideAiOperationAllowance(
 
   const tenantId = await resolveAiUsageTenantId(scope);
   if (!tenantId) {
-    // Personal team has not been bootstrapped; the cap cannot be counted
-    // durably, so allow and let the in-memory abuse limits hold. New users
-    // hit this at most once, before `ensurePersonalWorkspace` runs.
+    // PRO-BL2-03 — a finite monthly cap with nowhere to count it is NOT an
+    // unlimited allowance. It used to allow without writing a usage row, so
+    // an identity with no Personal Space had unmetered AI. Refused (nothing
+    // spent); the first request racing the personal-space bootstrap succeeds
+    // on retry once the row exists.
     return {
-      allowed: true,
-      denial: null,
+      allowed: false,
+      denial: "AI_NOT_INCLUDED",
       cap,
       consumed: 0,
       tenantId: null,

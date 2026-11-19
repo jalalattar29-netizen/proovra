@@ -54,6 +54,9 @@ export type AiAssistanceSettings = {
   status: AiAssistanceStatus;
   available: boolean;
   enabled: boolean;
+  /** PRO-AI1Z-04 — additive; a newer API says why it is unavailable. */
+  reason?: "ALLOWANCE_EXHAUSTED";
+  allowanceResetsAtUtc?: string;
   features: AiAssistanceFeature[];
   processing: {
     mode: string;
@@ -128,11 +131,15 @@ export function AiReadOnlyView({
    */
   canManage: boolean | null;
 }) {
-  const copy = aiStatusCopy(data.status);
+  const copy = aiStatusCopy(data.status, {
+    reason: data.reason ?? null,
+    allowanceResetsAtUtc: data.allowanceResetsAtUtc ?? null,
+  });
   const managedBy = resolveManagedBy({
     status: data.status,
     workspaceKind,
     canManage,
+    reason: data.reason ?? null,
   });
 
   return (

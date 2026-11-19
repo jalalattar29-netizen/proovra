@@ -274,6 +274,7 @@ vi.mock("../src/services/ai/ai-usage-ledger.service.js", () => ({
   reconcileAiUsage: async () => undefined,
   releaseAiReservation: async () => undefined,
   buildPrismaLedgerStore: () => ({}),
+  ledgerRefusalStatus: () => 429,
 }));
 vi.mock("../src/services/ai/ai-copilot-run-store.service.js", () => ({
   persistCopilotRun: async () => ({ id: "run-1" }),
@@ -286,7 +287,24 @@ vi.mock("../src/services/ai/structured-copilot-provider.js", async (importOrigin
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    buildStructuredCopilotCall: () => (payload: unknown) => H.provider(payload),
+    // RG-05 — the real call carries a spend tracker the route settles from;
+    // the double reports ANSWERED once its stub returned, NOT_SENT otherwise.
+    buildStructuredCopilotCall: () => {
+      let outcome = "NOT_SENT";
+      const call = async (payload: unknown) => {
+        const out = await H.provider(payload);
+        outcome = "ANSWERED";
+        return out;
+      };
+      return Object.assign(call, {
+        spend: {
+          get outcome() {
+            return outcome;
+          },
+          actualCostUsdMicros: null,
+        },
+      });
+    },
   };
 });
 

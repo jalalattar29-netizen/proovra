@@ -25,14 +25,16 @@ import {
   isOperatorCapabilityGap,
 } from "../services/ai/workspace-ai-policy.service.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
+import { ledgerRefusalStatus, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
 import {
-  buildPrismaLedgerStore,
-  reconcileAiUsage,
-  releaseAiReservation,
-  tryReserveAiBudget,
-} from "../services/ai/ai-usage-ledger.service.js";
+  classifyProviderError,
+  providerOutcomeOf,
+  settleAiSpend,
+  withoutProviderOutcome,
+} from "../services/ai/ai-provider-outcome.js";
 import {
   assertWorkspaceAllowsAiOperation,
+  evaluateWorkspaceAiOperation,
   releaseWorkspaceAiOperation,
   reserveWorkspaceAiOperation,
 } from "../services/billing-enforcement.service.js";
@@ -370,12 +372,26 @@ export async function aiRoutes(app: FastifyInstance) {
     async (req) => {
       const userId = getAuthUserId(req);
       const { policyTeamId, userRole } = await resolveAiCommercialScope(req, userId);
+      // PRO-AI1Z-04 / POL-AI1-05 — the plan and the allowance are inputs, so a
+      // plan without AI reads PLAN_NOT_ENTITLED and a spent allowance is not
+      // reported as available.
+      const allowance = policyTeamId
+        ? await evaluateWorkspaceAiOperation({ teamId: policyTeamId })
+        : null;
       const policy = await evaluateWorkspaceAiPolicy({
         teamId: policyTeamId,
         userRole,
         feature: "SUPPORT_CHAT",
         dataClass: "METADATA",
+        ...(allowance
+          ? {
+              planAllowed:
+                allowance.denial !== "AI_NOT_INCLUDED" &&
+                allowance.denial !== "COMMERCIAL_LIFECYCLE_RESTRICTED",
+            }
+          : {}),
       });
+      const allowanceExhausted = allowance?.denial === "AI_MONTHLY_LIMIT_REACHED";
 
       /*
        * Grounded topics survive an operator capability gap but not a workspace
@@ -385,8 +401,10 @@ export async function aiRoutes(app: FastifyInstance) {
 
       return {
         data: {
-          available: policy.allowed,
+          available: policy.allowed && !allowanceExhausted,
           decision: policy.decision,
+          // Additive: the monthly allowance is spent (resets next UTC month).
+          allowanceExhausted,
           /** True when questions about the product are still answerable. */
           groundedAnswersAvailable:
             policy.allowed || isOperatorCapabilityGap(policy.decision),
@@ -592,7 +610,7 @@ export async function aiRoutes(app: FastifyInstance) {
         });
         if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
           await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
-          return reply.code(429).send({
+          return reply.code(ledgerRefusalStatus(ledger.decision.code)).send({
             code: `AI_BUDGET_${ledger.decision.code}`,
             message: "The workspace AI budget or operation limit has been reached.",
           });
@@ -603,12 +621,17 @@ export async function aiRoutes(app: FastifyInstance) {
             AI_CHAT_LIMITS.REQUEST_TIMEOUT_MS,
           );
         } catch (err) {
-          if (ledger.reservationId) {
-            await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
-          }
-          await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
           const isTimeout =
             err instanceof Error && err.message === "AI_REQUEST_TIMEOUT";
+          // RG-05 (PRO-AI1-03) — a timed-out call was sent and may have been
+          // generated and billed: it is SENT_UNKNOWN and keeps its operation
+          // (DEC-13 bounded rule). Only a throw proven pre-send releases.
+          const reservedPlan = planReservation.reservation;
+          await settleAiSpend({
+            outcome: isTimeout ? "SENT_UNKNOWN" : classifyProviderError(err),
+            ledgerReservationId: ledger.reservationId,
+            releasePlanOperation: () => releaseWorkspaceAiOperation(reservedPlan),
+          });
           if (isTimeout) {
             await bumpAiChatMetric("ai_chat_timeout_total");
             emitAiChatAbuseSignal(req, userId, "timeout");
@@ -624,15 +647,17 @@ export async function aiRoutes(app: FastifyInstance) {
           }
           throw err;
         }
-        // B6-F-26 — only an answered provider call is spend; any other
-        // result releases the reservation and the rollups it incremented.
-        if (ledger.reservationId) {
-          if (result.status === "ok") {
-            await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
-          } else {
-            await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
-          }
-        }
+        // B6-F-26 / RG-05 (PRO-AI1-02) — spend is decided by the server-
+        // authored transport outcome, never by the model-written status: an
+        // answered call spends even when its content is blocked; only a call
+        // that never reached the provider gives both meters back.
+        const reservedPlan = planReservation.reservation;
+        await settleAiSpend({
+          outcome: providerOutcomeOf(result),
+          ledgerReservationId: ledger.reservationId,
+          actualCostUsdMicros: result.providerCostUsdMicros ?? null,
+          releasePlanOperation: () => releaseWorkspaceAiOperation(reservedPlan),
+        });
       }
 
       auditAiAction(req, {
@@ -677,11 +702,8 @@ export async function aiRoutes(app: FastifyInstance) {
        * durable budget". Two counters existed, one honouring that intent and
        * one not. This is the second one catching up, not a policy change.
        */
-      if (planReservation?.allowed && result.status !== "ok") {
-        // Counted before the call; a provider answer that was not "ok" did
-        // not spend, so it is given back. Counter failures never surface.
-        await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
-      }
+      // (The plan operation was settled with the ledger above, from the
+      // transport outcome; a deterministic short-circuit never reserved.)
 
       fireAiAnalytics({
         eventType: "ai_chat_request",
@@ -690,7 +712,7 @@ export async function aiRoutes(app: FastifyInstance) {
         metadata: { status: result.status },
       });
 
-      return { data: result };
+      return { data: withoutProviderOutcome(result) };
     }
   );
 
@@ -767,7 +789,7 @@ export async function aiRoutes(app: FastifyInstance) {
       });
       if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
         await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
-        return reply.code(429).send({
+        return reply.code(ledgerRefusalStatus(ledger.decision.code)).send({
           code: `AI_BUDGET_${ledger.decision.code}`,
           message: "The workspace AI budget or operation limit has been reached.",
         });
@@ -776,26 +798,22 @@ export async function aiRoutes(app: FastifyInstance) {
       try {
         result = await aiCaptureService.analyzeSession(userId, body);
       } catch (err) {
-        if (ledger.reservationId) {
-          await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
-        }
-        await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
+        await settleAiSpend({
+          outcome: classifyProviderError(err),
+          ledgerReservationId: ledger.reservationId,
+          releasePlanOperation: () => releaseWorkspaceAiOperation(planReservation.reservation),
+        });
         throw err;
       }
-      if (ledger.reservationId) {
-        // A "blocked" result short-circuited before the provider — release
-        // the reservation instead of charging it. B6-F-21 / B6-F-26 — a
-        // provider failure (the deterministic fallback now carries the
-        // provider's non-ok status) is not spend either.
-        if (result.status !== "ok") {
-          await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
-        } else {
-          await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
-        }
-      }
-      if (result.status !== "ok") {
-        await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
-      }
+      // B6-F-21 / B6-F-26 / RG-05 (PRO-AI1-02) — a cost-guard block before the
+      // provider is NOT_SENT and releases; an answered call spends whatever
+      // status the content ends with. The model never decides this.
+      await settleAiSpend({
+        outcome: providerOutcomeOf(result),
+        ledgerReservationId: ledger.reservationId,
+        actualCostUsdMicros: result.providerCostUsdMicros ?? null,
+        releasePlanOperation: () => releaseWorkspaceAiOperation(planReservation.reservation),
+      });
 
       auditAiAction(req, {
         userId,
@@ -823,7 +841,7 @@ export async function aiRoutes(app: FastifyInstance) {
         metadata: { status: result.status },
       });
 
-      return { data: result };
+      return { data: withoutProviderOutcome(result) };
     }
   );
 

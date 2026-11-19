@@ -33,7 +33,7 @@ import { decodeCanonicalJob } from "./canonical-job.js";
 import { withCronLock } from "./cron-lock.js";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
-import { workspaceContractWithheld } from "./workspace-billing.js";
+import { canEmbedMore, workspaceSemanticEgressAllowed } from "./embedding-egress-gate.js";
 
 type ProviderHandle = {
   name: string;
@@ -184,75 +184,15 @@ function makeLocalDeterministicProvider(dimensions: number): ProviderHandle {
 }
 
 // --------------------------------------------------------------------------
-// Daily-cap helpers â€” kept inline in the worker (mirrors the API service
-// without cross-package import). The DB schema is the source of truth.
+// Daily-cap helpers live in ./embedding-egress-gate.ts (RG-04): one gate, one
+// cap reader, shared by every worker path that can cause an embedding call.
 // --------------------------------------------------------------------------
-
-function dailyChunkCap(): number {
-  const raw = process.env.SEMANTIC_MAX_CHUNKS_PER_WORKSPACE_PER_DAY;
-  const v = raw ? Number.parseInt(raw, 10) : 5_000;
-  return Number.isFinite(v) && v >= 0 ? v : 5_000;
-}
-
-function monthlyBudgetEur(): number {
-  const raw = process.env.SEMANTIC_MONTHLY_BUDGET_EUR;
-  const v = raw ? Number.parseFloat(raw) : 100;
-  return Number.isFinite(v) && v >= 0 ? v : 100;
-}
 
 function dateUtcMidnight(): Date {
   const at = new Date();
   return new Date(
     Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()),
   );
-}
-
-function firstOfMonthUtc(): Date {
-  const at = new Date();
-  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1));
-}
-
-async function canEmbedMore(
-  workspaceId: string,
-  additional: number,
-): Promise<{
-  allowed: boolean;
-  reason: "DAILY_CAP" | "MONTHLY_BUDGET" | null;
-}> {
-  const dailyCap = dailyChunkCap();
-  const monthlyCap = monthlyBudgetEur();
-  if (dailyCap <= 0 && monthlyCap <= 0) return { allowed: true, reason: null };
-  try {
-    const today = dateUtcMidnight();
-    const monthStart = firstOfMonthUtc();
-    const [todayRow, monthRows] = await Promise.all([
-      prisma.semanticUsageDaily.findUnique({
-        where: {
-          workspaceId_dateUtc: { workspaceId, dateUtc: today },
-        },
-        select: { chunksEmbedded: true, eurSpentMicros: true },
-      }),
-      prisma.semanticUsageDaily.findMany({
-        where: { workspaceId, dateUtc: { gte: monthStart } },
-        select: { chunksEmbedded: true, eurSpentMicros: true },
-      }),
-    ]);
-    const todayChunks = todayRow?.chunksEmbedded ?? 0;
-    const monthMicros = monthRows.reduce(
-      (acc, r) => acc + (r.eurSpentMicros ?? 0n),
-      0n,
-    );
-    const monthEur = Number(monthMicros) / 1_000_000;
-    if (dailyCap > 0 && todayChunks + additional > dailyCap) {
-      return { allowed: false, reason: "DAILY_CAP" };
-    }
-    if (monthlyCap > 0 && monthEur >= monthlyCap) {
-      return { allowed: false, reason: "MONTHLY_BUDGET" };
-    }
-    return { allowed: true, reason: null };
-  } catch {
-    return { allowed: true, reason: null };
-  }
 }
 
 function estimateTokens(chars: number): number {
@@ -392,34 +332,16 @@ export async function processMiEmbedJob(
   }
   const teamId = anchor.teamId;
 
-  // Phase P3 â€” canonical Workspace AI policy enforcement IN THE WORKER.
-  // Env flags alone are not sufficient: the workspace must have semantic
-  // search + embeddings enabled in its AI policy. Read failure (table not
-  // migrated) skips enforcement; a missing row means the safe defaults
-  // (semantic OFF) and the job drains without embedding.
-  try {
-    const policyRow = await prisma.workspaceAiPolicy.findUnique({
-      where: { teamId },
-      select: { aiEnabled: true, semanticSearchEnabled: true, embeddingsAllowed: true },
-    });
-    const allowed = policyRow
-      ? policyRow.aiEnabled && policyRow.semanticSearchEnabled && policyRow.embeddingsAllowed
-      : false; // table exists, no row â†’ safe defaults (semantic off)
-    if (!allowed) {
-      logger.info(
-        { requestId, jobId: job.id ?? null, teamId },
-        "mi_embed.workspace_policy_disabled_completed",
-      );
-      return;
-    }
-  } catch {
-    /* policy table not migrated in this environment â€” env gates still apply */
-  }
-
-  if (await workspaceContractWithheld(teamId)) {
+  // RG-04 (PRO-AI1C-01 / PRO-W2-02 / PRO-W2-03) - THE semantic-egress gate:
+  // workspace AI policy (semantic search + embeddings + derived content), the
+  // plan's SEMANTIC_SEARCH eligibility, the commercial lifecycle and the
+  // Enterprise contract, decided by the one worker authority. A read failure
+  // THROWS out of this job so BullMQ retries; it is never permission to embed.
+  const egress = await workspaceSemanticEgressAllowed(teamId);
+  if (!egress.allowed) {
     logger.info(
-      { requestId, jobId: job.id ?? null, teamId },
-      "mi_embed.contract_withheld_completed",
+      { requestId, jobId: job.id ?? null, teamId, denial: egress.denial },
+      "mi_embed.workspace_policy_disabled_completed",
     );
     return;
   }

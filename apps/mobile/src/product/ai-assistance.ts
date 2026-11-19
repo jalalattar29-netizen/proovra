@@ -52,14 +52,22 @@ export interface AiFeature {
 export const AI_ENABLED_BUT_UNAVAILABLE =
   "This workspace has AI assistance enabled; the platform is not serving AI requests at the moment. No change is needed here.";
 
-export function aiStatusDetail(status: string | null, enabled: boolean, fallback: string): string {
-  return status === "TEMPORARILY_UNAVAILABLE" && enabled ? AI_ENABLED_BUT_UNAVAILABLE : fallback;
+export function aiStatusDetail(
+  status: string | null,
+  enabled: boolean,
+  fallback: string,
+  reason: "ALLOWANCE_EXHAUSTED" | null = null,
+): string {
+  return status === "TEMPORARILY_UNAVAILABLE" && enabled && !reason ? AI_ENABLED_BUT_UNAVAILABLE : fallback;
 }
 
 export interface AiAssistanceSettings {
   status: AiAssistanceStatus | null;
   available: boolean;
   enabled: boolean;
+  /** PRO-AI1Z-04 — additive: why a newer API reports it unavailable. */
+  reason: "ALLOWANCE_EXHAUSTED" | null;
+  allowanceResetsAtUtc: string | null;
   features: AiFeature[];
   processing: {
     mode: string | null;
@@ -119,6 +127,8 @@ export function parseAiAssistanceSettings(data: unknown): AiAssistanceSettings {
     status,
     available: d["available"] === true,
     enabled: d["enabled"] === true,
+    reason: d["reason"] === "ALLOWANCE_EXHAUSTED" ? "ALLOWANCE_EXHAUSTED" : null,
+    allowanceResetsAtUtc: s(d["allowanceResetsAtUtc"]),
     features,
     processing: {
       mode: s(processing["mode"]),
@@ -135,11 +145,22 @@ export function parseAiAssistanceSettings(data: unknown): AiAssistanceSettings {
  * facts with different remedies, and collapsing them into "off" would send
  * somebody to the wrong place.
  */
-export function aiStatusDisplay(status: AiAssistanceStatus | null): {
+export function aiStatusDisplay(
+  status: AiAssistanceStatus | null,
+  reason: "ALLOWANCE_EXHAUSTED" | null = null,
+): {
   label: string;
   tone: ProovraStatusTone;
   detail: string;
 } {
+  // PRO-AI1Z-04 — a spent monthly allowance is a plan fact, not an outage.
+  if (reason === "ALLOWANCE_EXHAUSTED") {
+    return {
+      label: "Allowance used",
+      tone: "neutral",
+      detail: "This workspace's monthly AI allowance is used up. It resets at the start of next month (UTC).",
+    };
+  }
   switch (status) {
     case "AVAILABLE":
       return {

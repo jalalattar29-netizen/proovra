@@ -63,6 +63,11 @@ export type AzureRunResult = {
    * with it.
    */
   extractedText: string | null;
+  /**
+   * PRO-AI1C-02 — the number of pages Azure ANALYSED (the billed unit for
+   * prebuilt-layout), when the result reports it. Absent on failures.
+   */
+  analyzedPages?: number | null;
 };
 
 export type AzureAnalyzeInput = {
@@ -261,6 +266,7 @@ export async function analyzeDocumentLayout(
       reason: null,
       rows,
       extractedText: analyze.content ?? null,
+      analyzedPages: Array.isArray(analyze.pages) ? analyze.pages.length : null,
     };
   } catch (err) {
     return mapException("analyze_layout", err);

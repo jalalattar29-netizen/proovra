@@ -96,6 +96,14 @@ export async function createBudget(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
+  // PRO-AI1-10 — a CASE budget must name a case of THIS workspace.
+  if (input.scope === "CASE" && input.scopeTargetId) {
+    const owned = await prisma.case.findFirst({
+      where: { id: input.scopeTargetId, teamId: input.teamId },
+      select: { id: true },
+    });
+    if (!owned) return { ok: false, denial: "POLICY_REJECTED" };
+  }
   const created = await prisma.providerBudget.create({
     data: {
       teamId: input.teamId,
@@ -188,6 +196,12 @@ export async function listBudgets(input: {
 export type ScopedBudgetGateInput = ProviderBudgetGateInput & {
   caseId?: string | null;
   projectId?: string | null;
+  /**
+   * PRO-AI1-10 — every case the evidence is linked to, resolved by the
+   * server. A CASE budget applies when its case is among them, whether or not
+   * the caller named a case.
+   */
+  caseIds?: ReadonlyArray<string>;
 };
 
 /**
@@ -282,7 +296,12 @@ export async function decideBudgetGate(
   for (const b of budgets) {
     // Filter budgets that don't apply to the candidate operation.
     const scope = b.scope as ProviderBudgetScope;
-    if (scope === "CASE" && b.scopeTargetId && b.scopeTargetId !== (input.caseId ?? null)) {
+    if (
+      scope === "CASE" &&
+      b.scopeTargetId &&
+      b.scopeTargetId !== (input.caseId ?? null) &&
+      !(input.caseIds ?? []).includes(b.scopeTargetId)
+    ) {
       continue;
     }
     if (scope === "PROJECT" && b.scopeTargetId && b.scopeTargetId !== (input.projectId ?? null)) {
@@ -486,13 +505,29 @@ async function sumConsumed(input: {
   provider: MediaIntelligenceProvider | null;
   sinceUtc: Date;
 }): Promise<number> {
+  // PRO-AI1-10 — a case's spend is every usage event naming the case OR
+  // made on evidence linked to it (the automatic extraction path names none).
+  const caseEvidenceIds =
+    input.scope === "CASE" && input.scopeTargetId
+      ? (
+          await input.prisma.caseEvidenceLink.findMany({
+            where: { caseId: input.scopeTargetId },
+            select: { evidenceId: true },
+          })
+        ).map((l) => l.evidenceId)
+      : [];
   const sum = await input.prisma.providerUsageEvent.aggregate({
     where: {
       teamId: input.teamId,
       occurredAtUtc: { gte: input.sinceUtc },
       ...(input.provider ? { provider: input.provider } : {}),
       ...(input.scope === "CASE" && input.scopeTargetId
-        ? { caseId: input.scopeTargetId }
+        ? {
+            OR: [
+              { caseId: input.scopeTargetId },
+              ...(caseEvidenceIds.length > 0 ? [{ evidenceId: { in: caseEvidenceIds } }] : []),
+            ],
+          }
         : {}),
       ...(input.scope === "PROJECT" && input.scopeTargetId
         ? { projectId: input.scopeTargetId }

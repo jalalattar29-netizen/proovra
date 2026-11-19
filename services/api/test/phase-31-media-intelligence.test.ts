@@ -524,8 +524,11 @@ describe("Phase 31 — route source contract", () => {
   });
 
   it("anti-enumeration: cross-team evidence returns 404 not_found", () => {
+    // PRO-AI1C-05 — bound through THE workspace-of-a-record rule
+    // (bindDerivedRecord answers the anti-enumeration 404).
+    expect(src).toContain("if (!(await bindDerivedRecord(reply, { evidenceId, teamId }))) return;");
     expect(src).toMatch(
-      /evidence\.teamId !== teamId[\s\S]*?reply\.code\(404\)\.send\(\{\s*error:\s*\{\s*code:\s*"not_found"\s*\}/,
+      /workspaceId !== input\.teamId\)[\s\S]*?reply\.code\(404\)\.send\(\{\s*error:\s*\{\s*code:\s*"not_found"\s*\}/,
     );
   });
 

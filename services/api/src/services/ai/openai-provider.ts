@@ -5,6 +5,25 @@ import { openAiClientPrivacyOptions, openAiRequestStore } from "./provider-priva
 import { UNTRUSTED_DATA_INSTRUCTION } from "./prompt-context-sanitizer.service.js";
 import { buildProductKnowledgePromptSection } from "./proovra-product-knowledge.js";
 import { AiResultSchema } from "./ai-types.js";
+import {
+  classifyProviderError,
+  costFromUsageUsdMicros,
+  withProviderOutcome,
+  type MeteredAiResult,
+} from "./ai-provider-outcome.js";
+
+/**
+ * RG-05 (PRO-AI1-03) — the transport is bounded HERE, not by a timer that
+ * leaves the request running. The SDK's own retries are off (one explicit
+ * action is one provider attempt; a retry is a new user action), and the
+ * request carries a client timeout below the route's 30s answer window, so a
+ * slow call is aborted at the provider instead of completing unseen.
+ */
+export const OPENAI_ADVISORY_MAX_RETRIES = 0;
+export function openAiAdvisoryTimeoutMs(): number {
+  const raw = Number.parseInt(process.env.OPENAI_ADVISORY_TIMEOUT_MS ?? "", 10);
+  return Number.isFinite(raw) && raw >= 1_000 && raw <= 120_000 ? raw : 25_000;
+}
 // Phase O1.5E — bounded openai.ai_request span. NEVER prompts,
 // responses, file contents, GPS, or raw user text in attributes.
 // Only the bounded task name + outcome.
@@ -72,7 +91,12 @@ export class OpenAiProvider implements AiProvider {
   constructor(config: OpenAiProviderConfig) {
     // Phase A3 — bind the configured project/organization so usage is scoped to
     // the account where the no-training / retention policy is set.
-    this.client = new OpenAI({ apiKey: config.apiKey, ...openAiClientPrivacyOptions() });
+    this.client = new OpenAI({
+      apiKey: config.apiKey,
+      ...openAiClientPrivacyOptions(),
+      maxRetries: OPENAI_ADVISORY_MAX_RETRIES,
+      timeout: openAiAdvisoryTimeoutMs(),
+    });
     this.chatModel = config.chatModel;
     this.captureModel = config.captureModel;
     this.evidenceCategorizationModel = config.evidenceCategorizationModel;
@@ -186,7 +210,8 @@ private buildUserPrompt(task: AiTask, input: unknown): string {
     );
   }
 
-  private async runInner(task: AiTask, input: unknown): Promise<AiResult> {
+  private async runInner(task: AiTask, input: unknown): Promise<MeteredAiResult> {
+    let answered = false;
     const model =
       task === AiTask.SUPPORT_CHAT
         ? this.chatModel
@@ -284,9 +309,15 @@ const response = await this.client.responses.create({
   max_output_tokens: 900,
 });
 
+      // The provider answered: from here every return is ANSWERED spend,
+      // whatever the content turns out to be.
+      answered = true;
+      const cost = costFromUsageUsdMicros(
+        (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage,
+      );
       const rawText = getTextFromResponse(response);
       if (!rawText) {
-        return {
+        return withProviderOutcome({
           status: "blocked",
           summary:
             "AI provider returned an unexpected response format.",
@@ -298,12 +329,12 @@ const response = await this.client.responses.create({
           ],
           flags: [],
           legalDisclaimer: AI_LEGAL_DISCLAIMER,
-        };
+        }, "ANSWERED", cost);
       }
 
       const jsonText = extractJsonText(rawText);
       if (!jsonText || jsonText !== rawText.trim()) {
-        return {
+        return withProviderOutcome({
           status: "blocked",
           summary:
             "AI response did not comply with the required structured output format.",
@@ -315,7 +346,7 @@ const response = await this.client.responses.create({
           ],
           flags: [],
           legalDisclaimer: AI_LEGAL_DISCLAIMER,
-        };
+        }, "ANSWERED", cost);
       }
 
       const raw = JSON.parse(jsonText) as unknown;
@@ -323,7 +354,7 @@ const response = await this.client.responses.create({
 if (!validated.success) {
   console.error("AI response schema validation failed:", validated.error.flatten());
 
-  return {
+  return withProviderOutcome({
     status: "error",
     summary:
       "AI response could not be processed. Please try again.",
@@ -331,13 +362,21 @@ if (!validated.success) {
     suggestions: [],
     flags: [],
     legalDisclaimer: AI_LEGAL_DISCLAIMER,
-  };
+  }, "ANSWERED", cost);
 }
 
-      return applyAiPolicy(validated.data);
+      // PRO-AI1-02 — the model does not decide its own status. The schema
+      // still carries the field (the strict contract is unchanged), but the
+      // server overwrites it: an answered call is "ok" unless the server's
+      // own filters (applyAiPolicy) block it, and either way it is ANSWERED.
+      return withProviderOutcome(
+        applyAiPolicy({ ...validated.data, status: "ok" }),
+        "ANSWERED",
+        cost,
+      );
     } catch (error: unknown) {
       console.error("OpenAI provider error:", error);
-      return {
+      return withProviderOutcome({
         status: "error",
         summary:
           "AI provider encountered a temporary error while generating advisory guidance.",
@@ -349,7 +388,7 @@ if (!validated.success) {
         ],
         flags: [],
         legalDisclaimer: AI_LEGAL_DISCLAIMER,
-      };
+      }, answered ? "ANSWERED" : classifyProviderError(error));
     }
   }
 }

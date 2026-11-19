@@ -32,6 +32,7 @@
  *     for operators sizing a workspace before flipping the switch.
  */
 
+import { evaluateSemanticEgress } from "../ai/workspace-ai-policy.service.js";
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
@@ -68,6 +69,8 @@ export type SemanticBackfillResult = {
     | "PROVIDER_UNAVAILABLE"
     | "DAILY_CAP"
     | "MONTHLY_BUDGET"
+    | "USAGE_UNREADABLE"
+    | "WORKSPACE_POLICY_DENIED"
     | "OUTBOUND_NOT_ALLOWED"
     | "AUTH"
     | "DRY_RUN_COMPLETED";
@@ -116,6 +119,25 @@ export async function runSemanticBackfill(
       succeeded: 0,
       failed: 0,
       skippedReason: "PROVIDER_UNAVAILABLE",
+      nextCursorChunkId: input.cursorChunkId ?? null,
+      durationMs: Date.now() - startedAt,
+    };
+  }
+
+  // RG-04 (PRO-AI1C-01 path F) — the semantic-egress gate is asked HERE, in
+  // the service, so the operator CLI (scripts/backfill-semantic-embeddings.ts)
+  // is governed exactly like the platform-admin route: a workspace whose
+  // policy, plan or lifecycle forbids embeddings gets nothing sent.
+  const egress = await evaluateSemanticEgress({
+    teamId: input.workspaceId,
+    dataClass: "DERIVED_CONTENT",
+  });
+  if (!egress.allowed) {
+    return {
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      skippedReason: "WORKSPACE_POLICY_DENIED",
       nextCursorChunkId: input.cursorChunkId ?? null,
       durationMs: Date.now() - startedAt,
     };
