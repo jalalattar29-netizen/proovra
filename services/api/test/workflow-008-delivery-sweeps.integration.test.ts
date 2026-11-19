@@ -179,6 +179,12 @@ describe("WORKFLOW-008 the worker sweeps against the real API", () => {
     try {
       const A = h.fixtures.teamA;
       await prisma.team.update({ where: { id: A.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
+      // RG-13 (PRO-G1-14 / PRO-W2-05) — every delivery is admitted at emit
+      // against FEATURE_WEBHOOKS and the daily delivery quota (both default
+      // off); this workspace holds both, written by the operator path.
+      const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+      await upsertEntitlementGrant({ teamId: A.teamId, key: "FEATURE_WEBHOOKS", value: true, kind: "FEATURE", source: "CUSTOM", grantedByUserId: A.ownerUserId } as never);
+      await upsertEntitlementGrant({ teamId: A.teamId, key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY", value: 1000, kind: "QUOTA", source: "CUSTOM", grantedByUserId: A.ownerUserId } as never);
       const secret = issueWebhookSecret()!;
       const endpoint = await prisma.webhookEndpoint.create({
         data: {
@@ -215,7 +221,9 @@ describe("WORKFLOW-008 the worker sweeps against the real API", () => {
       const sweep = API_DELIVERY_SWEEPS.find((s) => s.path === "/v1/integrations/process-webhook-retries")!;
       const result = await runApiDeliverySweep(sweep, { timeoutMs: 60_000 });
       expect(result.ok).toBe(true);
-      expect(sends).toEqual(["https://hooks.example.com/aud-0042-slow"]);
+      // The sweep is global: on a shared database it also sends other suites'
+      // due rows, so this counts the sends to this case's own endpoint.
+      expect(sends.filter((u) => u === "https://hooks.example.com/aud-0042-slow")).toEqual(["https://hooks.example.com/aud-0042-slow"]);
       const after = await prisma.integrationWebhookDelivery.findUniqueOrThrow({ where: { id: queued[0]!.id } });
       expect(after.status).toBe("SENT");
     } finally {
