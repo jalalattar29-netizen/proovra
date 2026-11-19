@@ -184,6 +184,27 @@ describe("defects — exchange, lifecycle, retention, webhook cancel (live Postg
       source: "CUSTOM",
       grantedByUserId: teamA.ownerUserId,
     });
+    // PRO-W1-07 — the builder re-reads the entitlement when it claims a build.
+    // The Personal-workspace cases below create packages through the service
+    // (beneath the route's feature gate), so that workspace holds the feature too.
+    await upsertEntitlementGrant({
+      teamId: h.fixtures.personal.teamId,
+      key: "FEATURE_EVIDENCE_EXCHANGE",
+      value: true,
+      kind: "FEATURE",
+      source: "CUSTOM",
+      grantedByUserId: h.fixtures.personal.userId,
+    });
+    // PRO-BL2-02 — the service reserves the monthly unit at admission; the
+    // Personal cases create more packages than the unprovisioned default of 2.
+    await upsertEntitlementGrant({
+      teamId: h.fixtures.personal.teamId,
+      key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
+      value: 100,
+      kind: "QUOTA",
+      source: "CUSTOM",
+      grantedByUserId: h.fixtures.personal.userId,
+    });
     await upsertEntitlementGrant({
       teamId: teamA.teamId,
       key: "QUOTA_EXPORT_PACKAGES_PER_MONTH",
