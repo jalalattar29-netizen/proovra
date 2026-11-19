@@ -80,6 +80,11 @@ const ALL_CASES = [CASE_A1, CASE_B1];
 // ---------------------------------------------------------------------------
 const mockClient = {
   case: { findMany: vi.fn(), count: vi.fn() },
+  // The owner-candidate read resolves the workspace through the canonical
+  // case scope (workspaceCaseWhere), which reads the workspace's kind.
+  team: {
+    findUnique: vi.fn(async () => ({ id: "t", isPersonal: false, workspaceKind: "TEAM", ownerUserId: null })),
+  },
   user: { findMany: vi.fn() },
   evidence: { findMany: vi.fn(), count: vi.fn() },
   caseEvidenceLink: { findMany: vi.fn() },
@@ -176,10 +181,12 @@ beforeEach(() => {
   // Base case.findMany honours teamId + OR against the fixture.
   mockClient.case.findMany.mockImplementation(
     async (args: {
-      where: { teamId: string; OR?: Array<Record<string, unknown>> };
+      where: { teamId?: string; AND?: Array<{ teamId?: string }>; OR?: Array<Record<string, unknown>> };
       take?: number;
     }) => {
-      const { teamId, OR } = args.where;
+      const { OR } = args.where;
+      // The canonical scope arrives as `AND: [{ teamId }]` (a shared workspace).
+      const teamId = args.where.teamId ?? args.where.AND?.[0]?.teamId;
       return ALL_CASES.filter(
         (c) =>
           c.teamId === teamId && (!OR || OR.length === 0 || caseMatchesOr(c, OR)),
@@ -277,8 +284,9 @@ describe("matter-queue search — base scope", () => {
     await search(TEAM_A, "acme");
     expect(mockClient.case.findMany).toHaveBeenCalled();
     for (const call of mockClient.case.findMany.mock.calls) {
-      const where = (call[0] as { where: { teamId: string } }).where;
-      expect(where.teamId).toBe(TEAM_A);
+      // Directly, or through the canonical case scope (`AND: [{ teamId }]`).
+      const where = (call[0] as { where: { teamId?: string; AND?: Array<{ teamId?: string }> } }).where;
+      expect(where.teamId ?? where.AND?.[0]?.teamId).toBe(TEAM_A);
     }
   });
 });
