@@ -479,12 +479,14 @@ describe("WS-AUTH identity roots (live PostgreSQL)", () => {
       expect((await call("GET", "/v1/auth/me", managed.token)).statusCode).toBe(401);
     });
 
-    it("SCIM: the first deprovision of a self-serve linked member suspends without signing them out; a repeat writes nothing; after departure it is 404", async () => {
+    it("SCIM: the first deprovision of a self-serve linked member suspends without signing them out; a repeat writes nothing (not-found); after departure it is 404", async () => {
       const o = await fx.seedOrganizationTenant(deps, { memberCount: 1 });
       const m = o.members[0]!;
       await makeSelfServe(m.userId);
       await prisma.externalIdentityMapping.create({
-        data: { teamId: o.workspaceId, organizationId: o.organizationId, userId: m.userId, provider: "GENERIC_SCIM", externalSubjectId: `ext-${randomUUID()}` },
+        // Integration: PRO-A2-02 (WS-ORG) — the directory acts on a self-serve
+        // account's link only when the account's owner consented to it.
+        data: { teamId: o.workspaceId, organizationId: o.organizationId, userId: m.userId, provider: "GENERIC_SCIM", externalSubjectId: `ext-${randomUUID()}`, linkSource: "OWNER_CONSENT" },
       });
       const ctx = { teamId: o.workspaceId, organizationId: o.organizationId, tokenId: randomUUID(), baseUrl: "https://scim.test" };
       expect(await scim.scimDeactivateUser(ctx as never, m.userId)).toEqual({ ok: true });
@@ -492,8 +494,13 @@ describe("WS-AUTH identity roots (live PostgreSQL)", () => {
       expect(await allForUser(m.userId)).toBe(0);
       expect((await call("GET", "/v1/auth/me", m.token)).statusCode).toBe(200);
       const revokedBefore = await prisma.revokedSession.count({ where: { userId: m.userId } });
-      expect(await scim.scimDeactivateUser(ctx as never, m.userId)).toEqual({ ok: true });
+      // Integration: the first deprovision ended the consented link and the
+      // Organization membership, so under PRO-A2-02 (WS-ORG) the directory no
+      // longer reaches this self-serve account: the repeat is answered
+      // not-found — and, as PRO-A2-06 requires, writes nothing.
+      expect(await scim.scimDeactivateUser(ctx as never, m.userId)).toEqual({ ok: false });
       expect(await prisma.revokedSession.count({ where: { userId: m.userId } })).toBe(revokedBefore);
+      expect((await prisma.teamMember.findFirstOrThrow({ where: { teamId: o.workspaceId, userId: m.userId } })).status).toBe("SUSPENDED");
       await prisma.teamMember.updateMany({ where: { teamId: o.workspaceId, userId: m.userId }, data: { status: "REVOKED" } });
       expect(await scim.scimDeactivateUser(ctx as never, m.userId)).toEqual({ ok: false });
     });
