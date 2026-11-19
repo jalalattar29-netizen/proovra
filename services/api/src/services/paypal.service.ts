@@ -1108,17 +1108,18 @@ export function addOneMonthUtc(from: Date): Date {
 }
 
 /**
- * PRO-BL1-04 (WS-BILL) — the PAID fact of a PayPal BASE-PLAN subscription, read
- * from its `billing_info`. ONE reader for the webhook/return settlement and
- * the reconciliation sweep, so the sweep cannot re-stamp what settlement
- * corrected.
+ * PRO-BL1-04 (WS-BILL) — the PAID fact of a PayPal subscription (a base plan
+ * OR a recurring storage add-on; both are monthly), read from its
+ * `billing_info`. ONE reader for the webhook/return settlement and the
+ * reconciliation sweep, for both products, so no path can re-stamp what
+ * another corrected.
  *   paymentFailing  PayPal still says ACTIVE while a payment is failing
  *                   (failed_payments_count > 0 or an outstanding balance);
  *   paidThroughUtc  the last COMPLETED payment plus one monthly cycle; null
  *                   when no completed payment is reported. Never the unpaid
  *                   `next_billing_time`.
  */
-export function readPayPalBasePlanPaidFact(billingInfo: unknown): {
+export function readPayPalSubscriptionPaidFact(billingInfo: unknown): {
   paymentFailing: boolean;
   paidThroughUtc: Date | null;
 } {

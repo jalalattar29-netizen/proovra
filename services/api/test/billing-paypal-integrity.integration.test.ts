@@ -50,6 +50,8 @@ class FakePayPal {
   subs = new Map<string, Sub>();
   orders = new Map<string, Order>();
   byRequestId = new Map<string, string>();
+  /** PRO-BL1-04 — per-subscription `billing_info` (payment facts); unset = the default. */
+  billingInfo = new Map<string, Record<string, unknown>>();
   calls: Array<{ method: string; path: string; requestId: string | null; body: string | null }> = [];
   tokenFails = false;
   /** Perform the capture at "PayPal" but lose the HTTP response. */
@@ -176,7 +178,9 @@ class FakePayPal {
     return {
       ...sub,
       status_update_time: sub.update_time,
-      billing_info: sub.status === "ACTIVE" ? { next_billing_time: new Date(Date.now() + 30 * 86400_000).toISOString() } : {},
+      billing_info:
+        this.billingInfo.get(sub.id) ??
+        (sub.status === "ACTIVE" ? { next_billing_time: new Date(Date.now() + 30 * 86400_000).toISOString() } : {}),
       links: sub.status === "APPROVAL_PENDING" ? [{ rel: "approve", href: `https://www.sandbox.paypal.com/webapps/billing/subscriptions?ba_token=BA-${sub.id}` }] : [],
     };
   }
@@ -536,6 +540,61 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
           expect(refused.status, via).toBe("FAILED");
           expect(fake.subs.get(refused.externalSubscriptionId!)!.status, via).toBe("CANCELLED");
           expect(await prisma.billingReviewItem.count({ where: { providerResourceId: refused.externalSubscriptionId!, reason: "STORAGE_ACTIVATION_REFUSED" } })).toBe(1);
+        }
+      });
+    });
+
+    // PRO-BL1-04 / DEC-02 — the add-on's paid period rests on a completed
+    // payment on BOTH paths (one reader), never on ACTIVE + next_billing_time.
+    it("PRO-BL1-04 — webhook and sweep date an add-on by its last completed payment; a failing payment is never a grant", async () => {
+      const fake = new FakePayPal();
+      await withPayPal(fake, async () => {
+        const { applyPayPalSubscriptionState } = await import("../src/services/billing/paypal-settlement.service.js");
+        const { reconcileBillingAccount, defaultReconciliationProviders } = await import(
+          "../src/services/billing/reconciliation/reconciliation.service.js"
+        );
+        const { addOneMonthUtc } = await import("../src/services/paypal.service.js");
+        const unpaidNext = new Date(Date.now() + 300 * 86400_000).toISOString();
+        const paidAt = new Date(Date.now() - 3 * 86400_000);
+        const lastPayment = { amount: { value: "2.99", currency_code: "EUR" }, time: paidAt.toISOString() };
+
+        for (const via of ["webhook", "sweep"] as const) {
+          const t = await payer("FREE");
+          const observe = async (subId: string) => {
+            fake.setSub(subId, "ACTIVE");
+            if (via === "webhook") {
+              await applyPayPalSubscriptionState({ subscriptionId: subId, source: "BILLING.SUBSCRIPTION.UPDATED" });
+            } else {
+              await reconcileBillingAccount({ account: account(t.owner.userId), providers: defaultReconciliationProviders() });
+            }
+            return prisma.workspaceStorageAddon.findFirstOrThrow({ where: { externalSubscriptionId: subId } });
+          };
+          const res = await call("POST", "/v1/billing/storage-addons/checkout/paypal", t.owner.token, { addonKey: "PERSONAL_10_GB" });
+          expect(res.statusCode, res.body).toBe(200);
+          const subId = json(res).subscription.id as string;
+          fake.subs.get(subId)!.plan_id = "P-STORAGE-10-EUR";
+
+          // ACTIVE at PayPal while the first payment is failing: not live storage.
+          fake.billingInfo.set(subId, { next_billing_time: unpaidNext, failed_payments_count: 1 });
+          const failing = await observe(subId);
+          expect(failing.status, via).toBe("PENDING");
+          expect(failing.activatedAtUtc, via).toBeNull();
+
+          // The payment completed: granted, dated by the payment, not by next_billing_time.
+          fake.billingInfo.set(subId, { next_billing_time: unpaidNext, last_payment: lastPayment });
+          const paid = await observe(subId);
+          expect(paid.status, via).toBe("ACTIVE");
+          expect(paid.currentPeriodEnd?.toISOString(), via).toBe(addOneMonthUtc(paidAt).toISOString());
+
+          // A later renewal failing under an ACTIVE label: PAST_DUE, paid-through unchanged.
+          fake.billingInfo.set(subId, {
+            next_billing_time: unpaidNext,
+            last_payment: lastPayment,
+            outstanding_balance: { value: "2.99", currency_code: "EUR" },
+          });
+          const due = await observe(subId);
+          expect(due.status, via).toBe("PAST_DUE");
+          expect(due.currentPeriodEnd?.toISOString(), via).toBe(addOneMonthUtc(paidAt).toISOString());
         }
       });
     });

@@ -58,7 +58,7 @@ import {
   getPayPalOrder,
   getPayPalSubscription,
   paypalGet,
-  readPayPalBasePlanPaidFact,
+  readPayPalSubscriptionPaidFact,
 } from "../paypal.service.js";
 import { grantEvidenceCredits, reverseEvidenceCreditPurchase } from "./evidence-credits.service.js";
 import { applyPaymentAdjustment } from "./payment-adjustments.service.js";
@@ -1328,10 +1328,13 @@ export async function applyPayPalSubscriptionState(params: {
   const rawStatus = str(sub.status);
   const status = parsePayPalSubscriptionStatus(rawStatus);
   const billingInfo = rec(sub.billing_info);
-  const currentPeriodEnd = dateFromIso(billingInfo?.next_billing_time);
   const observedAtUtc = dateFromIso(
     sub.status_update_time ?? sub.update_time ?? sub.create_time,
   );
+
+  // PRO-BL1-04 (WS-BILL) — the PAID fact, one reader for the base plan and for
+  // a recurring storage add-on (DEC-02: the paid period applies to both).
+  const paidFact = readPayPalSubscriptionPaidFact(billingInfo);
 
   // --- Storage add-on --------------------------------------------------------
   const addon = parsePayPalStorageAddonCustomId(customId);
@@ -1339,10 +1342,19 @@ export async function applyPayPalSubscriptionState(params: {
     if (params.expectedUserId && addon.userId !== params.expectedUserId) {
       return { outcome: "REJECTED", subscriptionId, reason: "NOT_OWNED" };
     }
+    // PRO-BL1-04 — the add-on follows money too. PayPal keeps it ACTIVE while
+    // a payment is failing: that is PAST_DUE here (and never a first
+    // activation). Its paid-through date is the last completed payment plus
+    // one cycle; with no completed payment none is stated, so a cancellation
+    // keeps no "paid month" (paid-period.service) for an add-on never paid for.
+    const addonStatus =
+      status === prismaPkg.SubscriptionStatus.ACTIVE && paidFact.paymentFailing
+        ? prismaPkg.SubscriptionStatus.PAST_DUE
+        : status;
     const applied = await applyStorageSubscriptionObservation({
       provider: PROVIDER,
       subscriptionId,
-      status,
+      status: addonStatus,
       planId,
       claimed: {
         userId: addon.userId,
@@ -1350,7 +1362,7 @@ export async function applyPayPalSubscriptionState(params: {
         addonKey: addon.storageAddonKey,
         attemptId: addon.attemptId ?? null,
       },
-      currentPeriodEnd,
+      currentPeriodEnd: paidFact.paidThroughUtc,
       observedAtUtc,
       source: params.source,
     });
@@ -1372,7 +1384,7 @@ export async function applyPayPalSubscriptionState(params: {
       outcome: "APPLIED",
       kind: "STORAGE_ADDON",
       subscriptionId,
-      status,
+      status: addonStatus,
       returnOutcome: returnOutcomeFor(status, rawStatus),
       plan: null,
       storageAddonKey: addon.storageAddonKey,
@@ -1389,8 +1401,6 @@ export async function applyPayPalSubscriptionState(params: {
   //   * the paid-through date is the last completed payment plus one monthly
   //     cycle; with no completed payment it is not stated (the recorded one
   //     stays), never the unpaid next billing time.
-  // One reader, shared with the reconciliation sweep (readPayPalBasePlanPaidFact).
-  const paidFact = readPayPalBasePlanPaidFact(billingInfo);
   const basePlanStatus =
     status === prismaPkg.SubscriptionStatus.ACTIVE && paidFact.paymentFailing
       ? prismaPkg.SubscriptionStatus.PAST_DUE

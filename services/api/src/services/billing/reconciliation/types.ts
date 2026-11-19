@@ -180,9 +180,9 @@ export type SubscriptionObservation = {
   customId?: string | null;
   /**
    * PRO-BL1-04 (WS-BILL) — PayPal only: the paid fact of the subscription
-   * (`readPayPalBasePlanPaidFact`). The BASE-PLAN branch of the sweep decides
-   * status and paid-through from this, never from `currentPeriodEndUtc`
-   * (PayPal's unpaid next billing time). Absent for Stripe.
+   * (`readPayPalSubscriptionPaidFact`). The sweep's base-plan AND storage
+   * add-on branches decide status and paid-through from this, never from
+   * `currentPeriodEndUtc` (PayPal's unpaid next billing time). Absent for Stripe.
    */
   paidFact?: { paymentFailing: boolean; paidThroughUtc: Date | null };
 };

@@ -20,7 +20,7 @@
 
 import * as prismaPkg from "@prisma/client";
 
-import { PayPalHttpError, paypalGet, readPayPalBasePlanPaidFact } from "../../paypal.service.js";
+import { PayPalHttpError, paypalGet, readPayPalSubscriptionPaidFact } from "../../paypal.service.js";
 import {
   parsePayPalCustomId,
   parsePayPalStorageAddonCustomId,
@@ -505,8 +505,8 @@ export class PayPalBillingReconciliationProvider
       providerStatus: typeof sub["status"] === "string" ? sub["status"] : null,
       planId: typeof sub["plan_id"] === "string" ? sub["plan_id"] : null,
       customId: typeof sub["custom_id"] === "string" ? sub["custom_id"] : null,
-      // PRO-BL1-04 — the paid fact, for the sweep's base-plan branch.
-      paidFact: readPayPalBasePlanPaidFact(billingInfo),
+      // PRO-BL1-04 — the paid fact, for the sweep's base-plan and add-on branches.
+      paidFact: readPayPalSubscriptionPaidFact(billingInfo),
     };
   }
 

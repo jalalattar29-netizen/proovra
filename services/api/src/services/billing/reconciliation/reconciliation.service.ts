@@ -1291,11 +1291,21 @@ async function reconcileStorageAddonRow(input: {
     providerResourceId: ref,
   });
 
+  // PRO-BL1-04 (WS-BILL) — a PayPal add-on follows the PAID fact, exactly as
+  // the webhook settlement does (one reader): a failing payment under an
+  // ACTIVE label is never a first activation and reads PAST_DUE for an add-on
+  // that was activated; the paid-through date is the last completed payment
+  // plus one cycle, never the unpaid next billing time. Stripe is unchanged.
+  const paymentFailing = observation.paidFact?.paymentFailing === true;
+  const observedPeriodEndUtc = observation.paidFact
+    ? observation.paidFact.paidThroughUtc
+    : observation.currentPeriodEndUtc;
+
   // BILLING PAYPAL INTEGRITY (2026-09-28) — a FIRST activation is decided by
   // the ONE storage activation authority, with the same plan-id, identity and
   // eligibility checks the webhook and the return route apply. This pass used
   // to grant it with no check at all.
-  if (observation.state === "SUCCEEDED" && !addon.activatedAtUtc) {
+  if (observation.state === "SUCCEEDED" && !addon.activatedAtUtc && !paymentFailing) {
     const claimed = provider === prismaPkg.PaymentProvider.PAYPAL
       ? parsePayPalStorageAddonCustomId(observation.customId ?? null)
       : null;
@@ -1312,7 +1322,7 @@ async function reconcileStorageAddonRow(input: {
             attemptId: claimed.attemptId ?? null,
           }
         : null,
-      currentPeriodEnd: observation.currentPeriodEndUtc,
+      currentPeriodEnd: observedPeriodEndUtc,
       observedAtUtc: observation.observedAtUtc,
       source: "billing_reconciliation",
     });
@@ -1328,7 +1338,15 @@ async function reconcileStorageAddonRow(input: {
     return { ...base, currentStatus: current?.status ?? addon.status, outcome: "UPDATED" };
   }
 
-  const next = storageStatusFromObservation(observation, addon);
+  const observedNext = storageStatusFromObservation(observation, addon);
+  // ACTIVE with a failing payment: PAST_DUE for an add-on that was activated;
+  // a purchase never activated stays as it is (never live without a payment).
+  const next =
+    paymentFailing && observedNext === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE
+      ? addon.activatedAtUtc
+        ? prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+        : addon.status
+      : observedNext;
   if (!next) {
     summary.actionRequired += 1;
     return { ...base, currentStatus: addon.status, outcome: "PROVIDER_MALFORMED" };
@@ -1397,7 +1415,10 @@ async function reconcileStorageAddonRow(input: {
 
   const changed =
     next !== addon.status ||
-    observation.currentPeriodEndUtc?.getTime() !== addon.currentPeriodEnd?.getTime();
+    (observation.paidFact
+      ? // No completed payment reported states no date; the recorded one stays.
+        observedPeriodEndUtc !== null && observedPeriodEndUtc.getTime() !== addon.currentPeriodEnd?.getTime()
+      : observation.currentPeriodEndUtc?.getTime() !== addon.currentPeriodEnd?.getTime());
   if (!changed) {
     const stamped = await stampAddonProviderState({
       addonId: addon.id,
@@ -1438,7 +1459,7 @@ async function reconcileStorageAddonRow(input: {
     },
     data: {
       status: next,
-      currentPeriodEnd: observation.currentPeriodEndUtc ?? addon.currentPeriodEnd,
+      currentPeriodEnd: observedPeriodEndUtc ?? addon.currentPeriodEnd,
       ...(next === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE && !addon.activatedAtUtc
         ? { activatedAtUtc: observation.observedAtUtc ?? new Date() }
         : {}),

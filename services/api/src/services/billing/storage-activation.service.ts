@@ -479,6 +479,21 @@ export async function applyStorageSubscriptionObservation(
   const firstActivation =
     obs.status === prismaPkg.SubscriptionStatus.ACTIVE && !row.activatedAtUtc;
 
+  // PRO-BL1-04 (WS-BILL) — a purchase that was never activated and whose
+  // payment is failing is not live storage. PAST_DUE counts as capacity (it is
+  // the state of an add-on that WAS paid for and whose renewal is failing), so
+  // writing it onto a row never paid for would grant storage without a payment.
+  // The row stays as it is; a later ACTIVE fact with the payment settled
+  // activates it through the ordinary first-activation decision.
+  if (
+    obs.status === prismaPkg.SubscriptionStatus.PAST_DUE &&
+    !row.activatedAtUtc &&
+    row.status !== prismaPkg.WorkspaceStorageAddonStatus.ACTIVE &&
+    row.status !== prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+  ) {
+    return { outcome: "UNCHANGED", addonId: row.id, status: row.status };
+  }
+
   let dependsOnSubscriptionId: string | null | undefined;
   let dependsOnPlanGrantId: string | null | undefined;
   if (firstActivation) {

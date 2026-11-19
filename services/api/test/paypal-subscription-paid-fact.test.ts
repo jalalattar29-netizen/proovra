@@ -6,11 +6,11 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { addOneMonthUtc, readPayPalBasePlanPaidFact } from "../src/services/paypal.service.js";
+import { addOneMonthUtc, readPayPalSubscriptionPaidFact } from "../src/services/paypal.service.js";
 
-describe("PRO-BL1-04 — readPayPalBasePlanPaidFact", () => {
+describe("PRO-BL1-04 — readPayPalSubscriptionPaidFact", () => {
   it("paid-through is the last completed payment plus one cycle, never next_billing_time", () => {
-    const fact = readPayPalBasePlanPaidFact({
+    const fact = readPayPalSubscriptionPaidFact({
       next_billing_time: "2027-03-01T00:00:00Z",
       last_payment: { amount: { value: "19.00", currency_code: "USD" }, time: "2026-01-31T09:00:00Z" },
     });
@@ -19,21 +19,21 @@ describe("PRO-BL1-04 — readPayPalBasePlanPaidFact", () => {
   });
 
   it("no completed payment states no paid-through date", () => {
-    expect(readPayPalBasePlanPaidFact({ next_billing_time: "2027-03-01T00:00:00Z" })).toEqual({
+    expect(readPayPalSubscriptionPaidFact({ next_billing_time: "2027-03-01T00:00:00Z" })).toEqual({
       paymentFailing: false,
       paidThroughUtc: null,
     });
-    expect(readPayPalBasePlanPaidFact(null)).toEqual({ paymentFailing: false, paidThroughUtc: null });
-    expect(readPayPalBasePlanPaidFact({ last_payment: { time: "not a date" } }).paidThroughUtc).toBeNull();
+    expect(readPayPalSubscriptionPaidFact(null)).toEqual({ paymentFailing: false, paidThroughUtc: null });
+    expect(readPayPalSubscriptionPaidFact({ last_payment: { time: "not a date" } }).paidThroughUtc).toBeNull();
   });
 
   it("failed payments or an outstanding balance mean the payment is failing", () => {
-    expect(readPayPalBasePlanPaidFact({ failed_payments_count: 1 }).paymentFailing).toBe(true);
+    expect(readPayPalSubscriptionPaidFact({ failed_payments_count: 1 }).paymentFailing).toBe(true);
     expect(
-      readPayPalBasePlanPaidFact({ outstanding_balance: { value: "19.00", currency_code: "USD" } }).paymentFailing,
+      readPayPalSubscriptionPaidFact({ outstanding_balance: { value: "19.00", currency_code: "USD" } }).paymentFailing,
     ).toBe(true);
     expect(
-      readPayPalBasePlanPaidFact({ failed_payments_count: 0, outstanding_balance: { value: "0.00" } }).paymentFailing,
+      readPayPalSubscriptionPaidFact({ failed_payments_count: 0, outstanding_balance: { value: "0.00" } }).paymentFailing,
     ).toBe(false);
   });
 

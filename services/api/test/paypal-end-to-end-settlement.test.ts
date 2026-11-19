@@ -907,6 +907,75 @@ describe("PayPal storage add-ons — sa1 custom_id and activation", () => {
     expect(billingService.setPersonalPlan).not.toHaveBeenCalled();
   });
 
+  // PRO-BL1-04 / DEC-02 — the add-on's paid period rests on a completed
+  // payment, read by the same reader as the base plan.
+  describe("PRO-BL1-04 — a recurring storage add-on follows the paid fact", () => {
+    const custom_id = `sa1|${USER}|-|PERSONAL_10_GB`;
+    const lastWrite = () =>
+      vi.mocked(billingService.upsertWorkspaceStorageAddon).mock.calls.at(-1)?.[0] as
+        | { status: string; currentPeriodEnd: Date | null }
+        | undefined;
+
+    it("paid-through is the last completed payment plus one cycle, never next_billing_time", async () => {
+      seedStorageRow({ externalSubscriptionId: "I-SA-PAID" });
+      setSubscription("I-SA-PAID", {
+        status: "ACTIVE",
+        plan_id: "P-S10-USD",
+        custom_id,
+        billing_info: {
+          next_billing_time: "2027-03-01T00:00:00Z",
+          last_payment: { amount: { value: "5.00", currency_code: "USD" }, time: "2026-01-31T09:00:00Z" },
+        },
+      });
+      await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-SA-PAID" });
+      expect(lastWrite()).toMatchObject({ status: "ACTIVE" });
+      expect(lastWrite()?.currentPeriodEnd?.toISOString()).toBe("2026-02-28T09:00:00.000Z");
+    });
+
+    it("ACTIVE with no completed payment states no paid period (at the base: next_billing_time)", async () => {
+      seedStorageRow({ externalSubscriptionId: "I-SA-UNPAID" });
+      setSubscription("I-SA-UNPAID", {
+        status: "ACTIVE",
+        plan_id: "P-S10-USD",
+        custom_id,
+        billing_info: { next_billing_time: "2027-03-01T00:00:00Z" },
+      });
+      await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-SA-UNPAID" });
+      expect(lastWrite()).toMatchObject({ status: "ACTIVE" });
+      expect(lastWrite()?.currentPeriodEnd).toBeNull();
+    });
+
+    it("a purchase never activated whose payment is failing is not made live", async () => {
+      seedStorageRow({ externalSubscriptionId: "I-SA-FAIL" });
+      setSubscription("I-SA-FAIL", {
+        status: "ACTIVE",
+        plan_id: "P-S10-USD",
+        custom_id,
+        billing_info: { next_billing_time: "2027-03-01T00:00:00Z", failed_payments_count: 1 },
+      });
+      await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-SA-FAIL" });
+      // At the base this wrote ACTIVE (capacity) with the unpaid next billing time.
+      expect(billingService.upsertWorkspaceStorageAddon).not.toHaveBeenCalled();
+    });
+
+    it("an activated add-on whose renewal is failing is PAST_DUE, and its paid-through stays the paid one", async () => {
+      seedStorageRow({ externalSubscriptionId: "I-SA-DUE", status: "ACTIVE", activatedAtUtc: new Date("2026-01-01T00:00:00Z") });
+      setSubscription("I-SA-DUE", {
+        status: "ACTIVE",
+        plan_id: "P-S10-USD",
+        custom_id,
+        billing_info: {
+          next_billing_time: "2027-03-01T00:00:00Z",
+          outstanding_balance: { value: "5.00", currency_code: "USD" },
+          last_payment: { amount: { value: "5.00", currency_code: "USD" }, time: "2026-01-31T09:00:00Z" },
+        },
+      });
+      await deliver("BILLING.SUBSCRIPTION.UPDATED", { id: "I-SA-DUE" });
+      expect(lastWrite()).toMatchObject({ status: "PAST_DUE" });
+      expect(lastWrite()?.currentPeriodEnd?.toISOString()).toBe("2026-02-28T09:00:00.000Z");
+    });
+  });
+
   // BILLING PAYPAL INTEGRITY (2026-09-28) — an ungrantable activation is no
   // longer left as a billed PENDING row: PayPal is asked to cancel it, the row
   // becomes FAILED (nothing granted) and a refund-review item is recorded.
