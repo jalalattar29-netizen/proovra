@@ -10,7 +10,7 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
+| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
 | ProductClosure       | OPEN    | release-blocking measured facts + undisposed routes                   |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | bbbb2c332d6271a8f35688a6af9d87da554265e685d2bd3595c46c3d90789b9c |
+| engineHash    | fc24c9149b1d12a7f2196454432148fe0842cb21f574b984ff0b84a7355d6b57 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -52,7 +52,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ClassificationConflicts                        | 0     |
 | WrongOriginConsumers                           | 0     |
 | AuthorizationUnresolved                        | 0     |
-| TenantBindingUnresolved                        | 4     |
+| TenantBindingUnresolved                        | 0     |
 | OrganizationAuthorizationUnresolved            | 0     |
 | OrganizationRoutesMissingRequiredAuthorization | 0     |
 | TenantUnboundInsertRoutes                      | 0     |
@@ -73,7 +73,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 513   |
+| AuditFilesInventoried                      | 514   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -122,7 +122,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 420   |
+| ProductBehaviorTestsInventoried            | 421   |
 
 ### Report roles
 
@@ -165,12 +165,9 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-- INSTRUMENT: TenantBindingUnresolved = 4
+_(none — the instrument is sound)_
 
 ### Product closure
 
-- INSTRUMENT: TenantBindingUnresolved = 4
-- MUTATION: authorizationAfterMutation = 5
-- MUTATION: tenantUnbound = 5
 - UNWIRED EXECUTABLE WRITERS: 8 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
 - ArchitectureBacklog: UndisposedRoutes = 25 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)
