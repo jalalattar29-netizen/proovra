@@ -303,13 +303,13 @@ async function resolveAiCommercialScope(req: FastifyRequest, userId: string) {
   // lifecycle). Every workspace role holds evidence.read. (D61)
   const current = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
   if (current.allowed) {
-    const scope = (
+    const scope = withCommercialLifecycle(
       await resolveCommercialContext({
         type: "WORKSPACE",
         teamId: current.context.workspaceId,
         requesterUserId: userId,
-      })
-    ).scope;
+      }),
+    );
     return {
       scope,
       // B6-F-25 — the workspace whose AI policy and budget ledger govern.
@@ -323,8 +323,7 @@ async function resolveAiCommercialScope(req: FastifyRequest, userId: string) {
       userRole: dbRoleOfCanonical(current.context.workspaceRole),
     };
   }
-  const scope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId }))
-    .scope;
+  const scope = withCommercialLifecycle(await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId }));
   // B6-F-25 (Free-user audit 0ea0) — the fallback is the PERSONAL account, so
   // the policy (and ledger) evaluated is the personal workspace's own — the
   // team the allowance is counted on (`resolveAiUsageTenantId`). It used to be
@@ -337,6 +336,27 @@ async function resolveAiCommercialScope(req: FastifyRequest, userId: string) {
     scope,
     policyTeamId: scope.teamId ?? personal?.id ?? null,
     userRole: personal ? "OWNER" : null,
+  };
+}
+
+/**
+ * PRO-P3CZ-01 (WS-BILL, 2026-11-18) — the scope chat and capture review decide
+ * on carries the canonical lifecycle verdict, exactly as
+ * `resolveWorkspaceCommercialScope` attaches it for every other AI entry
+ * point. `resolveCommercialContext(...).scope` alone has no
+ * `commercialLifecycle`, so `decideAiOperationAllowance` skipped its
+ * COMMERCIAL_LIFECYCLE_RESTRICTED check and a lapsed paid plan kept spending
+ * provider AI up to its monthly cap.
+ */
+function withCommercialLifecycle(ctx: Awaited<ReturnType<typeof resolveCommercialContext>>) {
+  return {
+    ...ctx.scope,
+    commercialLifecycle: {
+      state: ctx.lifecycle.state,
+      paidActive: ctx.lifecycle.paidActive,
+      mutationsAllowed: ctx.lifecycle.mutationsAllowed,
+      graceEndsAtUtc: ctx.lifecycle.graceEndsAtUtc,
+    },
   };
 }
 

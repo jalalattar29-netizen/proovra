@@ -37,6 +37,7 @@ import {
   ACTIVE_MEMBER_COUNT_SELECT,
   legacyScopeFromKind,
   planProducesOperationalConditions,
+  withholdLapsedOperationsWrites,
 } from "./workspace-capability.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
@@ -585,11 +586,13 @@ export async function buildPlatformContext(
        * `WORKSPACE` rather than a declared kind: this path is reached by
        * workspace id before its kind is known, and the resolver classifies it.
        */
+      // PRO-PSZ-03 — with the lifecycle verdict, so the envelope's Operations
+      // write capabilities match the API's (no usage aggregates).
       activeCommercial = await resolveCommercialPlan({
         type: "WORKSPACE",
         teamId: workspace.id,
         requesterUserId: userRow.id,
-      });
+      }, { withLifecycle: true });
       const resolvedPlan = coercePlan(activeCommercial.plan as unknown as string);
       if (resolvedPlan) {
         workspace = { ...workspace, plan: resolvedPlan };
@@ -610,6 +613,8 @@ export async function buildPlatformContext(
   // the user's Entitlement rather than the workspace's billing plan. The
   // same value is reused later when populating `account.accountPlan`.
   let accountPlan: WorkspacePlan | null = null;
+  // PRO-N1-13 — the person's OWN paid-plan state for the shell banner.
+  let billingSignal: import("../billing/commercial-context.service.js").AccountBillingSignal | null = null;
   try {
     // PRODUCTION FIX (billing-mismatch): same `active: true` filter as the
     // authoritative billing guard — see the comment in the PERSONAL branch
@@ -621,7 +626,7 @@ export async function buildPlatformContext(
     // INTERNAL PLAN GRANT — through the canonical resolver, not the raw
     // Entitlement row: an account on an internal TEAM grant is TEAM here too,
     // so the boot envelope (web + mobile) agrees with every gate.
-    const { resolveCommercialPlan } = await import(
+    const { resolveAccountBillingSignal, resolveCommercialPlan } = await import(
       "../billing/commercial-context.service.js"
     );
     const accountCommercial = await resolveCommercialPlan({
@@ -629,6 +634,8 @@ export async function buildPlatformContext(
       userId: userRow.id,
     });
     accountPlan = coercePlan(accountCommercial.plan as unknown as string);
+    // PRO-N1-13 — the person's own lifecycle, read by the same canonical layer.
+    billingSignal = await resolveAccountBillingSignal(userRow.id).catch(() => null);
   } catch {
     accountPlan = null;
   }
@@ -762,6 +769,11 @@ export async function buildPlatformContext(
       // Members audit ENT-01 — the plan halves of the capability map.
       collaborationIncluded: collaborationLimits.maxCollaborationTeamsPerWorkspace > 0,
       reviewerOperationsIncluded,
+    });
+    // PRO-PSZ-03 — the same lapsed-plan rule `requireOpsCapability` applies.
+    withholdLapsedOperationsWrites(capabilities as unknown as Record<string, boolean>, {
+      mutationsAllowed: activeCommercial?.lifecycle?.mutationsAllowed,
+      memberCount: workspace.membership.memberCount ?? 0,
     });
     // OPS-021 — the Operations capabilities follow the SAME member-lifecycle
     // authority the API applies (evaluateMemberAccess): an expired access
@@ -1332,6 +1344,7 @@ export async function buildPlatformContext(
         null),
     accountPlan,
     accountStatus: "active",
+    billingSignal,
   };
 
   // ===========================================================================

@@ -1870,6 +1870,12 @@ export async function workspaceIncludesExternalReview(
 ): Promise<boolean> {
   const scope = await resolveWorkspaceCommercialScope(teamId);
   if (!scope) return false;
+  // PRO-R1-12 (WS-BILL, 2026-11-18) — the ONE commercial verdict (DEC-10): a
+  // workspace whose paid lifecycle refuses paid mutations (past due beyond
+  // grace, unpaid, cancelled past its paid period with the plan held) issues,
+  // renews and re-delivers no outward grants. Revoke and reads are not gated
+  // by this function and stay available (DEC-09).
+  if (scope.commercialLifecycle && !scope.commercialLifecycle.mutationsAllowed) return false;
   return resolveEffectiveExternalReviewIncluded({
     plan: scope.plan,
     contract: scope.contractLimits,

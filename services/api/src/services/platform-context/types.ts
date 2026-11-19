@@ -689,6 +689,16 @@ export type PlatformContextAccount = {
   accountPlan: WorkspacePlan | null;
   /** Lifecycle status of the account itself. */
   accountStatus: "active" | "suspended" | "pending";
+  /**
+   * PRO-N1-13 (additive) — the person's OWN paid plan needs attention: payment
+   * past due (with the grace end), grace over, lapsed, or cancelling (with the
+   * end date). Null/absent when there is nothing to say. Never another payer's.
+   */
+  billingSignal?: {
+    state: "PAST_DUE" | "PAST_DUE_EXPIRED" | "LAPSED" | "CANCELLING";
+    graceEndsAtUtc: string | null;
+    endsAtUtc: string | null;
+  } | null;
 };
 
 /**
