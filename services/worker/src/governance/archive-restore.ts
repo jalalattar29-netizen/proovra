@@ -28,9 +28,12 @@
 import { createHash } from "node:crypto";
 import type { Readable } from "node:stream";
 
+import * as prismaPkg from "@prisma/client";
 import {
+  ARCHIVE_RESTORE_HEARTBEAT_MS,
   appendCustodyEventTx,
   evaluateCustodyChain,
+  runGovernanceReconciliation,
 } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
@@ -435,18 +438,92 @@ export async function runArchiveRestoreRequest(
  * The sweep: claim and run due requests (REQUESTED, or RUNNING with a lapsed
  * lease). Bounded per tick.
  */
+/** The requests a tick may claim: new ones, and claims whose lease lapsed. */
+function dueRestoreRequestsWhere(now: Date) {
+  return {
+    OR: [
+      { status: "REQUESTED" as const },
+      { status: "RUNNING" as const, leaseUntilUtc: { lt: now } },
+      { status: "RUNNING" as const, leaseUntilUtc: null },
+    ],
+  };
+}
+
+let lastRecordedRunAtMs = 0;
+let runAuthorityUnavailableLogged = false;
+
+/** Test seam: forget the heartbeat. */
+export function __resetArchiveRestoreSweepHeartbeat(): void {
+  lastRecordedRunAtMs = 0;
+  runAuthorityUnavailableLogged = false;
+}
+
+/**
+ * WS-SCHED / PRO-P3DZ-04 — THE SCHEDULED ENTRY POINT: the restore tick under
+ * the reconciliation-run authority, so every run that had work — and an idle
+ * heartbeat every ARCHIVE_RESTORE_HEARTBEAT_MS — leaves a run row. The
+ * platform health snapshot reads those rows from outside the worker and
+ * reports a stopped, disabled or failing restore sweep (it used to be a bare
+ * timer: silence looked like health while an owner waited).
+ *
+ * The restore never waits on its own bookkeeping: when the run row cannot be
+ * written (a database that has not had the enum value migrated yet, a worker
+ * deployed ahead of the migration), the tick runs unrecorded and says so once.
+ */
+export async function runArchiveRestoreSweep(
+  options: { now?: Date; batchSize?: number; reader?: IntegrityObjectReader; trigger?: string } = {},
+): Promise<{ recorded: boolean; outcomes: ArchiveRestoreOutcome[] }> {
+  const now = options.now ?? new Date();
+  let dueCount: number | null;
+  try {
+    dueCount = await prisma.evidenceArchiveRestoreRequest.count({ where: dueRestoreRequestsWhere(now) });
+  } catch {
+    // Unreadable is not "nothing due": run under the authority so the
+    // failure is recorded.
+    dueCount = null;
+  }
+  if (dueCount === 0 && Date.now() - lastRecordedRunAtMs < ARCHIVE_RESTORE_HEARTBEAT_MS) {
+    return { recorded: false, outcomes: [] };
+  }
+
+  let bodyStarted = false;
+  let outcomes: ArchiveRestoreOutcome[] = [];
+  try {
+    const run = await runGovernanceReconciliation(prisma, {
+      kind: prismaPkg.GovernanceReconciliationKind.ARCHIVE_RESTORE,
+      trigger: options.trigger ?? "scheduler",
+      teamId: null,
+      body: async (ctx) => {
+        bodyStarted = true;
+        outcomes = await processArchiveRestoreRequests(options);
+        ctx.reportProgress({
+          scanned: outcomes.length,
+          matched: outcomes.filter((o) => o.outcome === "COMPLETED").length,
+          incident: outcomes.filter((o) => o.outcome === "FAILED").length,
+          skipped: outcomes.filter((o) => o.outcome === "RETRY").length,
+        });
+        return outcomes.length;
+      },
+    });
+    lastRecordedRunAtMs = Date.now();
+    if (run.error) throw run.error;
+    return { recorded: true, outcomes };
+  } catch (err) {
+    if (bodyStarted) throw err;
+    if (!runAuthorityUnavailableLogged) {
+      runAuthorityUnavailableLogged = true;
+      logger.warn({ err }, "archive_restore.sweep.run_record_unavailable");
+    }
+    return { recorded: false, outcomes: await processArchiveRestoreRequests(options) };
+  }
+}
+
 export async function processArchiveRestoreRequests(
   options: { now?: Date; batchSize?: number; reader?: IntegrityObjectReader } = {},
 ): Promise<ArchiveRestoreOutcome[]> {
   const now = options.now ?? new Date();
   const due = await prisma.evidenceArchiveRestoreRequest.findMany({
-    where: {
-      OR: [
-        { status: "REQUESTED" },
-        { status: "RUNNING", leaseUntilUtc: { lt: now } },
-        { status: "RUNNING", leaseUntilUtc: null },
-      ],
-    },
+    where: dueRestoreRequestsWhere(now),
     orderBy: [{ requestedAtUtc: "asc" }, { id: "asc" }],
     take: Math.max(1, Math.min(options.batchSize ?? DEFAULT_BATCH, 100)),
     select: { id: true },

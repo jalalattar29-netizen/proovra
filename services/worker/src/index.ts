@@ -970,8 +970,10 @@ async function runArchiveRestoreTick() {
   if (archiveRestoreRunning) return;
   archiveRestoreRunning = true;
   try {
-    const { processArchiveRestoreRequests } = await import("./governance/archive-restore.js");
-    await withCronLock("archive-restore", () => processArchiveRestoreRequests());
+    // PRO-P3DZ-04 — under the reconciliation-run authority, so the platform
+    // health snapshot can tell a running sweep from a stopped one.
+    const { runArchiveRestoreSweep } = await import("./governance/archive-restore.js");
+    await withCronLock("archive-restore", () => runArchiveRestoreSweep());
   } catch (err) {
     logger.error({ err }, "archive_restore.sweep.failed");
   } finally {

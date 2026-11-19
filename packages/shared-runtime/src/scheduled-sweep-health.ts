@@ -34,9 +34,20 @@ export const INTEGRITY_RECHECK_SWEEP_DEFAULT_INTERVAL_MS = 15 * 60 * 1000;
  * stale: three missed default ticks plus the run-lock lease a crashed run can
  * hold, floored at two hours so a deploy or a slow tick is not an alarm.
  */
+/**
+ * WS-SCHED / PRO-P3DZ-04 — the retention-archive restore sweep records a run
+ * whenever it has work and otherwise at this heartbeat (the tick itself is
+ * every minute; one row a minute would be half a million rows a year).
+ */
+export const ARCHIVE_RESTORE_HEARTBEAT_MS = 10 * 60 * 1000;
+
 export const SCHEDULED_SWEEP_MAX_SILENCE_MS = {
   CAPTURE_REAPER: Math.max(2 * 60 * 60 * 1000, 3 * CAPTURE_REAPER_DEFAULT_INTERVAL_MS),
   INTEGRITY_RECHECK: Math.max(2 * 60 * 60 * 1000, 3 * INTEGRITY_RECHECK_SWEEP_DEFAULT_INTERVAL_MS),
+  // A person is waiting on a restore, so the floor is one hour, not two:
+  // three missed heartbeats plus a 15-minute restore lease, with headroom
+  // for a deploy.
+  ARCHIVE_RESTORE: Math.max(60 * 60 * 1000, 3 * ARCHIVE_RESTORE_HEARTBEAT_MS + 15 * 60 * 1000),
 } as const;
 
 export type MonitoredSweepKind = keyof typeof SCHEDULED_SWEEP_MAX_SILENCE_MS;

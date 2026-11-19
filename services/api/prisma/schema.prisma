@@ -10278,6 +10278,10 @@ enum GovernanceReconciliationKind {
   /// the API sweep was retired (ET-SEC-24). Recorded here so a stopped or
   /// failing reaper is observable.
   CAPTURE_REAPER
+
+  /// WS-SCHED / PRO-P3DZ-04 — the retention-archive restore sweep. A person
+  /// is waiting on it, so a stopped or failing scheduler must be observable.
+  ARCHIVE_RESTORE
 }
 
 enum GovernanceReconciliationStatus {

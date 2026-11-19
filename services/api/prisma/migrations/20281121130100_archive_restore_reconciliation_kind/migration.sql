@@ -1,0 +1,18 @@
+-- =============================================================================
+-- WS-SCHED / PRO-P3DZ-04 — the retention-archive restore sweep records its runs.
+--
+-- The restore scheduler ran on a bare worker timer and left no run row, so a
+-- stopped worker, ARCHIVE_RESTORE_ENABLED=false or a tick that threw every
+-- time looked exactly like a healthy one while an owner waited on "Restore in
+-- progress". It now runs under the reconciliation-run authority
+-- (`runGovernanceReconciliation`) like the capture reaper and the integrity
+-- recheck, and the platform health snapshot reads the rows.
+--
+-- EXPAND-ONLY. Adding a value neither rewrites a row nor invalidates a reader:
+-- an older process that has never heard of this kind never selects it. A
+-- worker that runs BEFORE this migration is applied keeps restoring (it falls
+-- back to the unrecorded tick when the run row cannot be written).
+-- Kept in a migration of its own: a new enum value cannot be used in the
+-- transaction that adds it.
+-- =============================================================================
+ALTER TYPE "GovernanceReconciliationKind" ADD VALUE IF NOT EXISTS 'ARCHIVE_RESTORE';

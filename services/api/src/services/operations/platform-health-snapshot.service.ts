@@ -307,6 +307,15 @@ const MONITORED_SWEEPS: ReadonlyArray<{
     stoppedAction:
       "Confirm the worker process is running and INTEGRITY_RECHECK_ENABLED is not false, then check the worker logs for evidence.integrity.recheck_sweep_failed. While it is stopped, records age out of their verified state and are shown as not currently rechecked.",
   },
+  {
+    // WS-SCHED / PRO-P3DZ-04 — a person is waiting on each restore.
+    kind: "ARCHIVE_RESTORE",
+    id: "archive_restore",
+    label: "Retention archive restore",
+    does: "verifies an archived record's stored objects and returns it to active when its owner asks",
+    stoppedAction:
+      "Confirm the worker process is running and ARCHIVE_RESTORE_ENABLED is not false, then check the worker logs for archive_restore.sweep.failed. While it is stopped, restore requests stay pending and their owners see a restore in progress.",
+  },
 ];
 
 const minutes = (ms: number) => Math.round(ms / 60_000);
