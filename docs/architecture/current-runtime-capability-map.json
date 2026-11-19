@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
-    "TerminalWriters": 1686,
-    "ReachableSensitiveMutations": 1656,
-    "ClassifiedSensitiveMutations": 1656,
+    "TerminalWriters": 1687,
+    "ReachableSensitiveMutations": 1657,
+    "ClassifiedSensitiveMutations": 1657,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 30,
@@ -82,7 +82,7 @@
       "EXTERNAL_REVIEW_INTAKE_SHARE": 106,
       "BILLING_SUBSCRIPTION_SEAT": 116,
       "SSO_OIDC_SCIM_PROVISIONING": 67,
-      "AUTOMATION_QUEUE_WEBHOOK": 132,
+      "AUTOMATION_QUEUE_WEBHOOK": 133,
       "REPORT_EXPORT_REDACTION": 80,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 135
     },
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1476,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1477,
       "JOB_ATTRIBUTED_REACHABLE": 168,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 11,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12298,
+      "METHOD_ON_VALUE": 12299,
       "UNRESOLVED_IDENTIFIER": 1787
     },
     "MutationFixpointRounds": 11,
@@ -68505,8 +68505,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@139",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:139",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@127",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:127",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "processDueWebhookRetries",
       "kind": "DATABASE",
@@ -68538,8 +68538,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@155",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:155",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@160",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:160",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "processDueWebhookRetries",
       "kind": "DATABASE",
@@ -68571,8 +68571,41 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@102",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:102",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.update@176",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:176",
+      "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
+      "enclosingDeclaration": "processDueWebhookRetries",
+      "kind": "DATABASE",
+      "target": "integrationWebhookDelivery",
+      "mutationKind": "update",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/integrations/process-webhook-retries"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/integrations.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@103",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:103",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "processDueWebhookRetries",
       "kind": "DATABASE",
@@ -68604,8 +68637,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@52",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:52",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@53",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:53",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "reclaimStrandedWebhookDeliveries",
       "kind": "DATABASE",
@@ -68637,8 +68670,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@62",
-      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:62",
+      "writerId": "services/api/src/services/integrations/webhook-retry-processor.ts#integrationWebhookDelivery.updateMany@63",
+      "terminalLocation": "services/api/src/services/integrations/webhook-retry-processor.ts:63",
       "file": "services/api/src/services/integrations/webhook-retry-processor.ts",
       "enclosingDeclaration": "reclaimStrandedWebhookDeliveries",
       "kind": "DATABASE",
@@ -187129,7 +187162,7 @@
         "services/api/src/services/integrations/webhook-retry-processor.ts: webhookEndpoint.findUnique — no tenant or self predicate",
         "services/api/src/services/integrations/webhook-retry-processor.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhook-retry-processor.ts: integrationWebhookDelivery.update — no tenant or self predicate",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate",
+        "services/api/src/services/integrations/webhook-retry-processor.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
