@@ -519,8 +519,7 @@ describe("P0 — SCIM deactivation revokes sessions and heals context", () => {
       "teamMember.findUnique": () => ({ id: "member-1", status: "ACTIVE" }),
       // PRO-014 — the directory reaches only people it linked in this Organization.
       "externalIdentityMapping.findFirst": () => ({ id: "mapping-1" }),
-<<<<<<< HEAD
-      // PRO-T1-05 / PRO-A2-06 (DEC-08) — an identity THIS Organization's
+      // PRO-T1-05 / PRO-A2-06 (DEC-08) / PRO-A2-02 — an identity THIS Organization's
       // directory originated loses every session; an independent account would
       // lose only the Organization's SSO sessions.
       "user.findUnique": () => ({
@@ -529,10 +528,6 @@ describe("P0 — SCIM deactivation revokes sessions and heals context", () => {
         providerUserId: `scim-${ORG_ID}:subject-1`,
         createdAt: new Date(),
       }),
-=======
-      // PRO-A2-02 — an account this Organization's directory created.
-      "user.findUnique": () => ({ providerUserId: `scim-${ORG_ID}:ext-1`, email: "person@acme.test", createdAt: new Date(0) }),
->>>>>>> remed/ws-org
     });
     const res = await scimDeactivateUser(
       { teamId: TEAM_ID, organizationId: ORG_ID, tokenId: "tok-1", baseUrl: "https://x" },
