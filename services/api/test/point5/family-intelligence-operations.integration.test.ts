@@ -173,6 +173,13 @@ describe("POINT 5 FAMILY — intelligence & operations (live PostgreSQL 16 + pgv
       evidenceId: harness.fixtures.teamB.evidenceId,
       caseId: harness.fixtures.teamB.caseId,
     };
+    // RG-04 (WS-AI) — the one semantic-egress gate also asks the plan:
+    // SEMANTIC_SEARCH is a paid-plan capability, so the fixture workspaces
+    // are paid and active (as the other Point-5 families set theirs).
+    await prisma.team.updateMany({
+      where: { id: { in: [own.teamId, foreign.teamId] } },
+      data: { billingPlan: "TEAM", billingStatus: "ACTIVE" },
+    });
   });
 
   afterAll(async () => {
@@ -354,11 +361,15 @@ describe("POINT 5 FAMILY — intelligence & operations (live PostgreSQL 16 + pgv
             aiEnabled: true,
             semanticSearchEnabled: true,
             embeddingsAllowed: true,
+            // RG-04 (WS-AI) — chunk text is DERIVED_CONTENT: the one
+            // semantic-egress gate also asks content intelligence.
+            contentIntelligenceEnabled: true,
           },
           update: {
             aiEnabled: true,
             semanticSearchEnabled: true,
             embeddingsAllowed: true,
+            contentIntelligenceEnabled: true,
           },
         });
         const chunk = await prisma.evidenceSemanticChunk.create({
