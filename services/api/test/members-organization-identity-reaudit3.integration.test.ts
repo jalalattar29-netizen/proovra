@@ -111,9 +111,12 @@ describe("DOM-13 re-audit 3 — sibling-workspace unlink route, SCIM Users reade
     return (out as { user: { id: string } }).user.id;
   }
 
-  async function plainMember(teamId: string, role: "ADMIN" | "MEMBER" = "MEMBER") {
+  // PRO-A2-02 — an administrator may manually link only an account the Organization's
+  // directory originated; `directoryOrgId` gives the account that provenance.
+  async function plainMember(teamId: string, role: "ADMIN" | "MEMBER" = "MEMBER", directoryOrgId?: string) {
     const email = `dom13r3-plain-${tag()}@example.test`;
-    const u = await prisma.user.create({ data: { email, provider: "EMAIL", providerUserId: email }, select: { id: true } });
+    const providerUserId = directoryOrgId ? `scim-${directoryOrgId}:${email}` : email;
+    const u = await prisma.user.create({ data: { email, provider: "EMAIL", providerUserId }, select: { id: true } });
     await prisma.teamMember.create({ data: { teamId, userId: u.id, role, status: "ACTIVE" } });
     return u.id;
   }
@@ -202,14 +205,14 @@ describe("DOM-13 re-audit 3 — sibling-workspace unlink route, SCIM Users reade
     const o = await organization();
     const other = await organization();
     // The person holds memberships in both workspaces; the link was made from w1.
-    const person = await plainMember(o.w1);
+    const person = await plainMember(o.w1, "MEMBER", o.orgId);
     await prisma.teamMember.create({ data: { teamId: o.w2, userId: person, role: "MEMBER", status: "ACTIVE" } });
     const link = await identity.linkExternalIdentity(
       { teamId: o.w1, userId: person, provider: "OKTA", externalSubjectId: `okta|${tag()}`, actorUserId: o.owner.userId },
       prisma,
     );
     // A w1-only person's link: not this sibling's to administer.
-    const w1Only = await plainMember(o.w1);
+    const w1Only = await plainMember(o.w1, "MEMBER", o.orgId);
     const w1OnlyLink = await identity.linkExternalIdentity(
       { teamId: o.w1, userId: w1Only, provider: "OKTA", externalSubjectId: `okta|${tag()}`, actorUserId: o.owner.userId },
       prisma,

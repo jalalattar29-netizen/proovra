@@ -413,12 +413,20 @@ describe("Contract A / C — single-file continuous recording (live PostgreSQL 1
 
     const listed = await call("GET", `/v1/capture/direct-sessions/${sessionId}/parts`, token);
     expect(listed.statusCode, listed.body).toBe(200);
+    const stored = await prisma.captureSession.findUniqueOrThrow({ where: { id: sessionId } });
     expect(listed.json()).toEqual({
       parts: [
         { partIndex: 0, sha256: sha256(b0), state: "UPLOADED", source: "SCREEN_SEGMENT" },
         { partIndex: 1, sha256: "1".repeat(64), state: "LOST", source: "SCREEN_SEGMENT" },
         { partIndex: 2, sha256: "2".repeat(64), state: "DECLARED", source: "SCREEN_SEGMENT" },
       ],
+      // PRO-NBC-01 / PRO-NB-01 — the listing also states the session's own life
+      // (the stored expiry, and the 24 h maximum counted from the session's start).
+      session: {
+        status: "ACTIVE",
+        expiresAtUtc: stored.expiresAtUtc!.toISOString(),
+        maxExpiresAtUtc: new Date(stored.startedAtUtc!.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      },
     });
 
     // Another member of the same workspace is not the session's owner.
