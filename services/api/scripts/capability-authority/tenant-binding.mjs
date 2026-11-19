@@ -79,6 +79,55 @@ export const MEMBERSHIP_AUTHORITIES = Object.freeze([
 ]);
 const MEMBERSHIP_IDS = new Set(MEMBERSHIP_AUTHORITIES.map((m) => m.id));
 
+// ===========================================================================
+// PARTY-BOUND AUTHORITIES — a closed list of named helpers, each credited only
+// at its OWN declaration in its OWN file.
+//
+// Some routes are not bound by workspace membership at all, and must not be:
+// the person acting is a named PARTY of one row (the sender or the recipient
+// of an ownership offer), or holds an invitation token addressed to their own
+// verified e-mail and is not a member yet. Membership cannot govern those —
+// the recipient of an invitation is, by definition, outside the workspace.
+//
+// The analyzer's other idioms do not see that binding: the party columns are
+// not owner columns, the offer read is a null answer rather than a refusal,
+// and a token lookup carries no tenant or self predicate. Reporting these
+// routes as unresolved was correct for the instrument and wrong for the
+// product, so each helper that makes the decision is named here, with the
+// implementation fact that licenses it.
+//
+// This is deliberately NOT a general mechanism:
+//   - the list is closed and every entry names its file and its findings;
+//   - a helper is credited only when the route's resolved call graph reaches
+//     the helper's own declaration in that file — a same-named function
+//     elsewhere, or the name merely mentioned, earns nothing;
+//   - the implementation facts are pinned by
+//     test/phase-13-tenant-binding-adversarial.test.ts, so an entry cannot
+//     outlive the check it stands for.
+// ===========================================================================
+
+export const PARTY_BOUND_AUTHORITIES = Object.freeze([
+  {
+    id: "readPendingOwnershipOffer",
+    file: "services/api/src/services/workspace/workspace-lifecycle.service.ts",
+    findings: ["PRO-T1-06", "DEC-18"],
+    why: "party identity — the pending ownership offer is returned only to its sender (fromUserId) or its recipient (toUserId); anyone else is answered as if there were none",
+  },
+  {
+    id: "settleWorkspaceOwnershipOffer",
+    file: "services/api/src/services/workspace/workspace-lifecycle.service.ts",
+    findings: ["PRO-T1-06", "DEC-18"],
+    why: "party identity — only the recipient (toUserId) declines and only the sender (fromUserId) cancels an ownership offer; any other caller is refused 404 inside the transaction",
+  },
+  {
+    id: "declineWorkspaceInvitation",
+    file: "services/api/src/services/identity/workspace-invitation.service.ts",
+    findings: ["PRO-T1-06", "RG-26"],
+    why: "invitation token plus verified e-mail — the invite is found by its token hash and declined only by the signed-in account whose verified address is the invited address (404 unknown token, 403 another address)",
+  },
+]);
+const PARTY_BOUND_BY_ID = new Map(PARTY_BOUND_AUTHORITIES.map((m) => [m.id, m]));
+
 /**
  * Prisma models whose rows BELONG to a workspace/organization.
  *
@@ -472,6 +521,20 @@ export function analyzeHandlerTenancy(handlerNode, handlerFile, cg, maxDepth = 8
         const hit = MEMBERSHIP_AUTHORITIES.find((m) => m.id === n.text);
         membership.set(n.text, `${file}: ${hit.why}`);
       }
+      // A party-bound helper counts only where it is DECLARED, in its own file:
+      // the traversal reaches that node only by resolving a real call to it.
+      if (
+        ts.isIdentifier(n) &&
+        PARTY_BOUND_BY_ID.has(n.text) &&
+        !membership.has(n.text) &&
+        n.parent &&
+        ts.isFunctionDeclaration(n.parent) &&
+        n.parent.name === n &&
+        file === PARTY_BOUND_BY_ID.get(n.text).file
+      ) {
+        const hit = PARTY_BOUND_BY_ID.get(n.text);
+        membership.set(n.text, `${file}: ${hit.why} (${hit.findings.join(", ")})`);
+      }
       // Lifecycle-status comparison: `status === "ACTIVE"`, `status: "ACTIVE"`,
       // `{ in: ["ACTIVE"] }`, or a SUSPENDED/REVOKED refusal.
       if (ts.isStringLiteralLike(n) && /^(ACTIVE|SUSPENDED|REVOKED)$/.test(n.text)) {
@@ -775,7 +838,13 @@ export function classifyTenantBinding(row, analysis) {
           ? analysis.membershipAuthorities.map((m) => m.id).join(" + ")
           : "authorizeOrFail (proven by the route analyzer's guard traversal)")
       : null,
-    membershipStatusRequirement: hasMembership ? "ACTIVE (enforced by the named authority)" : null,
+    // A party-bound route has no membership requirement to state: the caller
+    // is a named party of the row (or holds its invitation), member or not.
+    membershipStatusRequirement: !hasMembership
+      ? null
+      : authorityIds.length > 0 && authorityIds.every((id) => PARTY_BOUND_BY_ID.has(id))
+        ? "NOT_APPLICABLE (party-bound: decided by the named authority)"
+        : "ACTIVE (enforced by the named authority)",
     modelsRead: analysis.modelsRead,
     modelsWritten: analysis.modelsWritten,
     tenantPredicateSites: analysis.tenantPredicateSites,

@@ -169,6 +169,7 @@ declare module "*/capability-authority/security-families.mjs" {
 
 declare module "*/capability-authority/tenant-binding.mjs" {
   export const MEMBERSHIP_AUTHORITIES: ReadonlyArray<{ id: string; why: string }>;
+  export const PARTY_BOUND_AUTHORITIES: ReadonlyArray<{ id: string; file: string; findings: readonly string[]; why: string }>;
   export const TENANT_OWNED_MODELS: ReadonlySet<string>;
   export const DATA_SCOPES: readonly string[];
   export const TENANT_TYPES: readonly string[];

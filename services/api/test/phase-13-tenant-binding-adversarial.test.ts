@@ -34,6 +34,7 @@ import {
   buildCallGraph,
   classifyTenantBinding,
   deriveTenantOwnedModels,
+  PARTY_BOUND_AUTHORITIES,
   TENANT_OWNED_MODELS,
 } from "../scripts/capability-authority/tenant-binding.mjs";
 import { derivePrimarySecurityFamily } from "../scripts/capability-authority/security-families.mjs";
@@ -382,5 +383,137 @@ describe("phase 13 §A — tenant binding idioms", () => {
     );
     assert.equal(verdict.tenantBindingResolved, false);
     assert.equal(verdict.tenantIdSource, "UNRESOLVED");
+  });
+
+  // -------------------------------------------------------------------------
+  // PARTY-BOUND AUTHORITIES (PRO-T1-06 / DEC-18 / RG-26) — the ownership-offer
+  // routes and the invitation decline are bound by WHO the caller is to one
+  // row (a named party; the holder of a token addressed to their verified
+  // e-mail), not by workspace membership. The list is closed and each helper
+  // is credited only at its own declaration. The negatives matter more than
+  // the positives: none of this may let an unbound route through.
+  // -------------------------------------------------------------------------
+
+  const TEAMS_ROUTES = "services/api/src/routes/teams.routes.ts";
+  const authorityIds = (a: any): string[] => a.membershipAuthorities.map((m: any) => m.id);
+  const verdictOf = (a: any) => classifyTenantBinding({ primarySecurityFamily: "SESSION_AUTHENTICATED" }, a);
+
+  it("13. the party-bound list is closed: three helpers, each with its file and findings", () => {
+    assert.deepEqual(
+      PARTY_BOUND_AUTHORITIES.map((m) => m.id).sort(),
+      ["declineWorkspaceInvitation", "readPendingOwnershipOffer", "settleWorkspaceOwnershipOffer"],
+    );
+    for (const m of PARTY_BOUND_AUTHORITIES) {
+      assert.ok(m.file.startsWith("services/api/src/services/"), m.id);
+      assert.ok(m.findings.length > 0, `${m.id} names no finding`);
+      assert.ok(m.why.length > 40, `${m.id} states no implementation fact`);
+    }
+  });
+
+  it("14. each helper is bound when a route really calls it, and is stated as party-bound", () => {
+    const cases: Array<[string, string]> = [
+      ["readPendingOwnershipOffer", "const offer = await readPendingOwnershipOffer({ teamId, userId }); return reply.send({ offer });"],
+      [
+        "settleWorkspaceOwnershipOffer",
+        'const offer = await settleWorkspaceOwnershipOffer({ teamId, offerId, actorUserId: userId, outcome: "DECLINED" }); return reply.send({ offer });',
+      ],
+      ["declineWorkspaceInvitation", "const r = await declineWorkspaceInvitation({ rawToken: token, actorUserId: userId }); return reply.send(r);"],
+    ];
+    for (const [id, body] of cases) {
+      const a = tenancyOf(`const h = async (req: any, reply: any) => { const userId = getAuthUserId(req); ${body} };`, TEAMS_ROUTES);
+      assert.ok(authorityIds(a).includes(id), `${id} was not credited through its declaration`);
+      const v = verdictOf(a);
+      assert.equal(v.tenantBindingResolved, true, id);
+      assert.equal(v.tenantIdSource, "NAMED_AUTHORITY", id);
+      assert.match(String(v.membershipStatusRequirement), /^NOT_APPLICABLE \(party-bound/, id);
+    }
+  });
+
+  it("15. the same reads WITHOUT the helper stay unresolved", () => {
+    // The offer loaded by its workspace and handed back with no party check:
+    // a tenant predicate, no authority — exactly what must still be flagged.
+    const offerUnchecked = tenancyOf(
+      `const h = async (req: any, reply: any) => {
+         const userId = getAuthUserId(req);
+         const offer = await prisma.workspaceOwnershipOffer.findFirst({ where: { teamId, status: "PENDING" } });
+         return reply.send({ offer });
+       };`,
+      TEAMS_ROUTES,
+    );
+    assert.deepEqual(authorityIds(offerUnchecked), []);
+    assert.equal(verdictOf(offerUnchecked).tenantBindingResolved, false);
+    assert.equal(verdictOf(offerUnchecked).tenantIdSource, "UNRESOLVED");
+
+    // An invitation found by its token and revoked with no e-mail match.
+    const inviteUnchecked = tenancyOf(
+      `const h = async (req: any, reply: any) => {
+         const invite = await prisma.teamInvite.findFirst({ where: { tokenHash } });
+         await prisma.teamInvite.updateMany({ where: { id: invite.id }, data: { revokedAt: new Date() } });
+         return reply.send({ ok: true });
+       };`,
+      TEAMS_ROUTES,
+    );
+    assert.deepEqual(authorityIds(inviteUnchecked), []);
+    assert.equal(verdictOf(inviteUnchecked).tenantBindingResolved, false);
+  });
+
+  it("16. a helper's NAME earns nothing: mentioned, shadowed locally, or called where it does not resolve", () => {
+    const mentioned = tenancyOf(
+      `const h = async (req: any, reply: any) => {
+         const names = ["settleWorkspaceOwnershipOffer"]; const readPendingOwnershipOffer = null;
+         const offer = await prisma.workspaceOwnershipOffer.findFirst({ where: { teamId } });
+         return reply.send({ offer, names, readPendingOwnershipOffer });
+       };`,
+      TEAMS_ROUTES,
+    );
+    assert.deepEqual(authorityIds(mentioned), [], "a mention was credited as an authority");
+    assert.equal(verdictOf(mentioned).tenantBindingResolved, false);
+
+    // A same-named function declared in the route file itself is not the helper.
+    const shadowed = tenancyOf(
+      `async function declineWorkspaceInvitation(req: any, reply: any) {
+         const invite = await prisma.teamInvite.findFirst({ where: { tokenHash } });
+         return reply.send({ invite });
+       }`,
+      "services/api/src/routes/cases.routes.ts",
+    );
+    assert.deepEqual(authorityIds(shadowed), [], "a local function with a listed name was credited");
+    assert.equal(verdictOf(shadowed).tenantBindingResolved, false);
+
+    // Called from a file that does not import it: the call does not resolve to
+    // the declaration, so nothing is credited.
+    const unresolved = tenancyOf(
+      `const h = async (req: any, reply: any) => {
+         const offer = await settleWorkspaceOwnershipOffer({ teamId, offerId, actorUserId, outcome: "CANCELLED" });
+         const rows = await prisma.workspaceOwnershipOffer.findMany({ where: { teamId } });
+         return reply.send({ offer, rows });
+       };`,
+      "services/api/src/routes/cases.routes.ts",
+    );
+    assert.deepEqual(authorityIds(unresolved), [], "an unresolved call was credited");
+    assert.equal(verdictOf(unresolved).tenantBindingResolved, false);
+  });
+
+  it("17. each listed helper still CONTAINS the party check it is credited for", async () => {
+    const { readFileSync } = await import("node:fs");
+    const nodePath = await import("node:path");
+    const repo = nodePath.resolve(__dirname, "../../..");
+    const bodyOf = (file: string, name: string): string => {
+      const src = readFileSync(nodePath.join(repo, file), "utf8");
+      const start = src.indexOf(`export async function ${name}(`);
+      assert.ok(start >= 0, `${name} is no longer declared in ${file}`);
+      const next = src.indexOf("\nexport ", start + 1);
+      return src.slice(start, next < 0 ? undefined : next);
+    };
+    const lifecycle = "services/api/src/services/workspace/workspace-lifecycle.service.ts";
+    const read = bodyOf(lifecycle, "readPendingOwnershipOffer");
+    assert.match(read, /offer\.fromUserId === input\.userId \|\| offer\.toUserId === input\.userId \? offer : null/);
+    const settle = bodyOf(lifecycle, "settleWorkspaceOwnershipOffer");
+    assert.match(settle, /input\.outcome === "DECLINED" \? offer\?\.toUserId : offer\?\.fromUserId/);
+    assert.match(settle, /if \(!offer \|\| party !== input\.actorUserId\) \{\s*throw lifecycleError\(404, "OWNERSHIP_OFFER_NOT_FOUND"/);
+    const decline = bodyOf("services/api/src/services/identity/workspace-invitation.service.ts", "declineWorkspaceInvitation");
+    assert.match(decline, /findFirst\(\{ where: \{ tokenHash: hashToken\(input\.rawToken\) \} \}\)/);
+    assert.match(decline, /actorEmail !== normalizeInviteEmail\(invite\.email\) \|\| !actor\?\.emailVerifiedAt/);
+    assert.match(decline, /"INVITE_EMAIL_MISMATCH"/);
   });
 });
