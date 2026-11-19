@@ -8,6 +8,8 @@
  * 200, with both timestamps and both terminal events. Each round here races the
  * real routes; the assertions are on the stored rows.
  */
+import { randomUUID } from "node:crypto";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -63,7 +65,10 @@ describe("evidence requests under concurrency (PRO-048)", () => {
       dueAtUtc: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
       recipientMode: "EXTERNAL_CONTRIBUTOR",
       recipientLabel: "Claimant",
-      recipientEmail: "claimant@test.proovra.local",
+      // PRO-I1-06 — sends are bounded per recipient (10 a day, counted in Redis
+      // before the transition is judged); each request has its own recipient so
+      // the races here are not answered by that bound.
+      recipientEmail: `claimant-${randomUUID()}@test.proovra.local`,
       createIntakeLink: true,
       deliverables: [
         { title: "Primary", description: "", required: true, acceptedKinds: ["PHOTO"], minCount: 1, locationRequirement: "optional", captureAfterRequest: false, sortOrder: 0 },

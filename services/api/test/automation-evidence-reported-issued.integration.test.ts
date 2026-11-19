@@ -61,6 +61,21 @@ describe("EVIDENCE_REPORTED follows issued reports (live PostgreSQL 16)", () => 
       data: { evidenceId, version, storageBucket: "rep", storageKey: `reports/${evidenceId}/v${version}.pdf`, generatedAtUtc: new Date() },
       select: { id: true },
     });
+  /**
+   * PRO-W2C2-06 — the detector pages the issued reports 100 at a time through a
+   * durable cursor that wraps. On a database other suites have written reports
+   * to, this case's report is reached within ceil(population / 100) ticks (plus
+   * the wrap), so the detector is run for exactly that many.
+   */
+  async function detectEveryIssuedReport(): Promise<void> {
+    const { detectTimeBasedAutomationTriggers } = await import("../src/services/automation/automation-triggers.js");
+    const population = await prisma.report.count({
+      where: { generatedAtUtc: { gte: new Date(Date.now() - 7 * 24 * 3600 * 1000) } },
+    });
+    for (let tick = 0; tick < Math.ceil(population / 100) + 1; tick += 1) {
+      await detectTimeBasedAutomationTriggers({ prisma });
+    }
+  }
   const runs = (ruleId: string, targetId: string) =>
     prisma.automationRun.findMany({ where: { ruleId, targetId }, select: { sourceEventId: true } });
 
@@ -78,9 +93,8 @@ describe("EVIDENCE_REPORTED follows issued reports (live PostgreSQL 16)", () => 
     expect(await runs(ruleId, evidenceId), "a REQUEST is not a report").toEqual([]);
 
     const report = await issue(evidenceId, 1);
-    const { detectTimeBasedAutomationTriggers } = await import("../src/services/automation/automation-triggers.js");
-    await detectTimeBasedAutomationTriggers({ prisma });
-    await detectTimeBasedAutomationTriggers({ prisma });
+    await detectEveryIssuedReport();
+    await detectEveryIssuedReport();
     expect(await runs(ruleId, evidenceId)).toEqual([{ sourceEventId: `report.issued:${report.id}` }]);
   });
 
@@ -89,8 +103,7 @@ describe("EVIDENCE_REPORTED follows issued reports (live PostgreSQL 16)", () => 
     const ruleId = await rule(P.teamId, P.userId);
     const evidenceId = await signed(null, P.userId);
     const report = await issue(evidenceId, 1);
-    const { detectTimeBasedAutomationTriggers } = await import("../src/services/automation/automation-triggers.js");
-    await detectTimeBasedAutomationTriggers({ prisma });
+    await detectEveryIssuedReport();
     expect(await runs(ruleId, evidenceId)).toEqual([{ sourceEventId: `report.issued:${report.id}` }]);
   });
 });

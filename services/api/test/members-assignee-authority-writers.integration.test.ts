@@ -584,10 +584,13 @@ describe("the one assignee authority holds for every writer, and a departure rel
 
   it("B2 — TEAM: QC review goes to a placed reviewer; unplaced, VIEWER and off-case members are refused (route and service)", async () => {
     await setPlan("TEAM");
-    const unplaced = await person("MEMBER");
+    // PRO-R2-08 — QC work goes only to someone who can render the QC verdict
+    // (review.qc.verdict: an administrator, not a plain MEMBER), so placement
+    // and case reach are observed on administrators.
+    const unplaced = await person("ADMIN");
     const viewer = await person("VIEWER", { placed: true });
-    const offCase = await person("MEMBER", { placed: true });
-    const placed = await person("MEMBER", { placed: true });
+    const offCase = await person("ADMIN", { placed: true });
+    const placed = await person("ADMIN", { placed: true });
 
     const sample = await sampleFor(inA());
     const url = `/v1/reviewer/qc/samples/${sample.id}/assign?teamId=${A().teamId}`;
@@ -613,8 +616,9 @@ describe("the one assignee authority holds for every writer, and a departure rel
   it("B2 — PRO (a Personal Workspace on its owner's entitlement): an unplaced member is refused QC review, a placed one is accepted", async () => {
     await setPersonalPlan("PRO");
     try {
-      const unplaced = await person("MEMBER", inP());
-      const placed = await person("MEMBER", { ...inP(), placed: true });
+      // PRO-R2-08 — the QC reviewer must hold review.qc.verdict (an administrator).
+      const unplaced = await person("ADMIN", inP());
+      const placed = await person("ADMIN", { ...inP(), placed: true });
       const sample = await sampleFor(inP());
       const assign = (qcReviewerUserId: string) =>
         qc.assignSample({ teamId: P().teamId, sampleId: sample.id, qcReviewerUserId, actorUserId: P().userId });
@@ -1149,6 +1153,13 @@ describe("the one assignee authority holds for every writer, and a departure rel
     const c = await prisma.case.create({ data: { name: `B11 ${tag()}`, teamId: A().teamId, ownerUserId: owner() }, select: { id: true } });
     // PRO-K1-03 (WS-ENT) — graph, diagnostics and SIU are Enterprise organization tools.
     await makeEnterpriseOrganizationWorkspace(prisma, A().teamId);
+    // On ENTERPRISE the placement prerequisite is a contract term
+    // (placement-policy.ts, owner decision 2026-10-25): this contract asks for it.
+    const { organizationId } = await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { organizationId: true } });
+    await prisma.enterpriseContract.update({
+      where: { organizationId: organizationId! },
+      data: { assignmentRequiresTeamPlacement: true },
+    });
     const url = `/v1/cases/${c.id}/siu-profile`;
     const profile = () => prisma.caseSiuProfile.findUnique({ where: { caseId: c.id } });
 

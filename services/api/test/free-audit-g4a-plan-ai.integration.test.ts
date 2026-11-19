@@ -27,6 +27,7 @@ describe("free-audit 0ea0 — API-G4A-PLAN-AI (live PostgreSQL)", () => {
   let policySvc: typeof import("../src/services/ai/workspace-ai-policy.service.js");
   let ledger: typeof import("../src/services/ai/ai-usage-ledger.service.js");
   let mi: typeof import("../src/services/intelligence/media-intelligence.service.js");
+  let adapters: typeof import("../src/services/intelligence/providers/provider-adapter.js");
   let budget: typeof import("../src/services/intelligence/provider-budget.service.js");
   let batch: typeof import("../src/services/batch-analysis.service.js");
   let billing: typeof import("../src/services/billing-enforcement.service.js");
@@ -101,6 +102,7 @@ describe("free-audit 0ea0 — API-G4A-PLAN-AI (live PostgreSQL)", () => {
     ledger = await import("../src/services/ai/ai-usage-ledger.service.js");
     await import("../src/services/intelligence/providers/openai-adapter.js");
     mi = await import("../src/services/intelligence/media-intelligence.service.js");
+    adapters = await import("../src/services/intelligence/providers/provider-adapter.js");
     budget = await import("../src/services/intelligence/provider-budget.service.js");
     batch = await import("../src/services/batch-analysis.service.js");
     billing = await import("../src/services/billing-enforcement.service.js");
@@ -188,16 +190,33 @@ describe("free-audit 0ea0 — API-G4A-PLAN-AI (live PostgreSQL)", () => {
       const p = await fx.seedPersonalTenant(deps, "PRO");
       await prisma.workspaceAiPolicy.create({ data: { teamId: p.personalTeamId, contentIntelligenceEnabled: true } });
       const pe = await evidenceIn(p.personalTeamId, p.owner.userId);
-      const ok = await mi.runProviderOperation({
-        teamId: p.personalTeamId,
-        evidenceId: pe.id,
-        provider: "LOCAL_ENTITY_EXTRACTION",
-        operation: "EXTRACT_ENTITIES",
-        initiatedByUserId: p.owner.userId,
-        text: "Contact Jane Doe at jane@example.com on 2026-01-02.",
-      } as never);
-      expect(ok.ok, JSON.stringify(ok)).toBe(true);
-      expect(await aiConsumed(p.personalTeamId)).toBe(1);
+      const run = () =>
+        mi.runProviderOperation({
+          teamId: p.personalTeamId,
+          evidenceId: pe.id,
+          provider: "LOCAL_ENTITY_EXTRACTION",
+          operation: "EXTRACT_ENTITIES",
+          initiatedByUserId: p.owner.userId,
+          text: "Contact Jane Doe at jane@example.com on 2026-01-02.",
+        } as never);
+      // PRO-AI1-08 — an in-process (local) adapter is not provider work: the
+      // run succeeds and takes no plan AI operation.
+      const local = await run();
+      expect(local.ok, JSON.stringify(local)).toBe(true);
+      expect(await aiConsumed(p.personalTeamId)).toBe(0);
+      // The metered half needs a PROVIDER operation: the same adapter without
+      // its `local` mark stands in for a vendor (no network is involved).
+      const localAdapter = adapters.getAdapter("LOCAL_ENTITY_EXTRACTION" as never)!;
+      expect(localAdapter.local).toBe(true);
+      const vendorLike = { ...localAdapter, local: false };
+      adapters.registerAdapter(vendorLike as never);
+      try {
+        const ok = await run();
+        expect(ok.ok, JSON.stringify(ok)).toBe(true);
+        expect(await aiConsumed(p.personalTeamId)).toBe(1);
+      } finally {
+        adapters.registerAdapter(localAdapter);
+      }
     });
 
     it("provider budgets cannot be created by a Free owner; a PRO owner can", async () => {

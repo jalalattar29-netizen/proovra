@@ -157,7 +157,12 @@ describe("wire contract D — user items vs technical parts (live PostgreSQL 16)
     const res = await get(`/v1/evidence/${id}/original`);
     expect(res.statusCode, res.body).toBe(200);
     const body = res.json();
-    expect(body.key).toBe(ev.storageKey);
+    // PRO-O1-08 (RG-18) — the body carries no storage bucket / object key; the
+    // released object is still the recording part: the presigned URL names it.
+    expect(body).not.toHaveProperty("key");
+    expect(body).not.toHaveProperty("bucket");
+    expect(JSON.stringify({ ...body, url: null, publicUrl: null, previewUrl: null })).not.toContain(ev.storageKey);
+    expect(decodeURIComponent(new URL(String(body.url)).pathname)).toContain(ev.storageKey);
     expect(body.mimeType).toBe("video/mp4");
     expect(body.downloadFileName).toBe("screen-recording-2026-10-29T10-00-00Z.mp4");
     const url = decodeURIComponent(String(body.url));

@@ -906,7 +906,14 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
         token: h.fixtures.teamB.ownerToken,
         payload: { name: "Hijacked" },
       });
-      expect(crossTeam.statusCode).toBe(404);
+      // PRO-K1-03: SIU saved views are an Enterprise organization tool, asked
+      // after membership. Organization B is FREE, so its owner naming their OWN
+      // workspace gets the plan refusal before any view is looked up.
+      expect(crossTeam.statusCode).toBe(403);
+      expect(crossTeam.json()).toMatchObject({
+        denial: "ENTITLEMENT_REQUIRED",
+        requirement: "ENTERPRISE_ORGANIZATION_WORKSPACE",
+      });
       const viewer = await call({ method: "PATCH", url, token: a.viewerToken, payload: { name: "Hijacked" } });
       expect(viewer.statusCode).toBe(404);
       expect((await prisma.caseSiuSavedView.findUniqueOrThrow({ where: { id } })).name).not.toBe("Hijacked");

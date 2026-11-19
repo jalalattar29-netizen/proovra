@@ -18,6 +18,7 @@ describe("a submitted one-time intake link answers 'already submitted' (live Pos
   let h: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let validateIntakeToken: (typeof import("../src/services/workflow-intake-session.service.js"))["validateIntakeToken"];
+  let intake: typeof import("../src/services/workflow-intake-session.service.js");
   let original: Record<string, unknown> | null = null;
 
   beforeAll(async () => {
@@ -27,7 +28,8 @@ describe("a submitted one-time intake link answers 'already submitted' (live Pos
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
-    ({ validateIntakeToken } = await import("../src/services/workflow-intake-session.service.js"));
+    intake = await import("../src/services/workflow-intake-session.service.js");
+    ({ validateIntakeToken } = intake);
     const A = h.fixtures.teamA;
     original = (await prisma.team.findUniqueOrThrow({
       where: { id: A.teamId },
@@ -68,9 +70,29 @@ describe("a submitted one-time intake link answers 'already submitted' (live Pos
   it("after submission (use reserved, link flipped EXPIRED) the answer is link_already_submitted", async () => {
     const link = await oneTimeLink();
     expect(await codeOf(link.rawToken)).toBe("valid");
-    // Exactly what a successful submission leaves: reserveIntakeLinkUse took the
-    // one use, then transitionIntakeSession(SUBMITTED) closed the one-time link.
-    await prisma.workflowIntakeLink.update({ where: { id: link.id }, data: { usedCount: 1, status: "EXPIRED" } as never });
+    // Exactly what a successful submission leaves, through the real service:
+    // reserveIntakeLinkUse takes the one use, then
+    // transitionIntakeSession(SUBMITTED) seals the session and closes the link.
+    const { reserveIntakeLinkUse, transitionIntakeSession } = intake;
+    expect(await reserveIntakeLinkUse(link.id)).toBe(true);
+    // PRO-I1-03 — the reserved counter alone (nothing sealed yet) is a use in progress, not a submission.
+    expect(await codeOf(link.rawToken)).toBe("link_in_use");
+
+    const session = await prisma.workflowIntakeSession.create({
+      data: {
+        intakeLinkId: link.id,
+        status: "UPLOAD_COMPLETED",
+        openedAtUtc: new Date(),
+        consentAcceptedAtUtc: new Date(),
+        uploadStartedAtUtc: new Date(),
+        uploadCompletedAtUtc: new Date(),
+        expiresAtUtc: new Date(Date.now() + 3_600_000),
+      },
+      select: { id: true },
+    });
+    await transitionIntakeSession({ sessionId: session.id, expectedLinkId: link.id, to: "SUBMITTED" });
+    const closed = await prisma.workflowIntakeLink.findUniqueOrThrow({ where: { id: link.id }, select: { usedCount: true, status: true } });
+    expect(closed).toEqual({ usedCount: 1, status: "EXPIRED" });
     expect(await codeOf(link.rawToken)).toBe("link_already_submitted");
   });
 

@@ -279,6 +279,8 @@ describe("K8 operations — platform and workspace operations mutations (live Po
         purpose: "QUEUE_JOB_REPLAY",
         resourceKind: "queue_job",
         resourceId: `report:${jobId}`,
+        // PRO-A1Z-02 / PRO-O1Z-04 — the workspace the challenge is consumed against.
+        teamId: A.teamId,
       });
       expect(await (await queue("report").getJob(jobId))!.getState()).toBe("failed");
 
@@ -423,6 +425,8 @@ describe("K8 operations — platform and workspace operations mutations (live Po
         purpose: "RESTORE_VALIDATION_EXECUTE",
         resourceKind: "recovery_validation",
         resourceId: "restore",
+        // PRO-A1Z-02 / PRO-O1Z-04 — the workspace the challenge is consumed against.
+        teamId: A.teamId,
       });
       expect(
         await prisma.securityEvent.count({ where: { teamId: A.teamId, eventType: "recovery_report_generated" } }),

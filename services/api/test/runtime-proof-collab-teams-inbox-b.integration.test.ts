@@ -283,7 +283,13 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
         payload: body,
       });
       expect(member.statusCode).toBe(403);
-      expect(member.json()).toEqual({ denial: "NOT_PERMITTED" });
+      // PRO-R2-03 / DEC-17 — a MEMBER no longer holds `review.assign`, so the
+      // permission gate itself refuses (canonical envelope) before the
+      // OWNER/ADMIN tier floor (`NOT_PERMITTED`) is reached.
+      expect(member.json()).toEqual({
+        error: { code: "permission_denied", reason: "permission_not_granted" },
+      });
+      expect(await grantRows(a.teamId, email)).toHaveLength(0);
 
       const noStepUp = await call({
         method: "POST",
@@ -448,7 +454,11 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
         payload: body,
       });
       expect(member.statusCode).toBe(403);
-      expect(member.json()).toEqual({ denial: "NOT_PERMITTED" });
+      // PRO-R2-03 / DEC-17 — refused by the `review.assign` gate itself now
+      // (a MEMBER no longer holds it), ahead of the OWNER/ADMIN tier floor.
+      expect(member.json()).toEqual({
+        error: { code: "permission_denied", reason: "permission_not_granted" },
+      });
       expect(await grantRows(a.teamId, e1)).toHaveLength(0);
 
       const challengeId = await stepUp({

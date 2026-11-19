@@ -378,11 +378,18 @@
     "sections"
   ],
   "intelligence/governance-manifest.json": [
+    "INTELLIGENCE",
+    "REDACTION",
+    "RETENTION",
+    "REVIEW",
+    "SECURITY",
+    "VERIFICATION",
     "accessReviewCampaignCount",
     "crossOrgActiveGrants",
     "delegatedAdminActiveGrants",
     "generatedAtUtc",
     "policiesActive",
+    "policiesPerKind",
     "policyCount",
     "schemaVersion"
   ],

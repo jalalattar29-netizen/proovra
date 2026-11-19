@@ -45,6 +45,15 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     await prisma.signingKey.create({
       data: { keyId, version: 1, publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString().trim() },
     });
+    // PRO-O1C-04 — a BASIC-tier answer (an unentitled workspace) states
+    // VERIFICATION_ONLY whatever the record or the link allows, because that
+    // body carries no content. What a link or a record's policy DISCLOSES is
+    // only observable on the rich tier, so the workspace under test holds a
+    // plan that is entitled to it.
+    await prisma.team.update({
+      where: { id: h.fixtures.teamA.teamId },
+      data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never,
+    });
   }, 180_000);
 
   beforeEach(async () => {

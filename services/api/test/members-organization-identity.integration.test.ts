@@ -295,20 +295,26 @@ describe("DOM-13 — Organization-scoped SSO and SCIM (live PostgreSQL)", () => 
     const { linkExternalIdentity } = await import("../src/services/identity/external-identity.service.js");
     const a = await organization();
     const b = await organization();
-    const person = async (teamId: string) => {
+    // PRO-A2-02 — an administrator may manually link only an account the
+    // Organization's own directory originated (a pre-existing self-serve
+    // account needs its owner's consent), so each person here is one.
+    const person = async (teamId: string, orgId: string) => {
       const email = `link-${tag()}@example.test`;
-      const u = await prisma.user.create({ data: { email, provider: "EMAIL", providerUserId: email }, select: { id: true } });
+      const u = await prisma.user.create({
+        data: { email, provider: "EMAIL", providerUserId: `scim-${orgId}:link-${randomUUID()}` },
+        select: { id: true },
+      });
       await prisma.teamMember.create({ data: { teamId, userId: u.id, role: "MEMBER", status: "ACTIVE" } });
       return u.id;
     };
     const subject = `okta|${tag()}`;
-    const ub = await person(b.w1);
+    const ub = await person(b.w1, b.orgId);
     await linkExternalIdentity({ teamId: b.w1, userId: ub, provider: "OKTA", externalSubjectId: subject, actorUserId: b.owner.userId }, prisma);
-    const ua = await person(a.w1);
+    const ua = await person(a.w1, a.orgId);
     const linked = await linkExternalIdentity({ teamId: a.w1, userId: ua, provider: "OKTA", externalSubjectId: subject, actorUserId: a.owner.userId }, prisma);
     expect(linked.organizationId).toBe(a.orgId);
     // Within one Organization the subject is still one person.
-    const ua2 = await person(a.w2);
+    const ua2 = await person(a.w2, a.orgId);
     await expect(
       linkExternalIdentity({ teamId: a.w2, userId: ua2, provider: "OKTA", externalSubjectId: subject, actorUserId: a.owner.userId }, prisma),
     ).rejects.toMatchObject({ code: "external_subject_already_mapped" });

@@ -350,9 +350,30 @@ describe("round 3 worker remediation (live PostgreSQL 16)", () => {
   it("WORKERS-08: two concurrent anchors in one workspace embed and charge each chunk once", async () => {
     await prisma.workspaceAiPolicy.upsert({
       where: { teamId: A().teamId },
-      create: { teamId: A().teamId, aiEnabled: true, semanticSearchEnabled: true, embeddingsAllowed: true } as never,
-      update: { aiEnabled: true, semanticSearchEnabled: true, embeddingsAllowed: true } as never,
+      // RG-04 (PRO-AI1C-01): chunk text is DERIVED_CONTENT, so the egress gate
+      // also needs the workspace's content-intelligence permission.
+      create: { teamId: A().teamId, aiEnabled: true, semanticSearchEnabled: true, embeddingsAllowed: true, contentIntelligenceEnabled: true } as never,
+      update: { aiEnabled: true, semanticSearchEnabled: true, embeddingsAllowed: true, contentIntelligenceEnabled: true } as never,
     });
+    // RG-04 (PRO-W2-02): the gate also asks the plan for SEMANTIC_SEARCH, which
+    // the harness's FREE workspace does not include. The case's subject is the
+    // batch claim, so it runs on a paid workspace and puts the plan back.
+    const planBefore = await prisma.team.findUniqueOrThrow({
+      where: { id: A().teamId },
+      select: { billingPlan: true, billingStatus: true },
+    });
+    await prisma.team.update({
+      where: { id: A().teamId },
+      data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never,
+    });
+    try {
+      await embedOnceCase();
+    } finally {
+      await prisma.team.update({ where: { id: A().teamId }, data: planBefore as never });
+    }
+  }, 180_000);
+
+  async function embedOnceCase(): Promise<void> {
     const e = await ev(A().teamId, A().ownerUserId);
     const theirs = await ev(B().teamId, B().ownerUserId);
     const ids: string[] = [];
@@ -394,7 +415,7 @@ describe("round 3 worker remediation (live PostgreSQL 16)", () => {
       victimChunk.id,
     )) as Array<{ v: boolean }>;
     expect(victim[0]?.v).toBe(false);
-  }, 180_000);
+  }
 
   // ---------------------------------------------------------------------------
   describe("redaction derivatives", () => {

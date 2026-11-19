@@ -306,18 +306,23 @@ describe("members re-audit 2 — a mutation never commits without its audit row 
     });
 
     it("teams.case_link / case_unlink — refused audits leave the case where it was; controls move it with rows", async () => {
-      const member = await person("MEMBER");
-      const id = await newCase(member.id, null);
       // B3A-F-003: only the case's owner may bring an unworkspaced case in.
-      failed(await withAuditRefused("teams.case_link", team(), () => send("POST", `/v1/teams/${team()}/cases/link`, member.token, { caseId: id })));
+      // PRO-T1-07: only the case's owner may take it out again, as an
+      // administrator of the workspace and behind the case-deletion step-up.
+      const admin = await person("ADMIN");
+      const id = await newCase(admin.id, null);
+      failed(await withAuditRefused("teams.case_link", team(), () => send("POST", `/v1/teams/${team()}/cases/link`, admin.token, { caseId: id })));
       expect((await caseRow(id))!.teamId).toBeNull();
-      const linked = await send("POST", `/v1/teams/${team()}/cases/link`, member.token, { caseId: id });
+      const linked = await send("POST", `/v1/teams/${team()}/cases/link`, admin.token, { caseId: id });
       expect(linked.statusCode, linked.body).toBe(200);
       expect((await caseRow(id))!.teamId).toBe(team());
 
-      failed(await withAuditRefused("teams.case_unlink", team(), () => send("DELETE", `/v1/teams/${team()}/cases/${id}`, A().ownerToken)));
+      const header = () =>
+        stepUp.approvedHeader({ token: admin.token, userId: admin.id, teamId: team(), purpose: "CASE_DELETE", resourceKind: "case", resourceId: id });
+      const h1 = await header();
+      failed(await withAuditRefused("teams.case_unlink", team(), () => send("DELETE", `/v1/teams/${team()}/cases/${id}`, admin.token, undefined, h1)));
       expect((await caseRow(id))!.teamId).toBe(team());
-      const unlinked = await send("DELETE", `/v1/teams/${team()}/cases/${id}`, A().ownerToken);
+      const unlinked = await send("DELETE", `/v1/teams/${team()}/cases/${id}`, admin.token, undefined, await header());
       expect(unlinked.statusCode, unlinked.body).toBe(200);
       expect((await caseRow(id))!.teamId).toBeNull();
     });

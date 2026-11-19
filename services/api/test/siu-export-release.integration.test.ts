@@ -20,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { readZipEntries } from "./point5/_zip-entries.js";
+import { makeEnterpriseOrganizationWorkspace } from "./support/enterprise-organization.js";
 
 const store = vi.hoisted(() => ({ objects: new Map<string, Buffer>() }));
 
@@ -57,6 +58,8 @@ describe("SIU export — released artifacts only (live PostgreSQL 16, real HTTP)
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    // PRO-K1-03 — SIU tools are part of an Enterprise organization workspace.
+    await makeEnterpriseOrganizationWorkspace(prisma, h.fixtures.teamA.teamId);
     totp = await import("../src/services/security/mfa-totp.js");
     // The export is a step-up action: the owner gets a real authenticator.
     const { sealSecret } = await import("../src/services/security/mfa-secret-storage.js");
@@ -80,14 +83,14 @@ describe("SIU export — released artifacts only (live PostgreSQL 16, real HTTP)
   }, 180_000);
 
   /** One real step-up round trip for the SIU export of this case. */
-  async function stepUp(caseId: string): Promise<string> {
+  async function stepUp(caseId: string, purpose = "SIU_EXPORT_GENERATE"): Promise<string> {
     const { teamA } = h.fixtures;
     const auth = { authorization: `Bearer ${teamA.ownerToken}` };
     const started = await h.app.inject({
       method: "POST",
       url: "/v1/identity-security/step-up/start",
       headers: auth,
-      payload: { teamId: teamA.teamId, purpose: "SIU_EXPORT_GENERATE", resourceKind: "case", resourceId: caseId },
+      payload: { teamId: teamA.teamId, purpose, resourceKind: "case", resourceId: caseId },
     });
     expect(started.statusCode, started.body).toBe(200);
     const challengeId = (started.json() as { challenge: { id: string } }).challenge.id;
@@ -237,13 +240,22 @@ describe("SIU export — released artifacts only (live PostgreSQL 16, real HTTP)
     });
     try {
       const again = await exportBundle(caseId);
-      expect(again.statusCode, again.body.slice(0, 300)).toBe(403);
-      expect(again.json().error.code).toBe("siu_export_blocked_by_policy");
+      // PRO-K1C-01 — the preflight now reads the effective hold (any scope), so
+      // a case-scope hold stops the export there, before the artifact gate.
+      expect(again.statusCode, again.body.slice(0, 300)).toBe(409);
+      expect(again.json().error.code).toBe("siu_export_blocked");
+      expect(
+        (again.json().error.preflight.findings as Array<{ code: string }>).map((f) => f.code),
+      ).toContain("LEGAL_HOLD_EXPORT_BLOCK");
 
       const download = await h.app.inject({
         method: "GET",
         url: `/v1/cases/${caseId}/siu-exports/${exportId}/download`,
-        headers: { authorization: `Bearer ${teamA.ownerToken}` },
+        // PRO-K1-01 — a PII-bearing stored bundle asks a fresh step-up first.
+        headers: {
+          authorization: `Bearer ${teamA.ownerToken}`,
+          "x-proovra-step-up-challenge-id": await stepUp(caseId, "SIU_PII_REVEAL"),
+        },
       });
       expect(download.statusCode, download.body.slice(0, 300)).toBe(403);
       expect(download.json().error.code).toBe("siu_export_blocked_by_policy");

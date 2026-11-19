@@ -470,7 +470,12 @@ t0: Date, staged: boolean) {
     // The recovery pass selects it and re-drives the existing sealed-record repair.
     retention.fail = false;
     const signedAt = (await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { signedAtUtc: true } })).signedAtUtc!;
-    const summary = await complete.recoverSealedRecordObligations({ now: new Date(signedAt.getTime() + 11 * MIN) });
+    // The pass is global (every workspace's sealed records inside its window). On a database shared
+    // with other suites their leftover records are candidates too, so "now" is placed where the window
+    // opens at this record's own seal: past the lease, and nothing sealed earlier is selected.
+    const summary = await complete.recoverSealedRecordObligations({
+      now: new Date(signedAt.getTime() + complete.SEALED_RECORD_RECOVERY_WINDOW_MS),
+    });
     expect(summary.protectionCandidates).toBeGreaterThanOrEqual(1);
     expect(summary.failed).toBe(0);
     // Recorded once: a repeat never stacks another outcome.
@@ -567,8 +572,12 @@ t0: Date, staged: boolean) {
       where: { id },
       data: { completionFanoutDoneAtUtc: null, completionFanoutClaimedAtUtc: null },
     });
-    const later = new Date(Date.now() + 30 * MIN);
-    const first = await complete.recoverSealedRecordObligations({ now: later });
+    // The pass is global: on a database shared with other suites their leftover sealed records are
+    // candidates too. "Later" is placed where the recovery window opens at this record's own seal
+    // (past the lease), so nothing sealed earlier is selected.
+    const sealedAt = (await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { signedAtUtc: true } })).signedAtUtc!;
+    const later = new Date(sealedAt.getTime() + complete.SEALED_RECORD_RECOVERY_WINDOW_MS);
+    const first =await complete.recoverSealedRecordObligations({ now: later });
     expect(first.fanoutRecovered).toBeGreaterThanOrEqual(1);
     const row = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { completionFanoutDoneAtUtc: true } });
     expect(row.completionFanoutDoneAtUtc).not.toBeNull();

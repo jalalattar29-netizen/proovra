@@ -54,7 +54,14 @@ describe("Operations truth closure — P1 security (live PostgreSQL 16 + Redis)"
     );
     // Wait for THIS job to fail: a Redis reused across runs may already hold an
     // older failed job, so "failed > 0" alone would end the wait early.
-    const added = await q.add("GenerateReport", { evidenceId: b.evidenceId }, { jobId: `ops-truth-b-${Date.now()}`, attempts: 1 });
+    // The queue lives in the Redis the whole integration run shares, and other
+    // suites leave waiting report jobs on it. `lifo` puts THIS job at the head,
+    // so this worker reaches it first instead of working through their backlog.
+    const added = await q.add(
+      "GenerateReport",
+      { evidenceId: b.evidenceId },
+      { jobId: `ops-truth-b-${Date.now()}`, attempts: 1, lifo: true },
+    );
     const until = Date.now() + 15_000;
     while (Date.now() < until && !(await added.isFailed())) {
       await new Promise((r) => setTimeout(r, 100));

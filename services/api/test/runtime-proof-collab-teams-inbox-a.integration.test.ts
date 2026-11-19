@@ -985,7 +985,9 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
       const a = h.fixtures.teamA;
       const b = h.fixtures.teamB;
       const kase = await prisma.case.create({
-        data: { name: `k5 unlink ${tag()}`, teamId: a.teamId, ownerUserId: a.ownerUserId },
+        // PRO-T1-07: only the case's own owner (a workspace ADMIN, behind the
+        // CASE_DELETE step-up) may take it out of the workspace.
+        data: { name: `k5 unlink ${tag()}`, teamId: a.teamId, ownerUserId: a.adminUserId },
       });
 
       const member = await call({ method: "DELETE", url: `/v1/teams/${a.teamId}/cases/${kase.id}`, token: a.memberToken });
@@ -995,7 +997,28 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
       expect(foreign.json()).toEqual({ code: "CASE_NOT_FOUND", message: "Case not found in this workspace" });
       expect((await prisma.case.findUniqueOrThrow({ where: { id: kase.id } })).teamId).toBe(a.teamId);
 
-      const res = await call({ method: "DELETE", url: `/v1/teams/${a.teamId}/cases/${kase.id}`, token: a.adminToken });
+      // PRO-T1-07: an admin who does not own the case is refused (here the workspace OWNER).
+      const notOwner = await call({ method: "DELETE", url: `/v1/teams/${a.teamId}/cases/${kase.id}`, token: a.ownerToken });
+      expect(notOwner.statusCode, notOwner.body).toBe(403);
+      expect(notOwner.json().code).toBe("CASE_UNLINK_OWNER_REQUIRED");
+      const noStepUp = await call({ method: "DELETE", url: `/v1/teams/${a.teamId}/cases/${kase.id}`, token: a.adminToken });
+      expect(noStepUp.statusCode, noStepUp.body).toBe(401);
+      expect(noStepUp.json().error.code).toBe("STEP_UP_REQUIRED");
+      expect((await prisma.case.findUniqueOrThrow({ where: { id: kase.id } })).teamId).toBe(a.teamId);
+
+      const res = await call({
+        method: "DELETE",
+        url: `/v1/teams/${a.teamId}/cases/${kase.id}`,
+        token: a.adminToken,
+        headers: await stepUp.approvedHeader({
+          token: a.adminToken,
+          userId: a.adminUserId,
+          teamId: a.teamId,
+          purpose: "CASE_DELETE",
+          resourceKind: "case",
+          resourceId: kase.id,
+        }),
+      });
       expect(res.statusCode, res.body).toBe(200);
       expect((await prisma.case.findUniqueOrThrow({ where: { id: kase.id } })).teamId).toBeNull();
       await expect

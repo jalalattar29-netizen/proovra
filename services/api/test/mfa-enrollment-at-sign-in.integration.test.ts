@@ -54,7 +54,9 @@ describe("MFA enrolment during sign-in (live PostgreSQL)", () => {
     const { hashPassword } = await import("../src/services/email-password-auth.service.js");
     await prisma.user.update({
       where: { id: member.userId },
-      data: { passwordHash: await hashPassword(password), emailVerifiedAt: new Date() },
+      // PRO-A2-03 — a seeded member is directory-provisioned (no password sign-in);
+      // these cases need a member who signs in with a password.
+      data: { passwordHash: await hashPassword(password), emailVerifiedAt: new Date(), providerUserId: member.email },
     });
     const evidence = await prisma.evidence.create({
       data: { ownerUserId: org.owner.userId, teamId: org.workspaceId, organizationId: org.organizationId, type: "PHOTO" },

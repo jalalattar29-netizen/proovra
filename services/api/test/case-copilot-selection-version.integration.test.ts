@@ -51,12 +51,26 @@ vi.mock("../src/services/ai/case-copilot-provider.js", async (importOriginal) =>
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    buildCaseCopilotProvider: () => async () => {
+    buildCaseCopilotProvider: () => {
+     // RG-05 (PRO-AI1-03) — the route settles spend from the provider's own
+     // tracker, so the substitute carries one like the real factory does: an
+     // answered call was billed, a refused one was never sent.
+     let outcome: "NOT_SENT" | "ANSWERED" = "NOT_SENT";
+     const spend = {
+       get outcome() {
+         return outcome;
+       },
+       get actualCostUsdMicros() {
+         return null;
+       },
+     };
+     return Object.assign(async () => {
       providerCalls += 1;
       if (providerFails) {
         const Unavailable = actual.CaseCopilotProviderUnavailable as new (...a: unknown[]) => Error;
         throw new Unavailable("provider_unavailable");
       }
+      outcome = "ANSWERED";
       return {
         caseSummary: "Two records describe the same scene.",
         timelineHighlights: [],
@@ -69,6 +83,7 @@ vi.mock("../src/services/ai/case-copilot-provider.js", async (importOriginal) =>
         citations: [],
         advisoryBoundary: ADVISORY,
       };
+     }, { spend });
     },
   };
 });

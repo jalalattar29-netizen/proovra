@@ -630,15 +630,24 @@ describe("K2 security (A) — identity administration, verification, step-up (li
       const { adminToken, teamId } = harness.fixtures.teamA;
       const target = `+1415557${String(Math.floor(1000 + Math.random() * 8999))}`;
       const statuses: string[] = [];
-      for (let i = 0; i < 7; i += 1) {
-        const res = await call({
-          method: "POST",
-          url: "/v1/communications/verify/start",
-          token: adminToken,
-          payload: { teamId, channel: "SMS", phone: target, purpose: "OTP" },
-        });
-        expect(res.statusCode, res.body).toBe(200);
-        statuses.push((json(res) as { status: string }).status);
+      // PRO-A1-03 — the new-destination daily rail (default 5 per number) now answers 429 in the
+      // route before the per-recipient hourly limit under proof here; its own knob lifts it for this case.
+      const railBefore = process.env.VERIFY_NEW_DESTINATION_PER_RECIPIENT_PER_DAY;
+      process.env.VERIFY_NEW_DESTINATION_PER_RECIPIENT_PER_DAY = "50";
+      try {
+        for (let i = 0; i < 7; i += 1) {
+          const res = await call({
+            method: "POST",
+            url: "/v1/communications/verify/start",
+            token: adminToken,
+            payload: { teamId, channel: "SMS", phone: target, purpose: "OTP" },
+          });
+          expect(res.statusCode, res.body).toBe(200);
+          statuses.push((json(res) as { status: string }).status);
+        }
+      } finally {
+        if (railBefore === undefined) delete process.env.VERIFY_NEW_DESTINATION_PER_RECIPIENT_PER_DAY;
+        else process.env.VERIFY_NEW_DESTINATION_PER_RECIPIENT_PER_DAY = railBefore;
       }
       expect(statuses).toEqual(["started", "started", "started", "started", "started", "rate_limited", "rate_limited"]);
       const rows = await prisma.verificationAttempt.findMany({

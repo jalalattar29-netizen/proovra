@@ -1078,7 +1078,9 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
       });
       expect(openNote.statusCode, openNote.body).toBe(201);
       const openId = (JSON.parse(openNote.body) as { comment: { id: string } }).comment.id;
-      expect((await send("PATCH", openId, offAdmin)).statusCode).toBe(200);
+      // PRO-K2-21 / DEC-15 — a LEAD moderates by deletion; only the author
+      // rewrites their own words.
+      expect((await send("PATCH", openId, offAdmin)).statusCode).toBe(403);
       expect((await send("DELETE", openId, offAdmin)).statusCode).toBe(200);
       expect(
         (await prisma.collaborationTeamComment.findUniqueOrThrow({ where: { id: openId }, select: { status: true } })).status,

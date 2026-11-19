@@ -289,8 +289,18 @@ export const NON_SESSION_WRITE_ROUTES: Readonly<Record<NonSessionCategory, reado
     /^POST \/v1\/(ops\/reconcile|org-invite-deliveries\/process|reliability\/reconcile)$/,
     /^POST \/v1\/(review-operations\/reconcile-slas|reviewer-ops\/reconcile)$/,
   ],
-  PUBLIC_ANONYMOUS: [/^POST \/v1\/(contact-sales|demo-requests|analytics\/track)$/],
-  ANONYMOUS_INTAKE: [/^(POST|PATCH) \/v1\/external-intake\/:p\//, /^POST \/v1\/intake\/citizen\//],
+  PUBLIC_ANONYMOUS: [
+    /^POST \/v1\/(contact-sales|demo-requests|analytics\/track)$/,
+    // PRO-A2C-02: the emailed digest-snooze link's confirmation POST. The signed
+    // single-use token in the body is the only authority; no session is read.
+    /^POST \/v1\/identity\/mfa-admin\/digest-preferences\/snooze-link$/,
+  ],
+  ANONYMOUS_INTAKE: [
+    /^(POST|PATCH) \/v1\/external-intake\/:p\//,
+    // PRO-I1-10: a contributor removes a staged file (same token binding as the PATCH).
+    /^DELETE \/v1\/external-intake\/:p\/sessions\/:p\/parts\/:p$/,
+    /^POST \/v1\/intake\/citizen\//,
+  ],
   EXTERNAL_PORTAL: [/^POST \/v1\/portal\//, /^POST \/v1\/external-review\/access\/:p$/],
   API_KEY: [/^POST \/v1\/integrations\/api\//],
   SCIM: [/^(POST|PATCH|PUT|DELETE) \/v2\/scim\//],
