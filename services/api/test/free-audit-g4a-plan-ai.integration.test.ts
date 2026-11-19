@@ -208,7 +208,7 @@ describe("free-audit 0ea0 — API-G4A-PLAN-AI (live PostgreSQL)", () => {
       // its `local` mark stands in for a vendor (no network is involved).
       const localAdapter = adapters.getAdapter("LOCAL_ENTITY_EXTRACTION" as never)!;
       expect(localAdapter.local).toBe(true);
-      const { local: _local, ...vendorLike } = localAdapter;
+      const vendorLike = { ...localAdapter, local: false };
       adapters.registerAdapter(vendorLike as never);
       try {
         const ok = await run();
