@@ -259,11 +259,10 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
     if (input.reviewerOperationsIncluded === true) {
       setMany(map, ["REVIEWER_OPS_VIEW", "SLA_VIEW", "ESCALATIONS_VIEW"], true);
       if (isWriter) {
-        setMany(
-          map,
-          ["REVIEWER_OPS_ACT", "REVIEW_ASSIGN", "REVIEW_REASSIGN", "REVIEW_ESCALATE"],
-          true,
-        );
+        setMany(map, ["REVIEWER_OPS_ACT", "REVIEW_ESCALATE"], true);
+        // PRO-R2-03 / DEC-17 — handing work to someone else follows the one
+        // server rule ("review.assign": OWNER / ADMIN), not "any writer".
+        if (isAdmin) setMany(map, ["REVIEW_ASSIGN", "REVIEW_REASSIGN"], true);
       }
       if (isAdmin) setMany(map, ["CASE_ASSIGN", "BULK_ACTIONS"], true);
     }
@@ -330,11 +329,10 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
         ],
         true,
       );
-      setMany(
-        map,
-        ["REVIEWER_OPS_ACT", "REVIEW_ASSIGN", "REVIEW_REASSIGN", "REVIEW_ESCALATE"],
-        teamReviewOps,
-      );
+      setMany(map, ["REVIEWER_OPS_ACT", "REVIEW_ESCALATE"], teamReviewOps);
+      // PRO-R2-03 / DEC-17 — assignment is the OWNER / ADMIN power on the
+      // server ("review.assign"); the client capability says the same.
+      setMany(map, ["REVIEW_ASSIGN", "REVIEW_REASSIGN"], teamReviewOps && isAdmin);
     }
 
     if (isAdmin) {

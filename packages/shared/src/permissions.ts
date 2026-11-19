@@ -560,7 +560,12 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "governance.policy.read",
     "audit.read",
     "review.queue.read",
-    "review.assign",
+    // PRO-R2-03 / DEC-17 — "review.assign" (handing work to someone else) is
+    // NOT held by a plain reviewer: it is the supervisor power the reviewer
+    // role table always said it was (SUPERVISOR / REVIEW_ADMIN, i.e. workspace
+    // ADMIN / OWNER). One definition, here; the reviewer-role table derives
+    // its answer from this one. A lead reviewer gets it by delegated grant.
+    // Claiming and working one's own review needs no assignment capability.
     "review.decide",
     "review.escalate",
     "review.reopen",
