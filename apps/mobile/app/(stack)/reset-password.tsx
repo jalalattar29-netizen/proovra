@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { confirmPasswordReset } from "../../src/auth/auth-api";
@@ -32,7 +32,22 @@ function failureReason(err: unknown): string | null {
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ token?: string }>();
-  const token = typeof params.token === "string" ? params.token.trim() : "";
+  // PRO-NA-08 — the link token is captured ONCE, then removed from navigation
+  // state (which reaches logs and crash breadcrumbs), as mfa-recovery-verify does.
+  const [token, setToken] = useState(() =>
+    typeof params.token === "string" ? params.token.trim() : "",
+  );
+  useEffect(() => {
+    const p = params.token;
+    if (typeof p === "string" && p.trim()) {
+      setToken(p.trim());
+      try {
+        router.setParams({ token: undefined });
+      } catch {
+        /* the screen keeps working with the captured token */
+      }
+    }
+  }, [params.token, router]);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);

@@ -34,13 +34,17 @@ import {
 import {
   LIFECYCLE_WEBHOOK_OUTBOUND_POLICY,
   checkOutboundUrlStatic,
+  isWrappedWebhookSigningSecret,
   sendOutboundRequest,
+  unwrapWebhookSigningSecret,
+  wrapWebhookSigningSecret,
   type OutboundSendInput,
   type OutboundSendResult,
   type OutboundUrlCheck,
 } from "@proovra/shared-runtime/outbound";
 
 import { prisma as defaultPrisma } from "../../../db.js";
+import { getSecret } from "../../../config/runtime-secrets.js";
 import { isLiveOperatingWorkspace } from "../../workspace/operating-workspace.js";
 import {
   STANDING_CREDENTIAL_PERMISSION,
@@ -93,6 +97,32 @@ function computeBackoffSeconds(attemptCount: number): number {
   const exp = Math.min(attemptCount, 16);
   const raw = Math.pow(2, exp) * BACKOFF_BASE_SECONDS;
   return Math.min(raw, BACKOFF_CAP_SECONDS);
+}
+
+/**
+ * PRO-G1-02 — the key material the lifecycle secret wrap is derived from. The
+ * Worker derives the same key from the same secret (AUTH_JWT_SECRET), so a
+ * secret wrapped here is readable where it is signed.
+ */
+function lifecycleWrapKeyMaterial(): string {
+  return getSecret("AUTH_JWT_SECRET") ?? "dev-jwt-secret-not-for-production";
+}
+
+/** Wrap a fresh lifecycle signing secret for the `webhook_endpoints.secret` column. */
+export function wrapLifecycleSigningSecret(secretBase64: string): string {
+  return wrapWebhookSigningSecret(secretBase64, lifecycleWrapKeyMaterial(), "lifecycle-webhook");
+}
+
+/**
+ * The signing secret of a stored lifecycle endpoint: an `e3.3:` envelope is
+ * opened (null when it does not authenticate — the caller fails closed); a
+ * legacy row still holding the raw value is read as is until re-wrapped.
+ */
+export function readLifecycleSigningSecret(stored: string): string | null {
+  if (isWrappedWebhookSigningSecret(stored)) {
+    return unwrapWebhookSigningSecret(stored, [lifecycleWrapKeyMaterial()], "lifecycle-webhook");
+  }
+  return stored.length > 0 ? stored : null;
 }
 
 function signPayload(secretBase64: string, canonicalPayload: string): string {
@@ -184,7 +214,8 @@ export async function createWebhookEndpoint(
       data: {
         teamId: input.teamId,
         url: input.url.trim(),
-        secret,
+        // PRO-G1-02 — never the raw secret at rest: the shared AES-GCM envelope.
+        secret: wrapLifecycleSigningSecret(secret),
         subscribedEvents: Array.from(input.subscribedEvents),
         state: "ACTIVE",
         createdByUserId: input.createdByUserId,
@@ -366,7 +397,10 @@ export async function emitWebhookEvent(
       continue;
     }
     if (creator.verdict !== "HOLDS") continue;
-    const signature = signPayload(ep.secret, canonical);
+    // PRO-G1-02 — an envelope that does not authenticate signs nothing.
+    const signingSecret = readLifecycleSigningSecret(ep.secret);
+    if (!signingSecret) continue;
+    const signature = signPayload(signingSecret, canonical);
     const row = await prisma.lifecycleWebhookDelivery
       .create({
         data: {

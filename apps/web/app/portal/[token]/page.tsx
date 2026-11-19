@@ -26,8 +26,9 @@ import {
   getSessionId,
   isPortalMfaDenial,
   logout as portalLogout,
+  portalPathFor,
   readPortalFailure,
-  setBearer,
+  resolvePortalBearer,
   type PortalMfaDetail,
 } from "../../../lib/external-portal/portal-client";
 import { formatUserDate, formatUserDateTime } from "../../../lib/date";
@@ -50,10 +51,19 @@ export default function PortalDashboardPage({
   } | null>(null);
 
   const reauth = useCallback(async () => {
-    setBearer(decodeURIComponent(token));
+    // PRO-R1-04 — the path carries no credential: the bearer is this tab's.
+    // A legacy /portal/<token> URL is taken in once and replaced in history.
+    const { bearer, legacy } = resolvePortalBearer(token);
+    if (legacy && typeof window !== "undefined") {
+      window.history.replaceState(null, "", portalPathFor());
+    }
+    if (!bearer) {
+      setDenial("TOKEN_INVALID");
+      return false;
+    }
     try {
       await authenticate({
-        token: decodeURIComponent(token),
+        token: bearer,
         existingSessionId: getSessionId() ?? undefined,
       });
     } catch (err) {
@@ -170,10 +180,7 @@ export default function PortalDashboardPage({
         await portalLogout();
         window.location.href = "/portal";
       }} />
-      <AssignedList
-        projection={projection}
-        token={token}
-      />
+      <AssignedList projection={projection} />
       <LimitationsFooter limitations={projection.limitations} />
     </main>
   );
@@ -275,10 +282,8 @@ function Pill({ label }: { label: string }) {
 
 function AssignedList({
   projection,
-  token,
 }: {
   projection: ExternalPortalProjection;
-  token: string;
 }) {
   return (
     <section
@@ -334,7 +339,7 @@ function AssignedList({
                 </td>
                 <td style={td}>
                   <Link
-                    href={`/portal/${encodeURIComponent(token)}/work/${a.workflowId}`}
+                    href={portalPathFor(`/work/${a.workflowId}`)}
                     data-portal-open-review={a.workflowId}
                     style={{ color: "#0f172a", textDecoration: "underline" }}
                   >

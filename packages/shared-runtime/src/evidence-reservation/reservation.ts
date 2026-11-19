@@ -52,9 +52,37 @@ function countedEvidenceRecordWhere(now: Date = new Date()): Prisma.EvidenceWher
       { status: { notIn: UNSEALED } },
       { createdAt: { gte: cutoff } },
       { updatedAt: { gte: cutoff } },
-      { workflowIntakeSession: { is: { status: { in: LIVE_INTAKE }, expiresAtUtc: { gt: now } } } },
+      { workflowIntakeSession: { is: liveIntakeHoldWhere(now, cutoff) } },
       { uploadSession: { is: { lastActivityAtUtc: { gte: cutoff } } } },
     ],
+  };
+}
+
+/**
+ * PRO-I1-02 — WHEN AN INTAKE SESSION HOLDS A RESERVATION.
+ *
+ * A session used to hold its record for as long as the session was in a live
+ * status and unexpired — and a session expires with its LINK (up to 90 days),
+ * while nothing ends sessions when a link is revoked, exhausted or abandoned.
+ * Any holder of a reusable link could therefore occupy every remaining slot of
+ * the owner's allowance by declaring one file per session, and revoking the
+ * link freed nothing.
+ *
+ * A session now holds its record only while it is ACTIVE ON AN ACTIVE LINK:
+ * its link is still ACTIVE (a revoked or expired link can never be submitted
+ * through, whichever writer closed it), and the contributor touched the session
+ * within the same reservation window the allowance, the link-use gate
+ * (PRO-050 holdCutoff) and the sweep already use. A record the contributor
+ * staged and abandoned is then held only by its own last write, is released by
+ * the sweep after the window (an EVIDENCE_DELETED custody event, never a silent
+ * discard) and its staged objects are deleted with it.
+ */
+function liveIntakeHoldWhere(now: Date, cutoff: Date): Prisma.WorkflowIntakeSessionWhereInput {
+  return {
+    status: { in: LIVE_INTAKE },
+    expiresAtUtc: { gt: now },
+    intakeLink: { is: { status: prismaPkg.WorkflowIntakeLinkStatus.ACTIVE } },
+    OR: [{ updatedAt: { gte: cutoff } }, { lastSeenAtUtc: { gte: cutoff } }],
   };
 }
 
@@ -132,7 +160,7 @@ export function expiredEvidenceReservationWhere(now: Date = new Date()): Prisma.
     createdAt: { lt: cutoff },
     updatedAt: { lt: cutoff },
     NOT: [
-      { workflowIntakeSession: { is: { status: { in: LIVE_INTAKE }, expiresAtUtc: { gt: now } } } },
+      { workflowIntakeSession: { is: liveIntakeHoldWhere(now, cutoff) } },
       { uploadSession: { is: { lastActivityAtUtc: { gte: cutoff } } } },
     ],
   } satisfies Prisma.EvidenceWhereInput;
@@ -144,7 +172,7 @@ const LIVE_CAPTURE: prismaPkg.CaptureSessionStatus[] = ["ACTIVE", "INTERRUPTED"]
 async function heldByLiveSession(tx: Prisma.TransactionClient, evidenceId: string, now: Date): Promise<boolean> {
   const [intake, capture] = await Promise.all([
     tx.workflowIntakeSession.count({
-      where: { evidenceId, status: { in: LIVE_INTAKE }, expiresAtUtc: { gt: now } },
+      where: { evidenceId, ...liveIntakeHoldWhere(now, new Date(now.getTime() - EVIDENCE_RESERVATION_TTL_MS)) },
     }),
     tx.captureSession.count({
       where: {

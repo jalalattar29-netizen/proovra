@@ -115,10 +115,15 @@ export function DeliveryHistoryDrawer({
               latestFailedAtUtc: r.failedAtUtc,
             });
             const vocab = DELIVERY_STATE_VOCABULARY[state];
+            // PRO-I1-05 — Retry only where the server says a retry can succeed;
+            // an older API without the field keeps the status rule.
             const canRetry =
-              r.status === "RETRY_SCHEDULED" ||
-              r.status === "FAILED" ||
-              r.status === "UNDELIVERED";
+              typeof r.retryable === "boolean"
+                ? r.retryable
+                : r.status === "RETRY_SCHEDULED" ||
+                  r.status === "FAILED" ||
+                  r.status === "UNDELIVERED";
+            const reissueRequired = r.reissueRequired === true;
             return (
               <li
                 key={r.id}
@@ -161,6 +166,13 @@ export function DeliveryHistoryDrawer({
                     .filter(Boolean)
                     .join(" · ") || "No provider timestamps recorded."}
                 </p>
+                {reissueRequired ? (
+                  <p className="ilk-note" data-delivery-reissue={r.id}>
+                    This message carried the secure link, which cannot be sent
+                    again. To send a working link, disable this link and create a
+                    new one.
+                  </p>
+                ) : null}
                 {canRetry ? (
                   <div>
                     <button

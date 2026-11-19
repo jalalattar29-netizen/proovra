@@ -40,6 +40,7 @@ import {
   authenticate,
   consumeStashedRawTokenForSso,
   readPortalFailure,
+  portalPathFor,
   setBearer,
   startPortalSso,
   stashRawTokenForSso,
@@ -129,7 +130,8 @@ export default function PortalAcceptPage({
     try {
       setBearer(token);
       await authenticate({ token });
-      router.push(`/portal/${encodeURIComponent(token)}`);
+      // PRO-R1-04 — the portal URL carries no credential (the bearer is this tab's).
+      router.push(portalPathFor());
     } catch (err) {
       const failure = readPortalFailure(err);
       const denial = failure.denial ?? "TOKEN_INVALID";
@@ -301,7 +303,7 @@ export default function PortalAcceptPage({
           token={token}
           denial={codeStep.denial}
           detail={codeStep.detail}
-          onVerified={() => router.push(`/portal/${encodeURIComponent(token)}`)}
+          onVerified={() => router.push(portalPathFor())}
         />
       ) : (
         <div

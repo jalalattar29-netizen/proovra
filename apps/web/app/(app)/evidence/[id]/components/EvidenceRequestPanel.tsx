@@ -265,7 +265,7 @@ export default function EvidenceRequestPanel({
     }
   }
 
-  async function executeNoteAction(note: string) {
+  async function executeNoteAction(note: string, contributorMessage = "") {
     if (!noteDialog) return;
     if (noteDialog.action === "request-more") {
       if (!noteDialog.responseId) return;
@@ -297,7 +297,12 @@ export default function EvidenceRequestPanel({
           {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ reviewerNote: note }),
+            // PRO-I1-01 — the note stays internal; only contributorMessage is emailed.
+            body: JSON.stringify(
+              contributorMessage
+                ? { reviewerNote: note, contributorMessage }
+                : { reviewerNote: note },
+            ),
           },
         );
       } else if (
@@ -531,6 +536,7 @@ export default function EvidenceRequestPanel({
           label={noteDialog.label}
           onCancel={() => setNoteDialog(null)}
           onConfirm={executeNoteAction}
+          withContributorMessage={noteDialog.action === "needs-more-info"}
         />
       ) : null}
 
@@ -944,12 +950,16 @@ function NoteDialog({
   label,
   onCancel,
   onConfirm,
+  withContributorMessage = false,
 }: {
   label: string;
   onCancel: () => void;
-  onConfirm: (note: string) => void | Promise<void>;
+  onConfirm: (note: string, contributorMessage: string) => void | Promise<void>;
+  /** PRO-I1-01 — needs-more-info only: an optional message the contributor IS emailed. */
+  withContributorMessage?: boolean;
 }) {
   const [note, setNote] = useState("");
+  const [contributorMessage, setContributorMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   // A ref, not only state: two clicks in one frame both read the old state.
   const inFlight = useRef(false);
@@ -966,8 +976,25 @@ function NoteDialog({
           className="app-form-input evd-input evd-textarea evd-textarea--tall"
           value={note}
           onChange={(e) => setNote(e.target.value.slice(0, 4000))}
+          aria-label="Reviewer note (internal)"
           autoFocus
         />
+        {withContributorMessage ? (
+          <>
+            <p className="evd-paragraph">
+              Optional message to the contributor. If the request has an email
+              recipient, this text is emailed to them; without it they receive a
+              standard sentence saying more information is needed.
+            </p>
+            <textarea
+              className="app-form-input evd-input evd-textarea"
+              value={contributorMessage}
+              onChange={(e) => setContributorMessage(e.target.value.slice(0, 1000))}
+              aria-label="Message to the contributor (sent by email, optional)"
+              data-evidence-request-contributor-message
+            />
+          </>
+        ) : null}
         <div className="evd-actions evd-actions--end evd-actions--top">
           <button type="button" className="app-secondary-action" onClick={onCancel}>
             Cancel
@@ -982,7 +1009,7 @@ function NoteDialog({
               inFlight.current = true;
               setSubmitting(true);
               try {
-                await onConfirm(note.trim());
+                await onConfirm(note.trim(), contributorMessage.trim());
               } finally {
                 inFlight.current = false;
                 setSubmitting(false);

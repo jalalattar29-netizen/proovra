@@ -54,7 +54,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import type { RecipientContactDisclosure } from "../privacy/recipient-contact-disclosure.js";
-import { maskEmail, maskPhonePreview } from "@proovra/shared";
+import { maskEmail, maskPhonePreview, sanitizeIntakeMessagePreview } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { resolveAccessibleWorkspace } from "../access/accessible-workspaces.js";
@@ -186,7 +186,20 @@ const EMAIL_EVENT_PREFERENCE: Partial<Record<NotificationEventType, Notification
   REVIEW_DUE_SOON_REMINDER: "SLA_NEAR_BREACH",
   REVIEW_INACTIVITY_REMINDER: "SLA_NEAR_BREACH",
   DISCUSSION_MENTION_RECEIVED: "MENTION",
+  // PRO-N1-04 — member-addressed evidence-request mail follows the panel's
+  // "Evidence request updates" Email choice (it ignored it). Only a member has
+  // a preference: mail to an outside recipient is not governed by this map.
+  EVIDENCE_REQUEST_RESPONSE_RECEIVED: "EVIDENCE_REQUEST_UPDATE",
 };
+
+/**
+ * PRO-N1-04 — events that were ALWAYS mailed before the preference governed
+ * them: a member who never opened the panel keeps receiving them (an explicit
+ * Off now stops them). Preserves existing behaviour (DEC-22).
+ */
+const EMAIL_EVENT_MAILED_BY_DEFAULT: ReadonlySet<NotificationEventType> = new Set([
+  "EVIDENCE_REQUEST_RESPONSE_RECEIVED",
+]);
 
 export type SendEmailNotificationInput = {
   eventType: NotificationEventType;
@@ -282,7 +295,12 @@ export async function sendEmailNotification(
   const preferenceType = EMAIL_EVENT_PREFERENCE[input.eventType];
   if (preferenceType && input.recipientUserId && input.teamId) {
     const choice = await resolveEmailDeliveryChoice(
-      { userId: input.recipientUserId, teamId: input.teamId, preferenceType },
+      {
+        userId: input.recipientUserId,
+        teamId: input.teamId,
+        preferenceType,
+        ...(EMAIL_EVENT_MAILED_BY_DEFAULT.has(input.eventType) ? { whenAbsent: "IMMEDIATE" as const } : {}),
+      },
       client,
     );
     if (choice !== "IMMEDIATE") {
@@ -338,7 +356,8 @@ export async function sendEmailNotification(
       status: "PENDING",
       subject: rendered.subject.slice(0, 400),
       templateKey: input.eventType,
-      renderedPreview: rendered.plaintextPreview.slice(0, 2000),
+      // PRO-N1-06 — the stored preview never carries a bearer link.
+      renderedPreview: redactDeliveryPreview(rendered.plaintextPreview),
       // Phase 8.5 — persist the exact context used to render this
       // notification so retries / manual resends can reproduce the
       // original message without re-reaching into workspace state.
@@ -507,6 +526,10 @@ async function currentRecipientIneligibility(
       userId: delivery.recipientUserId,
       teamId: delivery.teamId,
       preferenceType,
+      // PRO-N1-04 — the same default the first send used (retry/resend re-check).
+      ...(EMAIL_EVENT_MAILED_BY_DEFAULT.has(delivery.eventType as NotificationEventType)
+        ? { whenAbsent: "IMMEDIATE" as const }
+        : {}),
     },
     client,
   );
@@ -697,7 +720,46 @@ export type ResendOutcome =
   | "skipped_terminal"
   | "blocked_already_sent"
   | "not_found"
-  | "failed_to_dispatch";
+  | "failed_to_dispatch"
+  // PRO-N1Z-02 — a re-invitation to a contributor the intake plan gate refuses.
+  | "blocked_plan"
+  // PRO-N1Z-02 — the evidence request was cancelled or closed.
+  | "blocked_request_closed"
+  // PRO-N1-14 — another resend or the retry sweeper holds the row.
+  | "in_progress";
+
+/**
+ * PRO-N1Z-02 — THE re-invitation gate for a stored delivery: a message that
+ * invites an outside contributor to an evidence request's intake link is sent
+ * again only while the request is open and the workspace's plan still includes
+ * secure intake (the same intakePlanRefusal link resend and redemption ask).
+ * Used by every resend path (delivery log, contextual retry) and by reminders.
+ */
+export async function deliveryReinvitationRefusal(
+  delivery: { eventType: string; teamId: string | null; evidenceRequestId: string | null; intakeLinkId: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<null | { outcome: "blocked_plan"; code: string } | { outcome: "blocked_request_closed" }> {
+  if (!delivery.eventType.startsWith("EVIDENCE_REQUEST_") || !delivery.teamId) return null;
+  if (delivery.evidenceRequestId) {
+    const request = await client.evidenceRequest.findUnique({
+      where: { id: delivery.evidenceRequestId },
+      select: { status: true },
+    });
+    if (request && (request.status === "CANCELLED" || request.status === "CLOSED")) {
+      return { outcome: "blocked_request_closed" };
+    }
+  }
+  if (!delivery.intakeLinkId) return null;
+  const link = await client.workflowIntakeLink.findUnique({
+    where: { id: delivery.intakeLinkId },
+    select: { createdByUserId: true },
+  });
+  if (!link) return null;
+  const { intakePlanRefusal } = await import("../intake/intake-link-mint-gate.js");
+  const refusal = await intakePlanRefusal({ teamId: delivery.teamId, requesterUserId: link.createdByUserId });
+  if (refusal && refusal.kind === "plan") return { outcome: "blocked_plan", code: refusal.code };
+  return null;
+}
 
 export async function resendNotificationDelivery(
   input: {
@@ -734,11 +796,19 @@ export async function resendNotificationDelivery(
   ) {
     return { delivery, outcome: "blocked_already_sent" };
   }
+  // A row a process holds right now (another resend, the retry sweeper) is not
+  // taken over: the claim below would race it.
+  if (delivery.status === "PENDING") {
+    return { delivery, outcome: "in_progress" };
+  }
+  const reinvite = await deliveryReinvitationRefusal(delivery, client);
+  if (reinvite) return { delivery, outcome: reinvite.outcome };
 
   // Reset the row to PENDING before dispatch so the lifecycle remains
-  // observable to a concurrent reader.
-  const refreshed = await client.notificationDelivery.update({
-    where: { id: delivery.id },
+  // observable to a concurrent reader. PRO-N1-14 — a CONDITIONAL claim on the
+  // status read above, so a concurrent resend or sweeper pass dispatches once.
+  const claimed = await client.notificationDelivery.updateMany({
+    where: { id: delivery.id, status: delivery.status },
     data: {
       status: "PENDING",
       errorCode: null,
@@ -747,6 +817,8 @@ export async function resendNotificationDelivery(
       initiatedByUserId: input.actorUserId,
     },
   });
+  if (claimed.count !== 1) return { delivery, outcome: "in_progress" };
+  const refreshed = await client.notificationDelivery.findUniqueOrThrow({ where: { id: delivery.id } });
 
   try {
     const result = await dispatchDelivery(refreshed, client);
@@ -960,7 +1032,8 @@ export async function enqueueEmailNotificationTx(
       status: "RETRY_SCHEDULED",
       nextAttemptAtUtc: new Date(),
       subject: rendered.subject.slice(0, 400),
-      renderedPreview: rendered.plaintextPreview.slice(0, 2000),
+      // PRO-N1-06 — the stored preview never carries a bearer link.
+      renderedPreview: redactDeliveryPreview(rendered.plaintextPreview),
       templateContextJson: input.template as unknown as Prisma.InputJsonValue,
       metadata: {
         [STORED_IDEMPOTENCY_KEY_FIELD]: mintEmailIdempotencyKey(
@@ -1072,6 +1145,16 @@ export async function getNotificationDelivery(
  * of is not a policy. The decision now arrives from the server-side authority
  * and the client cannot influence it.
  */
+/**
+ * PRO-N1-06 / PRO-I1Z-01 — a delivery preview with every bearer link removed
+ * (intake upload URLs, secret-shaped query values, token-shaped strings), by
+ * THE intake preview sanitizer. The provider still receives the real message;
+ * templateContextJson (server-private) keeps what reminders and resends need.
+ */
+export function redactDeliveryPreview(preview: string): string {
+  return sanitizeIntakeMessagePreview(preview).slice(0, 2000);
+}
+
 export function projectNotificationDelivery(
   delivery: DbNotificationDelivery,
   opts: { disclosure?: RecipientContactDisclosure } = {},
@@ -1120,14 +1203,19 @@ export function projectNotificationDelivery(
     channel: delivery.channel,
     provider: delivery.provider,
     recipient,
-    recipientName: delivery.recipientName,
+    // PRO-N1-06 — an external intake recipient's name follows the same
+    // contact disclosure as their address.
+    recipientName:
+      disclosure === "REVEALED" || !delivery.intakeLinkId ? delivery.recipientName : null,
     status: delivery.status,
     subject: delivery.subject,
     templateKey: delivery.templateKey,
     // renderedPreview is plaintext (per Phase 8 schema). It is bounded
     // 2000 chars and the renderer never includes reviewer notes, token
     // hashes, or IP/UA — only safe message body fragments.
-    renderedPreview: delivery.renderedPreview,
+    // PRO-N1-06 — redacted again on read, so a row stored before the
+    // write-time redaction never returns a live bearer link.
+    renderedPreview: delivery.renderedPreview === null ? null : redactDeliveryPreview(delivery.renderedPreview),
     providerMessageId: delivery.providerMessageId,
     errorCode: delivery.errorCode,
     errorMessage: delivery.errorMessage,

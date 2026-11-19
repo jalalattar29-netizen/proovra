@@ -223,4 +223,8 @@ export type CommunicationMessageRow = {
   nextAttemptAtUtc: string | null;
   errorCode: string | null;
   errorMessage: string | null;
+  /** PRO-I1-05 — the server's retry eligibility (absent on an older API). */
+  retryable?: boolean;
+  /** PRO-I1-05 — a token-bearing message: recovery is a new link, not a retry. */
+  reissueRequired?: boolean;
 };

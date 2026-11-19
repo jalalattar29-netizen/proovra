@@ -10,6 +10,7 @@ import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
+import { getEmailAppBaseUrl } from "../services/email.service.js";
 import { resolveWorkspaceSeatState } from "../services/billing/workspace-seats.service.js";
 import {
   evaluateWorkspaceAiOperation,
@@ -786,7 +787,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
                       completedJob.name,
                       completedJob.totalItems,
                       completedJob.failedItems,
-                      batchCompletionEmailLink(process.env.APP_URL)
+                      // PRO-PW-04 — APP_URL was read nowhere else; THE app-host authority.
+                      batchCompletionEmailLink(getEmailAppBaseUrl())
                     );
                   }
                 }

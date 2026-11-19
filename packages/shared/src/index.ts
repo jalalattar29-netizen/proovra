@@ -917,6 +917,7 @@ export {
   formatWorkflowIntakeTokenWireValue,
   isTerminalWorkflowIntakeSessionStatus,
   parseWorkflowIntakeTokenShape,
+  MAX_INTAKE_LINK_TTL_HOURS,
 } from "./workflow-intake-link.js";
 
 // `isAnonymousWorkflowIntakeMode` is grouped semantically with the link

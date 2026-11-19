@@ -475,7 +475,7 @@ export const CREATE_COPY = {
   channelHelp: "Only the channel you pick is used. PROOVRA never sends on two channels at once.",
   channelUnconfigured: "Not configured on this deployment.",
   recipientLabel: "Recipient label",
-  recipientLabelHelp: "Optional. Only you see this — for example “John Smith — claim 4842”.",
+  recipientLabelHelp: "Optional. Shown to the recipient as the “Reference” line of an emailed link — for example “Claim 4842”. Do not put internal remarks here.",
   customerId: "Customer ID (optional)",
   customerIdHelp: "Your organization's identifier for this customer.",
   recipientEmail: "Recipient email",

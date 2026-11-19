@@ -74,6 +74,7 @@ import {
   checkVerification,
   projectVerificationAttempt,
   startVerification,
+  enforceNewDestinationVerificationBudget,
 } from "../services/communications/verification.service.js";
 import {
   applyInboundOptIn,
@@ -622,6 +623,28 @@ export async function communicationsRoutes(app: FastifyInstance) {
             });
             return;
           }
+          // PRO-I1Z-05 — a recipient who opted out (STOP) is re-enabled only
+          // by a verification they completed AFTER opting out, never by an
+          // older one.
+          const existingPref = await prisma.communicationPreference.findFirst({
+            where: { teamId: body.teamId, externalContactHash: hashRecipientPhone(phone) },
+            select: { optOutAtUtc: true, smsOptOut: true, whatsappOptOut: true },
+          });
+          const approvedAt = approved.approvedAtUtc ?? null;
+          if (
+            existingPref?.optOutAtUtc &&
+            (existingPref.smsOptOut || existingPref.whatsappOptOut) &&
+            (!approvedAt || approvedAt.getTime() <= existingPref.optOutAtUtc.getTime())
+          ) {
+            reply.code(409).send({
+              error: {
+                code: "contact_reverification_required",
+                message:
+                  "This contact opted out of messages. They must complete a new verification before messaging can be enabled again.",
+              },
+            });
+            return;
+          }
         }
         const pref = await upsertContactPreference({
           teamId: body.teamId,
@@ -679,7 +702,9 @@ export async function communicationsRoutes(app: FastifyInstance) {
       // before any attempt row or provider call.
       const planRefusal = await intakePlanRefusal({ teamId: body.teamId, requesterUserId: actor.userId });
       if (planRefusal && planRefusal.kind === "plan") {
-        return reply.code(409).send({ error: { code: planRefusal.code, message: planRefusal.message } });
+        // PRO-I1-12 — a lapsed workspace answers 402 like every other intake gate.
+        const status = String(planRefusal.code).toUpperCase() === "COMMERCIAL_LIFECYCLE_RESTRICTED" ? 402 : 409;
+        return reply.code(status).send({ error: { code: planRefusal.code, message: planRefusal.message } });
       }
       // The per-recipient limit inside startVerification does not bound how
       // many DIFFERENT numbers one actor or workspace can text. These do.
@@ -691,6 +716,20 @@ export async function communicationsRoutes(app: FastifyInstance) {
         if (!verdict.allowed) {
           reply.header("Retry-After", String(Math.max(1, Math.ceil((verdict.resetAtMs - Date.now()) / 1000))));
           return reply.code(429).send({ error: { code: "rate_limited" } });
+        }
+      }
+      // PRO-A1-03 — the shared new-destination budget (per number across
+      // workspaces, per workspace per day, platform-wide per hour).
+      {
+        const budget = await enforceNewDestinationVerificationBudget({ teamId: body.teamId, destinationRaw: body.phone });
+        if (!budget.allowed) {
+          if (budget.reason === "destination_not_allowed") {
+            return reply.code(422).send({ error: { code: "destination_not_allowed" } });
+          }
+          reply.header("Retry-After", String(budget.retryAfterSec));
+          return budget.reason === "limiter_unavailable"
+            ? reply.code(503).send({ error: { code: "temporarily_unavailable" } })
+            : reply.code(429).send({ error: { code: "rate_limited" } });
         }
       }
       try {

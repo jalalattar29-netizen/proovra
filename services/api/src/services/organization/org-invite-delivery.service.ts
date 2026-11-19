@@ -390,20 +390,48 @@ export async function resolveOrganizationInvitationAllowance(
   now: Date = new Date(),
 ): Promise<OrganizationInvitationAllowance> {
   const caps = getPlanCapabilities("ENTERPRISE");
-  const [pending, sentLast24h] = await Promise.all([
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const [pending, createdLast24h, resentLast24h] = await Promise.all([
     client.organizationInvite.count({
       where: { organizationId, acceptedAt: null, revokedAt: null, expiresAt: { gt: now } },
     }),
     client.organizationInvite.count({
-      where: { organizationId, createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
+      where: { organizationId, createdAt: { gte: since } },
+    }),
+    // PRO-T2-06 — a resend IS a send: each invitation resent in the window
+    // counts in the same 24-hour rail. (The per-invitation cooldown below
+    // bounds how often one invitation can be resent inside it.)
+    client.organizationInvite.count({
+      where: { organizationId, lastResentAt: { gte: since } },
     }),
   ]);
   return {
     pending,
     maxPending: caps.maxPendingInvitesPerTeam,
-    sentLast24h,
+    sentLast24h: createdLast24h + resentLast24h,
     maxPer24h: caps.maxInvitesPer24h,
   };
+}
+
+/**
+ * PRO-T2-06 — the per-invitation resend cooldown. A resend mails the invited
+ * address, rotates the link and extends the invitation; it used to have no
+ * bound at all.
+ */
+export const ORG_INVITE_RESEND_COOLDOWN_MS = 60 * 60 * 1000;
+
+/** The cutoff a resend's conditional claim compares `lastResentAt` with. */
+export function orgInviteResendCooldownCutoff(now: Date = new Date()): Date {
+  return new Date(now.getTime() - ORG_INVITE_RESEND_COOLDOWN_MS);
+}
+
+export function orgInviteResendCooldownRefusal(): {
+  status: 429;
+  body: { error: { code: string; message: string }; code: string; message: string };
+} {
+  const code = "ORG_INVITE_RESEND_COOLDOWN";
+  const message = "This invitation was resent recently. Wait an hour before sending it again.";
+  return { status: 429, body: { error: { code, message }, code, message } };
 }
 
 /**
@@ -413,6 +441,8 @@ export async function resolveOrganizationInvitationAllowance(
 export function organizationInvitationRefusal(
   allowance: OrganizationInvitationAllowance,
   requested: number,
+  /** PRO-T2-06 — a resend adds no pending invitation; only the 24-hour rail applies. */
+  opts: { resend?: boolean } = {},
 ): null | {
   status: 409 | 429;
   body: { error: { code: string; message: string }; code: string; message: string };
@@ -423,7 +453,7 @@ export function organizationInvitationRefusal(
     status,
     body: { error: { code, message }, code, message },
   });
-  if (allowance.pending + n > allowance.maxPending) {
+  if (!opts.resend && allowance.pending + n > allowance.maxPending) {
     return refuse(
       409,
       "ORG_INVITE_LIMIT_REACHED",

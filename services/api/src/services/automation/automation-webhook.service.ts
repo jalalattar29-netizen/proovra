@@ -32,7 +32,10 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import {
   checkOutboundUrlResolved,
   checkOutboundUrlStatic,
+  isWrappedWebhookSigningSecret,
   sendOutboundRequest,
+  unwrapWebhookSigningSecret,
+  wrapWebhookSigningSecret,
   type OutboundResolver,
   type OutboundUrlPolicy,
 } from "@proovra/shared-runtime/outbound";
@@ -329,31 +332,36 @@ export function fingerprintSecret(plaintext: string): string {
 }
 
 /**
- * Encrypt a plaintext secret for at-rest storage. The current
- * implementation uses a deterministic XOR-with-keystream envelope
- * derived from AUTH_JWT_SECRET — sufficient for E3.2's threat model
- * (DB compromise alone does not yield plaintext secrets unless the
- * env is also compromised) and consistent with the rest of the
- * codebase's at-rest pattern for non-PII operational data. A
- * stronger KMS-backed wrap can land in a follow-up phase if needed
- * without changing this function's signature.
+ * PRO-G1-02 — encrypt a plaintext secret for at-rest storage with THE shared
+ * authenticated wrap (AES-256-GCM, fresh nonce, channel-bound AAD, versioned
+ * `e3.3:` envelope; @proovra/shared-runtime/outbound). The former `e3.2:`
+ * envelope XOR-ed every tenant's secret with ONE keystream, so one known
+ * plaintext revealed all of them; it is still READ until re-wrapped
+ * (scripts/rewrap-webhook-signing-secrets.ts), never written.
  */
 function encryptSecretForStorage(plaintext: string): string {
-  const keyMaterial = resolveStorageKeyMaterial();
-  const keystream = expandKeystream(keyMaterial, plaintext.length);
-  const out = Buffer.alloc(plaintext.length);
-  const pt = Buffer.from(plaintext, "utf8");
-  for (let i = 0; i < pt.length; i++) {
-    out[i] = pt[i]! ^ keystream[i]!;
-  }
-  return `e3.2:${out.toString("base64")}`;
+  return wrapWebhookSigningSecret(plaintext, resolveWrapKeyMaterial(), "automation-webhook");
+}
+
+/** The secret the shared wrap key is derived from (same material the Worker reads). */
+function resolveWrapKeyMaterial(): string {
+  return getSecret("AUTH_JWT_SECRET") ?? "dev-jwt-secret-not-for-production";
 }
 
 /**
  * Decrypt a stored envelope back into plaintext, for use during HMAC
- * signing. Fails closed (returns null) if the envelope is malformed.
+ * signing. Fails closed (returns null) if the envelope is malformed or its
+ * authentication tag does not verify.
  */
 export function decryptStoredSecret(envelope: string): string | null {
+  if (isWrappedWebhookSigningSecret(envelope)) {
+    return unwrapWebhookSigningSecret(envelope, [resolveWrapKeyMaterial()], "automation-webhook");
+  }
+  return decryptLegacyXorEnvelope(envelope);
+}
+
+/** Legacy `e3.2:` reader — kept only until every row is re-wrapped. */
+export function decryptLegacyXorEnvelope(envelope: string): string | null {
   if (!envelope.startsWith("e3.2:")) return null;
   try {
     const ct = Buffer.from(envelope.slice(5), "base64");

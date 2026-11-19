@@ -9,9 +9,10 @@
  * keeps the inactivity window).
  *
  * Hard rules:
- *   * NEVER persists the raw token to localStorage / cookies. The
- *     bearer is held in-memory; the session id is sessionStorage so
- *     it is dropped when the tab closes.
+ *   * NEVER persists the raw token to localStorage / cookies, and NEVER
+ *     puts it in a URL (PRO-R1-04): the bearer is held in memory and in
+ *     this tab's sessionStorage (with the session id), so it is dropped
+ *     when the tab closes and cleared on logout.
  *   * Every request adds the Authorization + x-portal-session headers
  *     when present.
  */
@@ -24,15 +25,66 @@ import type {
 import { apiBaseUrl } from "../api";
 
 const SS_SESSION_KEY = "proovra.portal.session.v1";
+/**
+ * PRO-R1-04 — the bearer for THIS TAB. The portal used to route on the raw
+ * grant token (/portal/<token>/…), so the credential sat in browser history,
+ * bookmarks/sync and every web-origin request path. The pages now route on
+ * the opaque segment PORTAL_SESSION_SEGMENT, and the bearer lives here: the
+ * same tab-scoped lifetime as the session id (gone when the tab closes, never
+ * localStorage or a cookie), cleared on logout.
+ */
+const SS_BEARER_KEY = "proovra.portal.bearer.v1";
+export const PORTAL_SESSION_SEGMENT = "session";
 
 let bearerToken: string | null = null;
 
 export function setBearer(token: string): void {
   bearerToken = token;
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(SS_BEARER_KEY, token);
+  } catch {
+    /* swallow — the in-memory copy still serves this page */
+  }
 }
 
 export function clearBearer(): void {
   bearerToken = null;
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(SS_BEARER_KEY);
+  } catch {
+    /* swallow */
+  }
+}
+
+/**
+ * PRO-R1-04 — the bearer a portal page should use for its path segment:
+ *   - PORTAL_SESSION_SEGMENT → this tab's stored bearer (null in a new tab:
+ *     the reviewer opens their invitation link again);
+ *   - anything else is a legacy /portal/<token> URL: the token is taken into
+ *     this tab and the caller replaces the URL (see portalPathFor).
+ */
+export function resolvePortalBearer(segment: string): { bearer: string | null; legacy: boolean } {
+  if (segment === PORTAL_SESSION_SEGMENT) {
+    if (bearerToken) return { bearer: bearerToken, legacy: false };
+    if (typeof window === "undefined") return { bearer: null, legacy: false };
+    try {
+      const stored = window.sessionStorage.getItem(SS_BEARER_KEY);
+      if (stored) bearerToken = stored;
+      return { bearer: stored, legacy: false };
+    } catch {
+      return { bearer: null, legacy: false };
+    }
+  }
+  const legacy = decodeURIComponent(segment);
+  setBearer(legacy);
+  return { bearer: legacy, legacy: true };
+}
+
+/** PRO-R1-04 — a portal URL that carries no credential. */
+export function portalPathFor(suffix = ""): string {
+  return `/portal/${PORTAL_SESSION_SEGMENT}${suffix}`;
 }
 
 export function getSessionId(): string | null {

@@ -632,6 +632,11 @@ vi.mock("../src/services/organization/org-invite-delivery.service.js", () => ({
   // here the allowance is roomy so the matrix exercises the routes' other rules.
   resolveOrganizationInvitationAllowance: async () => ({ pending: 0, maxPending: 1000, sentLast24h: 0, maxPer24h: 5000 }),
   organizationInvitationRefusal: () => null,
+  // PRO-T2-06 — the per-invitation resend cooldown (its claim is proven in
+  // ws-msg-remediation.integration.test.ts).
+  ORG_INVITE_RESEND_COOLDOWN_MS: 60 * 60 * 1000,
+  orgInviteResendCooldownCutoff: (now: Date = new Date()) => new Date(now.getTime() - 60 * 60 * 1000),
+  orgInviteResendCooldownRefusal: () => ({ status: 429, body: { error: { code: "ORG_INVITE_RESEND_COOLDOWN", message: "wait" }, code: "ORG_INVITE_RESEND_COOLDOWN", message: "wait" } }),
 }));
 vi.mock("../src/services/identity/membership-provisioning.service.js", () => ({
   parseWorkspaceAssignments: (v: unknown) => v ?? [],
@@ -2076,30 +2081,44 @@ describe("SYSTEM 2 — digest preferences + signed snooze-link integrity", () =>
 
   it("snooze-link consumes a VALID signed token exactly once and applies the token's own scope", async () => {
     const token = signMfaDigestSnoozeToken({ userId: ADMIN_2, teamId: TEAM }, JWT_SECRET);
-    const res = await app.inject({
+    // PRO-A2C-02 — the mailed GET is SAFE: a confirmation page, no write, no
+    // jti spent (a scanner or prefetcher fetching the link changes nothing).
+    const page = await app.inject({
       method: "GET",
       url: DIGEST_BASE + "/snooze-link?token=" + encodeURIComponent(token),
+    });
+    expect(page.statusCode).toBe(200);
+    expect(page.headers["content-type"]).toMatch(/text\/html/);
+    expect(page.body).toMatch(/method="post"/);
+    expect(callsTo("updateDigestPreference")).toHaveLength(0);
+    // The confirmation POST performs the snooze.
+    const res = await app.inject({
+      method: "POST",
+      url: DIGEST_BASE + "/snooze-link",
+      payload: { token },
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { ok: boolean; suppressUntil: string };
     expect(body.ok).toBe(true);
     expect(new Date(body.suppressUntil).getTime()).toBeGreaterThan(Date.now());
-    // The write is keyed by the TOKEN's subject — never by an ambient session.
+    // The write is keyed by the TOKEN's subject — never by an ambient session —
+    // and sets ONLY the snooze: it never re-enables a disabled digest.
     expect(callsTo("updateDigestPreference")).toHaveLength(1);
     expect(callsTo("updateDigestPreference")[0]!.args).toMatchObject({
       actorUserId: ADMIN_2,
       teamId: TEAM,
-      digestEnabled: true,
     });
+    expect((callsTo("updateDigestPreference")[0]!.args as { digestEnabled?: unknown }).digestEnabled).toBeUndefined();
     // Single-use: the SAME token replayed is a bounded conflict, no 2nd write.
     const replay = await app.inject({
-      method: "GET",
-      url: DIGEST_BASE + "/snooze-link?token=" + encodeURIComponent(token),
+      method: "POST",
+      url: DIGEST_BASE + "/snooze-link",
+      payload: { token },
     });
     expect(replay.statusCode).toBe(409);
     expect(JSON.parse(replay.body)).toEqual({ ok: false, error: "already_used" });
     expect(callsTo("updateDigestPreference")).toHaveLength(1);
-    // The token is never echoed back.
+    // The token is never echoed back by the write.
     expect(res.body).not.toContain(token);
   });
 
@@ -2176,15 +2195,9 @@ describe("SYSTEM 2 — digest preferences + signed snooze-link integrity", () =>
     const token = signMfaDigestSnoozeToken({ userId: OUTSIDER, teamId: null }, JWT_SECRET);
     H.actorUserId = ACTOR;
     const res = await app.inject({
-      method: "GET",
-      url:
-        DIGEST_BASE +
-        "/snooze-link?token=" +
-        encodeURIComponent(token) +
-        "&userId=" +
-        ACTOR +
-        "&teamId=" +
-        TEAM,
+      method: "POST",
+      url: DIGEST_BASE + "/snooze-link?userId=" + ACTOR + "&teamId=" + TEAM,
+      payload: { token, userId: ACTOR, teamId: TEAM },
     });
     expect(res.statusCode).toBe(200);
     expect(callsTo("updateDigestPreference")[0]!.args).toMatchObject({

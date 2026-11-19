@@ -56,6 +56,7 @@
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { AMBIGUOUS_ERROR_CODE } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../db.js";
 import { withLease } from "./rate-limit.js";
@@ -126,7 +127,11 @@ export type DispatchIntakeDeliveryResult =
         | "delivery_failed_or_skipped"
         | "max_attempts_exceeded"
         /** B3B-F-102 — another send with the same nonce is in flight. */
-        | "delivery_in_progress";
+        | "delivery_in_progress"
+        /** PRO-I1-09 — the provider may have accepted it; not resent under this identity. */
+        | "delivery_unconfirmed"
+        /** PRO-I1-06 — the outbound daily ceiling (recipient / workspace). */
+        | "rate_limited";
       deduped: boolean;
       communicationMessageId?: string;
     };
@@ -161,7 +166,19 @@ export function buildIntakeIdempotencyHash(input: {
  * address under PROOVRA's name.
  */
 export function intakeLinkPublicUrl(rawToken: string): string {
-  return `${getEmailWebBaseUrl().replace(/\/+$/, "")}/intake/${encodeURIComponent(rawToken)}`;
+  return `${intakePublicBaseUrl()}/intake/${encodeURIComponent(rawToken)}`;
+}
+
+/**
+ * PRO-PW-04 / PRO-I1Z-06 — THE base of every public intake URL a message or an
+ * API field carries. WORKFLOW_INTAKE_PUBLIC_BASE_URL stays an OVERRIDE (only an
+ * absolute http(s) origin is accepted); otherwise the web base with its
+ * production default — never an empty base and so never a relative link.
+ */
+export function intakePublicBaseUrl(): string {
+  const override = process.env.WORKFLOW_INTAKE_PUBLIC_BASE_URL?.trim();
+  if (override && /^https?:\/\/[^\s/]+/i.test(override)) return override.replace(/\/+$/, "");
+  return getEmailWebBaseUrl().replace(/\/+$/, "");
 }
 
 /**
@@ -261,9 +278,15 @@ async function priorDeliveryOutcome(
       id: true,
       status: true,
       providerMessageId: true,
+      errorCode: true,
     },
   });
   if (!prior) return null;
+  // PRO-I1-09 — the provider may have accepted the earlier attempt: answer
+  // "unconfirmed" and never send again under this identity.
+  if (prior.status === "QUEUED" && prior.errorCode === AMBIGUOUS_ERROR_CODE) {
+    return { ok: false, reason: "delivery_unconfirmed", deduped: true, communicationMessageId: prior.id };
+  }
   if (
     prior.status === "SENT" ||
     prior.status === "DELIVERED" ||
@@ -329,6 +352,9 @@ async function dispatchUnderLease(
         intakeUrl,
         actorUserId: input.actorUserId,
         workspaceName: input.workspaceName,
+        // PRO-I1-09 / B3B-F-102 — the row is created ALREADY tagged, before
+        // the provider call; the marker is no longer a best-effort patch.
+        deliveryIdempotencyKey: idemHash,
       },
       client,
     );
@@ -342,6 +368,7 @@ async function dispatchUnderLease(
         channel: input.channel,
         actorUserId: input.actorUserId,
         workspaceName: input.workspaceName,
+        deliveryIdempotencyKey: idemHash,
       },
       client,
     );

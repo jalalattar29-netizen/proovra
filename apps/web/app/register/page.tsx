@@ -27,7 +27,7 @@ import {
 } from "../../lib/legalAcceptance";
 import { evaluatePassword } from "../../lib/passwordRules";
 import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
-import { safeReturnPath } from "../../lib/navigation/safe-return-path";
+import { DEFAULT_RETURN_PATH, safeReturnPath } from "../../lib/navigation/safe-return-path";
 
 type GoogleCredentialResponse = { credential?: string };
 
@@ -1324,7 +1324,7 @@ function RegisterPageContent() {
                                   >
                                     An account already exists for this email.
                                     <Link
-                                      href={`/login?email=${encodeURIComponent(email.trim())}`}
+                                      href={returnUrl !== DEFAULT_RETURN_PATH ? `/login?next=${encodeURIComponent(returnUrl)}` : "/login"} /* PRO-A1-12 — no address in the URL; the destination is kept */
                                       className="auth-link"
                                       style={{ color: "#D63E76", fontWeight: 600 }}
                                     >
@@ -1332,7 +1332,7 @@ function RegisterPageContent() {
                                     </Link>
                                     <span style={{ color: "#5c6a6e" }}>·</span>
                                     <Link
-                                      href={`/forgot-password?email=${encodeURIComponent(email.trim())}`}
+                                      href="/forgot-password" /* PRO-A1-12 — the address is not put in the URL (nothing reads it) */
                                       className="auth-link"
                                       style={{ color: "#D63E76", fontWeight: 600 }}
                                     >

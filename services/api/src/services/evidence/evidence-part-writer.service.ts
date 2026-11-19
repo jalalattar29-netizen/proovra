@@ -207,6 +207,27 @@ export async function updateEvidencePartMetadata(
   });
 }
 
+/**
+ * PRO-I1-10 — take a STAGED part back out of an unsealed record, through the
+ * same record lock and writable-state proof as a byte write: a removal either
+ * commits before the seal reads the parts or waits and is refused once the
+ * record is sealed (409 EVIDENCE_NOT_WRITABLE). Sealed content is never
+ * changed. Returns the removed row (its object is left in place: physical
+ * deletion belongs to the destruction subsystem, never to this path).
+ */
+export async function removeStagedEvidencePart(
+  input: { evidenceId: string; principal: EvidencePartWritePrincipal; partId: string },
+  client: AnyClient = defaultPrisma,
+): Promise<prismaPkg.EvidencePart> {
+  return inTx(client, async (tx) => {
+    await lockEvidenceForByteWrite(tx, input.evidenceId, input.principal);
+    const part = await tx.evidencePart.findFirst({ where: { id: input.partId, evidenceId: input.evidenceId } });
+    if (!part) throw new EvidencePartWriteRefused("EVIDENCE_NOT_FOUND");
+    await tx.evidencePart.delete({ where: { id: part.id } });
+    return part;
+  });
+}
+
 /** THE only EvidencePart insert in production code. */
 export async function writeEvidencePart(
   input: EvidencePartWriteInput,

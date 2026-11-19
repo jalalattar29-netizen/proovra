@@ -416,8 +416,13 @@ function matchesClientFilters(
 
 /** RFC-4180-safe CSV cell escaping. */
 function csvCell(value: string): string {
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+  // PRO-TZ-05 — the same spreadsheet-formula neutralisation every server CSV
+  // applies (services/api reporting/csv-export.ts, B3A-F-006): a cell that
+  // starts with = + - @ TAB or CR is prefixed with ' and always quoted, so a
+  // member's display name "=HYPERLINK(...)" exports as text.
+  const neutral = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  if (neutral !== value || /[",\r\n]/.test(value)) {
+    return `"${neutral.replace(/"/g, '""')}"`;
   }
   return value;
 }

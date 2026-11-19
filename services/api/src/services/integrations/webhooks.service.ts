@@ -15,7 +15,6 @@
  */
 
 import {
-  createCipheriv,
   createDecipheriv,
   createHash,
   createHmac,
@@ -35,6 +34,7 @@ import {
 } from "@proovra/shared";
 import {
   resolveLocalAllowance,
+  sealAesGcm,
   type OutboundUrlPolicy,
 } from "@proovra/shared-runtime/outbound";
 
@@ -103,14 +103,8 @@ function deriveWebhookWrapKey(): Buffer | null {
 function encryptRawWebhookSecret(rawSecret: string): string | null {
   const key = deriveWebhookWrapKey();
   if (!key) return null;
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const ct = Buffer.concat([
-    cipher.update(rawSecret, "utf8"),
-    cipher.final(),
-  ]);
-  const tag = cipher.getAuthTag();
-  return Buffer.concat([iv, ct, tag]).toString("base64");
+  // PRO-G1-02 — THE shared AES-256-GCM primitive (same iv|ct|tag layout).
+  return sealAesGcm(key, rawSecret).toString("base64");
 }
 
 /**

@@ -172,3 +172,19 @@ export function leadForwardedClientIpKey(
   }
   return trustedClientIpKey(req);
 }
+
+/**
+ * PRO-P1-02 — the address a public lead route RECORDS (and scores for spam),
+ * from the SAME decision as its limiter key: the proxy-forwarded visitor when
+ * the request carries the proxy's key, the resolved client otherwise. The
+ * route used to key the limiter on the visitor but record the proxy's egress,
+ * so five genuine website leads in 15 minutes marked every later one as spam.
+ */
+export function leadRecordedClientIp(
+  req: FastifyRequest,
+  keyMatches: (provided: unknown) => boolean,
+): string | null {
+  const key = leadForwardedClientIpKey(req, keyMatches);
+  if (key.startsWith("fwd:")) return key.slice(4);
+  return trustedClientIp(req);
+}

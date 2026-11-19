@@ -31,7 +31,7 @@ import {
   type InvitationDeliveryStatus,
 } from "@proovra/shared";
 
-import { mintEmailIdempotencyKey } from "@proovra/shared-runtime";
+import { AMBIGUOUS_ERROR_CODE, mintEmailIdempotencyKey } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
@@ -368,6 +368,16 @@ export async function deliverInvitationEmail(
   const grant = grantRows[0];
   if (!grant) return { ok: false, denial: "INVITE_NOT_FOUND" };
 
+  // PRO-R1-09 — the predecessor's hash, so a delivery that demonstrably did
+  // not leave can give the reviewer back the link they already hold.
+  const predecessor = (
+    await prisma.$queryRaw<Array<{ token_hash: string }>>`
+      SELECT "token_hash" FROM "external_review_grants"
+       WHERE "id" = ${input.grantId}::uuid AND "team_id" = ${input.teamId}::uuid
+       LIMIT 1
+    `
+  )[0]?.token_hash ?? null;
+
   // 3. Mint the successor token SERVER-SIDE. The guarded UPDATE inside also
   //    re-proves workspace ownership and live state, so a grant revoked or
   //    expired between step 2 and here mints nothing and mails nothing.
@@ -392,6 +402,15 @@ export async function deliverInvitationEmail(
     };
   }
 
+  // PRO-R1-09 — the successor's hash as stored, for a conditional restore.
+  const successor = (
+    await prisma.$queryRaw<Array<{ token_hash: string }>>`
+      SELECT "token_hash" FROM "external_review_grants"
+       WHERE "id" = ${input.grantId}::uuid AND "team_id" = ${input.teamId}::uuid
+       LIMIT 1
+    `
+  )[0]?.token_hash ?? null;
+
   // 4-7. Durable delivery intent + canonical transport + bounded outcome.
   const sent = await sendInvitationEmail({
     prisma,
@@ -410,11 +429,29 @@ export async function deliverInvitationEmail(
   });
 
   if (!sent.ok) {
+    // PRO-R1-09 — a send that certainly did not leave (refused / not
+    // configured; NOT an ambiguous outcome, which may have been delivered)
+    // restores the predecessor hash, conditionally on nothing having rotated
+    // since: the reviewer keeps the working link, and the console is told the
+    // email was not sent. The successor token was never delivered anywhere.
+    let previousLinkKept = false;
+    if (predecessor && successor && successor !== predecessor && sent.failureReason !== AMBIGUOUS_ERROR_CODE) {
+      const restored = await prisma.$executeRaw`
+        UPDATE "external_review_grants"
+           SET "token_hash" = ${predecessor}, "updated_at_utc" = now()
+         WHERE "id" = ${input.grantId}::uuid
+           AND "team_id" = ${input.teamId}::uuid
+           AND "token_hash" = ${successor}
+      `.catch(() => 0);
+      previousLinkKept = restored === 1;
+    }
     return {
       ok: false,
       denial: "POLICY_REJECTED",
       deliveryId: sent.deliveryId,
-      failureReason: sent.failureReason,
+      failureReason: previousLinkKept
+        ? `${sent.failureReason}:previous_link_kept`
+        : sent.failureReason,
     };
   }
   if (input.isResend === true) {

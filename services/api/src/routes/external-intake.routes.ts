@@ -55,6 +55,7 @@ import {
   ExternalIntakeOrchestrationError,
   submitExternalIntake,
   updateExternalEvidencePartMapping,
+  removeExternalEvidencePart,
 } from "../services/external-intake-orchestration.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { classifyReportability, isDomainError } from "../errors.js";
@@ -942,9 +943,11 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         // page can render the request title + deliverables as the primary
         // call to action. Reviewer notes and workspace internals are NEVER
         // included; see projectRequestForExternalView for the allowlist.
-        const { projectRequestForExternalView } = await import(
+        const { projectRequestForExternalView, markEvidenceRequestViewedFromIntakeOpen } = await import(
           "../services/evidence-request.service.js"
         );
+        // PRO-I1-11 — the open is what VIEWED / firstOpenedAtUtc record.
+        await markEvidenceRequestViewedFromIntakeOpen(link.id);
         const requestView = await projectRequestForExternalView(link.id);
 
         return reply.code(200).send({
@@ -1332,6 +1335,48 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           return orchestrationErrorToReply(err, reply);
         }
         intakeUnhandled(err, req, reply, "external-intake.part.update");
+        return;
+      }
+    },
+  );
+
+  // DELETE /v1/external-intake/:token/sessions/:sid/parts/:partId
+  //
+  // PRO-I1-10 — remove a staged file from an unsealed submission (the
+  // SUBMISSION_TOO_LARGE answer tells the contributor to remove a file; there
+  // was no way to). Same token, rate limit and session binding as the PATCH.
+  app.delete(
+    "/v1/external-intake/:token/sessions/:sid/parts/:partId",
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (workflowIntakeFeatureDisabledReason()) {
+        return sendFeatureDisabled(reply);
+      }
+      const params = z
+        .object({
+          token: z.string().min(8).max(256),
+          sid: z.string().uuid(),
+          partId: z.string().uuid(),
+        })
+        .parse(req.params);
+      const okRate = await applyRateLimits(req, reply, params.token);
+      if (!okRate) return;
+      try {
+        const { link } = await validateIntakeTokenFromClient(req, params.token);
+        const session = await getIntakeSession(params.sid);
+        if (!session || session.intakeLinkId !== link.id) {
+          return reply.code(404).send({ error: { code: "SESSION_NOT_FOUND", message: friendlyPublicIntakeMessage("SESSION_NOT_FOUND") } });
+        }
+        const removed = await removeExternalEvidencePart({ link, session, partId: params.partId });
+        return reply.code(200).send({ removed: { partId: removed.removedPartId, partIndex: removed.partIndex } });
+      } catch (err) {
+        if (err instanceof WorkflowIntakeSessionError) {
+          intakeErrorToReply(err, reply);
+          return;
+        }
+        if (err instanceof ExternalIntakeOrchestrationError) {
+          return orchestrationErrorToReply(err, reply);
+        }
+        intakeUnhandled(err, req, reply, "external-intake.part.remove");
         return;
       }
     },

@@ -44,6 +44,7 @@ import {
   isRetryEligibleCommunicationPurpose,
   maskPhonePreview,
   normaliseToE164,
+  sanitizeIntakeMessagePreview,
   COMMUNICATION_RETRY_MAX_ATTEMPTS,
 } from "@proovra/shared";
 
@@ -161,6 +162,13 @@ export type EnqueueOutboundMessageInput = {
    */
   bodyPreviewOverride?: string | null;
   /**
+   * PRO-I1-09 / B3B-F-102 — the caller's durable send identity, written on the
+   * row in the SAME insert that precedes the provider call, so a retry with the
+   * same identity finds the attempt even if the process ends right after the
+   * provider accepted it.
+   */
+  deliveryIdempotencyKey?: string | null;
+  /**
    * Optional Twilio Content Template payload. Only consumed for the
    * WHATSAPP channel; SMS sends ignore it and use `body`. When
    * present, the provider sends ContentSid + ContentVariables
@@ -187,6 +195,34 @@ export type EnqueueOutboundMessageResult = {
     | "cancelled_opted_out"
     | "cancelled_rate_limited";
 };
+
+/**
+ * PRO-I1-06 — THE outbound daily ceilings (per recipient, per workspace) as a
+ * reusable verdict, for senders that do not go through enqueueOutboundMessage
+ * (the intake-link EMAIL path inserts its own row). Same limits
+ * (COMMUNICATIONS_MAX_SENDS_PER_RECIPIENT_PER_DAY / _PER_TEAM_PER_DAY) and the
+ * same population (OUTBOUND rows of the workspace in the last 24 h); refusals
+ * (CANCELLED rate_limited) are not sends and are not counted.
+ */
+export async function outboundDailyCeilingRefusal(
+  input: { teamId: string; recipientHash: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<"per_recipient" | "per_team" | null> {
+  const limits = readRateLimits();
+  const since = new Date(Date.now() - 24 * 3600 * 1000);
+  const counted = {
+    direction: prismaPkg.CommunicationDirection.OUTBOUND,
+    createdAt: { gte: since },
+    NOT: { status: prismaPkg.CommunicationStatus.CANCELLED, errorCode: "rate_limited" },
+  } satisfies prismaPkg.Prisma.CommunicationMessageWhereInput;
+  const [recipientCount, teamCount] = await Promise.all([
+    client.communicationMessage.count({ where: { ...counted, teamId: input.teamId, recipientHash: input.recipientHash } }),
+    client.communicationMessage.count({ where: { ...counted, teamId: input.teamId } }),
+  ]);
+  if (recipientCount >= limits.perRecipientPerDay) return "per_recipient";
+  if (teamCount >= limits.perTeamPerDay) return "per_team";
+  return null;
+}
 
 // -----------------------------------------------------------------------------
 // Enqueue + dispatch (single attempt)
@@ -220,6 +256,7 @@ export async function enqueueOutboundMessage(
         relatedIntakeSessionId: input.related?.intakeSessionId ?? null,
         relatedIntakeLinkId: input.related?.intakeLinkId ?? null,
         createdByUserId: input.createdByUserId ?? null,
+        deliveryIdempotencyKey: input.deliveryIdempotencyKey ?? null,
       },
     });
     return { message: cancelled, status: "cancelled_invalid_phone" };
@@ -252,6 +289,7 @@ export async function enqueueOutboundMessage(
         relatedIntakeSessionId: input.related?.intakeSessionId ?? null,
         relatedIntakeLinkId: input.related?.intakeLinkId ?? null,
         createdByUserId: input.createdByUserId ?? null,
+        deliveryIdempotencyKey: input.deliveryIdempotencyKey ?? null,
       },
     });
     safeEmitSecurityEvent(
@@ -300,6 +338,7 @@ export async function enqueueOutboundMessage(
         relatedIntakeSessionId: input.related?.intakeSessionId ?? null,
         relatedIntakeLinkId: input.related?.intakeLinkId ?? null,
         createdByUserId: input.createdByUserId ?? null,
+        deliveryIdempotencyKey: input.deliveryIdempotencyKey ?? null,
       },
     });
     safeEmitSecurityEvent(
@@ -366,6 +405,7 @@ export async function enqueueOutboundMessage(
         relatedIntakeSessionId: input.related?.intakeSessionId ?? null,
         relatedIntakeLinkId: input.related?.intakeLinkId ?? null,
         createdByUserId: input.createdByUserId ?? null,
+        deliveryIdempotencyKey: input.deliveryIdempotencyKey ?? null,
       },
     });
     safeEmitSecurityEvent(
@@ -415,6 +455,7 @@ export async function enqueueOutboundMessage(
       relatedIntakeSessionId: input.related?.intakeSessionId ?? null,
       relatedIntakeLinkId: input.related?.intakeLinkId ?? null,
       createdByUserId: input.createdByUserId ?? null,
+      deliveryIdempotencyKey: input.deliveryIdempotencyKey ?? null,
       attemptCount: 1,
     },
   });
@@ -782,7 +823,12 @@ async function isRecipientOptedOut(
 
 function safeBodyPreview(body: string | null | undefined): string | null {
   if (!body) return null;
-  const t = body.trim();
+  // PRO-N1-06 / PRO-I1Z-01 — THE stored preview never carries bearer material,
+  // whichever writer forgot its own override: an intake URL (evidence-request
+  // send and request-more SMS stored the live upload link here) or a
+  // secret-shaped query value is redacted. A body that needed redaction is,
+  // by isBodyResendable, no longer resendable from the preview.
+  const t = sanitizeIntakeMessagePreview(body).trim();
   if (t.length === 0) return null;
   return t.length > 400 ? t.slice(0, 399) + "…" : t;
 }
@@ -818,7 +864,26 @@ export type CommunicationMessageProjection = {
   sentAtUtc: string | null;
   deliveredAtUtc: string | null;
   failedAtUtc: string | null;
+  /**
+   * PRO-I1-05 — whether the operator retry CAN succeed for this row: a failed
+   * or scheduled row whose stored body is the whole message. A token-bearing
+   * intake-link message (redacted preview, not resendable) is false: the only
+   * recovery is disabling the link and issuing a new one (`reissueRequired`).
+   */
+  retryable: boolean;
+  reissueRequired: boolean;
 };
+
+/** PRO-I1-05 — the retry route's own eligibility, as a projection fact. */
+function isOperatorRetryable(row: prismaPkg.CommunicationMessage): boolean {
+  return (
+    (row.status === prismaPkg.CommunicationStatus.FAILED ||
+      row.status === prismaPkg.CommunicationStatus.RETRY_SCHEDULED) &&
+    row.direction === prismaPkg.CommunicationDirection.OUTBOUND &&
+    row.bodyResendable === true &&
+    Boolean(row.bodyPreview)
+  );
+}
 
 export function projectCommunicationMessage(
   row: prismaPkg.CommunicationMessage,
@@ -844,6 +909,13 @@ export function projectCommunicationMessage(
     sentAtUtc: row.sentAtUtc?.toISOString() ?? null,
     deliveredAtUtc: row.deliveredAtUtc?.toISOString() ?? null,
     failedAtUtc: row.failedAtUtc?.toISOString() ?? null,
+    retryable: isOperatorRetryable(row),
+    reissueRequired:
+      (row.status === prismaPkg.CommunicationStatus.FAILED ||
+        row.status === prismaPkg.CommunicationStatus.RETRY_SCHEDULED ||
+        row.status === prismaPkg.CommunicationStatus.UNDELIVERED) &&
+      row.relatedIntakeLinkId !== null &&
+      row.bodyResendable !== true,
   };
 }
 
@@ -883,6 +955,8 @@ export function projectCommunicationMessageSummary(
     relatedEvidenceId: null,
     relatedDiscussionThreadId: null,
     relatedIntakeSessionId: null,
+    // A reader without messaging authority is never offered a retry.
+    retryable: false,
     contentWithheld: true,
   };
 }

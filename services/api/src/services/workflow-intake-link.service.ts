@@ -37,9 +37,11 @@ import {
   WorkflowIntakeMode,
   WorkflowIntakeModeSchema,
   isIntakeLinkLocationPolicy,
+  MAX_INTAKE_LINK_TTL_HOURS,
   type IntakeLinkLocationPolicy,
 } from "@proovra/shared";
 
+import { AMBIGUOUS_ERROR_CODE } from "@proovra/shared-runtime";
 import { prisma as defaultPrisma } from "../db.js";
 import { caseVisibleToWhere } from "./cases/case-visibility.js";
 import { indexIntakeLinkBestEffort } from "./search/evidence-indexing.service.js";
@@ -112,7 +114,7 @@ export type CreatedWorkflowIntakeLinkResult = {
 };
 
 /** AUD-36 (2026-10-20) — the longest an intake link may live. */
-export const MAX_INTAKE_LINK_TTL_MS = 90 * 24 * 3600 * 1000;
+export const MAX_INTAKE_LINK_TTL_MS = MAX_INTAKE_LINK_TTL_HOURS * 3600 * 1000;
 
 export class WorkflowIntakeLinkError extends Error {
   constructor(
@@ -604,6 +606,8 @@ export type SendIntakeLinkViaSmsInput = {
   channel: "SMS";
   actorUserId: string;
   workspaceName: string;
+  /** PRO-I1-09 — the dispatcher's send identity, written on the row before the provider call. */
+  deliveryIdempotencyKey?: string | null;
 };
 
 export type SendIntakeLinkViaSmsResult =
@@ -616,6 +620,8 @@ export type SendIntakeLinkViaSmsResult =
         | "link_expired"
         | "link_missing_phone"
         | "delivery_failed_or_skipped";
+      /** PRO-I1-09 — the attempt row, so a failed send is recorded under its identity. */
+      communicationMessageId?: string;
     };
 
 export async function sendIntakeLinkViaSms(
@@ -693,6 +699,7 @@ export async function sendIntakeLinkViaSms(
       sender: "PROOVRA",
       related: { intakeLinkId: link.id },
       createdByUserId: input.actorUserId,
+      deliveryIdempotencyKey: input.deliveryIdempotencyKey ?? null,
     },
     client,
   );
@@ -703,7 +710,7 @@ export async function sendIntakeLinkViaSms(
   ) {
     return { ok: true, communicationMessageId: result.message.id };
   }
-  return { ok: false, reason: "delivery_failed_or_skipped" };
+  return { ok: false, reason: "delivery_failed_or_skipped", communicationMessageId: result.message.id };
 }
 
 /*
@@ -752,6 +759,13 @@ export type SendIntakeLinkViaEmailInput = {
   intakeUrl: string;
   actorUserId: string;
   workspaceName: string;
+  /**
+   * PRO-I1-09 / B3B-F-102 — the dispatcher's send identity (link, channel,
+   * nonce). Written on the row BEFORE the provider call and the provider
+   * idempotency key is derived from it, so a same-nonce retry after a crash
+   * finds the attempt and the provider deduplicates the call.
+   */
+  deliveryIdempotencyKey?: string | null;
 };
 
 export type SendIntakeLinkViaEmailResult =
@@ -764,7 +778,11 @@ export type SendIntakeLinkViaEmailResult =
         | "link_expired"
         | "link_missing_email"
         | "provider_unconfigured"
-        | "delivery_failed";
+        | "delivery_failed"
+        // PRO-I1-09 — the provider may have accepted it; never resent under this identity.
+        | "delivery_unconfirmed"
+        // PRO-I1-06 — the outbound daily ceiling (recipient / workspace).
+        | "rate_limited";
       communicationMessageId?: string;
     };
 
@@ -808,7 +826,7 @@ export async function sendIntakeLinkViaEmail(
   // Dynamic imports avoid pulling Prisma + Resend into the module's
   // load-time graph (the create path doesn't need them).
   const prismaPkg = await import("@prisma/client");
-  const { hashRecipientPhone } = await import(
+  const { hashRecipientPhone, outboundDailyCeilingRefusal } = await import(
     "./communications/communication.service.js"
   );
   const { sendCustomEmailViaResend } = await import("./email.service.js");
@@ -820,6 +838,13 @@ export async function sendIntakeLinkViaEmail(
   // audit against without ever persisting the raw value.
   const recipientHash = hashRecipientPhone(email);
   const preview = maskEmailPreview(email);
+
+  // PRO-I1-06 — intake EMAIL goes through the same daily ceilings as every
+  // other outbound message (per recipient, per workspace), before any row or
+  // provider call. It used to be bounded only by the create rate limit.
+  if (await outboundDailyCeilingRefusal({ teamId: input.teamId, recipientHash }, client)) {
+    return { ok: false, reason: "rate_limited" };
+  }
 
   // Resolve sender identity from the link's stored mode + name. The
   // resolver always adds " via PROOVRA" (except for PROOVRA mode which
@@ -869,6 +894,7 @@ export async function sendIntakeLinkViaEmail(
         sender: senderIdentity.display.slice(0, 80),
         relatedIntakeLinkId: link.id,
         createdByUserId: input.actorUserId,
+        deliveryIdempotencyKey: input.deliveryIdempotencyKey ?? null,
       },
     });
   } catch (err) {
@@ -900,7 +926,9 @@ export async function sendIntakeLinkViaEmail(
       // The CommunicationMessage row was inserted above, before the provider
       // call, precisely so the attempt is durable. Its id is therefore the
       // right thing to derive the provider idempotency key from.
-      idempotencyKey: deterministicEmailKey("intake_link_message", message.id),
+      // PRO-I1-09 — derived from the durable send identity when there is one,
+      // so a retry of the SAME send reaches the provider with the SAME key.
+      idempotencyKey: deterministicEmailKey("intake_link_message", input.deliveryIdempotencyKey ?? message.id),
     });
   } catch (err) {
     providerResult = {
@@ -910,6 +938,19 @@ export async function sendIntakeLinkViaEmail(
     };
   }
 
+  if (!providerResult.ok && providerResult.errorCode === AMBIGUOUS_ERROR_CODE) {
+    // PRO-I1-09 — the provider may have accepted it. The row stays QUEUED with
+    // the ambiguous code (never "failed", which invited a resend under a new
+    // key): a same-identity retry answers "unconfirmed" and sends nothing.
+    await client.communicationMessage.update({
+      where: { id: message.id },
+      data: {
+        errorCode: AMBIGUOUS_ERROR_CODE.slice(0, 80),
+        errorMessage: (providerResult.errorMessage ?? "").slice(0, 400),
+      },
+    });
+    return { ok: false, reason: "delivery_unconfirmed", communicationMessageId: message.id };
+  }
   if (!providerResult.ok) {
     const errorCode = providerResult.errorCode ?? "unknown";
     const isUnconfigured =

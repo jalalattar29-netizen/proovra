@@ -30,17 +30,17 @@ import type {
   FastifyReply,
   FastifyRequest,
 } from "fastify";
+import { createHash } from "node:crypto";
 import { z } from "zod";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import {
   assertWorkspaceAllowsIntake,
   resolveEnforcementScopeForRequester,
 } from "../services/billing-enforcement.service.js";
 import {
-  absoluteInternalUrl,
   EVIDENCE_REQUEST_PRIORITIES,
   EVIDENCE_REQUEST_STATUSES,
   EvidenceRequestInputSchema,
-  internalNavPath,
   type Permission,
 } from "@proovra/shared";
 
@@ -48,6 +48,7 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail, evaluateAuthorize, sendDenyResponse } from "../middleware/authorize.js";
 import { resendNotificationDelivery } from "../services/notifications/index.js";
+import { intakeLinkPublicUrl } from "../services/intake-link-delivery-dispatcher.service.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import {
   createEvidenceRequest,
@@ -58,6 +59,7 @@ import {
   getEvidenceRequest,
   listEvidenceRequestEvents,
   listEvidenceRequests,
+  NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX,
   projectRequestForAuthenticatedView,
   requestMoreEvidenceForResponse,
   reviewEvidenceRequestResponse,
@@ -155,14 +157,57 @@ async function projectRequestForCaller(
 
 function intakeUrlFromToken(rawToken: string | null): string | null {
   if (!rawToken) return null;
-  // PHASE 11 — /intake/:token is a public token-scoped nav path, not
-  // the /share/:token shape publicShareUrl builds; composed via
-  // internalNavPath + absoluteInternalUrl instead.
-  const base = process.env.WEB_BASE_URL ?? "";
-  return absoluteInternalUrl(
-    base,
-    internalNavPath(`/intake/${encodeURIComponent(rawToken)}`),
-  );
+  // PRO-PW-04 — THE public intake URL authority, the same one the email and
+  // SMS use: absolute with the production default, never `WEB_BASE_URL ?? ""`
+  // (a relative link in the API field when the variable was unset).
+  return intakeLinkPublicUrl(rawToken);
+}
+
+/** PRO-I1-06 — evidence-request sends per actor / workspace (hour) and per recipient (day). */
+const EVIDENCE_REQUEST_SENDS_PER_ACTOR_PER_HOUR = 30;
+const EVIDENCE_REQUEST_SENDS_PER_WORKSPACE_PER_HOUR = 100;
+const EVIDENCE_REQUEST_SENDS_PER_RECIPIENT_PER_DAY = 10;
+
+async function withinEvidenceRequestSendBounds(
+  reply: FastifyReply,
+  teamId: string,
+  actorUserId: string,
+  recipientEmail: string | null,
+): Promise<boolean> {
+  const bounds = [
+    { key: `evidence-request-send:actor:${actorUserId}`, max: EVIDENCE_REQUEST_SENDS_PER_ACTOR_PER_HOUR, windowSec: 3600 },
+    { key: `evidence-request-send:team:${teamId}`, max: EVIDENCE_REQUEST_SENDS_PER_WORKSPACE_PER_HOUR, windowSec: 3600 },
+    ...(recipientEmail
+      ? [{
+          key: `evidence-request-send:recipient:${createHash("sha256").update(recipientEmail.trim().toLowerCase()).digest("hex").slice(0, 32)}`,
+          max: EVIDENCE_REQUEST_SENDS_PER_RECIPIENT_PER_DAY,
+          windowSec: 86_400,
+        }]
+      : []),
+  ];
+  for (const bound of bounds) {
+    const verdict = await enforceRateLimit({ key: bound.key, bound: "global", max: bound.max, windowSec: bound.windowSec });
+    if (!verdict.allowed) {
+      reply.header("Retry-After", String(Math.max(1, Math.ceil((verdict.resetAtMs - Date.now()) / 1000))));
+      if (verdict.store === "unavailable") {
+        reply.code(503).send({ error: { code: "temporarily_unavailable" } });
+      } else {
+        reply.code(429).send({ error: { code: "rate_limited" } });
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
+/** PRO-N1Z-03 — one retryable rule for the contextual list and its retry route. */
+function isContextuallyRetryable(
+  d: { status: string; templateContextJson: unknown },
+  requestStatus: string,
+): boolean {
+  if (requestStatus === "CANCELLED" || requestStatus === "CLOSED") return false;
+  if (d.status === "FAILED" || d.status === "RETRY_SCHEDULED") return true;
+  return d.status === "SKIPPED" && d.templateContextJson !== null && typeof d.templateContextJson === "object";
 }
 
 function errorToReply(err: EvidenceRequestError, reply: FastifyReply): void {
@@ -424,6 +469,8 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
     "/v1/evidence-requests/:id/deliveries",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      // PRO-I1-12 — the delivery routes honour the feature flag like their siblings.
+      if (sendFeatureDisabled(reply)) return;
       const { id } = ParamsId.parse(req.params);
       const row = await getEvidenceRequest(id);
       if (!row) return reply.code(404).send({ error: { code: "request_not_found" } });
@@ -440,6 +487,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
           sentAtUtc: true,
           failedAtUtc: true,
           createdAt: true,
+          templateContextJson: true,
         },
         orderBy: { createdAt: "desc" },
         take: 20,
@@ -453,7 +501,9 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
           errorCode: d.errorCode ?? null,
           retryCount: d.retryCount,
           lastAttemptAtUtc: (d.failedAtUtc ?? d.sentAtUtc ?? d.createdAt).toISOString(),
-          retryable: ["FAILED", "RETRY_SCHEDULED", "SKIPPED"].includes(d.status),
+          // PRO-N1Z-03 — the resend's OWN eligibility: a SKIPPED row is
+          // retryable only when it stored its template; never on a closed request.
+          retryable: isContextuallyRetryable(d, row.status),
         })),
       });
     },
@@ -466,6 +516,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
     "/v1/evidence-requests/:id/deliveries/:deliveryId/retry",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      if (sendFeatureDisabled(reply)) return;
       const params = z
         .object({ id: z.string().uuid(), deliveryId: z.string().uuid() })
         .parse(req.params);
@@ -477,22 +528,39 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       // cross-request retries are impossible by construction).
       const delivery = await prisma.notificationDelivery.findFirst({
         where: { id: params.deliveryId, evidenceRequestId: params.id },
-        select: { id: true, status: true },
+        select: { id: true, status: true, templateContextJson: true },
       });
       if (!delivery) {
         return reply.code(404).send({ error: { code: "delivery_not_found" } });
       }
-      if (!["FAILED", "RETRY_SCHEDULED", "SKIPPED"].includes(delivery.status)) {
+      if (!isContextuallyRetryable(delivery, row.status)) {
         return reply.code(409).send({ error: { code: "not_retryable" } });
+      }
+      // PRO-N1-14 — bounded like the delivery-log resend.
+      const bound = await enforceRateLimit({ key: `notification-resend:delivery:${params.deliveryId}`, bound: "global", max: 3, windowSec: 3600 });
+      if (!bound.allowed) {
+        reply.header("Retry-After", String(Math.max(1, Math.ceil((bound.resetAtMs - Date.now()) / 1000))));
+        return bound.store === "unavailable"
+          ? reply.code(503).send({ error: { code: "temporarily_unavailable" } })
+          : reply.code(429).send({ error: { code: "rate_limited" } });
       }
       const result = await resendNotificationDelivery({
         id: params.deliveryId,
         teamId: row.teamId,
         actorUserId: ok.userId,
       });
-      return reply
-        .code(200)
-        .send({ ok: true, outcome: result.outcome ?? "resent" });
+      // PRO-N1Z-03 — every outcome is answered as what it is; only an actual
+      // resend is a 200 success.
+      switch (result.outcome) {
+        case "resent":
+          return reply.code(200).send({ ok: true, outcome: result.outcome });
+        case "failed_to_dispatch":
+          return reply.code(502).send({ ok: false, outcome: result.outcome, error: { code: result.outcome } });
+        case "not_found":
+          return reply.code(404).send({ ok: false, outcome: result.outcome, error: { code: "delivery_not_found" } });
+        default:
+          return reply.code(409).send({ ok: false, outcome: result.outcome, error: { code: result.outcome } });
+      }
     },
   );
 
@@ -508,6 +576,10 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: { code: "request_not_found" } });
       const ok = await requireRequestMember(req, reply, existing, "evidence_request.create");
       if (!ok) return;
+      // PRO-I1-06 — a send mails an outside address through the platform's
+      // sender with sender-written text. Bounded per actor, per workspace and
+      // per recipient (across workspaces), before any link is minted or mail sent.
+      if (!(await withinEvidenceRequestSendBounds(reply, existing.teamId, ok.userId, existing.recipientEmail ?? null))) return;
 
       try {
         const result = await sendEvidenceRequest({
@@ -608,8 +680,13 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (sendFeatureDisabled(reply)) return;
       const { id } = ParamsId.parse(req.params);
+      // PRO-I1-01 — `reviewerNote` is workspace-internal and optional;
+      // `contributorMessage` is the only text the contributor is emailed.
       const body = z
-        .object({ reviewerNote: z.string().max(4000).nullable().optional() })
+        .object({
+          reviewerNote: z.string().max(4000).nullable().optional(),
+          contributorMessage: z.string().max(NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX).nullable().optional(),
+        })
         .parse(req.body ?? {});
 
       const existing = await getEvidenceRequest(id);
@@ -619,12 +696,16 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       if (!ok) return;
 
       try {
+        const note = (body.reviewerNote ?? "").trim();
+        const contributorMessage = (body.contributorMessage ?? "").trim();
         const row = await transitionEvidenceRequest({
           id,
           teamId: existing.teamId,
           actorUserId: ok.userId,
           to: "NEEDS_MORE_INFO",
-          reviewerNote: body.reviewerNote ?? null,
+          reviewerNote: note.length > 0 ? note : null,
+          contributorMessage: contributorMessage.length > 0 ? contributorMessage : null,
+          payload: { contributorMessageProvided: contributorMessage.length > 0 },
         });
         return reply
           .code(200)

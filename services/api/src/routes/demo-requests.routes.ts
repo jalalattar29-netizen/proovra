@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { leadForwardedClientIpKey, trustedClientIp } from "../middleware/client-ip.js";
+import { leadForwardedClientIpKey, leadRecordedClientIp } from "../middleware/client-ip.js";
 import { cronSecretMatches, readCronSecretFromEnvs } from "../middleware/cron-secret.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { createDemoRequest } from "../services/demo-request.service.js";
@@ -12,7 +12,10 @@ function readHeader(req: FastifyRequest, name: string): string | null {
 
 /** PHASE1-005 — see `contact-sales.routes.ts`; the recorded IP is a signal too. */
 function readIp(req: FastifyRequest): string | null {
-  return trustedClientIp(req);
+  // PRO-P1-02 — the recorded address follows the limiter's own decision.
+  return leadRecordedClientIp(req, (provided) =>
+    cronSecretMatches(readCronSecretFromEnvs(["CONTACT_SALES_FORWARDING_KEY"]), provided),
+  );
 }
 
 /** PHASE1-005 — see `contact-sales.routes.ts`; this is the same public write. */

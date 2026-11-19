@@ -13,8 +13,17 @@
  * stale/expired one is dropped. A failed read/write never breaks auth.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
+/**
+ * PRO-NA-09 — the pending route can carry an invitation token
+ * (/invite/<token>), so it is persisted in the platform keystore
+ * (expo-secure-store, as the session and the SSO verifier are), not in plain
+ * AsyncStorage. The former AsyncStorage key is only ever REMOVED (on hydrate
+ * and on every clear), never read.
+ */
 const STORAGE_KEY = "proovra.pending-intent.v1";
+const SECURE_KEY = "proovra.pending-intent.v2";
 /** A persisted intent older than this is stale — the journey clearly ended. */
 export const PENDING_INTENT_TTL_MS = 30 * 60 * 1000; // 30 min
 
@@ -27,13 +36,14 @@ export function setPendingRoute(route: string): void {
 
 async function persist(route: string): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ route, savedAtMs: Date.now() }));
+    await SecureStore.setItemAsync(SECURE_KEY, JSON.stringify({ route, savedAtMs: Date.now() }));
   } catch {
     // Best-effort — the in-memory copy still serves the same-launch case.
   }
 }
 
 function clearPersisted(): void {
+  void SecureStore.deleteItemAsync(SECURE_KEY).catch(() => {});
   void AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
 }
 
@@ -59,9 +69,11 @@ export function parsePersistedIntent(raw: string | null, nowMs: number = Date.no
  * already pending this launch). A stale/absent one is dropped. Call once at start.
  */
 export async function hydratePendingRoute(): Promise<void> {
+  // PRO-NA-09 — a plaintext copy written by an older build is dropped.
+  void AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
   if (pending) return;
   try {
-    const route = parsePersistedIntent(await AsyncStorage.getItem(STORAGE_KEY));
+    const route = parsePersistedIntent(await SecureStore.getItemAsync(SECURE_KEY));
     if (route) pending = route;
     else clearPersisted();
   } catch {

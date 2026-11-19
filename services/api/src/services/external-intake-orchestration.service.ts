@@ -54,6 +54,7 @@ import * as prismaPkg from "@prisma/client";
 import { prisma as defaultPrisma } from "../db.js";
 import {
   EvidencePartWriteRefused,
+  removeStagedEvidencePart,
   writeEvidencePart,
 } from "./evidence/evidence-part-writer.service.js";
 import { headObject, presignPutObject } from "../storage.js";
@@ -63,6 +64,7 @@ import { appendCustodyEvent } from "./custody-events.service.js";
 import { swallowCustodyAppendError } from "./custody-events-observability.js";
 import { bump } from "./ops/metrics.service.js";
 import {
+  oneTimeLinkUseState,
   releaseIntakeLinkUse,
   reserveIntakeLinkUse,
   transitionIntakeSession,
@@ -768,6 +770,42 @@ export async function updateExternalEvidencePartMapping(
   });
 }
 
+/**
+ * PRO-I1-10 — the contributor takes a staged file back out of an unsealed
+ * submission (a wrong or sensitive file, or a selection over the link's byte
+ * cap — the refusal message tells them to "remove a file"). Through THE byte-
+ * write authority with the INTAKE_SESSION principal, under the record lock:
+ * a removal racing a submit yields one outcome; after the seal it is refused.
+ */
+export async function removeExternalEvidencePart(
+  input: { link: DbWorkflowIntakeLink; session: DbWorkflowIntakeSession; partId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ removedPartId: string; partIndex: number }> {
+  assertSessionUploadEligible(input.session);
+  if (!input.session.evidenceId) throw new ExternalIntakeOrchestrationError("part_not_found");
+  try {
+    const removed = await removeStagedEvidencePart(
+      {
+        evidenceId: input.session.evidenceId,
+        principal: {
+          kind: "INTAKE_SESSION",
+          linkCreatorUserId: input.link.createdByUserId,
+          sessionId: input.session.id,
+        },
+        partId: input.partId,
+      },
+      client,
+    );
+    return { removedPartId: removed.id, partIndex: removed.partIndex };
+  } catch (err) {
+    if (err instanceof EvidencePartWriteRefused) {
+      if (err.code === "EVIDENCE_NOT_FOUND") throw new ExternalIntakeOrchestrationError("part_not_found");
+      throw new ExternalIntakeOrchestrationError("session_not_open_for_upload");
+    }
+    throw err;
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Step 3: submit — finalize Evidence + transition session
 // -----------------------------------------------------------------------------
@@ -1121,9 +1159,18 @@ export async function submitExternalIntake(
     if (linkNow && (linkNow.status === "REVOKED" || (linkNow.status === "ACTIVE" && linkNow.expiresAtUtc.getTime() <= Date.now()))) {
       throw new ExternalIntakeOrchestrationError("link_revoked");
     }
-    throw new WorkflowIntakeSessionError(
-      input.link.maxUses === 1 ? "link_already_submitted" : "link_exhausted",
-    );
+    // PRO-I1-03 — "already submitted" only for a durable accepted submission;
+    // a use reserved by an attempt still in flight answers "in use", so the
+    // contributor keeps the upload form instead of a false receipt.
+    if (input.link.maxUses === 1) {
+      const fresh = await client.workflowIntakeLink.findUnique({
+        where: { id: input.link.id },
+        select: { id: true, updatedAt: true },
+      });
+      const use = fresh ? await oneTimeLinkUseState(fresh, client) : "submitted";
+      throw new WorkflowIntakeSessionError(use === "submitted" ? "link_already_submitted" : "link_in_use");
+    }
+    throw new WorkflowIntakeSessionError("link_exhausted");
   }
   try {
     const completed = await completeEvidence({

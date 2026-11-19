@@ -24,6 +24,7 @@ import { acquireLease } from "../rate-limit.js";
 import {
   isNotificationsFeatureEnabled,
   safeSendEmailNotification,
+  deliveryReinvitationRefusal,
 } from "./index.js";
 
 const REMINDERS_FLAG = "NOTIFICATION_REMINDERS_ENABLED";
@@ -61,6 +62,8 @@ export type ReminderSchedulerSummary = {
   skippedClaimed: number;
   /** B2B-F-14 — no live upload link can be given, so no reminder is sent. */
   skippedNoLink: number;
+  /** PRO-N1Z-02 — the workspace's plan no longer includes secure intake. */
+  skippedPlan: number;
 };
 
 /** B2B-F-14 — per-request reminder claim TTL (bounds a crashed holder). */
@@ -125,6 +128,7 @@ export async function runReminderScheduler(
     skippedFeatureDisabled: 0,
     skippedClaimed: 0,
     skippedNoLink: 0,
+    skippedPlan: 0,
   };
 
   if (!isReminderSchedulerEnabled()) {
@@ -199,6 +203,18 @@ export async function runReminderScheduler(
       const intakeUrl = await liveReminderIntakeUrl(req, now, client);
       if (!intakeUrl) {
         summary.skippedNoLink += 1;
+        continue;
+      }
+      // PRO-N1Z-02 — the same re-invitation gate every resend asks: no
+      // reminder invites a contributor to a link the first upload would be
+      // refused on (downgraded / lapsed workspace).
+      if (
+        await deliveryReinvitationRefusal(
+          { eventType: "EVIDENCE_REQUEST_REMINDER", teamId: req.teamId, evidenceRequestId: req.id, intakeLinkId: req.intakeLinkId },
+          client,
+        )
+      ) {
+        summary.skippedPlan += 1;
         continue;
       }
 

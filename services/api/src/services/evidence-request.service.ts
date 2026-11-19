@@ -45,6 +45,7 @@ import { workflowIntakeFeatureDisabledReason } from "./workflow-intake-token.ser
 import { safeSendEmailNotification } from "./notifications/index.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
 import { getEmailWebBaseUrl } from "./notifications/templates.js";
+import { intakeLinkPublicUrl } from "./intake-link-delivery-dispatcher.service.js";
 // Phase 18 — optional SMS/WhatsApp delivery for external recipients.
 // Failures are absorbed by `enqueueOutboundMessage` (returns a result
 // object; never throws) so the request-send workflow is decoupled from
@@ -232,12 +233,17 @@ export async function assignEvidenceRequestReviewer(
   client: PrismaClient = defaultPrisma,
 ): Promise<RequestRow> {
   return client.$transaction(async (tx) => {
+    // PRO-I1-12 — under the request lock, refused on a terminal request.
+    await lockEvidenceRequestTx(tx, input.id);
     const existing = await tx.evidenceRequest.findUnique({
       where: { id: input.id },
-      select: { id: true, teamId: true, evidenceId: true, caseId: true },
+      select: { id: true, teamId: true, evidenceId: true, caseId: true, status: true },
     });
     if (!existing || existing.teamId !== input.teamId) {
       throw new EvidenceRequestError("request_not_found");
+    }
+    if (isTerminalEvidenceRequestStatus(existing.status as EvidenceRequestStatus)) {
+      throw new EvidenceRequestError("request_terminal");
     }
     await assertRequestReviewerEligible(tx as unknown as PrismaClient, {
       teamId: existing.teamId,
@@ -676,18 +682,37 @@ export async function listEvidenceRequests(
 // compliance / accountability significance; we make the note an enforced
 // invariant rather than a UI convention so callers can't accidentally
 // skip it.
+//
+// PRO-I1-01 / R1-F-01 — NEEDS_MORE_INFO is not in this list. Its reviewer note
+// is workspace-internal and optional (both web surfaces say so); what the
+// contributor reads is the separate, explicit `contributorMessage`.
 const REQUIRE_REVIEWER_NOTE_ON_TRANSITION: ReadonlyArray<EvidenceRequestStatus> = [
-  "NEEDS_MORE_INFO",
   "CANCELLED",
   "CLOSED",
 ];
+
+/** Upper bound of the explicit contributor-facing message (PRO-I1-01). */
+export const NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX = 1000;
+
+/**
+ * PRO-I1-01 — the sentence the contributor reads when the operator wrote no
+ * explicit message. Never the reviewer note: that note is workspace-internal.
+ */
+export const NEEDS_MORE_INFO_NEUTRAL_MESSAGE =
+  "The requester needs more information about your submission. If further files are needed, they will send you a new secure upload link.";
 
 export type TransitionEvidenceRequestInput = {
   id: string;
   teamId: string;
   actorUserId: string;
   to: EvidenceRequestStatus;
+  /** Workspace-internal. Stored on the request and its event trail; never sent outside the workspace. */
   reviewerNote?: string | null;
+  /**
+   * PRO-I1-01 — NEEDS_MORE_INFO only: an OPTIONAL message the operator chose to
+   * send to the contributor. Absent → a fixed neutral sentence is sent instead.
+   */
+  contributorMessage?: string | null;
   payload?: Prisma.InputJsonValue;
 };
 
@@ -858,10 +883,9 @@ export async function transitionEvidenceRequest(
     for (const intakeLinkId of revokedLinkIds) indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId }, client);
     // Phase 8 — fire-and-forget notifications for sensitive transitions.
     // Outside the transaction so a failure here cannot roll back the
-    // state change. The reviewer note has already been validated as
-    // non-empty by the require-note guard; the renderer treats it as a
-    // safe-to-show "context message" (sanitization via escapeEmailHtml
-    // in templates.ts).
+    // state change. PRO-I1-01 — the reviewer note is workspace-internal and
+    // is NEVER the email's context message: the contributor reads the
+    // operator's explicit contributorMessage, or a fixed neutral sentence.
     try {
       if (input.to === "NEEDS_MORE_INFO" && result.intakeLinkId) {
         const team = await client.team.findUnique({
@@ -884,10 +908,11 @@ export async function transitionEvidenceRequest(
                   workspaceName:
                     team?.evidenceWorkspaceLabel ?? team?.name ?? "Your workspace",
                   requestTitle: result.title,
-                  // The reviewer note is the operator's safe-to-share
-                  // explanation for the additional ask. It is escaped by
-                  // the template renderer before going into HTML.
-                  contextMessage: input.reviewerNote ?? "",
+                  // PRO-I1-01 — only the explicit contributor message (escaped
+                  // by the renderer) or the neutral sentence; never the note.
+                  contextMessage:
+                    (input.contributorMessage ?? "").trim().slice(0, NEEDS_MORE_INFO_CONTRIBUTOR_MESSAGE_MAX) ||
+                    NEEDS_MORE_INFO_NEUTRAL_MESSAGE,
                   intakeUrl: null,
                 },
               },
@@ -1096,9 +1121,8 @@ export async function sendEvidenceRequest(
   const workspaceName =
     team?.evidenceWorkspaceLabel ?? team?.name ?? "Your workspace";
 
-  const intakeUrl = rawToken
-    ? `${getEmailWebBaseUrl().replace(/\/+$/, "")}/intake/${encodeURIComponent(rawToken)}`
-    : null;
+  // PRO-PW-04 — THE public intake URL authority (absolute, encoded).
+  const intakeUrl = rawToken ? intakeLinkPublicUrl(rawToken) : null;
 
   if (isExternalRecipientMode(finalRequest.recipientMode as "EXTERNAL_CONTRIBUTOR")) {
     if (finalRequest.recipientEmail) {
@@ -1658,6 +1682,18 @@ export async function requestMoreEvidenceForResponse(
   let updated: Awaited<ReturnType<typeof client.evidenceRequestResponse.findUniqueOrThrow>>;
   try {
     updated = await client.$transaction(async (tx) => {
+      // PRO-I1-04 — the claim runs under the request's lock (PRO-048) and
+      // re-reads the request: a cancel/close that committed between the
+      // unlocked pre-check and here has already revoked every link it knew
+      // about, so this one would have outlived it. It is refused and revoked.
+      await lockEvidenceRequestTx(tx, input.requestId);
+      const current = await tx.evidenceRequest.findUnique({
+        where: { id: input.requestId },
+        select: { status: true },
+      });
+      if (!current || isTerminalEvidenceRequestStatus(current.status as EvidenceRequestStatus)) {
+        throw new EvidenceRequestError("request_terminal");
+      }
       const swapped = await tx.evidenceRequestResponse.updateMany({
         where: { id: input.responseId, status: { in: [...REVIEWABLE_RESPONSE_STATUSES] } },
         data: {
@@ -1687,13 +1723,16 @@ export async function requestMoreEvidenceForResponse(
       return u;
     });
   } catch (error) {
-    if (error instanceof EvidenceRequestError && error.code === "response_already_reviewed") {
+    if (
+      error instanceof EvidenceRequestError &&
+      (error.code === "response_already_reviewed" || error.code === "request_terminal")
+    ) {
       await revokeWorkflowIntakeLink(
         {
           id: created.link.id,
           teamId: request.teamId,
           actorUserId: input.actorUserId,
-          reason: "response_already_reviewed",
+          reason: error.code,
         },
         client,
       ).catch(() => null);
@@ -1744,10 +1783,14 @@ export async function requestMoreEvidenceForResponse(
   };
 }
 
+/**
+ * PRO-I1Z-06 / PRO-PW-04 — the request-more link comes from THE public intake
+ * URL authority: WORKFLOW_INTAKE_PUBLIC_BASE_URL is only an override, the web
+ * base (production default) otherwise, and the token is encoded. It used to
+ * send a bare, unencoded "/intake/<token>" whenever that variable was unset.
+ */
 function renderIntakeUrl(rawToken: string): string {
-  const base = process.env.WORKFLOW_INTAKE_PUBLIC_BASE_URL ?? "";
-  if (!base) return `/intake/${rawToken}`;
-  return `${base.replace(/\/$/, "")}/intake/${rawToken}`;
+  return intakeLinkPublicUrl(rawToken);
 }
 
 async function notifyContributorOfReview(input: {
@@ -1827,23 +1870,35 @@ export async function waiveDeliverable(
     throw new EvidenceRequestError("deliverable_already_resolved");
   }
 
-  const updated = await client.evidenceRequestDeliverable.update({
-    where: { id: input.deliverableId },
-    data: {
-      status: "WAIVED",
-      waivedReason: input.reason ?? null,
-    },
+  // PRO-I1-12 — a waive is a state change of the request: under its lock
+  // (PRO-048), refused on a cancelled/closed request, and conditional on the
+  // deliverable still being open, with its event in the same transaction.
+  return client.$transaction(async (tx) => {
+    await lockEvidenceRequestTx(tx, input.requestId);
+    const current = await tx.evidenceRequest.findUnique({
+      where: { id: input.requestId },
+      select: { status: true },
+    });
+    if (!current || isTerminalEvidenceRequestStatus(current.status as EvidenceRequestStatus)) {
+      throw new EvidenceRequestError("request_terminal");
+    }
+    const claimed = await tx.evidenceRequestDeliverable.updateMany({
+      where: { id: input.deliverableId, status: { notIn: ["FULFILLED", "WAIVED"] } },
+      data: {
+        status: "WAIVED",
+        waivedReason: input.reason ?? null,
+      },
+    });
+    if (claimed.count !== 1) throw new EvidenceRequestError("deliverable_already_resolved");
+    await appendRequestEvent(
+      tx,
+      input.requestId,
+      "EVIDENCE_REQUEST_DELIVERABLE_WAIVED",
+      input.actorUserId,
+      { deliverableId: input.deliverableId, reason: input.reason ?? null } as Prisma.InputJsonValue,
+    );
+    return tx.evidenceRequestDeliverable.findUniqueOrThrow({ where: { id: input.deliverableId } });
   });
-
-  await appendRequestEvent(
-    client,
-    input.requestId,
-    "EVIDENCE_REQUEST_DELIVERABLE_WAIVED",
-    input.actorUserId,
-    { deliverableId: input.deliverableId, reason: input.reason ?? null } as Prisma.InputJsonValue,
-  );
-
-  return updated;
 }
 
 // -----------------------------------------------------------------------------
@@ -1946,6 +2001,39 @@ export async function resolveEvidenceRequestIdForIntakeLink(
     select: { evidenceRequestId: true },
   });
   return followUp?.evidenceRequestId ?? null;
+}
+
+/**
+ * PRO-I1-11 — the recipient opened the request's PRIMARY link: a SENT request
+ * becomes VIEWED (the state machine's own SENT → VIEWED edge) and records its
+ * first open. Conditional on SENT, under the request lock, so it is written
+ * once and never moves a request backwards. Best-effort: an open never fails
+ * because of it.
+ */
+export async function markEvidenceRequestViewedFromIntakeOpen(
+  intakeLinkId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  try {
+    const request = await client.evidenceRequest.findFirst({
+      where: { intakeLinkId, status: "SENT" },
+      select: { id: true },
+    });
+    if (!request) return false;
+    return await client.$transaction(async (tx) => {
+      await lockEvidenceRequestTx(tx, request.id);
+      const now = new Date();
+      const moved = await tx.evidenceRequest.updateMany({
+        where: { id: request.id, status: "SENT" },
+        data: { status: "VIEWED", firstOpenedAtUtc: now },
+      });
+      if (moved.count !== 1) return false;
+      await appendRequestEvent(tx, request.id, "EVIDENCE_REQUEST_VIEWED", null);
+      return true;
+    });
+  } catch {
+    return false;
+  }
 }
 
 export async function projectRequestForExternalView(

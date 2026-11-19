@@ -34,6 +34,27 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
+/** PRO-N1Z-03 — say why a retry did not send, by the server's outcome code. */
+function retryRefusalMessage(code: string | null): string {
+  switch (code) {
+    case "skipped_terminal":
+    case "not_retryable":
+      return "This message was never stored for sending, so it cannot be retried.";
+    case "blocked_plan":
+      return "This workspace's plan no longer includes secure intake, so the invitation was not sent again.";
+    case "blocked_request_closed":
+      return "This request is cancelled or closed, so the message was not sent again.";
+    case "in_progress":
+      return "This message is already being sent.";
+    case "rate_limited":
+      return "This message was retried recently. Try again later.";
+    case "failed_to_dispatch":
+      return "The retry was attempted but the email provider did not accept it.";
+    default:
+      return "The delivery could not be retried right now.";
+  }
+}
+
 export function ContextualDeliveryStatus({ requestId }: { requestId: string }) {
   const [rows, setRows] = useState<ContextualDelivery[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -60,13 +81,20 @@ export function ContextualDeliveryStatus({ requestId }: { requestId: string }) {
     if (busyId) return;
     setBusyId(deliveryId);
     try {
-      await apiFetch(
+      const res = (await apiFetch(
         `/v1/evidence-requests/${encodeURIComponent(requestId)}/deliveries/${encodeURIComponent(deliveryId)}/retry`,
         { method: "POST" },
-      );
+      )) as { outcome?: string } | null;
+      // PRO-N1Z-03 — an older API answers 200 for every outcome; only an
+      // actual resend is success.
+      if (res?.outcome && res.outcome !== "resent") {
+        setError(retryRefusalMessage(res.outcome));
+      } else {
+        setError(null);
+      }
       await load();
-    } catch {
-      setError("The delivery could not be retried right now.");
+    } catch (err) {
+      setError(retryRefusalMessage((err as { code?: string } | null)?.code ?? null));
     } finally {
       setBusyId(null);
     }

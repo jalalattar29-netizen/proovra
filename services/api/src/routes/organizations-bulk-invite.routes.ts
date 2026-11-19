@@ -75,6 +75,8 @@ import {
   recordOrgInviteDeliveryPending,
   resendOrgInviteDelivery,
   resolveOrganizationInvitationAllowance,
+  getOrgInviteDeliveryStates,
+  orgInviteResendCooldownCutoff,
   type OrgInviteDeliveryState,
 } from "../services/organization/org-invite-delivery.service.js";
 
@@ -1041,6 +1043,27 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     }
     inviteIds = Array.from(new Set(inviteIds)).slice(0, BULK_INVITE_MAX_ROWS);
 
+    // PRO-T2-06 — "Resend failed" (a batch selection) re-sends only invitations
+    // whose delivery did NOT go out: a resend rotates the token, so re-sending
+    // a delivered invitation killed the link the person already had.
+    if (body.batchId && (body.inviteIds ?? []).length === 0 && inviteIds.length > 0) {
+      const states = await getOrgInviteDeliveryStates(inviteIds);
+      inviteIds = inviteIds.filter((id) => {
+        const s = states.get(id);
+        return !s || s.status === "FAILED" || s.status === "PENDING";
+      });
+    }
+
+    // PRO-T2-06 — resends count in the organization's 24-hour rail.
+    {
+      const overAllowance = organizationInvitationRefusal(
+        await resolveOrganizationInvitationAllowance(prisma, ctx.orgId),
+        inviteIds.length,
+        { resend: true },
+      );
+      if (overAllowance) return reply.code(overAllowance.status).send(overAllowance.body);
+    }
+
     const now = new Date();
     const results: Array<{ inviteId: string; outcome: "RESENT" | "NOT_PENDING" | "NOT_FOUND" | "FAILED"; reason: string | null; delivery?: OrgInviteDeliveryState | null }> = [];
     for (const inviteId of inviteIds) {
@@ -1054,6 +1077,15 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
           if (invite.acceptedAt || invite.revokedAt || invite.expiresAt <= now) {
             return { kind: "not_pending" as const };
           }
+          // PRO-T2-06 — the per-invitation cooldown, as a conditional claim.
+          const claimed = await tx.organizationInvite.updateMany({
+            where: {
+              id: invite.id,
+              OR: [{ lastResentAt: null }, { lastResentAt: { lt: orgInviteResendCooldownCutoff(now) } }],
+            },
+            data: { lastResentAt: new Date() },
+          });
+          if (claimed.count !== 1) return { kind: "cooldown" as const };
           const updated = await tx.organizationInvite.update({
             where: { id: invite.id },
             data: { lastResentAt: new Date(), resendCount: { increment: 1 }, expiresAt: inviteExpiresAt() },
@@ -1095,6 +1127,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
           });
         }
         else if (outcome.kind === "not_found") results.push({ inviteId, outcome: "NOT_FOUND", reason: "Invite not found." });
+        else if (outcome.kind === "cooldown") results.push({ inviteId, outcome: "FAILED", reason: "Resent within the last hour; not sent again." });
         else results.push({ inviteId, outcome: "NOT_PENDING", reason: "Invite is accepted, revoked, or expired." });
       } catch {
         results.push({ inviteId, outcome: "FAILED", reason: "Resend write failed." });

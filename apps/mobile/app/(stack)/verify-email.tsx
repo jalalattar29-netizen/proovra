@@ -59,7 +59,22 @@ export default function VerifyEmailScreen() {
   const { token: currentToken, user: currentUser, authReady } = useAuth();
   const [stayBusy, setStayBusy] = useState(false);
   const params = useLocalSearchParams<{ token?: string }>();
-  const token = typeof params.token === "string" ? params.token : "";
+  // PRO-NA-08 — the link token is captured ONCE, then removed from navigation
+  // state (which reaches logs and crash breadcrumbs), as mfa-recovery-verify does.
+  const [token, setToken] = useState(() =>
+    typeof params.token === "string" ? params.token : "",
+  );
+  useEffect(() => {
+    const p = params.token;
+    if (typeof p === "string" && p) {
+      setToken(p);
+      try {
+        router.setParams({ token: undefined });
+      } catch {
+        /* the screen keeps working with the captured token */
+      }
+    }
+  }, [params.token, router]);
   const [state, setState] = useState<State>("verifying");
   const [email, setEmail] = useState("");
   const [resendBusy, setResendBusy] = useState(false);

@@ -157,9 +157,10 @@ export async function registerVideoFrameBatch(
       frameIndex: f.frameIndex,
       timestampMs: f.timestampMs,
       extractor: input.extractor,
-      storageBucket: f.storageBucket ?? null,
-      storageKey: f.storageKey ?? null,
-      storageRegion: f.storageRegion ?? null,
+      // PRO-R3-16 — never caller-supplied storage coordinates.
+      storageBucket: null,
+      storageKey: null,
+      storageRegion: null,
       byteSize: f.byteSize ?? null,
       contentType: f.contentType ?? null,
     });
@@ -200,7 +201,8 @@ export async function listVideoFrames(input: {
     // BigInt → number (frames bounded to safe integer range; ffmpeg timestamps fit). Null timestamps default to 0 — projection contract requires non-null.
     timestampMs: r.timestampMs === null ? 0 : Number(r.timestampMs),
     extractor: r.extractor as VideoFrameExtractor,
-    storageKey: r.storageKey,
+    // PRO-R3-16 — raw storage keys are never returned to the client.
+    storageKey: null,
   }));
 }
 

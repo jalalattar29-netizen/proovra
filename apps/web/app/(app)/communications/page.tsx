@@ -66,6 +66,9 @@ type Message = {
   sentAtUtc: string | null;
   deliveredAtUtc: string | null;
   failedAtUtc: string | null;
+  /** PRO-I1-05 — the server's retry eligibility (absent on an older API). */
+  retryable?: boolean;
+  reissueRequired?: boolean;
 };
 
 type ProviderHealth = {
@@ -329,7 +332,9 @@ function CommunicationsPageInner() {
                         Cancel retry
                       </button>
                     ) : null}
-                    {m.status === "FAILED" ? (
+                    {/* PRO-I1-05 — Retry only where a retry can succeed; a
+                        token-bearing intake message is reissued, not retried. */}
+                    {(typeof m.retryable === "boolean" ? m.retryable && m.status === "FAILED" : m.status === "FAILED") ? (
                       <button
                         type="button"
                         style={primaryButtonStyle}
@@ -338,6 +343,11 @@ function CommunicationsPageInner() {
                       >
                         Retry
                       </button>
+                    ) : null}
+                    {m.reissueRequired === true ? (
+                      <small style={mutedStyle} data-communication-reissue={m.id}>
+                        Carried a secure link: disable the link and create a new one to resend.
+                      </small>
                     ) : null}
                   </li>
                 ))}

@@ -50,6 +50,7 @@ import {
   deliverWebhookDelivery,
   deactivateWebhookEndpoint,
   listWebhookEndpoints,
+  readLifecycleSigningSecret,
 } from "../src/services/packaging/webhooks/webhook-platform.service.js";
 
 import {
@@ -1156,10 +1157,14 @@ describe("12. Webhook signing + delivery", () => {
       createdByUserId: "user-1",
     });
     expect(result.ok).toBe(true);
-    // Base64 of 32 bytes = 44 chars with padding
+    // PRO-G1-02 — the column holds the authenticated e3.3 envelope, never the
+    // raw secret; it opens to the 32-byte secret returned once to the caller.
     expect(capturedSecret).toBeDefined();
-    const decoded = Buffer.from(capturedSecret!, "base64");
-    expect(decoded).toHaveLength(32);
+    expect(capturedSecret!.startsWith("e3.3:")).toBe(true);
+    expect(capturedSecret).not.toContain(result.secret);
+    const opened = readLifecycleSigningSecret(capturedSecret!);
+    expect(opened).toBe(result.secret);
+    expect(Buffer.from(opened!, "base64")).toHaveLength(32);
   });
 
   it("verifyIncomingSignature accepts the HMAC computed over the same payload", () => {

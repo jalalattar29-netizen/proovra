@@ -202,13 +202,40 @@ export function isPublicVerifyCapabilityPath(pathname: string): boolean {
 }
 
 /**
+ * PRO-PW-06 — EVERY page whose URL carries a capability (a token in the path
+ * or the query) is kept out of indexes and archives, not only Verify: share,
+ * intake, invitations, the reviewer portal, password reset, email
+ * verification and MFA-recovery verification.
+ */
+const CAPABILITY_PATH_PREFIXES = [
+  "/verify/",
+  "/share/",
+  "/intake/",
+  "/invite/",
+  "/portal/",
+  "/org-invites/",
+  "/collaboration-teams/invites/",
+] as const;
+const CAPABILITY_EXACT_PATHS = new Set([
+  "/portal",
+  "/reset-password",
+  "/auth/verify-email",
+  "/auth/mfa-recovery/verify",
+]);
+
+export function isCapabilityUrlPath(pathname: string): boolean {
+  if (CAPABILITY_EXACT_PATHS.has(pathname.replace(/\/+$/, "") || "/")) return true;
+  return CAPABILITY_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+/**
  * AUD-48 (2026-10-20) — the static security headers are applied in EVERY
  * environment (they were production-only), and on the failure path too. The
  * nonce CSP is enforced in production builds (staging included); `next dev`
  * keeps its relaxed policy on the request only, because dev tooling needs eval.
  */
 function applyStaticSecurityHeaders(response: NextResponse, pathname: string) {
-  if (isPublicVerifyCapabilityPath(pathname)) {
+  if (isPublicVerifyCapabilityPath(pathname) || isCapabilityUrlPath(pathname)) {
     response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
   }
   response.headers.set("X-Content-Type-Options", "nosniff");

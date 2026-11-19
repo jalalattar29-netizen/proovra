@@ -25,6 +25,8 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
+import { enforceRateLimit } from "../rate-limit.js";
+
 import { hashRecipientPhone } from "./communication.service.js";
 import { getMessagingProvider } from "./provider-registry.js";
 
@@ -51,6 +53,74 @@ export class VerificationError extends Error {
     super(code);
     this.code = code;
   }
+}
+
+// -----------------------------------------------------------------------------
+// PRO-A1-03 / B3C-F-001 — the aggregate budget for codes sent to a NEW
+// (not yet proven) destination.
+// -----------------------------------------------------------------------------
+
+/**
+ * A code sent to a destination nobody has proven yet (phone-factor enrolment,
+ * the communications verify/start) costs the platform a provider send to an
+ * attacker-chosen number. The per-user (5/h) and per-(team, recipient) (5/h)
+ * limits did not bound N throw-away accounts or one number hit from many
+ * workspaces. This adds the aggregate rails, in the shared limiter, BEFORE any
+ * factor row or provider call:
+ *   - per destination across every workspace, per day;
+ *   - per workspace, per day;
+ *   - platform-wide, per hour;
+ *   - an optional destination country allow-list (E.164 prefixes).
+ * Sends to an already ENROLLED destination (sign-in, step-up) are not new-
+ * destination sends and keep their own limits: Free MFA keeps working (DEC-19).
+ * A limiter outage refuses with a retryable 503-class verdict (DEC-20).
+ */
+export type NewDestinationBudgetVerdict =
+  | { allowed: true }
+  | { allowed: false; reason: "rate_limited" | "limiter_unavailable" | "destination_not_allowed"; retryAfterSec: number };
+
+function positiveIntEnv(name: string, fallback: number): number {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+export function newDestinationCountryAllowed(phoneE164: string): boolean {
+  const raw = process.env.VERIFY_NEW_DESTINATION_ALLOWED_PREFIXES?.trim();
+  if (!raw) return true;
+  const prefixes = raw.split(",").map((p) => p.trim()).filter((p) => /^\+\d{1,4}$/.test(p));
+  if (prefixes.length === 0) return true;
+  return prefixes.some((p) => phoneE164.startsWith(p));
+}
+
+export async function enforceNewDestinationVerificationBudget(input: {
+  teamId: string;
+  /** The destination as the caller typed it; normalised here (handlers never resolve it). */
+  destinationRaw: string;
+}): Promise<NewDestinationBudgetVerdict> {
+  const phoneE164 = normaliseToE164(input.destinationRaw);
+  // An unparseable number is refused later by the factor/verification service
+  // with its own typed answer; the budget has nothing to count.
+  if (!phoneE164) return { allowed: true };
+  if (!newDestinationCountryAllowed(phoneE164)) {
+    return { allowed: false, reason: "destination_not_allowed", retryAfterSec: 0 };
+  }
+  const recipientHash = hashRecipientPhone(phoneE164);
+  const rails = [
+    { key: `verify-new-dest:recipient:${recipientHash}`, max: positiveIntEnv("VERIFY_NEW_DESTINATION_PER_RECIPIENT_PER_DAY", 5), windowSec: 86_400 },
+    { key: `verify-new-dest:team:${input.teamId}`, max: positiveIntEnv("VERIFY_NEW_DESTINATION_PER_TEAM_PER_DAY", 30), windowSec: 86_400 },
+    { key: "verify-new-dest:platform", max: positiveIntEnv("VERIFY_NEW_DESTINATION_PLATFORM_PER_HOUR", 300), windowSec: 3_600 },
+  ];
+  for (const rail of rails) {
+    const verdict = await enforceRateLimit({ key: rail.key, bound: "global", max: rail.max, windowSec: rail.windowSec });
+    if (!verdict.allowed) {
+      return {
+        allowed: false,
+        reason: verdict.store === "unavailable" ? "limiter_unavailable" : "rate_limited",
+        retryAfterSec: Math.max(1, Math.ceil((verdict.resetAtMs - Date.now()) / 1000)),
+      };
+    }
+  }
+  return { allowed: true };
 }
 
 // -----------------------------------------------------------------------------

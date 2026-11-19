@@ -1,4 +1,4 @@
-import { MAX_EVIDENCE_PARTS } from "@proovra/shared";
+import { MAX_EVIDENCE_PARTS, MAX_INTAKE_LINK_TTL_HOURS } from "@proovra/shared";
 
 /**
  * Intake links — the request/delivery/collection catalogs.
@@ -301,8 +301,11 @@ export function acceptedKindLabel(kind: string): string {
 // `maxFileCountPerSession` as an integer (or null for "no per-session cap").
 
 export const EXPIRY_HOURS_MIN = 1;
-/** 365 days — the ceiling the previous form enforced and the API accepts. */
-export const EXPIRY_HOURS_MAX = 24 * 365;
+/**
+ * PRO-I1-07 — the server's own ceiling (90 days, MAX_INTAKE_LINK_TTL_HOURS);
+ * the wizard used to accept up to 365 days and the API refused the rest.
+ */
+export const EXPIRY_HOURS_MAX = MAX_INTAKE_LINK_TTL_HOURS;
 export const EXPIRY_HOURS_DEFAULT = 72;
 
 /** Duration presets. `custom` reveals the raw hours field. */
