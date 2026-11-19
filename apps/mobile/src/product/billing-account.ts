@@ -103,6 +103,8 @@ export interface BillingProjection {
     currency: string | null;
     currentPeriodEndUtc: string | null;
     cancelAtPeriodEnd: boolean;
+    /** PRO-BL1-03 — the API keeps the paid period on a PayPal cancel too (absent on an older API). */
+    cancellationKeepsPaidPeriod: boolean;
     paymentProviderLabel: string | null;
     graceEndsAtUtc: string | null;
     scheduledChange: { displayName: string; effectiveAtUtc: string | null; awaitingApproval: boolean } | null;
@@ -226,6 +228,7 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
       currency: str(plan.currency),
       currentPeriodEndUtc: str(plan.currentPeriodEndUtc),
       cancelAtPeriodEnd: plan.cancelAtPeriodEnd === true,
+      cancellationKeepsPaidPeriod: plan.cancellationKeepsPaidPeriod === true,
       paymentProviderLabel: str(plan.paymentProviderLabel),
       graceEndsAtUtc: str(plan.graceEndsAtUtc),
       scheduledChange: sched

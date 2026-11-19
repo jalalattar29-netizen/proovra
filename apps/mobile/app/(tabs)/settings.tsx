@@ -28,7 +28,9 @@ import { professionalSurfaceVisible, settingsRowVisible } from "../../src/produc
 import { summarizeSignInMethods } from "../../src/product/account-security";
 import {
   EMPTY_SECURITY_SUMMARY,
+  accountBillingAttention,
   accountTimezoneFrom,
+  billingAttentionLine,
   detectDeviceTimezone,
   mfaConfiguredFrom,
   projectSettingsOverview,
@@ -73,6 +75,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { envelope } = usePlatformContext();
   const overview = useMemo(() => projectSettingsOverview(envelope), [envelope]);
+  const billingAttention = useMemo(() => accountBillingAttention(envelope), [envelope]);
 
   const [telemetry, setTelemetry] = useState(false);
   const [legalOk, setLegalOk] = useState<boolean | null>(null);
@@ -272,6 +275,15 @@ export default function SettingsScreen() {
           <ProovraText variant="body" weight="semibold">{billing.displayPlan}</ProovraText>
           <Fact label="Scope" value={billing.scopeLabel} />
           {billing.managedByOrgName ? <Fact label="Managed by" value={billing.managedByOrgName} /> : null}
+          {/* PRO-N1-13 — the person's own paid plan needs attention. */}
+          {billingAttention ? (
+            <View testID="settings-billing-attention">
+              <ProovraBadge label={billingAttention.title} tone="pending" />
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                {billingAttentionLine(billingAttention, (iso) => formatUserDateTime(iso))}
+              </ProovraText>
+            </View>
+          ) : null}
           {billing.canOpenBilling ? (
             <ProovraButton label="View billing" variant="secondary" fullWidth={false} onPress={() => router.push("/(stack)/billing")} />
           ) : null}

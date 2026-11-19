@@ -31,6 +31,7 @@ import React from "react";
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -561,6 +562,43 @@ export function ProovraConfirmSheet({
   );
 }
 
+/** How long the slide-out animation runs before the sheet counts as dismissed. */
+export const SHEET_DISMISS_FALLBACK_MS = 350;
+
+/**
+ * PRO-NA2Z-02 (WS-BILL, 2026-11-18) — `onDismiss` on every platform, exactly once.
+ *
+ * React Native's Modal documents `onDismiss` for iOS; on Android it may never be
+ * called, and billing hands off to the next sheet and to every checkout or
+ * approval page ONLY from it — so an Android build could not complete a
+ * purchase. Off iOS, a visible → hidden transition calls it after the close
+ * animation unless the platform already did (a guard keeps it to one call).
+ * iOS is unchanged: the native callback stays the only caller there.
+ */
+export function useSheetDismiss(visible: boolean, onDismiss?: () => void): (() => void) | undefined {
+  const callbackRef = React.useRef(onDismiss);
+  callbackRef.current = onDismiss;
+  const firedRef = React.useRef(false);
+  const wasVisibleRef = React.useRef(visible);
+  const fire = React.useCallback(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
+    callbackRef.current?.();
+  }, []);
+  React.useEffect(() => {
+    const wasVisible = wasVisibleRef.current;
+    wasVisibleRef.current = visible;
+    if (visible) {
+      firedRef.current = false;
+      return undefined;
+    }
+    if (!wasVisible || Platform.OS === "ios") return undefined;
+    const timer = setTimeout(fire, SHEET_DISMISS_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [visible, fire]);
+  return onDismiss ? fire : undefined;
+}
+
 /** A bottom sheet for an inspector/detail panel the web shows side-by-side. */
 export function ProovraSheet({
   visible,
@@ -578,13 +616,14 @@ export function ProovraSheet({
   /** The close control's word, for a localised surface. */
   closeLabel?: string;
 }) {
+  const handleDismiss = useSheetDismiss(visible, onDismiss);
   return (
     <Modal
       visible={visible}
       transparent
       animationType="slide"
       onRequestClose={onClose}
-      onDismiss={onDismiss}
+      onDismiss={handleDismiss}
     >
       <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel={closeLabel} />
       <View style={[styles.sheet, styles.sheetTall]}>
