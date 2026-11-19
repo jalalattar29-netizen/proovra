@@ -12,6 +12,19 @@
  *   PRO-R2-04  disagreement resolution is independent and compare-and-swap
  *   PRO-LEAD-07 VIEWER cannot read reviewer working data
  *   PRO-R2Z-03 reviewer-workspace annotation replies follow the canonical write rule and are audited
+ *
+ * RG-29 redaction integrity:
+ *   PRO-R3-13  a project opens only on a sealed record in service, of the record's own media
+ *   PRO-W2C2-04 a record above the one source budget is refused with a size reason
+ *   PRO-R3-01  a region the renderer cannot burn is refused at write time; the product's PDF rect is accepted
+ *   PRO-R3-03  a version with no region cannot be submitted
+ *   PRO-R3-04  only the rendered method (black-out) is accepted on image/PDF
+ *   PRO-R3-02  accepting an out-of-bounds detection writes nothing and says why
+ *   PRO-R3-12  removing a promoted region returns its detection to the queue
+ *   PRO-R3-05  a MEMBER prepares; the author (or a region author) cannot approve, by name
+ *   PRO-R3-14  a publish that cannot happen is refused before any step-up is asked
+ *   PRO-R3-08  the policy quick toggle no longer self-approves under a system actor;
+ *              a BLOCK_PUBLICATION kind stops submission while its suggestion is undecided
  */
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -184,6 +197,10 @@ describe("WS-REV — external review and decision integrity (live PostgreSQL)", 
       expiresAtUtc: new Date(Date.now() + 3 * DAY).toISOString(),
     } as never);
     if (!issued.ok) throw new Error(`invitation not issued: ${issued.denial}`);
+    // PRO-R1-06 — the record had no review workflow; issuing ensured one, so
+    // the portal has something to open.
+    const wf = await prisma.evidenceReviewWorkflow.findFirst({ where: { evidenceId: rec.id }, select: { id: true } });
+    expect(wf).not.toBeNull();
 
     const auth = async () => h.app.inject({ method: "POST", url: "/v1/portal/auth", payload: { token: issued.rawToken } });
     const first = await auth();
@@ -214,6 +231,28 @@ describe("WS-REV — external review and decision integrity (live PostgreSQL)", 
     expect(read.body).not.toContain("internal justification text");
     expect(read.body).not.toContain(A().ownerUserId);
     expect(read.body).not.toContain("203.0.113.9");
+
+    // PRO-R1-02 — the workspace reads what the reviewer said on THIS invitation.
+    await prisma.externalReviewDecision.create({
+      data: { teamId: A().teamId, grantId: issued.grantId, workflowId: wf!.id, verdict: "REJECT", rationale: "Hash chain gap at 14:02", reviewerEmail: "r@outside.test" },
+    });
+    await prisma.externalReviewComment.create({
+      data: { teamId: A().teamId, grantId: issued.grantId, workflowId: wf!.id, body: "Which clock was used?", authorEmail: "r@outside.test" },
+    });
+    const feedback = await h.app.inject({
+      method: "GET",
+      url: `/v1/external-review/invitations/${issued.grantId}/feedback`,
+      headers: { ...bearer(A().ownerToken), "x-proovra-workspace-id": A().teamId },
+    });
+    expect(feedback.statusCode, feedback.body).toBe(200);
+    expect(feedback.json().decisions[0]).toMatchObject({ verdict: "REJECT", rationale: "Hash chain gap at 14:02" });
+    expect(feedback.json().comments[0]).toMatchObject({ body: "Which clock was used?" });
+    const viewerFeedback = await h.app.inject({
+      method: "GET",
+      url: `/v1/external-review/invitations/${issued.grantId}/feedback`,
+      headers: { ...bearer(A().viewerToken), "x-proovra-workspace-id": A().teamId },
+    });
+    expect(viewerFeedback.statusCode).not.toBe(200);
   });
 
   it("PRO-R1-03: a bulk invitation asking for SSO is refused, never issued as a plain link", async () => {
@@ -375,5 +414,219 @@ describe("WS-REV — external review and decision integrity (live PostgreSQL)", 
     expect(
       await prisma.evidenceReviewerAuditEvent.count({ where: { evidenceId: open.id, eventType: "ANNOTATION_CREATED" } }),
     ).toBe(1);
+  });
+
+  // ---------------------------------------------------------------------------
+  // RG-29
+  // ---------------------------------------------------------------------------
+  describe("RG-29 redaction integrity", () => {
+    const q = () => `?teamId=${A().teamId}`;
+    const call = (method: "GET" | "POST" | "PATCH" | "DELETE", url: string, token: string, payload?: unknown) =>
+      h.app.inject({ method, url, headers: { ...bearer(token), "x-proovra-workspace-id": A().teamId }, ...(payload !== undefined ? { payload: payload as never } : {}) });
+
+    let store: typeof import("../src/services/redaction/redaction-policy-store.service.js");
+
+    beforeAll(async () => {
+      store = await import("../src/services/redaction/redaction-policy-store.service.js");
+      const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+      await upsertEntitlementGrant({
+        prisma: prisma as never,
+        teamId: A().teamId,
+        key: "FEATURE_REDACTION",
+        kind: "FEATURE",
+        value: true,
+        source: "CUSTOM",
+        grantedByUserId: A().ownerUserId,
+      } as never);
+    }, 120_000);
+
+    async function media(over: Record<string, unknown>) {
+      const team = await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { organizationId: true } });
+      return prisma.evidence.create({
+        data: {
+          title: `WS-REV media ${tag()}`,
+          type: "PHOTO",
+          status: "SIGNED",
+          mimeType: "image/png",
+          teamId: A().teamId,
+          organizationId: team.organizationId,
+          ownerUserId: A().ownerUserId,
+          ...over,
+        } as never,
+        select: { id: true },
+      });
+    }
+    async function project(evidenceId: string, artifactKind: "IMAGE" | "PDF", token = A().adminToken) {
+      const open = await call("POST", `/v1/redaction/projects${q()}`, token, { evidenceId, artifactKind });
+      expect(open.statusCode, open.body).toBe(201);
+      const projectId = open.json().projectId as string;
+      const ver = await call("POST", `/v1/redaction/projects/${projectId}/versions${q()}`, token, {});
+      expect(ver.statusCode, ver.body).toBe(201);
+      return { projectId, versionId: ver.json().versionId as string };
+    }
+
+    it("PRO-R3-13 / PRO-W2C2-04: unsealed, trashed, wrong-media and over-budget records are refused by name", async () => {
+      const unsealed = await media({ status: "CREATED" });
+      const r1 = await call("POST", `/v1/redaction/projects${q()}`, A().adminToken, { evidenceId: unsealed.id, artifactKind: "IMAGE" });
+      expect(r1.statusCode, r1.body).toBe(409);
+      expect(r1.json().denial).toBe("EVIDENCE_NOT_ELIGIBLE");
+      const trashed = await media({ lifecycleState: "TRASHED" });
+      expect((await call("POST", `/v1/redaction/projects${q()}`, A().adminToken, { evidenceId: trashed.id, artifactKind: "IMAGE" })).json().denial).toBe("EVIDENCE_NOT_ELIGIBLE");
+      const image = await media({});
+      const wrongKind = await call("POST", `/v1/redaction/projects${q()}`, A().adminToken, { evidenceId: image.id, artifactKind: "PDF" });
+      expect(wrongKind.json().denial).toBe("ARTIFACT_NOT_REDACTABLE");
+      const huge = await media({ sizeBytes: BigInt(300 * 1024 * 1024) });
+      expect((await call("POST", `/v1/redaction/projects${q()}`, A().adminToken, { evidenceId: huge.id, artifactKind: "IMAGE" })).json().denial).toBe("SOURCE_TOO_LARGE");
+      expect(await prisma.redactionProject.count({ where: { evidenceId: { in: [unsealed.id, trashed.id, image.id, huge.id] } } })).toBe(0);
+    });
+
+    it("PRO-R3-01 / PRO-R3-03 / PRO-R3-04: region writes are refused unless the renderer burns them; an empty version is not submitted", async () => {
+      const pdf = await media({ type: "DOCUMENT", mimeType: "application/pdf" });
+      const { versionId } = await project(pdf.id, "PDF");
+      const regions = `/v1/redaction/versions/${versionId}/regions${q()}`;
+      const submit = await call("POST", `/v1/redaction/versions/${versionId}/submit${q()}`, A().adminToken, {});
+      expect(submit.statusCode, submit.body).toBe(409);
+      expect(submit.json().denial).toBe("VERSION_HAS_NO_REGIONS");
+      // A text range without the box the renderer would burn.
+      const textRange = await call("POST", regions, A().adminToken, { kind: "PDF_TEXT_RANGE", method: "BLACKOUT", geometry: { pageIndex: 0, charStart: 0, charEnd: 4 } });
+      expect(textRange.json().denial).toBe("REGION_KIND_UNSUPPORTED");
+      // A flat box with a page the document cannot have (page 0, 1-based).
+      const pageZero = await call("POST", regions, A().adminToken, { kind: "BBOX_NORMALIZED", method: "BLACKOUT", geometry: { x: 0.1, y: 0.1, width: 0.2, height: 0.2, page: 0 } });
+      expect(pageZero.json().denial).toBe("REGION_KIND_UNSUPPORTED");
+      // A method the renderer does not apply.
+      const blur = await call("POST", regions, A().adminToken, { kind: "PDF_PAGE_RECT", method: "REMOVE_CONTENT", geometry: { pageIndex: 0, rect: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 } } });
+      expect(blur.json().denial).toBe("REGION_METHOD_UNSUPPORTED");
+      expect(await prisma.redactionRegion.count({ where: { versionId } })).toBe(0);
+      // The shape the product's PDF editor sends is accepted.
+      const rect = await call("POST", regions, A().adminToken, { kind: "PDF_PAGE_RECT", method: "BLACKOUT", geometry: { pageIndex: 0, rect: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 } } });
+      expect(rect.statusCode, rect.body).toBe(201);
+      expect((await call("POST", `/v1/redaction/versions/${versionId}/submit${q()}`, A().adminToken, {})).statusCode).toBe(200);
+    });
+
+    it("PRO-R3-02 / PRO-R3-12: an out-of-bounds acceptance writes nothing; removing a promoted region re-queues its detection", async () => {
+      const image = await media({});
+      const { versionId } = await project(image.id, "IMAGE");
+      const detection = (geometry: Record<string, number>) =>
+        prisma.redactionDetection.create({
+          data: {
+            teamId: A().teamId, versionId, kind: "FACE", provider: "MANUAL",
+            rawConfidence: 0.9, confidenceBand: "HIGH",
+            suggestedRegionKind: "BBOX_NORMALIZED", suggestedRegionGeometry: geometry,
+            suggestedMethod: "BLUR", decisionState: "SUGGESTED",
+          },
+          select: { id: true },
+        });
+      const edge = await detection({ x: 0.9, y: 0.1, width: 0.3, height: 0.2 });
+      const refused = await call("POST", `/v1/redaction/detections/${edge.id}/decision${q()}`, A().adminToken, { decisionState: "ACCEPTED" });
+      expect(refused.statusCode, refused.body).toBe(409);
+      expect(refused.json().denial).toBe("REGION_OUT_OF_BOUNDS");
+      expect((await prisma.redactionDetection.findUniqueOrThrow({ where: { id: edge.id } })).decisionState).toBe("SUGGESTED");
+      expect(await prisma.redactionDecision.count({ where: { detectionId: edge.id } })).toBe(0);
+
+      const ok = await detection({ x: 0.2, y: 0.2, width: 0.2, height: 0.2 });
+      const accepted = await call("POST", `/v1/redaction/detections/${ok.id}/decision${q()}`, A().adminToken, { decisionState: "ACCEPTED" });
+      expect(accepted.statusCode, accepted.body).toBe(200);
+      const regionId = accepted.json().promotedRegionId as string;
+      expect(regionId).toBeTruthy();
+      expect((await prisma.redactionRegion.findUniqueOrThrow({ where: { id: regionId } })).method).toBe("BLACKOUT");
+      const removed = await call("DELETE", `/v1/redaction/regions/${regionId}${q()}`, A().adminToken);
+      expect(removed.statusCode, removed.body).toBe(200);
+      expect((await prisma.redactionDetection.findUniqueOrThrow({ where: { id: ok.id } })).decisionState).toBe("SUGGESTED");
+    });
+
+    it("PRO-R3-05 / PRO-R3-14: a MEMBER prepares; the region author cannot approve; publish refuses before step-up", async () => {
+      const image = await media({});
+      const { versionId } = await project(image.id, "IMAGE", A().adminToken);
+      const regions = `/v1/redaction/versions/${versionId}/regions${q()}`;
+      const member = await call("POST", regions, A().memberToken, { kind: "BBOX_NORMALIZED", method: "BLACKOUT", geometry: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 } });
+      expect(member.statusCode, member.body).toBe(201);
+      expect((await call("POST", regions, A().viewerToken, { kind: "BBOX_NORMALIZED", method: "BLACKOUT", geometry: { x: 0.3, y: 0.1, width: 0.2, height: 0.2 } })).statusCode).toBe(403);
+      // An ADMIN who drew a region of the version is not an independent approver.
+      const drawingAdmin = await person(A().teamId, "ADMIN");
+      expect((await call("POST", regions, drawingAdmin.token, { kind: "BBOX_NORMALIZED", method: "BLACKOUT", geometry: { x: 0.5, y: 0.5, width: 0.1, height: 0.1 } })).statusCode).toBe(201);
+      expect((await call("POST", `/v1/redaction/versions/${versionId}/submit${q()}`, A().memberToken, {})).statusCode).toBe(200);
+      const own = await call("POST", `/v1/redaction/versions/${versionId}/approve${q()}`, A().adminToken, { verdict: "APPROVE" });
+      expect(own.json().denial).toBe("APPROVER_MUST_DIFFER_FROM_AUTHOR");
+      const drew = await call("POST", `/v1/redaction/versions/${versionId}/approve${q()}`, drawingAdmin.token, { verdict: "APPROVE" });
+      expect(drew.json().denial).toBe("APPROVER_MUST_DIFFER_FROM_AUTHOR");
+      // No READY copy: refused before any step-up is asked (no 401 challenge).
+      const publish = await call("POST", `/v1/redaction/versions/${versionId}/publish${q()}`, A().ownerToken, {});
+      expect(publish.statusCode, publish.body).toBe(409);
+      expect(publish.json().denial).toBe("DERIVATIVE_NOT_READY");
+      expect(await prisma.stepUpChallenge.count({ where: { initiatedByUserId: A().ownerUserId, purpose: "REDACTION_PUBLISH", resourceId: versionId } })).toBe(0);
+    });
+
+    it("PRO-R3-08: the policy quick toggle submits a version for review; nothing is approved or applied by a system actor", async () => {
+      const patchRes = await call("PATCH", `/v1/redaction/policy${q()}`, A().ownerToken, { providers: { MANUAL: true, REGEX_PII: true, POLICY_RULE: true, AWS_REKOGNITION_FACES: false, AWS_REKOGNITION_TEXT: true, AZURE_DOCUMENT_INTELLIGENCE: true, OCR_TEXT_LAYER: true, DEEPGRAM_TRANSCRIPT: true, CUSTOM_PROVIDER: true } });
+      expect([202, 409]).toContain(patchRes.statusCode);
+      const nilActor = "00000000-0000-0000-0000-000000000000";
+      expect(await prisma.redactionPolicyAudit.count({ where: { teamId: A().teamId, actorUserId: nilActor } as never })).toBe(0);
+      const effective = await call("GET", `/v1/redaction/policy/effective${q()}`, A().ownerToken);
+      expect(effective.statusCode, effective.body).toBe(200);
+      expect(JSON.stringify(effective.json())).not.toContain('"AWS_REKOGNITION_FACES":false');
+    });
+
+    it("PRO-R3-08: a BLOCK_PUBLICATION kind stops submission while a suggestion of that kind is undecided", async () => {
+      const image = await media({});
+      const { projectId, versionId } = await project(image.id, "IMAGE");
+      const region = await call("POST", `/v1/redaction/versions/${versionId}/regions${q()}`, A().adminToken, {
+        kind: "BBOX_NORMALIZED", method: "BLACKOUT", geometry: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 },
+      });
+      expect(region.statusCode, region.body).toBe(201);
+      const face = await prisma.redactionDetection.create({
+        data: {
+          teamId: A().teamId, versionId, kind: "FACE", provider: "MANUAL",
+          rawConfidence: 0.9, confidenceBand: "HIGH",
+          suggestedRegionKind: "BBOX_NORMALIZED", suggestedRegionGeometry: { x: 0.5, y: 0.5, width: 0.2, height: 0.2 },
+          suggestedMethod: "BLACKOUT", decisionState: "SUGGESTED",
+        },
+        select: { id: true },
+      });
+
+      // A policy for THIS project only (other cases share the workspace),
+      // authored by the owner and approved/published by a second administrator.
+      const policy = await store.createPolicy({ teamId: A().teamId, name: `WS-REV block ${tag()}`, createdByUserId: A().ownerUserId });
+      if (!policy.ok) throw new Error(`policy: ${policy.denial}`);
+      const pv = await store.createPolicyVersion({
+        teamId: A().teamId,
+        policyId: policy.policyId,
+        authoredByUserId: A().ownerUserId,
+        document: {
+          schemaVersion: "PROOVRA_REDACTION_POLICY_V1",
+          providers: {},
+          kinds: {},
+          ruleActions: { FACE: "BLOCK_PUBLICATION" },
+          customRules: [],
+        } as never,
+      });
+      if (!pv.ok) throw new Error(`policy version: ${pv.denial}`);
+      for (const [toState, actorUserId] of [
+        ["IN_REVIEW", A().ownerUserId],
+        ["APPROVED", A().adminUserId],
+        ["PUBLISHED", A().adminUserId],
+      ] as const) {
+        const moved = await store.transitionPolicyVersion({ teamId: A().teamId, policyVersionId: pv.policyVersionId, toState, actorUserId });
+        expect(moved.ok, `${toState}: ${JSON.stringify(moved)}`).toBe(true);
+      }
+      const assigned = await store.assignPolicyVersion({
+        teamId: A().teamId,
+        policyVersionId: pv.policyVersionId,
+        scope: "PROJECT",
+        scopeTargetId: projectId,
+        assignedByUserId: A().adminUserId,
+      });
+      expect(assigned.ok, JSON.stringify(assigned)).toBe(true);
+
+      const blocked = await call("POST", `/v1/redaction/versions/${versionId}/submit${q()}`, A().adminToken, {});
+      expect(blocked.statusCode, blocked.body).toBe(409);
+      expect(blocked.json().denial).toBe("POLICY_REJECTED");
+      expect((await prisma.redactionVersion.findUniqueOrThrow({ where: { id: versionId } })).state).toBe("DRAFT");
+
+      // Deciding the suggestion lifts the block.
+      const decided = await call("POST", `/v1/redaction/detections/${face.id}/decision${q()}`, A().adminToken, { decisionState: "REJECTED" });
+      expect(decided.statusCode, decided.body).toBe(200);
+      const submitted = await call("POST", `/v1/redaction/versions/${versionId}/submit${q()}`, A().adminToken, {});
+      expect(submitted.statusCode, submitted.body).toBe(200);
+    });
   });
 });
