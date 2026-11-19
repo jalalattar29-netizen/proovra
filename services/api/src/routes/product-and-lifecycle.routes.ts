@@ -1352,8 +1352,13 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply.code(409).send({ denial: "ENDPOINT_INACTIVE" });
       }
 
-      await prisma.lifecycleWebhookDelivery.update({
-        where: { id },
+      // WS-SCHED / PRO-G1Z-07 — only a SETTLED delivery is replayed. Resetting
+      // a row the dispatcher holds (DISPATCHING) or has queued (PENDING /
+      // RETRYING) let the next tick claim and POST it again while the first
+      // attempt was still running. Conditional on the settled state, so a
+      // concurrent claim and replay produce one send.
+      const replayed = await prisma.lifecycleWebhookDelivery.updateMany({
+        where: { id, teamId: ctx.teamId, state: { in: ["FAILED", "DEAD_LETTERED", "DELIVERED"] } },
         data: {
           state: "PENDING",
           nextAttemptAtUtc: new Date(),
@@ -1363,6 +1368,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           responseBodyPreview: null,
         },
       });
+      if (replayed.count !== 1) {
+        return reply.code(409).send({ denial: "DELIVERY_IN_FLIGHT", state: row.state });
+      }
       return reply.code(200).send({ ok: true, replayedId: id });
     },
   );

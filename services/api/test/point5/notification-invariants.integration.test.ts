@@ -35,6 +35,8 @@ type ProviderRequest = {
 
 const provider = vi.hoisted(() => ({
   sent: [] as ProviderRequest[],
+  // WS-SCHED / PRO-P1C-04 — addresses the stub rejects permanently (422).
+  rejectPermanently: new Set<string>(),
   reset() {
     this.sent.length = 0;
   },
@@ -101,14 +103,23 @@ describe("POINT 5 — notification invariants (live PostgreSQL 16)", () => {
           to?: string | string[];
           subject?: string;
         };
+        const to = Array.isArray(body.to) ? (body.to[0] ?? "") : (body.to ?? "");
         provider.sent.push({
-          to: Array.isArray(body.to) ? (body.to[0] ?? "") : (body.to ?? ""),
+          to,
           subject: body.subject ?? "",
           idempotencyKey:
             init?.headers?.["Idempotency-Key"] ??
             init?.headers?.["idempotency-key"] ??
             null,
         });
+        if (provider.rejectPermanently.has(to)) {
+          return {
+            ok: false,
+            status: 422,
+            json: async () => ({ name: "validation_error", message: "Invalid `to` field." }),
+            text: async () => '{"name":"validation_error"}',
+          } as never;
+        }
         return {
           ok: true,
           status: 200,
@@ -359,6 +370,27 @@ describe("POINT 5 — notification invariants (live PostgreSQL 16)", () => {
   // =========================================================================
   // 2.2 — ACKNOWLEDGED is not DELIVERED
   // =========================================================================
+
+  it("WS-SCHED PRO-P1C-04: a permanently rejected follow-up stops the sequence once; later ticks send nothing", async () => {
+    provider.reset();
+    const row = await dueFollowUp();
+    provider.rejectPermanently.add(row.workEmail);
+    try {
+      await followUp.processDueDemoFollowUps({});
+      const after = await prisma.demoRequest.findUniqueOrThrow({
+        where: { id: row.id },
+        select: { followUpStatus: true, nextFollowUpAt: true, followUpStoppedAt: true, followUpStep: true },
+      });
+      expect(after).toMatchObject({ followUpStatus: "STOPPED", nextFollowUpAt: null, followUpStep: 0 });
+      expect(after.followUpStoppedAt).toBeInstanceOf(Date);
+      // Even with the lease long past, nothing re-sends.
+      await prisma.demoRequest.update({ where: { id: row.id }, data: { nextFollowUpAt: new Date(Date.now() - 60_000) } });
+      await followUp.processDueDemoFollowUps({});
+      expect(provider.sent.filter((s) => s.to === row.workEmail)).toHaveLength(1);
+    } finally {
+      provider.rejectPermanently.delete(row.workEmail);
+    }
+  });
 
   it("2.2 an acknowledged send lands in SENT and leaves deliveredAtUtc null", async () => {
     await clearDigestState();

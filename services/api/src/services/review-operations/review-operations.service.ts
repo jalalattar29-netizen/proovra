@@ -315,6 +315,13 @@ async function applyTransition(
      * claims both "win" — the last write silently replacing the first.
      */
     guardAssignee?: boolean;
+    /**
+     * WS-SCHED / PRO-R2Z-02 — also require the SLA status this call read. Two
+     * SLA sweeps (different locks and cursors) could both read DUE_SOON and
+     * both "win" a status-only CAS, each then writing SLA_BREACHED and sending
+     * the overdue email.
+     */
+    guardSlaStatus?: boolean;
   } = {},
 ): Promise<DbWorkflow> {
   const fromStage = mapDbStatusToReviewStage(workflow.status as string);
@@ -374,6 +381,7 @@ async function applyTransition(
       id: workflow.id,
       status: workflow.status,
       ...(options.guardAssignee ? { assignedToUserId: workflow.assignedToUserId } : {}),
+      ...(options.guardSlaStatus ? { slaStatus: workflow.slaStatus } : {}),
     },
     data,
   });
@@ -983,7 +991,16 @@ export async function reconcileReviewSlas(
       if (!computed || computed === wf.slaStatus) continue;
       const stage = mapDbStatusToReviewStage(wf.status as string);
       try {
-        await applyTransition(wf, stage, { slaStatus: computed }, client);
+        // PRO-R2Z-02 — the move into BREACHED is STRICT and fenced on the SLA
+        // status read: only the call that performed it records the event and
+        // sends the email (a lost race throws and is skipped below).
+        await applyTransition(
+          wf,
+          stage,
+          { slaStatus: computed },
+          client,
+          computed === "BREACHED" ? { strict: true, guardSlaStatus: true } : {},
+        );
         if (computed === "BREACHED") {
           flippedBreached += 1;
           breachedWorkflowIds.push(wf.id);

@@ -516,6 +516,40 @@ describe("Review SLA authority (live PostgreSQL)", () => {
     expect(audit.metadata).toMatchObject({ discussionThreads: 1, reason: "member_removed" });
   });
 
+  // WS-SCHED / PRO-R2Z-02 — two SLA sweeps (different locks, different
+  // cursors) that both read a row before either writes: only the one that
+  // performs the move into BREACHED records the event (and sends the email).
+  it("WS-SCHED PRO-R2Z-02: a sweep that read the row before another flipped it to BREACHED records nothing", async () => {
+    const org = await seedOrganizationTenant(deps);
+    await setPolicy(org, { defaultAssignmentDueHours: 1, defaultFirstResponseDueHours: 1, defaultCompletionDueHours: 1, defaultEscalationDueHours: 1, defaultDueSoonHours: 1 });
+    const row = await captureReview(org);
+    await age(row.id, 3 * HOUR);
+    // What the second sweep read: the row as it was before the first wrote.
+    const staleRead = await prisma.evidenceReviewWorkflow.findMany({ where: { id: row.id } });
+    const first = await ops.reconcileReviewSlas({ teamId: org.workspaceId }, prisma as never);
+    expect(first.breachedWorkflowIds).toContain(row.id);
+    // The second sweep's client answers its read with the stale row.
+    const lagging = new Proxy(prisma, {
+      get(target, prop) {
+        if (prop === "evidenceReviewWorkflow") {
+          const real = target.evidenceReviewWorkflow;
+          return new Proxy(real, {
+            get(t, p) {
+              if (p === "findMany") return async () => staleRead;
+              const v = (t as unknown as Record<PropertyKey, unknown>)[p];
+              return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(t) : v;
+            },
+          });
+        }
+        const v = (target as unknown as Record<PropertyKey, unknown>)[prop];
+        return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+      },
+    });
+    const second = await ops.reconcileReviewSlas({}, lagging as never);
+    expect(second.breachedWorkflowIds).not.toContain(row.id);
+    expect(await prisma.evidenceReviewWorkflowEvent.count({ where: { workflowId: row.id, eventType: "SLA_BREACHED" } })).toBe(1);
+  });
+
   it("WORKFLOW-006: a personal record is not put on the clock by Capture", async () => {
     const personal = await seedPersonalTenant(deps, "PAYG");
     const evidence = await prisma.evidence.create({

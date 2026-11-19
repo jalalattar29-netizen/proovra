@@ -262,6 +262,36 @@ export async function sendDemoFollowUpById(params: {
   // provider as the SAME message and is collapsed rather than delivered twice.
   await recordFollowUpAttemptOutcome(attemptRow.id, outcome);
   if (outcome.kind !== "acknowledged") {
+    // WS-SCHED / PRO-P1C-04 — a sequence the provider can never deliver
+    // STOPS. A permanent rejection (or a step that has failed its whole
+    // attempt budget) used to leave followUpStatus ACTIVE, so the request was
+    // re-claimed and re-sent every lease forever: a provider call and a
+    // NotificationDelivery row every ten minutes. The attempt row keeps the
+    // reason; the request records when it stopped. Retryable and ambiguous
+    // outcomes stay behind the lease until the budget is spent.
+    const attemptsThisStep = await prisma.notificationDelivery.count({
+      where: {
+        eventType: DEMO_FOLLOW_UP_EVENT_TYPE,
+        // Sends the provider answered or may hold. A SKIPPED attempt
+        // (transport not configured) is an operator outage, not the lead's
+        // failure, and never spends the budget.
+        status: { in: ["FAILED", "RETRY_SCHEDULED"] },
+        AND: [
+          { metadata: { path: ["demoRequestId"], equals: item.id } },
+          { metadata: { path: ["step"], equals: nextStep } },
+        ],
+      },
+    });
+    if (outcome.kind === "permanent" || attemptsThisStep >= DEMO_FOLLOW_UP_MAX_ATTEMPTS_PER_STEP) {
+      await prisma.demoRequest.updateMany({
+        where: { id: item.id, followUpStatus: prismaPkg.DemoFollowUpStatus.ACTIVE },
+        data: {
+          followUpStatus: prismaPkg.DemoFollowUpStatus.STOPPED,
+          followUpStoppedAt: new Date(),
+          nextFollowUpAt: null,
+        },
+      });
+    }
     throw new Error(`FOLLOW_UP_NOT_ACKNOWLEDGED:${outcomeCode(outcome)}`);
   }
 
@@ -396,6 +426,9 @@ async function recordFollowUpAttemptOutcome(
  * next scheduled step.
  */
 export const FOLLOW_UP_CLAIM_LEASE_MS = 10 * 60 * 1000;
+
+/** PRO-P1C-04 — non-acknowledged attempts one step may use before the sequence stops. */
+export const DEMO_FOLLOW_UP_MAX_ATTEMPTS_PER_STEP = 5;
 
 export async function processDueDemoFollowUps(params?: {
   limit?: number;

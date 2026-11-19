@@ -62,13 +62,33 @@ type WebhookDeliveryWhereInput = Record<string, unknown>;
 
 function webhookDeliveryFindMany(args: {
   where: WebhookDeliveryWhereInput;
-  orderBy: Record<string, string>;
+  orderBy: Record<string, string | { sort: string; nulls: string }>;
   take: number;
   select: { id: true };
 }): Promise<{ id: string }[]> {
   return (prisma.lifecycleWebhookDelivery.findMany as unknown as (
     a: typeof args,
   ) => Promise<{ id: string }[]>)(args);
+}
+
+/**
+ * WS-SCHED / PRO-G1Z-07 — a write that settles THIS attempt. Fenced on the
+ * DISPATCHING state the claim set, so a row released by the lease or replayed
+ * meanwhile is never overwritten by a late attempt. Resolves to whether this
+ * attempt's outcome was the one recorded.
+ */
+async function webhookDeliveryFencedUpdate(args: {
+  where: { id: string };
+  data: WebhookDeliveryUpdateData;
+}): Promise<boolean> {
+  const res = await (prisma.lifecycleWebhookDelivery.updateMany as unknown as (a: {
+    where: Record<string, unknown>;
+    data: WebhookDeliveryUpdateData;
+  }) => Promise<{ count: number }>)({
+    where: { id: args.where.id, state: "DISPATCHING" },
+    data: args.data,
+  });
+  return res.count === 1;
 }
 
 function webhookDeliveryUpdate(args: {
@@ -450,7 +470,7 @@ async function dispatchOne(
       { deliveryId, reason: attempt.reason },
       "webhook.dispatcher.destination_refused",
     );
-    await webhookDeliveryUpdate({
+    const recorded = await webhookDeliveryFencedUpdate({
       where: { id: deliveryId },
       data: {
         state: "FAILED",
@@ -459,12 +479,14 @@ async function dispatchOne(
         responseStatus: null,
         responseBodyPreview: null,
       },
-    }).catch(() => null);
-    await emitLifecycleEvent({
-      teamId: delivery.teamId,
-      deliveryId,
-      code: "WEBHOOK_FAILED",
-    });
+    }).catch(() => false);
+    if (recorded) {
+      await emitLifecycleEvent({
+        teamId: delivery.teamId,
+        deliveryId,
+        code: "WEBHOOK_FAILED",
+      });
+    }
     return;
   }
   const responseStatus: number | null =
@@ -493,10 +515,11 @@ async function dispatchOne(
     (responseStatus !== null && responseStatus >= 500);
 
   if (success) {
-    await webhookDeliveryUpdate({
+    const recorded = await webhookDeliveryFencedUpdate({
       where: { id: deliveryId },
       data: { ...baseUpdate, state: "DELIVERED", deliveredAtUtc: now },
-    }).catch(() => null);
+    }).catch(() => false);
+    if (!recorded) return;
     await emitLifecycleEvent({
       teamId: delivery.teamId,
       deliveryId,
@@ -517,10 +540,11 @@ async function dispatchOne(
     responseStatus >= 300 &&
     responseStatus < 500
   ) {
-    await webhookDeliveryUpdate({
+    const recorded = await webhookDeliveryFencedUpdate({
       where: { id: deliveryId },
       data: { ...baseUpdate, state: "FAILED" },
-    }).catch(() => null);
+    }).catch(() => false);
+    if (!recorded) return;
     await emitLifecycleEvent({
       teamId: delivery.teamId,
       deliveryId,
@@ -535,14 +559,15 @@ async function dispatchOne(
 
   // Retryable: 5xx / 429 / network error.
   if (nextAttemptCount >= MAX_ATTEMPTS_BEFORE_DEAD_LETTER) {
-    await webhookDeliveryUpdate({
+    const recorded = await webhookDeliveryFencedUpdate({
       where: { id: deliveryId },
       data: {
         ...baseUpdate,
         state: "DEAD_LETTERED",
         deadLetteredAtUtc: now,
       },
-    }).catch(() => null);
+    }).catch(() => false);
+    if (!recorded) return;
     await emitLifecycleEvent({
       teamId: delivery.teamId,
       deliveryId,
@@ -555,14 +580,15 @@ async function dispatchOne(
   const nextAttemptAtUtc = new Date(
     now.getTime() + computeBackoffSeconds(nextAttemptCount) * 1000,
   );
-  await webhookDeliveryUpdate({
+  const recorded = await webhookDeliveryFencedUpdate({
     where: { id: deliveryId },
     data: {
       ...baseUpdate,
       state: "RETRYING",
       nextAttemptAtUtc,
     },
-  }).catch(() => null);
+  }).catch(() => false);
+  if (!recorded) return;
   await emitLifecycleEvent({
     teamId: delivery.teamId,
     deliveryId,
@@ -578,7 +604,29 @@ async function dispatchOne(
 // Public tick — called by the scheduler in index.ts every 5 seconds.
 // ---------------------------------------------------------------------------
 
+/**
+ * WS-SCHED / PRO-W2-07 — one tick at a time per process. The scheduler fires
+ * every 5 s and a tick against slow endpoints can run for minutes; without a
+ * guard ticks stacked, so outbound concurrency grew to (running ticks x
+ * CONCURRENCY_CAP) instead of CONCURRENCY_CAP. A tick that starts while one is
+ * running returns at once (the next due rows are picked up when it finishes).
+ * Across replicas the row claim still makes each send exclusive.
+ */
+let tickRunning = false;
+
 export async function runWebhookDispatcherTick(options?: {
+  fetcher?: HttpFetcher;
+}): Promise<void> {
+  if (tickRunning) return;
+  tickRunning = true;
+  try {
+    await runWebhookDispatcherTickInner(options);
+  } finally {
+    tickRunning = false;
+  }
+}
+
+async function runWebhookDispatcherTickInner(options?: {
   fetcher?: HttpFetcher;
 }): Promise<void> {
   const fetcher = options?.fetcher;
@@ -629,7 +677,9 @@ export async function runWebhookDispatcherTick(options?: {
           { nextAttemptAtUtc: { lte: now } },
         ],
       },
-      orderBy: { nextAttemptAtUtc: "asc" },
+      // PRO-W2-07 — first attempts (PENDING, nextAttemptAtUtc NULL) are not
+      // queued behind every due retry: Postgres sorts NULL last by default.
+      orderBy: { nextAttemptAtUtc: { sort: "asc", nulls: "first" } },
       take: POLL_LIMIT,
       select: { id: true },
     });

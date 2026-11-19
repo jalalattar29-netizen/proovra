@@ -363,6 +363,169 @@ describe("outbound webhook policy — three stacks (live PostgreSQL)", () => {
       const rows = (list.json() as { deliveries: Array<{ id: string; responseBodyExcerpt: unknown }> }).deliveries;
       expect(rows.find((r) => r.id === good.deliveryId)?.responseBodyExcerpt).toBeNull();
     });
+
+    // WS-SCHED / PRO-G1Z-07, PRO-W2-07 — replay respects the dispatcher's
+    // claim, a late attempt never overwrites a row it no longer holds, ticks
+    // do not stack, and first attempts are not queued behind due retries.
+    const seedDelivery = async (url: string, data: Record<string, unknown> = {}) => {
+      const { teamA } = h.fixtures;
+      const ep = await prisma.lifecycleWebhookEndpoint.create({
+        data: {
+          teamId: teamA.teamId,
+          url,
+          secret: Buffer.from(randomUUID()).toString("base64"),
+          subscribedEvents: ["EVIDENCE_CREATED"],
+          state: "ACTIVE",
+          createdByUserId: teamA.ownerUserId,
+        },
+        select: { id: true, url: true },
+      });
+      const d = await prisma.lifecycleWebhookDelivery.create({
+        data: {
+          teamId: teamA.teamId,
+          endpointId: ep.id,
+          eventKind: "EVIDENCE_CREATED",
+          payload: { evidenceId: randomUUID() },
+          signature: "",
+          state: "PENDING",
+          ...data,
+        } as never,
+        select: { id: true },
+      });
+      return { url: ep.url, endpointId: ep.id, deliveryId: d.id };
+    };
+    const replay = (deliveryId: string) =>
+      call({
+        method: "POST",
+        url: `/v1/integrations/webhooks/lifecycle-deliveries/${deliveryId}/replay`,
+        token: h.fixtures.teamA.ownerToken,
+        payload: {},
+      });
+    const deliveryState = async (id: string) =>
+      (await prisma.lifecycleWebhookDelivery.findUniqueOrThrow({ where: { id }, select: { state: true } })).state;
+
+    it("WS-SCHED PRO-G1Z-07: a replay pressed while the delivery is in flight is refused and the receiver gets one POST; a settled one replays once", async () => {
+      const row = await seedDelivery(`https://203.0.113.10/inflight/${randomUUID()}`);
+      const calls: string[] = [];
+      let replayDuringSend: { statusCode: number; body: string } | null = null;
+      await dispatcher.runWebhookDispatcherTick({
+        fetcher: (async (url: string) => {
+          calls.push(url);
+          if (url === row.url && !replayDuringSend) {
+            expect(await deliveryState(row.deliveryId)).toBe("DISPATCHING");
+            replayDuringSend = await replay(row.deliveryId);
+          }
+          return { status: 500, text: async () => "" };
+        }) as never,
+      });
+      expect(replayDuringSend).not.toBeNull();
+      expect(replayDuringSend!.statusCode, replayDuringSend!.body).toBe(409);
+      expect(JSON.parse(replayDuringSend!.body)).toEqual({ denial: "DELIVERY_IN_FLIGHT", state: "DISPATCHING" });
+      // The attempt's own outcome is what the row records (a 5xx retries).
+      const after = await prisma.lifecycleWebhookDelivery.findUniqueOrThrow({ where: { id: row.deliveryId } });
+      expect(after.state).toBe("RETRYING");
+      expect(after.attemptCount).toBe(1);
+      // Queued for retry is still not settled: no reset of its history.
+      expect((await replay(row.deliveryId)).statusCode).toBe(409);
+      expect(calls.filter((u) => u === row.url)).toHaveLength(1);
+
+      // Settled → replayed, and sent exactly once more.
+      await prisma.lifecycleWebhookDelivery.update({ where: { id: row.deliveryId }, data: { state: "FAILED" } });
+      const ok = await replay(row.deliveryId);
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect(await deliveryState(row.deliveryId)).toBe("PENDING");
+      await dispatcher.runWebhookDispatcherTick({
+        fetcher: (async (url: string) => {
+          calls.push(url);
+          return { status: 200, text: async () => "" };
+        }) as never,
+      });
+      expect(calls.filter((u) => u === row.url)).toHaveLength(2);
+      expect(await deliveryState(row.deliveryId)).toBe("DELIVERED");
+    });
+
+    it("WS-SCHED PRO-G1Z-07: an attempt that lost its claim mid-send does not overwrite the row", async () => {
+      const row = await seedDelivery(`https://203.0.113.10/lost/${randomUUID()}`);
+      await dispatcher.runWebhookDispatcherTick({
+        fetcher: (async (url: string) => {
+          if (url === row.url) {
+            // What the lease release does to a claim it no longer believes.
+            await prisma.lifecycleWebhookDelivery.update({
+              where: { id: row.deliveryId },
+              data: { state: "RETRYING", nextAttemptAtUtc: new Date(Date.now() + 3_600_000) } as never,
+            });
+          }
+          return { status: 200, text: async () => "" };
+        }) as never,
+      });
+      const after = await prisma.lifecycleWebhookDelivery.findUniqueOrThrow({ where: { id: row.deliveryId } });
+      expect(after.state).toBe("RETRYING");
+      expect(after.deliveredAtUtc).toBeNull();
+      await prisma.lifecycleWebhookDelivery.update({ where: { id: row.deliveryId }, data: { state: "FAILED" } });
+    });
+
+    it("WS-SCHED PRO-W2-07: a tick that starts while one is running sends nothing; the cap stays per process", async () => {
+      const first = await seedDelivery(`https://203.0.113.10/slow/${randomUUID()}`);
+      let second: Awaited<ReturnType<typeof seedDelivery>> | null = null;
+      const calls: string[] = [];
+      const nestedCalls: string[] = [];
+      await dispatcher.runWebhookDispatcherTick({
+        fetcher: (async (url: string) => {
+          calls.push(url);
+          if (url === first.url) {
+            // The 5-second scheduler fires again while this send is open.
+            second = await seedDelivery(`https://203.0.113.10/next/${randomUUID()}`);
+            await dispatcher.runWebhookDispatcherTick({
+              fetcher: (async (u: string) => {
+                nestedCalls.push(u);
+                return { status: 200, text: async () => "" };
+              }) as never,
+            });
+          }
+          return { status: 200, text: async () => "" };
+        }) as never,
+      });
+      expect(nestedCalls).toEqual([]);
+      expect(await deliveryState(second!.deliveryId)).toBe("PENDING");
+      // The next tick (the guard released) picks the row up.
+      await dispatcher.runWebhookDispatcherTick({
+        fetcher: (async (u: string) => {
+          calls.push(u);
+          return { status: 200, text: async () => "" };
+        }) as never,
+      });
+      expect(calls.filter((u) => u === second!.url)).toHaveLength(1);
+      expect(await deliveryState(second!.deliveryId)).toBe("DELIVERED");
+    });
+
+    it("WS-SCHED PRO-W2-07: a first attempt is not queued behind a full window of due retries", async () => {
+      const { teamA } = h.fixtures;
+      // A stored bypass destination: each retry is refused before any send.
+      const blocked = await seedDelivery("https://10.0.0.5/backlog", { state: "FAILED" });
+      await prisma.lifecycleWebhookDelivery.createMany({
+        data: Array.from({ length: 50 }, (_, i) => ({
+          teamId: teamA.teamId,
+          endpointId: blocked.endpointId,
+          eventKind: "EVIDENCE_CREATED",
+          payload: { n: i },
+          signature: "",
+          state: "RETRYING",
+          attemptCount: 1,
+          nextAttemptAtUtc: new Date(Date.now() - 3_600_000 - i * 1000),
+        })) as never,
+      });
+      const fresh = await seedDelivery(`https://203.0.113.10/fresh/${randomUUID()}`);
+      const calls: string[] = [];
+      await dispatcher.runWebhookDispatcherTick({
+        fetcher: (async (u: string) => {
+          calls.push(u);
+          return { status: 200, text: async () => "" };
+        }) as never,
+      });
+      expect(calls).toContain(fresh.url);
+      expect(await deliveryState(fresh.deliveryId)).toBe("DELIVERED");
+      await prisma.lifecycleWebhookDelivery.deleteMany({ where: { endpointId: blocked.endpointId } });
+    });
   });
 
   // ===========================================================================
