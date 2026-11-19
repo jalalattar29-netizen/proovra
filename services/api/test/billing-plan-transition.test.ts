@@ -47,6 +47,13 @@ const H = vi.hoisted(() => ({
   keys: [] as string[],
   /** Status Stripe reports for a recorded schedule read back by id. */
   scheduleStatus: "active" as string,
+  /**
+   * Review G1 — the fake keeps what was written, so the read-back before any
+   * local write sees the live state: the price the subscription was moved to,
+   * and the later phase each schedule was given.
+   */
+  livePrice: null as string | null,
+  scheduledPhase: new Map<string, { start_date: number; items: Array<{ price: string }> }>(),
 }));
 
 vi.mock("../src/db.js", () => {
@@ -150,9 +157,21 @@ vi.mock("../src/services/stripe.service.js", () => ({
     H.providerCalls.push(`stripeGet ${path}`);
     if (H.providerFails) throw new Error("stripe unavailable");
     if (path.startsWith("/subscription_schedules/")) {
-      return { id: path.split("/")[2], status: H.scheduleStatus, phases: [{ start_date: 1790000000 }] };
+      const id = path.split("/")[2]!;
+      const later = H.scheduledPhase.get(id);
+      return {
+        id,
+        // Only a schedule recorded earlier can be the released one; the one this
+        // change creates is live.
+        status: id === "sched_1" ? "active" : H.scheduleStatus,
+        phases: [{ start_date: 1790000000 }, ...(later ? [later] : [])],
+      };
     }
-    return { items: { data: [{ id: "si_1", price: { id: "price_current" } }] }, currency: "eur" };
+    return {
+      status: "active",
+      items: { data: [{ id: "si_1", price: { id: H.livePrice ?? "price_current" } }] },
+      currency: "eur",
+    };
   },
   stripeRequest: async (path: string, body: URLSearchParams, options: { idempotencyKey?: string | null } = {}) => {
     H.providerCalls.push(`stripePost ${path}`);
@@ -160,6 +179,14 @@ vi.mock("../src/services/stripe.service.js", () => ({
     if (options.idempotencyKey) H.keys.push(options.idempotencyKey);
     if (H.providerFails) throw new Error("stripe unavailable");
     if (path === "/subscription_schedules") return { id: "sched_1", phases: [{ start_date: 1790000000 }] };
+    const scheduleUpdate = /^\/subscription_schedules\/([^/]+)$/.exec(path);
+    if (scheduleUpdate && body.has("phases[1][items][0][price]")) {
+      H.scheduledPhase.set(scheduleUpdate[1]!, {
+        start_date: Number(body.get("phases[0][end_date]")),
+        items: [{ price: body.get("phases[1][items][0][price]")! }],
+      });
+    }
+    if (path.startsWith("/subscriptions/") && body.has("items[0][price]")) H.livePrice = body.get("items[0][price]");
     return {
       status: "active",
       current_period_end: 1798761600,
@@ -273,6 +300,8 @@ beforeEach(() => {
   H.entitledPlan = null;
   H.keys.length = 0;
   H.scheduleStatus = "active";
+  H.livePrice = null;
+  H.scheduledPhase.clear();
 });
 
 // ===========================================================================
@@ -584,6 +613,8 @@ describe("applyPersonalPlanChange — UPGRADE (Stripe)", () => {
       "stripeGet /prices/price_TEAM",
       "stripeGet /subscriptions/sub_ext_1",
       "stripePost /subscriptions/sub_ext_1",
+      // review G1 — the live subscription is read back before the plan is granted
+      "stripeGet /subscriptions/sub_ext_1",
     ]);
     // No checkout session, no new subscription, anywhere.
     expect(H.providerCalls.some((c) => c.includes("checkout"))).toBe(false);
@@ -710,6 +741,19 @@ describe("applyPersonalPlanChange — DOWNGRADE (Stripe)", () => {
     expect(H.providerCalls).toContain("stripePost /subscription_schedules/sched_1");
   });
 
+  it("review G1 — a schedule whose live state does not carry the change is never recorded", async () => {
+    // The update "succeeds" (a stored answer) but the live schedule has no later phase.
+    const original = H.scheduledPhase.set.bind(H.scheduledPhase);
+    H.scheduledPhase.set = (() => H.scheduledPhase) as never;
+    try {
+      await expect(downgrade()).rejects.toMatchObject({ publicCode: "PLAN_CHANGE_PROVIDER_FAILED" });
+    } finally {
+      H.scheduledPhase.set = original;
+    }
+    expect(H.writes.some((w) => w.includes("pendingPlan"))).toBe(false);
+    expect(H.providerCalls).toContain("stripeGet /subscription_schedules/sched_1");
+  });
+
   it("schedules at the provider — it does not update the live subscription", async () => {
     await downgrade();
     expect(H.providerCalls).toEqual([
@@ -720,6 +764,8 @@ describe("applyPersonalPlanChange — DOWNGRADE (Stripe)", () => {
       "stripeGet /subscriptions/sub_ext_1",
       "stripePost /subscription_schedules",
       "stripePost /subscription_schedules/sched_1",
+      // review G1 — the live schedule is read back before the change is recorded
+      "stripeGet /subscription_schedules/sched_1",
     ]);
   });
 

@@ -17,7 +17,30 @@ import { StripeHttpError, stripeGet, stripeRequest } from "../stripe.service.js"
 type SchedulePhase = {
   start_date?: number;
   end_date?: number;
+  items?: Array<{ price?: string | { id?: string } | null }>;
 };
+
+/**
+ * PRO-BL1-01 (review G1) — does the LIVE schedule carry a change onto `priceId`
+ * from `startsAtUnix`? A released, completed or cancelled schedule carries
+ * nothing, whatever a stored idempotent answer said about it.
+ */
+export function stripeScheduleCarriesChange(
+  schedule: StripeScheduleLike,
+  priceId: string,
+  startsAtUnix: number,
+): boolean {
+  if (isStripeScheduleFinished(schedule)) return false;
+  return (schedule.phases ?? []).some(
+    (phase) =>
+      typeof phase.start_date === "number" &&
+      phase.start_date >= startsAtUnix &&
+      (phase.items ?? []).some((item) => {
+        const price = typeof item.price === "string" ? item.price : item.price?.id;
+        return price === priceId;
+      }),
+  );
+}
 
 export type StripeScheduleLike = {
   id?: string;

@@ -9,7 +9,7 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
-import { StripeHttpError, stripeRequest } from "../stripe.service.js";
+import { StripeHttpError, stripeGet, stripeRequest } from "../stripe.service.js";
 import { beginProviderIntent, settleProviderIntent } from "./provider-intent.service.js";
 import { withdrawUnsupportedObligations } from "./dependent-cancellation.service.js";
 import { stripeSubscriptionPeriodEnd, type StripeSubscriptionLike } from "./stripe-object-shapes.js";
@@ -145,14 +145,54 @@ export async function requestSubscriptionResume(input: {
       severity: "warning",
     });
   }
-  const confirmedPeriodEnd =
+  let confirmedPeriodEnd =
     stripeSubscriptionPeriodEnd(response as unknown as StripeSubscriptionLike) ?? subscription.currentPeriodEnd;
+
+  // PRO-BL1-01 (review G2) — the reply alone is not proof: a lost-answer retry
+  // gets the STORED first answer, and the subscription may have been cancelled
+  // again since (in the provider's own billing page). The live subscription must
+  // say it renews before a restart is recorded, exactly as the cancel path reads
+  // back before recording a cancellation.
+  let liveFlag: unknown;
+  try {
+    const live = (await stripeGet(`/subscriptions/${subscription.providerSubId}`)) as Record<string, unknown>;
+    liveFlag = live["cancel_at_period_end"];
+    confirmedPeriodEnd = stripeSubscriptionPeriodEnd(live as unknown as StripeSubscriptionLike) ?? confirmedPeriodEnd;
+  } catch (cause) {
+    // Unknown: nothing is recorded and the intent stays open for the retry.
+    throw Object.assign(
+      new DomainError("Provider restart read-back failed", {
+        httpStatus: 502,
+        publicCode: "PROVIDER_RESTART_FAILED",
+        publicMessage:
+          "We could not confirm the restart with the payment provider. Nothing has changed here; please try again.",
+        reportability: "OPERATIONAL_WARNING",
+        severity: "warning",
+      }),
+      { cause },
+    );
+  }
+  if (liveFlag !== false) {
+    // A stale stored answer: the provider still has it ending. The intent is
+    // closed, so the next restart is a new one the provider really executes.
+    await settleProviderIntent({ subscriptionId: subscription.id, key: intentKey });
+    throw new DomainError("Provider did not confirm restart (live state still ending)", {
+      httpStatus: 502,
+      publicCode: "PROVIDER_RESTART_FAILED",
+      publicMessage:
+        "The payment provider did not confirm the restart. Nothing has changed; it is still set to end. Please try again.",
+      reportability: "OPERATIONAL_WARNING",
+      severity: "warning",
+    });
+  }
 
   await prisma.subscription.update({
     where: { id: subscription.id },
     data: {
       cancelAtPeriodEnd: false,
       canceledAtUtc: null,
+      // The cancellation was withdrawn: it no longer proves anything.
+      customerCancelRequestedAtUtc: null,
       ...(confirmedPeriodEnd ? { currentPeriodEnd: confirmedPeriodEnd } : {}),
     },
   });

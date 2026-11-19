@@ -217,6 +217,63 @@ describe("PRO-BL1-01 — provider intent identity (live PostgreSQL)", () => {
     expect(cancelKeys[0]).toBe(cancelKeys[1]);
   });
 
+  // Review G2 — restart reads the live subscription back before recording.
+  it("restart: a stale stored 'renewing' answer is never recorded", async () => {
+    const s = await seedStripePro();
+    await cancel({ subscriptionId: s.subscriptionId });
+    // The provider answers from a stored response although it still ends.
+    FAKE.staleAnswer = { id: s.providerSubId, cancel_at_period_end: false, current_period_end: PERIOD_END };
+    await expect(resume({ subscriptionId: s.subscriptionId })).rejects.toMatchObject({
+      publicCode: "PROVIDER_RESTART_FAILED",
+    });
+    expect(FAKE.live.get(s.providerSubId)!.cancel_at_period_end).toBe(true);
+    const row = await prisma.subscription.findUniqueOrThrow({ where: { id: s.subscriptionId } });
+    expect(row.cancelAtPeriodEnd).toBe(true);
+    expect(row.canceledAtUtc).not.toBeNull();
+    expect(row.customerCancelRequestedAtUtc).not.toBeNull();
+    expect(row.providerIntentKey).toBeNull();
+  });
+
+  it("restart: lost answer, then a cancellation made at the provider, then a retry — the replay is refused, the next restart is real", async () => {
+    const s = await seedStripePro();
+    await cancel({ subscriptionId: s.subscriptionId });
+
+    // The restart executes at the provider and its answer is lost.
+    FAKE.loseNextAnswer = true;
+    await expect(resume({ subscriptionId: s.subscriptionId })).rejects.toMatchObject({
+      publicCode: "PROVIDER_RESTART_FAILED",
+    });
+    expect(FAKE.live.get(s.providerSubId)!.cancel_at_period_end).toBe(false);
+    const open = await prisma.subscription.findUniqueOrThrow({ where: { id: s.subscriptionId } });
+    expect(open.cancelAtPeriodEnd).toBe(true);
+    expect(open.providerIntentKey).toMatch(/^proovra-resume-/);
+
+    // The customer cancels again in the provider's own billing page.
+    FAKE.live.get(s.providerSubId)!.cancel_at_period_end = true;
+
+    // The retry reuses the key: the provider replays "false" without executing.
+    // Before the read-back this recorded a restart that had not happened.
+    await expect(resume({ subscriptionId: s.subscriptionId })).rejects.toMatchObject({
+      publicCode: "PROVIDER_RESTART_FAILED",
+    });
+    const refused = await prisma.subscription.findUniqueOrThrow({ where: { id: s.subscriptionId } });
+    expect(refused.cancelAtPeriodEnd).toBe(true);
+    expect(refused.providerIntentKey).toBeNull();
+    expect(FAKE.live.get(s.providerSubId)!.cancel_at_period_end).toBe(true);
+
+    // A new intent: executed, read back, recorded.
+    const restarted = await resume({ subscriptionId: s.subscriptionId });
+    expect(restarted.result).toBe("RESUMED");
+    expect(FAKE.live.get(s.providerSubId)!.cancel_at_period_end).toBe(false);
+    const done = await prisma.subscription.findUniqueOrThrow({ where: { id: s.subscriptionId } });
+    expect(done.cancelAtPeriodEnd).toBe(false);
+    expect(done.customerCancelRequestedAtUtc).toBeNull();
+    const keys = FAKE.keys.filter((k) => k.startsWith("proovra-resume-"));
+    expect(keys).toHaveLength(3);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[2]).not.toBe(keys[0]);
+  });
+
   it("a provider refusal leaves the row untouched and closes the intent", async () => {
     const s = await seedStripePro();
     FAKE.refuseNext = true;
