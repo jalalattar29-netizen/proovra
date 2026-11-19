@@ -54,7 +54,7 @@ import {
   finalizeEndedPayPalPaidPeriods,
   retrySupersededCancellations,
 } from "../services/billing/subscription-lifecycle.handlers.js";
-import { finalizeEndedStorageAddons } from "../services/billing/paid-period.service.js";
+import { finalizeEndedStorageAddons, holdPastDueAddonCapacityEnds } from "../services/billing/paid-period.service.js";
 import { closeDueInternalGrants } from "../services/billing/internal-plan-grant.service.js";
 import { sweepExcludedReferences } from "../services/billing/provider-binding-check.service.js";
 import { ABANDONED_RECHECK_WINDOW_MS } from "../services/billing/checkout-attempt-recovery.service.js";
@@ -371,6 +371,13 @@ async function runSweep(input?: {
   // failure is logged and the account sweep below still runs.
   await finalizeEndedStorageAddons().catch((err: unknown) => {
     logWarn("billing.reconciliation.finalize_addons_failed", {
+      err: err instanceof Error ? err.message : "unknown",
+    });
+  });
+  // PRO-BL1-04 / DEC-02 — past-due add-ons beyond the 7-day grace: with the
+  // add-on switch off their capacity is kept and a held review item says so.
+  await holdPastDueAddonCapacityEnds().catch((err: unknown) => {
+    logWarn("billing.reconciliation.past_due_addon_hold_failed", {
       err: err instanceof Error ? err.message : "unknown",
     });
   });

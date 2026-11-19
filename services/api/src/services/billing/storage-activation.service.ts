@@ -272,7 +272,8 @@ async function refuseActiveSubscription(input: {
 
 /**
  * PRO-BL1-04 / DEC-02 — a PAST_DUE add-on with no recorded paid period has no
- * grace to run and carries no capacity (`storageAddonCapacityStatusWhere`).
+ * grace to run (`storageAddonCapacityStatusWhere`; its capacity ends only once
+ * automatic add-on effects are enabled).
  * That is a missing payment fact: recorded once for review, for the webhook
  * and the sweep alike.
  */
@@ -292,7 +293,8 @@ export async function notePastDueAddonWithoutPaidPeriod(input: {
     product: "STORAGE_ADDON",
     reason: "STORAGE_ADDON_PAID_PERIOD_UNKNOWN",
     providerAction: "NONE",
-    detail: { addonId: input.addonId, capacityCounted: false },
+    // Counted until automatic add-on effects are enabled (the reduction is held).
+    detail: { addonId: input.addonId, capacityCounted: !automaticAddonCancellationEnabled() },
   });
 }
 

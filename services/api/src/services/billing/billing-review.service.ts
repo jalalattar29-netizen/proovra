@@ -43,6 +43,12 @@ export type BillingReviewReason =
   | "AUTOMATIC_PLAN_LOWERING_HELD"
   /** The sweep would have cancelled an add-on at the provider. Held until enabled. */
   | "AUTOMATIC_ADDON_CANCELLATION_HELD"
+  /**
+   * PRO-BL1-04 / DEC-02 (2026-11-19) — a past-due add-on is beyond the 7-day
+   * grace after its paid period (or its paid period is unknown). Its capacity
+   * would end; held, and still counted, until automatic add-on effects are enabled.
+   */
+  | "AUTOMATIC_ADDON_CAPACITY_END_HELD"
   /** A refunded or reversed credit purchase whose credits were already consumed. */
   | "CREDIT_REFUND_AFTER_CONSUMPTION"
   /** A plan or storage payment was reversed (chargeback) or refunded. */
@@ -74,9 +80,9 @@ export type BillingReviewReason =
   | "ACTIVE_WITHOUT_COMPLETED_PAYMENT"
   /**
    * PRO-BL1-04 / DEC-02 (2026-11-19) — a storage add-on is past due and no
-   * paid period is recorded for it, so the 7-day grace has nothing to run from
-   * and its capacity is not counted. Missing payment facts are reviewed, not
-   * turned into unlimited paid capacity.
+   * paid period is recorded for it, so the 7-day grace has nothing to run
+   * from. Missing payment facts are reviewed. Its capacity stops counting only
+   * once automatic add-on effects are enabled (held until then).
    */
   | "STORAGE_ADDON_PAID_PERIOD_UNKNOWN";
 

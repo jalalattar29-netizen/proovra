@@ -312,6 +312,25 @@ async function main(): Promise<number> {
     }
   }
 
+  // ---- 4b. Past-due add-ons beyond the 7-day grace (PRO-BL1-04 / DEC-02) ----
+  // The sweep's own enumeration: with the add-on switch on, the storage meter
+  // stops counting these; with it off they keep counting and are held.
+  const { pastDueAddonsBeyondGrace } = await import("../services/billing/paid-period.service.js");
+  for (const c of await pastDueAddonsBeyondGrace(now)) {
+    emit({
+      action: "END_PAST_DUE_ADDON_CAPACITY",
+      provider: c.provider ?? "UNKNOWN",
+      effectiveMonth: month(c.paidThroughUtc),
+      addonId: c.addonId,
+      addonKey: c.addonKey,
+      why: c.why,
+      paidThroughUtc: c.paidThroughUtc?.toISOString() ?? null,
+      extraStorageBytes: c.extraStorageBytes.toString(),
+      providerAction: "NONE",
+      held: !automaticAddonCancellationEnabled(),
+    });
+  }
+
   // ---- 5. Lowerings the sweep held earlier (PRO-W2C-01) --------------------
   // Their subscription is already CANCELED, so section 4 never reaches them;
   // these are the accounts `applyHeldPlanLowerings` lowers once the switch is on.
