@@ -66,6 +66,7 @@ import {
 } from "../services/reviewer-workspace/coding-schema.service.js";
 import {
   evaluateRequiredFieldsCoverage,
+  readCodingValueHistoryForWorkflow,
   readCodingValuesForWorkflow,
   writeCodingValue,
 } from "../services/reviewer-workspace/coding-value.service.js";
@@ -670,12 +671,15 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
           values: [],
           coverage: { totalRequired: 0, fulfilled: 0, unfulfilledFieldIds: [] },
           schemaBinding: null,
+          history: [],
         });
       }
-      const [values, coverage, binding] = await Promise.all([
+      const [values, coverage, binding, history] = await Promise.all([
         readCodingValuesForWorkflow({ teamId: ctx.teamId, workflowId }),
         evaluateRequiredFieldsCoverage({ teamId: ctx.teamId, workflowId }),
         getWorkflowSchemaBinding({ teamId: ctx.teamId, workflowId }),
+        // PRO-R2-17 — every value written, oldest first (additive).
+        readCodingValueHistoryForWorkflow({ teamId: ctx.teamId, workflowId }),
       ]);
       // `schemaBinding` is the authoritative reread for bind-schema: which
       // schema this workflow collects coded fields for (null = unbound).
@@ -684,6 +688,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         values,
         coverage,
         schemaBinding: binding?.schema ?? null,
+        history,
       });
     },
   );

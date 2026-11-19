@@ -35,7 +35,9 @@ import * as prismaPkg from "@prisma/client";
 import {
   computeReviewerPriority,
   detectStuckWorkflow,
+  mapTeamRoleToCanonical,
   rankReviewerSuggestions,
+  roleHasPermission,
   type EscalationSeverity,
   type PriorityFacts,
   type PriorityScoreResult,
@@ -265,6 +267,13 @@ async function loadReviewerCandidates(
   }
 
   return memberships.map((m): ReviewerCandidate => {
+    // PRO-R2Z-01 — the STORED team role (OWNER|ADMIN|MEMBER|VIEWER) is mapped
+    // to the canonical role before it is judged: a MEMBER is a canonical
+    // REVIEWER, and a reviewer is whoever holds evidence_request.review (the
+    // rule listAssignableReviewers and the assignee authority use). The
+    // literal 'REVIEWER' never matched a stored role.
+    const canonical = mapTeamRoleToCanonical(m.role as never);
+    const reviews = roleHasPermission(canonical, "evidence_request.review");
     const w = workloadByUser.get(m.userId);
     const activeReviews = w?.activeReviews ?? 0;
     const overdueReviews = w?.overdueReviews ?? 0;
@@ -278,17 +287,15 @@ async function loadReviewerCandidates(
     return {
       reviewerId: m.userId,
       workspaceTeamId: teamId,
-      role: m.role,
+      role: canonical,
       permissions: {
         // Canonical roles eligible for review assignment. The engine
         // refuses non-eligible roles via the bounded check; OWNER /
         // ADMIN / REVIEWER are the eligible set.
-        canAssignReviewer:
-          m.role === "OWNER" || m.role === "ADMIN" || m.role === "REVIEWER",
-        canSeeReviewerRestricted: m.role === "OWNER" || m.role === "ADMIN",
-        canSeeContributorPrivate:
-          m.role === "OWNER" || m.role === "ADMIN" || m.role === "REVIEWER",
-        canActOnLegalHold: m.role === "OWNER" || m.role === "ADMIN",
+        canAssignReviewer: reviews,
+        canSeeReviewerRestricted: canonical === "OWNER" || canonical === "ADMIN",
+        canSeeContributorPrivate: reviews,
+        canActOnLegalHold: canonical === "OWNER" || canonical === "ADMIN",
       },
       isCaseTeamMember: true, // bounded simplification — case-team
       // membership is the same as workspace membership for the Phase

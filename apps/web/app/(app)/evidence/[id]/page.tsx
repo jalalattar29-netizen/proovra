@@ -107,6 +107,7 @@ import { integrityRejectedSlotNote } from "../../../../lib/evidence/integrity-re
 import { deriveEvidenceOutputAttention } from "../../../../components/evidence-outputs/output-attention";
 import { EvidenceOutputAttentionBanner, OutputAttentionTabIndicator, outputAttentionTabName } from "../../../../components/evidence-outputs/EvidenceOutputAttention";
 import { KeyCompromiseNotice } from "../../../../components/evidence-outputs/KeyCompromiseNotice";
+import { WorkspaceMemberSelect } from "./components/WorkspaceMemberSelect";
 
 const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIcon }> = [
   { id: "overview", label: "Overview", icon: LayoutGrid },
@@ -480,8 +481,14 @@ function EvidenceDetailPageInner() {
       { label: "Case", value: workspace.relationships.caseName || "Unassigned" },
       {
         label: "Review workflow",
+        // PRO-R2-13 / DEC-15 — a review decided only by the record's own
+        // owner is shown as what it is.
         value: workspace.reviewWorkflow.status
-          ? workspace.reviewWorkflow.status.replace(/_/g, " ")
+          ? `${workspace.reviewWorkflow.status.replace(/_/g, " ")}${
+              workspace.reviewWorkflow.selfAttested === true
+                ? " · self-attested by the record owner (not an independent review)"
+                : ""
+            }`
           : "Not started",
       },
       {
@@ -526,7 +533,11 @@ function EvidenceDetailPageInner() {
       await apiFetch(`/v1/evidence/${evidenceId}/reviewer-workflow`, {
         method: "PATCH",
         body: JSON.stringify({
-          assignedToUserId: workflowAssigneeDraft || null,
+          // PRO-E2-12 — the assignee is sent only when it was changed, so
+          // saving another field never unassigns the review by accident.
+          ...((workflowAssigneeDraft || null) !== (workspace?.reviewWorkflow?.assignedTo?.id ?? null)
+            ? { assignedToUserId: workflowAssigneeDraft || null }
+            : {}),
           // PHASE 12 POINT 4 PASS C1 — this administrative save carries a
           // status ONLY when it is a routing state. A record already resolved
           // to a verdict keeps that derived status: editing its priority or
@@ -1560,32 +1571,27 @@ function EvidenceDetailPageInner() {
             />
           </label>
 
-          <label className="evidence-detail-field">
-            <span>Assigned reviewer</span>
-            <AppListbox
+          <div className="evidence-detail-field">
+            {/* PRO-E2-12 — any reviewer-capable member of the workspace can be
+                chosen (the server re-checks the one assignee rule). */}
+            <WorkspaceMemberSelect
+              teamId={(evidence.teamId ?? workspace.reviewWorkflow?.teamId) ?? null}
+              id="evidence-workflow-assignee"
+              label="Assigned reviewer"
               value={workflowAssigneeDraft || null}
-              placeholder="Unassigned"
-              ariaLabel="Assigned reviewer"
-              onChange={(next) => setWorkflowAssigneeDraft(next)}
-              options={
-                workspace.reviewWorkflow.assignedTo
-                  ? [
-                      {
-                        value: workspace.reviewWorkflow.assignedTo.id,
-                        label:
-                          workspace.reviewWorkflow.assignedTo.displayName ||
-                          workspace.reviewWorkflow.assignedTo.email ||
-                          workspace.reviewWorkflow.assignedTo.id,
-                      },
-                    ]
-                  : []
-              }
+              onChange={(member) => setWorkflowAssigneeDraft(member.userId)}
+              requiredPermission="evidence_request.review"
             />
-            <p className="evidence-detail-muted">
-              Reviewer assignment uses currently accessible reviewer identities from the
-              loaded workflow state.
-            </p>
-          </label>
+            {workflowAssigneeDraft ? (
+              <button
+                type="button"
+                className="app-secondary-action"
+                onClick={() => setWorkflowAssigneeDraft("")}
+              >
+                Clear assignee
+              </button>
+            ) : null}
+          </div>
 
           <label className="evidence-detail-field">
             <span>Due date</span>

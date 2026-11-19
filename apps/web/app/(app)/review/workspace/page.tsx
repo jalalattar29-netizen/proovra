@@ -27,7 +27,8 @@
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { reviewerDenialMessage } from "@proovra/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import Link from "next/link";
 
 import {
@@ -505,30 +506,11 @@ function ReviewerWorkspaceShell() {
       if (lifecycleBusy) return;
       setLifecycleBusy(true);
 
-      // 1. Best-effort coding-value write. The coding value is a
-      // reviewer-coverage artifact; the workflow lifecycle is the
-      // source of truth for state transitions, so a missing verdict
-      // field on the schema is NOT a blocker for the lifecycle call.
-      const verdictField = fields.find(
-        (f) => f.fieldType === "REVIEWER_VERDICT",
-      );
-      if (verdictField) {
-        try {
-          await onWrite({
-            fieldId: verdictField.id,
-            value: { verdict: kind },
-            rationale: reason ?? undefined,
-          });
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn(
-            "[reviewer-workspace] verdict coding-value write threw",
-            { kind, workflowId: activeWorkflowId, err },
-          );
-        }
-      }
-
-      // 2. Call the canonical lifecycle endpoint.
+      // PRO-R2-02 — the canonical lifecycle endpoint answers FIRST. The coded
+      // verdict value is written only after the decision was actually
+      // recorded, so a refused approval never leaves an APPROVE coding value
+      // on a review that was not approved.
+      // 1. Call the canonical lifecycle endpoint.
       let res: LifecycleCallResult;
       try {
         if (kind === "APPROVE") {
@@ -569,13 +551,13 @@ function ReviewerWorkspaceShell() {
           err,
         });
         setStatusBanner(
-          "Decision recorded but workflow not closed — please retry.",
+          "The decision could not be sent. Nothing was recorded — please retry.",
         );
         setLifecycleBusy(false);
         return;
       }
 
-      // 3. Partial failure → keep operator on the same item.
+      // 2. Refusal → keep operator on the same item, and say what happened.
       if (!res.ok) {
         // eslint-disable-next-line no-console
         console.warn("[reviewer-workspace] lifecycle endpoint denied", {
@@ -585,10 +567,31 @@ function ReviewerWorkspaceShell() {
           code: res.code,
         });
         setStatusBanner(
-          "Decision recorded but workflow not closed — please retry.",
+          `The decision was refused (${identifierLabel(res.code)}). Nothing was recorded.`,
         );
         setLifecycleBusy(false);
         return;
+      }
+
+      // 3. The decision is recorded: now the coded verdict value, best effort
+      // (a coverage artifact, never the decision itself).
+      const verdictField = fields.find(
+        (f) => f.fieldType === "REVIEWER_VERDICT",
+      );
+      if (verdictField) {
+        try {
+          await onWrite({
+            fieldId: verdictField.id,
+            value: { verdict: kind },
+            rationale: reason ?? undefined,
+          });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[reviewer-workspace] verdict coding-value write threw",
+            { kind, workflowId: activeWorkflowId, err },
+          );
+        }
       }
 
       // 4. Success → refresh + advance.
@@ -610,16 +613,31 @@ function ReviewerWorkspaceShell() {
   // immediately. REJECT / NEEDS_INFO / ESCALATE require a typed reason
   // — we open an inline form (NOT window.prompt, per Phase 1 UX rule)
   // and submit through runLifecycle from the form handler.
+  // PRO-R2-05 — an approval is an immutable verdict: the button and the "a"
+  // key ask first through the shared confirm dialog (one dialog at a time).
+  const { confirm } = useConfirmAction();
+  const approvePending = useRef(false);
   const onDecision = useCallback(
     (kind: "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_INFO") => {
       if (!activeWorkflowId) return;
       if (kind === "APPROVE") {
-        void runLifecycle("APPROVE", null);
+        if (approvePending.current) return;
+        approvePending.current = true;
+        void confirm({
+          title: "Approve this review?",
+          description: "The approval is recorded as an immutable decision and may release outputs held for review.",
+          confirmLabel: "Approve",
+          tone: "warning",
+        })
+          .then((ok) => (ok ? runLifecycle("APPROVE", null) : undefined))
+          .finally(() => {
+            approvePending.current = false;
+          });
         return;
       }
       setReasonForm({ kind });
     },
-    [activeWorkflowId, runLifecycle],
+    [activeWorkflowId, runLifecycle, confirm],
   );
 
   const submitReasonForm = useCallback(
@@ -739,6 +757,14 @@ function ReviewerWorkspaceShell() {
     setSidePaneMode(next);
   }, [sidePaneMode]);
 
+  // PRO-P3DZ-02 — ONE predicate for the decision bar and its keys: a key
+  // never does what its disabled button refuses (no review.decide, a
+  // decision in flight, a reason or disagreement form open).
+  const canDecide =
+    (workspace?.capabilities ?? []).includes("review.decide") &&
+    !lifecycleBusy &&
+    reasonForm === null &&
+    disagreeForm === null;
   const hotkeys = useReviewerHotkeys(
     useMemo(
       () => ({
@@ -746,16 +772,24 @@ function ReviewerWorkspaceShell() {
         // either opens the reason form (REJECT / ESCALATE / NEEDS_INFO)
         // or runs the APPROVE lifecycle, which advances on success.
         // Hotkeys MUST NOT pre-advance — that would mask partial failure.
-        APPROVE: () => onDecision("APPROVE"),
-        REJECT: () => onDecision("REJECT"),
-        ESCALATE: () => onDecision("ESCALATE"),
-        REQUEST_INFO: () => onDecision("NEEDS_INFO"),
+        APPROVE: () => {
+          if (canDecide) onDecision("APPROVE");
+        },
+        REJECT: () => {
+          if (canDecide) onDecision("REJECT");
+        },
+        ESCALATE: () => {
+          if (canDecide) onDecision("ESCALATE");
+        },
+        REQUEST_INFO: () => {
+          if (canDecide) onDecision("NEEDS_INFO");
+        },
         NEXT_ITEM: () => void advanceToNext(),
         TOGGLE_ANNOTATIONS: () => setSidePaneMode("ANNOTATIONS"),
         FOCUS_CODING_PANEL: () => setSidePaneMode("CODING"),
         HELP: () => setHelpOpen((o) => !o),
       }),
-      [onDecision, advanceToNext],
+      [onDecision, advanceToNext, canDecide],
     ),
     activeWorkflowId !== null,
   );

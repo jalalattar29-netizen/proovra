@@ -600,6 +600,23 @@ describe("K4-B — reviewer and saved views (live PostgreSQL 16)", () => {
       row = await prisma.codingValue.findUniqueOrThrow({ where: { id: codingValueId } });
       expect(row.value).toEqual({ text: "Dent and scratch on the rear door." });
       expect(row.authorUserId).toBe(a.adminUserId);
+      // PRO-R2-17 — the second reviewer's write replaced the CURRENT value;
+      // both writes, with their own author and rationale, stay in the history.
+      const history = await prisma.codingValueHistory.findMany({
+        where: { workflowId, fieldId: summary.id },
+        orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
+      });
+      expect(history.map((r) => [r.authorUserId, r.value, r.rationale])).toEqual([
+        [a.memberUserId, { text: "Dent on the rear door." }, "Visible in frame 2."],
+        [a.adminUserId, { text: "Dent and scratch on the rear door." }, null],
+      ]);
+      const sheet = await call({
+        method: "GET",
+        url: `/v1/reviewer/work/${workflowId}/coding?teamId=${a.teamId}`,
+        token: a.memberToken,
+      });
+      expect(sheet.statusCode, sheet.body).toBe(200);
+      expect((sheet.json().history as unknown[]).length).toBe(2);
       // D52 — each write leaves one audit row (reviewer-workspace.routes.ts),
       // attributed to its own writer; the coded text is never copied into it.
       const audits = await prisma.adminAuditLog.findMany({

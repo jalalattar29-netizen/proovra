@@ -31,6 +31,11 @@ vi.mock("../../lib/platform-context", () => ({
   useActiveSpace: () => ({ id: "11111111-1111-4111-8111-111111111111", roleLabel: "VIEWER" }),
 }));
 
+// PRO-R2-05 — the page asks before an approval through the shared confirm dialog.
+vi.mock("../../components/ui/ConfirmActionModal", () => ({
+  useConfirmAction: () => ({ confirm: async () => false, askReason: async () => null }),
+}));
+
 import { ToastProvider } from "../../components/ui";
 import ReviewerWorkspacePage from "../../app/(app)/review/workspace/page";
 

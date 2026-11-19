@@ -47,11 +47,10 @@ import {
   type ReviewerVerdict, identifierLabel } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import { useAuth } from "../../../providers";
 import { OperationalEmptyState } from "../../../../components/operational";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
-import { useActiveSpaceId } from "../../../../lib/platform-context";
+import { useActiveSpaceId, useOptionalPlatformContext } from "../../../../lib/platform-context";
 import { transitionDisagreement } from "../../../../lib/reviewer-workspace/reviewer-api";
 
 /**
@@ -457,7 +456,7 @@ function TransitionButtons({
 }) {
   // PRO-R2Z-08 — Withdraw is the challenger's own act (the API keeps it to
   // them); it is offered to nobody else.
-  const viewerUserId = useAuth().user?.id ?? null;
+  const viewerUserId = useOptionalPlatformContext()?.envelope?.user?.id ?? null;
   const targets = useMemo(
     () =>
       DISAGREEMENT_STATES.filter(

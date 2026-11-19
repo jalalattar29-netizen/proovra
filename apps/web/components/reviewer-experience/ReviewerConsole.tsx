@@ -335,6 +335,17 @@ export function ReviewerConsole({
     Record<PaginatedTab, TabPagination>
   >(() => buildInitialPagination());
   const filterInputRef = useRef<HTMLInputElement | null>(null);
+  // PRO-R2Z-04 — the advertised "/" filter narrows the visible rows (any row
+  // whose id or text contains what was typed).
+  const [filterText, setFilterText] = useState("");
+  const applyRowFilter = useCallback(
+    <T,>(rows: ReadonlyArray<T>): ReadonlyArray<T> => {
+      const q = filterText.trim().toLowerCase();
+      if (!q) return rows;
+      return rows.filter((r) => JSON.stringify(r).toLowerCase().includes(q));
+    },
+    [filterText],
+  );
 
   // G3.2 — step-up control wired into the inline-action flow. The
   // workspace flag drives when the backend returns 401
@@ -380,7 +391,7 @@ export function ReviewerConsole({
     void reload();
   }, [reload]);
 
-  const activeRows = useMemo<
+  const unfilteredActiveRows = useMemo<
     ReadonlyArray<ConsoleRow | EscalationRow | WorkloadRow>
   >(() => {
     if (!envelope) return [];
@@ -412,6 +423,10 @@ export function ReviewerConsole({
     }
     return [];
   }, [envelope, activeTab, pagination]);
+  const activeRows = useMemo(
+    () => applyRowFilter(unfilteredActiveRows),
+    [applyRowFilter, unfilteredActiveRows],
+  );
 
   // ---------------------------------------------------------------------------
   // Mutating action runners — every path goes through `useStepUpAction`'s
@@ -993,6 +1008,8 @@ export function ReviewerConsole({
               type="text"
               placeholder="Filter visible rows (press /)…"
               aria-label="Filter visible rows"
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
               style={{
                 width: "100%",
                 minHeight: 40,
@@ -1012,11 +1029,11 @@ export function ReviewerConsole({
           ) : activeTab === "workload" ? (
             <>
               <WorkloadTable
-                rows={
+                rows={applyRowFilter(
                   (pagination.workload.extendedRows as
                     | ReadonlyArray<WorkloadRow>
-                    | null) ?? envelope.workload.rows
-                }
+                    | null) ?? envelope.workload.rows,
+                )}
                 rowPad={rowPad}
                 selectionIndex={selectionIndex}
               />
@@ -1032,11 +1049,11 @@ export function ReviewerConsole({
           ) : activeTab === "escalations" ? (
             <>
               <EscalationsTable
-                rows={
+                rows={applyRowFilter(
                   (pagination.escalations.extendedRows as
                     | ReadonlyArray<EscalationRow>
-                    | null) ?? envelope.escalations.rows
-                }
+                    | null) ?? envelope.escalations.rows,
+                )}
                 rowPad={rowPad}
                 selectionIndex={selectionIndex}
                 onOpen={onOpenRow}
@@ -1070,15 +1087,15 @@ export function ReviewerConsole({
                 onResult={setBulkResult}
               />
               <QueueTable
-                rows={
+                rows={applyRowFilter(
                   activeTab === "queue"
                     ? ((pagination.queue.extendedRows as
                         | ReadonlyArray<ConsoleRow>
                         | null) ?? envelope.queue.rows)
                     : ((pagination.mine.extendedRows as
                         | ReadonlyArray<ConsoleRow>
-                        | null) ?? envelope.mine.rows)
-                }
+                        | null) ?? envelope.mine.rows),
+                )}
                 rowPad={rowPad}
                 selectionIndex={selectionIndex}
                 onOpen={onOpenRow}
@@ -1141,6 +1158,7 @@ export function ReviewerConsole({
               Rename is not supported (no backend PATCH endpoint). */}
           <SavedViewsPanel
             teamId={teamId}
+            activeTab={activeTab}
             views={envelope.savedViews.rows}
             onChanged={() => void reload()}
           />
@@ -1828,12 +1846,25 @@ function PaginationFooter({
 // Saved views — Create + Delete + Apply.
 // ---------------------------------------------------------------------------
 
+/**
+ * PRO-R2Z-05 — the queue slice a console tab stands for, saved with the view
+ * so applying it opens that slice. A tab with no queue slice saves nothing.
+ */
+const TAB_SAVED_VIEW_QUEUE: Readonly<Partial<Record<TabId, "UNASSIGNED" | "MY_REVIEWS" | "ESCALATED" | "OVERDUE">>> = {
+  queue: "UNASSIGNED",
+  mine: "MY_REVIEWS",
+  escalations: "ESCALATED",
+  sla: "OVERDUE",
+};
+
 function SavedViewsPanel({
   teamId,
+  activeTab,
   views,
   onChanged,
 }: {
   teamId: string;
+  activeTab: TabId;
   views: ReadonlyArray<SavedViewRow>;
   onChanged: () => void;
 }) {
@@ -1861,6 +1892,11 @@ function SavedViewsPanel({
 
   const create = useCallback(async () => {
     if (!name.trim()) return;
+    const queue = TAB_SAVED_VIEW_QUEUE[activeTab];
+    if (!queue) {
+      setError("This tab has no queue slice to save. Switch to Queue, Mine, Escalations or SLA first.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -1871,7 +1907,7 @@ function SavedViewsPanel({
           teamId,
           name: name.trim(),
           visibility,
-          filter: { teamId },
+          filter: { teamId, queue },
         }),
       });
       setName("");
@@ -1884,7 +1920,7 @@ function SavedViewsPanel({
     } finally {
       setBusy(false);
     }
-  }, [name, onChanged, teamId, visibility]);
+  }, [activeTab, name, onChanged, teamId, visibility]);
 
   const remove = useCallback(
     async (id: string) => {
@@ -2430,6 +2466,7 @@ function CommandPalette({
   onClose: () => void;
   onSwitchTab: (t: TabId) => void;
 }) {
+  const [paletteQuery, setPaletteQuery] = useState("");
   // Bounded action set. Adding an action requires touching this
   // component AND the C0 test suite's vocabulary contract.
   const actions: ReadonlyArray<{ id: string; label: string; run: () => void }> = [
@@ -2461,9 +2498,14 @@ function CommandPalette({
         type="text"
         placeholder="Reviewer commands — type to filter"
         aria-label="Reviewer commands"
+        value={paletteQuery}
+        onChange={(e) => setPaletteQuery(e.target.value)}
       />
       <ul>
-        {actions.map((a) => (
+        {/* PRO-R2Z-04 — typing narrows the command list. */}
+        {actions
+          .filter((a) => a.label.toLowerCase().includes(paletteQuery.trim().toLowerCase()))
+          .map((a) => (
           <li key={a.id}>
             <button type="button" onClick={a.run}>
               {a.label}

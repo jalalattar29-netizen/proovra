@@ -68,5 +68,6 @@ export function useReviewerHotkeys(
     return () => window.removeEventListener("keydown", onKey);
   }, [handlers, enabled, bindings]);
 
-  return bindings;
+  // PRO-R2Z-04 — the page lists only keys that actually do something.
+  return useMemo(() => bindings.filter((b) => handlers[b.code] !== undefined), [bindings, handlers]);
 }

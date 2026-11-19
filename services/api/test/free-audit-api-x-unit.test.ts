@@ -59,7 +59,11 @@ describe("B5B-F-203 — redaction create races answer the existing row; policy t
   it("opening a project that a concurrent open just created returns that project (no 500)", async () => {
     let lookups = 0;
     const prisma = {
-      evidence: { findFirst: async () => ({ id: "ev-1" }) },
+      // PRO-R3-13 — the opener now scopes the record canonically, requires a
+      // sealed record in service and takes the media kind from the record.
+      team: { findUnique: async () => ({ isPersonal: false, ownerUserId: null }) },
+      $queryRawUnsafe: async () => [{ deleted_at: null, status: "SIGNED", lifecycle_state: "ACTIVE" }],
+      evidence: { findFirst: async () => ({ id: "ev-1", mimeType: "image/png", sizeBytes: null, type: "PHOTO" }) },
       redactionProject: {
         // first read: not there yet; after the race: the winner.
         findFirst: async () => (lookups++ === 0 ? null : { id: "proj-winner" }),
@@ -111,6 +115,8 @@ describe("B5B-F-203 — redaction create races answer the existing row; policy t
           derivative: null,
         }),
       },
+      // PRO-R3-15 — the storage-growth check reads the record (none here: skipped).
+      evidence: { findFirst: async () => null },
       redactionDerivative: {
         create: async () => {
           throw p2002();

@@ -31,6 +31,7 @@ import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { useConfirmAction } from "../ui/ConfirmActionModal";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 export type BulkAction =
@@ -77,6 +78,7 @@ export function ReviewerBulkOpsBar({
   const [noteAction, setNoteAction] = useState<BulkAction | null>(null);
   const [noteText, setNoteText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const { confirm } = useConfirmAction();
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<BulkResult | null>(null);
 
@@ -322,7 +324,17 @@ export function ReviewerBulkOpsBar({
                   noteAction === "REQUEST_INFO") &&
                   noteText.trim().length === 0)
               }
-              onClick={() => void submitBulk(noteAction, noteText)}
+              onClick={() => {
+                // PRO-R2-11 — a bulk move of every selected review asks first.
+                void confirm({
+                  title: `Apply ${noteAction} to ${selection.size} reviews?`,
+                  description: "The action is applied to every selected review.",
+                  confirmLabel: `Apply ${noteAction}`,
+                  tone: noteAction === "CLOSE" ? "danger" : "warning",
+                }).then((ok) => {
+                  if (ok) void submitBulk(noteAction, noteText);
+                });
+              }}
               data-reviewer-bulk-action="WITH_NOTE_APPLY"
               data-reviewer-bulk-note-action-target={noteAction}
               style={bulkBtnPrimaryStyle}
