@@ -124,11 +124,11 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/app/api/_marketing-leads.ts:343",
+      "site": "apps/web/app/api/_marketing-leads.ts:381",
       "helper": "handleLeadSubmission -> fetch(`${apiBase}${config.upstreamPath}`)",
       "callSitesRead": [
         "apps/web/app/api/_marketing-leads.ts:25-28",
-        "apps/web/app/api/_marketing-leads.ts:343",
+        "apps/web/app/api/_marketing-leads.ts:381",
         "apps/web/app/api/contact-sales/route.ts:12",
         "apps/web/app/api/request-demo/route.ts:12"
       ],
@@ -136,7 +136,7 @@
         "POST /v1/contact-sales",
         "POST /v1/demo-requests"
       ],
-      "evidence": "The LeadConfig table in the same file pins upstreamPath to exactly these two API routes, one per sourcePage (\"contact-sales\" and \"request-demo\"). This is the SERVER half of the two public marketing forms: the browser posts to the Next.js route handler, which forwards to the API, so the API routes are product-reachable even though no browser code names their paths. | Re-anchored :326 -> :343 on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up): seventeen lines, from the field-error helper added at :61 above it. Verified BY READING: :343 is `const upstream = await fetch(`${apiBase}${config.upstreamPath}`, {`; upstreamPath is still set only by the two route handlers, \"/v1/contact-sales\" (contact-sales/route.ts:12) and \"/v1/demo-requests\" (request-demo/route.ts:12).",
+      "evidence": "The LeadConfig table in the same file pins upstreamPath to exactly these two API routes, one per sourcePage (\"contact-sales\" and \"request-demo\"). This is the SERVER half of the two public marketing forms: the browser posts to the Next.js route handler, which forwards to the API, so the API routes are product-reachable even though no browser code names their paths. | Re-anchored :326 -> :343 on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up): seventeen lines, from the field-error helper added at :61 above it. Verified BY READING: :343 is `const upstream = await fetch(`${apiBase}${config.upstreamPath}`, {`; upstreamPath is still set only by the two route handlers, \"/v1/contact-sales\" (contact-sales/route.ts:12) and \"/v1/demo-requests\" (request-demo/route.ts:12). | Re-anchored :343 -> :381 on 2026-11-19 (remediation integration: the merged tree of all workstreams moved the line). Verified BY READING: the same call.",
       "reviewedAtUtc": "2026-08-16"
     },
     {
@@ -370,11 +370,11 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/src/ui/evidence-discussion.tsx:416",
+      "site": "apps/mobile/src/ui/evidence-discussion.tsx:493",
       "helper": "buildThreadActionPath(threadId, action) — action is ThreadAction (\"resolve\" | \"reopen\" | \"assign\" | \"escalate\")",
       "callSitesRead": [
-        "apps/mobile/src/ui/evidence-discussion.tsx:416",
-        "apps/mobile/src/ui/evidence-discussion.tsx:400",
+        "apps/mobile/src/ui/evidence-discussion.tsx:493",
+        "apps/mobile/src/ui/evidence-discussion.tsx:477",
         "apps/mobile/src/product/evidence-discussion.ts:16"
       ],
       "routes": [
@@ -383,7 +383,7 @@
         "POST /v1/collaboration/threads/:id/assign",
         "POST /v1/collaboration/threads/:id/escalate"
       ],
-      "evidence": "openForm(a: ThreadAction) (:400) sets the action run at :416; ThreadAction is declared at evidence-discussion.ts:16.",
+      "evidence": "openForm(a: ThreadAction) (:400) sets the action run at :416; ThreadAction is declared at evidence-discussion.ts:16. | Re-anchored :416 -> :493 on 2026-11-19 (remediation integration: the merged tree of all workstreams moved the line). Verified BY READING: the same call. After the re-anchor openForm(a: ThreadAction) is at :477 and the action runs at :493.",
       "reviewedAtUtc": "2026-09-25"
     },
     {
@@ -402,12 +402,12 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:528",
+      "site": "apps/mobile/app/(stack)/billing.tsx:530",
       "helper": "checkoutRequest(purchase, provider, currency).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
       "callSitesRead": [
         "apps/mobile/app/(stack)/billing.tsx:428",
         "apps/mobile/app/(stack)/billing.tsx:519",
-        "apps/mobile/app/(stack)/billing.tsx:528",
+        "apps/mobile/app/(stack)/billing.tsx:530",
         "apps/mobile/src/product/billing-purchase.ts"
       ],
       "routes": [
@@ -418,28 +418,28 @@
         "POST /v1/billing/storage-addons/checkout/stripe",
         "POST /v1/billing/storage-addons/checkout/paypal"
       ],
-      "evidence": "checkoutRequest returns: PLAN → transition ? \"/v1/billing/subscription/plan\" : `/v1/billing/checkout/${provider}`; CREDITS → `/v1/billing/credits/checkout/${provider}`; STORAGE → `/v1/billing/storage-addons/checkout/${provider}`; provider is \"stripe\" | \"paypal\". | Re-anchored :408 -> :426 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged. | Re-anchored :426 -> :528 on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up), and NARROWED: B6-F-71 moved the plan change out to confirmPlanChange (:459, its own entry). The only PLAN intent this purchase path now builds is offerPurchase({ kind: \"PLAN\", plan, transition: false }) at :428, so checkoutRequest can only yield /v1/billing/checkout/${provider} for a plan here; POST /v1/billing/subscription/plan is credited at :459 instead of being declared reachable from this site.",
+      "evidence": "checkoutRequest returns: PLAN → transition ? \"/v1/billing/subscription/plan\" : `/v1/billing/checkout/${provider}`; CREDITS → `/v1/billing/credits/checkout/${provider}`; STORAGE → `/v1/billing/storage-addons/checkout/${provider}`; provider is \"stripe\" | \"paypal\". | Re-anchored :408 -> :426 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged. | Re-anchored :426 -> :528 on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up), and NARROWED: B6-F-71 moved the plan change out to confirmPlanChange (:459, its own entry). The only PLAN intent this purchase path now builds is offerPurchase({ kind: \"PLAN\", plan, transition: false }) at :428, so checkoutRequest can only yield /v1/billing/checkout/${provider} for a plan here; POST /v1/billing/subscription/plan is credited at :459 instead of being declared reachable from this site. | Re-anchored :528 -> :530 on 2026-11-19 (remediation integration: the merged tree of all workstreams moved the line). Verified BY READING: the same call.",
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:459",
+      "site": "apps/mobile/app/(stack)/billing.tsx:461",
       "helper": "planChangeRequest(plan, confirmStorageEnding).path — a one-route table (apps/mobile/src/product/billing-purchase.ts:69)",
       "callSitesRead": [
         "apps/mobile/app/(stack)/billing.tsx:458",
-        "apps/mobile/app/(stack)/billing.tsx:459",
+        "apps/mobile/app/(stack)/billing.tsx:461",
         "apps/mobile/src/product/billing-purchase.ts"
       ],
       "routes": [
         "POST /v1/billing/subscription/plan"
       ],
-      "evidence": "planChangeRequest always returns path \"/v1/billing/subscription/plan\" (B6-F-71, Free-user audit 0ea0). Replaces the removed :439 entry (the CHECKOUT_REQUIRED fallback to POST /v1/billing/checkout/{stripe,paypal}), which no longer exists: those two routes stay credited at :528. Reviewed BY READING on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up).",
+      "evidence": "planChangeRequest always returns path \"/v1/billing/subscription/plan\" (B6-F-71, Free-user audit 0ea0). Replaces the removed :439 entry (the CHECKOUT_REQUIRED fallback to POST /v1/billing/checkout/{stripe,paypal}), which no longer exists: those two routes stay credited at :528. Reviewed BY READING on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up). | Re-anchored :459 -> :461 on 2026-11-19 (remediation integration: the merged tree of all workstreams moved the line). Verified BY READING: the same call.",
       "reviewedAtUtc": "2026-11-16"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:392",
+      "site": "apps/mobile/app/(stack)/billing.tsx:394",
       "helper": "payPalReturnConfirmation(response, provider).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/billing.tsx:392",
+        "apps/mobile/app/(stack)/billing.tsx:394",
         "apps/mobile/app/(stack)/billing.tsx:549",
         "apps/mobile/src/product/billing-purchase.ts"
       ],
@@ -447,8 +447,88 @@
         "POST /v1/billing/credits/checkout/paypal/:orderId/capture",
         "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm"
       ],
-      "evidence": "payPalReturnConfirmation returns null for Stripe and for malformed ids; otherwise ORDER_CAPTURE → `/v1/billing/credits/checkout/paypal/${encodeURIComponent(orderId)}/capture` or SUBSCRIPTION_CONFIRM → `/v1/billing/checkout/paypal/subscriptions/${encodeURIComponent(subscriptionId)}/confirm`. | Re-anchored :352 -> :358 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged. | Re-anchored :358 -> :392 on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up). Verified BY READING: the same call; confirmation is now set at :549. Routes unchanged.",
+      "evidence": "payPalReturnConfirmation returns null for Stripe and for malformed ids; otherwise ORDER_CAPTURE → `/v1/billing/credits/checkout/paypal/${encodeURIComponent(orderId)}/capture` or SUBSCRIPTION_CONFIRM → `/v1/billing/checkout/paypal/subscriptions/${encodeURIComponent(subscriptionId)}/confirm`. | Re-anchored :352 -> :358 on 2026-11-15 (E-09/F-P1-06: the private-build Stripe recheck/abandon on dismiss, Free-user audit round 3). Verified BY READING: the same call, unchanged. | Re-anchored :358 -> :392 on 2026-11-16 (Free-user audit 0ea0 remediation batch, integration fix-up). Verified BY READING: the same call; confirmation is now set at :549. Routes unchanged. | Re-anchored :392 -> :394 on 2026-11-19 (remediation integration: the merged tree of all workstreams moved the line). Verified BY READING: the same call.",
       "reviewedAtUtc": "2026-09-28"
+    },
+    {
+      "site": "apps/mobile/src/direct-capture.ts:359",
+      "helper": "sealRequest(path, body, policy?, request?) (apps/mobile/src/direct-capture.ts:428) — PRO-NB-04: the seal is time-bounded and retried; the wrapper always sends method POST with the given path",
+      "callSitesRead": [
+        "apps/mobile/src/direct-capture.ts:359",
+        "apps/mobile/src/direct-capture.ts:428"
+      ],
+      "routes": [
+        "POST /v1/capture/direct-sessions/:id/complete"
+      ],
+      "evidence": "completeDirectCapture passes the literal template `/v1/capture/direct-sessions/${session.captureSessionId}/complete`; sealRequest (:428) forwards it to apiFetch with method POST, so the method is the wrapper's, not readable at the call. Before PRO-NB-04 (WS-CAP) this was a direct apiFetch POST of the same path. Added by the remediation integration.",
+      "reviewedAtUtc": "2026-11-19"
+    },
+    {
+      "site": "apps/mobile/src/direct-capture.ts:401",
+      "helper": "sealRequest(path, body, policy?, request?) (apps/mobile/src/direct-capture.ts:428) — PRO-NB-04: the seal is time-bounded and retried; the wrapper always sends method POST with the given path",
+      "callSitesRead": [
+        "apps/mobile/src/direct-capture.ts:401",
+        "apps/mobile/src/capture/screen-acquisition.ts:78",
+        "apps/mobile/src/direct-capture.ts:428"
+      ],
+      "routes": [
+        "POST /v1/capture/direct-sessions/:id/screen-complete"
+      ],
+      "evidence": "sealScreenFrames passes buildScreenCompletePath(session.captureSessionId) (screen-acquisition.ts:78), the frame-capture seal path; sealRequest (:428) sends it as POST. Before PRO-NB-04 (WS-CAP) this was a direct apiFetch POST of the same path. Added by the remediation integration.",
+      "reviewedAtUtc": "2026-11-19"
+    },
+    {
+      "site": "apps/mobile/src/direct-capture.ts:413",
+      "helper": "sealRequest(path, body, policy?, request?) (apps/mobile/src/direct-capture.ts:428) — PRO-NB-04: the seal is time-bounded and retried; the wrapper always sends method POST with the given path",
+      "callSitesRead": [
+        "apps/mobile/src/direct-capture.ts:413",
+        "apps/mobile/src/capture/screen-acquisition.ts:82",
+        "apps/mobile/src/direct-capture.ts:428"
+      ],
+      "routes": [
+        "POST /v1/capture/direct-sessions/:id/continuous-complete"
+      ],
+      "evidence": "sealContinuousRecording passes buildContinuousCompletePath(session.captureSessionId) (screen-acquisition.ts:82), the continuity-manifest seal path; sealRequest (:428) sends it as POST. Before PRO-NB-04 (WS-CAP) this was a direct apiFetch POST of the same path. Added by the remediation integration.",
+      "reviewedAtUtc": "2026-11-19"
+    },
+    {
+      "site": "apps/mobile/src/ui/ownership-offers.tsx:54",
+      "helper": "buildOwnershipOfferActionPath(teamId, offerId, action) (apps/mobile/src/product/workspace-people.ts:975) — action is \"accept\" | \"decline\" | \"cancel\"",
+      "callSitesRead": [
+        "apps/mobile/src/ui/ownership-offers.tsx:54",
+        "apps/mobile/src/product/workspace-people.ts:975"
+      ],
+      "routes": [
+        "POST /v1/teams/:id/ownership-offer/:offerId/accept"
+      ],
+      "evidence": "The call passes the literal \"accept\" (the recipient accepts); PRO-T1-06 / DEC-18 (WS-WSP) — workspace ownership moves by offer and acceptance. The API registers accept directly and decline/cancel from a two-entry literal table in services/api/src/routes/teams.routes.ts. Added by the remediation integration.",
+      "reviewedAtUtc": "2026-11-19"
+    },
+    {
+      "site": "apps/mobile/src/ui/ownership-offers.tsx:72",
+      "helper": "buildOwnershipOfferActionPath(teamId, offerId, action) (apps/mobile/src/product/workspace-people.ts:975) — action is \"accept\" | \"decline\" | \"cancel\"",
+      "callSitesRead": [
+        "apps/mobile/src/ui/ownership-offers.tsx:72",
+        "apps/mobile/src/product/workspace-people.ts:975"
+      ],
+      "routes": [
+        "POST /v1/teams/:id/ownership-offer/:offerId/decline"
+      ],
+      "evidence": "The call passes the literal \"decline\" (the recipient declines); PRO-T1-06 / DEC-18 (WS-WSP) — workspace ownership moves by offer and acceptance. The API registers accept directly and decline/cancel from a two-entry literal table in services/api/src/routes/teams.routes.ts. Added by the remediation integration.",
+      "reviewedAtUtc": "2026-11-19"
+    },
+    {
+      "site": "apps/mobile/src/ui/workspace-ownership-transfer.tsx:88",
+      "helper": "buildOwnershipOfferActionPath(teamId, offerId, action) (apps/mobile/src/product/workspace-people.ts:975) — action is \"accept\" | \"decline\" | \"cancel\"",
+      "callSitesRead": [
+        "apps/mobile/src/ui/workspace-ownership-transfer.tsx:88",
+        "apps/mobile/src/product/workspace-people.ts:975"
+      ],
+      "routes": [
+        "POST /v1/teams/:id/ownership-offer/:offerId/cancel"
+      ],
+      "evidence": "The call passes the literal \"cancel\" (the owner cancels the pending offer); PRO-T1-06 / DEC-18 (WS-WSP) — workspace ownership moves by offer and acceptance. The API registers accept directly and decline/cancel from a two-entry literal table in services/api/src/routes/teams.routes.ts. Added by the remediation integration.",
+      "reviewedAtUtc": "2026-11-19"
     }
   ]
 }

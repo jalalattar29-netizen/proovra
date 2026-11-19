@@ -641,13 +641,6 @@
       "replacement": "POST /v1/coding/schemas/seed-defaults"
     },
     {
-      "routeId": "POST /v1/collaboration/threads",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "thread creation lost its surface when the standalone /collaboration page was retired",
-      "evidence": "reg services/api/src/routes/collaboration.routes.ts:163; apps/web/next.config.js:304-317 \"/collaboration is retired as a standalone product surface ... /v1/collaboration/threads/* routes all remain intact — they continue to power the evidence detail discussion panel\"; apps/web/lib/navigation/pillarRegistry.ts:180-183 \"workspace.collaboration removed with its deleted page\"; the surviving consumer apps/web/app/(app)/evidence/[id]/components/EvidenceDiscussionPanel.tsx uses only :219 GET `/v1/collaboration/threads?teamId=`, :278/:332 `/v1/collaboration/threads/${id}/messages`, :295 `/mark-mentions-read`",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/collaboration/threads/:id/contributors",
       "disposition": "COMPATIBILITY_TOMBSTONE",
       "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
