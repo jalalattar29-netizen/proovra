@@ -3,7 +3,9 @@
  *
  * Implements the 26-step Investigation acceptance scenario:
  *
- *    1. Create isolated workspace (Team via POST /v1/teams)
+ *    1. Create isolated workspace (an Enterprise organization workspace,
+ *       provisioned for this run: the investigation APIs answer no other
+ *       kind, PRO-K1-03)
  *    2. Open /investigation; assert no crash (Playwright page shell visible)
  *    3. Upload Evidence A (POST /v1/evidence + presigned PUT)
  *    4. Finalize Evidence A (POST /v1/evidence/:id/complete)
@@ -47,6 +49,7 @@ import {
   clearTestRateLimits,
   createGuestSession,
   disposeSession,
+  provisionEnterpriseOrg,
   type GuestSession,
   authorizeOriginalPart,
 } from "./helpers/api-client";
@@ -258,15 +261,40 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
       // Step 1 — Create isolated workspace.
       // -----------------------------------------------------------------
       await test.step("01: create isolated workspace", async () => {
-        // The guest session already lands the user in a personal
-        // workspace (eager-bootstrap per R11). We resolve THAT
-        // workspace's teamId rather than POST /v1/teams again,
-        // because /v1/teams creation also requires a personal team
-        // to exist as the source of QUOTA_WORKSPACES — using the
-        // already-isolated personal workspace satisfies the
-        // "isolated workspace" requirement honestly.
-        teamId = await resolvePersonalTeamId(session.api);
+        // AN ENTERPRISE ORGANIZATION WORKSPACE, BECAUSE THAT IS WHERE THE
+        // INVESTIGATION TOOLS LIVE (PRO-K1-03, RG-13).
+        //
+        // This scenario used to run in the account's personal workspace.
+        // PRO-K1-03 found that the web hid /investigation from every
+        // workspace that is not an Enterprise organization while the API
+        // went on serving the graph, the diagnostics and the SIU routes to
+        // any member of any workspace, and closed that: those routes now
+        // answer `403 ENTITLEMENT_REQUIRED / ENTERPRISE_ORGANIZATION_WORKSPACE`
+        // after membership. So step 5's diagnostics poll was refused on every
+        // attempt and read as "the worker never finished".
+        //
+        // The refusal is asserted here once, on the personal workspace, and
+        // the scenario then runs where the product offers these tools: an
+        // organization provisioned through the product's own sales-led
+        // authority (see `provisionEnterpriseOrg`), which is just as isolated
+        // — it is created for this run and holds nothing else.
+        const personalTeamId = await resolvePersonalTeamId(session.api);
+        const refused = await session.api.get(
+          `/v1/investigation/diagnostics?teamId=${personalTeamId}`,
+        );
+        expect(refused.status(), await refused.text()).toBe(403);
+        expect(await refused.json()).toMatchObject({
+          denial: "ENTITLEMENT_REQUIRED",
+          requirement: "ENTERPRISE_ORGANIZATION_WORKSPACE",
+        });
+
+        const org = provisionEnterpriseOrg(
+          session,
+          `Phase 8 Investigation ${Date.now()}`,
+        );
+        teamId = org.workspaceId;
         expect(teamId).toMatch(/^[0-9a-f-]{36}$/);
+        expect(teamId).not.toBe(personalTeamId);
       });
 
       // -----------------------------------------------------------------
@@ -296,6 +324,7 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
           return uploadAndFinalizeEvidence({
             api: session.api,
             body: evidenceABody,
+            teamId,
           });
         },
       );
@@ -361,6 +390,7 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
           return uploadAndFinalizeEvidence({
             api: session.api,
             body: evidenceABody, // SAME bytes → SAME sha256 → exact duplicate
+            teamId,
           });
         },
       );
@@ -396,7 +426,7 @@ test.describe("Wave 3 Phase 8 — Investigation enterprise data flow @critical",
       // Step 12 — Create case.
       // -----------------------------------------------------------------
       const caseRes = await session.api.post("/v1/cases", {
-        data: { name: `Phase 8 e2e case ${Date.now()}` },
+        data: { name: `Phase 8 e2e case ${Date.now()}`, teamId },
       });
       expect(
         caseRes.ok(),

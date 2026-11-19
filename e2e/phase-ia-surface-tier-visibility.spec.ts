@@ -6,10 +6,12 @@
  *
  *   * Direct URL to `/tools` (INTERNAL) refuses: the surface renders a
  *     platform-admin elevation gate instead of the All Tools catalog.
- *   * Direct URL to ENTERPRISE surfaces (review/governance/intelligence/
+ *   * Direct URL to ENTERPRISE surfaces (governance/intelligence/
  *     security-center/organization-admin/executive/investigation)
- *     refuses with the product's no-access panel — six inside the app
+ *     refuses with the product's no-access panel — five inside the app
  *     shell at HTTP 200, `/organization-admin` as a hard 404.
+ *   * Direct URL to `/review` refuses with a PLAN refusal: the
+ *     access-denied panel naming the plan that includes it (PRO-R2-06).
  *   * `/ops` and `/operations` are NOT hidden from this persona and are
  *     asserted to render the Operations console the sidebar offers them.
  *   * `/platform` is a public marketing page and is asserted as one.
@@ -71,7 +73,7 @@ const PUBLIC_MARKETING_PATHS = ["/platform"];
 
 /**
  * Copy that identifies the in-shell no-access panel. Present on both
- * variants the product serves: the six enterprise paths that answer 200
+ * variants the product serves: the five enterprise paths that answer 200
  * with the panel inside the shell, and `/organization-admin`, which
  * answers a hard HTTP 404 with the same headline.
  */
@@ -103,8 +105,33 @@ const OPERATIONS_CONSOLE_COPY =
  */
 const GATE_PENDING_COPY = /Checking whether this area is available/i;
 
+/**
+ * REFUSED AS A PLAN REFUSAL, NOT AS A MISSING PAGE (PRO-R2-06, WS-ENT).
+ *
+ * `/review` was in the hidden list below and was required to render the
+ * not-found panel. PRO-R2-06 found that a denied Review page reading as a
+ * 404 looks like a broken link, and changed the reviewer console's rule
+ * (`apps/web/lib/surface/tiers.ts`: `directAccessPolicy: "forbidden"` with
+ * its own message) so a plan that does not include it is TOLD so. The
+ * surface is still refused to this persona — a Pro personal workspace has no
+ * reviewer operations — and that is what is asserted: the access-denied
+ * panel, the rule's own sentence naming the plan, and none of the console.
+ */
+const PLAN_REFUSED_PATHS: ReadonlyArray<{ path: string; refusal: RegExp }> = [
+  { path: "/review", refusal: /The reviewer console is part of the Team plan and above/i },
+];
+
+/** The access-denied panel's headline (`ProovraSystemState` kind "forbidden"). */
+const FORBIDDEN_COPY = /You don.t have access to this area/i;
+
+/**
+ * A line only the real reviewer console page renders: its owning-workspace
+ * banner ("Reviewing evidence in …"). The negative control for the plan
+ * refusal above.
+ */
+const REVIEW_CONSOLE_COPY = /Reviewing evidence in/i;
+
 const HIDDEN_ENTERPRISE_PATHS = [
-  "/review",
   "/governance",
   "/intelligence",
   "/security-center",
@@ -445,6 +472,23 @@ test.describe("Phase IA-surface-tier — direct URL is blocked", () => {
     });
   }
 
+  for (const { path, refusal } of PLAN_REFUSED_PATHS) {
+    test(`ENTERPRISE: GET ${path} refuses with the plan refusal`, async ({
+      page,
+    }) => {
+      // PRO-R2-06 — see PLAN_REFUSED_PATHS. Refused, and said to be a plan
+      // matter rather than a page that does not exist.
+      const res = await page.goto(path);
+      expect(res?.status()).toBeLessThan(500);
+      const main = await settledMainText(page);
+      expect(main, `${path} must refuse to render`).toMatch(FORBIDDEN_COPY);
+      expect(main, `${path} must name the plan that includes it`).toMatch(refusal);
+      expect(main).not.toMatch(NOT_FOUND_COPY);
+      expect(main).not.toMatch(REVIEW_CONSOLE_COPY);
+      expect(main).not.toMatch(OPERATIONS_CONSOLE_COPY);
+    });
+  }
+
   for (const path of HIDDEN_ENTERPRISE_PATHS) {
     test(`ENTERPRISE: GET ${path} refuses with the no-access panel`, async ({
       page,
@@ -460,7 +504,7 @@ test.describe("Phase IA-surface-tier — direct URL is blocked", () => {
       //
       // The panel is real and has its own copy, so that is what gets
       // asserted, read from the main landmark rather than the markup.
-      // Six of these paths answer 200 with the panel inside the shell and
+      // Five of these paths answer 200 with the panel inside the shell and
       // `/organization-admin` answers a hard 404 with the same headline;
       // both are refusals, and the assertion covers both.
       const res = await page.goto(path);

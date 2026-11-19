@@ -66,35 +66,43 @@ export async function waitForDiagnostics(opts: {
   const timeoutMs = opts.timeoutMs ?? 15_000;
 
   let lastSnapshot: DiagnosticsSnapshot = { workspace: {} };
+  // A REFUSED POLL IS NOT A SLOW WORKER, AND THE FAILURE NOW SAYS WHICH.
+  //
+  // A non-2xx answer used to return `false` and nothing else, under a
+  // comment promising the opposite. So when PRO-K1-03 made this route answer
+  // 403 outside an Enterprise organization workspace, the run reported a
+  // timeout at this line with nothing about the refusal, and read as
+  // evidence processing that never completed.
+  let lastRefusal: string | null = null;
 
-  await expect
-    .poll(
-      async () => {
-        const res = await opts.api.get(
-          `/v1/investigation/diagnostics?teamId=${opts.teamId}`,
-        );
-        if (!res.ok()) {
-          // 4xx/5xx — surface the body so the operator sees why polling
-          // is failing (auth, permission, missing route). Never collapse
-          // an HTTP error into a silent retry.
-          return false;
-        }
-        const body = (await res.json()) as DiagnosticsSnapshot;
-        lastSnapshot = body;
-        return opts.predicate(body);
-      },
-      {
-        message: () =>
-          `waitForDiagnostics timed out waiting for: ${opts.label}\nLast snapshot:\n${JSON.stringify(
-            lastSnapshot.workspace,
-            null,
-            2,
-          )}`,
-        timeout: timeoutMs,
-        intervals: [intervalMs],
-      },
-    )
-    .toBe(true);
+  try {
+    await expect
+      .poll(
+        async () => {
+          const res = await opts.api.get(
+            `/v1/investigation/diagnostics?teamId=${opts.teamId}`,
+          );
+          if (!res.ok()) {
+            lastRefusal = `HTTP ${res.status()}: ${(await res.text()).slice(0, 500)}`;
+            return false;
+          }
+          lastRefusal = null;
+          const body = (await res.json()) as DiagnosticsSnapshot;
+          lastSnapshot = body;
+          return opts.predicate(body);
+        },
+        { timeout: timeoutMs, intervals: [intervalMs] },
+      )
+      .toBe(true);
+  } catch (err) {
+    const why = lastRefusal
+      ? `The diagnostics route refused the last poll — ${lastRefusal}`
+      : `Last snapshot:\n${JSON.stringify(lastSnapshot.workspace, null, 2)}`;
+    throw new Error(
+      `waitForDiagnostics timed out waiting for: ${opts.label}\n${why}\n` +
+        (err instanceof Error ? err.message : String(err)),
+    );
+  }
 
   return lastSnapshot;
 }
