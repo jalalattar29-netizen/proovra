@@ -64,11 +64,59 @@ export type BillingReviewReason =
    * a customer cancellation it confirmed was recorded. The row follows the
    * provider (it is the truth about billing), but never silently.
    */
-  | "CANCELLATION_REVERSED_AT_PROVIDER";
+  | "CANCELLATION_REVERSED_AT_PROVIDER"
+  /**
+   * PRO-BL1-04 / DEC-02 (2026-11-19) — the provider has reported a subscription
+   * ACTIVE for over an hour and still reports no completed payment for it.
+   * Nothing is granted on the label; the purchase stays pending and the sweep
+   * keeps re-reading it. A person looks at what the provider is doing.
+   */
+  | "ACTIVE_WITHOUT_COMPLETED_PAYMENT"
+  /**
+   * PRO-BL1-04 / DEC-02 (2026-11-19) — a storage add-on is past due and no
+   * paid period is recorded for it, so the 7-day grace has nothing to run from
+   * and its capacity is not counted. Missing payment facts are reviewed, not
+   * turned into unlimited paid capacity.
+   */
+  | "STORAGE_ADDON_PAID_PERIOD_UNKNOWN";
 
 export type BillingReviewProduct = "PLAN" | "STORAGE_ADDON" | "EVIDENCE_CREDIT";
 
 export type BillingProviderAction = "NONE" | "CANCELED_AT_PROVIDER" | "CANCEL_FAILED";
+
+/** How long a provider's ACTIVE may lack a completed payment before a person is asked to look. */
+export const UNPROVEN_PAYMENT_REVIEW_AFTER_MS = 60 * 60 * 1000;
+
+/**
+ * PRO-BL1-04 / DEC-02 — an ACTIVE provider subscription with no completed
+ * payment is never granted on the label. The webhook that announces ACTIVE
+ * commonly arrives moments before the payment's own event, so nothing is
+ * recorded then; once the provider's ACTIVE is over an hour old the item is
+ * recorded (idempotent), from whichever path next reads it (re-check, sweep).
+ */
+export async function noteActiveWithoutCompletedPayment(input: {
+  userId: string;
+  provider: prismaPkg.PaymentProvider;
+  providerResourceId: string;
+  product: BillingReviewProduct;
+  observedAtUtc: Date | null;
+  now?: Date;
+}): Promise<boolean> {
+  const now = input.now ?? new Date();
+  if (!input.observedAtUtc || now.getTime() - input.observedAtUtc.getTime() < UNPROVEN_PAYMENT_REVIEW_AFTER_MS) {
+    return false;
+  }
+  await recordBillingReviewItem({
+    userId: input.userId,
+    provider: input.provider,
+    providerResourceId: input.providerResourceId,
+    product: input.product,
+    reason: "ACTIVE_WITHOUT_COMPLETED_PAYMENT",
+    providerAction: "NONE",
+    detail: { providerActiveSinceUtc: input.observedAtUtc.toISOString(), granted: false },
+  });
+  return true;
+}
 
 /**
  * Record (or update) ONE review item. Idempotent on

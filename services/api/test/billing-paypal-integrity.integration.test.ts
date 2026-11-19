@@ -180,7 +180,14 @@ class FakePayPal {
       status_update_time: sub.update_time,
       billing_info:
         this.billingInfo.get(sub.id) ??
-        (sub.status === "ACTIVE" ? { next_billing_time: new Date(Date.now() + 30 * 86400_000).toISOString() } : {}),
+        // An ACTIVE fixture is a PAID subscription (DEC-02: activation needs a
+        // completed payment); a test states other payment facts via `billingInfo`.
+        (sub.status === "ACTIVE"
+          ? {
+              next_billing_time: new Date(Date.now() + 30 * 86400_000).toISOString(),
+              last_payment: { time: new Date(Date.now() - 86400_000).toISOString() },
+            }
+          : {}),
       links: sub.status === "APPROVAL_PENDING" ? [{ rel: "approve", href: `https://www.sandbox.paypal.com/webapps/billing/subscriptions?ba_token=BA-${sub.id}` }] : [],
     };
   }
@@ -469,6 +476,44 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
       });
     });
 
+    // PRO-BL1-04 / DEC-02 — an ACTIVE label is not a payment.
+    it("PRO-BL1-04 — a plan PayPal calls ACTIVE with no completed payment grants nothing; it is granted once the payment completed; a stale label is reviewed", async () => {
+      const t = await payer("FREE");
+      const fake = new FakePayPal();
+      await withPayPal(fake, async () => {
+        const { applyPayPalSubscriptionState } = await import("../src/services/billing/paypal-settlement.service.js");
+        const subId = await paypalSubRow(t.owner.userId, fake, "PRO");
+        const reviews = () =>
+          prisma.billingReviewItem.count({ where: { providerResourceId: subId, reason: "ACTIVE_WITHOUT_COMPLETED_PAYMENT" } });
+
+        // ACTIVE just now, no completed payment: pending, nothing granted, nobody bothered yet.
+        fake.billingInfo.set(subId, { next_billing_time: new Date(Date.now() + 30 * 86400_000).toISOString() });
+        fake.setSub(subId, "ACTIVE");
+        await applyPayPalSubscriptionState({ subscriptionId: subId, source: "BILLING.SUBSCRIPTION.ACTIVATED" });
+        expect(await planOf(t.owner.userId)).toBe("FREE");
+        expect((await prisma.subscription.findFirstOrThrow({ where: { providerSubId: subId } })).status).not.toBe("ACTIVE");
+        expect(await reviews()).toBe(0);
+
+        // Still unpaid two hours after PayPal said ACTIVE: still nothing granted, and a person is asked to look.
+        fake.setSub(subId, "ACTIVE", new Date(Date.now() - 2 * 3600_000).toISOString());
+        await prisma.subscription.updateMany({ where: { providerSubId: subId }, data: { providerStateAtUtc: null } });
+        await applyPayPalSubscriptionState({ subscriptionId: subId, source: "checkout_attempt_recheck" });
+        expect(await planOf(t.owner.userId)).toBe("FREE");
+        expect(await reviews()).toBe(1);
+
+        // The payment completed: granted by the next read, dated by the payment.
+        const paidAt = new Date(Date.now() - 3600_000);
+        fake.billingInfo.set(subId, { last_payment: { amount: { value: "19.00", currency_code: "USD" }, time: paidAt.toISOString() } });
+        fake.setSub(subId, "ACTIVE");
+        await applyPayPalSubscriptionState({ subscriptionId: subId, source: "PAYMENT.SALE.COMPLETED" });
+        expect(await planOf(t.owner.userId)).toBe("PRO");
+        const row = await prisma.subscription.findFirstOrThrow({ where: { providerSubId: subId } });
+        expect(row.status).toBe("ACTIVE");
+        expect(row.currentPeriodEnd!.getTime()).toBeGreaterThan(paidAt.getTime() + 27 * 86400_000);
+        expect(row.currentPeriodEnd!.getTime()).toBeLessThan(paidAt.getTime() + 32 * 86400_000);
+      });
+    });
+
     it("a row the OLD code terminalized with a LOCAL time newer than PayPal's approval is repaired by a live read", async () => {
       const t = await payer("FREE");
       const fake = new FakePayPal();
@@ -573,6 +618,12 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
           expect(res.statusCode, res.body).toBe(200);
           const subId = json(res).subscription.id as string;
           fake.subs.get(subId)!.plan_id = "P-STORAGE-10-EUR";
+
+          // ACTIVE at PayPal with no completed payment at all: not granted on the label.
+          fake.billingInfo.set(subId, { next_billing_time: unpaidNext });
+          const unpaid = await observe(subId);
+          expect(unpaid.status, via).toBe("PENDING");
+          expect(unpaid.activatedAtUtc, via).toBeNull();
 
           // ACTIVE at PayPal while the first payment is failing: not live storage.
           fake.billingInfo.set(subId, { next_billing_time: unpaidNext, failed_payments_count: 1 });

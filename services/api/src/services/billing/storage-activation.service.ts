@@ -36,7 +36,7 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { getStorageAddonDefinition, upsertWorkspaceStorageAddon } from "../billing.service.js";
-import { recordBillingReviewItem } from "./billing-review.service.js";
+import { noteActiveWithoutCompletedPayment, recordBillingReviewItem } from "./billing-review.service.js";
 import { keepPaidPeriodAfterProviderCancel } from "./paid-period.service.js";
 import { findLivePersonalBaseSubscription } from "./base-subscription.service.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
@@ -78,6 +78,15 @@ export type StorageObservation = {
   currentPeriodEnd: Date | null;
   observedAtUtc: Date | null;
   source: string;
+  /**
+   * PRO-BL1-04 / DEC-02 — does the provider report a COMPLETED payment for this
+   * subscription? `false` = an ACTIVE label with no completed payment: never a
+   * first activation. Omitted when the provider's own status already rests on
+   * a payment (Stripe: a subscription is `incomplete`, not `active`, until its
+   * first invoice is paid, and the checkout path requires `payment_status`
+   * paid).
+   */
+  paymentProven?: boolean;
   /** Provider payment id when the observation is a completed checkout. */
   externalPaymentId?: string | null;
   /**
@@ -259,6 +268,32 @@ async function refuseActiveSubscription(input: {
     detail: { refusal: input.reason, addonKey: input.addonKey, addonId },
   });
   return { canceledAtProvider, addonId };
+}
+
+/**
+ * PRO-BL1-04 / DEC-02 — a PAST_DUE add-on with no recorded paid period has no
+ * grace to run and carries no capacity (`storageAddonCapacityStatusWhere`).
+ * That is a missing payment fact: recorded once for review, for the webhook
+ * and the sweep alike.
+ */
+export async function notePastDueAddonWithoutPaidPeriod(input: {
+  ownerUserId: string;
+  provider: prismaPkg.PaymentProvider;
+  subscriptionId: string;
+  addonId: string;
+  status: prismaPkg.WorkspaceStorageAddonStatus;
+  currentPeriodEnd: Date | null;
+}): Promise<void> {
+  if (input.status !== prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE || input.currentPeriodEnd) return;
+  await recordBillingReviewItem({
+    userId: input.ownerUserId,
+    provider: input.provider,
+    providerResourceId: input.subscriptionId,
+    product: "STORAGE_ADDON",
+    reason: "STORAGE_ADDON_PAID_PERIOD_UNKNOWN",
+    providerAction: "NONE",
+    detail: { addonId: input.addonId, capacityCounted: false },
+  });
 }
 
 const LIVE_ADDON: prismaPkg.WorkspaceStorageAddonStatus[] = [
@@ -542,6 +577,26 @@ export async function applyStorageSubscriptionObservation(
       });
       return { outcome: "REFUSED", addonId: row.id, reason: refusal, canceledAtProvider: refused.canceledAtProvider };
     }
+    // PRO-BL1-04 / DEC-02 — an ACTIVE label with no completed payment is not a
+    // first activation: no capacity is granted on status alone. The purchase
+    // stays pending in the existing reconciliation path (the payment's own event
+    // or the sweep's re-read activates it); a label that stays unpaid is sent to
+    // review. A row that is already live is not touched by this. It comes AFTER
+    // the refusal above: an ungrantable purchase is still stopped at once.
+    if (
+      obs.paymentProven === false &&
+      row.status !== prismaPkg.WorkspaceStorageAddonStatus.ACTIVE &&
+      row.status !== prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
+    ) {
+      await noteActiveWithoutCompletedPayment({
+        userId: row.ownerUserId,
+        provider: obs.provider,
+        providerResourceId: obs.subscriptionId,
+        product: "STORAGE_ADDON",
+        observedAtUtc: obs.observedAtUtc,
+      });
+      return { outcome: "UNCHANGED", addonId: row.id, status: row.status };
+    }
     const requiresPlan = storageAddonRequiresPaidPlan(row.addonKey);
     const base = requiresPlan ? await findLivePersonalBaseSubscription(row.ownerUserId) : null;
     dependsOnSubscriptionId = base?.id ?? null;
@@ -582,6 +637,14 @@ export async function applyStorageSubscriptionObservation(
   if (firstActivation && updated.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE) {
     return { outcome: "GRANTED", addonId: updated.id, status: updated.status };
   }
+  await notePastDueAddonWithoutPaidPeriod({
+    ownerUserId: row.ownerUserId,
+    provider: obs.provider,
+    subscriptionId: obs.subscriptionId,
+    addonId: row.id,
+    status: updated.status,
+    currentPeriodEnd: obs.currentPeriodEnd ?? row.currentPeriodEnd ?? null,
+  });
   return {
     outcome: updated.status !== before ? "UPDATED" : "UNCHANGED",
     addonId: updated.id,

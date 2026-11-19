@@ -32,6 +32,34 @@ import { internalGrantCoversPlan, readActiveInternalPlanGrant } from "./internal
 export const COMMERCIAL_GRACE_PERIOD_DAYS = 7;
 const GRACE_MS = COMMERCIAL_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
 
+/**
+ * PRO-BL1-04 / DEC-02 (WS-BILL, 2026-11-19) — which recurring storage add-ons
+ * carry capacity right now. The ONE rule for the API and worker storage
+ * meters, using the ONE commercial grace above (there is no second clock):
+ *
+ *   ACTIVE     counts;
+ *   PAST_DUE   counts until its known paid period end + the 7-day grace, the
+ *              same bound a past-due base plan gets. A PAST_DUE add-on whose
+ *              paid period is unknown (no period end recorded) does not count:
+ *              a missing payment fact is for reconciliation and review, never
+ *              unlimited paid capacity.
+ *
+ * A read-side rule only: nothing is cancelled at the provider and no row is
+ * rewritten; paying again (ACTIVE) restores the capacity at once.
+ */
+export function storageAddonCapacityStatusWhere(now: Date = new Date()): {
+  OR: Array<
+    { status: "ACTIVE" } | { status: "PAST_DUE"; currentPeriodEnd: { gt: Date } }
+  >;
+} {
+  return {
+    OR: [
+      { status: "ACTIVE" },
+      { status: "PAST_DUE", currentPeriodEnd: { gt: new Date(now.getTime() - GRACE_MS) } },
+    ],
+  };
+}
+
 export type CommercialLifecycleSubject =
   | { kind: "PERSONAL"; ownerUserId: string; plan: string }
   | { kind: "WORKSPACE"; teamId: string; plan: string };

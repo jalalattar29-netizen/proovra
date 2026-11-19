@@ -227,23 +227,48 @@ describe("BILLING — recurring storage add-on lifecycle (live PostgreSQL 16)", 
       expect((await capacityOf(t.owner.userId)).recurring).toBe(BigInt(10) * GB);
     });
 
-    it("a PAST_DUE add-on keeps contributing; a terminal one does not", async () => {
+    it("a PAST_DUE add-on keeps contributing through the 7-day grace after its paid period; a terminal one does not", async () => {
+      // The REAL storage meter (the API's; the worker's uses the same shared rule).
+      const { getActiveWorkspaceStorageAddonBytes } = await import("../src/services/workspace-billing.service.js");
+      const meter = (ownerUserId: string) => getActiveWorkspaceStorageAddonBytes({ ownerUserId, teamId: null });
       const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+      // A Stripe-billed add-on: the rule is provider-neutral.
       const addon = await seedAddon({
         ownerUserId: t.owner.userId,
         cycle: "MONTHLY",
         gb: 10,
         status: "PAST_DUE",
       });
-      // Grace is the canonical lifecycle's, not a new duration invented here:
-      // PAST_DUE still counts, which is what keeps a failed renewal from
-      // instantly putting a customer over cap.
-      expect((await capacityOf(t.owner.userId)).recurring).toBe(BigInt(10) * GB);
+      const DAY = 86_400_000;
+      const periodEnded = (daysAgo: number | null) =>
+        prisma.workspaceStorageAddon.update({
+          where: { id: addon.id },
+          data: { currentPeriodEnd: daysAgo === null ? null : new Date(Date.now() - daysAgo * DAY) },
+        });
+      // Grace is the canonical lifecycle's, not a new duration invented here
+      // (COMMERCIAL_GRACE_PERIOD_DAYS = 7, the one a past-due base plan gets):
+      // PAST_DUE still counts inside it, which is what keeps a failed renewal
+      // from instantly putting a customer over cap.
+      await periodEnded(2);
+      expect(await meter(t.owner.userId)).toBe(BigInt(10) * GB);
+      await periodEnded(6);
+      expect(await meter(t.owner.userId)).toBe(BigInt(10) * GB);
+      // PRO-BL1-04 / DEC-02 — and it is bounded: past the grace it no longer
+      // counts (at the base it counted for as long as the row stayed PAST_DUE),
+      // and a PAST_DUE add-on with no known paid period never counts.
+      await periodEnded(8);
+      expect(await meter(t.owner.userId)).toBe(0n);
+      await periodEnded(null);
+      expect(await meter(t.owner.userId)).toBe(0n);
+      // Paying again restores it at once; nothing was cancelled or rewritten.
+      await prisma.workspaceStorageAddon.update({ where: { id: addon.id }, data: { status: "ACTIVE" } });
+      expect(await meter(t.owner.userId)).toBe(BigInt(10) * GB);
 
       await prisma.workspaceStorageAddon.update({
         where: { id: addon.id },
         data: { status: "CANCELED" },
       });
+      expect(await meter(t.owner.userId)).toBe(0n);
       expect((await capacityOf(t.owner.userId)).recurring).toBe(0n);
     });
 

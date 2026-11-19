@@ -25,7 +25,7 @@ import {
   type EffectivePlanSource,
   type WorkspaceBillingStatus,
 } from "@proovra/shared-billing";
-import { readActiveInternalPlanGrant } from "@proovra/shared-runtime";
+import { readActiveInternalPlanGrant, storageAddonCapacityStatusWhere } from "@proovra/shared-runtime";
 import {
   NO_CONTRACT_LIMITS,
   resolveEnterpriseContractLimits,
@@ -171,7 +171,8 @@ export function storageAddonQuotaWhere(subject: {
   };
 }
 
-async function getActiveWorkspaceStorageAddonBytes(
+/** Exported for the capacity regression (billing-storage-addon-lifecycle); the meter's one reader. */
+export async function getActiveWorkspaceStorageAddonBytes(
   params: {
     ownerUserId: string;
     teamId?: string | null;
@@ -180,13 +181,12 @@ async function getActiveWorkspaceStorageAddonBytes(
 ): Promise<bigint> {
   const aggregate = await client.workspaceStorageAddon.aggregate({
     where: {
-      ...storageAddonQuotaWhere({ ownerUserId: params.ownerUserId, teamId: params.teamId ?? null }),
-      status: {
-        in: [
-          prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-          prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
-        ],
-      },
+      // PRO-BL1-04 / DEC-02 — ACTIVE, or PAST_DUE inside the one 7-day grace
+      // after its known paid period (shared with the worker's meter).
+      AND: [
+        storageAddonQuotaWhere({ ownerUserId: params.ownerUserId, teamId: params.teamId ?? null }),
+        storageAddonCapacityStatusWhere(),
+      ],
     },
     _sum: {
       extraStorageBytes: true,
