@@ -26,6 +26,8 @@ vi.mock("../../components/ui", async (orig) => ({
 vi.mock("../../lib/platform-context", () => ({
   useActiveSpace: () => ({ plan: "PRO" }),
   usePlatformContext: () => ({ context: null }),
+  // RG-14 (WS-ENT) — the tab also asks the plan whether team tasks are included.
+  usePlanFeature: () => true,
 }));
 
 import { MembersTab } from "../../app/(app)/collaboration-teams/[teamId]/_tabs/MembersTab";
@@ -43,6 +45,8 @@ function team() {
   return {
     id: TEAM_ID,
     status: "ACTIVE",
+    // PRO-K2-08 (WS-ENT) — each row control follows the viewer's own group role.
+    viewerRole: "LEAD",
     activeMemberCount: 2,
     capacityMemberCount: 2,
     memberPreviewLimit: 25,
@@ -105,7 +109,9 @@ describe("Collaboration Team Members tab", () => {
     render(<MembersTab team={team()} onRefresh={async () => {}} canManage canInvite={false} />);
     await screen.findByTestId("member-row-m-dana");
     expect(screen.queryByTestId("member-row-m-sam")).toBeNull();
-    fireEvent.change(screen.getByTestId("members-status-filter"), { target: { value: "SUSPENDED" } });
+    // The status filter is the product listbox (no native select in the product).
+    fireEvent.click(screen.getByRole("combobox", { name: "Show members" }));
+    fireEvent.click(screen.getByRole("option", { name: "Suspended members" }));
     fireEvent.click(await screen.findByTestId("member-reinstate-m-sam"));
     await waitFor(() =>
       expect(mocks.fetch).toHaveBeenCalledWith(

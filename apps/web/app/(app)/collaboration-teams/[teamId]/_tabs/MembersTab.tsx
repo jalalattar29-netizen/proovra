@@ -413,19 +413,18 @@ function MembersTab({
         ) : null}
 
         {canManage ? (
-          <div style={{ marginBottom: "0.9rem" }}>
-            <label htmlFor="members-status-filter" className="app-table__muted" style={{ marginRight: 8 }}>
-              Show
-            </label>
-            <select
+          <div style={{ marginBottom: "0.9rem", maxWidth: 240 }} data-testid="members-status-filter">
+            {/* The product listbox, not a native select (the one select control). */}
+            <AppListbox<"CURRENT" | "SUSPENDED">
               id="members-status-filter"
-              data-testid="members-status-filter"
               value={rosterStatus}
-              onChange={(e) => setRosterStatus(e.target.value === "SUSPENDED" ? "SUSPENDED" : "CURRENT")}
-            >
-              <option value="CURRENT">Current members</option>
-              <option value="SUSPENDED">Suspended members</option>
-            </select>
+              options={[
+                { value: "CURRENT", label: "Current members" },
+                { value: "SUSPENDED", label: "Suspended members" },
+              ]}
+              onChange={(next) => setRosterStatus(next === "SUSPENDED" ? "SUSPENDED" : "CURRENT")}
+              ariaLabel="Show members"
+            />
           </div>
         ) : null}
 

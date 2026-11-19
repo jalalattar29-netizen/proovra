@@ -12,6 +12,8 @@
  * fixed for.
  */
 
+import { formatTimestampParts } from "@proovra/shared";
+
 /** Mirrors the backend's bounded, user-safe status. */
 export type AiAssistanceStatus =
   | "AVAILABLE"
@@ -48,9 +50,9 @@ export type AiAssistanceReason = "ALLOWANCE_EXHAUSTED";
 
 function resetLabel(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+  // The allowance resets at a UTC instant; the date is formatted by the shared
+  // timestamp layer (the timestamp policy), in UTC.
+  return formatTimestampParts(iso, "UTC")?.date ?? null;
 }
 
 export function aiStatusCopy(

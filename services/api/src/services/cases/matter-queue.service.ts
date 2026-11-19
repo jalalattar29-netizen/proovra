@@ -14,6 +14,7 @@
  */
 
 import { Prisma } from "@prisma/client";
+import { workspaceCaseWhere } from "@proovra/shared-runtime";
 
 import { prisma } from "../../db.js";
 import { listCaseEvidenceIdsForViewerByCase } from "./case-risk-engine.service.js";
@@ -107,7 +108,7 @@ async function buildSearchOrClause(
     // account on the platform: a common term used to fill the 200-row cap with
     // strangers and drop the workspace's real owners.
     const workspaceOwners = await prisma.case.findMany({
-      where: { teamId },
+      where: { AND: [await workspaceCaseWhere(teamId, prisma)] },
       select: { ownerUserId: true },
       distinct: ["ownerUserId"],
     });
