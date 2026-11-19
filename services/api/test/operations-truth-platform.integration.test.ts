@@ -54,31 +54,70 @@ describe("Operations truth closure — platform conditions (live PostgreSQL 16 +
     await c?.h.cleanup();
   });
 
-  async function failSearchJobs(n: number, tag: string): Promise<string[]> {
-    const { getQueueHandle } = await import("../src/services/operations/queue-inventory.service.js");
+  /**
+   * A BullMQ worker that runs THIS file's jobs and no one else's.
+   *
+   * The queue lives in the Redis the whole integration run shares, and other
+   * suites leave hundreds of waiting index jobs on it that nothing consumes.
+   * A plain worker went on through that backlog once this file's job was
+   * done, and the product enqueues index jobs with `removeOnComplete: 200` /
+   * `removeOnFail: 200`: each of those jobs, as it finished, trimmed the
+   * finished set to its newest 200. So this file's completed job was evicted
+   * between two polls of `waitFor`, the wait ran out unseen, and the replay
+   * route truthfully answered 404 for a job that no longer existed
+   * (clean-db-boot on 991a2a717: "expected 409, received 404"). Alone on an
+   * empty queue the file passed.
+   *
+   * This file's jobs are added `lifo` BEFORE the worker starts, so they are
+   * at the head and are taken first. The first job that is not ours is held
+   * (one job: concurrency 1) and handed back to the head of the waiting list
+   * when the worker closes — BullMQ's own "not now" answer, which spends no
+   * attempt. Nothing of another suite's is completed, failed or trimmed, and
+   * the size of the backlog no longer matters.
+   */
+  async function ownJobsWorker(ownIds: readonly string[], run: () => Promise<unknown>) {
     const { Worker } = await import("bullmq");
-    const q = getQueueHandle(SEARCH_QUEUE)!;
     const url = new URL(process.env.REDIS_URL!);
-    const before = (await q.getJobCounts("failed")).failed;
-    const w = new Worker(
+    const own = new Set(ownIds);
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const worker = new Worker(
       SEARCH_QUEUE,
-      async () => {
-        throw new Error("index backend refused the write");
+      async (job) => {
+        if (own.has(String(job.id))) return run();
+        await released;
+        throw Worker.RateLimitError();
       },
       { connection: { host: url.hostname, port: Number(url.port) } },
     );
+    return {
+      async close() {
+        // Closing FIRST: once the held job is handed back the worker takes
+        // no further one.
+        const closing = worker.close();
+        release();
+        await closing;
+      },
+    };
+  }
+
+  async function failSearchJobs(n: number, tag: string): Promise<string[]> {
+    const { getQueueHandle } = await import("../src/services/operations/queue-inventory.service.js");
+    const q = getQueueHandle(SEARCH_QUEUE)!;
+    const before = (await q.getJobCounts("failed")).failed;
     const ids: string[] = [];
     for (let i = 0; i < n; i++) {
       const id = `${tag}-${Date.now()}-${i}`;
       ids.push(id);
-      // The queue lives in the Redis the whole integration run shares, and
-      // other suites leave hundreds of waiting index jobs on it that nothing
-      // consumes. `lifo` puts THIS job (and its retry) at the head, so this
-      // worker reaches it first instead of working through their backlog.
+      // `lifo` puts THIS job (and its retry) at the head of the shared queue.
       await q.add(SEARCH_JOB, { evidenceId: null }, { jobId: id, attempts: 2, lifo: true });
     }
-    // THIS call's jobs reached their final failure (the count alone would also
-    // move for another suite's job that this worker happened to fail).
+    const w = await ownJobsWorker(ids, async () => {
+      throw new Error("index backend refused the write");
+    });
+    // THIS call's jobs reached their final failure.
     await waitFor(async () => {
       const states = await Promise.all(ids.map(async (id) => (await q.getJob(id))?.getState()));
       return states.every((state) => state === "failed") && (await q.getJobCounts("failed")).failed >= before + n;
@@ -250,13 +289,13 @@ describe("Operations truth closure — platform conditions (live PostgreSQL 16 +
     const body = { teamId: a.teamId, reason: "ops-truth replay proof" };
 
     // A completed job: refused for what it is, not "not found".
-    const { Worker } = await import("bullmq");
-    const conn = new URL(process.env.REDIS_URL!);
-    const okWorker = new Worker(SEARCH_QUEUE, async () => "done", { connection: { host: conn.hostname, port: Number(conn.port) } });
     const doneId = `ops-truth-done-${Date.now()}`;
     // Head of the shared queue, as in failSearchJobs: not behind other suites' backlog.
     await q.add(SEARCH_JOB, { evidenceId: null }, { jobId: doneId, lifo: true });
-    await waitFor(async () => (await (await q.getJob(doneId))?.getState()) === "completed");
+    const okWorker = await ownJobsWorker([doneId], async () => "done");
+    // The wait is ASSERTED: a job that never completed must fail here, as
+    // itself, not two lines on as a status code.
+    expect(await waitFor(async () => (await (await q.getJob(doneId))?.getState()) === "completed")).toBe(true);
     await okWorker.close();
     const done = await c.inj("POST", url(doneId), admin.token, body);
     expect(done.statusCode).toBe(409);
