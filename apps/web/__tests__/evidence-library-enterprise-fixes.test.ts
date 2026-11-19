@@ -235,8 +235,8 @@ test("FIX 6 — Evidence Library page computes canSeeReviewerOps via the server-
   assert.match(PAGE, /canSeeReviewerOps=\{canSeeReviewerOps\}/);
 });
 
-test("FIX 6 — EvidenceReviewTab gates ReviewerComments/LegalNotes/Annotation panels behind canSeeReviewerOps", () => {
-  // The three mounts MUST sit inside the canSeeReviewerOps branch.
+test("FIX 6 — EvidenceReviewTab gates ReviewerComments/LegalNotes/Annotation panels behind canSeeBasicReview (PRO-E2-01: record-level review is Pro and above)", () => {
+  // The three mounts MUST sit inside the canSeeBasicReview branch.
   const gateBlock = REVIEW_TAB.slice(
     REVIEW_TAB.indexOf("data-evidence-review-enterprise-panels"),
     REVIEW_TAB.indexOf("data-evidence-review-enterprise-panels") + 1500,
@@ -244,17 +244,17 @@ test("FIX 6 — EvidenceReviewTab gates ReviewerComments/LegalNotes/Annotation p
   assert.match(gateBlock, /<ReviewerCommentsPanel evidenceId=\{evidence\.id\} \/>/);
   assert.match(gateBlock, /<LegalNotesPanel evidenceId=\{evidence\.id\} \/>/);
   assert.match(gateBlock, /<AnnotationPanel\s*\n?\s*evidenceId=\{evidence\.id\}/);
-  // The wrapping conditional must be on canSeeReviewerOps.
+  // The wrapping conditional must be on canSeeBasicReview (PRO-E2-01).
   assert.match(
     REVIEW_TAB,
-    /\{canSeeReviewerOps \? \(\s*\n?\s*<div\s*\n?\s*className="evidence-detail-embedded-panels"\s*\n?\s*data-evidence-review-enterprise-panels/,
+    /\{canSeeBasicReview \? \(\s*\n?\s*<div\s*\n?\s*className="evidence-detail-embedded-panels"\s*\n?\s*data-evidence-review-enterprise-panels/,
   );
 });
 
-test("FIX 6 — Governance descriptor is gated on canSeeReviewerOps (it describes the hidden panels)", () => {
+test("FIX 6 — Governance descriptor is gated on canSeeBasicReview (it describes the hidden panels)", () => {
   assert.match(
     REVIEW_TAB,
-    /\{workspace\.governance && canSeeReviewerOps \? \(/,
+    /\{workspace\.governance && canSeeBasicReview \? \(/,
   );
 });
 

@@ -80,13 +80,15 @@ test("/teams/[id] legacy detail is retained (deferred to the backend migration p
   );
 });
 
-test("/workspaces self-serve redirect target is /collaboration-teams (no /teams loop)", () => {
+test("/workspaces is an account-domain page: no self-serve redirect, and never to /teams (PRO-PW-02)", () => {
+  // PRO-PW-02 (WS-ENT) — /workspaces is the workspace list the recovery CTAs
+  // and membership emails open ("Open your workspaces"). Redirecting it to
+  // /collaboration-teams left every non-Enterprise account without one. The
+  // rule is CORE / allow; the loop guard below still holds.
   assert.match(
     TIERS_SOURCE,
-    /pathPrefix:\s*["']\/workspaces["'][\s\S]{0,300}?redirectTo:\s*["']\/collaboration-teams["']/,
-    "lib/surface/tiers.ts must redirect self-serve /workspaces to " +
-      "/collaboration-teams. Pointing it back at /teams would form a loop " +
-      "with the /teams → /collaboration-teams redirect.",
+    /pathPrefix:\s*["']\/workspaces["'],\s*tier:\s*"CORE",\s*directAccessPolicy:\s*"allow"/,
+    "lib/surface/tiers.ts must leave /workspaces reachable for every account.",
   );
   assert.doesNotMatch(
     TIERS_SOURCE,

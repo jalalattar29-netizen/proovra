@@ -178,6 +178,17 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
    * ENTITLEMENT_REQUIRED copy ("not available on your plan") already says it.
    */
   ENTITLEMENT_REQUIRED: { disposition: "customer", where: "global" },
+  // WS-ENT (PRO-NC-08) — batch analysis / quotas could not evaluate the
+  // caller's permission (a dependency outage), answered 503.
+  AUTHORIZATION_UNAVAILABLE: {
+    disposition: "generic",
+    why: "A server-side dependency outage: the 503 bucket's 'temporarily unavailable, try again' is the whole truth and naming the authorization layer adds nothing a person can act on.",
+  },
+  // WS-ENT (PRO-R3-07, DEC-12) — an operator entitlement grant without an expiry.
+  ENTITLEMENT_GRANT_EXPIRY_REQUIRED: {
+    disposition: "internal",
+    why: "Only the platform-admin contract panel posts entitlement grants and it always sends an expiry; a customer never reaches this route.",
+  },
   /**
    * A bulk reviewer action whose note was missing or whitespace-only
    * (2026-10-24). Customer-correctable: add the note and retry.

@@ -1318,8 +1318,8 @@ function TeamsEmptyState({
           {/* PRO-K2-10 (WS-ENT) — Team tasks (shared assignments) are the Team
               plan and above, not every plan that includes Teams. */}
           Teams group the people in this workspace for discussion and member
-          access. Shared assignments (Team tasks) are on the Team plan and
-          above. Upgrade to create one.
+          access. Shared assignments need a plan that includes them; not
+          every plan with Teams does. Upgrade to create one.
         </p>
         <div
           style={{
@@ -1603,7 +1603,7 @@ function CreateTeamModal({
           <p className="app-dialog__subtitle">
             {teamTasksIncluded === true
               ? "A team groups people who already have access to this workspace, so you can assign work to them and keep the discussion together."
-              : "A team groups people who already have access to this workspace and keeps the discussion together. Assigning work to a team (Team tasks) is on the Team plan and above."}
+              : "A team groups people who already have access to this workspace and keeps the discussion together. Assigning work to a group is not part of this workspace's current plan."}
           </p>
         </header>
 

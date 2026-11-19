@@ -142,7 +142,11 @@ describe("Phase IA-self-serve-completion — ENTERPRISE layout.tsx files added",
   // The shared EnterpriseSurfaceLayout runs SurfaceGate at the directory
   // boundary, applying the tier rule before any page content mounts.
   const SELF_SERVE_COMPLETION_DIRS = [
-    "app/(app)/workspaces",
+    // PRO-PW-02 (WS-ENT) — `app/(app)/workspaces` LEFT this list. /workspaces
+    // is the account-domain workspace list every recovery CTA and membership
+    // email opens; the ENTERPRISE layout gate redirected every non-Enterprise
+    // account to /collaboration-teams. Its tier rule is CORE / allow and the
+    // page gates itself with PageRouteGate (admin.teams); asserted below.
     // CONTRACT MIGRATION — Attention Architecture Phase 5 (2026-08-22).
     //
     // `app/(app)/notifications` LEFT this list. Its enterprise gate guarded
@@ -181,6 +185,14 @@ describe("Phase IA-self-serve-completion — ENTERPRISE layout.tsx files added",
       );
     });
   }
+
+  it("app/(app)/workspaces is an account-domain page: no ENTERPRISE layout gate, the page gates itself (PRO-PW-02)", () => {
+    const layout = readFileSync(webPath("app/(app)/workspaces/layout.tsx"), "utf8");
+    expect(layout).not.toMatch(/export\s*\{\s*default\s*\}\s*from\s*["'][^"']*EnterpriseSurfaceLayout["']/);
+    const page = readFileSync(webPath("app/(app)/workspaces/page.tsx"), "utf8");
+    expect(page).toMatch(/PageRouteGate/);
+    expect(page).toMatch(/admin\.teams/);
+  });
 
 
   it("the retired app/(app)/collaboration tree is GONE, not left ungated", () => {

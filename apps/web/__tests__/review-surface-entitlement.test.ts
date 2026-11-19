@@ -44,18 +44,40 @@ test("TEAM (reviewer operations included, Personal Workspace) opens the reviewer
   }
 });
 
-test("PRO (not included) and an unknown answer keep them not-found", () => {
+// PRO-R2-06 (WS-ENT) — the refusal is a PLAN refusal with a way forward
+// ("forbidden"), not a 404 that reads as a broken link. It is still a refusal:
+// PRO and an unknown answer never open the surface.
+test("PRO (not included) and an unknown answer are refused with the plan refusal, never opened", () => {
   for (const value of [false, null]) {
     for (const path of OPERATIONS) {
-      assert.equal(getDirectAccessDecision(ctx(value), path).kind, "notFound", `${path} (${value})`);
+      const decision = getDirectAccessDecision(ctx(value), path);
+      assert.equal(decision.kind, "forbidden", `${path} (${value})`);
     }
   }
 });
 
-test("advanced review surfaces stay Enterprise-only even when operations are included", () => {
+// PRO-R2-06 — the reviewer workspace, schemas, QC, disagreements and metrics
+// follow reviewQueuesIncluded (the capability the API serves them under) and
+// External Review follows externalReviewIncluded. The operations flag ALONE
+// never opens them, and an unknown answer never does.
+test("advanced review surfaces follow their own capability, not the operations flag", () => {
   for (const path of ADVANCED) {
-    assert.equal(getDirectAccessDecision(ctx(true), path).kind, "notFound", path);
+    assert.equal(getDirectAccessDecision(ctx(true), path).kind, "forbidden", path);
   }
+  const withFeatures = (features: Record<string, boolean | null>): SurfaceUserContext => ({
+    isPlatformAdmin: false,
+    isEnterpriseWorkspace: false,
+    planFeatures: { intakeIncluded: true, professionalSurfacesIncluded: true, reviewerOperationsIncluded: false, ...features },
+  });
+  for (const path of ADVANCED.filter((p) => p !== "/review/external")) {
+    assert.equal(getDirectAccessDecision(withFeatures({ reviewQueuesIncluded: true }), path).kind, "allow", path);
+    assert.equal(getDirectAccessDecision(withFeatures({ reviewQueuesIncluded: false }), path).kind, "forbidden", path);
+    assert.equal(getDirectAccessDecision(withFeatures({ externalReviewIncluded: true }), path).kind, "forbidden", path);
+  }
+  // External Review is PRO and above: it opens without any reviewer-operations capability.
+  assert.equal(getDirectAccessDecision(withFeatures({ externalReviewIncluded: true }), "/review/external").kind, "allow");
+  assert.equal(getDirectAccessDecision(withFeatures({ externalReviewIncluded: false }), "/review/external").kind, "forbidden");
+  assert.equal(getDirectAccessDecision(withFeatures({ reviewQueuesIncluded: true }), "/review/external").kind, "forbidden");
 });
 
 test("the reviewer-operations navigation entries are reachable from a Personal Workspace", () => {

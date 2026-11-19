@@ -447,11 +447,13 @@ describe("Phase 32.8E — /teams workspace administration", () => {
     }
   });
 
-  it("renders the role permission matrix with OWNER / ADMIN / MEMBER / VIEWER columns", () => {
-    expect(WORKSPACE_PANEL).toMatch(/<th>OWNER<\/th>/);
-    expect(WORKSPACE_PANEL).toMatch(/<th>ADMIN<\/th>/);
-    expect(WORKSPACE_PANEL).toMatch(/<th>MEMBER<\/th>/);
-    expect(WORKSPACE_PANEL).toMatch(/<th>VIEWER<\/th>/);
+  it("renders the SERVER's role permission matrix, not a hard-coded table (PRO-T1C-03)", () => {
+    // PRO-T1C-03 (WS-ENT) — the hard-coded OWNER / ADMIN / MEMBER / VIEWER
+    // table contradicted the enforced permissions. The tab renders the one
+    // matrix the server computes (GET /v1/platform/rbac/matrix), through the
+    // component /teams/[id] already uses.
+    expect(WORKSPACE_PANEL).toMatch(/<TeamPermissionMatrix\b/);
+    expect(WORKSPACE_PANEL).not.toMatch(/<th>OWNER<\/th>/);
   });
 
   it("never surfaces API key secrets, webhook secrets, or signed URLs", () => {

@@ -242,13 +242,13 @@ function EvidenceDetailPageInner() {
   // PRO-E1C-02 (WS-ENT) — stable callbacks: the badge's effect depends on its
   // callback, and an inline arrow re-fetched the snapshot on every render.
   type EligibilitySignal = { eligible: boolean; loading: boolean; unknown: boolean; reason: string | null };
-  const onExportEligibility = useCallback((sig: EligibilitySignal) => {
-    setExportDisabled(!sig.loading && !sig.unknown && !sig.eligible);
-    setExportBlockedReason(sig.eligible ? null : downloadBlockedLabel(sig.reason));
+  const onExportEligibility = useCallback((s: EligibilitySignal) => {
+    setExportDisabled(!s.loading && !s.unknown && !s.eligible);
+    setExportBlockedReason(s.eligible ? null : downloadBlockedLabel(s.reason));
   }, []);
-  const onPackageEligibility = useCallback((sig: EligibilitySignal) => {
-    setPackageDisabled(!sig.loading && !sig.unknown && !sig.eligible);
-    setPackageBlockedReason(sig.eligible ? null : downloadBlockedLabel(sig.reason));
+  const onPackageEligibility = useCallback((s: EligibilitySignal) => {
+    setPackageDisabled(!s.loading && !s.unknown && !s.eligible);
+    setPackageBlockedReason(s.eligible ? null : downloadBlockedLabel(s.reason));
   }, []);
   const [initialUpdatedAtUtc, setInitialUpdatedAtUtc] = useState<string | null>(null);
   const [intelligence, setIntelligence] = useState<IntelligenceEvidenceResponse | null>(null);

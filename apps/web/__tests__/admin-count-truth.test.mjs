@@ -122,7 +122,7 @@ const REVIEWED_MINIMUM = {
   "/operations/automation | ResultCount | rule": "COMPLETE_LIST",
   "/operations/automation | ResultCount | run": "EXACT_TOTAL",
   "/security-center/identity | ResultCount | member": "COMPLETE_LIST",
-  "/security-center/identity/permission-matrix | ResultCount | role": "COMPLETE_LIST",
+  "/security-center/identity/permission-matrix | ResultCount | permission": "COMPLETE_LIST",
   "/security-center/identity/runtime | ResultCount | quarantined session": "SERVER_HAS_MORE",
   "/security-center/identity/runtime | ResultCount | session": "SERVER_HAS_MORE",
   "/security-center/identity/scim | ResultCount | sync failure": "EXACT_TOTAL",

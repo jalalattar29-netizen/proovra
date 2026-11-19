@@ -136,7 +136,9 @@ describe("Phase IA-self-serve-regression-fix — BUG 2: Invite teammate + /teams
 
   it("the landing renders the org list when `useOrganizations()` returns entries", () => {
     expect(TEAMS).toMatch(/organizations\.map\(/);
-    expect(TEAMS).toMatch(/href=\{`\/organizations\/\$\{org\.id\}`\}/);
+    // PRO-T1C-05 (WS-ENT) — the governance link names the ORGANIZATION id,
+    // not the workspace id the row carries.
+    expect(TEAMS).toMatch(/href=\{`\/organizations\/\$\{organizationIdByWorkspace\.get\(org\.id\)\}`\}/);
   });
 });
 

@@ -13,6 +13,13 @@ vi.mock("../../lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/api")>()), apiFetch: mocks.fetch, ApiError: class ApiError extends Error {} }));
 vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () => ({ confirm: mocks.confirm }) }));
 vi.mock("../../components/navigation/PageRouteGate", () => ({ PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+// PRO-G2Z-02 (WS-ENT) — row actions follow the route's permission through the
+// advisory mirror (useWorkspacePermissionAccess). This suite proves the page's
+// own behaviour for a caller the route accepts, so the mirror is stated here.
+vi.mock("../../components/governance/governance-action-state", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useWorkspacePermissionAccess: () => ({ ready: true, verdict: () => "granted", allows: () => true }),
+}));
 vi.mock("../../lib/platform-context", () => ({ useTenantGuard: () => mocks.guard, usePlatformContext: () => mocks.platform }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/governance-platform/policies", useRouter: () => ({ push: () => {}, replace: () => {} }) }));
 

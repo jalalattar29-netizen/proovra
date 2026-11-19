@@ -145,14 +145,14 @@ test("Fix 2 — Review tab no longer carries the NotStartedEmptyState replacemen
   }
 });
 
-test("Fix 2 — Assign reviewer button is gated on canSeeReviewerOps inside the always-rendered Review actions row", () => {
+test("Fix 2 — Assign reviewer button is gated on canSeeReviewerOps (and a write role, PRO-E2-09) inside the always-rendered Review actions row", () => {
   // The button still hides on Personal Space (no reviewer-ops surface
   // there) — it just lives in the always-rendered Review actions
   // section now, not the deleted empty-state card.
   assert.match(REVIEW, /data-evidence-review-actions/);
   assert.match(
     REVIEW,
-    /canSeeReviewerOps\s*\?\s*\(\s*\n?\s*<button[\s\S]{0,300}Assign reviewer/,
+    /canSeeReviewerOps\s*&&\s*actor\.canEditMetadata\s*\?\s*\(\s*\n?\s*<button[\s\S]{0,300}Assign reviewer/,
   );
 });
 
@@ -177,7 +177,7 @@ test("Fix 2 — enterprise still gets the full workflow: ReviewerWorkflowCard + 
   // separately for reviewer-ops users.
   assert.match(
     REVIEW,
-    /canSeeReviewerOps\s*\?\s*\(\s*\n?\s*<ReviewerWorkflowCard/,
+    /canSeeBasicReview\s*\?\s*\(\s*\n?\s*<ReviewerWorkflowCard/,
   );
   assert.match(REVIEW, /<EvidenceReviewActionsPanel/);
 });

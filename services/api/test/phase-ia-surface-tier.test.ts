@@ -263,13 +263,18 @@ describe("Phase IA-surface-tier — hidden surfaces for personal/small-office us
     "/investigation",
   ];
 
+  // PRO-R2-06 (WS-ENT) — the reviewer-operations surfaces are a PLAN boundary
+  // (Team and above), so a plan without them is told so with the plan refusal
+  // ("forbidden", with a way forward) instead of a 404 that reads as a broken
+  // link. They are still refused; every other ENTERPRISE surface stays hidden.
+  const PLAN_REFUSED_PATHS = new Set(["/review", "/review-operations", "/reviewer-ops"]);
+
   for (const path of ENTERPRISE_PATHS) {
-    it(`ENTERPRISE hidden: ${path} → notFound for FREE personal user`, () => {
+    const expected = PLAN_REFUSED_PATHS.has(path) ? "forbidden" : "notFound";
+    it(`ENTERPRISE hidden: ${path} → ${expected} for FREE personal user`, () => {
       expect(getSurfaceTier(path)).toBe("ENTERPRISE");
       expect(canAccessSurface(PERSONAL_FREE_USER, path)).toBe(false);
-      expect(getDirectAccessDecision(PERSONAL_FREE_USER, path).kind).toBe(
-        "notFound",
-      );
+      expect(getDirectAccessDecision(PERSONAL_FREE_USER, path).kind).toBe(expected);
     });
   }
 

@@ -949,13 +949,13 @@ function EvidenceLibraryPageInner() {
           id: workspace.workspaceId,
           name: workspace.name ?? "Workspace",
         })),
-        ...(envelope?.workspace?.id &&
-        !(envelope?.contextOptions?.ownedWorkspaces ?? []).some((w) => w.workspaceId === envelope?.workspace?.id) &&
-        envelope?.contextOptions?.personalSpace?.workspaceId !== envelope?.workspace?.id
-          ? [{ id: envelope.workspace.id, name: envelope.workspace.name ?? "Workspace" }]
+        ...(activeSpaceId &&
+        !(envelope?.contextOptions?.ownedWorkspaces ?? []).some((w) => w.workspaceId === activeSpaceId) &&
+        envelope?.contextOptions?.personalSpace?.workspaceId !== activeSpaceId
+          ? [{ id: activeSpaceId, name: envelope?.activeSpace?.displayName ?? "Workspace" }]
           : []),
       ].filter((workspace) => mayShareSavedViewsIn(envelope, workspace.id)),
-    [envelope]
+    [envelope, activeSpaceId]
   );
 
   /**

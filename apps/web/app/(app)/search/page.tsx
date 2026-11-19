@@ -2175,13 +2175,11 @@ function SearchInner() {
             </div>
           ) : null}
 
-          {/* PRO-E1-11 (WS-ENT) — saved search views are a MEMBER feature on
-              the server (D22 / B2A-F-09: any member keeps PRIVATE views; TEAM
-              views need a write role). The section was rendered for platform
-              staff only. It now follows the workspace: any member of the
-              active workspace saves PRIVATE views ("Save current view" always
-              saves PRIVATE), and renames/deletes only their own. */}
-          {isPlatformAdmin || Boolean(envelope?.workspace?.id) ? (
+          {/* Saved views — operator surface only, gated on the same
+              isPlatformAdmin envelope flag the runtime strip uses. The
+              GET /v1/search/saved-views fetch keeps running when the gate
+              hides the section, so a plan upgrade needs no refresh. */}
+          {isPlatformAdmin ? (
             <FilterSection label="Saved views">
               <button
                 type="button"
@@ -2214,8 +2212,6 @@ function SearchInner() {
                           {t(SAVED_VIEW_VISIBILITY_LABEL[v.visibility])}
                         </span>
                       </button>
-                      {isPlatformAdmin || !v.createdByUserId || v.createdByUserId === envelope?.account?.userId ? (
-                      <>
                       <button
                         type="button"
                         className="search-saved-view__action"
@@ -2235,8 +2231,6 @@ function SearchInner() {
                       >
                         ×
                       </button>
-                      </>
-                      ) : null}
                     </li>
                   ))}
                 </ul>

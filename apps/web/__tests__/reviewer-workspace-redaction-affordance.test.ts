@@ -327,15 +327,26 @@ test("workspace page derives canRequestRedaction from useActiveSpace role label"
     /const\s+canRequestRedaction\s*=/,
     "Workspace page must derive a canRequestRedaction flag.",
   );
-  // The DB-level OWNER / ADMIN / MEMBER role labels carry
-  // redaction.region.author per packages/shared/permissions.ts.
-  // VIEWER (and missing role) must NOT pass the hint.
-  for (const role of ["OWNER", "ADMIN", "MEMBER"]) {
+  // PRO-R3-06 (WS-ENT) — the redaction ROUTE gate is assertRedactionCapability
+  // (redaction roles from the workspace role: OWNER / ADMIN), not the shared
+  // permission matrix, so a MEMBER offered "Request redaction" was refused
+  // NOT_PERMITTED. The hint follows the route: OWNER / ADMIN, and never a
+  // workspace the server says is not entitled.
+  for (const role of ["OWNER", "ADMIN"]) {
     assert.ok(
       new RegExp(`roleLabel\\s*===\\s*"${role}"`).test(PAGE_SOURCE),
       `canRequestRedaction derivation must accept ${role}.`,
     );
   }
+  assert.ok(
+    !/roleLabel\s*===\s*"MEMBER"/.test(PAGE_SOURCE),
+    "MEMBER must not be offered a redaction request the route refuses.",
+  );
+  assert.match(
+    PAGE_SOURCE,
+    /redactionIncluded\s*!==\s*false/,
+    "canRequestRedaction must withhold the affordance when the server says redaction is not entitled.",
+  );
   assert.ok(
     !/roleLabel\s*===\s*"VIEWER"/.test(PAGE_SOURCE),
     "VIEWER must not be granted the redaction capability hint.",

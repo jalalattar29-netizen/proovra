@@ -29,6 +29,8 @@ vi.mock("../../components/navigation/PageRouteGate", () => ({
 vi.mock("../../lib/platform-context", () => ({
   useActiveSpaceId: () => "11111111-1111-4111-8111-111111111111",
   useActiveSpace: () => ({ id: "11111111-1111-4111-8111-111111111111", roleLabel: "VIEWER" }),
+  // PRO-R3-06 (WS-ENT): the redaction affordance reads planFeatures.redactionIncluded.
+  usePlatformContext: () => ({ envelope: null }),
 }));
 
 import { ToastProvider } from "../../components/ui";

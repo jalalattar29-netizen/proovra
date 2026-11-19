@@ -237,7 +237,11 @@ describe("Phase IA-self-serve-audit-fixes — Teams landing + renames", () => {
     const SRC = readWeb(
       "components/workspace-admin/WorkspaceAdministrationHome.tsx",
     );
-    expect(SRC).toMatch(/href=\{`\/organizations\/\$\{org\.id\}`\}/);
+    // PRO-T1C-05 (WS-ENT) — the row id is a WORKSPACE id; the link names the
+    // ORGANIZATION id from contextOptions.organizations, and an owned
+    // workspace (no organization) gets no governance link.
+    expect(SRC).toMatch(/href=\{`\/organizations\/\$\{organizationIdByWorkspace\.get\(org\.id\)\}`\}/);
+    expect(SRC).not.toMatch(/href=\{`\/organizations\/\$\{org\.id\}`\}/);
   });
 
   it("the landing page shows a billing CTA", () => {
@@ -548,9 +552,13 @@ describe("Phase IA-self-serve-audit-fixes — Evidence Detail gates", () => {
     // workflow card in the always-on top slot (gated on
     // canSeeReviewerOps), and the actions panel separately (also
     // gated). Status changes never swap the layout.
+    // PRO-E2-01 (WS-ENT) — the card and panel are the RECORD-LEVEL review
+    // (Pro and above), so their gate is canSeeBasicReview; assigning another
+    // member stays on canSeeReviewerOps (asserted by the onOpenEditor prop).
     expect(EVI).toMatch(
-      /canSeeReviewerOps \?\s*\(\s*\n?\s*<ReviewerWorkflowCard/,
+      /canSeeBasicReview \?\s*\(\s*\n?\s*<ReviewerWorkflowCard/,
     );
+    expect(EVI).toMatch(/onOpenEditor=\{canSeeReviewerOps \? /);
     expect(EVI).toMatch(
       /canSeeReviewerOps[\s\S]{0,2000}<EvidenceReviewActionsPanel/,
     );

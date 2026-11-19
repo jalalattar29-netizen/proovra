@@ -152,7 +152,7 @@ test("Review tab — always-rendered Review actions row has only wired buttons",
   assert.match(
     src,
     // Same gate; the legacy Button became the canonical action primitive.
-    /canSeeReviewerOps\s*\?\s*\(\s*\n?\s*<button[\s\S]{0,300}Assign reviewer/,
+    /canSeeReviewerOps\s*&&\s*actor\.canEditMetadata\s*\?\s*\(\s*\n?\s*<button[\s\S]{0,300}Assign reviewer/,
   );
 });
 
