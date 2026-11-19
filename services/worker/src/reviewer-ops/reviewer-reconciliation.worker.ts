@@ -30,6 +30,7 @@
 
 import { REVIEWER_OPS_CRON_HEADER, newCorrelationId } from "@proovra/shared";
 import { logger } from "../logger.js";
+import { reportSweepNotConfigured, resolveInternalApiBase } from "../internal-api.js";
 import { captureException } from "../sentry.js";
 
 export type ReviewerReconciliationOptions = {
@@ -54,12 +55,9 @@ export type ReviewerReconciliationResult = {
   error?: string;
 };
 
+// PRO-W2-10 — the one resolver (with the bootstrap's default).
 function apiBaseUrl(): string {
-  const v =
-    process.env.INTERNAL_API_BASE_URL?.trim() ||
-    process.env.API_BASE_URL?.trim() ||
-    "";
-  return v.replace(/\/+$/, "");
+  return resolveInternalApiBase();
 }
 
 function cronSecret(): string {
@@ -104,6 +102,10 @@ export async function runReviewerReconciliation(
   if (!secret) {
     const err = "REVIEWER_OPS_CRON_SECRET / INTEGRATION_CRON_SECRET not configured";
     logger.error({ trigger, correlationId }, `reviewer_reconcile.${err}`);
+    reportSweepNotConfigured({
+      sweep: "reviewer-ops-reconciliation",
+      missing: ["REVIEWER_OPS_CRON_SECRET", "INTEGRATION_CRON_SECRET"],
+    });
     return {
       ok: false,
       correlationId,
