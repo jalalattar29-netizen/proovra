@@ -82,6 +82,13 @@ describe("WS-AUTH identity roots (live PostgreSQL)", () => {
     }) as unknown as Promise<Res>;
   const post = (url: string, token: string | null, payload: unknown = {}) => call("POST", url, token, payload);
   const json = (r: Res) => JSON.parse(r.body) as Json;
+  // Integration: the shared Enterprise fixture seeds directory-provisioned
+  // members since PRO-A2-03 (WS-ORG); a pre-existing self-serve member is one
+  // whose provider id is its own address, set explicitly here.
+  const makeSelfServe = async (userId: string) => {
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
+    await prisma.user.update({ where: { id: userId }, data: { providerUserId: u.email ?? `self-serve-${userId}` } });
+  };
   const sessions = (userId: string) => prisma.authenticatedSession.count({ where: { userId } });
   const allForUser = (userId: string) =>
     prisma.revokedSession.count({ where: { userId, scope: "ALL_FOR_USER" } });
@@ -454,6 +461,7 @@ describe("WS-AUTH identity roots (live PostgreSQL)", () => {
     it("removing a self-serve member ends their access there but not their own sessions; a managed identity loses every session", async () => {
       const o = await fx.seedOrganizationTenant(deps, { memberCount: 2 });
       const [selfServe, managed] = o.members as [typeof o.members[0], typeof o.members[0]];
+      await makeSelfServe(selfServe.userId);
       await prisma.user.update({
         where: { id: managed.userId },
         data: { providerUserId: `scim-${o.organizationId}:managed-${randomUUID().slice(0, 8)}` },
@@ -474,6 +482,7 @@ describe("WS-AUTH identity roots (live PostgreSQL)", () => {
     it("SCIM: the first deprovision of a self-serve linked member suspends without signing them out; a repeat writes nothing; after departure it is 404", async () => {
       const o = await fx.seedOrganizationTenant(deps, { memberCount: 1 });
       const m = o.members[0]!;
+      await makeSelfServe(m.userId);
       await prisma.externalIdentityMapping.create({
         data: { teamId: o.workspaceId, organizationId: o.organizationId, userId: m.userId, provider: "GENERIC_SCIM", externalSubjectId: `ext-${randomUUID()}` },
       });
@@ -497,6 +506,7 @@ describe("WS-AUTH identity roots (live PostgreSQL)", () => {
     it("self-serve member: 403 target_self_serve_account before any step-up; a managed identity proceeds to step-up", async () => {
       const o = await fx.seedOrganizationTenant(deps, { memberCount: 2 });
       const [selfServe, managed] = o.members as [typeof o.members[0], typeof o.members[0]];
+      await makeSelfServe(selfServe.userId);
       await seedTotp(selfServe.userId);
       await seedTotp(managed.userId);
       await prisma.user.update({

@@ -343,6 +343,17 @@ describe("WS-SHELL remediation regressions (live PostgreSQL)", () => {
 
     it("PRO-G1-07: re-enabling a disabled endpoint restarts its failure count; an ACTIVE→ACTIVE update does not", async () => {
       const { createWebhookEndpoint, updateWebhookEndpoint } = await import("../src/services/integrations/webhooks.service.js");
+      // Integration: PRO-G1-05 (WS-ENT) counts endpoints against the workspace's
+      // ceiling at create and at re-enable; this workspace is granted room.
+      const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+      await upsertEntitlementGrant({
+        teamId: T.teamId,
+        key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX" as never,
+        value: 5,
+        kind: "LIMIT",
+        source: "CUSTOM",
+        grantedByUserId: T.owner.id,
+      });
       const { endpoint } = await createWebhookEndpoint({
         teamId: T.teamId,
         url: `https://203.0.113.10/ws-reenable/${tag()}`,

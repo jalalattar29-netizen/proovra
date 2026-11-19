@@ -216,6 +216,10 @@ describe("WS-MSG remediation (live PostgreSQL 16)", () => {
     it("the column holds an e3.3 envelope, not the raw secret; emission still signs with the revealed secret", async () => {
       const { upsertEntitlementGrant } = entitlement;
       await upsertEntitlementGrant({ teamId: A().teamId, key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX", value: 5, kind: "LIMIT", source: "CUSTOM", grantedByUserId: A().ownerUserId } as never);
+      // Integration: RG-13 (WS-ENT) admits each delivery against FEATURE_WEBHOOKS
+      // and the daily delivery quota at emit; this workspace holds both.
+      await upsertEntitlementGrant({ teamId: A().teamId, key: "FEATURE_WEBHOOKS", value: true, kind: "FEATURE", source: "CUSTOM", grantedByUserId: A().ownerUserId } as never);
+      await upsertEntitlementGrant({ teamId: A().teamId, key: "QUOTA_WEBHOOK_DELIVERIES_PER_DAY", value: 1000, kind: "QUOTA", source: "CUSTOM", grantedByUserId: A().ownerUserId } as never);
       const created = await webhookPlatform.createWebhookEndpoint({
         prisma: prisma as never,
         teamId: A().teamId,

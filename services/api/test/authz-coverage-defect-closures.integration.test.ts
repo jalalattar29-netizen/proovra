@@ -283,6 +283,12 @@ describe("coverage defect closures (live PostgreSQL)", () => {
       });
       const foreignPackage = (await rows(other).id("EvidenceExchangePackage")) as string;
       const ownPackage = (await own.id("EvidenceExchangePackage")) as string;
+      // PRO-BL2-07 (WS-OUT) — a transfer completes only on a built package
+      // (READY) that carries every record it moves.
+      await prisma.evidenceExchangePackage.update({
+        where: { id: ownPackage },
+        data: { state: "READY", evidenceIds: [evidenceId] } as never,
+      });
       const url = `/v1/exchange/chain-transfers/${transfer.id}/complete`;
       const refused = await kit.call("POST", url, mine.owner, { packageId: foreignPackage }, hdr(mine));
       expect(refused.statusCode, refused.body).toBe(409);
