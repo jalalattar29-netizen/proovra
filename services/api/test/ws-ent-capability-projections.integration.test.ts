@@ -169,13 +169,13 @@ describe("WS-ENT capability projections and sibling gates (live PostgreSQL)", ()
   // Last: it moves the fixture record into Trash.
   it("PRO-E2-05: a record in Trash takes no label write", async () => {
     const A = h.fixtures.teamA;
-    const before = await prisma.evidence.findUniqueOrThrow({ where: { id: A.evidenceId }, select: { label: true } });
+    const before = await prisma.evidence.findUniqueOrThrow({ where: { id: A.evidenceId }, select: { title: true } });
     await prisma.evidence.update({ where: { id: A.evidenceId }, data: { lifecycleState: "TRASHED" } });
     const res = await call("PATCH", `/v1/evidence/${A.evidenceId}/label`, A.ownerToken, { label: "after trash" }, A.teamId);
     expect(res.statusCode, res.body).toBeGreaterThanOrEqual(400);
     expect(res.statusCode, res.body).toBeLessThan(500);
     expect(
-      (await prisma.evidence.findUniqueOrThrow({ where: { id: A.evidenceId }, select: { label: true } })).label,
-    ).toBe(before.label);
+      (await prisma.evidence.findUniqueOrThrow({ where: { id: A.evidenceId }, select: { title: true } })).title,
+    ).toBe(before.title);
   });
 });
