@@ -915,6 +915,27 @@ export async function buildPlatformContext(
   }
 
   /**
+   * PRO-R3-06 / DEC-10 — reads outlive the entitlement. A workspace that lost
+   * FEATURE_REDACTION keeps its existing redaction projects readable on the
+   * server (redaction.routes `gate`: GETs and the protective quarantine are
+   * not entitlement-gated), so the console stays reachable READ-ONLY while
+   * such material exists. New work is still refused by every write route.
+   * Rendering input only; fails closed (false).
+   */
+  let redactionReadRetained = false;
+  if (workspace.id && !redactionIncluded) {
+    try {
+      redactionReadRetained =
+        (await prisma.redactionProject.findFirst({
+          where: { teamId: workspace.id },
+          select: { id: true },
+        })) !== null;
+    } catch {
+      redactionReadRetained = false;
+    }
+  }
+
+  /**
    * COMMERCIAL CLOSURE (2026-09-08) — intake follows the ONE intake rule.
    *
    * `planCaps.intakeIncluded` alone hid the Intake surface from every real
@@ -974,6 +995,8 @@ export async function buildPlatformContext(
     externalReviewIncluded: externalReviewEntitled,
     // B5B-F-205 — FEATURE_REDACTION (resolveEntitlement), the routes' authority.
     redactionIncluded,
+    // PRO-R3-06 — existing redaction material stays readable after a lapse.
+    redactionReadRetained,
     aiAssistanceMonthlyOperations: planCaps.aiAdvisoryMonthlyOperations,
     /*
      * WORKSPACE AND COLLABORATION ARCHITECTURE CLOSURE (2026-09-06) —

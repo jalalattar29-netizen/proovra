@@ -23,6 +23,13 @@ export function safeLegalGateNext(raw: unknown): string | null {
   return raw;
 }
 
+/**
+ * PRO-NA-04 — the sign-in bootstrap sets `resume` to this when a record link
+ * opened while signed out is waiting behind the gate: leaving the gate replays
+ * it through the server resolve + workspace switch (replayRecordLinkAfterSignIn).
+ */
+export const LEGAL_GATE_RESUME_RECORD_LINK = "record-link";
+
 let navigating = false;
 
 export function triggerLegalGate(missingPolicies: string[]): void {

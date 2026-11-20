@@ -31,6 +31,18 @@ export const MIN_MULTIPART_PART_BYTES = 5 * 1024 * 1024;
 /** S3's part-count ceiling. */
 const MAX_PARTS = 10_000;
 
+/**
+ * PRO-W1C-08 — the upload reached its deadline. Every in-flight request was
+ * aborted and the multipart upload was aborted at the store: nothing was
+ * completed, no object version exists for it.
+ */
+export class MultipartUploadDeadlineExceeded extends Error {
+  constructor() {
+    super("multipart_upload_deadline_exceeded");
+    this.name = "MultipartUploadDeadlineExceeded";
+  }
+}
+
 export type MultipartUploadResult = {
   versionId: string | null;
   sha256: string;
@@ -51,7 +63,17 @@ export async function uploadFileMultipart(input: {
   metadata?: Record<string, string>;
   /** Refuse to send more than this many bytes. */
   maxBytes: number;
+  /**
+   * PRO-W1C-08 — epoch ms by which the upload must have completed. In-flight
+   * requests are aborted when it passes, no further part is sent, the
+   * completion is not requested, and the multipart upload is aborted at the
+   * store (MultipartUploadDeadlineExceeded). Absent: unbounded, as before.
+   */
+  deadlineAt?: number;
 }): Promise<MultipartUploadResult> {
+  const deadlineAt = input.deadlineAt;
+  const pastDeadline = () => deadlineAt !== undefined && Date.now() >= deadlineAt;
+  if (pastDeadline()) throw new MultipartUploadDeadlineExceeded();
   const partBytes = Math.max(MIN_MULTIPART_PART_BYTES, Math.trunc(input.partBytes));
   const size = (await stat(input.file)).size;
   if (size <= 0) throw new Error("multipart_upload_empty_file");
@@ -59,26 +81,45 @@ export async function uploadFileMultipart(input: {
   if (Math.ceil(size / partBytes) > MAX_PARTS) throw new Error("multipart_upload_too_many_parts");
 
   const lock = input.objectLockEnabled && input.lock ? input.lock : null;
-  const created = await input.client.send(
-    new CreateMultipartUploadCommand({
-      Bucket: input.bucket,
-      Key: input.key,
-      ContentType: input.contentType,
-      ChecksumAlgorithm: "SHA256",
-      ...(input.metadata ? { Metadata: input.metadata } : {}),
-      ...(lock ? { ObjectLockMode: lock.mode as ObjectLockMode, ObjectLockRetainUntilDate: lock.retainUntil } : {}),
-    }),
-  );
-  const uploadId = created.UploadId;
-  if (!uploadId) throw new Error("multipart_upload_no_upload_id");
+  // One controller for the whole upload: the deadline aborts whatever request
+  // is in flight (a stalled part cannot hold the attempt past its claim).
+  const controller = new AbortController();
+  const timer =
+    deadlineAt === undefined
+      ? null
+      : setTimeout(() => controller.abort(), Math.max(0, deadlineAt - Date.now()));
+  timer?.unref?.();
+  const signal = { abortSignal: controller.signal };
+  const deadlineHit = () => controller.signal.aborted || pastDeadline();
+  let uploadId: string | undefined;
+  try {
+    const created = await input.client.send(
+      new CreateMultipartUploadCommand({
+        Bucket: input.bucket,
+        Key: input.key,
+        ContentType: input.contentType,
+        ChecksumAlgorithm: "SHA256",
+        ...(input.metadata ? { Metadata: input.metadata } : {}),
+        ...(lock ? { ObjectLockMode: lock.mode as ObjectLockMode, ObjectLockRetainUntilDate: lock.retainUntil } : {}),
+      }),
+      signal,
+    );
+    uploadId = created.UploadId;
+    if (!uploadId) throw new Error("multipart_upload_no_upload_id");
+  } catch (err) {
+    if (timer) clearTimeout(timer);
+    throw deadlineHit() ? new MultipartUploadDeadlineExceeded() : err;
+  }
 
   const whole = createHash("sha256");
   const parts: Array<{ ETag: string; PartNumber: number; ChecksumSHA256: string }> = [];
   let sent = 0;
-  const fh = await open(input.file, "r");
+  let fh: Awaited<ReturnType<typeof open>> | null = null;
   try {
+    fh = await open(input.file, "r");
     const buf = Buffer.allocUnsafe(partBytes);
     for (let partNumber = 1; sent < size; partNumber += 1) {
+      if (deadlineHit()) throw new MultipartUploadDeadlineExceeded();
       // Fill one part completely (a short read is not the end of the file).
       let filled = 0;
       while (filled < partBytes && sent + filled < size) {
@@ -102,12 +143,17 @@ export async function uploadFileMultipart(input: {
           ContentMD5: createHash("md5").update(body).digest("base64"),
           ChecksumSHA256: checksum,
         }),
+        signal,
       );
       if (!res.ETag) throw new Error("multipart_upload_part_without_etag");
       parts.push({ ETag: res.ETag, PartNumber: partNumber, ChecksumSHA256: res.ChecksumSHA256 ?? checksum });
       sent += filled;
     }
     if (sent !== size) throw new Error("multipart_upload_size_changed");
+    // Completion is not requested past the deadline. It is sent without the
+    // abort signal: a completion cut off mid-flight could leave an object the
+    // caller never learns about.
+    if (deadlineHit()) throw new MultipartUploadDeadlineExceeded();
     const done = await input.client.send(
       new CompleteMultipartUploadCommand({
         Bucket: input.bucket,
@@ -130,8 +176,9 @@ export async function uploadFileMultipart(input: {
     } catch {
       /* the store's incomplete-upload lifecycle reaps what an abort could not */
     }
-    throw err;
+    throw deadlineHit() && !(err instanceof MultipartUploadDeadlineExceeded) ? new MultipartUploadDeadlineExceeded() : err;
   } finally {
-    await fh.close().catch(() => undefined);
+    if (timer) clearTimeout(timer);
+    await fh?.close().catch(() => undefined);
   }
 }

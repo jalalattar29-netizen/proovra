@@ -101,6 +101,13 @@ export type SurfaceTierRule = {
     | "reviewQueuesIncluded"
     | "externalReviewIncluded";
   /**
+   * PRO-R3-06 / DEC-10 — when the entitlement override answers false, the
+   * surface still opens (read-only) while this server-projected flag says the
+   * workspace keeps existing material readable. New work stays refused by the
+   * API and is not offered by the page.
+   */
+  readRetainedOverride?: "redactionReadRetained";
+  /**
    * Match the path EXACTLY rather than as a prefix. Used where one console
    * (`/review`) shares its prefix with surfaces that keep a different rule.
    */
@@ -362,7 +369,7 @@ export const SURFACE_TIER_RULES: ReadonlyArray<SurfaceTierRule> = [
   // `planFeatures.redactionIncluded` (resolveEntitlement(FEATURE_REDACTION))
   // decides wherever the envelope carries it; an older API that does not
   // project it leaves the ENTERPRISE tier as the fail-closed fallback.
-  { pathPrefix: "/redaction", tier: "ENTERPRISE", entitlementOverride: "redactionIncluded", directAccessPolicy: "notFound", reason: "redaction platform (per redactionIncluded)" },
+  { pathPrefix: "/redaction", tier: "ENTERPRISE", entitlementOverride: "redactionIncluded", readRetainedOverride: "redactionReadRetained", directAccessPolicy: "notFound", reason: "redaction platform (per redactionIncluded; read-only per redactionReadRetained after a lapse)" },
 
   // Governance / Compliance
   { pathPrefix: "/governance-platform", tier: "ENTERPRISE", directAccessPolicy: "notFound", reason: "governance platform (org admin)" },

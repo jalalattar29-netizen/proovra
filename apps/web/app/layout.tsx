@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { FONT_STRATEGY, headerFont, jakarta, notoArabic } from "./fonts";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -8,7 +8,8 @@ import CookieConsentInit from "./CookieConsentInit";
 import PrivacyPreferencesLauncher from "../components/privacy/PrivacyPreferencesLauncher";
 import ServiceWorkerUpdatePrompt from "../components/pwa/ServiceWorkerUpdatePrompt";
 import { apiBaseUrl } from "../lib/api";
-import { directionFor, localeFromCookies } from "../lib/i18n";
+import { localeFromCookies } from "../lib/i18n";
+import { documentLanguage, REQUEST_PATHNAME_HEADER } from "../lib/i18n-english-only";
 
 /**
  * The API's ORIGIN, from the one authority that knows it.
@@ -100,11 +101,17 @@ export default async function RootLayout({
 }) {
   const jar = await cookies();
   const { locale } = localeFromCookies((name) => jar.get(name)?.value);
+  // PRO-PW-10 (DEC-31) — an English-only public page keeps lang="en"
+  // dir="ltr" in the HTML the server sends, not only after hydration: the
+  // same rule the client applies (documentLanguage), from the path the
+  // middleware stamped on the request.
+  const requestPath = (await headers()).get(REQUEST_PATHNAME_HEADER);
+  const doc = documentLanguage(locale, requestPath);
 
   return (
     <html
-      lang={locale}
-      dir={directionFor(locale)}
+      lang={doc.lang}
+      dir={doc.dir}
       className={`${jakarta.variable} ${headerFont.variable} ${notoArabic.variable}`}
       // Which font strategy produced those variables. Rendered so a run can
       // ASSERT it rather than infer it from whether a request was blocked.

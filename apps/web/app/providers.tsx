@@ -4,10 +4,9 @@ import ContractSkewNotice from "../components/ContractSkewNotice";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { isEnglishOnlyPublicPath } from "../lib/i18n-english-only";
+import { documentLanguage } from "../lib/i18n-english-only";
 import {
   clearLocaleCookies,
-  directionFor,
   resolveInitialLocale,
   translations,
   writeLocaleCookies,
@@ -172,9 +171,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     // PRO-PW-10 (DEC-31) — an English-only public page stays English and
     // left-to-right whatever the chosen locale; elsewhere the locale decides.
-    const englishOnly = isEnglishOnlyPublicPath(pathname);
-    document.documentElement.lang = englishOnly ? "en" : locale;
-    document.documentElement.dir = englishOnly ? "ltr" : directionFor(locale);
+    // The same rule the root layout renders from (no first-frame flip).
+    const doc = documentLanguage(locale, pathname);
+    document.documentElement.lang = doc.lang;
+    document.documentElement.dir = doc.dir;
 
     // Locale + locale-mode are functional preferences. Only persist when
     // the user has granted preferences consent; otherwise behaviour stays

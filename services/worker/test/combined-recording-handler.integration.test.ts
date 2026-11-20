@@ -77,6 +77,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   GetObjectRetentionCommand,
+  ListMultipartUploadsCommand,
   ListObjectVersionsCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
@@ -391,6 +392,50 @@ runIf("combine_screen_recording handler (live PostgreSQL + MinIO + ffmpeg)", () 
     const listed = await s3.send(new ListObjectVersionsCommand({ Bucket: BUCKET, Prefix: `derived-assets/${evidenceId}/` }));
     expect(listed.Versions ?? []).toEqual([]);
     expect((await readdir(tmpRoot)).filter((n) => n.startsWith("proovra-combine-"))).toEqual([]);
+  });
+
+  // PRO-W1C-08 — the upload is bounded: when its deadline passes the upload is
+  // aborted at the store, nothing is recorded, and the run is released for
+  // retry with the reason. The clock is moved past the deadline the moment the
+  // first part has been sent (and put back before the abort is signed).
+  it("PRO-W1C-08 — an upload that reaches its deadline is aborted and the run is released for retry", async () => {
+    const { teamId, evidenceId } = await seedSealedSegmentedRecord();
+    const run = await newRun(teamId, evidenceId, 1);
+    const realNow = Date.now.bind(Date);
+    let offset = 0;
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => realNow() + offset);
+    const realSend = s3.send.bind(s3) as (...a: unknown[]) => Promise<unknown>;
+    const sendSpy = vi.spyOn(s3, "send").mockImplementation((async (command: { constructor: { name: string } }, ...rest: unknown[]) => {
+      const name = command.constructor.name;
+      if (name === "AbortMultipartUploadCommand") offset = 0;
+      const res = await realSend(command, ...rest);
+      if (name === "UploadPartCommand") offset = 16 * 60 * 1000; // past the 15-minute upload budget
+      return res;
+    }) as never);
+    let thrown: unknown = null;
+    try {
+      await runJob(teamId, evidenceId, run);
+    } catch (err) {
+      thrown = err;
+    } finally {
+      sendSpy.mockRestore();
+      nowSpy.mockRestore();
+    }
+    expect((thrown as Error | null)?.message).toBe("multipart_upload_deadline_exceeded");
+    const r = await prisma.mediaIntelligenceRun.findUniqueOrThrow({ where: { id: run } });
+    // releaseRunForRetry records a released attempt as "transient:<reason>".
+    expect([r.status, r.lastError]).toEqual(["PENDING", "transient:combine:upload_deadline_exceeded"]);
+    expect(await combinedRows(evidenceId)).toEqual([]);
+    const listed = await s3.send(new ListObjectVersionsCommand({ Bucket: BUCKET, Prefix: `derived-assets/${evidenceId}/` }));
+    expect(listed.Versions ?? []).toEqual([]);
+    const open = await s3.send(new ListMultipartUploadsCommand({ Bucket: BUCKET, Prefix: `derived-assets/${evidenceId}/` }));
+    expect(open.Uploads ?? []).toEqual([]);
+    expect((await readdir(tmpRoot)).filter((n) => n.startsWith("proovra-combine-"))).toEqual([]);
+
+    // The retry (inside its budget) completes.
+    await runJob(teamId, evidenceId, run);
+    expect((await prisma.mediaIntelligenceRun.findUniqueOrThrow({ where: { id: run } })).status).toBe("COMPLETED");
+    expect((await combinedRows(evidenceId)).map((x) => x.status)).toEqual(["COMPLETED"]);
   });
 
   it("a digest disagreeing with the manifest is refused before any byte is read", async () => {

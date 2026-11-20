@@ -55,7 +55,10 @@ import { Search } from "lucide-react";
 // UNIVERSAL CASE HEADER — the same component the Personal / Small-Business
 // branch renders. Sharing the implementation (rather than re-describing the
 // anatomy here) is what makes the two branches structurally identical.
-import { CaseDetailHeader } from "./simple-case-detail/SimpleCaseDetail";
+import { CaseDetailHeader, SettingsTab } from "./simple-case-detail/SimpleCaseDetail";
+import type { MatterWorkspaceCaseHeader, MatterWorkspaceEnvelope } from "./types";
+import { useToast } from "../ui";
+import { useRouter } from "next/navigation";
 // Phase 6 (SCOPE B) — canonical case-assignment picker. The modal was
 // already built (POST /v1/cases/:id/assignments) but orphaned; wiring
 // it into the Assignments tab is the only missing piece.
@@ -81,6 +84,11 @@ import { SiuPanel } from "../../app/(app)/cases/components/SiuPanel";
 import { SiuWorklistPanel } from "../../app/(app)/cases/components/SiuWorklistPanel";
 // O1 — who can open the case, and the grant / revoke controls.
 import { MatterAccessTab } from "./MatterAccessTab";
+import {
+  CASE_NOTES_FILTER_SCOPE_MESSAGE,
+  caseNotesPage,
+  caseNotesTruncationMessage,
+} from "./case-notes-page";
 import type { CaseScope } from "./types";
 import { usePlatformContext } from "../../lib/platform-context";
 import { ReasonedActionButton } from "../../app/(app)/evidence/[id]/components/ReasonedActionButton";
@@ -280,6 +288,9 @@ type MatterEnvelope = {
     };
     notes: {
       status: SectionStatus;
+      /** PRO-K1-07 — the case's comment count; caseComments is the newest 25. Absent on an older API. */
+      caseCommentsTotal?: number;
+      caseCommentsTruncated?: boolean;
       caseComments: ReadonlyArray<{
         id: string;
         authorUserId: string;
@@ -363,7 +374,9 @@ type TabId =
   | "access"
   | "siu"
   | "audit"
-  | "export";
+  | "export"
+  // PRO-K1-09 — rename, status and deletion (the shared case Settings panel).
+  | "settings";
 
 const TABS: ReadonlyArray<{
   id: TabId;
@@ -416,6 +429,7 @@ const TABS: ReadonlyArray<{
   },
   { id: "audit", label: "Audit", description: "Operational traceability" },
   { id: "export", label: "Export", description: "Report + Package readiness" },
+  { id: "settings", label: "Settings", description: "Rename, status and deletion" },
 ];
 
 // =============================================================================
@@ -443,6 +457,18 @@ export function MatterWorkspace({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  // PRO-K1-09 — the cases row menu deep-links Rename / Change status to
+  // ?tab=settings (Rename adds focus=name); read once after mount.
+  const [focusName, setFocusName] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const search = new URLSearchParams(window.location.search);
+    const requested = search.get("tab");
+    if (requested && TABS.some((t) => t.id === requested)) setActiveTab(requested as TabId);
+    if (requested === "settings" && search.get("focus") === "name") setFocusName(true);
+  }, []);
+  const router = useRouter();
+  const { addToast } = useToast();
   // Phase G2 (C1.3) — per-tab filter input. One bounded string the
   // tab function components consume to filter their rows client-side.
   // Server-side filtering is unnecessary because each envelope
@@ -719,6 +745,7 @@ export function MatterWorkspace({
         siu: "ok",
         audit: "ok",
         export: "ok",
+        settings: "ok",
       };
     }
     return {
@@ -738,6 +765,7 @@ export function MatterWorkspace({
       // state. Default to "ok" so it doesn't render a degradation chip
       // on the tab strip.
       siu: "ok",
+      settings: "ok",
       audit: envelope.sections.custodyAndIntegrity.status,
       export: envelope.sections.deliverables.status,
     };
@@ -797,6 +825,20 @@ export function MatterWorkspace({
       ? undefined
       : envelope.viewer.disabledReasons?.["unlinkEvidence"] ??
         "Your role on this case does not allow unlinking evidence.";
+
+  // PRO-K1-09 — the Settings tab is offered when the server's per-case viewer
+  // projection allows at least one of its actions (rename, status, delete), the
+  // same flags the simple case page's Settings tab reads. Otherwise it is
+  // absent; the routes refuse a forced request either way.
+  const settingsViewer = {
+    ...envelope.viewer,
+    disabledReasons: envelope.viewer.disabledReasons ?? {},
+  } as unknown as MatterWorkspaceEnvelope["viewer"];
+  const caseSettingsOffered =
+    (settingsViewer.canRename ?? settingsViewer.canMutate) === true ||
+    settingsViewer.canChangeStatus === true ||
+    (settingsViewer.canDelete ?? settingsViewer.canManage) === true;
+  const visibleTabs = caseSettingsOffered ? TABS : TABS.filter((t) => t.id !== "settings");
 
   return (
     <PageShell
@@ -867,7 +909,7 @@ export function MatterWorkspace({
         aria-label="Case sections"
         data-matter-case-tabs
       >
-        {TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const status = sectionStatus[tab.id];
           const isActive = activeTab === tab.id;
           return (
@@ -1042,6 +1084,24 @@ export function MatterWorkspace({
         ) : null}
         {activeTab === "export" ? (
           <ExportTab envelope={envelope} filterText={filterText} />
+        ) : null}
+        {activeTab === "settings" && caseSettingsOffered ? (
+          // PRO-K1-09 — the same Settings panel the simple case page uses;
+          // access has its own tab here.
+          <SettingsTab
+            caseId={caseId}
+            caseDetail={envelope.case as unknown as MatterWorkspaceCaseHeader}
+            evidenceCount={envelope.sections.commandSummary.data?.linkedEvidenceCount ?? envelope.sections.evidence.items.length}
+            viewer={settingsViewer as MatterWorkspaceEnvelope["viewer"]}
+            onReload={async () => {
+              await rereadEnvelope();
+            }}
+            onDeleted={() => router.push("/cases")}
+            addToast={addToast}
+            confirm={confirm}
+            focusName={focusName}
+            showAccess={false}
+          />
         ) : null}
       </div>
     </PageShell>
@@ -1771,6 +1831,9 @@ function CommunicationsTab({
     filterText,
     (c) => `${c.body ?? ""} ${c.visibility ?? ""}`,
   );
+  // PRO-K1-07 — the list is the newest 25; the count is the case's own.
+  const notesPage = caseNotesPage(n);
+  const notesTruncation = caseNotesTruncationMessage(notesPage);
   const filteredReviewerComments = matchesFilter(
     n.unresolvedReviewerComments,
     filterText,
@@ -1841,7 +1904,16 @@ function CommunicationsTab({
         </ul>
       )}
 
-      <h3>Case-level comments ({filteredCaseComments.length})</h3>
+      <h3>
+        Case-level comments (
+        {filterText.trim() ? filteredCaseComments.length : notesPage.total})
+      </h3>
+      {notesTruncation ? (
+        <p className="app-hint" data-matter-case-comments-truncated role="note">
+          {notesTruncation}
+          {filterText.trim() ? ` ${CASE_NOTES_FILTER_SCOPE_MESSAGE}` : ""}
+        </p>
+      ) : null}
       {filteredCaseComments.length === 0 ? (
         <p className="app-hint">No case-level comments.</p>
       ) : (

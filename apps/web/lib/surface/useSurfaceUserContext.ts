@@ -64,6 +64,11 @@ export function useSurfaceUserContext(): SurfaceUserContext {
         typeof envelope.planFeatures?.redactionIncluded === "boolean"
           ? envelope.planFeatures.redactionIncluded
           : null,
+      // PRO-R3-06 — existing redaction material stays readable after a lapse.
+      redactionReadRetained:
+        typeof envelope.planFeatures?.redactionReadRetained === "boolean"
+          ? envelope.planFeatures.redactionReadRetained
+          : null,
       // PRO-R2-06 (WS-ENT) — the review queue / reviewer-workspace and
       // External Review surfaces follow the API's own capability answers.
       reviewQueuesIncluded:

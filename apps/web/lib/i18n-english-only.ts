@@ -1,3 +1,5 @@
+import { directionFor } from "./i18n";
+
 /**
  * PRO-PW-10 (DEC-31) — public pages whose body is English-only.
  *
@@ -35,4 +37,21 @@ export function isEnglishOnlyPublicPath(pathname: string | null | undefined): bo
   if (!pathname) return false;
   if (pathname === "/") return true;
   return ENGLISH_ONLY_PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+export { REQUEST_PATHNAME_HEADER } from "./request-pathname-header";
+
+/**
+ * PRO-PW-10 (DEC-31) — THE document language and direction for a locale on a
+ * path. An English-only public page is `lang="en" dir="ltr"` whatever the
+ * chosen locale; elsewhere the locale decides. The server (app/layout.tsx)
+ * and the client (app/providers.tsx) both ask this, so the first frame and
+ * the hydrated page agree.
+ */
+export function documentLanguage(
+  locale: string,
+  pathname: string | null | undefined,
+): { lang: string; dir: "ltr" | "rtl" } {
+  if (isEnglishOnlyPublicPath(pathname)) return { lang: "en", dir: "ltr" };
+  return { lang: locale, dir: directionFor(locale) };
 }

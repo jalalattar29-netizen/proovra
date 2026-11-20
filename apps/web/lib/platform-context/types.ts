@@ -40,6 +40,13 @@ export type PlatformContextPlanFeatures = {
    */
   redactionIncluded?: boolean;
   /**
+   * PRO-R3-06 / DEC-10 — FEATURE_REDACTION is not held but existing redaction
+   * projects remain readable (download and quarantine included). The console
+   * opens read-only. Absent on an older API: the surface follows
+   * redactionIncluded alone.
+   */
+  redactionReadRetained?: boolean;
+  /**
    * External Review, projected from the server's canonical commercial
    * authority (`PlanCapabilities.externalReviewIncluded`: PRO and above).
    * The browser consumes the projection and never re-derives it from a plan

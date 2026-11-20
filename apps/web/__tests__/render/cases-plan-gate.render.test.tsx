@@ -20,6 +20,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }));
 
+const enterprise = vi.hoisted(() => ({ on: false }));
 const planFeatures = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 const envelope = vi.hoisted(() => ({
   user: { id: "u-1", firstName: "Jane", lastName: "Doe", email: "jane@example.com", avatarUrl: null },
@@ -39,7 +40,7 @@ vi.mock("../../lib/platform-context", () => ({
   usePlatformContext: () => ({ envelope, state: { name: "READY" }, switchWorkspace: vi.fn() }),
   useActiveWorkspaceId: () => "personal-1",
   usePersonalSpace: () => ({ id: "personal-1", status: "active" }),
-  useEnterpriseSurfaceAccess: () => false,
+  useEnterpriseSurfaceAccess: () => enterprise.on,
   // The real useCan reads the envelope's server-projected capabilities.
   useCan: (key: string) => (envelope.capabilities as Record<string, boolean>)[key] === true,
   usePlanFeature: (key: string) => {
@@ -72,6 +73,7 @@ afterEach(() => {
   cleanup();
   apiFetch.mockReset();
   (envelope.capabilities as Record<string, boolean>).CASES_MANAGE = true;
+  enterprise.on = false;
 });
 
 const QUEUE = (total: number) => ({
@@ -146,6 +148,23 @@ describe("B3C-F-005 / A2-14: the case row menu offers a VIEWER only Open", () =>
   }
 
   it("VIEWER: Open only", async () => {
+    const menu = await openMenu("VIEWER");
+    const items = Array.from(menu.querySelectorAll("[role='menuitem']")).map((n) => n.textContent?.trim());
+    expect(items).toEqual(["Open"]);
+  });
+
+  // PRO-K1-09 — both case pages open their Settings tab from ?tab=settings, so
+  // Rename and Change status are offered on the Enterprise branch too, and
+  // still never to a VIEWER.
+  it.each([false, true])("PRO-K1-09: Rename and Change status are offered on both branches (enterprise=%s)", async (on) => {
+    enterprise.on = on;
+    const menu = await openMenu("OWNER");
+    const items = Array.from(menu.querySelectorAll("[role='menuitem']")).map((n) => n.textContent?.trim());
+    expect(items).toEqual(expect.arrayContaining(["Rename", "Change status"]));
+  });
+
+  it("PRO-K1-09: a VIEWER on the Enterprise branch sees neither item", async () => {
+    enterprise.on = true;
     const menu = await openMenu("VIEWER");
     const items = Array.from(menu.querySelectorAll("[role='menuitem']")).map((n) => n.textContent?.trim());
     expect(items).toEqual(["Open"]);

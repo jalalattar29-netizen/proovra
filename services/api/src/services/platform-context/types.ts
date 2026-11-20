@@ -60,6 +60,12 @@ export type PlatformContextPlanFeatures = {
    * redaction write enforces. Rendering input only.
    */
   redactionIncluded: boolean;
+  /**
+   * PRO-R3-06 / DEC-10 — FEATURE_REDACTION is not held but the workspace has
+   * existing redaction projects, which the API keeps readable (download and
+   * quarantine included). The console opens read-only; new work is refused.
+   */
+  redactionReadRetained: boolean;
   /** PHASE 12B Track 1A — PROFESSIONAL surface tier included (catalog-derived). */
   professionalSurfacesIncluded: boolean;
   reviewQueuesIncluded: boolean;

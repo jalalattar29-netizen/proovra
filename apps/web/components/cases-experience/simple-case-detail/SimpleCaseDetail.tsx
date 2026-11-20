@@ -82,6 +82,7 @@ import { TeamResponsibilityPanel } from "../../collaboration/TeamResponsibilityP
 // Phase CASES-STATUS-LISTBOX (§22) — accessible custom status listbox
 // replaces the native status dropdown in the Settings tab.
 import { CaseStatusSelect } from "./CaseStatusSelect";
+import { caseNotesPage, caseNotesTruncationMessage, type CaseNotesPage } from "../case-notes-page";
 // D37 — the repo's disabled-reason pattern: the reason is visible text beside
 // the control, its accessible description and its hover title.
 import { ReasonedActionButton } from "../../../app/(app)/evidence/[id]/components/ReasonedActionButton";
@@ -204,11 +205,15 @@ export function SimpleCaseDetail({
   const platformEnvelope = usePlatformContext().envelope;
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  // PRO-K1-09 — the row menu's Rename asks for the name field (?focus=name).
+  const [focusName, setFocusName] = useState(false);
   // PRO-K1-09 — the row menu deep-links to a tab (?tab=settings); read it once
   // after mount (no server-render mismatch).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const requested = new URLSearchParams(window.location.search).get("tab");
+    const search = new URLSearchParams(window.location.search);
+    const requested = search.get("tab");
+    if (requested === "settings" && search.get("focus") === "name") setFocusName(true);
     if (
       requested === "overview" ||
       requested === "evidence" ||
@@ -343,6 +348,8 @@ export function SimpleCaseDetail({
   const evidenceTotal =
     typeof evidenceSection.totalCount === "number" ? evidenceSection.totalCount : evidenceItems.length;
   const caseComments = workspace.sections.notes?.caseComments ?? [];
+  // PRO-K1-07 — the notes list is the newest 25; the server sends the true count.
+  const caseNotes = caseNotesPage(workspace.sections.notes ?? null);
   const deliverables = summariseDeliverables(workspace);
   const needsAttention = deriveNeedsAttention(workspace);
   const viewer = workspace.viewer;
@@ -496,6 +503,7 @@ export function SimpleCaseDetail({
         <NotesTab
           caseId={caseId}
           comments={caseComments}
+          notesPage={caseNotes}
           canComment={viewer.canComment}
           canResolveComment={viewer.canResolveComment}
           viewerUserId={viewer.userId}
@@ -514,6 +522,7 @@ export function SimpleCaseDetail({
           onDeleted={() => router.push("/cases")}
           addToast={addToast}
           confirm={confirm}
+          focusName={focusName}
         />
       ) : null}
 
@@ -2016,6 +2025,7 @@ function ReportsPackagesTab({
 function NotesTab({
   caseId,
   comments,
+  notesPage,
   canComment,
   canResolveComment,
   viewerUserId,
@@ -2025,6 +2035,8 @@ function NotesTab({
 }: {
   caseId: string;
   comments: NonNullable<MatterWorkspaceEnvelope["sections"]["notes"]>["caseComments"];
+  /** PRO-K1-07 — how many notes the case has, and whether the list is cut. */
+  notesPage: CaseNotesPage;
   canComment: boolean;
   canResolveComment: boolean;
   /**
@@ -2201,6 +2213,16 @@ function NotesTab({
       </div>
 
       <div className="cases-panel" style={{ padding: comments.length === 0 ? 24 : 8 }}>
+        {caseNotesTruncationMessage(notesPage) ? (
+          <p
+            className="cc-muted"
+            role="note"
+            data-simple-case-notes-truncated
+            style={{ margin: "4px 8px 8px", color: "#475569", fontSize: 13 }}
+          >
+            {caseNotesTruncationMessage(notesPage)}
+          </p>
+        ) : null}
         {comments.length === 0 ? (
           <div
             data-simple-case-notes-empty
@@ -2311,7 +2333,14 @@ function NotesTab({
 // Settings tab
 // ---------------------------------------------------------------------------
 
-function SettingsTab({
+/**
+ * PRO-K1-09 — the case Settings panel (rename, status, access, delete). The
+ * SAME panel serves both case pages: SimpleCaseDetail's Settings tab and the
+ * Enterprise MatterWorkspace Settings tab (which already has its own Access
+ * tab, so it passes showAccess={false}). Every control follows the server's
+ * per-case viewer projection; the routes remain the authority.
+ */
+export function SettingsTab({
   caseId,
   caseDetail,
   evidenceCount,
@@ -2320,6 +2349,8 @@ function SettingsTab({
   onDeleted,
   addToast,
   confirm,
+  focusName = false,
+  showAccess = true,
 }: {
   caseId: string;
   caseDetail: MatterWorkspaceCaseHeader;
@@ -2329,8 +2360,13 @@ function SettingsTab({
   onDeleted: () => void;
   addToast: ToastFn;
   confirm: ConfirmFn;
+  /** PRO-K1-09 — opened by the row menu's Rename: the name field takes focus. */
+  focusName?: boolean;
+  /** False where the host page already offers case access as its own tab. */
+  showAccess?: boolean;
 }) {
   const [nameDraft, setNameDraft] = useState(caseDetail.name);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const caseTeamId = caseDetail.teamId;
   const stepUp = useStepUpAction({ teamId: caseTeamId });
@@ -2342,6 +2378,9 @@ function SettingsTab({
   const canRename = viewer.canRename ?? viewer.canMutate;
   const canChangeStatus = viewer.canChangeStatus;
   const canDelete = viewer.canDelete ?? viewer.canManage;
+  useEffect(() => {
+    if (focusName && canRename) nameInputRef.current?.focus();
+  }, [focusName, canRename]);
 
   const handleRename = useCallback(async () => {
     const next = nameDraft.trim();
@@ -2478,6 +2517,7 @@ function SettingsTab({
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <input
             id="simple-case-settings-name-input"
+            ref={nameInputRef}
             value={nameDraft}
             onChange={(e) => setNameDraft(e.target.value)}
             maxLength={120}
@@ -2585,7 +2625,7 @@ function SettingsTab({
           uses (MatterAccessTab: per-person grants, Collaboration Team grants,
           manage gated by viewer.canManageAccess), inside Settings so the
           five-tab layout stays. */}
-      {caseTeamId ? (
+      {caseTeamId && showAccess ? (
         <div className="cases-panel" data-simple-case-settings-access style={{ padding: 16 }}>
           <MatterAccessTab
             caseId={caseId}

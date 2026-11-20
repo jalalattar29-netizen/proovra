@@ -26,7 +26,7 @@ import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useTeamId } from "../../../../lib/platform-context";
+import { useAccount, useCan, useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useHealthDestination } from "../../../../lib/navigation/healthDestination";
 import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
@@ -114,6 +114,11 @@ function DuplicatesReviewPageInner() {
   // neither authority. It returns the label with the href so the link text can
   // never disagree with the destination.
   const healthDestination = useHealthDestination();
+  // PRO-K1C-05 — the decision route authorises `evidence.update_metadata`
+  // (every role but VIEWER); the envelope projects that same role ladder as
+  // EVIDENCE_MANAGE, the capability the other investigation mutations use.
+  const canDecide = useCan("EVIDENCE_MANAGE");
+  const viewerUserId = useAccount()?.userId ?? null;
   const canDiagnostics = Boolean(healthDestination);
   const [anchorEvidenceId, setAnchorEvidenceId] = useState<string | null>(null);
   const [edges, setEdges] = useState<DuplicateEdge[] | null>(null);
@@ -239,7 +244,7 @@ function DuplicatesReviewPageInner() {
         },
       )) as { decision?: string; decidedAt?: string } | null;
       patchEdge({
-        decision: { decision: res?.decision ?? decision, decidedByUserId: null, decidedAt: res?.decidedAt ?? new Date().toISOString() },
+        decision: { decision: res?.decision ?? decision, decidedByUserId: viewerUserId, decidedAt: res?.decidedAt ?? new Date().toISOString() },
         decisionNotice: { tone: "ok", text: "Decision recorded." },
       });
     } catch (err) {
@@ -456,6 +461,8 @@ function DuplicatesReviewPageInner() {
               anchor={anchorEvidenceId}
               actionBusy={actionBusy}
               recordDecision={recordDecision}
+              canDecide={canDecide}
+              viewerUserId={viewerUserId}
               markRelatedHref={markRelatedHref}
               producerMode={null}
               fetchError={fetchError}
@@ -470,6 +477,8 @@ function DuplicatesReviewPageInner() {
               anchor={anchorEvidenceId}
               actionBusy={actionBusy}
               recordDecision={recordDecision}
+              canDecide={canDecide}
+              viewerUserId={viewerUserId}
               markRelatedHref={markRelatedHref}
               producerMode={perceptual ?? null}
               fetchError={fetchError}
@@ -484,6 +493,8 @@ function DuplicatesReviewPageInner() {
               anchor={anchorEvidenceId}
               actionBusy={actionBusy}
               recordDecision={recordDecision}
+              canDecide={canDecide}
+              viewerUserId={viewerUserId}
               markRelatedHref={markRelatedHref}
               producerMode={derivative ?? null}
               fetchError={fetchError}
@@ -505,6 +516,8 @@ function DuplicateSection({
   anchor,
   actionBusy,
   recordDecision,
+  canDecide,
+  viewerUserId,
   markRelatedHref,
   producerMode,
   fetchError,
@@ -521,6 +534,8 @@ function DuplicateSection({
     edge: DuplicateEdge,
     decision: "CONFIRMED" | "DISMISSED" | "MARKED_DERIVATIVE",
   ) => Promise<void> | void;
+  canDecide: boolean;
+  viewerUserId: string | null;
   markRelatedHref: (edge: DuplicateEdge) => string | null;
   producerMode: ProducerModeStatus | null;
   fetchError: Error | null;
@@ -601,6 +616,8 @@ function DuplicateSection({
               anchor={anchor}
               actionBusy={actionBusy[edge.edgeId] ?? null}
               recordDecision={recordDecision}
+              canDecide={canDecide}
+              viewerUserId={viewerUserId}
               markRelatedHref={markRelatedHref}
             />
           ))}
@@ -630,6 +647,8 @@ function DuplicateRow({
   anchor,
   actionBusy,
   recordDecision,
+  canDecide,
+  viewerUserId,
   markRelatedHref,
 }: {
   edge: DuplicateEdge;
@@ -639,6 +658,8 @@ function DuplicateRow({
     edge: DuplicateEdge,
     decision: "CONFIRMED" | "DISMISSED" | "MARKED_DERIVATIVE",
   ) => Promise<void> | void;
+  canDecide: boolean;
+  viewerUserId: string | null;
   markRelatedHref: (edge: DuplicateEdge) => string | null;
 }) {
   // When anchored to a specific evidence, display the OTHER endpoint
@@ -676,8 +697,11 @@ function DuplicateRow({
       ) : null}
       {edge.decision ? (
         <div style={summaryStyle} data-duplicate-decision={edge.decision.decision}>
-          Decision: {edge.decision.decision.replace(/_/g, " ").toLowerCase()} ·{" "}
-          {formatUserDateTime(edge.decision.decidedAt)}
+          {decisionLabel(edge.decision.decision)} by{" "}
+          {edge.decision.decidedByUserId && edge.decision.decidedByUserId === viewerUserId
+            ? "you"
+            : "another member"}{" "}
+          · {formatUserDateTime(edge.decision.decidedAt)}
         </div>
       ) : null}
       {edge.decisionNotice ? (
@@ -691,6 +715,10 @@ function DuplicateRow({
           on the relationships page (we don't expose graph node ids here).
           "Open both records" links via the per-side evidence pivots below. */}
       <div style={actionsRowStyle}>
+        {/* PRO-K1C-05 — the decision controls are offered only to an actor the
+            route authorises; a reader keeps the read-back and the pivots. */}
+        {canDecide ? (
+          <>
         <button
           type="button"
           disabled={actionBusy != null}
@@ -707,6 +735,20 @@ function DuplicateRow({
         >
           {actionBusy === "DISMISSED" ? "Dismissing…" : "Dismiss"}
         </button>
+        {edge.edgeType !== "SAME_HASH_AS" ? (
+          // An exact byte match is a copy, not a derivative: the derivative
+          // decision is offered on the similarity and lineage relationships.
+          <button
+            type="button"
+            disabled={actionBusy != null}
+            onClick={() => recordDecision(edge, "MARKED_DERIVATIVE")}
+            style={actionSecondaryStyle(actionBusy === "MARKED_DERIVATIVE")}
+          >
+            {actionBusy === "MARKED_DERIVATIVE" ? "Marking…" : "Mark as derivative"}
+          </button>
+        ) : null}
+          </>
+        ) : null}
         {markRelatedHref(edge) ? (
           <Link href={markRelatedHref(edge) as string} style={pivotLinkSmallStyle}>
             Mark related
@@ -745,6 +787,20 @@ function DuplicateRow({
       </div>
     </li>
   );
+}
+
+/** PRO-K1C-05 — the recorded decision in reader language. */
+function decisionLabel(decision: string): string {
+  switch (decision) {
+    case "CONFIRMED":
+      return "Confirmed duplicate";
+    case "DISMISSED":
+      return "Dismissed";
+    case "MARKED_DERIVATIVE":
+      return "Marked as derivative";
+    default:
+      return "Decision recorded";
+  }
 }
 
 function EndpointCard({

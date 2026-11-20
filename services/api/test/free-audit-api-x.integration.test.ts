@@ -560,4 +560,45 @@ describe("free-audit 0ea0 — API-X cross-lane completions (live PostgreSQL)", (
     const after = await call("GET", "/v1/platform/context", t.owner.token);
     expect(json(after).planFeatures.redactionIncluded).toBe(true);
   });
+
+  // PRO-R3-06 / DEC-10 — reads outlive the entitlement: a workspace with
+  // existing redaction projects that no longer holds FEATURE_REDACTION is told
+  // so (redactionReadRetained), and its project stays readable while new work
+  // is refused.
+  it("PRO-R3-06 — a lapsed workspace with existing projects keeps them readable; new work is refused", async () => {
+    const t = await fx.seedPersonalTenant(deps, "FREE");
+    const empty = await call("GET", "/v1/platform/context", t.owner.token);
+    expect(json(empty).planFeatures.redactionIncluded).toBe(false);
+    expect(json(empty).planFeatures.redactionReadRetained).toBe(false);
+
+    const ev = await signedEvidenceIn(t.personalTeamId, t.owner.userId);
+    const project = await prisma.redactionProject.create({
+      data: { teamId: t.personalTeamId, evidenceId: ev.id, createdByUserId: t.owner.userId, artifactKind: "IMAGE", title: "kept" },
+      select: { id: true },
+    });
+    const lapsed = await call("GET", "/v1/platform/context", t.owner.token);
+    expect(json(lapsed).planFeatures.redactionIncluded).toBe(false);
+    expect(json(lapsed).planFeatures.redactionReadRetained).toBe(true);
+
+    // The read the console opens with answers; a write that starts new work does not.
+    const read = await call("GET", `/v1/redaction/projects/${project.id}`, t.owner.token);
+    expect(read.statusCode, read.body).toBe(200);
+    const write = await call("POST", `/v1/redaction/projects/${project.id}/versions`, t.owner.token, {});
+    expect(write.statusCode, write.body).toBe(403);
+    expect(json(write).denial).toBe("ENTITLEMENT_REQUIRED");
+
+    // Entitled again: the flag is not raised (the console is simply open).
+    await grant({
+      prisma: prisma as never,
+      teamId: t.personalTeamId,
+      key: "FEATURE_REDACTION",
+      value: true,
+      kind: "FEATURE",
+      source: "CUSTOM",
+      grantedByUserId: t.owner.userId,
+    });
+    const entitled = await call("GET", "/v1/platform/context", t.owner.token);
+    expect(json(entitled).planFeatures.redactionIncluded).toBe(true);
+    expect(json(entitled).planFeatures.redactionReadRetained).toBe(false);
+  });
 });

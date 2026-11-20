@@ -52,6 +52,8 @@ export type SurfaceUserContext = {
     reviewerOperationsIncluded?: boolean | null;
     /** Redaction (free audit B5B-F-205) — FEATURE_REDACTION; absent on an older API. */
     redactionIncluded?: boolean | null;
+    /** PRO-R3-06 — existing redaction material stays readable after a lapse; absent on an older API. */
+    redactionReadRetained?: boolean | null;
     /** PRO-R2-06 (WS-ENT) — review queues / reviewer workspace (TEAM and above). */
     reviewQueuesIncluded?: boolean | null;
     /** PRO-R2-06 (WS-ENT) — External Review (PRO and above). */
@@ -164,7 +166,13 @@ function isRuleAccessible(
   const overrideKey = rule?.entitlementOverride;
   if (overrideKey) {
     const value = ctx.planFeatures?.[overrideKey];
-    if (typeof value === "boolean") return value;
+    if (typeof value === "boolean") {
+      if (value) return true;
+      // PRO-R3-06 / DEC-10 — a lapsed entitlement keeps existing material
+      // readable: the surface opens (read-only) while the server says so.
+      const retainedKey = rule?.readRetainedOverride;
+      return retainedKey ? ctx.planFeatures?.[retainedKey] === true : false;
+    }
   }
   return isUserInTier(ctx, tier);
 }

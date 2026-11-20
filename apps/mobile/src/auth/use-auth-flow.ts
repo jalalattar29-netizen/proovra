@@ -18,9 +18,9 @@ import { endMfaEnrollment, holdMfaEnrollment } from "./mfa-enrollment-session";
 import { holdMfaPending } from "./mfa-pending-session";
 import { holdConsentForMfa } from "./pending-sign-in-consent";
 import type { OAuthMode } from "./use-oauth";
-import { takePendingIntent } from "../deep-link/pending-intent";
-import { openRecordLinkInItsWorkspace } from "../deep-link/open-record-link";
-import { workspaceSwitchBlocked } from "../product/workspace-switch-guard";
+import { setPendingRoute, takePendingIntent } from "../deep-link/pending-intent";
+import { LEGAL_GATE_RESUME_RECORD_LINK } from "./legal-gate";
+import { replayRecordLinkAfterSignIn } from "../deep-link/open-record-link";
 
 export type LoginMode = OAuthMode | "email" | "sso";
 
@@ -124,7 +124,19 @@ export function useCompleteLogin() {
           }
         }
         if (!legal.ok && legal.missingPolicies.length > 0) {
-          router.replace({ pathname: "/legal-acceptance", params: { policies: legal.missingPolicies.join(","), next: intent?.route ?? destination } });
+          // PRO-NA-04 — a record link waits for the gate: it is kept pending
+          // (route and original URL) and the gate replays it through the same
+          // resolve + workspace switch once the terms are accepted. Only a
+          // non-record destination is handed over as a plain route.
+          if (intent && replayUrl) setPendingRoute(intent.route, replayUrl);
+          router.replace({
+            pathname: "/legal-acceptance",
+            params: {
+              policies: legal.missingPolicies.join(","),
+              next: replayUrl ? destination : (intent?.route ?? destination),
+              ...(replayUrl ? { resume: LEGAL_GATE_RESUME_RECORD_LINK } : {}),
+            },
+          });
           return;
         }
       } catch {
@@ -133,12 +145,7 @@ export function useCompleteLogin() {
       if (getAuthToken() !== result.token) return;
       router.replace(destination as never);
       if (replayUrl) {
-        void openRecordLinkInItsWorkspace(replayUrl, {
-          navigate: (route) => router.push(route as never),
-          hasActiveWork: workspaceSwitchBlocked,
-          // Unknown right after sign-in: a returned workspace is switched to.
-          activeTeamId: null,
-        });
+        void replayRecordLinkAfterSignIn(replayUrl, (route) => router.push(route as never));
       }
     },
     [router, setSession, currentToken, currentUser],

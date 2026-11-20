@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getLegalStatus, recordLegalAcceptance, type LegalStatus } from "../../src/auth/auth-api";
-import { safeLegalGateNext } from "../../src/auth/legal-gate";
+import { LEGAL_GATE_RESUME_RECORD_LINK, safeLegalGateNext } from "../../src/auth/legal-gate";
+import { takePendingRecordLink } from "../../src/deep-link/pending-intent";
+import { replayRecordLinkAfterSignIn } from "../../src/deep-link/open-record-link";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import {
@@ -39,8 +41,9 @@ function toMissing(status: LegalStatus): Array<{ policyKey: string; version: str
 
 export default function LegalAcceptanceScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ next?: string }>();
+  const params = useLocalSearchParams<{ next?: string; resume?: string }>();
   const next = safeLegalGateNext(params.next);
+  const resumeRecordLink = params.resume === LEGAL_GATE_RESUME_RECORD_LINK;
   const [state, setState] = useState<"loading" | "ready" | "error" | "saving">("loading");
   const [error, setError] = useState<SafeError | null>(null);
   const [missing, setMissing] = useState<Array<{ policyKey: string; version: string }>>([]);
@@ -54,10 +57,17 @@ export default function LegalAcceptanceScreen() {
    * retries it. Replacing with Home threw the interrupted screen away.
    */
   const leave = useCallback(() => {
-    if (next) router.replace(next as never);
-    else if (router.canGoBack()) router.back();
+    if (next) {
+      router.replace(next as never);
+      // PRO-NA-04 — the record link opened before sign-in resumes through the
+      // same resolve + workspace switch as a signed-in tap, not as a raw route.
+      if (resumeRecordLink) {
+        const url = takePendingRecordLink();
+        if (url) void replayRecordLinkAfterSignIn(url, (route) => router.push(route as never));
+      }
+    } else if (router.canGoBack()) router.back();
     else router.replace("/(tabs)");
-  }, [router, next]);
+  }, [router, next, resumeRecordLink]);
 
   const load = useCallback(async () => {
     setState("loading");

@@ -49,6 +49,11 @@ import {
 } from "../../../../components/redaction/RegionListPanel";
 import { DetectionManifestPanel } from "../../../../components/redaction/DetectionManifestPanel";
 // Batch J — GET /v1/redaction/projects/:id/activity (the promised timeline).
+import {
+  REDACTION_READ_ONLY_MESSAGE,
+  REDACTION_READ_ONLY_TITLE,
+  useRedactionReadOnly,
+} from "../../../../lib/redaction/read-only";
 import { RedactionActivityPanel } from "../../../../components/redaction/RedactionActivityPanel";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import type { QuarantineOutcome } from "../../../../components/redaction/ApprovalPanel";
@@ -155,6 +160,9 @@ function RedactionProjectShell({
   // §10.3 stale-response guard — a workspace switch between request and
   // response makes the payload another tenant's data; drop it.
   const { stamp, isStale } = useTenantGuard();
+  // PRO-R3-06 / DEC-10 — a lapsed entitlement keeps this project readable
+  // (download and quarantine included); every authoring control is withheld.
+  const readOnly = useRedactionReadOnly();
 
   const refresh = useCallback(async () => {
     const captured = stamp();
@@ -411,17 +419,26 @@ function RedactionProjectShell({
             <strong data-redaction-project-state>{identifierLabel(project.state)}</strong>
           </p>
         </div>
-        <button
-          type="button"
-          data-redaction-new-version
-          onClick={onNewVersion}
-          disabled={creatingVersion}
-          aria-busy={creatingVersion}
-          style={primaryButton}
-        >
-          {creatingVersion ? "Creating…" : "+ New version"}
-        </button>
+        {readOnly ? null : (
+          <button
+            type="button"
+            data-redaction-new-version
+            onClick={onNewVersion}
+            disabled={creatingVersion}
+            aria-busy={creatingVersion}
+            style={primaryButton}
+          >
+            {creatingVersion ? "Creating…" : "+ New version"}
+          </button>
+        )}
       </header>
+
+      {readOnly ? (
+        <div className="app-alert app-alert--warn" role="status" data-redaction-read-only style={{ marginBottom: 10 }}>
+          <strong>{REDACTION_READ_ONLY_TITLE}</strong>
+          <p>{REDACTION_READ_ONLY_MESSAGE}</p>
+        </div>
+      ) : null}
 
       {/* Reuses the existing step-up flow — the modal opens only when the
           backend answers STEP_UP_REQUIRED for the publish request. */}
@@ -462,6 +479,7 @@ function RedactionProjectShell({
             <VersionWorkspace
               project={project}
               version={selectedVersion}
+              readOnly={readOnly}
               onTransition={onTransition}
               onQuarantine={onQuarantine}
               onChanged={() => {
@@ -481,7 +499,9 @@ function RedactionProjectShell({
                 fontSize: 13,
               }}
             >
-              Create a new version to begin authoring redactions.
+              {readOnly
+                ? "This project has no versions."
+                : "Create a new version to begin authoring redactions."}
             </div>
           )}
         </div>
@@ -522,12 +542,15 @@ function RedactionProjectShell({
 function VersionWorkspace({
   project,
   version,
+  readOnly,
   onTransition,
   onQuarantine,
   onChanged,
 }: {
   project: ProjectProjection;
   version: VersionProjection;
+  /** PRO-R3-06 — the entitlement lapsed: reads, download and quarantine only. */
+  readOnly: boolean;
   onQuarantine: (
     versionId: string,
     derivativeId: string,
@@ -542,6 +565,9 @@ function VersionWorkspace({
   onChanged: () => void;
 }) {
   const viewerUserId = useOptionalPlatformContext()?.envelope?.user?.id ?? null;
+  // A read-only project is shown as a locked version: every viewer and panel
+  // already withholds authoring on a locked version.
+  const locked = readOnly || version.state !== "DRAFT";
   return (
     <div
       data-redaction-version-workspace
@@ -580,7 +606,7 @@ function VersionWorkspace({
         <ImageRedactionViewer
           evidenceId={project.evidenceId}
           versionId={version.id}
-          versionLocked={version.state !== "DRAFT"}
+          versionLocked={locked}
           regions={version.regions ?? []}
           onChanged={onChanged}
         />
@@ -589,7 +615,7 @@ function VersionWorkspace({
           evidenceId={project.evidenceId}
           projectId={project.id}
           versionId={version.id}
-          versionLocked={version.state !== "DRAFT"}
+          versionLocked={locked}
           regions={version.regions ?? []}
           onChanged={onChanged}
         />
@@ -598,13 +624,13 @@ function VersionWorkspace({
           <VideoRedactionViewer
             evidenceId={project.evidenceId}
             versionId={version.id}
-            versionLocked={version.state !== "DRAFT"}
+            versionLocked={locked}
             onChanged={onChanged}
           />
           <VideoReviewWorkspace
             evidenceId={project.evidenceId}
             versionId={version.id}
-            versionLocked={version.state !== "DRAFT"}
+            versionLocked={locked}
             onChanged={onChanged}
           />
         </>
@@ -630,13 +656,13 @@ function VersionWorkspace({
           DELETE /v1/redaction/regions/:id and then re-reads. */}
       <RegionListPanel
         regions={version.regions ?? []}
-        versionLocked={version.state !== "DRAFT"}
+        versionLocked={locked}
         onChanged={onChanged}
       />
 
       <DetectionReviewPanel
         versionId={version.id}
-        versionLocked={version.state !== "DRAFT"}
+        versionLocked={locked}
         onChanged={onChanged}
       />
 
@@ -648,6 +674,7 @@ function VersionWorkspace({
         version={version}
         artifactKind={project.artifactKind}
         viewerUserId={viewerUserId}
+        readOnly={readOnly}
         onTransition={onTransition}
         onQuarantine={(derivativeId, reason) =>
           onQuarantine(version.id, derivativeId, reason)

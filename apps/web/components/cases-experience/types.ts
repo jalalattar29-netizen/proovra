@@ -418,6 +418,9 @@ export type MatterWorkspaceEnvelope = {
     };
     notes: {
       status: SectionStatus;
+      /** PRO-K1-07 — the case's comment count; caseComments is the newest 25. Absent on an older API. */
+      caseCommentsTotal?: number;
+      caseCommentsTruncated?: boolean;
       caseComments: Array<{
         id: string;
         authorUserId: string;
