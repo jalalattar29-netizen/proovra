@@ -229,3 +229,14 @@ test("a session refused by an organization's sign-in rules is told to sign in ag
   const denied = toSafeUserError({ statusCode: 403, code: "permission_denied", body: { error: { code: "permission_denied", reason: "permission_not_granted" } } });
   assert.doesNotMatch(denied.message, /sign in again/i);
 });
+
+test("DEC-08: a session or factor action aimed at a self-serve member names what the administrator can do instead", () => {
+  const refused = { statusCode: 403, code: "permission_denied", body: { error: { code: "permission_denied", reason: "target_self_serve_account", message: "server text" } } };
+  const safe = toSafeUserError(refused, { message: "Revoke-all failed." });
+  assert.equal(safe.title, "This member manages their own account");
+  assert.match(safe.message, /suspend or remove them from the workspace/);
+  assert.doesNotMatch(safe.message, /server text/);
+  // A real permission refusal is unchanged.
+  const denied = toSafeUserError({ statusCode: 403, code: "permission_denied", body: { error: { code: "permission_denied", reason: "permission_not_granted" } } });
+  assert.doesNotMatch(denied.message, /manages their own account|suspend or remove/i);
+});

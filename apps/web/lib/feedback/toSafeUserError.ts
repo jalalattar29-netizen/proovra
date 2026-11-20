@@ -289,6 +289,26 @@ function sessionPolicyRefusal(e: ErrorLike): Omit<SafeUserError, "supportReferen
 }
 
 /**
+ * DEC-08 — THE ACCOUNT IS NOT THE WORKSPACE'S.
+ *
+ * Session revoke-all and factor resets aimed at an independent (self-serve)
+ * member are refused with `target_self_serve_account`: that member's sessions
+ * and sign-in factors are account-global and also guard their own Personal
+ * Space. The generic 403 told an administrator to ask for permissions they
+ * already hold; this names what they can do instead.
+ */
+function selfServeAccountRefusal(e: ErrorLike): Omit<SafeUserError, "supportReference"> | undefined {
+  const body = (e as { body?: { error?: { reason?: unknown } } }).body?.error;
+  if (body?.reason !== "target_self_serve_account") return undefined;
+  return {
+    title: "This member manages their own account",
+    message:
+      "Their sessions and sign-in factors belong to their own account, not to this workspace. To end their access here, suspend or remove them from the workspace.",
+    severity: "warning",
+  };
+}
+
+/**
  * Convert ANY error into user-safe feedback. Pure + dependency-free so it
  * is safe to import anywhere (client or server).
  */
@@ -303,7 +323,7 @@ export function toSafeUserError(
 
   let base: Omit<SafeUserError, "supportReference"> | undefined;
   const serverMessage = code ? trustedServerMessage(code, e) : undefined;
-  const sessionRefusal = sessionPolicyRefusal(e);
+  const sessionRefusal = sessionPolicyRefusal(e) ?? selfServeAccountRefusal(e);
   if (sessionRefusal) {
     base = sessionRefusal;
   } else if (code && serverMessage) {

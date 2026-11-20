@@ -74,6 +74,12 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
   const viewer = () => A().viewerToken;
 
   /** A real user with current terms and a registered session, optionally a member of team A. */
+  // DEC-08 — make a person an identity this Organization's directory
+  // originated: the only kind whose account-global sessions a workspace
+  // administers.
+  const directoryIdentity = (userId: string, label: string) =>
+    prisma.user.update({ where: { id: userId }, data: { providerUserId: `scim-${orgId}:${label}-${randomUUID().slice(0, 8)}` } });
+
   async function person(
     label: string,
     membership?: { role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER"; status?: "ACTIVE" | "SUSPENDED" | "REVOKED"; accessExpiresAtUtc?: Date },
@@ -236,7 +242,7 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
   // B7A-F-001 — removal ends the workspace's authority over the person
   // ===========================================================================
   describe("B7A-F-001: a removed member drops out of the workspace's session scope", () => {
-    it("after removal: the session started in the person's own space is not listed, revocable or quarantinable; the one started here still is", async () => {
+    it("an independent member's sessions are never the workspace's; a directory identity's are while a member, and none after removal", async () => {
       const u = await person("g2-departed", { role: "MEMBER" });
       const session = (teamId: string | null) =>
         prisma.authenticatedSession.create({
@@ -255,19 +261,17 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
           (s) => s.id,
         );
 
-      // PRO-A2-04 (DEC-08) — an independent (self-serve) member: the workspace
-      // answers for what it issued. The session started in the person's own
-      // space is not the workspace's even while they are a member.
+      // PRO-A2-04 (DEC-08, final-phase correction) — an independent
+      // (self-serve) member: no session is the workspace's, not even the one
+      // minted while this workspace was active — every session is
+      // account-global and opens the person's Personal Space.
       const whileIndependentMember = await listed();
-      expect(whileIndependentMember).toContain(startedHere.id);
+      expect(whileIndependentMember).not.toContain(startedHere.id);
       expect(whileIndependentMember).not.toContain(startedElsewhere.id);
 
       // Control: an identity this Organization's directory originated — while
       // the person is a member, both sessions reach the workspace.
-      await prisma.user.update({
-        where: { id: u.userId },
-        data: { providerUserId: `scim-${orgId}:g2-departed-${randomUUID().slice(0, 8)}` },
-      });
+      await directoryIdentity(u.userId, "g2-departed");
       expect(await listed()).toEqual(expect.arrayContaining([startedHere.id, startedElsewhere.id]));
 
       await prisma.teamMember.update({ where: { id: u.memberId! }, data: { status: "REVOKED" } });
@@ -275,7 +279,9 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       const viaRoute = await call("GET", `/v1/admin/identity/sessions?teamId=${A().teamId}&userId=${u.userId}`, admin());
       expect(viaRoute.statusCode, viaRoute.body).toBe(200);
       const routeIds = (json(viaRoute).sessions as Array<{ id: string }>).map((s) => s.id);
-      expect(routeIds).toContain(startedHere.id);
+      // Removal ends the workspace's authority over the person entirely
+      // (B7A-F-001): neither session is listed any more.
+      expect(routeIds).not.toContain(startedHere.id);
       expect(routeIds).not.toContain(startedElsewhere.id);
 
       expect(
@@ -296,12 +302,16 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       });
       expect(untouched).toEqual({ revokedAtUtc: null, quarantinedAtUtc: null });
 
-      // The session started in this workspace before removal stays revocable.
-      const ended = await inventory.revokeActiveSession(
-        { teamId: A().teamId, sessionId: startedHere.id, actorUserId: A().adminUserId },
-        prisma as never,
-      );
-      expect(ended.ok).toBe(true);
+      // Nor the session minted here before removal: it is account-global.
+      expect(
+        await inventory.revokeActiveSession(
+          { teamId: A().teamId, sessionId: startedHere.id, actorUserId: A().adminUserId },
+          prisma as never,
+        ),
+      ).toEqual({ ok: false, reason: "not_found" });
+      expect(
+        (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: startedHere.id }, select: { revokedAtUtc: true } })).revokedAtUtc,
+      ).toBeNull();
     });
   });
 
@@ -334,36 +344,30 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
         resourceId: userId,
       });
 
-    it("revoke-all on an independent member ends only the session started here; their Personal Space survives", async () => {
+    it("revoke-all on an independent member is refused 403 target_self_serve_account before step-up; no session ends, not even the one minted here", async () => {
+      // Final-phase correction: "the session started here" is the same
+      // account-global token that opens the person's Personal Space.
       const { u, startedHere, personalSpace } = await memberWithSessions("g2-dec08-indep");
       const res = await call(
         "POST",
         "/v1/identity-security/sessions/revoke-all",
         owner(),
         { teamId: A().teamId, userId: u.userId },
-        { "x-proovra-workspace-id": A().teamId, ...(await revokeAllProof(u.userId)) },
+        { "x-proovra-workspace-id": A().teamId },
       );
-      expect(res.statusCode, res.body).toBe(200);
-      expect(json(res).revokedCount).toBe(1);
-      expect(await prisma.revokedSession.count({ where: { userId: u.userId, scope: "ALL_FOR_USER" } })).toBe(0);
-      expect(
-        await prisma.revokedSession.count({ where: { userId: u.userId, sessionIdHash: personalSpace.sessionIdHash } }),
-      ).toBe(0);
-      expect(
-        await prisma.revokedSession.count({ where: { userId: u.userId, sessionIdHash: startedHere.sessionIdHash } }),
-      ).toBe(1);
-      expect(
-        (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: personalSpace.id }, select: { revokedAtUtc: true } }))
-          .revokedAtUtc,
-      ).toBeNull();
+      expect(res.statusCode, res.body).toBe(403);
+      expect(json(res)).toMatchObject({ error: { reason: "target_self_serve_account" } });
+      expect(await prisma.revokedSession.count({ where: { userId: u.userId } })).toBe(0);
+      for (const id of [startedHere.id, personalSpace.id]) {
+        expect(
+          (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id }, select: { revokedAtUtc: true } })).revokedAtUtc,
+        ).toBeNull();
+      }
     });
 
     it("revoke-all on an identity the Organization's directory originated ends every session (ALL_FOR_USER)", async () => {
       const { u, personalSpace } = await memberWithSessions("g2-dec08-managed");
-      await prisma.user.update({
-        where: { id: u.userId },
-        data: { providerUserId: `scim-${orgId}:g2-dec08-${randomUUID().slice(0, 8)}` },
-      });
+      await directoryIdentity(u.userId, "g2-dec08");
       const res = await call(
         "POST",
         "/v1/identity-security/sessions/revoke-all",
@@ -379,7 +383,7 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       ).not.toBeNull();
     });
 
-    it("single revoke: a member's Personal-Space session hash answers 404 and nothing is written; the session started here is revoked", async () => {
+    it("single revoke: an independent member's sessions — Personal-Space or minted here — answer 404 and nothing is written; a directory identity's session is revoked", async () => {
       const { u, startedHere, personalSpace } = await memberWithSessions("g2-dec08-single");
       const refused = await call(
         "POST",
@@ -390,7 +394,17 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
       );
       expect(refused.statusCode, refused.body).toBe(404);
       expect(await prisma.revokedSession.count({ where: { userId: u.userId } })).toBe(0);
+      const refusedHere = await call(
+        "POST",
+        "/v1/identity-security/sessions/revoke",
+        owner(),
+        { teamId: A().teamId, userId: u.userId, sessionIdHash: startedHere.sessionIdHash },
+        { "x-proovra-workspace-id": A().teamId },
+      );
+      expect(refusedHere.statusCode, refusedHere.body).toBe(404);
+      expect(await prisma.revokedSession.count({ where: { userId: u.userId } })).toBe(0);
 
+      await directoryIdentity(u.userId, "g2-dec08-single");
       const done = await call(
         "POST",
         "/v1/identity-security/sessions/revoke",
@@ -486,6 +500,7 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
   describe("NEW-RG10-1 (DEC-29): operator single-session revokes end the parent's extension child sessions", () => {
     async function family(label: string) {
       const u = await person(label, { role: "MEMBER" });
+      await directoryIdentity(u.userId, label);
       const row = (data: Record<string, unknown> = {}) =>
         prisma.authenticatedSession.create({
           data: {
@@ -1145,6 +1160,7 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
 
     it("authorized control (team A, Enterprise): revoke-all with step-up ends the member's session here (200); score answers 200", async () => {
       const u = await person("g2-dec11-revoke-all", { role: "MEMBER" });
+      await directoryIdentity(u.userId, "g2-dec11");
       const here = await prisma.authenticatedSession.create({
         data: { userId: u.userId, teamId: A().teamId, sessionIdHash: createHash("sha256").update(randomUUID()).digest("hex"), expiresAtUtc: future() },
         select: { id: true },
@@ -1163,8 +1179,10 @@ describe("free-audit 0ea0 — API-G2-IDENTITY (live PostgreSQL)", () => {
         (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: here.id }, select: { revokedAtUtc: true } })).revokedAtUtc,
       ).toBeInstanceOf(Date);
 
+      const scoredPerson = await person("g2-dec11-score", { role: "MEMBER" });
+      await directoryIdentity(scoredPerson.userId, "g2-dec11-score");
       const other = await prisma.authenticatedSession.create({
-        data: { userId: A().viewerUserId, teamId: A().teamId, sessionIdHash: createHash("sha256").update(randomUUID()).digest("hex"), expiresAtUtc: future() },
+        data: { userId: scoredPerson.userId, teamId: A().teamId, sessionIdHash: createHash("sha256").update(randomUUID()).digest("hex"), expiresAtUtc: future() },
         select: { id: true },
       });
       const scored = await call("POST", `/v1/admin/identity/sessions/${other.id}/score`, admin(), { teamId: A().teamId });

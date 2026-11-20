@@ -252,12 +252,14 @@ describe("restricted-case reach on the residual surfaces (live PostgreSQL)", () 
     expect((await session()).statusCode).toBe(200);
 
     // The same request at the workspace's own member lands, behind the step-up the admin console asks too.
-    // DEC-08 (matrix review NEW-RG08-1) — in the admin console's scope: the
-    // viewer is an independent account, so the session that started in this
-    // workspace is ended by its own id (no account-wide ALL_FOR_USER).
+    // DEC-08 (final-phase correction) — only for a member whose identity the
+    // Organization's directory originated; an independent account is refused.
+    const governed = await kit.person(tenant.teamId, "VIEWER");
+    const { organizationId } = await prisma.team.findUniqueOrThrow({ where: { id: tenant.teamId }, select: { organizationId: true } });
+    await prisma.user.update({ where: { id: governed.id }, data: { providerUserId: `scim-${organizationId}:crr-${randomUUID().slice(0, 8)}` } });
     const startedHere = await prisma.authenticatedSession.create({
       data: {
-        userId: tenant.viewer.id,
+        userId: governed.id,
         teamId: tenant.teamId,
         sessionIdHash: `${randomUUID().replace(/-/g, "")}${randomUUID().replace(/-/g, "")}`,
         expiresAtUtc: new Date(Date.now() + 86_400_000),
@@ -271,20 +273,31 @@ describe("restricted-case reach on the residual surfaces (live PostgreSQL)", () 
       teamId: tenant.teamId,
       purpose: "CONTRIBUTOR_SESSION_REVOKE",
       resourceKind: "user",
-      resourceId: tenant.viewer.id,
+      resourceId: governed.id,
     });
     const mine = await kit.call(
       "POST",
       "/v1/identity-security/sessions/revoke-all",
       tenant.owner,
-      { teamId: tenant.teamId, userId: tenant.viewer.id },
+      { teamId: tenant.teamId, userId: governed.id },
       { ...headers(), ...proof },
     );
     expect(mine.statusCode, mine.body).toBe(200);
+    expect(await prisma.revokedSession.count({ where: { userId: governed.id, scope: "ALL_FOR_USER" } })).toBe(1);
     expect(
-      await prisma.revokedSession.count({ where: { userId: tenant.viewer.id, sessionIdHash: startedHere.sessionIdHash } }),
-    ).toBe(1);
-    expect(await prisma.revokedSession.count({ where: { userId: tenant.viewer.id, scope: "ALL_FOR_USER" } })).toBe(0);
+      (await prisma.authenticatedSession.findFirstOrThrow({ where: { userId: governed.id, sessionIdHash: startedHere.sessionIdHash } })).revokedAtUtc,
+    ).not.toBeNull();
+    // The independent viewer is refused, and nothing of theirs ends.
+    const viewerBefore = await prisma.revokedSession.count({ where: { userId: tenant.viewer.id } });
+    const independent = await kit.call(
+      "POST",
+      "/v1/identity-security/sessions/revoke-all",
+      tenant.owner,
+      { teamId: tenant.teamId, userId: tenant.viewer.id },
+      headers(),
+    );
+    expect(independent.statusCode, independent.body).toBe(403);
+    expect(await prisma.revokedSession.count({ where: { userId: tenant.viewer.id } })).toBe(viewerBefore);
   });
 
   it("the unrestricted record stays counted for both", async () => {

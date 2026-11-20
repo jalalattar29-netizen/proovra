@@ -87,7 +87,9 @@ import {
 import {
   endChildSessionsOf,
   revokeAllSessionsForUserAdmin,
+  SELF_SERVE_SESSION_REFUSAL,
   sessionsOfWorkspaceWhere,
+  workspaceGovernsAccountSessions,
 } from "../services/access-control/session-inventory.service.js";
 import {
   listTrustedDevicesForTeam,
@@ -480,10 +482,10 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       if (!(await isSessionRevocationTarget(body.teamId, body.userId))) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
-      // DEC-08 (matrix review NEW-RG08-2) — the session must be one this
-      // workspace answers for (started here, signed in through its
-      // Organization's SSO, or an identity the Organization governs). A
-      // member's Personal-Space or other-workspace session is not this door's
+      // DEC-08 (matrix review NEW-RG08-2, final-phase correction) — the session
+      // must belong to an identity this Organization governs. Every session is
+      // account-global, so an independent member's session — even one minted
+      // while this workspace was active or through its SSO — is not this door's
       // to end; the answer is the same 404 as an unknown hash.
       const inScope = await prisma.authenticatedSession.findFirst({
         where: {
@@ -536,6 +538,13 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       if (!(await isSessionRevocationTarget(body.teamId, body.userId))) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      // DEC-08 — an independent (self-serve) member's sessions are account-global;
+      // ending any of them signs the person out of their Personal Space. The
+      // workspace's control is membership (suspend / remove). Refused before any
+      // step-up is spent on an act that cannot happen.
+      if (!(await workspaceGovernsAccountSessions(body.teamId, body.userId))) {
+        return reply.code(403).send(SELF_SERVE_SESSION_REFUSAL);
+      }
       // The same act as the admin console's revoke-all, so the same re-proof: this
       // door took any session of a workspace member on the permission alone.
       const gate = await requireStepUpForSensitiveAction({
@@ -550,8 +559,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       if (gate.sent) return;
       // DEC-08 (matrix review NEW-RG08-1) — the same scope as the admin
       // console's revoke-all: an identity the Organization governs loses every
-      // session (ALL_FOR_USER); an independent (self-serve) member loses only
-      // the sessions this workspace answers for, never their Personal Space.
+      // session (ALL_FOR_USER); an independent member was refused above.
       const result = await revokeAllSessionsForUserAdmin({
         teamId: body.teamId,
         userId: body.userId,

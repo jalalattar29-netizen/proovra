@@ -91,10 +91,10 @@ describe("coverage defect closures (live PostgreSQL)", () => {
 
     it("this door asks the same re-proof as the admin console's, and then lands", async () => {
       const person = await kit.person(mine.teamId, "MEMBER");
-      // DEC-08 (matrix review NEW-RG08-1) — this door now ends sessions in the
-      // admin console's scope: the person is an independent account, so the
-      // workspace ends the session that started here (by its own id), never an
-      // account-wide ALL_FOR_USER.
+      // DEC-08 (matrix review NEW-RG08-1, final-phase correction) — this door
+      // ends sessions in the admin console's scope. An independent account's
+      // sessions are account-global (they open its Personal Space), so it is
+      // refused before any step-up; a directory identity loses every session.
       const startedHere = await prisma.authenticatedSession.create({
         data: {
           userId: person.id,
@@ -105,6 +105,13 @@ describe("coverage defect closures (live PostgreSQL)", () => {
         select: { id: true, sessionIdHash: true },
       });
       const body = { teamId: mine.teamId, userId: person.id };
+      const independent = await kit.call("POST", "/v1/identity-security/sessions/revoke-all", mine.owner, body, hdr(mine));
+      expect(independent.statusCode, independent.body).toBe(403);
+      expect(independent.json().error.reason).toBe("target_self_serve_account");
+      expect(await prisma.revokedSession.count({ where: { userId: person.id } })).toBe(0);
+
+      const { organizationId } = await prisma.team.findUniqueOrThrow({ where: { id: mine.teamId }, select: { organizationId: true } });
+      await prisma.user.update({ where: { id: person.id }, data: { providerUserId: `scim-${organizationId}:acdc-${randomUUID().slice(0, 8)}` } });
       const bare = await kit.call("POST", "/v1/identity-security/sessions/revoke-all", mine.owner, body, hdr(mine));
       expect(bare.statusCode, bare.body).toBe(401);
       expect(bare.json().error.code).toBe("STEP_UP_REQUIRED");
@@ -119,10 +126,7 @@ describe("coverage defect closures (live PostgreSQL)", () => {
       );
       expect(done.statusCode, done.body).toBe(200);
       expect(done.json().revokedCount).toBeGreaterThanOrEqual(1);
-      expect(
-        await prisma.revokedSession.count({ where: { userId: person.id, sessionIdHash: startedHere.sessionIdHash } }),
-      ).toBe(1);
-      expect(await prisma.revokedSession.count({ where: { userId: person.id, scope: "ALL_FOR_USER" } })).toBe(0);
+      expect(await prisma.revokedSession.count({ where: { userId: person.id, scope: "ALL_FOR_USER" } })).toBe(1);
       expect(
         (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: startedHere.id } })).revokedAtUtc,
       ).not.toBeNull();

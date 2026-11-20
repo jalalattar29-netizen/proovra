@@ -105,7 +105,9 @@ import {
   refreshHighRiskSessionGauge,
   revokeActiveSession,
   revokeAllSessionsForUserAdmin,
+  SELF_SERVE_SESSION_REFUSAL,
   sweepStaleSessions,
+  workspaceGovernsAccountSessions,
 } from "../services/access-control/session-inventory.service.js";
 import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
 import { sweepStaleCallbackAttempts } from "../services/access-control/sso-hardening.service.js";
@@ -1016,6 +1018,20 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
       );
       if (!actor) return;
       if (await denyTeamIfNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
+      // DEC-08 — only a current member whose identity this Organization
+      // originated; an independent (self-serve) member's sessions are
+      // account-global and also open their Personal Space. Decided before any
+      // step-up is spent; a non-member stays the same 404 as below.
+      {
+        const pre = await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId: body.teamId, userId } },
+          select: { status: true },
+        });
+        if (!pre || pre.status === "REVOKED") return reply.code(404).send({ error: { code: "not_found" } });
+        if (!(await workspaceGovernsAccountSessions(body.teamId, userId))) {
+          return reply.code(403).send(SELF_SERVE_SESSION_REFUSAL);
+        }
+      }
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,

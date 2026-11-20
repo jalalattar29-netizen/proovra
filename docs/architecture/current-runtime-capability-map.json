@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 26
     },
-    "TerminalWriters": 1696,
-    "ReachableSensitiveMutations": 1666,
-    "ClassifiedSensitiveMutations": 1666,
+    "TerminalWriters": 1695,
+    "ReachableSensitiveMutations": 1665,
+    "ClassifiedSensitiveMutations": 1665,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 30,
@@ -71,7 +71,7 @@
     "TenantUnboundMutations": 0,
     "UnsafeEffectsInsideTransactions": 0,
     "byFamily": {
-      "ACCOUNT_SESSION_SECURITY": 278,
+      "ACCOUNT_SESSION_SECURITY": 277,
       "ORGANIZATION": 39,
       "ORGANIZATION_MEMBERSHIP": 34,
       "WORKSPACE": 86,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1482,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1481,
       "JOB_ATTRIBUTED_REACHABLE": 172,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 11,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 12360,
+      "METHOD_ON_VALUE": 12357,
       "UNRESOLVED_IDENTIFIER": 1798
     },
     "MutationFixpointRounds": 11,
@@ -32054,8 +32054,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.update@1509",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1509",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.update@1517",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1517",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -32087,8 +32087,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1291",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1291",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1299",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1299",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -32120,8 +32120,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1437",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1437",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1445",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1445",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -32153,8 +32153,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#stepUpChallenge.updateMany@1085",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1085",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#stepUpChallenge.updateMany@1093",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1093",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -32186,8 +32186,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#trustedDevice.updateMany@1094",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1094",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#trustedDevice.updateMany@1102",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1102",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -36273,8 +36273,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@417",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:417",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@439",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:439",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "revokeActiveSession",
       "kind": "DATABASE",
@@ -36306,8 +36306,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@723",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:723",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@714",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:714",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "recordHeartbeat",
       "kind": "DATABASE",
@@ -36351,8 +36351,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@810",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:810",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@801",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:801",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "sweepStaleSessions",
       "kind": "DATABASE",
@@ -36371,44 +36371,6 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.updateMany@509",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:509",
-      "file": "services/api/src/services/access-control/session-inventory.service.ts",
-      "enclosingDeclaration": "revokeUserSessionsInWorkspaceScope",
-      "kind": "DATABASE",
-      "target": "authenticatedSession",
-      "mutationKind": "updateMany",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/admin/identity/emergency-revoke",
-        "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
-        "POST /v1/break-glass/emergency/sessions/revoke",
-        "POST /v1/identity-security/sessions/revoke-all"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/admin-identity.routes.ts",
-        "MODULE services/api/src/routes/enterprise-security.routes.ts",
-        "MODULE services/api/src/routes/identity-security.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -36461,8 +36423,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.updateMany@621",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:621",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.updateMany@612",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:612",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "endOwnSession",
       "kind": "DATABASE",
@@ -36496,8 +36458,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.updateMany@671",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:671",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.updateMany@662",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:662",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "endChildSessionsOf",
       "kind": "DATABASE",
@@ -36506,21 +36468,16 @@
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
       "insideTransaction": false,
       "entryRoutes": [
-        "POST /v1/admin/identity/emergency-revoke",
         "POST /v1/admin/identity/sessions/:id/revoke",
-        "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
         "POST /v1/auth/logout",
-        "POST /v1/break-glass/emergency/sessions/revoke",
         "POST /v1/identity-security/my-sessions/:id/revoke",
         "POST /v1/identity-security/sessions/revoke",
-        "POST /v1/identity-security/sessions/revoke-all",
         "POST /v1/oauth/extension/revoke"
       ],
       "entryJobs": [],
       "entryModules": [
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/auth.routes.ts",
-        "MODULE services/api/src/routes/enterprise-security.routes.ts",
         "MODULE services/api/src/routes/extension-oauth.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts"
       ],
@@ -62212,7 +62169,6 @@
       "entryRoutes": [
         "DELETE /v1/teams/:id/members/:memberId",
         "POST /v1/admin/identity/elevations",
-        "POST /v1/admin/identity/emergency-revoke",
         "POST /v1/admin/identity/providers",
         "POST /v1/admin/identity/providers/:id/policy",
         "POST /v1/admin/identity/runtime/reconcile",
@@ -62221,15 +62177,12 @@
         "POST /v1/admin/identity/sessions/:id/release",
         "POST /v1/admin/identity/sessions/:id/revoke",
         "POST /v1/admin/identity/sessions/reconcile-stale",
-        "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
         "POST /v1/auth/logout",
         "POST /v1/auth/mfa/enrollment/complete",
-        "POST /v1/break-glass/emergency/sessions/revoke",
         "POST /v1/identity-security/my-sessions/:id/revoke",
         "POST /v1/identity-security/my-sessions/revoke-others",
         "POST /v1/identity-security/password",
         "POST /v1/identity-security/sessions/revoke",
-        "POST /v1/identity-security/sessions/revoke-all",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
         "POST /v1/identity/members/:id/suspend",
@@ -62252,7 +62205,6 @@
       "entryModules": [
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/auth.routes.ts",
-        "MODULE services/api/src/routes/enterprise-security.routes.ts",
         "MODULE services/api/src/routes/extension-oauth.routes.ts",
         "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
@@ -118607,7 +118559,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/permission-matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:567",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:569",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -118665,7 +118617,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/providers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:327",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:329",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -118756,7 +118708,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/quarantined-sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1333",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1349",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -118835,7 +118787,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/role-matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:600",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:602",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveAdminWorkspace -> services/api/src/routes/admin-identity.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -119081,7 +119033,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/scim/tokens",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:690",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:692",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -119151,7 +119103,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:872",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:874",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -119232,7 +119184,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/timeline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1054",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1070",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -135225,7 +135177,7 @@
       "method": "GET",
       "path": "/v1/identity-security/devices",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:591",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:599",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135298,7 +135250,7 @@
       "method": "GET",
       "path": "/v1/identity-security/mfa-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:744",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:752",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135362,7 +135314,7 @@
       "method": "GET",
       "path": "/v1/identity-security/my-sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1323",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1331",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135486,7 +135438,7 @@
       "method": "GET",
       "path": "/v1/identity-security/risk/me",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:856",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:864",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135543,7 +135495,7 @@
       "method": "GET",
       "path": "/v1/identity-security/risk/user/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:878",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:886",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -135607,7 +135559,7 @@
       "method": "GET",
       "path": "/v1/identity-security/security-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1541",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1549",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135665,7 +135617,7 @@
       "method": "GET",
       "path": "/v1/identity-security/session-policy-impact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:932",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:940",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -135728,7 +135680,7 @@
       "method": "GET",
       "path": "/v1/identity-security/sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:565",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:573",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135804,7 +135756,7 @@
       "method": "GET",
       "path": "/v1/identity-security/step-up/:id/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:370",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:372",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160094,7 +160046,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/elevations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:623",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:625",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveAdminWorkspace -> services/api/src/routes/admin-identity.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -160179,7 +160131,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/emergency-revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1488",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1504",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -160223,7 +160175,6 @@
         "organization",
         "organizationSecurityPolicy",
         "planGrant",
-        "revokedSession",
         "riskSignal",
         "ssoConnection",
         "stepUpChallenge",
@@ -160254,7 +160205,6 @@
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
-        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -160264,7 +160214,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:357",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:359",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrganizationIdentityAuthority -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -160360,7 +160310,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers/:id/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:496",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:498",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrganizationIdentityAuthority -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -160448,7 +160398,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:418",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:420",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrganizationIdentityAuthority -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -160523,7 +160473,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/runtime/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1537",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1553",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "reconcileEntrypointAuth -> services/api/src/routes/admin-identity.routes.ts: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
@@ -160732,7 +160682,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/scim/tokens",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:725",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:727",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrganizationIdentityAuthority -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -160829,7 +160779,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/scim/tokens/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:797",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:799",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrganizationIdentityAuthority -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -161006,7 +160956,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/quarantine",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1378",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1394",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -161105,7 +161055,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1434",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1450",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -161204,7 +161154,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:926",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:928",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -161287,7 +161237,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/score",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1283",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1299",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -161361,7 +161311,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/reconcile-stale",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1199",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1215",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "reconcileEntrypointAuth -> services/api/src/routes/admin-identity.routes.ts: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
@@ -161455,7 +161405,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/user/:userId/revoke-all",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:989",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:991",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -161499,7 +161449,6 @@
         "organization",
         "organizationSecurityPolicy",
         "planGrant",
-        "revokedSession",
         "riskSignal",
         "ssoConnection",
         "stepUpChallenge",
@@ -161530,7 +161479,6 @@
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
-        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -163204,7 +163152,6 @@
         "mfaRecoveryCode",
         "organizationSecurityPolicy",
         "ssoCallbackAttempt",
-        "ssoConnection",
         "team",
         "teamMember",
         "user"
@@ -163475,7 +163422,6 @@
         "organizationDomain",
         "organizationSecurityPolicy",
         "ssoCallbackAttempt",
-        "ssoConnection",
         "team",
         "teamMember",
         "user"
@@ -167804,7 +167750,6 @@
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
-        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -182842,7 +182787,7 @@
       "method": "POST",
       "path": "/v1/identity-security/devices/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:715",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:723",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182909,7 +182854,7 @@
       "method": "POST",
       "path": "/v1/identity-security/devices/trust",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:649",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:657",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/routes/graph.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -182984,7 +182929,7 @@
       "method": "POST",
       "path": "/v1/identity-security/my-sessions/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1465",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1473",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183054,7 +182999,7 @@
       "method": "POST",
       "path": "/v1/identity-security/my-sessions/revoke-others",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1373",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1381",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183249,7 +183194,7 @@
       "method": "POST",
       "path": "/v1/identity-security/password",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1156",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1164",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183319,7 +183264,7 @@
       "method": "POST",
       "path": "/v1/identity-security/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1041",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1049",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
@@ -183404,7 +183349,7 @@
       "method": "POST",
       "path": "/v1/identity-security/sessions/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:472",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:474",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183470,7 +183415,7 @@
       "method": "POST",
       "path": "/v1/identity-security/sessions/revoke-all",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:528",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:530",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183512,7 +183457,6 @@
         "organization",
         "organizationSecurityPolicy",
         "planGrant",
-        "revokedSession",
         "riskSignal",
         "ssoConnection",
         "stepUpChallenge",
@@ -183543,7 +183487,6 @@
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
-        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -183553,7 +183496,7 @@
       "method": "POST",
       "path": "/v1/identity-security/step-up/check",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:333",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:335",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183707,7 +183650,7 @@
       "method": "POST",
       "path": "/v1/identity-security/step-up/handoff/passkey",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:438",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:440",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -183765,7 +183708,7 @@
       "method": "POST",
       "path": "/v1/identity-security/step-up/handoff/passkey/options",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:415",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:417",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -183807,7 +183750,7 @@
       "method": "POST",
       "path": "/v1/identity-security/step-up/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:265",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:267",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -208475,7 +208418,7 @@
       "method": "PUT",
       "path": "/v1/identity-security/mfa-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:788",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:796",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"

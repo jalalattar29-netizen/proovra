@@ -112,6 +112,11 @@ describe("support access boundaries", () => {
     const subject = await kit.person(customer.w1, "MEMBER");
     const row = await prisma.teamMember.findFirstOrThrow({ where: { teamId: customer.w1, userId: subject.id }, select: { id: true } });
     target = { memberId: row.id, userId: subject.id };
+    // DEC-08 — emergency containment ends the sessions of identities the
+    // customer Organization governs (its directory originated them); an
+    // independent self-serve member's account-global sessions are not a
+    // workspace's to end. The containment subject is a directory identity.
+    await prisma.user.update({ where: { id: subject.id }, data: { providerUserId: `scim-${customer.orgId}:sab-target-${randomUUID().slice(0, 8)}` } });
   }, 900_000);
 
   afterAll(async () => {
@@ -554,6 +559,10 @@ describe("support access boundaries", () => {
       // Positive control: the same grant and the same request on its own
       // organization reach the containment action.
       const own = await prisma.authenticatedSession.create({
+        data: { userId: target.userId, teamId: customer.w1, sessionIdHash: `sab-${randomUUID()}`, expiresAtUtc: new Date(Date.now() + 3_600_000) },
+        select: { id: true },
+      });
+      const ownerSelfServe = await prisma.authenticatedSession.create({
         data: { userId: customer.ownerId, teamId: customer.w1, sessionIdHash: `sab-${randomUUID()}`, expiresAtUtc: new Date(Date.now() + 3_600_000) },
         select: { id: true },
       });
@@ -565,6 +574,11 @@ describe("support access boundaries", () => {
       }, await holderProof());
       expect(contained.statusCode, contained.body).toBe(200);
       expect((await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: own.id } })).revokedAtUtc).not.toBeNull();
+      // DEC-08 — the independent (self-serve) owner's session minted in this
+      // same workspace is account-global (it opens their Personal Space) and
+      // survives the workspace containment.
+      expect((await prisma.authenticatedSession.findUniqueOrThrow({ where: { id: ownerSelfServe.id } })).revokedAtUtc).toBeNull();
+      expect(await prisma.revokedSession.count({ where: { userId: customer.ownerId, scope: "ALL_FOR_USER" } })).toBe(0);
     });
 
     const activate = async (emergencyUserId: string, grantedRole = "EMERGENCY_OPERATOR") =>

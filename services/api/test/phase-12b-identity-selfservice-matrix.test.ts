@@ -1160,12 +1160,20 @@ describe("step-up challenge lifecycle", () => {
 // ===========================================================================
 
 describe("workspace session governance", () => {
-  it("revoke ONE session calls the canonical revoker once with the SERVER-derived actor", async () => {
+  // DEC-08 — the workspace administers the account-global sessions only of a
+  // member whose identity its Organization originated (a directory subject).
+  const makeOtherManaged = () => {
+    const u = (H.tables.user as Array<Record<string, unknown>>).find((x) => x.id === OTHER)!;
+    u.providerUserId = `scim-${ORG}:other-directory-subject`;
+  };
+
+  it("revoke ONE session of a member the Organization governs calls the canonical revoker once with the SERVER-derived actor", async () => {
+    makeOtherManaged();
     const res = await app.inject({
       method: "POST", url: "/v1/identity-security/sessions/revoke",
       payload: { teamId: TEAM, userId: OTHER, sessionIdHash: FOREIGN_HASH, reason: "OPERATOR_REVOKED" },
     });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode, res.body).toBe(200);
     expect(called("revokeSession")).toHaveLength(1);
     const input = callInput("revokeSession");
     expect(input.teamId).toBe(TEAM);
@@ -1176,22 +1184,40 @@ describe("workspace session governance", () => {
     expect(res.body).not.toContain("sessionIdHash");
   });
 
-  it("revoke ALL for a user goes through the workspace-scoped authority (DEC-08): an independent member loses only this workspace's sessions", async () => {
-    // Matrix review NEW-RG08-1 — this door used to call revokeAllSessionsForUser
-    // (ALL_FOR_USER) for any member, signing an independent account out of its
-    // Personal Space. It now shares the admin console's scope: OTHER is a
-    // self-serve account, so only the session started in TEAM is ended, by its
-    // own id, with the SERVER-derived actor.
+  it("DEC-08: revoke ONE session of an independent (self-serve) member — even one minted while this workspace was active — is the same 404 as an unknown hash, ZERO revocation", async () => {
+    // Every session is account-global: ending it signs the person out of
+    // their Personal Space. OTHER is a self-serve (Google) account.
+    const res = await app.inject({
+      method: "POST", url: "/v1/identity-security/sessions/revoke",
+      payload: { teamId: TEAM, userId: OTHER, sessionIdHash: FOREIGN_HASH, reason: "OPERATOR_REVOKED" },
+    });
+    expect(res.statusCode, res.body).toBe(404);
+    expect(called("revokeSession")).toHaveLength(0);
+  });
+
+  it("revoke ALL for a member the Organization governs ends the account's sessions (ALL_FOR_USER) with the SERVER-derived actor", async () => {
+    makeOtherManaged();
     const res = await app.inject({
       method: "POST", url: "/v1/identity-security/sessions/revoke-all",
       payload: { teamId: TEAM, userId: OTHER },
     });
     expect(res.statusCode, res.body).toBe(200);
-    expect(called("revokeAllSessionsForUser")).toHaveLength(0);
-    expect(called("revokeSession")).toHaveLength(1);
-    expect(callInput("revokeSession")).toMatchObject({ userId: OTHER, sessionIdHash: FOREIGN_HASH, actorUserId: ACTOR });
-    expect(JSON.parse(res.body)).toEqual({ revokedCount: 1 });
+    expect(called("revokeAllSessionsForUser")).toHaveLength(1);
+    expect(callInput("revokeAllSessionsForUser")).toMatchObject({ userId: OTHER, actorUserId: ACTOR });
     expect(res.body).not.toContain("REVOKED-HASH-SEED");
+  });
+
+  it("DEC-08: revoke ALL for an independent (self-serve) member → 403 target_self_serve_account, ZERO revocation (matrix review NEW-RG08-1, final-phase correction)", async () => {
+    // This door used to end "the sessions started here". Those are the same
+    // account-global tokens that open the person's Personal Space.
+    const res = await app.inject({
+      method: "POST", url: "/v1/identity-security/sessions/revoke-all",
+      payload: { teamId: TEAM, userId: OTHER },
+    });
+    expect(res.statusCode, res.body).toBe(403);
+    expect(JSON.parse(res.body)).toMatchObject({ error: { reason: "target_self_serve_account" } });
+    expect(called("revokeAllSessionsForUser")).toHaveLength(0);
+    expect(called("revokeSession")).toHaveLength(0);
   });
 
   it("GET sessions lists the workspace revocation window through the REAL projection", async () => {

@@ -62,7 +62,9 @@ describe("PHASE 5 — mutation family attribution (live PostgreSQL 16)", () => {
 
   let platformAdmin: SeededUser;
   let secondAdmin: SeededUser;
-  let orgA: { organizationId: string; workspaceId: string; owner: SeededUser };
+  // DEC-08 — the session subject is a member the fixture's directory
+  // provisioned: a workspace administers only such identities' sessions.
+  let orgA: { organizationId: string; workspaceId: string; owner: SeededUser; subject: { userId: string } };
   let orgB: { organizationId: string; workspaceId: string; owner: SeededUser };
 
   async function call(
@@ -199,8 +201,8 @@ describe("PHASE 5 — mutation family attribution (live PostgreSQL 16)", () => {
     });
     await bootstrapPersonalSpace(deps, secondAdmin.userId);
 
-    const a = await seedOrganizationTenant(deps, { contractStatus: "ACTIVE" });
-    orgA = { organizationId: a.organizationId, workspaceId: a.workspaceId, owner: a.owner };
+    const a = await seedOrganizationTenant(deps, { contractStatus: "ACTIVE", memberCount: 1 });
+    orgA = { organizationId: a.organizationId, workspaceId: a.workspaceId, owner: a.owner, subject: a.members[0]! };
     const b = await seedOrganizationTenant(deps, { contractStatus: "ACTIVE" });
     orgB = { organizationId: b.organizationId, workspaceId: b.workspaceId, owner: b.owner };
   }, 300_000);
@@ -319,7 +321,7 @@ describe("PHASE 5 — mutation family attribution (live PostgreSQL 16)", () => {
       const { quarantineSession } = await import(
         "../src/services/access-control/session-quarantine.service.js"
       );
-      const session = await seedSession(orgA.owner.userId, orgA.workspaceId);
+      const session = await seedSession(orgA.subject.userId, orgA.workspaceId);
       expect(session.quarantinedAtUtc).toBeNull();
 
       await quarantineSession({
@@ -341,14 +343,14 @@ describe("PHASE 5 — mutation family attribution (live PostgreSQL 16)", () => {
 
       assertCoreAttribution(row, {
         actorUserId: platformAdmin.userId,
-        subjectUserId: orgA.owner.userId,
+        subjectUserId: orgA.subject.userId,
         label: "session quarantine",
       });
       // The SUBJECT is recorded, separately and explicitly.
       expect(
         row.metadata["subjectUserId"],
         "the session's owner was not recorded as the subject",
-      ).toBe(orgA.owner.userId);
+      ).toBe(orgA.subject.userId);
       // The client label is the stored PREVIEW, never a raw fingerprint.
       expect(row.targetDisplay).toContain("Chrome on Windows");
       assertNoSecret(row, "session quarantine");
@@ -368,7 +370,7 @@ describe("PHASE 5 — mutation family attribution (live PostgreSQL 16)", () => {
       const { quarantineSession, releaseQuarantine } = await import(
         "../src/services/access-control/session-quarantine.service.js"
       );
-      const session = await seedSession(orgA.owner.userId, orgA.workspaceId);
+      const session = await seedSession(orgA.subject.userId, orgA.workspaceId);
       await quarantineSession({
         teamId: orgA.workspaceId,
         sessionId: session.id,
@@ -388,7 +390,7 @@ describe("PHASE 5 — mutation family attribution (live PostgreSQL 16)", () => {
       });
       assertCoreAttribution(row, {
         actorUserId: secondAdmin.userId,
-        subjectUserId: orgA.owner.userId,
+        subjectUserId: orgA.subject.userId,
         label: "quarantine release",
       });
       expect(row.previousState).toBe("QUARANTINED");

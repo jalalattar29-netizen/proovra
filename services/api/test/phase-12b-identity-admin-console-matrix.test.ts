@@ -63,6 +63,8 @@ type Check = { teamId: string; permission: string };
 
 const H = vi.hoisted(() => ({
   actorUserId: "11111111-1111-4111-8111-111111111111",
+  /** DEC-08: does the workspace govern the target's account-global sessions? */
+  targetGoverned: true,
   /** Verified session present? (the machine reconcile path needs none.) */
   sessionPresent: true,
   /** Actor's membership status in the requested workspace (null = no row). */
@@ -309,6 +311,10 @@ vi.mock("../src/services/access-control/session-inventory.service.js", () => {
         nextCursor: null,
         hasMore: false,
       }),
+    // DEC-08 — the target is a member whose identity the Organization
+    // originated unless a test says otherwise (H.targetGoverned).
+    workspaceGovernsAccountSessions: async () => H.targetGoverned,
+    SELF_SERVE_SESSION_REFUSAL: { error: { code: "permission_denied", reason: "target_self_serve_account", message: "x" } },
     revokeAllSessionsForUserAdmin: async (i: Record<string, unknown>) =>
       R("revokeAllSessionsForUserAdmin", i, { revokedCount: 3 }, "revokeAllSessionsForUserAdmin"),
     sweepStaleSessions: async (i: Record<string, unknown>) =>
@@ -483,6 +489,7 @@ beforeEach(async () => {
     ssoScimEntitled: true,
     orgRole: "ORG_ADMIN",
     orgKind: "CUSTOMER",
+    targetGoverned: true,
   });
   H.calls.length = 0;
   H.writes.length = 0;
@@ -816,6 +823,17 @@ describe("PROOF 4 — step-up gating on the sensitive mutations", () => {
     const res = await run(o);
     expect(res.statusCode).toBe(401);
     expect(json(res)).toMatchObject({ error: { code: "STEP_UP_REQUIRED" } });
+    expect(hits(o.service)).toEqual([]);
+    expect(H.writes).toEqual([]);
+  });
+
+  it("DEC-08: revoke-all aimed at an independent (self-serve) member → 403 target_self_serve_account before any step-up, ZERO mutation", async () => {
+    H.targetGoverned = false;
+    const o = op("POST sessions/user/:userId/revoke-all");
+    const res = await run(o);
+    expect(res.statusCode).toBe(403);
+    expect(json(res)).toMatchObject({ error: { reason: "target_self_serve_account" } });
+    expect(H.stepUps).toEqual([]);
     expect(hits(o.service)).toEqual([]);
     expect(H.writes).toEqual([]);
   });
