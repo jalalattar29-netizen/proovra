@@ -1653,6 +1653,8 @@ export async function authRoutes(app: FastifyInstance) {
       max: AUTH_EMAIL_VERIFY_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
+    // RG-22 (matrix review NEW-RG-22-1) — a limiter outage is 503, not a 429.
+    if (isLimiterUnavailable(confirmRl)) return replyLimiterUnavailable(reply, confirmRl);
     if (!confirmRl.allowed) return replyRateLimited(reply, confirmRl.resetAtMs, confirmRl.store);
     const body = PasswordResetConfirmBody.parse(req.body);
 
@@ -2032,6 +2034,8 @@ export async function authRoutes(app: FastifyInstance) {
       max: AUTH_EMAIL_VERIFY_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
+    // RG-22 (matrix review NEW-RG-22-2) — a limiter outage is 503, not a 429.
+    if (isLimiterUnavailable(optionsRl)) return replyLimiterUnavailable(reply, optionsRl);
     if (!optionsRl.allowed) return replyRateLimited(reply, optionsRl.resetAtMs, optionsRl.store);
     const parsed = LoginPasskeyHandoffBody.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ message: "invalid_body" });

@@ -2200,6 +2200,10 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         })
         .parse(req.body);
       if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
+      // RG-20 / IDENT-019 (matrix review NEW-RG-20-1) — a quarantined session
+      // keeps its reads and loses every governance transition: opening a
+      // destruction request is one.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "WORKSPACE_GOVERNANCE_UPDATE" })).refused) return reply;
       // GOV-017 — the same answer as a record this workspace does not hold.
       for (const evidenceId of body.evidenceIds) {
         if (await evidenceClosedTo(evidenceId, ctx.userId)) {
@@ -2292,6 +2296,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         .object({ reason: z.string().min(1).max(600) })
         .parse(req.body ?? { reason: "rejected" });
       if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
+      // RG-20 / IDENT-019 (matrix review NEW-RG-20-1) — rejecting is a
+      // governance decision; a quarantined session does not make it.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: ctx.teamId, userId: ctx.userId, action: "WORKSPACE_GOVERNANCE_UPDATE" })).refused) return reply;
       const res = await rejectDestructionRequest({
         teamId: ctx.teamId,
         requestId: id,

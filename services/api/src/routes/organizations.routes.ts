@@ -2622,10 +2622,17 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
         // (a) governance membership — delete (canonical removal semantics).
         // PHASE 3 — canonical orchestrator: self-leave governance removal.
-        await removeOrganizationMembership(tx, {
+        const removal = await removeOrganizationMembership(tx, {
           organizationMembershipId: membership.id,
           actorUserId: userId,
         });
+        // RG-07 / PRO-T2-02 (matrix review NEW-RG-07-3) — side effects only on a
+        // real transition: if a concurrent removal won the fence, this leave
+        // changed nothing and writes no second ORG_MEMBER_LEFT, revokes nothing
+        // and resets no pointer (the same rule the admin DELETE follows).
+        if (!removal || !removal.ok || !removal.changed) {
+          return { kind: "not_found" as const };
+        }
 
         // (b) workspace layer — deactivate, never erase. Scoped to teams
         // OWNED by this organization only; personal + other-org teams are

@@ -53,6 +53,7 @@ import {
 } from "../services/access-control/sso.service.js";
 import {
   createMfaPendingChallenge,
+  MfaLoginTemporarilyLockedError,
 } from "../services/security/mfa.service.js";
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
@@ -1183,6 +1184,17 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         const redirectTarget = resolvePostLoginDestination(attempt.redirectAfter);
         return reply.code(302).redirect(webPageUrl(redirectTarget));
       } catch (err) {
+        // RG-09 (matrix review M049) — a second-factor lockout is the user's
+        // state, not the IdP's failure: it is reported as mfa_temporarily_locked
+        // (the wording the clients render) and does NOT count toward the
+        // connection's outage circuit — the same arm as the SAML ACS.
+        if (err instanceof MfaLoginTemporarilyLockedError) {
+          await markCallbackFailed(
+            { attemptId: attempt.id, reason: "mfa_temporarily_locked" },
+            prisma,
+          );
+          return fail("mfa_temporarily_locked", attempt.redirectAfter);
+        }
         await markCallbackFailed(
           {
             attemptId: attempt.id,

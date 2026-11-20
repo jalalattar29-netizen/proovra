@@ -357,6 +357,44 @@ describe("WS-ORG — identity and membership roots (live PostgreSQL 16)", () => 
     expect(await revocations(paused.userId)).toBe(afterSuspend);
   });
 
+  it("matrix review NEW-RG-07-3 — concurrent /leave calls and an admin removal produce ONE exit: one 200, one audit event", async () => {
+    const org = await fx.seedOrganizationTenant(deps);
+    const leaver = await orgMember(org, "t202-leaver");
+    const leave = () =>
+      harness.app.inject({
+        method: "POST",
+        url: `/v1/orgs/${org.organizationId}/leave`,
+        headers: auth(leaver.token),
+        payload: {},
+      });
+    const remove = () =>
+      harness.app.inject({
+        method: "DELETE",
+        url: `/v1/orgs/${org.organizationId}/members/${leaver.orgMembershipId}`,
+        headers: auth(org.owner.token),
+      });
+    const results = await Promise.all([leave(), leave(), remove(), leave()]);
+    const ok = results.filter((r) => r.statusCode === 200);
+    expect(ok, results.map((r) => `${r.statusCode} ${r.body}`).join(" | ")).toHaveLength(1);
+    for (const r of results) if (r.statusCode !== 200) expect([404, 409], r.body).toContain(r.statusCode);
+    const exits = await prisma.organizationAuditEvent.count({
+      where: {
+        organizationId: org.organizationId,
+        eventType: { in: ["ORG_MEMBER_LEFT", "ORG_MEMBER_REMOVED"] },
+        targetId: leaver.orgMembershipId,
+      },
+    });
+    expect(exits).toBe(1);
+    // Control: a repeat leave after the exit answers 404 and writes nothing.
+    const repeat = await leave();
+    expect(repeat.statusCode, repeat.body).toBe(404);
+    expect(
+      await prisma.organizationAuditEvent.count({
+        where: { organizationId: org.organizationId, eventType: "ORG_MEMBER_LEFT", targetId: leaver.orgMembershipId },
+      }),
+    ).toBeLessThanOrEqual(1);
+  });
+
   it("PRO-A2Z-01 — reconciliation never demotes the OWNER; an unlinked MEMBER is actually suspended", async () => {
     const org = await fx.seedOrganizationTenant(deps);
     const member = await orgMember(org, "a2z01-member");

@@ -239,6 +239,55 @@ describe("RG-13 machine-channel entitlements and quotas (live PostgreSQL)", () =
     expect(after).toMatchObject({ status: "CANCELLED", errorMessage: "withheld:entitlement_required" });
   });
 
+  it("matrix review NEW-RG-11-1 (AZ-R04): a scheduled retry naming a case that became restricted is withheld at send; an open case's retry is delivered", async () => {
+    const { teamA } = h.fixtures;
+    await grant(teamA.teamId, "FEATURE_WEBHOOKS", true);
+    const endpoint = await prisma.webhookEndpoint.findFirstOrThrow({ where: { teamId: teamA.teamId, status: "ACTIVE" } });
+    const caseIn = (restricted: boolean) =>
+      prisma.case.create({
+        data: {
+          name: `ws-ent egress ${randomUUID().slice(0, 8)}`,
+          teamId: teamA.teamId,
+          ownerUserId: teamA.ownerUserId,
+          ...(restricted ? { restrictedAtUtc: new Date() } : {}),
+        } as never,
+        select: { id: true },
+      });
+    const closed = await caseIn(true);
+    const open = await caseIn(false);
+    const due = (caseId: string) =>
+      prisma.integrationWebhookDelivery.create({
+        data: {
+          endpointId: endpoint.id,
+          teamId: teamA.teamId,
+          eventId: randomUUID(),
+          eventType: "case.updated",
+          payloadJson: { event: "case.updated", teamId: teamA.teamId, data: { caseId } },
+          status: "RETRY_SCHEDULED",
+          attemptCount: 1,
+          nextAttemptAtUtc: new Date(Date.now() - 1000),
+        },
+      });
+    const withheld = await due(closed.id);
+    const allowed = await due(open.id);
+    sent.length = 0;
+    try {
+      const { processDueWebhookRetries } = await import("../src/services/integrations/webhook-retry-processor.js");
+      await processDueWebhookRetries({ batchSize: 50 });
+      expect(await prisma.integrationWebhookDelivery.findUniqueOrThrow({ where: { id: withheld.id } })).toMatchObject({
+        status: "CANCELLED",
+        errorMessage: "withheld:target_restricted",
+      });
+      const delivered = await prisma.integrationWebhookDelivery.findUniqueOrThrow({ where: { id: allowed.id } });
+      expect(delivered.status, delivered.errorMessage ?? "").toBe("SENT");
+      expect(sent).toHaveLength(1);
+    } finally {
+      // The cases that follow expect team A without FEATURE_WEBHOOKS (as the
+      // PRO-G1-14 cases above left it).
+      await prisma.entitlementGrant.deleteMany({ where: { teamId: teamA.teamId, key: "FEATURE_WEBHOOKS" } });
+    }
+  });
+
   it("PRO-R3-07: a product-line (PLAN) grant stops answering while the paid subscription is terminally lapsed; a bounded CUSTOM exception does not", async () => {
     const { teamB } = h.fixtures;
     await prisma.team.update({ where: { id: teamB.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });

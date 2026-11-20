@@ -416,26 +416,35 @@ export async function createComment(
    * spaces as dots — so the filter is expressed in those terms and the map is
    * still the thing that decides, which keeps the matching rules in one place.
    */
+  const effectiveMember = effectiveGroupMemberWhere(team.workspaceId);
   const activeMembers = handles.length
     ? await client.collaborationTeamMember.findMany({
         where: {
           teamId: input.teamId,
           // RG-31 — mentions follow EFFECTIVE membership: a group row whose
-          // workspace membership ended is not notified.
-          ...effectiveGroupMemberWhere(team.workspaceId),
-          user: {
-            OR: handles.flatMap((handle) => [
-              { email: { startsWith: `${handle}@`, mode: "insensitive" as const } },
-              {
-                displayName: {
-                  // PRO-K2-04 — escape the dot: `/./g` replaced EVERY character,
-                  // so a display-name handle never matched anybody.
-                  equals: handle.replace(/\./g, " "),
-                  mode: "insensitive" as const,
-                },
+          // workspace membership ended is not notified. Both the effective
+          // predicate and the handle match constrain `user`, so they are
+          // combined under AND: spreading the predicate and then setting a
+          // second `user` key silently dropped the workspace-membership clause
+          // (a suspended member was still notified — matrix review M771).
+          ...effectiveMember,
+          AND: [
+            {
+              user: {
+                OR: handles.flatMap((handle) => [
+                  { email: { startsWith: `${handle}@`, mode: "insensitive" as const } },
+                  {
+                    displayName: {
+                      // PRO-K2-04 — escape the dot: `/./g` replaced EVERY character,
+                      // so a display-name handle never matched anybody.
+                      equals: handle.replace(/\./g, " "),
+                      mode: "insensitive" as const,
+                    },
+                  },
+                ]),
               },
-            ]),
-          },
+            },
+          ],
         },
         select: {
           userId: true,

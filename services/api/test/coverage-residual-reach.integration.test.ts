@@ -5,6 +5,8 @@
  * the restricted case's list; `listed` is an OWNER on it. Every refusal has the
  * listed person's success beside it.
  */
+import { randomUUID } from "node:crypto";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -250,6 +252,18 @@ describe("restricted-case reach on the residual surfaces (live PostgreSQL)", () 
     expect((await session()).statusCode).toBe(200);
 
     // The same request at the workspace's own member lands, behind the step-up the admin console asks too.
+    // DEC-08 (matrix review NEW-RG08-1) — in the admin console's scope: the
+    // viewer is an independent account, so the session that started in this
+    // workspace is ended by its own id (no account-wide ALL_FOR_USER).
+    const startedHere = await prisma.authenticatedSession.create({
+      data: {
+        userId: tenant.viewer.id,
+        teamId: tenant.teamId,
+        sessionIdHash: `${randomUUID().replace(/-/g, "")}${randomUUID().replace(/-/g, "")}`,
+        expiresAtUtc: new Date(Date.now() + 86_400_000),
+      },
+      select: { sessionIdHash: true },
+    });
     const ceremony = createStepUpCeremony({ prisma: prisma as never, inject: h.app.inject.bind(h.app) as never });
     const proof = await ceremony.approvedHeader({
       token: tenant.owner.token,
@@ -267,7 +281,10 @@ describe("restricted-case reach on the residual surfaces (live PostgreSQL)", () 
       { ...headers(), ...proof },
     );
     expect(mine.statusCode, mine.body).toBe(200);
-    expect(await prisma.revokedSession.count({ where: { userId: tenant.viewer.id } })).toBe(1);
+    expect(
+      await prisma.revokedSession.count({ where: { userId: tenant.viewer.id, sessionIdHash: startedHere.sessionIdHash } }),
+    ).toBe(1);
+    expect(await prisma.revokedSession.count({ where: { userId: tenant.viewer.id, scope: "ALL_FOR_USER" } })).toBe(0);
   });
 
   it("the unrestricted record stays counted for both", async () => {

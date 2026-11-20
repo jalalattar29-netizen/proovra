@@ -571,6 +571,9 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "evidence.delete");
       if (!ok) return;
+      // RG-20 / IDENT-019 (matrix review NEW-RG-20-1) — opening a destruction
+      // review is a governance transition; a quarantined session loses it.
+      if ((await refuseIfSessionQuarantined({ req, reply, teamId: body.teamId, userId: ok.actorUserId, action: "WORKSPACE_GOVERNANCE_UPDATE" })).refused) return;
       // PRO-G2-02 / DEC-05 — a self-serve workspace's owner may open one too.
       if (!(await destructionDecisionAuthority(reply, body.teamId, ok.actorUserId))) return;
       // ACC-12: a workspace role is not reach. A destruction request on a record

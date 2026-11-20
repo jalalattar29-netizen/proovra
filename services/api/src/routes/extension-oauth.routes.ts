@@ -30,6 +30,7 @@ import {
 import { getSecret } from "../config/runtime-secrets.js";
 import { EXTENSION_CAPTURE_SCOPE } from "../services/auth/extension-scope.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { isLimiterUnavailable, replyLimiterUnavailable } from "../http/limiter-unavailable.js";
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import {
   endOwnSession,
@@ -325,6 +326,8 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
         windowSec: 60,
         bound: "global",
       });
+      // RG-22 (matrix review NEW-RG-22-3) — a limiter outage is 503, not a 429.
+      if (isLimiterUnavailable(rate)) return replyLimiterUnavailable(reply, rate);
       if (!rate.allowed) return reply.code(429).send({ error: "rate_limited" });
 
       try {
@@ -404,6 +407,8 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
         windowSec: 60,
         bound: "global",
       });
+      // RG-22 (matrix review NEW-RG-22-3) — a limiter outage is 503, not a 429.
+      if (isLimiterUnavailable(rate)) return replyLimiterUnavailable(reply, rate);
       if (!rate.allowed) return reply.code(429).send({ error: "rate_limited" });
       const sessionIdHash = (req.user as { sessionIdHash?: string | null } | undefined)?.sessionIdHash ?? null;
       const secret = getSecret("AUTH_JWT_SECRET");
@@ -432,6 +437,8 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
         windowSec: 60,
         bound: "global",
       });
+      // RG-22 (matrix review NEW-RG-22-3) — a limiter outage is 503, not a 429.
+      if (isLimiterUnavailable(rate)) return replyLimiterUnavailable(reply, rate);
       if (!rate.allowed) return reply.code(429).send({ error: "rate_limited" });
       const parsed = TokenBody.safeParse(req.body ?? {});
       if (!parsed.success) {

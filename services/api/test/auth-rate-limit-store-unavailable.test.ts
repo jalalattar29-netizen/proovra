@@ -43,12 +43,14 @@ vi.mock("../src/services/rate-limit.js", async (importOriginal) => {
 });
 
 import { authRoutes } from "../src/routes/auth.routes.js";
+import { extensionOAuthRoutes } from "../src/routes/extension-oauth.routes.js";
 
 let app: FastifyInstance;
 
 beforeAll(async () => {
   app = Fastify();
   await app.register(authRoutes as never);
+  await app.register(extensionOAuthRoutes as never);
   await app.ready();
 });
 afterAll(async () => {
@@ -74,6 +76,28 @@ describe("B-09 — a limiter outage is not 'too many attempts'", () => {
       expect(err.code).toBe("SERVER_BUSY");
       expect(err.details?.reason, url).toBe("limiter_unavailable");
       expect(err.message).not.toMatch(/too many/i);
+    }
+  });
+
+  it("matrix review NEW-RG-22-1/2: password-reset confirm and passkey-handoff options answer 503 on an outage, 429 on exhaustion", async () => {
+    for (const [url, payload] of [
+      ["/v1/auth/password-reset/confirm", { token: "x".repeat(40), password: "Abcdefghijk1!" }],
+      ["/v1/auth/mfa/passkey-handoff/options", { token: "x".repeat(40) }],
+      // NEW-RG-22-3 — the extension's public token endpoint (the authorize and
+      // approve buckets share the same branch behind requireAuth).
+      ["/v1/oauth/extension/token", { grant_type: "authorization_code", code: "x" }],
+    ] as const) {
+      decision.store = "unavailable";
+      const outage = await post(url, payload);
+      expect(outage.statusCode, `${url} ${outage.body}`).toBe(503);
+      expect(Number(outage.headers["retry-after"])).toBeGreaterThan(0);
+      const err = (outage.json() as { error: { code: string; details?: { reason?: string } } }).error;
+      expect(err.code).toBe("SERVER_BUSY");
+      expect(err.details?.reason, url).toBe("limiter_unavailable");
+
+      decision.store = "redis";
+      const exhausted = await post(url, payload);
+      expect(exhausted.statusCode, `${url} ${exhausted.body}`).toBe(429);
     }
   });
 

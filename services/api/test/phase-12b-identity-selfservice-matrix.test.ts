@@ -1176,15 +1176,22 @@ describe("workspace session governance", () => {
     expect(res.body).not.toContain("sessionIdHash");
   });
 
-  it("revoke ALL for a user calls the canonical bulk revoker once", async () => {
+  it("revoke ALL for a user goes through the workspace-scoped authority (DEC-08): an independent member loses only this workspace's sessions", async () => {
+    // Matrix review NEW-RG08-1 — this door used to call revokeAllSessionsForUser
+    // (ALL_FOR_USER) for any member, signing an independent account out of its
+    // Personal Space. It now shares the admin console's scope: OTHER is a
+    // self-serve account, so only the session started in TEAM is ended, by its
+    // own id, with the SERVER-derived actor.
     const res = await app.inject({
       method: "POST", url: "/v1/identity-security/sessions/revoke-all",
       payload: { teamId: TEAM, userId: OTHER },
     });
-    expect(res.statusCode).toBe(200);
-    expect(called("revokeAllSessionsForUser")).toHaveLength(1);
-    expect(callInput("revokeAllSessionsForUser").actorUserId).toBe(ACTOR);
-    expect(JSON.parse(res.body).revoked.scope).toBe("ALL_FOR_USER");
+    expect(res.statusCode, res.body).toBe(200);
+    expect(called("revokeAllSessionsForUser")).toHaveLength(0);
+    expect(called("revokeSession")).toHaveLength(1);
+    expect(callInput("revokeSession")).toMatchObject({ userId: OTHER, sessionIdHash: FOREIGN_HASH, actorUserId: ACTOR });
+    expect(JSON.parse(res.body)).toEqual({ revokedCount: 1 });
+    expect(res.body).not.toContain("REVOKED-HASH-SEED");
   });
 
   it("GET sessions lists the workspace revocation window through the REAL projection", async () => {
