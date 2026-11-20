@@ -68,6 +68,18 @@ vi.mock("../src/db.js", () => ({
     $queryRawUnsafe: async () => [DB.lifecycle],
   },
 }));
+// NEW-RG-33-1 — the canonical worker derived-artifact storage gate (its own
+// behaviour is proven where it lives); here, what the processor does with it.
+const GATE = vi.hoisted(() => ({
+  verdict: { allowed: true } as { allowed: true } | { allowed: false; reason: "storage_limit" | "evidence_not_found" },
+  asked: [] as Array<{ evidenceId: string; incomingBytes: bigint | number }>,
+}));
+vi.mock("../src/workspace-billing.js", () => ({
+  workspaceAllowsDerivedArtifact: async (p: { evidenceId: string; incomingBytes: bigint | number }) => {
+    GATE.asked.push(p);
+    return GATE.verdict;
+  },
+}));
 vi.mock("../src/logger.js", () => ({ logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } }));
 vi.mock("../src/object-retention.js", () => ({ artifactLockFor: async () => null }));
 vi.mock("../src/storage.js", () => ({
@@ -154,6 +166,8 @@ beforeEach(async () => {
   STORE.readError = null;
   STORE.reads = 0;
   STORE.puts = [];
+  GATE.verdict = { allowed: true };
+  GATE.asked = [];
   DB.evidence = {
     storageBucket: "bkt",
     storageKey: "orig/key.pdf",
@@ -218,6 +232,24 @@ describe("processRedactionPagePreviewJob", () => {
     const [r, , b] = await centrePixel(put.body);
     expect(b).toBeGreaterThan(150);
     expect(r).toBeLessThan(80);
+  });
+
+  it("asks the derived-artifact storage gate with the rendered PNG's exact size before storing (NEW-RG-33-1)", async () => {
+    seed();
+    await processRedactionPagePreviewJob(job());
+    expect(STORE.puts).toHaveLength(1);
+    expect(GATE.asked).toHaveLength(1);
+    expect(GATE.asked[0]!.evidenceId).toBe("ev-1");
+    expect(BigInt(GATE.asked[0]!.incomingBytes)).toBe(BigInt(STORE.puts[0]!.body.length));
+  });
+
+  it("a workspace with no storage room gains no preview: nothing stored, the row FAILS storage_limit (NEW-RG-33-1)", async () => {
+    seed();
+    GATE.verdict = { allowed: false, reason: "storage_limit" };
+    await processRedactionPagePreviewJob(job());
+    expect(STORE.puts).toHaveLength(0);
+    expect(DB.preview).toMatchObject({ state: "FAILED", failureReason: "storage_limit" });
+    expect(DB.preview?.storageKey ?? null).toBeNull();
   });
 
   it("refuses a source over the redaction byte budget without reading or storing anything", async () => {
