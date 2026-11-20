@@ -33,17 +33,33 @@
  * Anything else — missing configuration, a non-https base, a timeout, a
  * Cloudflare challenge, a 5xx, an absent header, an older epoch or contract,
  * a revision this clone does not have, a failed diff, an exception — SKIPS,
- * and the log line says exactly why. After the API is deployed, redeploy the
- * web (Vercel "Redeploy" of the main deployment, or a new push).
+ * and the log line says exactly why.
+ *
+ *   4. NOT OLDER THAN THE LIVE WEB. When the production web's own
+ *      /api/health states a revision and this build's commit is a strict
+ *      ancestor of it, the build is stale (a queued or redeployed older
+ *      commit) and SKIPS, so it cannot replace a newer live release. When the
+ *      live web revision cannot be read or compared, the log says so and this
+ *      check alone does not stop the build: compatibility (1-3) still
+ *      governs, and an unreadable web must not block every release.
+ *
+ * THIS GATE IS THE CONTROL (2026-11-20). The blanket vercel.json
+ * `git.deploymentEnabled.main: false` hold is gone: every push to main makes a
+ * production deployment, which builds exactly when 1-4 hold.
+ *
+ * WEB RELEASE AFTER A SERVER RELEASE. A main push whose API-facing source the
+ * live API does not serve yet is SKIPPED (cancelled; production keeps serving
+ * the previous web). Once the API is deployed at that commit or later, deploy
+ * the web by pushing to main (any commit, e.g. `git commit --allow-empty -m
+ * "chore(release): web release after API <sha>"`): its build runs this gate
+ * against the now-current API. docs/operations/web-release-after-api.md is the
+ * runbook.
  *
  * PROOVRA_WEB_IGNORE_API_EPOCH=1 (a Vercel environment variable, set by the
  * owner for one deliberate release) forces the build: break-glass.
  *
- * This gate is defence in depth. The primary control while a server release is
- * pending is vercel.json `git.deploymentEnabled.main: false`, which stops
- * Vercel creating any deployment from main at all; the runtime skew notice
- * (apps/web/lib/contract-skew.ts) and the client's own degraded states cover a
- * tab that is open across a release.
+ * The runtime skew notice (apps/web/lib/contract-skew.ts) and the client's own
+ * degraded states cover a tab that is open across a release.
  *
  * `docs/` is safe to list because the web app reads nothing under it at build
  * or run time: runbooks reach the product only through the committed,
@@ -95,7 +111,7 @@ function isProduction(env) {
  *  - apiFacingDiff: list of API-facing paths that differ between the live API
  *    revision and this build; null = could not be established.
  */
-export function decide({ env, changedFiles, own = null, live = null, apiFacingDiff = null }) {
+export function decide({ env, changedFiles, own = null, live = null, apiFacingDiff = null, staleness = null }) {
   if (isProduction(env)) {
     if (env.PROOVRA_WEB_IGNORE_API_EPOCH === "1") {
       return { build: true, reason: "BREAK-GLASS PROOVRA_WEB_IGNORE_API_EPOCH=1: building without the live-API compatibility check" };
@@ -126,9 +142,19 @@ export function decide({ env, changedFiles, own = null, live = null, apiFacingDi
         `${apiFacingDiff.length} API-facing file(s) differ between the live API (${String(live.revision).slice(0, 9)}) and this build, e.g. ${apiFacingDiff[0]}`,
       );
     }
+    if (staleness?.state === "older") {
+      return {
+        build: false,
+        reason: `this build is older than the live web (${String(staleness.liveWebRevision).slice(0, 9)}); a stale deployment must not replace a newer release`,
+      };
+    }
+    const webNote =
+      staleness?.state === "current"
+        ? `not older than the live web (${String(staleness.liveWebRevision).slice(0, 9)})`
+        : `live web revision not compared (${staleness?.why ?? "not asked"})`;
     return {
       build: true,
-      reason: `the live API (${String(live.revision).slice(0, 9)}, contract ${live.contract}, epoch ${live.routeEpoch}) serves everything this build relies on`,
+      reason: `the live API (${String(live.revision).slice(0, 9)}, contract ${live.contract}, epoch ${live.routeEpoch}) serves everything this build relies on; ${webNote}`,
     };
   }
   if (!Array.isArray(changedFiles)) {
@@ -261,6 +287,69 @@ export function readApiFacingDiff(
   }
 }
 
+/**
+ * The production web's own revision, from its /api/health on the project's
+ * production domain (Vercel's VERCEL_PROJECT_PRODUCTION_URL). Never throws.
+ */
+export async function readLiveWebRevision(env, fetchImpl = globalThis.fetch) {
+  const host = String(env.VERCEL_PROJECT_PRODUCTION_URL ?? "").trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  if (!host) return { error: "VERCEL_PROJECT_PRODUCTION_URL is unset" };
+  if (typeof fetchImpl !== "function") return { error: "fetch is unavailable in this Node runtime" };
+  const url = `https://${host}/api/health`;
+  try {
+    const res = await fetchImpl(url, {
+      signal: timeoutSignal(LIVE_API_TIMEOUT_MS),
+      headers: { accept: "application/json", "user-agent": "proovra-vercel-ignore-build" },
+    });
+    const status = Number(res.status ?? 0);
+    if (status < 200 || status >= 300) return { url, error: `HTTP ${status}` };
+    const body = await res.json();
+    const revision = typeof body?.revision === "string" ? body.revision.trim() : "";
+    return /^[0-9a-f]{7,40}$/.test(revision) ? { url, revision } : { url, error: "no revision stated" };
+  } catch (e) {
+    return { url, error: `${e?.name ?? "Error"}: ${String(e?.message ?? e)}` };
+  }
+}
+
+/**
+ * Whether HEAD is OLDER than the live web: "older" when HEAD is a strict
+ * ancestor of the live revision, "current" when it is that revision or not
+ * behind it, "unknown" (with why) when that cannot be established.
+ */
+export function readStaleness(
+  liveWeb,
+  run = (args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000 }),
+) {
+  if (!liveWeb || liveWeb.error || !liveWeb.revision) {
+    return { state: "unknown", why: `live web revision unreadable: ${liveWeb?.error ?? "not asked"}` };
+  }
+  const rev = liveWeb.revision;
+  try {
+    const head = run(["rev-parse", "HEAD"]).trim();
+    if (head.startsWith(rev) || rev.startsWith(head)) return { state: "current", liveWebRevision: rev };
+    try {
+      run(["cat-file", "-e", `${rev}^{commit}`]);
+    } catch {
+      try {
+        run(["fetch", "--quiet", "--depth=50", "origin", rev]);
+        run(["cat-file", "-e", `${rev}^{commit}`]);
+      } catch {
+        return { state: "unknown", why: `live web revision ${rev.slice(0, 9)} is not in this clone` };
+      }
+    }
+    try {
+      run(["merge-base", "--is-ancestor", "HEAD", rev]);
+      return { state: "older", liveWebRevision: rev };
+    } catch (e) {
+      // Exit 1 is git's "not an ancestor"; anything else (a shallow history) is unknown.
+      if (e?.status === 1) return { state: "current", liveWebRevision: rev };
+      return { state: "unknown", why: `ancestry of ${rev.slice(0, 9)} could not be established` };
+    }
+  } catch (e) {
+    return { state: "unknown", why: `git failed: ${String(e?.message ?? e).slice(0, 120)}` };
+  }
+}
+
 function readChangedFiles(env) {
   // VERCEL_GIT_PREVIOUS_SHA is the last successful deployment of this branch.
   const base = env.VERCEL_GIT_PREVIOUS_SHA || "HEAD^";
@@ -291,14 +380,17 @@ export async function main(env = process.env) {
   const own = { contract: readOwnContractVersion(contractSrc), routeEpoch: readOwnRouteEpoch(contractSrc) };
   const live = await readLiveApi(env, globalThis.fetch, readWebDefaultApiBase(readRepoFile("apps", "web", "lib", "api.ts")));
   const apiFacingDiff = live && !live.error && live.ok && live.revision ? readApiFacingDiff(live.revision) : null;
+  const liveWeb = await readLiveWebRevision(env);
+  const staleness = readStaleness(liveWeb);
   // Written to the Vercel build log, so each deploy records what it compared.
   console.log(
     `vercel-ignore-build: node ${process.version} VERCEL_ENV=${env.VERCEL_ENV ?? "-"} NEXT_PUBLIC_API_BASE=${env.NEXT_PUBLIC_API_BASE ? "set" : "unset"} ref=${env.VERCEL_GIT_COMMIT_REF ?? "-"} sha=${String(env.VERCEL_GIT_COMMIT_SHA ?? "-").slice(0, 9)} ` +
       `build contract ${own.contract ?? "unknown"} epoch ${own.routeEpoch ?? "unknown"}; ` +
       `live API ${live.url ?? "-"} ${live.error ? `error ${live.error}` : `HTTP ${live.status} contract ${live.contract ?? "unknown"} epoch ${live.routeEpoch ?? "unknown"} revision ${live.revision ?? "unknown"}`}; ` +
-      `API-facing diff ${Array.isArray(apiFacingDiff) ? apiFacingDiff.length : "unknown"}`,
+      `API-facing diff ${Array.isArray(apiFacingDiff) ? apiFacingDiff.length : "unknown"}; ` +
+      `live web ${liveWeb.url ?? "-"} ${liveWeb.error ? `error ${liveWeb.error}` : `revision ${liveWeb.revision}`} -> ${staleness.state}${staleness.why ? ` (${staleness.why})` : ""}`,
   );
-  return decide({ env, changedFiles: null, own, live, apiFacingDiff });
+  return decide({ env, changedFiles: null, own, live, apiFacingDiff, staleness });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -21,6 +21,8 @@ import {
   readApiFacingDiff,
   readLiveApi,
   readLiveApiRouteEpoch,
+  readLiveWebRevision,
+  readStaleness,
   readOwnContractVersion,
   readOwnRouteEpoch,
   readWebDefaultApiBase,
@@ -34,12 +36,65 @@ const own = { contract: 1, routeEpoch: 2 };
 const REV = "0376721d99d2b4083989d658d92c64f6a530edbe";
 const liveOk = { ok: true, status: 200, contract: 1, routeEpoch: 2, revision: REV };
 
-test("vercel.json runs the ignore script and holds main deployments", () => {
+test("vercel.json runs the ignore script and has no blanket deployment hold", () => {
   const cfg = JSON.parse(readFileSync(resolve(REPO, "vercel.json"), "utf8"));
   assert.equal(cfg.ignoreCommand, "node scripts/vercel-ignore-build.mjs");
-  // While a server release is pending, Vercel creates no deployment from main.
-  // Lifting this hold is the owner's web-release step (see the rollout handoff).
-  assert.equal(cfg.git?.deploymentEnabled?.main, false);
+  // The gate is the control: main deploys automatically whenever the live API
+  // serves the build. A blanket `deploymentEnabled` block would leave every
+  // compatible release unpublished.
+  assert.equal(cfg.git?.deploymentEnabled, undefined);
+  assert.equal(cfg.git, undefined);
+});
+
+test("production never lets an older build replace a newer live web", () => {
+  const stale = decide({ env: prod, own, live: liveOk, apiFacingDiff: [], staleness: { state: "older", liveWebRevision: REV } });
+  assert.equal(stale.build, false, stale.reason);
+  assert.match(stale.reason, /older than the live web/);
+  const current = decide({ env: prod, own, live: liveOk, apiFacingDiff: [], staleness: { state: "current", liveWebRevision: REV } });
+  assert.equal(current.build, true, current.reason);
+  assert.match(current.reason, /not older than the live web/);
+  // An unreadable live web does not block a compatible release, and says so.
+  const unknown = decide({ env: prod, own, live: liveOk, apiFacingDiff: [], staleness: { state: "unknown", why: "HTTP 403" } });
+  assert.equal(unknown.build, true, unknown.reason);
+  assert.match(unknown.reason, /live web revision not compared \(HTTP 403\)/);
+  // Staleness never overrides incompatibility.
+  assert.equal(decide({ env: prod, own, live: liveOk, apiFacingDiff: ["services/api/src/a.ts"], staleness: { state: "current", liveWebRevision: REV } }).build, false);
+});
+
+test("staleness: strict ancestor of the live web is older; same, descendant or unrelated is current; unknowns say why", () => {
+  const NEW = "a".repeat(40);
+  const git = (headSha, ancestorExit) => (args) => {
+    if (args[0] === "rev-parse") return `${headSha}\n`;
+    if (args[0] === "cat-file") return "";
+    if (args[0] === "merge-base") {
+      if (ancestorExit === 0) return "";
+      throw Object.assign(new Error("exit"), { status: ancestorExit });
+    }
+    return "";
+  };
+  assert.equal(readStaleness({ revision: NEW }, git(REV, 0)).state, "older");
+  assert.equal(readStaleness({ revision: NEW }, git(REV, 1)).state, "current");
+  assert.equal(readStaleness({ revision: REV }, git(REV, 0)).state, "current", "the live revision itself");
+  assert.equal(readStaleness({ revision: NEW }, git(REV, 128)).state, "unknown", "shallow history");
+  assert.equal(readStaleness({ error: "HTTP 403" }, git(REV, 0)).state, "unknown");
+  const absent = (args) => {
+    if (args[0] === "rev-parse") return REV;
+    throw new Error("missing");
+  };
+  assert.match(readStaleness({ revision: NEW }, absent).why, /not in this clone/);
+});
+
+test("the live web revision is read from the production domain's /api/health", async () => {
+  const seen = [];
+  const fake = (status, body) => async (url) => {
+    seen.push(url);
+    return { status, json: async () => body };
+  };
+  const env = { VERCEL_PROJECT_PRODUCTION_URL: "www.example.test" };
+  assert.deepEqual(await readLiveWebRevision(env, fake(200, { revision: REV })), { url: "https://www.example.test/api/health", revision: REV });
+  assert.match((await readLiveWebRevision(env, fake(403, null))).error, /HTTP 403/);
+  assert.match((await readLiveWebRevision(env, fake(200, { ok: true }))).error, /no revision/);
+  assert.match((await readLiveWebRevision({}, fake(200, {}))).error, /VERCEL_PROJECT_PRODUCTION_URL/);
 });
 
 test("previews: a docs/audit-only change set is skipped", () => {

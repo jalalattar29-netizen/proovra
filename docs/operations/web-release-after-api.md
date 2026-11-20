@@ -1,0 +1,58 @@
+# Web release after an API release
+
+The web (`proovra-web` on Vercel) deploys from `main` automatically. Every push
+to `main` creates a production deployment, and Vercel runs
+`node scripts/vercel-ignore-build.mjs` (the `ignoreCommand` in `vercel.json`)
+before building it. There is no blanket hold: the gate decides.
+
+## What the gate does on `main`
+
+It builds only when all of these are positively established; anything else is a
+SKIP (Vercel cancels the deployment and the current production web keeps
+serving):
+
+1. The build's own contract version and route epoch are readable.
+2. `https://api.proovra.com/health` answers 2xx with `x-proovra-contract` and
+   `x-proovra-route-epoch` not lower than the build's.
+3. The live API states its `revision`, and no API-facing source
+   (`services/api/src`, `services/api/prisma`, `services/worker/src`,
+   `packages/shared/src` except locale text) differs between that revision and
+   the commit being built.
+4. The build is not a strict ancestor of the live web's own revision
+   (`https://<production domain>/api/health`), so an older queued or
+   redeployed commit cannot replace a newer release. An unreadable live web is
+   logged and does not block on its own.
+
+Every run writes two lines to the Vercel build log, beginning
+`vercel-ignore-build:`. The first says what was compared. The second gives
+`BUILD` or `SKIP` and the reason.
+
+## Releasing a web that needs a newer API
+
+A push whose API-facing source the live API does not serve yet is skipped, by
+design. Release in the reviewed order: migration → worker → API, on the host,
+with `scripts/deploy-prod-pull.sh` at the release SHA. Then deploy the web.
+
+1. Confirm the API serves the release:
+   `curl -s https://api.proovra.com/health` must show `"revision":"<release SHA>"`
+   (or a later commit of `main`).
+2. Push to `main`. Any commit will do. If there is nothing else to ship:
+   ```bash
+   git commit --allow-empty -m "chore(release): web release after API <release SHA>"
+   ```
+   ```bash
+   git push origin main
+   ```
+3. In the Vercel build log of that deployment, check that the gate printed
+   `vercel-ignore-build: BUILD — the live API (<sha>, ...) serves everything
+   this build relies on`.
+4. Confirm the release:
+   - `https://www.proovra.com/api/health` shows the pushed commit;
+   - the site shows no "update is finishing" notice.
+
+## Break-glass
+
+Set the Vercel environment variable `PROOVRA_WEB_IGNORE_API_EPOCH=1` for one
+deliberate release only, and remove it afterwards. With it set, the gate builds
+without the compatibility check. Vercel's Instant Rollback promotes an earlier
+build without running the gate.

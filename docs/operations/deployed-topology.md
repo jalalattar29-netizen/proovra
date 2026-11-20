@@ -19,7 +19,7 @@ UNVERIFIED line with what you read, the date, and who read it.
 |---|---|---|---|
 | API and worker | Containers from `ghcr.io/<owner>/proovra-{api,worker}:sha-<7>`, deployed by `scripts/deploy-prod-pull.sh` as compose project `docker`, one replica each | REPO | Host shell: `docker compose ls`, `docker ps` |
 | Running release | Unknown. `GET /v1/admin/platform/release` now states the API and worker builds once this release is live; `.deploy-state/releases.jsonl` records each deploy from then on | UNVERIFIED | Platform admin session, or host shell |
-| Web | Vercel, building `main` regardless of CI or API state | REPO | Vercel project settings |
+| Web | Vercel, deploying every `main` push whose build the `vercel.json` ignore gate lets through (live API compatible, not older than the live web) | REPO | Vercel build log lines `vercel-ignore-build:` |
 | Edge | Caddy from `infra/caddy/Caddyfile`, which is not versioned. Responses show `Via: 1.1 Caddy` and no Cloudflare markers, which fits one proxy hop but is a single observation | OBSERVED, file UNVERIFIED | Read the host file and compare with `infra/caddy/Caddyfile.example` |
 | Database | Contradictory. The README says Neon, `subprocessors.md` lists Neon, and the audited workstation `.env` names host `postgres`, which `docker-compose.prod.yml` does not define | UNVERIFIED | Host: the host part of `DATABASE_URL`; provider console for backups and PITR |
 | Redis | Contradictory. Compose runs a local Redis; the workstation `.env` points at Upstash | UNVERIFIED | Host: host part of `REDIS_URL`; `INFO memory` for `maxmemory_policy`; the readiness item `redis_eviction_policy_unsafe` reports it once live |
@@ -46,7 +46,8 @@ last occurrence, so keep that one unless you know otherwise, and check it with
 ## Keeping versions compatible
 
 Migrations go first, then API, then worker, then web
-(`docs/architecture/migration-deployment-plan.md`). Vercel builds `main` on merge, so
-the web usually leads. A page newer than the API now says an update is finishing.
-Holding Vercel's promotion until checks pass is a Vercel project setting and is not
-configured from this repository.
+(`docs/architecture/migration-deployment-plan.md`; since M676 the worker deploys
+before the API). Vercel deploys `main` on merge, but its ignore gate
+(`scripts/vercel-ignore-build.mjs`) skips a build that the live API does not serve
+yet. The web is then released after the API, as described in `web-release-after-api.md`. A page
+newer than the API, open across a release, says an update is finishing.
